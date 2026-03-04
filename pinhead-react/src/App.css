@@ -200,6 +200,9 @@ header {
 .garment-row.selected .garment-row-price { color:var(--accent); }
 .garment-row-fit { font-size:10px; color:#999; margin-left:6px; font-weight:400; letter-spacing:.3px; }
 .garment-row.selected .garment-row-fit { color:var(--accent); }
+.garment-row.drag-target { border-top:2px solid var(--accent); }
+.garment-row[draggable] { cursor:grab; }
+.garment-row[draggable]:active { cursor:grabbing; }
 
 /* ── Fabric Grid ── */
 .fabric-grid { display:flex; flex-direction:column; gap:4px; }
@@ -848,21 +851,21 @@ header {
 .kanban-col-body.drag-over { background:rgba(29,25,234,.03); }
 
 /* Cards */
-.kb-card { background:#fff; border:1.5px solid var(--border-light); cursor:grab; transition:all .15s; position:relative; display:flex; overflow:hidden; }
+.kb-card { background:#fff; border:1.5px solid var(--border-light); cursor:grab; transition:all .15s; position:relative; display:flex; overflow:hidden; min-height:120px; }
 .kb-card:hover { border-color:var(--black); box-shadow:0 2px 8px rgba(0,0,0,.08); }
 .kb-card.dragging { opacity:.4; transform:rotate(2deg); box-shadow:0 8px 24px rgba(0,0,0,.15); }
-.kb-card-bar { width:4px; flex-shrink:0; }
-.kb-card-content { flex:1; padding:10px 12px; min-width:0; }
-.kb-card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+.kb-card-bar { width:4px; flex-shrink:0; align-self:stretch; }
+.kb-card-content { flex:1; padding:10px 12px; min-width:0; display:flex; flex-direction:column; }
+.kb-card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
 .kb-card-id { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:900; letter-spacing:1px; color:var(--accent); }
 .kb-card-id .bx-tag { font-size:7px; background:var(--accent); color:#fff; padding:1px 4px; margin-left:4px; vertical-align:middle; letter-spacing:0; }
 .kb-card-date { font-size:9px; color:var(--text-dim); font-weight:600; white-space:nowrap; }
-.kb-card-client { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:800; line-height:1.2; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.kb-card-meta { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; }
+.kb-card-client { font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:800; line-height:1.2; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kb-card-meta { display:flex; flex-direction:column; gap:2px; flex:1; }
 .kb-card-row { display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-mid); }
 .kb-card-row strong { font-weight:700; color:var(--black); }
-.kb-card-sku { font-size:10px; font-weight:600; color:var(--text-mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.kb-card-bottom { display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-light); }
+.kb-card-sku { font-size:10px; font-weight:600; color:var(--text-mid); }
+.kb-card-bottom { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:6px; border-top:1px solid var(--border-light); }
 .kb-card-sum { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; }
 .kb-card-actions { display:flex; gap:4px; }
 .kb-card-actions button { width:28px; height:28px; background:none; border:1.5px solid var(--border-light); font-family:inherit; font-size:11px; cursor:pointer; transition:all .12s; display:flex; align-items:center; justify-content:center; }

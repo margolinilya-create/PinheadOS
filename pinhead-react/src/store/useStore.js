@@ -121,6 +121,15 @@ export const useStore = create((set, get) => ({
     };
   }),
   setSkuFilter: (f) => set({ skuFilter: f }),
+  reorderSku: (fromCode, toCode) => set(s => {
+    const arr = [...s.skuCatalog];
+    const fromIdx = arr.findIndex(x => x.code === fromCode);
+    const toIdx = arr.findIndex(x => x.code === toCode);
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return {};
+    const [item] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, item);
+    return { skuCatalog: arr };
+  }),
 
   // ─── Fabric & Color ───
   selectFabric: (key) => set(s => ({
