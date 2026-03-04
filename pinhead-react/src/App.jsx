@@ -20,7 +20,6 @@ import AdminPanel from './components/auth/AdminPanel'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
-// Pages: 'wizard' (default step flow), 'express', 'prices', 'sku', 'orders', 'print', 'admin'
 function App() {
   const step = useStore(s => s.step);
   const CurrentStep = STEPS[step] || StepGarment;
@@ -31,11 +30,9 @@ function App() {
 
   if (loading) {
     return (
-      <div className="app">
-        <div className="auth-loading">
-          <span className="header-logo" style={{ fontSize: 32 }}>✳</span>
-          <span>Загрузка...</span>
-        </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, fontSize: 14, color: 'var(--text-dim)' }}>
+        <span style={{ fontSize: 32 }}>✳</span>
+        <span>Загрузка...</span>
       </div>
     );
   }
@@ -44,79 +41,57 @@ function App() {
 
   if (user.approved === false) {
     return (
-      <div className="auth-overlay">
-        <div className="auth-card">
-          <div className="auth-logo">✳ PINHEAD</div>
-          <div className="auth-pending">
-            <div className="auth-pending-icon">⏳</div>
-            <h3>Ожидание подтверждения</h3>
-            <p>Ваш аккаунт ещё не подтверждён администратором.</p>
-            <p className="auth-pending-email">{user.email}</p>
-            <button className="btn-secondary" onClick={() => useAuthStore.getState().logout()}>Выйти</button>
-          </div>
+      <div id="pendingScreen" className="show">
+        <div className="pending-box">
+          <div className="pending-icon">⏳</div>
+          <div className="pending-title">Ожидание подтверждения</div>
+          <p className="pending-desc">Ваш аккаунт ещё не подтверждён администратором.</p>
+          <p className="pending-email">{user.email}</p>
+          <button className="pending-logout" onClick={() => useAuthStore.getState().logout()}>Выйти</button>
         </div>
       </div>
     );
   }
 
   const isAdmin = user.role === 'admin';
-  const goBack = () => setPage('wizard');
+  const closePage = () => setPage('wizard');
 
   return (
-    <div className="app">
+    <>
+      {/* ── RAY DECO SVG ── */}
+      <svg style={{ position: 'fixed', top: -120, right: -80, width: 420, opacity: 0.04, pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="200" y1="200" x2="20"  y2="10"  stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="390" y2="30"  stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="380" y2="200" stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="370" y2="370" stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="200" y2="390" stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="10"  y2="350" stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="30"  y2="200" stroke="#000" strokeWidth="1"/>
+        <line x1="200" y1="200" x2="60"  y2="20"  stroke="#000" strokeWidth="1"/>
+      </svg>
+
       <Header
         activePage={page}
         onNavigate={setPage}
         isAdmin={isAdmin}
       />
 
-      {page === 'wizard' && (
-        <>
-          <ProgressBar />
-          <main className="app-main">
-            <CurrentStep />
-          </main>
-        </>
-      )}
+      <ProgressBar />
 
-      {page === 'express' && (
-        <main className="app-main page-view">
-          <ExpressCalc onBack={goBack} />
-        </main>
-      )}
+      <main className="container">
+        <CurrentStep />
+      </main>
 
-      {page === 'prices' && (
-        <main className="app-main page-view">
-          <PriceEditor onBack={goBack} />
-        </main>
-      )}
-
-      {page === 'sku' && (
-        <main className="app-main page-view">
-          <SkuEditor onBack={goBack} />
-        </main>
-      )}
-
-      {page === 'orders' && (
-        <main className="app-main page-view">
-          <KanbanBoard onBack={goBack} />
-        </main>
-      )}
-
-      {page === 'print' && (
-        <main className="app-main page-view">
-          <PrintPreview onBack={goBack} />
-        </main>
-      )}
-
-      {page === 'admin' && isAdmin && (
-        <main className="app-main page-view">
-          <AdminPanel onBack={goBack} />
-        </main>
-      )}
+      {/* ── Fullscreen overlay panels (like original HTML) ── */}
+      {page === 'express' && <ExpressCalc onClose={closePage} />}
+      {page === 'prices' && <PriceEditor onClose={closePage} />}
+      {page === 'sku' && <SkuEditor onClose={closePage} />}
+      {page === 'orders' && <KanbanBoard onClose={closePage} />}
+      {page === 'print' && <PrintPreview onClose={closePage} />}
+      {page === 'admin' && isAdmin && <AdminPanel onClose={closePage} />}
 
       {isAdmin && <Agentation />}
-    </div>
+    </>
   );
 }
 

@@ -3,7 +3,7 @@ import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES } from '../../
 import { calcTotal, getUnitPrice, getTotalQty, getLabelConfigPrice } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
-export default function PrintPreview({ onBack }) {
+export default function PrintPreview({ onClose }) {
   const state = useStore();
   const total = calcTotal(state);
   const unitPrice = getUnitPrice(state);
@@ -12,7 +12,6 @@ export default function PrintPreview({ onBack }) {
   const orderId = 'PH-' + Date.now().toString(36).toUpperCase();
   const now = new Date().toLocaleString('ru-RU');
 
-  // Размеры
   const sizeEntries = state.sku?.category === 'accessories'
     ? [['ONE SIZE', state.sizes['ONE SIZE'] || 1]]
     : SIZES.map(s => [s, state.sizes[s] || 0]).filter(([, q]) => q > 0);
@@ -20,10 +19,10 @@ export default function PrintPreview({ onBack }) {
   const handlePrint = () => window.print();
 
   return (
-    <div className="pp-page-wrap">
+    <div className="pp-overlay">
       <div className="pp-toolbar no-print">
-        <button className="page-back-btn" onClick={onBack}>← Назад</button>
-        <button className="btn-accent" onClick={handlePrint}>Печать / PDF</button>
+        <button className="btn" onClick={onClose}>← Назад</button>
+        <button className="btn btn-primary" onClick={handlePrint}>Печать / PDF</button>
       </div>
 
       <div className="pp-page">
