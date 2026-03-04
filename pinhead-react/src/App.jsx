@@ -3,6 +3,7 @@ import './App.css'
 import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
+import { useOrdersStore } from './store/useOrdersStore'
 import Header from './components/layout/Header'
 import ProgressBar from './components/layout/ProgressBar'
 import StepGarment from './components/steps/StepGarment'
@@ -18,6 +19,8 @@ import PriceEditor from './components/editors/PriceEditor'
 import SkuEditor from './components/editors/SkuEditor'
 import AdminPanel from './components/auth/AdminPanel'
 import ToastContainer from './components/shared/Toast'
+import TechCard from './components/production/TechCard'
+import Dashboard from './components/analytics/Dashboard'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
@@ -26,6 +29,8 @@ function App() {
   const CurrentStep = STEPS[step] || StepGarment;
   const { user, loading, init } = useAuthStore();
   const [page, setPage] = useState('wizard');
+  const [techCardOrder, setTechCardOrder] = useState(null);
+  const updateStatus = useOrdersStore(s => s.updateStatus);
 
   useEffect(() => { init(); }, [init]);
 
@@ -90,9 +95,19 @@ function App() {
       {page === 'express' && !isProduction && !isDesigner && <ExpressCalc onClose={closePage} />}
       {page === 'prices' && !isProduction && !isDesigner && <PriceEditor onClose={closePage} />}
       {page === 'sku' && !isProduction && !isDesigner && <SkuEditor onClose={closePage} />}
-      {page === 'orders' && <KanbanBoard onClose={closePage} onNavigate={setPage} />}
+      {page === 'orders' && <KanbanBoard onClose={closePage} onNavigate={setPage} onOpenTechCard={setTechCardOrder} />}
       {page === 'print' && <PrintPreview onClose={closePage} />}
       {page === 'admin' && isAdmin && <AdminPanel onClose={closePage} />}
+      {page === 'analytics' && (isAdmin || user.role === 'rop') && <Dashboard onClose={closePage} />}
+
+      {/* TechCard overlay (opened from production/kanban) */}
+      {techCardOrder && (
+        <TechCard
+          order={techCardOrder}
+          onClose={() => setTechCardOrder(null)}
+          onStatusChange={(id, status) => { updateStatus(id, status); setTechCardOrder(prev => prev ? { ...prev, status } : null); }}
+        />
+      )}
 
       {isAdmin && <Agentation />}
       <ToastContainer />

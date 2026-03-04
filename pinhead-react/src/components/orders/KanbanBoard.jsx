@@ -4,7 +4,7 @@ import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 import { toast } from '../shared/Toast';
 
-function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ }) {
+function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onOpenTechCard }) {
   const [showMenu, setShowMenu] = useState(false);
   const d = order.data || {};
   const dt = order.created_at ? new Date(order.created_at) : null;
@@ -45,6 +45,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
           <div className="kb-card-sum">{(order.total_sum || 0).toLocaleString('ru-RU')} ₽</div>
           <div className="kb-card-actions">
             <button className="kb-open" onClick={() => onOpenTZ(order)}>Открыть</button>
+            {onOpenTechCard && <button onClick={() => onOpenTechCard(order)} title="Техкарта">TC</button>}
             <button onClick={() => onDuplicate(order)} title="Дублировать">⎘</button>
             <button onClick={() => onDelete(order.id)} title="Удалить">✕</button>
           </div>
@@ -70,7 +71,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
   );
 }
 
-export default function KanbanBoard({ onClose, onNavigate }) {
+export default function KanbanBoard({ onClose, onNavigate, onOpenTechCard }) {
   const { orders, loading, filter, search, setFilter, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, getFiltered } = useOrdersStore();
   const loadOrder = useStore(s => s.loadOrder);
 
@@ -208,6 +209,7 @@ export default function KanbanBoard({ onClose, onNavigate }) {
                         onDelete={deleteOrder}
                         onDuplicate={duplicateOrder}
                         onOpenTZ={handleOpenTZ}
+                        onOpenTechCard={onOpenTechCard}
                       />
                     ))
                   )}

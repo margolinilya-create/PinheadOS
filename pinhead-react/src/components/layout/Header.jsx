@@ -65,6 +65,11 @@ export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
             Цены
           </button>
         )}
+        {(isAdmin || isProd) && (
+          <button className={`header-nav-btn${isActive('analytics') ? ' active' : ''}`} onClick={nav('analytics')}>
+            Аналитика
+          </button>
+        )}
         {isAdmin && (
           <button className={`header-nav-btn${isActive('admin') ? ' active' : ''}`} onClick={nav('admin')}>
             Admin
