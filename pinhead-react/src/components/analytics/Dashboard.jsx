@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { TYPE_NAMES } from '../../data';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -65,7 +66,9 @@ function exportCSV(orders) {
   a.click(); URL.revokeObjectURL(url);
 }
 
-export default function Dashboard({ onClose }) {
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const orders = useOrdersStore(s => s.orders);
   const [period, setPeriod] = useState(30);
 

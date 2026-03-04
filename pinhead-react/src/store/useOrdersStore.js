@@ -113,6 +113,22 @@ export const useOrdersStore = create((set, get) => ({
     return get().orders.find(o => o.id === id) || null;
   },
 
+  // Патч только data JSONB (для checklist, comments, photos — без пересчёта сумм)
+  patchOrderData: async (id, patch) => {
+    const order = get().orders.find(o => o.id === id);
+    if (!order) return null;
+    const newData = { ...order.data, ...patch };
+    set(s => ({
+      orders: s.orders.map(o => o.id === id ? { ...o, data: newData } : o),
+    }));
+    const { data, error } = await supabase.from('orders').update({ data: newData }).eq('id', id).select();
+    if (!error && data?.[0]) {
+      set(s => ({ orders: s.orders.map(o => o.id === id ? data[0] : o) }));
+      return data[0];
+    }
+    return get().orders.find(o => o.id === id) || null;
+  },
+
   // Обновить статус
   updateStatus: async (id, status) => {
     set(s => ({
@@ -130,6 +146,7 @@ export const useOrdersStore = create((set, get) => ({
   // Дублировать заказ
   duplicateOrder: async (order) => {
     const orderNumber = generateOrderNumber(get().orders);
+    const auth = useAuthStore.getState();
     const dup = {
       order_number: orderNumber,
       status: 'draft',
@@ -137,7 +154,9 @@ export const useOrdersStore = create((set, get) => ({
       total_sum: order.total_sum || 0,
       total_qty: order.total_qty || 0,
       item_type: order.item_type || '',
+      bitrix_deal: order.bitrix_deal || null,
       notes: order.notes || null,
+      created_by: auth.user?.id || null,
       created_at: new Date().toISOString(),
     };
 

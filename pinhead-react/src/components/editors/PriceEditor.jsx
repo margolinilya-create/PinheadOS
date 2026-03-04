@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PRICES } from '../../data/prices';
 
 const STORAGE_KEY = 'ph_prices';
@@ -43,7 +44,9 @@ const EMB_AREA_LABELS = { s: 'S до 7 см', m: 'M до 12 см', l: 'L до 20
 const DTF_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const DTG_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 
-export default function PriceEditor({ onClose }) {
+export default function PriceEditor() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const [tab, setTab] = useState('screen');
   const [prices, setPrices] = useState(clonePrices);
   const [history, setHistory] = useState(loadHistory);

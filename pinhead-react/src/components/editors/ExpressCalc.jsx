@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
@@ -70,7 +71,9 @@ function calcZoneSurcharge(zoneId, d, qty) {
 }
 
 // ── Component ──
-export default function ExpressCalc({ onClose }) {
+export default function ExpressCalc() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const usdRate = useStore(s => s.usdRate);
 
   const [skuCode, setSkuCode] = useState('');

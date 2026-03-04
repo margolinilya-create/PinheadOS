@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
 
-export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
+export default function Header() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const state = useStore();
   const total = calcTotal(state);
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
@@ -16,15 +19,20 @@ export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
     : 'черновик';
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const nav = (page) => () => { onNavigate(activePage === page ? 'wizard' : page); setMenuOpen(false); };
-  const isActive = (page) => activePage === page;
-  const isProd = userRole === 'production';
-  const isDes = userRole === 'designer';
+  const isAdmin = ['admin', 'director'].includes(user?.role);
+  const isProd = user?.role === 'production';
+  const isDes = user?.role === 'designer';
+
+  const nav = (path) => () => {
+    navigate(pathname === path ? '/' : path);
+    setMenuOpen(false);
+  };
+  const isActive = (path) => pathname === path;
 
   return (
     <header>
       {/* ── Logo ── */}
-      <div className="logo" onClick={() => onNavigate('wizard')} style={{ cursor: 'pointer' }}>
+      <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
         <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
           <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
@@ -45,33 +53,33 @@ export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
       {/* ── Navigation (hidden items by role) ── */}
       <nav className={`header-nav${menuOpen ? ' open' : ''}`}>
         {!isProd && !isDes && (
-          <button className={`header-nav-btn express-btn${isActive('express') ? ' active' : ''}`} onClick={nav('express')}>
+          <button className={`header-nav-btn express-btn${isActive('/express') ? ' active' : ''}`} onClick={nav('/express')}>
             Express
           </button>
         )}
-        <button className={`header-nav-btn${isActive('orders') ? ' active' : ''}`} onClick={nav('orders')}>
+        <button className={`header-nav-btn${isActive('/orders') ? ' active' : ''}`} onClick={nav('/orders')}>
           Заказы
         </button>
-        <button className={`header-nav-btn${isActive('print') ? ' active' : ''}`} onClick={nav('print')}>
+        <button className={`header-nav-btn${isActive('/print') ? ' active' : ''}`} onClick={nav('/print')}>
           ТЗ
         </button>
         {!isProd && !isDes && (
-          <button className={`header-nav-btn${isActive('sku') ? ' active' : ''}`} onClick={nav('sku')}>
+          <button className={`header-nav-btn${isActive('/sku') ? ' active' : ''}`} onClick={nav('/sku')}>
             SKU
           </button>
         )}
         {!isProd && !isDes && (
-          <button className={`header-nav-btn${isActive('prices') ? ' active' : ''}`} onClick={nav('prices')}>
+          <button className={`header-nav-btn${isActive('/prices') ? ' active' : ''}`} onClick={nav('/prices')}>
             Цены
           </button>
         )}
         {(isAdmin || isProd) && (
-          <button className={`header-nav-btn${isActive('analytics') ? ' active' : ''}`} onClick={nav('analytics')}>
+          <button className={`header-nav-btn${isActive('/analytics') ? ' active' : ''}`} onClick={nav('/analytics')}>
             Аналитика
           </button>
         )}
         {isAdmin && (
-          <button className={`header-nav-btn${isActive('admin') ? ' active' : ''}`} onClick={nav('admin')}>
+          <button className={`header-nav-btn${isActive('/admin') ? ' active' : ''}`} onClick={nav('/admin')}>
             Admin
           </button>
         )}
