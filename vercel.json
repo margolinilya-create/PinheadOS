@@ -1,6 +1,8 @@
 {
-  "buildCommand": "",
-  "installCommand": "",
-  "outputDirectory": ".",
-  "framework": null
+  "buildCommand": "cd pinhead-react && npm install && npm run build",
+  "outputDirectory": "pinhead-react/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
