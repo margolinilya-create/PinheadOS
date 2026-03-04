@@ -51,17 +51,20 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
         </div>
       </div>
 
-      {/* Status menu on right-click or ••• */}
+      {/* Status menu on right-click or ••• (mobile-friendly) */}
       <button className="kb-card-menu-btn" onClick={() => setShowMenu(!showMenu)}>•••</button>
       {showMenu && (
-        <div className="kb-card-menu">
-          {STATUS_LIST.filter(s => s !== order.status).map(s => (
-            <button key={s} onClick={() => { onStatusChange(order.id, s); setShowMenu(false); }}>
-              <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
-              {STATUS_LABELS[s]}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="kb-card-menu-backdrop" onClick={() => setShowMenu(false)} />
+          <div className="kb-card-menu">
+            {STATUS_LIST.filter(s => s !== order.status).map(s => (
+              <button key={s} onClick={() => { onStatusChange(order.id, s); setShowMenu(false); }}>
+                <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
+                {STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
