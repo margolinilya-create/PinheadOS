@@ -9,13 +9,12 @@
 
 /* ── Header ── */
 header {
-  display:flex; align-items:center; height:52px; gap:0;
+  display:flex; align-items:stretch; height:50px;
   border-bottom:1.5px solid var(--black);
   position:sticky; top:0; background:var(--white); z-index:100;
   font-family:'Barlow Condensed',sans-serif;
-  padding:0 24px;
 }
-.logo { display:flex; align-items:center; gap:10px; flex-shrink:0; cursor:pointer; }
+.logo { display:flex; align-items:center; gap:10px; padding:0 24px; flex-shrink:0; cursor:pointer; }
 .logo-mark { width:24px; height:24px; flex-shrink:0; }
 .logo-text {
   font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900;
@@ -28,25 +27,27 @@ header {
 
 /* Navigation tabs */
 .header-nav {
-  display:flex; align-items:center; gap:4px;
-  margin-left:32px;
+  display:flex; align-items:stretch;
+  margin-left:auto;
 }
 .header-nav-btn {
-  background:none; border:none; border-radius:6px;
-  color:var(--text-dim); padding:6px 14px;
+  background:none; border:none; border-left:1px solid var(--border-light);
+  color:var(--text-dim); height:50px; padding:0 20px;
   cursor:pointer; font-family:'Barlow Condensed',sans-serif;
-  font-size:13px; font-weight:700; letter-spacing:.5px;
-  transition:background .12s, color .12s; white-space:nowrap;
+  font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px;
+  display:flex; align-items:center;
+  transition:background .12s, color .12s; white-space:nowrap; flex-shrink:0;
 }
 .header-nav-btn:hover { background:var(--bg3); color:var(--black); }
 .header-nav-btn.active { background:var(--black); color:var(--white); }
 
 /* Right section */
 .header-right {
-  display:flex; align-items:center; gap:16px; margin-left:auto;
+  display:flex; align-items:stretch; margin-left:0;
 }
 .header-draft {
   display:flex; align-items:center; gap:6px;
+  padding:0 16px; border-left:1px solid var(--border-light);
 }
 .draft-dot { width:5px; height:5px; border-radius:50%; background:var(--text-dim); flex-shrink:0; transition:background .3s; }
 .draft-dot.saving { background:#b89000; }
@@ -62,7 +63,7 @@ header {
 .draft-reset-btn:hover { opacity:1; color:var(--black); }
 .header-total {
   display:flex; align-items:center; gap:6px;
-  padding-left:16px; border-left:1px solid var(--border-light);
+  padding:0 16px; border-left:1px solid var(--border-light);
 }
 .total-label {
   font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
@@ -74,12 +75,13 @@ header {
 }
 .header-logout {
   background:none; border:none; border-left:1px solid var(--border-light);
-  color:var(--text-dim); padding:0 0 0 16px;
+  color:var(--text-dim); height:50px; padding:0 20px;
   cursor:pointer; font-family:'Barlow Condensed',sans-serif;
   font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
-  transition:color .12s; white-space:nowrap;
+  display:flex; align-items:center;
+  transition:background .12s, color .12s; white-space:nowrap;
 }
-.header-logout:hover { color:var(--black); }
+.header-logout:hover { background:var(--bg3); color:var(--black); }
 
 /* ── Progress Bar ── */
 .progress-bar {
