@@ -95,7 +95,7 @@ export default function StepDetails() {
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
         <button className={`btn-next${!name.trim() ? ' disabled' : ''}`}
           onClick={() => name.trim() && nextStep()}>
-          Далее — Итог →
+          Далее
         </button>
       </div>
     </div>

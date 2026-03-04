@@ -116,23 +116,28 @@ function ColorPicker() {
         {color && <div className="color-selected-info">Выбран: {colors.find(c => c.code === color)?.name || color}</div>}
       </div>
       <div className="swatches">
-        {groups.map(g => g.codes.map(code => {
-          const entry = colors.find(c => c.code === code);
-          if (!entry) return null;
-          const hidden = searchLower && !entry.name.toLowerCase().includes(searchLower) && !entry.code.toLowerCase().includes(searchLower);
-          return (
-            <div
-              key={code}
-              className={`swatch${color === code ? ' selected' : ''}${hidden ? ' hidden' : ''}`}
-              title={`${entry.name} (${entry.code})`}
-              onClick={() => selectColor(code)}
-            >
-              <div className="swatch-circle" style={{ backgroundColor: entry.hex }} />
-              <div className="swatch-code">{entry.code}</div>
-              <div className="swatch-label">{entry.name}</div>
-            </div>
-          );
-        }))}
+        {groups.map(g => {
+          const groupColors = g.codes.map(code => colors.find(c => c.code === code)).filter(Boolean);
+          if (!groupColors.length) return null;
+          return [
+            !searchLower && <div key={'gl-' + g.label} className="swatch-group-label">{g.label}</div>,
+            ...groupColors.map(entry => {
+              const hidden = searchLower && !entry.name.toLowerCase().includes(searchLower) && !entry.code.toLowerCase().includes(searchLower);
+              return (
+                <div
+                  key={entry.code}
+                  className={`swatch${color === entry.code ? ' selected' : ''}${hidden ? ' hidden' : ''}`}
+                  title={`${entry.name} (${entry.code})`}
+                  onClick={() => selectColor(entry.code)}
+                >
+                  <div className="swatch-circle" style={{ backgroundColor: entry.hex }} />
+                  <div className="swatch-code">{entry.code}</div>
+                  <div className="swatch-label">{entry.name}</div>
+                </div>
+              );
+            })
+          ];
+        })}
       </div>
     </div>
   );
@@ -237,7 +242,7 @@ export default function StepGarment() {
       <SizeTable />
       <div className="btn-row">
         <button className={`btn-next${canNext ? '' : ' disabled'}`} onClick={() => canNext && nextStep()}>
-          Далее — Обработки →
+          Далее
         </button>
       </div>
     </div>
