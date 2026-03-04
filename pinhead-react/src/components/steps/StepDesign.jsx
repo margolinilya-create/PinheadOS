@@ -79,7 +79,7 @@ export default function StepDesign() {
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
         <button className={`btn-next${!noPrint && !noPrintType && zones.length === 0 ? ' disabled' : ''}`}
           onClick={() => (noPrint || noPrintType || zones.length > 0) && nextStep()}>
-          Далее — Детали →
+          Далее
         </button>
       </div>
     </div>

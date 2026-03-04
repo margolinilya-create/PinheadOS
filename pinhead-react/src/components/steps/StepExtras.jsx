@@ -56,7 +56,7 @@ export default function StepExtras() {
 
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
-        <button className="btn-next" onClick={nextStep}>Далее — Дизайн →</button>
+        <button className="btn-next" onClick={nextStep}>Далее</button>
       </div>
     </div>
   );
