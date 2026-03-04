@@ -1,11 +1,11 @@
 import { useStore } from '../../store/useStore';
 
 const STEPS = [
-  { label: 'Изделие', icon: '1' },
-  { label: 'Обработки', icon: '2' },
-  { label: 'Дизайн', icon: '3' },
-  { label: 'Детали', icon: '4' },
-  { label: 'Итог', icon: '5' },
+  { label: 'Изделие', num: '01' },
+  { label: 'Обработки', num: '02' },
+  { label: 'Дизайн', num: '03' },
+  { label: 'Детали', num: '04' },
+  { label: 'Итог', num: '05' },
 ];
 
 export default function ProgressBar() {
@@ -25,7 +25,9 @@ export default function ProgressBar() {
             onClick={() => goToStep(i)}
             disabled={i > maxStep}
           >
-            <span className="step-num">{s.icon}</span>
+            <div className="step-num">
+              {i < step ? <span>✓</span> : <span>{s.num}</span>}
+            </div>
             <span className="step-label">{s.label}</span>
           </button>
         );

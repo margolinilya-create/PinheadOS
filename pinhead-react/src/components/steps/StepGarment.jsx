@@ -190,6 +190,11 @@ export default function StepGarment() {
 
   return (
     <div className="step-panel">
+      <div className="step-header">
+        <div className="step-header-label">// 01 — Изделие</div>
+        <h1 className="step-header-title">ИЗДЕЛИЕ</h1>
+        <p className="step-header-desc">Выберите изделие, ткань и цвет</p>
+      </div>
       <div className="step-content-grid">
         <div className="step-main">
           <SkuList />
