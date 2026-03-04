@@ -10,7 +10,8 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
   const dateStr = dt ? dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) : '';
   const bx = order.bitrix_deal || '';
   const mainNum = bx || order.order_number || '—';
-  const skuName = d.sku ? d.sku.name : (TYPE_NAMES[order.item_type] || order.item_type || '—');
+  const itemKey = (order.item_type || '').toLowerCase();
+  const skuName = d.sku ? d.sku.name : (TYPE_NAMES[itemKey] || TYPE_NAMES[order.item_type] || order.item_type || '—');
   const fabricName = d.fabric ? (FABRIC_NAMES[d.fabric] || d.fabric) : '';
   const techName = d.tech ? (TECH_NAMES[d.tech] || d.tech) : '';
 
