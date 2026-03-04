@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
@@ -14,7 +15,8 @@ export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
     : draftStatus === 'saved' ? 'сохранено'
     : 'черновик';
 
-  const nav = (page) => () => onNavigate(activePage === page ? 'wizard' : page);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const nav = (page) => () => { onNavigate(activePage === page ? 'wizard' : page); setMenuOpen(false); };
   const isActive = (page) => activePage === page;
   const isProd = userRole === 'production';
   const isDes = userRole === 'designer';
@@ -35,8 +37,13 @@ export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
         </div>
       </div>
 
+      {/* ── Burger (mobile) ── */}
+      <button className="burger-btn" onClick={() => setMenuOpen(!menuOpen)}>
+        {menuOpen ? '✕' : '☰'}
+      </button>
+
       {/* ── Navigation (hidden items by role) ── */}
-      <nav className="header-nav">
+      <nav className={`header-nav${menuOpen ? ' open' : ''}`}>
         {!isProd && !isDes && (
           <button className={`header-nav-btn express-btn${isActive('express') ? ' active' : ''}`} onClick={nav('express')}>
             Express

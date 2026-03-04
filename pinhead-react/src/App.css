@@ -1649,6 +1649,61 @@ header {
 .toast-msg { flex:1; }
 @keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 
+/* ── Responsive: Tablet ── */
+@media (max-width: 768px) {
+  .container { padding:20px 16px; }
+  header { height:48px; }
+  .header-nav-btn { padding:0 12px; font-size:10px; height:48px; }
+  .header-logout { padding:0 12px; font-size:10px; height:48px; }
+  .header-draft { padding:0 10px; }
+  .header-total { padding:0 10px; }
+  .total-value { font-size:16px; }
+  .logo { padding:0 16px; }
+  .logo-text { font-size:15px; }
+  .progress-bar { padding:0 16px; }
+  .step-tab { padding:10px 12px; font-size:11px; }
+  .step-header-title { font-size:32px; }
+  .summary-grid { grid-template-columns:1fr; }
+  .form-grid { grid-template-columns:1fr; }
+  .form-field.full { grid-column:1; }
+  .btn-row { flex-wrap:wrap; gap:8px; }
+  .btn-row > * { flex:1 1 auto; min-width:120px; }
+  .garment-row-name { font-size:15px; }
+  .swatches { grid-template-columns:repeat(auto-fill, minmax(60px, 1fr)); }
+  /* Burger: hide nav on mobile, show burger btn */
+  .header-nav { display:none; }
+  .header-nav.open { display:flex; flex-direction:column; position:absolute; top:48px; left:0; right:0; background:var(--white); border-bottom:1.5px solid var(--black); z-index:200; }
+  .header-nav.open .header-nav-btn { height:44px; border-left:none; border-bottom:1px solid var(--border-light); justify-content:center; }
+  .burger-btn { display:flex !important; }
+  .header-right { margin-left:auto; }
+  /* Kanban: list mode on mobile */
+  .kanban-board { flex-direction:column; }
+  .kanban-col { min-width:100%; flex:none; }
+}
+
+/* ── Responsive: Phone ── */
+@media (max-width: 480px) {
+  .step-header-title { font-size:28px; }
+  .garment-row { height:48px; }
+  .garment-row-name { font-size:14px; }
+  .swatch { min-width:44px; min-height:44px; }
+  .swatch-circle { width:28px; height:28px; }
+  .btn-row { flex-direction:column; }
+  .btn-row > * { width:100%; min-width:0; }
+  .qty-btn { width:36px; height:36px; }
+  .qty-input { width:48px; height:36px; }
+  .kb-card { min-height:auto; }
+  .toast-container { left:16px; right:16px; bottom:16px; }
+  .toast { min-width:auto; }
+}
+
+/* Burger button — hidden by default, shown on mobile */
+.burger-btn {
+  display:none; background:none; border:none; border-left:1px solid var(--border-light);
+  padding:0 16px; height:48px; cursor:pointer; font-size:18px; color:var(--black);
+  align-items:center; flex-shrink:0;
+}
+
 @media print {
   .header, .progress-bar, .btn-row, .no-print { display:none !important; }
   .pp-overlay, .pp-page-wrap { position:static; overflow:visible; }
