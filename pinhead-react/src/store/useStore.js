@@ -7,6 +7,18 @@ import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXT
 // Начальные размеры {2XS:0, XS:0, ...}
 const initSizes = () => Object.fromEntries(SIZES.map(s => [s, 0]));
 
+// Порядок размеров для сортировки (от маленького к большому)
+const SIZE_ORDER_MAP = { '3XS': 1, '2XS': 2, 'XS': 3, 'S': 4, 'M': 5, 'L': 6, 'XL': 7, '2XL': 8, '3XL': 9, '4XL': 10, '5XL': 11, '6XL': 12, '7XL': 13, '8XL': 14, '9XL': 15, '10XL': 16 };
+function sizeOrder(label) {
+  const up = (label || '').toUpperCase().trim();
+  if (SIZE_ORDER_MAP[up]) return SIZE_ORDER_MAP[up];
+  // Числовой размер (28, 30, 32, ...)
+  const num = parseInt(up);
+  if (!isNaN(num)) return 100 + num;
+  // Неизвестный — в конец
+  return 999;
+}
+
 const initialState = {
   step: 0,
   maxStep: 0,
@@ -201,18 +213,23 @@ export const useStore = create((set, get) => ({
   toggleUrgent: () => set(s => ({ urgentOption: !s.urgentOption })),
 
   // ─── Custom Sizes ───
-  addCustomSize: (label) => set(s => ({
-    customSizes: [...s.customSizes, { label: label || `${s.customSizes.length + 4}XL`, qty: 0 }],
-  })),
+  addCustomSize: (label) => set(s => {
+    const newLabel = label || `${s.customSizes.length + 4}XL`;
+    const updated = [...s.customSizes, { label: newLabel, qty: 0 }];
+    updated.sort((a, b) => sizeOrder(a.label) - sizeOrder(b.label));
+    return { customSizes: updated };
+  }),
   removeCustomSize: (idx) => set(s => ({
     customSizes: s.customSizes.filter((_, i) => i !== idx),
   })),
   setCustomSizeQty: (idx, qty) => set(s => ({
     customSizes: s.customSizes.map((c, i) => i === idx ? { ...c, qty: Math.max(0, parseInt(qty) || 0) } : c),
   })),
-  setCustomSizeLabel: (idx, label) => set(s => ({
-    customSizes: s.customSizes.map((c, i) => i === idx ? { ...c, label } : c),
-  })),
+  setCustomSizeLabel: (idx, label) => set(s => {
+    const updated = s.customSizes.map((c, i) => i === idx ? { ...c, label } : c);
+    updated.sort((a, b) => sizeOrder(a.label) - sizeOrder(b.label));
+    return { customSizes: updated };
+  }),
 
   // ─── Load Order (восстановление из Supabase данных) ───
   loadOrder: (order) => {
