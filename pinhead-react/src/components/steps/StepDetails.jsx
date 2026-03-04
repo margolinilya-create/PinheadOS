@@ -1,9 +1,9 @@
 import { useStore } from '../../store/useStore';
 
 const ROLES = [
-  { key: 'manager', label: 'Менеджер' },
-  { key: 'client', label: 'Клиент' },
-  { key: 'partner', label: 'Партнёр' },
+  { key: 'manager', label: '👔 Менеджер' },
+  { key: 'client', label: '🧑 Клиент' },
+  { key: 'partner', label: '🤝 Партнёр' },
 ];
 
 export default function StepDetails() {
@@ -14,7 +14,7 @@ export default function StepDetails() {
     <div className="step-panel">
       <div className="step-header">
         <div className="step-header-label">// 04 — Детали</div>
-        <h1 className="step-header-title">ДЕТАЛИ</h1>
+        <h1 className="step-header-title">ДЕТАЛИ<br/>ЗАКАЗА</h1>
         <p className="step-header-desc">Заполните контактные данные и условия заказа</p>
       </div>
       {/* Role */}
@@ -48,7 +48,7 @@ export default function StepDetails() {
         </div>
         <div className="form-field">
           <label>Мессенджер</label>
-          <input type="text" value={messenger} placeholder="Telegram / WhatsApp" onChange={e => setField('messenger', e.target.value)} />
+          <input type="text" value={messenger} placeholder="@username" onChange={e => setField('messenger', e.target.value)} />
         </div>
         <div className="form-field">
           <label>Дедлайн</label>
@@ -69,15 +69,25 @@ export default function StepDetails() {
         </div>
       </div>
 
-      {/* Options */}
-      <div className="options-row">
-        <label className="toggle-label">
+      {/* Toggle Options */}
+      <div className="toggle-row">
+        <div>
+          <div className="toggle-label-text">Индивидуальная упаковка (+15 ₽/шт)</div>
+          <div className="toggle-sub">Каждое изделие в индивидуальном пакете</div>
+        </div>
+        <label className="toggle">
           <input type="checkbox" checked={packOption} onChange={togglePack} />
-          <span>Индивидуальная упаковка (+15 ₽/шт)</span>
+          <span className="toggle-slider" />
         </label>
-        <label className="toggle-label">
+      </div>
+      <div className="toggle-row">
+        <div>
+          <div className="toggle-label-text">Срочное производство (+20%)</div>
+          <div className="toggle-sub">Приоритет в очереди производства</div>
+        </div>
+        <label className="toggle">
           <input type="checkbox" checked={urgentOption} onChange={toggleUrgent} />
-          <span>Срочное производство (+20%)</span>
+          <span className="toggle-slider" />
         </label>
       </div>
 

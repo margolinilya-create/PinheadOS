@@ -33,8 +33,11 @@ export default function StepDesign() {
                 className={`zone-card${zones.includes(z) ? ' selected' : ''}`}
                 onClick={() => toggleZone(z)}
               >
+                <div className="zone-bar" />
+                <div className="zone-card-inner">
+                  <div className="zone-label">{ZONE_LABELS[z] || z}</div>
+                </div>
                 <div className="zone-check">{zones.includes(z) ? '✓' : ''}</div>
-                <div className="zone-name">{ZONE_LABELS[z] || z}</div>
               </div>
             ))}
           </div>
@@ -47,9 +50,12 @@ export default function StepDesign() {
           </div>
 
           {zones.length > 0 && !noPrint && (
-            <div className="zone-tech-blocks">
-              {zones.map(z => <ZoneTechBlock key={z} zone={z} />)}
-            </div>
+            <>
+              <div className="section-label" style={{ marginTop: 24 }}>Техника нанесения по зонам</div>
+              <div className="zone-tech-blocks">
+                {zones.map(z => <ZoneTechBlock key={z} zone={z} />)}
+              </div>
+            </>
           )}
         </>
       )}
