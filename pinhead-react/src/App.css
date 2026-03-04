@@ -2,6 +2,9 @@
 /* PINHEAD ORDER STUDIO v1.7 — React CSS      */
 /* ═══════════════════════════════════════════ */
 
+/* ── Global: prevent iOS auto-zoom on input focus ── */
+input, textarea, select { font-size:16px; }
+
 /* ── Layout ── */
 .app { min-height:100vh; display:flex; flex-direction:column; }
 .app-main { flex:1; max-width:1120px; margin:0 auto; padding:52px 40px; width:100%; }
@@ -46,7 +49,7 @@ header {
 
 /* Right section */
 .header-right {
-  display:flex; align-items:stretch; margin-left:0;
+  display:flex; align-items:stretch; margin-left:0; flex-shrink:0;
 }
 .header-draft {
   display:flex; align-items:center; gap:6px;
