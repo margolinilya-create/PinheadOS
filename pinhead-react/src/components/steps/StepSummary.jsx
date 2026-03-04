@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../shared/Toast';
@@ -64,7 +65,8 @@ ${extrasNames.length ? 'Обработки: ' + extrasNames.join(', ') : ''}
 ━━━━━━━━━━━━━━━━━━━━`.replace(/\n{3,}/g, '\n\n').trim();
 }
 
-export default function StepSummary({ onNavigate }) {
+export default function StepSummary() {
+  const navigate = useNavigate();
   const state = useStore();
   const { sku, type, fabric, color, fit, sizes, extras, extrasCatalog, zones, zoneTechs,
     name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
@@ -159,8 +161,8 @@ export default function StepSummary({ onNavigate }) {
           <div className="order-id">{savedNum}</div>
           <div className="success-btns">
             <button className="btn" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
-            <button className="btn" onClick={() => onNavigate?.('print')}>Печать / PDF</button>
-            <button className="btn" onClick={() => onNavigate?.('orders')}>Все заказы</button>
+            <button className="btn" onClick={() => navigate('/print')}>Печать / PDF</button>
+            <button className="btn" onClick={() => navigate('/orders')}>Все заказы</button>
             <button className="btn btn-primary" onClick={() => { resetOrder(); setSavedNum(null); }}>Новый заказ</button>
           </div>
         </div>
@@ -253,7 +255,7 @@ export default function StepSummary({ onNavigate }) {
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
         <button className="btn-secondary" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
-        <button className="btn-secondary" onClick={() => onNavigate?.('print')}>Печать / PDF</button>
+        <button className="btn-secondary" onClick={() => navigate('/print')}>Печать / PDF</button>
         <button className={`btn-accent${saving ? ' disabled' : ''}`} onClick={handleSave}>
           {saving ? 'Сохранение...' : state._editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
         </button>

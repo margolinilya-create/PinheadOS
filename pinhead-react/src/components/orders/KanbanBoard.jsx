@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
@@ -71,7 +72,9 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
   );
 }
 
-export default function KanbanBoard({ onClose, onNavigate, onOpenTechCard }) {
+export default function KanbanBoard({ onOpenTechCard }) {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const { orders, loading, filter, search, setFilter, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, getFiltered } = useOrdersStore();
   const loadOrder = useStore(s => s.loadOrder);
 
@@ -118,7 +121,7 @@ export default function KanbanBoard({ onClose, onNavigate, onOpenTechCard }) {
   // Open TZ: load order into store, then navigate to print preview
   const handleOpenTZ = (order) => {
     loadOrder(order);
-    if (onNavigate) onNavigate('print');
+    navigate('/print');
   };
 
   // Visible statuses based on filter

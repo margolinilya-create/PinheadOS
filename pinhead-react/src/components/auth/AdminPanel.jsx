@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 
-export default function AdminPanel({ onClose }) {
+export default function AdminPanel() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const [tab, setTab] = useState('orders');
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);

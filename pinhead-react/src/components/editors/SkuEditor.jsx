@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { TRIM_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
@@ -38,7 +39,9 @@ function getDefaultZones(cat) {
   return ['front', 'back', 'sleeve-l', 'sleeve-r'];
 }
 
-export default function SkuEditor({ onClose }) {
+export default function SkuEditor() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const store = useStore();
   const { skuCatalog, fabricsCatalog, trimCatalog, usdRate, setField } = store;
   const [tab, setTab] = useState('items');

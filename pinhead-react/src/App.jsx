@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
@@ -24,11 +25,29 @@ import Dashboard from './components/analytics/Dashboard'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
-function App() {
+// Wizard page — main step-based flow
+function WizardPage() {
   const step = useStore(s => s.step);
   const CurrentStep = STEPS[step] || StepGarment;
+  return (
+    <>
+      <ProgressBar />
+      <main className="container">
+        <CurrentStep />
+      </main>
+    </>
+  );
+}
+
+// Role guard — redirects to / if role doesn't match
+function RoleGuard({ allowed, children }) {
+  const user = useAuthStore(s => s.user);
+  if (!allowed) return <Navigate to="/" replace />;
+  return children;
+}
+
+function App() {
   const { user, loading, init } = useAuthStore();
-  const [page, setPage] = useState('wizard');
   const [techCardOrder, setTechCardOrder] = useState(null);
   const updateStatus = useOrdersStore(s => s.updateStatus);
 
@@ -62,7 +81,7 @@ function App() {
   const isAdmin = ['admin', 'director'].includes(user.role);
   const isProduction = user.role === 'production';
   const isDesigner = user.role === 'designer';
-  const closePage = () => setPage('wizard');
+  const canEdit = !isProduction && !isDesigner;
 
   return (
     <>
@@ -78,29 +97,21 @@ function App() {
         <line x1="200" y1="200" x2="60"  y2="20"  stroke="#000" strokeWidth="1"/>
       </svg>
 
-      <Header
-        activePage={page}
-        onNavigate={setPage}
-        isAdmin={isAdmin}
-        userRole={user.role}
-      />
+      <Header />
 
-      <ProgressBar />
+      <Routes>
+        <Route path="/" element={<WizardPage />} />
+        <Route path="/orders" element={<KanbanBoard onOpenTechCard={setTechCardOrder} />} />
+        <Route path="/print" element={<PrintPreview />} />
+        <Route path="/express" element={<RoleGuard allowed={canEdit}><ExpressCalc /></RoleGuard>} />
+        <Route path="/prices" element={<RoleGuard allowed={canEdit}><PriceEditor /></RoleGuard>} />
+        <Route path="/sku" element={<RoleGuard allowed={canEdit}><SkuEditor /></RoleGuard>} />
+        <Route path="/admin" element={<RoleGuard allowed={isAdmin}><AdminPanel /></RoleGuard>} />
+        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || user.role === 'rop'}><Dashboard /></RoleGuard>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
-      <main className="container">
-        <CurrentStep onNavigate={setPage} />
-      </main>
-
-      {/* ── Fullscreen overlay panels ── */}
-      {page === 'express' && !isProduction && !isDesigner && <ExpressCalc onClose={closePage} />}
-      {page === 'prices' && !isProduction && !isDesigner && <PriceEditor onClose={closePage} />}
-      {page === 'sku' && !isProduction && !isDesigner && <SkuEditor onClose={closePage} />}
-      {page === 'orders' && <KanbanBoard onClose={closePage} onNavigate={setPage} onOpenTechCard={setTechCardOrder} />}
-      {page === 'print' && <PrintPreview onClose={closePage} />}
-      {page === 'admin' && isAdmin && <AdminPanel onClose={closePage} />}
-      {page === 'analytics' && (isAdmin || user.role === 'rop') && <Dashboard onClose={closePage} />}
-
-      {/* TechCard overlay (opened from production/kanban) */}
+      {/* TechCard overlay (opened from kanban) */}
       {techCardOrder && (
         <TechCard
           order={techCardOrder}

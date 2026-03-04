@@ -1,9 +1,12 @@
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES } from '../../data';
 import { calcTotal, getUnitPrice, getTotalQty, getLabelConfigPrice } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
-export default function PrintPreview({ onClose }) {
+export default function PrintPreview() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
   const state = useStore();
   const total = calcTotal(state);
   const unitPrice = getUnitPrice(state);
