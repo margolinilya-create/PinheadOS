@@ -7132,83 +7132,141 @@ function newOrder() { clearDraft(); location.reload(); }
 function generatePDF() {
   var orderId = state._editingOrderNumber || state._lastSavedOrderNum || generateId();
   var now = new Date().toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric'});
-  var deadline = state.deadline || '\u2014';
+  var deadline = state.deadline || '—';
   var totalQty = getActiveTotalQty();
   var total = calcTotal();
   var colorEntry = findColorEntry(state.color);
-  var colorName = colorEntry ? colorEntry.name : (state.color || '\u2014');
+  var colorName = colorEntry ? colorEntry.name : (state.color || '—');
   var fabricName = getFabricLabel(state.fabric);
-  var typeName = state.sku ? state.sku.name + ' [' + state.sku.article + ']' : (TYPE_NAMES[state.type] || state.type || '\u2014');
-  var techLabel = TECH_NAMES[state.tech] || state.tech || '\u2014';
+  var typeName = state.sku ? state.sku.name + ' [' + state.sku.article + ']' : (TYPE_NAMES[state.type] || state.type || '—');
 
+  // ── Размеры ──
   var baseSizes = SIZES.filter(function(s){return state.sizes[s]>0});
   var custSizes = (state.customSizes||[]).filter(function(c){return c.qty>0});
   var sizeRows = '';
   var unitPrice = totalQty > 0 ? Math.round(total / totalQty) : 0;
   baseSizes.forEach(function(s) {
     var qty = state.sizes[s];
-    sizeRows += '<tr><td>'+s+'</td><td>'+qty+' \u0448\u0442</td><td>'+unitPrice.toLocaleString("ru")+' \u20BD</td><td>'+(qty*unitPrice).toLocaleString("ru")+' \u20BD</td></tr>';
+    sizeRows += '<tr><td>'+s+'</td><td>'+qty+' шт</td><td>'+unitPrice.toLocaleString("ru")+' ₽</td><td>'+(qty*unitPrice).toLocaleString("ru")+' ₽</td></tr>';
   });
   custSizes.forEach(function(c) {
-    sizeRows += '<tr><td>'+c.label+'</td><td>'+c.qty+' \u0448\u0442</td><td>'+unitPrice.toLocaleString("ru")+' \u20BD</td><td>'+(c.qty*unitPrice).toLocaleString("ru")+' \u20BD</td></tr>';
+    sizeRows += '<tr><td>'+c.label+'</td><td>'+c.qty+' шт</td><td>'+unitPrice.toLocaleString("ru")+' ₽</td><td>'+(c.qty*unitPrice).toLocaleString("ru")+' ₽</td></tr>';
   });
 
+  // ── Зоны нанесения (per-zone техники) ──
   var zonesHtml = '';
-  state.zones.forEach(function(z) {
-    var zn = {chest:'\u0413\u0440\u0443\u0434\u044c',back:'\u0421\u043f\u0438\u043d\u0430','left-sleeve':'\u041b\u0435\u0432. \u0440\u0443\u043a\u0430\u0432','right-sleeve':'\u041f\u0440\u0430\u0432. \u0440\u0443\u043a\u0430\u0432'}[z]||z;
+  (state.zones||[]).forEach(function(z) {
+    var zn = ZONE_NAMES[z] || z;
+    var tech = (state.zoneTechs && state.zoneTechs[z]) ? state.zoneTechs[z] : (state.tech || 'screen');
+    var techName = TECH_NAMES[tech] || tech;
     var det = '';
-    if (state.tech==='screen'){var p=getZonePrint(z);det=p.size+', '+(p.colors>=5?'5+':p.colors)+' \u0446\u0432.';}
-    else if (state.tech==='dtg'){var p=getDtgZone(z);det=p.size+', \u043f\u043e\u043b\u043d\u043e\u0446\u0432\u0435\u0442';}
-    else if (state.tech==='embroidery'){var p=getEmbZone(z);det=({s:'S \u0434\u043e 7\u0441\u043c',m:'M \u0434\u043e 12\u0441\u043c',l:'L \u0434\u043e 20\u0441\u043c'})[p.area]+', '+(p.colors||3)+' \u0446\u0432. \u043d\u0438\u0442\u0438';}
-    else if (state.tech==='dtf'){var p=getDtfZone(z);det=p.size+', \u043f\u043e\u043b\u043d\u043e\u0446\u0432\u0435\u0442';}
-    zonesHtml += '<tr><td>'+zn+'</td><td>'+det+'</td></tr>';
+    var artLink = (state.zoneArtworks && state.zoneArtworks[z]) ? state.zoneArtworks[z] : '';
+    if (tech==='screen'){var p=getZonePrint(z); var fx=(p.fx&&p.fx!=='none')?' · спецэффект':''; det=p.size+', '+(p.colors>=5?'5+':p.colors)+' цв.'+((p.textile&&p.textile!=='white')?' · цвет. текстиль':'')+fx;}
+    else if (tech==='flex'){var p=state.flexZones&&state.flexZones[z]||{size:'A4',colors:1}; det=p.size+', '+p.colors+' цв.';}
+    else if (tech==='dtg'){var p=getDtgZone(z); det=p.size+', полноцвет'+((p.textile&&p.textile!=='white')?' · цвет. текстиль':'');}
+    else if (tech==='embroidery'){var p=getEmbZone(z); det=({s:'S до 7см',m:'M до 12см',l:'L до 20см'})[p.area]+', '+(p.colors||3)+' цв. нити';}
+    else if (tech==='dtf'){var p=getDtfZone(z); det=p.size+', полноцвет';}
+    zonesHtml += '<tr><td>'+zn+'</td><td>'+techName+'</td><td>'+det+'</td><td>'+(artLink||'—')+'</td></tr>';
   });
 
-  var artLinkEl = document.getElementById('artworkLink');
-  var artLink = (artLinkEl && artLinkEl.value) ? artLinkEl.value : '\u2014';
+  // ── Обработки ──
+  var extrasHtml = '';
+  (state.extras||[]).forEach(function(code) {
+    var ex = EXTRAS_CATALOG.find(function(e){return e.code===code});
+    if (ex) extrasHtml += '<tr><td>'+ex.name+'</td><td>'+ex.price+' ₽/шт</td></tr>';
+  });
 
-  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>\u0422\u0417 '+orderId+'</title>'+
-  '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:20mm;color:#000;font-size:11pt}'+
+  // ── Лейблы и бирки ──
+  var labelsHtml = '';
+  (state.labels||[]).forEach(function(code) {
+    var lb = LABELS_CATALOG.find(function(e){return e.code===code});
+    if (lb) labelsHtml += '<tr><td>'+lb.name+'</td><td>'+lb.price+' ₽/шт</td></tr>';
+  });
+
+  // ── Опции ──
+  var optsArr = [];
+  if (state.labelOption) optsArr.push('Инд. бирка (+30 ₽/шт)');
+  if (state.packOption) optsArr.push('Инд. упаковка');
+  if (state.urgentOption) optsArr.push('Срочный заказ');
+  if (state.noPrint) optsArr.push('Без нанесения');
+
+  var css = '*{margin:0;padding:0;box-sizing:border-box}'+
+  'body{font-family:Arial,sans-serif;padding:20mm;color:#000;font-size:10pt}'+
   '@media print{body{padding:10mm}.no-print{display:none!important}@page{margin:12mm}}'+
   '.hdr{border-bottom:3px solid #000;padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end}'+
   '.logo{font-size:24pt;font-weight:900;letter-spacing:3px}.ctn{font-size:8pt;color:#555;text-align:right}'+
-  '.tr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.tr h1{font-size:13pt}.onum{font-size:13pt;font-weight:700;color:#1a1aff}'+
-  '.sec{margin-bottom:10px}.st{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:6px;color:#333}'+
-  'table{width:100%;border-collapse:collapse;margin-bottom:8px}td,th{border:1px solid #ccc;padding:4px 7px;font-size:9pt;text-align:left}th{background:#f5f5f5;font-weight:600}'+
-  '.fr{display:flex;margin-bottom:3px}.fl{width:140px;font-weight:600;color:#555;font-size:9pt}.fv{flex:1;font-size:9pt;background:#f9f9f9;padding:1px 5px;border-bottom:1px solid #eee}'+
-  '.tot{font-size:16pt;font-weight:900;text-align:right;margin-top:12px;color:#1a1aff}'+
+  '.title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}'+
+  '.title-row h1{font-size:14pt;margin:0}.onum{font-size:13pt;font-weight:700;color:#1a1aff}'+
+  '.sec{margin-bottom:12px}.sn{font-size:8pt;color:#999;margin-right:4px}'+
+  '.st{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:8px;color:#000}'+
+  'table{width:100%;border-collapse:collapse;margin-bottom:8px}td,th{border:1px solid #ccc;padding:4px 7px;font-size:9pt;text-align:left}th{background:#f0f0f0;font-weight:600}'+
+  '.fr{display:flex;margin-bottom:3px}.fl{width:130px;font-weight:600;color:#555;font-size:9pt}.fv{flex:1;font-size:9pt;background:#f9f9f9;padding:1px 5px;border-bottom:1px solid #eee}'+
+  '.tag{display:inline-block;padding:2px 8px;font-size:8pt;font-weight:600;border:1px solid #ccc;margin:2px 4px 2px 0}'+
+  '.tot{font-size:16pt;font-weight:900;text-align:right;margin-top:14px;padding-top:8px;border-top:3px solid #000;color:#1a1aff}'+
   '.acts{position:fixed;top:8px;right:8px;display:flex;gap:6px;z-index:1000}.acts button{padding:8px 18px;font-size:11pt;font-weight:700;border:2px solid #000;cursor:pointer}'+
-  '.bp{background:#000;color:#fff}.bc{background:#fff;color:#000}</style></head><body>'+
-  '<div class="acts no-print"><button class="bp" onclick="window.print()">\ud83d\udda8 \u041f\u0415\u0427\u0410\u0422\u042c / PDF</button><button class="bc" onclick="window.close()">\u2715 \u0417\u0410\u041a\u0420\u042b\u0422\u042c</button></div>'+
-  '<div class="hdr"><div class="logo">PINHEAD</div><div class="ctn">PNHD.RU / HELLO@PNHD.RU / +7 (812) 407-27-14</div></div>'+
-  '<div class="tr"><h1>\u0422\u0415\u0425\u041d\u0418\u0427\u0415\u0421\u041a\u041e\u0415 \u0417\u0410\u0414\u0410\u041d\u0418\u0415</h1><span class="onum">['+orderId+']</span></div>'+
-  '<div class="sec"><div class="st">\u0418\u0437\u0434\u0435\u043b\u0438\u0435</div>'+
-  '<div class="fr"><div class="fl">\u0422\u0438\u043f:</div><div class="fv">'+typeName+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0422\u043a\u0430\u043d\u044c:</div><div class="fv">'+fabricName+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0426\u0432\u0435\u0442:</div><div class="fv">'+colorName+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0414\u0430\u0442\u0430 / \u0414\u0435\u0434\u043b\u0430\u0439\u043d:</div><div class="fv">'+now+' \u2192 '+deadline+'</div></div></div>'+
-  '<div class="sec"><div class="st">\u0420\u0430\u0437\u043c\u0435\u0440\u044b</div>'+
-  '<table><tr><th>\u0420\u0430\u0437\u043c\u0435\u0440</th><th>\u041a\u043e\u043b-\u0432\u043e</th><th>\u0426\u0435\u043d\u0430/\u0448\u0442</th><th>\u0421\u0443\u043c\u043c\u0430</th></tr>'+sizeRows+
-  '<tr style="font-weight:700;background:#f5f5f5"><td>\u0418\u0422\u041e\u0413\u041e</td><td>'+totalQty+' \u0448\u0442</td><td></td><td>'+total.toLocaleString("ru")+' \u20BD</td></tr></table></div>'+
-  '<div class="sec"><div class="st">\u041f\u0435\u0447\u0430\u0442\u044c</div>'+
-  '<div class="fr"><div class="fl">\u0422\u0435\u0445\u043d\u0438\u043a\u0430:</div><div class="fv">'+techLabel+'</div></div>'+
-  (zonesHtml?'<table><tr><th>\u0417\u043e\u043d\u0430</th><th>\u041f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b</th></tr>'+zonesHtml+'</table>':'')+
-  '<div class="fr"><div class="fl">\u041c\u0430\u043a\u0435\u0442:</div><div class="fv">'+artLink+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0422\u0417 \u0434\u0438\u0437\u0430\u0439\u043d\u0435\u0440\u0430:</div><div class="fv">'+(state.designNotes||'\u2014')+'</div></div></div>'+
-  '<div class="sec"><div class="st">\u041a\u043b\u0438\u0435\u043d\u0442</div>'+
-  '<div class="fr"><div class="fl">\u0418\u043c\u044f:</div><div class="fv">'+(state.name||'\u2014')+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0422\u0435\u043b\u0435\u0444\u043e\u043d:</div><div class="fv">'+(state.contact||'\u2014')+'</div></div>'+
-  '<div class="fr"><div class="fl">Email:</div><div class="fv">'+(state.email||'\u2014')+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0410\u0434\u0440\u0435\u0441:</div><div class="fv">'+(state.address||'\u2014')+'</div></div></div>'+
-  '<div class="sec"><div class="st">\u041e\u043f\u0446\u0438\u0438</div>'+
-  '<div class="fr"><div class="fl">\u0411\u0438\u0440\u043a\u0430:</div><div class="fv">'+(state.labelOption?'\u0414\u0430':'\u041d\u0435\u0442')+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0423\u043f\u0430\u043a\u043e\u0432\u043a\u0430:</div><div class="fv">'+(state.packOption?'\u0414\u0430':'\u041d\u0435\u0442')+'</div></div>'+
-  '<div class="fr"><div class="fl">\u0421\u0440\u043e\u0447\u043d\u043e:</div><div class="fv">'+(state.urgentOption?'\u0414\u0430':'\u041d\u0435\u0442')+'</div></div></div>'+
-  '<div class="tot">\u0418\u0422\u041e\u0413\u041e: '+total.toLocaleString("ru")+' \u20BD</div></body></html>';
+  '.bp{background:#000;color:#fff}.bc{background:#fff;color:#000}'+
+  '.note{font-size:8pt;color:#777;margin-top:2px}';
+
+  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>ТЗ '+orderId+'</title><style>'+css+'</style></head><body>'+
+  '<div class="acts no-print"><button class="bp" onclick="window.print()">🖨 ПЕЧАТЬ / PDF</button><button class="bc" onclick="window.close()">✕ ЗАКРЫТЬ</button></div>'+
+
+  // Шапка
+  '<div class="hdr"><div class="logo">PINHEAD</div><div class="ctn">PNHD.RU / HELLO@PNHD.RU<br>+7 (812) 407-27-14</div></div>'+
+  '<div class="title-row"><h1>ТЕХНИЧЕСКОЕ ЗАДАНИЕ</h1><span class="onum">['+orderId+']</span></div>'+
+
+  // 1. Изделие
+  '<div class="sec"><div class="st"><span class="sn">01</span> Изделие</div>'+
+  '<div class="fr"><div class="fl">Тип:</div><div class="fv">'+typeName+'</div></div>'+
+  '<div class="fr"><div class="fl">Ткань:</div><div class="fv">'+fabricName+'</div></div>'+
+  '<div class="fr"><div class="fl">Цвет:</div><div class="fv">'+colorName+'</div></div>'+
+  '<div class="fr"><div class="fl">Дата:</div><div class="fv">'+now+'</div></div>'+
+  '<div class="fr"><div class="fl">Дедлайн:</div><div class="fv">'+deadline+'</div></div>'+
+  (state.sizeComment?'<div class="fr"><div class="fl">Комментарий:</div><div class="fv">'+state.sizeComment+'</div></div>':'')+
+  '</div>'+
+
+  // 2. Размеры и тираж
+  '<div class="sec"><div class="st"><span class="sn">02</span> Размеры и тираж</div>'+
+  '<table><tr><th>Размер</th><th>Кол-во</th><th>Цена/шт</th><th>Сумма</th></tr>'+sizeRows+
+  '<tr style="font-weight:700;background:#f0f0f0"><td>ИТОГО</td><td>'+totalQty+' шт</td><td></td><td>'+total.toLocaleString("ru")+' ₽</td></tr></table></div>'+
+
+  // 3. Нанесение
+  '<div class="sec"><div class="st"><span class="sn">03</span> Нанесение</div>'+
+  (state.noPrint?'<div class="fr"><div class="fv">Без нанесения</div></div>':
+    (zonesHtml?'<table><tr><th>Зона</th><th>Техника</th><th>Параметры</th><th>Макет</th></tr>'+zonesHtml+'</table>':'<div class="note">Зоны не выбраны</div>'))+
+  (state.designNotes?'<div class="fr"><div class="fl">ТЗ дизайнера:</div><div class="fv">'+state.designNotes+'</div></div>':'')+
+  '</div>'+
+
+  // 4. Обработки
+  (extrasHtml?'<div class="sec"><div class="st"><span class="sn">04</span> Обработки</div>'+
+  '<table><tr><th>Обработка</th><th>Цена</th></tr>'+extrasHtml+'</table></div>':'')+
+
+  // 5. Бирки и лейблы
+  ((labelsHtml || state.labelOption)?'<div class="sec"><div class="st"><span class="sn">05</span> Бирки и лейблы</div>'+
+  (labelsHtml?'<table><tr><th>Элемент</th><th>Цена</th></tr>'+labelsHtml+'</table>':'')+
+  (state.labelOption?'<div class="fr"><div class="fl">Инд. бирка:</div><div class="fv">Да (+30 ₽/шт)</div></div>':'')+
+  '</div>':'')+
+
+  // 6. Опции
+  '<div class="sec"><div class="st"><span class="sn">06</span> Опции</div>'+
+  (optsArr.length>0?optsArr.map(function(o){return '<span class="tag">'+o+'</span>'}).join(''):'<div class="note">Стандартные условия</div>')+
+  '</div>'+
+
+  // 7. Клиент
+  '<div class="sec"><div class="st"><span class="sn">07</span> Клиент</div>'+
+  '<div class="fr"><div class="fl">Имя:</div><div class="fv">'+(state.name||'—')+'</div></div>'+
+  '<div class="fr"><div class="fl">Телефон:</div><div class="fv">'+(state.contact||'—')+'</div></div>'+
+  '<div class="fr"><div class="fl">Email:</div><div class="fv">'+(state.email||'—')+'</div></div>'+
+  (state.address?'<div class="fr"><div class="fl">Адрес:</div><div class="fv">'+state.address+'</div></div>':'')+
+  (state.notes?'<div class="fr"><div class="fl">Примечания:</div><div class="fv">'+state.notes+'</div></div>':'')+
+  '</div>'+
+
+  // Итого
+  '<div class="tot">ИТОГО: '+total.toLocaleString("ru")+' ₽</div>'+
+  '</body></html>';
 
   var win = window.open('', '_blank');
-  if (win) { win.document.write(h); win.document.close(); showToast('\u0422\u0417 \u043e\u0442\u043a\u0440\u044b\u0442\u043e \u2014 \u043d\u0430\u0436\u043c\u0438\u0442\u0435 \u041f\u0435\u0447\u0430\u0442\u044c / PDF'); }
-  else { showToast('\u0420\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u0435 \u0432\u0441\u043f\u043b\u044b\u0432\u0430\u044e\u0449\u0438\u0435 \u043e\u043a\u043d\u0430'); }
+  if (win) { win.document.write(h); win.document.close(); showToast('ТЗ открыто — нажмите Печать / PDF'); }
+  else { showToast('Разрешите всплывающие окна'); }
 }
 
 
