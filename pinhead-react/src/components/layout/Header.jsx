@@ -6,7 +6,7 @@ import { useDraft } from '../../hooks/useDraft';
 export default function Header({ activePage, onNavigate, isAdmin }) {
   const state = useStore();
   const total = calcTotal(state);
-  const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '— ₽';
+  const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
   const { draftStatus, resetDraft } = useDraft();
   const { user, logout } = useAuthStore();
 
@@ -35,7 +35,7 @@ export default function Header({ activePage, onNavigate, isAdmin }) {
 
       {/* ── Navigation ── */}
       <nav className="header-nav">
-        <button className={`header-nav-btn${isActive('express') ? ' active' : ''}`} onClick={nav('express')}>
+        <button className={`header-nav-btn express-btn${isActive('express') ? ' active' : ''}`} onClick={nav('express')}>
           Express
         </button>
         <button className={`header-nav-btn${isActive('orders') ? ' active' : ''}`} onClick={nav('orders')}>
