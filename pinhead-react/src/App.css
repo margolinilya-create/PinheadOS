@@ -1631,6 +1631,24 @@ header {
 .sku-zone-check input { width:15px; height:15px; cursor:pointer; }
 
 /* ── Print ── */
+/* ── Toast Notifications ── */
+.toast-container {
+  position:fixed; bottom:24px; right:24px; z-index:9999;
+  display:flex; flex-direction:column-reverse; gap:8px;
+}
+.toast {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 16px; min-width:220px; max-width:400px;
+  font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:.5px; cursor:pointer; animation:toastIn .2s ease-out;
+}
+.toast-success { background:#007840; color:#fff; }
+.toast-error { background:#c00; color:#fff; }
+.toast-warning { background:#b89000; color:#fff; }
+.toast-icon { font-size:14px; font-weight:900; flex-shrink:0; }
+.toast-msg { flex:1; }
+@keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
 @media print {
   .header, .progress-bar, .btn-row, .no-print { display:none !important; }
   .pp-overlay, .pp-page-wrap { position:static; overflow:visible; }

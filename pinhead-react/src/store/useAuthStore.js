@@ -15,7 +15,7 @@ export const useAuthStore = create((set, get) => ({
     // ─── DEV MODE bypass (как initAuth() в оригинале) ───
     if (DEV_MODE) {
       set({
-        user: { id: 'dev', email: 'dev@pinhead.studio', name: 'Test User', role: 'manager', approved: true },
+        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', approved: true },
         loading: false,
         error: null,
       });

@@ -17,6 +17,7 @@ import ExpressCalc from './components/editors/ExpressCalc'
 import PriceEditor from './components/editors/PriceEditor'
 import SkuEditor from './components/editors/SkuEditor'
 import AdminPanel from './components/auth/AdminPanel'
+import ToastContainer from './components/shared/Toast'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
@@ -91,6 +92,7 @@ function App() {
       {page === 'admin' && isAdmin && <AdminPanel onClose={closePage} />}
 
       {isAdmin && <Agentation />}
+      <ToastContainer />
     </>
   );
 }

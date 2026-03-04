@@ -7,7 +7,7 @@ const ROLES = [
 ];
 
 export default function StepDetails() {
-  const { name, contact, email, phone, messenger, deadline, address, notes,
+  const { name, contact, email, phone, messenger, bitrixDeal, deadline, address, notes,
     role, packOption, urgentOption, setField, togglePack, toggleUrgent, nextStep, prevStep } = useStore();
 
   return (
@@ -49,6 +49,10 @@ export default function StepDetails() {
         <div className="form-field">
           <label>Мессенджер</label>
           <input type="text" value={messenger} placeholder="@username" onChange={e => setField('messenger', e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label>Bitrix Deal</label>
+          <input type="text" value={bitrixDeal} placeholder="BX-12345" onChange={e => setField('bitrixDeal', e.target.value)} />
         </div>
         <div className="form-field">
           <label>Дедлайн</label>

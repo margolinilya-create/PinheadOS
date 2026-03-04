@@ -56,6 +56,7 @@ export const useOrdersStore = create((set, get) => ({
       total_sum: orderData.total || 0,
       total_qty: orderData.totalQty || 0,
       item_type: orderData.type || '',
+      bitrix_deal: orderData.bitrixDeal || null,
       notes: orderData.notes || null,
       created_at: new Date().toISOString(),
     };
@@ -78,6 +79,7 @@ export const useOrdersStore = create((set, get) => ({
       total_sum: orderData.total || 0,
       total_qty: orderData.totalQty || 0,
       item_type: orderData.type || '',
+      bitrix_deal: orderData.bitrixDeal || null,
       notes: orderData.notes || null,
     };
 
