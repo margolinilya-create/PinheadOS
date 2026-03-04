@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
+import { useOrdersStore } from '../../store/useOrdersStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS } from '../../data';
 import { calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge, getLabelConfigPrice, isAccessory } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
@@ -9,6 +11,9 @@ export default function StepSummary() {
   const { sku, type, fabric, color, fit, sizes, extras, extrasCatalog, zones, zoneTechs,
     name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
     labelConfig, prevStep, resetOrder, fabricsCatalog, trimCatalog, usdRate } = state;
+  const saveOrder = useOrdersStore(s => s.saveOrder);
+  const [saving, setSaving] = useState(false);
+  const [savedNum, setSavedNum] = useState(null);
 
   const total = calcTotal(state);
   const unitPrice = getUnitPrice(state);
@@ -105,10 +110,29 @@ export default function StepSummary() {
         </div>
       </div>
 
+      {savedNum && (
+        <div className="order-saved-banner">
+          Заказ <b>{savedNum}</b> сохранён
+        </div>
+      )}
+
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
-        <button className="btn-accent" onClick={() => alert('Заказ сохранён! (интеграция с Supabase — следующий шаг)')}>
-          Сохранить заказ ✓
+        <button className={`btn-accent${saving ? ' disabled' : ''}`} onClick={async () => {
+          if (saving) return;
+          setSaving(true);
+          const orderData = {
+            type, fabric, color, fit, sizes, extras, zones, zoneTechs,
+            name, contact, email, phone, deadline, address, notes,
+            packOption, urgentOption, labelConfig,
+            sku: sku ? { code: sku.code, name: sku.name } : null,
+            total, totalQty, unitPrice,
+          };
+          const saved = await saveOrder(orderData);
+          setSavedNum(saved?.order_number || 'OK');
+          setSaving(false);
+        }}>
+          {saving ? 'Сохранение...' : 'Сохранить заказ ✓'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
       </div>
