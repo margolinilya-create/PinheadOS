@@ -654,6 +654,10 @@
 .btn-accent { background:var(--accent); color:var(--white); border-color:var(--accent); }
 .btn-accent:hover { background:#2a4ae0; }
 .btn-secondary { background:var(--white); color:var(--text-dim); }
+.order-saved-banner {
+  margin-top:24px; padding:14px 20px; background:#f0fff4; border:1.5px solid #007840;
+  color:#007840; font-size:13px; font-weight:600; letter-spacing:1px; text-align:center;
+}
 
 /* ── Label Configurator ── */
 .label-configurator { display:flex; flex-direction:column; gap:8px; }
