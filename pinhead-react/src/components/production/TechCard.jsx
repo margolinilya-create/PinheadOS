@@ -29,7 +29,7 @@ export default function TechCard({ order, onClose, onStatusChange }) {
 
   // Generate QR code
   useEffect(() => {
-    const url = `${window.location.origin}/#order/${order.order_number}`;
+    const url = `${window.location.origin}/orders?order=${order.order_number}`;
     QRCode.toDataURL(url, { width: 120, margin: 1 }).then(setQrUrl).catch(() => {});
   }, [order.order_number]);
 

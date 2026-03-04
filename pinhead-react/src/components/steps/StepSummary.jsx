@@ -123,6 +123,7 @@ export default function StepSummary() {
       textileColor: state.textileColor, dtgTextile: state.dtgTextile,
       designNotes: state.designNotes,
       name, contact, email, phone, bitrixDeal: state.bitrixDeal, deadline, address, notes,
+      role, messenger: state.messenger, sizeComment: state.sizeComment,
       packOption, urgentOption, labelConfig,
       sku: sku ? { code: sku.code, name: sku.name, article: sku.article, category: sku.category, fit: sku.fit } : null,
       total, totalQty, unitPrice,

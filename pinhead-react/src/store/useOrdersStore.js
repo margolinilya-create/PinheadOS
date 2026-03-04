@@ -146,6 +146,7 @@ export const useOrdersStore = create((set, get) => ({
   // Дублировать заказ
   duplicateOrder: async (order) => {
     const orderNumber = generateOrderNumber(get().orders);
+    const auth = useAuthStore.getState();
     const dup = {
       order_number: orderNumber,
       status: 'draft',
@@ -153,7 +154,9 @@ export const useOrdersStore = create((set, get) => ({
       total_sum: order.total_sum || 0,
       total_qty: order.total_qty || 0,
       item_type: order.item_type || '',
+      bitrix_deal: order.bitrix_deal || null,
       notes: order.notes || null,
+      created_by: auth.user?.id || null,
       created_at: new Date().toISOString(),
     };
 
