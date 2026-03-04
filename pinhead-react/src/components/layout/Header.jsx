@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
 
-export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint }) {
+export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint, onTogglePrices, onToggleSku, onToggleAdmin }) {
   const state = useStore();
   const total = calcTotal(state);
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '— ₽';
@@ -35,11 +35,20 @@ export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint 
           {onToggleExpress && (
             <button className="header-action-btn" onClick={onToggleExpress}>EXPRESS</button>
           )}
-          {onTogglePrint && (
-            <button className="header-action-btn" onClick={onTogglePrint}>ТЗ</button>
+          {onTogglePrices && (
+            <button className="header-action-btn" onClick={onTogglePrices}>ЦЕНЫ</button>
+          )}
+          {onToggleSku && (
+            <button className="header-action-btn" onClick={onToggleSku}>SKU</button>
           )}
           {onToggleKanban && (
             <button className="header-action-btn" onClick={onToggleKanban}>ЗАКАЗЫ</button>
+          )}
+          {onTogglePrint && (
+            <button className="header-action-btn" onClick={onTogglePrint}>ТЗ</button>
+          )}
+          {onToggleAdmin && (
+            <button className="header-action-btn" onClick={onToggleAdmin} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>ADMIN</button>
           )}
         </div>
         {user && (

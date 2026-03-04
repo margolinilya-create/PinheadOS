@@ -13,6 +13,9 @@ import AuthScreen from './components/auth/AuthScreen'
 import KanbanBoard from './components/orders/KanbanBoard'
 import PrintPreview from './components/output/PrintPreview'
 import ExpressCalc from './components/editors/ExpressCalc'
+import PriceEditor from './components/editors/PriceEditor'
+import SkuEditor from './components/editors/SkuEditor'
+import AdminPanel from './components/auth/AdminPanel'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
@@ -23,10 +26,12 @@ function App() {
   const [showKanban, setShowKanban] = useState(false);
   const [showExpress, setShowExpress] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
+  const [showPrices, setShowPrices] = useState(false);
+  const [showSku, setShowSku] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => { init(); }, [init]);
 
-  // Загрузка
   if (loading) {
     return (
       <div className="app">
@@ -38,12 +43,8 @@ function App() {
     );
   }
 
-  // Не авторизован
-  if (!user) {
-    return <AuthScreen />;
-  }
+  if (!user) return <AuthScreen />;
 
-  // Ожидание подтверждения
   if (user.approved === false) {
     return (
       <div className="auth-overlay">
@@ -61,12 +62,17 @@ function App() {
     );
   }
 
+  const isAdmin = user.role === 'admin';
+
   return (
     <div className="app">
       <Header
         onToggleKanban={() => setShowKanban(!showKanban)}
         onToggleExpress={() => setShowExpress(!showExpress)}
         onTogglePrint={() => setShowPrint(!showPrint)}
+        onTogglePrices={() => setShowPrices(!showPrices)}
+        onToggleSku={() => setShowSku(!showSku)}
+        onToggleAdmin={isAdmin ? () => setShowAdmin(!showAdmin) : null}
       />
       <ProgressBar />
       <main className="app-main">
@@ -76,6 +82,9 @@ function App() {
       {showKanban && <KanbanBoard onClose={() => setShowKanban(false)} />}
       {showExpress && <ExpressCalc onClose={() => setShowExpress(false)} />}
       {showPrint && <PrintPreview onClose={() => setShowPrint(false)} />}
+      {showPrices && <PriceEditor onClose={() => setShowPrices(false)} />}
+      {showSku && <SkuEditor onClose={() => setShowSku(false)} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
     </div>
   );
 }
