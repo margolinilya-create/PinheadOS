@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
-import { TYPE_NAMES, FABRIC_NAMES } from '../../data';
+import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 
-function KanbanCard({ order, onStatusChange, onDelete, onDuplicate, onEdit }) {
+function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ }) {
   const [showMenu, setShowMenu] = useState(false);
   const d = order.data || {};
-  const date = order.created_at ? new Date(order.created_at).toLocaleDateString('ru-RU') : '';
+  const dt = order.created_at ? new Date(order.created_at) : null;
+  const dateStr = dt ? dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) : '';
+  const bx = order.bitrix_deal || '';
+  const mainNum = bx || order.order_number || '—';
+  const skuName = d.sku ? d.sku.name : (TYPE_NAMES[order.item_type] || order.item_type || '—');
+  const fabricName = d.fabric ? (FABRIC_NAMES[d.fabric] || d.fabric) : '';
+  const techName = d.tech ? (TECH_NAMES[d.tech] || d.tech) : '';
 
   return (
     <div
@@ -14,46 +20,52 @@ function KanbanCard({ order, onStatusChange, onDelete, onDuplicate, onEdit }) {
       draggable
       onDragStart={e => e.dataTransfer.setData('orderId', String(order.id))}
     >
-      <div className="kb-card-head">
-        <span className="kb-card-id">{order.order_number || '—'}</span>
-        <span className="kb-card-date">{date}</span>
-      </div>
-      {d.name && <div className="kb-card-client">{d.name}</div>}
-      <div className="kb-card-info">
-        {d.type && <span>{TYPE_NAMES[d.type] || d.type}</span>}
-        {d.fabric && <span>{FABRIC_NAMES[d.fabric] || d.fabric}</span>}
-      </div>
-      {order.total_qty > 0 && (
-        <div className="kb-card-qty">{order.total_qty} шт</div>
-      )}
-      {order.total_sum > 0 && (
-        <div className="kb-card-sum">{Number(order.total_sum).toLocaleString('ru-RU')} ₽</div>
-      )}
-      <div className="kb-card-actions">
-        <button className="kb-card-btn" onClick={() => setShowMenu(!showMenu)}>•••</button>
-        {showMenu && (
-          <div className="kb-card-menu">
-            <button onClick={() => { onEdit(order); setShowMenu(false); }}>
-              Открыть / Редактировать
-            </button>
-            <div className="kb-menu-sep" />
-            {STATUS_LIST.filter(s => s !== order.status).map(s => (
-              <button key={s} onClick={() => { onStatusChange(order.id, s); setShowMenu(false); }}>
-                <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
-                {STATUS_LABELS[s]}
-              </button>
-            ))}
-            <div className="kb-menu-sep" />
-            <button onClick={() => { onDuplicate(order); setShowMenu(false); }}>Дублировать</button>
-            <button className="kb-menu-danger" onClick={() => { onDelete(order.id); setShowMenu(false); }}>Удалить</button>
+      <div className="kb-card-bar" style={{ background: statusColor }} />
+      <div className="kb-card-content">
+        <div className="kb-card-top">
+          <div className="kb-card-id">
+            {mainNum}
+            {bx && <span className="bx-tag">BX</span>}
           </div>
-        )}
+          <div className="kb-card-date">{dateStr}</div>
+        </div>
+        <div className="kb-card-client">{d.name || '—'}</div>
+        <div className="kb-card-meta">
+          <div className="kb-card-sku">{skuName}{fabricName ? ' · ' + fabricName : ''}</div>
+          {techName && (
+            <div className="kb-card-row">
+              <span>{techName}</span>
+              <strong>{order.total_qty || 0} шт</strong>
+            </div>
+          )}
+        </div>
+        <div className="kb-card-bottom">
+          <div className="kb-card-sum">{(order.total_sum || 0).toLocaleString('ru-RU')} ₽</div>
+          <div className="kb-card-actions">
+            <button className="kb-open" onClick={() => onOpenTZ(order)}>Открыть</button>
+            <button onClick={() => onDuplicate(order)} title="Дублировать">⎘</button>
+            <button onClick={() => onDelete(order.id)} title="Удалить">✕</button>
+          </div>
+        </div>
       </div>
+
+      {/* Status menu on right-click or ••• */}
+      <button className="kb-card-menu-btn" onClick={() => setShowMenu(!showMenu)}>•••</button>
+      {showMenu && (
+        <div className="kb-card-menu">
+          {STATUS_LIST.filter(s => s !== order.status).map(s => (
+            <button key={s} onClick={() => { onStatusChange(order.id, s); setShowMenu(false); }}>
+              <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
+              {STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function KanbanBoard({ onClose }) {
+export default function KanbanBoard({ onClose, onNavigate }) {
   const { orders, loading, filter, search, setFilter, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, getFiltered } = useOrdersStore();
   const loadOrder = useStore(s => s.loadOrder);
 
@@ -67,121 +79,136 @@ export default function KanbanBoard({ onClose }) {
     const s = o.status || 'draft';
     if (columns[s]) columns[s].push(o);
   }
+  // Sort each column by date descending
+  for (const s of STATUS_LIST) {
+    columns[s].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
 
   const totalQty = orders.reduce((s, o) => s + (o.total_qty || 0), 0);
   const totalSum = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
 
   const handleDrop = (e, status) => {
     e.preventDefault();
+    e.currentTarget.querySelector('.kanban-col-body')?.classList.remove('drag-over');
     const orderId = e.dataTransfer.getData('orderId');
     if (orderId) updateStatus(Number(orderId) || orderId, status);
   };
 
-  const handleEdit = (order) => {
-    loadOrder(order);
-    onClose();
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const body = e.currentTarget.querySelector('.kanban-col-body');
+    if (body) body.classList.add('drag-over');
   };
 
+  const handleDragLeave = (e) => {
+    const body = e.currentTarget.querySelector('.kanban-col-body');
+    if (body) body.classList.remove('drag-over');
+  };
+
+  // Open TZ: load order into store, then navigate to print preview
+  const handleOpenTZ = (order) => {
+    loadOrder(order);
+    if (onNavigate) onNavigate('print');
+  };
+
+  // Visible statuses based on filter
+  const visibleStatuses = filter === 'all' ? STATUS_LIST : [filter];
+
   return (
-    <div className="kb-overlay">
-      <div className="kb-panel">
-        <div className="kb-header">
-          <div className="kb-header-left">
-            <span className="kb-title">Заказы</span>
-            <span className="kb-count">{orders.length}</span>
-          </div>
-          <div className="kb-header-right">
-            <input
-              className="kb-search"
-              placeholder="Поиск..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <button className="kb-close" onClick={onClose}>✕</button>
-          </div>
+    <div className="kanban-page">
+      {/* ── Header ── */}
+      <div className="sku-ed-header">
+        <div className="sku-ed-header-left">
+          <h1 className="sku-ed-title">ЗАКАЗЫ <span>Kanban</span></h1>
         </div>
-
-        <div className="kb-stats">
-          <span>Заказов: <b>{orders.length}</b></span>
-          <span>Тираж: <b>{totalQty.toLocaleString('ru-RU')}</b> шт</span>
-          <span>Сумма: <b>{totalSum.toLocaleString('ru-RU')} ₽</b></span>
-          <div className="kb-stats-dots">
-            {STATUS_LIST.map(s => {
-              const count = orders.filter(o => o.status === s).length;
-              return count > 0 ? (
-                <span key={s} className="kb-stat-dot" style={{ background: STATUS_COLORS[s] }} title={`${STATUS_LABELS[s]}: ${count}`}>
-                  {count}
-                </span>
-              ) : null;
-            })}
-          </div>
+        <div className="sku-ed-header-right">
+          <input
+            className="kb-search"
+            placeholder="Поиск..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button className="pe-close" onClick={onClose}>✕</button>
         </div>
+      </div>
 
-        <div className="kb-filters">
-          <button className={`kb-filter${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')}>Все</button>
-          {STATUS_LIST.map(s => (
-            <button
-              key={s}
-              className={`kb-filter${filter === s ? ' active' : ''}`}
-              onClick={() => setFilter(s)}
-              style={filter === s ? { borderColor: STATUS_COLORS[s], color: STATUS_COLORS[s] } : {}}
-            >
-              <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
-              {STATUS_LABELS[s]}
-            </button>
-          ))}
-        </div>
+      {/* ── Stats bar (black) ── */}
+      <div className="kanban-stats-bar">
+        <div className="ks-item"><span className="ks-count">{orders.length}</span> заказов</div>
+        <div className="ks-separator" />
+        <div className="ks-item"><span className="ks-count">{totalQty.toLocaleString('ru-RU')}</span> шт</div>
+        <div className="ks-separator" />
+        <div className="ks-item"><span className="ks-total">{totalSum.toLocaleString('ru-RU')} ₽</span></div>
+        <div style={{ flex: 1 }} />
+        {STATUS_LIST.map(s => {
+          const count = orders.filter(o => o.status === s).length;
+          return count > 0 ? (
+            <div key={s} className="ks-item">
+              <span className="ks-dot" style={{ background: STATUS_COLORS[s] }} />
+              <span className="ks-count" style={{ color: STATUS_COLORS[s] }}>{count}</span>
+            </div>
+          ) : null;
+        })}
+      </div>
 
-        {loading ? (
-          <div className="kb-loading">Загрузка заказов...</div>
-        ) : filter !== 'all' ? (
-          <div className="kb-list">
-            {filtered.length === 0 ? (
-              <div className="kb-empty">Нет заказов</div>
-            ) : (
-              filtered.map(o => (
-                <KanbanCard
-                  key={o.id}
-                  order={o}
-                  onStatusChange={updateStatus}
-                  onDelete={deleteOrder}
-                  onDuplicate={duplicateOrder}
-                  onEdit={handleEdit}
-                />
-              ))
-            )}
+      {/* ── Filter bar ── */}
+      <div className="kanban-filter-bar">
+        <div className={`kanban-filter-btn${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')}>Все</div>
+        {STATUS_LIST.map(s => (
+          <div
+            key={s}
+            className={`kanban-filter-btn${filter === s ? ' active' : ''}`}
+            onClick={() => setFilter(s)}
+          >
+            <span className="kf-dot" style={{ background: STATUS_COLORS[s] }} />
+            {STATUS_LABELS[s]}
           </div>
-        ) : (
-          <div className="kb-board">
-            {STATUS_LIST.map(s => (
+        ))}
+      </div>
+
+      {/* ── Board ── */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Загрузка...</div>
+      ) : (
+        <div className="kanban-board">
+          {visibleStatuses.map(s => {
+            const colSum = columns[s].reduce((a, o) => a + (o.total_sum || 0), 0);
+            return (
               <div
                 key={s}
-                className="kb-column"
-                onDragOver={e => e.preventDefault()}
+                className="kanban-col"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
                 onDrop={e => handleDrop(e, s)}
               >
-                <div className="kb-col-header">
-                  <span className="kb-col-dot" style={{ background: STATUS_COLORS[s] }} />
-                  <span className="kb-col-name">{STATUS_LABELS[s]}</span>
-                  <span className="kb-col-count">{columns[s].length}</span>
+                <div className="kanban-col-header" style={{ borderColor: STATUS_COLORS[s] }}>
+                  <span className="kanban-col-title" style={{ color: STATUS_COLORS[s] }}>{STATUS_LABELS[s]}</span>
+                  {colSum > 0 && <span className="kanban-col-sum">{colSum.toLocaleString('ru-RU')} ₽</span>}
+                  <span className="kanban-col-count" style={{ background: STATUS_COLORS[s] }}>{columns[s].length}</span>
                 </div>
-                <div className="kb-col-cards">
-                  {columns[s].map(o => (
-                    <KanbanCard
-                      key={o.id}
-                      order={o}
-                      onStatusChange={updateStatus}
-                      onDelete={deleteOrder}
-                      onDuplicate={duplicateOrder}
-                      onEdit={handleEdit}
-                    />
-                  ))}
+                <div className="kanban-col-body">
+                  {columns[s].length === 0 ? (
+                    <div style={{ padding: 30, textAlign: 'center', color: '#ccc', fontSize: 11, fontWeight: 600 }}>Пусто</div>
+                  ) : (
+                    columns[s].map(o => (
+                      <KanbanCard
+                        key={o.id}
+                        order={o}
+                        statusColor={STATUS_COLORS[s]}
+                        onStatusChange={updateStatus}
+                        onDelete={deleteOrder}
+                        onDuplicate={duplicateOrder}
+                        onOpenTZ={handleOpenTZ}
+                      />
+                    ))
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

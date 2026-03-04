@@ -391,20 +391,20 @@ export default function PriceEditor({ onClose }) {
   );
 
   return (
-    <div className="pe-overlay">
-      <div className="pe-panel">
-        {/* ── Top Bar ── */}
-        <div className="pe-header">
-          <div className="pe-header-left">
-            <span className="pe-title">Редактор цен</span>
+    <div className="sku-ed-overlay">
+      <div className="sku-ed-panel">
+        {/* ── Header ── */}
+        <div className="sku-ed-header">
+          <div className="sku-ed-header-left">
+            <h1 className="sku-ed-title">РЕДАКТОР ЦЕН <span>v.1.0</span></h1>
             {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
           </div>
-          <div className="pe-header-right">
+          <div className="sku-ed-header-right">
             <button className="btn" onClick={exportJSON}>Экспорт</button>
             <button className="btn" onClick={importJSON}>Импорт</button>
             <button className="btn" onClick={reset}>Сброс</button>
             <button className="btn btn-primary" onClick={save}>Сохранить</button>
-            <button className="pe-close" onClick={onClose}>&times;</button>
+            <button className="pe-close" onClick={onClose}>✕</button>
           </div>
         </div>
 

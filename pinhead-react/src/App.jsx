@@ -86,7 +86,7 @@ function App() {
       {page === 'express' && <ExpressCalc onClose={closePage} />}
       {page === 'prices' && <PriceEditor onClose={closePage} />}
       {page === 'sku' && <SkuEditor onClose={closePage} />}
-      {page === 'orders' && <KanbanBoard onClose={closePage} />}
+      {page === 'orders' && <KanbanBoard onClose={closePage} onNavigate={setPage} />}
       {page === 'print' && <PrintPreview onClose={closePage} />}
       {page === 'admin' && isAdmin && <AdminPanel onClose={closePage} />}
 
