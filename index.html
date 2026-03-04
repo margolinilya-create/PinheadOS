@@ -331,6 +331,50 @@ header{
 .extras-summary{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:12px 16px;border:1.5px solid var(--black);background:var(--bg2);font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.5px}
 .extras-summary-right{font-size:16px;font-weight:900;letter-spacing:0}
 .extras-total{margin-top:12px;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-mid);letter-spacing:.5px}
+
+/* ─────────── LABEL CONFIGURATOR ─────────── */
+.label-cfg-section{margin-bottom:12px;border:1.5px solid var(--border-light);transition:border-color .15s}
+.label-cfg-section.open{border-color:var(--black)}
+.label-cfg-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;transition:background .12s;user-select:none}
+.label-cfg-header:hover{background:var(--bg2)}
+.label-cfg-title{font-family:var(--font);font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase}
+.label-cfg-badge{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap}
+.label-cfg-arrow{width:18px;height:18px;transition:transform .2s;opacity:.4}
+.label-cfg-section.open .label-cfg-arrow{transform:rotate(180deg);opacity:1}
+.label-cfg-body{padding:0 18px 18px;display:none}
+.label-cfg-section.open .label-cfg-body{display:block}
+.label-cfg-row{margin-top:14px}
+.label-cfg-row-label{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px}
+.label-cfg-pills{display:flex;gap:6px;flex-wrap:wrap}
+.label-cfg-pill{height:32px;padding:0 14px;border:1.5px solid var(--border-light);background:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;transition:all .12s;display:flex;align-items:center}
+.label-cfg-pill:hover{border-color:var(--black)}
+.label-cfg-pill.active{border-color:var(--black);background:var(--black);color:var(--white)}
+.label-cfg-placement{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.label-cfg-placement-card{border:1.5px solid var(--border-light);padding:16px;text-align:center;cursor:pointer;transition:all .15s}
+.label-cfg-placement-card:hover{border-color:var(--black);background:var(--bg2)}
+.label-cfg-placement-card.selected{border-color:var(--black);background:var(--black);color:var(--white)}
+.label-cfg-placement-card .plc-icon{margin-bottom:8px;opacity:.6}
+.label-cfg-placement-card.selected .plc-icon{opacity:1}
+.label-cfg-placement-card.selected .plc-icon svg{stroke:var(--white)}
+.label-cfg-placement-card .plc-name{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.label-cfg-colors{display:flex;gap:8px}
+.label-cfg-color-swatch{width:32px;height:32px;border:2px solid var(--border-light);cursor:pointer;transition:all .12s}
+.label-cfg-color-swatch:hover{border-color:var(--black)}
+.label-cfg-color-swatch.selected{border-color:var(--black);box-shadow:0 0 0 2px var(--accent)}
+.label-cfg-upload{border:1.5px dashed var(--border-light);padding:20px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
+.label-cfg-upload:hover{border-color:var(--black);background:var(--bg2)}
+.label-cfg-upload.drag-active{border-color:var(--accent);background:rgba(0,0,0,.03)}
+.label-cfg-upload .upl-text{font-size:10px;font-weight:600;color:var(--text-dim);letter-spacing:.5px;text-transform:uppercase}
+.label-cfg-upload .upl-hint{font-size:9px;color:var(--text-dim);margin-top:4px;opacity:.6}
+.label-cfg-upload-preview{display:flex;align-items:center;gap:10px;padding:10px;border:1.5px solid var(--border-light);background:var(--bg2)}
+.label-cfg-upload-preview img{max-width:60px;max-height:40px;object-fit:contain}
+.label-cfg-upload-preview .upl-fname{flex:1;font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.label-cfg-upload-preview .upl-remove{width:20px;height:20px;border:none;background:none;cursor:pointer;font-size:14px;color:var(--text-dim);transition:color .12s}
+.label-cfg-upload-preview .upl-remove:hover{color:var(--black)}
+.label-cfg-dims{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;color:var(--text-mid);letter-spacing:.5px;padding:8px 12px;border:1px solid var(--border-light);background:var(--bg2);display:inline-block}
+.label-cfg-care-icons{display:flex;gap:12px;padding:8px 0}
+.label-cfg-care-icons svg{width:24px;height:24px;opacity:.6}
+
 .section-label{
   font-size:10px;
   font-weight:700;
@@ -2541,10 +2585,6 @@ tr[draggable=true].dragging{opacity:.4}
     <div class="section-label">Дополнительные опции</div>
 
     <div class="toggle-row">
-      <div><div class="toggle-label">Индивидуальная бирка</div><div class="toggle-sub">Печать бирок с вашим брендом +30 ₽/шт</div></div>
-      <label class="toggle"><input type="checkbox" id="toggleLabel" onchange="updateTotal()"><span class="toggle-slider"></span></label>
-    </div>
-    <div class="toggle-row">
       <div><div class="toggle-label">Упаковка OPP-пакет</div><div class="toggle-sub">Индивидуальная упаковка +15 ₽/шт</div></div>
       <label class="toggle"><input type="checkbox" id="togglePack" onchange="updateTotal()"><span class="toggle-slider"></span></label>
     </div>
@@ -3784,7 +3824,12 @@ const state = {
   designNotes:'', sizeComment:'', phone:'', messenger:'', file:null, zoneFiles:{}, generalFile:null, role:'manager', maxStep:0,
   name:'', contact:'', email:'', deadline:'', address:'', notes:'',
   labelOption:false, packOption:false, urgentOption:false,
-  noPrint:false
+  noPrint:false,
+  labelConfig: {
+    careLabel: {enabled:false, logoOption:'no-logo', composition:'', country:'', uploadData:null, comments:''},
+    mainLabel: {option:'none', placement:'neck', material:'woven', color:'white', uploadData:null, comments:''},
+    hangTag:   {option:'none', uploadData:null, comments:''}
+  }
 };
 
 
@@ -4079,6 +4124,108 @@ try {
 LABELS_CATALOG = LABELS_CATALOG.filter(e => e && e.name);
 LABELS_CATALOG.forEach(e => { if (!e.code) e.code = generateCode(e.name); });
 
+// ── Конфигуратор бирок v2 ──
+const LABEL_CONFIG = {
+  careLabel: {
+    id:'care-label', name:'Бирка по уходу', nameShort:'Составник', basePrice:10,
+    options:[
+      {key:'my-logo', name:'Мой логотип бренда', priceDelta:20},
+      {key:'no-logo', name:'Без логотипа', priceDelta:0},
+      {key:'standard', name:'Стандартный', priceDelta:0}
+    ]
+  },
+  mainLabel: {
+    id:'main-label', name:'Основная бирка', nameShort:'Нашивка',
+    options:[
+      {key:'none', name:'Без бирки', price:0},
+      {key:'send-own', name:'Пришлю свои', price:0},
+      {key:'standard', name:'Стандартная', price:30},
+      {key:'custom', name:'Кастомная', price:45}
+    ],
+    placements:[
+      {key:'neck', name:'На воротнике (спина)'},
+      {key:'inseam', name:'Петля вшивная (шов)'}
+    ],
+    materials:[
+      {key:'woven', name:'Тканая', priceDelta:0},
+      {key:'polyester', name:'Полиэстер', priceDelta:-5},
+      {key:'canvas', name:'Хлопковый канвас', priceDelta:10}
+    ],
+    colors:[
+      {key:'white', name:'Белая', hex:'#FFFFFF'},
+      {key:'black', name:'Чёрная', hex:'#000000'}
+    ],
+    dimensions:{width:3, height:6, unit:'см'}
+  },
+  hangTag: {
+    id:'hang-tag', name:'Хэнг-тег (картон)', nameShort:'Хэнг-тег',
+    options:[
+      {key:'none', name:'Без хэнг-тега', price:0},
+      {key:'standard', name:'Стандартный', price:15},
+      {key:'custom', name:'Кастомный', price:25}
+    ]
+  }
+};
+
+function getDefaultLabelConfig() {
+  return {
+    careLabel: {enabled:false, logoOption:'no-logo', composition:'', country:'', uploadData:null, comments:''},
+    mainLabel: {option:'none', placement:'neck', material:'woven', color:'white', uploadData:null, comments:''},
+    hangTag:   {option:'none', uploadData:null, comments:''}
+  };
+}
+
+function migrateLabelData(data) {
+  if (data.labelConfig) return JSON.parse(JSON.stringify(data.labelConfig));
+  var config = getDefaultLabelConfig();
+  var oldLabels = data.labels || [];
+  if (oldLabels.includes('patch-woven') || oldLabels.includes('patch-jacquard')) {
+    config.mainLabel.option = oldLabels.includes('patch-jacquard') ? 'custom' : 'standard';
+    config.mainLabel.material = 'woven';
+    config.mainLabel.placement = 'neck';
+  }
+  if (oldLabels.includes('label-hem')) {
+    config.mainLabel.option = config.mainLabel.option === 'none' ? 'standard' : config.mainLabel.option;
+    config.mainLabel.placement = 'inseam';
+  }
+  if (oldLabels.includes('tag-size')) {
+    config.careLabel.enabled = true;
+    config.careLabel.logoOption = 'no-logo';
+  }
+  if (oldLabels.includes('hang-tag')) {
+    config.hangTag.option = 'standard';
+  }
+  if (data.labelOption) {
+    config.careLabel.enabled = true;
+    config.careLabel.logoOption = 'my-logo';
+  }
+  return config;
+}
+
+function getLabelConfigPrice() {
+  var cfg = state.labelConfig;
+  if (!cfg) return 0;
+  var total = 0;
+  // Care label
+  if (cfg.careLabel && cfg.careLabel.enabled) {
+    var base = LABEL_CONFIG.careLabel.basePrice;
+    var opt = LABEL_CONFIG.careLabel.options.find(function(o){return o.key === cfg.careLabel.logoOption});
+    total += base + (opt ? opt.priceDelta : 0);
+  }
+  // Main label
+  if (cfg.mainLabel && cfg.mainLabel.option !== 'none' && cfg.mainLabel.option !== 'send-own') {
+    var mOpt = LABEL_CONFIG.mainLabel.options.find(function(o){return o.key === cfg.mainLabel.option});
+    var mMat = LABEL_CONFIG.mainLabel.materials.find(function(m){return m.key === cfg.mainLabel.material});
+    total += (mOpt ? mOpt.price : 0) + (mMat ? mMat.priceDelta : 0);
+  }
+  // Hang tag
+  if (cfg.hangTag && cfg.hangTag.option !== 'none') {
+    var hOpt = LABEL_CONFIG.hangTag.options.find(function(o){return o.key === cfg.hangTag.option});
+    total += (hOpt ? hOpt.price : 0);
+  }
+  return total;
+}
+
 // ── Фурнитура (молнии, шнурки, люверсы) ──
 const HARDWARE_GROUPS = [
   {id:'zippers', name:'Молнии'},
@@ -4300,46 +4447,337 @@ function getLabelsForSku() {
   });
 }
 
-function renderLabelsBlock() {
-  const container = document.getElementById('labelsContainer');
+function renderLabelsBlock() { renderLabelConfigurator(); }
+
+// ── КОНФИГУРАТОР БИРОК v2 ──
+var _labelCfgArrowSvg = '<svg class="label-cfg-arrow" viewBox="0 0 18 18" fill="none"><path d="M4 7l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function _labelUploadHtml(type, data) {
+  if (data && data.dataUrl) {
+    var isImg = data.dataUrl.startsWith('data:image');
+    return '<div class="label-cfg-upload-preview">' +
+      (isImg ? '<img src="'+data.dataUrl+'" alt="preview">' : '<span style="font-size:20px;opacity:.5">📎</span>') +
+      '<span class="upl-fname">'+data.name+'</span>' +
+      '<button class="upl-remove" onclick="removeLabelUpload(\''+type+'\')" title="Удалить">✕</button>' +
+      '</div>';
+  }
+  return '<div class="label-cfg-upload" id="labelDrop_'+type+'" onclick="document.getElementById(\'labelFile_'+type+'\').click()">' +
+    '<div class="upl-text">Перетащите файл дизайна или нажмите</div>' +
+    '<div class="upl-hint">PNG, JPG, SVG, PDF — макс. 2 МБ</div>' +
+    '<input type="file" id="labelFile_'+type+'" accept=".png,.jpg,.jpeg,.svg,.pdf" style="display:none" onchange="handleLabelUpload(\''+type+'\',this)">' +
+    '</div>';
+}
+
+function _careLabelIcons() {
+  return '<div class="label-cfg-care-icons">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5"><path d="M12 3c-4 3-8 6-8 11a8 8 0 0016 0c0-5-4-8-8-11z"/></svg>' +  // wash
+    '<svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5"><path d="M3 21h18M8 21V10l4-7 4 7v11"/></svg>' +  // iron
+    '<svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5"><path d="M12 2L2 22h20L12 2z"/><line x1="12" y1="9" x2="12" y2="15"/></svg>' +  // bleach
+    '<svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>' +  // dry clean
+    '</div>';
+}
+
+function _neckSvg() {
+  return '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">' +
+    '<path d="M12 44V16c0-6 5-12 12-12s12 6 12 12v28"/>' +
+    '<path d="M16 16h16" opacity=".3"/>' +
+    '<rect x="18" y="14" width="12" height="6" rx="1" fill="currentColor" opacity=".2" stroke="currentColor"/>' +
+    '</svg>';
+}
+
+function _inseamSvg() {
+  return '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">' +
+    '<path d="M10 4h28v40H10z" opacity=".15" fill="currentColor"/>' +
+    '<path d="M10 4h28v40H10z"/>' +
+    '<path d="M10 24h6v8H10z" fill="currentColor" opacity=".3"/>' +
+    '<rect x="10" y="24" width="6" height="8" rx="0.5" stroke="currentColor"/>' +
+    '</svg>';
+}
+
+function renderLabelConfigurator() {
+  var container = document.getElementById('labelsContainer');
   if (!container) return;
   if (!state.sku) { container.innerHTML = ''; return; }
-  const available = getLabelsForSku();
-  if (available.length === 0) { container.innerHTML = ''; return; }
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  var cfg = state.labelConfig;
+  var totalPrice = getLabelConfigPrice();
 
-  const selectedCodes = state.labels || [];
-  const selectedCount = selectedCodes.length;
-  const totalCost = selectedCodes.reduce(function(s,c) {
-    const e = LABELS_CATALOG.find(function(x){return x.code === c});
-    return s + (e ? e.price : 0);
-  }, 0);
+  var html = '<div class="section-label">Бирки и лейблы' + (totalPrice > 0 ? ' <span style="font-weight:900;color:var(--accent);font-family:Barlow Condensed,sans-serif;font-size:12px;letter-spacing:0">+' + totalPrice + ' ₽/шт</span>' : '') + '</div>';
 
-  let html = '<div class="section-label">Лейблы и бирки</div>';
-  html += '<div class="extras-grid">';
-  available.forEach(function(e) {
-    const sel = selectedCodes.includes(e.code);
-    html += '<div class="extra-card' + (sel ? ' selected' : '') + '" onclick="toggleLabel(\'' + e.code + '\')">';
-    html += '<div class="extra-check">' + (sel ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '') + '</div>';
-    html += '<span class="extra-name">' + e.name + '</span>';
-    html += '<span class="extra-price">+' + e.price + ' ₽</span>';
-    html += '</div>';
+  // ── 1. CARE LABEL ──
+  var careOpen = cfg.careLabel.enabled ? ' open' : '';
+  var carePrice = 0;
+  if (cfg.careLabel.enabled) {
+    var cOpt = LABEL_CONFIG.careLabel.options.find(function(o){return o.key === cfg.careLabel.logoOption});
+    carePrice = LABEL_CONFIG.careLabel.basePrice + (cOpt ? cOpt.priceDelta : 0);
+  }
+  html += '<div class="label-cfg-section' + careOpen + '" id="lcfg-care">';
+  html += '<div class="label-cfg-header" onclick="toggleCareLabel()">';
+  html += '<div class="label-cfg-title">' + LABEL_CONFIG.careLabel.name + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  if (cfg.careLabel.enabled) html += '<span class="label-cfg-badge">+' + carePrice + ' ₽</span>';
+  html += _labelCfgArrowSvg + '</div></div>';
+  html += '<div class="label-cfg-body">';
+
+  // Logo option pills
+  html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Логотип на бирке</div>';
+  html += '<div class="label-cfg-pills">';
+  LABEL_CONFIG.careLabel.options.forEach(function(o) {
+    html += '<div class="label-cfg-pill' + (cfg.careLabel.logoOption === o.key ? ' active' : '') + '" onclick="setCareLabelOption(\'' + o.key + '\')">' + o.name + (o.priceDelta > 0 ? ' +' + o.priceDelta + '₽' : '') + '</div>';
   });
+  html += '</div></div>';
+
+  // Care symbols preview
+  html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Символы ухода (стандарт)</div>';
+  html += _careLabelIcons();
   html += '</div>';
-  if (selectedCount > 0) {
-    html += '<div class="extras-summary">';
-    html += '<div class="extras-summary-left">Выбрано: <b>' + selectedCount + '</b></div>';
-    html += '<div class="extras-summary-right">+' + totalCost.toLocaleString('ru') + ' ₽ <span style="color:var(--text-dim);font-weight:400">/ шт</span></div>';
+
+  // Composition + Country
+  html += '<div class="label-cfg-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  html += '<div><div class="label-cfg-row-label">Состав ткани</div>';
+  html += '<input type="text" value="' + (cfg.careLabel.composition || '') + '" placeholder="100% хлопок" style="width:100%;height:32px;border:1.5px solid var(--border-light);padding:0 10px;font-size:11px;font-family:var(--font)" onchange="state.labelConfig.careLabel.composition=this.value;scheduleSave()"></div>';
+  html += '<div><div class="label-cfg-row-label">Страна</div>';
+  html += '<input type="text" value="' + (cfg.careLabel.country || '') + '" placeholder="Россия" style="width:100%;height:32px;border:1.5px solid var(--border-light);padding:0 10px;font-size:11px;font-family:var(--font)" onchange="state.labelConfig.careLabel.country=this.value;scheduleSave()"></div>';
+  html += '</div>';
+
+  // Upload
+  html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Дизайн бирки</div>';
+  html += _labelUploadHtml('careLabel', cfg.careLabel.uploadData);
+  html += '</div>';
+
+  // Comments
+  html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Комментарий</div>';
+  html += '<textarea placeholder="Особые требования..." style="width:100%;height:48px;border:1.5px solid var(--border-light);padding:8px 10px;font-size:11px;font-family:var(--font);resize:vertical" onchange="state.labelConfig.careLabel.comments=this.value;scheduleSave()">' + (cfg.careLabel.comments || '') + '</textarea>';
+  html += '</div>';
+
+  html += '</div></div>'; // close body + section
+
+  // ── 2. MAIN LABEL ──
+  var mainOpen = (cfg.mainLabel.option !== 'none') ? ' open' : '';
+  var mainPrice = 0;
+  if (cfg.mainLabel.option !== 'none' && cfg.mainLabel.option !== 'send-own') {
+    var mOpt = LABEL_CONFIG.mainLabel.options.find(function(o){return o.key === cfg.mainLabel.option});
+    var mMat = LABEL_CONFIG.mainLabel.materials.find(function(m){return m.key === cfg.mainLabel.material});
+    mainPrice = (mOpt ? mOpt.price : 0) + (mMat ? mMat.priceDelta : 0);
+  }
+  html += '<div class="label-cfg-section' + mainOpen + '" id="lcfg-main">';
+  html += '<div class="label-cfg-header" onclick="toggleLabelSection(\'lcfg-main\')">';
+  html += '<div class="label-cfg-title">' + LABEL_CONFIG.mainLabel.name + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  if (mainPrice > 0) html += '<span class="label-cfg-badge">+' + mainPrice + ' ₽</span>';
+  html += _labelCfgArrowSvg + '</div></div>';
+  html += '<div class="label-cfg-body">';
+
+  // Option pills
+  html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Тип бирки</div>';
+  html += '<div class="label-cfg-pills">';
+  LABEL_CONFIG.mainLabel.options.forEach(function(o) {
+    html += '<div class="label-cfg-pill' + (cfg.mainLabel.option === o.key ? ' active' : '') + '" onclick="setMainLabelOption(\'' + o.key + '\')">' + o.name + (o.price > 0 ? ' +' + o.price + '₽' : '') + '</div>';
+  });
+  html += '</div></div>';
+
+  // Show details only for standard/custom
+  if (cfg.mainLabel.option === 'standard' || cfg.mainLabel.option === 'custom') {
+    // Placement
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Размещение</div>';
+    html += '<div class="label-cfg-placement">';
+    LABEL_CONFIG.mainLabel.placements.forEach(function(p) {
+      var sel = cfg.mainLabel.placement === p.key;
+      html += '<div class="label-cfg-placement-card' + (sel ? ' selected' : '') + '" onclick="setMainLabelPlacement(\'' + p.key + '\')">';
+      html += '<div class="plc-icon">' + (p.key === 'neck' ? _neckSvg() : _inseamSvg()) + '</div>';
+      html += '<div class="plc-name">' + p.name + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    // Dimensions
+    var dim = LABEL_CONFIG.mainLabel.dimensions;
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Размер бирки</div>';
+    html += '<div class="label-cfg-dims">' + dim.width + ' × ' + dim.height + ' ' + dim.unit + '</div>';
+    html += '</div>';
+
+    // Material
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Материал</div>';
+    html += '<div class="label-cfg-pills">';
+    LABEL_CONFIG.mainLabel.materials.forEach(function(m) {
+      html += '<div class="label-cfg-pill' + (cfg.mainLabel.material === m.key ? ' active' : '') + '" onclick="setMainLabelMaterial(\'' + m.key + '\')">' + m.name + (m.priceDelta !== 0 ? ' ' + (m.priceDelta > 0 ? '+' : '') + m.priceDelta + '₽' : '') + '</div>';
+    });
+    html += '</div></div>';
+
+    // Color
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Цвет бирки</div>';
+    html += '<div class="label-cfg-colors">';
+    LABEL_CONFIG.mainLabel.colors.forEach(function(c) {
+      html += '<div class="label-cfg-color-swatch' + (cfg.mainLabel.color === c.key ? ' selected' : '') + '" style="background:' + c.hex + (c.key === 'white' ? ';border-color:#ccc' : '') + '" onclick="setMainLabelColor(\'' + c.key + '\')" title="' + c.name + '"></div>';
+    });
+    html += '</div></div>';
+
+    // Upload
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Дизайн бирки</div>';
+    html += _labelUploadHtml('mainLabel', cfg.mainLabel.uploadData);
     html += '</div>';
   }
+
+  html += '</div></div>'; // close body + section
+
+  // ── 3. HANG TAG ──
+  var hangOpen = (cfg.hangTag.option !== 'none') ? ' open' : '';
+  var hangPrice = 0;
+  if (cfg.hangTag.option !== 'none') {
+    var hOpt = LABEL_CONFIG.hangTag.options.find(function(o){return o.key === cfg.hangTag.option});
+    hangPrice = hOpt ? hOpt.price : 0;
+  }
+  html += '<div class="label-cfg-section' + hangOpen + '" id="lcfg-hang">';
+  html += '<div class="label-cfg-header" onclick="toggleLabelSection(\'lcfg-hang\')">';
+  html += '<div class="label-cfg-title">' + LABEL_CONFIG.hangTag.name + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  if (hangPrice > 0) html += '<span class="label-cfg-badge">+' + hangPrice + ' ₽</span>';
+  html += _labelCfgArrowSvg + '</div></div>';
+  html += '<div class="label-cfg-body">';
+
+  // Option pills
+  html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Тип</div>';
+  html += '<div class="label-cfg-pills">';
+  LABEL_CONFIG.hangTag.options.forEach(function(o) {
+    html += '<div class="label-cfg-pill' + (cfg.hangTag.option === o.key ? ' active' : '') + '" onclick="setHangTagOption(\'' + o.key + '\')">' + o.name + (o.price > 0 ? ' +' + o.price + '₽' : '') + '</div>';
+  });
+  html += '</div></div>';
+
+  // Upload (for standard/custom)
+  if (cfg.hangTag.option !== 'none') {
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Дизайн</div>';
+    html += _labelUploadHtml('hangTag', cfg.hangTag.uploadData);
+    html += '</div>';
+
+    // Comments
+    html += '<div class="label-cfg-row"><div class="label-cfg-row-label">Комментарий</div>';
+    html += '<textarea placeholder="Размер, бумага, отделка..." style="width:100%;height:48px;border:1.5px solid var(--border-light);padding:8px 10px;font-size:11px;font-family:var(--font);resize:vertical" onchange="state.labelConfig.hangTag.comments=this.value;scheduleSave()">' + (cfg.hangTag.comments || '') + '</textarea>';
+    html += '</div>';
+  }
+
+  html += '</div></div>'; // close body + section
+
+  // Summary
+  if (totalPrice > 0) {
+    html += '<div class="extras-summary">';
+    html += '<div class="extras-summary-left">Бирки</div>';
+    html += '<div class="extras-summary-right">+' + totalPrice.toLocaleString('ru') + ' ₽ <span style="color:var(--text-dim);font-weight:400">/ шт</span></div>';
+    html += '</div>';
+  }
+
   container.innerHTML = html;
+
+  // Setup drop zones
+  setTimeout(function() {
+    ['careLabel','mainLabel','hangTag'].forEach(function(type) {
+      var dz = document.getElementById('labelDrop_' + type);
+      if (dz) setupLabelDropZone(dz, type);
+    });
+  }, 0);
+}
+
+// ── Label configurator handlers ──
+function toggleCareLabel() {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.careLabel.enabled = !state.labelConfig.careLabel.enabled;
+  renderLabelConfigurator();
+  updateTotal();
+  scheduleSave();
+}
+
+function toggleLabelSection(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+function setCareLabelOption(key) {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.careLabel.logoOption = key;
+  renderLabelConfigurator();
+  updateTotal();
+  scheduleSave();
+}
+
+function setMainLabelOption(key) {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.mainLabel.option = key;
+  renderLabelConfigurator();
+  updateTotal();
+  scheduleSave();
+}
+
+function setMainLabelPlacement(key) {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.mainLabel.placement = key;
+  renderLabelConfigurator();
+  scheduleSave();
+}
+
+function setMainLabelMaterial(key) {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.mainLabel.material = key;
+  renderLabelConfigurator();
+  updateTotal();
+  scheduleSave();
+}
+
+function setMainLabelColor(key) {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.mainLabel.color = key;
+  renderLabelConfigurator();
+  scheduleSave();
+}
+
+function setHangTagOption(key) {
+  if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+  state.labelConfig.hangTag.option = key;
+  renderLabelConfigurator();
+  updateTotal();
+  scheduleSave();
+}
+
+function handleLabelUpload(type, inputEl) {
+  var file = inputEl.files ? inputEl.files[0] : null;
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { showToast('Файл слишком большой (макс. 2 МБ)'); return; }
+  var allowed = ['image/png','image/jpeg','image/svg+xml','application/pdf'];
+  if (!allowed.includes(file.type)) { showToast('Поддерживаются: PNG, JPG, SVG, PDF'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    if (!state.labelConfig) state.labelConfig = getDefaultLabelConfig();
+    state.labelConfig[type].uploadData = { name: file.name, dataUrl: e.target.result };
+    renderLabelConfigurator();
+    scheduleSave();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLabelUpload(type) {
+  if (!state.labelConfig || !state.labelConfig[type]) return;
+  state.labelConfig[type].uploadData = null;
+  renderLabelConfigurator();
+  scheduleSave();
+}
+
+function setupLabelDropZone(element, type) {
+  element.addEventListener('dragover', function(e) { e.preventDefault(); element.classList.add('drag-active'); });
+  element.addEventListener('dragleave', function() { element.classList.remove('drag-active'); });
+  element.addEventListener('drop', function(e) {
+    e.preventDefault();
+    element.classList.remove('drag-active');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleLabelUpload(type, { files: e.dataTransfer.files });
+    }
+  });
 }
 
 function toggleLabel(code) {
+  // Legacy compatibility
   if (!state.labels) state.labels = [];
-  const idx = state.labels.indexOf(code);
+  var idx = state.labels.indexOf(code);
   if (idx >= 0) state.labels.splice(idx, 1);
   else state.labels.push(code);
-  renderLabelsBlock();
+  renderLabelConfigurator();
   updateTotal();
   scheduleSave();
 }
@@ -4688,6 +5126,8 @@ function loadDraft() {
     // Фильтруем устаревшие зоны (collar, hem из старых версий)
     state.zones = (state.zones || []).filter(z => VALID_ZONES.includes(z));
     if (state.zones.length === 0) { const zz = getZonesForType(state.type); state.zones = zz.length ? [zz[0].id] : []; }
+    // Миграция labelConfig из старого формата
+    if (!state.labelConfig) state.labelConfig = migrateLabelData(state);
     // Убираем старые поля (заменены per-zone логикой)
     delete state.screenColors;
     // Очищаем zonePrints от невалидных зон
@@ -4721,6 +5161,7 @@ async function resetDraft() {
     deadline:'', address:'', notes:'', designNotes:'', sizeComment:'',
     urgent:false, label:false, pack:false, comment:'',
     labelOption:false, packOption:false, urgentOption:false,
+    labelConfig: getDefaultLabelConfig(),
     file:null, zoneFiles:{}, generalFile:null
   });
 
@@ -4730,7 +5171,7 @@ async function resetDraft() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  ['toggleLabel','togglePack','toggleUrgent'].forEach(id => {
+  ['togglePack','toggleUrgent'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.checked = false;
   });
@@ -5727,10 +6168,7 @@ function refreshPrices() {
     const ex = EXTRAS_CATALOG.find(e => e.code === code);
     return s + (ex ? ex.price : 0);
   }, 0);
-  const labelsCost = (state.labels||[]).reduce((s,code) => {
-    const lb = LABELS_CATALOG.find(e => e.code === code);
-    return s + (lb ? lb.price : 0);
-  }, 0);
+  const labelsCost = getLabelConfigPrice();
   const unitPrice = Math.round(unitBase + extrasCost + labelsCost + tech);
   // базовые размеры
   SIZES.forEach(size => {
@@ -6655,17 +7093,13 @@ function calcTotal() {
     const ex = EXTRAS_CATALOG.find(e => e.code === code);
     return s + (ex ? ex.price : 0);
   }, 0);
-  // Лейблы и бирки
-  const labelsCost = (state.labels||[]).reduce((s,code) => {
-    const lb = LABELS_CATALOG.find(e => e.code === code);
-    return s + (lb ? lb.price : 0);
-  }, 0);
+  // Лейблы и бирки (v2 конфигуратор)
+  const labelsCost = getLabelConfigPrice();
   const tech = getScreenSurcharge();
   let unitPrice = Math.round(base + extrasCost + labelsCost + tech);
-  const label = document.getElementById('toggleLabel')?.checked ? (PRICES.label||0) : 0;
   const pack  = document.getElementById('togglePack')?.checked  ? (PRICES.pack||0)  : 0;
   const urgent= document.getElementById('toggleUrgent')?.checked? (PRICES.urgentMult||0) : 0;
-  unitPrice += label+pack;
+  unitPrice += pack;
   return Math.round(total*unitPrice*(1+urgent));
 }
 function updateTotal() {
@@ -6901,7 +7335,6 @@ function buildSummary() {
   state.address  = document.getElementById('clientAddress')?.value||'';
   state.notes    = document.getElementById('clientNotes')?.value||'';
   state.designNotes = document.getElementById('designNotes')?.value||'';
-  state.labelOption  = !!document.getElementById('toggleLabel')?.checked;
   state.packOption   = !!document.getElementById('togglePack')?.checked;
   state.urgentOption = !!document.getElementById('toggleUrgent')?.checked;
   saveDraft();
@@ -6928,13 +7361,9 @@ function buildSummary() {
     const ex = EXTRAS_CATALOG.find(e => e.code === code);
     return s + (ex ? ex.price : 0);
   }, 0);
-  const labelsCostST = (state.labels||[]).reduce((s,code) => {
-    const lb = LABELS_CATALOG.find(e => e.code === code);
-    return s + (lb ? lb.price : 0);
-  }, 0);
-  const lblPrice = state.labelOption?30:0;
+  const labelsCostST = getLabelConfigPrice();
   const pkgPrice = state.packOption?15:0;
-  const unitPrice = Math.round(unitBase + extrasCost + labelsCostST + techPrice + lblPrice + pkgPrice);
+  const unitPrice = Math.round(unitBase + extrasCost + labelsCostST + techPrice + pkgPrice);
 
   const allSizeRows = [
     ...SIZES.filter(s=>(state.sizes[s]||0)>0).map(s=>({label:s, qty:state.sizes[s]})),
@@ -6991,7 +7420,13 @@ function buildSummary() {
       }).join('')}
       <div class="summary-row"><span class="key">Зоны</span><span class="val">${state.zones.map(z=>ZONE_LABELS[z]).join(', ')||'—'}</span></div>
       ${(()=>{const ex=(state.extras||[]).map(c=>{const e=EXTRAS_CATALOG.find(x=>x.code===c);return e?e.name:c}).join(', ');return ex?'<div class="summary-row"><span class="key">Обработки</span><span class="val">'+ex+'</span></div>':'';})()}
-      ${(()=>{const lb=(state.labels||[]).map(c=>{const e=LABELS_CATALOG.find(x=>x.code===c);return e?e.name:c}).join(', ');return lb?'<div class="summary-row"><span class="key">Лейблы</span><span class="val">'+lb+'</span></div>':'';})()}
+      ${(()=>{
+        const cfg=state.labelConfig||{};const parts=[];
+        if(cfg.careLabel&&cfg.careLabel.enabled){const optN={'my-logo':'Мой логотип','no-logo':'Без логотипа','standard':'Стандартный'}[cfg.careLabel.logoOption]||'';parts.push('Составник'+(optN?' ('+optN+')':''));}
+        if(cfg.mainLabel&&cfg.mainLabel.option!=='none'){const optN={'send-own':'Пришлю свои','standard':'Стандартная','custom':'Кастомная'}[cfg.mainLabel.option]||'';parts.push('Бирка'+(optN?' ('+optN+')':''));}
+        if(cfg.hangTag&&cfg.hangTag.option!=='none'){const optN={'standard':'Стандартный','custom':'Кастомный'}[cfg.hangTag.option]||'';parts.push('Хэнг-тег'+(optN?' ('+optN+')':''));}
+        return parts.length?'<div class="summary-row"><span class="key">Бирки</span><span class="val">'+parts.join(', ')+'</span></div>':'';
+      })()}
       <div class="summary-row"><span class="key">Общий макет</span><span class="val">${state.generalFile||state.file||'Не загружен'}</span></div>
       ${(()=>{const zf=state.zoneFiles||{};const entries=Object.entries(zf).filter(([z])=>state.zones.includes(z));if(!entries.length)return '';return entries.map(([z,f])=>'<div class="summary-row" style="padding-left:16px"><span class="key" style="color:var(--text-dim)">'+ZONE_LABELS[z]+'</span><span class="val">'+f+'</span></div>').join('');})()}
       <div class="summary-row"><span class="key">ТЗ</span><span class="val">${state.designNotes?'✓ Есть':'—'}</span></div>
@@ -7005,7 +7440,7 @@ function buildSummary() {
       <div class="summary-row"><span class="key">Роль</span><span class="val">${state.role==='manager'?'Менеджер':state.role==='client'?'Клиент':'Партнёр'}</span></div>
     </div>
     <div class="summary-block"><div class="summary-block-title">Опции & Доставка</div>
-      <div class="summary-row"><span class="key">Инд. бирка</span><span class="val">${state.labelOption?'✓ +30₽/шт':'—'}</span></div>
+      <div class="summary-row"><span class="key">Бирки</span><span class="val">${getLabelConfigPrice()>0?'✓ +'+getLabelConfigPrice()+'₽/шт':'—'}</span></div>
       <div class="summary-row"><span class="key">OPP упаковка</span><span class="val">${state.packOption?'✓ +15₽/шт':'—'}</span></div>
       <div class="summary-row"><span class="key">Срочность</span><span class="val">${state.urgentOption?'⚡ +20%':'—'}</span></div>
       <div class="summary-row"><span class="key">Адрес</span><span class="val">${state.address||'—'}</span></div>
@@ -7014,10 +7449,10 @@ function buildSummary() {
   let unitBefore;
   let baseDisplay, fabricDisplay, techDisplay, lblDisplay, pkgDisplay, extrasDisplay;
   const _tp2 = getScreenSurcharge();
-  const _lp2 = state.labelOption?30:0;
+  const _lp2 = 0;
   const _pp2 = state.packOption?15:0;
   const extCost = (state.extras||[]).reduce((s,c)=>{const e=EXTRAS_CATALOG.find(x=>x.code===c);return s+(e?e.price:0)},0);
-  const lblCost = (state.labels||[]).reduce((s,c)=>{const e=LABELS_CATALOG.find(x=>x.code===c);return s+(e?e.price:0)},0);
+  const lblCost = getLabelConfigPrice();
 
   if (state.sku) {
     baseDisplay = getSkuEstPrice(state.sku);
@@ -7041,16 +7476,15 @@ function buildSummary() {
 
   const skuLabel = state.sku ? state.sku.name : TYPE_NAMES[state.type];
   const extrasNames = (state.extras||[]).map(c=>{const e=EXTRAS_CATALOG.find(x=>x.code===c);return e?e.name:c}).join(', ');
-  const labelsNames = (state.labels||[]).map(c=>{const e=LABELS_CATALOG.find(x=>x.code===c);return e?e.name:c}).join(', ');
+  const labelsNames = (()=>{const cfg=state.labelConfig||{};const p=[];if(cfg.careLabel&&cfg.careLabel.enabled)p.push('Составник');if(cfg.mainLabel&&cfg.mainLabel.option!=='none')p.push('Бирка');if(cfg.hangTag&&cfg.hangTag.option!=='none')p.push('Хэнг-тег');return p.join(', ');})();
 
   document.getElementById('priceBreakdown').innerHTML = `
     <div class="summary-block-title">Расчёт стоимости</div>
     <div class="price-line"><span class="name">Базовое изделие (${skuLabel})</span><span class="amount">${baseDisplay} ₽</span></div>
     ${fabricDisplay>0?`<div class="price-line"><span class="name">Ткань (${FABRIC_NAMES[state.fabric]})</span><span class="amount">+${fabricDisplay} ₽</span></div>`:''}
     ${extrasDisplay>0?`<div class="price-line"><span class="name">Обработки (${extrasNames})</span><span class="amount">+${extrasDisplay} ₽</span></div>`:''}
-    ${lblCost>0?`<div class="price-line"><span class="name">Лейблы (${labelsNames})</span><span class="amount">+${lblCost} ₽</span></div>`:''}
+    ${lblCost>0?`<div class="price-line"><span class="name">Бирки (${labelsNames})</span><span class="amount">+${lblCost} ₽</span></div>`:''}
     <div class="price-line"><span class="name">Печать (${TECH_NAMES[state.tech]})</span><span class="amount">+${techDisplay} ₽</span></div>
-    ${lblDisplay>0?`<div class="price-line"><span class="name">Бирка</span><span class="amount">+${lblDisplay} ₽</span></div>`:''}
     ${pkgDisplay>0?`<div class="price-line"><span class="name">Упаковка</span><span class="amount">+${pkgDisplay} ₽</span></div>`:''}
     <div class="price-line"><span class="name">Цена за единицу</span><span class="amount">${unitBefore} ₽ × ${totalQty} шт</span></div>
     ${urgentAdd>0?`<div class="price-line"><span class="name">Срочность (+20%)</span><span class="amount">+${urgentAdd.toLocaleString('ru')} ₽</span></div>`:''}
@@ -7095,7 +7529,7 @@ Email: ${state.email||'—'}
 Адрес: ${state.address||'—'}
 
 ОПЦИИ
-Бирка: ${state.labelOption?'Да':'Нет'}
+Бирки: ${getLabelConfigPrice()>0?'Да (+'+getLabelConfigPrice()+'₽/шт)':'Нет'}
 Упаковка: ${state.packOption?'Да':'Нет'}
 Срочно: ${state.urgentOption?'Да':'Нет'}
 
@@ -7176,16 +7610,43 @@ function generatePDF() {
     if (ex) extrasHtml += '<tr><td>'+ex.name+'</td><td>'+ex.price+' ₽/шт</td></tr>';
   });
 
-  // ── Лейблы и бирки ──
+  // ── Лейблы и бирки (v2) ──
   var labelsHtml = '';
-  (state.labels||[]).forEach(function(code) {
-    var lb = LABELS_CATALOG.find(function(e){return e.code===code});
-    if (lb) labelsHtml += '<tr><td>'+lb.name+'</td><td>'+lb.price+' ₽/шт</td></tr>';
-  });
+  var lcfg = state.labelConfig || {};
+  if (lcfg.careLabel && lcfg.careLabel.enabled) {
+    var cOptName = {'my-logo':'Мой логотип','no-logo':'Без логотипа','standard':'Стандартный'}[lcfg.careLabel.logoOption] || '—';
+    var cPrice = LABEL_CONFIG.careLabel.basePrice + (LABEL_CONFIG.careLabel.options.find(function(o){return o.key===lcfg.careLabel.logoOption})||{priceDelta:0}).priceDelta;
+    labelsHtml += '<tr><td>Бирка по уходу</td><td>'+cOptName+'</td><td>'+cPrice+' ₽/шт</td></tr>';
+    if (lcfg.careLabel.composition) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Состав</td><td colspan="2">'+lcfg.careLabel.composition+'</td></tr>';
+    if (lcfg.careLabel.country) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Страна</td><td colspan="2">'+lcfg.careLabel.country+'</td></tr>';
+    if (lcfg.careLabel.uploadData) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Макет</td><td colspan="2">'+lcfg.careLabel.uploadData.name+'</td></tr>';
+    if (lcfg.careLabel.comments) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Комментарий</td><td colspan="2">'+lcfg.careLabel.comments+'</td></tr>';
+  }
+  if (lcfg.mainLabel && lcfg.mainLabel.option !== 'none') {
+    var mOptName = {'send-own':'Клиент пришлёт','standard':'Стандартная','custom':'Кастомная'}[lcfg.mainLabel.option] || '—';
+    var mOpt2 = LABEL_CONFIG.mainLabel.options.find(function(o){return o.key===lcfg.mainLabel.option});
+    labelsHtml += '<tr><td>Основная бирка</td><td>'+mOptName+'</td><td>'+(mOpt2?mOpt2.price:0)+' ₽/шт</td></tr>';
+    if (lcfg.mainLabel.option !== 'send-own') {
+      var plcName = lcfg.mainLabel.placement === 'neck' ? 'На воротнике' : 'Петля вшивная';
+      var matName2 = {'woven':'Тканая','polyester':'Полиэстер','canvas':'Хлопковый канвас'}[lcfg.mainLabel.material] || '—';
+      var colName2 = lcfg.mainLabel.color === 'white' ? 'Белая' : 'Чёрная';
+      labelsHtml += '<tr><td style="padding-left:16px;color:#777">Размещение</td><td colspan="2">'+plcName+'</td></tr>';
+      labelsHtml += '<tr><td style="padding-left:16px;color:#777">Материал</td><td colspan="2">'+matName2+'</td></tr>';
+      labelsHtml += '<tr><td style="padding-left:16px;color:#777">Цвет</td><td colspan="2">'+colName2+'</td></tr>';
+      labelsHtml += '<tr><td style="padding-left:16px;color:#777">Размер</td><td colspan="2">'+LABEL_CONFIG.mainLabel.dimensions.width+'×'+LABEL_CONFIG.mainLabel.dimensions.height+' '+LABEL_CONFIG.mainLabel.dimensions.unit+'</td></tr>';
+      if (lcfg.mainLabel.uploadData) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Макет</td><td colspan="2">'+lcfg.mainLabel.uploadData.name+'</td></tr>';
+    }
+  }
+  if (lcfg.hangTag && lcfg.hangTag.option !== 'none') {
+    var hOptName = {'standard':'Стандартный','custom':'Кастомный'}[lcfg.hangTag.option] || '—';
+    var hOpt2 = LABEL_CONFIG.hangTag.options.find(function(o){return o.key===lcfg.hangTag.option});
+    labelsHtml += '<tr><td>Хэнг-тег</td><td>'+hOptName+'</td><td>'+(hOpt2?hOpt2.price:0)+' ₽/шт</td></tr>';
+    if (lcfg.hangTag.uploadData) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Макет</td><td colspan="2">'+lcfg.hangTag.uploadData.name+'</td></tr>';
+    if (lcfg.hangTag.comments) labelsHtml += '<tr><td style="padding-left:16px;color:#777">Комментарий</td><td colspan="2">'+lcfg.hangTag.comments+'</td></tr>';
+  }
 
   // ── Опции ──
   var optsArr = [];
-  if (state.labelOption) optsArr.push('Инд. бирка (+30 ₽/шт)');
   if (state.packOption) optsArr.push('Инд. упаковка');
   if (state.urgentOption) optsArr.push('Срочный заказ');
   if (state.noPrint) optsArr.push('Без нанесения');
@@ -7241,9 +7702,8 @@ function generatePDF() {
   '<table><tr><th>Обработка</th><th>Цена</th></tr>'+extrasHtml+'</table></div>':'')+
 
   // 5. Бирки и лейблы
-  ((labelsHtml || state.labelOption)?'<div class="sec"><div class="st"><span class="sn">05</span> Бирки и лейблы</div>'+
-  (labelsHtml?'<table><tr><th>Элемент</th><th>Цена</th></tr>'+labelsHtml+'</table>':'')+
-  (state.labelOption?'<div class="fr"><div class="fl">Инд. бирка:</div><div class="fv">Да (+30 ₽/шт)</div></div>':'')+
+  (labelsHtml?'<div class="sec"><div class="st"><span class="sn">05</span> Бирки и лейблы</div>'+
+  '<table><tr><th>Элемент</th><th>Опция</th><th>Цена</th></tr>'+labelsHtml+'</table>'+
   '</div>':'')+
 
   // 6. Опции
@@ -7340,7 +7800,6 @@ async function saveAndFinish() {
   const fields = {name:'clientName',contact:'clientContact',email:'clientEmail',deadline:'clientDeadline',address:'clientAddress',notes:'clientNotes'};
   Object.entries(fields).forEach(([k,id]) => { const el=document.getElementById(id); if(el) state[k]=el.value||''; });
   const dn = document.getElementById('designNotes'); if(dn) state.designNotes=dn.value||'';
-  state.labelOption  = !!document.getElementById('toggleLabel')?.checked;
   state.packOption   = !!document.getElementById('togglePack')?.checked;
   state.urgentOption = !!document.getElementById('toggleUrgent')?.checked;
 
@@ -7363,7 +7822,8 @@ async function saveAndFinish() {
     designNotes:state.designNotes, role:state.role,
     name:state.name, contact:state.contact, email:state.email,
     deadline:state.deadline, address:state.address, notes:state.notes,
-    labelOption:state.labelOption, packOption:state.packOption, urgentOption:state.urgentOption,
+    packOption:state.packOption, urgentOption:state.urgentOption,
+    labelConfig: state.labelConfig ? JSON.parse(JSON.stringify(state.labelConfig)) : getDefaultLabelConfig(),
     total:calcTotal(),
     bitrix_deal: bitrixEl?.value?.trim() || null,
     artwork_link: artworkEl?.value?.trim() || null
@@ -7649,7 +8109,8 @@ async function loadOrder(supaId) {
     labels: d.labels ? [...d.labels] : [],
     name:d.name||'', contact:d.contact||'', email:d.email||'',
     deadline:d.deadline||'', address:d.address||'', notes:d.notes||'',
-    labelOption:d.labelOption||false, packOption:d.packOption||false, urgentOption:d.urgentOption||false
+    labelOption:d.labelOption||false, packOption:d.packOption||false, urgentOption:d.urgentOption||false,
+    labelConfig: migrateLabelData(d)
   });
   // Запоминаем что редактируем существующий заказ
   state._editingOrderId = supaId;
@@ -7709,7 +8170,8 @@ function duplicateOrder(supaId) {
     labels: d.labels ? [...d.labels] : [],
     name:d.name||'', contact:d.contact||'', email:d.email||'',
     deadline:'', address:d.address||'', notes:'',
-    labelOption:d.labelOption||false, packOption:d.packOption||false, urgentOption:false
+    labelOption:d.labelOption||false, packOption:d.packOption||false, urgentOption:false,
+    labelConfig: migrateLabelData(d)
   });
   state._editingOrderId = null; // это новый заказ
   state._editingOrderNumber = null;
