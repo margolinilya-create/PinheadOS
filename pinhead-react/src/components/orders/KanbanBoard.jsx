@@ -3,12 +3,6 @@ import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../..
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 
-const FIT_RU = { Regular:'Стандарт', Free:'Свободный', Oversize:'Оверсайз', Wide:'Широкий' };
-function translateFit(name) {
-  if (!name) return name;
-  return name.replace(/\b(Regular|Free|Oversize|Wide)\b/gi, m => FIT_RU[m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()] || m);
-}
-
 function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ }) {
   const [showMenu, setShowMenu] = useState(false);
   const d = order.data || {};
@@ -17,8 +11,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
   const bx = order.bitrix_deal || '';
   const mainNum = bx || order.order_number || '—';
   const itemKey = (order.item_type || '').toLowerCase();
-  const rawName = d.sku ? d.sku.name : (TYPE_NAMES[itemKey] || TYPE_NAMES[order.item_type] || order.item_type || '—');
-  const skuName = translateFit(rawName);
+  const skuName = d.sku ? d.sku.name : (TYPE_NAMES[itemKey] || TYPE_NAMES[order.item_type] || order.item_type || '—');
   const fabricName = d.fabric ? (FABRIC_NAMES[d.fabric] || d.fabric) : '';
   const techName = d.tech ? (TECH_NAMES[d.tech] || d.tech) : '';
 

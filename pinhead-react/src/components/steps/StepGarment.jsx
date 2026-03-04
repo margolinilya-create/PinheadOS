@@ -6,8 +6,6 @@ import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES, FABRICS_LAYER1, FABRICS_LAYER2 }
 import { getSkuEstPrice, isAccessory, getTotalQty } from '../../utils/pricing';
 import { getGarmentSVG } from '../../utils/mockup';
 
-const FIT_RU = { regular:'Стандарт', free:'Свободный', oversize:'Оверсайз', wide:'Широкий' };
-
 // ── SKU List ──
 function SkuList() {
   const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore();
@@ -44,7 +42,7 @@ function SkuList() {
               {groups[catId].map(s => {
                 const est = getSkuEstPrice(s, fabricsCatalog, trimCatalog, usdRate);
                 const isSelected = sku?.code === s.code;
-                const fitRu = s.fit ? (FIT_RU[s.fit] || s.fit) : null;
+                const fitLabel = s.fit || null;
                 return (
                   <div
                     key={s.code}
@@ -57,7 +55,7 @@ function SkuList() {
                     onClick={() => selectSku(s)}
                   >
                     <div className="garment-row-bar" />
-                    <span className="garment-row-name">{s.name}{fitRu ? <span className="garment-row-fit">{fitRu}</span> : null}</span>
+                    <span className="garment-row-name">{s.name}{fitLabel ? <span className="garment-row-fit">{fitLabel}</span> : null}</span>
                     <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
                   </div>
                 );
