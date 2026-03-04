@@ -79,7 +79,7 @@ function App() {
       <ProgressBar />
 
       <main className="container">
-        <CurrentStep />
+        <CurrentStep onNavigate={setPage} />
       </main>
 
       {/* ── Fullscreen overlay panels (like original HTML) ── */}

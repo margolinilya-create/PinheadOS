@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
+import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES } from '../../data';
 
-function KanbanCard({ order, onStatusChange, onDelete, onDuplicate }) {
+function KanbanCard({ order, onStatusChange, onDelete, onDuplicate, onEdit }) {
   const [showMenu, setShowMenu] = useState(false);
   const d = order.data || {};
   const date = order.created_at ? new Date(order.created_at).toLocaleDateString('ru-RU') : '';
@@ -32,6 +33,10 @@ function KanbanCard({ order, onStatusChange, onDelete, onDuplicate }) {
         <button className="kb-card-btn" onClick={() => setShowMenu(!showMenu)}>•••</button>
         {showMenu && (
           <div className="kb-card-menu">
+            <button onClick={() => { onEdit(order); setShowMenu(false); }}>
+              Открыть / Редактировать
+            </button>
+            <div className="kb-menu-sep" />
             {STATUS_LIST.filter(s => s !== order.status).map(s => (
               <button key={s} onClick={() => { onStatusChange(order.id, s); setShowMenu(false); }}>
                 <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
@@ -50,6 +55,7 @@ function KanbanCard({ order, onStatusChange, onDelete, onDuplicate }) {
 
 export default function KanbanBoard({ onClose }) {
   const { orders, loading, filter, search, setFilter, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, getFiltered } = useOrdersStore();
+  const loadOrder = useStore(s => s.loadOrder);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -69,6 +75,11 @@ export default function KanbanBoard({ onClose }) {
     e.preventDefault();
     const orderId = e.dataTransfer.getData('orderId');
     if (orderId) updateStatus(Number(orderId) || orderId, status);
+  };
+
+  const handleEdit = (order) => {
+    loadOrder(order);
+    onClose();
   };
 
   return (
@@ -135,6 +146,7 @@ export default function KanbanBoard({ onClose }) {
                   onStatusChange={updateStatus}
                   onDelete={deleteOrder}
                   onDuplicate={duplicateOrder}
+                  onEdit={handleEdit}
                 />
               ))
             )}
@@ -161,6 +173,7 @@ export default function KanbanBoard({ onClose }) {
                       onStatusChange={updateStatus}
                       onDelete={deleteOrder}
                       onDuplicate={duplicateOrder}
+                      onEdit={handleEdit}
                     />
                   ))}
                 </div>

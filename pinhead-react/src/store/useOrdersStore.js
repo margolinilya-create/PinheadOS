@@ -7,6 +7,17 @@ const STATUS_COLORS = { draft: '#888', review: '#b89000', approved: '#1D19EA', p
 
 export { STATUS_LIST, STATUS_LABELS, STATUS_COLORS };
 
+// ─── Generate sequential PH-XXXX order number ───
+function generateOrderNumber(existingOrders) {
+  let maxNum = 0;
+  for (const o of existingOrders) {
+    const m = (o.order_number || '').match(/^PH-(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+  }
+  const next = maxNum + 1;
+  return 'PH-' + String(next).padStart(4, '0');
+}
+
 export const useOrdersStore = create((set, get) => ({
   orders: [],
   loading: false,
@@ -35,16 +46,17 @@ export const useOrdersStore = create((set, get) => ({
     }
   },
 
-  // Сохранить новый заказ
+  // Сохранить новый заказ (INSERT с sequence PH-XXXX)
   saveOrder: async (orderData) => {
-    const id = 'PH-' + Date.now().toString(36).toUpperCase();
+    const orderNumber = generateOrderNumber(get().orders);
     const row = {
-      order_number: id,
+      order_number: orderNumber,
       status: 'draft',
       data: orderData,
       total_sum: orderData.total || 0,
       total_qty: orderData.totalQty || 0,
       item_type: orderData.type || '',
+      notes: orderData.notes || null,
       created_at: new Date().toISOString(),
     };
 
@@ -57,6 +69,32 @@ export const useOrdersStore = create((set, get) => ({
     const local = { ...row, id: Date.now() };
     set(s => ({ orders: [local, ...s.orders] }));
     return local;
+  },
+
+  // Обновить заказ (UPDATE по id — без дублирования)
+  updateOrder: async (id, orderData) => {
+    const payload = {
+      data: orderData,
+      total_sum: orderData.total || 0,
+      total_qty: orderData.totalQty || 0,
+      item_type: orderData.type || '',
+      notes: orderData.notes || null,
+    };
+
+    // Optimistic update
+    set(s => ({
+      orders: s.orders.map(o => o.id === id ? { ...o, ...payload } : o),
+    }));
+
+    const { data, error } = await supabase.from('orders').update(payload).eq('id', id).select();
+    if (!error && data?.[0]) {
+      set(s => ({
+        orders: s.orders.map(o => o.id === id ? data[0] : o),
+      }));
+      return data[0];
+    }
+    // Return the locally updated version
+    return get().orders.find(o => o.id === id) || null;
   },
 
   // Обновить статус
@@ -74,19 +112,28 @@ export const useOrdersStore = create((set, get) => ({
   },
 
   // Дублировать заказ
-  duplicateOrder: (order) => {
-    const id = 'PH-' + Date.now().toString(36).toUpperCase();
+  duplicateOrder: async (order) => {
+    const orderNumber = generateOrderNumber(get().orders);
     const dup = {
-      ...order,
-      id: Date.now(),
-      order_number: id,
+      order_number: orderNumber,
       status: 'draft',
+      data: order.data ? JSON.parse(JSON.stringify(order.data)) : {},
+      total_sum: order.total_sum || 0,
+      total_qty: order.total_qty || 0,
+      item_type: order.item_type || '',
+      notes: order.notes || null,
       created_at: new Date().toISOString(),
     };
-    set(s => ({ orders: [dup, ...s.orders] }));
-    // Сохраняем в облако
-    supabase.from('orders').insert(dup).select();
-    return dup;
+
+    const { data, error } = await supabase.from('orders').insert(dup).select();
+    if (!error && data?.[0]) {
+      set(s => ({ orders: [data[0], ...s.orders] }));
+      return data[0];
+    }
+    // Fallback
+    const local = { ...dup, id: Date.now() };
+    set(s => ({ orders: [local, ...s.orders] }));
+    return local;
   },
 
   // Отфильтрованные заказы

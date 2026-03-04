@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
+// ─── DEV MODE: bypass авторизации (как в оригинале v1.7) ───
+// Если true — пропускаем логин, role = manager, userName = 'Test User'
+const DEV_MODE = true;
+
 export const useAuthStore = create((set, get) => ({
   user: null,       // { id, email, name, role }
   loading: true,
@@ -8,6 +12,25 @@ export const useAuthStore = create((set, get) => ({
 
   // Инициализация — проверка сессии
   init: async () => {
+    // ─── DEV MODE bypass (как initAuth() в оригинале) ───
+    if (DEV_MODE) {
+      set({
+        user: { id: 'dev', email: 'dev@pinhead.studio', name: 'Test User', role: 'manager', approved: true },
+        loading: false,
+        error: null,
+      });
+      // Попытаться подключиться к Supabase в фоне
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await get().fetchProfile(session.user.id, session.user.email);
+        }
+      } catch {
+        console.log('Supabase offline, running in dev mode');
+      }
+      return;
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {

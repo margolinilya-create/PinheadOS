@@ -10,6 +10,10 @@ const initSizes = () => Object.fromEntries(SIZES.map(s => [s, 0]));
 const initialState = {
   step: 0,
   maxStep: 0,
+  // ─── Editing state (для loadOrder/updateOrder) ───
+  _editingOrderId: null,
+  _editingOrderNumber: null,
+  _lastSavedOrderNum: null,
   type: '',
   fabric: '',
   color: '',
@@ -195,6 +199,75 @@ export const useStore = create((set, get) => ({
   // ─── Options ───
   togglePack: () => set(s => ({ packOption: !s.packOption })),
   toggleUrgent: () => set(s => ({ urgentOption: !s.urgentOption })),
+
+  // ─── Custom Sizes ───
+  addCustomSize: (label) => set(s => ({
+    customSizes: [...s.customSizes, { label: label || `${s.customSizes.length + 4}XL`, qty: 0 }],
+  })),
+  removeCustomSize: (idx) => set(s => ({
+    customSizes: s.customSizes.filter((_, i) => i !== idx),
+  })),
+  setCustomSizeQty: (idx, qty) => set(s => ({
+    customSizes: s.customSizes.map((c, i) => i === idx ? { ...c, qty: Math.max(0, parseInt(qty) || 0) } : c),
+  })),
+  setCustomSizeLabel: (idx, label) => set(s => ({
+    customSizes: s.customSizes.map((c, i) => i === idx ? { ...c, label } : c),
+  })),
+
+  // ─── Load Order (восстановление из Supabase данных) ───
+  loadOrder: (order) => {
+    const d = order.data || {};
+    const skuCatalog = get().skuCatalog;
+
+    // Restore SKU from catalog by article/code
+    let sku = null;
+    if (d.sku?.code) {
+      sku = skuCatalog.find(s => s.code === d.sku.code) || null;
+    } else if (d.sku?.article) {
+      sku = skuCatalog.find(s => s.article === d.sku.article) || null;
+    }
+
+    set({
+      step: 4,
+      maxStep: 4,
+      _editingOrderId: order.id,
+      _editingOrderNumber: order.order_number,
+      _lastSavedOrderNum: null,
+      type: d.type || '',
+      fabric: d.fabric || '',
+      color: d.color || '',
+      sku,
+      fit: d.fit || 'regular',
+      fitChosen: !!d.fit || !!sku,
+      sizes: d.sizes ? { ...d.sizes } : initSizes(),
+      customSizes: d.customSizes ? [...d.customSizes] : [],
+      extras: d.extras ? [...d.extras] : [],
+      labels: d.labels ? [...d.labels] : [],
+      zones: d.zones ? [...d.zones] : [],
+      tech: d.tech || 'screen',
+      textileColor: d.textileColor || 'white',
+      dtgTextile: d.dtgTextile || 'white',
+      zoneTechs: d.zoneTechs ? { ...d.zoneTechs } : {},
+      zonePrints: d.zonePrints ? JSON.parse(JSON.stringify(d.zonePrints)) : {},
+      flexZones: d.flexZones ? JSON.parse(JSON.stringify(d.flexZones)) : {},
+      dtgZones: d.dtgZones ? JSON.parse(JSON.stringify(d.dtgZones)) : {},
+      embZones: d.embZones ? JSON.parse(JSON.stringify(d.embZones)) : {},
+      dtfZones: d.dtfZones ? JSON.parse(JSON.stringify(d.dtfZones)) : {},
+      zoneArtworks: d.zoneArtworks ? { ...d.zoneArtworks } : {},
+      designNotes: d.designNotes || '',
+      name: d.name || '',
+      contact: d.contact || '',
+      email: d.email || '',
+      phone: d.phone || '',
+      deadline: d.deadline || '',
+      address: d.address || '',
+      notes: d.notes || '',
+      packOption: d.packOption || false,
+      urgentOption: d.urgentOption || false,
+      noPrint: (d.zones || []).length === 0,
+      labelConfig: d.labelConfig || initialState.labelConfig,
+    });
+  },
 
   // ─── Reset ───
   resetOrder: () => set({ ...initialState, skuCatalog: get().skuCatalog, fabricsCatalog: get().fabricsCatalog, trimCatalog: get().trimCatalog, extrasCatalog: get().extrasCatalog, labelsCatalog: get().labelsCatalog, usdRate: get().usdRate }),

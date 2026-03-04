@@ -23,7 +23,7 @@ export const FABRIC_NAMES = {
 };
 
 export const TECH_NAMES = {
-  screen:'Шелкография', dtg:'DTG', embroidery:'Вышивка', dtf:'DTF Transfer'
+  screen:'Шелкография', flex:'Flex', dtg:'DTG', embroidery:'Вышивка', dtf:'DTF Transfer'
 };
 
 export const ZONE_LABELS = {
