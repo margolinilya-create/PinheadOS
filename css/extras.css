@@ -1,0 +1,78 @@
+/* ════════════════════════════════════════════════════════════════ */
+/* ══  DECORATIVE                                                ══ */
+/* ════════════════════════════════════════════════════════════════ */
+/* Ray deco and other visual elements */
+
+/* ─────────── RAY DECO (decorative lines from asterisk motif) ─────────── */
+.ray-deco{
+  position:absolute;
+  pointer-events:none;
+  opacity:0.07;
+}
+
+
+
+/* ═══ v1.6 UX: spinner overlay ═══ */
+.spinner-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;opacity:0;pointer-events:none;transition:opacity .2s}
+.spinner-overlay.show{opacity:1;pointer-events:all}
+.spinner-box{background:#fff;border-radius:12px;padding:24px 36px;display:flex;align-items:center;gap:14px;font-family:'Roboto Condensed',sans-serif;font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.spinner-ring{width:22px;height:22px;border:3px solid #e0e0e0;border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══ v1.6 UX: confirm modal ═══ */
+.confirm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;pointer-events:none;transition:opacity .2s}
+.confirm-overlay.show{opacity:1;pointer-events:all}
+.confirm-box{background:#fff;border-radius:12px;padding:28px 32px;max-width:380px;width:90%;font-family:'Roboto Condensed',sans-serif;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.confirm-title{font-size:16px;font-weight:700;margin-bottom:8px}
+.confirm-text{font-size:13px;color:#555;margin-bottom:20px;line-height:1.5}
+.confirm-btns{display:flex;gap:10px;justify-content:flex-end}
+.confirm-btn{padding:8px 20px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s}
+.confirm-btn.cancel{background:#f0f0f0;color:#333}
+.confirm-btn.cancel:hover{background:#e0e0e0}
+.confirm-btn.danger{background:#000;color:#fff}
+.confirm-btn.danger:hover{background:#333}
+
+/* ═══ v1.7: SKU Editor — Full Page ═══ */
+#skuEditorPage{position:fixed;inset:0;background:#fff;z-index:450;display:none;flex-direction:column;font-family:'Roboto Condensed',sans-serif}
+#skuEditorPage.open{display:flex}
+.sku-rates-bar{display:flex;align-items:center;gap:16px;padding:10px 22px;background:#fffde6;border-bottom:1px solid #e0e0e0;font-size:12px;flex-shrink:0}
+.sku-rate-block{display:flex;align-items:center;gap:6px}
+.sku-rate-label{font-weight:700;color:#666;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
+.sku-rate-value{font-weight:800;font-size:15px}
+.sku-rate-unit{color:#888;font-size:11px}
+.sku-rate-input{width:65px;border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:14px;font-weight:800;text-align:center;font-family:inherit}
+.sku-rate-input:focus{border-color:#000;outline:none}
+.sku-rate-refresh{background:none;border:1px solid #ddd;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:13px;transition:all .15s}
+.sku-rate-refresh:hover{background:#000;color:#fff;border-color:#000}
+.sku-rate-sep{width:1px;height:20px;background:#ddd}
+.sku-rate-warn{font-size:10px;color:#c00;display:none}
+.sku-tabs-bar{display:flex;gap:4px;padding:0 22px;border-bottom:1px solid #e0e0e0;flex-shrink:0}
+.sku-tab{padding:12px 20px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2.5px solid transparent;color:#888;letter-spacing:.5px;transition:all .15s}
+.sku-tab:hover{color:#000}
+.sku-tab.active{color:#000;border-bottom-color:#000}
+.sku-page-body{padding:14px 22px;min-height:400px;overflow-y:auto;flex:1}
+.sku-section-title{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#888;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid #e0e0e0}
+.sku-section-title:first-child{margin-top:0}
+.sku-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:12px}
+.sku-table th{text-align:left;padding:5px 8px;border-bottom:2px solid #000;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#888;background:#fafafa}
+.sku-table td{padding:3px 8px;border-bottom:1px solid #f0f0f0;vertical-align:middle;height:32px}
+.sku-table tr:hover{background:#f8f8f5}
+.sku-table tr:last-child td{border-bottom:none}
+.sku-input{border:1px solid #e0e0e0;border-radius:4px;padding:3px 6px;font-size:12px;font-family:inherit;width:100%;box-sizing:border-box;transition:border-color .15s}
+.sku-input:focus{border-color:#000;outline:none}
+.sku-input-sm{width:80px}
+.sku-input-xs{width:55px}
+.sku-input-md{width:120px}
+.sku-btn{padding:5px 14px;border-radius:5px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:all .15s}
+.sku-btn:hover{background:#f0f0f0}
+.sku-btn-primary{background:#000;color:#fff;border-color:#000}
+.sku-btn-primary:hover{background:#333}
+.sku-btn-danger{color:#c00;border-color:#fcc;padding:3px 8px}
+.sku-btn-danger:hover{background:#fff0f0}
+.sku-actions{display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap;align-items:center}
+.sku-stat{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:#f0f0f0;border-radius:20px;font-size:11px;font-weight:600;color:#555}
+.sku-est{font-weight:700;color:#000;font-size:13px}
+.sku-drag-handle:hover{color:#3B5BFE!important}
+tr[draggable=true]:hover .sku-drag-handle{color:#888!important}
+tr[draggable=true].dragging{opacity:.4}
+

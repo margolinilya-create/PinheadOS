@@ -1,0 +1,61 @@
+/*
+╔══════════════════════════════════════════════════════════════╗
+║              PINHEAD ORDER STUDIO v1.7 — CSS                ║
+║                                                              ║
+║  TABLE OF CONTENTS                                           ║
+║                                                              ║
+║   1. FOUNDATION                     Tokens, reset, typography, print║
+║   2. LAYOUT                         Header, progress bar, containers, steps║
+║   3. COMPONENTS — GARMENTS          Garment grid, cards, command palette║
+║   4. COMPONENTS — COLORS            Color search, swatches, supplier switch║
+║   5. COMPONENTS — FORMS             Size table, zones, fields, fit selector, toggles, upload║
+║   6. COMPONENTS — OUTPUT            Summary, price breakdown, buttons, mockup, tips, success║
+║   7. PROGRESSIVE SECTIONS           Step-by-step section locking, validation║
+║   8. PANELS — EXPRESS               Express calculator panel ║
+║   9. PANELS — PRICES EDITOR         Prices editor fullscreen ║
+║  10. PANELS — HISTORY               History panel, flash, scrollbar║
+║  11. AUTH & ADMIN                   Auth screen, user badge, admin panel, pending║
+║  12. DECORATIVE                     Ray deco and other visual elements║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+*/
+
+/* ════════════════════════════════════════════════════════════════ */
+/* ══  FOUNDATION                                                ══ */
+/* ════════════════════════════════════════════════════════════════ */
+/* Tokens, reset, typography, print */
+
+/* ─────────── TOKENS ─────────── */
+:root {
+  --bg:       #ffffff;
+  --bg2:      #f5f5f5;
+  --bg3:      #ebebeb;
+  --text:     #000000;
+  --text-mid: #444444;
+  --text-dim: #888888;
+  --border:   #000000;
+  --border-light: #cccccc;
+  --accent:   #1D19EA;
+  --accent2:  #fff;
+  --white:    #ffffff;
+  --black:    #000000;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Roboto Condensed',sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+
+/* ─────────── PRINT ─────────── */
+.pdf-header,.pdf-footer{display:none}
+@media print{
+  .pdf-header,.pdf-footer{display:block}
+  header,.progress-bar,.btn-row,.draft-indicator,.header-btn,.settings-btn{display:none!important}
+  .pdf-header{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end}
+  .pdf-footer{border-top:1px solid #000;margin-top:24px;padding-top:8px;font-size:11px;color:#888;text-align:center}
+}
+
