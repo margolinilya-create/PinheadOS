@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
+import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES } from '../../data';
 import { toast } from '../shared/Toast';
 import QRCode from 'qrcode';
 
@@ -15,7 +15,7 @@ const CHECKLIST_ITEMS = [
 ];
 
 export default function TechCard({ order, onClose, onStatusChange }) {
-  const updateOrder = useOrdersStore(s => s.updateOrder);
+  const patchOrderData = useOrdersStore(s => s.patchOrderData);
   const user = useAuthStore(s => s.user);
   const d = order.data || {};
 
@@ -33,10 +33,9 @@ export default function TechCard({ order, onClose, onStatusChange }) {
     QRCode.toDataURL(url, { width: 120, margin: 1 }).then(setQrUrl).catch(() => {});
   }, [order.order_number]);
 
-  // Save data back to order
+  // Save only specific data fields (without overwriting total_sum, total_qty, etc.)
   const saveData = async (patch) => {
-    const newData = { ...order.data, ...patch };
-    await updateOrder(order.id, newData);
+    await patchOrderData(order.id, patch);
   };
 
   // Toggle checklist
