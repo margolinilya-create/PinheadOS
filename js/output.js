@@ -530,77 +530,117 @@ function generatePDF() {
   if (state.urgentOption) optsArr.push('Срочный заказ');
   if (state.noPrint) optsArr.push('Без нанесения');
 
-  var css = '*{margin:0;padding:0;box-sizing:border-box}'+
-  'body{font-family:Arial,sans-serif;padding:20mm;color:#000;font-size:10pt}'+
-  '@media print{body{padding:10mm}.no-print{display:none!important}@page{margin:12mm}}'+
-  '.hdr{border-bottom:3px solid #000;padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end}'+
-  '.logo{font-size:24pt;font-weight:900;letter-spacing:3px}.ctn{font-size:8pt;color:#555;text-align:right}'+
-  '.title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}'+
-  '.title-row h1{font-size:14pt;margin:0}.onum{font-size:13pt;font-weight:700;color:#1a1aff}'+
-  '.sec{margin-bottom:12px}.sn{font-size:8pt;color:#999;margin-right:4px}'+
-  '.st{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:8px;color:#000}'+
-  'table{width:100%;border-collapse:collapse;margin-bottom:8px}td,th{border:1px solid #ccc;padding:4px 7px;font-size:9pt;text-align:left}th{background:#f0f0f0;font-weight:600}'+
-  '.fr{display:flex;margin-bottom:3px}.fl{width:130px;font-weight:600;color:#555;font-size:9pt}.fv{flex:1;font-size:9pt;background:#f9f9f9;padding:1px 5px;border-bottom:1px solid #eee}'+
-  '.tag{display:inline-block;padding:2px 8px;font-size:8pt;font-weight:600;border:1px solid #ccc;margin:2px 4px 2px 0}'+
-  '.tot{font-size:16pt;font-weight:900;text-align:right;margin-top:14px;padding-top:8px;border-top:3px solid #000;color:#1a1aff}'+
-  '.acts{position:fixed;top:8px;right:8px;display:flex;gap:6px;z-index:1000}.acts button{padding:8px 18px;font-size:11pt;font-weight:700;border:2px solid #000;cursor:pointer}'+
-  '.bp{background:#000;color:#fff}.bc{background:#fff;color:#000}'+
-  '.note{font-size:8pt;color:#777;margin-top:2px}';
+  var css = '@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Roboto+Condensed:wght@300;400;500;700&display=swap");'+
+  '*{margin:0;padding:0;box-sizing:border-box}'+
+  'body{font-family:"Roboto Condensed",Arial,sans-serif;padding:28mm 24mm;color:#000;font-size:10pt;background:#fff}'+
+  '@media print{body{padding:12mm}.no-print{display:none!important}@page{size:A4;margin:12mm}}'+
+
+  /* Header */
+  '.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #000;margin-bottom:6px}'+
+  '.logo{font-family:"Barlow Condensed",sans-serif;font-size:32pt;font-weight:900;letter-spacing:4px;line-height:1}'+
+  '.logo-sub{font-family:"Barlow Condensed",sans-serif;font-size:9pt;font-weight:700;letter-spacing:3px;color:#888;text-transform:uppercase;margin-top:2px}'+
+  '.ctn{font-size:8pt;color:#666;text-align:right;line-height:1.5}'+
+
+  /* Title row */
+  '.title-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0 16px;border-bottom:1.5px solid #000;margin-bottom:16px}'+
+  '.title-row h1{font-family:"Barlow Condensed",sans-serif;font-size:20pt;font-weight:900;letter-spacing:2px;text-transform:uppercase;margin:0}'+
+  '.onum{font-family:"Barlow Condensed",sans-serif;font-size:16pt;font-weight:900;color:#1D19EA}'+
+
+  /* Sections */
+  '.sec{margin-bottom:18px;page-break-inside:avoid}'+
+  '.st{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #000}'+
+  '.sn{font-family:"Barlow Condensed",sans-serif;width:24px;height:24px;border:2px solid #000;display:inline-flex;align-items:center;justify-content:center;font-size:9pt;font-weight:700;flex-shrink:0}'+
+  '.st-text{font-family:"Barlow Condensed",sans-serif;font-size:12pt;font-weight:900;text-transform:uppercase;letter-spacing:2px}'+
+
+  /* Field rows */
+  '.fr{display:flex;margin-bottom:4px;min-height:22px}'+
+  '.fl{width:140px;font-weight:700;color:#555;font-size:9pt;padding:3px 0;flex-shrink:0}'+
+  '.fv{flex:1;font-size:9pt;padding:3px 8px;background:#f7f7f7;border-bottom:1px solid #eee}'+
+
+  /* Tables */
+  'table{width:100%;border-collapse:collapse;margin-bottom:8px}'+
+  'td,th{border:1px solid #ddd;padding:6px 10px;font-size:9pt;text-align:left}'+
+  'th{background:#000;color:#fff;font-family:"Barlow Condensed",sans-serif;font-size:9pt;font-weight:700;letter-spacing:1px;text-transform:uppercase}'+
+  'tr:nth-child(even) td{background:#fafafa}'+
+  'tr.total-row td{font-weight:700;background:#f0f0f0;border-top:2px solid #000}'+
+
+  /* Tags */
+  '.tag{display:inline-block;padding:4px 12px;font-family:"Barlow Condensed",sans-serif;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;border:1.5px solid #000;margin:3px 6px 3px 0}'+
+  '.tag-active{background:#000;color:#fff}'+
+
+  /* Total */
+  '.tot{display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding:12px 16px;border:3px solid #000;background:#f7f7f7}'+
+  '.tot-label{font-family:"Barlow Condensed",sans-serif;font-size:12pt;font-weight:900;text-transform:uppercase;letter-spacing:2px}'+
+  '.tot-val{font-family:"Barlow Condensed",sans-serif;font-size:22pt;font-weight:900;color:#1D19EA}'+
+
+  /* Actions */
+  '.acts{position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;gap:8px;padding:10px;background:#000;z-index:1000}'+
+  '.acts button{padding:8px 24px;font-family:"Barlow Condensed",sans-serif;font-size:12pt;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:2px solid #fff;cursor:pointer;transition:all .12s}'+
+  '.bp{background:#1D19EA;color:#fff;border-color:#1D19EA}.bp:hover{background:#1510c0}'+
+  '.bc{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}.bc:hover{border-color:#fff}'+
+
+  /* Note & footer */
+  '.note{font-size:8pt;color:#888;margin-top:3px}'+
+  '.footer{margin-top:24px;padding-top:8px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:7pt;color:#aaa}';
 
   var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>ТЗ '+orderId+'</title><style>'+css+'</style></head><body>'+
-  '<div class="acts no-print"><button class="bp" onclick="window.print()">🖨 ПЕЧАТЬ / PDF</button><button class="bc" onclick="window.close()">✕ ЗАКРЫТЬ</button></div>'+
+  '<div class="acts no-print"><button class="bp" onclick="window.print()">ПЕЧАТЬ / PDF</button><button class="bc" onclick="window.close()">ЗАКРЫТЬ</button></div>'+
 
   // Шапка
-  '<div class="hdr"><div class="logo">PINHEAD</div><div class="ctn">PNHD.RU / HELLO@PNHD.RU<br>+7 (812) 407-27-14</div></div>'+
-  '<div class="title-row"><h1>ТЕХНИЧЕСКОЕ ЗАДАНИЕ</h1><span class="onum">['+orderId+']</span></div>'+
+  '<div class="hdr"><div><div class="logo">PINHEAD</div><div class="logo-sub">Order Studio</div></div><div class="ctn">PNHD.RU / HELLO@PNHD.RU<br>+7 (812) 407-27-14</div></div>'+
+  '<div class="title-row"><h1>Техническое задание</h1><span class="onum">'+orderId+'</span></div>'+
 
   // 1. Изделие
-  '<div class="sec"><div class="st"><span class="sn">01</span> Изделие</div>'+
-  '<div class="fr"><div class="fl">Тип:</div><div class="fv">'+typeName+'</div></div>'+
-  '<div class="fr"><div class="fl">Ткань:</div><div class="fv">'+fabricName+'</div></div>'+
-  '<div class="fr"><div class="fl">Цвет:</div><div class="fv">'+colorName+'</div></div>'+
-  '<div class="fr"><div class="fl">Дата:</div><div class="fv">'+now+'</div></div>'+
-  '<div class="fr"><div class="fl">Дедлайн:</div><div class="fv">'+deadline+'</div></div>'+
-  (state.sizeComment?'<div class="fr"><div class="fl">Комментарий:</div><div class="fv">'+state.sizeComment+'</div></div>':'')+
+  '<div class="sec"><div class="st"><span class="sn">01</span><span class="st-text">Изделие</span></div>'+
+  '<div class="fr"><div class="fl">Тип</div><div class="fv">'+typeName+'</div></div>'+
+  '<div class="fr"><div class="fl">Ткань</div><div class="fv">'+fabricName+'</div></div>'+
+  '<div class="fr"><div class="fl">Цвет</div><div class="fv">'+colorName+'</div></div>'+
+  '<div class="fr"><div class="fl">Дата</div><div class="fv">'+now+'</div></div>'+
+  '<div class="fr"><div class="fl">Дедлайн</div><div class="fv">'+deadline+'</div></div>'+
+  (state.sizeComment?'<div class="fr"><div class="fl">Комментарий</div><div class="fv">'+state.sizeComment+'</div></div>':'')+
   '</div>'+
 
   // 2. Размеры и тираж
-  '<div class="sec"><div class="st"><span class="sn">02</span> Размеры и тираж</div>'+
+  '<div class="sec"><div class="st"><span class="sn">02</span><span class="st-text">Размеры и тираж</span></div>'+
   '<table><tr><th>Размер</th><th>Кол-во</th><th>Цена/шт</th><th>Сумма</th></tr>'+sizeRows+
-  '<tr style="font-weight:700;background:#f0f0f0"><td>ИТОГО</td><td>'+totalQty+' шт</td><td></td><td>'+total.toLocaleString("ru")+' ₽</td></tr></table></div>'+
+  '<tr class="total-row"><td>ИТОГО</td><td>'+totalQty+' шт</td><td></td><td>'+total.toLocaleString("ru")+' ₽</td></tr></table></div>'+
 
   // 3. Нанесение
-  '<div class="sec"><div class="st"><span class="sn">03</span> Нанесение</div>'+
-  (state.noPrint?'<div class="fr"><div class="fv">Без нанесения</div></div>':
+  '<div class="sec"><div class="st"><span class="sn">03</span><span class="st-text">Нанесение</span></div>'+
+  (state.noPrint?'<div class="fr"><div class="fv" style="text-align:center;font-weight:600">Без нанесения</div></div>':
     (zonesHtml?'<table><tr><th>Зона</th><th>Техника</th><th>Параметры</th><th>Макет</th></tr>'+zonesHtml+'</table>':'<div class="note">Зоны не выбраны</div>'))+
-  (state.designNotes?'<div class="fr"><div class="fl">ТЗ дизайнера:</div><div class="fv">'+state.designNotes+'</div></div>':'')+
+  (state.designNotes?'<div class="fr" style="margin-top:6px"><div class="fl">ТЗ дизайнера</div><div class="fv">'+state.designNotes+'</div></div>':'')+
   '</div>'+
 
   // 4. Обработки
-  (extrasHtml?'<div class="sec"><div class="st"><span class="sn">04</span> Обработки</div>'+
+  (extrasHtml?'<div class="sec"><div class="st"><span class="sn">04</span><span class="st-text">Обработки</span></div>'+
   '<table><tr><th>Обработка</th><th>Цена</th></tr>'+extrasHtml+'</table></div>':'')+
 
   // 5. Бирки и лейблы
-  (labelsHtml?'<div class="sec"><div class="st"><span class="sn">05</span> Бирки и лейблы</div>'+
+  (labelsHtml?'<div class="sec"><div class="st"><span class="sn">05</span><span class="st-text">Бирки и лейблы</span></div>'+
   '<table><tr><th>Элемент</th><th>Опция</th><th>Цена</th></tr>'+labelsHtml+'</table>'+
   '</div>':'')+
 
   // 6. Опции
-  '<div class="sec"><div class="st"><span class="sn">06</span> Опции</div>'+
-  (optsArr.length>0?optsArr.map(function(o){return '<span class="tag">'+o+'</span>'}).join(''):'<div class="note">Стандартные условия</div>')+
+  '<div class="sec"><div class="st"><span class="sn">06</span><span class="st-text">Опции</span></div>'+
+  (optsArr.length>0?optsArr.map(function(o){return '<span class="tag tag-active">'+o+'</span>'}).join(''):'<div class="note">Стандартные условия</div>')+
   '</div>'+
 
   // 7. Клиент
-  '<div class="sec"><div class="st"><span class="sn">07</span> Клиент</div>'+
-  '<div class="fr"><div class="fl">Имя:</div><div class="fv">'+(state.name||'—')+'</div></div>'+
-  '<div class="fr"><div class="fl">Телефон:</div><div class="fv">'+(state.contact||'—')+'</div></div>'+
-  '<div class="fr"><div class="fl">Email:</div><div class="fv">'+(state.email||'—')+'</div></div>'+
-  (state.address?'<div class="fr"><div class="fl">Адрес:</div><div class="fv">'+state.address+'</div></div>':'')+
-  (state.notes?'<div class="fr"><div class="fl">Примечания:</div><div class="fv">'+state.notes+'</div></div>':'')+
+  '<div class="sec"><div class="st"><span class="sn">07</span><span class="st-text">Клиент</span></div>'+
+  '<div class="fr"><div class="fl">Имя</div><div class="fv">'+(state.name||'—')+'</div></div>'+
+  '<div class="fr"><div class="fl">Телефон</div><div class="fv">'+(state.contact||'—')+'</div></div>'+
+  '<div class="fr"><div class="fl">Email</div><div class="fv">'+(state.email||'—')+'</div></div>'+
+  (state.messenger?'<div class="fr"><div class="fl">Мессенджер</div><div class="fv">@'+state.messenger+'</div></div>':'')+
+  (state.address?'<div class="fr"><div class="fl">Адрес</div><div class="fv">'+state.address+'</div></div>':'')+
+  (state.notes?'<div class="fr"><div class="fl">Примечания</div><div class="fv">'+state.notes+'</div></div>':'')+
   '</div>'+
 
   // Итого
-  '<div class="tot">ИТОГО: '+total.toLocaleString("ru")+' ₽</div>'+
+  '<div class="tot"><span class="tot-label">Итого</span><span class="tot-val">'+total.toLocaleString("ru")+' ₽</span></div>'+
+
+  // Footer
+  '<div class="footer no-print"><span>PINHEAD ORDER STUDIO v1.7</span><span>Сформировано: '+now+'</span></div>'+
   '</body></html>';
 
   var win = window.open('', '_blank');
