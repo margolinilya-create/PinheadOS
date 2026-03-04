@@ -86,7 +86,7 @@ function App() {
       {showPrices && <PriceEditor onClose={() => setShowPrices(false)} />}
       {showSku && <SkuEditor onClose={() => setShowSku(false)} />}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
-      {import.meta.env.DEV && <Agentation agentSync={{ enabled: true, serverUrl: 'http://localhost:4747' }} />}
+      {isAdmin && <Agentation />}
     </div>
   );
 }
