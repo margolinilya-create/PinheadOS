@@ -20,16 +20,12 @@ import AdminPanel from './components/auth/AdminPanel'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
+// Pages: 'wizard' (default step flow), 'express', 'prices', 'sku', 'orders', 'print', 'admin'
 function App() {
   const step = useStore(s => s.step);
   const CurrentStep = STEPS[step] || StepGarment;
   const { user, loading, init } = useAuthStore();
-  const [showKanban, setShowKanban] = useState(false);
-  const [showExpress, setShowExpress] = useState(false);
-  const [showPrint, setShowPrint] = useState(false);
-  const [showPrices, setShowPrices] = useState(false);
-  const [showSku, setShowSku] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
+  const [page, setPage] = useState('wizard');
 
   useEffect(() => { init(); }, [init]);
 
@@ -64,28 +60,61 @@ function App() {
   }
 
   const isAdmin = user.role === 'admin';
+  const goBack = () => setPage('wizard');
 
   return (
     <div className="app">
       <Header
-        onToggleKanban={() => setShowKanban(!showKanban)}
-        onToggleExpress={() => setShowExpress(!showExpress)}
-        onTogglePrint={() => setShowPrint(!showPrint)}
-        onTogglePrices={() => setShowPrices(!showPrices)}
-        onToggleSku={() => setShowSku(!showSku)}
-        onToggleAdmin={isAdmin ? () => setShowAdmin(!showAdmin) : null}
+        activePage={page}
+        onNavigate={setPage}
+        isAdmin={isAdmin}
       />
-      <ProgressBar />
-      <main className="app-main">
-        <CurrentStep />
-      </main>
 
-      {showKanban && <KanbanBoard onClose={() => setShowKanban(false)} />}
-      {showExpress && <ExpressCalc onClose={() => setShowExpress(false)} />}
-      {showPrint && <PrintPreview onClose={() => setShowPrint(false)} />}
-      {showPrices && <PriceEditor onClose={() => setShowPrices(false)} />}
-      {showSku && <SkuEditor onClose={() => setShowSku(false)} />}
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {page === 'wizard' && (
+        <>
+          <ProgressBar />
+          <main className="app-main">
+            <CurrentStep />
+          </main>
+        </>
+      )}
+
+      {page === 'express' && (
+        <main className="app-main page-view">
+          <ExpressCalc onBack={goBack} />
+        </main>
+      )}
+
+      {page === 'prices' && (
+        <main className="app-main page-view">
+          <PriceEditor onBack={goBack} />
+        </main>
+      )}
+
+      {page === 'sku' && (
+        <main className="app-main page-view">
+          <SkuEditor onBack={goBack} />
+        </main>
+      )}
+
+      {page === 'orders' && (
+        <main className="app-main page-view">
+          <KanbanBoard onBack={goBack} />
+        </main>
+      )}
+
+      {page === 'print' && (
+        <main className="app-main page-view">
+          <PrintPreview onBack={goBack} />
+        </main>
+      )}
+
+      {page === 'admin' && isAdmin && (
+        <main className="app-main page-view">
+          <AdminPanel onBack={goBack} />
+        </main>
+      )}
+
       {isAdmin && <Agentation />}
     </div>
   );

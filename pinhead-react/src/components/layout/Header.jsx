@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
 
-export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint, onTogglePrices, onToggleSku, onToggleAdmin }) {
+export default function Header({ activePage, onNavigate, isAdmin }) {
   const state = useStore();
   const total = calcTotal(state);
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '— ₽';
@@ -13,6 +13,15 @@ export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint,
   const draftLabel = draftStatus === 'saving' ? 'сохраняю...'
     : draftStatus === 'saved' ? 'сохранено'
     : 'черновик';
+
+  const navBtn = (page, label) => (
+    <button
+      className={`header-action-btn${activePage === page ? ' active' : ''}`}
+      onClick={() => onNavigate(activePage === page ? 'wizard' : page)}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <header className="header">
@@ -24,7 +33,7 @@ export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint,
           <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
         </svg>
         <div>
-          <div className="header-brand">pinhead</div>
+          <div className="header-brand" onClick={() => onNavigate('wizard')} style={{ cursor: 'pointer' }}>pinhead</div>
           <div className="header-title">Order Studio · v1.7</div>
         </div>
       </div>
@@ -39,23 +48,19 @@ export default function Header({ onToggleKanban, onToggleExpress, onTogglePrint,
           <span className="header-total">{formatted}</span>
         </div>
         <div className="header-btns">
-          {onToggleExpress && (
-            <button className="header-action-btn express" onClick={onToggleExpress}>EXPRESS</button>
-          )}
-          {onTogglePrices && (
-            <button className="header-action-btn" onClick={onTogglePrices}>ЦЕНЫ</button>
-          )}
-          {onToggleSku && (
-            <button className="header-action-btn" onClick={onToggleSku}>SKU</button>
-          )}
-          {onToggleKanban && (
-            <button className="header-action-btn" onClick={onToggleKanban}>ЗАКАЗЫ</button>
-          )}
-          {onTogglePrint && (
-            <button className="header-action-btn" onClick={onTogglePrint}>ТЗ</button>
-          )}
-          {onToggleAdmin && (
-            <button className="header-action-btn" onClick={onToggleAdmin} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>ADMIN</button>
+          {navBtn('express', 'EXPRESS')}
+          {navBtn('prices', 'ЦЕНЫ')}
+          {navBtn('sku', 'SKU')}
+          {navBtn('orders', 'ЗАКАЗЫ')}
+          {navBtn('print', 'ТЗ')}
+          {isAdmin && (
+            <button
+              className={`header-action-btn${activePage === 'admin' ? ' active' : ''}`}
+              onClick={() => onNavigate(activePage === 'admin' ? 'wizard' : 'admin')}
+              style={activePage === 'admin' ? {} : { borderColor: 'var(--accent)', color: 'var(--accent)' }}
+            >
+              ADMIN
+            </button>
           )}
         </div>
         {user && (
