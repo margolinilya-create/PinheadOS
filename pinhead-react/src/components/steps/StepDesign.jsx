@@ -2,10 +2,10 @@ import { useStore } from '../../store/useStore';
 import { ZONE_LABELS } from '../../data';
 import { TECH_TABS, getZoneSurcharge, hasNoPrint } from '../../utils/pricing';
 import ZoneTechBlock from './ZoneTechBlock';
+import LabelConfigurator from './LabelConfigurator';
 
 export default function StepDesign() {
-  const { sku, type, zones, toggleZone, noPrint, toggleNoPrint, nextStep, prevStep } = useStore();
-  const state = useStore();
+  const { sku, type, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep } = useStore();
 
   if (!sku) {
     return <div className="step-panel"><div className="empty-state">Сначала выберите изделие</div></div>;
@@ -48,6 +48,21 @@ export default function StepDesign() {
           )}
         </>
       )}
+
+      {/* ── Бирки и этикетки ── */}
+      <div className="section-label" style={{ marginTop: 32 }}>Бирки и этикетки</div>
+      <LabelConfigurator />
+
+      {/* ── Заметки по дизайну ── */}
+      <div className="section-label" style={{ marginTop: 24 }}>Заметки по дизайну</div>
+      <div className="label-field full">
+        <textarea
+          placeholder="Описание дизайна, ссылки на макеты, пожелания..."
+          value={designNotes}
+          onChange={e => setField('designNotes', e.target.value)}
+          rows={3}
+        />
+      </div>
 
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
