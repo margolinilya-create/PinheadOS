@@ -38,7 +38,7 @@ function getDefaultZones(cat) {
   return ['front', 'back', 'sleeve-l', 'sleeve-r'];
 }
 
-export default function SkuEditor({ onBack }) {
+export default function SkuEditor({ onClose }) {
   const store = useStore();
   const { skuCatalog, fabricsCatalog, trimCatalog, usdRate, setField } = store;
   const [tab, setTab] = useState('items');
@@ -282,17 +282,18 @@ export default function SkuEditor({ onBack }) {
   };
 
   return (
-    <div className="page-container">
+    <div className="sku-ed-overlay">
+      <div className="sku-ed-panel">
       {/* ── Header ── */}
       <div className="sku-ed-header">
         <div className="sku-ed-header-left">
-          <button className="page-back-btn" onClick={() => { saveAll(); onBack(); }}>← В СТУДИЮ</button>
           <h1 className="sku-ed-title">КАТАЛОГ SKU <span>v.1.0</span></h1>
         </div>
         <div className="sku-ed-header-right">
-          <button className="btn-secondary" onClick={exportExcel}>Excel ↓</button>
-          <button className="btn-secondary" onClick={importExcel}>Excel ↑</button>
-          <button className="btn-accent" onClick={saveAll}>Сохранить</button>
+          <button className="btn" onClick={exportExcel}>Excel ↓</button>
+          <button className="btn" onClick={importExcel}>Excel ↑</button>
+          <button className="btn btn-primary" onClick={saveAll}>Сохранить</button>
+          <button className="pe-close" onClick={() => { saveAll(); onClose(); }}>✕</button>
         </div>
       </div>
 
@@ -317,9 +318,9 @@ export default function SkuEditor({ onBack }) {
       </div>
 
       {/* ── Tabs ── */}
-      <div className="page-tabs">
+      <div className="pe-tabs">
         {TABS.map(t => (
-          <button key={t.id} className={`page-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+          <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
             {t.name}
           </button>
         ))}
@@ -665,6 +666,7 @@ export default function SkuEditor({ onBack }) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
