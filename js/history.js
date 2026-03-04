@@ -153,6 +153,39 @@ async function loadCloudOrders(force) {
   return _cloudOrders || [];
 }
 
+var _kanbanStatusFilter = 'all';
+
+function setKanbanFilter(status) {
+  _kanbanStatusFilter = status;
+  document.querySelectorAll('.kanban-filter-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.status === status); });
+  renderKanban();
+}
+
+function exportKanbanExcel() {
+  if (typeof XLSX === 'undefined') { showToast('XLSX не загружен'); return; }
+  loadCloudOrders(true).then(function(orders){
+    if (!orders.length) { showToast('Нет заказов'); return; }
+    var rows = orders.map(function(o){
+      var d = o.data || {};
+      return {
+        'ID': o.order_number || o.id,
+        'Bitrix': o.bitrix_deal || '',
+        'Статус': {draft:'Черновик',review:'Согласование',approved:'Одобрен',production:'В работе',done:'Готов'}[o.status] || o.status,
+        'Клиент': d.name || '—',
+        'Изделие': d.sku ? d.sku.name : (TYPE_NAMES[o.item_type]||''),
+        'Тираж': o.total_qty || 0,
+        'Сумма': o.total_sum || 0,
+        'Дата': new Date(o.created_at).toLocaleDateString('ru-RU')
+      };
+    });
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Заказы');
+    XLSX.writeFile(wb, 'pinhead-orders-' + new Date().toISOString().slice(0,10) + '.xlsx');
+    showToast('Excel выгружен');
+  });
+}
+
 async function renderKanban() {
   const board = document.getElementById('kanbanBoard');
   const statsBar = document.getElementById('kanbanStats');
@@ -192,22 +225,42 @@ async function renderKanban() {
     grouped[s].push(o);
   });
 
-  // Sort within each column by date desc
   statuses.forEach(s => {
     grouped[s].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
   });
 
-  // Stats bar
+  // Stats bar — black with accent total
   const totalRev = orders.reduce((a,o) => a + (o.total_sum||0), 0);
-  statsBar.innerHTML = '<div class="ks-item"><strong>' + orders.length + '</strong> заказов</div>' +
-    '<div class="ks-item">·</div>' +
-    '<div class="ks-item"><strong>' + totalRev.toLocaleString('ru') + ' \u20bd</strong> оборот</div>' +
+  const totalQty = orders.reduce((a,o) => a + (o.total_qty||0), 0);
+  statsBar.innerHTML =
+    '<div class="ks-item"><span class="ks-count">' + orders.length + '</span> заказов</div>' +
+    '<div class="ks-separator"></div>' +
+    '<div class="ks-item"><span class="ks-count">' + totalQty.toLocaleString('ru') + '</span> шт</div>' +
+    '<div class="ks-separator"></div>' +
+    '<div class="ks-item"><span class="ks-total">' + totalRev.toLocaleString('ru') + ' \u20bd</span></div>' +
     '<div style="flex:1"></div>' +
-    statuses.map(s => '<div class="ks-item"><span class="ks-dot" style="background:' + statusColors[s] + '"></span>' + statusLabels[s] + ' <span class="ks-count" style="color:' + statusColors[s] + '">' + grouped[s].length + '</span></div>').join('');
+    statuses.map(s => '<div class="ks-item"><span class="ks-dot" style="background:' + statusColors[s] + '"></span><span class="ks-count" style="color:' + statusColors[s] + '">' + grouped[s].length + '</span></div>').join('');
+
+  // Filter bar
+  var filterBar = document.getElementById('kanbanFilterBar');
+  if (!filterBar) {
+    filterBar = document.createElement('div');
+    filterBar.id = 'kanbanFilterBar';
+    filterBar.className = 'kanban-filter-bar';
+    statsBar.parentNode.insertBefore(filterBar, board);
+  }
+  filterBar.innerHTML =
+    '<div class="kanban-filter-btn' + (_kanbanStatusFilter==='all'?' active':'') + '" data-status="all" onclick="setKanbanFilter(\'all\')">Все</div>' +
+    statuses.map(s => '<div class="kanban-filter-btn' + (_kanbanStatusFilter===s?' active':'') + '" data-status="' + s + '" onclick="setKanbanFilter(\'' + s + '\')"><span class="kf-dot" style="background:' + statusColors[s] + '"></span>' + statusLabels[s] + '</div>').join('') +
+    '<button class="kanban-export-btn" onclick="exportKanbanExcel()">Excel</button>';
+
+  // Filter columns if filter active
+  var visibleStatuses = _kanbanStatusFilter === 'all' ? statuses : [_kanbanStatusFilter];
 
   // Build columns
-  board.innerHTML = statuses.map(s => {
+  board.innerHTML = visibleStatuses.map(s => {
     const col = statusColors[s];
+    const colSum = grouped[s].reduce((a,o) => a + (o.total_sum||0), 0);
     const cards = grouped[s].map(o => {
       const d = o.data || {};
       const dt = new Date(o.created_at);
@@ -220,25 +273,35 @@ async function renderKanban() {
       const fabricName = fabricEntry ? fabricEntry.name : (typeof FABRIC_NAMES !== 'undefined' ? (FABRIC_NAMES[d.fabric]||'') : '');
       const techName = typeof TECH_NAMES !== 'undefined' ? (TECH_NAMES[d.tech]||d.tech||'') : '';
       return '<div class="kb-card" draggable="true" data-order-id="' + o.id + '" ondragstart="kbDragStart(event)" ondragend="kbDragEnd(event)">' +
-        '<div class="kb-card-date">' + dateStr + '</div>' +
-        '<div class="kb-card-id">' + mainNum + (bx ? ' <span style="font-size:7px;background:#1D19EA;color:#fff;padding:0 3px;border-radius:2px">BX</span>' : '') + '</div>' +
+        '<div class="kb-card-bar" style="background:' + col + '"></div>' +
+        '<div class="kb-card-content">' +
+        '<div class="kb-card-top">' +
+          '<div class="kb-card-id">' + mainNum + (bx ? '<span class="bx-tag">BX</span>' : '') + '</div>' +
+          '<div class="kb-card-date">' + dateStr + '</div>' +
+        '</div>' +
         '<div class="kb-card-client">' + (d.name||'—') + '</div>' +
-        '<div class="kb-card-sku">' + skuName + (fabricName ? ' · ' + fabricName : '') + '</div>' +
-        (techName ? '<div class="kb-card-row"><span>' + techName + '</span><strong>' + (o.total_qty||0) + ' шт</strong></div>' : '') +
-        '<div class="kb-card-sum">' + (o.total_sum||0).toLocaleString('ru') + ' \u20bd</div>' +
-        '<div class="kb-card-actions">' +
-        '<button onclick="loadOrder(\'' + o.id + '\')">\u270e Открыть</button>' +
-        '<button onclick="duplicateOrder(\'' + o.id + '\')">\u2398</button>' +
-        '<button onclick="deleteOrder(\'' + o.id + '\')">\u2715</button>' +
+        '<div class="kb-card-meta">' +
+          '<div class="kb-card-sku">' + skuName + (fabricName ? ' · ' + fabricName : '') + '</div>' +
+          (techName ? '<div class="kb-card-row"><span>' + techName + '</span><strong>' + (o.total_qty||0) + ' шт</strong></div>' : '') +
+        '</div>' +
+        '<div class="kb-card-bottom">' +
+          '<div class="kb-card-sum">' + (o.total_sum||0).toLocaleString('ru') + ' \u20bd</div>' +
+          '<div class="kb-card-actions">' +
+            '<button class="kb-open" onclick="loadOrder(\'' + o.id + '\')">Открыть</button>' +
+            '<button onclick="duplicateOrder(\'' + o.id + '\')" title="Дублировать">\u2398</button>' +
+            '<button onclick="deleteOrder(\'' + o.id + '\')" title="Удалить">\u2715</button>' +
+          '</div>' +
+        '</div>' +
         '</div></div>';
     }).join('');
 
     return '<div class="kanban-col" data-status="' + s + '" ondragover="kbDragOver(event)" ondrop="kbDrop(event,\'' + s + '\')">' +
       '<div class="kanban-col-header" style="border-color:' + col + '">' +
       '<span class="kanban-col-title" style="color:' + col + '">' + statusLabels[s] + '</span>' +
+      (colSum > 0 ? '<span class="kanban-col-sum">' + colSum.toLocaleString('ru') + ' \u20bd</span>' : '') +
       '<span class="kanban-col-count" style="background:' + col + '">' + grouped[s].length + '</span>' +
       '</div>' +
-      '<div class="kanban-col-body">' + (cards || '<div style="padding:20px;text-align:center;color:#ccc;font-size:11px">Пусто</div>') + '</div>' +
+      '<div class="kanban-col-body">' + (cards || '<div style="padding:30px;text-align:center;color:#ccc;font-size:11px;font-weight:600">Пусто</div>') + '</div>' +
       '</div>';
   }).join('');
 }
