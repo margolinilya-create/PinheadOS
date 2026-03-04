@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
 import Header from './components/layout/Header'
@@ -85,6 +86,7 @@ function App() {
       {showPrices && <PriceEditor onClose={() => setShowPrices(false)} />}
       {showSku && <SkuEditor onClose={() => setShowSku(false)} />}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {isAdmin && <Agentation />}
     </div>
   );
 }
