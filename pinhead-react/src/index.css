@@ -1,0 +1,32 @@
+/* ═══════════════════════════════════════════ */
+/* PINHEAD ORDER STUDIO — Foundation Tokens   */
+/* ═══════════════════════════════════════════ */
+
+:root {
+  --bg:           #ffffff;
+  --bg2:          #f5f5f5;
+  --bg3:          #ebebeb;
+  --text:         #000000;
+  --text-mid:     #444444;
+  --text-dim:     #888888;
+  --border:       #000000;
+  --border-light: #cccccc;
+  --accent:       #1D19EA;
+  --accent2:      #fff;
+  --white:        #ffffff;
+  --black:        #000000;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Roboto Condensed', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}

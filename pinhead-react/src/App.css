@@ -1,0 +1,43 @@
+/* App-level styles — будут расширяться по мере миграции */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: var(--black);
+  color: var(--white);
+  padding: 16px 24px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header span {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.app-main {
+  flex: 1;
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.placeholder-message {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--text-dim);
+  font-size: 18px;
+}
