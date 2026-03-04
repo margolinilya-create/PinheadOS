@@ -1654,30 +1654,40 @@ header {
 .toast-msg { flex:1; }
 @keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 
-/* ── TechCard ── */
-.tc-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:300; display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; padding:32px 16px; }
-.tc-panel { background:var(--white); width:100%; max-width:700px; border:1.5px solid var(--black); }
-.tc-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1.5px solid var(--black); }
-.tc-header-left { display:flex; align-items:center; gap:12px; }
-.tc-header-right { display:flex; align-items:center; gap:12px; }
-.tc-order-num { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; letter-spacing:1px; }
-.tc-status { padding:3px 10px; font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:1px; }
-.tc-qr { width:60px; height:60px; }
-.tc-close { background:none; border:none; font-size:18px; cursor:pointer; padding:4px 8px; }
-.tc-body { padding:20px; max-height:70vh; overflow-y:auto; }
-.tc-section { margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border-light); }
-.tc-section-title { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:900; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
-.tc-kv { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; }
-.tc-kv span { color:var(--text-dim); }
-.tc-sizes-grid { display:flex; flex-wrap:wrap; gap:6px; }
-.tc-size-cell { display:flex; flex-direction:column; align-items:center; padding:6px 12px; border:1px solid var(--border-light); min-width:48px; }
-.tc-size-label { font-size:10px; font-weight:700; letter-spacing:1px; color:var(--text-dim); }
-.tc-size-qty { font-size:16px; font-weight:900; }
-.tc-zone-row { display:flex; gap:12px; align-items:center; padding:4px 0; font-size:13px; }
-.tc-zone-name { font-weight:700; min-width:80px; }
-.tc-zone-tech { color:var(--text-dim); }
-.tc-zone-detail { font-size:11px; color:var(--text-dim); }
-.tc-notes { font-size:13px; color:var(--text-dim); white-space:pre-wrap; }
+/* ── TechCard (document-style) ── */
+.tc-status-select {
+  padding:8px 12px; border:1.5px solid rgba(255,255,255,.2); background:var(--black);
+  color:var(--white); font-size:12px; font-weight:700; letter-spacing:1px;
+  font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; cursor:pointer;
+}
+.tc-doc-row { display:flex; gap:32px; margin-bottom:28px; }
+.tc-doc-info { flex:1; min-width:0; }
+.tc-doc-info .pp-section { margin-bottom:0; padding-bottom:0; border-bottom:none; }
+.tc-doc-mockup {
+  width:220px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:12px;
+}
+.tc-mockup-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.tc-mockup-svg { width:180px; height:auto; }
+.tc-mockup-svg svg { width:100%; height:auto; display:block; }
+.tc-mockup-zones { display:flex; flex-direction:column; gap:4px; width:100%; }
+.tc-mockup-zone-tag {
+  display:flex; align-items:center; gap:6px;
+  font-size:10px; font-weight:600; letter-spacing:.5px;
+  color:var(--text-dim); text-transform:uppercase;
+  font-family:'Barlow Condensed',sans-serif;
+}
+.tc-mz-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--accent); flex-shrink:0;
+}
+.tc-mockup-empty {
+  width:180px; height:200px; border:1.5px dashed var(--border-light);
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px;
+}
+.tc-doc-qr { width:56px; height:56px; }
+.tc-interactive { margin-top:32px; padding-top:24px; border-top:2px solid var(--black); }
+.tc-checklist { display:flex; flex-direction:column; }
 .tc-check { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; cursor:pointer; }
 .tc-check.done span { text-decoration:line-through; color:var(--text-dim); }
 .tc-check input { width:16px; height:16px; accent-color:#007840; }
@@ -1696,11 +1706,60 @@ header {
 .tc-comment-input input { flex:1; padding:8px 12px; border:1.5px solid var(--border-light); font-size:13px; }
 .tc-comment-input button { padding:8px 16px; background:var(--black); color:var(--white); border:none; font-size:11px; font-weight:700; letter-spacing:1px; cursor:pointer; }
 .tc-empty { font-size:12px; color:var(--text-dim); }
-.tc-price { font-size:16px; }
-.tc-price b { font-size:18px; }
-.tc-footer { display:flex; gap:8px; padding:12px 20px; border-top:1.5px solid var(--black); align-items:center; }
-.tc-footer select { padding:8px 12px; border:1.5px solid var(--border-light); font-size:12px; font-weight:700; }
-.tc-footer .btn { padding:8px 16px; background:var(--black); color:var(--white); border:none; font-size:11px; font-weight:700; letter-spacing:1px; cursor:pointer; }
+
+/* ── Size Table: price columns ── */
+.size-th-price, .size-th-sum { text-align:right; }
+.size-td-price { text-align:right; font-size:12px; color:var(--text-dim); white-space:nowrap; }
+.size-td-sum { text-align:right; font-size:12px; font-weight:700; white-space:nowrap; }
+.size-total-row td { border-top:2px solid var(--black) !important; border-bottom:none !important; padding-top:10px !important; }
+.size-total-label {
+  font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:13px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--accent);
+}
+.size-total-qty { font-weight:900; color:var(--accent); }
+.size-total-sum { text-align:right; font-weight:900; color:var(--accent); }
+.size-rm-btn {
+  background:none; border:none; color:#c00; font-size:12px;
+  cursor:pointer; padding:2px 6px; margin-left:6px; opacity:.6;
+}
+.size-rm-btn:hover { opacity:1; }
+
+/* ── Add Size Form ── */
+.add-size-form {
+  display:flex; align-items:center; gap:10px; padding:12px 16px; margin-top:12px;
+  border:1.5px solid var(--black); background:var(--bg2);
+  font-family:'Barlow Condensed',sans-serif;
+}
+.add-size-form-label {
+  font-size:11px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--text-dim); white-space:nowrap;
+}
+.add-size-form-input {
+  border:1.5px solid var(--border-light); padding:8px 10px; width:100px;
+  font-family:'Roboto Condensed',sans-serif; font-size:13px;
+}
+.add-size-form-qty {
+  border:1.5px solid var(--border-light); padding:8px 10px; width:64px;
+  font-family:'Roboto Condensed',sans-serif; font-size:13px; text-align:center;
+}
+.btn-add-size {
+  padding:8px 20px; background:var(--black); color:var(--white); border:none;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:800;
+  letter-spacing:1px; text-transform:uppercase; cursor:pointer;
+}
+.btn-cancel-size {
+  padding:8px 20px; background:var(--white); color:var(--black); border:1.5px solid var(--border-light);
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:800;
+  letter-spacing:1px; text-transform:uppercase; cursor:pointer;
+}
+.add-size-btn {
+  display:block; width:100%; margin-top:12px; padding:12px;
+  border:1.5px dashed var(--border-light); background:none;
+  font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:800;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--text-dim);
+  cursor:pointer; text-align:center; transition:all .15s;
+}
+.add-size-btn:hover { border-color:var(--black); color:var(--black); }
 
 /* ── Dashboard ── */
 .dash-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:300; display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; padding:32px 16px; }
@@ -1780,12 +1839,11 @@ header {
   /* Price Editor */
   .pe-overlay { padding:0 16px; }
   /* TechCard */
-  .tc-panel { width:100%; max-width:100%; margin:0; border-radius:0; height:100vh; max-height:100vh; }
-  .tc-header { flex-wrap:wrap; gap:8px; }
-  .tc-sizes-grid { grid-template-columns:repeat(4, 1fr); }
-  .tc-photos { grid-template-columns:repeat(2, 1fr); }
-  .tc-footer { flex-wrap:wrap; gap:8px; }
-  .tc-footer select { flex:1 1 100%; }
+  .tc-doc-row { flex-direction:column; gap:20px; }
+  .tc-doc-mockup { width:100%; flex-direction:row; flex-wrap:wrap; justify-content:center; }
+  .tc-mockup-svg { width:140px; }
+  .tc-photos { flex-wrap:wrap; }
+  .add-size-form { flex-wrap:wrap; gap:8px; }
   /* Dashboard */
   .dash-panel { width:100%; max-width:100%; margin:0; border-radius:0; }
   .dash-metrics { grid-template-columns:repeat(2, 1fr); }
@@ -1854,17 +1912,16 @@ header {
   .sku-ed-table { font-size:9px; }
   .sku-th-name { min-width:80px; }
   /* TechCard */
-  .tc-panel { padding:0; }
-  .tc-header { padding:12px; }
-  .tc-body { padding:12px; }
-  .tc-section-title { font-size:11px; }
-  .tc-kv span { font-size:11px; }
-  .tc-sizes-grid { grid-template-columns:repeat(3, 1fr); }
-  .tc-photos { grid-template-columns:1fr 1fr; }
-  .tc-photo-add { min-height:60px; }
-  .tc-footer { padding:12px; gap:6px; }
-  .tc-footer .btn { padding:8px 12px; font-size:11px; }
-  .tc-qr { width:48px; height:48px; }
+  .tc-doc-mockup { width:100%; }
+  .tc-mockup-svg { width:120px; }
+  .tc-doc-qr { width:40px; height:40px; }
+  .tc-photo { width:64px; height:64px; }
+  .tc-photo-add { width:64px; height:64px; }
+  .add-size-form { flex-direction:column; align-items:stretch; }
+  .add-size-form-input { width:100%; }
+  .add-size-form-qty { width:100%; }
+  .size-td-price { display:none; }
+  .size-th-price { display:none; }
   /* Dashboard */
   .dash-metrics { grid-template-columns:1fr 1fr; gap:8px; }
   .dash-metric { padding:12px; }
