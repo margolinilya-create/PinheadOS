@@ -104,4 +104,10 @@ export const useAuthStore = create((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  // ─── Role helpers ───
+  isAdmin: () => ['admin', 'director'].includes(get().user?.role),
+  isROP: () => ['admin', 'director', 'rop'].includes(get().user?.role),
+  isProduction: () => get().user?.role === 'production',
+  isDesigner: () => get().user?.role === 'designer',
 }));

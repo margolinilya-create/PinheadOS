@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
 
-export default function Header({ activePage, onNavigate, isAdmin }) {
+export default function Header({ activePage, onNavigate, isAdmin, userRole }) {
   const state = useStore();
   const total = calcTotal(state);
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
@@ -16,6 +16,8 @@ export default function Header({ activePage, onNavigate, isAdmin }) {
 
   const nav = (page) => () => onNavigate(activePage === page ? 'wizard' : page);
   const isActive = (page) => activePage === page;
+  const isProd = userRole === 'production';
+  const isDes = userRole === 'designer';
 
   return (
     <header>
@@ -29,27 +31,33 @@ export default function Header({ activePage, onNavigate, isAdmin }) {
         </svg>
         <div>
           <div className="logo-text">pinhead</div>
-          <div className="logo-sub">Order Studio · v1.7</div>
+          <div className="logo-sub">Order Studio · v2.0</div>
         </div>
       </div>
 
-      {/* ── Navigation ── */}
+      {/* ── Navigation (hidden items by role) ── */}
       <nav className="header-nav">
-        <button className={`header-nav-btn express-btn${isActive('express') ? ' active' : ''}`} onClick={nav('express')}>
-          Express
-        </button>
+        {!isProd && !isDes && (
+          <button className={`header-nav-btn express-btn${isActive('express') ? ' active' : ''}`} onClick={nav('express')}>
+            Express
+          </button>
+        )}
         <button className={`header-nav-btn${isActive('orders') ? ' active' : ''}`} onClick={nav('orders')}>
           Заказы
         </button>
         <button className={`header-nav-btn${isActive('print') ? ' active' : ''}`} onClick={nav('print')}>
           ТЗ
         </button>
-        <button className={`header-nav-btn${isActive('sku') ? ' active' : ''}`} onClick={nav('sku')}>
-          SKU
-        </button>
-        <button className={`header-nav-btn${isActive('prices') ? ' active' : ''}`} onClick={nav('prices')}>
-          Цены
-        </button>
+        {!isProd && !isDes && (
+          <button className={`header-nav-btn${isActive('sku') ? ' active' : ''}`} onClick={nav('sku')}>
+            SKU
+          </button>
+        )}
+        {!isProd && !isDes && (
+          <button className={`header-nav-btn${isActive('prices') ? ' active' : ''}`} onClick={nav('prices')}>
+            Цены
+          </button>
+        )}
         {isAdmin && (
           <button className={`header-nav-btn${isActive('admin') ? ' active' : ''}`} onClick={nav('admin')}>
             Admin

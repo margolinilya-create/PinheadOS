@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from './useAuthStore';
 
 const STATUS_LIST = ['draft', 'review', 'approved', 'production', 'done'];
 const STATUS_LABELS = { draft: 'Черновик', review: 'На проверке', approved: 'Подтверждён', production: 'В производстве', done: 'Готов' };
@@ -27,15 +28,26 @@ export const useOrdersStore = create((set, get) => ({
   setFilter: (f) => set({ filter: f }),
   setSearch: (s) => set({ search: s }),
 
-  // Загрузить заказы из Supabase
+  // Загрузить заказы из Supabase (фильтрация по роли)
   fetchOrders: async () => {
     set({ loading: true });
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200);
+      const auth = useAuthStore.getState();
+      const role = auth.user?.role;
+      const userId = auth.user?.id;
+
+      let query = supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+
+      // Менеджер видит только свои заказы
+      if (role === 'manager' && userId && userId !== 'dev') {
+        query = query.eq('created_by', userId);
+      }
+      // Производство видит только approved/production
+      if (role === 'production') {
+        query = query.in('status', ['approved', 'production']);
+      }
+
+      const { data, error } = await query;
       if (!error && data) {
         set({ orders: data, loading: false });
       } else {
@@ -49,6 +61,7 @@ export const useOrdersStore = create((set, get) => ({
   // Сохранить новый заказ (INSERT с sequence PH-XXXX)
   saveOrder: async (orderData) => {
     const orderNumber = generateOrderNumber(get().orders);
+    const auth = useAuthStore.getState();
     const row = {
       order_number: orderNumber,
       status: 'draft',
@@ -58,6 +71,7 @@ export const useOrdersStore = create((set, get) => ({
       item_type: orderData.type || '',
       bitrix_deal: orderData.bitrixDeal || null,
       notes: orderData.notes || null,
+      created_by: auth.user?.id || null,
       created_at: new Date().toISOString(),
     };
 
