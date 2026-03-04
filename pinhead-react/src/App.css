@@ -2,8 +2,9 @@
 /* PINHEAD ORDER STUDIO v1.7 — React CSS      */
 /* ═══════════════════════════════════════════ */
 
-/* ── Global: prevent iOS auto-zoom on input focus ── */
+/* ── Global: prevent iOS auto-zoom + horizontal scroll ── */
 input, textarea, select { font-size:16px; }
+html, body { overflow-x:hidden; }
 
 /* ── Layout ── */
 .app { min-height:100vh; display:flex; flex-direction:column; }
@@ -879,6 +880,7 @@ header {
 /* Card menu trigger */
 .kb-card-menu-btn { position:absolute; top:8px; right:8px; background:none; border:none; cursor:pointer; font-size:12px; color:var(--text-dim); padding:2px 6px; }
 .kb-card-menu-btn:hover { color:var(--black); }
+.kb-card-menu-backdrop { display:none; }
 .kb-card-menu { position:absolute; top:28px; right:8px; background:var(--white); border:1.5px solid var(--border-light); z-index:10; min-width:150px; box-shadow:0 4px 12px rgba(0,0,0,.1); }
 .kb-card-menu button { display:flex; align-items:center; gap:6px; width:100%; padding:6px 12px; background:none; border:none; cursor:pointer; font-size:11px; font-weight:500; text-align:left; }
 .kb-card-menu button:hover { background:var(--bg2); }
@@ -1652,9 +1654,11 @@ header {
 .toast-msg { flex:1; }
 @keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 
-/* ── Responsive: Tablet ── */
+/* ── Responsive: Tablet (<=768px) ── */
 @media (max-width: 768px) {
+  /* Layout */
   .container { padding:20px 16px; }
+  /* Header */
   header { height:48px; }
   .header-nav-btn { padding:0 12px; font-size:10px; height:48px; }
   .header-logout { padding:0 12px; font-size:10px; height:48px; }
@@ -1663,39 +1667,113 @@ header {
   .total-value { font-size:16px; }
   .logo { padding:0 16px; }
   .logo-text { font-size:15px; }
+  /* Burger menu */
+  .header-nav { display:none; }
+  .header-nav.open { display:flex; flex-direction:column; position:absolute; top:48px; left:0; right:0; width:100vw; background:var(--white); border-bottom:1.5px solid var(--black); z-index:200; }
+  .header-nav.open .header-nav-btn { height:44px; border-left:none; border-bottom:1px solid var(--border-light); justify-content:center; }
+  .burger-btn { display:flex !important; }
+  .header-right { margin-left:auto; }
+  /* Progress */
   .progress-bar { padding:0 16px; }
   .step-tab { padding:10px 12px; font-size:11px; }
+  /* Steps */
   .step-header-title { font-size:32px; }
   .summary-grid { grid-template-columns:1fr; }
   .form-grid { grid-template-columns:1fr; }
   .form-field.full { grid-column:1; }
   .btn-row { flex-wrap:wrap; gap:8px; }
   .btn-row > * { flex:1 1 auto; min-width:120px; }
+  /* Garment */
   .garment-row-name { font-size:15px; }
-  .swatches { grid-template-columns:repeat(auto-fill, minmax(60px, 1fr)); }
-  /* Burger: hide nav on mobile, show burger btn */
-  .header-nav { display:none; }
-  .header-nav.open { display:flex; flex-direction:column; position:absolute; top:48px; left:0; right:0; background:var(--white); border-bottom:1.5px solid var(--black); z-index:200; }
-  .header-nav.open .header-nav-btn { height:44px; border-left:none; border-bottom:1px solid var(--border-light); justify-content:center; }
-  .burger-btn { display:flex !important; }
-  .header-right { margin-left:auto; }
-  /* Kanban: list mode on mobile */
+  .swatches { grid-template-columns:repeat(auto-fill, minmax(56px, 1fr)); }
+  /* Extras */
+  .extras-grid { grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); }
+  /* Zones */
+  .zones-grid { grid-template-columns:repeat(3, 1fr); }
+  /* Labels */
+  .label-fields { grid-template-columns:1fr; }
+  /* Express */
+  .exp-panel { width:100%; max-width:100%; }
+  .exp-zt-techs { grid-template-columns:repeat(2, 1fr); }
+  /* Print Preview */
+  .pp-page { padding:32px 24px; margin:16px 12px; }
+  .pp-table th { font-size:9px; padding:4px 6px; }
+  .pp-table td { padding:4px 6px; }
+  /* Kanban */
   .kanban-board { flex-direction:column; }
   .kanban-col { min-width:100%; flex:none; }
+  .kb-search { width:100%; }
+  .kanban-filter-bar { flex-wrap:wrap; }
+  .kanban-stats-bar { flex-wrap:wrap; }
+  /* SKU Editor */
+  .sku-ed-panel { padding:0 20px; }
+  .sku-ed-table { font-size:10px; }
+  .sku-th-name { min-width:100px; }
+  /* Price Editor */
+  .pe-overlay { padding:0 16px; }
 }
 
-/* ── Responsive: Phone ── */
+/* ── Responsive: Phone (<=480px) ── */
 @media (max-width: 480px) {
+  /* Header right — hide text labels */
+  .draft-text { display:none; }
+  .total-label { display:none; }
+  .header-draft, .header-total, .header-logout { padding:0 8px; }
+  .total-value { font-size:14px; }
+  /* Progress — compact */
+  .progress-bar { padding:0 8px; }
+  .step-tab { padding:8px 10px; font-size:10px; gap:6px; }
+  .step-label { display:none; }
+  .step-num { width:18px; height:18px; font-size:8px; }
+  /* Steps */
   .step-header-title { font-size:28px; }
+  .btn-row { flex-direction:column; }
+  .btn-row > * { width:100%; min-width:0; }
+  /* Garment */
   .garment-row { height:48px; }
   .garment-row-name { font-size:14px; }
   .swatch { min-width:44px; min-height:44px; }
   .swatch-circle { width:28px; height:28px; }
-  .btn-row { flex-direction:column; }
-  .btn-row > * { width:100%; min-width:0; }
+  .swatches { grid-template-columns:repeat(auto-fill, minmax(48px, 1fr)); }
+  /* Sizes */
   .qty-btn { width:36px; height:36px; }
   .qty-input { width:48px; height:36px; }
+  /* Extras */
+  .extras-grid { grid-template-columns:repeat(2, 1fr); }
+  .extra-card { padding:12px 8px; }
+  /* Zones */
+  .zones-grid { grid-template-columns:repeat(2, 1fr); gap:6px; }
+  .zone-card { height:48px; }
+  /* Labels */
+  .label-placement-btns { flex-wrap:wrap; }
+  .label-color-btns { flex-wrap:wrap; }
+  .label-placement-btn { padding:6px 10px; }
+  /* Express */
+  .exp-panel { width:100vw; }
+  .exp-zt-techs { grid-template-columns:1fr; }
+  /* Print Preview */
+  .pp-page { padding:16px 12px; margin:12px 8px; }
+  .pp-toolbar { padding:8px 12px; gap:6px; flex-wrap:wrap; }
+  .pp-toolbar .btn { padding:8px 16px; font-size:10px; }
+  .pp-table th { font-size:8px; padding:3px 4px; }
+  .pp-table td { padding:3px 4px; }
+  .pp-kv-row { flex-direction:column; gap:4px; }
+  .pp-kv-dots { display:none; }
+  .pp-logo { font-size:18px; }
+  .pp-title { font-size:16px; }
+  /* Kanban */
   .kb-card { min-height:auto; }
+  .kb-card-client { font-size:12px; }
+  .kb-card-menu-backdrop { display:block; position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:299; }
+  .kb-card-menu { position:fixed; top:auto; bottom:0; left:0; right:0; min-width:100%; border-radius:12px 12px 0 0; z-index:300; }
+  .kb-card-menu button { padding:12px 16px; font-size:14px; }
+  /* SKU Editor */
+  .sku-ed-panel { padding:0 12px; }
+  .sku-ed-header { flex-direction:column; align-items:flex-start; gap:12px; }
+  .sku-ed-title { font-size:20px; }
+  .sku-ed-table { font-size:9px; }
+  .sku-th-name { min-width:80px; }
+  /* Toast */
   .toast-container { left:16px; right:16px; bottom:16px; }
   .toast { min-width:auto; }
 }
