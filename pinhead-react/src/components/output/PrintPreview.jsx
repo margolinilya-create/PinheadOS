@@ -3,7 +3,7 @@ import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES } from '../../
 import { calcTotal, getUnitPrice, getTotalQty, getLabelConfigPrice } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
-export default function PrintPreview({ onClose }) {
+export default function PrintPreview({ onBack }) {
   const state = useStore();
   const total = calcTotal(state);
   const unitPrice = getUnitPrice(state);
@@ -20,10 +20,10 @@ export default function PrintPreview({ onClose }) {
   const handlePrint = () => window.print();
 
   return (
-    <div className="pp-overlay">
+    <div className="pp-page-wrap">
       <div className="pp-toolbar no-print">
+        <button className="page-back-btn" onClick={onBack}>← Назад</button>
         <button className="btn-accent" onClick={handlePrint}>Печать / PDF</button>
-        <button className="btn-secondary" onClick={onClose}>Закрыть</button>
       </div>
 
       <div className="pp-page">

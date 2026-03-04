@@ -12,7 +12,7 @@ function getTier(tiers, qty) {
   return 0;
 }
 
-export default function ExpressCalc({ onClose }) {
+export default function ExpressCalc({ onBack }) {
   const usdRate = useStore(s => s.usdRate);
   const [skuCode, setSkuCode] = useState('');
   const [fabricCode, setFabricCode] = useState('');
@@ -24,7 +24,6 @@ export default function ExpressCalc({ onClose }) {
   const sku = SKU_CATALOG_DEFAULT.find(s => s.code === skuCode);
   const fabric = FABRICS_CATALOG_DEFAULT.find(f => f.code === fabricCode);
 
-  // Фильтрация тканей по категории SKU
   const fabrics = useMemo(() => {
     if (!sku) return FABRICS_CATALOG_DEFAULT;
     return FABRICS_CATALOG_DEFAULT.filter(f =>
@@ -32,7 +31,6 @@ export default function ExpressCalc({ onClose }) {
     );
   }, [sku]);
 
-  // Расчёт
   const calc = useMemo(() => {
     if (!sku) return null;
 
@@ -41,7 +39,6 @@ export default function ExpressCalc({ onClose }) {
     const fitSurcharge = PRICES.fit?.[sku.fit || 'regular'] || 0;
     const baseUnit = baseSewing + fabricPrice + fitSurcharge;
 
-    // Расчёт нанесения
     let printPrice = 0;
     if (tech === 'screen') {
       const tier = getTier(PRICES.screenTiers, qty);
@@ -61,7 +58,6 @@ export default function ExpressCalc({ onClose }) {
     return { baseSewing, fabricPrice: Math.round(fabricPrice), fitSurcharge, printPrice, unitPrice, total };
   }, [sku, fabric, qty, tech, format, colors, usdRate]);
 
-  // Группировка SKU по категории
   const categories = useMemo(() => {
     const cats = {};
     for (const s of SKU_CATALOG_DEFAULT) {
@@ -72,14 +68,18 @@ export default function ExpressCalc({ onClose }) {
   }, []);
 
   return (
-    <div className="exp-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="exp-panel">
-        <div className="exp-header">
-          <span className="exp-title">Express Калькулятор</span>
-          <button className="exp-close" onClick={onClose}>✕</button>
+    <div className="page-container">
+      <div className="page-header">
+        <div className="page-header-left">
+          <button className="page-back-btn" onClick={onBack}>← Назад</button>
+          <div className="step-label">// Express</div>
+          <h1 className="step-title">EXPRESS КАЛЬКУЛЯТОР</h1>
+          <p className="step-desc">Быстрый расчёт стоимости изделия</p>
         </div>
+      </div>
 
-        <div className="exp-body">
+      <div className="exp-page-grid">
+        <div className="exp-form-section">
           <div className="exp-field">
             <label>Изделие</label>
             <select value={skuCode} onChange={e => { setSkuCode(e.target.value); setFabricCode(''); }}>
@@ -136,20 +136,29 @@ export default function ExpressCalc({ onClose }) {
               </div>
             </>
           )}
+        </div>
 
-          {calc && (
-            <div className="exp-result">
+        <div className="exp-result-section">
+          {calc ? (
+            <div className="exp-result-card">
+              <div className="exp-result-title">Расчёт стоимости</div>
               <div className="exp-result-row"><span>Пошив</span><b>{calc.baseSewing} ₽</b></div>
               <div className="exp-result-row"><span>Ткань</span><b>{calc.fabricPrice} ₽</b></div>
               {calc.fitSurcharge > 0 && <div className="exp-result-row"><span>Крой</span><b>+{calc.fitSurcharge} ₽</b></div>}
               <div className="exp-result-row"><span>Нанесение</span><b>{calc.printPrice} ₽</b></div>
-              <div className="exp-result-row" style={{ fontWeight: 700 }}>
+              <div className="exp-result-divider" />
+              <div className="exp-result-row exp-result-unit">
                 <span>Цена за единицу</span><b>{calc.unitPrice} ₽</b>
               </div>
               <div className="exp-result-total">
                 <span>ИТОГО ({qty} шт)</span>
                 <b>{calc.total.toLocaleString('ru-RU')} ₽</b>
               </div>
+            </div>
+          ) : (
+            <div className="exp-result-card exp-result-empty">
+              <div className="exp-result-title">Расчёт стоимости</div>
+              <p>Выберите изделие для расчёта</p>
             </div>
           )}
         </div>
