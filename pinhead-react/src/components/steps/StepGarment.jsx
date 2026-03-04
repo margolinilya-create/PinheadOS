@@ -145,7 +145,7 @@ function ColorPicker() {
 
 // ── Size Table ──
 function SizeTable() {
-  const { type, sizes, setSize, setOneSizeQty } = useStore();
+  const { type, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = useStore();
   const isAcc = isAccessory(type);
 
   if (isAcc) {
@@ -163,7 +163,9 @@ function SizeTable() {
     );
   }
 
-  const totalQty = Object.values(sizes).reduce((s, v) => s + (parseInt(v) || 0), 0);
+  const stdQty = Object.values(sizes).reduce((s, v) => s + (parseInt(v) || 0), 0);
+  const customQty = (customSizes || []).reduce((s, c) => s + (parseInt(c.qty) || 0), 0);
+  const totalQty = stdQty + customQty;
 
   return (
     <div className="size-section">
@@ -197,6 +199,37 @@ function SizeTable() {
               <td></td>
             </tr>
           ))}
+          {/* Custom sizes */}
+          {(customSizes || []).map((cs, i) => (
+            <tr key={'cs-' + i}>
+              <td>
+                <input
+                  type="text"
+                  className="qty-input"
+                  style={{ width: 60, textAlign: 'left', fontSize: 12 }}
+                  value={cs.label}
+                  onChange={e => setCustomSizeLabel(i, e.target.value)}
+                />
+              </td>
+              <td>
+                <div className="qty-control">
+                  <button className="qty-btn" onClick={() => setCustomSizeQty(i, Math.max(0, (parseInt(cs.qty) || 0) - 1))}>−</button>
+                  <input
+                    type="number"
+                    className="qty-input"
+                    min={0}
+                    value={cs.qty || ''}
+                    placeholder="0"
+                    onChange={e => setCustomSizeQty(i, e.target.value)}
+                  />
+                  <button className="qty-btn" onClick={() => setCustomSizeQty(i, (parseInt(cs.qty) || 0) + 1)}>+</button>
+                </div>
+              </td>
+              <td>
+                <button className="qty-btn" style={{ color: '#c00', borderColor: '#c00' }} onClick={() => removeCustomSize(i)}>✕</button>
+              </td>
+            </tr>
+          ))}
           {totalQty > 0 && (
             <tr className="size-total-row">
               <td>Итого</td>
@@ -206,6 +239,7 @@ function SizeTable() {
           )}
         </tbody>
       </table>
+      <button className="add-size-btn" onClick={() => addCustomSize()}>+ Добавить размер</button>
     </div>
   );
 }

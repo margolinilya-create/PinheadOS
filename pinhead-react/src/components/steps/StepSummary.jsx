@@ -1,19 +1,77 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
-import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS } from '../../data';
+import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
 import { calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge, getLabelConfigPrice, isAccessory } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 
-export default function StepSummary() {
+// ─── copyTZ: формирует текстовое ТЗ и копирует в буфер (как оригинал) ───
+function buildTZText(state, total, totalQty, unitPrice, colorEntry) {
+  const sizeLines = [
+    ...SIZES.filter(s => (state.sizes[s] || 0) > 0).map(s => `${s} — ${state.sizes[s]} шт`),
+    ...(state.customSizes || []).filter(c => c.qty > 0).map(c => `${c.label} — ${c.qty} шт`),
+  ];
+  const orderNum = state._editingOrderNumber || state._lastSavedOrderNum || '';
+
+  const zoneLines = (state.zones || []).map(z => {
+    const tech = state.zoneTechs?.[z] || 'screen';
+    return `  ${ZONE_LABELS[z] || z}: ${TECH_NAMES[tech] || tech}`;
+  });
+
+  const extrasNames = (state.extras || []).map(code => {
+    const e = state.extrasCatalog.find(x => x.code === code);
+    return e ? e.name : code;
+  });
+
+  return `━━━━━━━━━━━━━━━━━━━━
+✳ PINHEAD ORDER STUDIO
+ТЗ ${orderNum ? '#' + orderNum : ''}
+━━━━━━━━━━━━━━━━━━━━
+
+ИЗДЕЛИЕ
+Тип: ${state.sku ? state.sku.name + (state.sku.article ? ' [' + state.sku.article + ']' : '') : TYPE_NAMES[state.type] || state.type}
+${state.fabric ? 'Ткань: ' + (FABRIC_NAMES[state.fabric] || state.fabric) : ''}
+Цвет: ${state.color}${colorEntry ? ' — ' + colorEntry.name : ''}
+Крой: ${state.fit || 'regular'}
+Тираж: ${totalQty} шт
+
+РАЗМЕРЫ
+${sizeLines.length ? sizeLines.join('\n') : '—'}
+
+${state.zones.length > 0 ? `НАНЕСЕНИЕ
+${zoneLines.join('\n')}
+Зоны: ${state.zones.map(z => ZONE_LABELS[z] || z).join(', ')}` : 'БЕЗ НАНЕСЕНИЯ'}
+
+КЛИЕНТ
+${state.name ? 'Имя: ' + state.name : ''}
+${state.contact ? 'Контакт: ' + state.contact : ''}
+${state.email ? 'Email: ' + state.email : ''}
+${state.phone ? 'Телефон: ' + state.phone : ''}
+${state.deadline ? 'Дедлайн: ' + state.deadline : ''}
+${state.address ? 'Адрес: ' + state.address : ''}
+${state.notes ? 'Примечания: ' + state.notes : ''}
+
+ОПЦИИ
+${extrasNames.length ? 'Обработки: ' + extrasNames.join(', ') : ''}
+Упаковка: ${state.packOption ? 'Да' : 'Нет'}
+Срочно: ${state.urgentOption ? 'Да' : 'Нет'}
+
+Цена/шт: ${unitPrice.toLocaleString('ru-RU')} ₽
+ИТОГО: ${total.toLocaleString('ru-RU')} ₽
+━━━━━━━━━━━━━━━━━━━━`.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+export default function StepSummary({ onNavigate }) {
   const state = useStore();
   const { sku, type, fabric, color, fit, sizes, extras, extrasCatalog, zones, zoneTechs,
     name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
-    labelConfig, prevStep, resetOrder, fabricsCatalog, trimCatalog, usdRate } = state;
+    labelConfig, prevStep, resetOrder, fabricsCatalog, trimCatalog, usdRate, customSizes } = state;
   const saveOrder = useOrdersStore(s => s.saveOrder);
+  const updateOrder = useOrdersStore(s => s.updateOrder);
   const [saving, setSaving] = useState(false);
   const [savedNum, setSavedNum] = useState(null);
+  const [copyLabel, setCopyLabel] = useState(null);
 
   const total = calcTotal(state);
   const unitPrice = getUnitPrice(state);
@@ -31,6 +89,76 @@ export default function StepSummary() {
   if (sku) baseCost = getSkuEstPrice(sku, fabricsCatalog, trimCatalog, usdRate);
 
   const sizeEntries = Object.entries(sizes).filter(([, v]) => v > 0);
+
+  // ─── copyTZ ───
+  const handleCopyTZ = async () => {
+    const text = buildTZText(state, total, totalQty, unitPrice, colorEntry);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyLabel('Скопировано!');
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); setCopyLabel('Скопировано!'); } catch { setCopyLabel('Ошибка'); }
+      document.body.removeChild(ta);
+    }
+    setTimeout(() => setCopyLabel(null), 2000);
+  };
+
+  // ─── Save / Update ───
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    const orderData = {
+      type, fabric, color, fit, sizes, customSizes, extras, zones, zoneTechs,
+      zonePrints: state.zonePrints, flexZones: state.flexZones, dtgZones: state.dtgZones,
+      embZones: state.embZones, dtfZones: state.dtfZones, zoneArtworks: state.zoneArtworks,
+      textileColor: state.textileColor, dtgTextile: state.dtgTextile,
+      designNotes: state.designNotes,
+      name, contact, email, phone, deadline, address, notes,
+      packOption, urgentOption, labelConfig,
+      sku: sku ? { code: sku.code, name: sku.name, article: sku.article, category: sku.category, fit: sku.fit } : null,
+      total, totalQty, unitPrice,
+    };
+
+    let saved;
+    if (state._editingOrderId) {
+      saved = await updateOrder(state._editingOrderId, orderData);
+      if (saved) {
+        setSavedNum(state._editingOrderNumber || saved.order_number || 'OK');
+      }
+    } else {
+      saved = await saveOrder(orderData);
+      if (saved) {
+        setSavedNum(saved.order_number || 'OK');
+        // Remember for subsequent saves
+        useStore.setState({ _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
+      }
+    }
+    setSaving(false);
+  };
+
+  // ─── Success screen ───
+  if (savedNum) {
+    return (
+      <div className="step-panel">
+        <div className="success-screen">
+          <div className="success-icon">✳</div>
+          <div className="success-title">ЗАКАЗ<br />СОХРАНЁН</div>
+          <div className="success-sub">Заказ успешно сохранён в системе</div>
+          <div className="order-id">{savedNum}</div>
+          <div className="success-btns">
+            <button className="btn" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
+            <button className="btn" onClick={() => onNavigate?.('print')}>Печать / PDF</button>
+            <button className="btn" onClick={() => onNavigate?.('orders')}>Все заказы</button>
+            <button className="btn btn-primary" onClick={() => { resetOrder(); setSavedNum(null); }}>Новый заказ</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="step-panel">
@@ -67,6 +195,9 @@ export default function StepSummary() {
           {sizeEntries.map(([size, qty]) => (
             <div key={size} className="summary-row"><span className="key">{size}</span><span className="val"><b>{qty} шт</b></span></div>
           ))}
+          {(customSizes || []).filter(c => c.qty > 0).map(c => (
+            <div key={c.label} className="summary-row"><span className="key">{c.label}</span><span className="val"><b>{c.qty} шт</b></span></div>
+          ))}
         </div>
 
         {/* Block 3: Client */}
@@ -88,7 +219,7 @@ export default function StepSummary() {
             {zones.map(z => (
               <div key={z} className="summary-row">
                 <span className="key">{ZONE_LABELS[z] || z}</span>
-                <span className="val"><b>{zoneTechs?.[z] || 'screen'}</b></span>
+                <span className="val"><b>{TECH_NAMES[zoneTechs?.[z]] || zoneTechs?.[z] || 'screen'}</b></span>
               </div>
             ))}
           </div>
@@ -110,29 +241,12 @@ export default function StepSummary() {
         </div>
       </div>
 
-      {savedNum && (
-        <div className="order-saved-banner">
-          Заказ <b>{savedNum}</b> сохранён
-        </div>
-      )}
-
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
-        <button className={`btn-accent${saving ? ' disabled' : ''}`} onClick={async () => {
-          if (saving) return;
-          setSaving(true);
-          const orderData = {
-            type, fabric, color, fit, sizes, extras, zones, zoneTechs,
-            name, contact, email, phone, deadline, address, notes,
-            packOption, urgentOption, labelConfig,
-            sku: sku ? { code: sku.code, name: sku.name } : null,
-            total, totalQty, unitPrice,
-          };
-          const saved = await saveOrder(orderData);
-          setSavedNum(saved?.order_number || 'OK');
-          setSaving(false);
-        }}>
-          {saving ? 'Сохранение...' : 'Сохранить заказ ✓'}
+        <button className="btn-secondary" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
+        <button className="btn-secondary" onClick={() => onNavigate?.('print')}>Печать / PDF</button>
+        <button className={`btn-accent${saving ? ' disabled' : ''}`} onClick={handleSave}>
+          {saving ? 'Сохранение...' : state._editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
       </div>
