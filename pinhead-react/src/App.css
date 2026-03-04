@@ -992,6 +992,72 @@ header {
 }
 .exp-result-total b { font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:20px; color:var(--accent); }
 
+/* ── Express: Zone chips & tech blocks ── */
+.exp-zones-wrap { display:flex; gap:6px; flex-wrap:wrap; }
+.exp-zone-chip {
+  border:1.5px solid var(--border-light); background:var(--bg2);
+  padding:6px 12px; font-family:'Barlow Condensed',sans-serif;
+  font-size:11px; font-weight:800; letter-spacing:.5px;
+  cursor:pointer; text-transform:uppercase;
+  display:flex; align-items:center; gap:5px;
+  transition:all .12s; user-select:none;
+}
+.exp-zone-chip:hover { border-color:var(--text-mid); }
+.exp-zone-chip.active { border-color:var(--black); background:var(--black); color:var(--white); }
+.exp-zone-dot {
+  width:5px; height:5px; border-radius:50%;
+  background:currentColor; opacity:.5; flex-shrink:0;
+}
+.exp-plabel {
+  font-size:9px; font-weight:800; letter-spacing:1.5px;
+  text-transform:uppercase; color:var(--text-dim); white-space:nowrap;
+}
+.exp-pbtns { display:flex; gap:4px; flex-wrap:wrap; }
+.exp-pbtn {
+  border:1.5px solid var(--border-light); background:var(--white);
+  padding:4px 10px; font-family:'Barlow Condensed',sans-serif;
+  font-size:11px; font-weight:800; letter-spacing:.5px;
+  cursor:pointer; text-transform:uppercase; transition:all .12s;
+}
+.exp-pbtn:hover { border-color:var(--text-mid); }
+.exp-pbtn.active { border-color:var(--black); background:var(--black); color:var(--white); }
+
+.exp-zt-block { border:1.5px solid var(--border-light); margin-top:6px; overflow:hidden; transition:all .15s; width:100%; }
+.exp-zt-block.active { border-color:var(--black); }
+.exp-zt-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 14px; background:var(--bg2); cursor:pointer; transition:all .12s;
+}
+.exp-zt-block.active .exp-zt-header { background:var(--black); color:var(--white); }
+.exp-zt-name {
+  font-family:'Barlow Condensed',sans-serif; font-size:13px;
+  font-weight:900; text-transform:uppercase; letter-spacing:.5px;
+}
+.exp-zt-surcharge {
+  font-family:'Barlow Condensed',sans-serif; font-size:13px;
+  font-weight:900; color:var(--accent);
+}
+.exp-zt-block.active .exp-zt-surcharge { color:var(--accent2); }
+.exp-zt-body { display:none; padding:10px 14px; background:var(--white); }
+.exp-zt-block.active .exp-zt-body { display:block; }
+.exp-zt-techs {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:8px;
+}
+.exp-zt-tech {
+  border:1.5px solid var(--border-light); background:var(--bg2);
+  padding:7px 4px; cursor:pointer; text-align:center; transition:all .12s;
+  font-family:'Barlow Condensed',sans-serif; font-size:11px;
+  font-weight:900; letter-spacing:.5px; text-transform:uppercase;
+}
+.exp-zt-tech:hover { border-color:var(--text-mid); }
+.exp-zt-tech.active { border-color:var(--accent); background:var(--accent); color:var(--white); }
+.exp-zt-params {
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+  background:var(--bg2); border:1px solid var(--border-light);
+  padding:8px 10px; margin-top:6px;
+}
+.exp-zt-warn { font-size:10px; font-weight:600; color:#a06000; margin-top:6px; }
+
 /* ── Price / SKU / Admin Editor ── */
 .pe-overlay {
   position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:180;
