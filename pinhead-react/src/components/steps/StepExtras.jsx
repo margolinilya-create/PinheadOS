@@ -15,6 +15,11 @@ export default function StepExtras() {
 
   return (
     <div className="step-panel">
+      <div className="step-header">
+        <div className="step-header-label">// 02 — Обработки</div>
+        <h1 className="step-header-title">ОБРАБОТКИ</h1>
+        <p className="step-header-desc">Выберите дополнительные обработки изделия</p>
+      </div>
       <div className="section-label">Обработки{totalCost > 0 && <span className="section-badge">+{totalCost} ₽/шт</span>}</div>
 
       {!sku && (

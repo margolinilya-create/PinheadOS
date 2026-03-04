@@ -30,6 +30,11 @@ export default function StepSummary() {
 
   return (
     <div className="step-panel">
+      <div className="step-header">
+        <div className="step-header-label">// 05 — Итог</div>
+        <h1 className="step-header-title">ИТОГ</h1>
+        <p className="step-header-desc">Проверьте данные заказа и отправьте</p>
+      </div>
       <div className="section-label">Итог заказа</div>
 
       <div className="summary-grid">

@@ -16,6 +16,11 @@ export default function StepDesign() {
 
   return (
     <div className="step-panel">
+      <div className="step-header">
+        <div className="step-header-label">// 03 — Дизайн</div>
+        <h1 className="step-header-title">ДИЗАЙН</h1>
+        <p className="step-header-desc">Настройте зоны нанесения и параметры печати</p>
+      </div>
       {noPrintType ? (
         <div className="empty-state">Для данного типа изделия нанесение не предусмотрено</div>
       ) : (
