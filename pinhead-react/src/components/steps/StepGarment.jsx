@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES, FABRICS_LAYER1, FABRICS_LAYER2 } from '../../data';
-import { getSkuEstPrice, isAccessory, getTotalQty } from '../../utils/pricing';
+import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice } from '../../utils/pricing';
 import { getGarmentSVG } from '../../utils/mockup';
 
 // ── SKU List ──
@@ -162,8 +162,14 @@ function ColorPicker() {
 
 // ── Size Table ──
 function SizeTable() {
-  const { type, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = useStore();
+  const state = useStore();
+  const { type, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = state;
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newQty, setNewQty] = useState(0);
   const isAcc = isAccessory(type);
+
+  const price = getUnitPrice(state);
 
   if (isAcc) {
     const qty = sizes['ONE SIZE'] || 1;
@@ -183,12 +189,24 @@ function SizeTable() {
   const stdQty = Object.values(sizes).reduce((s, v) => s + (parseInt(v) || 0), 0);
   const customQty = (customSizes || []).reduce((s, c) => s + (parseInt(c.qty) || 0), 0);
   const totalQty = stdQty + customQty;
+  const totalSum = totalQty * price;
 
-  // Merge standard + custom sizes into one sorted list
   const allRows = [
     ...SIZES.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 })),
     ...(customSizes || []).map((cs, i) => ({ type: 'custom', label: cs.label, qty: cs.qty || 0, idx: i })),
   ];
+
+  const handleAddSize = () => {
+    if (!newLabel.trim()) return;
+    addCustomSize(newLabel.trim());
+    if (newQty > 0) {
+      const idx = (customSizes || []).length;
+      setTimeout(() => setCustomSizeQty(idx, newQty), 0);
+    }
+    setNewLabel('');
+    setNewQty(0);
+    setShowAddForm(false);
+  };
 
   return (
     <div className="size-section">
@@ -198,69 +216,105 @@ function SizeTable() {
           <tr>
             <th>Размер</th>
             <th>Количество</th>
-            <th></th>
+            <th className="size-th-price">Цена/шт</th>
+            <th className="size-th-sum">Сумма</th>
           </tr>
         </thead>
         <tbody>
-          {allRows.map(row => row.type === 'std' ? (
-            <tr key={row.label}>
-              <td>{row.label}</td>
-              <td>
-                <div className="qty-control">
-                  <button className="qty-btn" onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
+          {allRows.map(row => {
+            const q = parseInt(row.qty) || 0;
+            const rowSum = q * price;
+            return row.type === 'std' ? (
+              <tr key={row.label}>
+                <td><b>{row.label}</b></td>
+                <td>
+                  <div className="qty-control">
+                    <button className="qty-btn" onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
+                    <input
+                      type="number"
+                      className="qty-input"
+                      min={0}
+                      value={sizes[row.label] || ''}
+                      placeholder="0"
+                      onChange={e => setSize(row.label, e.target.value)}
+                    />
+                    <button className="qty-btn" onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
+                  </div>
+                </td>
+                <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>
+                <td className="size-td-sum">{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</td>
+              </tr>
+            ) : (
+              <tr key={'cs-' + row.idx} className="custom-size-row">
+                <td>
                   <input
-                    type="number"
+                    type="text"
                     className="qty-input"
-                    min={0}
-                    value={sizes[row.label] || ''}
-                    placeholder="0"
-                    onChange={e => setSize(row.label, e.target.value)}
+                    style={{ width: 60, textAlign: 'left', fontSize: 12 }}
+                    value={row.label}
+                    onChange={e => setCustomSizeLabel(row.idx, e.target.value)}
                   />
-                  <button className="qty-btn" onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
-                </div>
-              </td>
-              <td></td>
-            </tr>
-          ) : (
-            <tr key={'cs-' + row.idx} className="custom-size-row">
-              <td>
-                <input
-                  type="text"
-                  className="qty-input"
-                  style={{ width: 60, textAlign: 'left', fontSize: 12 }}
-                  value={row.label}
-                  onChange={e => setCustomSizeLabel(row.idx, e.target.value)}
-                />
-              </td>
-              <td>
-                <div className="qty-control">
-                  <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
-                  <input
-                    type="number"
-                    className="qty-input"
-                    min={0}
-                    value={row.qty || ''}
-                    placeholder="0"
-                    onChange={e => setCustomSizeQty(row.idx, e.target.value)}
-                  />
-                  <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
-                </div>
-              </td>
-              <td>
-                <button className="qty-btn" style={{ color: '#c00', borderColor: '#c00' }} onClick={() => removeCustomSize(row.idx)}>✕</button>
-              </td>
-            </tr>
-          ))}
-          {totalQty > 0 && (
-            <tr className="size-total-row">
-              <td>Итого</td>
-              <td>{totalQty} шт</td>
-              <td></td>
-            </tr>
-          )}
+                </td>
+                <td>
+                  <div className="qty-control">
+                    <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
+                    <input
+                      type="number"
+                      className="qty-input"
+                      min={0}
+                      value={row.qty || ''}
+                      placeholder="0"
+                      onChange={e => setCustomSizeQty(row.idx, e.target.value)}
+                    />
+                    <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
+                  </div>
+                </td>
+                <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>
+                <td className="size-td-sum">
+                  <span>{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</span>
+                  <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)}>✕</button>
+                </td>
+              </tr>
+            );
+          })}
+          <tr className="size-total-row">
+            <td className="size-total-label">ИТОГО</td>
+            <td className="size-total-qty">{totalQty} шт</td>
+            <td></td>
+            <td className="size-total-sum">{totalSum > 0 ? (totalSum.toLocaleString('ru-RU') + ' ₽') : '0 ₽'}</td>
+          </tr>
         </tbody>
       </table>
-      <button className="add-size-btn" onClick={() => addCustomSize()}>+ Добавить размер</button>
+
+      {/* Add custom size */}
+      {showAddForm ? (
+        <div className="add-size-form">
+          <span className="add-size-form-label">РАЗМЕР</span>
+          <input
+            type="text"
+            className="add-size-form-input"
+            placeholder="4XL, 5XL..."
+            value={newLabel}
+            onChange={e => setNewLabel(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddSize()}
+            autoFocus
+          />
+          <span className="add-size-form-label">КОЛ-ВО</span>
+          <input
+            type="number"
+            className="add-size-form-qty"
+            min={0}
+            value={newQty || ''}
+            placeholder="0"
+            onChange={e => setNewQty(parseInt(e.target.value) || 0)}
+            onKeyDown={e => e.key === 'Enter' && handleAddSize()}
+          />
+          <button className="btn-add-size" onClick={handleAddSize}>ДОБАВИТЬ</button>
+          <button className="btn-cancel-size" onClick={() => { setShowAddForm(false); setNewLabel(''); setNewQty(0); }}>ОТМЕНА</button>
+        </div>
+      ) : (
+        <button className="add-size-btn" onClick={() => setShowAddForm(true)}>+ ДОБАВИТЬ РАЗМЕР</button>
+      )}
     </div>
   );
 }
