@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
@@ -12,7 +13,6 @@ function SkuList() {
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
   const filtered = skuFilter === 'all' ? skuCatalog : skuCatalog.filter(s => s.category === skuFilter);
 
-  // Group by category
   const groups = {};
   filtered.forEach(s => { if (!groups[s.category]) groups[s.category] = []; groups[s.category].push(s); });
   const catOrder = SKU_CATEGORIES.map(c => c.id);
@@ -38,7 +38,7 @@ function SkuList() {
                 return (
                   <div key={s.code} className={`garment-row${isSelected ? ' selected' : ''}`} onClick={() => selectSku(s)}>
                     <div className="garment-row-bar" />
-                    <span className="garment-row-name">{s.name}</span>
+                    <span className="garment-row-name">{s.name}{s.fit ? <span className="garment-row-fit">{s.fit}</span> : null}</span>
                     <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
                   </div>
                 );
@@ -72,7 +72,7 @@ function FabricGrid() {
   return (
     <div className="fabric-section">
       <div className="section-label">Ткань</div>
-      <div className="fabric-grid">
+      <div className="fit-selector">
         {fabrics.map(f => (
           <div key={f.key} className={`fit-option${fabric === f.key ? ' selected' : ''}`} onClick={() => selectFabric(f.key)}>
             <div className="fit-check">{fabric === f.key ? '✓' : ''}</div>
@@ -90,40 +90,49 @@ function FabricGrid() {
 // ── Color Picker ──
 function ColorPicker() {
   const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore();
+  const [colorSearch, setColorSearch] = useState('');
   if (isAccessory(type)) return null;
 
   const colors = colorSupplier === 'medastex' ? MEDASTEX_COLORS : COTTONPROM_COLORS;
   const groups = colorSupplier === 'medastex' ? COLOR_GROUPS : COTTONPROM_GROUPS;
 
+  const searchLower = colorSearch.toLowerCase();
+
   return (
     <div className="color-section">
-      <div className="section-label">Цвет</div>
-      <div className="supplier-switch">
-        <button className={`supplier-btn${colorSupplier === 'medastex' ? ' active' : ''}`} onClick={() => setColorSupplier('medastex')}>Medastex</button>
-        <button className={`supplier-btn${colorSupplier === 'cottonprom' ? ' active' : ''}`} onClick={() => setColorSupplier('cottonprom')}>CottonProm</button>
+      <div className="section-label">Цвет базы</div>
+      <div className="color-search-wrap">
+        <input
+          type="text"
+          className="color-search-input"
+          placeholder="Поиск цвета..."
+          value={colorSearch}
+          onChange={e => setColorSearch(e.target.value)}
+        />
+        <div className="supplier-switch">
+          <button className={`supplier-btn${colorSupplier === 'medastex' ? ' active' : ''}`} onClick={() => setColorSupplier('medastex')}>Medastex</button>
+          <button className={`supplier-btn${colorSupplier === 'cottonprom' ? ' active' : ''}`} onClick={() => setColorSupplier('cottonprom')}>CottonProm</button>
+        </div>
+        {color && <div className="color-selected-info">Выбран: {colors.find(c => c.code === color)?.name || color}</div>}
       </div>
-      {color && <div className="color-selected-info">Выбран: {colors.find(c => c.code === color)?.name || color}</div>}
-      <div className="color-groups">
-        {groups.map(g => (
-          <div key={g.label} className="color-group">
-            <div className="color-group-label">{g.label}</div>
-            <div className="color-swatches">
-              {g.codes.map(code => {
-                const entry = colors.find(c => c.code === code);
-                if (!entry) return null;
-                return (
-                  <div
-                    key={code}
-                    className={`swatch${color === code ? ' selected' : ''}`}
-                    style={{ backgroundColor: entry.hex }}
-                    title={`${entry.name} (${entry.code})`}
-                    onClick={() => selectColor(code)}
-                  />
-                );
-              })}
+      <div className="swatches">
+        {groups.map(g => g.codes.map(code => {
+          const entry = colors.find(c => c.code === code);
+          if (!entry) return null;
+          const hidden = searchLower && !entry.name.toLowerCase().includes(searchLower) && !entry.code.toLowerCase().includes(searchLower);
+          return (
+            <div
+              key={code}
+              className={`swatch${color === code ? ' selected' : ''}${hidden ? ' hidden' : ''}`}
+              title={`${entry.name} (${entry.code})`}
+              onClick={() => selectColor(code)}
+            >
+              <div className="swatch-circle" style={{ backgroundColor: entry.hex }} />
+              <div className="swatch-code">{entry.code}</div>
+              <div className="swatch-label">{entry.name}</div>
             </div>
-          </div>
-        ))}
+          );
+        }))}
       </div>
     </div>
   );
@@ -141,7 +150,7 @@ function SizeTable() {
         <div className="section-label">Тираж</div>
         <div className="one-size-row">
           <button className="qty-btn" onClick={() => setOneSizeQty(qty - 1)}>−</button>
-          <input type="number" className="one-size-input" value={qty} min={1} onChange={e => setOneSizeQty(parseInt(e.target.value) || 1)} />
+          <input type="number" className="qty-input" value={qty} min={1} onChange={e => setOneSizeQty(parseInt(e.target.value) || 1)} />
           <button className="qty-btn" onClick={() => setOneSizeQty(qty + 1)}>+</button>
           <span className="qty-label">шт</span>
         </div>
@@ -149,24 +158,49 @@ function SizeTable() {
     );
   }
 
+  const totalQty = Object.values(sizes).reduce((s, v) => s + (parseInt(v) || 0), 0);
+
   return (
     <div className="size-section">
       <div className="section-label">Размеры</div>
-      <div className="size-table">
-        {SIZES.map(size => (
-          <div key={size} className="size-cell">
-            <div className="size-label">{size}</div>
-            <input
-              type="number"
-              className="size-input"
-              min={0}
-              value={sizes[size] || ''}
-              placeholder="0"
-              onChange={e => setSize(size, e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
+      <table className="size-table">
+        <thead>
+          <tr>
+            <th>Размер</th>
+            <th>Количество</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {SIZES.map(size => (
+            <tr key={size}>
+              <td>{size}</td>
+              <td>
+                <div className="qty-control">
+                  <button className="qty-btn" onClick={() => setSize(size, Math.max(0, (parseInt(sizes[size]) || 0) - 1))}>−</button>
+                  <input
+                    type="number"
+                    className="qty-input"
+                    min={0}
+                    value={sizes[size] || ''}
+                    placeholder="0"
+                    onChange={e => setSize(size, e.target.value)}
+                  />
+                  <button className="qty-btn" onClick={() => setSize(size, (parseInt(sizes[size]) || 0) + 1)}>+</button>
+                </div>
+              </td>
+              <td></td>
+            </tr>
+          ))}
+          {totalQty > 0 && (
+            <tr className="size-total-row">
+              <td>Итого</td>
+              <td>{totalQty} шт</td>
+              <td></td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -195,17 +229,12 @@ export default function StepGarment() {
         <h1 className="step-header-title">ИЗДЕЛИЕ</h1>
         <p className="step-header-desc">Выберите изделие, ткань и цвет</p>
       </div>
-      <div className="step-content-grid">
-        <div className="step-main">
-          <SkuList />
-          <FabricGrid />
-          <ColorPicker />
-          <SizeTable />
-        </div>
-        <div className="step-aside">
-          <MockupPreview />
-        </div>
-      </div>
+      <SkuList />
+      <hr className="divider" />
+      <FabricGrid />
+      <ColorPicker />
+      <hr className="divider" />
+      <SizeTable />
       <div className="btn-row">
         <button className={`btn-next${canNext ? '' : ' disabled'}`} onClick={() => canNext && nextStep()}>
           Далее — Обработки →
