@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
+import { toast } from '../shared/Toast';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
 import { calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge, getLabelConfigPrice, isAccessory } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
@@ -45,6 +46,7 @@ ${zoneLines.join('\n')}
 
 КЛИЕНТ
 ${state.name ? 'Имя: ' + state.name : ''}
+${state.bitrixDeal ? 'Bitrix: ' + state.bitrixDeal : ''}
 ${state.contact ? 'Контакт: ' + state.contact : ''}
 ${state.email ? 'Email: ' + state.email : ''}
 ${state.phone ? 'Телефон: ' + state.phone : ''}
@@ -96,12 +98,13 @@ export default function StepSummary({ onNavigate }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopyLabel('Скопировано!');
+      toast.success('ТЗ скопировано в буфер');
     } catch {
       // fallback
       const ta = document.createElement('textarea');
       ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); setCopyLabel('Скопировано!'); } catch { setCopyLabel('Ошибка'); }
+      try { document.execCommand('copy'); setCopyLabel('Скопировано!'); toast.success('ТЗ скопировано'); } catch { setCopyLabel('Ошибка'); toast.error('Не удалось скопировать'); }
       document.body.removeChild(ta);
     }
     setTimeout(() => setCopyLabel(null), 2000);
@@ -117,7 +120,7 @@ export default function StepSummary({ onNavigate }) {
       embZones: state.embZones, dtfZones: state.dtfZones, zoneArtworks: state.zoneArtworks,
       textileColor: state.textileColor, dtgTextile: state.dtgTextile,
       designNotes: state.designNotes,
-      name, contact, email, phone, deadline, address, notes,
+      name, contact, email, phone, bitrixDeal: state.bitrixDeal, deadline, address, notes,
       packOption, urgentOption, labelConfig,
       sku: sku ? { code: sku.code, name: sku.name, article: sku.article, category: sku.category, fit: sku.fit } : null,
       total, totalQty, unitPrice,
@@ -128,13 +131,18 @@ export default function StepSummary({ onNavigate }) {
       saved = await updateOrder(state._editingOrderId, orderData);
       if (saved) {
         setSavedNum(state._editingOrderNumber || saved.order_number || 'OK');
+        toast.success('Заказ обновлён');
+      } else {
+        toast.error('Ошибка обновления заказа');
       }
     } else {
       saved = await saveOrder(orderData);
       if (saved) {
         setSavedNum(saved.order_number || 'OK');
-        // Remember for subsequent saves
         useStore.setState({ _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
+        toast.success('Заказ сохранён: ' + (saved.order_number || ''));
+      } else {
+        toast.error('Ошибка сохранения заказа');
       }
     }
     setSaving(false);
@@ -204,6 +212,7 @@ export default function StepSummary({ onNavigate }) {
         <div className="summary-block">
           <div className="summary-block-title">Клиент</div>
           <div className="summary-row"><span className="key">Имя</span><span className="val"><b>{name}</b></span></div>
+          {state.bitrixDeal && <div className="summary-row"><span className="key">Bitrix</span><span className="val"><b>{state.bitrixDeal}</b></span></div>}
           {contact && <div className="summary-row"><span className="key">Контакт</span><span className="val"><b>{contact}</b></span></div>}
           {email && <div className="summary-row"><span className="key">Email</span><span className="val"><b>{email}</b></span></div>}
           {phone && <div className="summary-row"><span className="key">Телефон</span><span className="val"><b>{phone}</b></span></div>}

@@ -17,6 +17,7 @@ import ExpressCalc from './components/editors/ExpressCalc'
 import PriceEditor from './components/editors/PriceEditor'
 import SkuEditor from './components/editors/SkuEditor'
 import AdminPanel from './components/auth/AdminPanel'
+import ToastContainer from './components/shared/Toast'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
 
@@ -53,7 +54,9 @@ function App() {
     );
   }
 
-  const isAdmin = user.role === 'admin';
+  const isAdmin = ['admin', 'director'].includes(user.role);
+  const isProduction = user.role === 'production';
+  const isDesigner = user.role === 'designer';
   const closePage = () => setPage('wizard');
 
   return (
@@ -74,6 +77,7 @@ function App() {
         activePage={page}
         onNavigate={setPage}
         isAdmin={isAdmin}
+        userRole={user.role}
       />
 
       <ProgressBar />
@@ -82,15 +86,16 @@ function App() {
         <CurrentStep onNavigate={setPage} />
       </main>
 
-      {/* ── Fullscreen overlay panels (like original HTML) ── */}
-      {page === 'express' && <ExpressCalc onClose={closePage} />}
-      {page === 'prices' && <PriceEditor onClose={closePage} />}
-      {page === 'sku' && <SkuEditor onClose={closePage} />}
+      {/* ── Fullscreen overlay panels ── */}
+      {page === 'express' && !isProduction && !isDesigner && <ExpressCalc onClose={closePage} />}
+      {page === 'prices' && !isProduction && !isDesigner && <PriceEditor onClose={closePage} />}
+      {page === 'sku' && !isProduction && !isDesigner && <SkuEditor onClose={closePage} />}
       {page === 'orders' && <KanbanBoard onClose={closePage} onNavigate={setPage} />}
       {page === 'print' && <PrintPreview onClose={closePage} />}
       {page === 'admin' && isAdmin && <AdminPanel onClose={closePage} />}
 
       {isAdmin && <Agentation />}
+      <ToastContainer />
     </>
   );
 }

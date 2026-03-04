@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
@@ -8,7 +8,9 @@ import { getGarmentSVG } from '../../utils/mockup';
 
 // ── SKU List ──
 function SkuList() {
-  const { skuCatalog, skuFilter, setSkuFilter, selectSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore();
+  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore();
+  const dragRef = useRef(null);
+  const [dragOver, setDragOver] = useState(null);
   const usedCats = [...new Set(skuCatalog.map(s => s.category))];
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
   const filtered = skuFilter === 'all' ? skuCatalog : skuCatalog.filter(s => s.category === skuFilter);
@@ -16,6 +18,11 @@ function SkuList() {
   const groups = {};
   filtered.forEach(s => { if (!groups[s.category]) groups[s.category] = []; groups[s.category].push(s); });
   const catOrder = SKU_CATEGORIES.map(c => c.id);
+
+  const onDragStart = (e, code) => { dragRef.current = code; e.dataTransfer.effectAllowed = 'move'; };
+  const onDragEnd = () => { dragRef.current = null; setDragOver(null); };
+  const onDragOverRow = (e, code) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(code); };
+  const onDropRow = (e, code) => { e.preventDefault(); setDragOver(null); if (dragRef.current && dragRef.current !== code) reorderSku(dragRef.current, code); };
 
   return (
     <div className="sku-section">
@@ -35,10 +42,20 @@ function SkuList() {
               {groups[catId].map(s => {
                 const est = getSkuEstPrice(s, fabricsCatalog, trimCatalog, usdRate);
                 const isSelected = sku?.code === s.code;
+                const fitLabel = s.fit || null;
                 return (
-                  <div key={s.code} className={`garment-row${isSelected ? ' selected' : ''}`} onClick={() => selectSku(s)}>
+                  <div
+                    key={s.code}
+                    className={`garment-row${isSelected ? ' selected' : ''}${dragOver === s.code ? ' drag-target' : ''}`}
+                    draggable
+                    onDragStart={e => onDragStart(e, s.code)}
+                    onDragEnd={onDragEnd}
+                    onDragOver={e => onDragOverRow(e, s.code)}
+                    onDrop={e => onDropRow(e, s.code)}
+                    onClick={() => selectSku(s)}
+                  >
                     <div className="garment-row-bar" />
-                    <span className="garment-row-name">{s.name}{s.fit ? <span className="garment-row-fit">{s.fit}</span> : null}</span>
+                    <span className="garment-row-name">{s.name}{fitLabel ? <span className="garment-row-fit">{fitLabel}</span> : null}</span>
                     <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
                   </div>
                 );
@@ -167,6 +184,12 @@ function SizeTable() {
   const customQty = (customSizes || []).reduce((s, c) => s + (parseInt(c.qty) || 0), 0);
   const totalQty = stdQty + customQty;
 
+  // Merge standard + custom sizes into one sorted list
+  const allRows = [
+    ...SIZES.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 })),
+    ...(customSizes || []).map((cs, i) => ({ type: 'custom', label: cs.label, qty: cs.qty || 0, idx: i })),
+  ];
+
   return (
     <div className="size-section">
       <div className="section-label">Размеры</div>
@@ -179,54 +202,52 @@ function SizeTable() {
           </tr>
         </thead>
         <tbody>
-          {SIZES.map(size => (
-            <tr key={size}>
-              <td>{size}</td>
+          {allRows.map(row => row.type === 'std' ? (
+            <tr key={row.label}>
+              <td>{row.label}</td>
               <td>
                 <div className="qty-control">
-                  <button className="qty-btn" onClick={() => setSize(size, Math.max(0, (parseInt(sizes[size]) || 0) - 1))}>−</button>
+                  <button className="qty-btn" onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
                   <input
                     type="number"
                     className="qty-input"
                     min={0}
-                    value={sizes[size] || ''}
+                    value={sizes[row.label] || ''}
                     placeholder="0"
-                    onChange={e => setSize(size, e.target.value)}
+                    onChange={e => setSize(row.label, e.target.value)}
                   />
-                  <button className="qty-btn" onClick={() => setSize(size, (parseInt(sizes[size]) || 0) + 1)}>+</button>
+                  <button className="qty-btn" onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
                 </div>
               </td>
               <td></td>
             </tr>
-          ))}
-          {/* Custom sizes */}
-          {(customSizes || []).map((cs, i) => (
-            <tr key={'cs-' + i}>
+          ) : (
+            <tr key={'cs-' + row.idx} className="custom-size-row">
               <td>
                 <input
                   type="text"
                   className="qty-input"
                   style={{ width: 60, textAlign: 'left', fontSize: 12 }}
-                  value={cs.label}
-                  onChange={e => setCustomSizeLabel(i, e.target.value)}
+                  value={row.label}
+                  onChange={e => setCustomSizeLabel(row.idx, e.target.value)}
                 />
               </td>
               <td>
                 <div className="qty-control">
-                  <button className="qty-btn" onClick={() => setCustomSizeQty(i, Math.max(0, (parseInt(cs.qty) || 0) - 1))}>−</button>
+                  <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
                   <input
                     type="number"
                     className="qty-input"
                     min={0}
-                    value={cs.qty || ''}
+                    value={row.qty || ''}
                     placeholder="0"
-                    onChange={e => setCustomSizeQty(i, e.target.value)}
+                    onChange={e => setCustomSizeQty(row.idx, e.target.value)}
                   />
-                  <button className="qty-btn" onClick={() => setCustomSizeQty(i, (parseInt(cs.qty) || 0) + 1)}>+</button>
+                  <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
                 </div>
               </td>
               <td>
-                <button className="qty-btn" style={{ color: '#c00', borderColor: '#c00' }} onClick={() => removeCustomSize(i)}>✕</button>
+                <button className="qty-btn" style={{ color: '#c00', borderColor: '#c00' }} onClick={() => removeCustomSize(row.idx)}>✕</button>
               </td>
             </tr>
           ))}

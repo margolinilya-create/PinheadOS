@@ -9,7 +9,7 @@ const DRAFT_FIELDS = [
   'step', 'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes',
   'fit', 'fitChosen', 'extras', 'labels', 'zones', 'tech', 'textileColor',
   'zoneTechs', 'zonePrints', 'flexZones', 'dtgZones', 'embZones', 'dtfZones',
-  'zoneArtworks', 'designNotes', 'sizeComment', 'phone', 'messenger',
+  'zoneArtworks', 'designNotes', 'sizeComment', 'phone', 'messenger', 'bitrixDeal',
   'role', 'name', 'contact', 'email', 'deadline', 'address', 'notes',
   'packOption', 'urgentOption', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];

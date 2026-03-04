@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
+import { toast } from '../shared/Toast';
 
 function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -92,7 +93,10 @@ export default function KanbanBoard({ onClose, onNavigate }) {
     e.preventDefault();
     e.currentTarget.querySelector('.kanban-col-body')?.classList.remove('drag-over');
     const orderId = e.dataTransfer.getData('orderId');
-    if (orderId) updateStatus(Number(orderId) || orderId, status);
+    if (orderId) {
+      updateStatus(Number(orderId) || orderId, status);
+      toast.success('Статус: ' + (STATUS_LABELS[status] || status));
+    }
   };
 
   const handleDragOver = (e) => {
