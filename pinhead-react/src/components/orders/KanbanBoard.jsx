@@ -26,33 +26,8 @@ function getInitials(name) {
   return name.slice(0, 2).toUpperCase();
 }
 
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function groupByDeadlineWeek(orders) {
-  const now = new Date();
-  const thisWeek = getWeekStart(now);
-  const nextWeek = thisWeek + 7 * 86400000;
-  const groups = { thisWeek: [], nextWeek: [], later: [], noDeadline: [] };
-  for (const o of orders) {
-    const dl = o.data?.deadline;
-    if (!dl) { groups.noDeadline.push(o); continue; }
-    const ws = getWeekStart(new Date(dl));
-    if (ws === thisWeek) groups.thisWeek.push(o);
-    else if (ws === nextWeek) groups.nextWeek.push(o);
-    else groups.later.push(o);
-  }
-  return groups;
-}
-
 /* ── KanbanCard ── */
-function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onOpenTechCard, onCardClick }) {
+function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onCardClick }) {
   const [showMenu, setShowMenu] = useState(false);
   const d = order.data || {};
   const dt = order.created_at ? new Date(order.created_at) : null;
@@ -74,7 +49,10 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
       className="kb-card"
       style={isUrgent ? { borderTop: '2px solid #e53e3e' } : undefined}
       draggable
-      onDragStart={e => e.dataTransfer.setData('orderId', String(order.id))}
+      onDragStart={e => {
+        e.dataTransfer.setData('text/plain', String(order.id));
+        e.dataTransfer.effectAllowed = 'move';
+      }}
       onClick={() => onCardClick(order)}
     >
       <div className="kb-card-bar" style={{ background: statusColor }} />
@@ -112,7 +90,6 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div className="kb-card-actions">
               <button className="kb-open" onClick={stopAndRun(() => onOpenTZ(order))}>Открыть</button>
-              {onOpenTechCard && <button onClick={stopAndRun(() => onOpenTechCard(order))} title="Техкарта">TC</button>}
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать">⎘</button>
               <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить">✕</button>
             </div>
@@ -146,7 +123,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
 }
 
 /* ── OrderDrawer ── */
-function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onOpenTechCard, onDuplicate }) {
+function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) {
   const d = order.data || {};
   const itemKey = (order.item_type || '').toLowerCase();
   const skuName = d.sku ? d.sku.name : (TYPE_NAMES[itemKey] || TYPE_NAMES[order.item_type] || order.item_type || '—');
@@ -230,23 +207,34 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onOpenTechCard,
             </>
           )}
 
+          {/* Status change buttons */}
+          <div style={sectionLabel}>СМЕНИТЬ СТАТУС</div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {STATUS_LIST.map(s => (
+              <button
+                key={s}
+                className={`btn${s === order.status ? ' btn-primary' : ''}`}
+                style={{ flex: 1, minWidth: 0, fontSize: 10, padding: '6px 4px' }}
+                disabled={s === order.status}
+                onClick={() => { onStatusChange(order.id, s); toast.success('Статус: ' + STATUS_LABELS[s]); }}
+              >
+                {STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 0, marginTop: 24, border: '1.5px solid #000', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: 0, marginTop: 16, border: '1.5px solid #000', overflow: 'hidden' }}>
             <button className="btn btn-primary" style={{ flex: 1, borderRight: '1px solid rgba(255,255,255,.2)' }} onClick={() => onOpenTZ(order)}>
               Открыть ТЗ
             </button>
-            {onOpenTechCard && (
-              <button className="btn" style={{ flex: 1 }} onClick={() => onOpenTechCard(order)}>
-                Техкарта
-              </button>
-            )}
             <button className="btn" style={{ flex: 1 }} onClick={() => { onDuplicate(order); onClose(); }}>
               Дублировать
             </button>
           </div>
 
           {/* Keyboard hint */}
-          <div style={{ marginTop: 16, fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: .5 }}>
+          <div style={{ marginTop: 12, fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: .5 }}>
             {STATUS_LIST.map((s, i) => (
               <span key={s} style={{ marginRight: 8 }}>
                 <span style={{ fontWeight: 900, color: STATUS_COLORS[s] }}>{i + 1}</span> {STATUS_LABELS[s]}
@@ -260,69 +248,62 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onOpenTechCard,
 }
 
 /* ── Main Component ── */
-export default function KanbanBoard({ onOpenTechCard }) {
+export default function KanbanBoard() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const { orders, loading, filter, search, setFilter, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, getFiltered } = useOrdersStore();
+  const { orders, loading, search, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder } = useOrdersStore();
   const loadOrder = useStore(s => s.loadOrder);
 
   const [drawerOrder, setDrawerOrder] = useState(null);
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [urgentOnly, setUrgentOnly] = useState(false);
-  const [sortMode, setSortMode] = useState('date-desc');
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  // Get unique item types from orders
-  const itemTypes = useMemo(() => {
-    const types = new Set();
-    orders.forEach(o => { if (o.item_type) types.add(o.item_type); });
-    return Array.from(types);
-  }, [orders]);
-
-  const hasUrgent = useMemo(() => orders.some(o => o.data?.priority === 'urgent'), [orders]);
-
-  // Apply filters on top of store's getFiltered()
-  const filtered = useMemo(() => {
-    let result = getFiltered();
-    if (typeFilter !== 'all') result = result.filter(o => o.item_type === typeFilter);
-    if (urgentOnly) result = result.filter(o => o.data?.priority === 'urgent');
-    return result;
-  }, [getFiltered, typeFilter, urgentOnly]);
-
-  // Sort function
-  const sortOrders = useCallback((arr) => {
-    const sorted = [...arr];
-    switch (sortMode) {
-      case 'date-asc': sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); break;
-      case 'sum-desc': sorted.sort((a, b) => (b.total_sum || 0) - (a.total_sum || 0)); break;
-      default: sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    }
-    return sorted;
-  }, [sortMode]);
-
-  // Build columns
+  // Build columns — all statuses, sorted by date desc
   const columns = useMemo(() => {
     const cols = {};
     for (const s of STATUS_LIST) cols[s] = [];
-    for (const o of filtered) {
+
+    let list = orders;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = orders.filter(o =>
+        (o.order_number || '').toLowerCase().includes(q) ||
+        (o.data?.name || '').toLowerCase().includes(q) ||
+        (o.item_type || '').toLowerCase().includes(q) ||
+        (o.bitrix_deal || '').toLowerCase().includes(q)
+      );
+    }
+
+    for (const o of list) {
       const s = o.status || 'draft';
       if (cols[s]) cols[s].push(o);
     }
-    for (const s of STATUS_LIST) cols[s] = sortOrders(cols[s]);
+    // Sort each column by date desc
+    for (const s of STATUS_LIST) {
+      cols[s].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
     return cols;
-  }, [filtered, sortOrders]);
+  }, [orders, search]);
 
   const totalQty = orders.reduce((s, o) => s + (o.total_qty || 0), 0);
   const totalSum = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
 
   const handleDrop = (e, status) => {
     e.preventDefault();
-    e.currentTarget.querySelector('.kanban-col-body')?.classList.remove('drag-over');
-    const orderId = e.dataTransfer.getData('orderId');
-    if (orderId) {
-      updateStatus(Number(orderId) || orderId, status);
+    e.currentTarget.classList.remove('drag-over');
+    const body = e.currentTarget.querySelector('.kanban-col-body');
+    if (body) body.classList.remove('drag-over');
+
+    const orderId = e.dataTransfer.getData('text/plain');
+    if (!orderId) return;
+
+    const id = Number(orderId) || orderId;
+    const order = orders.find(o => String(o.id) === String(orderId));
+    if (order && order.status !== status) {
+      updateStatus(id, status);
       toast.success('Статус: ' + (STATUS_LABELS[status] || status));
+      // Update drawer if open
+      setDrawerOrder(prev => prev && String(prev.id) === String(orderId) ? { ...prev, status } : prev);
     }
   };
 
@@ -334,8 +315,11 @@ export default function KanbanBoard({ onOpenTechCard }) {
   };
 
   const handleDragLeave = (e) => {
-    const body = e.currentTarget.querySelector('.kanban-col-body');
-    if (body) body.classList.remove('drag-over');
+    // Only remove if actually leaving the column
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      const body = e.currentTarget.querySelector('.kanban-col-body');
+      if (body) body.classList.remove('drag-over');
+    }
   };
 
   const handleOpenTZ = (order) => {
@@ -345,59 +329,15 @@ export default function KanbanBoard({ onOpenTechCard }) {
 
   const handleStatusChange = useCallback((id, status) => {
     updateStatus(id, status);
-    // Update drawer if open
     setDrawerOrder(prev => prev && prev.id === id ? { ...prev, status } : prev);
   }, [updateStatus]);
-
-  const visibleStatuses = filter === 'all' ? STATUS_LIST : [filter];
-
-  // Render column body — with week grouping for production
-  const renderColumnBody = (status, items) => {
-    if (items.length === 0) {
-      return <div style={{ padding: 30, textAlign: 'center', color: '#ccc', fontSize: 11, fontWeight: 600 }}>Пусто</div>;
-    }
-
-    if (status === 'production') {
-      const groups = groupByDeadlineWeek(items);
-      const sections = [
-        { key: 'thisWeek', label: 'ЭТА НЕДЕЛЯ', items: groups.thisWeek },
-        { key: 'nextWeek', label: 'СЛЕДУЮЩАЯ НЕДЕЛЯ', items: groups.nextWeek },
-        { key: 'later', label: 'ПОЗЖЕ', items: groups.later },
-        { key: 'noDeadline', label: 'БЕЗ ДЕДЛАЙНА', items: groups.noDeadline },
-      ].filter(s => s.items.length > 0);
-
-      return sections.map(section => (
-        <div key={section.key}>
-          <div className="garment-sep" style={{ marginBottom: 4 }}>
-            <span className="garment-sep-text">{section.label}</span>
-            <span className="garment-sep-line" />
-          </div>
-          {section.items.map(o => (
-            <KanbanCard
-              key={o.id} order={o} statusColor={STATUS_COLORS[status]}
-              onStatusChange={handleStatusChange} onDelete={deleteOrder} onDuplicate={duplicateOrder}
-              onOpenTZ={handleOpenTZ} onOpenTechCard={onOpenTechCard} onCardClick={setDrawerOrder}
-            />
-          ))}
-        </div>
-      ));
-    }
-
-    return items.map(o => (
-      <KanbanCard
-        key={o.id} order={o} statusColor={STATUS_COLORS[status]}
-        onStatusChange={handleStatusChange} onDelete={deleteOrder} onDuplicate={duplicateOrder}
-        onOpenTZ={handleOpenTZ} onOpenTechCard={onOpenTechCard} onCardClick={setDrawerOrder}
-      />
-    ));
-  };
 
   return (
     <div className="kanban-page">
       {/* ── Header ── */}
       <div className="sku-ed-header">
         <div className="sku-ed-header-left">
-          <h1 className="sku-ed-title">ЗАКАЗЫ <span>Kanban</span></h1>
+          <h1 className="sku-ed-title">ЗАКАЗЫ</h1>
         </div>
         <div className="sku-ed-header-right">
           <input
@@ -419,7 +359,7 @@ export default function KanbanBoard({ onOpenTechCard }) {
         <div className="ks-item"><span className="ks-total">{totalSum.toLocaleString('ru-RU')} ₽</span></div>
         <div style={{ flex: 1 }} />
         {STATUS_LIST.map(s => {
-          const count = orders.filter(o => o.status === s).length;
+          const count = columns[s].length;
           return count > 0 ? (
             <div key={s} className="ks-item">
               <span className="ks-dot" style={{ background: STATUS_COLORS[s] }} />
@@ -429,51 +369,12 @@ export default function KanbanBoard({ onOpenTechCard }) {
         })}
       </div>
 
-      {/* ── Filter bar: status ── */}
-      <div className="kanban-filter-bar">
-        <div className={`kanban-filter-btn${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')}>Все</div>
-        {STATUS_LIST.map(s => (
-          <div key={s} className={`kanban-filter-btn${filter === s ? ' active' : ''}`} onClick={() => setFilter(s)}>
-            <span className="kf-dot" style={{ background: STATUS_COLORS[s] }} />
-            {STATUS_LABELS[s]}
-          </div>
-        ))}
-      </div>
-
-      {/* ── Filter bar 2: type + urgent + sort ── */}
-      <div className="kanban-filter-bar">
-        <div className={`kanban-filter-btn${typeFilter === 'all' ? ' active' : ''}`} onClick={() => setTypeFilter('all')}>
-          Все типы
-        </div>
-        {itemTypes.map(t => (
-          <div key={t} className={`kanban-filter-btn${typeFilter === t ? ' active' : ''}`} onClick={() => setTypeFilter(t)}>
-            {TYPE_NAMES[t] || TYPE_NAMES[t.toLowerCase()] || t}
-          </div>
-        ))}
-        <div style={{ width: 1, height: 16, background: '#ccc', flexShrink: 0 }} />
-        <div
-          className={`kanban-filter-btn${urgentOnly ? ' active' : ''}`}
-          onClick={() => setUrgentOnly(!urgentOnly)}
-          style={{ position: 'relative' }}
-        >
-          {hasUrgent && !urgentOnly && (
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e53e3e', position: 'absolute', top: 4, right: 4 }} />
-          )}
-          Срочные
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          <div className={`kanban-filter-btn${sortMode === 'date-desc' ? ' active' : ''}`} onClick={() => setSortMode('date-desc')}>Новые</div>
-          <div className={`kanban-filter-btn${sortMode === 'date-asc' ? ' active' : ''}`} onClick={() => setSortMode('date-asc')}>Старые</div>
-          <div className={`kanban-filter-btn${sortMode === 'sum-desc' ? ' active' : ''}`} onClick={() => setSortMode('sum-desc')}>По сумме</div>
-        </div>
-      </div>
-
       {/* ── Board ── */}
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Загрузка...</div>
       ) : (
         <div className="kanban-board">
-          {visibleStatuses.map(s => {
+          {STATUS_LIST.map(s => {
             const colSum = columns[s].reduce((a, o) => a + (o.total_sum || 0), 0);
             return (
               <div
@@ -489,7 +390,17 @@ export default function KanbanBoard({ onOpenTechCard }) {
                   <span className="kanban-col-count" style={{ background: STATUS_COLORS[s] }}>{columns[s].length}</span>
                 </div>
                 <div className="kanban-col-body">
-                  {renderColumnBody(s, columns[s])}
+                  {columns[s].length === 0 ? (
+                    <div style={{ padding: 30, textAlign: 'center', color: '#ccc', fontSize: 11, fontWeight: 600 }}>Пусто</div>
+                  ) : (
+                    columns[s].map(o => (
+                      <KanbanCard
+                        key={o.id} order={o} statusColor={STATUS_COLORS[s]}
+                        onStatusChange={handleStatusChange} onDelete={deleteOrder} onDuplicate={duplicateOrder}
+                        onOpenTZ={handleOpenTZ} onCardClick={setDrawerOrder}
+                      />
+                    ))
+                  )}
                 </div>
               </div>
             );
@@ -504,7 +415,6 @@ export default function KanbanBoard({ onOpenTechCard }) {
           onClose={() => setDrawerOrder(null)}
           onStatusChange={handleStatusChange}
           onOpenTZ={handleOpenTZ}
-          onOpenTechCard={onOpenTechCard}
           onDuplicate={duplicateOrder}
         />
       )}
