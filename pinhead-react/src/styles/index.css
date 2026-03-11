@@ -1,0 +1,30 @@
+/* ═══════════════════════════════════════════════════════════ */
+/* PINHEAD ORDER STUDIO — Styles Index                        */
+/* ═══════════════════════════════════════════════════════════ */
+/*                                                            */
+/*  Tokens / design variables live in src/index.css          */
+/*  (imported in main.jsx before this file)                  */
+/*                                                            */
+/*  Module map:                                               */
+/*    layout        — app shell, header, nav                  */
+/*    wizard        — progress bar, step panels, page views   */
+/*    garment       — SKU list, fit, colors, sizes            */
+/*    extras-zones  — extras grid, zones, zone tech blocks    */
+/*    forms-buttons — fields, toggles, labels, items, summary */
+/*    auth          — login / register screen                  */
+/*    kanban        — kanban board & cards                    */
+/*    express       — express calculator (panel + page)       */
+/*    editors       — print preview, SKU editor, price editor,*/
+/*                    techcard, dashboard                     */
+/*    utils         — modals, toasts, scrollbar, responsive   */
+/* ═══════════════════════════════════════════════════════════ */
+@import './layout.css';
+@import './wizard.css';
+@import './garment.css';
+@import './extras-zones.css';
+@import './forms-buttons.css';
+@import './auth.css';
+@import './kanban.css';
+@import './express.css';
+@import './editors.css';
+@import './utils.css';
