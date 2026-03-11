@@ -108,7 +108,7 @@ function App() {
         <Route path="/prices" element={<RoleGuard allowed={canEdit}><PriceEditor /></RoleGuard>} />
         <Route path="/sku" element={<RoleGuard allowed={canEdit}><SkuEditor /></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><AdminPanel /></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || user.role === 'rop'}><Dashboard /></RoleGuard>} />
+        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || user.role === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

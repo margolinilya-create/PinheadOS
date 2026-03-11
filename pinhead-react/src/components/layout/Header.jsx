@@ -73,7 +73,7 @@ export default function Header() {
             Цены
           </button>
         )}
-        {(isAdmin || isProd) && (
+        {(isAdmin || isProd || user?.role === 'rop') && (
           <button className={`header-nav-btn${isActive('/analytics') ? ' active' : ''}`} onClick={nav('/analytics')}>
             Аналитика
           </button>
