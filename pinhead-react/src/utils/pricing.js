@@ -151,6 +151,17 @@ export function getLabelConfigPrice(labelConfig) {
   return total;
 }
 
+// Скидка за объём тиража
+export function getVolumeDiscount(qty) {
+  const tiers = PRICES.volumeTiers || [];
+  const discounts = PRICES.volumeDiscounts || [];
+  let discount = 0;
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (qty >= tiers[i]) { discount = discounts[i] || 0; break; }
+  }
+  return discount;
+}
+
 export function calcTotal(state) {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;
@@ -163,6 +174,10 @@ export function calcTotal(state) {
       + (!isAccessory(state.type) && PRICES.fit ? (PRICES.fit[state.fit || 'regular'] || 0) : 0)
       + (PRICES.fabric[state.fabric] || 0);
   }
+
+  // Применяем скидку за объём к базовой стоимости
+  const volumeDiscount = getVolumeDiscount(totalQty);
+  base = Math.round(base * (1 - volumeDiscount));
 
   const extrasCost = (state.extras || []).reduce((sum, code) => {
     const ex = state.extrasCatalog.find(e => e.code === code);
@@ -183,4 +198,19 @@ export function getUnitPrice(state) {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;
   return Math.round(calcTotal(state) / totalQty);
+}
+
+// ─── Multi-item: расчёт цены одной позиции (из снэпшота item + каталоги) ───
+export function calcItemTotal(item, catalogs) {
+  const statelike = { ...item, ...catalogs };
+  return calcTotal(statelike);
+}
+
+export function getItemUnitPrice(item, catalogs) {
+  const statelike = { ...item, ...catalogs };
+  return getUnitPrice(statelike);
+}
+
+export function getItemTotalQty(item) {
+  return getTotalQty(item);
 }

@@ -1,27 +1,19 @@
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES } from '../../data';
-import { calcTotal, getUnitPrice, getTotalQty, getLabelConfigPrice } from '../../utils/pricing';
+import { calcTotal, getUnitPrice, getTotalQty, getLabelConfigPrice, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
 export default function PrintPreview() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
   const state = useStore();
-  const total = calcTotal(state);
-  const unitPrice = getUnitPrice(state);
-  const totalQty = getTotalQty(state);
-  const labelPrice = getLabelConfigPrice(state.labelConfig);
+  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption } = state;
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
+  const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
 
   const orderNumber = state._editingOrderNumber || ('PH-' + Date.now().toString(36).toUpperCase());
   const now = new Date().toLocaleDateString('ru-RU');
-
-  const sizeEntries = state.sku?.category === 'accessories'
-    ? [['ONE SIZE', state.sizes['ONE SIZE'] || 1]]
-    : SIZES.map(s => [s, state.sizes[s] || 0]).filter(([, q]) => q > 0);
-
-  // Custom sizes
-  const customEntries = (state.customSizes || []).filter(c => (parseInt(c.qty) || 0) > 0);
 
   const handlePrint = () => window.print();
 
@@ -61,153 +53,99 @@ export default function PrintPreview() {
           <span className="pp-order-id">[{orderNumber}]</span>
         </div>
 
-        {/* ── 01 Изделие ── */}
-        <div className="pp-section">
-          <div className="pp-section-head">
-            <span className="pp-section-num">{nextSection()}</span>
-            <span className="pp-section-name">ИЗДЕЛИЕ</span>
-          </div>
-          <div className="pp-kv">
-            <div className="pp-kv-row">
-              <span>Тип</span>
-              <span className="pp-kv-dots" />
-              <b>{state.sku?.name || TYPE_NAMES[state.type] || '—'}</b>
-            </div>
-            <div className="pp-kv-row">
-              <span>Ткань</span>
-              <span className="pp-kv-dots" />
-              <b>{FABRIC_NAMES[state.fabric] || state.fabric || '—'}</b>
-            </div>
-            <div className="pp-kv-row">
-              <span>Цвет</span>
-              <span className="pp-kv-dots" />
-              <b>{state.color || '—'}</b>
-            </div>
-            <div className="pp-kv-row">
-              <span>Дата</span>
-              <span className="pp-kv-dots" />
-              <b>{now}</b>
-            </div>
-            {state.deadline && (
-              <div className="pp-kv-row">
-                <span>Дедлайн</span>
-                <span className="pp-kv-dots" />
-                <b>{state.deadline}</b>
+        {/* ── Per-item sections ── */}
+        {items.map((item, idx) => {
+          const itemQty = getItemTotalQty(item);
+          const itemUnitPrice = getItemUnitPrice(item, catalogs);
+          const itemTotal = calcItemTotal(item, catalogs);
+          const labelPrice = getLabelConfigPrice(item.labelConfig);
+
+          const sizeEntries = item.sku?.category === 'accessories'
+            ? [['ONE SIZE', item.sizes?.['ONE SIZE'] || 1]]
+            : SIZES.map(s => [s, item.sizes?.[s] || 0]).filter(([, q]) => q > 0);
+          const customEntries = (item.customSizes || []).filter(c => (parseInt(c.qty) || 0) > 0);
+
+          return (
+            <div key={idx}>
+              {items.length > 1 && (
+                <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: 1, marginTop: idx > 0 ? 20 : 0, marginBottom: 8, borderTop: idx > 0 ? '1px solid #ccc' : 'none', paddingTop: idx > 0 ? 12 : 0 }}>
+                  ПОЗИЦИЯ #{idx + 1}
+                </div>
+              )}
+
+              <div className="pp-section">
+                <div className="pp-section-head">
+                  <span className="pp-section-num">{nextSection()}</span>
+                  <span className="pp-section-name">ИЗДЕЛИЕ</span>
+                </div>
+                <div className="pp-kv">
+                  <div className="pp-kv-row"><span>Тип</span><span className="pp-kv-dots" /><b>{item.sku?.name || TYPE_NAMES[item.type] || '—'}</b></div>
+                  <div className="pp-kv-row"><span>Ткань</span><span className="pp-kv-dots" /><b>{FABRIC_NAMES[item.fabric] || item.fabric || '—'}</b></div>
+                  <div className="pp-kv-row"><span>Цвет</span><span className="pp-kv-dots" /><b>{item.color || '—'}</b></div>
+                  {idx === 0 && <div className="pp-kv-row"><span>Дата</span><span className="pp-kv-dots" /><b>{now}</b></div>}
+                  {idx === 0 && state.deadline && <div className="pp-kv-row"><span>Дедлайн</span><span className="pp-kv-dots" /><b>{state.deadline}</b></div>}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* ── 02 Размеры и тираж ── */}
-        <div className="pp-section">
-          <div className="pp-section-head">
-            <span className="pp-section-num">{nextSection()}</span>
-            <span className="pp-section-name">РАЗМЕРЫ И ТИРАЖ</span>
-          </div>
-          <table className="pp-table">
-            <thead>
-              <tr>
-                <th>Размер</th>
-                <th>Кол-во</th>
-                <th>Цена/шт</th>
-                <th>Сумма</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sizeEntries.map(([size, qty]) => (
-                <tr key={size}>
-                  <td>{size}</td>
-                  <td>{qty}</td>
-                  <td>{unitPrice.toLocaleString('ru-RU')} ₽</td>
-                  <td><b>{(qty * unitPrice).toLocaleString('ru-RU')} ₽</b></td>
-                </tr>
-              ))}
-              {customEntries.map((c, i) => (
-                <tr key={`c-${i}`}>
-                  <td>{c.label || c.size}</td>
-                  <td>{c.qty}</td>
-                  <td>{unitPrice.toLocaleString('ru-RU')} ₽</td>
-                  <td><b>{((parseInt(c.qty) || 0) * unitPrice).toLocaleString('ru-RU')} ₽</b></td>
-                </tr>
-              ))}
-              <tr className="pp-table-total">
-                <td>ИТОГО</td>
-                <td><b>{totalQty}</b></td>
-                <td />
-                <td><b>{total.toLocaleString('ru-RU')} ₽</b></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+              <div className="pp-section">
+                <div className="pp-section-head">
+                  <span className="pp-section-num">{nextSection()}</span>
+                  <span className="pp-section-name">РАЗМЕРЫ И ТИРАЖ</span>
+                </div>
+                <table className="pp-table">
+                  <thead><tr><th>Размер</th><th>Кол-во</th><th>Цена/шт</th><th>Сумма</th></tr></thead>
+                  <tbody>
+                    {sizeEntries.map(([size, qty]) => (
+                      <tr key={size}><td>{size}</td><td>{qty}</td><td>{itemUnitPrice.toLocaleString('ru-RU')} ₽</td><td><b>{(qty * itemUnitPrice).toLocaleString('ru-RU')} ₽</b></td></tr>
+                    ))}
+                    {customEntries.map((c, i) => (
+                      <tr key={`c-${i}`}><td>{c.label || c.size}</td><td>{c.qty}</td><td>{itemUnitPrice.toLocaleString('ru-RU')} ₽</td><td><b>{((parseInt(c.qty) || 0) * itemUnitPrice).toLocaleString('ru-RU')} ₽</b></td></tr>
+                    ))}
+                    <tr className="pp-table-total"><td>ИТОГО</td><td><b>{itemQty}</b></td><td /><td><b>{itemTotal.toLocaleString('ru-RU')} ₽</b></td></tr>
+                  </tbody>
+                </table>
+              </div>
 
-        {/* ── 03 Нанесение ── */}
-        {!state.noPrint && state.zones?.length > 0 && (
-          <div className="pp-section">
-            <div className="pp-section-head">
-              <span className="pp-section-num">{nextSection()}</span>
-              <span className="pp-section-name">НАНЕСЕНИЕ</span>
-            </div>
-            <table className="pp-table">
-              <thead>
-                <tr>
-                  <th>Зона</th>
-                  <th>Техника</th>
-                  <th>Параметры</th>
-                  <th>Макет</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.zones.map(z => {
-                  const tech = state.zoneTechs?.[z] || 'screen';
-                  const fmt = state.zoneFormats?.[z] || '—';
-                  const col = state.zoneColors?.[z] || '';
-                  const params = [fmt, col ? `${col} цв.` : ''].filter(Boolean).join(', ') || '—';
-                  return (
-                    <tr key={z}>
-                      <td>{ZONE_LABELS[z] || z}</td>
-                      <td>{TECH_NAMES[tech] || tech}</td>
-                      <td>{params}</td>
-                      <td>—</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ── 04 Бирки ── */}
-        {labelPrice > 0 && (
-          <div className="pp-section">
-            <div className="pp-section-head">
-              <span className="pp-section-num">{nextSection()}</span>
-              <span className="pp-section-name">БИРКИ И ЭТИКЕТКИ</span>
-            </div>
-            <div className="pp-kv">
-              {state.labelConfig?.careLabel?.enabled && (
-                <div className="pp-kv-row">
-                  <span>Бирка по уходу</span>
-                  <span className="pp-kv-dots" />
-                  <b>{LABEL_CONFIG.careLabel.options.find(o => o.key === state.labelConfig.careLabel.logoOption)?.name || '—'}</b>
+              {!item.noPrint && item.zones?.length > 0 && (
+                <div className="pp-section">
+                  <div className="pp-section-head">
+                    <span className="pp-section-num">{nextSection()}</span>
+                    <span className="pp-section-name">НАНЕСЕНИЕ</span>
+                  </div>
+                  <table className="pp-table">
+                    <thead><tr><th>Зона</th><th>Техника</th><th>Параметры</th><th>Макет</th></tr></thead>
+                    <tbody>
+                      {item.zones.map(z => {
+                        const tech = item.zoneTechs?.[z] || 'screen';
+                        return <tr key={z}><td>{ZONE_LABELS[z] || z}</td><td>{TECH_NAMES[tech] || tech}</td><td>—</td><td>—</td></tr>;
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
-              {state.labelConfig?.mainLabel?.option !== 'none' && (
-                <div className="pp-kv-row">
-                  <span>Основная бирка</span>
-                  <span className="pp-kv-dots" />
-                  <b>{LABEL_CONFIG.mainLabel.options.find(o => o.key === state.labelConfig.mainLabel.option)?.name || '—'}</b>
-                </div>
-              )}
-              {state.labelConfig?.hangTag?.option !== 'none' && (
-                <div className="pp-kv-row">
-                  <span>Хэнг-тег</span>
-                  <span className="pp-kv-dots" />
-                  <b>{LABEL_CONFIG.hangTag.options.find(o => o.key === state.labelConfig.hangTag.option)?.name || '—'}</b>
+
+              {labelPrice > 0 && (
+                <div className="pp-section">
+                  <div className="pp-section-head">
+                    <span className="pp-section-num">{nextSection()}</span>
+                    <span className="pp-section-name">БИРКИ И ЭТИКЕТКИ</span>
+                  </div>
+                  <div className="pp-kv">
+                    {item.labelConfig?.careLabel?.enabled && (
+                      <div className="pp-kv-row"><span>Бирка по уходу</span><span className="pp-kv-dots" /><b>{LABEL_CONFIG.careLabel.options.find(o => o.key === item.labelConfig.careLabel.logoOption)?.name || '—'}</b></div>
+                    )}
+                    {item.labelConfig?.mainLabel?.option !== 'none' && (
+                      <div className="pp-kv-row"><span>Основная бирка</span><span className="pp-kv-dots" /><b>{LABEL_CONFIG.mainLabel.options.find(o => o.key === item.labelConfig.mainLabel.option)?.name || '—'}</b></div>
+                    )}
+                    {item.labelConfig?.hangTag?.option !== 'none' && (
+                      <div className="pp-kv-row"><span>Хэнг-тег</span><span className="pp-kv-dots" /><b>{LABEL_CONFIG.hangTag.options.find(o => o.key === item.labelConfig.hangTag.option)?.name || '—'}</b></div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })}
 
         {/* ── Опции ── */}
         <div className="pp-section">
@@ -257,7 +195,7 @@ export default function PrintPreview() {
 
         {/* ── Итого ── */}
         <div className="pp-grand-total">
-          ИТОГО: {total.toLocaleString('ru-RU')} ₽
+          ИТОГО: {grandTotal.toLocaleString('ru-RU')} ₽
         </div>
       </div>
     </div>

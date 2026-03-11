@@ -4,8 +4,9 @@ const STEPS = [
   { label: 'Изделие', num: '01' },
   { label: 'Обработки', num: '02' },
   { label: 'Дизайн', num: '03' },
-  { label: 'Детали', num: '04' },
-  { label: 'Итог', num: '05' },
+  { label: 'Позиции', num: '04' },
+  { label: 'Детали', num: '05' },
+  { label: 'Итог', num: '06' },
 ];
 
 export default function ProgressBar() {

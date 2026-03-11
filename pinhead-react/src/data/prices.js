@@ -61,5 +61,10 @@ export const PRICES = {
   // DTF: надбавка за формат
   dtfFormatAdd: {'A6':0,'A5':20,'A4':50,'A3':100,'A3+':160},
   label:30, pack:15, urgentMult:0.2,
-  fit:{ regular:0, free:50, oversize:100 }
+  fit:{ regular:0, free:50, oversize:100 },
+
+  // Скидки за объём тиража (на базовую стоимость изделия)
+  // volumeTiers[i] — порог кол-ва, volumeDiscounts[i] — процент скидки
+  volumeTiers:    [1,    100,  300,  500,  1000],
+  volumeDiscounts:[0,    0.03, 0.05, 0.08, 0.12],
 };

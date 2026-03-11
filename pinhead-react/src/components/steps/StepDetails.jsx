@@ -13,7 +13,7 @@ export default function StepDetails() {
   return (
     <div className="step-panel">
       <div className="step-header">
-        <div className="step-header-label">// 04 — Детали</div>
+        <div className="step-header-label">// 05 — Детали</div>
         <h1 className="step-header-title">ДЕТАЛИ<br/>ЗАКАЗА</h1>
         <p className="step-header-desc">Заполните контактные данные и условия заказа</p>
       </div>
