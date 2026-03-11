@@ -36,9 +36,4 @@ export const ZONE_LABELS = {
   'sleeve-l':'Лев. рукав', 'sleeve-r':'Прав. рукав'
 };
 
-export const STATUS_LABELS = {
-  draft:'Черновик', review:'Согласование', approved:'Одобрен',
-  production:'В работе', done:'Готов'
-};
-
 export const DEFAULT_USD_RATE = 92;

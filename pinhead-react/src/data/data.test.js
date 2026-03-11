@@ -5,7 +5,7 @@ import {
   MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS,
   EXTRAS_CATALOG_DEFAULT, EXTRAS_ICONS, EXTRAS_DESCS,
   LABELS_CATALOG_DEFAULT, LABEL_CONFIG, HARDWARE_CATALOG_DEFAULT,
-  SIZES, TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, STATUS_LABELS,
+  SIZES, TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS,
   DEFAULT_USD_RATE, findColorEntry,
   LAYER1_TYPES, LAYER2_TYPES, FABRICS_LAYER1, FABRICS_LAYER2,
 } from './index';
@@ -172,9 +172,6 @@ describe('Constants', () => {
   });
   it('ZONE_LABELS has entries', () => {
     expect(Object.keys(ZONE_LABELS).length).toBeGreaterThan(10);
-  });
-  it('STATUS_LABELS has 5 statuses', () => {
-    expect(Object.keys(STATUS_LABELS)).toHaveLength(5);
   });
   it('DEFAULT_USD_RATE is 92', () => {
     expect(DEFAULT_USD_RATE).toBe(92);
