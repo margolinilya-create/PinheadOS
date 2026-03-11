@@ -87,15 +87,19 @@ export default function Header() {
 
       {/* ── Right: draft + price + logout ── */}
       <div className="header-right">
-        <div className="header-draft">
-          <div className={`draft-dot${draftStatus === 'saving' ? ' saving' : draftStatus === 'saved' ? ' saved' : ''}`} />
-          <span className="draft-text">{draftLabel}</span>
-          <button className="draft-reset-btn" onClick={resetDraft} title="Сбросить черновик">✕</button>
-        </div>
-        <div className="header-total">
-          <span className="total-label">Итого</span>
-          <span className="total-value">{formatted}</span>
-        </div>
+        {(pathname === '/' || pathname === '/express') && (
+          <>
+            <div className="header-draft">
+              <div className={`draft-dot${draftStatus === 'saving' ? ' saving' : draftStatus === 'saved' ? ' saved' : ''}`} />
+              <span className="draft-text">{draftLabel}</span>
+              <button className="draft-reset-btn" onClick={resetDraft} title="Сбросить черновик">✕</button>
+            </div>
+            <div className="header-total">
+              <span className="total-label">Итого</span>
+              <span className="total-value">{formatted}</span>
+            </div>
+          </>
+        )}
         <button className="header-logout" onClick={logout}>Выйти</button>
       </div>
     </header>

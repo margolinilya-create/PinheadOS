@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
-// ─── DEV MODE: bypass авторизации (как в оригинале v1.7) ───
-// Если true — пропускаем логин, role = manager, userName = 'Test User'
-const DEV_MODE = true;
+// ─── DEV MODE: bypass авторизации ───
+// В dev-режиме (vite dev) — пропускаем логин, role = admin
+// В production-билде — требуется настоящий логин через Supabase
+const DEV_MODE = import.meta.env.DEV;
 
 export const useAuthStore = create((set, get) => ({
   user: null,       // { id, email, name, role }
