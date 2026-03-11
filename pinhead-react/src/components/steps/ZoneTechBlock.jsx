@@ -73,6 +73,9 @@ function ScreenParams({ zone, qty }) {
           ))}
         </div>
       </ParamRow>
+      {qty > 0 && qty < 50 && (
+        <div className="zone-tech-warn">⚠ Шелкография — минимальный тираж от 50 шт. Сейчас: {qty} шт</div>
+      )}
     </>
   );
 }
