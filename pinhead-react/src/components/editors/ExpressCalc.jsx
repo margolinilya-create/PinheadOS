@@ -5,7 +5,8 @@ import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { PRICES } from '../../data/prices';
-import { screenLookup, flexLookup, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS } from '../../utils/pricing';
+import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
+import { screenLookup, flexLookup, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount } from '../../utils/pricing';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -80,6 +81,7 @@ export default function ExpressCalc() {
   const [fabricCode, setFabricCode] = useState('');
   const [qty, setQty] = useState(100);
   const [expZoneData, setExpZoneData] = useState({});
+  const [selectedExtras, setSelectedExtras] = useState([]);
 
   // ── SKU catalog grouped by category ──
   const categories = useMemo(() => {
@@ -117,9 +119,22 @@ export default function ExpressCalc() {
   }, [sku]);
 
   // ── When SKU changes ──
+  // ── Extras filtered by SKU category ──
+  const availableExtras = useMemo(() => {
+    if (!sku) return [];
+    return EXTRAS_CATALOG_DEFAULT.filter(e =>
+      !e.forCategories?.length || e.forCategories.includes(sku.category)
+    );
+  }, [sku]);
+
+  const toggleExtra = useCallback((code) => {
+    setSelectedExtras(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  }, []);
+
   const handleSkuChange = useCallback((code) => {
     setSkuCode(code);
     setFabricCode('');
+    setSelectedExtras([]);
     const s = SKU_CATALOG_DEFAULT.find(x => x.code === code);
     if (s) {
       const zones = s.zones && s.zones.length > 0 ? s.zones : DEFAULT_GARMENT_ZONES;
@@ -171,7 +186,17 @@ export default function ExpressCalc() {
     // Base price from SKU + fabric
     const sewingPrice = sku.sewingPrice || 0;
     const fabricPriceRub = fabric ? Math.round(fabric.priceUSD * usdRate * (sku.mainFabricUsage || 0)) : 0;
-    const base = sewingPrice + fabricPriceRub;
+    const baseRaw = sewingPrice + fabricPriceRub;
+
+    // Volume discount on base
+    const volumeDiscount = getVolumeDiscount(qty);
+    const base = Math.round(baseRaw * (1 - volumeDiscount));
+
+    // Extras cost
+    const extrasCost = selectedExtras.reduce((sum, code) => {
+      const ex = EXTRAS_CATALOG_DEFAULT.find(e => e.code === code);
+      return sum + (ex ? ex.price : 0);
+    }, 0);
 
     // Tech surcharge from all active zones
     const activeEntries = Object.entries(expZoneData).filter(([, d]) => d.active);
@@ -181,11 +206,11 @@ export default function ExpressCalc() {
       techTotal += calcZoneSurcharge(id, d, qty);
     });
 
-    const unitPrice = base + techTotal;
+    const unitPrice = base + extrasCost + techTotal;
     const total = unitPrice * qty;
 
-    return { base, techTotal, zoneCount, unitPrice, total };
-  }, [sku, fabric, usdRate, expZoneData, qty]);
+    return { baseRaw, base, volumeDiscount, extrasCost, techTotal, zoneCount, unitPrice, total };
+  }, [sku, fabric, usdRate, expZoneData, qty, selectedExtras]);
 
   // ── Render zone params ──
   function renderZoneParams(zoneId, d) {
@@ -395,13 +420,52 @@ export default function ExpressCalc() {
             </div>
           )}
 
+          {/* Extras selection */}
+          {sku && availableExtras.length > 0 && (
+            <div className="exp-field">
+              <label>Обработки{selectedExtras.length > 0 && <span style={{opacity:0.6, marginLeft:6, fontSize:12}}>+{calc?.extrasCost || 0} ₽/шт</span>}</label>
+              <div className="exp-extras-grid">
+                {availableExtras.map(e => {
+                  const sel = selectedExtras.includes(e.code);
+                  return (
+                    <div key={e.code}
+                      className={`exp-extra-chip${sel ? ' active' : ''}`}
+                      onClick={() => toggleExtra(e.code)}
+                    >
+                      <span className="exp-extra-name">{e.name}</span>
+                      <span className="exp-extra-price">+{e.price} ₽</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Results */}
           {calc && (
             <div className="exp-result">
               <div className="exp-result-row">
                 <span>База (пошив + ткань)</span>
-                <b>{calc.base.toLocaleString('ru-RU')} ₽ / шт</b>
+                <b>
+                  {calc.volumeDiscount > 0 ? (
+                    <><s style={{opacity:0.4, marginRight:4}}>{calc.baseRaw.toLocaleString('ru-RU')} ₽</s>{calc.base.toLocaleString('ru-RU')} ₽ / шт</>
+                  ) : (
+                    <>{calc.base.toLocaleString('ru-RU')} ₽ / шт</>
+                  )}
+                </b>
               </div>
+              {calc.volumeDiscount > 0 && (
+                <div className="exp-result-row" style={{color:'var(--accent, #4ade80)'}}>
+                  <span>Скидка за тираж ({qty} шт)</span>
+                  <b>−{Math.round(calc.volumeDiscount * 100)}%</b>
+                </div>
+              )}
+              {calc.extrasCost > 0 && (
+                <div className="exp-result-row">
+                  <span>Обработки ({selectedExtras.length})</span>
+                  <b>+{calc.extrasCost.toLocaleString('ru-RU')} ₽ / шт</b>
+                </div>
+              )}
               <div className="exp-result-row">
                 <span>
                   {calc.zoneCount > 0

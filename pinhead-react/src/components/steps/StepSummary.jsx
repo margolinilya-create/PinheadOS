@@ -4,7 +4,8 @@ import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../shared/Toast';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge, getLabelConfigPrice, isAccessory } from '../../utils/pricing';
+import { PRICES } from '../../data/prices';
+import { calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge, getLabelConfigPrice, isAccessory, getVolumeDiscount } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 
@@ -84,13 +85,22 @@ export default function StepSummary() {
   const techSurcharge = getTotalSurcharge(state);
   const labelsCost = getLabelConfigPrice(labelConfig);
 
-  const extrasCost = extras.reduce((s, code) => {
+  const extrasDetailed = extras.map(code => {
     const e = extrasCatalog.find(x => x.code === code);
-    return s + (e ? e.price : 0);
-  }, 0);
+    return e ? { code: e.code, name: e.name, price: e.price } : null;
+  }).filter(Boolean);
+  const extrasCost = extrasDetailed.reduce((s, e) => s + e.price, 0);
 
-  let baseCost = 0;
-  if (sku) baseCost = getSkuEstPrice(sku, fabricsCatalog, trimCatalog, usdRate);
+  let baseCostRaw = 0;
+  if (sku) {
+    baseCostRaw = getSkuEstPrice(sku, fabricsCatalog, trimCatalog, usdRate);
+  } else {
+    baseCostRaw = (PRICES.type[type] || 480)
+      + (!isAccessory(type) && PRICES.fit ? (PRICES.fit[fit || 'regular'] || 0) : 0)
+      + (PRICES.fabric[fabric] || 0);
+  }
+  const volumeDiscount = getVolumeDiscount(totalQty);
+  const baseCost = Math.round(baseCostRaw * (1 - volumeDiscount));
 
   const sizeEntries = Object.entries(sizes).filter(([, v]) => v > 0);
 
@@ -240,8 +250,33 @@ export default function StepSummary() {
 
       {/* Price Breakdown */}
       <div className="price-breakdown">
-        <div className="price-line"><span className="name">Базовая стоимость</span><span className="amount">{baseCost} ₽</span></div>
-        {extrasCost > 0 && <div className="price-line"><span className="name">Обработки</span><span className="amount">+{extrasCost} ₽</span></div>}
+        <div className="price-line">
+          <span className="name">Базовая стоимость</span>
+          <span className="amount">
+            {volumeDiscount > 0 ? (
+              <><s style={{opacity:0.4, marginRight:4}}>{baseCostRaw} ₽</s>{baseCost} ₽</>
+            ) : (
+              <>{baseCost} ₽</>
+            )}
+          </span>
+        </div>
+        {volumeDiscount > 0 && (
+          <div className="price-line" style={{color:'var(--accent, #4ade80)'}}>
+            <span className="name">Скидка за тираж ({totalQty} шт)</span>
+            <span className="amount">−{Math.round(volumeDiscount * 100)}%</span>
+          </div>
+        )}
+        {extrasDetailed.length > 0 && (
+          <>
+            <div className="price-line"><span className="name">Обработки</span><span className="amount">+{extrasCost} ₽</span></div>
+            {extrasDetailed.map(e => (
+              <div key={e.code} className="price-line" style={{paddingLeft:12, opacity:0.7, fontSize:'0.9em'}}>
+                <span className="name">{e.name}</span>
+                <span className="amount">+{e.price} ₽</span>
+              </div>
+            ))}
+          </>
+        )}
         {labelsCost > 0 && <div className="price-line"><span className="name">Бирки</span><span className="amount">+{labelsCost} ₽</span></div>}
         {techSurcharge > 0 && <div className="price-line"><span className="name">Нанесение ({zones.length} зон)</span><span className="amount">+{techSurcharge} ₽</span></div>}
         {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽</span></div>}

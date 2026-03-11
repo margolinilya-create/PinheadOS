@@ -1126,6 +1126,20 @@ header {
 }
 .exp-zt-warn { font-size:10px; font-weight:600; color:#a06000; margin-top:6px; }
 
+/* Express extras chips */
+.exp-extras-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.exp-extra-chip {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 10px; border:1.5px solid var(--border-light);
+  border-radius:6px; cursor:pointer; font-size:12px;
+  background:var(--bg1); transition:all .15s;
+}
+.exp-extra-chip:hover { border-color:var(--text-mid); }
+.exp-extra-chip.active { border-color:var(--accent); background:rgba(74,222,128,0.08); }
+.exp-extra-name { font-weight:600; }
+.exp-extra-price { font-size:11px; color:var(--text-dim); white-space:nowrap; }
+.exp-extra-chip.active .exp-extra-price { color:var(--accent); }
+
 /* ── Price / SKU / Admin Editor ── */
 /* PriceEditor now uses sku-ed-overlay / sku-ed-panel / sku-ed-header layout */
 .pe-changed { font-size:11px; background:#fff3cd; color:#856404; padding:2px 8px; font-weight:700; }
