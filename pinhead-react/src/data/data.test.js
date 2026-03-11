@@ -167,8 +167,8 @@ describe('Constants', () => {
   it('FABRIC_NAMES has 8 entries', () => {
     expect(Object.keys(FABRIC_NAMES)).toHaveLength(8);
   });
-  it('TECH_NAMES has 4 entries', () => {
-    expect(Object.keys(TECH_NAMES)).toHaveLength(4);
+  it('TECH_NAMES has 5 entries', () => {
+    expect(Object.keys(TECH_NAMES)).toHaveLength(5);
   });
   it('ZONE_LABELS has entries', () => {
     expect(Object.keys(ZONE_LABELS).length).toBeGreaterThan(10);

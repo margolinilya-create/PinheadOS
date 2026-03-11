@@ -10,6 +10,7 @@ import ProgressBar from './components/layout/ProgressBar'
 import StepGarment from './components/steps/StepGarment'
 import StepExtras from './components/steps/StepExtras'
 import StepDesign from './components/steps/StepDesign'
+import StepItems from './components/steps/StepItems'
 import StepDetails from './components/steps/StepDetails'
 import StepSummary from './components/steps/StepSummary'
 import AuthScreen from './components/auth/AuthScreen'
@@ -23,7 +24,7 @@ import ToastContainer from './components/shared/Toast'
 import TechCard from './components/production/TechCard'
 import Dashboard from './components/analytics/Dashboard'
 
-const STEPS = [StepGarment, StepExtras, StepDesign, StepDetails, StepSummary];
+const STEPS = [StepGarment, StepExtras, StepDesign, StepItems, StepDetails, StepSummary];
 
 // Wizard page — main step-based flow
 function WizardPage() {

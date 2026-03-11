@@ -199,3 +199,18 @@ export function getUnitPrice(state) {
   if (totalQty === 0) return 0;
   return Math.round(calcTotal(state) / totalQty);
 }
+
+// ─── Multi-item: расчёт цены одной позиции (из снэпшота item + каталоги) ───
+export function calcItemTotal(item, catalogs) {
+  const statelike = { ...item, ...catalogs };
+  return calcTotal(statelike);
+}
+
+export function getItemUnitPrice(item, catalogs) {
+  const statelike = { ...item, ...catalogs };
+  return getUnitPrice(statelike);
+}
+
+export function getItemTotalQty(item) {
+  return getTotalQty(item);
+}

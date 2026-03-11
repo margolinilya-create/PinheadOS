@@ -6,7 +6,8 @@ const SAVE_DELAY = 800; // ms debounce
 
 // Поля которые сохраняем в черновик
 const DRAFT_FIELDS = [
-  'step', 'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes',
+  'step', 'items', 'activeItemIdx',
+  'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes',
   'fit', 'fitChosen', 'extras', 'labels', 'zones', 'tech', 'textileColor',
   'zoneTechs', 'zonePrints', 'flexZones', 'dtgZones', 'embZones', 'dtfZones',
   'zoneArtworks', 'designNotes', 'sizeComment', 'phone', 'messenger', 'bitrixDeal',
