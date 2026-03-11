@@ -49,7 +49,11 @@ export const useOrdersStore = create((set, get) => ({
 
       const { data, error } = await query;
       if (!error && data) {
-        set({ orders: data, loading: false });
+        // Preserve local-only orders (not yet synced to Supabase)
+        const localOrders = get().orders.filter(o => String(o.id).startsWith('local_'));
+        const remoteIds = new Set(data.map(o => o.id));
+        const merged = [...data, ...localOrders.filter(o => !remoteIds.has(o.id))];
+        set({ orders: merged, loading: false });
       } else {
         set({ loading: false });
       }
@@ -62,6 +66,9 @@ export const useOrdersStore = create((set, get) => ({
   saveOrder: async (orderData) => {
     const orderNumber = generateOrderNumber(get().orders);
     const auth = useAuthStore.getState();
+    // DEV_MODE user id 'dev' is not a valid UUID — use null for created_by
+    const userId = auth.user?.id;
+    const createdBy = (userId && userId !== 'dev') ? userId : null;
     const row = {
       order_number: orderNumber,
       status: 'draft',
@@ -71,7 +78,7 @@ export const useOrdersStore = create((set, get) => ({
       item_type: orderData.type || '',
       bitrix_deal: orderData.bitrixDeal || null,
       notes: orderData.notes || null,
-      created_by: auth.user?.id || null,
+      created_by: createdBy,
       created_at: new Date().toISOString(),
     };
 
@@ -81,7 +88,7 @@ export const useOrdersStore = create((set, get) => ({
       return data[0];
     }
     // Fallback: сохраняем локально
-    const local = { ...row, id: Date.now() };
+    const local = { ...row, id: 'local_' + Date.now() };
     set(s => ({ orders: [local, ...s.orders] }));
     return local;
   },
