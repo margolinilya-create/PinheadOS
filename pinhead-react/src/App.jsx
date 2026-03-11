@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import './styles/index.css'
 import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
-import { useOrdersStore } from './store/useOrdersStore'
 import Header from './components/layout/Header'
 import ProgressBar from './components/layout/ProgressBar'
 import StepGarment from './components/steps/StepGarment'
@@ -21,7 +20,6 @@ import PriceEditor from './components/editors/PriceEditor'
 import SkuEditor from './components/editors/SkuEditor'
 import AdminPanel from './components/auth/AdminPanel'
 import ToastContainer from './components/shared/Toast'
-import TechCard from './components/production/TechCard'
 import Dashboard from './components/analytics/Dashboard'
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepItems, StepDetails, StepSummary];
@@ -49,9 +47,6 @@ function RoleGuard({ allowed, children }) {
 
 function App() {
   const { user, loading, init } = useAuthStore();
-  const [techCardOrder, setTechCardOrder] = useState(null);
-  const updateStatus = useOrdersStore(s => s.updateStatus);
-
   useEffect(() => { init(); }, [init]);
 
   if (loading) {
@@ -102,7 +97,7 @@ function App() {
 
       <Routes>
         <Route path="/" element={<WizardPage />} />
-        <Route path="/orders" element={<KanbanBoard onOpenTechCard={setTechCardOrder} />} />
+        <Route path="/orders" element={<KanbanBoard />} />
         <Route path="/print" element={<PrintPreview />} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><ExpressCalc /></RoleGuard>} />
         <Route path="/prices" element={<RoleGuard allowed={canEdit}><PriceEditor /></RoleGuard>} />
@@ -111,15 +106,6 @@ function App() {
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || user.role === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-
-      {/* TechCard overlay (opened from kanban) */}
-      {techCardOrder && (
-        <TechCard
-          order={techCardOrder}
-          onClose={() => setTechCardOrder(null)}
-          onStatusChange={(id, status) => { updateStatus(id, status); setTechCardOrder(prev => prev ? { ...prev, status } : null); }}
-        />
-      )}
 
       {isAdmin && <Agentation />}
       <ToastContainer />
