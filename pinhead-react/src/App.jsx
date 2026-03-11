@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import './App.css'
+import './styles/index.css'
 import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
