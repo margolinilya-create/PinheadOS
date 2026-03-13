@@ -1,6 +1,6 @@
 import { useStore } from '../../store/useStore';
 import { ZONE_LABELS } from '../../data';
-import { TECH_TABS, getZoneSurcharge, screenLookup, flexLookup, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, getTotalQty } from '../../utils/pricing';
+import { TECH_TABS, getZoneSurcharge, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, getTotalQty } from '../../utils/pricing';
 
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;
@@ -10,10 +10,10 @@ const EMB_AREAS = [{ k: 's', l: 'S до 7см' }, { k: 'm', l: 'M до 12см' }
 
 export default function ZoneTechBlock({ zone }) {
   const state = useStore();
-  const { zoneTechs, setZoneTech, setZoneParam } = state;
+  const { zoneTechs, setZoneTech } = state;
   const tech = zoneTechs?.[zone] || 'screen';
   const surcharge = getZoneSurcharge(zone, state);
-  const qty = getTotalQty(state) || 1;
+  const totalQty = getTotalQty(state) || 1;
 
   return (
     <div className="zone-tech-block">
@@ -29,8 +29,8 @@ export default function ZoneTechBlock({ zone }) {
         ))}
       </div>
       <div className="zone-tech-params">
-        {tech === 'screen' && <ScreenParams zone={zone} qty={qty} />}
-        {tech === 'flex' && <FlexParams zone={zone} qty={qty} />}
+        {tech === 'screen' && <ScreenParams zone={zone} qty={totalQty} />}
+        {tech === 'flex' && <FlexParams zone={zone} qty={totalQty} />}
         {tech === 'dtg' && <DtgParams zone={zone} />}
         {tech === 'embroidery' && <EmbParams zone={zone} />}
         {tech === 'dtf' && <DtfParams zone={zone} />}
@@ -80,7 +80,7 @@ function ScreenParams({ zone, qty }) {
   );
 }
 
-function FlexParams({ zone, qty }) {
+function FlexParams({ zone }) {
   const { flexZones, setZoneParam } = useStore();
   const p = flexZones?.[zone] || { colors: 1, size: 'A4' };
   return (

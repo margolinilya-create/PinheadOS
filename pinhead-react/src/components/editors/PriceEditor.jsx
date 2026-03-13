@@ -20,7 +20,7 @@ function clonePrices() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return JSON.parse(stored);
-  } catch {}
+  } catch { /* ignore parse errors */ }
   const base = JSON.parse(JSON.stringify(PRICES));
   if (!base.flexMatrix) base.flexMatrix = JSON.parse(JSON.stringify(DEFAULT_FLEX_MATRIX));
   return base;
@@ -133,7 +133,7 @@ export default function PriceEditor() {
         const data = JSON.parse(text);
         setPrices(data);
         setChanged(c => c + 1);
-      } catch {}
+      } catch { /* ignore parse errors */ }
     };
     input.click();
   };

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
-import { toast } from '../shared/Toast';
+import { toast } from '../../store/useToastStore';
 
 /* ── helpers ── */
 function getDeadlineInfo(deadline) {

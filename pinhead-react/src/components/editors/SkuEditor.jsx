@@ -73,7 +73,7 @@ export default function SkuEditor() {
       localStorage.setItem('ph_extras', JSON.stringify(extrasCatalog));
       localStorage.setItem('ph_hardware', JSON.stringify(hardwareCatalog));
       localStorage.setItem('ph_usd_rate', String(usdRate));
-    } catch {}
+    } catch { /* ignore storage errors */ }
   }, [skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, usdRate]);
 
   // ── SKU CRUD ──
@@ -180,7 +180,7 @@ export default function SkuEditor() {
         setCbDate(date);
         localStorage.setItem('ph_cb_rate', JSON.stringify({ rate, date }));
       }
-    } catch {}
+    } catch { /* ignore fetch errors */ }
   };
 
   // ── Excel Export ──

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { ZONE_LABELS } from '../../data';
-import { TECH_TABS, getZoneSurcharge, hasNoPrint } from '../../utils/pricing';
+import { hasNoPrint } from '../../utils/pricing';
 import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
 

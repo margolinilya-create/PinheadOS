@@ -8,7 +8,7 @@
 }
 .progress-bar::-webkit-scrollbar { display: none; }
 .step-tab {
-  display: flex; align-items: center; gap: 10px; padding: 14px 20px 12px;
+  display: flex; align-items: center; gap: 12px; padding: 12px 24px 12px;
   cursor: pointer; border: none; border-bottom: 3px solid transparent;
   margin-bottom: -1.5px; transition: all .15s; white-space: nowrap;
   opacity: .3; pointer-events: none; background: none;
@@ -32,11 +32,11 @@
 .step-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
 /* ── Step Header ── */
 .step-header {
-  margin-bottom: 48px; position: relative; padding-bottom: 20px;
+  margin-bottom: 48px; position: relative; padding-bottom: 24px;
   border-bottom: 1.5px solid var(--black);
 }
 .step-header-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+  font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
   color: var(--text-dim); margin-bottom: 8px;
 }
 .step-header-title {
@@ -49,9 +49,9 @@
 }
 /* ── Section Labels ── */
 .section-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
-  color: var(--text-dim); margin-bottom: 14px; margin-top: 24px;
-  display: flex; align-items: center; gap: 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 12px; margin-top: 24px;
+  display: flex; align-items: center; gap: 12px;
 }
 .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
 .section-badge { font-weight: 900; color: var(--accent); font-size: 12px; letter-spacing: 0; }
@@ -68,7 +68,7 @@
   padding: 40px 0 32px; border-bottom: 1.5px solid var(--border-light); margin-bottom: 32px;
 }
 .page-header-left  { display: flex; flex-direction: column; gap: 4px; }
-.page-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 8px; }
+.page-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-top: 8px; }
 .page-back-btn {
   background: none; border: none; color: var(--text-dim); cursor: pointer;
   font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800;
@@ -83,7 +83,7 @@
 }
 .page-search:focus { border-color: var(--black); }
 .page-tabs {
-  display: flex; gap: 0; border-bottom: 1.5px solid var(--border-light); margin-bottom: 28px;
+  display: flex; gap: 0; border-bottom: 1.5px solid var(--border-light); margin-bottom: 32px;
 }
 .page-tab {
   background: none; border: none; border-bottom: 2px solid transparent;
@@ -97,5 +97,5 @@
 .page-body { padding-bottom: 40px; }
 .pe-changed-badge {
   background: var(--accent); color: #fff; font-family: 'Barlow Condensed', sans-serif;
-  font-size: 11px; font-weight: 700; padding: 3px 10px; letter-spacing: .5px;
+  font-size: 11px; font-weight: 700; padding: 3px 12px; letter-spacing: .5px;
 }
