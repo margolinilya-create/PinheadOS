@@ -41,7 +41,7 @@
 }
 .step-header-title {
   font-family: 'Barlow Condensed', sans-serif; font-size: 72px; font-weight: 900;
-  text-transform: uppercase; letter-spacing: -1px; line-height: 0.9; color: var(--black);
+  text-transform: uppercase; letter-spacing: -1px; line-height: 1; padding-top: 4px; color: var(--black);
 }
 .step-header-desc {
   font-size: 13px; font-weight: 400; color: var(--text-mid); margin-top: 10px;

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
-import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES } from '../../data';
+import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES, findColorEntry } from '../../data';
 import { calcTotal, getUnitPrice, getTotalQty, getLabelConfigPrice, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
@@ -81,7 +81,10 @@ export default function PrintPreview() {
                 <div className="pp-kv">
                   <div className="pp-kv-row"><span>Тип</span><span className="pp-kv-dots" /><b>{item.sku?.name || TYPE_NAMES[item.type] || '—'}</b></div>
                   <div className="pp-kv-row"><span>Ткань</span><span className="pp-kv-dots" /><b>{FABRIC_NAMES[item.fabric] || item.fabric || '—'}</b></div>
-                  <div className="pp-kv-row"><span>Цвет</span><span className="pp-kv-dots" /><b>{item.color || '—'}</b></div>
+                  <div className="pp-kv-row"><span>Цвет</span><span className="pp-kv-dots" /><b style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {(() => { const c = findColorEntry(item.color); return c ? <span style={{ width: 12, height: 12, borderRadius: '50%', background: c.hex, border: '1px solid #ccc', display: 'inline-block', flexShrink: 0 }} /> : null; })()}
+                    {(() => { const c = findColorEntry(item.color); return c?.name || item.color || '—'; })()}
+                  </b></div>
                   {idx === 0 && <div className="pp-kv-row"><span>Дата</span><span className="pp-kv-dots" /><b>{now}</b></div>}
                   {idx === 0 && state.deadline && <div className="pp-kv-row"><span>Дедлайн</span><span className="pp-kv-dots" /><b>{state.deadline}</b></div>}
                 </div>

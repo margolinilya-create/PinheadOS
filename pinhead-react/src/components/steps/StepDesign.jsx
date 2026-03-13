@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { ZONE_LABELS } from '../../data';
 import { TECH_TABS, getZoneSurcharge, hasNoPrint } from '../../utils/pricing';
@@ -5,7 +6,9 @@ import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
 
 export default function StepDesign() {
-  const { sku, type, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep } = useStore();
+  const { sku, type, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
+    sizes, customSizes, zoneTechs } = useStore();
+  const [screenConfirmed, setScreenConfirmed] = useState(false);
 
   if (!sku) {
     return <div className="step-panel"><div className="empty-state">Сначала выберите изделие</div></div>;
@@ -75,13 +78,33 @@ export default function StepDesign() {
         />
       </div>
 
-      <div className="btn-row">
-        <button className="btn-prev" onClick={prevStep}>← Назад</button>
-        <button className={`btn-next${!noPrint && !noPrintType && zones.length === 0 ? ' disabled' : ''}`}
-          onClick={() => (noPrint || noPrintType || zones.length > 0) && nextStep()}>
-          Далее
-        </button>
-      </div>
+      {(() => {
+        const totalQty = Object.values(sizes || {}).reduce((sum, q) => sum + (parseInt(q) || 0), 0)
+          + (customSizes || []).reduce((sum, c) => sum + (parseInt(c.qty) || 0), 0);
+        const hasScreen = zones.some(z => (zoneTechs?.[z] || 'screen') === 'screen');
+        const screenWarn = hasScreen && totalQty > 0 && totalQty < 50;
+        const canProceed = (noPrint || noPrintType || zones.length > 0) && (!screenWarn || screenConfirmed);
+        return (
+          <>
+            {screenWarn && (
+              <div className="warning-banner" style={{ background: '#fff8e1', border: '1.5px solid #f0c040', padding: '12px 16px', marginTop: 16, fontSize: 13 }}>
+                <div style={{ marginBottom: 6 }}>⚠ Шелкография — минимальный тираж от 50 шт. Сейчас: {totalQty} шт.</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+                  <input type="checkbox" checked={screenConfirmed} onChange={e => setScreenConfirmed(e.target.checked)} />
+                  Я понимаю и хочу продолжить
+                </label>
+              </div>
+            )}
+            <div className="btn-row">
+              <button className="btn-prev" onClick={prevStep}>← Назад</button>
+              <button className={`btn-next${!canProceed ? ' disabled' : ''}`}
+                onClick={() => canProceed && nextStep()}>
+                Далее
+              </button>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }

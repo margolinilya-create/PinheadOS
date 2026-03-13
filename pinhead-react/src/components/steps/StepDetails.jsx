@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 
 const ROLES = [
@@ -9,6 +10,12 @@ const ROLES = [
 export default function StepDetails() {
   const { name, contact, email, phone, messenger, bitrixDeal, deadline, address, notes,
     role, packOption, urgentOption, setField, togglePack, toggleUrgent, nextStep, prevStep } = useStore();
+  const [showErrors, setShowErrors] = useState(false);
+  const isValid = name.trim().length > 0;
+  const handleNext = () => {
+    if (!isValid) { setShowErrors(true); return; }
+    nextStep();
+  };
 
   return (
     <div className="step-panel">
@@ -32,7 +39,13 @@ export default function StepDetails() {
       <div className="form-grid">
         <div className="form-field">
           <label>Имя / Компания *</label>
-          <input type="text" value={name} placeholder="Иванов Иван" onChange={e => setField('name', e.target.value)} />
+          <input type="text" value={name}
+            className={showErrors && !name.trim() ? 'input-error' : ''}
+            placeholder="Иванов Иван"
+            onChange={e => setField('name', e.target.value)} />
+          {showErrors && !name.trim() && (
+            <span className="field-error">Обязательное поле</span>
+          )}
         </div>
         <div className="form-field">
           <label>Контакт</label>
@@ -97,8 +110,8 @@ export default function StepDetails() {
 
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>← Назад</button>
-        <button className={`btn-next${!name.trim() ? ' disabled' : ''}`}
-          onClick={() => name.trim() && nextStep()}>
+        <button className={`btn-next${!isValid ? ' disabled' : ''}`}
+          onClick={handleNext}>
           Далее
         </button>
       </div>
