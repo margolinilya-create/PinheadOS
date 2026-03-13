@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { toast } from '../shared/Toast';
+import { toast } from '../../store/useToastStore';
 import { getGarmentSVG } from '../../utils/mockup';
 import QRCode from 'qrcode';
 

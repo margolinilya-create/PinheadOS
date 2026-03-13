@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  screenLookup, flexLookup, getZoneSurcharge, getTotalQty, getTotalSurcharge,
-  calcTotal, getUnitPrice, getSkuEstPrice, getLabelConfigPrice,
+  screenLookup, flexLookup, getZoneSurcharge, getTotalQty,
+  calcTotal, getSkuEstPrice, getLabelConfigPrice,
   isAccessory, hasNoPrint, SCREEN_FX, TECH_TABS,
 } from './pricing';
 import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT } from '../data';

@@ -2,12 +2,12 @@
 /* GARMENT — list, fit selector, colors, sizes */
 /* ═══════════════════════════════════════════ */
 /* ── SKU Category Filter ── */
-.sku-cat-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.sku-cat-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .sku-cat-pill {
-  padding: 5px 14px; border-radius: 20px; border: 1px solid #ddd; background: #fff;
-  font-size: 12px; cursor: pointer; transition: all .15s; font-family: inherit; font-weight: 500; color: #666;
+  padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border-light); background: #fff;
+  font-size: 12px; cursor: pointer; transition: all .15s; font-family: inherit; font-weight: 500; color: var(--text-mid);
 }
-.sku-cat-pill:hover  { background: #f5f5f5; }
+.sku-cat-pill:hover  { background: var(--bg2); }
 .sku-cat-pill.active { background: #000; color: #fff; border-color: #000; }
 /* ── Garment List ── */
 .garment-list { border: 1.5px solid var(--black); overflow: hidden; margin-bottom: 32px; }
@@ -17,7 +17,7 @@
 }
 .garment-sep:first-child { border-top: none; }
 .garment-sep-text {
-  font-size: 8px; font-weight: 700; letter-spacing: 3px;
+  font-size: 9px; font-weight: 700; letter-spacing: 3px;
   text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
 }
 .garment-sep-line { flex: 1; height: 1px; background: var(--border-light); margin-left: 10px; }
@@ -35,15 +35,15 @@
 .garment-row-bar { width: 3px; height: 100%; background: transparent; flex-shrink: 0; transition: background .12s; }
 .garment-row.selected .garment-row-bar { background: var(--accent); }
 .garment-row-name {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800;
   text-transform: uppercase; letter-spacing: .5px; color: var(--black); flex: 1;
   padding-left: 16px; transition: color .1s;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .garment-row.selected .garment-row-name { color: var(--white); }
-.garment-row-price { font-size: 10px; font-weight: 700; color: var(--text-dim); padding-right: 18px; transition: color .1s; }
+.garment-row-price { font-size: 11px; font-weight: 700; color: var(--text-dim); padding-right: 18px; transition: color .1s; }
 .garment-row.selected .garment-row-price { color: var(--accent); }
-.garment-row-fit  { font-size: 10px; color: #999; margin-left: 6px; font-weight: 400; letter-spacing: .3px; }
+.garment-row-fit  { font-size: 11px; color: var(--text-dim); margin-left: 6px; font-weight: 400; letter-spacing: .3px; }
 .garment-row.selected .garment-row-fit { color: var(--accent); }
 /* ── Fabric Grid ── */
 .fabric-grid { display: flex; flex-direction: column; gap: 4px; }
@@ -56,7 +56,7 @@
 /* ── Fit Selector ── */
 .fit-selector { display: flex; border: 1.5px solid var(--black); margin-bottom: 32px; }
 .fit-option {
-  flex: 1; display: flex; align-items: center; gap: 14px; padding: 16px 20px;
+  flex: 1; display: flex; align-items: center; gap: 12px; padding: 16px 24px;
   cursor: pointer; border-right: 1px solid var(--border-light);
   background: var(--white); transition: background .12s; user-select: none;
 }
@@ -72,20 +72,20 @@
   font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900;
   text-transform: uppercase; letter-spacing: .3px; line-height: 1;
 }
-.fit-desc { font-size: 10px; font-weight: 500; color: var(--text-dim); margin-top: 3px; letter-spacing: .3px; }
+.fit-desc { font-size: 11px; font-weight: 500; color: var(--text-dim); margin-top: 3px; letter-spacing: .3px; }
 .fit-option.selected .fit-desc { color: rgba(255,255,255,.6); }
 /* ── Color Picker ── */
 .color-search-wrap { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .color-search-input {
   background: var(--white); border: 1.5px solid var(--black); color: var(--black);
   font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: 700;
-  padding: 8px 14px; outline: none; width: 240px; letter-spacing: 1px; transition: border-color .15s;
+  padding: 8px 12px; outline: none; width: 240px; letter-spacing: 1px; transition: border-color .15s;
 }
 .color-search-input:focus       { border-color: var(--accent); }
 .color-search-input::placeholder { color: var(--text-dim); }
-.supplier-switch { display: flex; gap: 0; margin-bottom: 14px; border: 1.5px solid var(--border); width: fit-content; }
+.supplier-switch { display: flex; gap: 0; margin-bottom: 12px; border: 1.5px solid var(--border); width: fit-content; }
 .supplier-btn {
-  padding: 7px 18px; background: none; border: none;
+  padding: 8px 16px; background: none; border: none;
   font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 800;
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
   cursor: pointer; transition: all .15s; border-right: 1.5px solid var(--border);
@@ -96,16 +96,16 @@
 .color-selected-info { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
 .swatches {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
-  gap: 6px; margin-bottom: 24px; max-height: 400px; overflow-y: auto; padding: 2px;
+  gap: 8px; margin-bottom: 24px; max-height: 400px; overflow-y: auto; padding: 2px;
   scrollbar-width: thin; scrollbar-color: var(--black) var(--bg2);
 }
 .swatch {
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
-  cursor: pointer; padding: 6px 4px 8px; border: 1.5px solid transparent; transition: all .15s;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; padding: 8px 4px 8px; border: 1.5px solid transparent; transition: all .15s;
 }
 .swatch:hover    { border-color: var(--border-light); background: var(--bg2); }
 .swatch.hidden   { display: none; }
-.swatch.selected { border-color: var(--accent); background: rgba(29,25,234,.05); }
+.swatch.selected { border-color: var(--accent); background: var(--accent-light); }
 .swatch-circle {
   width: 50px; height: 50px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,.15);
   position: relative; flex-shrink: 0; transition: all .15s;
@@ -126,8 +126,8 @@
 }
 .swatch-group-label {
   grid-column: 1/-1; font-size: 9px; font-weight: 700; letter-spacing: 2px;
-  color: #888; text-transform: uppercase; padding: 8px 0 4px;
-  border-top: 1px solid #ddd; margin-top: 4px;
+  color: var(--text-dim); text-transform: uppercase; padding: 8px 0 4px;
+  border-top: 1px solid var(--border-light); margin-top: 4px;
 }
 /* Flat swatch fallback (summary etc.) */
 .color-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -136,10 +136,10 @@
 .size-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; border: 1.5px solid var(--black); }
 .size-table th {
   font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
-  color: var(--text-mid); padding: 10px 16px; text-align: left;
+  color: var(--text-mid); padding: 12px 16px; text-align: left;
   border-bottom: 1.5px solid var(--black); background: var(--bg2);
 }
-.size-table td       { padding: 8px 16px; border-bottom: 1px solid var(--border-light); font-size: 14px; font-weight: 500; }
+.size-table td       { padding: 8px 16px; border-bottom: 1px solid var(--border-light); font-size: 13px; font-weight: 500; }
 .size-table tr:last-child td { border-bottom: none; }
 .size-table tbody tr:hover td { background: var(--bg2); }
 .size-th-price, .size-th-sum { text-align: right; }
@@ -153,10 +153,10 @@
 .size-total-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); }
 .size-total-qty   { font-weight: 900; color: var(--accent); }
 .size-total-sum   { text-align: right; font-weight: 900; color: var(--accent); }
-.size-rm-btn { background: none; border: none; color: #c00; font-size: 12px; cursor: pointer; padding: 2px 6px; margin-left: 6px; opacity: .6; }
+.size-rm-btn { background: none; border: none; color: var(--color-error); font-size: 12px; cursor: pointer; padding: 2px 8px; margin-left: 8px; opacity: .6; }
 .size-rm-btn:hover { opacity: 1; }
 /* Quantity controls */
-.qty-control { display: flex; align-items: center; gap: 6px; }
+.qty-control { display: flex; align-items: center; gap: 8px; }
 .qty-btn {
   width: 28px; height: 28px; border: 1.5px solid var(--black); background: var(--white);
   color: var(--black); font-size: 16px; cursor: pointer;
@@ -166,7 +166,7 @@
 .qty-btn:hover { background: var(--black); color: var(--white); }
 .qty-input {
   width: 52px; border: 1.5px solid var(--black); background: var(--white); color: var(--black);
-  font-family: 'Roboto Condensed', sans-serif; font-size: 14px; font-weight: 700;
+  font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: 700;
   text-align: center; padding: 4px; outline: none;
 }
 .qty-input:focus { border-color: var(--accent); }
@@ -182,12 +182,12 @@
 }
 .add-size-btn:hover { border-color: var(--black); border-style: solid; color: var(--black); background: var(--bg2); }
 .add-size-form {
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin-top: 12px;
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px; margin-top: 12px;
   border: 1.5px solid var(--black); background: var(--bg2);
   font-family: 'Barlow Condensed', sans-serif;
 }
 .add-size-form-label { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
-.add-size-form-input { border: 1.5px solid var(--border-light); padding: 8px 10px; width: 100px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; }
-.add-size-form-qty   { border: 1.5px solid var(--border-light); padding: 8px 10px; width: 64px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; text-align: center; }
-.btn-add-size    { padding: 8px 20px; background: var(--black); color: var(--white); border: none; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
-.btn-cancel-size { padding: 8px 20px; background: var(--white); color: var(--black); border: 1.5px solid var(--border-light); font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.add-size-form-input { border: 1.5px solid var(--border-light); padding: 8px 12px; width: 100px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; }
+.add-size-form-qty   { border: 1.5px solid var(--border-light); padding: 8px 12px; width: 64px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; text-align: center; }
+.btn-add-size    { padding: 8px 24px; background: var(--black); color: var(--white); border: none; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.btn-cancel-size { padding: 8px 24px; background: var(--white); color: var(--black); border: 1.5px solid var(--border-light); font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }

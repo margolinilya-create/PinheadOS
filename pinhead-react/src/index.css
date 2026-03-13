@@ -3,18 +3,42 @@
 /* ═══════════════════════════════════════════ */
 
 :root {
+  /* ── Backgrounds ── */
   --bg:           #ffffff;
+  --bg1:          #f5f5f5;
   --bg2:          #f5f5f5;
   --bg3:          #ebebeb;
-  --text:         #000000;
+  --card:         #ffffff;
+
+  /* ── Text — soft black instead of #000 ── */
+  --text:         #1a1a2e;
   --text-mid:     #444444;
   --text-dim:     #888888;
-  --border:       #000000;
+
+  /* ── Borders ── */
+  --border:       #1a1a2e;
   --border-light: #cccccc;
+
+  /* ── Brand ── */
   --accent:       #1D19EA;
+  --accent-light: rgba(29,25,234,.06);
   --accent2:      #fff;
   --white:        #ffffff;
-  --black:        #000000;
+  --black:        #1a1a2e;
+
+  /* ── Semantic ── */
+  --color-success: #06a77d;
+  --color-error:   #e63946;
+  --color-warning: #c87137;
+  --color-info:    #4361ee;
+
+  /* ── Semantic backgrounds ── */
+  --bg-success:   #f0fff4;
+  --bg-error:     #fff0f0;
+  --bg-warning:   #fff8e1;
+
+  /* ── Fonts ── */
+  --mono:         'Roboto Mono', monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

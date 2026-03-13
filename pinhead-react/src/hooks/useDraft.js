@@ -50,7 +50,6 @@ export function useDraft() {
     const draft = loadDraft();
     if (!draft) return;
 
-    const store = useStore.getState();
     const updates = {};
     for (const key of DRAFT_FIELDS) {
       if (draft[key] !== undefined) updates[key] = draft[key];

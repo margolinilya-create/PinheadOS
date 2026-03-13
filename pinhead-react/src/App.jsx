@@ -40,7 +40,6 @@ function WizardPage() {
 
 // Role guard — redirects to / if role doesn't match
 function RoleGuard({ allowed, children }) {
-  const user = useAuthStore(s => s.user);
   if (!allowed) return <Navigate to="/" replace />;
   return children;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
@@ -20,17 +20,18 @@ export default function AdminPanel() {
   const [orderSearch, setOrderSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    fetchOrders();
-    loadUsers();
-  }, [fetchOrders]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('profiles').select('*').order('name');
     if (data) setUsers(data);
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch is intended
+    loadUsers();
+  }, [fetchOrders, loadUsers]);
 
   const approveUser = async (id) => {
     await supabase.from('profiles').update({ approved: true }).eq('id', id);

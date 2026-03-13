@@ -51,17 +51,6 @@ function groupByWeek(orders) {
   return Object.values(map).slice(-12);
 }
 
-function groupByType(orders) {
-  const map = {};
-  orders.forEach(o => {
-    const t = o.item_type || 'other';
-    if (!map[t]) map[t] = { type: t, name: TYPE_NAMES[t] || TYPE_NAMES[t.toLowerCase()] || t, count: 0, qty: 0 };
-    map[t].count++;
-    map[t].qty += o.total_qty || 0;
-  });
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8);
-}
-
 function groupByStatus(orders) {
   const map = {};
   orders.forEach(o => {
@@ -131,7 +120,6 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
   const inWorkQty = inWork.reduce((s, o) => s + (o.total_qty || 0), 0);
 
   const weeklyData = useMemo(() => groupByWeek(filtered), [filtered]);
-  const typeData = useMemo(() => groupByType(filtered), [filtered]);
   const statusData = useMemo(() => groupByStatus(filtered), [filtered]);
   const managerData = useMemo(() => groupByManager(filtered), [filtered]);
   const recentOrders = useMemo(() =>
