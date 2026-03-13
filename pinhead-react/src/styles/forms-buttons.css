@@ -36,6 +36,8 @@
   padding: 11px 14px; outline: none; transition: border-color .15s;
 }
 .form-field input:focus, .form-field textarea:focus { border-color: var(--accent); outline: none; }
+.input-error { border-color: var(--red, #e53e3e) !important; }
+.field-error { color: var(--red, #e53e3e); font-size: 11px; margin-top: 4px; display: block; }
 .form-field textarea { min-height: 80px; resize: vertical; }
 /* Toggle switches */
 .toggle-row {

@@ -441,6 +441,13 @@ export default function ExpressCalc() {
             </div>
           )}
 
+          {/* Fabric hint */}
+          {sku && !fabric && (
+            <div className="exp-zt-warn" style={{ padding: '10px 0', opacity: 0.8, fontSize: 12 }}>
+              ⓘ Выберите ткань для точного расчёта. Показана базовая цена пошива.
+            </div>
+          )}
+
           {/* Results */}
           {calc && (
             <div className="exp-result">

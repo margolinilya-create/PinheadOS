@@ -32,8 +32,8 @@ export default function Header() {
   return (
     <header>
       {/* ── Logo ── */}
-      <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-        <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <div className="logo" onClick={() => { useStore.getState().resetOrder(); navigate('/'); }} style={{ cursor: 'pointer' }}>
+        <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" style={{ width: 24, height: 24, flexShrink: 0 }}>
           <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
           <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
           <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
