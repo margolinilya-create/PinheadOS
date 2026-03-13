@@ -34,7 +34,7 @@
 .kb-card:hover        { border-color: var(--black); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 .kb-card.dragging     { opacity: .4; transform: rotate(2deg); box-shadow: 0 8px 24px rgba(0,0,0,.15); }
 .kb-card-bar     { width: 4px; flex-shrink: 0; align-self: stretch; }
-.kb-card-content { flex: 1; padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; }
+.kb-card-content { flex: 1; padding: 12px 12px; min-width: 0; display: flex; flex-direction: column; }
 .kb-card-top     { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
 .kb-card-id      { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 900; letter-spacing: 1px; color: var(--accent); }
 .kb-card-id .bx-tag { font-size: 7px; background: var(--accent); color: #fff; padding: 1px 4px; margin-left: 4px; vertical-align: middle; letter-spacing: 0; }
@@ -44,19 +44,19 @@
 .kb-card-row     { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-mid); }
 .kb-card-row strong { font-weight: 700; color: var(--black); }
 .kb-card-sku     { font-size: 11px; font-weight: 600; color: var(--text-mid); }
-.kb-card-bottom  { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; border-top: 1px solid var(--border-light); }
+.kb-card-bottom  { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border-light); }
 .kb-card-sum     { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900; }
 .kb-card-actions { display: flex; gap: 4px; }
 .kb-card-actions button { width: 28px; height: 28px; background: none; border: 1.5px solid var(--border-light); font-family: inherit; font-size: 11px; cursor: pointer; transition: all .12s; display: flex; align-items: center; justify-content: center; }
 .kb-card-actions button:hover { background: var(--black); color: #fff; border-color: var(--black); }
-.kb-card-actions button.kb-open { flex: 0 0 auto; width: auto; padding: 0 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.kb-card-actions button.kb-open { flex: 0 0 auto; width: auto; padding: 0 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 .kb-status-dot   { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 /* Card context menu */
-.kb-card-menu-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-dim); padding: 2px 6px; }
+.kb-card-menu-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-dim); padding: 2px 8px; }
 .kb-card-menu-btn:hover { color: var(--black); }
 .kb-card-menu-backdrop  { display: none; }
 .kb-card-menu { position: absolute; top: 28px; right: 8px; background: var(--white); border: 1.5px solid var(--border-light); z-index: 10; min-width: 150px; box-shadow: 0 4px 12px rgba(0,0,0,.1); }
-.kb-card-menu button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 12px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 500; text-align: left; }
+.kb-card-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 500; text-align: left; }
 .kb-card-menu button:hover { background: var(--bg2); }
-.kb-search { border: 1.5px solid var(--border-light); padding: 6px 12px; font-family: 'Roboto Condensed', sans-serif; font-size: 12px; width: 200px; }
+.kb-search { border: 1.5px solid var(--border-light); padding: 8px 12px; font-family: 'Roboto Condensed', sans-serif; font-size: 12px; width: 200px; }
 .kb-search:focus { border-color: var(--black); outline: none; }

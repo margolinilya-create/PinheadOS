@@ -1,30 +1,32 @@
 /* ═══════════════════════════════════════════ */
-/* PINHEAD ORDER STUDIO — Foundation Tokens   */
+/* PINHEAD ORDER STUDIO — Swiss Design Tokens */
 /* ═══════════════════════════════════════════ */
 
 :root {
   /* ── Backgrounds ── */
-  --bg:           #ffffff;
-  --bg1:          #f5f5f5;
-  --bg2:          #f5f5f5;
-  --bg3:          #ebebeb;
+  --bg:           #FAFAFA;
+  --bg1:          #F0F0F0;
+  --bg2:          #F0F0F0;
+  --bg3:          #E5E5E5;
   --card:         #ffffff;
 
-  /* ── Text — soft black instead of #000 ── */
-  --text:         #1a1a2e;
-  --text-mid:     #444444;
-  --text-dim:     #888888;
+  /* ── Text ── */
+  --text:         #0A0A0A;
+  --text-mid:     #555555;
+  --text-dim:     #999999;
 
   /* ── Borders ── */
-  --border:       #1a1a2e;
-  --border-light: #cccccc;
+  --border:       #0A0A0A;
+  --border-light: #DCDCDC;
 
   /* ── Brand ── */
-  --accent:       #1D19EA;
-  --accent-light: rgba(29,25,234,.06);
+  --accent:       #2B2BF0;
+  --accent-light: rgba(43,43,240,.06);
+  --accent-hover: #1E1ED4;
   --accent2:      #fff;
+  --signal:       #FF3B30;
   --white:        #ffffff;
-  --black:        #1a1a2e;
+  --black:        #0A0A0A;
 
   /* ── Semantic ── */
   --color-success: #06a77d;
@@ -46,9 +48,11 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Roboto Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {

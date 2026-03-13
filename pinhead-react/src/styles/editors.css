@@ -104,7 +104,7 @@
 .sku-modal-hint    { font-size: 12px; color: var(--text-dim); margin: -12px 0 16px; }
 .sku-modal-field   { margin-bottom: 16px; }
 .sku-modal-field label  { display: block; font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
-.sku-modal-field input, .sku-modal-field select { width: 100%; border: 1.5px solid var(--black); padding: 9px 12px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; outline: none; }
+.sku-modal-field input, .sku-modal-field select { width: 100%; border: 1.5px solid var(--black); padding: 8px 12px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; outline: none; }
 .sku-modal-field input:focus, .sku-modal-field select:focus { border-color: var(--accent); }
 .sku-modal-btns    { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
 .sku-zones-grid    { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
