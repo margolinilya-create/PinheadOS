@@ -185,17 +185,17 @@
 .summary-total { margin-top: 4px; font-size: 16px; }
 .summary-total b { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; color: var(--accent); }
 /* ── Price Breakdown ── */
-.price-breakdown { background: var(--bg2); border: 1.5px solid var(--black); padding: 20px; margin-bottom: 28px; }
+.price-breakdown { background: var(--bg2); border: 1.5px solid var(--black); padding: 24px; margin-bottom: 32px; }
 .price-line {
-  display: flex; justify-content: space-between; padding: 7px 0;
+  display: flex; justify-content: space-between; padding: 8px 0;
   border-bottom: 1px solid var(--border-light); font-size: 13px;
 }
 .price-line:last-child { border-bottom: none; }
 .price-line .name   { color: var(--text-mid); }
 .price-line .amount { font-weight: 700; }
 .price-total {
-  display: flex; justify-content: space-between; padding: 14px 0 0;
-  margin-top: 6px; border-top: 2px solid var(--black);
+  display: flex; justify-content: space-between; padding: 16px 0 0;
+  margin-top: 8px; border-top: 2px solid var(--black);
 }
 .price-total .name {
   font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900;
@@ -204,7 +204,7 @@
 .price-total .amount { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
 /* ── Success Screen ── */
 .success-screen { text-align: center; padding: 80px 0; position: relative; overflow: hidden; }
-.success-icon   { font-size: 56px; margin-bottom: 20px; }
+.success-icon   { font-size: 56px; margin-bottom: 24px; }
 .success-title  {
   font-family: 'Barlow Condensed', sans-serif; font-size: 72px; font-weight: 900;
   text-transform: uppercase; letter-spacing: -2px; line-height: .9; margin-bottom: 16px;
@@ -223,7 +223,7 @@
   border: 1.5px solid var(--black); overflow: hidden;
 }
 .btn {
-  padding: 14px 28px; font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700;
+  padding: 16px 32px; font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 2px; cursor: pointer;
   border: none; border-right: 1px solid var(--border-light);
   background: var(--white); color: var(--text-mid); transition: all .15s;
@@ -237,7 +237,7 @@
 .btn.disabled      { opacity: .35; cursor: not-allowed; pointer-events: none; }
 /* Legacy button aliases */
 .btn-next, .btn-prev, .btn-accent, .btn-secondary {
-  padding: 14px 28px; font-family: 'Roboto Condensed', sans-serif; font-size: 11px;
+  padding: 16px 32px; font-family: 'Roboto Condensed', sans-serif; font-size: 11px;
   font-weight: 700; text-transform: uppercase; letter-spacing: 2px; cursor: pointer;
   border: none; border-right: 1px solid var(--border-light); transition: all .15s;
 }
@@ -250,7 +250,7 @@
 .btn-accent:hover     { background: #2a4ae0; }
 .btn-secondary        { background: var(--white); color: var(--text-dim); }
 .order-saved-banner {
-  margin-top: 24px; padding: 14px 20px; background: var(--bg-success); border: 1.5px solid var(--color-success);
+  margin-top: 24px; padding: 16px 24px; background: var(--bg-success); border: 1.5px solid var(--color-success);
   color: var(--color-success); font-size: 13px; font-weight: 600; letter-spacing: 1px; text-align: center;
 }
 /* Upload areas */
@@ -259,14 +259,14 @@
   cursor: pointer; transition: all .15s; background: var(--bg2); margin-bottom: 24px;
 }
 .general-upload:hover { border-color: var(--black); border-style: solid; background: var(--white); }
-.general-upload-icon  { font-size: 28px; margin-bottom: 6px; }
+.general-upload-icon  { font-size: 28px; margin-bottom: 8px; }
 .general-upload-text  { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 .general-upload-sub   { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
 .upload-area {
-  border: 2px dashed var(--border-light); padding: 36px; text-align: center;
+  border: 2px dashed var(--border-light); padding: 32px; text-align: center;
   cursor: pointer; transition: all .15s; margin-bottom: 24px; background: var(--bg2);
 }
 .upload-area:hover { border-color: var(--black); border-style: solid; background: var(--white); }
-.upload-icon { font-size: 28px; margin-bottom: 10px; }
+.upload-icon { font-size: 28px; margin-bottom: 12px; }
 .upload-text { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
 .upload-sub  { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
