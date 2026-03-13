@@ -89,22 +89,22 @@
 .label-field  { display: flex; flex-direction: column; gap: 4px; }
 .label-field.full { grid-column: 1/-1; }
 .label-field label   { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); }
-.label-field input, .label-field textarea { border: 1.5px solid var(--border-light); padding: 7px 10px; font-family: 'Roboto Condensed', sans-serif; font-size: 12px; }
+.label-field input, .label-field textarea { border: 1.5px solid var(--border-light); padding: 8px 12px; font-family: 'Roboto Condensed', sans-serif; font-size: 12px; }
 .label-field input:focus, .label-field textarea:focus { border-color: var(--black); outline: none; }
 .label-field textarea { min-height: 48px; resize: vertical; }
-.label-param-row   { display: flex; align-items: flex-start; gap: 10px; }
+.label-param-row   { display: flex; align-items: flex-start; gap: 12px; }
 .label-param-label { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); min-width: 75px; padding-top: 6px; }
-.label-placement-btns { display: flex; gap: 6px; }
+.label-placement-btns { display: flex; gap: 8px; }
 .label-placement-btn  {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 14px; border: 1.5px solid var(--border-light); background: var(--white);
+  padding: 8px 12px; border: 1.5px solid var(--border-light); background: var(--white);
   cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-dim); transition: all .15s;
 }
 .label-placement-btn:hover      { border-color: var(--text-mid); }
 .label-placement-btn.active     { border-color: var(--black); background: var(--bg2); color: var(--black); }
-.label-color-btns { display: flex; gap: 6px; }
+.label-color-btns { display: flex; gap: 8px; }
 .label-color-btn  {
-  display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+  display: flex; align-items: center; gap: 8px; padding: 4px 12px;
   border: 1.5px solid var(--border-light); background: var(--white);
   cursor: pointer; font-size: 11px; font-weight: 600; transition: all .15s;
 }
@@ -112,11 +112,11 @@
 .label-color-btn.active     { border-color: var(--black); background: var(--bg2); }
 .label-color-swatch { width: 14px; height: 14px; border: 1px solid var(--border-light); border-radius: 2px; }
 /* ── Items Tray ── */
-.items-tray { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.items-tray { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
 .item-card {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 12px;
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 14px 16px;
+  border-radius: 10px; padding: 16px 16px;
   transition: border-color .15s;
 }
 .item-card.active { border-color: var(--accent, #111); }
@@ -127,8 +127,8 @@
 .item-card-header      { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
 .item-card-num         { font-size: 11px; color: var(--text-dim); font-family: var(--mono, monospace); }
 .item-card-type        { font-weight: 600; font-size: 13px; }
-.item-card-details     { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--text-dim); }
-.item-card-price       { display: flex; gap: 12px; margin-top: 6px; font-size: 13px; font-family: var(--mono, monospace); }
+.item-card-details     { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; color: var(--text-dim); }
+.item-card-price       { display: flex; gap: 12px; margin-top: 8px; font-size: 13px; font-family: var(--mono, monospace); }
 .item-card-total       { font-weight: 700; }
 .item-card-actions     { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
 .btn-icon {
@@ -141,7 +141,7 @@
 .item-card-add {
   justify-content: center; cursor: pointer;
   border-style: dashed; opacity: .7; transition: opacity .15s;
-  flex-direction: column; gap: 4px; padding: 20px;
+  flex-direction: column; gap: 4px; padding: 24px;
   font-size: 13px; color: var(--text-dim);
 }
 .item-card-add:hover { opacity: 1; }
