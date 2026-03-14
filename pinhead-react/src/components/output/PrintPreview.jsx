@@ -25,9 +25,20 @@ export default function PrintPreview() {
     <div className="pp-overlay">
       {/* ── Toolbar ── */}
       <div className="pp-toolbar no-print">
-        <button className="btn btn-primary" onClick={handlePrint}>ПЕЧАТЬ / PDF</button>
-        <div style={{ flex: 1 }} />
-        <button className="btn" onClick={onClose}>ЗАКРЫТЬ</button>
+        <div className="pp-toolbar-left">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+            <line x1="16" y1="2" x2="16" y2="30" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="2" y1="16" x2="30" y2="16" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="5" y1="5" x2="27" y2="27" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+            <line x1="27" y1="5" x2="5" y2="27" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+          <span className="pp-toolbar-title">ТЕХНИЧЕСКОЕ ЗАДАНИЕ</span>
+          <span className="pp-toolbar-id">{orderNumber}</span>
+        </div>
+        <div className="pp-toolbar-actions">
+          <button className="btn btn-primary" onClick={handlePrint}>ПЕЧАТЬ / PDF</button>
+          <button className="btn" onClick={onClose}>ЗАКРЫТЬ</button>
+        </div>
       </div>
 
       <div className="pp-page">
@@ -68,7 +79,7 @@ export default function PrintPreview() {
           return (
             <div key={idx}>
               {items.length > 1 && (
-                <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: 1, marginTop: idx > 0 ? 20 : 0, marginBottom: 8, borderTop: idx > 0 ? '1px solid #ccc' : 'none', paddingTop: idx > 0 ? 12 : 0 }}>
+                <div className="pp-position-header" style={{ marginTop: idx > 0 ? 24 : 0, borderTop: idx > 0 ? '2px solid var(--black)' : 'none', paddingTop: idx > 0 ? 16 : 0 }}>
                   ПОЗИЦИЯ #{idx + 1}
                 </div>
               )}
