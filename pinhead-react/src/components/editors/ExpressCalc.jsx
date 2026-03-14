@@ -312,185 +312,208 @@ export default function ExpressCalc() {
 
   // ── Render ──
   return (
-    <div className="exp-overlay" onClick={onClose}>
-      <div className="exp-panel" onClick={e => e.stopPropagation()}>
-        <div className="exp-header">
-          <span className="exp-title">Express калькулятор</span>
-          <button className="exp-close" onClick={onClose}>✕</button>
+    <div className="kanban-page">
+      {/* ── Header ── */}
+      <div className="sku-ed-header" style={{ padding: '20px 40px' }}>
+        <div className="sku-ed-header-left">
+          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
+            <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h1 className="sku-ed-title">EXPRESS КАЛЬКУЛЯТОР</h1>
         </div>
-        <div className="exp-body">
-          {/* SKU select */}
-          <div className="exp-field">
-            <label>Изделие</label>
-            <select value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
-              <option value="">— Выберите —</option>
-              {Object.entries(categories).map(([cat, items]) => (
-                <optgroup key={cat} label={catLabels[cat] || cat}>
-                  {items.map(s => (
-                    <option key={s.code} value={s.code}>{s.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+        <div className="sku-ed-header-right">
+          <button className="pe-close" onClick={onClose}>✕</button>
+        </div>
+      </div>
 
-          {/* Fabric select */}
-          <div className="exp-field">
-            <label>Ткань</label>
-            <select value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
-              <option value="">— Выберите —</option>
-              {fabrics.map(f => (
-                <option key={f.code} value={f.code}>
-                  {f.name} — ${f.priceUSD}/м ({Math.round(f.priceUSD * usdRate)} ₽/м)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Quantity */}
-          <div className="exp-field">
-            <label>Тираж (шт)</label>
-            <input
-              type="number"
-              value={qty}
-              onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-              min="1"
-            />
-          </div>
-
-          {/* Per-zone technology blocks */}
-          {sku && skuZones.length > 0 && (
+      {/* ── Body ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px 60px' }}>
+        <div className="exp-page-grid">
+          {/* Left: Form */}
+          <div className="exp-form-section">
+            {/* SKU select */}
             <div className="exp-field">
-              <label>Зоны нанесения</label>
-              <div className="exp-zones-wrap">
-                {skuZones.map(zId => {
-                  const d = expZoneData[zId];
-                  if (!d) return null;
+              <label>Изделие</label>
+              <select value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
+                <option value="">— Выберите —</option>
+                {Object.entries(categories).map(([cat, items]) => (
+                  <optgroup key={cat} label={catLabels[cat] || cat}>
+                    {items.map(s => (
+                      <option key={s.code} value={s.code}>{s.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
 
-                  // Inactive zone — compact chip
-                  if (!d.active) {
+            {/* Fabric select */}
+            <div className="exp-field">
+              <label>Ткань</label>
+              <select value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
+                <option value="">— Выберите —</option>
+                {fabrics.map(f => (
+                  <option key={f.code} value={f.code}>
+                    {f.name} — ${f.priceUSD}/м ({Math.round(f.priceUSD * usdRate)} ₽/м)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quantity */}
+            <div className="exp-field">
+              <label>Тираж (шт)</label>
+              <input
+                type="number"
+                value={qty}
+                onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                min="1"
+              />
+            </div>
+
+            {/* Per-zone technology blocks */}
+            {sku && skuZones.length > 0 && (
+              <div className="exp-field">
+                <label>Зоны нанесения</label>
+                <div className="exp-zones-wrap">
+                  {skuZones.map(zId => {
+                    const d = expZoneData[zId];
+                    if (!d) return null;
+
+                    if (!d.active) {
+                      return (
+                        <div key={zId} className="exp-zone-chip" onClick={() => activateZone(zId)}>
+                          <span className="exp-zone-dot" />
+                          {ZONE_LABELS[zId] || zId}
+                        </div>
+                      );
+                    }
+
+                    const surcharge = calcZoneSurcharge(zId, d, qty);
+                    const screenWarn = d.tech === 'screen' && qty > 0 && qty < 50;
+
                     return (
-                      <div key={zId} className="exp-zone-chip" onClick={() => activateZone(zId)}>
-                        <span className="exp-zone-dot" />
-                        {ZONE_LABELS[zId] || zId}
+                      <div key={zId} className="exp-zt-block active">
+                        <div className="exp-zt-header" onClick={() => deactivateZone(zId)}>
+                          <span className="exp-zt-name">{ZONE_LABELS[zId] || zId}</span>
+                          <span className="exp-zt-surcharge">+{surcharge} ₽</span>
+                        </div>
+                        <div className="exp-zt-body">
+                          <div className="exp-zt-techs">
+                            {TECH_OPTIONS.map(t => (
+                              <div
+                                key={t.key}
+                                className={`exp-zt-tech${d.tech === t.key ? ' active' : ''}`}
+                                onClick={() => setZoneTech(zId, t.key)}
+                              >
+                                {t.label}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="exp-zt-params">
+                            {renderZoneParams(zId, d)}
+                          </div>
+                          {screenWarn && (
+                            <div className="exp-zt-warn">Шелкография — минимальный тираж от 50 шт</div>
+                          )}
+                        </div>
                       </div>
                     );
-                  }
-
-                  // Active zone — expanded block
-                  const surcharge = calcZoneSurcharge(zId, d, qty);
-                  const screenWarn = d.tech === 'screen' && qty > 0 && qty < 50;
-
-                  return (
-                    <div key={zId} className="exp-zt-block active">
-                      <div className="exp-zt-header" onClick={() => deactivateZone(zId)}>
-                        <span className="exp-zt-name">{ZONE_LABELS[zId] || zId}</span>
-                        <span className="exp-zt-surcharge">+{surcharge} ₽</span>
-                      </div>
-                      <div className="exp-zt-body">
-                        <div className="exp-zt-techs">
-                          {TECH_OPTIONS.map(t => (
-                            <div
-                              key={t.key}
-                              className={`exp-zt-tech${d.tech === t.key ? ' active' : ''}`}
-                              onClick={() => setZoneTech(zId, t.key)}
-                            >
-                              {t.label}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="exp-zt-params">
-                          {renderZoneParams(zId, d)}
-                        </div>
-                        {screenWarn && (
-                          <div className="exp-zt-warn">⚠ Шелкография — минимальный тираж от 50 шт</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* No-print message for socks etc */}
-          {sku && skuZones.length === 0 && (
-            <div className="exp-zt-warn" style={{ padding: '12px 0' }}>
-              Для данного изделия нанесение недоступно
-            </div>
-          )}
-
-          {/* Extras selection */}
-          {sku && availableExtras.length > 0 && (
-            <div className="exp-field">
-              <label>Обработки{selectedExtras.length > 0 && <span style={{opacity:0.6, marginLeft:6, fontSize:12}}>+{calc?.extrasCost || 0} ₽/шт</span>}</label>
-              <div className="exp-extras-grid">
-                {availableExtras.map(e => {
-                  const sel = selectedExtras.includes(e.code);
-                  return (
-                    <div key={e.code}
-                      className={`exp-extra-chip${sel ? ' active' : ''}`}
-                      onClick={() => toggleExtra(e.code)}
-                    >
-                      <span className="exp-extra-name">{e.name}</span>
-                      <span className="exp-extra-price">+{e.price} ₽</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Fabric hint */}
-          {sku && !fabric && (
-            <div className="exp-zt-warn" style={{ padding: '10px 0', opacity: 0.8, fontSize: 12 }}>
-              ⓘ Выберите ткань для точного расчёта. Показана базовая цена пошива.
-            </div>
-          )}
-
-          {/* Results */}
-          {calc && (
-            <div className="exp-result">
-              <div className="exp-result-row">
-                <span>База (пошив + ткань)</span>
-                <b>
-                  {calc.volumeDiscount > 0 ? (
-                    <><s style={{opacity:0.4, marginRight:4}}>{calc.baseRaw.toLocaleString('ru-RU')} ₽</s>{calc.base.toLocaleString('ru-RU')} ₽ / шт</>
-                  ) : (
-                    <>{calc.base.toLocaleString('ru-RU')} ₽ / шт</>
-                  )}
-                </b>
-              </div>
-              {calc.volumeDiscount > 0 && (
-                <div className="exp-result-row" style={{color:'var(--accent, #4ade80)'}}>
-                  <span>Скидка за тираж ({qty} шт)</span>
-                  <b>−{Math.round(calc.volumeDiscount * 100)}%</b>
+                  })}
                 </div>
-              )}
-              {calc.extrasCost > 0 && (
+              </div>
+            )}
+
+            {sku && skuZones.length === 0 && (
+              <div className="exp-zt-warn" style={{ padding: '12px 0' }}>
+                Для данного изделия нанесение недоступно
+              </div>
+            )}
+
+            {/* Extras selection */}
+            {sku && availableExtras.length > 0 && (
+              <div className="exp-field">
+                <label>Обработки{selectedExtras.length > 0 && <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 12 }}>+{calc?.extrasCost || 0} ₽/шт</span>}</label>
+                <div className="exp-extras-grid">
+                  {availableExtras.map(e => {
+                    const sel = selectedExtras.includes(e.code);
+                    return (
+                      <div key={e.code}
+                        className={`exp-extra-chip${sel ? ' active' : ''}`}
+                        onClick={() => toggleExtra(e.code)}
+                      >
+                        <span className="exp-extra-name">{e.name}</span>
+                        <span className="exp-extra-price">+{e.price} ₽</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {sku && !fabric && (
+              <div className="exp-zt-warn" style={{ padding: '10px 0', opacity: 0.8, fontSize: 12 }}>
+                Выберите ткань для точного расчёта. Показана базовая цена пошива.
+              </div>
+            )}
+          </div>
+
+          {/* Right: Result card */}
+          <div className="exp-result-section">
+            {calc ? (
+              <div className="exp-result-card">
+                <div className="exp-result-title">Расчёт стоимости</div>
                 <div className="exp-result-row">
-                  <span>Обработки ({selectedExtras.length})</span>
-                  <b>+{calc.extrasCost.toLocaleString('ru-RU')} ₽ / шт</b>
+                  <span>База (пошив + ткань)</span>
+                  <b>
+                    {calc.volumeDiscount > 0 ? (
+                      <><s style={{ opacity: 0.4, marginRight: 4 }}>{calc.baseRaw.toLocaleString('ru-RU')} ₽</s>{calc.base.toLocaleString('ru-RU')} ₽</>
+                    ) : (
+                      <>{calc.base.toLocaleString('ru-RU')} ₽</>
+                    )}
+                  </b>
                 </div>
-              )}
-              <div className="exp-result-row">
-                <span>
-                  {calc.zoneCount > 0
-                    ? `Нанесение × ${calc.zoneCount} зон${calc.zoneCount === 1 ? 'а' : 'ы'}`
-                    : 'Нанесение'}
-                </span>
-                <b>{skuZones.length === 0 ? '—' : `${calc.techTotal.toLocaleString('ru-RU')} ₽ / шт`}</b>
+                {calc.volumeDiscount > 0 && (
+                  <div className="exp-result-row" style={{ color: 'var(--color-success)' }}>
+                    <span>Скидка за тираж ({qty} шт)</span>
+                    <b>−{Math.round(calc.volumeDiscount * 100)}%</b>
+                  </div>
+                )}
+                {calc.extrasCost > 0 && (
+                  <div className="exp-result-row">
+                    <span>Обработки ({selectedExtras.length})</span>
+                    <b>+{calc.extrasCost.toLocaleString('ru-RU')} ₽</b>
+                  </div>
+                )}
+                <div className="exp-result-row">
+                  <span>
+                    {calc.zoneCount > 0
+                      ? `Нанесение × ${calc.zoneCount} зон${calc.zoneCount === 1 ? 'а' : 'ы'}`
+                      : 'Нанесение'}
+                  </span>
+                  <b>{skuZones.length === 0 ? '—' : `${calc.techTotal.toLocaleString('ru-RU')} ₽`}</b>
+                </div>
+                <div className="exp-result-divider" />
+                <div className="exp-result-row exp-result-unit">
+                  <span>Цена / шт</span>
+                  <span>{calc.unitPrice.toLocaleString('ru-RU')} ₽</span>
+                </div>
+                <div className="exp-result-total">
+                  <span>ИТОГО ({qty} шт)</span>
+                  <b style={{ color: 'var(--accent)' }}>{calc.total.toLocaleString('ru-RU')} ₽</b>
+                </div>
               </div>
-              <div className="exp-result-total">
-                <span>Цена / шт</span>
-                <b>{calc.unitPrice.toLocaleString('ru-RU')} ₽</b>
+            ) : (
+              <div className="exp-result-card exp-result-empty">
+                <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>+</div>
+                <p>Выберите изделие для расчёта стоимости</p>
               </div>
-              <div className="exp-result-total" style={{ paddingTop: 6, marginTop: 4, fontSize: 14 }}>
-                <span>ИТОГО ({qty} шт)</span>
-                <b style={{ fontSize: 18 }}>{calc.total.toLocaleString('ru-RU')} ₽</b>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

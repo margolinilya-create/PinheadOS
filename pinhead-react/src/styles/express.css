@@ -1,16 +1,16 @@
 /* ═══════════════════════════════════════════ */
 /* EXPRESS CALCULATOR                         */
 /* ═══════════════════════════════════════════ */
-/* ── Slide-in panel (legacy) ── */
+/* ── Slide-in panel (legacy overlay mode) ── */
 .exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 150; display: flex; justify-content: flex-end; }
 .exp-panel   { background: var(--white); width: 460px; max-width: 100%; border-left: 1.5px solid var(--border-light); height: 100%; max-height: 90vh; overflow-y: auto; }
 .exp-header  { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1.5px solid var(--border-light); }
 .exp-title   { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; }
 .exp-close   { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-dim); }
 .exp-body    { padding: 24px; display: flex; flex-direction: column; gap: 12px; }
-.exp-field   { display: flex; flex-direction: column; gap: 4px; }
-.exp-field label { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); }
-.exp-field select, .exp-field input { border: 1.5px solid var(--border-light); padding: 8px 12px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; }
+.exp-field   { display: flex; flex-direction: column; gap: 6px; }
+.exp-field label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); }
+.exp-field select, .exp-field input { border: 1.5px solid var(--border-light); padding: 10px 14px; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; transition: border-color .15s; }
 .exp-field select:focus, .exp-field input:focus { border-color: var(--black); outline: none; }
 .exp-result       { margin-top: 8px; padding: 16px; border: 1.5px solid var(--black); background: var(--bg2); }
 .exp-result-row   { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
@@ -49,7 +49,7 @@
 .exp-zt-block.active .exp-zt-surcharge { color: var(--accent2); }
 .exp-zt-body         { display: none; padding: 12px 16px; background: var(--white); }
 .exp-zt-block.active .exp-zt-body { display: block; }
-.exp-zt-techs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+.exp-zt-techs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 8px; }
 .exp-zt-tech  {
   border: 1.5px solid var(--border-light); background: var(--bg2);
   padding: 8px 4px; cursor: pointer; text-align: center; transition: all .12s;
@@ -64,7 +64,7 @@
 .exp-extra-chip   {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px; border: 1.5px solid var(--border-light);
-  border-radius: 6px; cursor: pointer; font-size: 12px;
+  cursor: pointer; font-size: 12px;
   background: var(--bg1); transition: all .15s;
 }
 .exp-extra-chip:hover      { border-color: var(--text-mid); }

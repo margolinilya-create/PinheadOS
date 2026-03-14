@@ -130,7 +130,7 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
   return (
     <>
       {/* Period + Export */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div className="dash-toolbar">
         <div className="dash-period">
           {PERIODS.map(p => (
             <button key={p.key} className={`dash-period-btn${period === p.key ? ' active' : ''}`} onClick={() => setPeriod(p.key)}>
@@ -138,11 +138,11 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
             </button>
           ))}
         </div>
-        <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => exportCSV(filtered)}>Экспорт CSV</button>
+        <button className="btn" onClick={() => exportCSV(filtered)}>Экспорт CSV</button>
       </div>
 
       {/* 6 Metrics */}
-      <div className="dash-metrics" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
+      <div className="dash-metrics dash-metrics-6">
         <div className="dash-metric">
           <div className="dash-metric-label">Заказов</div>
           <div className="dash-metric-value">{filtered.length}</div>
@@ -161,11 +161,11 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
         </div>
         <div className="dash-metric">
           <div className="dash-metric-label">Конверсия</div>
-          <div className="dash-metric-value" style={{ color: '#007840' }}>{conversion}%</div>
+          <div className="dash-metric-value dash-metric-success">{conversion}%</div>
         </div>
         <div className="dash-metric">
           <div className="dash-metric-label">В работе</div>
-          <div className="dash-metric-value">{inWork.length} <span style={{ fontSize: 12, color: '#888' }}>({inWorkQty} шт)</span></div>
+          <div className="dash-metric-value">{inWork.length} <span className="dash-metric-sub">({inWorkQty} шт)</span></div>
         </div>
       </div>
 
@@ -220,7 +220,7 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
       {/* Recent orders table */}
       <div className="dash-chart">
         <div className="dash-chart-title">Последние заказы</div>
-        <table className="sku-table">
+        <table className="sku-ed-table">
           <thead>
             <tr>
               <th>№</th>
@@ -236,23 +236,20 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
             {recentOrders.map(o => (
               <tr
                 key={o.id}
-                style={{ cursor: 'pointer' }}
+                className="dash-order-row"
                 onClick={() => { loadOrder(o); navigate('/print'); }}
               >
-                <td className="sku-code">{o.order_number || '—'}</td>
+                <td className="sku-td-art">{o.order_number || '—'}</td>
                 <td>{o.data?.name || '—'}</td>
                 <td>{TYPE_NAMES[o.item_type] || TYPE_NAMES[(o.item_type || '').toLowerCase()] || o.item_type || '—'}</td>
                 <td>{o.total_qty || 0}</td>
-                <td className="sku-price">{(o.total_sum || 0).toLocaleString('ru-RU')} ₽</td>
+                <td className="sku-td-est">{(o.total_sum || 0).toLocaleString('ru-RU')} ₽</td>
                 <td>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '2px 6px',
-                    background: STATUS_COLORS[o.status] || '#888', color: '#fff',
-                  }}>
+                  <span className="dash-status-badge" style={{ background: STATUS_COLORS[o.status] || '#888' }}>
                     {STATUS_LABELS[o.status] || o.status}
                   </span>
                 </td>
-                <td style={{ fontSize: 11, color: '#888' }}>
+                <td className="dash-date-cell">
                   {o.created_at ? new Date(o.created_at).toLocaleDateString('ru-RU') : ''}
                 </td>
               </tr>
@@ -314,30 +311,28 @@ function ProductionTab({ orders }) {
     return Object.values(map).slice(0, 8);
   }, [activeOrders]);
 
-  const metricBlock = { flex: 1, padding: 20, border: '1.5px solid #ccc', textAlign: 'center' };
-
   return (
     <>
       {/* Section A: Current load */}
       <div className="dash-chart-title" style={{ marginBottom: 12 }}>Текущая загрузка</div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
-        <div style={metricBlock}>
+      <div className="dash-load-row">
+        <div className="dash-load-card">
           <div className="dash-metric-label">В ПРОИЗВОДСТВЕ</div>
           <div className="dash-metric-value" style={{ color: '#c04500' }}>{productionOrders.length} заказов</div>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{prodQty.toLocaleString('ru-RU')} шт</div>
-          <div style={{ height: 4, background: '#eee', width: '100%' }}>
-            <div style={{ height: 4, background: '#c04500', width: prodPct + '%', transition: 'width .3s' }} />
+          <div className="dash-load-sub">{prodQty.toLocaleString('ru-RU')} шт</div>
+          <div className="dash-load-bar">
+            <div className="dash-load-fill" style={{ background: '#c04500', width: prodPct + '%' }} />
           </div>
-          <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>{prodPct}%</div>
+          <div className="dash-load-pct">{prodPct}%</div>
         </div>
-        <div style={metricBlock}>
+        <div className="dash-load-card">
           <div className="dash-metric-label">ПОДТВЕРЖДЕНО</div>
-          <div className="dash-metric-value" style={{ color: '#1D19EA' }}>{approvedOrders.length} заказов</div>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{apprQty.toLocaleString('ru-RU')} шт</div>
-          <div style={{ height: 4, background: '#eee', width: '100%' }}>
-            <div style={{ height: 4, background: '#1D19EA', width: apprPct + '%', transition: 'width .3s' }} />
+          <div className="dash-metric-value" style={{ color: 'var(--accent)' }}>{approvedOrders.length} заказов</div>
+          <div className="dash-load-sub">{apprQty.toLocaleString('ru-RU')} шт</div>
+          <div className="dash-load-bar">
+            <div className="dash-load-fill" style={{ background: 'var(--accent)', width: apprPct + '%' }} />
           </div>
-          <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>{apprPct}%</div>
+          <div className="dash-load-pct">{apprPct}%</div>
         </div>
       </div>
 
@@ -364,35 +359,22 @@ function ProductionTab({ orders }) {
       <div className="dash-chart">
         <div className="dash-chart-title">Дедлайны (ближайшие 14 дней)</div>
         {deadlineOrders.length === 0 ? (
-          <div style={{ padding: 20, color: '#888', fontSize: 13 }}>Нет заказов с дедлайнами</div>
+          <div className="dash-empty">Нет заказов с дедлайнами</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div className="dash-deadline-list">
             {deadlineOrders.map(o => {
               const dl = o.data.deadline;
               const color = getDeadlineColor(dl);
               const label = getDeadlineLabel(dl);
               const dlDate = new Date(dl).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
               return (
-                <div key={o.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                  borderBottom: '1px solid #eee', fontSize: 13,
-                }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                  <span style={{ fontWeight: 700, fontFamily: "'Barlow Condensed', sans-serif", color: '#1D19EA', minWidth: 60 }}>
-                    {o.order_number}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {o.data?.name || '—'}
-                  </span>
-                  <span style={{ fontWeight: 600, minWidth: 50 }}>{o.total_qty || 0} шт</span>
-                  <span style={{ color: '#888', minWidth: 50 }}>{dlDate}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '1px 6px',
-                    background: color, color: color === '#007840' ? '#fff' : '#fff',
-                    minWidth: 55, textAlign: 'center',
-                  }}>
-                    {label}
-                  </span>
+                <div key={o.id} className="dash-deadline-row">
+                  <span className="dash-dl-dot" style={{ background: color }} />
+                  <span className="dash-dl-num">{o.order_number}</span>
+                  <span className="dash-dl-name">{o.data?.name || '—'}</span>
+                  <span className="dash-dl-qty">{o.total_qty || 0} шт</span>
+                  <span className="dash-dl-date">{dlDate}</span>
+                  <span className="dash-dl-badge" style={{ background: color }}>{label}</span>
                 </div>
               );
             })}
@@ -433,8 +415,16 @@ export default function Dashboard() {
   return (
     <div className="kanban-page">
       {/* Header */}
-      <div className="sku-ed-header">
+      <div className="sku-ed-header" style={{ padding: '20px 40px' }}>
         <div className="sku-ed-header-left">
+          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
+            <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
           <h1 className="sku-ed-title">ДАШБОРД</h1>
         </div>
         <div className="sku-ed-header-right">
@@ -453,7 +443,7 @@ export default function Dashboard() {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 40px 40px' }}>
+      <div className="dash-body-scroll">
         {tab === 'analytics' ? (
           <AnalyticsTab orders={orders} period={period} setPeriod={setPeriod} navigate={navigate} loadOrder={loadOrder} />
         ) : (

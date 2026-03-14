@@ -64,10 +64,8 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {dlInfo && (
-              <span style={{
-                fontSize: 9, fontWeight: 700, padding: '1px 6px',
+              <span className="kb-deadline-badge" style={{
                 background: dlInfo.color, color: dlInfo.color === '#888' ? '#444' : '#fff',
-                letterSpacing: '.5px',
               }}>
                 {dlInfo.label}
               </span>
@@ -93,13 +91,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать">⎘</button>
               <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить">✕</button>
             </div>
-            <div style={{
-              width: 22, height: 22, borderRadius: '50%', background: '#1D19EA', color: '#fff',
-              fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              {initials}
-            </div>
+            <div className="kb-avatar">{initials}</div>
           </div>
         </div>
       </div>
@@ -378,7 +370,7 @@ export default function KanbanBoard() {
 
       {/* ── Board ── */}
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Загрузка...</div>
+        <div className="kb-empty-col" style={{ padding: 60 }}>Загрузка...</div>
       ) : (
         <div className="kanban-board">
           {STATUS_LIST.map(s => {
@@ -398,7 +390,7 @@ export default function KanbanBoard() {
                 </div>
                 <div className="kanban-col-body">
                   {columns[s].length === 0 ? (
-                    <div style={{ padding: 30, textAlign: 'center', color: '#ccc', fontSize: 11, fontWeight: 600 }}>Пусто</div>
+                    <div className="kb-empty-col">Пусто</div>
                   ) : (
                     columns[s].map(o => (
                       <KanbanCard

@@ -399,7 +399,15 @@ export default function PriceEditor() {
         {/* ── Header ── */}
         <div className="sku-ed-header">
           <div className="sku-ed-header-left">
-            <h1 className="sku-ed-title">РЕДАКТОР ЦЕН <span>v.1.0</span></h1>
+            <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
+              <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+                <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+                <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+                <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <h1 className="sku-ed-title">РЕДАКТОР ЦЕН</h1>
             {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
           </div>
           <div className="sku-ed-header-right">
