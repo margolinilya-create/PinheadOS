@@ -7,13 +7,25 @@ import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice } from '../../ut
 import { getGarmentSVG } from '../../utils/mockup';
 
 // ── SKU List ──
+const FIT_OPTIONS = [
+  { key: 'all', label: 'Все фиты' },
+  { key: 'regular', label: 'Regular' },
+  { key: 'free', label: 'Free' },
+  { key: 'oversize', label: 'Oversize' },
+];
+
 function SkuList() {
   const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore();
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
+  const [fitFilter, setFitFilter] = useState('all');
   const usedCats = [...new Set(skuCatalog.map(s => s.category))];
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
-  const filtered = skuFilter === 'all' ? skuCatalog : skuCatalog.filter(s => s.category === skuFilter);
+
+  let filtered = skuFilter === 'all' ? skuCatalog : skuCatalog.filter(s => s.category === skuFilter);
+  if (fitFilter !== 'all') {
+    filtered = filtered.filter(s => s.fit === fitFilter);
+  }
 
   const groups = {};
   filtered.forEach(s => { if (!groups[s.category]) groups[s.category] = []; groups[s.category].push(s); });
@@ -33,6 +45,11 @@ function SkuList() {
           <button key={c.id} className={`sku-cat-pill${skuFilter === c.id ? ' active' : ''}`} onClick={() => setSkuFilter(c.id)}>{c.name}</button>
         ))}
       </div>
+      <div className="sku-fit-filter">
+        {FIT_OPTIONS.map(f => (
+          <button key={f.key} className={`sku-fit-pill${fitFilter === f.key ? ' active' : ''}`} onClick={() => setFitFilter(f.key)}>{f.label}</button>
+        ))}
+      </div>
       <div className="garment-list">
         {Object.keys(groups).sort((a, b) => catOrder.indexOf(a) - catOrder.indexOf(b)).map(catId => {
           const cat = SKU_CATEGORIES.find(c => c.id === catId);
@@ -42,7 +59,6 @@ function SkuList() {
               {groups[catId].map(s => {
                 const est = getSkuEstPrice(s, fabricsCatalog, trimCatalog, usdRate);
                 const isSelected = sku?.code === s.code;
-                const fitLabel = s.fit || null;
                 return (
                   <div
                     key={s.code}
@@ -55,7 +71,7 @@ function SkuList() {
                     onClick={() => selectSku(s)}
                   >
                     <div className="garment-row-bar" />
-                    <span className="garment-row-name">{s.name}{fitLabel ? <span className="garment-row-fit">{fitLabel}</span> : null}</span>
+                    <span className="garment-row-name">{s.name}</span>
                     <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
                   </div>
                 );
