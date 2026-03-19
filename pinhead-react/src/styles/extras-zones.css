@@ -51,6 +51,19 @@
 .zone-card.selected .zone-label { color: var(--accent); }
 .zone-check { position: absolute; top: 7px; right: 8px; font-size: 9px; font-weight: 700; color: var(--accent); opacity: 0; transition: opacity .12s; }
 .zone-card.selected .zone-check { opacity: 1; }
+.zone-card.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: auto; }
+.zone-card.disabled:hover { border-color: var(--border-light); background: var(--white); }
+.zone-mini-summary {
+  font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
+  color: var(--accent); letter-spacing: .3px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.zone-tech-summary {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  color: var(--accent); padding: 8px 16px;
+  border: 1px solid var(--border-light); border-top: none;
+  background: var(--accent-light); letter-spacing: .3px;
+}
 .zone-name { display: none; }
 .no-print-wrap { margin: 12px 0; }
 .no-print-btn {
