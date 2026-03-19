@@ -178,6 +178,9 @@
 .size-th-price, .size-th-sum { text-align: right; }
 .size-td-price { text-align: right; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
 .size-td-sum   { text-align: right; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.size-row-disabled td { opacity: 0.4; }
+.size-row-disabled .qty-btn,
+.size-row-disabled .qty-input { cursor: not-allowed; pointer-events: none; }
 .size-total-row td {
   font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--accent);
   padding-top: 12px; border-top: 2px solid var(--accent) !important;
@@ -188,6 +191,26 @@
 .size-total-sum   { text-align: right; font-weight: 700; color: var(--accent); }
 .size-rm-btn { background: none; border: none; color: var(--color-error); font-size: 12px; cursor: pointer; padding: 2px 8px; margin-left: 8px; opacity: .6; }
 .size-rm-btn:hover { opacity: 1; }
+/* ── Mobile size list ── */
+.size-list-mobile { display: none; }
+.size-mobile-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.size-mobile-row.disabled { opacity: 0.4; }
+.size-mobile-label {
+  font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700;
+  text-transform: uppercase; min-width: 48px; text-align: center;
+}
+.size-mobile-unit { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-dim); }
+.size-mobile-total {
+  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700;
+  color: var(--accent); padding: 12px 0; letter-spacing: .3px;
+  margin-bottom: 24px;
+}
+.qty-input-mobile {
+  min-height: 48px; font-size: 16px !important; width: 64px !important;
+}
 /* Quantity controls */
 .qty-control { display: flex; align-items: center; gap: 8px; }
 .qty-btn {
@@ -224,3 +247,12 @@
 .add-size-form-qty   { border: 1px solid var(--border-light); padding: 8px 12px; width: 64px; font-family: 'Inter', sans-serif; font-size: 13px; text-align: center; }
 .btn-add-size    { padding: 8px 24px; background: var(--accent); color: var(--white); border: none; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
 .btn-cancel-size { padding: 8px 24px; background: var(--white); color: var(--text-mid); border: 1px solid var(--border-light); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .size-table-desktop { display: none; }
+  .size-list-mobile { display: block; }
+  .fit-selector { flex-direction: column; }
+  .supplier-tabs { flex-direction: column; width: 100%; }
+  .supplier-tab { justify-content: center; }
+  .add-size-form { flex-wrap: wrap; }
+}
