@@ -280,7 +280,7 @@ export default function KanbanBoard() {
   const totalQty = orders.reduce((s, o) => s + (o.total_qty || 0), 0);
   const totalSum = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
 
-  const handleDrop = (e, status) => {
+  const handleDrop = async (e, status) => {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     const body = e.currentTarget.querySelector('.kanban-col-body');
@@ -292,10 +292,14 @@ export default function KanbanBoard() {
     const id = Number(orderId) || orderId;
     const order = orders.find(o => String(o.id) === String(orderId));
     if (order && order.status !== status) {
-      updateStatus(id, status);
-      toast.success('Статус: ' + (STATUS_LABELS[status] || status));
-      // Update drawer if open
-      setDrawerOrder(prev => prev && String(prev.id) === String(orderId) ? { ...prev, status } : prev);
+      const { error } = await updateStatus(id, status);
+      if (error) {
+        toast.error('Ошибка сохранения статуса');
+      } else {
+        toast.success('Статус: ' + (STATUS_LABELS[status] || status));
+        // Update drawer if open
+        setDrawerOrder(prev => prev && String(prev.id) === String(orderId) ? { ...prev, status } : prev);
+      }
     }
   };
 

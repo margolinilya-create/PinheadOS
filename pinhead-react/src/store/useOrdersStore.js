@@ -136,12 +136,27 @@ export const useOrdersStore = create((set, get) => ({
     return get().orders.find(o => o.id === id) || null;
   },
 
-  // Обновить статус
+  // Обновить статус (optimistic + rollback on error)
   updateStatus: async (id, status) => {
+    const prev = get().orders.find(o => o.id === id);
+    const prevStatus = prev ? prev.status : null;
+
+    // Optimistic update
     set(s => ({
       orders: s.orders.map(o => o.id === id ? { ...o, status } : o),
     }));
-    await supabase.from('orders').update({ status }).eq('id', id);
+
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+    if (error) {
+      // Rollback
+      if (prevStatus !== null) {
+        set(s => ({
+          orders: s.orders.map(o => o.id === id ? { ...o, status: prevStatus } : o),
+        }));
+      }
+      return { error };
+    }
+    return { error: null };
   },
 
   // Удалить заказ
