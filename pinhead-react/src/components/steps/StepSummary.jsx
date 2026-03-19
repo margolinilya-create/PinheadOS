@@ -4,9 +4,61 @@ import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { isAccessory, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
+import { isAccessory, calcItemTotal, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
+
+function EditBtn({ step, goToStep }) {
+  return (
+    <button className="summary-edit-btn" title="Изменить" onClick={e => { e.stopPropagation(); goToStep(step); }}>
+      &#9998; Изменить
+    </button>
+  );
+}
+
+function getZoneTechSummary(zone, item) {
+  const tech = item.zoneTechs?.[zone] || 'screen';
+  const label = TECH_NAMES[tech] || tech;
+  if (tech === 'screen') {
+    const p = item.zonePrints?.[zone] || { size: 'A4', colors: 1 };
+    return `${label} ${p.size || 'A4'}, ${p.colors || 1} цв.`;
+  }
+  if (tech === 'flex') {
+    const p = item.flexZones?.[zone] || { size: 'A4', colors: 1 };
+    return `${label} ${p.size || 'A4'}, ${p.colors || 1} цв.`;
+  }
+  if (tech === 'dtg') {
+    const p = item.dtgZones?.[zone] || { size: 'A4' };
+    return `${label} ${p.size || 'A4'}`;
+  }
+  if (tech === 'embroidery') {
+    const p = item.embZones?.[zone] || { area: 's', colors: 3 };
+    return `${label} ${(p.area || 's').toUpperCase()}, ${p.colors || 3} цв.`;
+  }
+  if (tech === 'dtf') {
+    const p = item.dtfZones?.[zone] || { size: 'A4' };
+    return `${label} ${p.size || 'A4'}`;
+  }
+  return label;
+}
+
+function getLabelsSummary(labelConfig) {
+  if (!labelConfig) return [];
+  const lines = [];
+  if (labelConfig.careLabel?.enabled) {
+    const opt = labelConfig.careLabel.option || 'standard';
+    lines.push(`Составник (${opt === 'my-logo' ? 'с лого' : opt === 'no-logo' ? 'без лого' : 'стандарт'})`);
+  }
+  if (labelConfig.mainLabel?.option && labelConfig.mainLabel.option !== 'none') {
+    const opt = labelConfig.mainLabel.option;
+    lines.push(`Осн. бирка (${opt === 'send-own' ? 'свои' : opt === 'custom' ? 'кастом' : 'стандарт'})`);
+  }
+  if (labelConfig.hangTag?.option && labelConfig.hangTag.option !== 'none') {
+    const opt = labelConfig.hangTag.option;
+    lines.push(`Хэнг-тег (${opt === 'custom' ? 'кастом' : 'стандарт'})`);
+  }
+  return lines;
+}
 
 // ─── copyTZ: формирует текстовое ТЗ и копирует в буфер ───
 function buildItemTZBlock(item, idx, catalogs) {
@@ -80,6 +132,9 @@ export default function StepSummary() {
   const [saving, setSaving] = useState(false);
   const [savedNum, setSavedNum] = useState(null);
   const [copyLabel, setCopyLabel] = useState(null);
+
+  const goToStep = useStore(s => s.goToStep);
+  const [priceOpen, setPriceOpen] = useState(false);
 
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
 
@@ -196,11 +251,20 @@ export default function StepSummary() {
         <h1 className="step-header-title">ТЗ<br/>ГОТОВО</h1>
         <p className="step-header-desc">Проверьте данные заказа и отправьте</p>
       </div>
-      <div className="section-label">Позиции заказа ({items.length})</div>
+      <div className="section-label">Позиции заказа ({items.length}) <EditBtn step={3} goToStep={goToStep} /></div>
 
       {/* Per-item summaries */}
       {itemCalcs.map(({ item, qty, itemTotal, unitPrice: uPrice, colorEntry: ce }, idx) => {
         const sizeEntries = Object.entries(item.sizes || {}).filter(([, v]) => v > 0);
+        const itemState = { ...item, ...catalogs };
+        const printPrice = getTotalSurcharge(itemState);
+        const extrasPrice = (item.extras || []).reduce((sum, code) => {
+          const ex = extrasCatalog.find(x => x.code === code);
+          return sum + (ex ? ex.price : 0);
+        }, 0);
+        const labelsCost = getLabelConfigPrice(item.labelConfig);
+        const labelLines = getLabelsSummary(item.labelConfig);
+
         return (
           <div key={idx} className="summary-item-block">
             <div className="summary-item-header">
@@ -210,7 +274,7 @@ export default function StepSummary() {
             </div>
             <div className="summary-grid">
               <div className="summary-block">
-                <div className="summary-block-title">Изделие</div>
+                <div className="summary-block-title">Изделие <EditBtn step={0} goToStep={goToStep} /></div>
                 <div className="summary-mockup" dangerouslySetInnerHTML={{ __html: getGarmentSVG(item.type, item.color) }} />
                 {!isAccessory(item.type) && <div className="summary-row"><span className="key">Лекала</span><span className="val"><b>{item.fit}</b></span></div>}
                 {item.fabric && <div className="summary-row"><span className="key">Ткань</span><span className="val"><b>{FABRIC_NAMES[item.fabric] || item.fabric}</b></span></div>}
@@ -236,15 +300,31 @@ export default function StepSummary() {
                 ))}
               </div>
 
-              {item.zones?.length > 0 && (
+              <div className="summary-block">
+                <div className="summary-block-title">Зоны нанесения <EditBtn step={2} goToStep={goToStep} /></div>
+                {item.zones?.length > 0 ? item.zones.map(z => (
+                  <div key={z} className="summary-row">
+                    <span className="key">{ZONE_LABELS[z] || z}</span>
+                    <span className="val"><b>{getZoneTechSummary(z, item)}</b></span>
+                  </div>
+                )) : <div className="summary-row"><span className="key" style={{ opacity: .5 }}>Без нанесения</span></div>}
+                {printPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Печать/шт</span><span className="val"><b>+{printPrice} ₽</b></span></div>}
+              </div>
+
+              <div className="summary-block">
+                <div className="summary-block-title">Обработки <EditBtn step={1} goToStep={goToStep} /></div>
+                {(item.extras || []).length > 0 ? (item.extras || []).map(code => {
+                  const ex = extrasCatalog.find(x => x.code === code);
+                  return <div key={code} className="summary-row"><span className="key">{ex?.name || code}</span><span className="val"><b>+{ex?.price || 0} ₽</b></span></div>;
+                }) : <div className="summary-row"><span className="key" style={{ opacity: .5 }}>Нет обработок</span></div>}
+                {extrasPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Обработки/шт</span><span className="val"><b>+{extrasPrice} ₽</b></span></div>}
+              </div>
+
+              {(labelLines.length > 0 || labelsCost > 0) && (
                 <div className="summary-block">
-                  <div className="summary-block-title">Нанесение</div>
-                  {item.zones.map(z => (
-                    <div key={z} className="summary-row">
-                      <span className="key">{ZONE_LABELS[z] || z}</span>
-                      <span className="val"><b>{TECH_NAMES[item.zoneTechs?.[z]] || item.zoneTechs?.[z] || 'screen'}</b></span>
-                    </div>
-                  ))}
+                  <div className="summary-block-title">Бирки</div>
+                  {labelLines.map((line, i) => <div key={i} className="summary-row"><span className="key">{line}</span></div>)}
+                  {labelsCost > 0 && <div className="summary-row summary-row-accent"><span className="key">Бирки/шт</span><span className="val"><b>+{labelsCost} ₽</b></span></div>}
                 </div>
               )}
             </div>
@@ -256,10 +336,17 @@ export default function StepSummary() {
         );
       })}
 
+      {/* Urgent surcharge */}
+      {urgentOption && (
+        <div className="summary-urgent" data-testid="urgent-line">
+          ⚡ Срочный заказ: +20% = +{Math.round(grandTotal - grandTotal / 1.2).toLocaleString('ru-RU')} ₽
+        </div>
+      )}
+
       {/* Client block */}
       <div className="summary-grid" style={{ marginTop: 16 }}>
         <div className="summary-block">
-          <div className="summary-block-title">Клиент</div>
+          <div className="summary-block-title">Клиент <EditBtn step={4} goToStep={goToStep} /></div>
           <div className="summary-row"><span className="key">Имя</span><span className="val"><b>{name}</b></span></div>
           {state.bitrixDeal && <div className="summary-row"><span className="key">Bitrix</span><span className="val"><b>{state.bitrixDeal}</b></span></div>}
           {contact && <div className="summary-row"><span className="key">Контакт</span><span className="val"><b>{contact}</b></span></div>}
@@ -271,16 +358,32 @@ export default function StepSummary() {
         </div>
       </div>
 
-      {/* Grand total */}
+      {/* Collapsible price breakdown */}
       <div className="price-breakdown">
-        {itemCalcs.map(({ item, qty, itemTotal }, idx) => (
-          <div key={idx} className="price-line">
-            <span className="name">#{idx + 1} {item.sku?.name || TYPE_NAMES[item.type] || item.type} ({qty} шт)</span>
-            <span className="amount">{itemTotal.toLocaleString('ru-RU')} ₽</span>
+        <button className="price-breakdown-toggle" onClick={() => setPriceOpen(!priceOpen)}>
+          Из чего цена {priceOpen ? '▲' : '▼'}
+        </button>
+        {priceOpen && (
+          <div className="price-breakdown-details" data-testid="price-details">
+            {itemCalcs.map(({ item, qty, itemTotal }, idx) => {
+              const itemState = { ...item, ...catalogs };
+              const printP = getTotalSurcharge(itemState);
+              const extP = (item.extras || []).reduce((s, c) => { const e = extrasCatalog.find(x => x.code === c); return s + (e ? e.price : 0); }, 0);
+              const labP = getLabelConfigPrice(item.labelConfig);
+              return (
+                <div key={idx} className="price-breakdown-item">
+                  <div className="price-line"><span className="name">#{idx + 1} {item.sku?.name || TYPE_NAMES[item.type] || item.type}</span></div>
+                  {printP > 0 && <div className="price-line price-line-sub"><span className="name">Печать (зоны)</span><span className="amount">+{printP} ₽/шт</span></div>}
+                  {extP > 0 && <div className="price-line price-line-sub"><span className="name">Обработки</span><span className="amount">+{extP} ₽/шт</span></div>}
+                  {labP > 0 && <div className="price-line price-line-sub"><span className="name">Бирки</span><span className="amount">+{labP} ₽/шт</span></div>}
+                  <div className="price-line"><span className="name">{qty} шт</span><span className="amount">{itemTotal.toLocaleString('ru-RU')} ₽</span></div>
+                </div>
+              );
+            })}
+            {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽/шт</span></div>}
+            {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочность +20%</span><span className="amount">+{Math.round(grandTotal - grandTotal / 1.2).toLocaleString('ru-RU')} ₽</span></div>}
           </div>
-        ))}
-        {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽/шт</span></div>}
-        {urgentOption && <div className="price-line"><span className="name">Срочность</span><span className="amount">+20%</span></div>}
+        )}
         <div className="price-total">
           <span className="name">ИТОГО</span>
           <span className="amount">{grandTotal.toLocaleString('ru-RU')} ₽</span>

@@ -25,6 +25,8 @@ vi.mock('../../utils/pricing', () => ({
   calcItemTotal: vi.fn(() => 5000),
   getItemUnitPrice: vi.fn(() => 500),
   getItemTotalQty: vi.fn(() => 10),
+  getTotalSurcharge: vi.fn(() => 0),
+  getLabelConfigPrice: vi.fn(() => 0),
 }));
 
 // Mock mockup
@@ -70,6 +72,7 @@ beforeEach(() => {
     _editingOrderId: null,
     _editingOrderNumber: null,
     _lastSavedOrderNum: null,
+    goToStep: vi.fn(),
   });
   useOrdersStore.setState({
     saveOrder: vi.fn().mockResolvedValue({ id: 1, order_number: 'PH-0001' }),
@@ -138,5 +141,50 @@ describe('StepSummary', () => {
   it('shows total price', () => {
     renderSummary();
     expect(screen.getByText('ИТОГО')).toBeInTheDocument();
+  });
+
+  it('renders edit buttons on section headers', () => {
+    renderSummary();
+    const editBtns = document.querySelectorAll('.summary-edit-btn');
+    expect(editBtns.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('calls goToStep when edit button is clicked', () => {
+    const goToStep = vi.fn();
+    useStore.setState({ goToStep });
+    renderSummary();
+    const editBtns = document.querySelectorAll('.summary-edit-btn');
+    fireEvent.click(editBtns[0]);
+    expect(goToStep).toHaveBeenCalled();
+  });
+
+  it('shows zones block with zone names', () => {
+    renderSummary();
+    expect(screen.getByText('Зоны нанесения')).toBeInTheDocument();
+  });
+
+  it('shows urgent surcharge line when urgentOption is true', () => {
+    useStore.setState({ urgentOption: true });
+    renderSummary();
+    const urgentLine = screen.getByTestId('urgent-line');
+    expect(urgentLine).toBeTruthy();
+    expect(urgentLine.textContent).toContain('Срочный');
+  });
+
+  it('does not show urgent line when urgentOption is false', () => {
+    renderSummary();
+    expect(screen.queryByTestId('urgent-line')).not.toBeInTheDocument();
+  });
+
+  it('shows price breakdown toggle', () => {
+    renderSummary();
+    expect(screen.getByText(/Из чего цена/)).toBeInTheDocument();
+  });
+
+  it('toggles price breakdown details on click', () => {
+    renderSummary();
+    expect(screen.queryByTestId('price-details')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Из чего цена/));
+    expect(screen.getByTestId('price-details')).toBeInTheDocument();
   });
 });

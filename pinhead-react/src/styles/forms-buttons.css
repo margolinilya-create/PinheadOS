@@ -306,3 +306,36 @@
 .upload-icon { font-size: 28px; margin-bottom: 12px; color: var(--accent); }
 .upload-text { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
 .upload-sub  { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+/* ── Summary Edit Button ── */
+.summary-edit-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 1px solid var(--border-light); padding: 3px 10px;
+  font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim);
+  cursor: pointer; margin-left: 8px; transition: all .15s; vertical-align: middle;
+}
+.summary-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+/* ── Summary Row Accent ── */
+.summary-row-accent { border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 4px; }
+.summary-row-accent .val b { color: var(--accent); }
+/* ── Urgent Surcharge Line ── */
+.summary-urgent {
+  background: var(--color-error, #FF3B30); color: var(--white);
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  padding: 12px 16px; margin-bottom: 16px; letter-spacing: .3px;
+}
+/* ── Price Breakdown Toggle ── */
+.price-breakdown-toggle {
+  display: block; width: 100%; background: none; border: none;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-mid);
+  cursor: pointer; padding: 0 0 12px; text-align: left; transition: color .15s;
+}
+.price-breakdown-toggle:hover { color: var(--accent); }
+/* ── Price Breakdown Details ── */
+.price-breakdown-details { margin-bottom: 8px; }
+.price-breakdown-item { margin-bottom: 4px; }
+.price-line-sub { padding-left: 16px; }
+.price-line-sub .name { font-size: 12px; color: var(--text-dim); }
+.price-line-urgent .name { color: var(--color-error, #FF3B30); font-weight: 600; }
+.price-line-urgent .amount { color: var(--color-error, #FF3B30); font-weight: 700; }
