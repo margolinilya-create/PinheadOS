@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Header from './Header';
-import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 
 // Mock useDraft hook
