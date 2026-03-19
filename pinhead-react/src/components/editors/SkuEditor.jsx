@@ -1,10 +1,12 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { TRIM_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT, HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
 import { ZONE_LABELS } from '../../data/constants';
+import { supabase } from '../../lib/supabase';
+import { toast } from '../../store/useToastStore';
 
 const ALL_ZONES = [
   {id:'front', name:'Грудь (перед)'},
@@ -65,7 +67,24 @@ export default function SkuEditor() {
     try { const s = localStorage.getItem('ph_hardware'); return s ? JSON.parse(s) : [...HARDWARE_CATALOG_DEFAULT]; } catch { return [...HARDWARE_CATALOG_DEFAULT]; }
   });
 
-  const saveAll = useCallback(() => {
+  const [saving, setSaving] = useState(false);
+
+  // При монтировании — загрузить каталог из Supabase (если есть)
+  useEffect(() => {
+    supabase.from('app_config').select('key, value').in('key', ['sku_catalog']).then(({ data }) => {
+      if (data) {
+        for (const row of data) {
+          if (row.key === 'sku_catalog' && Array.isArray(row.value)) {
+            setField('skuCatalog', row.value);
+          }
+        }
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveAll = useCallback(async () => {
+    setSaving(true);
+    // Сохраняем в localStorage
     try {
       localStorage.setItem('ph_sku', JSON.stringify(skuCatalog));
       localStorage.setItem('ph_fabrics', JSON.stringify(fabricsCatalog));
@@ -74,6 +93,18 @@ export default function SkuEditor() {
       localStorage.setItem('ph_hardware', JSON.stringify(hardwareCatalog));
       localStorage.setItem('ph_usd_rate', String(usdRate));
     } catch { /* ignore storage errors */ }
+    // Сохраняем в Supabase
+    const { error } = await supabase.from('app_config').upsert({
+      key: 'sku_catalog',
+      value: skuCatalog,
+      updated_at: new Date().toISOString(),
+    });
+    setSaving(false);
+    if (!error) {
+      toast.success('Каталог сохранён');
+    } else {
+      toast.warning('Сохранено локально (Supabase недоступен)');
+    }
   }, [skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, usdRate]);
 
   // ── SKU CRUD ──
@@ -303,7 +334,7 @@ export default function SkuEditor() {
         <div className="sku-ed-header-right">
           <button className="btn" onClick={exportExcel}>Excel ↓</button>
           <button className="btn" onClick={importExcel}>Excel ↑</button>
-          <button className="btn btn-primary" onClick={saveAll}>Сохранить</button>
+          <button className="btn btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
           <button className="pe-close" onClick={() => { saveAll(); onClose(); }}>✕</button>
         </div>
       </div>
@@ -376,7 +407,7 @@ export default function SkuEditor() {
                   {items.map((s) => {
                     const realIdx = skuCatalog.indexOf(s);
                     return (
-                      <tr key={s.code + realIdx}>
+                      <tr key={s.code}>
                         <td className="sku-td-num">{realIdx + 1}</td>
                         <td className="sku-td-art">{s.code}</td>
                         <td>

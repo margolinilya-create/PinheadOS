@@ -4,9 +4,8 @@ import { useStore } from '../../store/useStore';
 import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
-import { PRICES } from '../../data/prices';
 import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
-import { screenLookup, flexLookup, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount } from '../../utils/pricing';
+import { screenLookup, flexLookup, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount, getPrices } from '../../utils/pricing';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -60,13 +59,16 @@ function calcZoneSurcharge(zoneId, d, qty) {
     return flexLookup(fmt, col, qty);
   }
   if (tech === 'dtf') {
-    return (PRICES.tech.dtf || 180) + (PRICES.dtfFormatAdd?.[fmt] || 0);
+    const P = getPrices();
+    return (P.tech.dtf || 180) + (P.dtfFormatAdd?.[fmt] || 0);
   }
   if (tech === 'dtg') {
-    return (PRICES.tech.dtg || 280) + (PRICES.dtgFormatAdd?.[fmt] || 0);
+    const P = getPrices();
+    return (P.tech.dtg || 280) + (P.dtgFormatAdd?.[fmt] || 0);
   }
   if (tech === 'embroidery') {
-    return (PRICES.tech.embroidery || 350) + (PRICES.embAreaAdd?.[fmt] || 0) + Math.max(0, col - 1) * (PRICES.embColorAdd || 20);
+    const P = getPrices();
+    return (P.tech.embroidery || 350) + (P.embAreaAdd?.[fmt] || 0) + Math.max(0, col - 1) * (P.embColorAdd || 20);
   }
   return 0;
 }
