@@ -13,10 +13,20 @@ import {
   HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT
 } from '../src/data/extras.js'
 
-const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pulzirakjqehsulmjhdj.supabase.co'
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars')
+if (!SUPABASE_SERVICE_KEY) {
+  console.error(
+    'Missing SUPABASE_SERVICE_KEY env variable.\n\n' +
+    'Как получить:\n' +
+    '  1. Supabase Dashboard → ваш проект\n' +
+    '  2. Settings → API\n' +
+    '  3. Скопируйте "service_role" ключ\n\n' +
+    'Использование:\n' +
+    '  SUPABASE_SERVICE_KEY=ey... npm run seed\n' +
+    '  или создайте .env файл (см. .env.example)'
+  )
   process.exit(1)
 }
 
