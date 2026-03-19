@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import { useStore } from './store/useStore'
+import { useAuthStore } from './store/useAuthStore'
 
 // Restore draft from localStorage if available
 const draft = localStorage.getItem('pinhead_draft');
@@ -14,6 +15,12 @@ if (draft) {
     localStorage.removeItem('pinhead_draft');
   }
 }
+
+// Загружаем авторизацию и каталоги параллельно при старте
+Promise.all([
+  useAuthStore.getState().init(),
+  useStore.getState().loadCatalogs(),
+]).catch(() => {});
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

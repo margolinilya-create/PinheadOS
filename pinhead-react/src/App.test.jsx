@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/useAuthStore';
 import { useStore } from './store/useStore';
+
+// Mock catalogs loader
+vi.mock('./lib/catalogs', () => ({
+  loadAllCatalogs: vi.fn().mockResolvedValue({}),
+}));
 
 // Mock supabase
 vi.mock('./lib/supabase', () => ({
@@ -112,47 +117,47 @@ describe('App', () => {
     expect(screen.getByText('Загрузка...')).toBeInTheDocument();
   });
 
-  it('shows auth screen when no user', () => {
+  it('shows auth screen when no user', async () => {
     renderApp();
-    expect(screen.getByText(/PINHEAD/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/PINHEAD/)).toBeInTheDocument());
     expect(screen.getByText('Войти')).toBeInTheDocument();
   });
 
-  it('shows pending screen for unapproved user', () => {
+  it('shows pending screen for unapproved user', async () => {
     useAuthStore.setState({
       user: { id: '1', role: 'manager', email: 'test@test.com', approved: false },
     });
     renderApp();
-    expect(screen.getByText(/Ожидание подтверждения/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Ожидание подтверждения/)).toBeInTheDocument());
   });
 
-  it('shows main wizard for authenticated admin', () => {
+  it('shows main wizard for authenticated admin', async () => {
     useAuthStore.setState({
       user: { id: '1', role: 'admin', email: 'test@test.com', approved: true },
       logout: vi.fn(),
     });
     useStore.setState({ step: 0 });
     renderApp();
-    expect(screen.getByText('pinhead')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('pinhead')).toBeInTheDocument());
     expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument();
   });
 
-  it('shows header with navigation for authenticated user', () => {
+  it('shows header with navigation for authenticated user', async () => {
     useAuthStore.setState({
       user: { id: '1', role: 'manager', email: 'test@test.com', approved: true },
       logout: vi.fn(),
     });
     renderApp();
-    expect(screen.getByText('Заказы')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Заказы')).toBeInTheDocument());
   });
 
-  it('redirects unknown routes to home', () => {
+  it('redirects unknown routes to home', async () => {
     useAuthStore.setState({
       user: { id: '1', role: 'admin', email: 'test@test.com', approved: true },
       logout: vi.fn(),
     });
     renderApp('/unknown-route');
     // Should redirect and show wizard
-    expect(screen.getByText('pinhead')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('pinhead')).toBeInTheDocument());
   });
 });
