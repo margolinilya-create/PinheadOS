@@ -65,6 +65,6 @@ export const PRICES = {
 
   // Скидки за объём тиража (на базовую стоимость изделия)
   // volumeTiers[i] — порог кол-ва, volumeDiscounts[i] — процент скидки
-  volumeTiers:    [1,    100,  300,  500,  1000],
-  volumeDiscounts:[0,    0.03, 0.05, 0.08, 0.12],
+  volumeTiers:    [1,    50,   100,  300,  500,  1000],
+  volumeDiscounts:[0,    0.02, 0.03, 0.05, 0.08, 0.12],
 };

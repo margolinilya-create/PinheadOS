@@ -5,12 +5,11 @@ import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
-import { screenLookup, flexLookup, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount, getPrices } from '../../utils/pricing';
+import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount, getPrices } from '../../utils/pricing';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;
-const SCREEN_TEXTILE_MULT = 1.3;
 const DTG_DTF_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const EMB_AREAS = [
   { k: 's', l: 'до 7см' },
@@ -46,31 +45,7 @@ function initZoneData(zones) {
 
 function calcZoneSurcharge(zoneId, d, qty) {
   if (!d || !d.active) return 0;
-  const { tech, fmt, col, textile, fx } = d;
-
-  if (tech === 'screen') {
-    let base = screenLookup(fmt, col, qty);
-    if (textile === 'color') base = Math.round(base * SCREEN_TEXTILE_MULT);
-    const fxEntry = SCREEN_FX.find(f => f.key === (fx || 'none'));
-    if (fxEntry && fxEntry.mult > 1) base = Math.round(base * fxEntry.mult);
-    return base;
-  }
-  if (tech === 'flex') {
-    return flexLookup(fmt, col, qty);
-  }
-  if (tech === 'dtf') {
-    const P = getPrices();
-    return (P.tech.dtf || 180) + (P.dtfFormatAdd?.[fmt] || 0);
-  }
-  if (tech === 'dtg') {
-    const P = getPrices();
-    return (P.tech.dtg || 280) + (P.dtgFormatAdd?.[fmt] || 0);
-  }
-  if (tech === 'embroidery') {
-    const P = getPrices();
-    return (P.tech.embroidery || 350) + (P.embAreaAdd?.[fmt] || 0) + Math.max(0, col - 1) * (P.embColorAdd || 20);
-  }
-  return 0;
+  return calcZonePriceDirect(d.tech, d, qty);
 }
 
 // ── Component ──
