@@ -378,8 +378,61 @@ export const useStore = create((set, get) => ({
     });
   },
 
+  // ─── Restore from draft (localStorage) ───
+  restoreFromDraft: (data) => set(s => ({
+    ...data,
+    maxStep: data.step || 0,
+  })),
+
   // ─── Reset ───
-  resetOrder: () => set({ ...initialState, skuCatalog: get().skuCatalog, fabricsCatalog: get().fabricsCatalog, trimCatalog: get().trimCatalog, extrasCatalog: get().extrasCatalog, labelsCatalog: get().labelsCatalog, usdRate: get().usdRate }),
+  resetOrder: () => {
+    localStorage.removeItem('pinhead_draft');
+    set({ ...initialState, skuCatalog: get().skuCatalog, fabricsCatalog: get().fabricsCatalog, trimCatalog: get().trimCatalog, extrasCatalog: get().extrasCatalog, labelsCatalog: get().labelsCatalog, usdRate: get().usdRate });
+  },
 }));
+
+// ─── Persist draft to localStorage ───
+useStore.subscribe((state) => {
+  if (state.step > 0) {
+    localStorage.setItem('pinhead_draft', JSON.stringify({
+      step: state.step,
+      sku: state.sku,
+      fabric: state.fabric,
+      color: state.color,
+      sizes: state.sizes,
+      zones: state.zones,
+      extras: state.extras,
+      labelConfig: state.labelConfig,
+      items: state.items,
+      activeItemIdx: state.activeItemIdx,
+      customSizes: state.customSizes,
+      fit: state.fit,
+      fitChosen: state.fitChosen,
+      type: state.type,
+      tech: state.tech,
+      textileColor: state.textileColor,
+      zoneTechs: state.zoneTechs,
+      zonePrints: state.zonePrints,
+      flexZones: state.flexZones,
+      dtgZones: state.dtgZones,
+      embZones: state.embZones,
+      dtfZones: state.dtfZones,
+      zoneArtworks: state.zoneArtworks,
+      designNotes: state.designNotes,
+      sizeComment: state.sizeComment,
+      noPrint: state.noPrint,
+      name: state.name,
+      contact: state.contact,
+      email: state.email,
+      phone: state.phone,
+      deadline: state.deadline,
+      address: state.address,
+      notes: state.notes,
+      packOption: state.packOption,
+      urgentOption: state.urgentOption,
+      bitrixDeal: state.bitrixDeal,
+    }));
+  }
+});
 
 export { ITEM_FIELDS, snapshotItem, restoreItem, defaultItemFields };

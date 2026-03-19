@@ -149,6 +149,7 @@ export default function StepSummary() {
     if (state._editingOrderId) {
       saved = await updateOrder(state._editingOrderId, orderData);
       if (saved) {
+        localStorage.removeItem('pinhead_draft');
         setSavedNum(state._editingOrderNumber || saved.order_number || 'OK');
         toast.success('Заказ обновлён');
       } else {
@@ -157,6 +158,7 @@ export default function StepSummary() {
     } else {
       saved = await saveOrder(orderData);
       if (saved) {
+        localStorage.removeItem('pinhead_draft');
         setSavedNum(saved.order_number || 'OK');
         useStore.setState({ _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
         toast.success('Заказ сохранён: ' + (saved.order_number || ''));
