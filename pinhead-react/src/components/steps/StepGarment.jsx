@@ -110,14 +110,15 @@ function SkuList() {
 
 // ── Fabric Grid ──
 function FabricGrid() {
-  const { type, fabric, selectFabric, sku, fabricsCatalog, usdRate } = useStore();
+  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate } = useStore();
   if (isAccessory(type)) return null;
 
   let fabrics;
+  let catalogFabrics = [];
   if (sku?.category) {
-    const catFabrics = fabricsCatalog.filter(f => (f.forCategories || []).includes(sku.category));
-    if (catFabrics.length > 0) {
-      fabrics = catFabrics.map(f => ({ key: f.code, name: f.name, meta: Math.round(f.priceUSD * usdRate) + ' ₽/м', sub: '$' + f.priceUSD + '/м' }));
+    catalogFabrics = fabricsCatalog.filter(f => (f.forCategories || []).includes(sku.category));
+    if (catalogFabrics.length > 0) {
+      fabrics = catalogFabrics.map(f => ({ key: f.code, name: f.name, meta: Math.round(f.priceUSD * usdRate) + ' ₽/м', sub: '$' + f.priceUSD + '/м', supplier: f.supplier }));
     }
   }
   if (!fabrics) {
@@ -126,12 +127,24 @@ function FabricGrid() {
 
   if (!fabrics.length) return null;
 
+  const handleSelectFabric = (f) => {
+    selectFabric(f.key);
+    // Auto-switch supplier based on fabric's supplier
+    const catEntry = catalogFabrics.find(cf => cf.code === f.key);
+    if (catEntry?.supplier) {
+      const sup = catEntry.supplier.toLowerCase();
+      if (sup !== colorSupplier) setColorSupplier(sup);
+    }
+  };
+
+  const colors = colorSupplier === 'medastex' ? MEDASTEX_COLORS : COTTONPROM_COLORS;
+
   return (
     <div className="fabric-section">
       <div className="section-label">Ткань</div>
       <div className="fit-selector">
         {fabrics.map(f => (
-          <div key={f.key} className={`fit-option${fabric === f.key ? ' selected' : ''}`} onClick={() => selectFabric(f.key)}>
+          <div key={f.key} className={`fit-option${fabric === f.key ? ' selected' : ''}`} onClick={() => handleSelectFabric(f)}>
             <div className="fit-check">{fabric === f.key ? '✓' : ''}</div>
             <div className="fit-info">
               <div className="fit-name">{f.name}</div>
@@ -140,6 +153,7 @@ function FabricGrid() {
           </div>
         ))}
       </div>
+      {fabric && <div className="fabric-color-count">Доступные цвета: {colors.length}</div>}
     </div>
   );
 }
@@ -158,6 +172,14 @@ function ColorPicker() {
   return (
     <div className="color-section">
       <div className="section-label">Цвет базы</div>
+      <div className="supplier-tabs">
+        <button className={`supplier-tab${colorSupplier === 'medastex' ? ' active' : ''}`} onClick={() => setColorSupplier('medastex')}>
+          Medastex <span className="supplier-tab-count">{MEDASTEX_COLORS.length}</span>
+        </button>
+        <button className={`supplier-tab${colorSupplier === 'cottonprom' ? ' active' : ''}`} onClick={() => setColorSupplier('cottonprom')}>
+          CottonProm <span className="supplier-tab-count">{COTTONPROM_COLORS.length}</span>
+        </button>
+      </div>
       <div className="color-search-wrap">
         <input
           type="text"
@@ -166,10 +188,6 @@ function ColorPicker() {
           value={colorSearch}
           onChange={e => setColorSearch(e.target.value)}
         />
-        <div className="supplier-switch">
-          <button className={`supplier-btn${colorSupplier === 'medastex' ? ' active' : ''}`} onClick={() => setColorSupplier('medastex')}>Medastex</button>
-          <button className={`supplier-btn${colorSupplier === 'cottonprom' ? ' active' : ''}`} onClick={() => setColorSupplier('cottonprom')}>CottonProm</button>
-        </div>
         {color && <div className="color-selected-info">Выбран: {colors.find(c => c.code === color)?.name || color}</div>}
       </div>
       <div className="swatches">

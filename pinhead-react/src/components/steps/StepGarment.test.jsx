@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import StepGarment from './StepGarment';
 import { useStore } from '../../store/useStore';
 
@@ -75,5 +75,44 @@ describe('StepGarment', () => {
   it('renders sizes section', () => {
     render(<StepGarment />);
     expect(screen.getByText('Размеры')).toBeInTheDocument();
+  });
+
+  it('renders supplier tabs when type is set', () => {
+    useStore.setState({ type: 'tee' });
+    render(<StepGarment />);
+    const tabs = document.querySelectorAll('.supplier-tab');
+    expect(tabs.length).toBe(2);
+    expect(tabs[0].textContent).toContain('Medastex');
+    expect(tabs[1].textContent).toContain('CottonProm');
+  });
+
+  it('highlights active supplier tab', () => {
+    useStore.setState({ type: 'tee' });
+    render(<StepGarment />);
+    const activeTab = document.querySelector('.supplier-tab.active');
+    expect(activeTab).toBeTruthy();
+    expect(activeTab.textContent).toContain('Medastex');
+  });
+
+  it('calls setColorSupplier when clicking supplier tab', () => {
+    const setColorSupplier = vi.fn();
+    useStore.setState({ type: 'tee', setColorSupplier });
+    render(<StepGarment />);
+    const tabs = document.querySelectorAll('.supplier-tab');
+    fireEvent.click(tabs[1]);
+    expect(setColorSupplier).toHaveBeenCalledWith('cottonprom');
+  });
+
+  it('shows fabric color count when fabric is selected', () => {
+    useStore.setState({
+      type: 'tee',
+      fabric: 'kulirnaya',
+      sku: { code: 'tee-001', category: 'tshirts' },
+      fabricsCatalog: [
+        { code: 'kulirnaya', name: 'Кулирка', priceUSD: 2.80, forCategories: ['tshirts'], supplier: 'Medastex' },
+      ],
+    });
+    render(<StepGarment />);
+    expect(screen.getByText(/Доступные цвета:/)).toBeInTheDocument();
   });
 });
