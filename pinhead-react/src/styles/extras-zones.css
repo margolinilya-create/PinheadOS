@@ -146,3 +146,56 @@
 .zone-mult-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 .zone-mult-eq     { font-size: 9px; font-weight: 700; color: var(--text-dim); }
 .zone-mult-result { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; color: var(--accent); margin-left: auto; }
+
+/* ═══════════════════════════════════════════ */
+/* ZONE MOCKUP                                */
+/* ═══════════════════════════════════════════ */
+.zm-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.zm-mockup {
+  position: relative; width: 100%; max-width: 280px; aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.zm-svg { width: 100%; height: 100%; }
+.zm-svg svg { width: 100%; height: 100%; }
+.zm-zone {
+  position: absolute; cursor: pointer; border: 1.5px dashed transparent;
+  border-radius: 4px; transition: all .18s; display: flex; align-items: center; justify-content: center;
+  background: transparent;
+}
+.zm-zone:hover {
+  background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3);
+}
+.zm-zone.active {
+  background: rgba(59,130,246,0.18); border-color: #3b82f6; border-style: solid;
+}
+.zm-zone-label {
+  font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px; color: transparent;
+  pointer-events: none; transition: color .15s; user-select: none;
+}
+.zm-zone:hover .zm-zone-label { color: rgba(59,130,246,0.7); }
+.zm-zone.active .zm-zone-label { color: #3b82f6; }
+.zm-summary {
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 0 8px;
+}
+.zm-chip {
+  font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+  letter-spacing: .5px; padding: 3px 8px; border: 1px solid var(--border-light);
+  background: var(--bg2); color: var(--text-mid); white-space: nowrap;
+}
+
+/* ── Design step layout with mockup ── */
+.design-layout {
+  display: grid; grid-template-columns: 1fr 300px; gap: 32px; align-items: start;
+}
+.design-zones-col { min-width: 0; }
+.design-mockup-col {
+  position: sticky; top: 24px;
+}
+@media (max-width: 768px) {
+  .design-layout {
+    display: flex; flex-direction: column-reverse; gap: 20px;
+  }
+  .design-mockup-col { position: static; }
+  .zm-mockup { max-width: 200px; margin: 0 auto; }
+}
