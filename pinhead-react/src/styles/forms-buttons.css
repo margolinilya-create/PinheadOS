@@ -145,12 +145,49 @@
 }
 .item-card-add:hover { opacity: 1; border-color: var(--accent); }
 .item-add-icon { font-size: 28px; font-weight: 300; color: var(--accent); }
-.items-grand-total {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; background: var(--white); border: 1px solid var(--border-light);
-  margin-bottom: 16px; font-family: 'Inter', sans-serif; font-size: 13px;
+/* ── Prominent Add Item Button ── */
+.btn-add-item {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 14px 24px; margin-bottom: 20px;
+  background: var(--accent); color: var(--white); border: none;
+  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase; cursor: pointer;
+  transition: background .15s;
 }
-.items-grand-sum { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; }
+.btn-add-item:hover { background: var(--black); }
+.btn-add-item-icon { font-size: 22px; font-weight: 300; }
+/* ── Items Summary Table ── */
+.items-summary-table {
+  width: 100%; border-collapse: collapse; margin-bottom: 20px;
+  border: 1px solid var(--border-light);
+}
+.items-summary-table th {
+  font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-mid);
+  padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border-light);
+  background: var(--bg2);
+}
+.items-th-right { text-align: right; }
+.items-summary-table td {
+  padding: 10px 16px; border-bottom: 1px solid var(--border-light);
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+}
+.items-td-name { font-weight: 600; }
+.items-td-right { text-align: right; white-space: nowrap; }
+.items-td-sum { font-weight: 700; }
+.items-total-row td {
+  border-top: 2px solid var(--accent) !important; border-bottom: none !important;
+  padding-top: 12px; background: none !important;
+}
+.items-total-label {
+  font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--accent);
+}
+.items-total-val { font-weight: 700; color: var(--accent); }
+.items-total-sum {
+  font-family: 'Space Grotesk', sans-serif; font-size: 16px;
+  font-weight: 700; color: var(--accent);
+}
 /* ── Summary Item Blocks ── */
 .summary-item-block  { border: 1px solid var(--border-light); padding: 16px; margin-bottom: 16px; background: var(--white); }
 .summary-item-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }

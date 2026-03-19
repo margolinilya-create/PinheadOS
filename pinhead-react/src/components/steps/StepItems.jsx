@@ -10,6 +10,9 @@ export default function StepItems() {
 
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
 
+  const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
+  const grandQty = items.reduce((sum, it) => sum + getItemTotalQty(it), 0);
+
   return (
     <div className="step-panel">
       <div className="step-header">
@@ -19,6 +22,11 @@ export default function StepItems() {
           {items.length === 0 ? 'Нет добавленных позиций' : `${items.length} ${items.length === 1 ? 'позиция' : items.length < 5 ? 'позиции' : 'позиций'} в заказе`}
         </p>
       </div>
+
+      <button className="btn-add-item" onClick={addNewItem}>
+        <span className="btn-add-item-icon">+</span>
+        Добавить позицию
+      </button>
 
       <div className="items-tray">
         {items.map((item, idx) => {
@@ -68,14 +76,40 @@ export default function StepItems() {
         </button>
       </div>
 
-      {/* Grand total */}
-      {items.length > 1 && (
-        <div className="items-grand-total">
-          <span>Итого по всем позициям:</span>
-          <span className="items-grand-sum">
-            {items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0).toLocaleString('ru-RU')} ₽
-          </span>
-        </div>
+      {/* Summary table */}
+      {items.length > 0 && (
+        <table className="items-summary-table" data-testid="items-summary-table">
+          <thead>
+            <tr>
+              <th>Позиция</th>
+              <th className="items-th-right">Кол-во</th>
+              <th className="items-th-right">Цена/шт</th>
+              <th className="items-th-right">Сумма</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, idx) => {
+              const qty = getItemTotalQty(item);
+              const unitPrice = getItemUnitPrice(item, catalogs);
+              const itemTotal = calcItemTotal(item, catalogs);
+              const typeName = item.sku?.name || TYPE_NAMES[item.type] || item.type;
+              return (
+                <tr key={idx}>
+                  <td className="items-td-name">{typeName}</td>
+                  <td className="items-td-right">{qty} шт</td>
+                  <td className="items-td-right">{unitPrice.toLocaleString('ru-RU')} ₽</td>
+                  <td className="items-td-right items-td-sum">{itemTotal.toLocaleString('ru-RU')} ₽</td>
+                </tr>
+              );
+            })}
+            <tr className="items-total-row">
+              <td className="items-total-label">ИТОГО</td>
+              <td className="items-td-right items-total-val">{grandQty} шт</td>
+              <td className="items-td-right">—</td>
+              <td className="items-td-right items-total-sum">{grandTotal.toLocaleString('ru-RU')} ₽</td>
+            </tr>
+          </tbody>
+        </table>
       )}
 
       <div className="btn-row">
