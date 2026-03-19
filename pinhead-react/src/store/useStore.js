@@ -2,7 +2,6 @@
 // Zustand store — глобальное состояние заказа
 // ═══════════════════════════════════════════
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
 import { loadAllCatalogs } from '../lib/catalogs';
 import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, SIZES } from '../data';
 
@@ -403,7 +402,7 @@ export const useStore = create((set, get) => ({
   },
 
   // ─── Restore from draft (localStorage) ───
-  restoreFromDraft: (data) => set(s => ({
+  restoreFromDraft: (data) => set(_s => ({
     ...data,
     maxStep: data.step || 0,
   })),

@@ -11,7 +11,7 @@ const draft = localStorage.getItem('pinhead_draft');
 if (draft) {
   try {
     useStore.getState().restoreFromDraft(JSON.parse(draft));
-  } catch (e) {
+  } catch {
     localStorage.removeItem('pinhead_draft');
   }
 }

@@ -5,7 +5,7 @@ import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
-import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount, getPrices } from '../../utils/pricing';
+import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount } from '../../utils/pricing';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
