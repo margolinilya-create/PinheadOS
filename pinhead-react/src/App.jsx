@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import './styles/index.css'
 import { Agentation } from 'agentation'
@@ -44,17 +44,29 @@ function RoleGuard({ allowed, children }) {
   return children;
 }
 
-function App() {
-  const { user, loading, init } = useAuthStore();
-  useEffect(() => { init(); }, [init]);
+function LoadingScreen() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--text-dim)' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid var(--border)', borderTopColor: 'var(--accent, #333)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <span style={{ fontSize: 14 }}>Загрузка...</span>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, fontSize: 14, color: 'var(--text-dim)' }}>
-        <span style={{ fontSize: 32 }}>✳</span>
-        <span>Загрузка...</span>
-      </div>
-    );
+function App() {
+  const { user, loading: authLoading, init } = useAuthStore();
+  const [catalogsReady, setCatalogsReady] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      init(),
+      useStore.getState().loadCatalogs(),
+    ]).finally(() => setCatalogsReady(true));
+  }, [init]);
+
+  if (authLoading || !catalogsReady) {
+    return <LoadingScreen />;
   }
 
   if (!user) return <AuthScreen />;
