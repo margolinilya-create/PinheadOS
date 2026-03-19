@@ -6,6 +6,18 @@ import { useStore } from '../../store/useStore';
 // Mock pricing
 vi.mock('../../utils/pricing', () => ({
   hasNoPrint: vi.fn((type) => type === 'shopper'),
+  getZoneSurcharge: vi.fn(() => 490),
+  getTotalQty: vi.fn(() => 100),
+  TECH_TABS: [
+    { key: 'screen', label: 'Шелкография' },
+    { key: 'flex', label: 'Flex' },
+    { key: 'dtg', label: 'DTG' },
+    { key: 'embroidery', label: 'Вышивка' },
+    { key: 'dtf', label: 'DTF' },
+  ],
+  SCREEN_FX: [{ key: 'none', label: 'Нет', mult: 1 }],
+  FLEX_FORMATS: ['A6', 'A5', 'A4', 'A3'],
+  FLEX_MAX_COLORS: 3,
 }));
 
 beforeEach(() => {
@@ -38,22 +50,47 @@ describe('StepDesign', () => {
     expect(screen.getByText(/Сначала выберите/)).toBeInTheDocument();
   });
 
-  it('renders zone cards', () => {
+  it('renders zone cards including disabled ones', () => {
     render(<StepDesign />);
-    // ZONE_LABELS is imported from data
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
+    const zoneCards = document.querySelectorAll('.zone-card');
+    // ALL_ZONES has 5 zones, sku.zones has 2 available
+    expect(zoneCards.length).toBe(5);
+    const disabled = document.querySelectorAll('.zone-card.disabled');
+    expect(disabled.length).toBe(3);
   });
 
-  it('calls toggleZone when clicking a zone', () => {
+  it('disabled zone has tooltip', () => {
+    render(<StepDesign />);
+    const disabled = document.querySelector('.zone-card.disabled');
+    expect(disabled.getAttribute('title')).toBe('Недоступно для этого изделия');
+  });
+
+  it('calls toggleZone when clicking available zone', () => {
     const toggleZone = vi.fn();
     useStore.setState({ toggleZone });
     render(<StepDesign />);
-    // Click on a zone card
-    const zoneCards = document.querySelectorAll('.zone-card');
-    if (zoneCards.length > 0) {
-      fireEvent.click(zoneCards[0]);
+    const available = document.querySelectorAll('.zone-card:not(.disabled)');
+    if (available.length > 0) {
+      fireEvent.click(available[0]);
       expect(toggleZone).toHaveBeenCalled();
     }
+  });
+
+  it('does not call toggleZone when clicking disabled zone', () => {
+    const toggleZone = vi.fn();
+    useStore.setState({ toggleZone });
+    render(<StepDesign />);
+    const disabled = document.querySelector('.zone-card.disabled');
+    fireEvent.click(disabled);
+    expect(toggleZone).not.toHaveBeenCalled();
+  });
+
+  it('shows mini-summary on active zone', () => {
+    useStore.setState({ zones: ['front'] });
+    render(<StepDesign />);
+    const summary = document.querySelector('.zone-mini-summary');
+    expect(summary).toBeTruthy();
+    expect(summary.textContent).toContain('+490 ₽');
   });
 
   it('shows no-print button', () => {

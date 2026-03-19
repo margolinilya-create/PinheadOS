@@ -1,14 +1,48 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
-import { ZONE_LABELS } from '../../data';
-import { hasNoPrint } from '../../utils/pricing';
+import { ZONE_LABELS, TECH_NAMES } from '../../data';
+import { hasNoPrint, getZoneSurcharge } from '../../utils/pricing';
 import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
 import ZoneMockup from './ZoneMockup';
 
+const ALL_ZONES = ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'];
+
+const SHORT_TECH = { screen: 'Шелко', flex: 'Flex', dtg: 'DTG', embroidery: 'Выш.', dtf: 'DTF' };
+
+function getZoneMiniSummary(zone, state) {
+  const tech = state.zoneTechs?.[zone] || 'screen';
+  const surcharge = getZoneSurcharge(zone, state);
+  const label = SHORT_TECH[tech] || TECH_NAMES[tech] || tech;
+  let fmt = '';
+  let colors = '';
+  if (tech === 'screen') {
+    const p = state.zonePrints?.[zone] || { colors: 1, size: 'A4' };
+    fmt = p.size || 'A4';
+    colors = `${p.colors || 1}цв.`;
+  } else if (tech === 'flex') {
+    const p = state.flexZones?.[zone] || { colors: 1, size: 'A4' };
+    fmt = p.size || 'A4';
+    colors = `${p.colors || 1}цв.`;
+  } else if (tech === 'dtg') {
+    const p = state.dtgZones?.[zone] || { size: 'A4' };
+    fmt = p.size || 'A4';
+  } else if (tech === 'embroidery') {
+    const p = state.embZones?.[zone] || { colors: 3, area: 's' };
+    fmt = (p.area || 's').toUpperCase();
+    colors = `${p.colors || 3}цв.`;
+  } else if (tech === 'dtf') {
+    const p = state.dtfZones?.[zone] || { size: 'A4' };
+    fmt = p.size || 'A4';
+  }
+  const parts = [label, fmt, colors, `+${surcharge} ₽`].filter(Boolean);
+  return parts.join(' · ');
+}
+
 export default function StepDesign() {
+  const store = useStore();
   const { sku, type, color, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
-    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones } = useStore();
+    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones } = store;
   const [screenConfirmed, setScreenConfirmed] = useState(false);
 
   if (!sku) {
@@ -16,6 +50,7 @@ export default function StepDesign() {
   }
 
   const availableZones = sku.zones || [];
+  const displayZones = ALL_ZONES.filter(z => availableZones.includes(z) || ALL_ZONES.includes(z));
   const noPrintType = hasNoPrint(type);
 
   return (
@@ -33,19 +68,26 @@ export default function StepDesign() {
           <div className="design-layout">
             <div className="design-zones-col">
               <div className="zones-grid">
-                {availableZones.map(z => (
-                  <div
-                    key={z}
-                    className={`zone-card${zones.includes(z) ? ' selected' : ''}`}
-                    onClick={() => toggleZone(z)}
-                  >
-                    <div className="zone-bar" />
-                    <div className="zone-card-inner">
-                      <div className="zone-label">{ZONE_LABELS[z] || z}</div>
+                {displayZones.map(z => {
+                  const available = availableZones.includes(z);
+                  const active = zones.includes(z);
+                  const cls = `zone-card${active ? ' selected' : ''}${!available ? ' disabled' : ''}`;
+                  return (
+                    <div
+                      key={z}
+                      className={cls}
+                      onClick={() => available && toggleZone(z)}
+                      title={!available ? 'Недоступно для этого изделия' : undefined}
+                    >
+                      <div className="zone-bar" />
+                      <div className="zone-card-inner">
+                        <div className="zone-label">{ZONE_LABELS[z] || z}</div>
+                        {active && <div className="zone-mini-summary">{getZoneMiniSummary(z, store)}</div>}
+                      </div>
+                      <div className="zone-check">{active ? '✓' : ''}</div>
                     </div>
-                    <div className="zone-check">{zones.includes(z) ? '✓' : ''}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="no-print-wrap">
@@ -77,7 +119,12 @@ export default function StepDesign() {
             <>
               <div className="section-label" style={{ marginTop: 24 }}>Техника нанесения по зонам</div>
               <div className="zone-tech-blocks">
-                {zones.map(z => <ZoneTechBlock key={z} zone={z} />)}
+                {zones.map(z => (
+                  <div key={z}>
+                    <ZoneTechBlock zone={z} />
+                    <div className="zone-tech-summary">{getZoneMiniSummary(z, store)}</div>
+                  </div>
+                ))}
               </div>
             </>
           )}
