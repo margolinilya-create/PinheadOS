@@ -2,6 +2,7 @@
 // Zustand store — глобальное состояние заказа
 // ═══════════════════════════════════════════
 import { create } from 'zustand';
+import { supabase } from '../lib/supabase';
 import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, SIZES } from '../data';
 
 // Начальные размеры {2XS:0, XS:0, ...}
@@ -376,6 +377,36 @@ export const useStore = create((set, get) => ({
       packOption: d.packOption || false,
       urgentOption: d.urgentOption || false,
     });
+  },
+
+  // ─── Load catalogs from Supabase / localStorage ───
+  loadCatalogs: async () => {
+    const patch = {};
+    // localStorage catalogs
+    try {
+      const sku = localStorage.getItem('ph_sku');
+      if (sku) patch.skuCatalog = JSON.parse(sku);
+      const fab = localStorage.getItem('ph_fabrics');
+      if (fab) patch.fabricsCatalog = JSON.parse(fab);
+      const trim = localStorage.getItem('ph_trims');
+      if (trim) patch.trimCatalog = JSON.parse(trim);
+      const ext = localStorage.getItem('ph_extras');
+      if (ext) patch.extrasCatalog = JSON.parse(ext);
+      const rate = localStorage.getItem('ph_usd_rate');
+      if (rate) patch.usdRate = parseFloat(rate) || 92;
+    } catch { /* ignore parse errors */ }
+    // Supabase catalog (overrides localStorage if present)
+    try {
+      const { data } = await supabase.from('app_config').select('key, value').in('key', ['sku_catalog']);
+      if (data) {
+        for (const row of data) {
+          if (row.key === 'sku_catalog' && Array.isArray(row.value)) {
+            patch.skuCatalog = row.value;
+          }
+        }
+      }
+    } catch { /* Supabase offline — use localStorage/defaults */ }
+    if (Object.keys(patch).length > 0) set(patch);
   },
 
   // ─── Restore from draft (localStorage) ───
