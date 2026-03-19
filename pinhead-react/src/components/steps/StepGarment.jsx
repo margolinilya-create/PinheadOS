@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
+import { supabase } from '../../lib/supabase';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES, FABRICS_LAYER1, FABRICS_LAYER2 } from '../../data';
@@ -31,10 +32,32 @@ function SkuList() {
   filtered.forEach(s => { if (!groups[s.category]) groups[s.category] = []; groups[s.category].push(s); });
   const catOrder = SKU_CATEGORIES.map(c => c.id);
 
-  const onDragStart = (e, code) => { dragRef.current = code; e.dataTransfer.effectAllowed = 'move'; };
+  const onDragStart = (e, code) => {
+    dragRef.current = code;
+    e.dataTransfer.effectAllowed = 'move';
+    // Уменьшить ghost-image для наглядности
+    if (e.target && e.dataTransfer.setDragImage) {
+      e.dataTransfer.setDragImage(e.target, 20, 20);
+    }
+  };
   const onDragEnd = () => { dragRef.current = null; setDragOver(null); };
   const onDragOverRow = (e, code) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(code); };
-  const onDropRow = (e, code) => { e.preventDefault(); setDragOver(null); if (dragRef.current && dragRef.current !== code) reorderSku(dragRef.current, code); };
+  const onDragLeaveRow = () => { setDragOver(null); };
+  const onDropRow = (e, code) => {
+    e.preventDefault();
+    setDragOver(null);
+    if (dragRef.current && dragRef.current !== code) {
+      reorderSku(dragRef.current, code);
+      // Сохранить новый порядок в localStorage + Supabase
+      try {
+        const updated = useStore.getState().skuCatalog;
+        localStorage.setItem('ph_sku', JSON.stringify(updated));
+        supabase.from('app_config')
+          .upsert({ key: 'sku_catalog', value: updated, updated_at: new Date().toISOString() })
+          .then(() => {});
+      } catch { /* ignore */ }
+    }
+  };
 
   return (
     <div className="sku-section">
@@ -67,6 +90,7 @@ function SkuList() {
                     onDragStart={e => onDragStart(e, s.code)}
                     onDragEnd={onDragEnd}
                     onDragOver={e => onDragOverRow(e, s.code)}
+                    onDragLeave={onDragLeaveRow}
                     onDrop={e => onDropRow(e, s.code)}
                     onClick={() => selectSku(s)}
                   >
