@@ -107,8 +107,8 @@
   .pp-page            { padding: 32px 24px; margin: 16px 12px; }
   .pp-table th        { font-size: 9px; padding: 4px 6px; }
   .pp-table td        { padding: 4px 6px; }
-  .kanban-board       { flex-direction: column; }
-  .kanban-col         { min-width: 100%; flex: none; }
+  .kanban-board       { -webkit-overflow-scrolling: touch; }
+  .kanban-col         { min-width: 280px; flex: 0 0 280px; }
   .kb-search          { width: 100%; }
   .kanban-filter-bar  { flex-wrap: wrap; }
   .kanban-stats-bar   { flex-wrap: wrap; }

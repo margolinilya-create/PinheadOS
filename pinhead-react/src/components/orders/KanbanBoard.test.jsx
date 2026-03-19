@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import KanbanBoard from './KanbanBoard';
 import { useOrdersStore } from '../../store/useOrdersStore';
@@ -102,5 +102,66 @@ describe('KanbanBoard', () => {
     });
     renderKanban();
     expect(screen.getByText(/заказов/)).toBeInTheDocument();
+  });
+
+  it('shows type filter select', () => {
+    renderKanban();
+    const filter = screen.getByTestId('type-filter');
+    expect(filter).toBeInTheDocument();
+    expect(filter.value).toBe('');
+  });
+
+  it('populates type filter with order types', () => {
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { items: [{ type: 'tee' }] }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+        { id: 2, order_number: 'PH-0002', status: 'review', data: { items: [{ type: 'hoodie' }] }, total_qty: 5, total_sum: 3000, created_at: new Date().toISOString() },
+      ],
+    });
+    renderKanban();
+    const filter = screen.getByTestId('type-filter');
+    const options = filter.querySelectorAll('option');
+    expect(options.length).toBe(3); // "Все типы" + tee + hoodie
+  });
+
+  it('filters orders by type when selected', () => {
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', items: [{ type: 'tee' }] }, item_type: 'tee', total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+        { id: 2, order_number: 'PH-0002', status: 'draft', data: { name: 'Bob', items: [{ type: 'hoodie' }] }, item_type: 'hoodie', total_qty: 5, total_sum: 3000, created_at: new Date().toISOString() },
+      ],
+    });
+    renderKanban();
+    const filter = screen.getByTestId('type-filter');
+    fireEvent.change(filter, { target: { value: 'tee' } });
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+  });
+
+  it('shows deadline badge on card with deadline', () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', deadline: tomorrow.toISOString().slice(0, 10) }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+      ],
+    });
+    renderKanban();
+    const badge = document.querySelector('.kb-deadline-badge');
+    expect(badge).toBeTruthy();
+  });
+
+  it('shows overdue badge for past deadlines', () => {
+    const past = new Date();
+    past.setDate(past.getDate() - 2);
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', deadline: past.toISOString().slice(0, 10) }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+      ],
+    });
+    renderKanban();
+    const badge = document.querySelector('.kb-deadline-badge');
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain('ПРОСРОЧЕН');
   });
 });

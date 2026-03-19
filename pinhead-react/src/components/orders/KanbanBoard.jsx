@@ -239,6 +239,9 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
   );
 }
 
+/* ── Final statuses that require confirmation ── */
+const FINAL_STATUSES = ['done'];
+
 /* ── Main Component ── */
 export default function KanbanBoard() {
   const navigate = useNavigate();
@@ -247,8 +250,20 @@ export default function KanbanBoard() {
   const loadOrder = useStore(s => s.loadOrder);
 
   const [drawerOrder, setDrawerOrder] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('');
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  // Collect unique item types from orders for the filter
+  const availableTypes = useMemo(() => {
+    const types = new Set();
+    for (const o of orders) {
+      const items = o.data?.items;
+      const t = items?.length > 0 ? items[0].type : (o.item_type || '');
+      if (t) types.add(t);
+    }
+    return [...types].sort();
+  }, [orders]);
 
   // Build columns — all statuses, sorted by date desc
   const columns = useMemo(() => {
@@ -258,12 +273,19 @@ export default function KanbanBoard() {
     let list = orders;
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = orders.filter(o =>
+      list = list.filter(o =>
         (o.order_number || '').toLowerCase().includes(q) ||
         (o.data?.name || '').toLowerCase().includes(q) ||
         (o.item_type || '').toLowerCase().includes(q) ||
         (o.bitrix_deal || '').toLowerCase().includes(q)
       );
+    }
+    if (typeFilter) {
+      list = list.filter(o => {
+        const items = o.data?.items;
+        const t = items?.length > 0 ? items[0].type : (o.item_type || '');
+        return t === typeFilter;
+      });
     }
 
     for (const o of list) {
@@ -275,7 +297,7 @@ export default function KanbanBoard() {
       cols[s].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
     return cols;
-  }, [orders, search]);
+  }, [orders, search, typeFilter]);
 
   const totalQty = orders.reduce((s, o) => s + (o.total_qty || 0), 0);
   const totalSum = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
@@ -292,6 +314,11 @@ export default function KanbanBoard() {
     const id = Number(orderId) || orderId;
     const order = orders.find(o => String(o.id) === String(orderId));
     if (order && order.status !== status) {
+      // Confirm final status transitions
+      if (FINAL_STATUSES.includes(status)) {
+        const confirmed = window.confirm(`Перевести заказ в статус «${STATUS_LABELS[status]}»?`);
+        if (!confirmed) return;
+      }
       const { error } = await updateStatus(id, status);
       if (error) {
         toast.error('Ошибка сохранения статуса');
@@ -344,6 +371,17 @@ export default function KanbanBoard() {
           <h1 className="sku-ed-title">ЗАКАЗЫ</h1>
         </div>
         <div className="sku-ed-header-right">
+          <select
+            className="kb-type-filter"
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            data-testid="type-filter"
+          >
+            <option value="">Все типы</option>
+            {availableTypes.map(t => (
+              <option key={t} value={t}>{TYPE_NAMES[t] || t}</option>
+            ))}
+          </select>
           <input
             className="kb-search"
             placeholder="Поиск..."
