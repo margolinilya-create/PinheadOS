@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "seed": "node scripts/seed-catalog.js"
+    "seed": "node scripts/seed-catalog.js",
+    "seed:sql": "node scripts/generate-seed-sql.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
