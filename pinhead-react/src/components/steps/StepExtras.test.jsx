@@ -85,4 +85,42 @@ describe('StepExtras', () => {
     fireEvent.click(screen.getByText('Далее'));
     expect(nextStep).toHaveBeenCalled();
   });
+
+  it('shows price badge on each extra card', () => {
+    useStore.setState({ sku: { code: 'test', name: 'Test', category: 'tshirts' } });
+    render(<StepExtras />);
+    const prices = document.querySelectorAll('.extra-price');
+    expect(prices.length).toBeGreaterThan(0);
+    expect(prices[0].textContent).toContain('₽');
+  });
+
+  it('shows tooltip with description on card', () => {
+    useStore.setState({ sku: { code: 'test', name: 'Test', category: 'tshirts' } });
+    render(<StepExtras />);
+    const card = document.querySelector('.extra-card');
+    expect(card.getAttribute('title')).toBeTruthy();
+  });
+
+  it('expands description when card is selected', () => {
+    useStore.setState({
+      sku: { code: 'test', name: 'Test', category: 'tshirts' },
+      extras: ['double-stitch'],
+      extrasCatalog: [
+        { code: 'double-stitch', name: 'Двойная отстрочка', price: 30, forCategories: ['tshirts'] },
+      ],
+    });
+    render(<StepExtras />);
+    const desc = document.querySelector('.extra-desc.expanded');
+    expect(desc).toBeTruthy();
+  });
+
+  it('shows live total line', () => {
+    useStore.setState({
+      sku: { code: 'test', name: 'Test', category: 'tshirts' },
+      extras: ['ex1'],
+    });
+    render(<StepExtras />);
+    const total = screen.getByTestId('extras-total-live');
+    expect(total.textContent).toContain('+50');
+  });
 });
