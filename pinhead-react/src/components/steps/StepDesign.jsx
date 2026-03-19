@@ -4,10 +4,11 @@ import { ZONE_LABELS } from '../../data';
 import { hasNoPrint } from '../../utils/pricing';
 import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
+import ZoneMockup from './ZoneMockup';
 
 export default function StepDesign() {
-  const { sku, type, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
-    sizes, customSizes, zoneTechs } = useStore();
+  const { sku, type, color, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
+    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones } = useStore();
   const [screenConfirmed, setScreenConfirmed] = useState(false);
 
   if (!sku) {
@@ -29,27 +30,47 @@ export default function StepDesign() {
       ) : (
         <>
           <div className="section-label">Зоны нанесения</div>
-          <div className="zones-grid">
-            {availableZones.map(z => (
-              <div
-                key={z}
-                className={`zone-card${zones.includes(z) ? ' selected' : ''}`}
-                onClick={() => toggleZone(z)}
-              >
-                <div className="zone-bar" />
-                <div className="zone-card-inner">
-                  <div className="zone-label">{ZONE_LABELS[z] || z}</div>
-                </div>
-                <div className="zone-check">{zones.includes(z) ? '✓' : ''}</div>
+          <div className="design-layout">
+            <div className="design-zones-col">
+              <div className="zones-grid">
+                {availableZones.map(z => (
+                  <div
+                    key={z}
+                    className={`zone-card${zones.includes(z) ? ' selected' : ''}`}
+                    onClick={() => toggleZone(z)}
+                  >
+                    <div className="zone-bar" />
+                    <div className="zone-card-inner">
+                      <div className="zone-label">{ZONE_LABELS[z] || z}</div>
+                    </div>
+                    <div className="zone-check">{zones.includes(z) ? '✓' : ''}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <div className="no-print-wrap">
-            <button className={`no-print-btn${noPrint ? ' active' : ''}`} onClick={toggleNoPrint}>
-              <span className="no-print-check">{noPrint ? '✓' : ''}</span>
-              Без нанесения
-            </button>
+              <div className="no-print-wrap">
+                <button className={`no-print-btn${noPrint ? ' active' : ''}`} onClick={toggleNoPrint}>
+                  <span className="no-print-check">{noPrint ? '✓' : ''}</span>
+                  Без нанесения
+                </button>
+              </div>
+            </div>
+
+            <div className="design-mockup-col">
+              <ZoneMockup
+                garmentType={sku.mockupType || type}
+                activeZones={zones}
+                onZoneClick={toggleZone}
+                availableZones={availableZones}
+                color={color}
+                zoneTechs={zoneTechs}
+                zonePrints={zonePrints}
+                flexZones={flexZones}
+                dtgZones={dtgZones}
+                embZones={embZones}
+                dtfZones={dtfZones}
+              />
+            </div>
           </div>
 
           {zones.length > 0 && !noPrint && (
