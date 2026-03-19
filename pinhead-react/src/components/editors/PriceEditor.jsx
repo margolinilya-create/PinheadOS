@@ -1,6 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PRICES } from '../../data/prices';
+import { supabase } from '../../lib/supabase';
+import { toast } from '../../store/useToastStore';
+import { invalidatePricesCache } from '../../utils/pricing';
 
 const STORAGE_KEY = 'ph_prices';
 const HISTORY_KEY = 'ph_price_history';
@@ -21,9 +24,32 @@ function clonePrices() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return JSON.parse(stored);
   } catch { /* ignore parse errors */ }
+  return defaultPrices();
+}
+
+function defaultPrices() {
   const base = JSON.parse(JSON.stringify(PRICES));
   if (!base.flexMatrix) base.flexMatrix = JSON.parse(JSON.stringify(DEFAULT_FLEX_MATRIX));
   return base;
+}
+
+async function loadPricesFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'prices')
+      .single();
+    if (!error && data?.value) return data.value;
+  } catch { /* Supabase unavailable — use local */ }
+  return null;
+}
+
+async function savePricesToSupabase(prices) {
+  const { error } = await supabase
+    .from('app_config')
+    .upsert({ key: 'prices', value: prices, updated_at: new Date().toISOString() });
+  return !error;
 }
 
 function loadHistory() {
@@ -51,10 +77,33 @@ export default function PriceEditor() {
   const [prices, setPrices] = useState(clonePrices);
   const [history, setHistory] = useState(loadHistory);
   const [changed, setChanged] = useState(0);
+  const [saving, setSaving] = useState(false);
 
-  const save = useCallback(() => {
+  // При монтировании — попробовать загрузить из Supabase (актуальнее localStorage)
+  useEffect(() => {
+    loadPricesFromSupabase().then(remote => {
+      if (remote) {
+        setPrices(remote);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+      }
+    });
+  }, []);
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    // Всегда сохраняем в localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prices));
+    // Сбросить кеш pricing engine чтобы расчёты использовали новые цены
+    invalidatePricesCache();
+    // Пробуем сохранить в Supabase
+    const ok = await savePricesToSupabase(prices);
+    setSaving(false);
     setChanged(0);
+    if (ok) {
+      toast.success('Цены сохранены');
+    } else {
+      toast.warning('Сохранено локально (Supabase недоступен)');
+    }
   }, [prices]);
 
   const addHistory = (field, was, now) => {
@@ -138,13 +187,15 @@ export default function PriceEditor() {
     input.click();
   };
 
-  const reset = () => {
+  const reset = async () => {
     if (!confirm('Сбросить все цены к значениям по умолчанию?')) return;
-    const base = JSON.parse(JSON.stringify(PRICES));
-    if (!base.flexMatrix) base.flexMatrix = JSON.parse(JSON.stringify(DEFAULT_FLEX_MATRIX));
+    const base = defaultPrices();
     setPrices(base);
     localStorage.removeItem(STORAGE_KEY);
+    invalidatePricesCache();
+    await savePricesToSupabase(base);
     setChanged(0);
+    toast.success('Цены сброшены к умолчаниям');
   };
 
   /* ── Render helpers ── */
@@ -414,7 +465,7 @@ export default function PriceEditor() {
             <button className="btn" onClick={exportJSON}>Экспорт</button>
             <button className="btn" onClick={importJSON}>Импорт</button>
             <button className="btn" onClick={reset}>Сброс</button>
-            <button className="btn btn-primary" onClick={save}>Сохранить</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
             <button className="pe-close" onClick={onClose}>✕</button>
           </div>
         </div>

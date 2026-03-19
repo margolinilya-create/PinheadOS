@@ -4,7 +4,6 @@ import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { PRICES } from '../../data/prices';
 import { isAccessory, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';

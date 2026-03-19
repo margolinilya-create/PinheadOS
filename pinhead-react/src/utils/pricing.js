@@ -1,7 +1,26 @@
 // ═══════════════════════════════════════════
 // Pricing engine — чистые функции
 // ═══════════════════════════════════════════
-import { PRICES } from '../data';
+import { PRICES as DEFAULT_PRICES } from '../data';
+
+// Динамическое чтение цен: localStorage → дефолтные
+// PriceEditor сохраняет сюда, pricing engine читает отсюда
+let _cachedPrices = null;
+export function getPrices() {
+  if (_cachedPrices) return _cachedPrices;
+  try {
+    const stored = localStorage.getItem('ph_prices');
+    if (stored) {
+      _cachedPrices = JSON.parse(stored);
+      return _cachedPrices;
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_PRICES;
+}
+// Сбросить кеш (вызывать после сохранения в PriceEditor)
+export function invalidatePricesCache() {
+  _cachedPrices = null;
+}
 
 const ACCESSORY_TYPES = ['shopper', 'basecap', 'dad-cap', '5panel', 'socks'];
 export const isAccessory = (type) => ACCESSORY_TYPES.includes(type);
@@ -9,7 +28,6 @@ export const hasNoPrint = (type) => type === 'socks';
 
 // Screen printing lookup
 const SCREEN_QTY_TIERS = [50, 100, 300, 500, 700, 1000];
-const SCREEN_MATRIX = PRICES.screenMatrix;
 const SCREEN_MAX_COLORS = 8;
 const SCREEN_TEXTILE_MULT = 1.3;
 const SCREEN_FUTHER_MULT = 1.5;
@@ -46,7 +64,7 @@ export const TECH_TABS = [
 ];
 
 export function screenLookup(format, colors, qty) {
-  const fmt = SCREEN_MATRIX[format];
+  const fmt = getPrices().screenMatrix?.[format];
   if (!fmt) return 0;
   const c = Math.max(1, Math.min(SCREEN_MAX_COLORS, colors));
   const row = fmt[c];
@@ -94,17 +112,20 @@ export function getZoneSurcharge(zone, state) {
   if (tech === 'screen') return screenCalcZone(zone, state);
   if (tech === 'flex') return flexCalcZone(zone, state);
   if (tech === 'dtg') {
+    const P = getPrices();
     const p = state.dtgZones?.[zone] || { size: 'A4', textile: 'white' };
-    return (PRICES.tech.dtg || 280) + (PRICES.dtgFormatAdd?.[p.size] || 0) + (p.textile === 'color' ? (PRICES.dtgWhiteUnder || 60) : 0);
+    return (P.tech.dtg || 280) + (P.dtgFormatAdd?.[p.size] || 0) + (p.textile === 'color' ? (P.dtgWhiteUnder || 60) : 0);
   }
   if (tech === 'embroidery') {
+    const P = getPrices();
     const p = state.embZones?.[zone] || { colors: 3, area: 's' };
     const colors = parseInt(p.colors) || 3;
-    return (PRICES.tech.embroidery || 350) + (PRICES.embAreaAdd?.[p.area] || 0) + Math.max(0, colors - 1) * (PRICES.embColorAdd || 20);
+    return (P.tech.embroidery || 350) + (P.embAreaAdd?.[p.area] || 0) + Math.max(0, colors - 1) * (P.embColorAdd || 20);
   }
   if (tech === 'dtf') {
+    const P = getPrices();
     const p = state.dtfZones?.[zone] || { size: 'A4' };
-    return (PRICES.tech.dtf || 180) + (PRICES.dtfFormatAdd?.[p.size] || 0);
+    return (P.tech.dtf || 180) + (P.dtfFormatAdd?.[p.size] || 0);
   }
   return 0;
 }
@@ -153,8 +174,9 @@ export function getLabelConfigPrice(labelConfig) {
 
 // Скидка за объём тиража
 export function getVolumeDiscount(qty) {
-  const tiers = PRICES.volumeTiers || [];
-  const discounts = PRICES.volumeDiscounts || [];
+  const P = getPrices();
+  const tiers = P.volumeTiers || [];
+  const discounts = P.volumeDiscounts || [];
   let discount = 0;
   for (let i = tiers.length - 1; i >= 0; i--) {
     if (qty >= tiers[i]) { discount = discounts[i] || 0; break; }
@@ -170,9 +192,10 @@ export function calcTotal(state) {
   if (state.sku) {
     base = getSkuEstPrice(state.sku, state.fabricsCatalog, state.trimCatalog, state.usdRate);
   } else {
-    base = (PRICES.type[state.type] || 480)
-      + (!isAccessory(state.type) && PRICES.fit ? (PRICES.fit[state.fit || 'regular'] || 0) : 0)
-      + (PRICES.fabric[state.fabric] || 0);
+    const P = getPrices();
+    base = (P.type[state.type] || 480)
+      + (!isAccessory(state.type) && P.fit ? (P.fit[state.fit || 'regular'] || 0) : 0)
+      + (P.fabric[state.fabric] || 0);
   }
 
   // Применяем скидку за объём к базовой стоимости
@@ -188,8 +211,9 @@ export function calcTotal(state) {
   const techSurcharge = getTotalSurcharge(state);
   let unitPrice = Math.round(base + extrasCost + labelsCost + techSurcharge);
 
-  if (state.packOption) unitPrice += PRICES.pack || 0;
-  const urgentMult = state.urgentOption ? (PRICES.urgentMult || 0) : 0;
+  const P = getPrices();
+  if (state.packOption) unitPrice += P.pack || 0;
+  const urgentMult = state.urgentOption ? (P.urgentMult || 0) : 0;
 
   return Math.round(totalQty * unitPrice * (1 + urgentMult));
 }
