@@ -2,8 +2,15 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PRICES } from '../../data/prices';
 import { supabase } from '../../lib/supabase';
+import { useStore } from '../../store/useStore';
 import { toast } from '../../store/useToastStore';
 import { invalidatePricesCache } from '../../utils/pricing';
+
+async function fetchUsdRate() {
+  const res = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
+  const data = await res.json();
+  return Math.round(data.Valute.USD.Value * 100) / 100;
+}
 
 const STORAGE_KEY = 'ph_prices';
 const HISTORY_KEY = 'ph_price_history';
@@ -78,6 +85,7 @@ export default function PriceEditor() {
   const [history, setHistory] = useState(loadHistory);
   const [changed, setChanged] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [fetchingRate, setFetchingRate] = useState(false);
 
   // При монтировании — попробовать загрузить из Supabase (актуальнее localStorage)
   useEffect(() => {
@@ -185,6 +193,22 @@ export default function PriceEditor() {
       } catch { /* ignore parse errors */ }
     };
     input.click();
+  };
+
+  const handleFetchUsdRate = async () => {
+    const currentRate = useStore.getState().usdRate;
+    setFetchingRate(true);
+    try {
+      const rate = await fetchUsdRate();
+      useStore.getState().setField('usdRate', rate);
+      localStorage.setItem('ph_usd_rate', String(rate));
+      await savePricesToSupabase({ ...prices, usdRate: rate });
+      toast.success(`Курс обновлён: ${rate} \u20BD`);
+    } catch {
+      toast.error(`Не удалось обновить. Текущий: ${currentRate} \u20BD`);
+    } finally {
+      setFetchingRate(false);
+    }
   };
 
   const reset = async () => {
@@ -462,6 +486,9 @@ export default function PriceEditor() {
             {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
           </div>
           <div className="sku-ed-header-right">
+            <button className="btn" onClick={handleFetchUsdRate} disabled={fetchingRate}>
+              {fetchingRate ? 'Загрузка...' : 'Обновить курс ЦБ РФ'}
+            </button>
             <button className="btn" onClick={exportJSON}>Экспорт</button>
             <button className="btn" onClick={importJSON}>Импорт</button>
             <button className="btn" onClick={reset}>Сброс</button>
