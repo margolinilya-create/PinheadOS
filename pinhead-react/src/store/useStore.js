@@ -3,7 +3,8 @@
 // ═══════════════════════════════════════════
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, SIZES } from '../data';
+import { loadAllCatalogs } from '../lib/catalogs';
+import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, SIZES } from '../data';
 
 // Начальные размеры {2XS:0, XS:0, ...}
 const initSizes = () => Object.fromEntries(SIZES.map(s => [s, 0]));
@@ -83,7 +84,8 @@ const initialState = {
   name: '', contact: '', email: '', deadline: '', address: '', notes: '',
   packOption: false, urgentOption: false,
 
-  // Редактируемые каталоги (загружаются из localStorage)
+  // Каталоги (загружаются из Supabase, fallback на JS-файлы)
+  prices: PRICES,
   skuCatalog: SKU_CATALOG_DEFAULT,
   fabricsCatalog: FABRICS_CATALOG_DEFAULT,
   trimCatalog: TRIM_CATALOG_DEFAULT,
@@ -379,33 +381,24 @@ export const useStore = create((set, get) => ({
     });
   },
 
-  // ─── Load catalogs from Supabase / localStorage ───
+  // ─── Load catalogs from Supabase (catalog_config) with JS fallback ───
   loadCatalogs: async () => {
     const patch = {};
-    // localStorage catalogs
     try {
-      const sku = localStorage.getItem('ph_sku');
-      if (sku) patch.skuCatalog = JSON.parse(sku);
-      const fab = localStorage.getItem('ph_fabrics');
-      if (fab) patch.fabricsCatalog = JSON.parse(fab);
-      const trim = localStorage.getItem('ph_trims');
-      if (trim) patch.trimCatalog = JSON.parse(trim);
-      const ext = localStorage.getItem('ph_extras');
-      if (ext) patch.extrasCatalog = JSON.parse(ext);
-      const rate = localStorage.getItem('ph_usd_rate');
-      if (rate) patch.usdRate = parseFloat(rate) || 92;
-    } catch { /* ignore parse errors */ }
-    // Supabase catalog (overrides localStorage if present)
-    try {
-      const { data } = await supabase.from('app_config').select('key, value').in('key', ['sku_catalog']);
-      if (data) {
-        for (const row of data) {
-          if (row.key === 'sku_catalog' && Array.isArray(row.value)) {
-            patch.skuCatalog = row.value;
-          }
-        }
-      }
-    } catch { /* Supabase offline — use localStorage/defaults */ }
+      const catalogs = await loadAllCatalogs();
+      if (catalogs.prices) patch.prices = catalogs.prices;
+      if (catalogs.skuCatalog) patch.skuCatalog = catalogs.skuCatalog;
+      if (catalogs.fabricsCatalog) patch.fabricsCatalog = catalogs.fabricsCatalog;
+      if (catalogs.extrasCatalog) patch.extrasCatalog = catalogs.extrasCatalog;
+      if (catalogs.labelsCatalog) patch.labelsCatalog = catalogs.labelsCatalog;
+    } catch {
+      // Supabase недоступен — fallback на импорты из src/data/
+      patch.prices = PRICES;
+      patch.skuCatalog = SKU_CATALOG_DEFAULT;
+      patch.fabricsCatalog = FABRICS_CATALOG_DEFAULT;
+      patch.extrasCatalog = EXTRAS_CATALOG_DEFAULT;
+      patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
+    }
     if (Object.keys(patch).length > 0) set(patch);
   },
 
@@ -418,7 +411,7 @@ export const useStore = create((set, get) => ({
   // ─── Reset ───
   resetOrder: () => {
     localStorage.removeItem('pinhead_draft');
-    set({ ...initialState, skuCatalog: get().skuCatalog, fabricsCatalog: get().fabricsCatalog, trimCatalog: get().trimCatalog, extrasCatalog: get().extrasCatalog, labelsCatalog: get().labelsCatalog, usdRate: get().usdRate });
+    set({ ...initialState, prices: get().prices, skuCatalog: get().skuCatalog, fabricsCatalog: get().fabricsCatalog, trimCatalog: get().trimCatalog, extrasCatalog: get().extrasCatalog, labelsCatalog: get().labelsCatalog, usdRate: get().usdRate });
   },
 }));
 
