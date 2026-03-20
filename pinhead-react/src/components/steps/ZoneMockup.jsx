@@ -2,40 +2,98 @@ import { useMemo } from 'react';
 import { getGarmentSVG } from '../../utils/mockup';
 import { ZONE_LABELS, TECH_NAMES } from '../../data';
 
-// Позиции зон на мокапе (% от размера SVG)
-// Каждый тип изделия может иметь свои координаты
+// Соотношение сторон SVG-мокапов (width / height из viewBox)
+const GARMENT_ASPECT = {
+  tee:         3099 / 2693,
+  longsleeve:  3926 / 2693,
+  polo:        3747 / 2693,
+  sweat:       3926 / 2693,
+  hoodie:      3714 / 3067,
+  'zip-hoodie':3714 / 3067,
+  shopper:     2834.7 / 2480.3,
+  tank:        220 / 250,
+  'half-zip':  220 / 255,
+  pants:       220 / 290,
+  shorts:      220 / 200,
+};
+
+// Позиции зон на мокапе (% от размера SVG-контента)
 const ZONE_POSITIONS = {
-  // Базовые позиции для торсовых изделий (tee, longsleeve, sweat, polo)
   _default: {
-    front:         { top: 25, left: 20, width: 60, height: 45 },
-    back:          { top: 25, left: 20, width: 60, height: 45 },
-    chest:         { top: 25, left: 20, width: 60, height: 45 },
-    'sleeve-l':    { top: 18, left: 0,  width: 22, height: 30 },
-    'sleeve-r':    { top: 18, left: 78, width: 22, height: 30 },
-    'left-sleeve': { top: 18, left: 0,  width: 22, height: 30 },
-    'right-sleeve':{ top: 18, left: 78, width: 22, height: 30 },
-    hood:          { top: 0,  left: 25, width: 50, height: 18 },
-    pocket:        { top: 55, left: 30, width: 40, height: 18 },
+    front:         { top: 28, left: 28, width: 44, height: 38 },
+    back:          { top: 28, left: 28, width: 44, height: 38 },
+    chest:         { top: 28, left: 28, width: 44, height: 38 },
+    'sleeve-l':    { top: 16, left: 4,  width: 20, height: 28 },
+    'sleeve-r':    { top: 16, left: 76, width: 20, height: 28 },
+    'left-sleeve': { top: 16, left: 4,  width: 20, height: 28 },
+    'right-sleeve':{ top: 16, left: 76, width: 20, height: 28 },
+    hood:          { top: 0,  left: 30, width: 40, height: 16 },
+    pocket:        { top: 58, left: 34, width: 32, height: 14 },
+  },
+  tee: {
+    front:         { top: 25, left: 30, width: 40, height: 40 },
+    back:          { top: 25, left: 30, width: 40, height: 40 },
+    chest:         { top: 25, left: 30, width: 40, height: 40 },
+    'sleeve-l':    { top: 14, left: 6,  width: 20, height: 26 },
+    'sleeve-r':    { top: 14, left: 74, width: 20, height: 26 },
+    'left-sleeve': { top: 14, left: 6,  width: 20, height: 26 },
+    'right-sleeve':{ top: 14, left: 74, width: 20, height: 26 },
+  },
+  longsleeve: {
+    front:         { top: 26, left: 30, width: 40, height: 42 },
+    back:          { top: 26, left: 30, width: 40, height: 42 },
+    chest:         { top: 26, left: 30, width: 40, height: 42 },
+    'sleeve-l':    { top: 18, left: 2,  width: 24, height: 48 },
+    'sleeve-r':    { top: 18, left: 74, width: 24, height: 48 },
+    'left-sleeve': { top: 18, left: 2,  width: 24, height: 48 },
+    'right-sleeve':{ top: 18, left: 74, width: 24, height: 48 },
+  },
+  polo: {
+    front:         { top: 26, left: 30, width: 40, height: 42 },
+    back:          { top: 26, left: 30, width: 40, height: 42 },
+    chest:         { top: 26, left: 30, width: 40, height: 42 },
+    'sleeve-l':    { top: 16, left: 4,  width: 22, height: 28 },
+    'sleeve-r':    { top: 16, left: 74, width: 22, height: 28 },
+    'left-sleeve': { top: 16, left: 4,  width: 22, height: 28 },
+    'right-sleeve':{ top: 16, left: 74, width: 22, height: 28 },
+  },
+  sweat: {
+    front:         { top: 26, left: 30, width: 40, height: 42 },
+    back:          { top: 26, left: 30, width: 40, height: 42 },
+    chest:         { top: 26, left: 30, width: 40, height: 42 },
+    'sleeve-l':    { top: 18, left: 2,  width: 24, height: 48 },
+    'sleeve-r':    { top: 18, left: 74, width: 24, height: 48 },
+    'left-sleeve': { top: 18, left: 2,  width: 24, height: 48 },
+    'right-sleeve':{ top: 18, left: 74, width: 24, height: 48 },
   },
   hoodie: {
-    front:         { top: 30, left: 20, width: 60, height: 40 },
-    back:          { top: 30, left: 20, width: 60, height: 40 },
-    chest:         { top: 30, left: 20, width: 60, height: 40 },
-    'sleeve-l':    { top: 22, left: 0,  width: 22, height: 28 },
-    'sleeve-r':    { top: 22, left: 78, width: 22, height: 28 },
-    hood:          { top: 2,  left: 22, width: 56, height: 20 },
-    pocket:        { top: 58, left: 28, width: 44, height: 16 },
+    front:         { top: 30, left: 28, width: 44, height: 36 },
+    back:          { top: 30, left: 28, width: 44, height: 36 },
+    chest:         { top: 30, left: 28, width: 44, height: 36 },
+    'sleeve-l':    { top: 22, left: 2,  width: 22, height: 38 },
+    'sleeve-r':    { top: 22, left: 76, width: 22, height: 38 },
+    hood:          { top: 2,  left: 28, width: 44, height: 20 },
+    pocket:        { top: 60, left: 32, width: 36, height: 12 },
+  },
+  'zip-hoodie': {
+    front:         { top: 30, left: 28, width: 44, height: 36 },
+    back:          { top: 30, left: 28, width: 44, height: 36 },
+    chest:         { top: 30, left: 28, width: 44, height: 36 },
+    'sleeve-l':    { top: 22, left: 2,  width: 22, height: 38 },
+    'sleeve-r':    { top: 22, left: 76, width: 22, height: 38 },
+    hood:          { top: 2,  left: 28, width: 44, height: 20 },
+    pocket:        { top: 60, left: 32, width: 36, height: 12 },
   },
   shopper: {
-    front:         { top: 20, left: 10, width: 80, height: 60 },
-    back:          { top: 20, left: 10, width: 80, height: 60 },
-    'back-bag':    { top: 20, left: 10, width: 80, height: 60 },
-    'side-a':      { top: 20, left: 10, width: 80, height: 60 },
-    'side-b':      { top: 20, left: 10, width: 80, height: 60 },
+    front:         { top: 22, left: 15, width: 70, height: 55 },
+    back:          { top: 22, left: 15, width: 70, height: 55 },
+    'back-bag':    { top: 22, left: 15, width: 70, height: 55 },
+    'side-a':      { top: 22, left: 15, width: 70, height: 55 },
+    'side-b':      { top: 22, left: 15, width: 70, height: 55 },
   },
   tank: {
-    front:         { top: 20, left: 18, width: 64, height: 50 },
-    back:          { top: 20, left: 18, width: 64, height: 50 },
+    front:         { top: 22, left: 22, width: 56, height: 46 },
+    back:          { top: 22, left: 22, width: 56, height: 46 },
   },
 };
 
@@ -87,10 +145,11 @@ export default function ZoneMockup({ garmentType, activeZones, onZoneClick,
   }, [activeZones, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones]);
 
   const allZones = availableZones || [];
+  const aspect = GARMENT_ASPECT[garmentType] || 1;
 
   return (
     <div className="zm-wrap">
-      <div className="zm-mockup">
+      <div className="zm-mockup" style={{ aspectRatio: aspect }}>
         <div className="zm-svg" dangerouslySetInnerHTML={{ __html: svgMarkup }} />
         {allZones.map(z => {
           const pos = getZonePos(garmentType, z);

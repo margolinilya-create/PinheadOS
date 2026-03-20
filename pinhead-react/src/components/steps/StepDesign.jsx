@@ -74,6 +74,13 @@ export default function StepDesign() {
           <div className="section-label">Зоны нанесения</div>
           <div className="design-layout">
             <div className="design-zones-col">
+              <div className="no-print-wrap">
+                <button className={`no-print-btn${noPrint ? ' active' : ''}`} onClick={toggleNoPrint}>
+                  <span className="no-print-check">{noPrint ? '✓' : ''}</span>
+                  Без нанесения
+                </button>
+              </div>
+
               <div className="zones-grid">
                 {displayZones.map(z => {
                   const available = availableZones.includes(z);
@@ -95,13 +102,6 @@ export default function StepDesign() {
                     </div>
                   );
                 })}
-              </div>
-
-              <div className="no-print-wrap">
-                <button className={`no-print-btn${noPrint ? ' active' : ''}`} onClick={toggleNoPrint}>
-                  <span className="no-print-check">{noPrint ? '✓' : ''}</span>
-                  Без нанесения
-                </button>
               </div>
             </div>
 
