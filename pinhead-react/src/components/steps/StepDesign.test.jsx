@@ -53,8 +53,8 @@ describe('StepDesign', () => {
   it('renders zone cards including disabled ones', () => {
     render(<StepDesign />);
     const zoneCards = document.querySelectorAll('.zone-card');
-    // ALL_ZONES has 5 zones, sku.zones has 2 available
-    expect(zoneCards.length).toBe(5);
+    // ALL_ZONES has 5 zones + 1 "Без нанесения" card = 6
+    expect(zoneCards.length).toBe(6);
     const disabled = document.querySelectorAll('.zone-card.disabled');
     expect(disabled.length).toBe(3);
   });
@@ -69,7 +69,8 @@ describe('StepDesign', () => {
     const toggleZone = vi.fn();
     useStore.setState({ toggleZone });
     render(<StepDesign />);
-    const available = document.querySelectorAll('.zone-card:not(.disabled)');
+    // Skip noprint card (first), click first regular available zone
+    const available = document.querySelectorAll('.zone-card:not(.disabled):not(.zone-card-noprint)');
     if (available.length > 0) {
       fireEvent.click(available[0]);
       expect(toggleZone).toHaveBeenCalled();

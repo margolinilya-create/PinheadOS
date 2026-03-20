@@ -16,6 +16,8 @@ vi.mock('../../utils/mockup', () => ({
   getGarmentSVG: vi.fn(() => '<svg>mock</svg>'),
 }));
 
+const baseSku = { code: 'tee-001', name: 'T-Shirt', category: 'tshirts', fit: 'regular', zones: ['front'] };
+
 beforeEach(() => {
   useStore.setState({
     nextStep: vi.fn(),
@@ -25,9 +27,7 @@ beforeEach(() => {
     sku: null,
     sizes: {},
     customSizes: [],
-    skuCatalog: [
-      { code: 'tee-001', name: 'T-Shirt', category: 'tshirts', fit: 'regular', zones: ['front'] },
-    ],
+    skuCatalog: [baseSku],
     skuFilter: 'all',
     setSkuFilter: vi.fn(),
     selectSku: vi.fn(),
@@ -49,6 +49,16 @@ beforeEach(() => {
     fitChosen: false,
   });
 });
+
+// Helper: set state so all sections are visible (garment→fabric→color→sizes)
+const setFullState = () => {
+  useStore.setState({
+    sku: baseSku,
+    type: 'tee',
+    fabric: 'kulirnaya',
+    color: '01-01',
+  });
+};
 
 describe('StepGarment', () => {
   it('renders step header', () => {
@@ -72,13 +82,31 @@ describe('StepGarment', () => {
     expect(btn.className).toContain('disabled');
   });
 
-  it('renders sizes section', () => {
+  it('hides fabric section when no SKU selected', () => {
+    render(<StepGarment />);
+    expect(screen.queryByText('Ткань')).toBeNull();
+  });
+
+  it('hides color section when no fabric selected', () => {
+    useStore.setState({ sku: baseSku, type: 'tee' });
+    render(<StepGarment />);
+    expect(screen.queryByText('Цвет базы')).toBeNull();
+  });
+
+  it('hides sizes section when no color selected', () => {
+    useStore.setState({ sku: baseSku, type: 'tee', fabric: 'kulirnaya' });
+    render(<StepGarment />);
+    expect(screen.queryByText('Размеры')).toBeNull();
+  });
+
+  it('shows sizes section when color is selected', () => {
+    setFullState();
     render(<StepGarment />);
     expect(screen.getByText('Размеры')).toBeInTheDocument();
   });
 
-  it('renders supplier tabs when type is set', () => {
-    useStore.setState({ type: 'tee' });
+  it('renders supplier tabs when fabric is selected', () => {
+    useStore.setState({ sku: baseSku, type: 'tee', fabric: 'kulirnaya' });
     render(<StepGarment />);
     const tabs = document.querySelectorAll('.supplier-tab');
     expect(tabs.length).toBe(2);
@@ -87,7 +115,7 @@ describe('StepGarment', () => {
   });
 
   it('highlights active supplier tab', () => {
-    useStore.setState({ type: 'tee' });
+    useStore.setState({ sku: baseSku, type: 'tee', fabric: 'kulirnaya' });
     render(<StepGarment />);
     const activeTab = document.querySelector('.supplier-tab.active');
     expect(activeTab).toBeTruthy();
@@ -96,7 +124,7 @@ describe('StepGarment', () => {
 
   it('calls setColorSupplier when clicking supplier tab', () => {
     const setColorSupplier = vi.fn();
-    useStore.setState({ type: 'tee', setColorSupplier });
+    useStore.setState({ sku: baseSku, type: 'tee', fabric: 'kulirnaya', setColorSupplier });
     render(<StepGarment />);
     const tabs = document.querySelectorAll('.supplier-tab');
     fireEvent.click(tabs[1]);
@@ -107,7 +135,7 @@ describe('StepGarment', () => {
     useStore.setState({
       type: 'tee',
       fabric: 'kulirnaya',
-      sku: { code: 'tee-001', category: 'tshirts' },
+      sku: baseSku,
       fabricsCatalog: [
         { code: 'kulirnaya', name: 'Кулирка', priceUSD: 2.80, forCategories: ['tshirts'], supplier: 'Medastex' },
       ],
@@ -117,26 +145,27 @@ describe('StepGarment', () => {
   });
 
   it('renders size inputs with tabIndex for tab navigation', () => {
+    setFullState();
     render(<StepGarment />);
     const inputs = document.querySelectorAll('.size-table-desktop .qty-input[type="number"]');
     expect(inputs.length).toBeGreaterThan(0);
-    // First input should have a positive tabIndex
     expect(parseInt(inputs[0].getAttribute('tabindex'))).toBeGreaterThan(0);
   });
 
   it('disables sizes from sku.availableSizes', () => {
     useStore.setState({
-      sku: { code: 'tee-001', category: 'tshirts', availableSizes: ['M', 'L', 'XL'] },
+      sku: { ...baseSku, availableSizes: ['M', 'L', 'XL'] },
+      type: 'tee', fabric: 'kulirnaya', color: '01-01',
     });
     render(<StepGarment />);
     const disabledRows = document.querySelectorAll('.size-table-desktop .size-row-disabled');
-    // SIZES has 8 entries, 3 available = 5 disabled
     expect(disabledRows.length).toBe(5);
   });
 
   it('shows tooltip on disabled size row', () => {
     useStore.setState({
-      sku: { code: 'tee-001', category: 'tshirts', availableSizes: ['M'] },
+      sku: { ...baseSku, availableSizes: ['M'] },
+      type: 'tee', fabric: 'kulirnaya', color: '01-01',
     });
     render(<StepGarment />);
     const disabledRow = document.querySelector('.size-table-desktop .size-row-disabled');
@@ -144,14 +173,16 @@ describe('StepGarment', () => {
   });
 
   it('renders mobile size list', () => {
+    setFullState();
     render(<StepGarment />);
     const mobileList = document.querySelector('.size-list-mobile');
     expect(mobileList).toBeTruthy();
     const mobileRows = mobileList.querySelectorAll('.size-mobile-row');
-    expect(mobileRows.length).toBe(8); // 8 standard SIZES
+    expect(mobileRows.length).toBe(8);
   });
 
   it('shows total in mobile layout', () => {
+    setFullState();
     render(<StepGarment />);
     const mobileTotal = document.querySelector('.size-mobile-total');
     expect(mobileTotal).toBeTruthy();

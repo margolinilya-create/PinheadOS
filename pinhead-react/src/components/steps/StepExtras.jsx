@@ -40,22 +40,20 @@ export default function StepExtras() {
       )}
 
       {available.length > 0 && (
-        <div className="extras-grid">
+        <div className="extras-list">
           {available.map(e => {
             const sel = extras.includes(e.code);
             const desc = EXTRAS_DESCS[e.code];
             return (
               <div
                 key={e.code}
-                className={`extra-card${sel ? ' selected' : ''}`}
+                className={`extras-list-item${sel ? ' selected' : ''}`}
                 onClick={() => toggleExtra(e.code)}
                 title={desc || e.name}
               >
-                <div className="extra-check">{sel && <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
-                {EXTRAS_ICONS[e.code] && <div className="extra-icon" dangerouslySetInnerHTML={{ __html: EXTRAS_ICONS[e.code] }} />}
-                <div className="extra-name">{e.name}</div>
+                <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
+                <div className="extras-list-name">{e.name}</div>
                 <PriceBadge price={e.price} />
-                {desc && <div className={`extra-desc${sel ? ' expanded' : ''}`}>{desc}</div>}
               </div>
             );
           })}

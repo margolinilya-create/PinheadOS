@@ -180,3 +180,101 @@ describe('useStore — reset', () => {
     expect(s.name).toBe('');
   });
 });
+
+describe('useStore — loadOrder', () => {
+  beforeEach(() => {
+    useStore.getState().resetOrder();
+  });
+
+  const makeItem = (overrides = {}) => ({
+    type: 'tee', fabric: 'kulirnaya', color: '01-01',
+    sku: { code: SKU_CATALOG_DEFAULT[0].code }, sizes: { M: 10 }, customSizes: [],
+    fit: 'regular', fitChosen: true, extras: [], labels: [], zones: ['front'],
+    tech: 'screen', textileColor: 'white', zoneTechs: { front: 'screen' },
+    zonePrints: { front: { colors: 1, size: 'A4', textile: 'white', fx: 'none' } },
+    flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
+    zoneArtworks: {}, designNotes: '', sizeComment: '', noPrint: false,
+    labelConfig: null, colorSupplier: 'medastex', skuFilter: 'all',
+    ...overrides,
+  });
+
+  it('loads new format order (with items[])', () => {
+    const mockOrder = {
+      id: 'test-id',
+      order_number: 'PH-0001',
+      data: {
+        items: [makeItem()],
+        name: 'Тест Клиент',
+      },
+    };
+    useStore.getState().loadOrder(mockOrder);
+    const s = useStore.getState();
+    expect(s.step).toBe(5);
+    expect(s.items.length).toBe(1);
+    expect(s.name).toBe('Тест Клиент');
+    expect(s._editingOrderId).toBe('test-id');
+    expect(s._editingOrderNumber).toBe('PH-0001');
+  });
+
+  it('loads old format order (flat fields)', () => {
+    const mockOrder = {
+      id: 'old-id',
+      order_number: 'PH-0099',
+      data: {
+        type: 'tee', fabric: 'kulirnaya', color: '01-01',
+        sku: { code: SKU_CATALOG_DEFAULT[0].code },
+        sizes: { S: 5, M: 10 },
+        zones: ['front'],
+        zoneTechs: { front: 'screen' },
+        zonePrints: { front: { colors: 2, size: 'A4', textile: 'white', fx: 'none' } },
+        name: 'Старый Клиент',
+      },
+    };
+    useStore.getState().loadOrder(mockOrder);
+    const s = useStore.getState();
+    expect(s.step).toBe(5);
+    expect(s.items.length).toBe(1);
+    expect(s.name).toBe('Старый Клиент');
+  });
+
+  it('resolves SKU from catalog by code', () => {
+    const mockOrder = {
+      id: 'resolve-id',
+      order_number: 'PH-0003',
+      data: {
+        items: [makeItem({ sku: { code: SKU_CATALOG_DEFAULT[0].code } })],
+      },
+    };
+    useStore.getState().loadOrder(mockOrder);
+    const s = useStore.getState();
+    // SKU should be resolved to full catalog entry
+    expect(s.sku).not.toBeNull();
+    expect(s.sku.code).toBe(SKU_CATALOG_DEFAULT[0].code);
+    expect(s.sku.name).toBe(SKU_CATALOG_DEFAULT[0].name);
+  });
+
+  it('SKU not found in catalog → sku=null', () => {
+    const mockOrder = {
+      id: 'notfound-id',
+      order_number: 'PH-0004',
+      data: {
+        items: [makeItem({ sku: { code: 'NONEXISTENT-999' } })],
+      },
+    };
+    useStore.getState().loadOrder(mockOrder);
+    const s = useStore.getState();
+    expect(s.sku).toBeNull();
+  });
+
+  it('sets step=5 and maxStep=5', () => {
+    const mockOrder = {
+      id: 'step-id',
+      order_number: 'PH-0005',
+      data: { items: [makeItem()], name: 'X' },
+    };
+    useStore.getState().loadOrder(mockOrder);
+    const s = useStore.getState();
+    expect(s.step).toBe(5);
+    expect(s.maxStep).toBe(5);
+  });
+});

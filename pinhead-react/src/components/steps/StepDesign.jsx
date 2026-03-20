@@ -74,14 +74,19 @@ export default function StepDesign() {
           <div className="section-label">Зоны нанесения</div>
           <div className="design-layout">
             <div className="design-zones-col">
-              <div className="no-print-wrap">
-                <button className={`no-print-btn${noPrint ? ' active' : ''}`} onClick={toggleNoPrint}>
-                  <span className="no-print-check">{noPrint ? '✓' : ''}</span>
-                  Без нанесения
-                </button>
-              </div>
-
               <div className="zones-grid">
+                {/* "Без нанесения" — first, as a zone card */}
+                <div
+                  className={`zone-card zone-card-noprint${noPrint ? ' selected' : ''}`}
+                  onClick={toggleNoPrint}
+                >
+                  <div className="zone-bar" />
+                  <div className="zone-card-inner">
+                    <div className="zone-label">Без нанесения</div>
+                  </div>
+                  <div className="zone-check">{noPrint ? '✓' : ''}</div>
+                </div>
+
                 {displayZones.map(z => {
                   const available = availableZones.includes(z);
                   const active = zones.includes(z);
@@ -109,7 +114,6 @@ export default function StepDesign() {
               <ZoneMockup
                 garmentType={sku.mockupType || type}
                 activeZones={zones}
-                onZoneClick={toggleZone}
                 availableZones={availableZones}
                 color={color}
                 zoneTechs={zoneTechs}

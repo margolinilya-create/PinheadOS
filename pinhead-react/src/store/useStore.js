@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════
 import { create } from 'zustand';
 import { loadAllCatalogs } from '../lib/catalogs';
+import { invalidatePricesCache } from '../utils/pricing';
 import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, SIZES } from '../data';
 
 // Начальные размеры {2XS:0, XS:0, ...}
@@ -283,7 +284,15 @@ export const useStore = create((set, get) => ({
 
   // ─── Custom Sizes ───
   addCustomSize: (label) => set(s => {
-    const newLabel = label || `${s.customSizes.length + 4}XL`;
+    const raw = (label || '').trim().toUpperCase();
+    // Normalize: "xxxl" → "3XL", "xxxxl" → "4XL", etc.
+    const xMatch = raw.match(/^(X+)L$/);
+    const newLabel = xMatch && xMatch[1].length >= 2
+      ? `${xMatch[1].length}XL`
+      : raw || `${s.customSizes.length + 4}XL`;
+    // Prevent duplicates with standard or existing custom sizes
+    const allLabels = [...SIZES, ...s.customSizes.map(c => c.label.toUpperCase())];
+    if (allLabels.includes(newLabel)) return {};
     const updated = [...s.customSizes, { label: newLabel, qty: 0 }];
     updated.sort((a, b) => sizeOrder(a.label) - sizeOrder(b.label));
     return { customSizes: updated };
@@ -389,8 +398,11 @@ export const useStore = create((set, get) => ({
     try {
       const catalogs = await loadAllCatalogs();
       // prices may be absent due to RLS — fall back to local JS data
-      if (catalogs.prices) patch.prices = catalogs.prices;
-      if (catalogs.prices?.usdRate) patch.usdRate = catalogs.prices.usdRate;
+      if (catalogs.prices) {
+        patch.prices = catalogs.prices;
+        if (catalogs.prices.usdRate) patch.usdRate = catalogs.prices.usdRate;
+        invalidatePricesCache();
+      }
       if (catalogs.skuCatalog) patch.skuCatalog = catalogs.skuCatalog;
       if (catalogs.fabricsCatalog) patch.fabricsCatalog = catalogs.fabricsCatalog;
       if (catalogs.extrasCatalog) patch.extrasCatalog = catalogs.extrasCatalog;
@@ -399,6 +411,7 @@ export const useStore = create((set, get) => ({
     } catch {
       // Supabase недоступен — fallback на импорты из src/data/
       patch.prices = PRICES;
+      invalidatePricesCache();
       patch.skuCatalog = SKU_CATALOG_DEFAULT;
       patch.fabricsCatalog = FABRICS_CATALOG_DEFAULT;
       patch.extrasCatalog = EXTRAS_CATALOG_DEFAULT;

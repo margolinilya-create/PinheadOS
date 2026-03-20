@@ -151,33 +151,7 @@ export default function ZoneMockup({ garmentType, activeZones, onZoneClick,
     <div className="zm-wrap">
       <div className="zm-mockup" style={{ aspectRatio: aspect }}>
         <div className="zm-svg" dangerouslySetInnerHTML={{ __html: svgMarkup }} />
-        {allZones.map(z => {
-          const pos = getZonePos(garmentType, z);
-          if (!pos) return null;
-          const isActive = activeZones?.includes(z);
-          return (
-            <div
-              key={z}
-              className={`zm-zone${isActive ? ' active' : ''}`}
-              style={{
-                top: `${pos.top}%`, left: `${pos.left}%`,
-                width: `${pos.width}%`, height: `${pos.height}%`,
-              }}
-              onClick={() => onZoneClick?.(z)}
-              title={ZONE_LABELS[z] || z}
-            >
-              <span className="zm-zone-label">{ZONE_LABELS[z] || z}</span>
-            </div>
-          );
-        })}
       </div>
-      {chips.length > 0 && (
-        <div className="zm-summary">
-          {chips.map((text, i) => (
-            <span key={i} className="zm-chip">{text}</span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
