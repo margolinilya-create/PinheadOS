@@ -316,6 +316,9 @@ export default function ExpressCalc() {
               <label>Изделие</label>
               <select value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
                 <option value="">— Выберите —</option>
+                {Object.keys(categories).length === 0 && (
+                  <option disabled>Загрузка каталога...</option>
+                )}
                 {Object.entries(categories).map(([cat, items]) => (
                   <optgroup key={cat} label={catLabels[cat] || cat}>
                     {items.map(s => (

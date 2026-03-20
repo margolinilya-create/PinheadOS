@@ -20,7 +20,7 @@ function getDeadlineInfo(deadline) {
 }
 
 function getInitials(name) {
-  if (!name) return '??';
+  if (!name?.trim()) return null;
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
@@ -97,7 +97,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать">⎘</button>
               <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить">✕</button>
             </div>
-            <div className="kb-avatar" title={d.managerName || ''}>{managerInitials}</div>
+            {managerInitials && <div className="kb-avatar" title={d.managerName || ''}>{managerInitials}</div>}
           </div>
         </div>
         {/* Mobile status select — visible only on ≤768px via CSS */}
