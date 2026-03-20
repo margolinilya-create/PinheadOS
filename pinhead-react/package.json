@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "seed": "node scripts/seed-catalog.js",
-    "seed:sql": "node scripts/generate-seed-sql.js"
+    "seed:sql": "node scripts/generate-seed-sql.js",
+    "audit": "node scripts/audit-guidebook.js",
+    "e2e": "playwright test",
+    "e2e:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
@@ -24,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.7",

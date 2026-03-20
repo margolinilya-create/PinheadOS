@@ -436,3 +436,10 @@ textarea::placeholder {
 .price-line-sub .name { font-size: 12px; color: var(--text-dim); }
 .price-line-urgent .name { color: var(--color-error, #FF3B30); font-weight: 600; }
 .price-line-urgent .amount { color: var(--color-error, #FF3B30); font-weight: 700; }
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary,
+  .btn-next, .btn-prev, .btn-accent {
+    min-height: 48px;
+  }
+}
