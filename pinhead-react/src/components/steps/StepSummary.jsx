@@ -224,6 +224,7 @@ export default function StepSummary() {
       saved = await updateOrder(_editingOrderId, orderData);
       if (saved) {
         localStorage.removeItem('pinhead_draft');
+        useStore.setState({ saved: true });
         setSavedNum(_editingOrderNumber || saved.order_number || 'OK');
         toast.success('Заказ обновлён');
       } else {
@@ -234,7 +235,7 @@ export default function StepSummary() {
       if (saved) {
         localStorage.removeItem('pinhead_draft');
         setSavedNum(saved.order_number || 'OK');
-        useStore.setState({ _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
+        useStore.setState({ saved: true, _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
         toast.success('Заказ сохранён: ' + (saved.order_number || ''));
       } else {
         toast.error('Ошибка сохранения заказа');

@@ -66,6 +66,18 @@ function App() {
     ]).finally(() => setCatalogsReady(true));
   }, [init]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      const { step, saved } = useStore.getState();
+      if (step > 0 && !saved) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
   }
