@@ -248,10 +248,10 @@
 }
 .qty-btn:hover { background: var(--accent); color: var(--white); border-color: var(--accent); }
 .qty-input {
-  width: 48px !important; border: 1px solid var(--border-light); background: var(--white); color: var(--black);
-  font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700;
-  text-align: center; padding: 4px 2px; outline: none; border-radius: 0;
-  height: 28px; box-sizing: border-box;
+  width: 48px !important; border: 1px solid var(--border-light) !important; background: var(--white) !important; color: var(--black) !important;
+  font-family: 'Space Grotesk', sans-serif !important; font-size: 14px !important; font-weight: 700 !important;
+  text-align: center !important; padding: 2px 4px !important; outline: none; border-radius: 0 !important;
+  height: 28px !important; box-sizing: border-box !important;
 }
 .qty-input:focus { border-color: var(--accent); }
 .one-size-row  { display: flex; align-items: center; gap: 8px; }
