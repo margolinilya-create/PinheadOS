@@ -2,12 +2,16 @@
 // Pricing engine — чистые функции
 // ═══════════════════════════════════════════
 import { PRICES as DEFAULT_PRICES } from '../data';
+import { useStore } from '../store/useStore';
 
-// Динамическое чтение цен: localStorage → дефолтные
-// PriceEditor сохраняет сюда, pricing engine читает отсюда
+// Приоритет: стор (актуальные) → localStorage → дефолт
 let _cachedPrices = null;
 export function getPrices() {
   if (_cachedPrices) return _cachedPrices;
+  // 1) Стор — всегда актуален после сохранения в PriceEditor
+  const storePrices = useStore.getState().prices;
+  if (storePrices) { _cachedPrices = storePrices; return storePrices; }
+  // 2) localStorage — фоллбэк
   try {
     const stored = localStorage.getItem('ph_prices');
     if (stored) {
