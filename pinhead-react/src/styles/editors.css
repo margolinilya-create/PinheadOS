@@ -5,7 +5,7 @@
 .pp-toolbar  { position: sticky; top: 0; z-index: 10; background: var(--black); padding: 10px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pp-toolbar-left    { display: flex; align-items: center; gap: 12px; }
 .pp-toolbar-title   { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 900; color: var(--white); letter-spacing: 2px; text-transform: uppercase; }
-.pp-toolbar-id      { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+.pp-toolbar-id      { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--accent); letter-spacing: 1px; }
 .pp-toolbar-actions { display: flex; gap: 0; border: 1px solid rgba(255,255,255,.15); overflow: hidden; }
 .pp-position-header { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
 .pp-page     { max-width: 800px; margin: 32px auto; padding: 56px 56px 48px; background: var(--white); border: 1px solid var(--border-light); font-family: 'Roboto Condensed', sans-serif; }
@@ -15,7 +15,7 @@
 .pp-contacts { font-size: 11px; font-weight: 600; letter-spacing: .5px; color: var(--text-dim); text-transform: uppercase; }
 .pp-title-row { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 12px; margin-bottom: 32px; border-bottom: 3px solid var(--black); }
 .pp-title     { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; letter-spacing: 1.5px; text-transform: uppercase; }
-.pp-order-id  { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; color: var(--accent); letter-spacing: 1px; }
+.pp-order-id  { font-family: var(--mono); font-weight: 500; font-size: 16px; color: var(--accent); letter-spacing: 1px; }
 .pp-section           { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--border-light); }
 .pp-section:last-of-type { border-bottom: none; }
 .pp-section-head      { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
@@ -26,7 +26,7 @@
 .pp-kv-row:last-child { border-bottom: none; }
 .pp-kv-row > span:first-child { color: var(--text-dim); font-weight: 500; white-space: nowrap; flex-shrink: 0; }
 .pp-kv-dots { flex: 1; margin: 0 8px; border-bottom: 1px dotted var(--border-light); min-width: 20px; align-self: baseline; height: 12px; }
-.pp-kv-row b { white-space: nowrap; font-weight: 700; }
+.pp-kv-row b { white-space: nowrap; font-weight: 500; font-family: var(--mono); }
 .pp-options-note { font-size: 13px; color: var(--text-dim); font-style: italic; padding: 4px 0; }
 .pp-notes        { font-size: 13px; color: var(--text-mid); line-height: 1.5; white-space: pre-wrap; }
 .pp-table    { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -34,7 +34,8 @@
 .pp-table td { padding: 8px 12px; border-bottom: 1px solid var(--bg3); }
 .pp-table-total td        { border-top: 2px solid var(--black); border-bottom: none; font-weight: 700; padding-top: 10px; }
 .pp-table-total td:first-child { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; }
-.pp-grand-total { margin-top: 36px; padding-top: 24px; border-top: 3px solid var(--black); font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 28px; letter-spacing: 1px; color: var(--accent); text-align: right; }
+.pp-table-total td:last-child  { font-family: var(--mono); font-weight: 500; }
+.pp-grand-total { margin-top: 36px; padding-top: 24px; border-top: 3px solid var(--black); font-family: var(--mono); font-weight: 500; font-size: 28px; letter-spacing: 1px; color: var(--accent); text-align: right; }
 .pp-urgent-badge {
   background: var(--color-error, #FF3B30); color: var(--white);
   font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 14px;

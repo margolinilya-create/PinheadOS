@@ -43,6 +43,9 @@
   --mono:         'Roboto Mono', monospace;
 }
 
+/* ── Mono utility ── */
+.mono-val { font-family: var(--mono); font-weight: 500; }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {

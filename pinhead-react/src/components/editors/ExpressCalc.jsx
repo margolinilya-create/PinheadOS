@@ -477,11 +477,11 @@ export default function ExpressCalc() {
                 <div className="exp-result-divider" />
                 <div className="exp-result-row exp-result-unit">
                   <span>Цена / шт</span>
-                  <span>{calc.unitPrice.toLocaleString('ru-RU')} ₽</span>
+                  <span className="mono-val">{calc.unitPrice.toLocaleString('ru-RU')} ₽</span>
                 </div>
                 <div className="exp-result-total">
                   <span>ИТОГО ({qty} шт)</span>
-                  <b style={{ color: 'var(--accent)' }}>{calc.total.toLocaleString('ru-RU')} ₽</b>
+                  <b className="mono-val" style={{ color: 'var(--accent)' }}>{calc.total.toLocaleString('ru-RU')} ₽</b>
                 </div>
               </div>
             ) : (

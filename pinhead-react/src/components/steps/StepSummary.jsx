@@ -290,7 +290,7 @@ export default function StepSummary() {
             <div className="summary-item-header">
               <span className="summary-item-num">#{idx + 1}</span>
               <span className="summary-item-type">{item.sku?.name || TYPE_NAMES[item.type] || item.type}</span>
-              <span className="summary-item-total">{itemTotal.toLocaleString('ru-RU')} ₽</span>
+              <span className="summary-item-total mono-val">{itemTotal.toLocaleString('ru-RU')} ₽</span>
             </div>
             <div className="summary-grid">
               <div className="summary-block">
@@ -349,8 +349,8 @@ export default function StepSummary() {
               )}
             </div>
             <div className="summary-item-price-line">
-              <span>{uPrice.toLocaleString('ru-RU')} ₽/шт</span>
-              <span> × {qty} шт = <b>{itemTotal.toLocaleString('ru-RU')} ₽</b></span>
+              <span className="mono-val">{uPrice.toLocaleString('ru-RU')} ₽/шт</span>
+              <span> × {qty} шт = <b className="mono-val">{itemTotal.toLocaleString('ru-RU')} ₽</b></span>
             </div>
           </div>
         );
@@ -406,7 +406,7 @@ export default function StepSummary() {
         )}
         <div className="price-total">
           <span className="name">ИТОГО</span>
-          <span className="amount">{grandTotal.toLocaleString('ru-RU')} ₽</span>
+          <span className="amount mono-val">{grandTotal.toLocaleString('ru-RU')} ₽</span>
         </div>
       </div>
 

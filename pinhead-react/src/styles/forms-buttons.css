@@ -185,15 +185,15 @@
 }
 .items-total-val { font-weight: 700; color: var(--accent); }
 .items-total-sum {
-  font-family: 'Space Grotesk', sans-serif; font-size: 16px;
-  font-weight: 700; color: var(--accent);
+  font-family: var(--mono); font-size: 16px;
+  font-weight: 500; color: var(--accent);
 }
 /* ── Summary Item Blocks ── */
 .summary-item-block  { border: 1px solid var(--border-light); padding: 16px; margin-bottom: 16px; background: var(--white); }
 .summary-item-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
 .summary-item-num    { font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-dim); }
 .summary-item-type   { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; flex: 1; }
-.summary-item-total  { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; }
+.summary-item-total  { font-family: var(--mono); font-weight: 500; font-size: 16px; }
 .summary-item-price-line {
   margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-light);
   font-size: 13px; font-family: var(--mono, monospace); color: var(--text-dim);
@@ -219,7 +219,7 @@
 .summary-row .val,  .summary-row b   { font-weight: 600; text-align: right; }
 .summary-unit  { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-light); }
 .summary-total { margin-top: 4px; font-size: 16px; }
-.summary-total b { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); }
+.summary-total b { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--accent); }
 /* ── Price Breakdown ── */
 .price-breakdown { background: var(--bg2); border: 1px solid var(--border-light); padding: 24px; margin-bottom: 32px; }
 .price-line {
@@ -228,7 +228,7 @@
 }
 .price-line:last-child { border-bottom: none; }
 .price-line .name   { color: var(--text-mid); }
-.price-line .amount { font-weight: 600; }
+.price-line .amount { font-family: var(--mono); font-weight: 500; }
 .price-total {
   display: flex; justify-content: space-between; padding: 16px 0 0;
   margin-top: 8px; border-top: 2px solid var(--accent);
@@ -237,7 +237,7 @@
   font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px;
 }
-.price-total .amount { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+.price-total .amount { font-family: var(--mono); font-size: 28px; font-weight: 500; color: var(--accent); letter-spacing: 1px; }
 /* ── Success Screen ── */
 .success-screen { text-align: center; padding: 80px 0; position: relative; overflow: hidden; }
 .success-icon   { font-size: 56px; margin-bottom: 24px; color: var(--accent); }
@@ -247,7 +247,7 @@
 }
 .success-sub { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-mid); margin-bottom: 32px; }
 .order-id {
-  display: inline-block; font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 3px;
+  display: inline-block; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 3px;
   border: 2px solid var(--accent); padding: 8px 24px; color: var(--accent); margin-bottom: 40px;
 }
 .success-btns        { display: inline-flex; border: 1px solid var(--border-light); overflow: hidden; }
