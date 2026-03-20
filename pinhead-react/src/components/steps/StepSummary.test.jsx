@@ -187,4 +187,46 @@ describe('StepSummary', () => {
     fireEvent.click(screen.getByText(/Из чего цена/));
     expect(screen.getByTestId('price-details')).toBeInTheDocument();
   });
+
+  it('shows no validation errors when data is complete', () => {
+    renderSummary();
+    expect(screen.queryByTestId('validation-errors')).not.toBeInTheDocument();
+  });
+
+  it('shows validation error when name is empty', () => {
+    useStore.setState({ name: '' });
+    renderSummary();
+    const errBlock = screen.getByTestId('validation-errors');
+    expect(errBlock).toBeTruthy();
+    expect(errBlock.textContent).toContain('имя клиента');
+  });
+
+  it('shows validation error when no SKU selected', () => {
+    useStore.setState({
+      items: [{ type: 'tee', fabric: 'cotton', color: 'WHT', sizes: { M: 10 }, customSizes: [], extras: [], zones: [], zoneTechs: {}, sku: null }],
+    });
+    renderSummary();
+    const errBlock = screen.getByTestId('validation-errors');
+    expect(errBlock.textContent).toContain('артикул');
+  });
+
+  it('shows validation error when quantity is zero', async () => {
+    const { getItemTotalQty } = await import('../../utils/pricing');
+    getItemTotalQty.mockReturnValue(0);
+    useStore.setState({
+      items: [{ type: 'tee', fabric: 'cotton', color: 'WHT', sizes: {}, customSizes: [], extras: [], zones: [], zoneTechs: {}, sku: { name: 'T-Shirt' } }],
+    });
+    renderSummary();
+    const errBlock = screen.getByTestId('validation-errors');
+    expect(errBlock.textContent).toContain('количество');
+    getItemTotalQty.mockReturnValue(10); // restore
+  });
+
+  it('disables save button when validation errors exist', () => {
+    useStore.setState({ name: '' });
+    renderSummary();
+    const saveBtn = screen.getByText(/Сохранить заказ/);
+    expect(saveBtn.className).toContain('disabled');
+    expect(saveBtn.getAttribute('title')).toBe('Заполните обязательные поля');
+  });
 });

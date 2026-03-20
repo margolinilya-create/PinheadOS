@@ -150,6 +150,13 @@ export default function StepSummary() {
   const grandTotal = itemCalcs.reduce((sum, ic) => sum + ic.itemTotal, 0);
   const grandQty = itemCalcs.reduce((sum, ic) => sum + ic.qty, 0);
 
+  // ─── Validation ───
+  const errors = [];
+  if (!name?.trim()) errors.push('Укажите имя клиента');
+  if (items.length === 0 || items.every(it => !it.sku)) errors.push('Выберите артикул');
+  if (items.length === 0 || itemCalcs.every(ic => ic.qty === 0)) errors.push('Укажите количество');
+  const hasErrors = errors.length > 0;
+
   // ─── copyTZ ───
   const handleCopyTZ = async () => {
     const text = buildTZText(state, grandTotal, catalogs);
@@ -390,11 +397,24 @@ export default function StepSummary() {
         </div>
       </div>
 
+      {/* Validation errors */}
+      {hasErrors && (
+        <div className="summary-errors" data-testid="validation-errors">
+          {errors.map((err, i) => (
+            <div key={i} className="summary-error-line">⚠️ {err}</div>
+          ))}
+        </div>
+      )}
+
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>&#8592; Назад</button>
         <button className="btn-secondary" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
         <button className="btn-secondary" onClick={() => navigate('/print')}>Печать / PDF</button>
-        <button className={`btn-accent${saving ? ' disabled' : ''}`} onClick={handleSave}>
+        <button
+          className={`btn-accent${saving || hasErrors ? ' disabled' : ''}`}
+          onClick={() => !hasErrors && handleSave()}
+          title={hasErrors ? 'Заполните обязательные поля' : undefined}
+        >
           {saving ? 'Сохранение...' : state._editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
