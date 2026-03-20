@@ -303,9 +303,7 @@ export default function ExpressCalc() {
           </div>
           <h1 className="sku-ed-title">EXPRESS КАЛЬКУЛЯТОР</h1>
         </div>
-        <div className="sku-ed-header-right">
-          <button className="pe-close" onClick={onClose}>✕</button>
-        </div>
+        <div className="sku-ed-header-right" />
       </div>
 
       {/* ── Body ── */}
