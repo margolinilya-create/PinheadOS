@@ -61,9 +61,57 @@
 .sku-ed-overlay { background: var(--white); display: flex; justify-content: center; overflow-y: auto; flex: 1; }
 .sku-ed-panel   { width: 100%; max-width: 1200px; padding: 0 40px; display: flex; flex-direction: column; }
 /* ── Actions bar (below shared Header) ── */
-.pe-actions-bar       { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1.5px solid var(--black); margin-bottom: 0; flex-shrink: 0; }
-.pe-actions-bar-left  { display: flex; align-items: center; gap: 12px; }
-.pe-actions-bar-right { display: flex; align-items: center; gap: 8px; }
+.pe-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 28px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--paper);
+  position: sticky;
+  top: 56px;
+  z-index: 10;
+}
+.pe-actions-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pe-actions-right { display: flex; gap: 8px; }
+.pe-btn {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 150ms ease-out;
+}
+.pe-btn:hover { background: var(--surface); }
+.pe-btn:disabled { opacity: .5; cursor: default; }
+.pe-btn-primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.pe-btn-primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.pe-btn-primary:disabled {
+  background: var(--ink);
+  border-color: var(--ink);
+  opacity: .5;
+}
 .sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0; border-bottom: 1px solid var(--border-light); margin-bottom: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); }
 .sku-ed-rate-cb      { display: flex; align-items: center; gap: 8px; }
 .sku-ed-rate-cb b    { color: var(--black); font-size: 13px; font-weight: 900; }

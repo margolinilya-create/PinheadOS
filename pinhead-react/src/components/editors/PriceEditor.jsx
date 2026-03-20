@@ -495,17 +495,18 @@ export default function PriceEditor() {
       <div className="sku-ed-panel">
         {/* ── Actions bar (below shared Header) ── */}
         <div className="pe-actions-bar">
-          <div className="pe-actions-bar-left">
+          <span className="pe-actions-title">
+            Редактор цен
             {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
-          </div>
-          <div className="pe-actions-bar-right">
-            <button className="btn" onClick={handleFetchUsdRate} disabled={fetchingRate}>
+          </span>
+          <div className="pe-actions-right">
+            <button className="pe-btn" onClick={handleFetchUsdRate} disabled={fetchingRate}>
               {fetchingRate ? 'Загрузка...' : 'Курс ЦБ РФ'}
             </button>
-            <button className="btn" onClick={exportJSON}>Экспорт</button>
-            <button className="btn" onClick={importJSON}>Импорт</button>
-            <button className="btn" onClick={reset}>Сброс</button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
+            <button className="pe-btn" onClick={reset}>Сброс</button>
+            <button className="pe-btn" onClick={importJSON}>Импорт</button>
+            <button className="pe-btn" onClick={exportJSON}>Экспорт</button>
+            <button className="pe-btn pe-btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
           </div>
         </div>
 
