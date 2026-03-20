@@ -189,59 +189,61 @@ export default function StepSummary() {
 
   // ─── Save / Update ───
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || hasErrors) return;
     setSaving(true);
+    try {
+      // Serialize items for storage (strip full SKU objects, keep only key fields)
+      const serializedItems = items.map(it => ({
+        ...it,
+        sku: it.sku ? { code: it.sku.code, name: it.sku.name, article: it.sku.article, category: it.sku.category, fit: it.sku.fit } : null,
+      }));
 
-    // Serialize items for storage (strip full SKU objects, keep only key fields)
-    const serializedItems = items.map(it => ({
-      ...it,
-      sku: it.sku ? { code: it.sku.code, name: it.sku.name, article: it.sku.article, category: it.sku.category, fit: it.sku.fit } : null,
-    }));
+      // Backward compat: also keep first item's flat fields for old consumers (KanbanBoard, TechCard)
+      const first = items[0] || {};
+      const orderData = {
+        items: serializedItems,
+        // Flat fields from first item for backward compat
+        type: first.type || '', fabric: first.fabric || '', color: first.color || '',
+        fit: first.fit || 'regular', sizes: first.sizes || {}, customSizes: first.customSizes || [],
+        extras: first.extras || [], zones: first.zones || [], zoneTechs: first.zoneTechs || {},
+        zonePrints: first.zonePrints || {}, flexZones: first.flexZones || {},
+        dtgZones: first.dtgZones || {}, embZones: first.embZones || {}, dtfZones: first.dtfZones || {},
+        zoneArtworks: first.zoneArtworks || {}, textileColor: first.textileColor || 'white',
+        designNotes: first.designNotes || '', sizeComment: first.sizeComment || '',
+        labelConfig: first.labelConfig,
+        sku: first.sku ? { code: first.sku.code, name: first.sku.name, article: first.sku.article, category: first.sku.category, fit: first.sku.fit } : null,
+        // Shared fields
+        name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
+        role, messenger: messenger,
+        packOption, urgentOption,
+        total: grandTotal, totalQty: grandQty, unitPrice: grandQty > 0 ? Math.round(grandTotal / grandQty) : 0,
+      };
 
-    // Backward compat: also keep first item's flat fields for old consumers (KanbanBoard, TechCard)
-    const first = items[0] || {};
-    const orderData = {
-      items: serializedItems,
-      // Flat fields from first item for backward compat
-      type: first.type || '', fabric: first.fabric || '', color: first.color || '',
-      fit: first.fit || 'regular', sizes: first.sizes || {}, customSizes: first.customSizes || [],
-      extras: first.extras || [], zones: first.zones || [], zoneTechs: first.zoneTechs || {},
-      zonePrints: first.zonePrints || {}, flexZones: first.flexZones || {},
-      dtgZones: first.dtgZones || {}, embZones: first.embZones || {}, dtfZones: first.dtfZones || {},
-      zoneArtworks: first.zoneArtworks || {}, textileColor: first.textileColor || 'white',
-      designNotes: first.designNotes || '', sizeComment: first.sizeComment || '',
-      labelConfig: first.labelConfig,
-      sku: first.sku ? { code: first.sku.code, name: first.sku.name, article: first.sku.article, category: first.sku.category, fit: first.sku.fit } : null,
-      // Shared fields
-      name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
-      role, messenger: messenger,
-      packOption, urgentOption,
-      total: grandTotal, totalQty: grandQty, unitPrice: grandQty > 0 ? Math.round(grandTotal / grandQty) : 0,
-    };
-
-    let saved;
-    if (_editingOrderId) {
-      saved = await updateOrder(_editingOrderId, orderData);
-      if (saved) {
-        localStorage.removeItem('pinhead_draft');
-        useStore.setState({ saved: true });
-        setSavedNum(_editingOrderNumber || saved.order_number || 'OK');
-        toast.success('Заказ обновлён');
+      let saved;
+      if (_editingOrderId) {
+        saved = await updateOrder(_editingOrderId, orderData);
+        if (saved) {
+          localStorage.removeItem('pinhead_draft');
+          useStore.setState({ saved: true });
+          setSavedNum(_editingOrderNumber || saved.order_number || 'OK');
+          toast.success('Заказ обновлён');
+        } else {
+          toast.error('Ошибка обновления заказа');
+        }
       } else {
-        toast.error('Ошибка обновления заказа');
+        saved = await saveOrder(orderData);
+        if (saved) {
+          localStorage.removeItem('pinhead_draft');
+          setSavedNum(saved.order_number || 'OK');
+          useStore.setState({ saved: true, _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
+          toast.success('Заказ сохранён: ' + (saved.order_number || ''));
+        } else {
+          toast.error('Ошибка сохранения заказа');
+        }
       }
-    } else {
-      saved = await saveOrder(orderData);
-      if (saved) {
-        localStorage.removeItem('pinhead_draft');
-        setSavedNum(saved.order_number || 'OK');
-        useStore.setState({ saved: true, _editingOrderId: saved.id, _editingOrderNumber: saved.order_number, _lastSavedOrderNum: saved.order_number });
-        toast.success('Заказ сохранён: ' + (saved.order_number || ''));
-      } else {
-        toast.error('Ошибка сохранения заказа');
-      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   // ─── Success screen ───
@@ -290,7 +292,7 @@ export default function StepSummary() {
             <div className="summary-item-header">
               <span className="summary-item-num">#{idx + 1}</span>
               <span className="summary-item-type">{item.sku?.name || TYPE_NAMES[item.type] || item.type}</span>
-              <span className="summary-item-total">{itemTotal.toLocaleString('ru-RU')} ₽</span>
+              <span className="summary-item-total mono-val">{itemTotal.toLocaleString('ru-RU')} ₽</span>
             </div>
             <div className="summary-grid">
               <div className="summary-block">
@@ -349,8 +351,8 @@ export default function StepSummary() {
               )}
             </div>
             <div className="summary-item-price-line">
-              <span>{uPrice.toLocaleString('ru-RU')} ₽/шт</span>
-              <span> × {qty} шт = <b>{itemTotal.toLocaleString('ru-RU')} ₽</b></span>
+              <span className="mono-val">{uPrice.toLocaleString('ru-RU')} ₽/шт</span>
+              <span> × {qty} шт = <b className="mono-val">{itemTotal.toLocaleString('ru-RU')} ₽</b></span>
             </div>
           </div>
         );
@@ -406,7 +408,7 @@ export default function StepSummary() {
         )}
         <div className="price-total">
           <span className="name">ИТОГО</span>
-          <span className="amount">{grandTotal.toLocaleString('ru-RU')} ₽</span>
+          <span className="amount mono-val">{grandTotal.toLocaleString('ru-RU')} ₽</span>
         </div>
       </div>
 
@@ -424,11 +426,14 @@ export default function StepSummary() {
         <button className="btn-secondary" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
         <button className="btn-secondary" onClick={() => navigate('/print')}>Печать / PDF</button>
         <button
-          className={`btn-accent${saving || hasErrors ? ' disabled' : ''}`}
-          onClick={() => !hasErrors && handleSave()}
+          className={`btn-primary${saving ? ' loading' : ''}`}
+          disabled={saving || hasErrors}
+          onClick={handleSave}
           title={hasErrors ? 'Заполните обязательные поля' : undefined}
         >
-          {saving ? 'Сохранение...' : _editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
+          {saving
+            ? <><span className="btn-spinner" />Сохранение...</>
+            : _editingOrderId ? 'Обновить заказ' : 'Сохранить заказ'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
       </div>

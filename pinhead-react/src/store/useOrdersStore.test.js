@@ -40,9 +40,12 @@ describe('useOrdersStore — exports', () => {
     }
   });
 
-  it('STATUS_COLORS has colors for all statuses', () => {
+  it('STATUS_COLORS has bg/text/bar for all statuses', () => {
     for (const s of STATUS_LIST) {
-      expect(STATUS_COLORS[s]).toMatch(/^#/);
+      expect(STATUS_COLORS[s]).toHaveProperty('bg');
+      expect(STATUS_COLORS[s]).toHaveProperty('text');
+      expect(STATUS_COLORS[s]).toHaveProperty('bar');
+      expect(STATUS_COLORS[s].bar).toMatch(/^#/);
     }
   });
 });

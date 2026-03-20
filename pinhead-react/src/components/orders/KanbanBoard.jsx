@@ -55,7 +55,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
       }}
       onClick={() => onCardClick(order)}
     >
-      <div className="kb-card-bar" style={{ background: statusColor }} />
+      <div className="kb-card-bar" style={{ background: statusColor.bar }} />
       <div className="kb-card-content">
         <div className="kb-card-top">
           <div className="kb-card-id">
@@ -129,7 +129,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
           <div className="kb-card-menu">
             {STATUS_LIST.filter(s => s !== order.status).map(s => (
               <button key={s} onClick={stopAndRun(() => { onStatusChange(order.id, s); setShowMenu(false); })}>
-                <span className="kb-status-dot" style={{ background: STATUS_COLORS[s] }} />
+                <span className="kb-status-dot" style={{ background: STATUS_COLORS[s].bar }} />
                 {STATUS_LABELS[s]}
               </button>
             ))}
@@ -174,9 +174,9 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
         <div className="exp-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className="exp-title">{order.order_number || '—'}</span>
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', letterSpacing: 1,
-              background: STATUS_COLORS[order.status] || '#888', color: '#fff',
+            <span className="kb-status-badge" style={{
+              background: (STATUS_COLORS[order.status] || STATUS_COLORS.draft).bg,
+              color: (STATUS_COLORS[order.status] || STATUS_COLORS.draft).text,
             }}>
               {STATUS_LABELS[order.status] || order.status}
             </span>
@@ -255,7 +255,7 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
           <div style={{ marginTop: 12, fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: .5 }}>
             {STATUS_LIST.map((s, i) => (
               <span key={s} style={{ marginRight: 8 }}>
-                <span style={{ fontWeight: 900, color: STATUS_COLORS[s] }}>{i + 1}</span> {STATUS_LABELS[s]}
+                <span style={{ fontWeight: 900, color: STATUS_COLORS[s].text }}>{i + 1}</span> {STATUS_LABELS[s]}
               </span>
             ))}
           </div>
@@ -415,8 +415,8 @@ export default function KanbanBoard() {
           const count = columns[s].length;
           return count > 0 ? (
             <div key={s} className="ks-item">
-              <span className="ks-dot" style={{ background: STATUS_COLORS[s] }} />
-              <span className="ks-count" style={{ color: STATUS_COLORS[s] }}>{count}</span>
+              <span className="ks-dot" style={{ background: STATUS_COLORS[s].bar }} />
+              <span className="ks-count" style={{ color: STATUS_COLORS[s].bar }}>{count}</span>
             </div>
           ) : null;
         })}
@@ -437,10 +437,10 @@ export default function KanbanBoard() {
                 onDragLeave={handleDragLeave}
                 onDrop={e => handleDrop(e, s)}
               >
-                <div className="kanban-col-header" style={{ borderColor: STATUS_COLORS[s] }}>
-                  <span className="kanban-col-title" style={{ color: STATUS_COLORS[s] }}>{STATUS_LABELS[s]}</span>
+                <div className="kanban-col-header" style={{ borderColor: STATUS_COLORS[s].bar }}>
+                  <span className="kanban-col-title" style={{ color: STATUS_COLORS[s].text }}>{STATUS_LABELS[s]}</span>
                   {colSum > 0 && <span className="kanban-col-sum">{colSum.toLocaleString('ru-RU')} ₽</span>}
-                  <span className="kanban-col-count" style={{ background: STATUS_COLORS[s] }}>{columns[s].length}</span>
+                  <span className="kanban-col-count" style={{ background: STATUS_COLORS[s].bar }}>{columns[s].length}</span>
                 </div>
                 <div className="kanban-col-body">
                   {columns[s].length === 0 ? (

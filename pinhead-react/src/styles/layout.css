@@ -34,17 +34,19 @@ header {
   cursor: pointer; font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
   display: flex; align-items: center;
-  transition: background .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+  transition: background 150ms ease-out, color 150ms ease-out;
+  white-space: nowrap; flex-shrink: 0;
 }
-.header-nav-btn:hover { background: var(--bg2); color: var(--black); }
-.header-nav-btn.active { background: var(--accent); color: var(--white); }
-.header-nav-btn.express-btn { background: var(--signal); color: var(--white); border-left-color: var(--signal); }
-.header-nav-btn.express-btn:hover { background: #E0342A; }
-.header-nav-btn.express-btn.active { background: var(--signal); color: var(--white); }
+.header-nav-btn:hover { color: #fff; background: rgba(255,255,255,.06); }
+.header-nav-btn.active { background: var(--accent); color: #fff; }
+/* Express — always signal */
+.header-nav-btn.express-btn { background: var(--signal); color: #fff; border-left-color: var(--signal); }
+.header-nav-btn.express-btn:hover { opacity: 0.85; }
+.header-nav-btn.express-btn.active { background: var(--signal); }
 /* Header right section */
 .header-right { display: flex; align-items: stretch; margin-left: 0; flex-shrink: 0; }
 .header-draft { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
-.draft-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; transition: background .3s; }
+.draft-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; transition: background 300ms ease-in-out; }
 .draft-dot.saving { background: var(--color-warning); }
 .draft-dot.saved  { background: var(--color-success); }
 .draft-text {
@@ -53,7 +55,7 @@ header {
 }
 .draft-reset-btn {
   background: none; border: none; color: var(--text-dim); font-size: 9px; font-weight: 700;
-  cursor: pointer; padding: 0 2px; line-height: 1; opacity: .4; transition: opacity .15s, color .15s;
+  cursor: pointer; padding: 0 2px; line-height: 1; opacity: .4; transition: opacity 150ms ease-out, color 150ms ease-out;
 }
 .draft-reset-btn:hover { opacity: 1; color: var(--black); }
 .header-total { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
@@ -62,7 +64,7 @@ header {
   letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim);
 }
 .total-value {
-  font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px;
+  font-family: var(--mono); font-weight: 500; font-size: 20px;
   color: var(--accent); letter-spacing: 0; line-height: 1;
 }
 .header-user { display: flex; align-items: stretch; }
@@ -73,7 +75,7 @@ header {
   cursor: pointer; font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
   display: flex; align-items: center; gap: 8px;
-  transition: background .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+  transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;
 }
 .header-logout:hover { background: var(--accent); color: var(--white); }
 /* Header action buttons */
@@ -84,12 +86,12 @@ header {
   cursor: pointer; font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
   display: flex; align-items: center; gap: 8px;
-  transition: background .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+  transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;
 }
 .header-action-btn:hover  { background: var(--accent); color: var(--white); }
 .header-action-btn.active { background: var(--accent); color: var(--white); }
 .header-action-btn.express { background: var(--signal); color: var(--white); border-left: 1px solid var(--border-light); }
-.header-action-btn.express:hover { background: #E0342A; color: var(--white); }
+.header-action-btn.express:hover { opacity: 0.85; }
 .header-action-btn .badge {
   background: var(--accent); color: #fff; font-size: 9px; padding: 1px 8px;
   font-weight: 600; letter-spacing: 0;

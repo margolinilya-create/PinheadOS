@@ -226,7 +226,7 @@ describe('StepSummary', () => {
     useStore.setState({ name: '' });
     renderSummary();
     const saveBtn = screen.getByText(/Сохранить заказ/);
-    expect(saveBtn.className).toContain('disabled');
+    expect(saveBtn.disabled).toBe(true);
     expect(saveBtn.getAttribute('title')).toBe('Заполните обязательные поля');
   });
 });

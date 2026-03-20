@@ -319,12 +319,12 @@ export default function SkuEditor() {
     <div className="sku-ed-overlay">
       <div className="sku-ed-panel">
       {/* ── Actions bar (below shared Header) ── */}
-      <div className="pe-actions-bar">
-        <div className="pe-actions-bar-left"></div>
-        <div className="pe-actions-bar-right">
-          <button className="btn" onClick={exportExcel}>Excel ↓</button>
-          <button className="btn" onClick={importExcel}>Excel ↑</button>
-          <button className="btn btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
+      <div className="sku-actions-bar">
+        <span className="sku-actions-title">Каталог SKU</span>
+        <div className="sku-actions-right">
+          <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
+          <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
+          <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
         </div>
       </div>
 

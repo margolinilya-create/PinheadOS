@@ -55,7 +55,7 @@ function groupByStatus(orders) {
   const map = {};
   orders.forEach(o => {
     const s = o.status || 'draft';
-    if (!map[s]) map[s] = { status: s, name: STATUS_LABELS[s] || s, value: 0, color: STATUS_COLORS[s] || '#888' };
+    if (!map[s]) map[s] = { status: s, name: STATUS_LABELS[s] || s, value: 0, color: (STATUS_COLORS[s] || STATUS_COLORS.draft).bar };
     map[s].value += o.total_sum || 0;
   });
   return Object.values(map).filter(d => d.value > 0);
@@ -245,7 +245,7 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
                 <td>{o.total_qty || 0}</td>
                 <td className="sku-td-est">{(o.total_sum || 0).toLocaleString('ru-RU')} ₽</td>
                 <td>
-                  <span className="dash-status-badge" style={{ background: STATUS_COLORS[o.status] || '#888' }}>
+                  <span className="dash-status-badge" style={{ background: (STATUS_COLORS[o.status] || STATUS_COLORS.draft).bg, color: (STATUS_COLORS[o.status] || STATUS_COLORS.draft).text }}>
                     {STATUS_LABELS[o.status] || o.status}
                   </span>
                 </td>

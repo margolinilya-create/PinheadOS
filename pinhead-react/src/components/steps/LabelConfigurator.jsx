@@ -4,7 +4,7 @@ import { LABEL_CONFIG } from '../../data/extras';
 
 // SVG иконки для размещения бирки
 const NeckSvg = () => (
-  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M8 14c0-6 4-10 8-10s8 4 8 10" />
     <rect x="13" y="10" width="6" height="8" rx="1" fill="var(--bg3)" stroke="currentColor" />
     <path d="M4 28c0-6 4-10 12-10s12 4 12 10" strokeDasharray="3 2" />
@@ -12,7 +12,7 @@ const NeckSvg = () => (
 );
 
 const InseamSvg = () => (
-  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 4v24M26 4v24" />
     <rect x="9" y="10" width="6" height="8" rx="1" fill="var(--bg3)" stroke="currentColor" />
     <path d="M6 14h3M15 14h11" strokeDasharray="3 2" />
