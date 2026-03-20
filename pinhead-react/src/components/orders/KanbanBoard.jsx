@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 import { toast } from '../../store/useToastStore';
 
@@ -40,7 +41,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
   const techName = d.tech ? (TECH_NAMES[d.tech] || d.tech) : '';
   const isUrgent = d.priority === 'urgent';
   const dlInfo = getDeadlineInfo(d.deadline);
-  const initials = getInitials(d.name);
+  const managerInitials = getInitials(d.managerName);
 
   const stopAndRun = (fn) => (e) => { e.stopPropagation(); fn(); };
 
@@ -82,6 +83,12 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
               <strong>{order.total_qty || 0} шт</strong>
             </div>
           )}
+          {!techName && (order.total_qty > 0) && (
+            <div className="kb-card-row">
+              <span>&nbsp;</span>
+              <strong>{order.total_qty} шт</strong>
+            </div>
+          )}
         </div>
         <div className="kb-card-bottom">
           <div className="kb-card-sum">{(order.total_sum || 0).toLocaleString('ru-RU')} ₽</div>
@@ -91,7 +98,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать">⎘</button>
               <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить">✕</button>
             </div>
-            <div className="kb-avatar">{initials}</div>
+            <div className="kb-avatar" title={d.managerName || ''}>{managerInitials}</div>
           </div>
         </div>
         {/* Mobile status select — visible only on ≤768px via CSS */}
@@ -265,9 +272,15 @@ const FINAL_STATUSES = ['done'];
 /* ── Main Component ── */
 export default function KanbanBoard() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const onClose = () => navigate('/');
   const { orders, loading, search, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder } = useOrdersStore();
   const loadOrder = useStore(s => s.loadOrder);
+  const user = useAuthStore(s => s.user);
+  const isAdmin = ['admin', 'director'].includes(user?.role);
+  const isProd = user?.role === 'production';
+  const isDes = user?.role === 'designer';
+  const canEdit = !isProd && !isDes;
 
   const [drawerOrder, setDrawerOrder] = useState(null);
   const [typeFilter, setTypeFilter] = useState('');
@@ -378,9 +391,9 @@ export default function KanbanBoard() {
   return (
     <div className="kanban-page">
       {/* ── Header ── */}
-      <div className="sku-ed-header">
-        <div className="sku-ed-header-left">
-          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
+      <div className="kb-header">
+        <div className="kb-header-left">
+          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0 }}>
             <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
               <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
@@ -388,9 +401,16 @@ export default function KanbanBoard() {
               <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
           </div>
-          <h1 className="sku-ed-title">ЗАКАЗЫ</h1>
+          <h1 className="kb-header-title">ЗАКАЗЫ</h1>
+          <nav className="kb-header-nav">
+            {canEdit && <button className="kb-nav-btn" onClick={() => navigate('/prices')}>Цены</button>}
+            {canEdit && <button className="kb-nav-btn" onClick={() => navigate('/sku')}>SKU</button>}
+            {(isAdmin || isProd || user?.role === 'rop') && (
+              <button className="kb-nav-btn" onClick={() => navigate('/analytics')}>Аналитика</button>
+            )}
+          </nav>
         </div>
-        <div className="sku-ed-header-right">
+        <div className="kb-header-right">
           <select
             className="kb-type-filter"
             value={typeFilter}
@@ -452,7 +472,7 @@ export default function KanbanBoard() {
                 </div>
                 <div className="kanban-col-body">
                   {columns[s].length === 0 ? (
-                    <div className="kb-empty-col">Пусто</div>
+                    <div className="kb-empty-col">Перетащите карточку сюда</div>
                   ) : (
                     columns[s].map(o => (
                       <KanbanCard

@@ -26,6 +26,11 @@ FOR SELECT USING (
   )
 );
 
+-- Запрет прямого INSERT/UPDATE/DELETE — только через триггер (SECURITY DEFINER)
+CREATE POLICY "audit_no_direct_writes" ON order_audit
+FOR ALL USING (false)
+WITH CHECK (false);
+
 -- 3. Функция триггера
 CREATE OR REPLACE FUNCTION log_order_changes()
 RETURNS TRIGGER AS $$

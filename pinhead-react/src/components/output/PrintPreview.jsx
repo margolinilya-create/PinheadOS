@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES, findColorEntry } from '../../data';
-import { getLabelConfigPrice, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
+import { calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
 function getZoneParams(zone, item) {

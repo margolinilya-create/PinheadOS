@@ -18,7 +18,7 @@ export async function loadAllCatalogs() {
         return data;
       }
     }
-  } catch (e) {
+  } catch {
     // sessionStorage недоступен — игнорируем
   }
 
@@ -35,7 +35,7 @@ export async function loadAllCatalogs() {
       data: result,
       ts: Date.now()
     }));
-  } catch (e) {
+  } catch {
     // Если sessionStorage переполнен — игнорируем
   }
 
@@ -49,5 +49,5 @@ export async function loadAllCatalogs() {
 export function clearCatalogsCache() {
   try {
     sessionStorage.removeItem(CACHE_KEY);
-  } catch (e) {}
+  } catch { /* ignore */ }
 }

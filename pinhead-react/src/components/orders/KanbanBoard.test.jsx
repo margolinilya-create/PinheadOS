@@ -21,12 +21,13 @@ vi.mock('../../lib/supabase', () => ({
   },
 }));
 
-// Mock useAuthStore
-vi.mock('../../store/useAuthStore', () => ({
-  useAuthStore: {
-    getState: vi.fn(() => ({ user: { id: 'dev', role: 'admin' } })),
-  },
-}));
+// Mock useAuthStore as a Zustand-like hook with getState
+const mockAuthState = { user: { id: 'dev', role: 'admin', name: 'Dev Mode' } };
+vi.mock('../../store/useAuthStore', () => {
+  const hook = (selector) => selector ? selector(mockAuthState) : mockAuthState;
+  hook.getState = () => mockAuthState;
+  return { useAuthStore: hook };
+});
 
 function renderKanban() {
   return render(
@@ -67,7 +68,7 @@ describe('KanbanBoard', () => {
 
   it('shows empty columns', () => {
     renderKanban();
-    const empties = screen.getAllByText('Пусто');
+    const empties = screen.getAllByText('Перетащите карточку сюда');
     expect(empties).toHaveLength(5);
   });
 
@@ -82,6 +83,13 @@ describe('KanbanBoard', () => {
     expect(screen.getByPlaceholderText('Поиск...')).toBeInTheDocument();
   });
 
+  it('renders navigation buttons', () => {
+    renderKanban();
+    expect(screen.getByText('Цены')).toBeInTheDocument();
+    expect(screen.getByText('SKU')).toBeInTheDocument();
+    expect(screen.getByText('Аналитика')).toBeInTheDocument();
+  });
+
   it('renders order cards in correct columns', () => {
     useOrdersStore.setState({
       orders: [
@@ -92,6 +100,19 @@ describe('KanbanBoard', () => {
     renderKanban();
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
+  });
+
+  it('shows manager initials in avatar', () => {
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', managerName: 'Ivan Petrov' }, item_type: 'tee', total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+      ],
+    });
+    renderKanban();
+    const avatar = document.querySelector('.kb-avatar');
+    expect(avatar).toBeTruthy();
+    expect(avatar.textContent).toBe('IP');
+    expect(avatar.title).toBe('Ivan Petrov');
   });
 
   it('shows stats bar', () => {

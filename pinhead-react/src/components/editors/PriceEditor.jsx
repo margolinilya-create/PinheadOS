@@ -87,6 +87,7 @@ export default function PriceEditor() {
   const [changed, setChanged] = useState(0);
   const [saving, setSaving] = useState(false);
   const [fetchingRate, setFetchingRate] = useState(false);
+  const [staleBanner, setStaleBanner] = useState(null);
 
   // При монтировании — попробовать загрузить из Supabase (актуальнее localStorage)
   useEffect(() => {
@@ -97,6 +98,21 @@ export default function PriceEditor() {
       }
     });
   }, []);
+
+  // Проверка актуальности курса $ при монтировании
+  useEffect(() => {
+    const usdUpdatedAt = prices?.usdUpdatedAt;
+    if (usdUpdatedAt) {
+      const daysSince = (Date.now() - new Date(usdUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince > 1) {
+        setStaleBanner(Math.floor(daysSince));
+      } else {
+        setStaleBanner(null);
+      }
+    } else {
+      setStaleBanner(-1); // нет данных о дате обновления
+    }
+  }, [prices?.usdUpdatedAt]);
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -202,10 +218,15 @@ export default function PriceEditor() {
     setFetchingRate(true);
     try {
       const rate = await fetchUsdRate();
+      const now = new Date().toISOString();
       useStore.getState().setField('usdRate', rate);
       localStorage.setItem('ph_usd_rate', String(rate));
-      await savePricesToSupabase({ ...prices, usdRate: rate });
+      const updatedPrices = { ...prices, usdRate: rate, usdUpdatedAt: now };
+      setPrices(updatedPrices);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPrices));
+      await savePricesToSupabase(updatedPrices);
       clearCatalogsCache();
+      setStaleBanner(null);
       toast.success(`Курс обновлён: ${rate} \u20BD`);
     } catch {
       toast.error(`Не удалось обновить. Текущий: ${currentRate} \u20BD`);
@@ -500,6 +521,19 @@ export default function PriceEditor() {
             <button className="pe-close" onClick={onClose}>✕</button>
           </div>
         </div>
+
+        {/* ── Stale USD rate banner ── */}
+        {staleBanner !== null && (
+          <div className="usd-stale-banner">
+            {staleBanner === -1
+              ? '⚠️ Дата обновления курса $ неизвестна.'
+              : `⚠️ Курс $ не обновлялся ${staleBanner} дн.`}
+            {' '}
+            <button onClick={handleFetchUsdRate} disabled={fetchingRate}>
+              {fetchingRate ? 'Загрузка...' : 'Обновить'}
+            </button>
+          </div>
+        )}
 
         {/* ── Tabs ── */}
         <div className="pe-tabs">

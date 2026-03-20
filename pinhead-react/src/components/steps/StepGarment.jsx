@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useDeferredValue } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../lib/supabase';
@@ -26,6 +26,7 @@ function SkuList() {
   const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
   const [skuSearch, setSkuSearch] = useState('');
+  const deferredSearch = useDeferredValue(skuSearch);
   const usedCats = [...new Set(skuCatalog.map(s => s.category))];
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
 
@@ -34,8 +35,8 @@ function SkuList() {
     filtered = filtered.filter(s => s.fit === fitFilter);
   }
   const totalBeforeSearch = filtered.length;
-  if (skuSearch.trim()) {
-    const q = skuSearch.toLowerCase();
+  if (deferredSearch.trim()) {
+    const q = deferredSearch.toLowerCase();
     filtered = filtered.filter(s =>
       s.name?.toLowerCase().includes(q) ||
       s.code?.toLowerCase().includes(q) ||
@@ -416,8 +417,7 @@ function SizeTable() {
 
       {/* Mobile vertical list */}
       <div className="size-list-mobile">
-        {allRows.map((row, idx) => {
-          const q = parseInt(row.qty) || 0;
+        {allRows.map((row) => {
           const available = row.type === 'std' ? isSizeAvailable(row.label) : true;
           const inputKey = row.type === 'std' ? row.label : 'cs-' + row.idx;
           return (

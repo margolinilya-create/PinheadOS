@@ -93,7 +93,7 @@ ${extrasNames.length ? 'Обработки: ' + extrasNames.join(', ') : ''}
 }
 
 function buildTZText(state, grandTotal, catalogs) {
-  const orderNum = _editingOrderNumber || state._lastSavedOrderNum || '';
+  const orderNum = state._editingOrderNumber || state._lastSavedOrderNum || '';
   const items = state.items || [];
 
   const itemBlocks = items.map((it, i) => buildItemTZBlock(it, i, catalogs));
@@ -107,7 +107,7 @@ ${itemBlocks.join('\n\n')}
 
 КЛИЕНТ
 ${state.name ? 'Имя: ' + state.name : ''}
-${bitrixDeal ? 'Bitrix: ' + bitrixDeal : ''}
+${state.bitrixDeal ? 'Bitrix: ' + state.bitrixDeal : ''}
 ${state.contact ? 'Контакт: ' + state.contact : ''}
 ${state.email ? 'Email: ' + state.email : ''}
 ${state.phone ? 'Телефон: ' + state.phone : ''}
