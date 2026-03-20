@@ -69,10 +69,12 @@ export const useOrdersStore = create((set, get) => ({
     // DEV_MODE user id 'dev' is not a valid UUID — use null for created_by
     const userId = auth.user?.id;
     const createdBy = (userId && userId !== 'dev') ? userId : null;
+    const managerName = auth.user?.name || auth.user?.email || '';
+    const dataWithManager = { ...orderData, managerName };
     const row = {
       order_number: orderNumber,
       status: 'draft',
-      data: orderData,
+      data: dataWithManager,
       total_sum: orderData.total || 0,
       total_qty: orderData.totalQty || 0,
       item_type: orderData.type || '',
