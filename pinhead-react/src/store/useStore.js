@@ -317,9 +317,9 @@ export const useStore = create((set, get) => ({
     // Restore SKU from catalog by article/code
     function resolveSku(skuData) {
       if (!skuData) return null;
-      if (skuData.code) return skuCatalog.find(s => s.code === skuData.code) || null;
-      if (skuData.article) return skuCatalog.find(s => s.article === skuData.article) || null;
-      return null;
+      if (skuData.code) return skuCatalog.find(s => s.code === skuData.code) || skuData;
+      if (skuData.article) return skuCatalog.find(s => s.article === skuData.article) || skuData;
+      return skuData;
     }
 
     let sku = resolveSku(d.sku);

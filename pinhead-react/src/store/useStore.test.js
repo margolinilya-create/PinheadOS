@@ -253,7 +253,7 @@ describe('useStore — loadOrder', () => {
     expect(s.sku.name).toBe(SKU_CATALOG_DEFAULT[0].name);
   });
 
-  it('SKU not found in catalog → sku=null', () => {
+  it('SKU not found in catalog → falls back to saved sku data', () => {
     const mockOrder = {
       id: 'notfound-id',
       order_number: 'PH-0004',
@@ -263,7 +263,7 @@ describe('useStore — loadOrder', () => {
     };
     useStore.getState().loadOrder(mockOrder);
     const s = useStore.getState();
-    expect(s.sku).toBeNull();
+    expect(s.sku).toEqual({ code: 'NONEXISTENT-999' });
   });
 
   it('sets step=5 and maxStep=5', () => {
