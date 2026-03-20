@@ -16,12 +16,12 @@
   flex-shrink: 0;
 }
 /* Stats bar */
-.kanban-stats-bar { display: flex; align-items: center; gap: 16px; padding: 10px 32px; background: var(--black); color: var(--white); font-size: 11px; font-weight: 600; flex-shrink: 0; flex-wrap: wrap; letter-spacing: .5px; }
+.kanban-stats-bar { display: flex; align-items: center; gap: 16px; padding: 10px 32px; background: var(--surface); color: var(--text); border-bottom: 0.5px solid var(--border); font-size: 11px; font-weight: 600; flex-shrink: 0; flex-wrap: wrap; letter-spacing: .5px; }
 .kanban-stats-bar .ks-item      { display: flex; align-items: center; gap: 5px; }
 .kanban-stats-bar .ks-dot       { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .kanban-stats-bar .ks-count     { font-family: var(--mono); font-weight: 500; font-size: 14px; }
 .kanban-stats-bar .ks-total     { font-family: var(--mono); font-size: 16px; font-weight: 500; color: var(--accent); }
-.kanban-stats-bar .ks-separator { width: 1px; height: 18px; background: rgba(255,255,255,.12); flex-shrink: 0; }
+.kanban-stats-bar .ks-separator { width: 1px; height: 18px; background: var(--border-light); flex-shrink: 0; }
 /* Filter bar */
 .kanban-filter-bar { display: flex; align-items: center; gap: 8px; padding: 8px 32px; background: var(--bg2); border-bottom: 1px solid var(--border-light); flex-shrink: 0; flex-wrap: wrap; }
 .kanban-filter-btn { height: 28px; padding: 0 12px; border: 1.5px solid var(--border-light); background: var(--white); font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; transition: all 150ms ease-out; display: flex; align-items: center; gap: 4px; }

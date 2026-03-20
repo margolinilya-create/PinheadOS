@@ -510,30 +510,32 @@ export default function PriceEditor() {
           </div>
         </div>
 
-        {/* ── Stale USD rate banner ── */}
-        {staleBanner !== null && (
-          <div className="usd-stale-banner">
-            {staleBanner === -1
-              ? '⚠️ Дата обновления курса $ неизвестна.'
-              : `⚠️ Курс $ не обновлялся ${staleBanner} дн.`}
-            {' '}
-            <button onClick={handleFetchUsdRate} disabled={fetchingRate}>
-              {fetchingRate ? 'Загрузка...' : 'Обновить'}
-            </button>
+        {/* ── Content area (scrollable, below sticky actions bar) ── */}
+        <div className="pe-content">
+          {/* ── Stale USD rate banner ── */}
+          {staleBanner !== null && (
+            <div className="usd-stale-banner">
+              {staleBanner === -1
+                ? '⚠️ Дата обновления курса $ неизвестна.'
+                : `⚠️ Курс $ не обновлялся ${staleBanner} дн.`}
+              {' '}
+              <button onClick={handleFetchUsdRate} disabled={fetchingRate}>
+                {fetchingRate ? 'Загрузка...' : 'Обновить'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Tabs ── */}
+          <div className="pe-tabs">
+            {TABS.map(t => (
+              <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+                {t.name}
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* ── Tabs ── */}
-        <div className="pe-tabs">
-          {TABS.map(t => (
-            <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.name}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Body ── */}
-        <div className="pe-body">
+          {/* ── Body ── */}
+          <div className="pe-body">
           {tab === 'screen' && renderScreenTab()}
           {tab === 'embroidery' && renderEmbroideryTab()}
           {tab === 'dtf' && renderDtfTab()}
@@ -541,6 +543,7 @@ export default function PriceEditor() {
           {tab === 'flex' && renderFlexTab()}
           {tab === 'extras' && renderExtrasTab()}
           {tab === 'history' && renderHistoryTab()}
+        </div>
         </div>
       </div>
     </div>
