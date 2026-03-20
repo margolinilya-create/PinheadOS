@@ -330,6 +330,11 @@ export const useStore = create((set, get) => ({
       items = d.items.map(it => {
         const restored = { ...it };
         restored.sku = resolveSku(it.sku);
+        // Filter zones to only include zones available in the resolved SKU
+        if (restored.sku && Array.isArray(restored.zones)) {
+          const available = restored.sku.zones || [];
+          restored.zones = restored.zones.filter(z => available.includes(z));
+        }
         return restored;
       });
     } else {
@@ -346,7 +351,7 @@ export const useStore = create((set, get) => ({
         customSizes: d.customSizes ? [...d.customSizes] : [],
         extras: d.extras ? [...d.extras] : [],
         labels: d.labels ? [...d.labels] : [],
-        zones: d.zones ? [...d.zones] : [],
+        zones: d.zones ? (d.zones.filter(z => !sku || !sku.zones || sku.zones.includes(z))) : [],
         tech: d.tech || 'screen',
         textileColor: d.textileColor || 'white',
         zoneTechs: d.zoneTechs ? { ...d.zoneTechs } : {},

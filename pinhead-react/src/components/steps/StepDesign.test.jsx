@@ -50,19 +50,21 @@ describe('StepDesign', () => {
     expect(screen.getByText(/Сначала выберите/)).toBeInTheDocument();
   });
 
-  it('renders zone cards including disabled ones', () => {
+  it('renders only available zone cards', () => {
     render(<StepDesign />);
     const zoneCards = document.querySelectorAll('.zone-card');
-    // ALL_ZONES has 5 zones + 1 "Без нанесения" card = 6
-    expect(zoneCards.length).toBe(6);
+    // SKU has zones ['front', 'back'] + 1 "Без нанесения" card = 3
+    expect(zoneCards.length).toBe(3);
     const disabled = document.querySelectorAll('.zone-card.disabled');
-    expect(disabled.length).toBe(3);
+    expect(disabled.length).toBe(0);
   });
 
-  it('disabled zone has tooltip', () => {
+  it('renders all zones for hoodie SKU', () => {
+    useStore.setState({ sku: { code: 'H-001', name: 'Худи', zones: ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'] } });
     render(<StepDesign />);
-    const disabled = document.querySelector('.zone-card.disabled');
-    expect(disabled.getAttribute('title')).toBe('Недоступно для этого изделия');
+    const zoneCards = document.querySelectorAll('.zone-card');
+    // 5 zones + 1 "Без нанесения" = 6
+    expect(zoneCards.length).toBe(6);
   });
 
   it('calls toggleZone when clicking available zone', () => {
@@ -77,13 +79,10 @@ describe('StepDesign', () => {
     }
   });
 
-  it('does not call toggleZone when clicking disabled zone', () => {
-    const toggleZone = vi.fn();
-    useStore.setState({ toggleZone });
+  it('does not show unavailable zones', () => {
+    // T-shirt SKU has only front/back — hood should not appear
     render(<StepDesign />);
-    const disabled = document.querySelector('.zone-card.disabled');
-    fireEvent.click(disabled);
-    expect(toggleZone).not.toHaveBeenCalled();
+    expect(screen.queryByText('Капюшон')).not.toBeInTheDocument();
   });
 
   it('shows mini-summary on active zone', () => {

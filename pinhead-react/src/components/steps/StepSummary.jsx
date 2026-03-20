@@ -195,7 +195,7 @@ export default function StepSummary() {
       // Serialize items for storage (strip full SKU objects, keep only key fields)
       const serializedItems = items.map(it => ({
         ...it,
-        sku: it.sku ? { code: it.sku.code, name: it.sku.name, article: it.sku.article, category: it.sku.category, fit: it.sku.fit } : null,
+        sku: it.sku ? { code: it.sku.code, name: it.sku.name, article: it.sku.article, category: it.sku.category, fit: it.sku.fit, zones: it.sku.zones, mockupType: it.sku.mockupType } : null,
       }));
 
       // Backward compat: also keep first item's flat fields for old consumers (KanbanBoard, TechCard)
@@ -211,7 +211,7 @@ export default function StepSummary() {
         zoneArtworks: first.zoneArtworks || {}, textileColor: first.textileColor || 'white',
         designNotes: first.designNotes || '', sizeComment: first.sizeComment || '',
         labelConfig: first.labelConfig,
-        sku: first.sku ? { code: first.sku.code, name: first.sku.name, article: first.sku.article, category: first.sku.category, fit: first.sku.fit } : null,
+        sku: first.sku ? { code: first.sku.code, name: first.sku.name, article: first.sku.article, category: first.sku.category, fit: first.sku.fit, zones: first.sku.zones, mockupType: first.sku.mockupType } : null,
         // Shared fields
         name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
         role, messenger: messenger,

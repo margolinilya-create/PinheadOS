@@ -57,7 +57,7 @@ export default function StepDesign() {
   }
 
   const availableZones = sku.zones || [];
-  const displayZones = ALL_ZONES.filter(z => availableZones.includes(z) || ALL_ZONES.includes(z));
+  const displayZones = ALL_ZONES.filter(z => availableZones.includes(z));
   const noPrintType = hasNoPrint(type);
 
   return (
