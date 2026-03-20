@@ -262,29 +262,71 @@
   padding: 14px 32px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer;
   border: none; border-right: 1px solid var(--border-light);
-  background: var(--white); color: var(--text-mid); transition: all .15s;
+  background: var(--white); color: var(--text-mid); transition: background 150ms ease-out, transform 100ms ease-out;
 }
 .btn:last-child { border-right: none; }
-.btn:hover      { background: var(--bg2); color: var(--black); }
-.btn-primary       { background: var(--accent); color: var(--white); }
-.btn-primary:hover { background: var(--accent-hover, #1E1ED4); color: var(--white); }
+.btn:hover:not(:disabled)      { background: var(--bg2); color: var(--black); }
+.btn:active:not(:disabled)     { transform: scale(0.97); }
+/* ── Primary Button — 5 states ── */
+.btn-primary {
+  background: var(--ink); color: #fff; border: none;
+  padding: 10px 20px; font-size: 13px; font-weight: 500;
+  font-family: var(--font-body); border-radius: var(--radius-sm);
+  cursor: pointer; transition: background 150ms ease-out, transform 100ms ease-out;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent); }
+.btn-primary:active:not(:disabled) { background: var(--accent-hover); transform: scale(0.97); }
+.btn-primary:disabled,
+.btn-primary.disabled {
+  background: var(--surface); color: var(--text-dim);
+  cursor: not-allowed; transform: none;
+}
+.btn-primary.loading {
+  pointer-events: none; opacity: 0.8;
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+}
+/* Spinner */
+.btn-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: btn-spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation: none; }
+  .btn-primary { transition: none; }
+}
+/* ── Danger Button ── */
 .btn-danger        { color: var(--signal, #FF3B30); }
-.btn-danger:hover  { background: var(--signal, #FF3B30); color: var(--white); }
-.btn.disabled      { opacity: .35; cursor: not-allowed; pointer-events: none; }
+.btn-danger:hover:not(:disabled)  { background: var(--signal, #FF3B30); color: var(--white); }
+.btn-danger:disabled { opacity: .4; cursor: not-allowed; }
+/* ── Disabled (generic) ── */
+.btn:disabled,
+.btn.disabled      { opacity: .35; cursor: not-allowed; pointer-events: none; transform: none; }
 /* Legacy button aliases */
 .btn-next, .btn-prev, .btn-accent, .btn-secondary {
   padding: 14px 32px; font-family: 'Inter', sans-serif; font-size: 11px;
   font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer;
-  border: none; border-right: 1px solid var(--border-light); transition: all .15s;
+  border: none; border-right: 1px solid var(--border-light);
+  transition: background 150ms ease-out, transform 100ms ease-out;
 }
 .btn-next             { background: var(--accent); color: var(--white); }
-.btn-next:hover       { background: var(--accent-hover, #1E1ED4); color: var(--white); }
-.btn-next.disabled    { opacity: .35; cursor: not-allowed; pointer-events: none; }
+.btn-next:hover:not(:disabled)  { background: var(--accent-hover, #1E1ED4); color: var(--white); }
+.btn-next:active:not(:disabled) { transform: scale(0.97); }
+.btn-next:disabled,
+.btn-next.disabled    { opacity: .35; cursor: not-allowed; pointer-events: none; transform: none; }
 .btn-prev             { background: var(--white); color: var(--text-mid); }
-.btn-prev:hover       { background: var(--bg2); color: var(--black); }
+.btn-prev:hover:not(:disabled)  { background: var(--bg2); color: var(--black); }
+.btn-prev:active:not(:disabled) { transform: scale(0.97); }
 .btn-accent           { background: var(--accent); color: var(--white); border-color: var(--accent); }
-.btn-accent:hover     { background: var(--accent-hover, #1E1ED4); }
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover, #1E1ED4); }
+.btn-accent:active:not(:disabled) { transform: scale(0.97); }
+/* ── Secondary Button — 4 states ── */
 .btn-secondary        { background: var(--white); color: var(--text-dim); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface); }
+.btn-secondary:active:not(:disabled) { transform: scale(0.97); }
+.btn-secondary:disabled,
+.btn-secondary.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .order-saved-banner {
   margin-top: 24px; padding: 16px 24px; background: var(--bg-success); border: 1px solid var(--color-success);
   color: var(--color-success); font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 1px; text-align: center;
