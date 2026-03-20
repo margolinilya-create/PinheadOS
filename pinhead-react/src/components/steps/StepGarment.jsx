@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../lib/supabase';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
@@ -16,7 +17,11 @@ const FIT_OPTIONS = [
 ];
 
 function SkuList() {
-  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore();
+  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore(
+    useShallow(s => ({ skuCatalog: s.skuCatalog, skuFilter: s.skuFilter, setSkuFilter: s.setSkuFilter,
+      selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabricsCatalog: s.fabricsCatalog,
+      trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
+  );
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
@@ -110,7 +115,10 @@ function SkuList() {
 
 // ── Fabric Grid ──
 function FabricGrid() {
-  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate } = useStore();
+  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate } = useStore(
+    useShallow(s => ({ type: s.type, fabric: s.fabric, selectFabric: s.selectFabric, setColorSupplier: s.setColorSupplier,
+      sku: s.sku, fabricsCatalog: s.fabricsCatalog, colorSupplier: s.colorSupplier, usdRate: s.usdRate }))
+  );
   if (isAccessory(type)) return null;
 
   let fabrics;
@@ -160,7 +168,10 @@ function FabricGrid() {
 
 // ── Color Picker ──
 function ColorPicker() {
-  const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore();
+  const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore(
+    useShallow(s => ({ type: s.type, color: s.color, selectColor: s.selectColor,
+      colorSupplier: s.colorSupplier, setColorSupplier: s.setColorSupplier }))
+  );
   const [colorSearch, setColorSearch] = useState('');
   if (isAccessory(type)) return null;
 
@@ -220,15 +231,17 @@ function ColorPicker() {
 
 // ── Size Table ──
 function SizeTable() {
-  const state = useStore();
-  const { type, sku, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = state;
+  const { type, sku, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = useStore(
+    useShallow(s => ({ type: s.type, sku: s.sku, sizes: s.sizes, setSize: s.setSize, setOneSizeQty: s.setOneSizeQty,
+      customSizes: s.customSizes, addCustomSize: s.addCustomSize, removeCustomSize: s.removeCustomSize,
+      setCustomSizeQty: s.setCustomSizeQty, setCustomSizeLabel: s.setCustomSizeLabel }))
+  );
+  const price = useStore(s => getUnitPrice(s));
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newQty, setNewQty] = useState(0);
   const sizeRefs = useRef({});
   const isAcc = isAccessory(type);
-
-  const price = getUnitPrice(state);
 
   // Available sizes: use sku.availableSizes if present, otherwise all sizes
   const availableSizes = sku?.availableSizes || null;
@@ -440,7 +453,9 @@ function SizeTable() {
 
 // ── Mockup Preview ──
 function MockupPreview() {
-  const { type, color } = useStore();
+  const { type, color } = useStore(
+    useShallow(s => ({ type: s.type, color: s.color }))
+  );
   if (!type) return null;
   const svg = getGarmentSVG(type, color);
   return (
@@ -450,9 +465,10 @@ function MockupPreview() {
 
 // ── Main Step ──
 export default function StepGarment() {
-  const { nextStep, type, color } = useStore();
-  const state = useStore();
-  const totalQty = getTotalQty(state);
+  const { nextStep, type, color } = useStore(
+    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color }))
+  );
+  const totalQty = useStore(s => getTotalQty(s));
   const canNext = type && totalQty > 0 && (isAccessory(type) || color);
 
   return (

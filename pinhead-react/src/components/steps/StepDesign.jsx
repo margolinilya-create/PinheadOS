@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS, TECH_NAMES } from '../../data';
 import { hasNoPrint, getZoneSurcharge } from '../../utils/pricing';
 import ZoneTechBlock from './ZoneTechBlock';
@@ -40,9 +41,15 @@ function getZoneMiniSummary(zone, state) {
 }
 
 export default function StepDesign() {
-  const store = useStore();
   const { sku, type, color, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
-    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones } = store;
+    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones } = useStore(
+    useShallow(s => ({ sku: s.sku, type: s.type, color: s.color, zones: s.zones, toggleZone: s.toggleZone,
+      noPrint: s.noPrint, toggleNoPrint: s.toggleNoPrint, designNotes: s.designNotes, setField: s.setField,
+      nextStep: s.nextStep, prevStep: s.prevStep, sizes: s.sizes, customSizes: s.customSizes,
+      zoneTechs: s.zoneTechs, zonePrints: s.zonePrints, flexZones: s.flexZones, dtgZones: s.dtgZones,
+      embZones: s.embZones, dtfZones: s.dtfZones }))
+  );
+  const store = { zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, sizes, customSizes };
   const [screenConfirmed, setScreenConfirmed] = useState(false);
 
   if (!sku) {

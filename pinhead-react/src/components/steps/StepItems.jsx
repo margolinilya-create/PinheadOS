@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES } from '../../data';
 import { calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
@@ -6,7 +7,12 @@ import { getGarmentSVG } from '../../utils/mockup';
 
 export default function StepItems() {
   const { items, activeItemIdx, nextStep, prevStep, addNewItem, editItem, removeItem,
-    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption } = useStore();
+    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption } = useStore(
+    useShallow(s => ({ items: s.items, activeItemIdx: s.activeItemIdx, nextStep: s.nextStep, prevStep: s.prevStep,
+      addNewItem: s.addNewItem, editItem: s.editItem, removeItem: s.removeItem,
+      fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
+      usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption }))
+  );
 
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
 

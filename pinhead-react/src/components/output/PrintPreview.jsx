@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES, findColorEntry } from '../../data';
 import { getLabelConfigPrice, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
@@ -53,13 +54,21 @@ function getLabelLines(labelConfig) {
 export default function PrintPreview() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const state = useStore();
-  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption } = state;
+  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption,
+    name: stateName, contact: stateContact, email: stateEmail, phone: statePhone,
+    address: stateAddress, notes: stateNotes, deadline: stateDeadline,
+    _editingOrderNumber } = useStore(
+    useShallow(s => ({ items: s.items, fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog,
+      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption,
+      name: s.name, contact: s.contact, email: s.email, phone: s.phone,
+      address: s.address, notes: s.notes, deadline: s.deadline,
+      _editingOrderNumber: s._editingOrderNumber }))
+  );
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
   const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
   const grandQty = items.reduce((sum, it) => sum + getItemTotalQty(it), 0);
 
-  const orderNumber = state._editingOrderNumber || ('PH-' + Date.now().toString(36).toUpperCase());
+  const orderNumber = _editingOrderNumber || ('PH-' + Date.now().toString(36).toUpperCase());
   const now = new Date().toLocaleDateString('ru-RU');
 
   const handlePrint = () => window.print();
@@ -155,7 +164,7 @@ export default function PrintPreview() {
                   </div>
                   {item.fit && <div className="pp-kv-row"><span>Крой</span><span className="pp-kv-dots" /><b>{item.fit}</b></div>}
                   {idx === 0 && <div className="pp-kv-row"><span>Дата</span><span className="pp-kv-dots" /><b>{now}</b></div>}
-                  {idx === 0 && state.deadline && <div className="pp-kv-row"><span>Дедлайн</span><span className="pp-kv-dots" /><b>{state.deadline}</b></div>}
+                  {idx === 0 && stateDeadline && <div className="pp-kv-row"><span>Дедлайн</span><span className="pp-kv-dots" /><b>{stateDeadline}</b></div>}
                 </div>
               </div>
 
@@ -273,30 +282,30 @@ export default function PrintPreview() {
         </div>
 
         {/* ── Клиент ── */}
-        {(state.name || state.contact || state.email || state.phone) && (
+        {(stateName || stateContact || stateEmail || statePhone) && (
           <div className="pp-section">
             <div className="pp-section-head">
               <span className="pp-section-num">{nextSection()}</span>
               <span className="pp-section-name">КЛИЕНТ</span>
             </div>
             <div className="pp-kv">
-              {state.name && <div className="pp-kv-row"><span>Имя</span><span className="pp-kv-dots" /><b>{state.name}</b></div>}
-              {state.phone && <div className="pp-kv-row"><span>Телефон</span><span className="pp-kv-dots" /><b>{state.phone}</b></div>}
-              {state.contact && <div className="pp-kv-row"><span>Контакт</span><span className="pp-kv-dots" /><b>{state.contact}</b></div>}
-              {state.email && <div className="pp-kv-row"><span>Email</span><span className="pp-kv-dots" /><b>{state.email}</b></div>}
-              {state.address && <div className="pp-kv-row"><span>Адрес</span><span className="pp-kv-dots" /><b>{state.address}</b></div>}
+              {stateName && <div className="pp-kv-row"><span>Имя</span><span className="pp-kv-dots" /><b>{stateName}</b></div>}
+              {statePhone && <div className="pp-kv-row"><span>Телефон</span><span className="pp-kv-dots" /><b>{statePhone}</b></div>}
+              {stateContact && <div className="pp-kv-row"><span>Контакт</span><span className="pp-kv-dots" /><b>{stateContact}</b></div>}
+              {stateEmail && <div className="pp-kv-row"><span>Email</span><span className="pp-kv-dots" /><b>{stateEmail}</b></div>}
+              {stateAddress && <div className="pp-kv-row"><span>Адрес</span><span className="pp-kv-dots" /><b>{stateAddress}</b></div>}
             </div>
           </div>
         )}
 
         {/* ── Заметки ── */}
-        {state.notes && (
+        {stateNotes && (
           <div className="pp-section">
             <div className="pp-section-head">
               <span className="pp-section-num">{nextSection()}</span>
               <span className="pp-section-name">ЗАМЕТКИ</span>
             </div>
-            <div className="pp-notes">{state.notes}</div>
+            <div className="pp-notes">{stateNotes}</div>
           </div>
         )}
 

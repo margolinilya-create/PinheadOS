@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS } from '../../data';
 import { TECH_TABS, getZoneSurcharge, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, getTotalQty } from '../../utils/pricing';
 
@@ -9,11 +10,12 @@ const DTF_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const EMB_AREAS = [{ k: 's', l: 'S до 7см' }, { k: 'm', l: 'M до 12см' }, { k: 'l', l: 'L до 20см' }];
 
 export default function ZoneTechBlock({ zone }) {
-  const state = useStore();
-  const { zoneTechs, setZoneTech } = state;
+  const { zoneTechs, setZoneTech } = useStore(
+    useShallow(s => ({ zoneTechs: s.zoneTechs, setZoneTech: s.setZoneTech }))
+  );
   const tech = zoneTechs?.[zone] || 'screen';
-  const surcharge = getZoneSurcharge(zone, state);
-  const totalQty = getTotalQty(state) || 1;
+  const surcharge = useStore(s => getZoneSurcharge(zone, s));
+  const totalQty = useStore(s => getTotalQty(s)) || 1;
 
   return (
     <div className="zone-tech-block">
@@ -40,7 +42,9 @@ export default function ZoneTechBlock({ zone }) {
 }
 
 function ScreenParams({ zone, qty }) {
-  const { zonePrints, setZoneParam } = useStore();
+  const { zonePrints, setZoneParam } = useStore(
+    useShallow(s => ({ zonePrints: s.zonePrints, setZoneParam: s.setZoneParam }))
+  );
   const p = zonePrints?.[zone] || { colors: 1, size: 'A4', textile: 'white', fx: 'none' };
 
   return (
@@ -81,7 +85,9 @@ function ScreenParams({ zone, qty }) {
 }
 
 function FlexParams({ zone }) {
-  const { flexZones, setZoneParam } = useStore();
+  const { flexZones, setZoneParam } = useStore(
+    useShallow(s => ({ flexZones: s.flexZones, setZoneParam: s.setZoneParam }))
+  );
   const p = flexZones?.[zone] || { colors: 1, size: 'A4' };
   return (
     <>
@@ -103,7 +109,9 @@ function FlexParams({ zone }) {
 }
 
 function DtgParams({ zone }) {
-  const { dtgZones, setZoneParam } = useStore();
+  const { dtgZones, setZoneParam } = useStore(
+    useShallow(s => ({ dtgZones: s.dtgZones, setZoneParam: s.setZoneParam }))
+  );
   const p = dtgZones?.[zone] || { size: 'A4', textile: 'white' };
   return (
     <>
@@ -123,7 +131,9 @@ function DtgParams({ zone }) {
 }
 
 function EmbParams({ zone }) {
-  const { embZones, setZoneParam } = useStore();
+  const { embZones, setZoneParam } = useStore(
+    useShallow(s => ({ embZones: s.embZones, setZoneParam: s.setZoneParam }))
+  );
   const p = embZones?.[zone] || { colors: 3, area: 's' };
   return (
     <>
@@ -145,7 +155,9 @@ function EmbParams({ zone }) {
 }
 
 function DtfParams({ zone }) {
-  const { dtfZones, setZoneParam } = useStore();
+  const { dtfZones, setZoneParam } = useStore(
+    useShallow(s => ({ dtfZones: s.dtfZones, setZoneParam: s.setZoneParam }))
+  );
   const p = dtfZones?.[zone] || { size: 'A4' };
   return (
     <ParamRow label="Размер">

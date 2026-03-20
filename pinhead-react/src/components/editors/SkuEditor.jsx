@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { TRIM_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT, HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
@@ -44,8 +45,10 @@ function getDefaultZones(cat) {
 export default function SkuEditor() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const store = useStore();
-  const { skuCatalog, fabricsCatalog, trimCatalog, usdRate, setField } = store;
+  const { skuCatalog, fabricsCatalog, trimCatalog, usdRate, setField } = useStore(
+    useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
+      trimCatalog: s.trimCatalog, usdRate: s.usdRate, setField: s.setField }))
+  );
   const [tab, setTab] = useState('items');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');

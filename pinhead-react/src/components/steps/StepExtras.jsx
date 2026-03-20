@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { EXTRAS_ICONS, EXTRAS_DESCS } from '../../data';
 
 function PriceBadge({ price }) {
@@ -7,7 +8,10 @@ function PriceBadge({ price }) {
 }
 
 export default function StepExtras() {
-  const { sku, extras, extrasCatalog, toggleExtra, nextStep, prevStep } = useStore();
+  const { sku, extras, extrasCatalog, toggleExtra, nextStep, prevStep } = useStore(
+    useShallow(s => ({ sku: s.sku, extras: s.extras, extrasCatalog: s.extrasCatalog,
+      toggleExtra: s.toggleExtra, nextStep: s.nextStep, prevStep: s.prevStep }))
+  );
 
   const available = sku
     ? extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category))

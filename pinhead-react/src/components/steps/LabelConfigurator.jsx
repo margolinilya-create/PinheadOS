@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { LABEL_CONFIG } from '../../data/extras';
 
 // SVG иконки для размещения бирки
@@ -19,7 +20,9 @@ const InseamSvg = () => (
 );
 
 export default function LabelConfigurator() {
-  const { labelConfig, setLabelConfig, toggleCareLabel } = useStore();
+  const { labelConfig, setLabelConfig, toggleCareLabel } = useStore(
+    useShallow(s => ({ labelConfig: s.labelConfig, setLabelConfig: s.setLabelConfig, toggleCareLabel: s.toggleCareLabel }))
+  );
   const { careLabel, mainLabel, hangTag } = labelConfig;
 
   return (

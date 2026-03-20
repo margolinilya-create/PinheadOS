@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
@@ -92,7 +93,7 @@ ${extrasNames.length ? 'Обработки: ' + extrasNames.join(', ') : ''}
 }
 
 function buildTZText(state, grandTotal, catalogs) {
-  const orderNum = state._editingOrderNumber || state._lastSavedOrderNum || '';
+  const orderNum = _editingOrderNumber || state._lastSavedOrderNum || '';
   const items = state.items || [];
 
   const itemBlocks = items.map((it, i) => buildItemTZBlock(it, i, catalogs));
@@ -106,7 +107,7 @@ ${itemBlocks.join('\n\n')}
 
 КЛИЕНТ
 ${state.name ? 'Имя: ' + state.name : ''}
-${state.bitrixDeal ? 'Bitrix: ' + state.bitrixDeal : ''}
+${bitrixDeal ? 'Bitrix: ' + bitrixDeal : ''}
 ${state.contact ? 'Контакт: ' + state.contact : ''}
 ${state.email ? 'Email: ' + state.email : ''}
 ${state.phone ? 'Телефон: ' + state.phone : ''}
@@ -124,9 +125,20 @@ ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 export default function StepSummary() {
   const navigate = useNavigate();
-  const state = useStore();
   const { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
-    prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate } = state;
+    prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
+    _editingOrderId, _editingOrderNumber, _lastSavedOrderNum } = useStore(
+    useShallow(s => ({ items: s.items, name: s.name, contact: s.contact, email: s.email, phone: s.phone,
+      deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption,
+      urgentOption: s.urgentOption, prevStep: s.prevStep, resetOrder: s.resetOrder,
+      fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
+      usdRate: s.usdRate, bitrixDeal: s.bitrixDeal, messenger: s.messenger,
+      _editingOrderId: s._editingOrderId, _editingOrderNumber: s._editingOrderNumber,
+      _lastSavedOrderNum: s._lastSavedOrderNum }))
+  );
+  const state = { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
+    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
+    _editingOrderId, _editingOrderNumber, _lastSavedOrderNum };
   const saveOrder = useOrdersStore(s => s.saveOrder);
   const updateOrder = useOrdersStore(s => s.updateOrder);
   const [saving, setSaving] = useState(false);
@@ -201,18 +213,18 @@ export default function StepSummary() {
       labelConfig: first.labelConfig,
       sku: first.sku ? { code: first.sku.code, name: first.sku.name, article: first.sku.article, category: first.sku.category, fit: first.sku.fit } : null,
       // Shared fields
-      name, contact, email, phone, bitrixDeal: state.bitrixDeal, deadline, address, notes,
-      role, messenger: state.messenger,
+      name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
+      role, messenger: messenger,
       packOption, urgentOption,
       total: grandTotal, totalQty: grandQty, unitPrice: grandQty > 0 ? Math.round(grandTotal / grandQty) : 0,
     };
 
     let saved;
-    if (state._editingOrderId) {
-      saved = await updateOrder(state._editingOrderId, orderData);
+    if (_editingOrderId) {
+      saved = await updateOrder(_editingOrderId, orderData);
       if (saved) {
         localStorage.removeItem('pinhead_draft');
-        setSavedNum(state._editingOrderNumber || saved.order_number || 'OK');
+        setSavedNum(_editingOrderNumber || saved.order_number || 'OK');
         toast.success('Заказ обновлён');
       } else {
         toast.error('Ошибка обновления заказа');
@@ -355,7 +367,7 @@ export default function StepSummary() {
         <div className="summary-block">
           <div className="summary-block-title">Клиент <EditBtn step={4} goToStep={goToStep} /></div>
           <div className="summary-row"><span className="key">Имя</span><span className="val"><b>{name}</b></span></div>
-          {state.bitrixDeal && <div className="summary-row"><span className="key">Bitrix</span><span className="val"><b>{state.bitrixDeal}</b></span></div>}
+          {bitrixDeal && <div className="summary-row"><span className="key">Bitrix</span><span className="val"><b>{bitrixDeal}</b></span></div>}
           {contact && <div className="summary-row"><span className="key">Контакт</span><span className="val"><b>{contact}</b></span></div>}
           {email && <div className="summary-row"><span className="key">Email</span><span className="val"><b>{email}</b></span></div>}
           {phone && <div className="summary-row"><span className="key">Телефон</span><span className="val"><b>{phone}</b></span></div>}
@@ -415,7 +427,7 @@ export default function StepSummary() {
           onClick={() => !hasErrors && handleSave()}
           title={hasErrors ? 'Заполните обязательные поля' : undefined}
         >
-          {saving ? 'Сохранение...' : state._editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
+          {saving ? 'Сохранение...' : _editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
       </div>
