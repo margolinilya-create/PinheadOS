@@ -60,7 +60,7 @@ textarea::placeholder {
   flex: 1; padding: 12px; border: none; border-right: 1px solid var(--border-light);
   background: var(--white); color: var(--text-mid);
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all .15s;
+  text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 150ms ease-out;
 }
 .role-btn:last-child { border-right: none; }
 .role-btn:hover      { background: var(--bg2); color: var(--black); }
@@ -97,11 +97,11 @@ textarea::placeholder {
 .toggle input { opacity: 0; width: 0; height: 0; }
 .toggle-slider {
   position: absolute; inset: 0; background: var(--bg3); border: 1px solid var(--border-light);
-  border-radius: 12px; cursor: pointer; transition: all .2s;
+  border-radius: 12px; cursor: pointer; transition: all 150ms ease-out;
 }
 .toggle-slider::before {
   content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%;
-  background: var(--text-dim); top: 3px; left: 3px; transition: transform .2s, background .2s;
+  background: var(--text-dim); top: 3px; left: 3px; transition: transform 150ms ease-out, background 150ms ease-out;
 }
 .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--white); }
@@ -111,13 +111,13 @@ textarea::placeholder {
 /* ── Label Configurator ── */
 .label-configurator { display: flex; flex-direction: column; gap: 8px; }
 .label-section      { border: 1px solid var(--border-light); }
-.label-section-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; transition: background .15s; }
+.label-section-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; transition: background 150ms ease-out; }
 .label-section-header:hover { background: var(--bg2); }
 .label-section-toggle   { display: flex; align-items: center; gap: 8px; }
 .label-toggle-check {
   width: 16px; height: 16px; border: 1px solid var(--border-light);
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; transition: all .15s;
+  font-size: 11px; font-weight: 700; transition: all 150ms ease-out;
 }
 .label-toggle-check.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
 .label-section-name  { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; }
@@ -126,7 +126,7 @@ textarea::placeholder {
 .label-options-row { display: flex; gap: 4px; flex-wrap: wrap; }
 .label-option-pill {
   padding: 5px 12px; border: 1px solid var(--border-light); background: var(--white);
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; transition: all .15s;
+  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 150ms ease-out;
   display: flex; align-items: center; gap: 4px;
 }
 .label-option-pill:hover      { border-color: var(--accent); }
@@ -144,7 +144,7 @@ textarea::placeholder {
 .label-placement-btn  {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   padding: 8px 12px; border: 1px solid var(--border-light); background: var(--white);
-  cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-dim); transition: all .15s;
+  cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-dim); transition: all 150ms ease-out;
 }
 .label-placement-btn:hover      { border-color: var(--accent); }
 .label-placement-btn.active     { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
@@ -152,7 +152,7 @@ textarea::placeholder {
 .label-color-btn  {
   display: flex; align-items: center; gap: 8px; padding: 4px 12px;
   border: 1px solid var(--border-light); background: var(--white);
-  cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; transition: all .15s;
+  cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; transition: all 150ms ease-out;
 }
 .label-color-btn:hover      { border-color: var(--accent); }
 .label-color-btn.active     { border-color: var(--accent); background: var(--accent-light); }
@@ -162,7 +162,7 @@ textarea::placeholder {
 .item-card {
   display: flex; align-items: center; gap: 12px;
   background: var(--white); border: 1px solid var(--border-light);
-  padding: 16px 16px; transition: border-color .15s;
+  padding: 16px 16px; transition: border-color 150ms ease-out;
 }
 .item-card.active { border-left: 3px solid var(--accent); }
 .item-card:hover  { border-color: var(--text-dim); }
@@ -179,13 +179,13 @@ textarea::placeholder {
 .btn-icon {
   width: 30px; height: 30px; border: 1px solid var(--border-light);
   background: transparent; cursor: pointer; font-size: 16px; display: flex;
-  align-items: center; justify-content: center; color: var(--text); transition: all .15s;
+  align-items: center; justify-content: center; color: var(--text); transition: all 150ms ease-out;
 }
 .btn-icon:hover         { background: var(--bg2); border-color: var(--accent); }
 .btn-icon-danger:hover  { color: var(--color-error); border-color: var(--color-error); }
 .item-card-add {
   justify-content: center; cursor: pointer;
-  border-style: dashed; opacity: .7; transition: opacity .15s;
+  border-style: dashed; opacity: .7; transition: opacity 150ms ease-out;
   flex-direction: column; gap: 4px; padding: 24px;
   font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-dim);
 }
@@ -198,7 +198,7 @@ textarea::placeholder {
   background: var(--accent); color: var(--white); border: none;
   font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700;
   letter-spacing: .5px; text-transform: uppercase; cursor: pointer;
-  transition: background .15s;
+  transition: background 150ms ease-out;
 }
 .btn-add-item:hover { background: var(--black); }
 .btn-add-item-icon { font-size: 22px; font-weight: 300; }
@@ -380,7 +380,7 @@ textarea::placeholder {
 /* Upload areas */
 .general-upload {
   border: 1px dashed var(--border-light); padding: 24px; text-align: center;
-  cursor: pointer; transition: all .15s; background: var(--bg2); margin-bottom: 24px;
+  cursor: pointer; transition: all 150ms ease-out; background: var(--bg2); margin-bottom: 24px;
 }
 .general-upload:hover { border-color: var(--accent); border-style: solid; background: var(--white); }
 .general-upload-icon  { font-size: 28px; margin-bottom: 8px; color: var(--accent); }
@@ -388,7 +388,7 @@ textarea::placeholder {
 .general-upload-sub   { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); margin-top: 3px; }
 .upload-area {
   border: 1px dashed var(--border-light); padding: 32px; text-align: center;
-  cursor: pointer; transition: all .15s; margin-bottom: 24px; background: var(--bg2);
+  cursor: pointer; transition: all 150ms ease-out; margin-bottom: 24px; background: var(--bg2);
 }
 .upload-area:hover { border-color: var(--accent); border-style: solid; background: var(--white); }
 .upload-icon { font-size: 28px; margin-bottom: 12px; color: var(--accent); }
@@ -409,7 +409,7 @@ textarea::placeholder {
   background: none; border: 1px solid var(--border-light); padding: 3px 10px;
   font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim);
-  cursor: pointer; margin-left: 8px; transition: all .15s; vertical-align: middle;
+  cursor: pointer; margin-left: 8px; transition: all 150ms ease-out; vertical-align: middle;
 }
 .summary-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
 /* ── Summary Row Accent ── */
@@ -426,7 +426,7 @@ textarea::placeholder {
   display: block; width: 100%; background: none; border: none;
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-mid);
-  cursor: pointer; padding: 0 0 12px; text-align: left; transition: color .15s;
+  cursor: pointer; padding: 0 0 12px; text-align: left; transition: color 150ms ease-out;
 }
 .price-breakdown-toggle:hover { color: var(--accent); }
 /* ── Price Breakdown Details ── */

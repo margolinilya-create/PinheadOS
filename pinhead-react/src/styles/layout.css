@@ -46,7 +46,7 @@ header {
 /* Header right section */
 .header-right { display: flex; align-items: stretch; margin-left: 0; flex-shrink: 0; }
 .header-draft { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
-.draft-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; transition: background .3s; }
+.draft-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; transition: background 300ms ease-in-out; }
 .draft-dot.saving { background: var(--color-warning); }
 .draft-dot.saved  { background: var(--color-success); }
 .draft-text {
@@ -55,7 +55,7 @@ header {
 }
 .draft-reset-btn {
   background: none; border: none; color: var(--text-dim); font-size: 9px; font-weight: 700;
-  cursor: pointer; padding: 0 2px; line-height: 1; opacity: .4; transition: opacity .15s, color .15s;
+  cursor: pointer; padding: 0 2px; line-height: 1; opacity: .4; transition: opacity 150ms ease-out, color 150ms ease-out;
 }
 .draft-reset-btn:hover { opacity: 1; color: var(--black); }
 .header-total { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
@@ -75,7 +75,7 @@ header {
   cursor: pointer; font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
   display: flex; align-items: center; gap: 8px;
-  transition: background .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+  transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;
 }
 .header-logout:hover { background: var(--accent); color: var(--white); }
 /* Header action buttons */
@@ -86,7 +86,7 @@ header {
   cursor: pointer; font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
   display: flex; align-items: center; gap: 8px;
-  transition: background .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+  transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;
 }
 .header-action-btn:hover  { background: var(--accent); color: var(--white); }
 .header-action-btn.active { background: var(--accent); color: var(--white); }
