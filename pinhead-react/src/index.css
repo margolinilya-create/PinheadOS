@@ -44,6 +44,7 @@
 
   /* ── Fonts ── */
   --font-body:    'Inter', sans-serif;
+  --font-display: 'Barlow Condensed', sans-serif;
   --mono:         'Roboto Mono', monospace;
 
   /* ── Radii ── */

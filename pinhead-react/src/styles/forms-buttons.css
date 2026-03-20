@@ -396,7 +396,7 @@ textarea::placeholder {
 .upload-sub  { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 /* ── Summary Validation Errors ── */
 .summary-errors {
-  background: #FFF5F5; border: 1px solid var(--color-error, #FF3B30);
+  background: var(--bg-error); border: 1px solid var(--color-error);
   padding: 12px 16px; margin-bottom: 16px;
 }
 .summary-error-line {

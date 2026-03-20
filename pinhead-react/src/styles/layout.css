@@ -41,7 +41,7 @@ header {
 .header-nav-btn.active { background: var(--accent); color: #fff; }
 /* Express — always signal */
 .header-nav-btn.express-btn { background: var(--signal); color: #fff; border-left-color: var(--signal); }
-.header-nav-btn.express-btn:hover { background: #c73040; }
+.header-nav-btn.express-btn:hover { opacity: 0.85; }
 .header-nav-btn.express-btn.active { background: var(--signal); }
 /* Header right section */
 .header-right { display: flex; align-items: stretch; margin-left: 0; flex-shrink: 0; }
@@ -91,7 +91,7 @@ header {
 .header-action-btn:hover  { background: var(--accent); color: var(--white); }
 .header-action-btn.active { background: var(--accent); color: var(--white); }
 .header-action-btn.express { background: var(--signal); color: var(--white); border-left: 1px solid var(--border-light); }
-.header-action-btn.express:hover { background: #E0342A; color: var(--white); }
+.header-action-btn.express:hover { opacity: 0.85; }
 .header-action-btn .badge {
   background: var(--accent); color: #fff; font-size: 9px; padding: 1px 8px;
   font-weight: 600; letter-spacing: 0;

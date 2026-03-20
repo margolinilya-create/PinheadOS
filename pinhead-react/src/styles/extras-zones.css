@@ -191,18 +191,18 @@
   background: transparent;
 }
 .zm-zone:hover {
-  background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3);
+  background: rgba(43,43,240,0.12); border-color: rgba(43,43,240,0.3);
 }
 .zm-zone.active {
-  background: rgba(59,130,246,0.18); border-color: #3b82f6; border-style: solid;
+  background: rgba(43,43,240,0.18); border-color: var(--accent); border-style: solid;
 }
 .zm-zone-label {
   font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px; color: transparent;
   pointer-events: none; transition: color 150ms ease-out; user-select: none;
 }
-.zm-zone:hover .zm-zone-label { color: rgba(59,130,246,0.7); }
-.zm-zone.active .zm-zone-label { color: #3b82f6; }
+.zm-zone:hover .zm-zone-label { color: rgba(43,43,240,0.7); }
+.zm-zone.active .zm-zone-label { color: var(--accent); }
 .zm-summary {
   display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 0 8px;
 }

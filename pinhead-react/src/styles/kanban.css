@@ -33,8 +33,8 @@
 .kanban-col   { flex: 1; min-width: 240px; display: flex; flex-direction: column; border-right: 1px solid var(--border-light); height: 100%; }
 .kanban-col:last-child { border-right: none; }
 .kanban-col-header  { padding: 14px 16px; border-bottom: 3px solid; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; background: var(--bg); }
-.kanban-col-title   { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
-.kanban-col-count   { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 900; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; color: #fff; }
+.kanban-col-title   { font-family: var(--font-display); font-size: 12px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+.kanban-col-count   { font-family: var(--font-display); font-size: 11px; font-weight: 900; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; color: #fff; }
 .kanban-col-sum     { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-dim); margin-left: auto; margin-right: 8px; letter-spacing: .5px; }
 .kanban-col-body    { flex: 1; overflow-y: auto; padding: 8px 8px 60px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
 .kanban-col-body.drag-over { background: var(--accent-light); }
@@ -48,7 +48,7 @@
 .kb-card-id      { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px; color: var(--accent); }
 .kb-card-id .bx-tag { font-size: 7px; background: var(--accent); color: #fff; padding: 1px 4px; margin-left: 4px; vertical-align: middle; letter-spacing: 0; }
 .kb-card-date    { font-family: var(--mono); font-size: 9px; color: var(--text-dim); font-weight: 500; white-space: nowrap; letter-spacing: .3px; }
-.kb-card-client  { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-card-client  { font-family: var(--font-display); font-size: 14px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kb-card-meta    { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .kb-card-row     { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-mid); }
 .kb-card-row strong { font-weight: 700; color: var(--black); }
@@ -78,9 +78,9 @@
 .kb-card-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 600; text-align: left; font-family: 'Roboto Condensed', sans-serif; transition: background 150ms ease-out; }
 .kb-card-menu button:hover { background: var(--bg2); }
 /* Deadline badge */
-.kb-deadline-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 900; padding: 1px 6px; letter-spacing: .5px; text-transform: uppercase; }
+.kb-deadline-badge { font-family: var(--font-display); font-size: 9px; font-weight: 900; padding: 1px 6px; letter-spacing: .5px; text-transform: uppercase; }
 /* Avatar */
-.kb-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--white); font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kb-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--white); font-family: var(--font-display); font-size: 9px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .kb-search {
   flex: 1;
   padding: 8px 12px;

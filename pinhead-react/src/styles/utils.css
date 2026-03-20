@@ -202,6 +202,10 @@
   .toast              { min-width: auto; }
   .kanban-col         { min-width: 260px; flex: 0 0 260px; }
 }
+/* ── Mobile touch targets ── */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary, .btn-next, .btn-prev, .btn-accent { min-height: 48px; }
+}
 /* ── Global reduced-motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
