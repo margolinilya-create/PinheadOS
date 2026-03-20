@@ -25,12 +25,22 @@ function SkuList() {
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
+  const [skuSearch, setSkuSearch] = useState('');
   const usedCats = [...new Set(skuCatalog.map(s => s.category))];
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
 
   let filtered = skuFilter === 'all' ? skuCatalog : skuCatalog.filter(s => s.category === skuFilter);
   if (fitFilter !== 'all') {
     filtered = filtered.filter(s => s.fit === fitFilter);
+  }
+  const totalBeforeSearch = filtered.length;
+  if (skuSearch.trim()) {
+    const q = skuSearch.toLowerCase();
+    filtered = filtered.filter(s =>
+      s.name?.toLowerCase().includes(q) ||
+      s.code?.toLowerCase().includes(q) ||
+      s.category?.toLowerCase().includes(q)
+    );
   }
 
   const groups = {};
@@ -78,6 +88,23 @@ function SkuList() {
           <button key={f.key} className={`sku-fit-pill${fitFilter === f.key ? ' active' : ''}`} onClick={() => setFitFilter(f.key)}>{f.label}</button>
         ))}
       </div>
+      <div className="sku-search-wrap">
+        <input
+          type="text"
+          className="sku-search-input"
+          placeholder="Поиск: футболка, худи, артикул..."
+          value={skuSearch}
+          onChange={e => setSkuSearch(e.target.value)}
+        />
+        {skuSearch && (
+          <button className="sku-search-clear" onClick={() => setSkuSearch('')}>
+            ✕
+          </button>
+        )}
+      </div>
+      {skuSearch.trim() && (
+        <div className="sku-search-count">Найдено: {filtered.length} из {totalBeforeSearch}</div>
+      )}
       <div className="garment-list">
         {Object.keys(groups).sort((a, b) => catOrder.indexOf(a) - catOrder.indexOf(b)).map(catId => {
           const cat = SKU_CATEGORIES.find(c => c.id === catId);

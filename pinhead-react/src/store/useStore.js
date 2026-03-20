@@ -70,6 +70,7 @@ const initialState = {
   _editingOrderId: null,
   _editingOrderNumber: null,
   _lastSavedOrderNum: null,
+  saved: false,
 
   // ─── Multi-item ───
   items: [],           // массив снэпшотов позиций

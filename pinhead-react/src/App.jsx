@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import './styles/index.css'
 import { Agentation } from 'agentation'
@@ -13,14 +13,15 @@ import StepItems from './components/steps/StepItems'
 import StepDetails from './components/steps/StepDetails'
 import StepSummary from './components/steps/StepSummary'
 import AuthScreen from './components/auth/AuthScreen'
-import KanbanBoard from './components/orders/KanbanBoard'
 import PrintPreview from './components/output/PrintPreview'
-import ExpressCalc from './components/editors/ExpressCalc'
-import PriceEditor from './components/editors/PriceEditor'
 import SkuEditor from './components/editors/SkuEditor'
-import AdminPanel from './components/auth/AdminPanel'
 import ToastContainer from './components/shared/Toast'
 import Dashboard from './components/analytics/Dashboard'
+
+const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
+const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'));
+const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
+const AdminPanel = React.lazy(() => import('./components/auth/AdminPanel'));
 
 const STEPS = [StepGarment, StepExtras, StepDesign, StepItems, StepDetails, StepSummary];
 
@@ -65,6 +66,18 @@ function App() {
     ]).finally(() => setCatalogsReady(true));
   }, [init]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      const { step, saved } = useStore.getState();
+      if (step > 0 && !saved) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
   }
@@ -108,12 +121,12 @@ function App() {
 
       <Routes>
         <Route path="/" element={<WizardPage />} />
-        <Route path="/orders" element={<KanbanBoard />} />
+        <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
         <Route path="/print" element={<PrintPreview />} />
-        <Route path="/express" element={<RoleGuard allowed={canEdit}><ExpressCalc /></RoleGuard>} />
-        <Route path="/prices" element={<RoleGuard allowed={canEdit}><PriceEditor /></RoleGuard>} />
+        <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
+        <Route path="/prices" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PriceEditor /></Suspense></RoleGuard>} />
         <Route path="/sku" element={<RoleGuard allowed={canEdit}><SkuEditor /></RoleGuard>} />
-        <Route path="/admin" element={<RoleGuard allowed={isAdmin}><AdminPanel /></RoleGuard>} />
+        <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || user.role === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

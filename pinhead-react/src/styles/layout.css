@@ -94,6 +94,15 @@ header {
   background: var(--accent); color: #fff; font-size: 9px; padding: 1px 8px;
   font-weight: 600; letter-spacing: 0;
 }
+/* Panel loading fallback for React.lazy */
+.panel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
 /* Burger button — hidden by default, shown on mobile */
 .burger-btn {
   display: none; background: none; border: none; border-left: 1px solid var(--border-light);

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useStore } from '../../store/useStore';
 import { toast } from '../../store/useToastStore';
 import { invalidatePricesCache } from '../../utils/pricing';
+import { clearCatalogsCache } from '../../lib/catalogs';
 
 async function fetchUsdRate() {
   const res = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
@@ -105,6 +106,7 @@ export default function PriceEditor() {
     invalidatePricesCache();
     // Пробуем сохранить в Supabase
     const ok = await savePricesToSupabase(prices);
+    if (ok) clearCatalogsCache();
     setSaving(false);
     setChanged(0);
     if (ok) {
@@ -203,6 +205,7 @@ export default function PriceEditor() {
       useStore.getState().setField('usdRate', rate);
       localStorage.setItem('ph_usd_rate', String(rate));
       await savePricesToSupabase({ ...prices, usdRate: rate });
+      clearCatalogsCache();
       toast.success(`Курс обновлён: ${rate} \u20BD`);
     } catch {
       toast.error(`Не удалось обновить. Текущий: ${currentRate} \u20BD`);
@@ -218,6 +221,7 @@ export default function PriceEditor() {
     localStorage.removeItem(STORAGE_KEY);
     invalidatePricesCache();
     await savePricesToSupabase(base);
+    clearCatalogsCache();
     setChanged(0);
     toast.success('Цены сброшены к умолчаниям');
   };
