@@ -4,7 +4,13 @@ import { useAuthStore } from './useAuthStore';
 
 const STATUS_LIST = ['draft', 'review', 'approved', 'production', 'done'];
 const STATUS_LABELS = { draft: 'Черновик', review: 'На проверке', approved: 'Подтверждён', production: 'В производстве', done: 'Готов' };
-const STATUS_COLORS = { draft: '#888', review: '#b89000', approved: '#1D19EA', production: '#c04500', done: '#007840' };
+const STATUS_COLORS = {
+  draft:      { bg: '#F0F0F0', text: '#555555', bar: '#CCCCCC' },
+  review:     { bg: '#FFF8E1', text: '#C87137', bar: '#C87137' },
+  approved:   { bg: '#EEF2FF', text: '#2B2BF0', bar: '#2B2BF0' },
+  production: { bg: '#FFF3E8', text: '#C87137', bar: '#E07B30' },
+  done:       { bg: '#F0FFF4', text: '#06A77D', bar: '#06A77D' },
+};
 
 export { STATUS_LIST, STATUS_LABELS, STATUS_COLORS };
 

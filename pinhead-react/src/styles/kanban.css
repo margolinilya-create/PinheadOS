@@ -59,6 +59,14 @@
 .kb-card-actions button { width: 26px; height: 26px; background: none; border: 1.5px solid var(--border-light); font-family: inherit; font-size: 11px; cursor: pointer; transition: all .12s; display: flex; align-items: center; justify-content: center; }
 .kb-card-actions button:hover { background: var(--black); color: #fff; border-color: var(--black); }
 .kb-card-actions button.kb-open { flex: 0 0 auto; width: auto; padding: 0 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.kb-status-badge {
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
 .kb-status-dot   { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 /* Empty state */
 .kb-empty-col { padding: 40px 16px; text-align: center; color: var(--text-dim); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }

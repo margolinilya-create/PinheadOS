@@ -148,7 +148,7 @@ export default function AdminPanel() {
                       <select
                         value={o.status || 'draft'}
                         onChange={e => updateStatus(o.id, e.target.value)}
-                        style={{ borderColor: STATUS_COLORS[o.status] || '#888', fontWeight: 600, fontSize: 11 }}
+                        style={{ borderColor: (STATUS_COLORS[o.status] || STATUS_COLORS.draft).bar, fontWeight: 600, fontSize: 11 }}
                       >
                         {Object.entries(STATUS_LABELS).map(([k, v]) => (
                           <option key={k} value={k}>{v}</option>

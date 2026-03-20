@@ -81,7 +81,7 @@ export default function TechCard({ order, onClose, onStatusChange }) {
   const totalQty = order.total_qty || 0;
   const totalSum = order.total_sum || 0;
   const unitPrice = totalQty > 0 ? Math.round(totalSum / totalQty) : 0;
-  const statusColor = STATUS_COLORS[order.status] || '#888';
+  const statusColor = (STATUS_COLORS[order.status] || STATUS_COLORS.draft).bar;
   const createdAt = order.created_at ? new Date(order.created_at).toLocaleDateString('ru-RU') : '—';
 
   // Mockup
