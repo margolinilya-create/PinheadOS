@@ -53,10 +53,14 @@ async function loadPricesFromSupabase() {
 }
 
 async function savePricesToSupabase(prices) {
-  const { error } = await supabase
-    .from('app_config')
-    .upsert({ key: 'prices', value: prices, updated_at: new Date().toISOString() });
-  return !error;
+  const ts = new Date().toISOString();
+  const row = { key: 'prices', value: prices, updated_at: ts };
+  const [r1, r2] = await Promise.all([
+    supabase.from('app_config').upsert(row),
+    supabase.from('catalog_config').upsert(row),
+  ]);
+  if (r1.error) throw r1.error;
+  if (r2.error) throw r2.error;
 }
 
 function loadHistory() {
@@ -117,9 +121,15 @@ export default function PriceEditor() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prices));
     // Сбросить кеш pricing engine чтобы расчёты использовали новые цены
     invalidatePricesCache();
-    // Пробуем сохранить в Supabase
-    const ok = await savePricesToSupabase(prices);
-    if (ok) clearCatalogsCache();
+    // Обновить стор — pricing.js сразу получит актуальные цены
+    useStore.setState({ prices });
+    // Пробуем сохранить в обе таблицы Supabase
+    let ok = false;
+    try {
+      await savePricesToSupabase(prices);
+      ok = true;
+      clearCatalogsCache();
+    } catch { /* Supabase unavailable */ }
     setSaving(false);
     setChanged(0);
     if (ok) {
@@ -221,8 +231,9 @@ export default function PriceEditor() {
       const updatedPrices = { ...prices, usdRate: rate, usdUpdatedAt: now };
       setPrices(updatedPrices);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPrices));
-      await savePricesToSupabase(updatedPrices);
-      clearCatalogsCache();
+      invalidatePricesCache();
+      useStore.setState({ prices: updatedPrices });
+      try { await savePricesToSupabase(updatedPrices); clearCatalogsCache(); } catch { /* ignore */ }
       setStaleBanner(null);
       toast.success(`Курс обновлён: ${rate} \u20BD`);
     } catch {
@@ -238,8 +249,8 @@ export default function PriceEditor() {
     setPrices(base);
     localStorage.removeItem(STORAGE_KEY);
     invalidatePricesCache();
-    await savePricesToSupabase(base);
-    clearCatalogsCache();
+    useStore.setState({ prices: base });
+    try { await savePricesToSupabase(base); clearCatalogsCache(); } catch { /* ignore */ }
     setChanged(0);
     toast.success('Цены сброшены к умолчаниям');
   };
