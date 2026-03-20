@@ -48,19 +48,20 @@ describe('StepItems', () => {
 
   it('renders item card with SKU name', () => {
     render(<StepItems />);
-    expect(screen.getByText('T-Shirt')).toBeInTheDocument();
+    expect(screen.getAllByText('T-Shirt').length).toBeGreaterThan(0);
   });
 
   it('shows add item button', () => {
     render(<StepItems />);
-    expect(screen.getByText('Добавить позицию')).toBeInTheDocument();
+    expect(screen.getAllByText(/Добавить позицию/).length).toBeGreaterThan(0);
   });
 
-  it('calls addNewItem', () => {
+  it('calls addNewItem from tray button', () => {
     const addNewItem = vi.fn();
     useStore.setState({ addNewItem });
     render(<StepItems />);
-    fireEvent.click(screen.getByText('Добавить позицию'));
+    const trayBtn = document.querySelector('.item-card-add');
+    fireEvent.click(trayBtn);
     expect(addNewItem).toHaveBeenCalled();
   });
 
@@ -107,5 +108,48 @@ describe('StepItems', () => {
     render(<StepItems />);
     fireEvent.click(screen.getByText(/Назад/));
     expect(prevStep).toHaveBeenCalled();
+  });
+
+  it('renders prominent add-item button at header level', () => {
+    render(<StepItems />);
+    const btn = document.querySelector('.btn-add-item');
+    expect(btn).toBeTruthy();
+    expect(btn.textContent).toContain('Добавить позицию');
+  });
+
+  it('calls addNewItem from prominent button', () => {
+    const addNewItem = vi.fn();
+    useStore.setState({ addNewItem });
+    render(<StepItems />);
+    fireEvent.click(document.querySelector('.btn-add-item'));
+    expect(addNewItem).toHaveBeenCalled();
+  });
+
+  it('renders summary table with item rows', () => {
+    render(<StepItems />);
+    const table = screen.getByTestId('items-summary-table');
+    expect(table).toBeTruthy();
+    expect(table.querySelectorAll('tbody tr').length).toBe(2); // 1 item + 1 total row
+  });
+
+  it('shows ИТОГО row in summary table', () => {
+    render(<StepItems />);
+    const totalRow = document.querySelector('.items-total-row');
+    expect(totalRow).toBeTruthy();
+    expect(totalRow.textContent).toContain('ИТОГО');
+  });
+
+  it('summary table shows correct totals for multiple items', () => {
+    useStore.setState({
+      items: [
+        { type: 'tee', sku: { name: 'Футболка' }, sizes: { M: 10 }, zones: [] },
+        { type: 'hoodie', sku: { name: 'Худи' }, sizes: { L: 5 }, zones: [] },
+      ],
+    });
+    render(<StepItems />);
+    const rows = document.querySelectorAll('.items-summary-table tbody tr');
+    expect(rows.length).toBe(3); // 2 items + 1 total
+    const totalRow = document.querySelector('.items-total-row .items-total-sum');
+    expect(totalRow.textContent).toContain('₽');
   });
 });

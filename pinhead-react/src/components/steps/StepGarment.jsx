@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../lib/supabase';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
@@ -16,7 +17,11 @@ const FIT_OPTIONS = [
 ];
 
 function SkuList() {
-  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore();
+  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore(
+    useShallow(s => ({ skuCatalog: s.skuCatalog, skuFilter: s.skuFilter, setSkuFilter: s.setSkuFilter,
+      selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabricsCatalog: s.fabricsCatalog,
+      trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
+  );
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
@@ -110,7 +115,10 @@ function SkuList() {
 
 // ── Fabric Grid ──
 function FabricGrid() {
-  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate } = useStore();
+  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate } = useStore(
+    useShallow(s => ({ type: s.type, fabric: s.fabric, selectFabric: s.selectFabric, setColorSupplier: s.setColorSupplier,
+      sku: s.sku, fabricsCatalog: s.fabricsCatalog, colorSupplier: s.colorSupplier, usdRate: s.usdRate }))
+  );
   if (isAccessory(type)) return null;
 
   let fabrics;
@@ -160,7 +168,10 @@ function FabricGrid() {
 
 // ── Color Picker ──
 function ColorPicker() {
-  const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore();
+  const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore(
+    useShallow(s => ({ type: s.type, color: s.color, selectColor: s.selectColor,
+      colorSupplier: s.colorSupplier, setColorSupplier: s.setColorSupplier }))
+  );
   const [colorSearch, setColorSearch] = useState('');
   if (isAccessory(type)) return null;
 
@@ -220,14 +231,33 @@ function ColorPicker() {
 
 // ── Size Table ──
 function SizeTable() {
-  const state = useStore();
-  const { type, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = state;
+  const { type, sku, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = useStore(
+    useShallow(s => ({ type: s.type, sku: s.sku, sizes: s.sizes, setSize: s.setSize, setOneSizeQty: s.setOneSizeQty,
+      customSizes: s.customSizes, addCustomSize: s.addCustomSize, removeCustomSize: s.removeCustomSize,
+      setCustomSizeQty: s.setCustomSizeQty, setCustomSizeLabel: s.setCustomSizeLabel }))
+  );
+  const price = useStore(s => getUnitPrice(s));
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newQty, setNewQty] = useState(0);
+  const sizeRefs = useRef({});
   const isAcc = isAccessory(type);
 
-  const price = getUnitPrice(state);
+  // Available sizes: use sku.availableSizes if present, otherwise all sizes
+  const availableSizes = sku?.availableSizes || null;
+  const isSizeAvailable = (s) => !availableSizes || availableSizes.includes(s);
+
+  // Tab navigation: focus next size input
+  const handleSizeKeyDown = (e, currentLabel, allLabels) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const idx = allLabels.indexOf(currentLabel);
+      if (idx >= 0 && idx < allLabels.length - 1) {
+        e.preventDefault();
+        const nextLabel = allLabels[idx + 1];
+        sizeRefs.current[nextLabel]?.focus();
+      }
+    }
+  };
 
   if (isAcc) {
     const qty = sizes['ONE SIZE'] || 1;
@@ -254,6 +284,8 @@ function SizeTable() {
     ...(customSizes || []).map((cs, i) => ({ type: 'custom', label: cs.label, qty: cs.qty || 0, idx: i })),
   ];
 
+  const allInputLabels = allRows.filter(r => r.type === 'std' ? isSizeAvailable(r.label) : true).map(r => r.type === 'std' ? r.label : 'cs-' + r.idx);
+
   const handleAddSize = () => {
     if (!newLabel.trim()) return;
     addCustomSize(newLabel.trim());
@@ -269,7 +301,9 @@ function SizeTable() {
   return (
     <div className="size-section">
       <div className="section-label">Размеры</div>
-      <table className="size-table">
+
+      {/* Desktop table */}
+      <table className="size-table size-table-desktop">
         <thead>
           <tr>
             <th>Размер</th>
@@ -279,24 +313,30 @@ function SizeTable() {
           </tr>
         </thead>
         <tbody>
-          {allRows.map(row => {
+          {allRows.map((row, idx) => {
             const q = parseInt(row.qty) || 0;
             const rowSum = q * price;
+            const available = row.type === 'std' ? isSizeAvailable(row.label) : true;
+            const inputKey = row.type === 'std' ? row.label : 'cs-' + row.idx;
             return row.type === 'std' ? (
-              <tr key={row.label}>
+              <tr key={row.label} className={!available ? 'size-row-disabled' : ''} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
                 <td><b>{row.label}</b></td>
                 <td>
                   <div className="qty-control">
-                    <button className="qty-btn" onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
+                    <button className="qty-btn" disabled={!available} onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
                     <input
+                      ref={el => { sizeRefs.current[inputKey] = el; }}
                       type="number"
                       className="qty-input"
                       min={0}
                       value={sizes[row.label] || ''}
                       placeholder="0"
+                      disabled={!available}
+                      tabIndex={available ? idx + 1 : -1}
                       onChange={e => setSize(row.label, e.target.value)}
+                      onKeyDown={e => handleSizeKeyDown(e, inputKey, allInputLabels)}
                     />
-                    <button className="qty-btn" onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
+                    <button className="qty-btn" disabled={!available} onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
                   </div>
                 </td>
                 <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>
@@ -317,12 +357,15 @@ function SizeTable() {
                   <div className="qty-control">
                     <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
                     <input
+                      ref={el => { sizeRefs.current[inputKey] = el; }}
                       type="number"
                       className="qty-input"
                       min={0}
                       value={row.qty || ''}
                       placeholder="0"
+                      tabIndex={idx + 1}
                       onChange={e => setCustomSizeQty(row.idx, e.target.value)}
+                      onKeyDown={e => handleSizeKeyDown(e, inputKey, allInputLabels)}
                     />
                     <button className="qty-btn" onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
                   </div>
@@ -343,6 +386,37 @@ function SizeTable() {
           </tr>
         </tbody>
       </table>
+
+      {/* Mobile vertical list */}
+      <div className="size-list-mobile">
+        {allRows.map((row, idx) => {
+          const q = parseInt(row.qty) || 0;
+          const available = row.type === 'std' ? isSizeAvailable(row.label) : true;
+          const inputKey = row.type === 'std' ? row.label : 'cs-' + row.idx;
+          return (
+            <div key={inputKey} className={`size-mobile-row${!available ? ' disabled' : ''}`} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
+              <span className="size-mobile-label">{row.label}</span>
+              <div className="qty-control">
+                <button className="qty-btn" disabled={!available} onClick={() => row.type === 'std' ? setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1)) : setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
+                <input
+                  type="number"
+                  className="qty-input qty-input-mobile"
+                  min={0}
+                  value={row.type === 'std' ? (sizes[row.label] || '') : (row.qty || '')}
+                  placeholder="0"
+                  disabled={!available}
+                  inputMode="numeric"
+                  onChange={e => row.type === 'std' ? setSize(row.label, e.target.value) : setCustomSizeQty(row.idx, e.target.value)}
+                />
+                <button className="qty-btn" disabled={!available} onClick={() => row.type === 'std' ? setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1) : setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
+              </div>
+              <span className="size-mobile-unit">шт</span>
+              {row.type === 'custom' && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)}>✕</button>}
+            </div>
+          );
+        })}
+        <div className="size-mobile-total">Итого: {totalQty} шт · {totalSum > 0 ? (totalSum.toLocaleString('ru-RU') + ' ₽') : '0 ₽'}</div>
+      </div>
 
       {/* Add custom size */}
       {showAddForm ? (
@@ -379,7 +453,9 @@ function SizeTable() {
 
 // ── Mockup Preview ──
 function MockupPreview() {
-  const { type, color } = useStore();
+  const { type, color } = useStore(
+    useShallow(s => ({ type: s.type, color: s.color }))
+  );
   if (!type) return null;
   const svg = getGarmentSVG(type, color);
   return (
@@ -389,9 +465,10 @@ function MockupPreview() {
 
 // ── Main Step ──
 export default function StepGarment() {
-  const { nextStep, type, color } = useStore();
-  const state = useStore();
-  const totalQty = getTotalQty(state);
+  const { nextStep, type, color } = useStore(
+    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color }))
+  );
+  const totalQty = useStore(s => getTotalQty(s));
   const canNext = type && totalQty > 0 && (isAccessory(type) || color);
 
   return (

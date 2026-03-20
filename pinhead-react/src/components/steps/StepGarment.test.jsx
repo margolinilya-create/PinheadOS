@@ -115,4 +115,46 @@ describe('StepGarment', () => {
     render(<StepGarment />);
     expect(screen.getByText(/Доступные цвета:/)).toBeInTheDocument();
   });
+
+  it('renders size inputs with tabIndex for tab navigation', () => {
+    render(<StepGarment />);
+    const inputs = document.querySelectorAll('.size-table-desktop .qty-input[type="number"]');
+    expect(inputs.length).toBeGreaterThan(0);
+    // First input should have a positive tabIndex
+    expect(parseInt(inputs[0].getAttribute('tabindex'))).toBeGreaterThan(0);
+  });
+
+  it('disables sizes from sku.availableSizes', () => {
+    useStore.setState({
+      sku: { code: 'tee-001', category: 'tshirts', availableSizes: ['M', 'L', 'XL'] },
+    });
+    render(<StepGarment />);
+    const disabledRows = document.querySelectorAll('.size-table-desktop .size-row-disabled');
+    // SIZES has 8 entries, 3 available = 5 disabled
+    expect(disabledRows.length).toBe(5);
+  });
+
+  it('shows tooltip on disabled size row', () => {
+    useStore.setState({
+      sku: { code: 'tee-001', category: 'tshirts', availableSizes: ['M'] },
+    });
+    render(<StepGarment />);
+    const disabledRow = document.querySelector('.size-table-desktop .size-row-disabled');
+    expect(disabledRow.getAttribute('title')).toContain('недоступен');
+  });
+
+  it('renders mobile size list', () => {
+    render(<StepGarment />);
+    const mobileList = document.querySelector('.size-list-mobile');
+    expect(mobileList).toBeTruthy();
+    const mobileRows = mobileList.querySelectorAll('.size-mobile-row');
+    expect(mobileRows.length).toBe(8); // 8 standard SIZES
+  });
+
+  it('shows total in mobile layout', () => {
+    render(<StepGarment />);
+    const mobileTotal = document.querySelector('.size-mobile-total');
+    expect(mobileTotal).toBeTruthy();
+    expect(mobileTotal.textContent).toContain('Итого:');
+  });
 });

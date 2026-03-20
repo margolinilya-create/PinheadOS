@@ -8,8 +8,7 @@ import { useDraft } from '../../hooks/useDraft';
 export default function Header() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const state = useStore();
-  const total = calcTotal(state);
+  const total = useStore(s => calcTotal(s));
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
   const { draftStatus, resetDraft } = useDraft();
   const { user, logout } = useAuthStore();

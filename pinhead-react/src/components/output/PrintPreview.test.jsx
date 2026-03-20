@@ -24,8 +24,9 @@ beforeEach(() => {
   useStore.setState({
     items: [
       {
-        type: 'tee', fabric: 'cotton', color: 'WHT', sizes: { M: 10 },
-        customSizes: [], zones: ['front'], zoneTechs: { front: 'screen' },
+        type: 'tee', fabric: 'cotton', color: 'WHT', fit: 'regular',
+        sizes: { M: 10 }, customSizes: [], extras: [], zones: ['front'],
+        zoneTechs: { front: 'screen' }, zonePrints: { front: { size: 'A4', colors: 2 } },
         noPrint: false, sku: { name: 'T-Shirt', category: 'tshirts' },
         labelConfig: { careLabel: { enabled: false }, mainLabel: { option: 'none' }, hangTag: { option: 'none' } },
       },
@@ -44,8 +45,6 @@ beforeEach(() => {
     deadline: '2025-12-31',
     notes: 'Test notes',
     _editingOrderNumber: null,
-    urgent: false,
-    pack: false,
   });
 });
 
@@ -80,7 +79,7 @@ describe('PrintPreview', () => {
     renderPrintPreview();
     expect(screen.getAllByText('ИЗДЕЛИЕ').length).toBeGreaterThan(0);
     expect(screen.getByText('РАЗМЕРЫ И ТИРАЖ')).toBeInTheDocument();
-    expect(screen.getByText('НАНЕСЕНИЕ')).toBeInTheDocument();
+    expect(screen.getByText('ЗОНЫ НАНЕСЕНИЯ')).toBeInTheDocument();
   });
 
   it('shows client info when name provided', () => {
@@ -103,9 +102,92 @@ describe('PrintPreview', () => {
     expect(screen.getAllByText('PINHEAD').length).toBeGreaterThan(0);
   });
 
-  it('shows options section', () => {
+  it('shows options section with standard conditions', () => {
     renderPrintPreview();
     expect(screen.getByText('ОПЦИИ')).toBeInTheDocument();
     expect(screen.getByText('Стандартные условия')).toBeInTheDocument();
+  });
+
+  // ── New tests ──
+
+  it('shows zone parameters in zones table', () => {
+    renderPrintPreview();
+    expect(screen.getByText('A4, 2 цв.')).toBeInTheDocument();
+  });
+
+  it('shows fabric and color in item section', () => {
+    renderPrintPreview();
+    expect(screen.getByText('Ткань')).toBeInTheDocument();
+    expect(screen.getByText('Цвет')).toBeInTheDocument();
+  });
+
+  it('shows urgent badge when urgentOption is true', () => {
+    useStore.setState({ urgentOption: true });
+    renderPrintPreview();
+    const badge = screen.getByTestId('pp-urgent-badge');
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain('СРОЧНО');
+  });
+
+  it('does not show urgent badge when urgentOption is false', () => {
+    renderPrintPreview();
+    expect(screen.queryByTestId('pp-urgent-badge')).not.toBeInTheDocument();
+  });
+
+  it('shows urgentOption in options section', () => {
+    useStore.setState({ urgentOption: true });
+    renderPrintPreview();
+    expect(screen.getByText('Срочный заказ')).toBeInTheDocument();
+    expect(screen.queryByText('Стандартные условия')).not.toBeInTheDocument();
+  });
+
+  it('shows packOption in options section', () => {
+    useStore.setState({ packOption: true });
+    renderPrintPreview();
+    expect(screen.getByText('Упаковка')).toBeInTheDocument();
+  });
+
+  it('renders multi-item position headers', () => {
+    useStore.setState({
+      items: [
+        { type: 'tee', fabric: 'cotton', color: 'WHT', sizes: { M: 5 }, customSizes: [], extras: [], zones: [], zoneTechs: {}, noPrint: false, sku: { name: 'Футболка' }, labelConfig: {} },
+        { type: 'hoodie', fabric: 'cotton', color: 'BLK', sizes: { L: 3 }, customSizes: [], extras: [], zones: [], zoneTechs: {}, noPrint: false, sku: { name: 'Худи' }, labelConfig: {} },
+      ],
+    });
+    renderPrintPreview();
+    expect(screen.getByText(/ПОЗИЦИЯ 1 ИЗ 2/)).toBeInTheDocument();
+    expect(screen.getByText(/ПОЗИЦИЯ 2 ИЗ 2/)).toBeInTheDocument();
+  });
+
+  it('renders multi-item summary table', () => {
+    useStore.setState({
+      items: [
+        { type: 'tee', fabric: 'cotton', color: 'WHT', sizes: { M: 5 }, customSizes: [], extras: [], zones: [], zoneTechs: {}, noPrint: false, sku: { name: 'Футболка' }, labelConfig: {} },
+        { type: 'hoodie', fabric: 'cotton', color: 'BLK', sizes: { L: 3 }, customSizes: [], extras: [], zones: [], zoneTechs: {}, noPrint: false, sku: { name: 'Худи' }, labelConfig: {} },
+      ],
+    });
+    renderPrintPreview();
+    const table = screen.getByTestId('pp-summary-table');
+    expect(table).toBeTruthy();
+    expect(screen.getByText('СВОДНАЯ ТАБЛИЦА')).toBeInTheDocument();
+  });
+
+  it('does not show summary table for single item', () => {
+    renderPrintPreview();
+    expect(screen.queryByTestId('pp-summary-table')).not.toBeInTheDocument();
+  });
+
+  it('shows labels section when labelConfig has enabled labels', () => {
+    useStore.setState({
+      items: [{
+        type: 'tee', fabric: 'cotton', color: 'WHT', sizes: { M: 10 }, customSizes: [], extras: [], zones: ['front'],
+        zoneTechs: { front: 'screen' }, zonePrints: { front: { size: 'A4', colors: 1 } },
+        noPrint: false, sku: { name: 'T-Shirt', category: 'tshirts' },
+        labelConfig: { careLabel: { enabled: true, logoOption: 'standard' }, mainLabel: { option: 'none' }, hangTag: { option: 'none' } },
+      }],
+    });
+    renderPrintPreview();
+    expect(screen.getByText('БИРКИ И ЭТИКЕТКИ')).toBeInTheDocument();
+    expect(screen.getByText('Бирка по уходу')).toBeInTheDocument();
   });
 });

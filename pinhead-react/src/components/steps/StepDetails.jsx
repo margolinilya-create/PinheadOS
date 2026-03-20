@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const ROLES = [
   { key: 'manager', label: '👔 Менеджер' },
@@ -9,7 +10,12 @@ const ROLES = [
 
 export default function StepDetails() {
   const { name, contact, email, phone, messenger, bitrixDeal, deadline, address, notes,
-    role, packOption, urgentOption, setField, togglePack, toggleUrgent, nextStep, prevStep } = useStore();
+    role, packOption, urgentOption, setField, togglePack, toggleUrgent, nextStep, prevStep } = useStore(
+    useShallow(s => ({ name: s.name, contact: s.contact, email: s.email, phone: s.phone, messenger: s.messenger,
+      bitrixDeal: s.bitrixDeal, deadline: s.deadline, address: s.address, notes: s.notes, role: s.role,
+      packOption: s.packOption, urgentOption: s.urgentOption, setField: s.setField, togglePack: s.togglePack,
+      toggleUrgent: s.toggleUrgent, nextStep: s.nextStep, prevStep: s.prevStep }))
+  );
   const [showErrors, setShowErrors] = useState(false);
   const isValid = name.trim().length > 0;
   const handleNext = () => {

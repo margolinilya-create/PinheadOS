@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const STEPS = [
   { label: 'Изделие', num: '01' },
@@ -10,7 +11,9 @@ const STEPS = [
 ];
 
 export default function ProgressBar() {
-  const { step, maxStep, goToStep } = useStore();
+  const { step, maxStep, goToStep } = useStore(
+    useShallow(s => ({ step: s.step, maxStep: s.maxStep, goToStep: s.goToStep }))
+  );
 
   return (
     <nav className="progress-bar">

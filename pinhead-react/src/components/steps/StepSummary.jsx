@@ -1,12 +1,65 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { isAccessory, calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
+import { isAccessory, calcItemTotal, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
+
+function EditBtn({ step, goToStep }) {
+  return (
+    <button className="summary-edit-btn" title="Изменить" onClick={e => { e.stopPropagation(); goToStep(step); }}>
+      &#9998; Изменить
+    </button>
+  );
+}
+
+function getZoneTechSummary(zone, item) {
+  const tech = item.zoneTechs?.[zone] || 'screen';
+  const label = TECH_NAMES[tech] || tech;
+  if (tech === 'screen') {
+    const p = item.zonePrints?.[zone] || { size: 'A4', colors: 1 };
+    return `${label} ${p.size || 'A4'}, ${p.colors || 1} цв.`;
+  }
+  if (tech === 'flex') {
+    const p = item.flexZones?.[zone] || { size: 'A4', colors: 1 };
+    return `${label} ${p.size || 'A4'}, ${p.colors || 1} цв.`;
+  }
+  if (tech === 'dtg') {
+    const p = item.dtgZones?.[zone] || { size: 'A4' };
+    return `${label} ${p.size || 'A4'}`;
+  }
+  if (tech === 'embroidery') {
+    const p = item.embZones?.[zone] || { area: 's', colors: 3 };
+    return `${label} ${(p.area || 's').toUpperCase()}, ${p.colors || 3} цв.`;
+  }
+  if (tech === 'dtf') {
+    const p = item.dtfZones?.[zone] || { size: 'A4' };
+    return `${label} ${p.size || 'A4'}`;
+  }
+  return label;
+}
+
+function getLabelsSummary(labelConfig) {
+  if (!labelConfig) return [];
+  const lines = [];
+  if (labelConfig.careLabel?.enabled) {
+    const opt = labelConfig.careLabel.option || 'standard';
+    lines.push(`Составник (${opt === 'my-logo' ? 'с лого' : opt === 'no-logo' ? 'без лого' : 'стандарт'})`);
+  }
+  if (labelConfig.mainLabel?.option && labelConfig.mainLabel.option !== 'none') {
+    const opt = labelConfig.mainLabel.option;
+    lines.push(`Осн. бирка (${opt === 'send-own' ? 'свои' : opt === 'custom' ? 'кастом' : 'стандарт'})`);
+  }
+  if (labelConfig.hangTag?.option && labelConfig.hangTag.option !== 'none') {
+    const opt = labelConfig.hangTag.option;
+    lines.push(`Хэнг-тег (${opt === 'custom' ? 'кастом' : 'стандарт'})`);
+  }
+  return lines;
+}
 
 // ─── copyTZ: формирует текстовое ТЗ и копирует в буфер ───
 function buildItemTZBlock(item, idx, catalogs) {
@@ -40,7 +93,7 @@ ${extrasNames.length ? 'Обработки: ' + extrasNames.join(', ') : ''}
 }
 
 function buildTZText(state, grandTotal, catalogs) {
-  const orderNum = state._editingOrderNumber || state._lastSavedOrderNum || '';
+  const orderNum = _editingOrderNumber || state._lastSavedOrderNum || '';
   const items = state.items || [];
 
   const itemBlocks = items.map((it, i) => buildItemTZBlock(it, i, catalogs));
@@ -54,7 +107,7 @@ ${itemBlocks.join('\n\n')}
 
 КЛИЕНТ
 ${state.name ? 'Имя: ' + state.name : ''}
-${state.bitrixDeal ? 'Bitrix: ' + state.bitrixDeal : ''}
+${bitrixDeal ? 'Bitrix: ' + bitrixDeal : ''}
 ${state.contact ? 'Контакт: ' + state.contact : ''}
 ${state.email ? 'Email: ' + state.email : ''}
 ${state.phone ? 'Телефон: ' + state.phone : ''}
@@ -72,14 +125,28 @@ ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 export default function StepSummary() {
   const navigate = useNavigate();
-  const state = useStore();
   const { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
-    prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate } = state;
+    prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
+    _editingOrderId, _editingOrderNumber, _lastSavedOrderNum } = useStore(
+    useShallow(s => ({ items: s.items, name: s.name, contact: s.contact, email: s.email, phone: s.phone,
+      deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption,
+      urgentOption: s.urgentOption, prevStep: s.prevStep, resetOrder: s.resetOrder,
+      fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
+      usdRate: s.usdRate, bitrixDeal: s.bitrixDeal, messenger: s.messenger,
+      _editingOrderId: s._editingOrderId, _editingOrderNumber: s._editingOrderNumber,
+      _lastSavedOrderNum: s._lastSavedOrderNum }))
+  );
+  const state = { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
+    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
+    _editingOrderId, _editingOrderNumber, _lastSavedOrderNum };
   const saveOrder = useOrdersStore(s => s.saveOrder);
   const updateOrder = useOrdersStore(s => s.updateOrder);
   const [saving, setSaving] = useState(false);
   const [savedNum, setSavedNum] = useState(null);
   const [copyLabel, setCopyLabel] = useState(null);
+
+  const goToStep = useStore(s => s.goToStep);
+  const [priceOpen, setPriceOpen] = useState(false);
 
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
 
@@ -94,6 +161,13 @@ export default function StepSummary() {
 
   const grandTotal = itemCalcs.reduce((sum, ic) => sum + ic.itemTotal, 0);
   const grandQty = itemCalcs.reduce((sum, ic) => sum + ic.qty, 0);
+
+  // ─── Validation ───
+  const errors = [];
+  if (!name?.trim()) errors.push('Укажите имя клиента');
+  if (items.length === 0 || items.every(it => !it.sku)) errors.push('Выберите артикул');
+  if (items.length === 0 || itemCalcs.every(ic => ic.qty === 0)) errors.push('Укажите количество');
+  const hasErrors = errors.length > 0;
 
   // ─── copyTZ ───
   const handleCopyTZ = async () => {
@@ -139,18 +213,18 @@ export default function StepSummary() {
       labelConfig: first.labelConfig,
       sku: first.sku ? { code: first.sku.code, name: first.sku.name, article: first.sku.article, category: first.sku.category, fit: first.sku.fit } : null,
       // Shared fields
-      name, contact, email, phone, bitrixDeal: state.bitrixDeal, deadline, address, notes,
-      role, messenger: state.messenger,
+      name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
+      role, messenger: messenger,
       packOption, urgentOption,
       total: grandTotal, totalQty: grandQty, unitPrice: grandQty > 0 ? Math.round(grandTotal / grandQty) : 0,
     };
 
     let saved;
-    if (state._editingOrderId) {
-      saved = await updateOrder(state._editingOrderId, orderData);
+    if (_editingOrderId) {
+      saved = await updateOrder(_editingOrderId, orderData);
       if (saved) {
         localStorage.removeItem('pinhead_draft');
-        setSavedNum(state._editingOrderNumber || saved.order_number || 'OK');
+        setSavedNum(_editingOrderNumber || saved.order_number || 'OK');
         toast.success('Заказ обновлён');
       } else {
         toast.error('Ошибка обновления заказа');
@@ -196,11 +270,20 @@ export default function StepSummary() {
         <h1 className="step-header-title">ТЗ<br/>ГОТОВО</h1>
         <p className="step-header-desc">Проверьте данные заказа и отправьте</p>
       </div>
-      <div className="section-label">Позиции заказа ({items.length})</div>
+      <div className="section-label">Позиции заказа ({items.length}) <EditBtn step={3} goToStep={goToStep} /></div>
 
       {/* Per-item summaries */}
       {itemCalcs.map(({ item, qty, itemTotal, unitPrice: uPrice, colorEntry: ce }, idx) => {
         const sizeEntries = Object.entries(item.sizes || {}).filter(([, v]) => v > 0);
+        const itemState = { ...item, ...catalogs };
+        const printPrice = getTotalSurcharge(itemState);
+        const extrasPrice = (item.extras || []).reduce((sum, code) => {
+          const ex = extrasCatalog.find(x => x.code === code);
+          return sum + (ex ? ex.price : 0);
+        }, 0);
+        const labelsCost = getLabelConfigPrice(item.labelConfig);
+        const labelLines = getLabelsSummary(item.labelConfig);
+
         return (
           <div key={idx} className="summary-item-block">
             <div className="summary-item-header">
@@ -210,7 +293,7 @@ export default function StepSummary() {
             </div>
             <div className="summary-grid">
               <div className="summary-block">
-                <div className="summary-block-title">Изделие</div>
+                <div className="summary-block-title">Изделие <EditBtn step={0} goToStep={goToStep} /></div>
                 <div className="summary-mockup" dangerouslySetInnerHTML={{ __html: getGarmentSVG(item.type, item.color) }} />
                 {!isAccessory(item.type) && <div className="summary-row"><span className="key">Лекала</span><span className="val"><b>{item.fit}</b></span></div>}
                 {item.fabric && <div className="summary-row"><span className="key">Ткань</span><span className="val"><b>{FABRIC_NAMES[item.fabric] || item.fabric}</b></span></div>}
@@ -236,15 +319,31 @@ export default function StepSummary() {
                 ))}
               </div>
 
-              {item.zones?.length > 0 && (
+              <div className="summary-block">
+                <div className="summary-block-title">Зоны нанесения <EditBtn step={2} goToStep={goToStep} /></div>
+                {item.zones?.length > 0 ? item.zones.map(z => (
+                  <div key={z} className="summary-row">
+                    <span className="key">{ZONE_LABELS[z] || z}</span>
+                    <span className="val"><b>{getZoneTechSummary(z, item)}</b></span>
+                  </div>
+                )) : <div className="summary-row"><span className="key" style={{ opacity: .5 }}>Без нанесения</span></div>}
+                {printPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Печать/шт</span><span className="val"><b>+{printPrice} ₽</b></span></div>}
+              </div>
+
+              <div className="summary-block">
+                <div className="summary-block-title">Обработки <EditBtn step={1} goToStep={goToStep} /></div>
+                {(item.extras || []).length > 0 ? (item.extras || []).map(code => {
+                  const ex = extrasCatalog.find(x => x.code === code);
+                  return <div key={code} className="summary-row"><span className="key">{ex?.name || code}</span><span className="val"><b>+{ex?.price || 0} ₽</b></span></div>;
+                }) : <div className="summary-row"><span className="key" style={{ opacity: .5 }}>Нет обработок</span></div>}
+                {extrasPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Обработки/шт</span><span className="val"><b>+{extrasPrice} ₽</b></span></div>}
+              </div>
+
+              {(labelLines.length > 0 || labelsCost > 0) && (
                 <div className="summary-block">
-                  <div className="summary-block-title">Нанесение</div>
-                  {item.zones.map(z => (
-                    <div key={z} className="summary-row">
-                      <span className="key">{ZONE_LABELS[z] || z}</span>
-                      <span className="val"><b>{TECH_NAMES[item.zoneTechs?.[z]] || item.zoneTechs?.[z] || 'screen'}</b></span>
-                    </div>
-                  ))}
+                  <div className="summary-block-title">Бирки</div>
+                  {labelLines.map((line, i) => <div key={i} className="summary-row"><span className="key">{line}</span></div>)}
+                  {labelsCost > 0 && <div className="summary-row summary-row-accent"><span className="key">Бирки/шт</span><span className="val"><b>+{labelsCost} ₽</b></span></div>}
                 </div>
               )}
             </div>
@@ -256,12 +355,19 @@ export default function StepSummary() {
         );
       })}
 
+      {/* Urgent surcharge */}
+      {urgentOption && (
+        <div className="summary-urgent" data-testid="urgent-line">
+          ⚡ Срочный заказ: +20% = +{Math.round(grandTotal - grandTotal / 1.2).toLocaleString('ru-RU')} ₽
+        </div>
+      )}
+
       {/* Client block */}
       <div className="summary-grid" style={{ marginTop: 16 }}>
         <div className="summary-block">
-          <div className="summary-block-title">Клиент</div>
+          <div className="summary-block-title">Клиент <EditBtn step={4} goToStep={goToStep} /></div>
           <div className="summary-row"><span className="key">Имя</span><span className="val"><b>{name}</b></span></div>
-          {state.bitrixDeal && <div className="summary-row"><span className="key">Bitrix</span><span className="val"><b>{state.bitrixDeal}</b></span></div>}
+          {bitrixDeal && <div className="summary-row"><span className="key">Bitrix</span><span className="val"><b>{bitrixDeal}</b></span></div>}
           {contact && <div className="summary-row"><span className="key">Контакт</span><span className="val"><b>{contact}</b></span></div>}
           {email && <div className="summary-row"><span className="key">Email</span><span className="val"><b>{email}</b></span></div>}
           {phone && <div className="summary-row"><span className="key">Телефон</span><span className="val"><b>{phone}</b></span></div>}
@@ -271,28 +377,57 @@ export default function StepSummary() {
         </div>
       </div>
 
-      {/* Grand total */}
+      {/* Collapsible price breakdown */}
       <div className="price-breakdown">
-        {itemCalcs.map(({ item, qty, itemTotal }, idx) => (
-          <div key={idx} className="price-line">
-            <span className="name">#{idx + 1} {item.sku?.name || TYPE_NAMES[item.type] || item.type} ({qty} шт)</span>
-            <span className="amount">{itemTotal.toLocaleString('ru-RU')} ₽</span>
+        <button className="price-breakdown-toggle" onClick={() => setPriceOpen(!priceOpen)}>
+          Из чего цена {priceOpen ? '▲' : '▼'}
+        </button>
+        {priceOpen && (
+          <div className="price-breakdown-details" data-testid="price-details">
+            {itemCalcs.map(({ item, qty, itemTotal }, idx) => {
+              const itemState = { ...item, ...catalogs };
+              const printP = getTotalSurcharge(itemState);
+              const extP = (item.extras || []).reduce((s, c) => { const e = extrasCatalog.find(x => x.code === c); return s + (e ? e.price : 0); }, 0);
+              const labP = getLabelConfigPrice(item.labelConfig);
+              return (
+                <div key={idx} className="price-breakdown-item">
+                  <div className="price-line"><span className="name">#{idx + 1} {item.sku?.name || TYPE_NAMES[item.type] || item.type}</span></div>
+                  {printP > 0 && <div className="price-line price-line-sub"><span className="name">Печать (зоны)</span><span className="amount">+{printP} ₽/шт</span></div>}
+                  {extP > 0 && <div className="price-line price-line-sub"><span className="name">Обработки</span><span className="amount">+{extP} ₽/шт</span></div>}
+                  {labP > 0 && <div className="price-line price-line-sub"><span className="name">Бирки</span><span className="amount">+{labP} ₽/шт</span></div>}
+                  <div className="price-line"><span className="name">{qty} шт</span><span className="amount">{itemTotal.toLocaleString('ru-RU')} ₽</span></div>
+                </div>
+              );
+            })}
+            {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽/шт</span></div>}
+            {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочность +20%</span><span className="amount">+{Math.round(grandTotal - grandTotal / 1.2).toLocaleString('ru-RU')} ₽</span></div>}
           </div>
-        ))}
-        {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽/шт</span></div>}
-        {urgentOption && <div className="price-line"><span className="name">Срочность</span><span className="amount">+20%</span></div>}
+        )}
         <div className="price-total">
           <span className="name">ИТОГО</span>
           <span className="amount">{grandTotal.toLocaleString('ru-RU')} ₽</span>
         </div>
       </div>
 
+      {/* Validation errors */}
+      {hasErrors && (
+        <div className="summary-errors" data-testid="validation-errors">
+          {errors.map((err, i) => (
+            <div key={i} className="summary-error-line">⚠️ {err}</div>
+          ))}
+        </div>
+      )}
+
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>&#8592; Назад</button>
         <button className="btn-secondary" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
         <button className="btn-secondary" onClick={() => navigate('/print')}>Печать / PDF</button>
-        <button className={`btn-accent${saving ? ' disabled' : ''}`} onClick={handleSave}>
-          {saving ? 'Сохранение...' : state._editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
+        <button
+          className={`btn-accent${saving || hasErrors ? ' disabled' : ''}`}
+          onClick={() => !hasErrors && handleSave()}
+          title={hasErrors ? 'Заполните обязательные поля' : undefined}
+        >
+          {saving ? 'Сохранение...' : _editingOrderId ? 'Обновить заказ ✓' : 'Сохранить заказ ✓'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
       </div>
