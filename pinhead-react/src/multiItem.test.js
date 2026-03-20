@@ -1319,23 +1319,23 @@ describe('getSkuEstPrice — all SKU types', () => {
   const FC = FABRICS_CATALOG_DEFAULT;
   const TC = TRIM_CATALOG_DEFAULT;
 
-  it('tee regular', () => { expect(getSkuEstPrice(TEE, FC, TC, 92)).toBeGreaterThan(0); });
-  it('tee oversize', () => { expect(getSkuEstPrice(TEE_OVER, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(TEE, FC, TC, 92)); });
-  it('hoodie regular', () => { expect(getSkuEstPrice(HOODIE, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(TEE, FC, TC, 92)); });
-  it('hoodie oversize', () => { expect(getSkuEstPrice(HOODIE_OVER, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(HOODIE, FC, TC, 92)); });
-  it('sweatshirt', () => { expect(getSkuEstPrice(SWEAT, FC, TC, 92)).toBeGreaterThan(0); });
-  it('zip-hoodie', () => { expect(getSkuEstPrice(ZIP, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(HOODIE, FC, TC, 92)); });
-  it('pants', () => { expect(getSkuEstPrice(PANTS, FC, TC, 92)).toBeGreaterThan(0); });
-  it('shorts', () => { expect(getSkuEstPrice(SHORTS, FC, TC, 92)).toBeGreaterThan(0); });
-  it('shopper (accessory)', () => { expect(getSkuEstPrice(SHOPPER, FC, TC, 92)).toBeGreaterThan(0); });
-  it('cap', () => { expect(getSkuEstPrice(CAP, FC, TC, 92)).toBeGreaterThan(0); });
-  it('socks', () => { expect(getSkuEstPrice(SOCKS, FC, TC, 92)).toBeGreaterThan(0); });
-  it('longsleeve', () => { expect(getSkuEstPrice(LONGSLEEVE, FC, TC, 92)).toBeGreaterThan(0); });
-  it('tank', () => { expect(getSkuEstPrice(TANK, FC, TC, 92)).toBeGreaterThan(0); });
+  it('tee regular', () => { expect(getSkuEstPrice(TEE, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('tee oversize', () => { expect(getSkuEstPrice(TEE_OVER, null, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(TEE, null, FC, TC, 92)); });
+  it('hoodie regular', () => { expect(getSkuEstPrice(HOODIE, null, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(TEE, null, FC, TC, 92)); });
+  it('hoodie oversize', () => { expect(getSkuEstPrice(HOODIE_OVER, null, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(HOODIE, null, FC, TC, 92)); });
+  it('sweatshirt', () => { expect(getSkuEstPrice(SWEAT, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('zip-hoodie', () => { expect(getSkuEstPrice(ZIP, null, FC, TC, 92)).toBeGreaterThan(getSkuEstPrice(HOODIE, null, FC, TC, 92)); });
+  it('pants', () => { expect(getSkuEstPrice(PANTS, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('shorts', () => { expect(getSkuEstPrice(SHORTS, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('shopper (accessory)', () => { expect(getSkuEstPrice(SHOPPER, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('cap', () => { expect(getSkuEstPrice(CAP, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('socks', () => { expect(getSkuEstPrice(SOCKS, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('longsleeve', () => { expect(getSkuEstPrice(LONGSLEEVE, null, FC, TC, 92)).toBeGreaterThan(0); });
+  it('tank', () => { expect(getSkuEstPrice(TANK, null, FC, TC, 92)).toBeGreaterThan(0); });
 
   it('higher USD rate = higher price', () => {
-    const p92 = getSkuEstPrice(TEE, FC, TC, 92);
-    const p100 = getSkuEstPrice(TEE, FC, TC, 100);
+    const p92 = getSkuEstPrice(TEE, null, FC, TC, 92);
+    const p100 = getSkuEstPrice(TEE, null, FC, TC, 100);
     expect(p100).toBeGreaterThan(p92);
   });
 });

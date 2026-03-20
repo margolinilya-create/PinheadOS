@@ -113,7 +113,7 @@ function SkuList() {
             <div key={catId}>
               <div className="garment-sep"><span className="garment-sep-text">{cat?.name || catId}</span><div className="garment-sep-line" /></div>
               {groups[catId].map(s => {
-                const est = getSkuEstPrice(s, fabricsCatalog, trimCatalog, usdRate);
+                const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
                 const isSelected = sku?.code === s.code;
                 return (
                   <div
@@ -492,11 +492,11 @@ function MockupPreview() {
 
 // ── Main Step ──
 export default function StepGarment() {
-  const { nextStep, type, color } = useStore(
-    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color }))
+  const { nextStep, type, color, sku } = useStore(
+    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color, sku: s.sku }))
   );
   const totalQty = useStore(s => getTotalQty(s));
-  const canNext = type && totalQty > 0 && (isAccessory(type) || color);
+  const canNext = sku && type && totalQty > 0 && (isAccessory(type) || color);
 
   return (
     <div className="step-panel">
@@ -512,7 +512,12 @@ export default function StepGarment() {
       <hr className="divider" />
       <SizeTable />
       <div className="btn-row">
-        <button className={`btn-next${canNext ? '' : ' disabled'}`} onClick={() => canNext && nextStep()}>
+        <button
+          className={`btn-next${canNext ? '' : ' disabled'}`}
+          disabled={!sku}
+          title={!sku ? 'Выберите артикул' : ''}
+          onClick={() => canNext && nextStep()}
+        >
           Далее
         </button>
       </div>

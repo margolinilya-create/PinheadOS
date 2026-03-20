@@ -81,7 +81,8 @@ export function screenLookup(format, colors, qty) {
 }
 
 export function flexLookup(format, colors, qty) {
-  const fmt = FLEX_MATRIX[format];
+  const P = getPrices();
+  const fmt = (P.flexMatrix || FLEX_MATRIX)[format];
   if (!fmt) return 0;
   const c = Math.max(1, Math.min(FLEX_MAX_COLORS, colors));
   if (qty < 20) return FLEX_SINGLE_PRICE[format] || fmt[1][0];
@@ -98,8 +99,8 @@ export function screenCalcZone(zone, state) {
   const p = state.zonePrints?.[zone] || { colors: 1, size: 'A4', textile: 'white', fx: 'none' };
   const qty = getTotalQty(state) || 1;
   let base = screenLookup(p.size, parseInt(p.colors) || 1, qty);
-  if (p.textile === 'color') base = Math.round(base * SCREEN_TEXTILE_MULT);
-  if (FUTHER_FABRICS.includes(state.fabric)) base = Math.round(base * SCREEN_FUTHER_MULT);
+  if (p.textile === 'color') base = Math.round(base * (getPrices().screenColoredMult || SCREEN_TEXTILE_MULT));
+  if (FUTHER_FABRICS.includes(state.fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
   const fx = SCREEN_FX.find(f => f.key === (p.fx || 'none'));
   if (fx && fx.mult > 1) base = Math.round(base * fx.mult);
   return base;
@@ -122,8 +123,8 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
     const textile = params.textile || 'white';
     const fx = params.fx || 'none';
     let base = screenLookup(fmt, col, qty);
-    if (textile === 'color') base = Math.round(base * SCREEN_TEXTILE_MULT);
-    if (FUTHER_FABRICS.includes(fabric)) base = Math.round(base * SCREEN_FUTHER_MULT);
+    if (textile === 'color') base = Math.round(base * (getPrices().screenColoredMult || SCREEN_TEXTILE_MULT));
+    if (FUTHER_FABRICS.includes(fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
     const fxEntry = SCREEN_FX.find(f => f.key === fx);
     if (fxEntry && fxEntry.mult > 1) base = Math.round(base * fxEntry.mult);
     return base;
@@ -190,9 +191,14 @@ export function getTotalQty(state) {
   return stdQty + customQty;
 }
 
-export function getSkuEstPrice(sku, fabricsCatalog, trimCatalog, usdRate) {
-  const fabric = fabricsCatalog.find(f => (f.forCategories || []).includes(sku.category));
-  const fabricCost = fabric ? Math.round(sku.mainFabricUsage * fabric.priceUSD * usdRate) : 0;
+export function getSkuEstPrice(sku, fabricCode, fabricsCatalog, trimCatalog, usdRate) {
+  const fabric = fabricCode
+    ? fabricsCatalog.find(f => f.code === fabricCode)
+    : null;
+  const fallbackFabric = fabricsCatalog.find(f =>
+    (f.forCategories || []).includes(sku.category));
+  const usedFabric = fabric || fallbackFabric;
+  const fabricCost = usedFabric ? Math.round(sku.mainFabricUsage * usedFabric.priceUSD * usdRate) : 0;
   const trim = trimCatalog.find(t => t.code === sku.trimCode);
   const trimCost = trim ? Math.round((sku.trimUsage || 0) * trim.priceUSD * usdRate) : 0;
   return (sku.sewingPrice || 0) + fabricCost + trimCost;
@@ -239,7 +245,7 @@ export function calcTotal(state, debug = false) {
 
   let basePrice;
   if (state.sku) {
-    basePrice = getSkuEstPrice(state.sku, state.fabricsCatalog, state.trimCatalog, state.usdRate);
+    basePrice = getSkuEstPrice(state.sku, state.fabric, state.fabricsCatalog, state.trimCatalog, state.usdRate);
   } else {
     const P = getPrices();
     basePrice = (P.type[state.type] || 480)
