@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "seed": "node scripts/seed-catalog.js",
-    "seed:sql": "node scripts/generate-seed-sql.js"
+    "seed:sql": "node scripts/generate-seed-sql.js",
+    "audit": "node scripts/audit-guidebook.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
