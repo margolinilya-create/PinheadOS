@@ -69,7 +69,7 @@ export default function Header() {
         )}
         {!isProd && !isDes && (
           <button className={`header-nav-btn${isActive('/prices') ? ' active' : ''}`} onClick={nav('/prices')}>
-            Цены
+            Цены нанесений
           </button>
         )}
         {(isAdmin || isProd || user?.role === 'rop') && (

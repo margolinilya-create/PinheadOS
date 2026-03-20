@@ -37,6 +37,7 @@ const SCREEN_TEXTILE_MULT = 1.3;
 const SCREEN_FUTHER_MULT = 1.5;
 const FUTHER_FABRICS = ['futher-350-nachers', 'futher-350-petlya', 'futher-370-nachers', 'futher-370-petlya', 'futher-470-petlya'];
 
+const SCREEN_FX_DEFAULTS = { stone: 2, puff: 2, metallic: 2, fluor: 2 };
 const SCREEN_FX = [
   { key: 'none', label: 'Нет', mult: 1 },
   { key: 'stone', label: 'К. база', mult: 2 },
@@ -45,6 +46,13 @@ const SCREEN_FX = [
   { key: 'fluor', label: 'Флюр', mult: 2 },
 ];
 export { SCREEN_FX };
+
+function getScreenFxMult(fxKey) {
+  if (!fxKey || fxKey === 'none') return 1;
+  const p = getPrices();
+  const priceKeys = { stone: 'screenFxStoneMult', puff: 'screenFxPuffMult', metallic: 'screenFxMetallicMult', fluor: 'screenFxFluorMult' };
+  return p[priceKeys[fxKey]] ?? SCREEN_FX_DEFAULTS[fxKey] ?? 1;
+}
 
 // Flex printing
 const FLEX_QTY_TIERS = [1, 20, 35, 50];
@@ -101,8 +109,8 @@ export function screenCalcZone(zone, state) {
   let base = screenLookup(p.size, parseInt(p.colors) || 1, qty);
   if (p.textile === 'color') base = Math.round(base * (getPrices().screenColoredMult || SCREEN_TEXTILE_MULT));
   if (FUTHER_FABRICS.includes(state.fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
-  const fx = SCREEN_FX.find(f => f.key === (p.fx || 'none'));
-  if (fx && fx.mult > 1) base = Math.round(base * fx.mult);
+  const fxMult = getScreenFxMult(p.fx);
+  if (fxMult > 1) base = Math.round(base * fxMult);
   return base;
 }
 
@@ -125,8 +133,8 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
     let base = screenLookup(fmt, col, qty);
     if (textile === 'color') base = Math.round(base * (getPrices().screenColoredMult || SCREEN_TEXTILE_MULT));
     if (FUTHER_FABRICS.includes(fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
-    const fxEntry = SCREEN_FX.find(f => f.key === fx);
-    if (fxEntry && fxEntry.mult > 1) base = Math.round(base * fxEntry.mult);
+    const fxMult = getScreenFxMult(fx);
+    if (fxMult > 1) base = Math.round(base * fxMult);
     return base;
   }
   if (tech === 'flex') {

@@ -88,7 +88,6 @@ export default function PriceEditor() {
   const [changed, setChanged] = useState(0);
   const [saving, setSaving] = useState(false);
   const [fetchingRate, setFetchingRate] = useState(false);
-  const [staleBanner, setStaleBanner] = useState(null);
 
   // При монтировании — попробовать загрузить из Supabase (актуальнее localStorage)
   useEffect(() => {
@@ -100,20 +99,6 @@ export default function PriceEditor() {
     });
   }, []);
 
-  // Проверка актуальности курса $ при монтировании
-  useEffect(() => {
-    const usdUpdatedAt = prices?.usdUpdatedAt;
-    if (usdUpdatedAt) {
-      const daysSince = (Date.now() - new Date(usdUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSince > 1) {
-        setStaleBanner(Math.floor(daysSince));
-      } else {
-        setStaleBanner(null);
-      }
-    } else {
-      setStaleBanner(-1); // нет данных о дате обновления
-    }
-  }, [prices?.usdUpdatedAt]);
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -298,22 +283,31 @@ export default function PriceEditor() {
         </div>
       ))}
 
-      <h3>Наценки</h3>
-      <div className="pe-grid">
+      <h3>Наценки шелкографии</h3>
+      <div className="pe-grid pe-grid-surcharges">
         <div className="pe-input-row">
           <span className="pe-input-label">Цветной текстиль</span>
           <input type="number" step="0.1" value={prices.screenColoredMult ?? 1.3} onChange={e => updateScalar('screenColoredMult', e.target.value)} />
-          <span className="pe-input-unit">&times;</span>
         </div>
         <div className="pe-input-row">
           <span className="pe-input-label">Футер</span>
           <input type="number" step="0.1" value={prices.screenFutherMult ?? 1.5} onChange={e => updateScalar('screenFutherMult', e.target.value)} />
-          <span className="pe-input-unit">&times;</span>
         </div>
         <div className="pe-input-row">
-          <span className="pe-input-label">Эффекты FX</span>
-          <input type="number" step="0.1" value={prices.screenFxMult ?? 2.0} onChange={e => updateScalar('screenFxMult', e.target.value)} />
-          <span className="pe-input-unit">&times;</span>
+          <span className="pe-input-label">К. база</span>
+          <input type="number" step="0.1" value={prices.screenFxStoneMult ?? 2.0} onChange={e => updateScalar('screenFxStoneMult', e.target.value)} />
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">PUFF</span>
+          <input type="number" step="0.1" value={prices.screenFxPuffMult ?? 2.0} onChange={e => updateScalar('screenFxPuffMult', e.target.value)} />
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Металлик</span>
+          <input type="number" step="0.1" value={prices.screenFxMetallicMult ?? 2.0} onChange={e => updateScalar('screenFxMetallicMult', e.target.value)} />
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Флюр</span>
+          <input type="number" step="0.1" value={prices.screenFxFluorMult ?? 2.0} onChange={e => updateScalar('screenFxFluorMult', e.target.value)} />
         </div>
       </div>
     </div>
@@ -517,9 +511,6 @@ export default function PriceEditor() {
             {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
           </span>
           <div className="pe-actions-right">
-            <button className="pe-btn" onClick={handleFetchUsdRate} disabled={fetchingRate}>
-              {fetchingRate ? 'Загрузка...' : 'Курс ЦБ РФ'}
-            </button>
             <button className="pe-btn" onClick={reset}>Сброс</button>
             <button className="pe-btn" onClick={importJSON}>Импорт</button>
             <button className="pe-btn" onClick={exportJSON}>Экспорт</button>
@@ -529,19 +520,6 @@ export default function PriceEditor() {
 
         {/* ── Content area (scrollable, below sticky actions bar) ── */}
         <div className="pe-content">
-          {/* ── Stale USD rate banner ── */}
-          {staleBanner !== null && (
-            <div className="usd-stale-banner">
-              {staleBanner === -1
-                ? '⚠️ Дата обновления курса $ неизвестна.'
-                : `⚠️ Курс $ не обновлялся ${staleBanner} дн.`}
-              {' '}
-              <button onClick={handleFetchUsdRate} disabled={fetchingRate}>
-                {fetchingRate ? 'Загрузка...' : 'Обновить'}
-              </button>
-            </div>
-          )}
-
           {/* ── Tabs ── */}
           <div className="pe-tabs">
             {TABS.map(t => (

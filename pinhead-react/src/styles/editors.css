@@ -89,13 +89,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
-  height: 52px;
+  min-height: 52px;
   border-bottom: 0.5px solid var(--border);
   background: var(--paper);
   position: sticky;
   top: 56px;
   z-index: 20;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .pe-actions-title {
   font-family: var(--font-display);
@@ -108,7 +109,7 @@
   align-items: center;
   gap: 12px;
 }
-.pe-actions-right { display: flex; gap: 8px; }
+.pe-actions-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .pe-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .usd-stale-banner {
   padding: 8px 28px;
@@ -264,6 +265,7 @@
 .pe-hint  { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
 .pe-empty { padding: 32px; text-align: center; color: var(--text-dim); font-size: 13px; }
 .pe-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.pe-grid-surcharges { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .pe-input-row       { display: flex; align-items: center; gap: 8px; }
 .pe-input-label     { font-size: 12px; font-weight: 600; min-width: 120px; color: var(--text-mid); }
 .pe-input-row input { width: 80px; height: 28px; border: 1.5px solid var(--border-light); text-align: center; font-family: var(--font-display); font-size: 13px; font-weight: 700; }
