@@ -71,7 +71,7 @@
   background: var(--paper);
   position: sticky;
   top: 56px;
-  z-index: 10;
+  z-index: 20;
 }
 .sku-actions-title {
   font-family: var(--font-display);
@@ -91,7 +91,7 @@
   background: var(--paper);
   position: sticky;
   top: 56px;
-  z-index: 10;
+  z-index: 20;
 }
 .pe-actions-title {
   font-family: var(--font-display);

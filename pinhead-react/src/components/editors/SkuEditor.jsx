@@ -388,7 +388,7 @@ export default function SkuEditor() {
                     <th className="sku-th-num2">Отд</th>
                     <th className="sku-th-trim">Отделка</th>
                     <th className="sku-th-zones">Зоны</th>
-                    <th className="sku-th-est">~Цена</th>
+                    <th className="sku-th-est">Цена</th>
                     <th className="sku-th-del"></th>
                   </tr>
                 </thead>
@@ -439,7 +439,7 @@ export default function SkuEditor() {
                               : '—'}
                           </button>
                         </td>
-                        <td className="sku-td-est">~{estimatePrice(s)} ₽</td>
+                        <td className="sku-td-est">от {estimatePrice(s)} ₽</td>
                         <td>
                           <button className="sku-del-btn" onClick={() => deleteSku(realIdx)}>✕</button>
                         </td>

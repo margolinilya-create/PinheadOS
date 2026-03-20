@@ -43,9 +43,9 @@ describe('ExpressCalc', () => {
     expect(screen.getByText(/Выберите изделие/)).toBeInTheDocument();
   });
 
-  it('renders close button', () => {
+  it('does not render orphan close button', () => {
     renderExpress();
-    expect(screen.getByText('✕')).toBeInTheDocument();
+    expect(screen.queryByText('✕')).not.toBeInTheDocument();
   });
 
   it('defaults quantity to 100', () => {
