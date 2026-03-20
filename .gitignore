@@ -1,2 +1,5 @@
 dist
+dist/
 node_modules
+*.tar.gz
+*.tar
