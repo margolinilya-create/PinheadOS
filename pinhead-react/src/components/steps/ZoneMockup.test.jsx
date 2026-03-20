@@ -32,35 +32,16 @@ describe('ZoneMockup', () => {
     expect(container.querySelector('.zm-svg')).toBeTruthy();
   });
 
-  it('shows active zone as active', () => {
-    const { container } = render(<ZoneMockup {...baseProps} />);
-    const activeZones = container.querySelectorAll('.zm-zone.active');
-    expect(activeZones.length).toBe(1);
-  });
-
-  it('renders all available zones', () => {
+  it('renders clean mockup without zone overlays', () => {
     const { container } = render(<ZoneMockup {...baseProps} />);
     const zones = container.querySelectorAll('.zm-zone');
-    expect(zones.length).toBe(3); // front, back, sleeve-l
+    expect(zones.length).toBe(0);
   });
 
-  it('no active zones when activeZones=[]', () => {
-    const { container } = render(<ZoneMockup {...baseProps} activeZones={[]} />);
-    const active = container.querySelectorAll('.zm-zone.active');
-    expect(active.length).toBe(0);
-  });
-
-  it('shows no summary chips when no active zones', () => {
-    const { container } = render(<ZoneMockup {...baseProps} activeZones={[]} />);
+  it('renders clean mockup without summary chips', () => {
+    const { container } = render(<ZoneMockup {...baseProps} />);
     const summary = container.querySelector('.zm-summary');
     expect(summary).toBeNull();
-  });
-
-  it('shows summary chips for active zones', () => {
-    const { container } = render(<ZoneMockup {...baseProps} />);
-    const chips = container.querySelectorAll('.zm-chip');
-    expect(chips.length).toBe(1);
-    expect(chips[0].textContent).toContain('Шелко');
   });
 
   it('renders for hoodie type', () => {
@@ -75,23 +56,12 @@ describe('ZoneMockup', () => {
       />
     );
     expect(container.firstChild).not.toBeNull();
-    const active = container.querySelectorAll('.zm-zone.active');
-    expect(active.length).toBe(2);
+    expect(container.querySelector('.zm-svg')).toBeTruthy();
   });
 
-  it('handles onZoneClick callback', () => {
-    const onClick = vi.fn();
-    const { container } = render(
-      <ZoneMockup {...baseProps} onZoneClick={onClick} />
-    );
-    const zone = container.querySelector('.zm-zone');
-    zone.click();
-    expect(onClick).toHaveBeenCalled();
-  });
-
-  it('zone labels have title attribute', () => {
-    const { container } = render(<ZoneMockup {...baseProps} />);
-    const zone = container.querySelector('.zm-zone');
-    expect(zone.getAttribute('title')).toBeTruthy();
+  it('renders with empty activeZones', () => {
+    const { container } = render(<ZoneMockup {...baseProps} activeZones={[]} />);
+    expect(container.querySelector('.zm-wrap')).toBeTruthy();
+    expect(container.querySelector('.zm-svg')).toBeTruthy();
   });
 });

@@ -27,8 +27,8 @@ export default function LabelConfigurator() {
 
   return (
     <div className="label-configurator">
-      {/* ── Бирка по уходу ── */}
-      <div className="label-section">
+      {/* ── Бирка по уходу (Составник) ── */}
+      <div className={`label-section${careLabel.enabled ? ' label-section-active' : ''}`}>
         <div className="label-section-header" onClick={toggleCareLabel}>
           <div className="label-section-toggle">
             <span className={`label-toggle-check${careLabel.enabled ? ' active' : ''}`}>
@@ -90,7 +90,7 @@ export default function LabelConfigurator() {
       </div>
 
       {/* ── Основная бирка (Нашивка) ── */}
-      <div className="label-section">
+      <div className={`label-section${mainLabel.option !== 'none' ? ' label-section-active' : ''}`}>
         <div className="label-section-header">
           <span className="label-section-name">{LABEL_CONFIG.mainLabel.name}</span>
           <span className="label-section-price">
@@ -180,7 +180,7 @@ export default function LabelConfigurator() {
       </div>
 
       {/* ── Хэнг-тег ── */}
-      <div className="label-section">
+      <div className={`label-section${hangTag.option !== 'none' ? ' label-section-active' : ''}`}>
         <div className="label-section-header">
           <span className="label-section-name">{LABEL_CONFIG.hangTag.name}</span>
           <span className="label-section-price">

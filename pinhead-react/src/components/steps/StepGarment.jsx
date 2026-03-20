@@ -508,11 +508,15 @@ function MockupPreview() {
 
 // ── Main Step ──
 export default function StepGarment() {
-  const { nextStep, type, color, sku } = useStore(
-    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color, sku: s.sku }))
+  const { nextStep, type, color, fabric, sku } = useStore(
+    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color, fabric: s.fabric, sku: s.sku }))
   );
   const totalQty = useStore(s => getTotalQty(s));
-  const canNext = sku && type && totalQty > 0 && (isAccessory(type) || color);
+  const isAcc = isAccessory(type);
+  const canNext = sku && type && totalQty > 0 && (isAcc || color);
+  const showFabric = !!sku && !isAcc;
+  const showColor = !!sku && !isAcc && !!fabric;
+  const showSizes = !!sku && (isAcc || !!color);
 
   return (
     <div className="step-panel">
@@ -522,11 +526,9 @@ export default function StepGarment() {
         <p className="step-header-desc">Выберите изделие, ткань и цвет</p>
       </div>
       <SkuList />
-      <hr className="divider" />
-      <FabricGrid />
-      <ColorPicker />
-      <hr className="divider" />
-      <SizeTable />
+      {showFabric && <FabricGrid />}
+      {showColor && <ColorPicker />}
+      {showSizes && <SizeTable />}
       <div className="btn-row">
         <button
           className={`btn-next${canNext ? '' : ' disabled'}`}

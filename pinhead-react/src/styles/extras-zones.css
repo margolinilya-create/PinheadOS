@@ -47,6 +47,27 @@
 }
 .extras-total-live b { color: var(--accent); font-weight: 700; }
 .extras-total-detail { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+/* ── Extras List (compact) ── */
+.extras-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border-light); margin: 12px 0; }
+.extras-list-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  border-bottom: 1px solid var(--border-light); cursor: pointer;
+  transition: background 150ms ease-out; user-select: none;
+}
+.extras-list-item:last-child { border-bottom: none; }
+.extras-list-item:hover { background: var(--bg2); }
+.extras-list-item.selected { background: var(--accent-light); border-left: 3px solid var(--accent); }
+.extras-list-item .extra-check {
+  width: 16px; height: 16px; border: 1px solid var(--border-light);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all 150ms ease-out;
+}
+.extras-list-item.selected .extra-check { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.extras-list-name {
+  flex: 1; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.extras-list-item .extra-price { font-size: 12px; }
 .empty-state { padding: 40px; text-align: center; color: var(--text-dim); font-family: 'Inter', sans-serif; font-size: 13px; }
 /* ── Zones Grid ── */
 .zones-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 32px; }
@@ -81,15 +102,13 @@
   background: var(--accent-light); letter-spacing: .3px;
 }
 .zone-name { display: none; }
-.no-print-wrap { margin: 0 0 12px 0; }
-.no-print-btn {
-  width: 100%; padding: 8px 16px; border: 1px solid var(--border-light); background: var(--white);
-  cursor: pointer; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; color: var(--text-dim);
-  display: flex; align-items: center; gap: 8px; transition: all 150ms ease-out;
-}
-.no-print-btn.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
-.no-print-check { width: 14px; height: 14px; border: 1px solid var(--border-light); display: flex; align-items: center; justify-content: center; font-size: 9px; }
-.no-print-btn.active .no-print-check { border-color: var(--white); color: var(--white); }
+/* "Без нанесения" as a zone card — visually highlighted */
+.zone-card-noprint { border-style: dashed; }
+.zone-card-noprint .zone-label { font-weight: 700; }
+.zone-card-noprint.selected { border-style: solid; background: var(--black); border-color: var(--black); }
+.zone-card-noprint.selected .zone-label { color: var(--white); }
+.zone-card-noprint.selected .zone-bar { background: var(--white); }
+.zone-card-noprint.selected .zone-check { color: var(--white); }
 /* ── Zone Tech Blocks ── */
 .zone-tech-blocks { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .zone-tech-block  { border: 1px solid var(--border-light); margin-bottom: 12px; overflow: hidden; }

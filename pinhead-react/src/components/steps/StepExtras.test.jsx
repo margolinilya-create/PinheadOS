@@ -94,24 +94,21 @@ describe('StepExtras', () => {
     expect(prices[0].textContent).toContain('₽');
   });
 
-  it('shows tooltip with description on card', () => {
+  it('shows tooltip with description on list item', () => {
     useStore.setState({ sku: { code: 'test', name: 'Test', category: 'tshirts' } });
     render(<StepExtras />);
-    const card = document.querySelector('.extra-card');
-    expect(card.getAttribute('title')).toBeTruthy();
+    const item = document.querySelector('.extras-list-item');
+    expect(item.getAttribute('title')).toBeTruthy();
   });
 
-  it('expands description when card is selected', () => {
+  it('highlights selected extras in list', () => {
     useStore.setState({
       sku: { code: 'test', name: 'Test', category: 'tshirts' },
-      extras: ['double-stitch'],
-      extrasCatalog: [
-        { code: 'double-stitch', name: 'Двойная отстрочка', price: 30, forCategories: ['tshirts'] },
-      ],
+      extras: ['ex1'],
     });
     render(<StepExtras />);
-    const desc = document.querySelector('.extra-desc.expanded');
-    expect(desc).toBeTruthy();
+    const selected = document.querySelector('.extras-list-item.selected');
+    expect(selected).toBeTruthy();
   });
 
   it('shows live total line', () => {
