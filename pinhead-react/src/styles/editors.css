@@ -58,13 +58,12 @@
 /* ═══════════════════════════════════════════ */
 /* SKU EDITOR v1.7                            */
 /* ═══════════════════════════════════════════ */
-.sku-ed-overlay { position: fixed; inset: 0; background: var(--white); z-index: 450; display: flex; justify-content: center; overflow-y: auto; }
+.sku-ed-overlay { background: var(--white); display: flex; justify-content: center; overflow-y: auto; flex: 1; }
 .sku-ed-panel   { width: 100%; max-width: 1200px; padding: 0 40px; display: flex; flex-direction: column; }
-.sku-ed-header       { display: flex; align-items: center; justify-content: space-between; padding: 24px 0 24px; border-bottom: 1.5px solid var(--black); margin-bottom: 0; }
-.sku-ed-header-left  { display: flex; align-items: center; gap: 24px; }
-.sku-ed-title        { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1; }
-.sku-ed-title span   { font-size: 12px; font-weight: 700; color: var(--text-dim); letter-spacing: 2px; margin-left: 8px; }
-.sku-ed-header-right { display: flex; align-items: center; gap: 8px; }
+/* ── Actions bar (below shared Header) ── */
+.pe-actions-bar       { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1.5px solid var(--black); margin-bottom: 0; flex-shrink: 0; }
+.pe-actions-bar-left  { display: flex; align-items: center; gap: 12px; }
+.pe-actions-bar-right { display: flex; align-items: center; gap: 8px; }
 .sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0; border-bottom: 1px solid var(--border-light); margin-bottom: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); }
 .sku-ed-rate-cb      { display: flex; align-items: center; gap: 8px; }
 .sku-ed-rate-cb b    { color: var(--black); font-size: 13px; font-weight: 900; }

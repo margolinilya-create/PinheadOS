@@ -16,9 +16,10 @@ beforeEach(() => {
 });
 
 describe('PriceEditor', () => {
-  it('renders title', () => {
+  it('renders actions bar', () => {
     renderPriceEditor();
-    expect(screen.getByText('РЕДАКТОР ЦЕН')).toBeInTheDocument();
+    expect(screen.getByText('Сохранить')).toBeInTheDocument();
+    expect(screen.getByText('Экспорт')).toBeInTheDocument();
   });
 
   it('renders tabs', () => {

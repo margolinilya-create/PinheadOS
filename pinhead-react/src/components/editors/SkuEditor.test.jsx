@@ -30,9 +30,10 @@ beforeEach(() => {
 });
 
 describe('SkuEditor', () => {
-  it('renders title', () => {
+  it('renders actions bar', () => {
     renderSkuEditor();
-    expect(screen.getByText('КАТАЛОГ SKU')).toBeInTheDocument();
+    expect(screen.getByText('Сохранить')).toBeInTheDocument();
+    expect(screen.getByText('Excel ↓')).toBeInTheDocument();
   });
 
   it('renders tabs', () => {

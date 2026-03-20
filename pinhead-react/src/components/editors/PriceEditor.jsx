@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PRICES } from '../../data/prices';
 import { supabase } from '../../lib/supabase';
 import { useStore } from '../../store/useStore';
@@ -79,8 +78,6 @@ const DTF_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const DTG_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 
 export default function PriceEditor() {
-  const navigate = useNavigate();
-  const onClose = () => navigate('/');
   const [tab, setTab] = useState('screen');
   const [prices, setPrices] = useState(clonePrices);
   const [history, setHistory] = useState(loadHistory);
@@ -496,29 +493,19 @@ export default function PriceEditor() {
   return (
     <div className="sku-ed-overlay">
       <div className="sku-ed-panel">
-        {/* ── Header ── */}
-        <div className="sku-ed-header">
-          <div className="sku-ed-header-left">
-            <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
-              <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-                <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-                <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-                <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <h1 className="sku-ed-title">РЕДАКТОР ЦЕН</h1>
+        {/* ── Actions bar (below shared Header) ── */}
+        <div className="pe-actions-bar">
+          <div className="pe-actions-bar-left">
             {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
           </div>
-          <div className="sku-ed-header-right">
+          <div className="pe-actions-bar-right">
             <button className="btn" onClick={handleFetchUsdRate} disabled={fetchingRate}>
-              {fetchingRate ? 'Загрузка...' : 'Обновить курс ЦБ РФ'}
+              {fetchingRate ? 'Загрузка...' : 'Курс ЦБ РФ'}
             </button>
             <button className="btn" onClick={exportJSON}>Экспорт</button>
             <button className="btn" onClick={importJSON}>Импорт</button>
             <button className="btn" onClick={reset}>Сброс</button>
             <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
-            <button className="pe-close" onClick={onClose}>✕</button>
           </div>
         </div>
 
