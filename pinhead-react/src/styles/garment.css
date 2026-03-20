@@ -208,6 +208,14 @@
 .size-total-label { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
 .size-total-qty   { font-weight: 700; color: var(--accent); }
 .size-total-sum   { text-align: right; font-weight: 700; color: var(--accent); }
+.custom-size-label-input {
+  width: 64px !important; height: 28px; box-sizing: border-box;
+  border: 1px solid var(--border-light); background: var(--white); color: var(--black);
+  font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700;
+  text-align: center; text-transform: uppercase; padding: 4px 6px;
+  outline: none; border-radius: 0;
+}
+.custom-size-label-input:focus { border-color: var(--accent); }
 .size-rm-btn { background: none; border: none; color: var(--color-error); font-size: 12px; cursor: pointer; padding: 2px 8px; margin-left: 8px; opacity: .6; }
 .size-rm-btn:hover { opacity: 1; }
 /* ── Mobile size list ── */
@@ -240,9 +248,10 @@
 }
 .qty-btn:hover { background: var(--accent); color: var(--white); border-color: var(--accent); }
 .qty-input {
-  width: 36px !important; border: 1px solid var(--border-light); background: var(--white); color: var(--black);
-  font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700;
-  text-align: center; padding: 2px 4px; outline: none; border-radius: 0;
+  width: 48px !important; border: 1px solid var(--border-light); background: var(--white); color: var(--black);
+  font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700;
+  text-align: center; padding: 4px 2px; outline: none; border-radius: 0;
+  height: 28px; box-sizing: border-box;
 }
 .qty-input:focus { border-color: var(--accent); }
 .one-size-row  { display: flex; align-items: center; gap: 8px; }
