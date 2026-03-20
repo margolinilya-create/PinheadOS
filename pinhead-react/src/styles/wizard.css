@@ -11,16 +11,16 @@
   display: flex; align-items: center; gap: 12px; padding: 12px 24px 12px;
   cursor: pointer; border: none; border-bottom: 2px solid transparent;
   margin-bottom: -1px; transition: all 150ms ease-out; white-space: nowrap;
-  opacity: .3; pointer-events: none; background: none;
+  opacity: .5; pointer-events: none; background: none;
   font-family: 'Inter', sans-serif; font-size: 12px;
 }
-.step-tab:disabled          { cursor: default; opacity: .3; pointer-events: none; }
+.step-tab:disabled          { cursor: default; opacity: .4; pointer-events: none; }
 .step-tab.active            { border-bottom-color: var(--accent); opacity: 1; pointer-events: all; }
-.step-tab.done              { opacity: .65; pointer-events: all; cursor: pointer; }
+.step-tab.done              { opacity: .75; pointer-events: all; cursor: pointer; }
 .step-tab.done:hover        { opacity: 1; }
 .step-tab.visited           { pointer-events: all; cursor: pointer; }
-.step-tab.visited:not(.active):not(.done)       { opacity: .5; }
-.step-tab.visited:not(.active):not(.done):hover { opacity: .8; }
+.step-tab.visited:not(.active):not(.done)       { opacity: .65; }
+.step-tab.visited:not(.active):not(.done):hover { opacity: .9; }
 .step-num {
   width: 24px; height: 24px; border: 2px solid var(--black);
   display: flex; align-items: center; justify-content: center;

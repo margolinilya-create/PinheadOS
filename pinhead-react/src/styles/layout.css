@@ -37,7 +37,7 @@ header {
   transition: background 150ms ease-out, color 150ms ease-out;
   white-space: nowrap; flex-shrink: 0;
 }
-.header-nav-btn:hover { color: #fff; background: rgba(255,255,255,.06); }
+.header-nav-btn:hover { color: var(--white); background: var(--accent); }
 .header-nav-btn.active { background: var(--accent); color: #fff; }
 /* Express — always signal */
 .header-nav-btn.express-btn { background: var(--signal); color: #fff; border-left-color: var(--signal); }

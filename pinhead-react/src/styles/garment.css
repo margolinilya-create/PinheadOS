@@ -240,7 +240,7 @@
 }
 .qty-btn:hover { background: var(--accent); color: var(--white); border-color: var(--accent); }
 .qty-input {
-  width: 52px; border: 1px solid var(--border-light); background: var(--white); color: var(--black);
+  width: 40px; border: 1px solid var(--border-light); background: var(--white); color: var(--black);
   font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700;
   text-align: center; padding: 4px; outline: none;
 }

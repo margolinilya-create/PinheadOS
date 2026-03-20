@@ -315,11 +315,27 @@ function SizeTable() {
   const allInputLabels = allRows.filter(r => r.type === 'std' ? isSizeAvailable(r.label) : true).map(r => r.type === 'std' ? r.label : 'cs-' + r.idx);
 
   const handleAddSize = () => {
-    if (!newLabel.trim()) return;
-    addCustomSize(newLabel.trim());
+    const raw = newLabel.trim().toUpperCase();
+    if (!raw) return;
+    // Normalize: "xxxl" → "3XL", etc.
+    const xMatch = raw.match(/^(X+)L$/);
+    const normalized = xMatch && xMatch[1].length >= 2
+      ? `${xMatch[1].length}XL`
+      : raw;
+    // Check for duplicates
+    const allExisting = [...SIZES.map(s => s.toUpperCase()), ...(customSizes || []).map(c => c.label.toUpperCase())];
+    if (allExisting.includes(normalized)) {
+      setNewLabel('');
+      return;
+    }
+    addCustomSize(normalized);
     if (newQty > 0) {
-      const idx = (customSizes || []).length;
-      setTimeout(() => setCustomSizeQty(idx, newQty), 0);
+      // Find the new index after sorting
+      setTimeout(() => {
+        const cs = useStore.getState().customSizes;
+        const idx = cs.findIndex(c => c.label === normalized);
+        if (idx >= 0) setCustomSizeQty(idx, newQty);
+      }, 0);
     }
     setNewLabel('');
     setNewQty(0);

@@ -284,7 +284,15 @@ export const useStore = create((set, get) => ({
 
   // ─── Custom Sizes ───
   addCustomSize: (label) => set(s => {
-    const newLabel = label || `${s.customSizes.length + 4}XL`;
+    const raw = (label || '').trim().toUpperCase();
+    // Normalize: "xxxl" → "3XL", "xxxxl" → "4XL", etc.
+    const xMatch = raw.match(/^(X+)L$/);
+    const newLabel = xMatch && xMatch[1].length >= 2
+      ? `${xMatch[1].length}XL`
+      : raw || `${s.customSizes.length + 4}XL`;
+    // Prevent duplicates with standard or existing custom sizes
+    const allLabels = [...SIZES, ...s.customSizes.map(c => c.label.toUpperCase())];
+    if (allLabels.includes(newLabel)) return {};
     const updated = [...s.customSizes, { label: newLabel, qty: 0 }];
     updated.sort((a, b) => sizeOrder(a.label) - sizeOrder(b.label));
     return { customSizes: updated };
