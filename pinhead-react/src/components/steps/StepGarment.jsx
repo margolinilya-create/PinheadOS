@@ -257,6 +257,28 @@ function ColorPicker() {
   );
 }
 
+// ── Size ordering & sorting ──
+const SIZE_ORDER_MAP = {};
+const ALL_SIZE_ORDER = ['4XS','3XS','2XS','XS','S','M','L','XL','2XL','3XL','4XL','5XL','6XL'];
+ALL_SIZE_ORDER.forEach((s, i) => { SIZE_ORDER_MAP[s] = i; });
+
+function sizeOrder(label) {
+  const up = (label || '').toUpperCase();
+  if (up in SIZE_ORDER_MAP) return SIZE_ORDER_MAP[up];
+  // Try numeric sizes (28, 30, 32, etc.)
+  const num = parseFloat(up);
+  if (!isNaN(num)) return 100 + num;
+  return 200; // unknown sizes go to end
+}
+
+function buildSortedRows(stdSizes, sizes, customSizes) {
+  const stdRows = stdSizes.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 }));
+  const customRows = (customSizes || []).map((cs, i) => ({ type: 'custom', label: cs.label, qty: cs.qty || 0, idx: i }));
+  const all = [...stdRows, ...customRows];
+  all.sort((a, b) => sizeOrder(a.label) - sizeOrder(b.label));
+  return all;
+}
+
 // ── Size Table ──
 function SizeTable() {
   const { type, sku, sizes, setSize, setOneSizeQty, customSizes, addCustomSize, removeCustomSize, setCustomSizeQty, setCustomSizeLabel } = useStore(
@@ -307,10 +329,7 @@ function SizeTable() {
   const totalQty = stdQty + customQty;
   const totalSum = totalQty * price;
 
-  const allRows = [
-    ...SIZES.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 })),
-    ...(customSizes || []).map((cs, i) => ({ type: 'custom', label: cs.label, qty: cs.qty || 0, idx: i })),
-  ];
+  const allRows = buildSortedRows(SIZES, sizes, customSizes);
 
   const allInputLabels = allRows.filter(r => r.type === 'std' ? isSizeAvailable(r.label) : true).map(r => r.type === 'std' ? r.label : 'cs-' + r.idx);
 
@@ -391,8 +410,7 @@ function SizeTable() {
                 <td>
                   <input
                     type="text"
-                    className="qty-input"
-                    style={{ width: 60, textAlign: 'left', fontSize: 12 }}
+                    className="custom-size-label-input"
                     value={row.label}
                     onChange={e => setCustomSizeLabel(row.idx, e.target.value)}
                   />
