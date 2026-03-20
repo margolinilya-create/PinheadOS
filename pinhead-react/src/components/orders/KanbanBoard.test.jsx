@@ -52,9 +52,10 @@ beforeEach(() => {
 });
 
 describe('KanbanBoard', () => {
-  it('renders board title', () => {
+  it('renders filters bar', () => {
     renderKanban();
-    expect(screen.getByText('ЗАКАЗЫ')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Поиск...')).toBeInTheDocument();
+    expect(screen.getByTestId('type-filter')).toBeInTheDocument();
   });
 
   it('renders 5 status columns', () => {
@@ -83,11 +84,14 @@ describe('KanbanBoard', () => {
     expect(screen.getByPlaceholderText('Поиск...')).toBeInTheDocument();
   });
 
-  it('renders navigation buttons', () => {
+  it('renders stats bar', () => {
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: {}, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+      ],
+    });
     renderKanban();
-    expect(screen.getByText('Цены')).toBeInTheDocument();
-    expect(screen.getByText('SKU')).toBeInTheDocument();
-    expect(screen.getByText('Аналитика')).toBeInTheDocument();
+    expect(screen.getByText(/заказов/)).toBeInTheDocument();
   });
 
   it('renders order cards in correct columns', () => {

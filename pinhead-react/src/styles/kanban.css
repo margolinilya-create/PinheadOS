@@ -2,31 +2,15 @@
 /* KANBAN BOARD — Swiss/Functional            */
 /* ═══════════════════════════════════════════ */
 .kanban-page {
-  position: fixed; inset: 0; background: var(--white); z-index: 450;
+  background: var(--white);
   display: flex; flex-direction: column; font-family: 'Roboto Condensed', sans-serif;
+  height: calc(100vh - 52px); overflow: hidden;
 }
-/* ── Kanban header ── */
-.kb-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px; height: 52px;
+/* ── Kanban filters bar (below shared Header) ── */
+.kb-filters-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 32px;
   border-bottom: 1.5px solid var(--black); flex-shrink: 0;
 }
-.kb-header-left { display: flex; align-items: center; gap: 16px; }
-.kb-header-title {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900;
-  text-transform: uppercase; letter-spacing: 1.5px; line-height: 1;
-}
-.kb-header-nav { display: flex; align-items: center; gap: 0; margin-left: 8px; }
-.kb-nav-btn {
-  background: none; border: none; border-left: 1px solid var(--border-light);
-  height: 32px; padding: 0 14px; cursor: pointer;
-  font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 1px; color: var(--text-mid);
-  transition: background .12s, color .12s;
-}
-.kb-nav-btn:first-child { border-left: none; }
-.kb-nav-btn:hover { background: var(--bg2); color: var(--black); }
-.kb-header-right { display: flex; align-items: center; gap: 8px; }
 /* Stats bar */
 .kanban-stats-bar { display: flex; align-items: center; gap: 16px; padding: 10px 32px; background: var(--black); color: var(--white); font-size: 11px; font-weight: 600; flex-shrink: 0; flex-wrap: wrap; letter-spacing: .5px; }
 .kanban-stats-bar .ks-item      { display: flex; align-items: center; gap: 5px; }

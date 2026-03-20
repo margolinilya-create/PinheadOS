@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
@@ -43,8 +42,6 @@ function getDefaultZones(cat) {
 }
 
 export default function SkuEditor() {
-  const navigate = useNavigate();
-  const onClose = () => navigate('/');
   const { skuCatalog, fabricsCatalog, trimCatalog, usdRate, setField } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
       trimCatalog: s.trimCatalog, usdRate: s.usdRate, setField: s.setField }))
@@ -321,24 +318,13 @@ export default function SkuEditor() {
   return (
     <div className="sku-ed-overlay">
       <div className="sku-ed-panel">
-      {/* ── Header ── */}
-      <div className="sku-ed-header">
-        <div className="sku-ed-header-left">
-          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
-            <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="sku-ed-title">КАТАЛОГ SKU</h1>
-        </div>
-        <div className="sku-ed-header-right">
+      {/* ── Actions bar (below shared Header) ── */}
+      <div className="pe-actions-bar">
+        <div className="pe-actions-bar-left"></div>
+        <div className="pe-actions-bar-right">
           <button className="btn" onClick={exportExcel}>Excel ↓</button>
           <button className="btn" onClick={importExcel}>Excel ↑</button>
           <button className="btn btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
-          <button className="pe-close" onClick={() => { saveAll(); onClose(); }}>✕</button>
         </div>
       </div>
 
