@@ -21,6 +21,25 @@
 .sku-fit-pill:last-child { border-right: none; }
 .sku-fit-pill:hover  { background: var(--bg2); color: var(--text-mid); }
 .sku-fit-pill.active { background: var(--black); color: var(--white); }
+/* ── SKU Search ── */
+.sku-search-wrap { position: relative; margin-bottom: 16px; }
+.sku-search-input {
+  width: 100%; padding: 10px 36px 10px 12px; box-sizing: border-box;
+  border: 1.5px solid var(--border-light); background: var(--white); color: var(--black);
+  font-family: 'Inter', sans-serif; font-size: 15px; outline: none; transition: border-color .15s;
+}
+.sku-search-input:focus { border-color: var(--accent); }
+.sku-search-input::placeholder { color: var(--text-dim); }
+.sku-search-clear {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: var(--text-dim);
+  font-size: 16px; padding: 4px; line-height: 1;
+}
+.sku-search-clear:hover { color: var(--black); }
+.sku-search-count {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  color: var(--text-mid); letter-spacing: .3px; margin-bottom: 8px;
+}
 /* ── Garment List ── */
 .garment-list { border: 1px solid var(--border-light); overflow: hidden; margin-bottom: 32px; }
 .garment-sep {
