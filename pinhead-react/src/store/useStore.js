@@ -390,9 +390,11 @@ export const useStore = create((set, get) => ({
       const catalogs = await loadAllCatalogs();
       // prices may be absent due to RLS — fall back to local JS data
       if (catalogs.prices) patch.prices = catalogs.prices;
+      if (catalogs.prices?.usdRate) patch.usdRate = catalogs.prices.usdRate;
       if (catalogs.skuCatalog) patch.skuCatalog = catalogs.skuCatalog;
       if (catalogs.fabricsCatalog) patch.fabricsCatalog = catalogs.fabricsCatalog;
       if (catalogs.extrasCatalog) patch.extrasCatalog = catalogs.extrasCatalog;
+      if (catalogs.trimCatalog) patch.trimCatalog = catalogs.trimCatalog;
       if (catalogs.labelsCatalog) patch.labelsCatalog = catalogs.labelsCatalog;
     } catch {
       // Supabase недоступен — fallback на импорты из src/data/
@@ -400,6 +402,7 @@ export const useStore = create((set, get) => ({
       patch.skuCatalog = SKU_CATALOG_DEFAULT;
       patch.fabricsCatalog = FABRICS_CATALOG_DEFAULT;
       patch.extrasCatalog = EXTRAS_CATALOG_DEFAULT;
+      patch.trimCatalog = TRIM_CATALOG_DEFAULT;
       patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
     }
     if (Object.keys(patch).length > 0) set(patch);

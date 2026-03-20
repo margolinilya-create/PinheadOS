@@ -144,7 +144,7 @@ describe('getZoneSurcharge', () => {
 describe('getSkuEstPrice', () => {
   it('calculates for T-001 (Футболка Regular)', () => {
     const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:200, mainFabricUsage:1.0, trimCode:ribana-1x1, trimUsage:0.15
-    const price = getSkuEstPrice(sku, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     // fabric: kulirnaya $2.80 * 92 * 1.0 = 257.6 → 258
     // trim: ribana-1x1 $2.50 * 92 * 0.15 = 34.5 → 35 (Math.round)
     expect(price).toBe(200 + Math.round(1.0 * 2.80 * 92) + Math.round(0.15 * 2.50 * 92));
@@ -152,7 +152,7 @@ describe('getSkuEstPrice', () => {
 
   it('returns sewingPrice only when no fabric match', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], category: 'nonexistent' };
-    const price = getSkuEstPrice(sku, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     expect(price).toBe(200 + 0 + Math.round(0.15 * 2.50 * 92)); // no fabric match
   });
 });
@@ -215,7 +215,7 @@ describe('calcTotal', () => {
   it('calculates base price × qty (no extras, no print)', () => {
     const s = baseState();
     // SKU base = sewingPrice + fabric + trim
-    const skuBase = getSkuEstPrice(s.sku, s.fabricsCatalog, s.trimCatalog, s.usdRate);
+    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const expected = 40 * Math.round(skuBase);
     expect(calcTotal(s)).toBe(expected);
   });
@@ -223,7 +223,7 @@ describe('calcTotal', () => {
   it('adds extras cost', () => {
     const s = baseState();
     s.extras = ['double-stitch']; // 30₽
-    const skuBase = getSkuEstPrice(s.sku, s.fabricsCatalog, s.trimCatalog, s.usdRate);
+    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const expected = 40 * Math.round(skuBase + 30);
     expect(calcTotal(s)).toBe(expected);
   });
@@ -233,7 +233,7 @@ describe('calcTotal', () => {
     s.zones = ['front'];
     s.zoneTechs = { front: 'dtf' };
     s.dtfZones = { front: { size: 'A4' } };
-    const skuBase = getSkuEstPrice(s.sku, s.fabricsCatalog, s.trimCatalog, s.usdRate);
+    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const techCost = 180 + 50; // dtf base + A4
     const expected = 40 * Math.round(skuBase + techCost);
     expect(calcTotal(s)).toBe(expected);
@@ -242,7 +242,7 @@ describe('calcTotal', () => {
   it('applies urgent multiplier', () => {
     const s = baseState();
     s.urgentOption = true;
-    const skuBase = getSkuEstPrice(s.sku, s.fabricsCatalog, s.trimCatalog, s.usdRate);
+    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const unit = Math.round(skuBase);
     const expected = Math.round(40 * unit * 1.2);
     expect(calcTotal(s)).toBe(expected);
@@ -251,7 +251,7 @@ describe('calcTotal', () => {
   it('adds pack option', () => {
     const s = baseState();
     s.packOption = true;
-    const skuBase = getSkuEstPrice(s.sku, s.fabricsCatalog, s.trimCatalog, s.usdRate);
+    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const expected = 40 * (Math.round(skuBase) + 15);
     expect(calcTotal(s)).toBe(expected);
   });

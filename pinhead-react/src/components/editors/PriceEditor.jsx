@@ -123,6 +123,9 @@ export default function PriceEditor() {
     invalidatePricesCache();
     // Обновить стор — pricing.js сразу получит актуальные цены
     useStore.setState({ prices });
+    if (prices.usdRate) {
+      useStore.setState({ usdRate: prices.usdRate });
+    }
     // Пробуем сохранить в обе таблицы Supabase
     let ok = false;
     try {
@@ -233,6 +236,9 @@ export default function PriceEditor() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPrices));
       invalidatePricesCache();
       useStore.setState({ prices: updatedPrices });
+      if (updatedPrices.usdRate) {
+        useStore.setState({ usdRate: updatedPrices.usdRate });
+      }
       try { await savePricesToSupabase(updatedPrices); clearCatalogsCache(); } catch { /* ignore */ }
       setStaleBanner(null);
       toast.success(`Курс обновлён: ${rate} \u20BD`);
