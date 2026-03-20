@@ -94,6 +94,26 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
             <div className="kb-avatar">{initials}</div>
           </div>
         </div>
+        {/* Mobile status select — visible only on ≤768px via CSS */}
+        <select
+          className="mobile-status-select"
+          value={order.status}
+          onClick={e => e.stopPropagation()}
+          onChange={e => {
+            e.stopPropagation();
+            const newStatus = e.target.value;
+            if (newStatus === order.status) return;
+            if (FINAL_STATUSES.includes(newStatus)) {
+              const confirmed = window.confirm(`Перевести заказ в статус «${STATUS_LABELS[newStatus]}»?`);
+              if (!confirmed) { e.target.value = order.status; return; }
+            }
+            onStatusChange(order.id, newStatus);
+          }}
+        >
+          {STATUS_LIST.map(s => (
+            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+          ))}
+        </select>
       </div>
 
       <button className="kb-card-menu-btn" onClick={stopAndRun(() => setShowMenu(!showMenu))}>•••</button>

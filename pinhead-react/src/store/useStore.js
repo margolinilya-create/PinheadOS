@@ -381,10 +381,13 @@ export const useStore = create((set, get) => ({
   },
 
   // ─── Load catalogs from Supabase (catalog_config) with JS fallback ───
+  // NOTE: RLS policy hides 'prices' row from managers — they keep
+  //       the default PRICES from src/data/prices.js (see initialState).
   loadCatalogs: async () => {
     const patch = {};
     try {
       const catalogs = await loadAllCatalogs();
+      // prices may be absent due to RLS — fall back to local JS data
       if (catalogs.prices) patch.prices = catalogs.prices;
       if (catalogs.skuCatalog) patch.skuCatalog = catalogs.skuCatalog;
       if (catalogs.fabricsCatalog) patch.fabricsCatalog = catalogs.fabricsCatalog;
