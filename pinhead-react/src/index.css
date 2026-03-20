@@ -9,8 +9,10 @@
   --bg2:          #F0F0F0;
   --bg3:          #E5E5E5;
   --card:         #ffffff;
+  --surface:      #F5F5F5;
 
   /* ── Text ── */
+  --ink:          #0A0A0A;
   --text:         #0A0A0A;
   --text-mid:     #555555;
   --text-dim:     #999999;
@@ -18,6 +20,7 @@
   /* ── Borders ── */
   --border:       #0A0A0A;
   --border-light: #DCDCDC;
+  --border-mid:   #C0C0C0;
 
   /* ── Brand ── */
   --accent:       #2B2BF0;
@@ -40,7 +43,11 @@
   --bg-warning:   #fff8e1;
 
   /* ── Fonts ── */
+  --font-body:    'Inter', sans-serif;
   --mono:         'Roboto Mono', monospace;
+
+  /* ── Radii ── */
+  --radius-sm:    4px;
 }
 
 /* ── Mono utility ── */

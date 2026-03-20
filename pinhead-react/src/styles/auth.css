@@ -16,8 +16,7 @@
 .auth-form  { display: flex; flex-direction: column; gap: 16px; }
 .auth-field { display: flex; flex-direction: column; gap: 4px; }
 .auth-field label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); }
-.auth-field input { border: 1px solid var(--border-light); padding: 12px 16px; font-family: 'Inter', sans-serif; font-size: 14px; background: var(--white); }
-.auth-field input:focus { border-color: var(--accent); outline: none; }
+.auth-field input { padding: 12px 16px; font-size: 14px; }
 .auth-pass-wrap { position: relative; }
 .auth-pass-wrap input { width: 100%; padding-right: 40px; }
 .auth-pass-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 13px; padding: 4px 8px; color: var(--text-dim); }
