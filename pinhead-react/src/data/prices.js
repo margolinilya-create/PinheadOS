@@ -49,7 +49,10 @@ export const PRICES = {
   },
   screenColoredMult: 1.3,
   screenFutherMult: 1.5,
-  screenFxMult: 2.0,
+  screenFxStoneMult: 2.0,
+  screenFxPuffMult: 2.0,
+  screenFxMetallicMult: 2.0,
+  screenFxFluorMult: 2.0,
   screenFxOptions: ['none','stone','puff','metallic','fluor'],
 
   // DTG: надбавка за формат + белая подложка

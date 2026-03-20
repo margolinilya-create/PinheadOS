@@ -72,26 +72,11 @@ describe('PriceEditor', () => {
     expect(screen.getByText('Сброс')).toBeInTheDocument();
   });
 
-  it('shows stale banner when usdUpdatedAt is missing', () => {
+  it('shows individual FX surcharges', () => {
     renderPriceEditor();
-    expect(screen.getByText(/Дата обновления курса \$ неизвестна/)).toBeInTheDocument();
-    expect(screen.getByText('Обновить')).toBeInTheDocument();
-  });
-
-  it('shows stale banner when usdUpdatedAt is old', () => {
-    const oldDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    const prices = { usdUpdatedAt: oldDate, screenTiers: [], screenFormats: [] };
-    localStorage.setItem('ph_prices', JSON.stringify(prices));
-    renderPriceEditor();
-    expect(screen.getByText(/Курс \$ не обновлялся 3 дн/)).toBeInTheDocument();
-  });
-
-  it('hides stale banner when usdUpdatedAt is recent', () => {
-    const recentDate = new Date().toISOString();
-    const prices = { usdUpdatedAt: recentDate, screenTiers: [], screenFormats: [] };
-    localStorage.setItem('ph_prices', JSON.stringify(prices));
-    renderPriceEditor();
-    expect(screen.queryByText(/Курс \$ не обновлялся/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Дата обновления курса/)).not.toBeInTheDocument();
+    expect(screen.getByText('К. база')).toBeInTheDocument();
+    expect(screen.getByText('PUFF')).toBeInTheDocument();
+    expect(screen.getByText('Металлик')).toBeInTheDocument();
+    expect(screen.getByText('Флюр')).toBeInTheDocument();
   });
 });
