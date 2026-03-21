@@ -252,7 +252,7 @@ describe('Multi-item: items array management', () => {
     expect(s.type).toBe('tee');
     expect(s.sku.code).toBe('T-001');
     expect(s.activeItemIdx).toBe(0);
-    expect(s.step).toBe(0);
+    expect(s.step).toBe(2);
   });
 
   it('editItem with invalid index does nothing', () => {

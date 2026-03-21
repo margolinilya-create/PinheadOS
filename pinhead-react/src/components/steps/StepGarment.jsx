@@ -537,6 +537,23 @@ export default function StepGarment() {
   const showColor = !!sku && !isAcc && !!fabric;
   const showSizes = !!sku && (isAcc || !!color);
 
+  const [validationMsg, setValidationMsg] = useState('');
+
+  const handleNext = () => {
+    if (canNext) {
+      setValidationMsg('');
+      nextStep();
+      return;
+    }
+    // Build validation message
+    const missing = [];
+    if (!sku) missing.push('артикул');
+    if (!isAcc && !fabric) missing.push('ткань');
+    if (!isAcc && !color) missing.push('цвет');
+    if (totalQty <= 0) missing.push('количество (размеры)');
+    setValidationMsg('Заполните: ' + missing.join(', '));
+  };
+
   return (
     <div className="step-panel">
       <div className="step-header">
@@ -548,12 +565,17 @@ export default function StepGarment() {
       {showFabric && <FabricGrid />}
       {showColor && <ColorPicker />}
       {showSizes && <SizeTable />}
+      {validationMsg && (
+        <div className="validation-warning" style={{ color: '#b71c1c', background: '#fce4ec', border: '1px solid #ef9a9a', borderRadius: 6, padding: '8px 14px', marginTop: 12, fontSize: 13 }}>
+          {validationMsg}
+        </div>
+      )}
       <div className="btn-row">
         <button
           className={`btn-next${canNext ? '' : ' disabled'}`}
           disabled={!sku}
           title={!sku ? 'Выберите артикул' : ''}
-          onClick={() => canNext && nextStep()}
+          onClick={handleNext}
         >
           Далее
         </button>

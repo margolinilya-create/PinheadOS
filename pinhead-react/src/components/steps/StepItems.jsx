@@ -81,7 +81,7 @@ export default function StepItems() {
               <div className="item-card-actions">
                 <button className="btn-icon" title="Изменить" onClick={() => editItem(idx)}>&#9998;</button>
                 {items.length > 1 && (
-                  <button className="btn-icon btn-icon-danger" title="Удалить" onClick={() => removeItem(idx)}>&times;</button>
+                  <button className="btn-icon btn-icon-danger" title="Удалить" onClick={() => { if (!confirm('Удалить позицию?')) return; removeItem(idx); }}>&times;</button>
                 )}
               </div>
             </div>
