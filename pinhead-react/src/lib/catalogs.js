@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { sessionGet, sessionSet, sessionRemove } from './storage';
 
 const CACHE_KEY = 'pinhead_catalogs_v1';
 const CACHE_TTL = 30 * 60 * 1000; // 30 минут
@@ -9,18 +10,9 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 минут
  * Возвращает объект { key: value, ... }
  */
 export async function loadAllCatalogs() {
-  // Проверить кэш
-  try {
-    const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached) {
-      const { data, ts } = JSON.parse(cached);
-      if (Date.now() - ts < CACHE_TTL) {
-        return data;
-      }
-    }
-  } catch {
-    // sessionStorage недоступен — игнорируем
-  }
+  // Проверить кэш (sessionGet handles TTL expiry automatically)
+  const cached = sessionGet(CACHE_KEY);
+  if (cached) return cached;
 
   // Загрузить из Supabase
   const { data, error } = await supabase
@@ -29,15 +21,8 @@ export async function loadAllCatalogs() {
   if (error) throw error;
   const result = Object.fromEntries(data.map(r => [r.key, r.value]));
 
-  // Сохранить в кэш
-  try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-      data: result,
-      ts: Date.now()
-    }));
-  } catch {
-    // Если sessionStorage переполнен — игнорируем
-  }
+  // Сохранить в кэш с TTL
+  sessionSet(CACHE_KEY, result, CACHE_TTL);
 
   return result;
 }
@@ -47,7 +32,5 @@ export async function loadAllCatalogs() {
  * Вызывать после сохранения цен / обновления каталогов.
  */
 export function clearCatalogsCache() {
-  try {
-    sessionStorage.removeItem(CACHE_KEY);
-  } catch { /* ignore */ }
+  sessionRemove(CACHE_KEY);
 }
