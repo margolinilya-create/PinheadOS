@@ -2,10 +2,15 @@
  * Input validation and sanitization utilities.
  */
 
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
 /**
  * Trim, collapse whitespace, truncate to maxLen.
  */
-export function sanitizeText(str, maxLen = 200) {
+export function sanitizeText(str: unknown, maxLen: number = 200): string {
   if (typeof str !== 'string') return '';
   return str.trim().replace(/\s+/g, ' ').slice(0, maxLen);
 }
@@ -14,7 +19,7 @@ export function sanitizeText(str, maxLen = 200) {
  * Validate phone number — allow +7/8 format, 10-11 digits.
  * Returns { valid: boolean, error?: string }
  */
-export function validatePhone(phone) {
+export function validatePhone(phone: string | null | undefined): ValidationResult {
   if (!phone || !phone.trim()) return { valid: true }; // optional field
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 10 || digits.length > 11) {
@@ -31,7 +36,7 @@ export function validatePhone(phone) {
  * Validate email — basic format check.
  * Returns { valid: boolean, error?: string }
  */
-export function validateEmail(email) {
+export function validateEmail(email: string | null | undefined): ValidationResult {
   if (!email || !email.trim()) return { valid: true }; // optional field
   const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!pattern.test(email.trim())) {
@@ -44,7 +49,7 @@ export function validateEmail(email) {
  * Validate that a value is non-empty.
  * Returns { valid: boolean, error?: string }
  */
-export function validateRequired(value, fieldName) {
+export function validateRequired(value: unknown, fieldName: string): ValidationResult {
   if (!value || (typeof value === 'string' && !value.trim())) {
     return { valid: false, error: `${fieldName} — обязательное поле` };
   }

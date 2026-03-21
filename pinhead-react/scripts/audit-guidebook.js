@@ -11,7 +11,7 @@
  * Run:  npm run audit
  */
 
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
 
 const ROOT = new URL('..', import.meta.url).pathname;

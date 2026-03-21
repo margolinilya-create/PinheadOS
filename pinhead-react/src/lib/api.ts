@@ -1,16 +1,19 @@
 import { toast } from '../store/useToastStore';
 
+interface SupabaseResult<T = unknown> {
+  data: T | null;
+  error: { message?: string } | null;
+}
+
 /**
  * Execute a Supabase query and throw on error.
- * @param {() => Promise<{data: any, error: any}>} queryFn
- * @returns {Promise<any>} data
  */
-export async function supaQuery(queryFn) {
+export async function supaQuery<T = unknown>(queryFn: () => Promise<SupabaseResult<T>>): Promise<T> {
   const { data, error } = await queryFn();
   if (error) {
     const msg = error.message || 'Ошибка запроса к базе данных';
     toast.error(msg);
     throw new Error(msg);
   }
-  return data;
+  return data as T;
 }

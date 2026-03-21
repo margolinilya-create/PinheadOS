@@ -2,17 +2,17 @@
 
 // ── localStorage ──
 
-export function storageGet(key, defaultValue = null) {
+export function storageGet<T = unknown>(key: string, defaultValue: T | null = null): T | null {
   try {
     const raw = localStorage.getItem(key);
     if (raw === null) return defaultValue;
-    return JSON.parse(raw);
+    return JSON.parse(raw) as T;
   } catch {
     return defaultValue;
   }
 }
 
-export function storageSet(key, value) {
+export function storageSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
@@ -20,7 +20,7 @@ export function storageSet(key, value) {
   }
 }
 
-export function storageRemove(key) {
+export function storageRemove(key: string): void {
   try {
     localStorage.removeItem(key);
   } catch {
@@ -30,28 +30,34 @@ export function storageRemove(key) {
 
 // ── sessionStorage ──
 
-export function sessionGet(key, defaultValue = null) {
+interface SessionEnvelope<T = unknown> {
+  value: T;
+  expires: number | null;
+}
+
+export function sessionGet<T = unknown>(key: string, defaultValue: T | null = null): T | null {
   try {
     const raw = sessionStorage.getItem(key);
     if (raw === null) return defaultValue;
     const parsed = JSON.parse(raw);
     // Check TTL envelope
     if (parsed && typeof parsed === 'object' && 'value' in parsed && 'expires' in parsed) {
-      if (parsed.expires !== null && Date.now() > parsed.expires) {
+      const envelope = parsed as SessionEnvelope<T>;
+      if (envelope.expires !== null && Date.now() > envelope.expires) {
         sessionStorage.removeItem(key);
         return defaultValue;
       }
-      return parsed.value;
+      return envelope.value;
     }
-    return parsed;
+    return parsed as T;
   } catch {
     return defaultValue;
   }
 }
 
-export function sessionSet(key, value, ttlMs = null) {
+export function sessionSet(key: string, value: unknown, ttlMs: number | null = null): void {
   try {
-    const envelope = {
+    const envelope: SessionEnvelope = {
       value,
       expires: ttlMs !== null ? Date.now() + ttlMs : null,
     };
@@ -61,7 +67,7 @@ export function sessionSet(key, value, ttlMs = null) {
   }
 }
 
-export function sessionRemove(key) {
+export function sessionRemove(key: string): void {
   try {
     sessionStorage.removeItem(key);
   } catch {
