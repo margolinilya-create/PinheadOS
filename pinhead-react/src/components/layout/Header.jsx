@@ -45,12 +45,12 @@ export default function Header() {
       </div>
 
       {/* ── Burger (mobile) ── */}
-      <button className="burger-btn" onClick={() => setMenuOpen(!menuOpen)}>
+      <button className="burger-btn" aria-label="Меню навигации" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
         {menuOpen ? '✕' : '☰'}
       </button>
 
       {/* ── Navigation (hidden items by role) ── */}
-      <nav className={`header-nav${menuOpen ? ' open' : ''}`}>
+      <nav className={`header-nav${menuOpen ? ' open' : ''}`} aria-label="Основная навигация">
         {!isProd && !isDes && (
           <button className={`header-nav-btn express-btn${isActive('/express') ? ' active' : ''}`} onClick={nav('/express')}>
             Express
@@ -91,7 +91,7 @@ export default function Header() {
             <div className="header-draft">
               <div className={`draft-dot${draftStatus === 'saving' ? ' saving' : draftStatus === 'saved' ? ' saved' : ''}`} />
               <span className="draft-text">{draftLabel}</span>
-              <button className="draft-reset-btn" onClick={resetDraft} title="Сбросить черновик">✕</button>
+              <button className="draft-reset-btn" onClick={resetDraft} title="Сбросить черновик" aria-label="Сбросить черновик">✕</button>
             </div>
             <div className="header-total">
               <span className="total-label">Итого</span>

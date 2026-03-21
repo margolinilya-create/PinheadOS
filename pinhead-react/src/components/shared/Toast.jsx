@@ -6,7 +6,7 @@ export default function ToastContainer() {
   if (!toasts.length) return null;
 
   return (
-    <div className="toast-container">
+    <div className="toast-container" role="alert" aria-live="polite">
       {toasts.map(t => (
         <div key={t.id} className={`toast toast-${t.type}`} onClick={() => remove(t.id)}>
           <span className="toast-icon">{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '!'}</span>

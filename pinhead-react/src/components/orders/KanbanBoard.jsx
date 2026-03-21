@@ -94,8 +94,8 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div className="kb-card-actions">
               <button className="kb-open" onClick={stopAndRun(() => onOpenTZ(order))}>Открыть</button>
-              <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать">⎘</button>
-              <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить">✕</button>
+              <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать" aria-label="Дублировать заказ">⎘</button>
+              <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить" aria-label="Удалить заказ">✕</button>
             </div>
             {managerInitials && <div className="kb-avatar" title={d.managerName || ''}>{managerInitials}</div>}
           </div>
@@ -122,7 +122,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
         </select>
       </div>
 
-      <button className="kb-card-menu-btn" onClick={stopAndRun(() => setShowMenu(!showMenu))}>•••</button>
+      <button className="kb-card-menu-btn" onClick={stopAndRun(() => setShowMenu(!showMenu))} aria-label="Меню действий">•••</button>
       {showMenu && (
         <>
           <div className="kb-card-menu-backdrop" onClick={stopAndRun(() => setShowMenu(false))} />
@@ -170,7 +170,7 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
 
   return (
     <div className="exp-overlay" onClick={onClose}>
-      <div className="exp-panel" onClick={e => e.stopPropagation()} style={{ width: 380 }}>
+      <div className="exp-panel" role="dialog" aria-modal="true" aria-label="Детали заказа" onClick={e => e.stopPropagation()} style={{ width: 380 }}>
         <div className="exp-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className="exp-title">{order.order_number || '—'}</span>
@@ -181,7 +181,7 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
               {STATUS_LABELS[order.status] || order.status}
             </span>
           </div>
-          <button className="exp-close" onClick={onClose}>✕</button>
+          <button className="exp-close" onClick={onClose} aria-label="Закрыть">✕</button>
         </div>
         <div className="exp-body">
           <div style={{ fontSize: 16, fontWeight: 700 }}>

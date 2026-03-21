@@ -2,6 +2,7 @@ import { useRef, useState, useDeferredValue } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../lib/supabase';
+import { storageSet } from '../../lib/storage';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES, FABRICS_LAYER1, FABRICS_LAYER2 } from '../../data';
@@ -67,7 +68,7 @@ function SkuList() {
       // Сохранить новый порядок в localStorage + Supabase
       try {
         const updated = useStore.getState().skuCatalog;
-        localStorage.setItem('ph_sku', JSON.stringify(updated));
+        storageSet('ph_sku', updated);
         supabase.from('app_config')
           .upsert({ key: 'sku_catalog', value: updated, updated_at: new Date().toISOString() })
           .then(() => {});
@@ -435,7 +436,7 @@ function SizeTable() {
                 <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>
                 <td className="size-td-sum">
                   <span>{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</span>
-                  <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)}>✕</button>
+                  <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label="Удалить размер">✕</button>
                 </td>
               </tr>
             );
@@ -472,7 +473,7 @@ function SizeTable() {
                 <button className="qty-btn" disabled={!available} onClick={() => row.type === 'std' ? setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1) : setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
               </div>
               <span className="size-mobile-unit">шт</span>
-              {row.type === 'custom' && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)}>✕</button>}
+              {row.type === 'custom' && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label="Удалить размер">✕</button>}
             </div>
           );
         })}

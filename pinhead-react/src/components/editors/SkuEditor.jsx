@@ -126,7 +126,7 @@ function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onToggleCat }) {
                   <input className="sku-edit-input sku-edit-num" type="number" value={current.price} onChange={e => onUpdate(selectedIdx, 'price', Number(e.target.value) || 0)} />
                   <span>₽</span>
                 </div>
-                <button className="sku-del-btn" onClick={() => handleDelete(selectedIdx)} title="Удалить обработку">✕</button>
+                <button className="sku-del-btn" onClick={() => handleDelete(selectedIdx)} title="Удалить обработку" aria-label="Удалить обработку">✕</button>
               </div>
               <div className="extras-detail-cats">
                 <span className="extras-detail-cats-label">Категории:</span>
@@ -562,7 +562,7 @@ export default function SkuEditor() {
                         </td>
                         <td className="sku-td-est">от {estimatePrice(s)} ₽</td>
                         <td>
-                          <button className="sku-del-btn" onClick={() => deleteSku(realIdx)}>✕</button>
+                          <button className="sku-del-btn" onClick={() => deleteSku(realIdx)} aria-label="Удалить SKU">✕</button>
                         </td>
                       </tr>
                     );
@@ -616,7 +616,7 @@ export default function SkuEditor() {
                       </button>
                     ))}
                   </td>
-                  <td><button className="sku-del-btn" onClick={() => deleteFabric(i)}>✕</button></td>
+                  <td><button className="sku-del-btn" onClick={() => deleteFabric(i)} aria-label="Удалить ткань">✕</button></td>
                 </tr>
               ))}
             </tbody>
@@ -656,7 +656,7 @@ export default function SkuEditor() {
                       onChange={e => updateTrim(i, 'priceUSD', Number(e.target.value) || 0)} />
                   </td>
                   <td className="sku-td-est">{Math.round(t.priceUSD * usdRate)} ₽</td>
-                  <td><button className="sku-del-btn" onClick={() => deleteTrim(i)}>✕</button></td>
+                  <td><button className="sku-del-btn" onClick={() => deleteTrim(i)} aria-label="Удалить фурнитуру">✕</button></td>
                 </tr>
               ))}
             </tbody>
@@ -717,7 +717,7 @@ export default function SkuEditor() {
                             <input className="sku-edit-input sku-edit-num" type="number" value={h.price}
                               onChange={e => updateHardware(realIdx, 'price', Number(e.target.value) || 0)} />
                           </td>
-                          <td><button className="sku-del-btn" onClick={() => deleteHardware(realIdx)}>✕</button></td>
+                          <td><button className="sku-del-btn" onClick={() => deleteHardware(realIdx)} aria-label="Удалить комплектующее">✕</button></td>
                         </tr>
                       );
                     })}

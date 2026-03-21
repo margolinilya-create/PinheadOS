@@ -82,7 +82,7 @@ export default function AdminPanel() {
         </div>
         <div className="sku-ed-header-right">
           <button className="btn" onClick={() => { fetchOrders(); loadUsers(); }}>Обновить</button>
-          <button className="pe-close" onClick={onClose}>✕</button>
+          <button className="pe-close" onClick={onClose} aria-label="Закрыть">✕</button>
         </div>
       </div>
 
@@ -159,7 +159,7 @@ export default function AdminPanel() {
                       {o.created_at ? new Date(o.created_at).toLocaleDateString('ru-RU') : ''}
                     </td>
                     <td>
-                      <button className="sku-del-btn" onClick={() => handleDeleteOrder(o.id)}>✕</button>
+                      <button className="sku-del-btn" onClick={() => handleDeleteOrder(o.id)} aria-label="Удалить заказ">✕</button>
                     </td>
                   </tr>
                 ))}
@@ -208,7 +208,7 @@ export default function AdminPanel() {
                     )}
                   </td>
                   <td>
-                    <button className="sku-del-btn" onClick={() => deleteUser(u.id)}>✕</button>
+                    <button className="sku-del-btn" onClick={() => deleteUser(u.id)} aria-label="Удалить пользователя">✕</button>
                   </td>
                 </tr>
               ))}

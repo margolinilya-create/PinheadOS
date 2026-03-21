@@ -428,7 +428,7 @@ export default function Dashboard() {
           <h1 className="sku-ed-title">ДАШБОРД</h1>
         </div>
         <div className="sku-ed-header-right">
-          <button className="pe-close" onClick={onClose}>✕</button>
+          <button className="pe-close" onClick={onClose} aria-label="Закрыть">✕</button>
         </div>
       </div>
 
