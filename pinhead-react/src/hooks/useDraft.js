@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { storageGet, storageSet, storageRemove } from '../lib/storage';
 
-const STORAGE_KEY = 'ph_draft_v2';
+const STORAGE_KEY = 'pinhead_draft';
 const SAVE_DELAY = 800; // ms debounce
 
 // Поля которые сохраняем в черновик
