@@ -5,12 +5,7 @@ import { useStore } from '../../store/useStore';
 import { toast } from '../../store/useToastStore';
 import { invalidatePricesCache } from '../../utils/pricing';
 import { clearCatalogsCache } from '../../lib/catalogs';
-
-async function fetchUsdRate() {
-  const res = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
-  const data = await res.json();
-  return Math.round(data.Valute.USD.Value * 100) / 100;
-}
+import { storageGet, storageSet, storageRemove } from '../../lib/storage';
 
 const STORAGE_KEY = 'ph_prices';
 const HISTORY_KEY = 'ph_price_history';
@@ -27,10 +22,8 @@ const DEFAULT_FLEX_MATRIX = {
 };
 
 function clonePrices() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore parse errors */ }
+  const stored = storageGet(STORAGE_KEY);
+  if (stored) return stored;
   return defaultPrices();
 }
 
@@ -48,7 +41,7 @@ async function loadPricesFromSupabase() {
       .eq('key', 'prices')
       .single();
     if (!error && data?.value) return data.value;
-  } catch { /* Supabase unavailable — use local */ }
+  } catch (err) { console.error('[loadPrices]', err); toast.error('Не удалось загрузить цены из Supabase'); }
   return null;
 }
 
@@ -64,7 +57,7 @@ async function savePricesToSupabase(prices) {
 }
 
 function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
+  return storageGet(HISTORY_KEY, []);
 }
 
 const TABS = [
@@ -87,14 +80,12 @@ export default function PriceEditor() {
   const [history, setHistory] = useState(loadHistory);
   const [changed, setChanged] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [fetchingRate, setFetchingRate] = useState(false);
-
   // При монтировании — попробовать загрузить из Supabase (актуальнее localStorage)
   useEffect(() => {
     loadPricesFromSupabase().then(remote => {
       if (remote) {
         setPrices(remote);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+        storageSet(STORAGE_KEY, remote);
       }
     });
   }, []);
@@ -103,7 +94,7 @@ export default function PriceEditor() {
   const save = useCallback(async () => {
     setSaving(true);
     // Всегда сохраняем в localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prices));
+    storageSet(STORAGE_KEY, prices);
     // Сбросить кеш pricing engine чтобы расчёты использовали новые цены
     invalidatePricesCache();
     // Обновить стор — pricing.js сразу получит актуальные цены
@@ -117,7 +108,7 @@ export default function PriceEditor() {
       await savePricesToSupabase(prices);
       ok = true;
       clearCatalogsCache();
-    } catch { /* Supabase unavailable */ }
+    } catch (err) { console.error('[savePrices]', err); }
     setSaving(false);
     setChanged(0);
     if (ok) {
@@ -131,7 +122,7 @@ export default function PriceEditor() {
     const entry = { field, was, now, time: new Date().toLocaleTimeString('ru-RU'), date: new Date().toLocaleDateString('ru-RU') };
     const h = [entry, ...history].slice(0, 50);
     setHistory(h);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+    storageSet(HISTORY_KEY, h);
     setChanged(c => c + 1);
   };
 
@@ -203,45 +194,19 @@ export default function PriceEditor() {
         const data = JSON.parse(text);
         setPrices(data);
         setChanged(c => c + 1);
-      } catch { /* ignore parse errors */ }
+      } catch (err) { console.error('[importJSON]', err); toast.error('Ошибка импорта файла'); }
     };
     input.click();
-  };
-
-  const handleFetchUsdRate = async () => {
-    const currentRate = useStore.getState().usdRate;
-    setFetchingRate(true);
-    try {
-      const rate = await fetchUsdRate();
-      const now = new Date().toISOString();
-      useStore.getState().setField('usdRate', rate);
-      localStorage.setItem('ph_usd_rate', String(rate));
-      const updatedPrices = { ...prices, usdRate: rate, usdUpdatedAt: now };
-      setPrices(updatedPrices);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedPrices));
-      invalidatePricesCache();
-      useStore.setState({ prices: updatedPrices });
-      if (updatedPrices.usdRate) {
-        useStore.setState({ usdRate: updatedPrices.usdRate });
-      }
-      try { await savePricesToSupabase(updatedPrices); clearCatalogsCache(); } catch { /* ignore */ }
-      setStaleBanner(null);
-      toast.success(`Курс обновлён: ${rate} \u20BD`);
-    } catch {
-      toast.error(`Не удалось обновить. Текущий: ${currentRate} \u20BD`);
-    } finally {
-      setFetchingRate(false);
-    }
   };
 
   const reset = async () => {
     if (!confirm('Сбросить все цены к значениям по умолчанию?')) return;
     const base = defaultPrices();
     setPrices(base);
-    localStorage.removeItem(STORAGE_KEY);
+    storageRemove(STORAGE_KEY);
     invalidatePricesCache();
     useStore.setState({ prices: base });
-    try { await savePricesToSupabase(base); clearCatalogsCache(); } catch { /* ignore */ }
+    try { await savePricesToSupabase(base); clearCatalogsCache(); } catch (err) { console.error('[savePrices]', err); toast.error('Не удалось сбросить цены в Supabase'); }
     setChanged(0);
     toast.success('Цены сброшены к умолчаниям');
   };

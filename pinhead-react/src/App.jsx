@@ -4,6 +4,7 @@ import './styles/index.css'
 import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
+import ErrorBoundary from './components/shared/ErrorBoundary'
 import Header from './components/layout/Header'
 import ProgressBar from './components/layout/ProgressBar'
 import StepGarment from './components/steps/StepGarment'
@@ -32,7 +33,7 @@ function WizardPage() {
   return (
     <>
       <ProgressBar />
-      <main className="container">
+      <main id="main-content" role="main" className="container">
         <CurrentStep />
       </main>
     </>
@@ -105,8 +106,17 @@ function App() {
 
   return (
     <>
+      {/* ── Skip to content ── */}
+      <a href="#main-content" className="skip-link" style={{
+        position: 'absolute', left: '-9999px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden',
+        zIndex: 9999, padding: '8px 16px', background: '#000', color: '#fff', textDecoration: 'none',
+      }} onFocus={e => { e.target.style.position = 'fixed'; e.target.style.left = '8px'; e.target.style.top = '8px'; e.target.style.width = 'auto'; e.target.style.height = 'auto'; }}
+         onBlur={e => { e.target.style.position = 'absolute'; e.target.style.left = '-9999px'; e.target.style.width = '1px'; e.target.style.height = '1px'; }}>
+        Перейти к основному содержимому
+      </a>
+
       {/* ── RAY DECO SVG ── */}
-      <svg style={{ position: 'fixed', top: -120, right: -80, width: 420, opacity: 0.04, pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg aria-hidden="true" style={{ position: 'fixed', top: -120, right: -80, width: 420, opacity: 0.04, pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
         <line x1="200" y1="200" x2="20"  y2="10"  stroke="#000" strokeWidth="1"/>
         <line x1="200" y1="200" x2="390" y2="30"  stroke="#000" strokeWidth="1"/>
         <line x1="200" y1="200" x2="380" y2="200" stroke="#000" strokeWidth="1"/>
@@ -137,4 +147,10 @@ function App() {
   );
 }
 
-export default App
+export default function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}

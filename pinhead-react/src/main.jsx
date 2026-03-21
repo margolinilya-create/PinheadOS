@@ -5,6 +5,14 @@ import './index.css'
 import App from './App.jsx'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
+import { toast } from './store/useToastStore'
+
+// Catch unhandled promise rejections globally
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = event.reason?.message || String(event.reason || 'Неизвестная ошибка');
+  console.error('[unhandledrejection]', event.reason);
+  toast.error(msg);
+});
 
 // Restore draft from localStorage if available
 const draft = localStorage.getItem('pinhead_draft');
