@@ -297,6 +297,46 @@ export function calcTotal(state, debug = false) {
   return total;
 }
 
+// Расчёт с полной разбивкой по компонентам
+export function calcTotalBreakdown(state) {
+  const qty = getTotalQty(state);
+  if (qty === 0) return { base: 0, extras: 0, labels: 0, print: 0, pack: 0, discount: 0, urgent: 0, unitPrice: 0, total: 0, qty: 0 };
+
+  let basePrice;
+  if (state.sku) {
+    basePrice = getSkuEstPrice(state.sku, state.fabric, state.fabricsCatalog, state.trimCatalog, state.usdRate);
+  } else {
+    const P = getPrices();
+    basePrice = (P.type[state.type] || 480)
+      + (!isAccessory(state.type) && P.fit ? (P.fit[state.fit || 'regular'] || 0) : 0)
+      + (P.fabric[state.fabric] || 0);
+  }
+
+  const extras = (state.extras || []).reduce((sum, code) => {
+    const ex = state.extrasCatalog.find(e => e.code === code);
+    return sum + (ex ? ex.price : 0);
+  }, 0);
+
+  const labels = getLabelConfigPrice(state.labelConfig);
+  const print = getTotalSurcharge(state);
+
+  const P = getPrices();
+  const pack = state.packOption ? (P.pack || 0) : 0;
+
+  const volumeDiscount = getVolumeDiscount(qty);
+  const discount = volumeDiscount > 0 ? Math.round(basePrice * volumeDiscount) : 0;
+  const discountedBase = Math.round(basePrice * (1 - volumeDiscount));
+
+  const unitBeforeUrgent = discountedBase + extras + labels + print + pack;
+  const urgentAmount = state.urgentOption
+    ? Math.round(unitBeforeUrgent * (P.urgentMult || 0.20))
+    : 0;
+  const unitPrice = unitBeforeUrgent + urgentAmount;
+  const total = Math.round(qty * (unitBeforeUrgent + (state.urgentOption ? unitBeforeUrgent * (P.urgentMult || 0.20) : 0)));
+
+  return { base: basePrice, extras, labels, print, pack, discount, urgent: urgentAmount, unitPrice, total, qty };
+}
+
 export function getUnitPrice(state) {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;
@@ -307,6 +347,11 @@ export function getUnitPrice(state) {
 export function calcItemTotal(item, catalogs) {
   const statelike = { ...item, ...catalogs };
   return calcTotal(statelike);
+}
+
+export function calcItemBreakdown(item, catalogs) {
+  const statelike = { ...item, ...catalogs };
+  return calcTotalBreakdown(statelike);
 }
 
 export function getItemUnitPrice(item, catalogs) {

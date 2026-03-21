@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
+import { storageGet, storageSet, storageRemove } from '../lib/storage';
 
 const STORAGE_KEY = 'ph_draft_v2';
 const SAVE_DELAY = 800; // ms debounce
@@ -24,17 +25,11 @@ function getDraftData(state) {
 }
 
 export function loadDraft() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return storageGet(STORAGE_KEY);
 }
 
 export function clearDraft() {
-  localStorage.removeItem(STORAGE_KEY);
+  storageRemove(STORAGE_KEY);
 }
 
 export function useDraft() {
@@ -68,7 +63,7 @@ export function useDraft() {
       timerRef.current = setTimeout(() => {
         try {
           const data = getDraftData(state);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          storageSet(STORAGE_KEY, data);
           setDraftStatus('saved');
         } catch {
           setDraftStatus('idle');

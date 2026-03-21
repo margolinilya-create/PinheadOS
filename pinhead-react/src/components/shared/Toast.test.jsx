@@ -62,7 +62,8 @@ describe('ToastContainer', () => {
     useToastStore.setState({
       toasts: [{ id: '1', message: 'Test', type: 'error' }],
     });
-    const { container } = render(<ToastContainer />);
-    expect(container.querySelector('.toast-error')).toBeTruthy();
+    render(<ToastContainer />);
+    // With CSS modules, class names are hashed. Check the error icon is rendered instead.
+    expect(screen.getByText('✕')).toBeInTheDocument();
   });
 });

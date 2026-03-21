@@ -13,20 +13,7 @@
   pointer-events: none; white-space: nowrap; border-left: 3px solid var(--signal, #FF3B30);
 }
 .val-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-/* ── Toast Notifications ── */
-.toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column-reverse; gap: 8px; }
-.toast {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px; min-width: 220px; max-width: 400px;
-  font-family: var(--font-body); font-size: 13px; font-weight: 600;
-  letter-spacing: .5px; cursor: pointer; animation: toast-in 250ms ease-out;
-}
-.toast-success { background: var(--color-success); color: var(--card); }
-.toast-error   { background: var(--color-error); color: var(--card); }
-.toast-warning { background: var(--color-warning); color: var(--card); }
-.toast-icon    { font-size: 13px; font-weight: 700; flex-shrink: 0; }
-.toast-msg     { flex: 1; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* ── Toast Notifications — moved to Toast.module.css ── */
 /* Panel — appearance */
 @keyframes panel-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .panel-loading { animation: panel-fade-in 300ms ease-in-out; }
@@ -71,7 +58,8 @@
 ::-webkit-scrollbar-thumb { background: var(--text-dim); }
 /* ── Print ── */
 @media print {
-  .header, .progress-bar, .btn-row, .no-print { display: none !important; }
+  .btn-row, .no-print { display: none !important; }
+  /* .header, .progress-bar print hiding — moved to their respective module CSS files */
   .pp-overlay, .pp-page-wrap { position: static; overflow: visible; }
   .pp-page { margin: 0; padding: 24px; border: none; box-shadow: none; }
 }
@@ -81,21 +69,8 @@
 /* ── Tablet ── */
 @media (max-width: 768px) {
   .container          { padding: 24px 16px; }
-  header              { height: 48px; }
-  .header-nav-btn     { padding: 0 12px; font-size: 11px; height: 48px; }
-  .header-logout      { padding: 0 12px; font-size: 11px; height: 48px; }
-  .header-draft       { padding: 0 12px; }
-  .header-total       { padding: 0 12px; }
-  .total-value        { font-size: 16px; }
-  .logo               { padding: 0 16px; }
-  .logo-text          { font-size: 16px; }
-  .header-nav         { display: none; }
-  .header-nav.open    { display: flex; flex-direction: column; position: absolute; top: 48px; left: 0; right: 0; width: 100vw; background: var(--white); border-bottom: 1px solid var(--border-light); z-index: 200; }
-  .header-nav.open .header-nav-btn { height: 44px; border-left: none; border-bottom: 1px solid var(--border-light); justify-content: center; }
-  .burger-btn         { display: flex !important; }
-  .header-right       { margin-left: auto; }
-  .progress-bar       { padding: 0 16px; }
-  .step-tab           { padding: 12px 12px; font-size: 11px; }
+  /* header height — moved to Header.module.css */
+  /* header/nav/progress-bar tablet — moved to Header.module.css & ProgressBar.module.css */
   .step-header-title  { font-size: 28px; }
   .summary-grid       { grid-template-columns: 1fr; }
   .form-grid          { grid-template-columns: 1fr; }
@@ -138,14 +113,7 @@
 }
 /* ── Phone ── */
 @media (max-width: 480px) {
-  .draft-text         { display: none; }
-  .total-label        { display: none; }
-  .header-draft, .header-total, .header-logout { padding: 0 8px; }
-  .total-value        { font-size: 13px; }
-  .progress-bar       { padding: 0 8px; }
-  .step-tab           { padding: 8px 12px; font-size: 11px; gap: 8px; }
-  .step-label         { display: none; }
-  .step-num           { width: 18px; height: 18px; font-size: 9px; }
+  /* header/progress-bar phone — moved to Header.module.css & ProgressBar.module.css */
   .step-header-title  { font-size: 28px; }
   .btn-row            { flex-direction: column; }
   .btn-row > *        { width: 100%; min-width: 0; }
@@ -200,8 +168,7 @@
   .dash-period-btns   { flex-wrap: wrap; }
   .dash-period-btns button { padding: 8px 12px; font-size: 11px; }
   .dash-chart         { min-height: 200px; }
-  .toast-container    { left: 16px; right: 16px; bottom: 16px; }
-  .toast              { min-width: auto; }
+  /* toast responsive — moved to Toast.module.css */
   .kanban-col         { min-width: 260px; flex: 0 0 260px; }
 }
 /* ── Global reduced-motion ── */

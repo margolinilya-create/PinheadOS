@@ -23,6 +23,7 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../../utils/pricing', () => ({
   isAccessory: vi.fn(() => false),
   calcItemTotal: vi.fn(() => 5000),
+  calcItemBreakdown: vi.fn(() => ({ base: 400, extras: 0, labels: 0, print: 100, pack: 0, discount: 0, urgent: 0, unitPrice: 500, total: 5000, qty: 10 })),
   getItemUnitPrice: vi.fn(() => 500),
   getItemTotalQty: vi.fn(() => 10),
   getTotalSurcharge: vi.fn(() => 0),
@@ -54,7 +55,7 @@ beforeEach(() => {
     name: 'Test User',
     contact: '@test',
     email: 'test@test.com',
-    phone: '+7999',
+    phone: '+79991234567',
     deadline: '2025-12-31',
     address: 'Moscow',
     notes: 'Test notes',

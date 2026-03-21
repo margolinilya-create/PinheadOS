@@ -1,9 +1,11 @@
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES } from '../../data';
-import { calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
+import { useState } from 'react';
+import { calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
+import PriceBreakdown from '../shared/PriceBreakdown';
 
 export default function StepItems() {
   const { items, activeItemIdx, nextStep, prevStep, addNewItem, editItem, removeItem,
@@ -13,6 +15,8 @@ export default function StepItems() {
       fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
       usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption }))
   );
+
+  const [openBreakdown, setOpenBreakdown] = useState(null);
 
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
 
@@ -63,13 +67,21 @@ export default function StepItems() {
                 </div>
                 <div className="item-card-price">
                   <span>{unitPrice.toLocaleString('ru-RU')} ₽/шт</span>
-                  <span className="item-card-total">{itemTotal.toLocaleString('ru-RU')} ₽</span>
+                  <span
+                    className="item-card-total"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setOpenBreakdown(openBreakdown === idx ? null : idx)}
+                    title="Показать детализацию"
+                  >{itemTotal.toLocaleString('ru-RU')} ₽</span>
                 </div>
+                {openBreakdown === idx && (
+                  <PriceBreakdown breakdown={calcItemBreakdown(item, catalogs)} defaultOpen compact />
+                )}
               </div>
               <div className="item-card-actions">
                 <button className="btn-icon" title="Изменить" onClick={() => editItem(idx)}>&#9998;</button>
                 {items.length > 1 && (
-                  <button className="btn-icon btn-icon-danger" title="Удалить" onClick={() => removeItem(idx)}>&times;</button>
+                  <button className="btn-icon btn-icon-danger" title="Удалить" onClick={() => { if (!confirm('Удалить позицию?')) return; removeItem(idx); }}>&times;</button>
                 )}
               </div>
             </div>

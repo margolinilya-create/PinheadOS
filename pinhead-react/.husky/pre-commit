@@ -1,0 +1,1 @@
+cd pinhead-react && npx lint-staged

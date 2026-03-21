@@ -9,6 +9,14 @@ const DTG_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const DTF_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const EMB_AREAS = [{ k: 's', l: 'S до 7см' }, { k: 'm', l: 'M до 12см' }, { k: 'l', l: 'L до 20см' }];
 
+const TECH_HELP = {
+  screen: 'Шелкография — оптимально для тиражей от 50 шт.',
+  flex: 'Флекс-печать — для малых тиражей, до 3 цветов',
+  dtg: 'DTG — прямая печать, любое кол-во цветов',
+  embroidery: 'Вышивка — премиальный вид, от 350₽',
+  dtf: 'DTF — плёночный трансфер, от 180₽',
+};
+
 export default function ZoneTechBlock({ zone }) {
   const { zoneTechs, setZoneTech } = useStore(
     useShallow(s => ({ zoneTechs: s.zoneTechs, setZoneTech: s.setZoneTech }))
@@ -30,6 +38,11 @@ export default function ZoneTechBlock({ zone }) {
           </button>
         ))}
       </div>
+      {TECH_HELP[tech] && (
+        <div className="zone-tech-help" style={{ fontSize: 12, color: '#888', margin: '4px 0 8px', fontStyle: 'italic' }}>
+          {TECH_HELP[tech]}
+        </div>
+      )}
       <div className="zone-tech-params">
         {tech === 'screen' && <ScreenParams zone={zone} qty={totalQty} />}
         {tech === 'flex' && <FlexParams zone={zone} qty={totalQty} />}

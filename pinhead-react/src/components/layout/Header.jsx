@@ -4,6 +4,7 @@ import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
+import styles from './Header.module.css';
 
 export default function Header() {
   const navigate = useNavigate();
@@ -29,77 +30,77 @@ export default function Header() {
   const isActive = (path) => pathname === path;
 
   return (
-    <header>
+    <header className={styles.header}>
       {/* ── Logo ── */}
-      <div className="logo" onClick={() => { useStore.getState().resetOrder(); navigate('/'); }} style={{ cursor: 'pointer' }}>
-        <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" style={{ width: 24, height: 24, flexShrink: 0 }}>
+      <div className={styles.logo} onClick={() => { useStore.getState().resetOrder(); navigate('/'); }} style={{ cursor: 'pointer' }}>
+        <svg className={styles['logo-mark']} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" style={{ width: 24, height: 24, flexShrink: 0 }}>
           <line x1="16" y1="2" x2="16" y2="30" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
           <line x1="2" y1="16" x2="30" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
           <line x1="5" y1="5" x2="27" y2="27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
           <line x1="27" y1="5" x2="5" y2="27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
         </svg>
         <div>
-          <div className="logo-text">pinhead</div>
-          <div className="logo-sub">Order Studio · v2.0</div>
+          <div className={styles['logo-text']}>pinhead</div>
+          <div className={styles['logo-sub']}>Order Studio · v2.0</div>
         </div>
       </div>
 
       {/* ── Burger (mobile) ── */}
-      <button className="burger-btn" onClick={() => setMenuOpen(!menuOpen)}>
+      <button className={styles['burger-btn']} aria-label="Меню навигации" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
         {menuOpen ? '✕' : '☰'}
       </button>
 
       {/* ── Navigation (hidden items by role) ── */}
-      <nav className={`header-nav${menuOpen ? ' open' : ''}`}>
+      <nav className={`${styles['header-nav']}${menuOpen ? ` ${styles.open}` : ''}`} aria-label="Основная навигация">
         {!isProd && !isDes && (
-          <button className={`header-nav-btn express-btn${isActive('/express') ? ' active' : ''}`} onClick={nav('/express')}>
+          <button className={`${styles['header-nav-btn']} ${styles['express-btn']}${isActive('/express') ? ` ${styles.active}` : ''}`} onClick={nav('/express')}>
             Express
           </button>
         )}
-        <button className={`header-nav-btn${isActive('/orders') ? ' active' : ''}`} onClick={nav('/orders')}>
+        <button className={`${styles['header-nav-btn']}${isActive('/orders') ? ` ${styles.active}` : ''}`} onClick={nav('/orders')}>
           Заказы
         </button>
-        <button className={`header-nav-btn${isActive('/print') ? ' active' : ''}`} onClick={nav('/print')}>
+        <button className={`${styles['header-nav-btn']}${isActive('/print') ? ` ${styles.active}` : ''}`} onClick={nav('/print')}>
           ТЗ
         </button>
         {!isProd && !isDes && (
-          <button className={`header-nav-btn${isActive('/sku') ? ' active' : ''}`} onClick={nav('/sku')}>
+          <button className={`${styles['header-nav-btn']}${isActive('/sku') ? ` ${styles.active}` : ''}`} onClick={nav('/sku')}>
             SKU
           </button>
         )}
         {!isProd && !isDes && (
-          <button className={`header-nav-btn${isActive('/prices') ? ' active' : ''}`} onClick={nav('/prices')}>
+          <button className={`${styles['header-nav-btn']}${isActive('/prices') ? ` ${styles.active}` : ''}`} onClick={nav('/prices')}>
             Цены нанесений
           </button>
         )}
         {(isAdmin || isProd || user?.role === 'rop') && (
-          <button className={`header-nav-btn${isActive('/analytics') ? ' active' : ''}`} onClick={nav('/analytics')}>
+          <button className={`${styles['header-nav-btn']}${isActive('/analytics') ? ` ${styles.active}` : ''}`} onClick={nav('/analytics')}>
             Аналитика
           </button>
         )}
         {isAdmin && (
-          <button className={`header-nav-btn${isActive('/admin') ? ' active' : ''}`} onClick={nav('/admin')}>
+          <button className={`${styles['header-nav-btn']}${isActive('/admin') ? ` ${styles.active}` : ''}`} onClick={nav('/admin')}>
             Admin
           </button>
         )}
       </nav>
 
       {/* ── Right: draft + price + logout ── */}
-      <div className="header-right">
+      <div className={styles['header-right']}>
         {(pathname === '/' || pathname === '/express') && (
           <>
-            <div className="header-draft">
-              <div className={`draft-dot${draftStatus === 'saving' ? ' saving' : draftStatus === 'saved' ? ' saved' : ''}`} />
-              <span className="draft-text">{draftLabel}</span>
-              <button className="draft-reset-btn" onClick={resetDraft} title="Сбросить черновик">✕</button>
+            <div className={styles['header-draft']}>
+              <div className={`${styles['draft-dot']}${draftStatus === 'saving' ? ` ${styles.saving}` : draftStatus === 'saved' ? ` ${styles.saved}` : ''}`} />
+              <span className={styles['draft-text']}>{draftLabel}</span>
+              <button className={styles['draft-reset-btn']} onClick={resetDraft} title="Сбросить черновик" aria-label="Сбросить черновик">✕</button>
             </div>
-            <div className="header-total">
-              <span className="total-label">Итого</span>
-              <span className="total-value">{formatted}</span>
+            <div className={styles['header-total']}>
+              <span className={styles['total-label']}>Итого</span>
+              <span className={styles['total-value']}>{formatted}</span>
             </div>
           </>
         )}
-        <button className="header-logout" onClick={logout}>Выйти</button>
+        <button className={styles['header-logout']} onClick={logout}>Выйти</button>
       </div>
     </header>
   );

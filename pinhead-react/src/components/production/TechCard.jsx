@@ -365,7 +365,7 @@ export default function TechCard({ order, onClose, onStatusChange }) {
               {photos.map((p, i) => (
                 <div key={i} className="tc-photo">
                   <img src={p.data} alt={p.name} />
-                  <button className="tc-photo-rm" onClick={() => removePhoto(i)}>✕</button>
+                  <button className="tc-photo-rm" onClick={() => removePhoto(i)} aria-label="Удалить фото">✕</button>
                 </div>
               ))}
               {photos.length < 3 && (

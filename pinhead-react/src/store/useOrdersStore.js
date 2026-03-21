@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+import { toast } from './useToastStore';
 
 const STATUS_LIST = ['draft', 'review', 'approved', 'production', 'done'];
 const STATUS_LABELS = { draft: 'Черновик', review: 'На проверке', approved: 'Подтверждён', production: 'В производстве', done: 'Готов' };
@@ -63,7 +64,9 @@ export const useOrdersStore = create((set, get) => ({
       } else {
         set({ loading: false });
       }
-    } catch {
+    } catch (err) {
+      console.error('[fetchOrders]', err);
+      toast.error('Не удалось загрузить заказы');
       set({ loading: false });
     }
   },

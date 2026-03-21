@@ -437,6 +437,7 @@ textarea::placeholder {
 .price-line-sub .name { font-size: 12px; color: var(--text-dim); }
 .price-line-urgent .name { color: var(--color-error, #FF3B30); font-weight: 600; }
 .price-line-urgent .amount { color: var(--color-error, #FF3B30); font-weight: 700; }
+/* ── PriceBreakdown component — moved to PriceBreakdown.module.css ── */
 /* ── Mobile touch targets ── */
 @media (max-width: 768px) {
   .btn-primary, .btn-secondary,

@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES, findColorEntry } from '../../data';
-import { calcItemTotal, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
+import { calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
 
 function getZoneParams(zone, item) {
@@ -227,6 +227,31 @@ export default function PrintPreview() {
                   </div>
                 </div>
               )}
+
+              {/* Детализация цены */}
+              {(() => {
+                const bd = calcItemBreakdown(item, catalogs);
+                return bd.qty > 0 && (
+                  <div className="pp-section" data-testid={`pp-breakdown-${idx}`}>
+                    <div className="pp-section-head">
+                      <span className="pp-section-num">{nextSection()}</span>
+                      <span className="pp-section-name">ДЕТАЛИЗАЦИЯ ЦЕНЫ</span>
+                    </div>
+                    <div className="pp-kv">
+                      <div className="pp-kv-row"><span>Базовая цена</span><span className="pp-kv-dots" /><b>{bd.base.toLocaleString('ru-RU')} &#8381;</b></div>
+                      {bd.extras > 0 && <div className="pp-kv-row"><span>Обработки</span><span className="pp-kv-dots" /><b>+{bd.extras.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.labels > 0 && <div className="pp-kv-row"><span>Этикетки</span><span className="pp-kv-dots" /><b>+{bd.labels.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.print > 0 && <div className="pp-kv-row"><span>Нанесение</span><span className="pp-kv-dots" /><b>+{bd.print.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.pack > 0 && <div className="pp-kv-row"><span>Упаковка</span><span className="pp-kv-dots" /><b>+{bd.pack.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.discount > 0 && <div className="pp-kv-row"><span>Скидка за объём</span><span className="pp-kv-dots" /><b>-{bd.discount.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.urgent > 0 && <div className="pp-kv-row"><span>Срочность</span><span className="pp-kv-dots" /><b>+{bd.urgent.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      <div className="pp-kv-row"><span>Итого за шт.</span><span className="pp-kv-dots" /><b>{bd.unitPrice.toLocaleString('ru-RU')} &#8381;</b></div>
+                      <div className="pp-kv-row"><span>Кол-во</span><span className="pp-kv-dots" /><b>{bd.qty} шт</b></div>
+                      <div className="pp-kv-row" style={{ fontWeight: 700 }}><span>ИТОГО</span><span className="pp-kv-dots" /><b>{bd.total.toLocaleString('ru-RU')} &#8381;</b></div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

@@ -6,6 +6,7 @@ import { useStore } from '../../store/useStore';
 // Mock pricing
 vi.mock('../../utils/pricing', () => ({
   calcItemTotal: vi.fn(() => 5000),
+  calcItemBreakdown: vi.fn(() => ({ base: 400, extras: 0, labels: 0, print: 100, pack: 0, discount: 0, urgent: 0, unitPrice: 500, total: 5000, qty: 10 })),
   getItemUnitPrice: vi.fn(() => 500),
   getItemTotalQty: vi.fn(() => 10),
 }));

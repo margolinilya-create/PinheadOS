@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { toast } from './useToastStore';
 
 // ─── DEV MODE: bypass авторизации ───
 // В dev-режиме (vite dev) — пропускаем логин, role = admin
@@ -39,7 +40,9 @@ export const useAuthStore = create((set, get) => ({
       } else {
         set({ loading: false });
       }
-    } catch {
+    } catch (err) {
+      console.error('[auth.init]', err);
+      toast.error('Ошибка авторизации');
       set({ loading: false });
     }
   },

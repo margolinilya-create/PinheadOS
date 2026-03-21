@@ -97,7 +97,7 @@ const ZONE_POSITIONS = {
   },
 };
 
-function getZonePos(garmentType, zoneId) {
+function _getZonePos(garmentType, zoneId) {
   const typeMap = ZONE_POSITIONS[garmentType] || ZONE_POSITIONS._default;
   return typeMap[zoneId] || ZONE_POSITIONS._default[zoneId] || null;
 }
@@ -132,19 +132,19 @@ function getZoneChipText(zone, zoneTechs, zonePrints, flexZones, dtgZones, embZo
   return `${ZONE_LABELS[zone] || zone} — ${techLabel}${detail}`;
 }
 
-export default function ZoneMockup({ garmentType, activeZones, onZoneClick,
-  availableZones, color, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones }) {
+export default function ZoneMockup({ garmentType, activeZones, onZoneClick: _onZoneClick,
+  availableZones: _availableZones, color, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones }) {
 
   const svgMarkup = useMemo(() => getGarmentSVG(garmentType, color), [garmentType, color]);
 
-  const chips = useMemo(() => {
+  // Zone chip text computation (kept for future use)
+  useMemo(() => {
     if (!activeZones || activeZones.length === 0) return [];
     return activeZones.map(z =>
       getZoneChipText(z, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones)
     );
   }, [activeZones, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones]);
 
-  const allZones = availableZones || [];
   const aspect = GARMENT_ASPECT[garmentType] || 1;
 
   return (
