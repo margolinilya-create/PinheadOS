@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
+import { sanitizeText, validateEmail, validatePhone } from '../../utils/validate';
 
 const ROLES = [
   { key: 'manager', label: '👔 Менеджер' },
@@ -17,7 +18,26 @@ export default function StepDetails() {
       toggleUrgent: s.toggleUrgent, nextStep: s.nextStep, prevStep: s.prevStep }))
   );
   const [showErrors, setShowErrors] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const isValid = name.trim().length > 0;
+
+  const handleSanitizedChange = (field, value, maxLen) => {
+    setField(field, sanitizeText(value, maxLen));
+  };
+
+  const handleEmailChange = (value) => {
+    setField('email', sanitizeText(value, 100));
+    const result = validateEmail(value.trim());
+    setEmailError(result.valid ? '' : result.error);
+  };
+
+  const handlePhoneChange = (value) => {
+    setField('phone', value.slice(0, 20));
+    const result = validatePhone(value.trim());
+    setPhoneError(result.valid ? '' : result.error);
+  };
+
   const handleNext = () => {
     if (!isValid) { setShowErrors(true); return; }
     nextStep();
@@ -44,38 +64,41 @@ export default function StepDetails() {
       <div className="section-label">Контактные данные</div>
       <div className="form-grid">
         <div className="form-field">
-          <label>Имя / Компания *</label>
-          <input type="text" value={name}
+          <label htmlFor="field-name">Имя / Компания *</label>
+          <input id="field-name" type="text" value={name}
             className={showErrors && !name.trim() ? 'input-error' : ''}
             placeholder="Иванов Иван"
-            onChange={e => setField('name', e.target.value)} />
+            maxLength={100}
+            onChange={e => handleSanitizedChange('name', e.target.value, 100)} />
           {showErrors && !name.trim() && (
             <span className="field-error">Обязательное поле</span>
           )}
         </div>
         <div className="form-field">
-          <label>Контакт</label>
-          <input type="text" value={contact} placeholder="@telegram или телефон" onChange={e => setField('contact', e.target.value)} />
+          <label htmlFor="field-contact">Контакт</label>
+          <input id="field-contact" type="text" value={contact} placeholder="@telegram или телефон" maxLength={100} onChange={e => handleSanitizedChange('contact', e.target.value, 100)} />
         </div>
         <div className="form-field">
-          <label>Email</label>
-          <input type="email" value={email} placeholder="mail@example.com" onChange={e => setField('email', e.target.value)} />
+          <label htmlFor="field-email">Email</label>
+          <input id="field-email" type="email" value={email} placeholder="mail@example.com" maxLength={100} onChange={e => handleEmailChange(e.target.value)} />
+          {emailError && <span className="field-error">{emailError}</span>}
         </div>
         <div className="form-field">
-          <label>Телефон</label>
-          <input type="tel" value={phone} placeholder="+7 (999) 123-45-67" onChange={e => setField('phone', e.target.value)} />
+          <label htmlFor="field-phone">Телефон</label>
+          <input id="field-phone" type="tel" value={phone} placeholder="+7 (999) 123-45-67" maxLength={20} onChange={e => handlePhoneChange(e.target.value)} />
+          {phoneError && <span className="field-error">{phoneError}</span>}
         </div>
         <div className="form-field">
-          <label>Мессенджер</label>
-          <input type="text" value={messenger} placeholder="@username" onChange={e => setField('messenger', e.target.value)} />
+          <label htmlFor="field-messenger">Мессенджер</label>
+          <input id="field-messenger" type="text" value={messenger} placeholder="@username" onChange={e => setField('messenger', e.target.value)} />
         </div>
         <div className="form-field">
-          <label>Bitrix Deal</label>
-          <input type="text" value={bitrixDeal} placeholder="BX-12345" onChange={e => setField('bitrixDeal', e.target.value)} />
+          <label htmlFor="field-bitrix">Bitrix Deal</label>
+          <input id="field-bitrix" type="text" value={bitrixDeal} placeholder="BX-12345" onChange={e => setField('bitrixDeal', e.target.value)} />
         </div>
         <div className="form-field">
-          <label>Дедлайн</label>
-          <input type="date" value={deadline} onChange={e => setField('deadline', e.target.value)} />
+          <label htmlFor="field-deadline">Дедлайн</label>
+          <input id="field-deadline" type="date" value={deadline} onChange={e => setField('deadline', e.target.value)} />
         </div>
       </div>
 
@@ -83,12 +106,12 @@ export default function StepDetails() {
       <div className="section-label">Доставка и опции</div>
       <div className="form-grid">
         <div className="form-field full">
-          <label>Адрес доставки</label>
-          <input type="text" value={address} placeholder="Город, улица, дом..." onChange={e => setField('address', e.target.value)} />
+          <label htmlFor="field-address">Адрес доставки</label>
+          <input id="field-address" type="text" value={address} placeholder="Город, улица, дом..." maxLength={200} onChange={e => handleSanitizedChange('address', e.target.value, 200)} />
         </div>
         <div className="form-field full">
-          <label>Примечания</label>
-          <textarea value={notes} placeholder="Дополнительная информация..." onChange={e => setField('notes', e.target.value)} />
+          <label htmlFor="field-notes">Примечания</label>
+          <textarea id="field-notes" value={notes} placeholder="Дополнительная информация..." maxLength={500} onChange={e => handleSanitizedChange('notes', e.target.value, 500)} />
         </div>
       </div>
 

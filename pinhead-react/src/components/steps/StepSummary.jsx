@@ -5,7 +5,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { isAccessory, calcItemTotal, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice } from '../../utils/pricing';
+import { isAccessory, calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice } from '../../utils/pricing';
+import { validateEmail, validatePhone, validateRequired } from '../../utils/validate';
+import PriceBreakdown from '../shared/PriceBreakdown';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 
@@ -156,7 +158,8 @@ export default function StepSummary() {
     const itemTotal = calcItemTotal(item, catalogs);
     const unitPrice = qty > 0 ? Math.round(itemTotal / qty) : 0;
     const colorEntry = findColorEntry(item.color);
-    return { item, qty, itemTotal, unitPrice, colorEntry };
+    const breakdown = calcItemBreakdown(item, catalogs);
+    return { item, qty, itemTotal, unitPrice, colorEntry, breakdown };
   });
 
   const grandTotal = itemCalcs.reduce((sum, ic) => sum + ic.itemTotal, 0);
@@ -164,9 +167,14 @@ export default function StepSummary() {
 
   // ─── Validation ───
   const errors = [];
-  if (!name?.trim()) errors.push('Укажите имя клиента');
+  const nameCheck = validateRequired(name, 'Имя клиента');
+  if (!nameCheck.valid) errors.push('Укажите имя клиента');
   if (items.length === 0 || items.every(it => !it.sku)) errors.push('Выберите артикул');
   if (items.length === 0 || itemCalcs.every(ic => ic.qty === 0)) errors.push('Укажите количество');
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.valid) errors.push(emailCheck.error);
+  const phoneCheck = validatePhone(phone);
+  if (!phoneCheck.valid) errors.push(phoneCheck.error);
   const hasErrors = errors.length > 0;
 
   // ─── copyTZ ───
@@ -276,7 +284,7 @@ export default function StepSummary() {
       <div className="section-label">Позиции заказа ({items.length}) <EditBtn step={3} goToStep={goToStep} /></div>
 
       {/* Per-item summaries */}
-      {itemCalcs.map(({ item, qty, itemTotal, unitPrice: uPrice, colorEntry: ce }, idx) => {
+      {itemCalcs.map(({ item, qty, itemTotal, unitPrice: uPrice, colorEntry: ce, breakdown }, idx) => {
         const sizeEntries = Object.entries(item.sizes || {}).filter(([, v]) => v > 0);
         const itemState = { ...item, ...catalogs };
         const printPrice = getTotalSurcharge(itemState);
@@ -354,6 +362,7 @@ export default function StepSummary() {
               <span className="mono-val">{uPrice.toLocaleString('ru-RU')} ₽/шт</span>
               <span> × {qty} шт = <b className="mono-val">{itemTotal.toLocaleString('ru-RU')} ₽</b></span>
             </div>
+            <PriceBreakdown breakdown={breakdown} />
           </div>
         );
       })}
