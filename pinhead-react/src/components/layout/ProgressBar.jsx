@@ -1,5 +1,6 @@
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
+import styles from './ProgressBar.module.css';
 
 const STEPS = [
   { label: 'Изделие', num: '01' },
@@ -16,12 +17,12 @@ export default function ProgressBar() {
   );
 
   return (
-    <nav className="progress-bar">
+    <nav className={styles['progress-bar']}>
       {STEPS.map((s, i) => {
-        let cls = 'step-tab';
-        if (i === step) cls += ' active';
-        else if (i < step) cls += ' done';
-        else if (i <= maxStep) cls += ' visited';
+        let cls = styles['step-tab'];
+        if (i === step) cls += ` ${styles.active}`;
+        else if (i < step) cls += ` ${styles.done}`;
+        else if (i <= maxStep) cls += ` ${styles.visited}`;
         return (
           <button
             key={i}
@@ -29,10 +30,10 @@ export default function ProgressBar() {
             onClick={() => goToStep(i)}
             disabled={i > maxStep}
           >
-            <div className="step-num">
+            <div className={styles['step-num']}>
               {i < step ? <span>✓</span> : <span>{s.num}</span>}
             </div>
-            <span className="step-label">{s.label}</span>
+            <span className={styles['step-label']}>{s.label}</span>
           </button>
         );
       })}

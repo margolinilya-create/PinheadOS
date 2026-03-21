@@ -1,0 +1,49 @@
+/* ── Progress Bar ── */
+.progress-bar {
+  display: flex; border-bottom: 1px solid var(--border-light); background: var(--white);
+  overflow-x: auto; scrollbar-width: none; padding: 0 40px;
+}
+.progress-bar::-webkit-scrollbar { display: none; }
+.step-tab {
+  display: flex; align-items: center; gap: 12px; padding: 12px 24px 12px;
+  cursor: pointer; border: none; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; transition: all 150ms ease-out; white-space: nowrap;
+  opacity: 1; pointer-events: none; background: none;
+  font-family: 'Inter', sans-serif; font-size: 12px;
+  color: var(--text-dim);
+}
+.step-tab:disabled          { cursor: default; color: var(--text-dim); opacity: .6; pointer-events: none; }
+.active                     { border-bottom-color: var(--accent); color: var(--accent); opacity: 1; pointer-events: all; }
+.active .step-label         { color: var(--accent); }
+.done                       { color: var(--text-mid); opacity: 1; pointer-events: all; cursor: pointer; }
+.done:hover                 { color: var(--black); }
+.visited                    { pointer-events: all; cursor: pointer; color: var(--text-mid); opacity: 1; }
+.visited:not(.active):not(.done):hover { color: var(--black); }
+.step-num {
+  width: 24px; height: 24px; border: 2px solid var(--black);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Space Grotesk', sans-serif; font-size: 10px; font-weight: 700;
+  color: var(--text-mid); transition: all 150ms ease-out; flex-shrink: 0;
+}
+.active .step-num { background: var(--accent); border-color: var(--accent); color: var(--white); }
+.done   .step-num { background: var(--black);  border-color: var(--black);  color: var(--white); }
+.step-label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; }
+
+/* ── Print ── */
+@media print {
+  .progress-bar { display: none !important; }
+}
+
+/* ── Tablet ── */
+@media (max-width: 768px) {
+  .progress-bar       { padding: 0 16px; }
+  .step-tab           { padding: 12px 12px; font-size: 11px; }
+}
+
+/* ── Phone ── */
+@media (max-width: 480px) {
+  .progress-bar       { padding: 0 8px; }
+  .step-tab           { padding: 8px 12px; font-size: 11px; gap: 8px; }
+  .step-label         { display: none; }
+  .step-num           { width: 18px; height: 18px; font-size: 9px; }
+}

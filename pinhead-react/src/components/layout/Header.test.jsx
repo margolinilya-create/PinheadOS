@@ -97,9 +97,11 @@ describe('Header', () => {
   });
 
   it('toggles burger menu', () => {
-    const { container } = renderHeader();
-    const burger = container.querySelector('.burger-btn');
+    renderHeader();
+    const burger = screen.getByLabelText('Меню навигации');
     fireEvent.click(burger);
-    expect(container.querySelector('.header-nav.open')).toBeTruthy();
+    const nav = screen.getByLabelText('Основная навигация');
+    // After click, the nav should have the open class (CSS module hashed)
+    expect(nav.className).toMatch(/open/);
   });
 });

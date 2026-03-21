@@ -1,4 +1,6 @@
 import { Component } from 'react';
+// eslint-disable-next-line no-unused-vars
+import styles from './ErrorBoundary.module.css';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {

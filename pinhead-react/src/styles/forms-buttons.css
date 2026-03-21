@@ -437,27 +437,7 @@ textarea::placeholder {
 .price-line-sub .name { font-size: 12px; color: var(--text-dim); }
 .price-line-urgent .name { color: var(--color-error, #FF3B30); font-weight: 600; }
 .price-line-urgent .amount { color: var(--color-error, #FF3B30); font-weight: 700; }
-/* ── PriceBreakdown component ── */
-.pb-wrap { background: var(--bg2); border: 1px solid var(--border-light); padding: 12px 16px; margin-top: 8px; }
-.pb-compact { padding: 8px 12px; }
-.pb-toggle {
-  display: block; width: 100%; background: none; border: none;
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
-  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-mid);
-  cursor: pointer; padding: 0; text-align: left; transition: color 150ms ease-out;
-}
-.pb-toggle:hover { color: var(--accent); }
-.pb-body { margin-top: 8px; }
-.pb-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: var(--text-mid); }
-.pb-name { font-weight: 500; }
-.pb-val { font-family: var(--mono); font-weight: 600; }
-.pb-row-discount .pb-val { color: var(--color-success, #34C759); }
-.pb-row-urgent .pb-val { color: var(--color-error, #FF3B30); }
-.pb-row-urgent .pb-name { color: var(--color-error, #FF3B30); }
-.pb-row-unit { font-weight: 600; }
-.pb-row-total { font-weight: 700; font-size: 13px; color: var(--text); }
-.pb-row-total .pb-val { color: var(--accent); }
-.pb-divider { border-top: 1px solid var(--border-light); margin: 4px 0; }
+/* ── PriceBreakdown component — moved to PriceBreakdown.module.css ── */
 /* ── Mobile touch targets ── */
 @media (max-width: 768px) {
   .btn-primary, .btn-secondary,

@@ -8,13 +8,7 @@ html, body { overflow-x: hidden; }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 .app-main { flex: 1; max-width: 1120px; margin: 0 auto; padding: 48px 40px; width: 100%; }
 .container { max-width: 1120px; margin: 0 auto; padding: 48px 40px; width: 100%; }
-/* ── Header ── */
-header {
-  display: flex; align-items: stretch; height: 52px;
-  border-bottom: 1px solid var(--border-light);
-  position: sticky; top: 0; background: var(--white); z-index: 100;
-  font-family: 'Inter', sans-serif;
-}
+/* ── Header — moved to Header.module.css ── */
 /* Logo */
 .logo { display: flex; align-items: center; gap: 12px; padding: 0 24px; flex-shrink: 0; cursor: pointer; }
 .logo-mark { width: 24px; height: 24px; flex-shrink: 0; }
@@ -26,58 +20,9 @@ header {
   font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 500;
   letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-top: 2px;
 }
-/* Navigation tabs */
-.header-nav { display: flex; align-items: stretch; margin-left: auto; gap: 0; }
-.header-nav-btn {
-  background: none; border: none; border-left: 1px solid var(--border-light);
-  color: var(--text-mid); height: 52px; padding: 0 24px;
-  cursor: pointer; font-family: 'Inter', sans-serif;
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
-  display: flex; align-items: center;
-  transition: background 150ms ease-out, color 150ms ease-out;
-  white-space: nowrap; flex-shrink: 0;
-}
-.header-nav-btn:hover { color: #fff !important; background: var(--accent) !important; }
-.header-nav-btn.active { background: var(--accent); color: #fff; }
-/* Express — always signal */
-.header-nav-btn.express-btn { background: var(--signal); color: #fff; border-left-color: var(--signal); }
-.header-nav-btn.express-btn:hover { opacity: 0.85; }
-.header-nav-btn.express-btn.active { background: var(--signal); }
-/* Header right section */
-.header-right { display: flex; align-items: stretch; margin-left: 0; flex-shrink: 0; }
-.header-draft { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
-.draft-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; transition: background 300ms ease-in-out; }
-.draft-dot.saving { background: var(--color-warning); }
-.draft-dot.saved  { background: var(--color-success); }
-.draft-text {
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
-  letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim);
-}
-.draft-reset-btn {
-  background: none; border: none; color: var(--text-dim); font-size: 9px; font-weight: 700;
-  cursor: pointer; padding: 0 2px; line-height: 1; opacity: .4; transition: opacity 150ms ease-out, color 150ms ease-out;
-}
-.draft-reset-btn:hover { opacity: 1; color: var(--black); }
-.header-total { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
-.total-label {
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
-  letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim);
-}
-.total-value {
-  font-family: var(--mono); font-weight: 500; font-size: 20px;
-  color: var(--accent); letter-spacing: 0; line-height: 1;
-}
+/* Navigation tabs, header-right, draft, total, logout — moved to Header.module.css */
 .header-user { display: flex; align-items: stretch; }
 .header-user-name { display: none; }
-.header-logout {
-  background: none; border: none; border-left: 1px solid var(--border-light);
-  color: var(--text-mid); height: 52px; padding: 0 24px;
-  cursor: pointer; font-family: 'Inter', sans-serif;
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
-  display: flex; align-items: center; gap: 8px;
-  transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;
-}
-.header-logout:hover { background: var(--accent); color: var(--white); }
 /* Header action buttons */
 .header-btns { display: flex; align-items: stretch; }
 .header-action-btn {
@@ -105,9 +50,4 @@ header {
   color: var(--text-dim);
   font-size: 14px;
 }
-/* Burger button — hidden by default, shown on mobile */
-.burger-btn {
-  display: none; background: none; border: none; border-left: 1px solid var(--border-light);
-  padding: 0 16px; height: 52px; cursor: pointer; font-size: 20px; color: var(--black);
-  align-items: center; flex-shrink: 0;
-}
+/* Burger button — moved to Header.module.css */

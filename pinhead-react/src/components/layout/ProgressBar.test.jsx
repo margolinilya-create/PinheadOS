@@ -22,10 +22,11 @@ describe('ProgressBar', () => {
 
   it('marks current step as active', () => {
     useStore.setState({ step: 2, maxStep: 2 });
-    const { container } = render(<ProgressBar />);
-    const active = container.querySelector('.step-tab.active');
-    expect(active).toBeTruthy();
-    expect(active.textContent).toContain('Дизайн');
+    render(<ProgressBar />);
+    const buttons = screen.getAllByRole('button');
+    // The active step (index 2) should have the active class (CSS module hashed)
+    expect(buttons[2].className).toMatch(/active/);
+    expect(buttons[2].textContent).toContain('Дизайн');
   });
 
   it('marks previous steps as done with checkmark', () => {
