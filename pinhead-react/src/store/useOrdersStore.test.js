@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock supabase
+const mockRpc = vi.fn().mockResolvedValue({ data: 'PH-0001', error: null });
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
@@ -13,6 +14,7 @@ vi.mock('../lib/supabase', () => ({
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
+    rpc: (...args) => mockRpc(...args),
   },
 }));
 
@@ -25,8 +27,21 @@ vi.mock('./useAuthStore', () => ({
 
 const { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } = await import('./useOrdersStore');
 
-beforeEach(() => {
+beforeEach(async () => {
   useOrdersStore.setState({ orders: [], loading: false, filter: 'all', search: '' });
+  mockRpc.mockReset().mockResolvedValue({ data: 'PH-0001', error: null });
+  // Restore default from() mock chain
+  const { supabase } = await import('../lib/supabase');
+  supabase.from.mockReturnValue({
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+  });
 });
 
 describe('useOrdersStore — exports', () => {
@@ -123,6 +138,38 @@ describe('useOrdersStore — deleteOrder', () => {
     await useOrdersStore.getState().deleteOrder(1);
     expect(useOrdersStore.getState().orders).toHaveLength(1);
     expect(useOrdersStore.getState().orders[0].id).toBe(2);
+  });
+});
+
+describe('useOrdersStore — generateOrderNumber via RPC', () => {
+  it('saveOrder uses supabase.rpc for order number', async () => {
+    mockRpc.mockResolvedValueOnce({ data: 'PH-0042', error: null });
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockResolvedValue({
+          data: [{ id: 99, order_number: 'PH-0042', status: 'draft' }],
+          error: null,
+        }),
+      }),
+    });
+
+    const result = await useOrdersStore.getState().saveOrder({ type: 'tee' });
+    expect(mockRpc).toHaveBeenCalledWith('generate_order_number');
+    expect(result.order_number).toBe('PH-0042');
+  });
+
+  it('falls back to timestamp when rpc fails', async () => {
+    mockRpc.mockRejectedValueOnce(new Error('network'));
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockResolvedValue({ data: null, error: { message: 'fail' } }),
+      }),
+    });
+
+    const result = await useOrdersStore.getState().saveOrder({ type: 'tee' });
+    expect(result.order_number).toMatch(/^PH-\d+$/);
   });
 });
 

@@ -15,15 +15,14 @@ const STATUS_COLORS = {
 
 export { STATUS_LIST, STATUS_LABELS, STATUS_COLORS };
 
-// ─── Generate sequential PH-XXXX order number ───
-function generateOrderNumber(existingOrders) {
-  let maxNum = 0;
-  for (const o of existingOrders) {
-    const m = (o.order_number || '').match(/^PH-(\d+)$/);
-    if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
-  }
-  const next = maxNum + 1;
-  return 'PH-' + String(next).padStart(4, '0');
+// ─── Generate sequential PH-XXXX order number via Supabase sequence ───
+async function generateOrderNumber() {
+  try {
+    const { data, error } = await supabase.rpc('generate_order_number');
+    if (!error && data) return data;
+  } catch { /* fallback below */ }
+  // Fallback: timestamp-based to avoid collisions
+  return `PH-${Date.now()}`;
 }
 
 export const useOrdersStore = create((set, get) => ({
@@ -73,7 +72,7 @@ export const useOrdersStore = create((set, get) => ({
 
   // Сохранить новый заказ (INSERT с sequence PH-XXXX)
   saveOrder: async (orderData) => {
-    const orderNumber = generateOrderNumber(get().orders);
+    const orderNumber = await generateOrderNumber();
     const auth = useAuthStore.getState();
     // DEV_MODE user id 'dev' is not a valid UUID — use null for created_by
     const userId = auth.user?.id;
@@ -178,7 +177,7 @@ export const useOrdersStore = create((set, get) => ({
 
   // Дублировать заказ
   duplicateOrder: async (order) => {
-    const orderNumber = generateOrderNumber(get().orders);
+    const orderNumber = await generateOrderNumber();
     const auth = useAuthStore.getState();
     const dup = {
       order_number: orderNumber,
