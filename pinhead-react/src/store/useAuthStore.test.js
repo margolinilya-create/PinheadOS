@@ -22,7 +22,7 @@ vi.mock('../lib/supabase', () => ({
 const { useAuthStore } = await import('./useAuthStore');
 
 beforeEach(() => {
-  useAuthStore.setState({ user: null, loading: false, error: null });
+  useAuthStore.setState({ user: null, loading: false, error: null, previewRole: null });
 });
 
 describe('useAuthStore — state', () => {
@@ -101,6 +101,41 @@ describe('useAuthStore — role helpers', () => {
   it('isAdmin returns false for null user', () => {
     useAuthStore.setState({ user: null });
     expect(useAuthStore.getState().isAdmin()).toBe(false);
+  });
+});
+
+describe('useAuthStore — previewRole', () => {
+  it('effectiveRole returns user role when no preview', () => {
+    useAuthStore.setState({ user: { role: 'admin' } });
+    expect(useAuthStore.getState().effectiveRole()).toBe('admin');
+  });
+
+  it('effectiveRole returns previewRole when set', () => {
+    useAuthStore.setState({ user: { role: 'admin' }, previewRole: 'manager' });
+    expect(useAuthStore.getState().effectiveRole()).toBe('manager');
+  });
+
+  it('setPreviewRole updates previewRole', () => {
+    useAuthStore.getState().setPreviewRole('production');
+    expect(useAuthStore.getState().previewRole).toBe('production');
+  });
+
+  it('clearPreviewRole resets to null', () => {
+    useAuthStore.setState({ previewRole: 'manager' });
+    useAuthStore.getState().clearPreviewRole();
+    expect(useAuthStore.getState().previewRole).toBeNull();
+  });
+
+  it('role helpers use effectiveRole', () => {
+    useAuthStore.setState({ user: { role: 'admin' }, previewRole: 'production' });
+    expect(useAuthStore.getState().isAdmin()).toBe(false);
+    expect(useAuthStore.getState().isProduction()).toBe(true);
+  });
+
+  it('role helpers use real role when no preview', () => {
+    useAuthStore.setState({ user: { role: 'admin' }, previewRole: null });
+    expect(useAuthStore.getState().isAdmin()).toBe(true);
+    expect(useAuthStore.getState().isProduction()).toBe(false);
   });
 });
 

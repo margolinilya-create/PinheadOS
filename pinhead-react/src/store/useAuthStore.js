@@ -11,6 +11,7 @@ export const useAuthStore = create((set, get) => ({
   user: null,       // { id, email, name, role }
   loading: true,
   error: null,
+  previewRole: null, // null = своя роль, иначе — превью (только в памяти)
 
   // Инициализация — проверка сессии
   init: async () => {
@@ -109,9 +110,14 @@ export const useAuthStore = create((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  // ─── Role helpers ───
-  isAdmin: () => ['admin', 'director'].includes(get().user?.role),
-  isROP: () => ['admin', 'director', 'rop'].includes(get().user?.role),
-  isProduction: () => get().user?.role === 'production',
-  isDesigner: () => get().user?.role === 'designer',
+  // ─── Preview role (admin/director only, in-memory) ───
+  setPreviewRole: (role) => set({ previewRole: role }),
+  clearPreviewRole: () => set({ previewRole: null }),
+  effectiveRole: () => get().previewRole || get().user?.role,
+
+  // ─── Role helpers (use effectiveRole for UI visibility) ───
+  isAdmin: () => ['admin', 'director'].includes(get().effectiveRole()),
+  isROP: () => ['admin', 'director', 'rop'].includes(get().effectiveRole()),
+  isProduction: () => get().effectiveRole() === 'production',
+  isDesigner: () => get().effectiveRole() === 'designer',
 }));
