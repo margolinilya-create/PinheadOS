@@ -64,12 +64,12 @@ export default function Header() {
         <button className={`${styles['header-nav-btn']}${isActive('/print') ? ` ${styles.active}` : ''}`} onClick={nav('/print')}>
           ТЗ
         </button>
-        {!isProd && !isDes && (
+        {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/sku') ? ` ${styles.active}` : ''}`} onClick={nav('/sku')}>
             SKU
           </button>
         )}
-        {!isProd && !isDes && (
+        {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/prices') ? ` ${styles.active}` : ''}`} onClick={nav('/prices')}>
             Цены нанесений
           </button>

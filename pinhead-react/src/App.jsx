@@ -138,8 +138,8 @@ function App() {
         <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
         <Route path="/print" element={<PrintPreview />} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
-        <Route path="/prices" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PriceEditor /></Suspense></RoleGuard>} />
-        <Route path="/sku" element={<RoleGuard allowed={canEdit}><SkuEditor /></RoleGuard>} />
+        <Route path="/prices" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PriceEditor /></Suspense></RoleGuard>} />
+        <Route path="/sku" element={<RoleGuard allowed={isAdmin}><SkuEditor /></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
