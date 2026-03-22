@@ -18,6 +18,7 @@ import PrintPreview from './components/output/PrintPreview'
 import SkuEditor from './components/editors/SkuEditor'
 import ToastContainer from './components/shared/Toast'
 import Dashboard from './components/analytics/Dashboard'
+import RolePreviewBar from './components/shared/RolePreviewBar'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
 const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'));
@@ -57,7 +58,7 @@ function LoadingScreen() {
 }
 
 function App() {
-  const { user, loading: authLoading, init } = useAuthStore();
+  const { user, loading: authLoading, init, previewRole } = useAuthStore();
   const [catalogsReady, setCatalogsReady] = useState(false);
 
   useEffect(() => {
@@ -99,10 +100,12 @@ function App() {
     );
   }
 
-  const isAdmin = ['admin', 'director'].includes(user.role);
-  const isProduction = user.role === 'production';
-  const isDesigner = user.role === 'designer';
+  const effectiveRole = previewRole || user.role;
+  const isAdmin = ['admin', 'director'].includes(effectiveRole);
+  const isProduction = effectiveRole === 'production';
+  const isDesigner = effectiveRole === 'designer';
   const canEdit = !isProduction && !isDesigner;
+  const isRealAdmin = ['admin', 'director'].includes(user.role);
 
   return (
     <>
@@ -128,6 +131,7 @@ function App() {
       </svg>
 
       <Header />
+      <RolePreviewBar />
 
       <Routes>
         <Route path="/" element={<WizardPage />} />
@@ -137,11 +141,11 @@ function App() {
         <Route path="/prices" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PriceEditor /></Suspense></RoleGuard>} />
         <Route path="/sku" element={<RoleGuard allowed={canEdit}><SkuEditor /></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || user.role === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
+        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {isAdmin && <Agentation />}
+      {isRealAdmin && <Agentation />}
       <ToastContainer />
     </>
   );

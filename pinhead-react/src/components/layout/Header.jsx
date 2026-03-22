@@ -12,16 +12,17 @@ export default function Header() {
   const total = useStore(s => calcTotal(s));
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
   const { draftStatus, resetDraft } = useDraft();
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
 
   const draftLabel = draftStatus === 'saving' ? 'сохраняю...'
     : draftStatus === 'saved' ? 'сохранено'
     : 'черновик';
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const isAdmin = ['admin', 'director'].includes(user?.role);
-  const isProd = user?.role === 'production';
-  const isDes = user?.role === 'designer';
+  const effectiveRole = useAuthStore(s => s.previewRole || s.user?.role);
+  const isAdmin = ['admin', 'director'].includes(effectiveRole);
+  const isProd = effectiveRole === 'production';
+  const isDes = effectiveRole === 'designer';
 
   const nav = (path) => () => {
     navigate(pathname === path ? '/' : path);
@@ -73,7 +74,7 @@ export default function Header() {
             Цены нанесений
           </button>
         )}
-        {(isAdmin || isProd || user?.role === 'rop') && (
+        {(isAdmin || isProd || effectiveRole === 'rop') && (
           <button className={`${styles['header-nav-btn']}${isActive('/analytics') ? ` ${styles.active}` : ''}`} onClick={nav('/analytics')}>
             Аналитика
           </button>
