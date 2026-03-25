@@ -12,6 +12,7 @@ import { getGarmentSVG } from '../../utils/mockup';
 // ── SKU List ──
 const FIT_OPTIONS = [
   { key: 'all', label: 'Все фиты' },
+  { key: 'classic', label: 'Classic' },
   { key: 'regular', label: 'Regular' },
   { key: 'free', label: 'Free' },
   { key: 'oversize', label: 'Oversize' },

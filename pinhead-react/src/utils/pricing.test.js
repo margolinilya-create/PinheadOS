@@ -142,18 +142,18 @@ describe('getZoneSurcharge', () => {
 // 5. SKU est price
 // ═══════════════════════════════
 describe('getSkuEstPrice', () => {
-  it('calculates for T-001 (Футболка Regular)', () => {
-    const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:200, mainFabricUsage:1.0, trimCode:ribana-1x1, trimUsage:0.15
+  it('calculates for T-001 (Футболка Classic woman)', () => {
+    const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:0, mainFabricUsage:1.0, trimCode:ribana-1x1, trimUsage:0.15
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     // fabric: kulirnaya $2.80 * 92 * 1.0 = 257.6 → 258
     // trim: ribana-1x1 $2.50 * 92 * 0.15 = 34.5 → 35 (Math.round)
-    expect(price).toBe(200 + Math.round(1.0 * 2.80 * 92) + Math.round(0.15 * 2.50 * 92));
+    expect(price).toBe(0 + Math.round(1.0 * 2.80 * 92) + Math.round(0.15 * 2.50 * 92));
   });
 
   it('returns sewingPrice only when no fabric match', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], category: 'nonexistent' };
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(price).toBe(200 + 0 + Math.round(0.15 * 2.50 * 92)); // no fabric match
+    expect(price).toBe(0 + 0 + Math.round(0.15 * 2.50 * 92)); // no fabric match, trim only
   });
 });
 

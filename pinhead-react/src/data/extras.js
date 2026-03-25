@@ -4,16 +4,16 @@
 
 export const EXTRAS_CATALOG_DEFAULT = [
   // Для худи / зип-худи / халф-зип
-  {code:'grommet',        name:'Люверсы на капюшон',     price:35, forCategories:['hoodies','ziphoodies','halfzips','half-zip']},
-  {code:'lace-flat',      name:'Шнурок плоский',         price:20, forCategories:['hoodies','ziphoodies','halfzips','half-zip']},
-  {code:'lace-waxed',     name:'Шнурок вощёный',         price:25, forCategories:['hoodies','ziphoodies','halfzips','half-zip']},
-  {code:'lace-lock',      name:'Фиксатор шнурка',        price:15, forCategories:['hoodies','ziphoodies','halfzips','half-zip']},
+  {code:'grommet',        name:'Люверсы на капюшон',     price:35, forCategories:['hoodies','ziphoodies','halfzips']},
+  {code:'lace-flat',      name:'Шнурок плоский',         price:20, forCategories:['hoodies','ziphoodies','halfzips']},
+  {code:'lace-waxed',     name:'Шнурок вощёный',         price:25, forCategories:['hoodies','ziphoodies','halfzips']},
+  {code:'lace-lock',      name:'Фиксатор шнурка',        price:15, forCategories:['hoodies','ziphoodies','halfzips']},
   {code:'zipper-ykk',     name:'Молния YKK',             price:120, forCategories:['ziphoodies','bombers']},
-  {code:'zipper-half',    name:'Молния полузакрытая',     price:80, forCategories:['halfzips','half-zip']},
+  {code:'zipper-half',    name:'Молния полузакрытая',     price:80, forCategories:['halfzips']},
   // Для всей одежды
-  {code:'hanger-loop',    name:'Петля для вешалки',       price:15, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','half-zip','pants','shorts']},
-  {code:'reinforced-seam',name:'Усиление плечевых швов',  price:40, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','half-zip']},
-  {code:'double-stitch',  name:'Двойная отстрочка',       price:30, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','half-zip','pants','shorts']},
+  {code:'hanger-loop',    name:'Петля для вешалки',       price:15, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'reinforced-seam',name:'Усиление плечевых швов',  price:40, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  {code:'double-stitch',  name:'Двойная отстрочка',       price:30, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
   {code:'cuff-ribana',    name:'Подгиб рукавов рибана',   price:25, forCategories:['longsleeves','hoodies','sweatshirts','ziphoodies','halfzips','bombers','half-zip']},
   // Для аксессуаров
   {code:'strap-reinforce',name:'Усиление ручек',          price:20, forCategories:['accessories']},
@@ -51,11 +51,11 @@ export const EXTRAS_DESCS = {
 };
 
 export const LABELS_CATALOG_DEFAULT = [
-  {code:'patch-woven',   name:'Нашивка тканая (ворот)',  price:30, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
-  {code:'patch-jacquard', name:'Нашивка жаккардовая',     price:45, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
-  {code:'label-hem',      name:'Лейбл на подоле',         price:20, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
-  {code:'tag-size',       name:'Бирка размерная (вшивная)',price:10, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
-  {code:'hang-tag',       name:'Хэнг-тег (картон)',       price:15, forCategories:['tshirts','longsleeves','tanks','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
+  {code:'patch-woven',   name:'Нашивка тканая (ворот)',  price:30, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'patch-jacquard', name:'Нашивка жаккардовая',     price:45, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'label-hem',      name:'Лейбл на подоле',         price:20, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  {code:'tag-size',       name:'Бирка размерная (вшивная)',price:10, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
+  {code:'hang-tag',       name:'Хэнг-тег (картон)',       price:15, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
 ];
 
 export const LABEL_CONFIG = {

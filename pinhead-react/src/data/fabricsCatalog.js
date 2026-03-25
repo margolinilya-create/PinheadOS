@@ -3,10 +3,10 @@
 // ═══════════════════════════════════════════
 
 export const FABRICS_CATALOG_DEFAULT = [
-  // Лёгкие (для футболок, лонгсливов, маек)
-  {code:'kulirnaya',       name:'Кулирная гладь 190 г/м²',  priceUSD:2.80, forCategories:['tshirts','longsleeves','tanks'], supplier:'Medastex'},
-  {code:'dvunitka',        name:'Двунитка 240 г/м²',        priceUSD:3.40, forCategories:['tshirts','longsleeves','tanks'], supplier:'Medastex'},
-  {code:'interlock',       name:'Интерлок 220 г/м²',        priceUSD:3.10, forCategories:['tshirts','longsleeves','tanks'], supplier:'Medastex'},
+  // Лёгкие (для футболок, лонгсливов, поло)
+  {code:'kulirnaya',       name:'Кулирная гладь 190 г/м²',  priceUSD:2.80, forCategories:['tshirts','longsleeves','polo'], supplier:'Medastex'},
+  {code:'dvunitka',        name:'Двунитка 240 г/м²',        priceUSD:3.40, forCategories:['tshirts','longsleeves','polo'], supplier:'Medastex'},
+  {code:'interlock',       name:'Интерлок 220 г/м²',        priceUSD:3.10, forCategories:['tshirts','longsleeves','polo'], supplier:'Medastex'},
   // Тяжёлые (для худи, свитшотов, брюк)
   {code:'futher-350-petlya',  name:'Футер петля 350 г/м²',       priceUSD:3.80, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
   {code:'futher-350-nachers', name:'Футер начёс 350 г/м²',       priceUSD:3.80, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
@@ -22,8 +22,8 @@ export const TRIM_CATALOG_DEFAULT = [
 ];
 
 // Группировка типов по слою (для фолбэка)
-export const LAYER1_TYPES = ['tee','longsleeve','tank'];
-export const LAYER2_TYPES = ['hoodie','sweat','zip-hoodie','half-zip','pants','shorts'];
+export const LAYER1_TYPES = ['tee','longsleeve','polo'];
+export const LAYER2_TYPES = ['hoodie','sweat','zip-hoodie','half-zip','bomber','pants','shorts'];
 
 export const FABRICS_LAYER1 = [
   { key:'kulirnaya', name:'Кулирка',   meta:'100% хлопок', sub:'лёгкая',   priceKey:'kulirnaya' },

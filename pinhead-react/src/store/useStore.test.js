@@ -35,12 +35,12 @@ describe('useStore — navigation', () => {
 
 describe('useStore — SKU selection', () => {
   it('selectSku sets sku and type', () => {
-    const sku = SKU_CATALOG_DEFAULT[0]; // Футболка Regular
+    const sku = SKU_CATALOG_DEFAULT[0]; // Футболка Classic woman
     useStore.getState().selectSku(sku);
     const s = useStore.getState();
     expect(s.sku).toBe(sku);
     expect(s.type).toBe('tee');
-    expect(s.fit).toBe('regular');
+    expect(s.fit).toBe('classic');
     expect(s.fitChosen).toBe(true);
   });
   it('selectSku resets fabric/color on type change', () => {

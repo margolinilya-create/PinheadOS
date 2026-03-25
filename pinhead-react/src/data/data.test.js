@@ -177,7 +177,7 @@ describe('Constants', () => {
     expect(DEFAULT_USD_RATE).toBe(92);
   });
   it('Layer types defined', () => {
-    expect(LAYER1_TYPES).toEqual(['tee', 'longsleeve', 'tank']);
+    expect(LAYER1_TYPES).toEqual(['tee', 'longsleeve', 'polo']);
     expect(LAYER2_TYPES.length).toBeGreaterThan(0);
     expect(FABRICS_LAYER1).toHaveLength(3);
     expect(FABRICS_LAYER2).toHaveLength(5);
