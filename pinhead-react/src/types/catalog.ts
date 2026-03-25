@@ -35,7 +35,7 @@ export interface Trim {
   priceUSD: number;
 }
 
-export const FABRIC_SUPPLIERS: string[];
+export declare const FABRIC_SUPPLIERS: string[];
 
 export interface ColorEntry {
   code: string;
