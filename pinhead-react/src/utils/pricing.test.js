@@ -121,20 +121,23 @@ describe('getZoneSurcharge', () => {
     expect(result).toBe(280 + 60 + 60); // base + A4 + white under
   });
 
-  it('embroidery: area s, 3 colors', () => {
+  it('embroidery: 50x50mm default (stitch pricing)', () => {
     const s = baseState();
     s.zoneTechs = { front: 'embroidery' };
-    s.embZones = { front: { colors: 3, area: 's' } };
+    s.embZones = { front: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } };
     const result = getZoneSurcharge('front', s);
-    expect(result).toBe(350 + 0 + 2 * 20); // base + area_s + 2 extra colors
+    // area=25cm², stitches=25*300*1=7500, price=round(7500/1000*14)=105
+    expect(result).toBe(105);
   });
 
-  it('dtf: A3', () => {
+  it('dtf: A3 (film pricing)', () => {
     const s = baseState();
     s.zoneTechs = { front: 'dtf' };
-    s.dtfZones = { front: { size: 'A3' } };
+    s.dtfZones = { front: { fmt: 'A3' } };
     const result = getZoneSurcharge('front', s);
-    expect(result).toBe(180 + 100); // base + A3 add
+    // A3: 297x420mm, cols=floor(550/302)=1, row_h=(425)/1000=0.425
+    // cost = (0.425*1400/1)+50 = 645
+    expect(result).toBe(645);
   });
 });
 
@@ -235,11 +238,12 @@ describe('calcTotal', () => {
     const s = baseState();
     s.zones = ['front'];
     s.zoneTechs = { front: 'dtf' };
-    s.dtfZones = { front: { size: 'A4' } };
+    s.dtfZones = { front: { fmt: 'A4' } };
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const markup = getMarkup(40, s.sku.category);
     const markedUp = Math.round(skuBase * (1 + markup));
-    const techCost = 180 + 50; // dtf base + A4
+    // DTF A4: cols=floor(550/215)=2, row_h=0.302, cost=(0.302*1400/2)+50=261.4→261
+    const techCost = 261;
     const expected = 40 * (markedUp + techCost);
     expect(calcTotal(s)).toBe(expected);
   });

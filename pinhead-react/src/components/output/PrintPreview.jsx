@@ -20,12 +20,12 @@ function getZoneParams(zone, item) {
     return p.size || 'A4';
   }
   if (tech === 'embroidery') {
-    const p = item.embZones?.[zone] || { area: 's', colors: 3 };
-    return `${(p.area || 's').toUpperCase()}, ${p.colors || 3} цв.`;
+    const p = item.embZones?.[zone] || { width_mm: 50, height_mm: 50 };
+    return `${p.width_mm || 50}×${p.height_mm || 50}мм`;
   }
   if (tech === 'dtf') {
-    const p = item.dtfZones?.[zone] || { size: 'A4' };
-    return p.size || 'A4';
+    const p = item.dtfZones?.[zone] || { fmt: 'A4' };
+    return p.fmt || p.size || 'A4';
   }
   return '—';
 }

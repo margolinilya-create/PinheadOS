@@ -7,8 +7,6 @@ const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;
 const DTG_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const DTF_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
-const EMB_AREAS = [{ k: 's', l: 'S до 7см' }, { k: 'm', l: 'M до 12см' }, { k: 'l', l: 'L до 20см' }];
-
 const TECH_HELP = {
   screen: 'Шелкография — оптимально для тиражей от 50 шт.',
   flex: 'Флекс-печать — для малых тиражей, до 3 цветов',
@@ -143,41 +141,99 @@ function DtgParams({ zone }) {
   );
 }
 
+const EMB_FILL_OPTIONS = [
+  { value: 1.0, label: '100%' },
+  { value: 0.8, label: '80%' },
+  { value: 0.6, label: '60%' },
+];
+const EMB_EXTRA_OPTIONS = [
+  { value: null, label: 'Нет' },
+  { value: 'metallic', label: 'Металлик (+20%)' },
+  { value: 'puff', label: 'Объёмная-puff (+50%)' },
+];
+
 function EmbParams({ zone }) {
   const { embZones, setZoneParam } = useStore(
     useShallow(s => ({ embZones: s.embZones, setZoneParam: s.setZoneParam }))
   );
-  const p = embZones?.[zone] || { colors: 3, area: 's' };
+  const p = embZones?.[zone] || { width_mm: 50, height_mm: 50, fill: 1.0, extra: null };
+  const stitches = Math.round((p.width_mm || 50) / 10 * (p.height_mm || 50) / 10 * 300 * (p.fill || 1));
   return (
     <>
-      <ParamRow label="Область">
-        <div className="zone-param-btns">
-          {EMB_AREAS.map(a => <button key={a.k} className={`zone-param-btn${p.area === a.k ? ' active' : ''}`} onClick={() => setZoneParam(zone, 'embroidery', 'area', a.k)}>{a.l}</button>)}
-        </div>
-      </ParamRow>
-      <ParamRow label="Цветов нити">
+      <ParamRow label="Ширина">
         <div className="zone-colors-wrap">
-          <button className="zone-param-btn" onClick={() => setZoneParam(zone, 'embroidery', 'colors', Math.max(1, (p.colors || 3) - 1))}>−</button>
-          <input className="zone-colors-input" type="number" min={1} max={20} value={p.colors || 3}
-            onChange={e => setZoneParam(zone, 'embroidery', 'colors', parseInt(e.target.value) || 1)} />
-          <button className="zone-param-btn" onClick={() => setZoneParam(zone, 'embroidery', 'colors', Math.min(20, (p.colors || 3) + 1))}>+</button>
+          <input className="zone-colors-input" type="number" min={5} max={400} value={p.width_mm || 50} style={{ width: 60 }}
+            onChange={e => setZoneParam(zone, 'embroidery', 'width_mm', parseInt(e.target.value) || 50)} />
+          <span style={{ fontSize: 11, color: '#888' }}>мм</span>
         </div>
       </ParamRow>
+      <ParamRow label="Высота">
+        <div className="zone-colors-wrap">
+          <input className="zone-colors-input" type="number" min={5} max={400} value={p.height_mm || 50} style={{ width: 60 }}
+            onChange={e => setZoneParam(zone, 'embroidery', 'height_mm', parseInt(e.target.value) || 50)} />
+          <span style={{ fontSize: 11, color: '#888' }}>мм</span>
+        </div>
+      </ParamRow>
+      <ParamRow label="Заполняемость">
+        <select className="zone-select" value={p.fill || 1.0} onChange={e => setZoneParam(zone, 'embroidery', 'fill', parseFloat(e.target.value))}>
+          {EMB_FILL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </ParamRow>
+      <ParamRow label="Доп эффект">
+        <select className="zone-select" value={p.extra || ''} onChange={e => setZoneParam(zone, 'embroidery', 'extra', e.target.value || null)}>
+          {EMB_EXTRA_OPTIONS.map(o => <option key={o.value || 'none'} value={o.value || ''}>{o.label}</option>)}
+        </select>
+      </ParamRow>
+      <div style={{ fontSize: 11, color: '#888', margin: '4px 0' }}>
+        ≈ {stitches.toLocaleString()} стежков
+      </div>
     </>
   );
 }
+
+const DTF_FMT_SIZES = {
+  'A6': { w: 105, h: 148 },
+  'A5': { w: 148, h: 210 },
+  'A4': { w: 210, h: 297 },
+  'A3': { w: 297, h: 420 },
+  'A3+': { w: 329, h: 483 },
+};
 
 function DtfParams({ zone }) {
   const { dtfZones, setZoneParam } = useStore(
     useShallow(s => ({ dtfZones: s.dtfZones, setZoneParam: s.setZoneParam }))
   );
-  const p = dtfZones?.[zone] || { size: 'A4' };
+  const p = dtfZones?.[zone] || { fmt: 'A4', width_mm: 210, height_mm: 297 };
+  const selectFmt = (fmt) => {
+    const sz = DTF_FMT_SIZES[fmt];
+    if (sz) {
+      setZoneParam(zone, 'dtf', 'fmt', fmt);
+      setZoneParam(zone, 'dtf', 'width_mm', sz.w);
+      setZoneParam(zone, 'dtf', 'height_mm', sz.h);
+    }
+  };
   return (
-    <ParamRow label="Размер">
-      <div className="zone-param-btns">
-        {DTF_FORMATS.map(s => <button key={s} className={`zone-param-btn${p.size === s ? ' active' : ''}`} onClick={() => setZoneParam(zone, 'dtf', 'size', s)}>{s}</button>)}
-      </div>
-    </ParamRow>
+    <>
+      <ParamRow label="Формат">
+        <div className="zone-param-btns">
+          {DTF_FORMATS.map(s => <button key={s} className={`zone-param-btn${(p.fmt || p.size) === s ? ' active' : ''}`} onClick={() => selectFmt(s)}>{s}</button>)}
+        </div>
+      </ParamRow>
+      <ParamRow label="Ширина">
+        <div className="zone-colors-wrap">
+          <input className="zone-colors-input" type="number" min={10} max={550} value={p.width_mm || 210} style={{ width: 60 }}
+            onChange={e => setZoneParam(zone, 'dtf', 'width_mm', parseInt(e.target.value) || 210)} />
+          <span style={{ fontSize: 11, color: '#888' }}>мм</span>
+        </div>
+      </ParamRow>
+      <ParamRow label="Высота">
+        <div className="zone-colors-wrap">
+          <input className="zone-colors-input" type="number" min={10} max={1000} value={p.height_mm || 297} style={{ width: 60 }}
+            onChange={e => setZoneParam(zone, 'dtf', 'height_mm', parseInt(e.target.value) || 297)} />
+          <span style={{ fontSize: 11, color: '#888' }}>мм</span>
+        </div>
+      </ParamRow>
+    </>
   );
 }
 

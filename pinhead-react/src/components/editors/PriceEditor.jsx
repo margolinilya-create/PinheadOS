@@ -85,8 +85,6 @@ const MARKUP_CATEGORIES = [
   { key: 'accessories',  label: 'Аксессуары' },
 ];
 
-const EMB_AREA_LABELS = { s: 'S до 7 см', m: 'M до 12 см', l: 'L до 20 см' };
-const DTF_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 const DTG_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 
 export default function PriceEditor() {
@@ -295,59 +293,63 @@ export default function PriceEditor() {
 
   const renderEmbroideryTab = () => (
     <div className="pe-section">
-      <h3>Вышивка</h3>
+      <h3>Вышивка — расчёт по стежкам</h3>
 
       <div className="pe-grid">
         <div className="pe-input-row">
-          <span className="pe-input-label">Базовая цена</span>
-          <input type="number" value={prices.tech?.embroidery ?? 350} onChange={e => updateField('tech', 'embroidery', e.target.value)} />
+          <span className="pe-input-label">Стежков на 1 см²</span>
+          <input type="number" value={prices.embStitchesPerCm2 ?? 300} onChange={e => updateScalar('embStitchesPerCm2', e.target.value)} />
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Цена за 1000 стежков</span>
+          <input type="number" value={prices.embPricePerThousand ?? 14} onChange={e => updateScalar('embPricePerThousand', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
         </div>
-      </div>
-
-      <h3>Надбавки за область</h3>
-      <div className="pe-grid">
-        {Object.entries(prices.embAreaAdd || {}).map(([key, val]) => (
-          <div key={key} className="pe-input-row">
-            <span className="pe-input-label">{EMB_AREA_LABELS[key] || key.toUpperCase()}</span>
-            <input type="number" value={val} onChange={e => updateField('embAreaAdd', key, e.target.value)} />
-            <span className="pe-input-unit">&#8381;</span>
-          </div>
-        ))}
-      </div>
-
-      <h3>Дополнительный цвет нити</h3>
-      <div className="pe-grid">
         <div className="pe-input-row">
-          <span className="pe-input-label">Цена за доп. цвет</span>
-          <input type="number" value={prices.embColorAdd ?? 20} onChange={e => updateScalar('embColorAdd', e.target.value)} />
-          <span className="pe-input-unit">&#8381;/цвет</span>
+          <span className="pe-input-label">Мин. цена вышивки</span>
+          <input type="number" value={prices.embMinPrice ?? 50} onChange={e => updateScalar('embMinPrice', e.target.value)} />
+          <span className="pe-input-unit">&#8381;</span>
         </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Металлик ×</span>
+          <input type="number" step="0.1" value={prices.embMetallicMult ?? 1.2} onChange={e => updateScalar('embMetallicMult', e.target.value)} />
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Объёмная (puff) ×</span>
+          <input type="number" step="0.1" value={prices.embPuffMult ?? 1.5} onChange={e => updateScalar('embPuffMult', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="pe-hint" style={{ marginTop: 12 }}>
+        Цена = (площадь_см² × стежков_на_см² × заполняемость) / 1000 × цена_за_1000
       </div>
     </div>
   );
 
   const renderDtfTab = () => (
     <div className="pe-section">
-      <h3>DTF</h3>
+      <h3>DTF — расчёт по площади плёнки</h3>
 
       <div className="pe-grid">
         <div className="pe-input-row">
-          <span className="pe-input-label">Базовая цена</span>
-          <input type="number" value={prices.tech?.dtf ?? 180} onChange={e => updateField('tech', 'dtf', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
+          <span className="pe-input-label">Цена метра плёнки</span>
+          <input type="number" value={prices.dtfPricePerMeter ?? 1400} onChange={e => updateScalar('dtfPricePerMeter', e.target.value)} />
+          <span className="pe-input-unit">&#8381;/м</span>
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Цена переноса</span>
+          <input type="number" value={prices.dtfTransferPrice ?? 50} onChange={e => updateScalar('dtfTransferPrice', e.target.value)} />
+          <span className="pe-input-unit">&#8381;/шт</span>
+        </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Ширина рулона</span>
+          <input type="number" value={prices.dtfFilmWidth ?? 550} readOnly style={{ opacity: 0.6 }} />
+          <span className="pe-input-unit">мм</span>
         </div>
       </div>
 
-      <h3>Надбавки за формат</h3>
-      <div className="pe-grid">
-        {DTF_FORMAT_ORDER.map(key => (
-          <div key={key} className="pe-input-row">
-            <span className="pe-input-label">{key}</span>
-            <input type="number" value={prices.dtfFormatAdd?.[key] ?? 0} onChange={e => updateField('dtfFormatAdd', key, e.target.value)} />
-            <span className="pe-input-unit">&#8381;</span>
-          </div>
-        ))}
+      <div className="pe-hint" style={{ marginTop: 12 }}>
+        Цена за зону = (высота_макета × цена_метра / макетов_в_ряду) + перенос
       </div>
     </div>
   );

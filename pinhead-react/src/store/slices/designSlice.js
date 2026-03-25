@@ -23,9 +23,9 @@ export const designSlice = (set, _get) => ({
     if (tech === 'dtg' && !s.dtgZones?.[zone])
       updates.dtgZones = { ...s.dtgZones, [zone]: { size: 'A4', textile: 'white' } };
     if (tech === 'embroidery' && !s.embZones?.[zone])
-      updates.embZones = { ...s.embZones, [zone]: { colors: 3, area: 's' } };
+      updates.embZones = { ...s.embZones, [zone]: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } };
     if (tech === 'dtf' && !s.dtfZones?.[zone])
-      updates.dtfZones = { ...s.dtfZones, [zone]: { size: 'A4' } };
+      updates.dtfZones = { ...s.dtfZones, [zone]: { fmt: 'A4', width_mm: 210, height_mm: 297 } };
     return updates;
   }),
   setZoneParam: (zone, tech, key, value) => set(s => {

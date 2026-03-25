@@ -35,12 +35,12 @@ function getZoneTechSummary(zone, item) {
     return `${label} ${p.size || 'A4'}`;
   }
   if (tech === 'embroidery') {
-    const p = item.embZones?.[zone] || { area: 's', colors: 3 };
-    return `${label} ${(p.area || 's').toUpperCase()}, ${p.colors || 3} цв.`;
+    const p = item.embZones?.[zone] || { width_mm: 50, height_mm: 50 };
+    return `${label} ${p.width_mm || 50}×${p.height_mm || 50}мм`;
   }
   if (tech === 'dtf') {
-    const p = item.dtfZones?.[zone] || { size: 'A4' };
-    return `${label} ${p.size || 'A4'}`;
+    const p = item.dtfZones?.[zone] || { fmt: 'A4' };
+    return `${label} ${p.fmt || p.size || 'A4'}`;
   }
   return label;
 }

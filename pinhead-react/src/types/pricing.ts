@@ -23,8 +23,16 @@ export interface Prices {
   screenFxOptions: string[];
   dtgFormatAdd: Record<string, number>;
   dtgWhiteUnder: number;
+  embStitchesPerCm2: number;
+  embPricePerThousand: number;
+  embMetallicMult: number;
+  embPuffMult: number;
+  embMinPrice: number;
   embAreaAdd: Record<string, number>;
   embColorAdd: number;
+  dtfPricePerMeter: number;
+  dtfTransferPrice: number;
+  dtfFilmWidth: number;
   dtfFormatAdd: Record<string, number>;
   label: number;
   pack: number;

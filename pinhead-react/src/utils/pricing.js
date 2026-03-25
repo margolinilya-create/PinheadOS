@@ -150,14 +150,37 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
   }
   if (tech === 'embroidery') {
     const P = getPrices();
-    const area = params.fmt || params.area || 's';
-    const colors = parseInt(params.col || params.colors) || 3;
-    return (P.tech.embroidery || 350) + (P.embAreaAdd?.[area] || 0) + Math.max(0, colors - 1) * (P.embColorAdd || 20);
+    const width_mm  = params.width_mm  || 50;
+    const height_mm = params.height_mm || 50;
+    const fill      = params.fill      || 1.0;
+    const stitchesPerCm2 = P.embStitchesPerCm2 || 300;
+    const area_cm2 = (width_mm / 10) * (height_mm / 10);
+    const stitches = Math.round(area_cm2 * stitchesPerCm2 * fill);
+    const pricePerThousand = P.embPricePerThousand || 14;
+    let price = Math.round(stitches / 1000 * pricePerThousand);
+    if (params.extra === 'metallic') price = Math.round(price * (P.embMetallicMult || 1.2));
+    if (params.extra === 'puff')     price = Math.round(price * (P.embPuffMult || 1.5));
+    return Math.max(price, P.embMinPrice || 50);
   }
   if (tech === 'dtf') {
     const P = getPrices();
-    const fmt = params.fmt || params.size || 'A4';
-    return (P.tech.dtf || 180) + (P.dtfFormatAdd?.[fmt] || 0);
+    const FMT_SIZES = {
+      'A6': { w: 105, h: 148 },
+      'A5': { w: 148, h: 210 },
+      'A4': { w: 210, h: 297 },
+      'A3': { w: 297, h: 420 },
+      'A3+': { w: 329, h: 483 },
+    };
+    const width_mm  = params.width_mm  || FMT_SIZES[params.fmt || params.size || 'A4']?.w || 210;
+    const height_mm = params.height_mm || FMT_SIZES[params.fmt || params.size || 'A4']?.h || 297;
+    const gap_mm = 5;
+    const film_width_mm = P.dtfFilmWidth || 550;
+    const cols = Math.max(1, Math.floor(film_width_mm / (width_mm + gap_mm)));
+    const row_height_m = (height_mm + gap_mm) / 1000;
+    const pricePerMeter = P.dtfPricePerMeter || 1400;
+    const transferPrice = P.dtfTransferPrice || 50;
+    const costPerPrint = (row_height_m * pricePerMeter / cols) + transferPrice;
+    return Math.round(costPerPrint);
   }
   return 0;
 }
@@ -178,12 +201,21 @@ export function getZoneSurcharge(zone, state) {
     return calcZonePriceDirect('dtg', { fmt: p.size, textile: p.textile }, qty);
   }
   if (tech === 'embroidery') {
-    const p = state.embZones?.[zone] || { colors: 3, area: 's' };
-    return calcZonePriceDirect('embroidery', { fmt: p.area, col: p.colors }, qty);
+    const p = state.embZones?.[zone] || {};
+    return calcZonePriceDirect('embroidery', {
+      width_mm:  p.width_mm  || 50,
+      height_mm: p.height_mm || 50,
+      fill:      p.fill      || 1.0,
+      extra:     p.extra     || null,
+    }, qty);
   }
   if (tech === 'dtf') {
-    const p = state.dtfZones?.[zone] || { size: 'A4' };
-    return calcZonePriceDirect('dtf', { fmt: p.size }, qty);
+    const p = state.dtfZones?.[zone] || { fmt: 'A4' };
+    return calcZonePriceDirect('dtf', {
+      fmt: p.fmt || p.size,
+      width_mm: p.width_mm,
+      height_mm: p.height_mm,
+    }, qty);
   }
   return 0;
 }

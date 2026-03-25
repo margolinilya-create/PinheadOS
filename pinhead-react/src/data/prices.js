@@ -58,10 +58,18 @@ export const PRICES = {
   // DTG: надбавка за формат + белая подложка
   dtgFormatAdd: {'A6':0,'A5':30,'A4':60,'A3':120,'A3+':180},
   dtgWhiteUnder: 60,
-  // Вышивка: надбавка за размер области
+  // Вышивка: расчёт по стежкам
+  embStitchesPerCm2: 300,
+  embPricePerThousand: 14,
+  embMetallicMult: 1.2,
+  embPuffMult: 1.5,
+  embMinPrice: 50,
   embAreaAdd: {s:0, m:80, l:180},
   embColorAdd: 20,
-  // DTF: надбавка за формат
+  // DTF: расчёт по площади плёнки
+  dtfPricePerMeter: 1400,
+  dtfTransferPrice: 50,
+  dtfFilmWidth: 550,
   dtfFormatAdd: {'A6':0,'A5':20,'A4':50,'A3':100,'A3+':160},
   label:30, pack:15, urgentMult:0.2,
   fit:{ regular:0, free:50, oversize:100 },

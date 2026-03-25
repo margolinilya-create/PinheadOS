@@ -392,21 +392,20 @@ describe('calcZonePriceDirect — все техники', () => {
     const color = calcZonePriceDirect('dtg', { fmt: 'A4', textile: 'color' }, 50);
     expect(color - white).toBe(PRICES.dtgWhiteUnder || 60);
   });
-  it('embroidery: s area, 3 colors', () => {
-    const result = calcZonePriceDirect('embroidery', { fmt: 's', col: 3 }, 50);
-    const P = PRICES;
-    const expected = (P.tech.embroidery || 350) + (P.embAreaAdd?.['s'] || 0) + 2 * (P.embColorAdd || 20);
-    expect(result).toBe(expected);
+  it('embroidery: 50x50mm default (stitch pricing)', () => {
+    const result = calcZonePriceDirect('embroidery', { width_mm: 50, height_mm: 50, fill: 1.0 }, 50);
+    // area=25cm², stitches=7500, price=round(7500/1000*14)=105
+    expect(result).toBe(105);
   });
-  it('embroidery: больше цветов = дороже', () => {
-    const p3 = calcZonePriceDirect('embroidery', { fmt: 's', col: 3 }, 50);
-    const p5 = calcZonePriceDirect('embroidery', { fmt: 's', col: 5 }, 50);
-    expect(p5).toBeGreaterThan(p3);
+  it('embroidery: larger area = more expensive', () => {
+    const small = calcZonePriceDirect('embroidery', { width_mm: 50, height_mm: 50 }, 50);
+    const large = calcZonePriceDirect('embroidery', { width_mm: 100, height_mm: 100 }, 50);
+    expect(large).toBeGreaterThan(small);
   });
-  it('dtf: A3', () => {
+  it('dtf: A3 (film pricing)', () => {
     const result = calcZonePriceDirect('dtf', { fmt: 'A3' }, 50);
-    const P = PRICES;
-    expect(result).toBe((P.tech.dtf || 180) + (P.dtfFormatAdd?.['A3'] || 0));
+    // A3: 297x420mm, cols=floor(550/302)=1, row_h=0.425, cost=(0.425*1400/1)+50=645
+    expect(result).toBe(645);
   });
   it('неизвестная техника → 0', () => {
     expect(calcZonePriceDirect('unknown', {}, 50)).toBe(0);

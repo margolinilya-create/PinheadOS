@@ -498,7 +498,7 @@ describe('calcItemTotal', () => {
     const base = makeItemState();
     const withEmb = makeItemState({
       zones: ['front'], zoneTechs: { front: 'embroidery' },
-      embZones: { front: { colors: 3, area: 's' } },
+      embZones: { front: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } },
     });
     expect(calcItemTotal(withEmb, catalogs)).toBeGreaterThan(calcItemTotal(base, catalogs));
   });
@@ -507,7 +507,7 @@ describe('calcItemTotal', () => {
     const base = makeItemState();
     const withDtf = makeItemState({
       zones: ['front'], zoneTechs: { front: 'dtf' },
-      dtfZones: { front: { size: 'A4' } },
+      dtfZones: { front: { fmt: 'A4' } },
     });
     expect(calcItemTotal(withDtf, catalogs)).toBeGreaterThan(calcItemTotal(base, catalogs));
   });
@@ -1139,7 +1139,7 @@ describe('Edge cases: zones', () => {
     useStore.getState().toggleZone('front');
     useStore.getState().setZoneTech('front', 'embroidery');
     expect(useStore.getState().embZones.front).toBeDefined();
-    expect(useStore.getState().embZones.front.area).toBe('s');
+    expect(useStore.getState().embZones.front.width_mm).toBe(50);
   });
 
   it('setZoneTech to dtf creates dtfZones entry', () => {
@@ -1151,8 +1151,8 @@ describe('Edge cases: zones', () => {
   it('setZoneParam updates specific param', () => {
     useStore.getState().toggleZone('front');
     useStore.getState().setZoneTech('front', 'embroidery');
-    useStore.getState().setZoneParam('front', 'embroidery', 'colors', 5);
-    expect(useStore.getState().embZones.front.colors).toBe(5);
+    useStore.getState().setZoneParam('front', 'embroidery', 'width_mm', 80);
+    expect(useStore.getState().embZones.front.width_mm).toBe(80);
   });
 
   it('setZoneParam for invalid tech returns empty', () => {
@@ -1492,24 +1492,28 @@ describe('getTotalSurcharge — multi-zone', () => {
 });
 
 describe('Zone surcharge — dtf extended', () => {
-  it('dtf A4', () => {
-    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { size: 'A4' } } });
-    expect(getZoneSurcharge('front', s)).toBe(180 + 50); // base + A4
+  it('dtf A4 (film pricing)', () => {
+    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { fmt: 'A4' } } });
+    // cols=floor(550/215)=2, row_h=0.302, cost=(0.302*1400/2)+50=261
+    expect(getZoneSurcharge('front', s)).toBe(261);
   });
-  it('dtf A3', () => {
-    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { size: 'A3' } } });
-    expect(getZoneSurcharge('front', s)).toBe(180 + 100);
+  it('dtf A3 (film pricing)', () => {
+    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { fmt: 'A3' } } });
+    // cols=floor(550/302)=1, row_h=0.425, cost=(0.425*1400/1)+50=645
+    expect(getZoneSurcharge('front', s)).toBe(645);
   });
 });
 
 describe('Zone surcharge — embroidery extended', () => {
-  it('emb small area 1 color', () => {
-    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { colors: 1, area: 's' } } });
-    expect(getZoneSurcharge('front', s)).toBe(350);
+  it('emb 50x50mm default', () => {
+    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } } });
+    // area=25cm², stitches=7500, price=105
+    expect(getZoneSurcharge('front', s)).toBe(105);
   });
-  it('emb medium area 5 colors', () => {
-    const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { colors: 5, area: 'm' } } });
-    expect(getZoneSurcharge('front', s)).toBeGreaterThan(350);
+  it('emb larger area costs more', () => {
+    const small = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { width_mm: 50, height_mm: 50 } } });
+    const large = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { width_mm: 100, height_mm: 100 } } });
+    expect(getZoneSurcharge('front', large)).toBeGreaterThan(getZoneSurcharge('front', small));
   });
 });
 
