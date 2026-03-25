@@ -41,13 +41,13 @@ describe('PriceEditor', () => {
   it('switches to embroidery tab', () => {
     renderPriceEditor();
     fireEvent.click(screen.getByText('Вышивка'));
-    expect(screen.getByText(/Базовая цена/)).toBeInTheDocument();
+    expect(screen.getByText(/Стежков на 1 см²/)).toBeInTheDocument();
   });
 
   it('switches to DTF tab', () => {
     renderPriceEditor();
     fireEvent.click(screen.getByText('DTF'));
-    expect(screen.getByText(/Надбавки за формат/)).toBeInTheDocument();
+    expect(screen.getByText(/Цена метра плёнки/)).toBeInTheDocument();
   });
 
   it('switches to history tab', () => {

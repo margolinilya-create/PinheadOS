@@ -41,6 +41,7 @@ function recolorSVG(svg, color, strokeColor) {
 }
 
 export function getGarmentSVG(type, colorCode) {
+  if (!type) return '';
   const colorEntry = findColorEntry(colorCode);
   const c = colorEntry ? colorEntry.hex : '#ccc';
   const str = shade(c, -55);

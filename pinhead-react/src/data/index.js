@@ -6,8 +6,8 @@ export { PRICES } from './prices';
 export { SKU_CATEGORIES, SKU_CATALOG_DEFAULT } from './skuCatalog';
 export {
   FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT,
+  FABRIC_SUPPLIERS,
   LAYER1_TYPES, LAYER2_TYPES,
-  FABRICS_LAYER1, FABRICS_LAYER2
 } from './fabricsCatalog';
 export {
   MEDASTEX_COLORS, COLOR_GROUPS,

@@ -20,12 +20,12 @@ function getZoneParams(zone, item) {
     return p.size || 'A4';
   }
   if (tech === 'embroidery') {
-    const p = item.embZones?.[zone] || { area: 's', colors: 3 };
-    return `${(p.area || 's').toUpperCase()}, ${p.colors || 3} цв.`;
+    const p = item.embZones?.[zone] || { width_mm: 50, height_mm: 50 };
+    return `${p.width_mm || 50}×${p.height_mm || 50}мм`;
   }
   if (tech === 'dtf') {
-    const p = item.dtfZones?.[zone] || { size: 'A4' };
-    return p.size || 'A4';
+    const p = item.dtfZones?.[zone] || { fmt: 'A4' };
+    return p.fmt || p.size || 'A4';
   }
   return '—';
 }
@@ -243,7 +243,8 @@ export default function PrintPreview() {
                       {bd.labels > 0 && <div className="pp-kv-row"><span>Этикетки</span><span className="pp-kv-dots" /><b>+{bd.labels.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.print > 0 && <div className="pp-kv-row"><span>Нанесение</span><span className="pp-kv-dots" /><b>+{bd.print.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.pack > 0 && <div className="pp-kv-row"><span>Упаковка</span><span className="pp-kv-dots" /><b>+{bd.pack.toLocaleString('ru-RU')} &#8381;</b></div>}
-                      {bd.discount > 0 && <div className="pp-kv-row"><span>Скидка за объём</span><span className="pp-kv-dots" /><b>-{bd.discount.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.cost > 0 && <div className="pp-kv-row"><span>Себестоимость</span><span className="pp-kv-dots" /><b>{bd.cost.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.markup > 0 && <div className="pp-kv-row"><span>Наценка +{Math.round((bd.markupPct||0)*100)}%</span><span className="pp-kv-dots" /><b>+{bd.markup.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.urgent > 0 && <div className="pp-kv-row"><span>Срочность</span><span className="pp-kv-dots" /><b>+{bd.urgent.toLocaleString('ru-RU')} &#8381;</b></div>}
                       <div className="pp-kv-row"><span>Итого за шт.</span><span className="pp-kv-dots" /><b>{bd.unitPrice.toLocaleString('ru-RU')} &#8381;</b></div>
                       <div className="pp-kv-row"><span>Кол-во</span><span className="pp-kv-dots" /><b>{bd.qty} шт</b></div>

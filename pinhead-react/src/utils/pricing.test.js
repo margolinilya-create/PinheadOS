@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   screenLookup, flexLookup, getZoneSurcharge, getTotalQty,
-  calcTotal, getSkuEstPrice, getLabelConfigPrice,
+  calcTotal, getSkuEstPrice, getLabelConfigPrice, getMarkup,
   isAccessory, hasNoPrint, SCREEN_FX, TECH_TABS,
 } from './pricing';
 import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT } from '../data';
 
 // ── Helpers ──
 const baseState = () => ({
-  step: 0, type: 'tee', fabric: 'kulirnaya', color: '01-01', fit: 'regular',
+  step: 0, type: 'tee', fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular',
   sku: SKU_CATALOG_DEFAULT[0], // Футболка Regular
   sizes: { '2XS': 0, 'XS': 0, 'S': 10, 'M': 20, 'L': 10, 'XL': 0, '2XL': 0, '3XL': 0 },
   customSizes: [],
@@ -121,20 +121,23 @@ describe('getZoneSurcharge', () => {
     expect(result).toBe(280 + 60 + 60); // base + A4 + white under
   });
 
-  it('embroidery: area s, 3 colors', () => {
+  it('embroidery: 50x50mm default (stitch pricing)', () => {
     const s = baseState();
     s.zoneTechs = { front: 'embroidery' };
-    s.embZones = { front: { colors: 3, area: 's' } };
+    s.embZones = { front: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } };
     const result = getZoneSurcharge('front', s);
-    expect(result).toBe(350 + 0 + 2 * 20); // base + area_s + 2 extra colors
+    // area=25cm², stitches=25*300*1=7500, price=round(7500/1000*14)=105
+    expect(result).toBe(105);
   });
 
-  it('dtf: A3', () => {
+  it('dtf: A3 (film pricing)', () => {
     const s = baseState();
     s.zoneTechs = { front: 'dtf' };
-    s.dtfZones = { front: { size: 'A3' } };
+    s.dtfZones = { front: { fmt: 'A3' } };
     const result = getZoneSurcharge('front', s);
-    expect(result).toBe(180 + 100); // base + A3 add
+    // A3: 297x420mm, cols=floor(550/302)=1, row_h=(425)/1000=0.425
+    // cost = (0.425*1400/1)+50 = 645
+    expect(result).toBe(645);
   });
 });
 
@@ -142,18 +145,18 @@ describe('getZoneSurcharge', () => {
 // 5. SKU est price
 // ═══════════════════════════════
 describe('getSkuEstPrice', () => {
-  it('calculates for T-001 (Футболка Regular)', () => {
-    const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:200, mainFabricUsage:1.0, trimCode:ribana-1x1, trimUsage:0.15
+  it('calculates for T-001 (Футболка Classic woman)', () => {
+    const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:141, mainFabricUsage:0.95, trimCode:ribana-1x1, trimUsage:0.15
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    // fabric: kulirnaya $2.80 * 92 * 1.0 = 257.6 → 258
-    // trim: ribana-1x1 $2.50 * 92 * 0.15 = 34.5 → 35 (Math.round)
-    expect(price).toBe(200 + Math.round(1.0 * 2.80 * 92) + Math.round(0.15 * 2.50 * 92));
+    // fabric: medas-kulirnaya-100-160 $10.90 * 92 * 0.95 = 952.66 → 953
+    // trim: ribana-1x1 $13.20 * 92 * 0.15 = 182.16 → 182 (Math.round)
+    expect(price).toBe(141 + Math.round(0.95 * 10.90 * 92) + Math.round(0.15 * 13.20 * 92));
   });
 
   it('returns sewingPrice only when no fabric match', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], category: 'nonexistent' };
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(price).toBe(200 + 0 + Math.round(0.15 * 2.50 * 92)); // no fabric match
+    expect(price).toBe(141 + 0 + Math.round(0.15 * 13.20 * 92)); // no fabric match, trim only
   });
 });
 
@@ -212,11 +215,12 @@ describe('calcTotal', () => {
     expect(calcTotal(s)).toBe(0);
   });
 
-  it('calculates base price × qty (no extras, no print)', () => {
+  it('calculates base price × qty with markup (no extras, no print)', () => {
     const s = baseState();
-    // SKU base = sewingPrice + fabric + trim
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const expected = 40 * Math.round(skuBase);
+    const markup = getMarkup(40, s.sku.category);
+    const markedUp = Math.round(skuBase * (1 + markup));
+    const expected = 40 * markedUp;
     expect(calcTotal(s)).toBe(expected);
   });
 
@@ -224,7 +228,9 @@ describe('calcTotal', () => {
     const s = baseState();
     s.extras = ['double-stitch']; // 30₽
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const expected = 40 * Math.round(skuBase + 30);
+    const markup = getMarkup(40, s.sku.category);
+    const markedUp = Math.round(skuBase * (1 + markup));
+    const expected = 40 * (markedUp + 30);
     expect(calcTotal(s)).toBe(expected);
   });
 
@@ -232,10 +238,13 @@ describe('calcTotal', () => {
     const s = baseState();
     s.zones = ['front'];
     s.zoneTechs = { front: 'dtf' };
-    s.dtfZones = { front: { size: 'A4' } };
+    s.dtfZones = { front: { fmt: 'A4' } };
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const techCost = 180 + 50; // dtf base + A4
-    const expected = 40 * Math.round(skuBase + techCost);
+    const markup = getMarkup(40, s.sku.category);
+    const markedUp = Math.round(skuBase * (1 + markup));
+    // DTF A4: cols=floor(550/215)=2, row_h=0.302, cost=(0.302*1400/2)+50=261.4→261
+    const techCost = 261;
+    const expected = 40 * (markedUp + techCost);
     expect(calcTotal(s)).toBe(expected);
   });
 
@@ -243,8 +252,9 @@ describe('calcTotal', () => {
     const s = baseState();
     s.urgentOption = true;
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const unit = Math.round(skuBase);
-    const expected = Math.round(40 * unit * 1.2);
+    const markup = getMarkup(40, s.sku.category);
+    const markedUp = Math.round(skuBase * (1 + markup));
+    const expected = Math.round(40 * markedUp * 1.2);
     expect(calcTotal(s)).toBe(expected);
   });
 
@@ -252,7 +262,9 @@ describe('calcTotal', () => {
     const s = baseState();
     s.packOption = true;
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const expected = 40 * (Math.round(skuBase) + 15);
+    const markup = getMarkup(40, s.sku.category);
+    const markedUp = Math.round(skuBase * (1 + markup));
+    const expected = 40 * (markedUp + 15);
     expect(calcTotal(s)).toBe(expected);
   });
 });

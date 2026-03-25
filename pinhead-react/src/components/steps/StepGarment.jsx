@@ -5,13 +5,14 @@ import { supabase } from '../../lib/supabase';
 import { storageSet } from '../../lib/storage';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
-import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES, FABRICS_LAYER1, FABRICS_LAYER2 } from '../../data';
+import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES } from '../../data';
 import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice } from '../../utils/pricing';
 import { getGarmentSVG } from '../../utils/mockup';
 
 // ── SKU List ──
 const FIT_OPTIONS = [
   { key: 'all', label: 'Все фиты' },
+  { key: 'classic', label: 'Classic' },
   { key: 'regular', label: 'Regular' },
   { key: 'free', label: 'Free' },
   { key: 'oversize', label: 'Oversize' },
@@ -159,7 +160,13 @@ function FabricGrid() {
     }
   }
   if (!fabrics) {
-    fabrics = LAYER1_TYPES.includes(type) ? FABRICS_LAYER1 : FABRICS_LAYER2;
+    // Fallback: derive fabric options from FABRICS_CATALOG_DEFAULT by layer type
+    const layerCats = LAYER1_TYPES.includes(type)
+      ? LAYER1_TYPES
+      : ['hoodies','sweatshirts','halfzips','ziphoodies','pants','shorts','bombers'];
+    const fallbackFabrics = FABRICS_CATALOG_DEFAULT.filter(f =>
+      (f.forCategories || []).some(c => layerCats.includes(c)));
+    fabrics = fallbackFabrics.map(f => ({ key: f.code, name: f.name, meta: f.composition + (f.density ? ' ' + f.density + ' г/м²' : ''), sub: f.supplier, priceKey: f.code }));
   }
 
   if (!fabrics.length) return null;

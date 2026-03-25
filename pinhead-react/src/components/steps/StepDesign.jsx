@@ -29,12 +29,12 @@ function getZoneMiniSummary(zone, state) {
     const p = state.dtgZones?.[zone] || { size: 'A4' };
     fmt = p.size || 'A4';
   } else if (tech === 'embroidery') {
-    const p = state.embZones?.[zone] || { colors: 3, area: 's' };
-    fmt = (p.area || 's').toUpperCase();
-    colors = `${p.colors || 3}цв.`;
+    const p = state.embZones?.[zone] || { width_mm: 50, height_mm: 50 };
+    fmt = `${p.width_mm || 50}×${p.height_mm || 50}мм`;
+    colors = p.extra ? (p.extra === 'metallic' ? 'металлик' : 'puff') : null;
   } else if (tech === 'dtf') {
-    const p = state.dtfZones?.[zone] || { size: 'A4' };
-    fmt = p.size || 'A4';
+    const p = state.dtfZones?.[zone] || { fmt: 'A4' };
+    fmt = p.fmt || p.size || 'A4';
   }
   const parts = [label, fmt, colors, `+${surcharge} ₽`].filter(Boolean);
   return parts.join(' · ');
@@ -111,8 +111,8 @@ export default function StepDesign() {
             </div>
 
             <div className="design-mockup-col">
-              <ZoneMockup
-                garmentType={sku.mockupType || type}
+              {sku?.mockupType && <ZoneMockup
+                garmentType={sku.mockupType}
                 activeZones={zones}
                 availableZones={availableZones}
                 color={color}
@@ -122,7 +122,7 @@ export default function StepDesign() {
                 dtgZones={dtgZones}
                 embZones={embZones}
                 dtfZones={dtfZones}
-              />
+              />}
             </div>
           </div>
 

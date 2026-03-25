@@ -23,25 +23,38 @@ export interface Prices {
   screenFxOptions: string[];
   dtgFormatAdd: Record<string, number>;
   dtgWhiteUnder: number;
+  embStitchesPerCm2: number;
+  embPricePerThousand: number;
+  embMetallicMult: number;
+  embPuffMult: number;
+  embMinPrice: number;
   embAreaAdd: Record<string, number>;
   embColorAdd: number;
+  dtfPricePerMeter: number;
+  dtfTransferPrice: number;
+  dtfFilmWidth: number;
   dtfFormatAdd: Record<string, number>;
   label: number;
   pack: number;
   urgentMult: number;
   fit: Record<string, number>;
-  volumeTiers: number[];
-  volumeDiscounts: number[];
+  markupTiers: number[];
+  markupByType: Record<string, number[]>;
+  markupDefault: number[];
   flexMatrix?: Record<string, Record<number, number[]>>;
 }
 
 export interface PriceBreakdown {
-  base: number;
+  cost: number;
+  markup: number;
+  markupPct: number;
+  markedBase: number;
+  base: number;       // alias for cost
   extras: number;
   labels: number;
   print: number;
   pack: number;
-  discount: number;
+  discount: number;   // alias for markup
   urgent: number;
   unitPrice: number;
   total: number;

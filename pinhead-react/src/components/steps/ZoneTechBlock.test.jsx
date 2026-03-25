@@ -77,7 +77,7 @@ describe('ZoneTechBlock', () => {
   it('shows embroidery params when selected', () => {
     useStore.setState({ zoneTechs: { front: 'embroidery' } });
     render(<ZoneTechBlock zone="front" />);
-    expect(screen.getByText(/до 7см/)).toBeInTheDocument();
+    expect(screen.getByText(/стежков/)).toBeInTheDocument();
   });
 
   it('shows surcharge amount', () => {

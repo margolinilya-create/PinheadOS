@@ -35,19 +35,19 @@ describe('useStore — navigation', () => {
 
 describe('useStore — SKU selection', () => {
   it('selectSku sets sku and type', () => {
-    const sku = SKU_CATALOG_DEFAULT[0]; // Футболка Regular
+    const sku = SKU_CATALOG_DEFAULT[0]; // Футболка Classic woman
     useStore.getState().selectSku(sku);
     const s = useStore.getState();
     expect(s.sku).toBe(sku);
     expect(s.type).toBe('tee');
-    expect(s.fit).toBe('regular');
+    expect(s.fit).toBe('classic');
     expect(s.fitChosen).toBe(true);
   });
   it('selectSku resets fabric/color on type change', () => {
     const tee = SKU_CATALOG_DEFAULT[0];
     const hoodie = SKU_CATALOG_DEFAULT.find(s => s.category === 'hoodies');
     useStore.getState().selectSku(tee);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().selectSku(hoodie);
     const s = useStore.getState();
@@ -63,9 +63,9 @@ describe('useStore — SKU selection', () => {
 describe('useStore — fabric & color', () => {
   it('selectFabric sets fabric and resets color', () => {
     useStore.getState().selectColor('01-01');
-    useStore.getState().selectFabric('dvunitka');
+    useStore.getState().selectFabric('medas-kulirnaya-100-300');
     const s = useStore.getState();
-    expect(s.fabric).toBe('dvunitka');
+    expect(s.fabric).toBe('medas-kulirnaya-100-300');
     expect(s.color).toBe(''); // reset on fabric change
   });
   it('selectColor sets color', () => {
@@ -187,7 +187,7 @@ describe('useStore — loadOrder', () => {
   });
 
   const makeItem = (overrides = {}) => ({
-    type: 'tee', fabric: 'kulirnaya', color: '01-01',
+    type: 'tee', fabric: 'medas-kulirnaya-100-160', color: '01-01',
     sku: { code: SKU_CATALOG_DEFAULT[0].code }, sizes: { M: 10 }, customSizes: [],
     fit: 'regular', fitChosen: true, extras: [], labels: [], zones: ['front'],
     tech: 'screen', textileColor: 'white', zoneTechs: { front: 'screen' },
