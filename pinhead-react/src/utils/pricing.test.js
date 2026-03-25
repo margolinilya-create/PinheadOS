@@ -260,11 +260,12 @@ describe('calcTotal', () => {
 
   it('adds pack option', () => {
     const s = baseState();
+    s.packType = 'bopp';
     s.packOption = true;
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const markup = getMarkup(40, s.sku.category);
     const markedUp = Math.round(skuBase * (1 + markup));
-    const expected = 40 * (markedUp + 15);
+    const expected = 40 * (markedUp + 20); // BOPP = 20₽
     expect(calcTotal(s)).toBe(expected);
   });
 });

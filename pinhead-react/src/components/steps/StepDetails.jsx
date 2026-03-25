@@ -11,10 +11,10 @@ const ROLES = [
 
 export default function StepDetails() {
   const { name, contact, email, phone, messenger, bitrixDeal, deadline, address, notes,
-    role, packOption, urgentOption, setField, togglePack, toggleUrgent, nextStep, prevStep } = useStore(
+    role, packType, urgentOption, setField, setPackType, toggleUrgent, nextStep, prevStep } = useStore(
     useShallow(s => ({ name: s.name, contact: s.contact, email: s.email, phone: s.phone, messenger: s.messenger,
       bitrixDeal: s.bitrixDeal, deadline: s.deadline, address: s.address, notes: s.notes, role: s.role,
-      packOption: s.packOption, urgentOption: s.urgentOption, setField: s.setField, togglePack: s.togglePack,
+      packType: s.packType || 'none', urgentOption: s.urgentOption, setField: s.setField, setPackType: s.setPackType,
       toggleUrgent: s.toggleUrgent, nextStep: s.nextStep, prevStep: s.prevStep }))
   );
   const [showErrors, setShowErrors] = useState(false);
@@ -115,17 +115,24 @@ export default function StepDetails() {
         </div>
       </div>
 
-      {/* Toggle Options */}
-      <div className="toggle-row">
-        <div>
-          <div className="toggle-label-text">Индивидуальная упаковка (+15 ₽/шт)</div>
-          <div className="toggle-sub">Каждое изделие в индивидуальном пакете</div>
-        </div>
-        <label className="toggle">
-          <input type="checkbox" checked={packOption} onChange={togglePack} />
-          <span className="toggle-slider" />
-        </label>
+      {/* Pack Options */}
+      <div className="section-label">Упаковка</div>
+      <div className="pack-options">
+        {[
+          {key:'none', name:'Без упаковки',  price:0},
+          {key:'bopp', name:'БОПП пакет',    price:20},
+          {key:'zip',  name:'ЗИП пакет',     price:40},
+        ].map(opt => (
+          <button key={opt.key}
+            className={`pack-btn${packType === opt.key ? ' active' : ''}`}
+            onClick={() => setPackType(opt.key)}>
+            {opt.name}
+            {opt.price > 0 && <span className="pack-price">+{opt.price} ₽/шт</span>}
+          </button>
+        ))}
       </div>
+
+      {/* Toggle Options */}
       <div className="toggle-row">
         <div>
           <div className="toggle-label-text">Срочное производство (+20%)</div>

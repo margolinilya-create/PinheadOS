@@ -72,7 +72,11 @@ export const PRICES = {
   dtfFilmWidth: 550,
   dtfGap: 10,
   dtfFormatAdd: {'A6':0,'A5':20,'A4':50,'A3':100,'A3+':160},
-  label:30, pack:15, urgentMult:0.2,
+  label:30, pack:0, packOptions:[
+    {key:'none', name:'Без упаковки', price:0},
+    {key:'bopp', name:'БОПП пакет',   price:20},
+    {key:'zip',  name:'ЗИП пакет',    price:40},
+  ], urgentMult:0.2,
   fit:{ regular:0, free:50, oversize:100 },
 
   // Наценка на себестоимость по тиражу и категории изделия
