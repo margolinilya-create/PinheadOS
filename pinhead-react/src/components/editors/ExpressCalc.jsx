@@ -337,7 +337,7 @@ export default function ExpressCalc() {
                 <option value="">— Выберите —</option>
                 {fabrics.map(f => (
                   <option key={f.code} value={f.code}>
-                    {f.name} — ${f.priceUSD}/м ({Math.round(f.priceUSD * usdRate)} ₽/м)
+                    {f.name}{f.density ? ` ${f.density}г` : ''}{f.composition ? ` (${f.composition})` : ''}{' — '}{Math.round(f.priceUSD * usdRate)} ₽/м · {f.supplier}
                   </option>
                 ))}
               </select>

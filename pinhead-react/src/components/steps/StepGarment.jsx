@@ -156,7 +156,7 @@ function FabricGrid() {
   if (sku?.category) {
     catalogFabrics = fabricsCatalog.filter(f => (f.forCategories || []).includes(sku.category));
     if (catalogFabrics.length > 0) {
-      fabrics = catalogFabrics.map(f => ({ key: f.code, name: f.name, meta: Math.round(f.priceUSD * usdRate) + ' ₽/м', sub: '$' + f.priceUSD + '/м', supplier: f.supplier }));
+      fabrics = catalogFabrics.map(f => ({ key: f.code, name: f.name, meta: [f.composition, f.density ? f.density + ' г/м²' : null].filter(Boolean).join(' · '), sub: Math.round(f.priceUSD * usdRate) + ' ₽/м · ' + f.supplier, supplier: f.supplier }));
     }
   }
   if (!fabrics) {
