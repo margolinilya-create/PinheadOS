@@ -2,6 +2,7 @@
 .progress-bar {
   display: flex; border-bottom: 1px solid var(--border-light); background: var(--white);
   overflow-x: auto; scrollbar-width: none; padding: 0 40px;
+  position: sticky; top: calc(var(--header-h) + var(--preview-bar-h)); z-index: 90;
 }
 .progress-bar::-webkit-scrollbar { display: none; }
 .step-tab {

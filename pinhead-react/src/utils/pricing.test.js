@@ -130,14 +130,14 @@ describe('getZoneSurcharge', () => {
     expect(result).toBe(105);
   });
 
-  it('dtf: A3 (film pricing)', () => {
+  it('dtf: A3 (film pricing, optimal rotation)', () => {
     const s = baseState();
     s.zoneTechs = { front: 'dtf' };
     s.dtfZones = { front: { fmt: 'A3' } };
     const result = getZoneSurcharge('front', s);
-    // A3: 297x420mm, cols=floor(550/302)=1, row_h=(425)/1000=0.425
-    // cost = (0.425*1400/1)+50 = 645
-    expect(result).toBe(645);
+    // A3 297x420, gap=10: rotated is cheaper
+    // cols2=floor(550/430)=1, cost2=(307/1000)*1400=429.8 → round(429.8+50)=480
+    expect(result).toBe(480);
   });
 });
 
@@ -242,8 +242,8 @@ describe('calcTotal', () => {
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const markup = getMarkup(40, s.sku.category);
     const markedUp = Math.round(skuBase * (1 + markup));
-    // DTF A4: cols=floor(550/215)=2, row_h=0.302, cost=(0.302*1400/2)+50=261.4→261
-    const techCost = 261;
+    // DTF A4: gap=10, orient1: cols=floor(550/220)=2, cost=(307/1000)*1400/2=214.9 → round(214.9+50)=265
+    const techCost = 265;
     const expected = 40 * (markedUp + techCost);
     expect(calcTotal(s)).toBe(expected);
   });

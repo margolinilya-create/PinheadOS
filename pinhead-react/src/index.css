@@ -3,6 +3,10 @@
 /* ═══════════════════════════════════════════ */
 
 :root {
+  /* ── Layout heights ── */
+  --header-h:       52px;
+  --preview-bar-h:  0px;
+
   /* ── Backgrounds ── */
   --bg:           #FAFAFA;
   --bg1:          #F0F0F0;
@@ -55,6 +59,8 @@
 .mono-val { font-family: var(--mono); font-weight: 500; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+body.has-preview-bar { --preview-bar-h: 36px; }
 
 body {
   background: var(--bg);

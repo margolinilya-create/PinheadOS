@@ -96,7 +96,7 @@
   .logo                { padding: 0 16px; }
   .logo-text           { font-size: 16px; }
   .header-nav          { display: none; }
-  .header-nav.open     { display: flex; flex-direction: column; position: absolute; top: 48px; left: 0; right: 0; width: 100vw; background: var(--white); border-bottom: 1px solid var(--border-light); z-index: 200; }
+  .header-nav.open     { display: flex; flex-direction: column; position: fixed; top: 48px; left: 0; right: 0; width: 100vw; background: var(--white); border-bottom: 1px solid var(--border-light); z-index: 200; }
   .header-nav.open .header-nav-btn { height: 44px; border-left: none; border-bottom: 1px solid var(--border-light); justify-content: center; }
   .burger-btn          { display: flex !important; }
   .header-right        { margin-left: auto; }

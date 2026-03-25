@@ -404,8 +404,8 @@ describe('calcZonePriceDirect — все техники', () => {
   });
   it('dtf: A3 (film pricing)', () => {
     const result = calcZonePriceDirect('dtf', { fmt: 'A3' }, 50);
-    // A3: 297x420mm, cols=floor(550/302)=1, row_h=0.425, cost=(0.425*1400/1)+50=645
-    expect(result).toBe(645);
+    // A3 297x420, gap=10: rotated cols=floor(550/430)=1, cost=(307/1000)*1400=429.8 → round(429.8+50)=480
+    expect(result).toBe(480);
   });
   it('неизвестная техника → 0', () => {
     expect(calcZonePriceDirect('unknown', {}, 50)).toBe(0);

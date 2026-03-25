@@ -165,22 +165,32 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
   if (tech === 'dtf') {
     const P = getPrices();
     const FMT_SIZES = {
-      'A6': { w: 105, h: 148 },
-      'A5': { w: 148, h: 210 },
-      'A4': { w: 210, h: 297 },
-      'A3': { w: 297, h: 420 },
+      'A6':  { w: 105, h: 148 },
+      'A5':  { w: 148, h: 210 },
+      'A4':  { w: 210, h: 297 },
+      'A3':  { w: 297, h: 420 },
       'A3+': { w: 329, h: 483 },
     };
     const width_mm  = params.width_mm  || FMT_SIZES[params.fmt || params.size || 'A4']?.w || 210;
     const height_mm = params.height_mm || FMT_SIZES[params.fmt || params.size || 'A4']?.h || 297;
-    const gap_mm = 5;
-    const film_width_mm = P.dtfFilmWidth || 550;
-    const cols = Math.max(1, Math.floor(film_width_mm / (width_mm + gap_mm)));
-    const row_height_m = (height_mm + gap_mm) / 1000;
-    const pricePerMeter = P.dtfPricePerMeter || 1400;
-    const transferPrice = P.dtfTransferPrice || 50;
-    const costPerPrint = (row_height_m * pricePerMeter / cols) + transferPrice;
-    return Math.round(costPerPrint);
+    const gap        = P.dtfGap           || 10;
+    const filmW      = P.dtfFilmWidth     || 550;
+    const pricePerM  = P.dtfPricePerMeter || 1400;
+    const transfer   = P.dtfTransferPrice || 50;
+    // Ориентация 1: макет прямо (ширина = width_mm)
+    const cols1 = Math.floor(filmW / (width_mm + gap));
+    const cost1 = cols1 > 0
+      ? (height_mm + gap) / 1000 * pricePerM / cols1
+      : Infinity;
+    // Ориентация 2: макет повёрнут 90° (ширина = height_mm)
+    const cols2 = Math.floor(filmW / (height_mm + gap));
+    const cost2 = cols2 > 0
+      ? (width_mm + gap) / 1000 * pricePerM / cols2
+      : Infinity;
+    // Выбираем наиболее выгодную ориентацию
+    const bestCost = Math.min(cost1, cost2);
+    if (!isFinite(bestCost)) return transfer;
+    return Math.round(bestCost + transfer);
   }
   return 0;
 }
