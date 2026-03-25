@@ -80,6 +80,12 @@ function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  const isRealAdmin = ['admin', 'director'].includes(user?.role);
+  useEffect(() => {
+    document.body.classList.toggle('has-preview-bar', isRealAdmin);
+    return () => document.body.classList.remove('has-preview-bar');
+  }, [isRealAdmin]);
+
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
   }
@@ -105,7 +111,6 @@ function App() {
   const isProduction = effectiveRole === 'production';
   const isDesigner = effectiveRole === 'designer';
   const canEdit = !isProduction && !isDesigner;
-  const isRealAdmin = ['admin', 'director'].includes(user.role);
 
   return (
     <>

@@ -6,8 +6,8 @@ input, textarea, select { font-size: 16px; }
 html, body { overflow-x: hidden; }
 /* ── App Shell ── */
 .app { min-height: 100vh; display: flex; flex-direction: column; }
-.app-main { flex: 1; max-width: 1120px; margin: 0 auto; padding: 48px 40px; width: 100%; }
-.container { max-width: 1120px; margin: 0 auto; padding: 48px 40px; width: 100%; }
+.app-main { flex: 1; max-width: 1120px; margin: 0 auto; padding: 24px 40px 48px; width: 100%; }
+.container { max-width: 1120px; margin: 0 auto; padding: 24px 40px 48px; width: 100%; }
 /* ── Header — moved to Header.module.css ── */
 /* Logo */
 .logo { display: flex; align-items: center; gap: 12px; padding: 0 24px; flex-shrink: 0; cursor: pointer; }
@@ -51,3 +51,8 @@ html, body { overflow-x: hidden; }
   font-size: 14px;
 }
 /* Burger button — moved to Header.module.css */
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .app-main, .container { padding: 16px 20px 40px; }
+}
