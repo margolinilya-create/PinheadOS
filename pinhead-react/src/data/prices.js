@@ -70,6 +70,7 @@ export const PRICES = {
   dtfPricePerMeter: 1400,
   dtfTransferPrice: 50,
   dtfFilmWidth: 550,
+  dtfGap: 10,
   dtfFormatAdd: {'A6':0,'A5':20,'A4':50,'A3':100,'A3+':160},
   label:30, pack:15, urgentMult:0.2,
   fit:{ regular:0, free:50, oversize:100 },

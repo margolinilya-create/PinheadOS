@@ -33,6 +33,7 @@ export interface Prices {
   dtfPricePerMeter: number;
   dtfTransferPrice: number;
   dtfFilmWidth: number;
+  dtfGap: number;
   dtfFormatAdd: Record<string, number>;
   label: number;
   pack: number;

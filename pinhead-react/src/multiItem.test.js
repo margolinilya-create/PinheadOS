@@ -1492,15 +1492,15 @@ describe('getTotalSurcharge — multi-zone', () => {
 });
 
 describe('Zone surcharge — dtf extended', () => {
-  it('dtf A4 (film pricing)', () => {
+  it('dtf A4 (film pricing, optimal rotation)', () => {
     const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { fmt: 'A4' } } });
-    // cols=floor(550/215)=2, row_h=0.302, cost=(0.302*1400/2)+50=261
-    expect(getZoneSurcharge('front', s)).toBe(261);
+    // gap=10, orient1: cols=floor(550/220)=2, cost=(307/1000)*1400/2=214.9 → round(214.9+50)=265
+    expect(getZoneSurcharge('front', s)).toBe(265);
   });
-  it('dtf A3 (film pricing)', () => {
+  it('dtf A3 (film pricing, optimal rotation)', () => {
     const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { fmt: 'A3' } } });
-    // cols=floor(550/302)=1, row_h=0.425, cost=(0.425*1400/1)+50=645
-    expect(getZoneSurcharge('front', s)).toBe(645);
+    // gap=10, rotated: cols=floor(550/430)=1, cost=(307/1000)*1400=429.8 → round(429.8+50)=480
+    expect(getZoneSurcharge('front', s)).toBe(480);
   });
 });
 

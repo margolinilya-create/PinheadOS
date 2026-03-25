@@ -346,6 +346,11 @@ export default function PriceEditor() {
           <input type="number" value={prices.dtfFilmWidth ?? 550} readOnly style={{ opacity: 0.6 }} />
           <span className="pe-input-unit">мм</span>
         </div>
+        <div className="pe-input-row">
+          <span className="pe-input-label">Зазор между макетами</span>
+          <input type="number" min="5" max="20" step="1" value={prices.dtfGap ?? 10} onChange={e => updateScalar('dtfGap', e.target.value)} />
+          <span className="pe-input-unit">мм</span>
+        </div>
       </div>
 
       <div className="pe-hint" style={{ marginTop: 12 }}>
