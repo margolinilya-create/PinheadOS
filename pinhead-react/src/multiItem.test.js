@@ -471,11 +471,11 @@ describe('calcItemTotal', () => {
     expect(total).toBeGreaterThan(0);
   });
 
-  it('pack option adds 15 per unit', () => {
+  it('pack option adds 20 per unit (BOPP)', () => {
     const item = makeItemState();
-    const withoutPack = calcItemTotal(item, { ...catalogs, packOption: false });
-    const withPack = calcItemTotal(item, { ...catalogs, packOption: true });
-    expect(withPack - withoutPack).toBe(40 * 15); // 40 units × 15₽
+    const withoutPack = calcItemTotal(item, { ...catalogs, packOption: false, packType: 'none' });
+    const withPack = calcItemTotal(item, { ...catalogs, packOption: true, packType: 'bopp' });
+    expect(withPack - withoutPack).toBe(40 * 20); // 40 units × 20₽
   });
 
   it('urgent adds 20%', () => {
@@ -1562,8 +1562,8 @@ describe('Multi-item pricing: pack/urgent affect all items', () => {
     const tee = makeItemState({ sizes: { M: 10 } });
     const hoodie = makeItemState({ type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320', sizes: { L: 10 } });
     const noPack = calcItemTotal(tee, catalogs) + calcItemTotal(hoodie, catalogs);
-    const withPack = calcItemTotal(tee, { ...catalogs, packOption: true }) + calcItemTotal(hoodie, { ...catalogs, packOption: true });
-    expect(withPack - noPack).toBe(20 * 15); // 10+10 units × 15₽
+    const withPack = calcItemTotal(tee, { ...catalogs, packOption: true, packType: 'bopp' }) + calcItemTotal(hoodie, { ...catalogs, packOption: true, packType: 'bopp' });
+    expect(withPack - noPack).toBe(20 * 20); // 10+10 units × 20₽ (BOPP)
   });
 
   it('urgent 20% applies to each item separately', () => {

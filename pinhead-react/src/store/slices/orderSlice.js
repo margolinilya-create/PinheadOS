@@ -15,7 +15,7 @@ const resetFields = {
   ...defaultItemFields,
   phone: '', messenger: '', bitrixDeal: '', role: 'manager',
   name: '', contact: '', email: '', deadline: '', address: '', notes: '',
-  packOption: false, urgentOption: false,
+  packOption: false, packType: 'none', urgentOption: false,
 };
 
 export const orderSlice = (set, get) => ({
@@ -98,6 +98,7 @@ export const orderSlice = (set, get) => ({
       address: d.address || '',
       notes: d.notes || '',
       packOption: d.packOption || false,
+      packType: d.packType || (d.packOption ? 'bopp' : 'none'),
       urgentOption: d.urgentOption || false,
     });
   },

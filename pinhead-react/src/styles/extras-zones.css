@@ -47,6 +47,14 @@
 }
 .extras-total-live b { color: var(--accent); font-weight: 700; }
 .extras-total-detail { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+/* ── Extras Groups ── */
+.extras-group { margin-bottom: 0; }
+.extras-group-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim);
+  padding: 6px 16px 4px; border-bottom: 0.5px solid var(--border);
+  margin-bottom: 0; background: var(--bg2);
+}
 /* ── Extras List (compact) ── */
 .extras-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border-light); margin: 12px 0; }
 .extras-list-item {

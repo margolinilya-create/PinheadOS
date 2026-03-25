@@ -54,17 +54,17 @@ function getLabelLines(labelConfig) {
 export default function PrintPreview() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption,
+  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption,
     name: stateName, contact: stateContact, email: stateEmail, phone: statePhone,
     address: stateAddress, notes: stateNotes, deadline: stateDeadline,
     _editingOrderNumber } = useStore(
     useShallow(s => ({ items: s.items, fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog,
-      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption,
+      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, packOption: s.packOption, packType: s.packType || 'none', urgentOption: s.urgentOption,
       name: s.name, contact: s.contact, email: s.email, phone: s.phone,
       address: s.address, notes: s.notes, deadline: s.deadline,
       _editingOrderNumber: s._editingOrderNumber }))
   );
-  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption };
   const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
   const grandQty = items.reduce((sum, it) => sum + getItemTotalQty(it), 0);
 
@@ -239,10 +239,15 @@ export default function PrintPreview() {
                     </div>
                     <div className="pp-kv">
                       <div className="pp-kv-row"><span>Базовая цена</span><span className="pp-kv-dots" /><b>{bd.base.toLocaleString('ru-RU')} &#8381;</b></div>
-                      {bd.extras > 0 && <div className="pp-kv-row"><span>Обработки</span><span className="pp-kv-dots" /><b>+{bd.extras.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {item.extras?.length > 0 && item.extras.map(code => {
+                        const ex = extrasCatalog.find(e => e.code === code);
+                        if (!ex) return null;
+                        return <div className="pp-kv-row" key={code}><span>{ex.name}</span><span className="pp-kv-dots" /><b>+{ex.price} &#8381;</b></div>;
+                      })}
+                      {bd.extras > 0 && <div className="pp-kv-row"><span>Итого обработки</span><span className="pp-kv-dots" /><b>+{bd.extras.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.labels > 0 && <div className="pp-kv-row"><span>Этикетки</span><span className="pp-kv-dots" /><b>+{bd.labels.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.print > 0 && <div className="pp-kv-row"><span>Нанесение</span><span className="pp-kv-dots" /><b>+{bd.print.toLocaleString('ru-RU')} &#8381;</b></div>}
-                      {bd.pack > 0 && <div className="pp-kv-row"><span>Упаковка</span><span className="pp-kv-dots" /><b>+{bd.pack.toLocaleString('ru-RU')} &#8381;</b></div>}
+                      {bd.pack > 0 && <div className="pp-kv-row"><span>Упаковка — {item.packType === 'zip' ? 'ЗИП пакет' : item.packType === 'bopp' ? 'БОПП пакет' : 'упаковка'}</span><span className="pp-kv-dots" /><b>+{bd.pack.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.cost > 0 && <div className="pp-kv-row"><span>Себестоимость</span><span className="pp-kv-dots" /><b>{bd.cost.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.markup > 0 && <div className="pp-kv-row"><span>Наценка +{Math.round((bd.markupPct||0)*100)}%</span><span className="pp-kv-dots" /><b>+{bd.markup.toLocaleString('ru-RU')} &#8381;</b></div>}
                       {bd.urgent > 0 && <div className="pp-kv-row"><span>Срочность</span><span className="pp-kv-dots" /><b>+{bd.urgent.toLocaleString('ru-RU')} &#8381;</b></div>}
@@ -298,10 +303,10 @@ export default function PrintPreview() {
             {urgentOption && (
               <div className="pp-kv-row"><span>Срочный заказ</span><span className="pp-kv-dots" /><b>Да (+20%)</b></div>
             )}
-            {packOption && (
-              <div className="pp-kv-row"><span>Упаковка</span><span className="pp-kv-dots" /><b>Да</b></div>
+            {packType && packType !== 'none' && (
+              <div className="pp-kv-row"><span>Упаковка</span><span className="pp-kv-dots" /><b>{packType === 'zip' ? 'ЗИП пакет' : packType === 'bopp' ? 'БОПП пакет' : 'Да'}</b></div>
             )}
-            {!urgentOption && !packOption && (
+            {!urgentOption && (!packType || packType === 'none') && (
               <div className="pp-options-note">Стандартные условия</div>
             )}
           </div>

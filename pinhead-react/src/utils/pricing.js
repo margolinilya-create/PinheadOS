@@ -317,7 +317,9 @@ export function calcTotal(state, debug = false) {
   const printPrice = getTotalSurcharge(state);
 
   const P = getPrices();
-  const packCost = state.packOption ? (P.pack || 0) : 0;
+  const packType = state.packType || (state.packOption ? 'bopp' : 'none');
+  const packOpt = (P.packOptions || []).find(o => o.key === packType);
+  const packCost = packOpt ? packOpt.price : (state.packOption ? (P.pack || 0) : 0);
 
   // Наценка на себестоимость
   const category = state.sku?.category || state.type || 'tshirts';
@@ -369,7 +371,9 @@ export function calcTotalBreakdown(state) {
   const print = getTotalSurcharge(state);
 
   const P = getPrices();
-  const pack = state.packOption ? (P.pack || 0) : 0;
+  const packType = state.packType || (state.packOption ? 'bopp' : 'none');
+  const packOpt = (P.packOptions || []).find(o => o.key === packType);
+  const pack = packOpt ? packOpt.price : (state.packOption ? (P.pack || 0) : 0);
 
   const category = state.sku?.category || state.type || 'tshirts';
   const markupPct = getMarkup(qty, category);

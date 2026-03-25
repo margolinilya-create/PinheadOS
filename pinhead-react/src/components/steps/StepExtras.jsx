@@ -1,6 +1,6 @@
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
-import { EXTRAS_ICONS, EXTRAS_DESCS } from '../../data';
+import { EXTRAS_ICONS, EXTRAS_DESCS, EXTRAS_GROUPS } from '../../data';
 
 function PriceBadge({ price }) {
   if (price === 0) return <span className="extra-price extra-price-free">бесплатно</span>;
@@ -41,16 +41,36 @@ export default function StepExtras() {
 
       {available.length > 0 && (
         <div className="extras-list">
-          {available.map(e => {
+          {EXTRAS_GROUPS
+            .map(g => ({ ...g, items: available.filter(e => e.group === g.id) }))
+            .filter(g => g.items.length > 0)
+            .map(group => (
+              <div key={group.id} className="extras-group">
+                <div className="extras-group-label">{group.name}</div>
+                {group.items.map(e => {
+                  const sel = extras.includes(e.code);
+                  const desc = EXTRAS_DESCS[e.code];
+                  return (
+                    <div
+                      key={e.code}
+                      className={`extras-list-item${sel ? ' selected' : ''}`}
+                      onClick={() => toggleExtra(e.code)}
+                      title={desc || e.name}
+                    >
+                      <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
+                      <div className="extras-list-name">{e.name}</div>
+                      <PriceBadge price={e.price} />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          {/* Ungrouped extras (from custom catalogs without group field) */}
+          {available.filter(e => !e.group).map(e => {
             const sel = extras.includes(e.code);
-            const desc = EXTRAS_DESCS[e.code];
             return (
-              <div
-                key={e.code}
-                className={`extras-list-item${sel ? ' selected' : ''}`}
-                onClick={() => toggleExtra(e.code)}
-                title={desc || e.name}
-              >
+              <div key={e.code} className={`extras-list-item${sel ? ' selected' : ''}`}
+                onClick={() => toggleExtra(e.code)} title={EXTRAS_DESCS[e.code] || e.name}>
                 <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
                 <div className="extras-list-name">{e.name}</div>
                 <PriceBadge price={e.price} />

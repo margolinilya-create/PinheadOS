@@ -2,22 +2,44 @@
 // EXTRAS — обработки, лейблы, фурнитура
 // ═══════════════════════════════════════════
 
+export const EXTRAS_GROUPS = [
+  { id: 'construction', name: 'Конструктивные' },
+  { id: 'neck',         name: 'Отделка горловины' },
+  { id: 'cords',        name: 'Шнурки и фурнитура' },
+  { id: 'zippers',      name: 'Молнии' },
+  { id: 'labels',       name: 'Бирки и лейблы' },
+  { id: 'bags',         name: 'Аксессуары' },
+];
+
 export const EXTRAS_CATALOG_DEFAULT = [
-  // Для худи / зип-худи / халф-зип
-  {code:'grommet',        name:'Люверсы на капюшон',     price:35, forCategories:['hoodies','ziphoodies','halfzips']},
-  {code:'lace-flat',      name:'Шнурок плоский',         price:20, forCategories:['hoodies','ziphoodies','halfzips']},
-  {code:'lace-waxed',     name:'Шнурок вощёный',         price:25, forCategories:['hoodies','ziphoodies','halfzips']},
-  {code:'lace-lock',      name:'Фиксатор шнурка',        price:15, forCategories:['hoodies','ziphoodies','halfzips']},
-  {code:'zipper-ykk',     name:'Молния YKK',             price:120, forCategories:['ziphoodies','bombers']},
-  {code:'zipper-half',    name:'Молния полузакрытая',     price:80, forCategories:['halfzips']},
-  // Для всей одежды
-  {code:'hanger-loop',    name:'Петля для вешалки',       price:15, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
-  {code:'reinforced-seam',name:'Усиление плечевых швов',  price:40, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
-  {code:'double-stitch',  name:'Двойная отстрочка',       price:30, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
-  {code:'cuff-ribana',    name:'Подгиб рукавов рибана',   price:25, forCategories:['longsleeves','hoodies','sweatshirts','ziphoodies','halfzips','bombers','half-zip']},
-  // Для аксессуаров
-  {code:'strap-reinforce',name:'Усиление ручек',          price:20, forCategories:['accessories']},
-  {code:'magnet-snap',    name:'Кнопка магнитная',        price:30, forCategories:['accessories']},
+  // Конструктивные
+  {code:'hanger-loop',     group:'construction', name:'Петля для вешалки',       price:15, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'reinforced-seam', group:'construction', name:'Усиление плечевых швов',  price:40, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  {code:'double-stitch',   group:'construction', name:'Двойная отстрочка',       price:30, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'cuff-ribana',     group:'construction', name:'Подгиб рукавов рибана',   price:25, forCategories:['longsleeves','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  // Отделка горловины
+  {code:'neck-stitch',     group:'neck', name:'Отстрочка по горловине',    price:10, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  {code:'neck-flatlock',   group:'neck', name:'Распошив по горловине',     price:10, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  {code:'neck-twill',      group:'neck', name:'Закрытие киперной тесьмой', price:24, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  // Шнурки и фурнитура
+  {code:'grommet',         group:'cords', name:'Люверсы на капюшон',     price:35, forCategories:['hoodies','ziphoodies','halfzips']},
+  {code:'lace-flat',       group:'cords', name:'Шнурок плоский',         price:20, forCategories:['hoodies','ziphoodies','halfzips']},
+  {code:'lace-waxed',      group:'cords', name:'Шнурок вощёный',         price:25, forCategories:['hoodies','ziphoodies','halfzips']},
+  {code:'lace-lock',       group:'cords', name:'Фиксатор шнурка',        price:15, forCategories:['hoodies','ziphoodies','halfzips']},
+  // Молнии
+  {code:'zipper-ykk',      group:'zippers', name:'Молния YKK',            price:120, forCategories:['ziphoodies','bombers']},
+  {code:'zipper-half',     group:'zippers', name:'Молния полузакрытая',    price:80,  forCategories:['halfzips']},
+  // Бирки и лейблы
+  {code:'patch-woven',     group:'labels', name:'Нашивка тканая (ворот)',    price:30, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'patch-jacquard',  group:'labels', name:'Нашивка жаккардовая',       price:45, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'label-hem',       group:'labels', name:'Лейбл на подоле',           price:20, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers']},
+  {code:'tag-size',        group:'labels', name:'Бирка размерная (вшивная)', price:10, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
+  {code:'hang-tag',        group:'labels', name:'Хэнг-тег (картон)',         price:15, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
+  {code:'label-seam',      group:'labels', name:'Притачивание бирки (в шов)',price:7,  forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts']},
+  {code:'label-sew',       group:'labels', name:'Пришив бирки (не в шов)',   price:35, forCategories:['tshirts','longsleeves','polo','hoodies','sweatshirts','ziphoodies','halfzips','bombers','pants','shorts','accessories']},
+  // Аксессуары
+  {code:'strap-reinforce', group:'bags', name:'Усиление ручек',    price:20, forCategories:['accessories']},
+  {code:'magnet-snap',     group:'bags', name:'Кнопка магнитная',  price:30, forCategories:['accessories']},
 ];
 
 export const EXTRAS_ICONS = {
@@ -31,6 +53,16 @@ export const EXTRAS_ICONS = {
   'reinforced-seam':'<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8l20 20"/><path d="M5 14l4-4M10 19l4-4M15 24l4-4M20 29l4-4"/></svg>',
   'double-stitch':  '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h28" stroke-dasharray="3 3"/><path d="M4 22h28" stroke-dasharray="3 3"/><path d="M4 10h28"/><path d="M4 26h28"/></svg>',
   'cuff-ribana':    '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8v20M12 8v20M16 8v20M20 8v20M24 8v20M28 8v20"/><path d="M6 8h24M6 28h24"/></svg>',
+  'neck-stitch':    '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14c4-4 12-4 16 0"/><path d="M10 14c4-4 12-4 16 0" stroke-dasharray="3 2" transform="translate(0,3)"/></svg>',
+  'neck-flatlock':  '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14c4-4 12-4 16 0"/><path d="M10 18c4-4 12-4 16 0"/><path d="M10 22c4-4 12-4 16 0"/></svg>',
+  'neck-twill':     '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14c4-4 12-4 16 0"/><rect x="12" y="18" width="12" height="4" rx="1"/></svg>',
+  'patch-woven':    '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="10" width="20" height="16" rx="1"/><path d="M12 14h12M12 18h12M12 22h8"/></svg>',
+  'patch-jacquard': '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="10" width="20" height="16" rx="1"/><path d="M14 14l4 4 4-4M14 22l4-4 4 4"/></svg>',
+  'label-hem':      '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 28h24"/><rect x="14" y="22" width="8" height="6" rx="1"/></svg>',
+  'tag-size':       '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="8" width="16" height="20" rx="1"/><path d="M15 16h6M16 20h4"/></svg>',
+  'hang-tag':       '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="10" width="16" height="20" rx="1"/><circle cx="18" cy="14" r="2"/><path d="M18 8v2"/></svg>',
+  'label-seam':     '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="12" width="12" height="12" rx="1"/><path d="M6 18h6M24 18h6"/></svg>',
+  'label-sew':      '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="12" width="12" height="12" rx="1"/><path d="M12 15h12" stroke-dasharray="2 2"/></svg>',
   'strap-reinforce':'<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8h4v20h-4zM22 8h4v20h-4z"/><path d="M14 14h8M14 22h8"/></svg>',
   'magnet-snap':    '<svg width="24" height="24" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="10"/><circle cx="18" cy="18" r="4"/><path d="M18 8v-4M18 32v-4"/></svg>',
 };
@@ -46,6 +78,16 @@ export const EXTRAS_DESCS = {
   'reinforced-seam':'Двойной шов на плечах для прочности',
   'double-stitch':  'Декоративная двойная строчка по краям',
   'cuff-ribana':    'Трикотажный подгиб рукавов рибаной',
+  'neck-stitch':    'Отстрочка 1мм по горловине',
+  'neck-flatlock':  'Распошивальный шов по горловине',
+  'neck-twill':     'Закрытие горловины киперной тесьмой',
+  'patch-woven':    'Тканая нашивка на ворот (жаккардовое плетение)',
+  'patch-jacquard': 'Жаккардовая нашивка, плотная структура',
+  'label-hem':      'Тканый лейбл, пришивается на подол',
+  'tag-size':       'Вшивная размерная бирка',
+  'hang-tag':       'Картонный хэнг-тег на верёвочке',
+  'label-seam':     'Бирка притачивается в шов при пошиве',
+  'label-sew':      'Бирка пришивается отдельной операцией (не в шов)',
   'strap-reinforce':'Дополнительное усиление строп и ручек',
   'magnet-snap':    'Скрытая магнитная кнопка-застёжка',
 };

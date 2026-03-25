@@ -16,9 +16,11 @@ beforeEach(() => {
     notes: '',
     role: 'manager',
     packOption: false,
+    packType: 'none',
     urgentOption: false,
     setField: vi.fn(),
     togglePack: vi.fn(),
+    setPackType: vi.fn(),
     toggleUrgent: vi.fn(),
     nextStep: vi.fn(),
     prevStep: vi.fn(),
@@ -62,9 +64,11 @@ describe('StepDetails', () => {
     expect(nextStep).toHaveBeenCalled();
   });
 
-  it('shows pack toggle', () => {
+  it('shows pack options', () => {
     render(<StepDetails />);
-    expect(screen.getByText(/Индивидуальная упаковка/)).toBeInTheDocument();
+    expect(screen.getByText('Без упаковки')).toBeInTheDocument();
+    expect(screen.getByText('БОПП пакет')).toBeInTheDocument();
+    expect(screen.getByText('ЗИП пакет')).toBeInTheDocument();
   });
 
   it('shows urgent toggle', () => {
@@ -72,13 +76,12 @@ describe('StepDetails', () => {
     expect(screen.getByText(/Срочное производство/)).toBeInTheDocument();
   });
 
-  it('calls togglePack when toggling pack', () => {
-    const togglePack = vi.fn();
-    useStore.setState({ togglePack });
+  it('calls setPackType when clicking pack button', () => {
+    const setPackType = vi.fn();
+    useStore.setState({ setPackType });
     render(<StepDetails />);
-    const checkboxes = screen.getAllByRole('checkbox');
-    fireEvent.click(checkboxes[0]); // pack checkbox
-    expect(togglePack).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('БОПП пакет'));
+    expect(setPackType).toHaveBeenCalledWith('bopp');
   });
 
   it('calls prevStep on back button', () => {

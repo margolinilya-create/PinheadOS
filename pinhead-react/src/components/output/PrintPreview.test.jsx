@@ -142,10 +142,10 @@ describe('PrintPreview', () => {
     expect(screen.queryByText('Стандартные условия')).not.toBeInTheDocument();
   });
 
-  it('shows packOption in options section', () => {
-    useStore.setState({ packOption: true });
+  it('shows packType in options section', () => {
+    useStore.setState({ packOption: true, packType: 'bopp' });
     renderPrintPreview();
-    expect(screen.getByText('Упаковка')).toBeInTheDocument();
+    expect(screen.getByText('БОПП пакет')).toBeInTheDocument();
   });
 
   it('renders multi-item position headers', () => {

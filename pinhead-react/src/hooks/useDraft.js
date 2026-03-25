@@ -13,7 +13,7 @@ const DRAFT_FIELDS = [
   'zoneTechs', 'zonePrints', 'flexZones', 'dtgZones', 'embZones', 'dtfZones',
   'zoneArtworks', 'designNotes', 'sizeComment', 'phone', 'messenger', 'bitrixDeal',
   'role', 'name', 'contact', 'email', 'deadline', 'address', 'notes',
-  'packOption', 'urgentOption', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
+  'packOption', 'packType', 'urgentOption', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];
 
 function getDraftData(state) {
