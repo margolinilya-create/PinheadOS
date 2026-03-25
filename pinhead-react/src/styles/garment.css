@@ -85,10 +85,10 @@
 .garment-mock    { position: relative; width: 260px; height: 300px; }
 .garment-svg-full { width: 100%; height: 100%; }
 /* ── Fit Selector ── */
-.fit-selector { display: flex; border: 1px solid var(--border-light); margin-bottom: 32px; }
+.fit-selector { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0; border: 1px solid var(--border-light); margin-bottom: 32px; }
 .fit-option {
-  flex: 1; display: flex; align-items: center; gap: 12px; padding: 16px 24px;
-  cursor: pointer; border-right: 1px solid var(--border-light);
+  display: flex; align-items: center; gap: 12px; padding: 16px 24px;
+  cursor: pointer; border-right: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);
   background: var(--white); transition: background 150ms ease-out; user-select: none;
 }
 .fit-option:last-child { border-right: none; }
@@ -99,11 +99,13 @@
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; font-family: 'Inter', sans-serif;
 }
+.fit-info { min-width: 0; }
 .fit-name {
   font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700;
   text-transform: uppercase; letter-spacing: .5px; line-height: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.fit-desc { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 400; color: var(--text-dim); margin-top: 3px; letter-spacing: .3px; }
+.fit-desc { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 400; color: var(--text-dim); margin-top: 3px; letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fit-option.selected .fit-desc { color: rgba(255,255,255,.6); }
 /* ── Color Picker ── */
 .supplier-tabs {
@@ -279,7 +281,7 @@
 @media (max-width: 768px) {
   .size-table-desktop { display: none; }
   .size-list-mobile { display: block; }
-  .fit-selector { flex-direction: column; }
+  .fit-selector { grid-template-columns: 1fr; }
   .supplier-tabs { flex-direction: column; width: 100%; }
   .supplier-tab { justify-content: center; }
   .add-size-form { flex-wrap: wrap; }
