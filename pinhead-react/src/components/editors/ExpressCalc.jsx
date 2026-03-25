@@ -5,7 +5,7 @@ import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
-import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getVolumeDiscount } from '../../utils/pricing';
+import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup } from '../../utils/pricing';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -165,9 +165,10 @@ export default function ExpressCalc() {
     const fabricPriceRub = fabric ? Math.round(fabric.priceUSD * usdRate * (sku.mainFabricUsage || 0)) : 0;
     const baseRaw = sewingPrice + fabricPriceRub;
 
-    // Volume discount on base
-    const volumeDiscount = getVolumeDiscount(qty);
-    const base = Math.round(baseRaw * (1 - volumeDiscount));
+    // Markup on base
+    const category = sku?.category || 'tshirts';
+    const markupPct = getMarkup(qty, category);
+    const base = Math.round(baseRaw * (1 + markupPct));
 
     // Extras cost
     const extrasCost = selectedExtras.reduce((sum, code) => {
@@ -186,7 +187,7 @@ export default function ExpressCalc() {
     const unitPrice = base + extrasCost + techTotal;
     const total = unitPrice * qty;
 
-    return { baseRaw, base, volumeDiscount, extrasCost, techTotal, zoneCount, unitPrice, total };
+    return { baseRaw, base, markupPct, extrasCost, techTotal, zoneCount, unitPrice, total };
   }, [sku, fabric, usdRate, expZoneData, qty, selectedExtras]);
 
   // ── Render zone params ──
@@ -446,19 +447,13 @@ export default function ExpressCalc() {
               <div className="exp-result-card">
                 <div className="exp-result-title">Расчёт стоимости</div>
                 <div className="exp-result-row">
-                  <span>База (пошив + ткань)</span>
-                  <b>
-                    {calc.volumeDiscount > 0 ? (
-                      <><s style={{ opacity: 0.4, marginRight: 4 }}>{calc.baseRaw.toLocaleString('ru-RU')} ₽</s>{calc.base.toLocaleString('ru-RU')} ₽</>
-                    ) : (
-                      <>{calc.base.toLocaleString('ru-RU')} ₽</>
-                    )}
-                  </b>
+                  <span>Себестоимость</span>
+                  <b>{calc.baseRaw.toLocaleString('ru-RU')} ₽</b>
                 </div>
-                {calc.volumeDiscount > 0 && (
-                  <div className="exp-result-row" style={{ color: 'var(--color-success)' }}>
-                    <span>Скидка за тираж ({qty} шт)</span>
-                    <b>−{Math.round(calc.volumeDiscount * 100)}%</b>
+                {calc.markupPct > 0 && (
+                  <div className="exp-result-row">
+                    <span>Наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
+                    <b>{calc.base.toLocaleString('ru-RU')} ₽</b>
                   </div>
                 )}
                 {calc.extrasCost > 0 && (

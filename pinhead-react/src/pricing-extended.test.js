@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  screenLookup, flexLookup, getVolumeDiscount, calcTotal,
+  screenLookup, flexLookup, getVolumeDiscount, getMarkup, calcTotal,
   getZoneSurcharge,
   getSkuEstPrice, calcZonePriceDirect, invalidatePricesCache,
 } from './utils/pricing';
@@ -49,108 +49,123 @@ beforeEach(() => {
   invalidatePricesCache();
 });
 // ════════════════════════════════════════════════
-// 1. getVolumeDiscount — не было НИ ОДНОГО теста
+// 1. getVolumeDiscount — deprecated, always 0
 // ════════════════════════════════════════════════
-describe('getVolumeDiscount', () => {
-  it('qty=1 → 0% (tier 1, discount 0)', () => {
+describe('getVolumeDiscount (deprecated)', () => {
+  it('always returns 0', () => {
     expect(getVolumeDiscount(1)).toBe(0);
-  });
-  it('qty=49 → 0% (below tier 50)', () => {
-    expect(getVolumeDiscount(49)).toBe(0);
-  });
-  it('qty=50 → 2% (tier boundary)', () => {
-    expect(getVolumeDiscount(50)).toBeCloseTo(0.02);
-  });
-  it('qty=51 → 2%', () => {
-    expect(getVolumeDiscount(51)).toBeCloseTo(0.02);
-  });
-  it('qty=99 → 2% (still in 50-99 band)', () => {
-    expect(getVolumeDiscount(99)).toBeCloseTo(0.02);
-  });
-  it('qty=100 → 3%', () => {
-    expect(getVolumeDiscount(100)).toBeCloseTo(0.03);
-  });
-  it('qty=300 → 5%', () => {
-    expect(getVolumeDiscount(300)).toBeCloseTo(0.05);
-  });
-  it('qty=500 → 8%', () => {
-    expect(getVolumeDiscount(500)).toBeCloseTo(0.08);
-  });
-  it('qty=1000 → 12%', () => {
-    expect(getVolumeDiscount(1000)).toBeCloseTo(0.12);
-  });
-  it('qty=2000 → 12% (max tier)', () => {
-    expect(getVolumeDiscount(2000)).toBeCloseTo(0.12);
-  });
-  it('qty=0 → 0%', () => {
-    expect(getVolumeDiscount(0)).toBe(0);
+    expect(getVolumeDiscount(100)).toBe(0);
+    expect(getVolumeDiscount(1000)).toBe(0);
   });
 });
 // ════════════════════════════════════════════════
-// 2. calcTotal — скидка за объём
+// 1b. getMarkup — наценка по тиражу и категории
 // ════════════════════════════════════════════════
-describe('calcTotal — volume discount', () => {
-  it('qty=49 → нет скидки', () => {
-    const state = makeState({ sizes: { M: 25, L: 24 } }); // 49 шт
-    const noDiscount = calcTotal(state);
-    const basePrice = PRICES.type['tee']; // 480
-    expect(noDiscount).toBe(49 * basePrice);
+describe('getMarkup', () => {
+  // markupTiers: [1, 25, 50, 100, 200, 300, 500, 1000]
+  // tshirts:     [0.75, 0.75, 0.70, 0.65, 0.55, 0.50, 0.45, 0.40]
+  it('qty=1 → 75% для tshirts', () => {
+    expect(getMarkup(1, 'tshirts')).toBeCloseTo(0.75);
   });
-  it('qty=50 → скидка 2% на базовую цену', () => {
-    const state = makeState({ sizes: { M: 25, L: 25 } }); // 50 шт
+  it('qty=24 → 75% (tier 1)', () => {
+    expect(getMarkup(24, 'tshirts')).toBeCloseTo(0.75);
+  });
+  it('qty=25 → 75% (tier 25)', () => {
+    expect(getMarkup(25, 'tshirts')).toBeCloseTo(0.75);
+  });
+  it('qty=50 → 70%', () => {
+    expect(getMarkup(50, 'tshirts')).toBeCloseTo(0.70);
+  });
+  it('qty=100 → 65%', () => {
+    expect(getMarkup(100, 'tshirts')).toBeCloseTo(0.65);
+  });
+  it('qty=200 → 55%', () => {
+    expect(getMarkup(200, 'tshirts')).toBeCloseTo(0.55);
+  });
+  it('qty=300 → 50%', () => {
+    expect(getMarkup(300, 'tshirts')).toBeCloseTo(0.50);
+  });
+  it('qty=500 → 45%', () => {
+    expect(getMarkup(500, 'tshirts')).toBeCloseTo(0.45);
+  });
+  it('qty=1000 → 40%', () => {
+    expect(getMarkup(1000, 'tshirts')).toBeCloseTo(0.40);
+  });
+  it('qty=2000 → 40% (max tier)', () => {
+    expect(getMarkup(2000, 'tshirts')).toBeCloseTo(0.40);
+  });
+  it('hoodies have different markup at qty=50', () => {
+    // hoodies: [0.75, 0.70, 0.65, ...]  vs tshirts: [0.75, 0.75, 0.70, ...]
+    expect(getMarkup(50, 'hoodies')).toBeCloseTo(0.65);
+  });
+  it('unknown category uses markupDefault', () => {
+    expect(getMarkup(1, 'unknown')).toBeCloseTo(0.75);
+    expect(getMarkup(50, 'unknown')).toBeCloseTo(0.65);
+  });
+});
+// ════════════════════════════════════════════════
+// 2. calcTotal — наценка за объём
+// ════════════════════════════════════════════════
+describe('calcTotal — markup', () => {
+  it('qty=25 → наценка 75% для tee (type-based)', () => {
+    const state = makeState({ sizes: { M: 15, L: 10 } }); // 25 шт
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee']; // 480
-    const discountedBase = Math.round(basePrice * 0.98); // 470
-    expect(total).toBe(50 * discountedBase);
+    const markup = getMarkup(25, 'tee');
+    const markedUp = Math.round(basePrice * (1 + markup));
+    expect(total).toBe(25 * markedUp);
   });
-  it('qty=100 → скидка 3%', () => {
+  it('qty=100 → наценка снижается', () => {
     const state = makeState({ sizes: { M: 50, L: 50 } }); // 100 шт
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee'];
-    const discountedBase = Math.round(basePrice * 0.97);
-    expect(total).toBe(100 * discountedBase);
+    const markup = getMarkup(100, 'tee');
+    const markedUp = Math.round(basePrice * (1 + markup));
+    expect(total).toBe(100 * markedUp);
   });
-  it('скидка НЕ применяется к стоимости печати', () => {
+  it('наценка НЕ применяется к стоимости печати отдельно', () => {
     const state = makeState({
-      sizes: { M: 50, L: 50 }, // 100 шт → 3% скидка
+      sizes: { M: 50, L: 50 }, // 100 шт
       zones: ['front'],
       zoneTechs: { front: 'screen' },
       zonePrints: { front: { colors: 1, size: 'A4', textile: 'white', fx: 'none' } },
     });
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee'];
-    const discountedBase = Math.round(basePrice * 0.97);
+    const markup = getMarkup(100, 'tee');
+    const markedUp = Math.round(basePrice * (1 + markup));
     const printPrice = screenLookup('A4', 1, 100);
-    expect(total).toBe(100 * (discountedBase + printPrice));
+    expect(total).toBe(100 * (markedUp + printPrice));
   });
 });
 // ════════════════════════════════════════════════
-// 3. calcTotal — срочность ПОСЛЕ скидки
+// 3. calcTotal — срочность ПОСЛЕ наценки
 // ════════════════════════════════════════════════
 describe('calcTotal — urgentOption порядок применения', () => {
-  it('срочность считается ПОСЛЕ скидки за объём', () => {
-    // qty=100 → 3% скидка, затем +20% срочность
+  it('срочность считается ПОСЛЕ наценки', () => {
     const state = makeState({
       sizes: { M: 50, L: 50 },
       urgentOption: true,
     });
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee'];
-    const discountedBase = Math.round(basePrice * 0.97);
-    // urgentSurcharge = unitPrice * 0.2, total = Math.round(qty * (unitPrice + surcharge))
-    const urgentSurcharge = discountedBase * 0.2;
-    const expected = Math.round(100 * (discountedBase + urgentSurcharge));
+    const markup = getMarkup(100, 'tee');
+    const markedUp = Math.round(basePrice * (1 + markup));
+    const urgentSurcharge = markedUp * 0.2;
+    const expected = Math.round(100 * (markedUp + urgentSurcharge));
     expect(total).toBe(expected);
   });
-  it('срочность без скидки (qty=10)', () => {
+  it('срочность с наценкой (qty=10)', () => {
     const state = makeState({
       sizes: { M: 5, L: 5 },
       urgentOption: true,
     });
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee'];
-    const urgentUnit = Math.round(basePrice * 1.20);
-    expect(total).toBe(10 * urgentUnit);
+    const markup = getMarkup(10, 'tee');
+    const markedUp = Math.round(basePrice * (1 + markup));
+    const expected = Math.round(10 * markedUp * 1.20);
+    expect(total).toBe(expected);
   });
   it('срочность не применяется если urgentOption=false', () => {
     const s1 = makeState({ sizes: { M: 5, L: 5 }, urgentOption: false });
@@ -163,7 +178,7 @@ describe('calcTotal — urgentOption порядок применения', () =>
 // ════════════════════════════════════════════════
 describe('calcTotal — с SKU-каталогом', () => {
   const sku = SKU_CATALOG_DEFAULT.find(s => s.code === 'T-001');
-  it('calcTotal с SKU считает через getSkuEstPrice', () => {
+  it('calcTotal с SKU считает через getSkuEstPrice + наценка', () => {
     const state = makeState({
       sku,
       fabric: 'kulirnaya',
@@ -171,7 +186,9 @@ describe('calcTotal — с SKU-каталогом', () => {
     });
     const total = calcTotal(state);
     const estPrice = getSkuEstPrice(sku, 'kulirnaya', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(total).toBe(20 * estPrice);
+    const markup = getMarkup(20, sku.category);
+    const markedUp = Math.round(estPrice * (1 + markup));
+    expect(total).toBe(20 * markedUp);
   });
   it('разные ткани дают разную цену (т.е. выбор ткани учитывается)', () => {
     const stateKulirnaya = makeState({

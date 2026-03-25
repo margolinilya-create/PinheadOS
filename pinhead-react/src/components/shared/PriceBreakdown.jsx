@@ -6,7 +6,7 @@ export default function PriceBreakdown({ breakdown, defaultOpen = false, compact
 
   if (!breakdown || breakdown.qty === 0) return null;
 
-  const { base, extras, labels, print, pack, discount, urgent, unitPrice, total, qty } = breakdown;
+  const { cost, markup, markupPct, markedBase, base, extras, labels, print, pack, urgent, unitPrice, total, qty } = breakdown;
 
   return (
     <div className={`${styles['pb-wrap']}${compact ? ` ${styles['pb-compact']}` : ''}`}>
@@ -15,9 +15,21 @@ export default function PriceBreakdown({ breakdown, defaultOpen = false, compact
       </button>
       {open && (
         <div className={styles['pb-body']} data-testid="pb-body">
+          {cost > 0 && (
+            <div className={styles['pb-row']}>
+              <span className={styles['pb-name']}>Себестоимость</span>
+              <span className={styles['pb-val']}>{cost.toLocaleString('ru-RU')} ₽</span>
+            </div>
+          )}
+          {markup > 0 && (
+            <div className={`${styles['pb-row']} ${styles['pb-row-markup']}`}>
+              <span className={styles['pb-name']}>Наценка +{Math.round((markupPct ?? 0) * 100)}%</span>
+              <span className={styles['pb-val']}>+{markup.toLocaleString('ru-RU')} ₽</span>
+            </div>
+          )}
           <div className={styles['pb-row']}>
             <span className={styles['pb-name']}>Базовая цена</span>
-            <span className={styles['pb-val']}>{base.toLocaleString('ru-RU')} ₽</span>
+            <span className={styles['pb-val']}>{(markedBase ?? base).toLocaleString('ru-RU')} ₽</span>
           </div>
           {extras > 0 && (
             <div className={styles['pb-row']}>
@@ -41,12 +53,6 @@ export default function PriceBreakdown({ breakdown, defaultOpen = false, compact
             <div className={styles['pb-row']}>
               <span className={styles['pb-name']}>Упаковка</span>
               <span className={styles['pb-val']}>+{pack.toLocaleString('ru-RU')} ₽</span>
-            </div>
-          )}
-          {discount > 0 && (
-            <div className={`${styles['pb-row']} ${styles['pb-row-discount']}`}>
-              <span className={styles['pb-name']}>Скидка</span>
-              <span className={styles['pb-val']}>-{discount.toLocaleString('ru-RU')} ₽</span>
             </div>
           )}
           {urgent > 0 && (

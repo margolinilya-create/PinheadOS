@@ -13,6 +13,8 @@
 .pb-name { font-weight: 500; }
 .pb-val { font-family: var(--mono); font-weight: 600; }
 .pb-row-discount .pb-val { color: var(--color-success, #34C759); }
+.pb-row-markup .pb-val { color: var(--color-success, #34C759); }
+.pb-row-markup .pb-name { color: var(--text-dim); font-size: 11px; }
 .pb-row-urgent .pb-val { color: var(--color-error, #FF3B30); }
 .pb-row-urgent .pb-name { color: var(--color-error, #FF3B30); }
 .pb-row-unit { font-weight: 600; }

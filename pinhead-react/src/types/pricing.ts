@@ -30,18 +30,23 @@ export interface Prices {
   pack: number;
   urgentMult: number;
   fit: Record<string, number>;
-  volumeTiers: number[];
-  volumeDiscounts: number[];
+  markupTiers: number[];
+  markupByType: Record<string, number[]>;
+  markupDefault: number[];
   flexMatrix?: Record<string, Record<number, number[]>>;
 }
 
 export interface PriceBreakdown {
-  base: number;
+  cost: number;
+  markup: number;
+  markupPct: number;
+  markedBase: number;
+  base: number;       // alias for cost
   extras: number;
   labels: number;
   print: number;
   pack: number;
-  discount: number;
+  discount: number;   // alias for markup
   urgent: number;
   unitPrice: number;
   total: number;

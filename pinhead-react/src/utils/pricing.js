@@ -235,16 +235,21 @@ export function getLabelConfigPrice(labelConfig) {
   return total;
 }
 
-// Скидка за объём тиража
-export function getVolumeDiscount(qty) {
+// Наценка по тиражу и категории
+export function getMarkup(qty, category) {
   const P = getPrices();
-  const tiers = P.volumeTiers || [];
-  const discounts = P.volumeDiscounts || [];
-  let discount = 0;
+  const tiers   = P.markupTiers   || [1, 25, 50, 100, 200, 300, 500, 1000];
+  const markups = P.markupByType?.[category] || P.markupDefault || [0.70];
+  let markup = markups[0] ?? 0.70;
   for (let i = tiers.length - 1; i >= 0; i--) {
-    if (qty >= tiers[i]) { discount = discounts[i] || 0; break; }
+    if (qty >= tiers[i]) { markup = markups[i] ?? markups[markups.length - 1]; break; }
   }
-  return discount;
+  return markup;
+}
+
+// deprecated — use getMarkup()
+export function getVolumeDiscount() {
+  return 0;
 }
 
 export function calcTotal(state, debug = false) {
@@ -272,13 +277,14 @@ export function calcTotal(state, debug = false) {
   const P = getPrices();
   const packCost = state.packOption ? (P.pack || 0) : 0;
 
-  // Скидка за объём применяется к базовой стоимости изделия
-  const volumeDiscount = getVolumeDiscount(totalQty);
-  const discountedBase = Math.round(basePrice * (1 - volumeDiscount));
+  // Наценка на себестоимость
+  const category = state.sku?.category || state.type || 'tshirts';
+  const markup = getMarkup(totalQty, category);
+  const markedUpBase = Math.round(basePrice * (1 + markup));
 
-  let unitPrice = discountedBase + extrasPrice + labelsCost + printPrice + packCost;
+  let unitPrice = markedUpBase + extrasPrice + labelsCost + printPrice + packCost;
 
-  // Срочность считается ПОСЛЕ скидки за объём
+  // Срочность считается ПОСЛЕ наценки
   const urgentSurcharge = state.urgentOption
     ? unitPrice * (P.urgentMult || 0.20)
     : 0;
@@ -288,8 +294,8 @@ export function calcTotal(state, debug = false) {
   if (debug) {
     console.table({
       basePrice, extrasPrice, printPrice, labelsCost, packCost,
-      volumeDiscount: `${Math.round(volumeDiscount * 100)}%`,
-      discountedBase, urgentSurcharge: Math.round(urgentSurcharge),
+      markup: `+${Math.round(markup * 100)}%`,
+      markedUpBase, urgentSurcharge: Math.round(urgentSurcharge),
       unitPrice, total,
     });
   }
@@ -300,14 +306,14 @@ export function calcTotal(state, debug = false) {
 // Расчёт с полной разбивкой по компонентам
 export function calcTotalBreakdown(state) {
   const qty = getTotalQty(state);
-  if (qty === 0) return { base: 0, extras: 0, labels: 0, print: 0, pack: 0, discount: 0, urgent: 0, unitPrice: 0, total: 0, qty: 0 };
+  if (qty === 0) return { cost: 0, markup: 0, markupPct: 0, markedBase: 0, base: 0, extras: 0, labels: 0, print: 0, pack: 0, discount: 0, urgent: 0, unitPrice: 0, total: 0, qty: 0 };
 
-  let basePrice;
+  let costPrice;
   if (state.sku) {
-    basePrice = getSkuEstPrice(state.sku, state.fabric, state.fabricsCatalog, state.trimCatalog, state.usdRate);
+    costPrice = getSkuEstPrice(state.sku, state.fabric, state.fabricsCatalog, state.trimCatalog, state.usdRate);
   } else {
     const P = getPrices();
-    basePrice = (P.type[state.type] || 480)
+    costPrice = (P.type[state.type] || 480)
       + (!isAccessory(state.type) && P.fit ? (P.fit[state.fit || 'regular'] || 0) : 0)
       + (P.fabric[state.fabric] || 0);
   }
@@ -323,18 +329,19 @@ export function calcTotalBreakdown(state) {
   const P = getPrices();
   const pack = state.packOption ? (P.pack || 0) : 0;
 
-  const volumeDiscount = getVolumeDiscount(qty);
-  const discount = volumeDiscount > 0 ? Math.round(basePrice * volumeDiscount) : 0;
-  const discountedBase = Math.round(basePrice * (1 - volumeDiscount));
+  const category = state.sku?.category || state.type || 'tshirts';
+  const markupPct = getMarkup(qty, category);
+  const markupAmount = markupPct > 0 ? Math.round(costPrice * markupPct) : 0;
+  const markedBase = Math.round(costPrice * (1 + markupPct));
 
-  const unitBeforeUrgent = discountedBase + extras + labels + print + pack;
+  const unitBeforeUrgent = markedBase + extras + labels + print + pack;
   const urgentAmount = state.urgentOption
     ? Math.round(unitBeforeUrgent * (P.urgentMult || 0.20))
     : 0;
   const unitPrice = unitBeforeUrgent + urgentAmount;
   const total = Math.round(qty * (unitBeforeUrgent + (state.urgentOption ? unitBeforeUrgent * (P.urgentMult || 0.20) : 0)));
 
-  return { base: basePrice, extras, labels, print, pack, discount, urgent: urgentAmount, unitPrice, total, qty };
+  return { cost: costPrice, markup: markupAmount, markupPct, markedBase, base: costPrice, extras, labels, print, pack, discount: markupAmount, urgent: urgentAmount, unitPrice, total, qty };
 }
 
 export function getUnitPrice(state) {

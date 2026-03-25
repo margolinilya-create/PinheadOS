@@ -66,8 +66,23 @@ const TABS = [
   { id: 'dtf', name: 'DTF' },
   { id: 'dtg', name: 'DTG' },
   { id: 'flex', name: 'Флекс' },
+  { id: 'markup', name: 'Наценки' },
   { id: 'extras', name: 'Доп' },
   { id: 'history', name: 'История' },
+];
+
+const MARKUP_CATEGORIES = [
+  { key: 'tshirts',      label: 'Футболки' },
+  { key: 'longsleeves',  label: 'Лонгсливы' },
+  { key: 'sweatshirts',  label: 'Свитшоты' },
+  { key: 'halfzips',     label: 'Халф-зипы' },
+  { key: 'hoodies',      label: 'Худи' },
+  { key: 'ziphoodies',   label: 'Зип-худи' },
+  { key: 'polo',         label: 'Поло' },
+  { key: 'bombers',      label: 'Бомберы' },
+  { key: 'pants',        label: 'Штаны' },
+  { key: 'shorts',       label: 'Шорты' },
+  { key: 'accessories',  label: 'Аксессуары' },
 ];
 
 const EMB_AREA_LABELS = { s: 'S до 7 см', m: 'M до 12 см', l: 'L до 20 см' };
@@ -442,6 +457,59 @@ export default function PriceEditor() {
     </div>
   );
 
+  const updateMarkup = (catKey, tierIdx, value) => {
+    const num = Number(value);
+    if (isNaN(num)) return;
+    const pct = num / 100;
+    const old = prices.markupByType?.[catKey]?.[tierIdx];
+    setPrices(p => {
+      const mbt = { ...p.markupByType };
+      mbt[catKey] = [...(mbt[catKey] || p.markupDefault || [])];
+      mbt[catKey][tierIdx] = pct;
+      return { ...p, markupByType: mbt };
+    });
+    addHistory(`markupByType.${catKey}.${tierIdx}`, old, pct);
+  };
+
+  const renderMarkupTab = () => {
+    const tiers = prices.markupTiers || [1, 25, 50, 100, 200, 300, 500, 1000];
+    return (
+      <div className="pe-section">
+        <h3>Наценка по категориям и тиражу</h3>
+        <p className="pe-hint">Значения в % — наценка на себестоимость</p>
+        <table className="pe-matrix-table pe-markup-table">
+          <thead>
+            <tr>
+              <th>Категория</th>
+              {tiers.map((t, i) => <th key={i}>{t}+</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {MARKUP_CATEGORIES.map(({ key, label }) => {
+              const row = prices.markupByType?.[key] || prices.markupDefault || [];
+              return (
+                <tr key={key}>
+                  <td className="pe-matrix-label pe-markup-cat">{label}</td>
+                  {tiers.map((_, ti) => (
+                    <td key={ti}>
+                      <input
+                        type="number"
+                        className="pe-matrix-input"
+                        step="1"
+                        value={Math.round((row[ti] ?? 0) * 100)}
+                        onChange={e => updateMarkup(key, ti, e.target.value)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const renderHistoryTab = () => (
     <div className="pe-section">
       <h3>История изменений</h3>
@@ -501,6 +569,7 @@ export default function PriceEditor() {
           {tab === 'dtf' && renderDtfTab()}
           {tab === 'dtg' && renderDtgTab()}
           {tab === 'flex' && renderFlexTab()}
+          {tab === 'markup' && renderMarkupTab()}
           {tab === 'extras' && renderExtrasTab()}
           {tab === 'history' && renderHistoryTab()}
         </div>
