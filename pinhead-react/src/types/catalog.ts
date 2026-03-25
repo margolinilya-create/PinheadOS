@@ -21,24 +21,21 @@ export interface SkuItem {
 export interface Fabric {
   code: string;
   name: string;
+  supplier: string;
+  composition: string;
+  density: number | null;
   priceUSD: number;
   forCategories: string[];
-  supplier: string;
 }
 
 export interface Trim {
   code: string;
   name: string;
+  supplier: string;
   priceUSD: number;
 }
 
-export interface FabricOption {
-  key: string;
-  name: string;
-  meta: string;
-  sub: string;
-  priceKey: string;
-}
+export const FABRIC_SUPPLIERS: string[];
 
 export interface ColorEntry {
   code: string;

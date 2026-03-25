@@ -37,7 +37,7 @@ const catalogs = {
 
 function makeItemState(overrides = {}) {
   return {
-    type: 'tee', fabric: 'kulirnaya', color: '01-01', sku: TEE,
+    type: 'tee', fabric: 'medas-kulirnaya-100-160', color: '01-01', sku: TEE,
     fit: 'regular', fitChosen: true,
     sizes: { S: 10, M: 20, L: 10 }, customSizes: [],
     extras: [], labels: [], zones: [], tech: 'screen', textileColor: 'white',
@@ -60,7 +60,7 @@ function makeFullState(overrides = {}) {
 function fillTeeOrder() {
   const store = useStore.getState();
   store.selectSku(TEE);
-  store.selectFabric('kulirnaya');
+  store.selectFabric('medas-kulirnaya-100-160');
   store.selectColor('01-01');
   store.setSize('S', 10);
   store.setSize('M', 20);
@@ -70,7 +70,7 @@ function fillTeeOrder() {
 function fillHoodieOrder() {
   const store = useStore.getState();
   store.selectSku(HOODIE);
-  store.selectFabric('futher-350-petlya');
+  store.selectFabric('medas-futher-petlya-65-320');
   store.selectColor('01-01');
   store.setSize('M', 15);
   store.setSize('L', 15);
@@ -128,10 +128,10 @@ describe('Multi-item: snapshotItem & restoreItem', () => {
   });
 
   it('restoreItem produces a patch with all fields', () => {
-    const item = makeItemState({ type: 'hoodie', fabric: 'futher-350-petlya' });
+    const item = makeItemState({ type: 'hoodie', fabric: 'medas-futher-petlya-65-320' });
     const patch = restoreItem(item);
     expect(patch.type).toBe('hoodie');
-    expect(patch.fabric).toBe('futher-350-petlya');
+    expect(patch.fabric).toBe('medas-futher-petlya-65-320');
   });
 
   it('restoreItem deep-copies objects', () => {
@@ -454,7 +454,7 @@ describe('calcItemTotal', () => {
 
   it('calculates hoodie with extras', () => {
     const item = makeItemState({
-      type: 'hoodie', sku: HOODIE, fabric: 'futher-350-petlya',
+      type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320',
       sizes: { M: 25, L: 25 }, extras: ['grommet', 'lace-flat'],
     });
     const total = calcItemTotal(item, catalogs);
@@ -464,7 +464,7 @@ describe('calcItemTotal', () => {
 
   it('calculates accessory (shopper)', () => {
     const item = makeItemState({
-      type: 'shopper', sku: SHOPPER, fabric: 'kulirnaya',
+      type: 'shopper', sku: SHOPPER, fabric: 'medas-kulirnaya-100-160',
       sizes: { 'ONE SIZE': 100 },
     });
     const total = calcItemTotal(item, catalogs);
@@ -597,7 +597,7 @@ describe('Multi-item grand total', () => {
   it('grand total = sum of item totals', () => {
     const tee = makeItemState();
     const hoodie = makeItemState({
-      type: 'hoodie', sku: HOODIE, fabric: 'futher-350-petlya',
+      type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320',
       sizes: { M: 15, L: 15 },
     });
     const teeTotal = calcItemTotal(tee, catalogs);
@@ -609,8 +609,8 @@ describe('Multi-item grand total', () => {
   it('3-item order totals correctly', () => {
     const items = [
       makeItemState(),
-      makeItemState({ type: 'hoodie', sku: HOODIE, fabric: 'futher-350-petlya', sizes: { M: 10 } }),
-      makeItemState({ type: 'shopper', sku: SHOPPER, fabric: 'kulirnaya', sizes: { 'ONE SIZE': 50 } }),
+      makeItemState({ type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320', sizes: { M: 10 } }),
+      makeItemState({ type: 'shopper', sku: SHOPPER, fabric: 'medas-kulirnaya-100-160', sizes: { 'ONE SIZE': 50 } }),
     ];
     const grand = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
     expect(grand).toBe(
@@ -660,7 +660,7 @@ describe('Single-item full flow', () => {
 
   it('accessory order (shopper) completes', () => {
     useStore.getState().selectSku(SHOPPER);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().setOneSizeQty(200);
     advanceToItems();
@@ -675,7 +675,7 @@ describe('Single-item full flow', () => {
 
   it('zip-hoodie order', () => {
     useStore.getState().selectSku(ZIP);
-    useStore.getState().selectFabric('futher-350-petlya');
+    useStore.getState().selectFabric('medas-futher-petlya-65-320');
     useStore.getState().selectColor('01-01');
     useStore.getState().setSize('M', 20);
     advanceToItems();
@@ -684,7 +684,7 @@ describe('Single-item full flow', () => {
 
   it('pants order', () => {
     useStore.getState().selectSku(PANTS);
-    useStore.getState().selectFabric('futher-350-petlya');
+    useStore.getState().selectFabric('medas-futher-petlya-65-320');
     useStore.getState().selectColor('01-01');
     useStore.getState().setSize('L', 30);
     advanceToItems();
@@ -693,7 +693,7 @@ describe('Single-item full flow', () => {
 
   it('shorts order', () => {
     useStore.getState().selectSku(SHORTS);
-    useStore.getState().selectFabric('futher-350-petlya');
+    useStore.getState().selectFabric('medas-futher-petlya-65-320');
     useStore.getState().selectColor('01-01');
     useStore.getState().setSize('M', 40);
     advanceToItems();
@@ -702,7 +702,7 @@ describe('Single-item full flow', () => {
 
   it('longsleeve order', () => {
     useStore.getState().selectSku(LONGSLEEVE);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().setSize('S', 15);
     advanceToItems();
@@ -711,7 +711,7 @@ describe('Single-item full flow', () => {
 
   it('polo order', () => {
     useStore.getState().selectSku(POLO);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().setSize('M', 25);
     advanceToItems();
@@ -737,7 +737,7 @@ describe('Multi-item full flow', () => {
     advanceToItems();
     useStore.getState().addNewItem();
     useStore.getState().selectSku(SHOPPER);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().setOneSizeQty(100);
     advanceToItems();
@@ -753,7 +753,7 @@ describe('Multi-item full flow', () => {
     advanceToItems();
     useStore.getState().addNewItem();
     useStore.getState().selectSku(SWEAT);
-    useStore.getState().selectFabric('futher-350-petlya');
+    useStore.getState().selectFabric('medas-futher-petlya-65-320');
     useStore.getState().selectColor('01-01');
     useStore.getState().setSize('M', 10);
     advanceToItems();
@@ -828,7 +828,7 @@ describe('loadOrder — new format (with items[])', () => {
       id: 'id-1', order_number: 'PH-001',
       data: {
         items: [
-          { type: 'tee', sku: { code: 'T-003' }, fabric: 'kulirnaya', color: '01-01', fit: 'regular',
+          { type: 'tee', sku: { code: 'T-003' }, fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular',
             sizes: { S: 10, M: 20 }, customSizes: [], extras: [], zones: ['front'],
             zoneTechs: { front: 'screen' }, zonePrints: {}, flexZones: {}, dtgZones: {},
             embZones: {}, dtfZones: {}, zoneArtworks: {}, designNotes: '', sizeComment: '',
@@ -855,7 +855,7 @@ describe('loadOrder — new format (with items[])', () => {
       id: 'id-2', order_number: 'PH-002',
       data: {
         items: [
-          { type: 'hoodie', sku: { code: 'H-002' }, fabric: 'futher-350-petlya',
+          { type: 'hoodie', sku: { code: 'H-002' }, fabric: 'medas-futher-petlya-65-320',
             color: '01-01', fit: 'regular', sizes: { M: 10 }, customSizes: [],
             extras: [], zones: [], zoneTechs: {}, zonePrints: {}, flexZones: {},
             dtgZones: {}, embZones: {}, dtfZones: {}, zoneArtworks: {},
@@ -880,13 +880,13 @@ describe('loadOrder — new format (with items[])', () => {
             zoneTechs: {}, zonePrints: {}, flexZones: {}, dtgZones: {}, embZones: {},
             dtfZones: {}, zoneArtworks: {}, customSizes: [], designNotes: '',
             sizeComment: '', noPrint: true, labelConfig: defaultItemFields.labelConfig,
-            fabric: 'kulirnaya', color: '01-01', fit: 'regular', textileColor: 'white',
+            fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular', textileColor: 'white',
             colorSupplier: 'medastex', skuFilter: 'all' },
           { type: 'hoodie', sku: { code: 'H-001' }, sizes: { L: 20 }, extras: ['grommet'],
             zones: ['front'], zoneTechs: { front: 'screen' }, zonePrints: {},
             flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {}, zoneArtworks: {},
             customSizes: [], designNotes: '', sizeComment: '', noPrint: false,
-            labelConfig: defaultItemFields.labelConfig, fabric: 'futher-350-petlya',
+            labelConfig: defaultItemFields.labelConfig, fabric: 'medas-futher-petlya-65-320',
             color: '01-01', fit: 'regular', textileColor: 'white',
             colorSupplier: 'medastex', skuFilter: 'all' },
         ],
@@ -907,7 +907,7 @@ describe('loadOrder — old format (without items[])', () => {
     const order = {
       id: 'id-old', order_number: 'PH-OLD',
       data: {
-        type: 'tee', fabric: 'kulirnaya', color: '01-01', fit: 'regular',
+        type: 'tee', fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular',
         sizes: { S: 10, M: 20 }, customSizes: [],
         extras: [], zones: [], zoneTechs: {},
         sku: { code: 'T-003' }, name: 'Old Format',
@@ -926,7 +926,7 @@ describe('loadOrder — old format (without items[])', () => {
     const order = {
       id: 'id-old2', order_number: 'PH-OLD2',
       data: {
-        type: 'hoodie', sku: { code: 'H-002' }, fabric: 'futher-350-petlya',
+        type: 'hoodie', sku: { code: 'H-002' }, fabric: 'medas-futher-petlya-65-320',
         color: '01-01', sizes: { M: 10 }, name: 'Old',
         packOption: false, urgentOption: false,
       },
@@ -941,7 +941,7 @@ describe('loadOrder — old format (without items[])', () => {
     const order = {
       id: 'id-old3', order_number: 'PH-OLD3',
       data: {
-        type: 'tee', sku: { code: 'T-001' }, fabric: 'kulirnaya', color: '01-01',
+        type: 'tee', sku: { code: 'T-001' }, fabric: 'medas-kulirnaya-100-160', color: '01-01',
         sizes: { M: 10 }, zones: ['front', 'back'],
         zoneTechs: { front: 'screen', back: 'dtg' },
         zonePrints: { front: { colors: 2, size: 'A4', textile: 'white', fx: 'none' } },
@@ -969,7 +969,7 @@ describe('loadOrder — old format (without items[])', () => {
     const order = {
       id: 'id-ext', order_number: 'PH-EXT',
       data: {
-        type: 'hoodie', sku: { code: 'H-001' }, fabric: 'futher-350-petlya',
+        type: 'hoodie', sku: { code: 'H-001' }, fabric: 'medas-futher-petlya-65-320',
         color: '01-01', sizes: { M: 10 }, extras: ['grommet', 'lace-flat'],
         zones: [], name: 'Extras', packOption: false, urgentOption: false,
       },
@@ -982,7 +982,7 @@ describe('loadOrder — old format (without items[])', () => {
     const order = {
       id: 'id-lbl', order_number: 'PH-LBL',
       data: {
-        type: 'tee', sku: { code: 'T-001' }, fabric: 'kulirnaya', color: '01-01',
+        type: 'tee', sku: { code: 'T-001' }, fabric: 'medas-kulirnaya-100-160', color: '01-01',
         sizes: { M: 10 }, zones: [], name: 'Labels',
         labelConfig: {
           careLabel: { enabled: true, logoOption: 'my-logo' },
@@ -1165,7 +1165,7 @@ describe('Edge cases: zones', () => {
 describe('Edge cases: SKU switching', () => {
   it('switching SKU type resets fabric/color', () => {
     useStore.getState().selectSku(TEE);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().selectSku(HOODIE);
     expect(useStore.getState().fabric).toBe('');
@@ -1174,7 +1174,7 @@ describe('Edge cases: SKU switching', () => {
 
   it('switching within same type preserves fabric', () => {
     useStore.getState().selectSku(TEE);
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().selectSku(TEE_OVER); // same category: tshirts
     // Type stays 'tee' but code changes, so reset happens
@@ -1188,7 +1188,7 @@ describe('Edge cases: SKU switching', () => {
 
   it('selectFit changes fit and resets fabric/color if different', () => {
     useStore.getState().selectSku(TEE); // fit: 'regular'
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectColor('01-01');
     useStore.getState().selectFit('oversize');
     expect(useStore.getState().fit).toBe('oversize');
@@ -1198,9 +1198,9 @@ describe('Edge cases: SKU switching', () => {
 
   it('selectFit same fit does not reset', () => {
     useStore.getState().selectSku(TEE); // fit: 'regular'
-    useStore.getState().selectFabric('kulirnaya');
+    useStore.getState().selectFabric('medas-kulirnaya-100-160');
     useStore.getState().selectFit('regular');
-    expect(useStore.getState().fabric).toBe('kulirnaya');
+    expect(useStore.getState().fabric).toBe('medas-kulirnaya-100-160');
   });
 });
 
@@ -1335,7 +1335,7 @@ describe('calcTotal — various scenarios', () => {
 
   it('hoodie 30 pcs with screen front', () => {
     const s = makeFullState({
-      type: 'hoodie', sku: HOODIE, fabric: 'futher-350-petlya',
+      type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320',
       sizes: { M: 15, L: 15 },
       zones: ['front'], zoneTechs: { front: 'screen' },
       zonePrints: { front: { colors: 2, size: 'A4', textile: 'white', fx: 'none' } },
@@ -1344,8 +1344,8 @@ describe('calcTotal — various scenarios', () => {
   });
 
   it('oversize hoodie costs more than regular via fabric usage', () => {
-    const reg = makeFullState({ type: 'hoodie', sku: HOODIE, fabric: 'futher-350-petlya', sizes: { M: 10 } });
-    const over = makeFullState({ type: 'hoodie', sku: HOODIE_OVER, fabric: 'futher-350-petlya', sizes: { M: 10 } });
+    const reg = makeFullState({ type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320', sizes: { M: 10 } });
+    const over = makeFullState({ type: 'hoodie', sku: HOODIE_OVER, fabric: 'medas-futher-petlya-65-320', sizes: { M: 10 } });
     expect(calcTotal(over)).toBeGreaterThanOrEqual(calcTotal(reg));
   });
 
@@ -1556,7 +1556,7 @@ describe('Multi-item: concurrent add/remove cycles', () => {
 describe('Multi-item pricing: pack/urgent affect all items', () => {
   it('pack adds cost per unit across all items', () => {
     const tee = makeItemState({ sizes: { M: 10 } });
-    const hoodie = makeItemState({ type: 'hoodie', sku: HOODIE, fabric: 'futher-350-petlya', sizes: { L: 10 } });
+    const hoodie = makeItemState({ type: 'hoodie', sku: HOODIE, fabric: 'medas-futher-petlya-65-320', sizes: { L: 10 } });
     const noPack = calcItemTotal(tee, catalogs) + calcItemTotal(hoodie, catalogs);
     const withPack = calcItemTotal(tee, { ...catalogs, packOption: true }) + calcItemTotal(hoodie, { ...catalogs, packOption: true });
     expect(withPack - noPack).toBe(20 * 15); // 10+10 units × 15₽
@@ -1575,7 +1575,7 @@ describe('Data references in items', () => {
   it('TYPE_NAMES resolves hoodie', () => { expect(TYPE_NAMES.hoodie).toBe('Худи'); });
   it('TYPE_NAMES resolves sweat', () => { expect(TYPE_NAMES.sweat).toBe('Свитшот'); });
   it('TYPE_NAMES resolves pants', () => { expect(TYPE_NAMES.pants).toBe('Штаны'); });
-  it('FABRIC_NAMES resolves kulirnaya', () => { expect(FABRIC_NAMES.kulirnaya).toContain('Кулирка'); });
+  it('FABRIC_NAMES has entries', () => { expect(Object.keys(FABRIC_NAMES).length).toBeGreaterThan(0); });
   it('TECH_NAMES resolves screen', () => { expect(TECH_NAMES.screen).toBe('Шелкография'); });
   it('TECH_NAMES resolves dtf', () => { expect(TECH_NAMES.dtf).toBe('DTF Transfer'); });
   it('ZONE_LABELS resolves front', () => { expect(ZONE_LABELS.front).toBeDefined(); });

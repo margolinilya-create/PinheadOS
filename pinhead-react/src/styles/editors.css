@@ -417,3 +417,19 @@
 .extras-add-form { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 12px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-sm); background: var(--surface); }
 .extras-add-form .sku-edit-input { flex: 1; }
 .extras-add-form .sku-edit-num { width: 80px !important; flex: none; }
+/* ═══════════════════════════════════════════ */
+/* FABRICS TABLE (SkuEditor)                  */
+/* ═══════════════════════════════════════════ */
+.fabrics-table { width:100%; border-collapse:collapse; font-size:12px; }
+.fabrics-table th { padding:6px 10px; font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text-dim); border-bottom:0.5px solid var(--border); text-align:left; }
+.fabrics-table td { padding:6px 10px; border-bottom:0.5px solid var(--border); vertical-align:middle; }
+.fabrics-table tr:hover td { background:var(--surface); }
+.fabric-changed td:first-child { border-left:2px solid var(--accent); }
+.fabric-changed { background:rgba(43,43,240,0.03); }
+.fabric-price-inp { width:58px; padding:3px 6px; text-align:right; border:0.5px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--mono); font-size:12px; background:var(--card); color:var(--text); }
+.fabric-price-inp:focus { border-color:var(--accent); outline:none; }
+.supplier-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+.cat-pill { display:inline-block; padding:1px 5px; font-size:9px; border-radius:3px; background:var(--surface); color:var(--text-dim); margin:1px 2px 1px 0; white-space:nowrap; }
+.supplier-filter { display:flex; gap:4px; }
+.supplier-filter-btn { padding:4px 9px; font-size:11px; font-weight:500; border:0.5px solid var(--border-mid); border-radius:var(--radius-sm); background:transparent; cursor:pointer; color:var(--text-mid); }
+.supplier-filter-btn.active { background:var(--ink); color:#fff; border-color:var(--ink); }

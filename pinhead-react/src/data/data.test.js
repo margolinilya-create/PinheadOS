@@ -7,7 +7,7 @@ import {
   LABELS_CATALOG_DEFAULT, LABEL_CONFIG, HARDWARE_CATALOG_DEFAULT,
   SIZES, TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS,
   DEFAULT_USD_RATE, findColorEntry,
-  LAYER1_TYPES, LAYER2_TYPES, FABRICS_LAYER1, FABRICS_LAYER2,
+  LAYER1_TYPES, LAYER2_TYPES, FABRIC_SUPPLIERS,
 } from './index';
 
 // ═══════════════════════════════
@@ -40,11 +40,11 @@ describe('SKU Catalog', () => {
 });
 
 describe('Fabrics Catalog', () => {
-  it('has 8 fabrics', () => {
-    expect(FABRICS_CATALOG_DEFAULT).toHaveLength(8);
+  it('has 38 fabrics', () => {
+    expect(FABRICS_CATALOG_DEFAULT).toHaveLength(38);
   });
-  it('has 3 trims', () => {
-    expect(TRIM_CATALOG_DEFAULT).toHaveLength(3);
+  it('has 7 trims', () => {
+    expect(TRIM_CATALOG_DEFAULT).toHaveLength(7);
   });
   it('every fabric has priceUSD and forCategories', () => {
     FABRICS_CATALOG_DEFAULT.forEach(f => {
@@ -177,9 +177,8 @@ describe('Constants', () => {
     expect(DEFAULT_USD_RATE).toBe(92);
   });
   it('Layer types defined', () => {
-    expect(LAYER1_TYPES).toEqual(['tee', 'longsleeve', 'polo']);
+    expect(LAYER1_TYPES).toEqual(['tshirts', 'longsleeves', 'polo']);
     expect(LAYER2_TYPES.length).toBeGreaterThan(0);
-    expect(FABRICS_LAYER1).toHaveLength(3);
-    expect(FABRICS_LAYER2).toHaveLength(5);
+    expect(FABRIC_SUPPLIERS).toEqual(['Медас', 'ТД Коттон', 'ТониТекс']);
   });
 });

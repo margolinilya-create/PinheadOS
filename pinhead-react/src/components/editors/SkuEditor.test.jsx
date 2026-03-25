@@ -68,13 +68,13 @@ describe('SkuEditor', () => {
   it('switches to fabrics tab', () => {
     renderSkuEditor();
     fireEvent.click(screen.getByText('Основная ткань'));
-    expect(screen.getByDisplayValue('Cotton 30/1')).toBeInTheDocument();
+    expect(screen.getByText('Cotton 30/1')).toBeInTheDocument();
   });
 
   it('switches to trims tab', () => {
     renderSkuEditor();
     fireEvent.click(screen.getByText('Отделочная ткань'));
-    expect(screen.getByDisplayValue('Рибана 1x1')).toBeInTheDocument();
+    expect(screen.getByText('Рибана 1x1')).toBeInTheDocument();
   });
 
   it('shows exchange rate bar', () => {

@@ -35,7 +35,7 @@ const SCREEN_QTY_TIERS = [50, 100, 300, 500, 700, 1000];
 const SCREEN_MAX_COLORS = 8;
 const SCREEN_TEXTILE_MULT = 1.3;
 const SCREEN_FUTHER_MULT = 1.5;
-const FUTHER_FABRICS = ['futher-350-nachers', 'futher-350-petlya', 'futher-370-nachers', 'futher-370-petlya', 'futher-470-petlya'];
+const isFutherFabric = (code) => /futher/i.test(code || '');
 
 const SCREEN_FX_DEFAULTS = { stone: 2, puff: 2, metallic: 2, fluor: 2 };
 const SCREEN_FX = [
@@ -108,7 +108,7 @@ export function screenCalcZone(zone, state) {
   const qty = getTotalQty(state) || 1;
   let base = screenLookup(p.size, parseInt(p.colors) || 1, qty);
   if (p.textile === 'color') base = Math.round(base * (getPrices().screenColoredMult || SCREEN_TEXTILE_MULT));
-  if (FUTHER_FABRICS.includes(state.fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
+  if (isFutherFabric(state.fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
   const fxMult = getScreenFxMult(p.fx);
   if (fxMult > 1) base = Math.round(base * fxMult);
   return base;
@@ -132,7 +132,7 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
     const fx = params.fx || 'none';
     let base = screenLookup(fmt, col, qty);
     if (textile === 'color') base = Math.round(base * (getPrices().screenColoredMult || SCREEN_TEXTILE_MULT));
-    if (FUTHER_FABRICS.includes(fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
+    if (isFutherFabric(fabric)) base = Math.round(base * (getPrices().screenFutherMult || SCREEN_FUTHER_MULT));
     const fxMult = getScreenFxMult(fx);
     if (fxMult > 1) base = Math.round(base * fxMult);
     return base;

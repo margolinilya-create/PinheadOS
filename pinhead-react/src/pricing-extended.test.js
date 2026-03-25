@@ -18,7 +18,7 @@ import { EXTRAS_CATALOG_DEFAULT } from './data/extras';
 function makeState(overrides = {}) {
   return {
     type: 'tee',
-    fabric: 'kulirnaya',
+    fabric: 'medas-kulirnaya-100-160',
     color: '01-01',
     sku: null,
     fit: 'regular',
@@ -181,41 +181,41 @@ describe('calcTotal — с SKU-каталогом', () => {
   it('calcTotal с SKU считает через getSkuEstPrice + наценка', () => {
     const state = makeState({
       sku,
-      fabric: 'kulirnaya',
+      fabric: 'medas-kulirnaya-100-160',
       sizes: { M: 10, L: 10 },
     });
     const total = calcTotal(state);
-    const estPrice = getSkuEstPrice(sku, 'kulirnaya', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const estPrice = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     const markup = getMarkup(20, sku.category);
     const markedUp = Math.round(estPrice * (1 + markup));
     expect(total).toBe(20 * markedUp);
   });
   it('разные ткани дают разную цену (т.е. выбор ткани учитывается)', () => {
-    const stateKulirnaya = makeState({
+    const stateA = makeState({
       sku,
-      fabric: 'kulirnaya',
+      fabric: 'medas-kulirnaya-100-160',
       sizes: { M: 10 },
     });
-    const stateDvunitka = makeState({
+    const stateB = makeState({
       sku,
-      fabric: 'dvunitka',
+      fabric: 'medas-kulirnaya-100-300',
       sizes: { M: 10 },
     });
-    const p1 = calcTotal(stateKulirnaya);
-    const p2 = calcTotal(stateDvunitka);
-    // dvunitka дороже kulirnaya (priceUSD 3.40 vs 2.80)
+    const p1 = calcTotal(stateA);
+    const p2 = calcTotal(stateB);
+    // 300g Кулирка $13.50 дороже 160g $10.90
     expect(p2).toBeGreaterThan(p1);
   });
   it('худи с футером считается дороже футболки с кулиркой', () => {
     const skuHoodie = SKU_CATALOG_DEFAULT.find(s => s.code === 'H-001');
     const stateHoodie = makeState({
       sku: skuHoodie,
-      fabric: 'futher-350-petlya',
+      fabric: 'medas-futher-petlya-65-320',
       sizes: { M: 10 },
     });
     const stateTee = makeState({
       sku,
-      fabric: 'kulirnaya',
+      fabric: 'medas-kulirnaya-100-160',
       sizes: { M: 10 },
     });
     expect(calcTotal(stateHoodie)).toBeGreaterThan(calcTotal(stateTee));
@@ -227,19 +227,19 @@ describe('calcTotal — с SKU-каталогом', () => {
 describe('getSkuEstPrice — учёт выбранной ткани', () => {
   const sku = SKU_CATALOG_DEFAULT.find(s => s.code === 'T-001');
   it('разные ткани дают разный fabricCost', () => {
-    const p1 = getSkuEstPrice(sku, 'kulirnaya', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    const p2 = getSkuEstPrice(sku, 'dvunitka', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const p1 = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const p2 = getSkuEstPrice(sku, 'medas-kulirnaya-100-300', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     expect(p2).toBeGreaterThan(p1);
   });
   it('fallback на категорию если fabricCode не передан', () => {
     const p1 = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    const p2 = getSkuEstPrice(sku, 'kulirnaya', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    // первая ткань категории tshirts = kulirnaya → должны совпасть
+    const p2 = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    // первая ткань категории tshirts = medas-kulirnaya-100-160 → должны совпасть
     expect(p1).toBe(p2);
   });
   it('usdRate влияет на цену', () => {
-    const p1 = getSkuEstPrice(sku, 'kulirnaya', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 80);
-    const p2 = getSkuEstPrice(sku, 'kulirnaya', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 100);
+    const p1 = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 80);
+    const p2 = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 100);
     expect(p2).toBeGreaterThan(p1);
   });
   it('неизвестный fabricCode → fallback на категорию', () => {
@@ -271,14 +271,14 @@ describe('screenCalcZone — multipliers из getPrices', () => {
   it('futher ткань применяет screenFutherMult из prices', () => {
     const base = getZoneSurcharge('front', makeState({
       sizes: { M: 50, L: 50 },
-      fabric: 'kulirnaya',
+      fabric: 'medas-kulirnaya-100-160',
       zones: ['front'],
       zoneTechs: { front: 'screen' },
       zonePrints: { front: { colors: 1, size: 'A4', textile: 'white', fx: 'none' } },
     }));
     const futher = getZoneSurcharge('front', makeState({
       sizes: { M: 50, L: 50 },
-      fabric: 'futher-350-nachers',
+      fabric: 'medas-futher-nachez-65-320',
       zones: ['front'],
       zoneTechs: { front: 'screen' },
       zonePrints: { front: { colors: 1, size: 'A4', textile: 'white', fx: 'none' } },
@@ -375,7 +375,7 @@ describe('screenLookup — граничные условия', () => {
 // ════════════════════════════════════════════════
 describe('calcZonePriceDirect — все техники', () => {
   it('screen: A4, 2 цвета, 100 шт', () => {
-    const result = calcZonePriceDirect('screen', { fmt: 'A4', col: 2 }, 100, 'kulirnaya');
+    const result = calcZonePriceDirect('screen', { fmt: 'A4', col: 2 }, 100, 'medas-kulirnaya-100-160');
     expect(result).toBe(screenLookup('A4', 2, 100));
   });
   it('flex: A4, 1 цвет, 50 шт', () => {

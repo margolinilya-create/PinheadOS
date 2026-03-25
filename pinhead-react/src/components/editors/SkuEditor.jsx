@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
-import { TRIM_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
+import { TRIM_CATALOG_DEFAULT, FABRIC_SUPPLIERS } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT, HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
 import { ZONE_LABELS } from '../../data/constants';
 import { supabase } from '../../lib/supabase';
@@ -26,6 +26,19 @@ const TABS = [
   { id: 'extras', name: 'Обработки' },
   { id: 'hardware', name: 'Фурнитура' },
 ];
+
+const CATEGORY_NAMES = {
+  tshirts:'Футболки', longsleeves:'Лонгсливы', polo:'Поло',
+  sweatshirts:'Свитшоты', halfzips:'Халф-зипы',
+  hoodies:'Худи', ziphoodies:'Зип-худи',
+  pants:'Штаны', shorts:'Шорты', bombers:'Бомберы',
+};
+
+const SUPPLIER_COLORS = {
+  'Медас': '#2B2BF0',
+  'ТД Коттон': '#06A77D',
+  'ТониТекс': '#C87137',
+};
 
 function generateCode(name) {
   const tr = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'zh',з:'z',и:'i',й:'y',
@@ -189,6 +202,10 @@ export default function SkuEditor() {
   });
 
   const [saving, setSaving] = useState(false);
+  const [fabricSupplierFilter, setFabricSupplierFilter] = useState('all');
+  const [fabricSearch, setFabricSearch] = useState('');
+  const [changedFabrics, setChangedFabrics] = useState(new Set());
+  const [changedTrims, setChangedTrims] = useState(new Set());
 
   // При монтировании — загрузить каталог из Supabase (если есть)
   useEffect(() => {
@@ -215,13 +232,17 @@ export default function SkuEditor() {
       localStorage.setItem('ph_usd_rate', String(usdRate));
     } catch { /* ignore storage errors */ }
     // Сохраняем в Supabase
-    const { error } = await supabase.from('app_config').upsert({
-      key: 'sku_catalog',
-      value: skuCatalog,
-      updated_at: new Date().toISOString(),
-    });
+    const ts = new Date().toISOString();
+    const results = await Promise.all([
+      supabase.from('app_config').upsert({ key: 'sku_catalog', value: skuCatalog, updated_at: ts }),
+      supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: fabricsCatalog, updated_at: ts }),
+      supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: trimCatalog, updated_at: ts }),
+    ]);
+    const hasError = results.some(r => r.error);
     setSaving(false);
-    if (!error) {
+    setChangedFabrics(new Set());
+    setChangedTrims(new Set());
+    if (!hasError) {
       toast.success('Каталог сохранён');
     } else {
       toast.warning('Сохранено локально (Supabase недоступен)');
@@ -261,36 +282,34 @@ export default function SkuEditor() {
   const updateFabric = (idx, field, value) => {
     const updated = fabricsCatalog.map((f, i) => i === idx ? { ...f, [field]: value } : f);
     setField('fabricsCatalog', updated);
+    setChangedFabrics(prev => new Set(prev).add(idx));
   };
   const addFabric = () => {
     setField('fabricsCatalog', [...fabricsCatalog, {
       code: generateCode('новая-ткань-' + (fabricsCatalog.length + 1)),
       name: 'Новая ткань',
-      priceUSD: 3.00,
+      supplier: 'Медас',
+      composition: '100% хб',
+      density: null,
+      priceUSD: 10.00,
       forCategories: ['tshirts'],
-      supplier: '—',
     }]);
   };
   const deleteFabric = (idx) => {
     setField('fabricsCatalog', fabricsCatalog.filter((_, i) => i !== idx));
   };
-  const toggleFabricCat = (idx, catId) => {
-    const f = fabricsCatalog[idx];
-    const cats = f.forCategories || [];
-    const updated = cats.includes(catId) ? cats.filter(c => c !== catId) : [...cats, catId];
-    updateFabric(idx, 'forCategories', updated);
-  };
-
   // ── Trim CRUD ──
   const updateTrim = (idx, field, value) => {
     const updated = trimCatalog.map((t, i) => i === idx ? { ...t, [field]: value } : t);
     setField('trimCatalog', updated);
+    setChangedTrims(prev => new Set(prev).add(idx));
   };
   const addTrim = () => {
     setField('trimCatalog', [...trimCatalog, {
       code: generateCode('новая-отделка-' + (trimCatalog.length + 1)),
       name: 'Новая отделка',
-      priceUSD: 2.50,
+      supplier: 'Медас',
+      priceUSD: 13.20,
     }]);
   };
   const deleteTrim = (idx) => {
@@ -425,6 +444,16 @@ export default function SkuEditor() {
     return g;
   }, [filteredSku]);
 
+  const filteredFabrics = useMemo(() => {
+    let items = fabricsCatalog;
+    if (fabricSupplierFilter !== 'all') items = items.filter(f => f.supplier === fabricSupplierFilter);
+    if (fabricSearch.trim()) {
+      const q = fabricSearch.toLowerCase();
+      items = items.filter(f => (f.name || '').toLowerCase().includes(q) || (f.composition || '').toLowerCase().includes(q));
+    }
+    return items;
+  }, [fabricsCatalog, fabricSupplierFilter, fabricSearch]);
+
   const getCatName = (id) => SKU_CATEGORIES.find(c => c.id === id)?.name || id;
 
   // ── Estimate price for SKU ──
@@ -443,6 +472,11 @@ export default function SkuEditor() {
       <div className="sku-actions-bar">
         <span className="sku-actions-title">Каталог SKU</span>
         <div className="sku-actions-right">
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Курс $</span>
+          <input type="number" id="usd-rate-sku" value={usdRate} step="0.1"
+            onChange={e => setField('usdRate', Math.max(1, parseFloat(e.target.value) || 1))}
+            style={{ width: 60, padding: '3px 6px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, border: '0.5px solid var(--border-mid)', borderRadius: 'var(--radius-sm)' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>₽/$</span>
           <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
           <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
           <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
@@ -578,47 +612,55 @@ export default function SkuEditor() {
       {tab === 'fabrics' && (
         <div className="sku-ed-body">
           <div className="sku-ed-toolbar">
-            <span className="sku-ed-count">Всего: {fabricsCatalog.length} тканей</span>
+            <div className="supplier-filter">
+              <button className={`supplier-filter-btn${fabricSupplierFilter === 'all' ? ' active' : ''}`} onClick={() => setFabricSupplierFilter('all')}>Все</button>
+              {FABRIC_SUPPLIERS.map(s => (
+                <button key={s} className={`supplier-filter-btn${fabricSupplierFilter === s ? ' active' : ''}`} onClick={() => setFabricSupplierFilter(s)}>{s}</button>
+              ))}
+            </div>
+            <input className="page-search" placeholder="Поиск по названию / составу..." value={fabricSearch} onChange={e => setFabricSearch(e.target.value)} style={{ maxWidth: 220 }} />
+            <span className="sku-ed-count">{filteredFabrics.length} тканей</span>
             <button className="sku-ed-add-btn" onClick={addFabric}>+ Добавить</button>
           </div>
-          <table className="sku-ed-table">
+          <table className="fabrics-table">
             <thead>
               <tr>
-                <th className="sku-th-num">№</th>
-                <th className="sku-th-art">Код</th>
-                <th className="sku-th-name">Название</th>
-                <th className="sku-th-price">$/м</th>
-                <th className="sku-th-price">₽/м</th>
-                <th>Категории</th>
-                <th className="sku-th-del"></th>
+                <th>Название</th>
+                <th>Состав</th>
+                <th>Плотность</th>
+                <th>Поставщик</th>
+                <th>Используется в</th>
+                <th>$/м</th>
+                <th>≈ ₽/м</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {fabricsCatalog.map((f, i) => (
-                <tr key={f.code + i}>
-                  <td className="sku-td-num">{i + 1}</td>
-                  <td className="sku-td-art">{f.code}</td>
-                  <td>
-                    <input className="sku-edit-input sku-edit-name" value={f.name}
-                      onChange={e => updateFabric(i, 'name', e.target.value)} />
-                  </td>
-                  <td>
-                    <input className="sku-edit-input sku-edit-num" type="number" step="0.1" value={f.priceUSD}
-                      onChange={e => updateFabric(i, 'priceUSD', Number(e.target.value) || 0)} />
-                  </td>
-                  <td className="sku-td-est">{Math.round(f.priceUSD * usdRate)} ₽</td>
-                  <td className="sku-td-cats">
-                    {SKU_CATEGORIES.map(c => (
-                      <button key={c.id}
-                        className={`sku-cat-tag${(f.forCategories || []).includes(c.id) ? ' active' : ''}`}
-                        onClick={() => toggleFabricCat(i, c.id)}>
-                        {c.name}
-                      </button>
-                    ))}
-                  </td>
-                  <td><button className="sku-del-btn" onClick={() => deleteFabric(i)} aria-label="Удалить ткань">✕</button></td>
-                </tr>
-              ))}
+              {filteredFabrics.map((f) => {
+                const realIdx = fabricsCatalog.indexOf(f);
+                return (
+                  <tr key={f.code + realIdx} className={changedFabrics.has(realIdx) ? 'fabric-changed' : ''}>
+                    <td>{f.name}</td>
+                    <td style={{ fontSize: 11, color: 'var(--text-dim)' }}>{f.composition || '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{f.density ? f.density + ' г/м²' : '—'}</td>
+                    <td>
+                      <span className="supplier-dot" style={{ background: SUPPLIER_COLORS[f.supplier] || 'var(--text-dim)' }} />
+                      {f.supplier || '—'}
+                    </td>
+                    <td>
+                      {(f.forCategories || []).map(c => (
+                        <span key={c} className="cat-pill">{CATEGORY_NAMES[c] || c}</span>
+                      ))}
+                    </td>
+                    <td>
+                      <input className="fabric-price-inp" type="number" step="0.1" value={f.priceUSD}
+                        onChange={e => updateFabric(realIdx, 'priceUSD', Number(e.target.value) || 0)} />
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'right' }}>{Math.round(f.priceUSD * usdRate)} ₽</td>
+                    <td><button className="sku-del-btn" onClick={() => deleteFabric(realIdx)} aria-label="Удалить ткань">✕</button></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -628,35 +670,33 @@ export default function SkuEditor() {
       {tab === 'trims' && (
         <div className="sku-ed-body">
           <div className="sku-ed-toolbar">
-            <span className="sku-ed-count">Всего: {trimCatalog.length} отделок</span>
+            <span className="sku-ed-count">{trimCatalog.length} отделок</span>
             <button className="sku-ed-add-btn" onClick={addTrim}>+ Добавить</button>
           </div>
-          <table className="sku-ed-table">
+          <table className="fabrics-table">
             <thead>
               <tr>
-                <th className="sku-th-num">№</th>
-                <th className="sku-th-art">Код</th>
-                <th className="sku-th-name">Название</th>
-                <th className="sku-th-price">$/м</th>
-                <th className="sku-th-price">₽/м</th>
-                <th className="sku-th-del"></th>
+                <th>Название</th>
+                <th>Поставщик</th>
+                <th>$/м</th>
+                <th>≈ ₽/м</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {trimCatalog.map((t, i) => (
-                <tr key={t.code + i}>
-                  <td className="sku-td-num">{i + 1}</td>
-                  <td className="sku-td-art">{t.code}</td>
+                <tr key={t.code + i} className={changedTrims.has(i) ? 'fabric-changed' : ''}>
+                  <td>{t.name}</td>
                   <td>
-                    <input className="sku-edit-input sku-edit-name" value={t.name}
-                      onChange={e => updateTrim(i, 'name', e.target.value)} />
+                    <span className="supplier-dot" style={{ background: SUPPLIER_COLORS[t.supplier] || 'var(--text-dim)' }} />
+                    {t.supplier || '—'}
                   </td>
                   <td>
-                    <input className="sku-edit-input sku-edit-num" type="number" step="0.1" value={t.priceUSD}
+                    <input className="fabric-price-inp" type="number" step="0.1" value={t.priceUSD}
                       onChange={e => updateTrim(i, 'priceUSD', Number(e.target.value) || 0)} />
                   </td>
-                  <td className="sku-td-est">{Math.round(t.priceUSD * usdRate)} ₽</td>
-                  <td><button className="sku-del-btn" onClick={() => deleteTrim(i)} aria-label="Удалить фурнитуру">✕</button></td>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'right' }}>{Math.round(t.priceUSD * usdRate)} ₽</td>
+                  <td><button className="sku-del-btn" onClick={() => deleteTrim(i)} aria-label="Удалить отделку">✕</button></td>
                 </tr>
               ))}
             </tbody>

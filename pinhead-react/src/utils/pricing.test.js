@@ -8,7 +8,7 @@ import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXT
 
 // ── Helpers ──
 const baseState = () => ({
-  step: 0, type: 'tee', fabric: 'kulirnaya', color: '01-01', fit: 'regular',
+  step: 0, type: 'tee', fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular',
   sku: SKU_CATALOG_DEFAULT[0], // Футболка Regular
   sizes: { '2XS': 0, 'XS': 0, 'S': 10, 'M': 20, 'L': 10, 'XL': 0, '2XL': 0, '3XL': 0 },
   customSizes: [],
@@ -145,15 +145,15 @@ describe('getSkuEstPrice', () => {
   it('calculates for T-001 (Футболка Classic woman)', () => {
     const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:141, mainFabricUsage:0.95, trimCode:ribana-1x1, trimUsage:0.15
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    // fabric: kulirnaya $2.80 * 92 * 0.95 = 244.72 → 245
-    // trim: ribana-1x1 $2.50 * 92 * 0.15 = 34.5 → 35 (Math.round)
-    expect(price).toBe(141 + Math.round(0.95 * 2.80 * 92) + Math.round(0.15 * 2.50 * 92));
+    // fabric: medas-kulirnaya-100-160 $10.90 * 92 * 0.95 = 952.66 → 953
+    // trim: ribana-1x1 $13.20 * 92 * 0.15 = 182.16 → 182 (Math.round)
+    expect(price).toBe(141 + Math.round(0.95 * 10.90 * 92) + Math.round(0.15 * 13.20 * 92));
   });
 
   it('returns sewingPrice only when no fabric match', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], category: 'nonexistent' };
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(price).toBe(141 + 0 + Math.round(0.15 * 2.50 * 92)); // no fabric match, trim only
+    expect(price).toBe(141 + 0 + Math.round(0.15 * 13.20 * 92)); // no fabric match, trim only
   });
 });
 
