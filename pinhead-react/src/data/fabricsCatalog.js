@@ -8,11 +8,11 @@ export const FABRICS_CATALOG_DEFAULT = [
   {code:'dvunitka',        name:'Двунитка 240 г/м²',        priceUSD:3.40, forCategories:['tshirts','longsleeves','tanks'], supplier:'Medastex'},
   {code:'interlock',       name:'Интерлок 220 г/м²',        priceUSD:3.10, forCategories:['tshirts','longsleeves','tanks'], supplier:'Medastex'},
   // Тяжёлые (для худи, свитшотов, брюк)
-  {code:'futher-350-petlya',  name:'Футер петля 350 г/м²',       priceUSD:3.80, forCategories:['hoodies','sweatshirts','ziphoodies','pants','shorts'], supplier:'Medastex'},
-  {code:'futher-350-nachers', name:'Футер начёс 350 г/м²',       priceUSD:3.80, forCategories:['hoodies','sweatshirts','ziphoodies','pants','shorts'], supplier:'Medastex'},
-  {code:'futher-370-petlya',  name:'Футер петля 370 г/м²',       priceUSD:4.20, forCategories:['hoodies','sweatshirts','ziphoodies','pants','shorts'], supplier:'Medastex'},
-  {code:'futher-370-nachers', name:'Футер начёс 370 г/м²',       priceUSD:4.20, forCategories:['hoodies','sweatshirts','ziphoodies','pants','shorts'], supplier:'Medastex'},
-  {code:'futher-470-petlya',  name:'Футер петля 470 г/м²',       priceUSD:5.10, forCategories:['hoodies','sweatshirts','ziphoodies','pants','shorts'], supplier:'Medastex'},
+  {code:'futher-350-petlya',  name:'Футер петля 350 г/м²',       priceUSD:3.80, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
+  {code:'futher-350-nachers', name:'Футер начёс 350 г/м²',       priceUSD:3.80, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
+  {code:'futher-370-petlya',  name:'Футер петля 370 г/м²',       priceUSD:4.20, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
+  {code:'futher-370-nachers', name:'Футер начёс 370 г/м²',       priceUSD:4.20, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
+  {code:'futher-470-petlya',  name:'Футер петля 470 г/м²',       priceUSD:5.10, forCategories:['hoodies','sweatshirts','halfzips','ziphoodies','bombers','pants','shorts'], supplier:'Medastex'},
 ];
 
 export const TRIM_CATALOG_DEFAULT = [

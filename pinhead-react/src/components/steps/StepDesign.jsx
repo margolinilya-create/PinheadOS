@@ -111,8 +111,8 @@ export default function StepDesign() {
             </div>
 
             <div className="design-mockup-col">
-              <ZoneMockup
-                garmentType={sku.mockupType || type}
+              {sku?.mockupType && <ZoneMockup
+                garmentType={sku.mockupType}
                 activeZones={zones}
                 availableZones={availableZones}
                 color={color}
@@ -122,7 +122,7 @@ export default function StepDesign() {
                 dtgZones={dtgZones}
                 embZones={embZones}
                 dtfZones={dtfZones}
-              />
+              />}
             </div>
           </div>
 

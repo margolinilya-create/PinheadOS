@@ -11,6 +11,7 @@ export const productSlice = (set, _get) => ({
     const CAT_TO_TYPE = {
       tshirts:'tee', longsleeves:'longsleeve', tanks:'tank',
       hoodies:'hoodie', sweatshirts:'sweat', ziphoodies:'zip-hoodie',
+      halfzips:'half-zip', bombers:'bomber',
       pants:'pants', shorts:'shorts', accessories:'shopper',
     };
     const type = sku.mockupType || CAT_TO_TYPE[sku.category] || sku.category;

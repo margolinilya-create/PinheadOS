@@ -14,11 +14,11 @@ import {
 // 1. Data integrity
 // ═══════════════════════════════
 describe('SKU Catalog', () => {
-  it('has 19 items', () => {
-    expect(SKU_CATALOG_DEFAULT).toHaveLength(19);
+  it('has 50 items', () => {
+    expect(SKU_CATALOG_DEFAULT).toHaveLength(50);
   });
-  it('has 9 categories', () => {
-    expect(SKU_CATEGORIES).toHaveLength(9);
+  it('has 11 categories', () => {
+    expect(SKU_CATEGORIES).toHaveLength(11);
   });
   it('every SKU has required fields', () => {
     SKU_CATALOG_DEFAULT.forEach(s => {
