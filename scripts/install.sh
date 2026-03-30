@@ -10,7 +10,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-AGENTS_SRC="$REPO_ROOT/agents"
+AGENTS_SRC="$REPO_ROOT/agency-agents"
 
 TOOL=""
 CATEGORY=""
