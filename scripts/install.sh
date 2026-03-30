@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# install.sh — Copy PinheadOS agent definitions to a target tool's agents directory.
+# install.sh — Копирует агентов PinheadOS в директорию агентов целевого инструмента.
 #
-# Usage:
-#   ./scripts/install.sh --tool claude-code          # install all agents
-#   ./scripts/install.sh --tool claude-code --list    # list available agents
-#   ./scripts/install.sh --tool claude-code --category engineering  # one category
+# Использование:
+#   ./scripts/install.sh --tool claude-code                        # установить всех агентов
+#   ./scripts/install.sh --tool claude-code --list                 # показать доступных агентов
+#   ./scripts/install.sh --tool claude-code --category engineering # одна категория
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -18,17 +18,17 @@ LIST=false
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") --tool <tool-name> [OPTIONS]
+Использование: $(basename "$0") --tool <имя> [ОПЦИИ]
 
-Copy PinheadOS agent definitions to a tool's agents directory.
+Копирует агентов PinheadOS в директорию агентов целевого инструмента.
 
-Options:
-  --tool <name>        Target tool (required). Supported: claude-code
-  --category <name>    Install only agents from a specific category
-  --list               List available agent categories and files
-  -h, --help           Show this help message
+Опции:
+  --tool <имя>         Целевой инструмент (обязательно). Поддерживается: claude-code
+  --category <имя>     Установить агентов только из указанной категории
+  --list               Показать доступные категории и файлы агентов
+  -h, --help           Показать эту справку
 
-Examples:
+Примеры:
   $(basename "$0") --tool claude-code
   $(basename "$0") --tool claude-code --category engineering
   $(basename "$0") --tool claude-code --list
@@ -36,42 +36,42 @@ EOF
   exit "${1:-0}"
 }
 
-# --- Parse arguments ---
+# --- Разбор аргументов ---
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tool)      TOOL="$2"; shift 2 ;;
     --category)  CATEGORY="$2"; shift 2 ;;
     --list)      LIST=true; shift ;;
     -h|--help)   usage 0 ;;
-    *)           echo "Error: unknown option '$1'"; usage 1 ;;
+    *)           echo "Ошибка: неизвестная опция '$1'"; usage 1 ;;
   esac
 done
 
 if [[ -z "$TOOL" ]]; then
-  echo "Error: --tool is required"
+  echo "Ошибка: --tool обязателен"
   usage 1
 fi
 
-# --- Resolve target directory ---
+# --- Определение целевой директории ---
 case "$TOOL" in
   claude-code)
     TARGET_DIR="${HOME}/.claude/agents"
     ;;
   *)
-    echo "Error: unsupported tool '$TOOL'. Supported: claude-code"
+    echo "Ошибка: инструмент '$TOOL' не поддерживается. Поддерживается: claude-code"
     exit 1
     ;;
 esac
 
-# --- Check source ---
+# --- Проверка источника ---
 if [[ ! -d "$AGENTS_SRC" ]]; then
-  echo "Error: agents directory not found at $AGENTS_SRC"
+  echo "Ошибка: директория агентов не найдена: $AGENTS_SRC"
   exit 1
 fi
 
-# --- List mode ---
+# --- Режим списка ---
 if $LIST; then
-  echo "Available agents in $AGENTS_SRC:"
+  echo "Доступные агенты в $AGENTS_SRC:"
   echo ""
   for category_dir in "$AGENTS_SRC"/*/; do
     [[ -d "$category_dir" ]] || continue
@@ -85,43 +85,42 @@ if $LIST; then
   exit 0
 fi
 
-# --- Install agents ---
+# --- Установка агентов ---
 mkdir -p "$TARGET_DIR"
 
 copied=0
 
 if [[ -n "$CATEGORY" ]]; then
-  # Install single category
+  # Установка одной категории
   src_dir="$AGENTS_SRC/$CATEGORY"
   if [[ ! -d "$src_dir" ]]; then
-    echo "Error: category '$CATEGORY' not found in $AGENTS_SRC"
-    echo "Run with --list to see available categories."
+    echo "Ошибка: категория '$CATEGORY' не найдена в $AGENTS_SRC"
+    echo "Запустите с --list чтобы увидеть доступные категории."
     exit 1
   fi
   for f in "$src_dir"/*.md; do
     [[ -f "$f" ]] || continue
     cp "$f" "$TARGET_DIR/"
-    echo "  Installed: $(basename "$f")"
+    echo "  Установлен: $(basename "$f")"
     copied=$((copied + 1))
   done
 else
-
-  # Install all categories
+  # Установка всех категорий
   for category_dir in "$AGENTS_SRC"/*/; do
     [[ -d "$category_dir" ]] || continue
     for f in "$category_dir"*.md; do
       [[ -f "$f" ]] || continue
       cp "$f" "$TARGET_DIR/"
-      echo "  Installed: $(basename "$f")"
+      echo "  Установлен: $(basename "$f")"
       copied=$((copied + 1))
     done
   done
 fi
 
 if [[ $copied -eq 0 ]]; then
-  echo "No agent files found to install."
+  echo "Файлы агентов не найдены."
   exit 1
 fi
 
 echo ""
-echo "Done! Installed $copied agent(s) to $TARGET_DIR"
+echo "Готово! Установлено агентов: $copied → $TARGET_DIR"

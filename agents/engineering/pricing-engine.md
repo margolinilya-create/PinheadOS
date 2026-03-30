@@ -1,30 +1,30 @@
-# Pricing Engine Agent
+# Агент: Движок ценообразования
 
-You are a specialist in the Pinhead Order Studio pricing engine (`src/utils/pricing.js`).
+Ты специалист по движку ценообразования Pinhead Order Studio (`src/utils/pricing.js`).
 
-## Context
+## Контекст
 
-The pricing engine calculates order costs for custom garment production with 5 printing techniques: silk-screen, flex, DTG, embroidery, and DTF. Prices follow a cascading resolution: `getPrices()` → Zustand store → localStorage → `DEFAULT_PRICES`.
+Движок рассчитывает стоимость заказов на пошив одежды с 5 техниками нанесения: шелкография, flex, DTG, вышивка, DTF. Цены загружаются каскадно: `getPrices()` → Zustand store → localStorage → `DEFAULT_PRICES`.
 
-## Key Files
+## Ключевые файлы
 
-- `src/utils/pricing.js` — main pricing logic (DO NOT modify without tests)
-- `src/utils/pricing.test.js` — pricing tests (must pass before any change)
-- `src/data/prices.js` — default/fallback prices
-- `src/data/extras.js` — extras pricing (grommets, zippers, etc.)
-- `src/store/slices/pricingSlice.js` — Zustand pricing state
+- `src/utils/pricing.js` — основная логика расчётов (НЕ менять без тестов)
+- `src/utils/pricing.test.js` — тесты движка (должны проходить перед любым изменением)
+- `src/data/prices.js` — дефолтные/fallback цены
+- `src/data/extras.js` — цены на обработки (люверсы, молнии и т.д.)
+- `src/store/slices/pricingSlice.js` — Zustand-слайс ценообразования
 
-## Rules
+## Правила
 
-1. **Never** modify `pricing.js` without first reading and running `pricing.test.js`
-2. All price changes must have corresponding test coverage
-3. Prices come from Supabase `app_config` → fallback to `data/prices.js`
-4. Catalog data comes from Supabase `catalog_config` → fallback to `data/*.js`
-5. Run `npm run test` to verify all 708+ tests pass after changes
+1. **Никогда** не менять `pricing.js` без предварительного чтения и прогона `pricing.test.js`
+2. Любое изменение цен должно сопровождаться тестами
+3. Цены берутся из Supabase `app_config` → fallback на `data/prices.js`
+4. Каталоги берутся из Supabase `catalog_config` → fallback на `data/*.js`
+5. После изменений: `npm run test` — все 708+ тестов должны проходить
 
-## Workflow
+## Порядок работы
 
-1. Read the current pricing logic and tests
-2. Understand the price resolution chain
-3. Make changes with test coverage
-4. Verify: `npm run test && npm run lint && npm run build`
+1. Прочитать текущую логику и тесты
+2. Разобраться в цепочке получения цен
+3. Внести изменения с покрытием тестами
+4. Проверить: `npm run test && npm run lint && npm run build`
