@@ -159,7 +159,7 @@ describe('useOrdersStore — generateOrderNumber via RPC', () => {
     expect(result.order_number).toBe('PH-0042');
   });
 
-  it('falls back to timestamp when rpc fails', async () => {
+  it('returns null when rpc and insert both fail', async () => {
     mockRpc.mockRejectedValueOnce(new Error('network'));
     const { supabase } = await import('../lib/supabase');
     supabase.from.mockReturnValue({
@@ -169,7 +169,7 @@ describe('useOrdersStore — generateOrderNumber via RPC', () => {
     });
 
     const result = await useOrdersStore.getState().saveOrder({ type: 'tee' });
-    expect(result.order_number).toMatch(/^PH-\d+$/);
+    expect(result).toBeNull();
   });
 });
 

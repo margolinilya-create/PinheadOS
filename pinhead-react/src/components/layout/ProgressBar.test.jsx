@@ -8,10 +8,10 @@ beforeEach(() => {
 });
 
 describe('ProgressBar', () => {
-  it('renders 6 step tabs', () => {
+  it('renders 5 step tabs', () => {
     render(<ProgressBar />);
     const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(6);
+    expect(buttons).toHaveLength(5);
   });
 
   it('shows step labels', () => {
@@ -26,7 +26,7 @@ describe('ProgressBar', () => {
     const buttons = screen.getAllByRole('button');
     // The active step (index 2) should have the active class (CSS module hashed)
     expect(buttons[2].className).toMatch(/active/);
-    expect(buttons[2].textContent).toContain('Дизайн');
+    expect(buttons[2].textContent).toContain('Позиции');
   });
 
   it('marks previous steps as done with checkmark', () => {
