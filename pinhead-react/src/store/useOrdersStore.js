@@ -97,10 +97,10 @@ export const useOrdersStore = create((set, get) => ({
       set(s => ({ orders: [data[0], ...s.orders] }));
       return data[0];
     }
-    // Fallback: сохраняем локально
-    const local = { ...row, id: 'local_' + Date.now() };
-    set(s => ({ orders: [local, ...s.orders] }));
-    return local;
+    // Supabase failed — return null so callers know the save did not persist
+    console.error('[saveOrder] Supabase error:', error);
+    toast.error('Не удалось сохранить заказ в базу');
+    return null;
   },
 
   // Обновить заказ (UPDATE по id — без дублирования)
