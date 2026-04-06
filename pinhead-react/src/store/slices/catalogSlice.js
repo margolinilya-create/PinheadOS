@@ -2,6 +2,7 @@
 import { loadAllCatalogs } from '../../lib/catalogs';
 import { invalidatePricesCache } from '../../utils/pricing';
 import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT } from '../../data';
+import { toast } from '../useToastStore';
 
 export const catalogSlice = (set, _get) => ({
   prices: PRICES,
@@ -34,6 +35,7 @@ export const catalogSlice = (set, _get) => ({
       patch.extrasCatalog = EXTRAS_CATALOG_DEFAULT;
       patch.trimCatalog = TRIM_CATALOG_DEFAULT;
       patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
+      toast.warning('Каталоги загружены в офлайн-режиме. Цены могут быть устаревшими.');
     }
     if (Object.keys(patch).length > 0) set(patch);
   },
