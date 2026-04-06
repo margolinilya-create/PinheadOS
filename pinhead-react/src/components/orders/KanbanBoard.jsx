@@ -95,7 +95,7 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
             <div className="kb-card-actions">
               <button className="kb-open" onClick={stopAndRun(() => onOpenTZ(order))}>Открыть</button>
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать" aria-label="Дублировать заказ">⎘</button>
-              <button onClick={stopAndRun(() => onDelete(order.id))} title="Удалить" aria-label="Удалить заказ">✕</button>
+              <button onClick={stopAndRun(() => { if (window.confirm(`Удалить заказ #${order.order_number || order.id}? Это действие нельзя отменить`)) onDelete(order.id); })} title="Удалить" aria-label="Удалить заказ">✕</button>
             </div>
             {managerInitials && <div className="kb-avatar" title={d.managerName || ''}>{managerInitials}</div>}
           </div>

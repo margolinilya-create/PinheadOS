@@ -177,10 +177,16 @@ export const useOrdersStore = create((set, get) => ({
     return { error: null };
   },
 
-  // Удалить заказ
+  // Удалить заказ (не optimistic — ждём ответа Supabase)
   deleteOrder: async (id) => {
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) {
+      console.error('[deleteOrder] Supabase error:', error);
+      toast.error('Не удалось удалить заказ');
+      return false;
+    }
     set(s => ({ orders: s.orders.filter(o => o.id !== id) }));
-    await supabase.from('orders').delete().eq('id', id);
+    return true;
   },
 
   // Дублировать заказ
