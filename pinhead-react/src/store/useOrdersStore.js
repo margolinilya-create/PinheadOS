@@ -105,6 +105,7 @@ export const useOrdersStore = create((set, get) => ({
 
   // Обновить заказ (UPDATE по id — без дублирования)
   updateOrder: async (id, orderData) => {
+    const prev = get().orders.find(o => o.id === id);
     const payload = {
       data: orderData,
       total_sum: orderData.total || 0,
@@ -126,8 +127,15 @@ export const useOrdersStore = create((set, get) => ({
       }));
       return data[0];
     }
-    // Return the locally updated version
-    return get().orders.find(o => o.id === id) || null;
+    // Rollback optimistic update
+    if (prev) {
+      set(s => ({
+        orders: s.orders.map(o => o.id === id ? prev : o),
+      }));
+    }
+    console.error('[updateOrder] Supabase error:', error);
+    toast.error('Не удалось обновить заказ в базе');
+    return null;
   },
 
   // Патч только data JSONB (для checklist, comments, photos — без пересчёта сумм)
