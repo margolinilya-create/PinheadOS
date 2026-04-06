@@ -211,10 +211,9 @@ export const useOrdersStore = create((set, get) => ({
       set(s => ({ orders: [data[0], ...s.orders] }));
       return data[0];
     }
-    // Fallback
-    const local = { ...dup, id: Date.now() };
-    set(s => ({ orders: [local, ...s.orders] }));
-    return local;
+    console.error('[duplicateOrder] Supabase error:', error);
+    toast.error('Не удалось дублировать заказ');
+    return null;
   },
 
   // Отфильтрованные заказы

@@ -277,6 +277,15 @@ export default function KanbanBoard() {
   const [drawerOrder, setDrawerOrder] = useState(null);
   const [typeFilter, setTypeFilter] = useState('');
 
+  const handleDuplicate = async (order) => {
+    const dup = await duplicateOrder(order);
+    if (dup) {
+      loadOrder(dup);
+      navigate('/');
+      toast.success('Заказ скопирован — проверь и сохрани');
+    }
+  };
+
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   // Collect unique item types from orders for the filter
@@ -449,7 +458,7 @@ export default function KanbanBoard() {
                     columns[s].map(o => (
                       <KanbanCard
                         key={o.id} order={o} statusColor={STATUS_COLORS[s]}
-                        onStatusChange={handleStatusChange} onDelete={deleteOrder} onDuplicate={duplicateOrder}
+                        onStatusChange={handleStatusChange} onDelete={deleteOrder} onDuplicate={handleDuplicate}
                         onOpenTZ={handleOpenTZ} onCardClick={setDrawerOrder}
                       />
                     ))
@@ -468,7 +477,7 @@ export default function KanbanBoard() {
           onClose={() => setDrawerOrder(null)}
           onStatusChange={handleStatusChange}
           onOpenTZ={handleOpenTZ}
-          onDuplicate={duplicateOrder}
+          onDuplicate={handleDuplicate}
         />
       )}
     </div>
