@@ -6,6 +6,7 @@ import { storageSet } from '../../lib/storage';
 import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES } from '../../data';
+import { EXTRAS_DESCS, EXTRAS_GROUPS } from '../../data';
 import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice } from '../../utils/pricing';
 import { getGarmentSVG } from '../../utils/mockup';
 
@@ -533,11 +534,18 @@ function MockupPreview() {
 }
 
 // ── Main Step ──
+function PriceBadge({ price }) {
+  if (price === 0) return <span className="extra-price extra-price-free">бесплатно</span>;
+  return <span className="extra-price">+{price} ₽</span>;
+}
+
 export default function StepGarment() {
-  const { nextStep, type, color, fabric, sku } = useStore(
-    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color, fabric: s.fabric, sku: s.sku }))
+  const { nextStep, type, color, fabric, sku, extras, extrasCatalog, toggleExtra } = useStore(
+    useShallow(s => ({ nextStep: s.nextStep, type: s.type, color: s.color, fabric: s.fabric, sku: s.sku,
+      extras: s.extras, extrasCatalog: s.extrasCatalog, toggleExtra: s.toggleExtra }))
   );
   const totalQty = useStore(s => getTotalQty(s));
+  const [showExtras, setShowExtras] = useState(false);
   const isAcc = isAccessory(type);
   const canNext = sku && type && totalQty > 0 && (isAcc || color);
   const showFabric = !!sku && !isAcc;
@@ -572,6 +580,65 @@ export default function StepGarment() {
       {showFabric && <FabricGrid />}
       {showColor && <ColorPicker />}
       {showSizes && <SizeTable />}
+      {/* Extras accordion */}
+      {sku && (() => {
+        const totalExtrasCost = extras.reduce((sum, code) => {
+          const e = extrasCatalog.find(x => x.code === code);
+          return sum + (e ? e.price : 0);
+        }, 0);
+        const availableExtras = extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category));
+        return (
+          <div className="extras-accordion" style={{ marginTop: 16 }}>
+            <button
+              className="extras-accordion-toggle"
+              onClick={() => setShowExtras(v => !v)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-card, #f5f5f5)', border: '1px solid var(--border, #e0e0e0)', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+            >
+              {showExtras ? '\u25B2' : '\u25BC'} Доп. обработки
+              {extras.length > 0 && <span className="section-badge">+{totalExtrasCost} ₽/шт ({extras.length})</span>}
+            </button>
+            {showExtras && availableExtras.length > 0 && (
+              <div className="extras-list" style={{ marginTop: 8 }}>
+                {EXTRAS_GROUPS
+                  .map(g => ({ ...g, items: availableExtras.filter(e => e.group === g.id) }))
+                  .filter(g => g.items.length > 0)
+                  .map(group => (
+                    <div key={group.id} className="extras-group">
+                      <div className="extras-group-label">{group.name}</div>
+                      {group.items.map(e => {
+                        const sel = extras.includes(e.code);
+                        const desc = EXTRAS_DESCS[e.code];
+                        return (
+                          <div key={e.code} className={`extras-list-item${sel ? ' selected' : ''}`}
+                            onClick={() => toggleExtra(e.code)} title={desc || e.name}>
+                            <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
+                            <div className="extras-list-name">{e.name}</div>
+                            <PriceBadge price={e.price} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                {availableExtras.filter(e => !e.group).map(e => {
+                  const sel = extras.includes(e.code);
+                  return (
+                    <div key={e.code} className={`extras-list-item${sel ? ' selected' : ''}`}
+                      onClick={() => toggleExtra(e.code)} title={EXTRAS_DESCS[e.code] || e.name}>
+                      <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
+                      <div className="extras-list-name">{e.name}</div>
+                      <PriceBadge price={e.price} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {showExtras && availableExtras.length === 0 && (
+              <div className="empty-state">Для «{sku.name}» нет доступных обработок</div>
+            )}
+          </div>
+        );
+      })()}
+
       {validationMsg && (
         <div className="validation-warning" style={{ color: '#b71c1c', background: '#fce4ec', border: '1px solid #ef9a9a', borderRadius: 6, padding: '8px 14px', marginTop: 12, fontSize: 13 }}>
           {validationMsg}

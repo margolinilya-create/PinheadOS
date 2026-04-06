@@ -4,11 +4,10 @@ import styles from './ProgressBar.module.css';
 
 const STEPS = [
   { label: 'Изделие', num: '01' },
-  { label: 'Обработки', num: '02' },
-  { label: 'Дизайн', num: '03' },
-  { label: 'Позиции', num: '04' },
-  { label: 'Детали', num: '05' },
-  { label: 'Итог', num: '06' },
+  { label: 'Дизайн', num: '02' },
+  { label: 'Позиции', num: '03' },
+  { label: 'Детали', num: '04' },
+  { label: 'Итог', num: '05' },
 ];
 
 export default function ProgressBar() {

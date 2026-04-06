@@ -8,7 +8,6 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import Header from './components/layout/Header'
 import ProgressBar from './components/layout/ProgressBar'
 import StepGarment from './components/steps/StepGarment'
-import StepExtras from './components/steps/StepExtras'
 import StepDesign from './components/steps/StepDesign'
 import StepItems from './components/steps/StepItems'
 import StepDetails from './components/steps/StepDetails'
@@ -25,7 +24,7 @@ const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'))
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
 const AdminPanel = React.lazy(() => import('./components/auth/AdminPanel'));
 
-const STEPS = [StepGarment, StepExtras, StepDesign, StepItems, StepDetails, StepSummary];
+const STEPS = [StepGarment, StepDesign, StepItems, StepDetails, StepSummary];
 
 // Wizard page — main step-based flow
 function WizardPage() {
