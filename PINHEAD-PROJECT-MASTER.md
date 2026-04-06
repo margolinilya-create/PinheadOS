@@ -365,10 +365,7 @@
 
 ```
 PinheadOS/
-├── PROJECT-DATA.md              ← главный документ проекта
-├── CHANGELOG-2026-03-20.md      ← лог mega session
-├── plans/2026-03-21-improvement-plan.md  ← план фаз (не выполнен)
-├── thoughts/research/2026-03-20-full-project-audit.md  ← аудит
+├── PINHEAD-PROJECT-MASTER.md    ← главный документ проекта
 ├── docs/PINHEAD-PORTAL-LOGIC.md ← логика визарда (этапы 1–2 описаны)
 ├── supabase/migrations/         ← SQL миграции
 └── pinhead-react/               ← React приложение

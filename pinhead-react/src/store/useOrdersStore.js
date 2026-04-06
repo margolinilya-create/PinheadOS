@@ -97,14 +97,15 @@ export const useOrdersStore = create((set, get) => ({
       set(s => ({ orders: [data[0], ...s.orders] }));
       return data[0];
     }
-    // Fallback: сохраняем локально
-    const local = { ...row, id: 'local_' + Date.now() };
-    set(s => ({ orders: [local, ...s.orders] }));
-    return local;
+    // Supabase failed — return null so callers know the save did not persist
+    console.error('[saveOrder] Supabase error:', error);
+    toast.error('Не удалось сохранить заказ в базу');
+    return null;
   },
 
   // Обновить заказ (UPDATE по id — без дублирования)
   updateOrder: async (id, orderData) => {
+    const prev = get().orders.find(o => o.id === id);
     const payload = {
       data: orderData,
       total_sum: orderData.total || 0,
@@ -126,8 +127,15 @@ export const useOrdersStore = create((set, get) => ({
       }));
       return data[0];
     }
-    // Return the locally updated version
-    return get().orders.find(o => o.id === id) || null;
+    // Rollback optimistic update
+    if (prev) {
+      set(s => ({
+        orders: s.orders.map(o => o.id === id ? prev : o),
+      }));
+    }
+    console.error('[updateOrder] Supabase error:', error);
+    toast.error('Не удалось обновить заказ в базе');
+    return null;
   },
 
   // Патч только data JSONB (для checklist, comments, photos — без пересчёта сумм)
@@ -169,10 +177,16 @@ export const useOrdersStore = create((set, get) => ({
     return { error: null };
   },
 
-  // Удалить заказ
+  // Удалить заказ (не optimistic — ждём ответа Supabase)
   deleteOrder: async (id) => {
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) {
+      console.error('[deleteOrder] Supabase error:', error);
+      toast.error('Не удалось удалить заказ');
+      return false;
+    }
     set(s => ({ orders: s.orders.filter(o => o.id !== id) }));
-    await supabase.from('orders').delete().eq('id', id);
+    return true;
   },
 
   // Дублировать заказ
