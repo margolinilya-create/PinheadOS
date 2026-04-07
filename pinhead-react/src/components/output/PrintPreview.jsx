@@ -94,7 +94,8 @@ export default function PrintPreview() {
           <span className="pp-toolbar-id">{orderNumber}</span>
         </div>
         <div className="pp-toolbar-actions">
-          <button className="btn btn-primary" onClick={handlePrint}>ПЕЧАТЬ / PDF</button>
+          <button className="btn btn-primary" onClick={handlePrint}>ПЕЧАТЬ</button>
+          <button className="btn" onClick={handlePrint}>СКАЧАТЬ PDF</button>
           <button className="btn" onClick={onClose}>ЗАКРЫТЬ</button>
         </div>
       </div>

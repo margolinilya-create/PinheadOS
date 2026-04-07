@@ -489,6 +489,27 @@ export default function KanbanBoard() {
     setDrawerOrder(prev => prev && prev.id === id ? { ...prev, status } : prev);
   }, [updateStatus]);
 
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      // Ignore if typing in input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        setShowShortcuts(v => !v);
+      }
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        document.querySelector('.kb-search')?.focus();
+      }
+      if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
+        navigate('/');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [navigate]);
+
   return (
     <div className="kanban-page">
       {/* ── Filters bar (below shared Header) ── */}
@@ -593,6 +614,25 @@ export default function KanbanBoard() {
           onOpenTZ={handleOpenTZ}
           onDuplicate={handleDuplicate}
         />
+      )}
+
+      {/* ── Keyboard shortcuts help ── */}
+      {showShortcuts && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+          onClick={() => setShowShortcuts(false)}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 320, width: '90%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Горячие клавиши</div>
+            <div style={{ fontSize: 13, lineHeight: 2 }}>
+              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>/</kbd> — Поиск</div>
+              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>n</kbd> — Новый заказ</div>
+              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>1-5</kbd> — Статус (в карточке)</div>
+              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>Esc</kbd> — Закрыть</div>
+              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>?</kbd> — Эта справка</div>
+            </div>
+            <button className="btn" style={{ marginTop: 16, width: '100%' }} onClick={() => setShowShortcuts(false)}>Закрыть</button>
+          </div>
+        </div>
       )}
     </div>
   );

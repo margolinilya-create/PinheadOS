@@ -55,9 +55,10 @@ describe('PrintPreview', () => {
     expect(screen.getAllByText('ТЕХНИЧЕСКОЕ ЗАДАНИЕ').length).toBeGreaterThan(0);
   });
 
-  it('shows print button', () => {
+  it('shows print and pdf buttons', () => {
     renderPrintPreview();
-    expect(screen.getByText('ПЕЧАТЬ / PDF')).toBeInTheDocument();
+    expect(screen.getByText('ПЕЧАТЬ')).toBeInTheDocument();
+    expect(screen.getByText('СКАЧАТЬ PDF')).toBeInTheDocument();
   });
 
   it('shows close button', () => {
@@ -67,7 +68,7 @@ describe('PrintPreview', () => {
 
   it('calls window.print on print button click', () => {
     renderPrintPreview();
-    fireEvent.click(screen.getByText('ПЕЧАТЬ / PDF'));
+    fireEvent.click(screen.getByText('ПЕЧАТЬ'));
     expect(window.print).toHaveBeenCalled();
   });
 
