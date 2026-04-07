@@ -19,6 +19,7 @@ export const useCommentsStore = create((set, _get) => ({
         loading: { ...s.loading, [orderId]: false },
       }));
     } else {
+      toast.error('Не удалось загрузить комментарии');
       set(s => ({ loading: { ...s.loading, [orderId]: false } }));
     }
   },

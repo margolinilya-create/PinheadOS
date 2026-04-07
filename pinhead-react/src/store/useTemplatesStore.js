@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from './useToastStore';
 import { useAuthStore } from './useAuthStore';
 
-export const useTemplatesStore = create((set, get) => ({
+export const useTemplatesStore = create((set, _get) => ({
   templates: [],
   loading: false,
 
@@ -16,6 +16,7 @@ export const useTemplatesStore = create((set, get) => ({
     if (!error && data) {
       set({ templates: data, loading: false });
     } else {
+      toast.error('Не удалось загрузить шаблоны');
       set({ loading: false });
     }
   },
@@ -41,13 +42,13 @@ export const useTemplatesStore = create((set, get) => ({
   },
 
   deleteTemplate: async (id) => {
-    set(s => ({ templates: s.templates.filter(t => t.id !== id) }));
     const { error } = await supabase.from('order_templates').delete().eq('id', id);
     if (error) {
       toast.error('Не удалось удалить шаблон');
-      get().fetchTemplates();
-    } else {
-      toast.success('Шаблон удалён');
+      return false;
     }
+    set(s => ({ templates: s.templates.filter(t => t.id !== id) }));
+    toast.success('Шаблон удалён');
+    return true;
   },
 }));

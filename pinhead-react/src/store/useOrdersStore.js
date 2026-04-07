@@ -108,10 +108,12 @@ export const useOrdersStore = create((set, get) => ({
           lastCreatedAt: data.length > 0 ? data[data.length - 1].created_at : null,
         }));
       } else {
+        toast.error('Не удалось загрузить заказы');
         set({ loadingMore: false });
       }
     } catch (err) {
       console.error('[fetchMoreOrders]', err);
+      toast.error('Не удалось загрузить заказы');
       set({ loadingMore: false });
     }
   },
@@ -186,9 +188,9 @@ export const useOrdersStore = create((set, get) => ({
 
   // Патч только data JSONB (для checklist, comments, photos — без пересчёта сумм)
   patchOrderData: async (id, patch) => {
-    const order = get().orders.find(o => o.id === id);
-    if (!order) return null;
-    const newData = { ...order.data, ...patch };
+    const prev = get().orders.find(o => o.id === id);
+    if (!prev) return null;
+    const newData = { ...prev.data, ...patch };
     set(s => ({
       orders: s.orders.map(o => o.id === id ? { ...o, data: newData } : o),
     }));
@@ -197,7 +199,13 @@ export const useOrdersStore = create((set, get) => ({
       set(s => ({ orders: s.orders.map(o => o.id === id ? data[0] : o) }));
       return data[0];
     }
-    return get().orders.find(o => o.id === id) || null;
+    // Rollback
+    set(s => ({
+      orders: s.orders.map(o => o.id === id ? prev : o),
+    }));
+    console.error('[patchOrderData] Supabase error:', error);
+    toast.error('Не удалось обновить данные заказа');
+    return null;
   },
 
   // Обновить статус (optimistic + rollback on error)
@@ -218,6 +226,7 @@ export const useOrdersStore = create((set, get) => ({
           orders: s.orders.map(o => o.id === id ? { ...o, status: prevStatus } : o),
         }));
       }
+      toast.error('Не удалось обновить статус');
       return { error };
     }
     return { error: null };
