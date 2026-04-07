@@ -1,4 +1,4 @@
-import { useRef, useState, useDeferredValue } from 'react';
+import { useRef, useState, useDeferredValue, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../lib/supabase';
@@ -7,6 +7,7 @@ import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES } from '../../data';
 import { EXTRAS_DESCS, EXTRAS_GROUPS } from '../../data';
+import { useTemplatesStore } from '../../store/useTemplatesStore';
 import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice } from '../../utils/pricing';
 import { getGarmentSVG } from '../../utils/mockup';
 
@@ -25,11 +26,15 @@ function SkuList() {
       selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabricsCatalog: s.fabricsCatalog,
       trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
   );
+  const restoreFromDraft = useStore(s => s.restoreFromDraft);
+  const { templates, fetchTemplates, deleteTemplate } = useTemplatesStore();
+  const [showTemplates, setShowTemplates] = useState(false);
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
   const [skuSearch, setSkuSearch] = useState('');
   const deferredSearch = useDeferredValue(skuSearch);
+  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
   const usedCats = [...new Set(skuCatalog.map(s => s.category))];
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
 
@@ -81,6 +86,38 @@ function SkuList() {
   return (
     <div className="sku-section">
       <div className="section-label">Изделие</div>
+      <div style={{ marginBottom: 12 }}>
+        <button className="btn" onClick={() => setShowTemplates(v => !v)}>
+          {showTemplates ? '\u25B2' : '\u25BC'} Мои шаблоны {templates.length > 0 && `(${templates.length})`}
+        </button>
+
+        {showTemplates && (
+          <div style={{ marginTop: 8, border: '1px solid var(--border-light)', borderRadius: 6, overflow: 'hidden' }}>
+            {templates.length === 0 && (
+              <div style={{ padding: 12, fontSize: 13, color: 'var(--text-dim)' }}>
+                Нет сохранённых шаблонов
+              </div>
+            )}
+            {templates.map(t => (
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 12px', borderBottom: '1px solid var(--border-light)'
+              }}>
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{t.name}</div>
+                <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 12px' }}
+                  onClick={() => { restoreFromDraft(t.data); setShowTemplates(false); }}>
+                  Применить
+                </button>
+                <button className="btn" style={{ fontSize: 12, padding: '4px 8px' }}
+                  onClick={() => deleteTemplate(t.id)}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="sku-cat-filter">
         <button className={`sku-cat-pill${skuFilter === 'all' ? ' active' : ''}`} onClick={() => setSkuFilter('all')}>Все</button>
         {cats.map(c => (
