@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ':*)",
+      "Edit(/.claude/skills/test-driven-development/**)",
+      "Edit(/.claude/skills/finishing-a-development-branch/**)",
+      "Edit(/.claude/skills/software-architecture/**)",
+      "Edit(/.claude/skills/subagent-driven-development/**)",
+      "Edit(/.claude/skills/using-git-worktrees/**)",
+      "Edit(/.claude/skills/changelog-generator/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/margolinilya/PinheadOS/PinheadOS/.claude/skills"
+    ]
+  }
+}
