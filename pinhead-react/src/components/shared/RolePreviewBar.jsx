@@ -1,4 +1,5 @@
 import { useAuthStore } from '../../store/useAuthStore';
+import { useShallow } from 'zustand/react/shallow';
 import styles from './RolePreviewBar.module.css';
 
 const ROLES = [
@@ -11,7 +12,9 @@ const ROLES = [
 ];
 
 export default function RolePreviewBar() {
-  const { user, previewRole, setPreviewRole, clearPreviewRole } = useAuthStore();
+  const { user, previewRole, setPreviewRole, clearPreviewRole } = useAuthStore(
+    useShallow(s => ({ user: s.user, previewRole: s.previewRole, setPreviewRole: s.setPreviewRole, clearPreviewRole: s.clearPreviewRole }))
+  );
 
   if (!['admin', 'director'].includes(user?.role)) return null;
 

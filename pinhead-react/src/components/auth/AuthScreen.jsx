@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export default function AuthScreen() {
   const [tab, setTab] = useState('login');
@@ -7,7 +8,9 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const { login, register, error, loading, clearError } = useAuthStore();
+  const { login, register, error, loading, clearError } = useAuthStore(
+    useShallow(s => ({ login: s.login, register: s.register, error: s.error, loading: s.loading, clearError: s.clearError }))
+  );
 
   const switchTab = (t) => {
     setTab(t);

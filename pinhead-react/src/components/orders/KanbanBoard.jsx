@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 import { toast } from '../../store/useToastStore';
 import { useCommentsStore } from '../../store/useCommentsStore';
@@ -150,8 +151,10 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
   const fabricName = d.fabric ? (FABRIC_NAMES[d.fabric] || d.fabric) : '';
   const techName = d.tech ? (TECH_NAMES[d.tech] || d.tech) : '';
   const dlInfo = getDeadlineInfo(d.deadline);
-  const { comments, loading: commentsLoading, fetchComments, addComment } = useCommentsStore();
-  const { user } = useAuthStore();
+  const { comments, loading: commentsLoading, fetchComments, addComment } = useCommentsStore(
+    useShallow(s => ({ comments: s.comments, loading: s.loading, fetchComments: s.fetchComments, addComment: s.addComment }))
+  );
+  const user = useAuthStore(s => s.user);
   const [commentText, setCommentText] = useState('');
   const orderComments = comments[order.id] || [];
 
@@ -364,7 +367,11 @@ const FINAL_STATUSES = ['done'];
 /* ── Main Component ── */
 export default function KanbanBoard() {
   const navigate = useNavigate();
-  const { orders, loading, search, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, hasMore, loadingMore, fetchMoreOrders } = useOrdersStore();
+  const { orders, loading, search, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, hasMore, loadingMore, fetchMoreOrders } = useOrdersStore(
+    useShallow(s => ({ orders: s.orders, loading: s.loading, search: s.search, setSearch: s.setSearch,
+      fetchOrders: s.fetchOrders, updateStatus: s.updateStatus, deleteOrder: s.deleteOrder,
+      duplicateOrder: s.duplicateOrder, hasMore: s.hasMore, loadingMore: s.loadingMore, fetchMoreOrders: s.fetchMoreOrders }))
+  );
   const loadOrder = useStore(s => s.loadOrder);
 
   const [drawerOrder, setDrawerOrder] = useState(null);

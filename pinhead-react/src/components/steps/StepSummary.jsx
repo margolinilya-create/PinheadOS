@@ -150,7 +150,7 @@ export default function StepSummary() {
 
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
-  const { saveTemplate } = useTemplatesStore();
+  const saveTemplate = useTemplatesStore(s => s.saveTemplate);
   const [templateName, setTemplateName] = useState('');
   const [showTemplateInput, setShowTemplateInput] = useState(false);
 

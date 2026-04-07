@@ -27,7 +27,9 @@ function SkuList() {
       trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
   );
   const restoreFromDraft = useStore(s => s.restoreFromDraft);
-  const { templates, fetchTemplates, deleteTemplate } = useTemplatesStore();
+  const { templates, fetchTemplates, deleteTemplate } = useTemplatesStore(
+    useShallow(s => ({ templates: s.templates, fetchTemplates: s.fetchTemplates, deleteTemplate: s.deleteTemplate }))
+  );
   const [showTemplates, setShowTemplates] = useState(false);
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);

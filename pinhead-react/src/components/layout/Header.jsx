@@ -12,7 +12,7 @@ export default function Header() {
   const total = useStore(s => calcTotal(s));
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
   const { draftStatus, resetDraft } = useDraft();
-  const { logout } = useAuthStore();
+  const logout = useAuthStore(s => s.logout);
 
   const draftLabel = draftStatus === 'saving' ? 'сохраняю...'
     : draftStatus === 'saved' ? 'сохранено'

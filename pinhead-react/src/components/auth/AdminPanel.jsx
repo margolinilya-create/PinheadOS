@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
+import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES } from '../../data';
 
 const ALL_ROLES = ['admin', 'director', 'rop', 'manager', 'production', 'designer'];
@@ -12,7 +13,9 @@ export default function AdminPanel() {
   const [tab, setTab] = useState('orders');
 
   // Orders from store (shared with KanbanBoard/Dashboard)
-  const { orders, fetchOrders, updateStatus, deleteOrder: storeDeleteOrder } = useOrdersStore();
+  const { orders, fetchOrders, updateStatus, deleteOrder: storeDeleteOrder } = useOrdersStore(
+    useShallow(s => ({ orders: s.orders, fetchOrders: s.fetchOrders, updateStatus: s.updateStatus, deleteOrder: s.deleteOrder }))
+  );
 
   // Users — direct Supabase (no store needed, admin-only)
   const [users, setUsers] = useState([]);
