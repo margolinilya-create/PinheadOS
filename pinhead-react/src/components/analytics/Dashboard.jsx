@@ -127,6 +127,30 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
     [filtered]
   );
 
+  const topSku = useMemo(() => {
+    const skuStats = {};
+    filtered.forEach(order => {
+      const items = order.data?.items;
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach(it => {
+          const key = it.sku?.code || it.sku?.name || order.item_type || '—';
+          const name = it.sku?.name || order.item_type || '—';
+          if (!skuStats[key]) skuStats[key] = { name, qty: 0, orders: 0, sum: 0 };
+          skuStats[key].qty += Object.values(it.sizes || {}).reduce((a, b) => a + (b || 0), 0);
+          skuStats[key].orders += 1;
+          skuStats[key].sum += it.total || 0;
+        });
+      } else {
+        const key = order.item_type || '—';
+        if (!skuStats[key]) skuStats[key] = { name: key, qty: 0, orders: 0, sum: 0 };
+        skuStats[key].qty += order.total_qty || 0;
+        skuStats[key].orders += 1;
+        skuStats[key].sum += order.total_sum || 0;
+      }
+    });
+    return Object.values(skuStats).sort((a, b) => b.qty - a.qty).slice(0, 10);
+  }, [filtered]);
+
   return (
     <>
       {/* Period + Export */}
@@ -256,6 +280,39 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Top SKU */}
+      <div className="analytics-section" style={{ marginTop: 32 }}>
+        <div className="section-label">Топ артикулов</div>
+        {topSku.length === 0 ? (
+          <div className="empty-state">Нет данных за период</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>#</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Артикул</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Кол-во</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Заказов</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Сумма</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topSku.map((s, i) => (
+                <tr key={s.name} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                  <td style={{ padding: '6px 8px', color: 'var(--text-dim)' }}>{i + 1}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: i < 3 ? 600 : 400 }}>{s.name}</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{s.qty.toLocaleString('ru-RU')}</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-dim)' }}>{s.orders}</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                    {s.sum > 0 ? s.sum.toLocaleString('ru-RU') + ' ₽' : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </>
   );

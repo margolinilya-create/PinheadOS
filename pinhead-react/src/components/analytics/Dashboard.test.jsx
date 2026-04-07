@@ -77,7 +77,7 @@ describe('Dashboard', () => {
 
   it('shows analytics tab by default', () => {
     renderDashboard();
-    expect(screen.getByText('Заказов')).toBeInTheDocument();
+    expect(screen.getAllByText('Заказов').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Сумма').length).toBeGreaterThan(0);
   });
 
