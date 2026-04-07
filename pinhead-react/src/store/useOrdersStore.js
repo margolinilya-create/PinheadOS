@@ -60,9 +60,8 @@ export const useOrdersStore = create((set, get) => ({
 
       const { data, error } = await query;
       if (!error && data) {
-        const localOrders = get().orders.filter(o => String(o.id).startsWith('local_'));
         set({
-          orders: [...data, ...localOrders],
+          orders: data,
           loading: false,
           hasMore: data.length === PAGE_SIZE,
           lastCreatedAt: data.length > 0 ? data[data.length - 1].created_at : null,
