@@ -286,3 +286,52 @@
   .supplier-tab { justify-content: center; }
   .add-size-form { flex-wrap: wrap; }
 }
+
+@media (max-width: 600px) {
+  .swatches {
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    max-height: 280px;
+  }
+
+  .swatch-circle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .fit-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .fit-option {
+    padding: 12px 16px;
+  }
+
+  .supplier-tabs,
+  .supplier-switch {
+    width: 100%;
+  }
+
+  .supplier-tab {
+    flex: 1;
+    text-align: center;
+  }
+
+  .sku-fit-filter {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+
+  .garment-row-name {
+    font-size: 12px;
+  }
+
+  .size-table {
+    font-size: 12px;
+  }
+
+  .size-table input[type="number"] {
+    width: 48px;
+    padding: 4px;
+  }
+}
