@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
@@ -30,7 +30,7 @@ function getInitials(name) {
 }
 
 /* ── KanbanCard ── */
-function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onCardClick }) {
+const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onCardClick }) {
   const [showMenu, setShowMenu] = useState(false);
   const d = order.data || {};
   const dt = order.created_at ? new Date(order.created_at) : null;
@@ -141,10 +141,10 @@ function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate,
       )}
     </div>
   );
-}
+});
 
 /* ── OrderDrawer ── */
-function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) {
+const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) {
   const d = order.data || {};
   const itemKey = (order.item_type || '').toLowerCase();
   const skuName = d.sku ? d.sku.name : (TYPE_NAMES[itemKey] || TYPE_NAMES[order.item_type] || order.item_type || '—');
@@ -359,7 +359,7 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
       </div>
     </div>
   );
-}
+});
 
 /* ── Final statuses that require confirmation ── */
 const FINAL_STATUSES = ['done'];

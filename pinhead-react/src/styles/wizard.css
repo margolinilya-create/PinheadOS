@@ -73,3 +73,18 @@
   background: var(--accent); color: #fff; font-family: 'Inter', sans-serif;
   font-size: 11px; font-weight: 600; padding: 3px 12px; letter-spacing: .5px;
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .step-header-title { font-size: 32px; letter-spacing: -0.5px; }
+  .step-header { margin-bottom: 24px; padding-bottom: 16px; }
+  .step-content-grid { grid-template-columns: 1fr; gap: 16px; }
+  .step-aside { position: static; }
+  .page-view { padding: 0 16px 40px; }
+  .page-header { flex-direction: column; gap: 12px; padding: 24px 0 20px; }
+}
+@media (max-width: 480px) {
+  .step-header-title { font-size: 24px; }
+  .step-header-desc { font-size: 13px; }
+  .page-search { min-width: 0; width: 100%; }
+}

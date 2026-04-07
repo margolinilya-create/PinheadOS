@@ -80,27 +80,32 @@ export default function StepDesign() {
             <div className="design-zones-col">
               <div className="zones-grid">
                 {/* "Без нанесения" — first, as a zone card */}
-                <div
+                <button
+                  type="button"
                   className={`zone-card zone-card-noprint${noPrint ? ' selected' : ''}`}
                   onClick={toggleNoPrint}
+                  aria-pressed={noPrint}
                 >
                   <div className="zone-bar" />
                   <div className="zone-card-inner">
                     <div className="zone-label">Без нанесения</div>
                   </div>
                   <div className="zone-check">{noPrint ? '✓' : ''}</div>
-                </div>
+                </button>
 
                 {displayZones.map(z => {
                   const available = availableZones.includes(z);
                   const active = zones.includes(z);
-                  const cls = `zone-card${active ? ' selected' : ''}${!available ? ' disabled' : ''}`;
+                  const cls = `zone-card${active ? ' selected' : ''}`;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={z}
                       className={cls}
-                      onClick={() => available && toggleZone(z)}
-                      title={!available ? 'Недоступно для этого изделия' : undefined}
+                      onClick={() => toggleZone(z)}
+                      disabled={!available}
+                      aria-pressed={active}
+                      aria-label={ZONE_LABELS[z] || z}
                     >
                       <div className="zone-bar" />
                       <div className="zone-card-inner">
@@ -108,7 +113,7 @@ export default function StepDesign() {
                         {active && <div className="zone-mini-summary">{getZoneMiniSummary(z, store)}</div>}
                       </div>
                       <div className="zone-check">{active ? '✓' : ''}</div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
