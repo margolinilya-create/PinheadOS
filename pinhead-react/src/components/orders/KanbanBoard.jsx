@@ -190,12 +190,38 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
           </div>
 
           <div style={sectionLabel}>ИЗДЕЛИЕ</div>
-          <div style={sectionValue}>{skuName}{fabricName ? ' · ' + fabricName : ''}</div>
+          {d.items?.length > 1 ? (
+            d.items.map((it, i) => (
+              <div key={i} style={{ marginBottom: 4, fontSize: 13 }}>
+                {i + 1}. {it.sku?.name || it.type || '—'}
+                {it.fabric ? ' · ' + (FABRIC_NAMES[it.fabric] || it.fabric) : ''}
+                {' · '}{Object.values(it.sizes || {}).reduce((a, b) => a + (b || 0), 0)} шт
+              </div>
+            ))
+          ) : (
+            <div style={sectionValue}>{skuName}{fabricName ? ' · ' + fabricName : ''}</div>
+          )}
 
           <div style={sectionLabel}>ТИРАЖ</div>
           <div style={sectionValue}>
             {order.total_qty || 0} шт · {(order.total_sum || 0).toLocaleString('ru-RU')} ₽
           </div>
+
+          {(d.contact || d.phone || d.email) && (
+            <>
+              <div style={sectionLabel}>КОНТАКТЫ</div>
+              <div style={{ ...sectionValue, fontSize: 13 }}>
+                {[d.contact, d.phone, d.email].filter(Boolean).join(' · ')}
+              </div>
+            </>
+          )}
+
+          {d.managerName && (
+            <>
+              <div style={sectionLabel}>МЕНЕДЖЕР</div>
+              <div style={{ ...sectionValue, fontSize: 13 }}>{d.managerName}</div>
+            </>
+          )}
 
           {techName && (
             <>
@@ -222,6 +248,19 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
             <>
               <div style={sectionLabel}>ЗАМЕТКИ</div>
               <div style={{ ...sectionValue, fontSize: 13, color: '#444', whiteSpace: 'pre-wrap' }}>{d.notes}</div>
+            </>
+          )}
+
+          {d.artworkPath && (
+            <>
+              <div style={sectionLabel}>ПАПКА С МАКЕТАМИ</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{d.artworkPath}</code>
+                <button className="btn" style={{ fontSize: 11, padding: '2px 8px', flexShrink: 0 }}
+                  onClick={() => { navigator.clipboard.writeText(d.artworkPath); toast.success('Скопировано'); }}>
+                  Копировать
+                </button>
+              </div>
             </>
           )}
 
