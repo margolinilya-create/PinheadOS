@@ -64,7 +64,7 @@ function groupByStatus(orders) {
 function groupByManager(orders) {
   const map = {};
   orders.forEach(o => {
-    const name = o.data?.name || 'Неизвестный';
+    const name = o.data?.managerName || o.created_by || 'Неизвестно';
     if (!map[name]) map[name] = { name, sum: 0, count: 0 };
     map[name].sum += o.total_sum || 0;
     map[name].count++;

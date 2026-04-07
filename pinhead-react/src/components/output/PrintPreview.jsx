@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES, findColorEntry } from '../../data';
 import { calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { LABEL_CONFIG } from '../../data/extras';
+import ZoneMockup from '../steps/ZoneMockup';
 
 function getZoneParams(zone, item) {
   const tech = item.zoneTechs?.[zone] || 'screen';
@@ -188,6 +189,28 @@ export default function PrintPreview() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Мокап изделия с зонами */}
+              {!item.noPrint && item.zones?.length > 0 && item.sku?.mockupType && (
+                <div style={{
+                  display: 'flex', justifyContent: 'center',
+                  margin: '12px 0', pageBreakInside: 'avoid'
+                }}>
+                  <div style={{ width: 200, height: 200 }}>
+                    <ZoneMockup
+                      garmentType={item.sku.mockupType}
+                      activeZones={item.zones}
+                      color={item.color}
+                      zoneTechs={item.zoneTechs}
+                      zonePrints={item.zonePrints}
+                      flexZones={item.flexZones}
+                      dtgZones={item.dtgZones}
+                      embZones={item.embZones}
+                      dtfZones={item.dtfZones}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Зоны нанесения с параметрами */}
               {!item.noPrint && item.zones?.length > 0 && (
