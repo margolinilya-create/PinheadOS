@@ -3,6 +3,10 @@
     "agentation": {
       "command": "npx",
       "args": ["-y", "agentation-mcp", "server"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
     }
   }
 }
