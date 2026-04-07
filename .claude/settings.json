@@ -7,7 +7,12 @@
       "Edit(/.claude/skills/software-architecture/**)",
       "Edit(/.claude/skills/subagent-driven-development/**)",
       "Edit(/.claude/skills/using-git-worktrees/**)",
-      "Edit(/.claude/skills/changelog-generator/**)"
+      "Edit(/.claude/skills/changelog-generator/**)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(npx eslint:*)",
+      "Bash(npx playwright:*)",
+      "Bash(NO_PROXY=localhost npx playwright test e2e/wizard-flow.spec.ts --project=desktop --reporter=line)",
+      "Bash(npx vite:*)"
     ],
     "additionalDirectories": [
       "/Users/margolinilya/PinheadOS/PinheadOS/.claude/skills"
