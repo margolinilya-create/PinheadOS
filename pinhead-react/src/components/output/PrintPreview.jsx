@@ -57,11 +57,12 @@ export default function PrintPreview() {
   const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption,
     name: stateName, contact: stateContact, email: stateEmail, phone: statePhone,
     address: stateAddress, notes: stateNotes, deadline: stateDeadline,
-    _editingOrderNumber } = useStore(
+    artworkPath, _editingOrderNumber } = useStore(
     useShallow(s => ({ items: s.items, fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog,
       extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, packOption: s.packOption, packType: s.packType || 'none', urgentOption: s.urgentOption,
       name: s.name, contact: s.contact, email: s.email, phone: s.phone,
       address: s.address, notes: s.notes, deadline: s.deadline,
+      artworkPath: s.artworkPath,
       _editingOrderNumber: s._editingOrderNumber }))
   );
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption };
@@ -210,6 +211,12 @@ export default function PrintPreview() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {artworkPath && (
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  Папка с макетами: <code>{artworkPath}</code>
                 </div>
               )}
 

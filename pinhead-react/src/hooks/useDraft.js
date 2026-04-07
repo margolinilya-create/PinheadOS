@@ -11,7 +11,7 @@ const DRAFT_FIELDS = [
   'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes',
   'fit', 'fitChosen', 'extras', 'labels', 'zones', 'tech', 'textileColor',
   'zoneTechs', 'zonePrints', 'flexZones', 'dtgZones', 'embZones', 'dtfZones',
-  'zoneArtworks', 'designNotes', 'sizeComment', 'phone', 'messenger', 'bitrixDeal',
+  'zoneArtworks', 'designNotes', 'artworkPath', 'sizeComment', 'phone', 'messenger', 'bitrixDeal',
   'role', 'name', 'contact', 'email', 'deadline', 'address', 'notes',
   'packOption', 'packType', 'urgentOption', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];

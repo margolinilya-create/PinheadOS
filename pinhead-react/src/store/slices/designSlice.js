@@ -41,4 +41,6 @@ export const designSlice = (set, _get) => ({
   setZoneArtwork: (zone, url) => set(s => ({
     zoneArtworks: { ...s.zoneArtworks, [zone]: url },
   })),
+  artworkPath: '',
+  setArtworkPath: (path) => set({ artworkPath: path }),
 });
