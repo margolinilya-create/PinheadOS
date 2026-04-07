@@ -1,8 +1,9 @@
 import React, { useEffect, useState, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import './styles/index.css'
 import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from './store/useAuthStore'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import Header from './components/layout/Header'
@@ -59,6 +60,13 @@ function LoadingScreen() {
 function App() {
   const { user, loading: authLoading, init, previewRole } = useAuthStore();
   const [catalogsReady, setCatalogsReady] = useState(false);
+  const { step, saved } = useStore(useShallow(s => ({ step: s.step, saved: s.saved })));
+
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    step > 0 &&
+    !saved &&
+    currentLocation.pathname !== nextLocation.pathname
+  );
 
   useEffect(() => {
     Promise.all([
@@ -151,6 +159,35 @@ function App() {
 
       {isRealAdmin && <Agentation />}
       <ToastContainer />
+
+      {blocker.state === 'blocked' && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'var(--bg)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: 24, maxWidth: 360, width: '90%'
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+              Заказ не сохранён
+            </div>
+            <div style={{ color: 'var(--text-mid)', fontSize: 14, marginBottom: 20 }}>
+              Если уйти сейчас — черновик сохранится, но несохранённые изменения потеряются.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }}
+                onClick={() => blocker.reset()}>
+                Остаться
+              </button>
+              <button className="btn" style={{ flex: 1 }}
+                onClick={() => blocker.proceed()}>
+                Всё равно уйти
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

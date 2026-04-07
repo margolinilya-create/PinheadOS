@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/useAuthStore';
 import { useStore } from './store/useStore';
@@ -86,11 +86,11 @@ vi.mock('qrcode', () => ({
 }));
 
 function renderApp(path = '/') {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>
+  const router = createMemoryRouter(
+    [{ path: '*', Component: App }],
+    { initialEntries: [path] }
   );
+  return render(<RouterProvider router={router} />);
 }
 
 beforeEach(() => {
