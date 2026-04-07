@@ -51,6 +51,7 @@ export default function StepDesign() {
   );
   const store = { zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, sizes, customSizes };
   const [screenConfirmed, setScreenConfirmed] = useState(false);
+  const [showLabels, setShowLabels] = useState(false);
 
   if (!sku) {
     return <div className="step-panel"><div className="empty-state">Сначала выберите изделие</div></div>;
@@ -143,8 +144,18 @@ export default function StepDesign() {
       )}
 
       {/* ── Бирки и этикетки ── */}
-      <div className="section-label" style={{ marginTop: 32 }}>Бирки и этикетки</div>
-      <LabelConfigurator />
+      <div className="extras-accordion" style={{ marginTop: 32 }}>
+        <button
+          className="extras-accordion-toggle"
+          onClick={() => setShowLabels(v => !v)}
+          style={{ width:'100%', textAlign:'left', padding:'10px 12px',
+            background:'var(--bg2)', border:'1px solid var(--border-light)',
+            borderRadius:6, cursor:'pointer', fontSize:13, fontWeight:500 }}
+        >
+          {showLabels ? '\u25B2' : '\u25BC'} Бирки и этикетки
+        </button>
+        {showLabels && <LabelConfigurator />}
+      </div>
 
       {/* ── Заметки по дизайну ── */}
       <div className="section-label" style={{ marginTop: 24 }}>Заметки по дизайну</div>

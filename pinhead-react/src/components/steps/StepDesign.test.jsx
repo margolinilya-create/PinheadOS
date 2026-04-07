@@ -119,7 +119,7 @@ describe('StepDesign', () => {
 
   it('shows LabelConfigurator section', () => {
     render(<StepDesign />);
-    expect(screen.getByText('Бирки и этикетки')).toBeInTheDocument();
+    expect(screen.getByText(/Бирки и этикетки/)).toBeInTheDocument();
   });
 
   it('calls prevStep on back', () => {
