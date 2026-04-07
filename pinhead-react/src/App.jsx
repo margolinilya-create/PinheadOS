@@ -17,13 +17,13 @@ import AuthScreen from './components/auth/AuthScreen'
 import PrintPreview from './components/output/PrintPreview'
 import SkuEditor from './components/editors/SkuEditor'
 import ToastContainer from './components/shared/Toast'
-import Dashboard from './components/analytics/Dashboard'
 import RolePreviewBar from './components/shared/RolePreviewBar'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
 const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'));
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
 const AdminPanel = React.lazy(() => import('./components/auth/AdminPanel'));
+const Dashboard = React.lazy(() => import('./components/analytics/Dashboard'));
 
 const STEPS = [StepGarment, StepDesign, StepItems, StepDetails, StepSummary];
 
@@ -153,7 +153,7 @@ function App() {
         <Route path="/prices" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PriceEditor /></Suspense></RoleGuard>} />
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><SkuEditor /></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Dashboard /></RoleGuard>} />
+        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
