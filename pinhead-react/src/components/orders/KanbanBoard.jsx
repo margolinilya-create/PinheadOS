@@ -4,6 +4,8 @@ import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../..
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 import { toast } from '../../store/useToastStore';
+import { useCommentsStore } from '../../store/useCommentsStore';
+import { useAuthStore } from '../../store/useAuthStore';
 
 /* ── helpers ── */
 function getDeadlineInfo(deadline) {
@@ -148,6 +150,12 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
   const fabricName = d.fabric ? (FABRIC_NAMES[d.fabric] || d.fabric) : '';
   const techName = d.tech ? (TECH_NAMES[d.tech] || d.tech) : '';
   const dlInfo = getDeadlineInfo(d.deadline);
+  const { comments, loading: commentsLoading, fetchComments, addComment } = useCommentsStore();
+  const { user } = useAuthStore();
+  const [commentText, setCommentText] = useState('');
+  const orderComments = comments[order.id] || [];
+
+  useEffect(() => { fetchComments(order.id); }, [order.id, fetchComments]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -263,6 +271,52 @@ function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) 
               </div>
             </>
           )}
+
+          {/* Comments */}
+          <div style={sectionLabel}>КОММЕНТАРИИ</div>
+          <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 8 }}>
+            {commentsLoading[order.id] && <div style={{ fontSize: 12, color: '#888' }}>Загрузка...</div>}
+            {orderComments.length === 0 && !commentsLoading[order.id] && (
+              <div style={{ fontSize: 12, color: '#888' }}>Нет комментариев</div>
+            )}
+            {orderComments.map(c => (
+              <div key={c.id} style={{ marginBottom: 8, fontSize: 13 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 600 }}>{c.author_name}</span>
+                  <span style={{ fontSize: 10, color: '#888' }}>
+                    {new Date(c.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div style={{ color: '#333', whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="text"
+              placeholder="Добавить комментарий..."
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  addComment(order.id, commentText, user?.name || user?.email || 'Менеджер', user?.role || 'manager');
+                  setCommentText('');
+                }
+              }}
+              style={{ flex: 1, fontSize: 13 }}
+            />
+            <button
+              className="btn btn-primary"
+              style={{ fontSize: 12, padding: '0 12px' }}
+              onClick={() => {
+                addComment(order.id, commentText, user?.name || user?.email || 'Менеджер', user?.role || 'manager');
+                setCommentText('');
+              }}
+            >
+              →
+            </button>
+          </div>
 
           {/* Status change buttons */}
           <div style={sectionLabel}>СМЕНИТЬ СТАТУС</div>
