@@ -25,9 +25,14 @@ async function generateOrderNumber() {
   return `PH-${Date.now()}`;
 }
 
+const PAGE_SIZE = 50;
+
 export const useOrdersStore = create((set, get) => ({
   orders: [],
   loading: false,
+  hasMore: true,
+  loadingMore: false,
+  lastCreatedAt: null,
   filter: 'all',
   search: '',
 
@@ -36,30 +41,32 @@ export const useOrdersStore = create((set, get) => ({
 
   // Загрузить заказы из Supabase (фильтрация по роли)
   fetchOrders: async () => {
-    set({ loading: true });
+    set({ loading: true, orders: [], lastCreatedAt: null, hasMore: true });
     try {
       const auth = useAuthStore.getState();
       const role = auth.user?.role;
       const userId = auth.user?.id;
 
-      let query = supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+      let query = supabase.from('orders').select('*')
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
 
-      // Менеджер видит только свои заказы
       if (role === 'manager' && userId && userId !== 'dev') {
         query = query.eq('created_by', userId);
       }
-      // Производство видит только approved/production
       if (role === 'production') {
         query = query.in('status', ['approved', 'production']);
       }
 
       const { data, error } = await query;
       if (!error && data) {
-        // Preserve local-only orders (not yet synced to Supabase)
         const localOrders = get().orders.filter(o => String(o.id).startsWith('local_'));
-        const remoteIds = new Set(data.map(o => o.id));
-        const merged = [...data, ...localOrders.filter(o => !remoteIds.has(o.id))];
-        set({ orders: merged, loading: false });
+        set({
+          orders: [...data, ...localOrders],
+          loading: false,
+          hasMore: data.length === PAGE_SIZE,
+          lastCreatedAt: data.length > 0 ? data[data.length - 1].created_at : null,
+        });
       } else {
         set({ loading: false });
       }
@@ -67,6 +74,46 @@ export const useOrdersStore = create((set, get) => ({
       console.error('[fetchOrders]', err);
       toast.error('Не удалось загрузить заказы');
       set({ loading: false });
+    }
+  },
+
+  // Подгрузить следующую страницу
+  fetchMoreOrders: async () => {
+    const { hasMore, loadingMore, lastCreatedAt } = get();
+    if (!hasMore || loadingMore) return;
+
+    set({ loadingMore: true });
+    try {
+      const auth = useAuthStore.getState();
+      const role = auth.user?.role;
+      const userId = auth.user?.id;
+
+      let query = supabase.from('orders').select('*')
+        .order('created_at', { ascending: false })
+        .lt('created_at', lastCreatedAt)
+        .limit(PAGE_SIZE);
+
+      if (role === 'manager' && userId && userId !== 'dev') {
+        query = query.eq('created_by', userId);
+      }
+      if (role === 'production') {
+        query = query.in('status', ['approved', 'production']);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        set(s => ({
+          orders: [...s.orders, ...data],
+          loadingMore: false,
+          hasMore: data.length === PAGE_SIZE,
+          lastCreatedAt: data.length > 0 ? data[data.length - 1].created_at : null,
+        }));
+      } else {
+        set({ loadingMore: false });
+      }
+    } catch (err) {
+      console.error('[fetchMoreOrders]', err);
+      set({ loadingMore: false });
     }
   },
 

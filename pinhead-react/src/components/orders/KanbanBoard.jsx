@@ -364,7 +364,7 @@ const FINAL_STATUSES = ['done'];
 /* ── Main Component ── */
 export default function KanbanBoard() {
   const navigate = useNavigate();
-  const { orders, loading, search, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder } = useOrdersStore();
+  const { orders, loading, search, setSearch, fetchOrders, updateStatus, deleteOrder, duplicateOrder, hasMore, loadingMore, fetchMoreOrders } = useOrdersStore();
   const loadOrder = useStore(s => s.loadOrder);
 
   const [drawerOrder, setDrawerOrder] = useState(null);
@@ -560,6 +560,20 @@ export default function KanbanBoard() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Load more ── */}
+      {hasMore && (
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <button
+            className="btn"
+            onClick={fetchMoreOrders}
+            disabled={loadingMore}
+            style={{ minWidth: 160 }}
+          >
+            {loadingMore ? 'Загрузка...' : 'Загрузить ещё'}
+          </button>
         </div>
       )}
 
