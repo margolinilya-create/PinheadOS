@@ -97,8 +97,13 @@ export default function StepDetails() {
           <input id="field-bitrix" type="text" value={bitrixDeal} placeholder="BX-12345" onChange={e => setField('bitrixDeal', e.target.value)} />
         </div>
         <div className="form-field">
-          <label htmlFor="field-deadline">Дедлайн</label>
-          <input id="field-deadline" type="date" value={deadline} onChange={e => setField('deadline', e.target.value)} />
+          <label htmlFor="field-deadline">Дедлайн <span style={{color:'var(--color-text-danger)',fontSize:11}}>важно</span></label>
+          <input id="field-deadline" type="date" value={deadline} min={new Date().toISOString().split('T')[0]} onChange={e => setField('deadline', e.target.value)} />
+          {deadline && (new Date(deadline) - new Date()) < 3 * 24 * 60 * 60 * 1000 && (
+            <div style={{fontSize:12, color:'var(--color-text-warning)', marginTop:4}}>
+              Срочный срок — уточните с производством
+            </div>
+          )}
         </div>
       </div>
 
