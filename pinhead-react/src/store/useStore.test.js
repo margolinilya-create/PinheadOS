@@ -209,7 +209,7 @@ describe('useStore — loadOrder', () => {
     };
     useStore.getState().loadOrder(mockOrder);
     const s = useStore.getState();
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(4);
     expect(s.items.length).toBe(1);
     expect(s.name).toBe('Тест Клиент');
     expect(s._editingOrderId).toBe('test-id');
@@ -232,7 +232,7 @@ describe('useStore — loadOrder', () => {
     };
     useStore.getState().loadOrder(mockOrder);
     const s = useStore.getState();
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(4);
     expect(s.items.length).toBe(1);
     expect(s.name).toBe('Старый Клиент');
   });
@@ -266,7 +266,7 @@ describe('useStore — loadOrder', () => {
     expect(s.sku).toEqual({ code: 'NONEXISTENT-999' });
   });
 
-  it('sets step=5 and maxStep=5', () => {
+  it('sets step=4 and maxStep=4', () => {
     const mockOrder = {
       id: 'step-id',
       order_number: 'PH-0005',
@@ -274,7 +274,7 @@ describe('useStore — loadOrder', () => {
     };
     useStore.getState().loadOrder(mockOrder);
     const s = useStore.getState();
-    expect(s.step).toBe(5);
-    expect(s.maxStep).toBe(5);
+    expect(s.step).toBe(4);
+    expect(s.maxStep).toBe(4);
   });
 });

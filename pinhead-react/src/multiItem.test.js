@@ -77,10 +77,9 @@ function fillHoodieOrder() {
 }
 
 function advanceToItems() {
-  // Step 0 → 1 → 2 → 3 (Items)
+  // Step 0 → 1 (auto-saves item) → 2 (Items)
   useStore.getState().nextStep(); // 0→1
-  useStore.getState().nextStep(); // 1→2
-  useStore.getState().nextStep(); // 2→3 (auto-saves item)
+  useStore.getState().nextStep(); // 1→2 (auto-saves item)
 }
 
 beforeEach(() => {
@@ -181,14 +180,14 @@ describe('Multi-item: items array management', () => {
     expect(useStore.getState().activeItemIdx).toBe(-1);
   });
 
-  it('nextStep at step 2 saves current item to items[]', () => {
+  it('nextStep at step 1 saves current item to items[]', () => {
     fillTeeOrder();
     advanceToItems();
     const s = useStore.getState();
     expect(s.items).toHaveLength(1);
     expect(s.items[0].type).toBe('tee');
     expect(s.items[0].sku.code).toBe('T-003');
-    expect(s.step).toBe(3);
+    expect(s.step).toBe(2);
   });
 
   it('activeItemIdx points to last saved item', () => {
@@ -309,33 +308,32 @@ describe('Multi-item: items array management', () => {
 });
 
 describe('Multi-item: navigation with items', () => {
-  it('step 2→3 transition auto-saves item', () => {
+  it('step 1→2 transition auto-saves item', () => {
     fillTeeOrder();
     useStore.getState().nextStep(); // 0→1
-    useStore.getState().nextStep(); // 1→2
     expect(useStore.getState().items).toHaveLength(0);
-    useStore.getState().nextStep(); // 2→3 (auto-save)
+    useStore.getState().nextStep(); // 1→2 (auto-save)
     expect(useStore.getState().items).toHaveLength(1);
   });
 
-  it('step 3→2 transition restores item', () => {
+  it('step 2→1 transition restores item', () => {
     fillTeeOrder();
     advanceToItems();
     // Clear current fields to prove prevStep restores them
     useStore.setState({ type: '', sku: null });
-    useStore.getState().prevStep(); // 3→2
+    useStore.getState().prevStep(); // 2→1
     expect(useStore.getState().type).toBe('tee');
     expect(useStore.getState().sku.code).toBe('T-003');
   });
 
-  it('max step is correctly set to 5 for full flow', () => {
+  it('max step is correctly set to 4 for full flow', () => {
     fillTeeOrder();
     advanceToItems();
-    useStore.getState().nextStep(); // 3→4
+    useStore.getState().nextStep(); // 2→3
     useStore.getState().setField('name', 'Test');
-    useStore.getState().nextStep(); // 4→5
-    expect(useStore.getState().maxStep).toBe(5);
-    expect(useStore.getState().step).toBe(5);
+    useStore.getState().nextStep(); // 3→4
+    expect(useStore.getState().maxStep).toBe(4);
+    expect(useStore.getState().step).toBe(4);
   });
 
   it('prevStep from step 1 goes to step 0', () => {
@@ -344,47 +342,47 @@ describe('Multi-item: navigation with items', () => {
     expect(useStore.getState().step).toBe(0);
   });
 
+  it('prevStep from step 3 goes to step 2', () => {
+    fillTeeOrder();
+    advanceToItems();
+    useStore.getState().nextStep(); // 2→3
+    useStore.getState().prevStep(); // 3→2
+    expect(useStore.getState().step).toBe(2);
+  });
+
   it('prevStep from step 4 goes to step 3', () => {
     fillTeeOrder();
     advanceToItems();
+    useStore.getState().nextStep(); // 2→3
+    useStore.getState().setField('name', 'Test');
     useStore.getState().nextStep(); // 3→4
     useStore.getState().prevStep(); // 4→3
     expect(useStore.getState().step).toBe(3);
   });
 
-  it('prevStep from step 5 goes to step 4', () => {
+  it('step never exceeds 4', () => {
     fillTeeOrder();
     advanceToItems();
-    useStore.getState().nextStep(); // 3→4
+    useStore.getState().nextStep(); // 2→3
     useStore.getState().setField('name', 'Test');
-    useStore.getState().nextStep(); // 4→5
-    useStore.getState().prevStep(); // 5→4
+    useStore.getState().nextStep(); // 3→4
+    useStore.getState().nextStep(); // should stay at 4
     expect(useStore.getState().step).toBe(4);
   });
 
-  it('step never exceeds 5', () => {
+  it('goToStep to items step (2) works when maxStep >= 2', () => {
     fillTeeOrder();
     advanceToItems();
-    useStore.getState().nextStep(); // 3→4
-    useStore.getState().setField('name', 'Test');
-    useStore.getState().nextStep(); // 4→5
-    useStore.getState().nextStep(); // should stay at 5
-    expect(useStore.getState().step).toBe(5);
-  });
-
-  it('goToStep to items step (3) works when maxStep >= 3', () => {
-    fillTeeOrder();
-    advanceToItems();
-    useStore.getState().nextStep(); // 3→4
-    useStore.getState().goToStep(3);
-    expect(useStore.getState().step).toBe(3);
+    useStore.getState().nextStep(); // 2→3
+    useStore.getState().goToStep(2);
+    expect(useStore.getState().step).toBe(2);
   });
 
   it('goToStep cannot go beyond maxStep', () => {
     fillTeeOrder();
     advanceToItems();
-    useStore.getState().goToStep(5);
-    expect(useStore.getState().step).toBe(3); // maxStep is 3
+    useStore.getState().goToStep(4);
+    expect(useStore.getState().step).toBe(2); // maxStep is 2
   });
 });
 
@@ -634,7 +632,7 @@ describe('Single-item full flow', () => {
     useStore.getState().setField('email', 'john@example.com');
     useStore.getState().nextStep(); // → Summary
     const s = useStore.getState();
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(4);
     expect(s.items).toHaveLength(1);
     expect(s.items[0].sku.code).toBe('T-003');
     expect(s.name).toBe('John');
@@ -644,12 +642,11 @@ describe('Single-item full flow', () => {
     fillHoodieOrder();
     useStore.getState().toggleExtra('grommet');
     useStore.getState().toggleExtra('lace-flat');
-    useStore.getState().nextStep(); // 0→1
-    useStore.getState().nextStep(); // 1→2
-    // selectSku already sets first zone ('front'), add 'back' as second zone
+    useStore.getState().nextStep(); // 0→1 (Design)
+    // On Design step: add 'back' zone
     useStore.getState().toggleZone('back');
     useStore.getState().setZoneTech('back', 'dtg');
-    useStore.getState().nextStep(); // 2→3
+    useStore.getState().nextStep(); // 1→2 (auto-saves item)
     const s = useStore.getState();
     expect(s.items[0].extras).toContain('grommet');
     expect(s.items[0].extras).toContain('lace-flat');
@@ -812,7 +809,7 @@ describe('Multi-item full flow', () => {
     useStore.getState().setField('name', 'Multi Corp');
     useStore.getState().nextStep(); // 4→5 Summary
     const s = useStore.getState();
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(4);
     expect(s.items).toHaveLength(2);
     expect(s.name).toBe('Multi Corp');
   });
@@ -847,7 +844,7 @@ describe('loadOrder — new format (with items[])', () => {
     expect(s.items[0].sku.code).toBe('T-003');
     expect(s.name).toBe('Test Corp');
     expect(s.packOption).toBe(true);
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(4);
   });
 
   it('resolves SKU from catalog in items', () => {
@@ -962,7 +959,7 @@ describe('loadOrder — old format (without items[])', () => {
     const s = useStore.getState();
     expect(s.items).toHaveLength(1);
     expect(s.items[0].type).toBe('');
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(4);
   });
 
   it('old format with extras', () => {

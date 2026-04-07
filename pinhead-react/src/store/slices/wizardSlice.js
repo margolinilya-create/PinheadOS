@@ -10,8 +10,8 @@ export const wizardSlice = (set, _get) => ({
     return { step: n };
   }),
   nextStep: () => set(s => {
-    // При переходе со step 2 → 3 автосохраняем текущую позицию
-    if (s.step === 2) {
+    // При переходе со step 1 (Дизайн) → 2 (Позиции) автосохраняем текущую позицию
+    if (s.step === 1) {
       const snap = snapshotItem(s);
       const items = [...s.items];
       if (s.activeItemIdx >= 0 && s.activeItemIdx < items.length) {
@@ -19,17 +19,17 @@ export const wizardSlice = (set, _get) => ({
       } else {
         items.push(snap);
       }
-      const next = 3;
+      const next = 2;
       return { step: next, maxStep: Math.max(s.maxStep, next), items, activeItemIdx: items.length - 1 };
     }
-    const next = Math.min(s.step + 1, 5);
+    const next = Math.min(s.step + 1, 4);
     return { step: next, maxStep: Math.max(s.maxStep, next) };
   }),
   prevStep: () => set(s => {
-    // При переходе со step 3 → 2 загружаем последнюю позицию
-    if (s.step === 3 && s.items.length > 0) {
+    // При переходе со step 2 (Позиции) → 1 (Дизайн) загружаем последнюю позицию
+    if (s.step === 2 && s.items.length > 0) {
       const idx = s.activeItemIdx >= 0 ? s.activeItemIdx : s.items.length - 1;
-      return { step: 2, ...restoreItem(s.items[idx]), activeItemIdx: idx };
+      return { step: 1, ...restoreItem(s.items[idx]), activeItemIdx: idx };
     }
     return { step: Math.max(s.step - 1, 0) };
   }),

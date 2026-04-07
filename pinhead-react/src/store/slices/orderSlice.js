@@ -81,8 +81,8 @@ export const orderSlice = (set, get) => ({
     const firstItem = items[0] || {};
 
     set({
-      step: 5,
-      maxStep: 5,
+      step: 4,
+      maxStep: 4,
       _editingOrderId: order.id,
       _editingOrderNumber: order.order_number,
       _lastSavedOrderNum: null,
