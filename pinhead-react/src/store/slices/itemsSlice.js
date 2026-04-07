@@ -20,7 +20,7 @@ export const itemsSlice = (set, _get) => ({
   }),
   editItem: (idx) => set(s => {
     if (idx < 0 || idx >= s.items.length) return {};
-    return { ...restoreItem(s.items[idx]), activeItemIdx: idx, step: 2, maxStep: Math.max(s.maxStep, 3) };
+    return { ...restoreItem(s.items[idx]), activeItemIdx: idx, step: 1, maxStep: Math.max(s.maxStep, 3) };
   }),
   removeItem: (idx) => set(s => {
     const items = s.items.filter((_, i) => i !== idx);
