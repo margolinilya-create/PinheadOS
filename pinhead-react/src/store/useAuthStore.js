@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
 
 // ─── DEV MODE: bypass авторизации ───
@@ -29,7 +30,7 @@ export const useAuthStore = create((set, get) => ({
           await get().fetchProfile(session.user.id, session.user.email);
         }
       } catch {
-        console.log('Supabase offline, running in dev mode');
+        if (import.meta.env.DEV) console.log('Supabase offline, running in dev mode');
       }
       return;
     }
@@ -105,6 +106,7 @@ export const useAuthStore = create((set, get) => ({
   // Выход
   logout: async () => {
     await supabase.auth.signOut();
+    storageClearAll();
     set({ user: null, error: null });
   },
 

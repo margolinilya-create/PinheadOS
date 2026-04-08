@@ -28,6 +28,26 @@ export function storageRemove(key: string): void {
   }
 }
 
+// ── Clear all app data (on logout) ──
+
+const APP_KEYS = [
+  'pinhead_draft',
+  'ph_prices',
+  'ph_cb_rate',
+  'ph_extras',
+  'ph_hardware',
+  'ph_sku',
+  'ph_fabrics',
+  'ph_trims',
+  'ph_usd_rate',
+];
+
+export function storageClearAll(): void {
+  for (const key of APP_KEYS) {
+    storageRemove(key);
+  }
+}
+
 // ── sessionStorage ──
 
 interface SessionEnvelope<T = unknown> {

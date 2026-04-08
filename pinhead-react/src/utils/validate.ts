@@ -46,6 +46,18 @@ export function validateEmail(email: string | null | undefined): ValidationResul
 }
 
 /**
+ * Validate password — min 6 characters.
+ * Returns { valid: boolean, error?: string }
+ */
+export function validatePassword(password: string | null | undefined): ValidationResult {
+  if (!password) return { valid: false, error: 'Пароль обязателен' };
+  if (password.length < 6) {
+    return { valid: false, error: 'Пароль должен быть не менее 6 символов' };
+  }
+  return { valid: true };
+}
+
+/**
  * Validate that a value is non-empty.
  * Returns { valid: boolean, error?: string }
  */

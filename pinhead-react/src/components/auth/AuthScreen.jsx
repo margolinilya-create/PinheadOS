@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useShallow } from 'zustand/react/shallow';
+import { validatePassword } from '../../utils/validate';
 
 export default function AuthScreen() {
   const [tab, setTab] = useState('login');
@@ -23,9 +24,14 @@ export default function AuthScreen() {
     await login(email, password);
   };
 
+  const [passError, setPassError] = useState('');
+
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!name || !email || !password) return;
+    const pv = validatePassword(password);
+    if (!pv.valid) { setPassError(pv.error); return; }
+    setPassError('');
     const ok = await register(name, email, password);
     if (ok) setTab('pending');
   };
@@ -97,6 +103,7 @@ export default function AuthScreen() {
                   {showPass ? '👁' : '👁‍🗨'}
                 </button>
               </div>
+              {passError && <span className="auth-error">{passError}</span>}
             </div>
             <button type="submit" className="btn-accent auth-submit" disabled={loading}>
               {loading ? 'Регистрация...' : 'Зарегистрироваться'}

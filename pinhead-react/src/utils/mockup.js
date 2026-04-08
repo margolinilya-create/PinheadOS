@@ -31,20 +31,27 @@ function shade(hex, amt) {
   return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
+// Validate hex color to prevent XSS via SVG injection
+function sanitizeHex(hex) {
+  return /^#[0-9a-fA-F]{3,6}$/.test(hex) ? hex : '#ccc';
+}
+
 // Recolor designer SVG: replace gray fill with user color, black stroke with darker shade
 function recolorSVG(svg, color, strokeColor) {
+  const safeColor = sanitizeHex(color);
+  const safeStroke = sanitizeHex(strokeColor);
   return svg
-    .replace(/fill="#d9d9d9"/g, `fill="${color}"`)
-    .replace(/fill="rgb\(85\.098267%, ?85\.098267%, ?85\.098267%\)"/g, `fill="${color}"`)
-    .replace(/stroke="#000"/g, `stroke="${strokeColor}"`)
-    .replace(/stroke="rgb\(0%, ?0%, ?0%\)"/g, `stroke="${strokeColor}"`);
+    .replace(/fill="#d9d9d9"/g, `fill="${safeColor}"`)
+    .replace(/fill="rgb\(85\.098267%, ?85\.098267%, ?85\.098267%\)"/g, `fill="${safeColor}"`)
+    .replace(/stroke="#000"/g, `stroke="${safeStroke}"`)
+    .replace(/stroke="rgb\(0%, ?0%, ?0%\)"/g, `stroke="${safeStroke}"`);
 }
 
 export function getGarmentSVG(type, colorCode) {
   if (!type) return '';
   const colorEntry = findColorEntry(colorCode);
-  const c = colorEntry ? colorEntry.hex : '#ccc';
-  const str = shade(c, -55);
+  const c = sanitizeHex(colorEntry ? colorEntry.hex : '#ccc');
+  const str = sanitizeHex(shade(c, -55));
 
   // Use designer SVG if available
   const designerSVG = DESIGNER_SVGS[type];
