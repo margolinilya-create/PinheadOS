@@ -1,18 +1,18 @@
 # PINHEAD Order Studio — Project Skill
-**Версия:** 1.0 · 06.04.2026  
+**Версия:** 2.0 · 08.04.2026  
 **Назначение:** Контекст для Claude при работе с проектом
 
 ---
 
 ## 1. Что такое проект
 
-**Pinhead Order Studio** — внутренняя система приёма заказов на пошив одежды с нанесением.  
-Используют: менеджеры компании Pinhead.  
-Будут использовать: покупатели (покупательский портал — P3).
+**Pinhead Order Studio** — система управления заказами на пошив одежды с нанесением.  
+Сейчас: внутренний инструмент менеджеров + производства.  
+Цель: **полная синхронизация отдела продаж ↔ производства** через Bitrix24 + Pinhead + 1С.
 
 **Деплой:** Vercel (автодеплой из main)  
 **БД:** Supabase (PostgreSQL + Auth + RLS)  
-**Репо:** PinheadOS / pinhead-react/
+**Интеграции (план):** Bitrix24 REST API, 1С HTTP Services
 
 ---
 
@@ -25,11 +25,12 @@
 | Router | React Router 7 (`createBrowserRouter`) |
 | DB/Auth | Supabase JS SDK 2 |
 | Тесты | Vitest 4 + RTL + Playwright |
-| CSS | Vanilla CSS (глобальный, 12 файлов) |
+| CSS | Vanilla CSS (12 файлов + design tokens) |
 | CI/CD | GitHub Actions → Vercel |
+| MCP | Playwright MCP (браузерное тестирование) |
 
-**Текущих тестов:** 722 (все зелёные)  
-**Шагов визарда:** 5 (было 6 — объединили обработки в аккордеон)
+**Тестов:** 723 unit + 3 E2E  
+**Шагов визарда:** 5 (Изделие → Дизайн → Позиции → Детали → Итог)
 
 ---
 
@@ -37,81 +38,46 @@
 
 ```
 pinhead-react/src/
-├── App.jsx                  # Роутинг + ErrorBoundary + useBlocker
-├── main.jsx                 # createBrowserRouter (не BrowserRouter!)
+├── App.jsx                  # createBrowserRouter + useBlocker + ErrorBoundary
+├── main.jsx                 # createBrowserRouter (НЕ BrowserRouter)
+├── index.css                # Design tokens: type/spacing/z-index scale
 ├── components/
 │   ├── steps/               # 5 шагов визарда
-│   │   ├── StepGarment.jsx  # Шаг 0: SKU + ткань + цвет + размеры + аккордеон обработок
-│   │   ├── StepDesign.jsx   # Шаг 1: зоны + техника + аккордеон бирок + путь к макетам
-│   │   ├── StepItems.jsx    # Шаг 2: список позиций (multi-SKU)
-│   │   ├── StepDetails.jsx  # Шаг 3: имя, телефон, дедлайн (min=сегодня)
-│   │   ├── StepSummary.jsx  # Шаг 4: итог + сохранение
-│   │   ├── ZoneTechBlock.jsx  # Параметры техники для зоны (с TECH_HELP подсказками)
-│   │   ├── ZoneMockup.jsx     # SVG мокап изделия с зонами
-│   │   └── LabelConfigurator.jsx  # Бирки (внутри аккордеона StepDesign)
+│   │   ├── StepGarment.jsx  # SKU + ткань + цвет + размеры + аккордеон обработок
+│   │   ├── StepDesign.jsx   # зоны + техника + аккордеон бирок + путь к макетам
+│   │   ├── StepItems.jsx    # список позиций (multi-SKU)
+│   │   ├── StepDetails.jsx  # имя, телефон, дедлайн (min=сегодня, autofocus)
+│   │   └── StepSummary.jsx  # итог + сохранение
 │   ├── orders/
-│   │   └── KanbanBoard.jsx  # Канбан + handleDuplicate → loadOrder → navigate('/')
-│   ├── editors/
-│   │   ├── PriceEditor.jsx  # Редактор цен (lazy, только admin)
-│   │   ├── SkuEditor.jsx    # Редактор SKU каталога
-│   │   └── ExpressCalc.jsx  # Экспресс-калькулятор (lazy)
-│   ├── output/
-│   │   └── PrintPreview.jsx # Печать ТЗ (показывает artworkPath если заполнен)
+│   │   └── KanbanBoard.jsx  # Канбан + memo + хоткеи (/, n, ?, 1-5) + комментарии
 │   ├── analytics/
-│   │   └── Dashboard.jsx    # Recharts + топ артикулов + фильтр периода
-│   ├── auth/
-│   │   ├── AuthScreen.jsx   # Логин/регистрация
-│   │   └── AdminPanel.jsx   # Управление юзерами (lazy)
-│   ├── layout/
-│   │   ├── Header.jsx       # Навигация
-│   │   └── ProgressBar.jsx  # Прогресс 01-05
-│   └── shared/
-│       ├── Toast.jsx        # Уведомления
-│       ├── ErrorBoundary.jsx  # Уже реализован, обёрнут вокруг App
-│       └── RolePreviewBar.jsx
+│   │   └── Dashboard.jsx    # Recharts (lazy) + топ артикулов + PageHeader
+│   ├── output/
+│   │   └── PrintPreview.jsx # ТЗ + SVG мокап + artworkPath + ПЕЧАТЬ/PDF
+│   ├── shared/
+│   │   ├── PageHeader.jsx   # Единый хедер: ← Назад, title, badge, tabs
+│   │   ├── ErrorBoundary.jsx
+│   │   └── Toast.jsx
+│   └── layout/
+│       ├── Header.jsx
+│       └── ProgressBar.jsx  # 01-05 + галочки заполненности
 ├── store/
-│   ├── useStore.js          # Объединяет все slices
-│   ├── useAuthStore.js      # Auth + роли
-│   ├── useOrdersStore.js    # CRUD заказов
-│   ├── useToastStore.js     # toast.success/error/warning
+│   ├── useStore.js          # Объединяет slices
+│   ├── useOrdersStore.js    # CRUD + пагинация (50/page) + null на ошибку
+│   ├── useCommentsStore.js  # Комментарии к заказам
+│   ├── useAuthStore.js
+│   ├── useToastStore.js
 │   └── slices/
-│       ├── wizardSlice.js   # step, maxStep, goToStep, nextStep, prevStep
-│       ├── productSlice.js  # sku, fabric, color, fit, sizes
-│       ├── designSlice.js   # zones, zoneTechs, artworkPath, designNotes
-│       ├── itemsSlice.js    # items[], editItem → step 1 (Дизайн)
-│       ├── detailsSlice.js  # name, phone, email, deadline, notes
-│       ├── catalogSlice.js  # loadCatalogs (toast.warning при fallback)
-│       ├── orderSlice.js    # loadOrder, resetOrder, restoreFromDraft
-│       └── helpers.js       # snapshotItem, restoreItem, ITEM_FIELDS
-├── hooks/
-│   └── useDraft.js          # Автосохранение в localStorage (DRAFT_FIELDS)
-├── lib/
-│   ├── supabase.js          # Supabase клиент
-│   ├── storage.js           # storageGet/Set/Remove (обёртка localStorage)
-│   └── catalogs.js          # loadCatalogs + sessionStorage кэш 30 мин
-├── utils/
-│   ├── pricing.js           # calcItemTotal, calcItemBreakdown, calcOrderTotal
-│   └── mockup.js            # Позиции зон на SVG мокапе
-├── data/                    # Fallback данные (если Supabase недоступен)
-│   ├── index.js
-│   ├── skuCatalog.js
-│   ├── fabricsCatalog.js
-│   ├── colors.js
-│   ├── prices.js
-│   ├── extras.js
-│   └── constants.js
-└── styles/                  # 12 глобальных CSS файлов
-    ├── index.css
-    ├── layout.css
-    ├── garment.css
-    ├── forms-buttons.css
-    ├── extras-zones.css
-    ├── editors.css
-    ├── utils.css
-    ├── wizard.css
-    ├── kanban.css
-    ├── express.css
-    └── auth.css
+│       ├── wizardSlice.js   # nextStep saves item at step 1→2
+│       ├── productSlice.js
+│       ├── designSlice.js   # artworkPath
+│       ├── itemsSlice.js    # editItem → step 1 (Дизайн)
+│       ├── detailsSlice.js
+│       ├── catalogSlice.js  # toast.warning при fallback
+│       └── orderSlice.js    # loadOrder → step 4, maxStep 4
+├── hooks/useDraft.js        # Автосохранение (DRAFT_FIELDS включает artworkPath)
+├── utils/pricing.js         # calcItemTotal, calcItemBreakdown
+└── styles/                  # 12 файлов + design tokens в index.css
 ```
 
 ---
@@ -120,142 +86,93 @@ pinhead-react/src/
 
 | Путь | Компонент | Доступ |
 |------|-----------|--------|
-| `/` | WizardPage (5 шагов) | Все авторизованные |
-| `/orders` | KanbanBoard (lazy) | Все авторизованные |
-| `/print` | PrintPreview | Все авторизованные |
+| `/` | WizardPage (5 шагов) | Все |
+| `/orders` | KanbanBoard (lazy) | Все |
+| `/print` | PrintPreview | Все |
 | `/express` | ExpressCalc (lazy) | canEdit |
-| `/prices` | PriceEditor (lazy) | admin, director |
-| `/sku` | SkuEditor | admin, director |
-| `/admin` | AdminPanel (lazy) | admin, director |
-| `/analytics` | Dashboard | admin, director, rop, production |
+| `/prices` | PriceEditor (lazy) | admin |
+| `/sku` | SkuEditor | admin |
+| `/admin` | AdminPanel (lazy) | admin |
+| `/analytics` | Dashboard (lazy) | admin, rop, production |
 
 ---
 
-## 5. Роли
+## 5. Правила кода
 
-| Роль | Права |
-|------|-------|
-| `admin` / `director` | Полный доступ |
-| `rop` | Все заказы + аналитика, без редакторов |
-| `manager` | Только свои заказы |
-| `production` | Только approved/production заказы |
-| `designer` | Ограниченный доступ |
+### Делаем
+- `useShallow` для объектных селекторов Zustand
+- `toast.error` при каждой Supabase ошибке
+- `return null` из async при ошибке (не fallback объект)
+- Optimistic update ТОЛЬКО с rollback
+- НЕ optimistic delete — ждать Supabase
+- `createBrowserRouter` (не BrowserRouter)
+- CSS токены из `:root` (--type-*, --space-*, --z-*)
+- Autofocus на первом поле формы
 
-**DEV_MODE:** `import.meta.env.DEV` — в dev авторизация пропускается (role=admin). В продакшне Vite автоматически ставит DEV=false.
+### Не делаем
+- Не добавлять зависимости без обсуждения
+- Не TypeScript (проект на JS)
+- Не CSS Modules для существующих компонентов
+- Не `!important` (25 уже есть, не добавлять новые)
 
----
+### Тесты
+Baseline: **723 unit + 3 E2E**. Если упало — чиним до коммита.
 
-## 6. Zustand — важные паттерны
-
-```js
-// ПРАВИЛЬНО — useShallow для объектов
-const { step, saved } = useStore(useShallow(s => ({ step: s.step, saved: s.saved })));
-
-// ПРАВИЛЬНО — прямой селектор для одного значения
-const step = useStore(s => s.step);
-
-// НЕПРАВИЛЬНО — вызов без селектора (лишние ре-рендеры)
-const store = useStore();
-```
-
-**Сторы:**
-- `useStore` — основной (объединяет slices)
-- `useAuthStore` — авторизация
-- `useOrdersStore` — CRUD заказов
-- `useToastStore` — `toast.success/error/warning`
+### Коммиты
+`feat(scope):` / `fix(scope):` / `docs:` / `perf:` / `refactor:`
 
 ---
 
-## 7. Supabase — схема БД
+## 6. Supabase — схема
 
 | Таблица | Назначение |
 |---------|-----------|
-| `orders` | id, order_number (PH-XXXX), status, data JSONB, total_sum, total_qty, created_by |
+| `orders` | id, order_number (PH-XXXX), status, data JSONB, bitrix_deal |
 | `profiles` | id, name, email, role, approved |
-| `app_config` | key-value настройки |
-| `catalog_config` | prices, skuCatalog, fabricsCatalog и др. |
+| `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
+| `app_config` | Конфигурация (цены, каталоги) |
 
 **Статусы:** draft → review → approved → production → done
 
-**ВАЖНО по saveOrder/updateOrder:**
-- При ошибке Supabase возвращать `null` (не fallback объект)
-- StepSummary проверяет `if (saved)` — при null черновик НЕ удаляется
-- deleteOrder ждёт ответа Supabase перед удалением из UI
+**Планируемые таблицы (Фаза 2):**
+- `production_slots` — операции по заказу (раскрой/пошив/печать/упаковка)
+- `production_capacity` — недельная мощность по операциям
+- `integration_sync` — статус синхронизации с Bitrix24/1С
+- `status_mapping` — маппинг статусов между системами
 
 ---
 
-## 8. Правила кода (CODE STYLE)
+## 7. Стратегическое направление
 
-### Что делаем
-- `useShallow` для всех объектных селекторов Zustand
-- `toast.error` при каждой Supabase ошибке (не silent catch)
-- Возвращать `null` из async функций при ошибке
-- Новые CSS классы добавлять в существующие файлы `styles/`
-- Inline стили только для динамических значений
-- Компоненты — функциональные, хуки сверху
+**Цель:** Синхронизация продаж ↔ производства
 
-### Чего не делаем
-- Не создавать новые CSS файлы без необходимости
-- Не трогать TypeScript (проект на JS)
-- Не рефакторить useStore — он разделён на slices, этого достаточно
-- Не добавлять новые зависимости без обсуждения
-- Не делать optimistic delete (только после успеха Supabase)
-- Не использовать `BrowserRouter` — только `createBrowserRouter`
-
-### Тесты
-После каждого изменения: `npm test -- --run`  
-Текущий baseline: **722 теста зелёные**  
-Если тест упал — чиним до коммита, не пропускаем
-
-### Коммиты
 ```
-feat(scope): короткое описание
-fix(scope): короткое описание
-docs(scope): короткое описание
+Bitrix24 (CRM) ←→ Pinhead (Order Studio) ←→ 1С (Бухгалтерия)
+  Сделки            Заказы + ТЗ              Учёт
+  Клиенты           Производство              Документы
+  Воронка           Plan/Capacity             Себестоимость
 ```
+
+**Фазы:**
+1. Production Planning (доска производства, загрузка, Gantt) ← СЛЕДУЮЩАЯ
+2. Bitrix24 sync (webhook, Edge Functions)
+3. 1С интеграция (HTTP Service)
+4. Управленческий дашборд
 
 ---
 
-## 9. Визард — шаги и нумерация
-
-```
-Индекс  Название        Компонент
-  0     Изделие         StepGarment  (SKU + ткань + цвет + размеры + аккордеон обработок)
-  1     Дизайн          StepDesign   (зоны + техника + аккордеон бирок + путь к макетам)
-  2     Позиции         StepItems    (список позиций)
-  3     Детали          StepDetails  (клиент + дедлайн)
-  4     Итог            StepSummary  (сводка + сохранение)
-```
-
-**editItem(idx)** — переходит на шаг 1 (Дизайн), не на 0  
-**ProgressBar** показывает: 01 Изделие / 02 Дизайн / 03 Позиции / 04 Детали / 05 Итог
-
----
-
-## 10. Известные особенности и решения
-
-| Ситуация | Решение |
-|----------|---------|
-| Хранилище файлов | Путь к папке на сервере (\\server\files\PH-0042) — текстом, кнопка копирования |
-| Bitrix интеграция | Поле bitrix_deal есть, API синхронизация — отложено |
-| Покупательский портал | P3, не начат |
-| Уведомления команде | Не приоритет |
-| TypeScript | Не мигрируем |
-| CSS Modules | Только для новых компонентов если нужно |
-| Print Preview | Показывает artworkPath если заполнен |
-
----
-
-## 11. Файлы документации в репо
+## 8. Файлы документации
 
 | Файл | Содержимое |
 |------|-----------|
-| `PROJECT-MASTER.md` | Полный анализ проекта, история версий |
-| `ACTION-PLAN.md` | Список задач с приоритетами и статусами |
 | `PINHEAD-SKILL.md` | Этот файл — контекст для Claude |
-| `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда (этапы 1-2 описаны) |
+| `ACTION-PLAN.md` | Задачи с приоритетами и статусами |
+| `CHANGELOG.md` | Changelog по сессиям |
+| `PINHEAD-PROJECT-MASTER.md` | История проекта (ERA 1-3) |
+| `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
+| `tests/E2E-TEST-PLAN.md` | 56 E2E сценариев |
 
 ---
 
-*Обновлять при каждом значимом изменении архитектуры или добавлении фичи*
+*Обновлять при каждом значимом изменении*

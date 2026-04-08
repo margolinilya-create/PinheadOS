@@ -1,106 +1,122 @@
 # PINHEAD — Action Plan
 **Создан:** 06.04.2026  
-**Обновлён:** 07.04.2026 (сессия 3)  
-**Статус:** P0 — P1 — P2 ✅ полностью
+**Обновлён:** 08.04.2026 (сессия 4)  
+**Статус:** Внутренняя система ✅ → Переход к CRM/ERP интеграции
 
 ---
 
-## ✅ ЗАКРЫТО В СЕССИИ 06.04.2026
+## ✅ ПОЛНОСТЬЮ ЗАКРЫТО (сессии 1-4)
 
 ### P0 — Критические баги
-| # | Задача | Коммит |
-|---|--------|--------|
-| BUG-01 | saveOrder возвращает null при ошибке Supabase, черновик не удаляется | fix(orders): saveOrder returns null on Supabase error |
-| BUG-02 | updateOrder rollback + null при ошибке | fix(orders): updateOrder rollback + null on Supabase error |
-| BUG-03 | deleteOrder confirm dialog + ждёт Supabase перед удалением из UI | fix(orders): deleteOrder confirm dialog + no optimistic delete |
-
-### P1 — Качество
 | # | Задача | Статус |
 |---|--------|--------|
-| 4 | Price breakdown в StepSummary | ✅ уже был реализован |
-| 5 | ErrorBoundary для lazy routes | ✅ уже был реализован |
-| 6 | Toast при fallback каталогов | ✅ добавлен в catalogSlice.js |
-| 7 | Кнопка «Повторить заказ» | ✅ handleDuplicate → loadOrder → navigate('/') |
+| BUG-01 | saveOrder возвращает null при ошибке Supabase | ✅ |
+| BUG-02 | updateOrder rollback + null при ошибке | ✅ |
+| BUG-03 | deleteOrder confirm dialog + ждёт Supabase | ✅ |
+| BUG-04 | wizard auto-save на неправильном шаге (6→5 регрессия) | ✅ |
 
-### P2 — UX
+### P1 — Качество и стабильность
 | # | Задача | Статус |
 |---|--------|--------|
-| 8 | Визард 6→5 шагов (обработки в аккордеон) | ✅ 722 теста зелёные |
-| 11 | Топ артикулов в аналитике | ✅ таблица топ-10 по qty/заказам/сумме |
+| — | patchOrderData: rollback + toast.error + return null | ✅ |
+| — | fetchMoreOrders: toast.error при ошибке | ✅ |
+| — | updateStatus: toast.error после rollback | ✅ |
+| — | fetchComments/fetchTemplates: toast при ошибке | ✅ |
+| — | deleteTemplate: убран optimistic delete | ✅ |
+| — | useShallow в 7 компонентах (16 селекторов) | ✅ |
+| — | memo() на KanbanCard и OrderDrawer | ✅ |
+| — | Dashboard lazy loading (бандл −26%) | ✅ |
 
----
-
-## ✅ ЗАКРЫТО В СЕССИИ 07.04.2026
-
+### P2 — UX и фичи
 | # | Задача | Статус |
 |---|--------|--------|
-| 9 | Upload артворка | ✅ путь к папке на сервере + копирование |
-| B-01 | Tooltips к техникам нанесения | ✅ уже был реализован (TECH_HELP) |
-| B-02 | Блокировка навигации с несохранённым заказом | ✅ useBlocker + модальный диалог |
-| — | Бирки в аккордеон (StepDesign) | ✅ |
-| — | editItem → шаг Дизайн (не Изделие) | ✅ |
+| — | Визард 6→5 шагов (обработки в аккордеон) | ✅ |
+| — | Блокировка навигации (useBlocker) | ✅ |
+| — | Комментарии к заказу (order_comments) | ✅ |
+| — | Пагинация заказов (50 + «Загрузить ещё») | ✅ |
+| — | Папка с макетами (artworkPath) | ✅ |
+| — | SVG мокап в PrintPreview | ✅ |
+| — | OrderDrawer: мульти-позиции, контакты, менеджер | ✅ |
 | — | Дедлайн: min дата + предупреждение 3 дня | ✅ |
-| — | Топ артикулов в Dashboard | ✅ |
-| — | groupByManager фикс (managerName вместо client name) | ✅ |
-| — | ProgressBar: галочки заполненности шагов | ✅ |
-| — | Mobile responsive: swatches, fit selector, size table | ✅ |
-| — | SVG мокап изделия в PrintPreview | ✅ |
-| 1 | OrderDrawer: мульти-позиции, контакты, менеджер, артворк | ✅ |
-| 3 | Комментарии к заказу (useCommentsStore + order_comments) | ✅ |
-| 4 | Cursor-based пагинация (50 на страницу + «Загрузить ещё») | ✅ |
-| 5 | Шаблоны заказов (useTemplatesStore + order_templates) | ✅ |
+| — | ProgressBar: галочки заполненности | ✅ |
+| — | Keyboard shortcuts в Kanban (/, n, ?, 1-5) | ✅ |
+| — | Кнопка «СКАЧАТЬ PDF» в PrintPreview | ✅ |
+| — | Единый PageHeader компонент | ✅ |
+| — | Нумерация шагов 01-05 (была 01,03,04,05,06) | ✅ |
 
----
-
-## ⏳ НЕ НАЧАТО
-
-| # | Задача | Блокер |
+### UI/UX аудит
+| # | Задача | Статус |
 |---|--------|--------|
-| 10 | Bitrix синхронизация | Отложено |
+| — | Контраст текста #999→#666 (WCAG AA) | ✅ |
+| — | CSS токены: type scale, spacing, z-index | ✅ |
+| — | Touch targets 44px на мобильном | ✅ |
+| — | Mobile responsive: auth, express, editors | ✅ |
+| — | Zone cards: div→button + aria-pressed | ✅ |
+| — | Autofocus на формах (AuthScreen, StepDetails) | ✅ |
+| — | Hardcoded #fff → var(--white) | ✅ |
 
 ---
 
-## 🔵 СЛЕДУЮЩИЕ ЗАДАЧИ
+## 🔴 НОВОЕ НАПРАВЛЕНИЕ: CRM/ERP интеграция
 
-### B-03 — Print Preview секция артворка по зонам
-**Проблема:** Прикреплённый макет не упоминается в печатном ТЗ  
-**Файл:** `src/components/output/PrintPreview.jsx`  
-**Решение:** Строка «Макет: [имя файла]» если zoneArtworks[zone] заполнен  
-**Сложность:** XS
+### Фаза 2 — Модуль планирования производства (СЛЕДУЮЩАЯ)
+| # | Задача | Сложность | Статус |
+|---|--------|-----------|--------|
+| P-01 | Supabase таблицы: production_slots, production_capacity | S | ⏳ |
+| P-02 | Триггер: approved → автогенерация слотов | S | ⏳ |
+| P-03 | ProductionBoard.jsx — недельный/Gantt вид | L | ⏳ |
+| P-04 | WeeklyCapacity.jsx — бары загрузки | M | ⏳ |
+| P-05 | useProductionStore.js | M | ⏳ |
+| P-06 | Загрузка производства в StepDetails (дедлайн) | S | ⏳ |
+
+### Фаза 1 — Bitrix24 ↔ Pinhead sync (после уточнения доступа)
+| # | Задача | Сложность | Статус |
+|---|--------|-----------|--------|
+| B-01 | Edge Function: bitrix-inbound | M | ⏳ |
+| B-02 | Edge Function: bitrix-sync | M | ⏳ |
+| B-03 | integration_sync + status_mapping таблицы | S | ⏳ |
+| B-04 | Frontend: компонент связи с Bitrix в StepDetails | M | ⏳ |
+
+### Фаза 3 — 1С интеграция
+| # | Задача | Сложность | Статус |
+|---|--------|-----------|--------|
+| C-01 | Edge Function: 1c-export | M | ⏳ |
+| C-02 | 1С HTTP Service (нужен 1С-разработчик) | L | ⏳ |
+
+### Фаза 4 — Управленческий дашборд
+| # | Задача | Сложность | Статус |
+|---|--------|-----------|--------|
+| D-01 | Production heatmap + deadline risk | M | ⏳ |
+| D-02 | Supabase Realtime подписки | S | ⏳ |
 
 ---
 
-## 🟢 P3 — Следующий месяц
-
-| # | Задача | Сложность |
-|---|--------|-----------|
-| 12 | Покупательский портал /order без авторизации | L |
-| 13 | Трекинг заказа для клиента — публичная страница статуса | M |
-| 14 | Print Preview — QR-код на тех.карту | S |
-
----
-
-## ⏪ ОТКЛОНЁННЫЕ
+## ⏪ ОТКЛОНЁННЫЕ / ОТЛОЖЕННЫЕ
 
 | Задача | Причина |
 |--------|---------|
+| Покупательский портал /order | Приоритет сменился на CRM/ERP |
 | TypeScript миграция | Нет критической нужды |
+| Шаблоны заказов | Удалены — не нужны |
 | CSS Modules | Конфликтов нет |
-| Разделение useStore | Уже разделён на slices |
 
 ---
 
-## 📊 Статистика (07.04.2026)
+## 📊 Статистика (08.04.2026)
 
 | Метрика | Значение |
 |---------|----------|
-| Тестов | 722 (все ✅) |
-| Коммитов всего | 160+ |
-| Шагов визарда | 5 (было 6) |
-| Критических багов | 0 (было 3) |
-| Новых сторов | useCommentsStore, useTemplatesStore |
-| Новых таблиц Supabase | order_comments, order_templates |
+| Тестов (unit) | 723 ✅ |
+| Тестов (E2E) | 3 ✅ |
+| Файлов исходников | 53 |
+| Файлов тестов | 36 |
+| Коммитов | 180+ |
+| Шагов визарда | 5 |
+| Критических багов | 0 |
+| Бандл index.js | 1142 KB (было 1537) |
+| Скиллов Claude | 15 |
+| Агентов Claude | 5 |
 
 ---
 
-*Следующая сессия: B-03 → P3 покупательский портал*
+*Следующая сессия: Фаза 2 — production_slots + ProductionBoard*
