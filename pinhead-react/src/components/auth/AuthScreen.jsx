@@ -64,7 +64,7 @@ export default function AuthScreen() {
           <form className="auth-form" onSubmit={handleLogin}>
             <div className="auth-field">
               <label>Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" autoComplete="email" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" autoComplete="email" autoFocus />
             </div>
             <div className="auth-field">
               <label>Пароль</label>

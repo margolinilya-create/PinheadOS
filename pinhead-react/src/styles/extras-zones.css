@@ -255,3 +255,8 @@
   .design-mockup-col { position: static; }
   .zm-mockup { max-width: 200px; margin: 0 auto; }
 }
+@media (max-width: 480px) {
+  .zone-param-btn { min-height: 44px; min-width: 44px; }
+  .zone-fx-btn { min-height: 44px; }
+  .zone-colors-input { min-height: 44px; }
+}

@@ -87,3 +87,13 @@
 .exp-result-unit span { color: var(--black); }
 .exp-result-divider  { height: 1.5px; background: var(--black); margin: 12px 0; }
 .exp-result-total    { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 0; margin-top: 8px; font-family: var(--font-display); font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+
+@media (max-width: 768px) {
+  .exp-panel { width: 100%; border-left: none; }
+  .exp-header { padding: 12px 16px; }
+  .exp-body { padding: 16px; }
+}
+@media (max-width: 480px) {
+  .exp-zt-techs { grid-template-columns: repeat(3, 1fr); }
+  .exp-field input, .exp-field select { min-height: 44px; }
+}

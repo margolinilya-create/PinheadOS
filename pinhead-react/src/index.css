@@ -19,7 +19,7 @@
   --ink:          #0A0A0A;
   --text:         #0A0A0A;
   --text-mid:     #555555;
-  --text-dim:     #999999;
+  --text-dim:     #666666;  /* was #999, now 5.7:1 contrast on white (WCAG AA) */
 
   /* ── Borders ── */
   --border:       #0A0A0A;
@@ -50,6 +50,32 @@
   --font-body:    'Inter', sans-serif;
   --font-display: 'Barlow Condensed', sans-serif;
   --mono:         'Roboto Mono', monospace;
+
+  /* ── Type scale ── */
+  --type-h1:      56px;
+  --type-h2:      32px;
+  --type-h3:      24px;
+  --type-body:    14px;
+  --type-body-sm: 13px;
+  --type-label:   11px;
+  --type-caption: 9px;
+
+  /* ── Spacing scale ── */
+  --space-xs:     4px;
+  --space-sm:     8px;
+  --space-md:     12px;
+  --space-lg:     16px;
+  --space-xl:     24px;
+  --space-2xl:    32px;
+  --space-3xl:    48px;
+
+  /* ── Z-index scale ── */
+  --z-sticky:     50;
+  --z-header:     100;
+  --z-nav:        200;
+  --z-overlay:    500;
+  --z-modal:      600;
+  --z-toast:      1000;
 
   /* ── Radii ── */
   --radius-sm:    4px;

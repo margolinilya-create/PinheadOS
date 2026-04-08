@@ -9,7 +9,7 @@
   background: var(--black); color: var(--white);
   padding: 12px 24px; font-family: var(--font-body); font-size: 12px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase;
-  opacity: 0; transition: all 250ms ease-out; z-index: 9999;
+  opacity: 0; transition: all 250ms ease-out; z-index: var(--z-toast);
   pointer-events: none; white-space: nowrap; border-left: 3px solid var(--signal, #FF3B30);
 }
 .val-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -20,7 +20,7 @@
 /* ── Spinner Overlay ── */
 .spinner-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.35);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  display: flex; align-items: center; justify-content: center; z-index: var(--z-toast);
   opacity: 0; pointer-events: none; transition: opacity 250ms ease-out;
 }
 .spinner-overlay.show { opacity: 1; pointer-events: all; }
@@ -37,7 +37,7 @@
 /* ── Confirm Modal ── */
 .confirm-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4);
-  display: flex; align-items: center; justify-content: center; z-index: 10000;
+  display: flex; align-items: center; justify-content: center; z-index: var(--z-modal);
   opacity: 0; pointer-events: none; transition: opacity 250ms ease-out;
 }
 .confirm-overlay.show { opacity: 1; pointer-events: all; }

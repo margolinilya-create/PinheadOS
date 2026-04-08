@@ -65,7 +65,7 @@ export default function StepDetails() {
       <div className="form-grid">
         <div className="form-field">
           <label htmlFor="field-name">Имя / Компания *</label>
-          <input id="field-name" type="text" value={name}
+          <input id="field-name" type="text" value={name} autoFocus
             className={showErrors && !name.trim() ? 'input-error' : ''}
             placeholder="Иванов Иван"
             maxLength={100}

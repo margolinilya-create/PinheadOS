@@ -329,7 +329,7 @@ textarea::placeholder {
 .btn:active:not(:disabled)     { transform: scale(0.97); }
 /* ── Primary Button — 5 states ── */
 .btn-primary {
-  background: var(--ink); color: #fff; border: none;
+  background: var(--ink); color: var(--white); border: none;
   padding: 10px 20px; font-size: 13px; font-weight: 500;
   font-family: var(--font-body); border-radius: var(--radius-sm);
   cursor: pointer; transition: background 150ms ease-out, transform 100ms ease-out;
