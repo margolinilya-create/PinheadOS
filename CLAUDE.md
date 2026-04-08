@@ -121,6 +121,17 @@ admin, director, manager, rop, designer, production
 - Autofocus на первом поле формы
 - Не добавлять npm-зависимости без обсуждения
 - Не `!important` в CSS
+- Supabase ключи строго из `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+- При logout вызывать `storageClearAll()` — чистит все app-ключи
+
+## Документация
+
+| Файл | Назначение |
+|------|-----------|
+| `CLAUDE.md` | Контекст для Claude (этот файл) |
+| `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
+| `PROJECT.md` | История, changelog, roadmap |
+| `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 
 ## Команды
 

@@ -14,11 +14,17 @@ Supabase через CDN. Финальная версия v1.7 — полност
 Ключевая сессия — 20 марта 2026 (56 коммитов): ревизия по Design Guidebook, 5 критических багов, 65 тестов на pricing.
 
 ### ERA 3 — Стабилизация + CRM/ERP (апрель 2026)
-Сессии 1-4: баги, качество, UX, аудит UI. Стратегический разворот к CRM/ERP интеграции.
+Сессии 1-5: баги, качество, UX, аудит UI, security hardening. Стратегический разворот к CRM/ERP интеграции.
 
 ---
 
 ## Changelog
+
+### Сессия 5 (08.04.2026)
+- Security: убраны хардкод Supabase ключи, .env обязателен
+- Security: sanitizeHex XSS-защита SVG мокапов
+- Auth: validatePassword + отображение ошибки, storageClearAll при logout
+- Docs: консолидация 4 файлов -> CLAUDE.md + PROJECT.md
 
 ### Сессия 4 (08.04.2026)
 - UI/UX аудит: WCAG AA контраст, design tokens, touch targets 44px, mobile responsive
