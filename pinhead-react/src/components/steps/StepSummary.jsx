@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
-import { useTemplatesStore } from '../../store/useTemplatesStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
@@ -150,9 +149,6 @@ export default function StepSummary() {
 
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
-  const saveTemplate = useTemplatesStore(s => s.saveTemplate);
-  const [templateName, setTemplateName] = useState('');
-  const [showTemplateInput, setShowTemplateInput] = useState(false);
 
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
 
@@ -449,34 +445,6 @@ export default function StepSummary() {
             : _editingOrderId ? 'Обновить заказ' : 'Сохранить заказ'}
         </button>
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
-        {!showTemplateInput ? (
-          <button className="btn-secondary" onClick={() => setShowTemplateInput(true)}>
-            Сохранить шаблон
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder="Название шаблона"
-              value={templateName}
-              onChange={e => setTemplateName(e.target.value)}
-              style={{ fontSize: 13 }}
-              autoFocus
-            />
-            <button className="btn-primary" onClick={async () => {
-              if (!templateName.trim()) return;
-              const itemData = items[0] || {};
-              await saveTemplate(templateName.trim(), itemData);
-              setTemplateName('');
-              setShowTemplateInput(false);
-            }}>
-              Сохранить
-            </button>
-            <button className="btn-secondary" onClick={() => { setShowTemplateInput(false); setTemplateName(''); }}>
-              Отмена
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
