@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════ */
+/* PINHEAD PRODUCTION OS — Design Tokens      */
+/* Copied from pinhead-react/src/index.css    */
+/* ═══════════════════════════════════════════ */
+
+:root {
+  /* ── Backgrounds ── */
+  --bg:           #FAFAFA;
+  --bg1:          #F0F0F0;
+  --bg2:          #F0F0F0;
+  --bg3:          #E5E5E5;
+  --card:         #ffffff;
+  --surface:      #F5F5F5;
+
+  /* ── Text ── */
+  --ink:          #0A0A0A;
+  --text:         #0A0A0A;
+  --text-mid:     #555555;
+  --text-dim:     #666666;
+
+  /* ── Borders ── */
+  --border:       #0A0A0A;
+  --border-light: #DCDCDC;
+  --border-mid:   #C0C0C0;
+
+  /* ── Brand ── */
+  --accent:       #2B2BF0;
+  --accent-light: rgba(43,43,240,.06);
+  --accent-hover: #1E1ED4;
+  --signal:       #FF3B30;
+
+  /* ── Semantic ── */
+  --color-success: #06a77d;
+  --color-error:   #e63946;
+  --color-warning: #c87137;
+  --color-info:    #4361ee;
+
+  /* ── Semantic backgrounds ── */
+  --bg-success:   #f0fff4;
+  --bg-error:     #fff0f0;
+  --bg-warning:   #fff8e1;
+
+  /* ── Fonts ── */
+  --font-body:    'Inter', sans-serif;
+  --font-display: 'Barlow Condensed', sans-serif;
+  --mono:         'Roboto Mono', monospace;
+
+  /* ── Type scale ── */
+  --type-h1:      56px;
+  --type-h2:      32px;
+  --type-h3:      24px;
+  --type-body:    14px;
+  --type-body-sm: 13px;
+  --type-label:   11px;
+  --type-caption: 9px;
+
+  /* ── Spacing ── */
+  --space-xs:     4px;
+  --space-sm:     8px;
+  --space-md:     12px;
+  --space-lg:     16px;
+  --space-xl:     24px;
+  --space-2xl:    32px;
+  --space-3xl:    48px;
+
+  /* ── Z-index ── */
+  --z-overlay:    500;
+  --z-modal:      600;
+  --z-toast:      1000;
+
+  /* ── Radii ── */
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+
+  /* ── Workshop colors ── */
+  --ws-cutting:      #8B5CF6;
+  --ws-screen:       #EF4444;
+  --ws-dtf:          #F97316;
+  --ws-embroidery:   #EC4899;
+  --ws-sewing:       #3B82F6;
+  --ws-packaging-qc: #06A77D;
+
+  /* ── Slot statuses ── */
+  --status-pending:     #D1D5DB;
+  --status-ready:       #93C5FD;
+  --status-in-progress: #3B82F6;
+  --status-done:        #06A77D;
+  --status-blocked:     #e63946;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root { min-height: 100vh; }
+
+@media (max-width: 768px) {
+  :root {
+    --type-label: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

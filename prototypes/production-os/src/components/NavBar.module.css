@@ -1,0 +1,123 @@
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-lg);
+  z-index: 200;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.links::-webkit-scrollbar {
+  display: none;
+}
+
+.separator {
+  display: block;
+  width: 1px;
+  height: 20px;
+  background: rgba(255,255,255,0.12);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.groupLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+  padding: 0 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.link {
+  height: 36px;
+  padding: 0 var(--space-md);
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.55);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.08);
+}
+
+.linkActive {
+  color: #fff;
+  background: rgba(255,255,255,0.14);
+  font-weight: 700;
+}
+
+.linkDisplay {
+  color: rgba(255,255,255,0.4);
+  font-size: 12px;
+}
+
+.linkDisplay:hover {
+  color: rgba(255,255,255,0.75);
+}
+
+.linkDisplay.linkActive {
+  color: #fff;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .bar {
+    top: auto;
+    bottom: 0;
+    border-bottom: none;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 0 var(--space-sm);
+    gap: var(--space-xs);
+  }
+  .links {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .links::-webkit-scrollbar {
+    display: none;
+  }
+  .link {
+    font-size: 11px;
+    padding: 0 var(--space-sm);
+    height: 32px;
+  }
+  .groupLabel {
+    display: none;
+  }
+  .separator {
+    margin: 0 2px;
+  }
+}

@@ -1,0 +1,288 @@
+.root {
+  position: fixed;
+  inset: 0;
+  background: #0A0A0A;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 40px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+
+.brand {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+}
+
+.clockWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.date {
+  font-size: 15px;
+  color: rgba(255,255,255,0.4);
+}
+
+.clock {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.04em;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  padding: 24px 40px 0;
+}
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  flex-shrink: 0;
+  margin-bottom: 24px;
+}
+
+.kpiCard {
+  background: #141414;
+  border-radius: 16px;
+  padding: 24px 28px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-top: 3px solid var(--kpi-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kpiValue {
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--kpi-color);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.kpiLabel {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.45);
+}
+
+.kpiSub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.25);
+}
+
+.mid {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.workshops {
+  flex: 1.4;
+  background: #111111;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.wsList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.wsList::-webkit-scrollbar {
+  display: none;
+}
+
+.wsRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.wsName {
+  width: 140px;
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.wsBarWrap {
+  flex: 1;
+  height: 20px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.wsBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1s ease;
+}
+
+.wsMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100px;
+  justify-content: flex-end;
+}
+
+.wsBadge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.wsBadgeBlocked { background: rgba(248,113,113,0.2); color: #F87171; }
+.wsBadgeProgress { background: rgba(74,222,128,0.15); color: #4ADE80; }
+
+.wsPct {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.45);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.events {
+  width: 320px;
+  flex-shrink: 0;
+  background: #111111;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ticker {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+
+.tickerScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.eventItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  border-left: 3px solid var(--ev-color);
+  flex-shrink: 0;
+}
+
+.eventIcon {
+  font-size: 14px;
+  color: var(--ev-color);
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.eventContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.eventTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.2;
+}
+
+.eventBody {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.3;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventTime {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.noEvents {
+  font-size: 14px;
+  color: rgba(255,255,255,0.2);
+  text-align: center;
+  padding: 32px 0;
+}
+
+.hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.15);
+  text-align: center;
+  padding: 10px 0 14px;
+  flex-shrink: 0;
+}

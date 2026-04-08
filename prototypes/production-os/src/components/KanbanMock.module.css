@@ -1,0 +1,379 @@
+/* ── Root ── */
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  padding-top: 48px;
+  box-sizing: border-box;
+}
+
+/* ── Header ── */
+.header {
+  background: var(--ink);
+  color: #fff;
+  padding: var(--space-md) var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: var(--space-lg);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1;
+}
+
+.headerSub {
+  font-size: var(--type-body-sm);
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.backBtn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.85);
+  padding: var(--space-xs) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.backBtn:hover {
+  background: rgba(255,255,255,0.18);
+}
+
+/* ── Board layout ── */
+.boardWrap {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+.board {
+  display: flex;
+  flex: 1;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  overflow-x: auto;
+  align-items: flex-start;
+}
+
+/* ── Column ── */
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  flex: 1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  flex-shrink: 0;
+  max-height: calc(100vh - 180px);
+}
+
+.colHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  flex-shrink: 0;
+}
+
+.colTitle {
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.colCount {
+  font-size: var(--type-label);
+  font-weight: 700;
+  color: rgba(255,255,255,0.8);
+  background: rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.colCards {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+}
+
+.colEmpty {
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+  text-align: center;
+  padding: var(--space-lg) 0;
+}
+
+/* ── Card ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.card:hover {
+  border-color: var(--border-mid);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.cardProduction {
+  cursor: pointer;
+}
+
+.cardSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.cardWsBar {
+  width: 5px;
+  flex-shrink: 0;
+}
+
+.cardBody {
+  flex: 1;
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.cardNum {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.cardDeadline {
+  font-size: var(--type-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.cardClient {
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardQty {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardTimeline {
+  padding-top: 4px;
+}
+
+/* ── Detail panel ── */
+.detail {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--card);
+  border-left: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.detailNum {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  display: block;
+  line-height: 1.1;
+}
+
+.detailDeadline {
+  font-size: var(--type-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-top: 2px;
+}
+
+.detailClose {
+  background: var(--bg3);
+  border: none;
+  border-radius: var(--radius-sm);
+  width: 28px;
+  height: 28px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-mid);
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.detailClose:hover {
+  background: var(--bg1);
+}
+
+.detailClient {
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detailQty {
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+
+.detailTimelineFull {
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.detailTasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.detailTaskRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.detailTaskRow:last-child {
+  border-bottom: none;
+}
+
+.detailWsDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.detailWsName {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+  min-width: 90px;
+}
+
+.detailTaskStatus {
+  font-size: var(--type-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detailTaskNote {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  font-style: italic;
+  width: 100%;
+  padding-left: 22px;
+  line-height: 1.4;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .root { padding-top: 0; padding-bottom: 48px; }
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: var(--space-sm) var(--space-md);
+  }
+  .headerTitle {
+    font-size: 24px;
+  }
+  .headerSub {
+    display: none;
+  }
+  .board {
+    padding: var(--space-sm);
+    gap: var(--space-xs);
+  }
+  .column {
+    min-width: 160px;
+  }
+  .detail {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 60vh;
+    border-left: none;
+    border-top: 1px solid var(--border-light);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    z-index: 100;
+  }
+}

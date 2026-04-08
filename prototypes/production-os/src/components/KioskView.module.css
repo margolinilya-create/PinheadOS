@@ -1,0 +1,402 @@
+.root {
+  position: fixed;
+  inset: 0;
+  background: #F8F9FA;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid #E5E7EB;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.tab {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: #F3F4F6;
+  color: #6B7280;
+  transition: all 0.15s;
+}
+
+.tabActive {
+  background: #1F2937;
+  color: #fff;
+  border-color: #1F2937;
+}
+
+.tab:hover:not(.tabActive) {
+  background: #E5E7EB;
+  color: #374151;
+}
+
+.closeBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #E5E7EB;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6B7280;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.closeBtn:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #EF4444;
+}
+
+.body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #9CA3AF;
+}
+
+.emptyIcon {
+  font-size: 64px;
+  opacity: 0.4;
+}
+
+.emptyText {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.emptySub {
+  font-size: 14px;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px 32px;
+  gap: 20px;
+}
+
+.taskHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.wsName {
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ki-ws-color, #1F2937);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.orderNum {
+  font-size: 32px;
+  font-weight: 800;
+  color: #1F2937;
+  line-height: 1;
+  align-self: center;
+}
+
+.client {
+  font-size: 18px;
+  color: #6B7280;
+  font-weight: 500;
+  align-self: center;
+  margin-left: auto;
+}
+
+.detailsCard {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detailRow {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.detailField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detailLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9CA3AF;
+}
+
+.detailValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1F2937;
+}
+
+.detailValueQty {
+  font-size: 32px;
+  color: #111827;
+}
+
+.sizesGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sizeCell {
+  background: #F3F4F6;
+  border-radius: 10px;
+  padding: 10px 16px;
+  text-align: center;
+  min-width: 60px;
+}
+
+.sizeLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+}
+
+.sizeQty {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1F2937;
+  line-height: 1.1;
+}
+
+.zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zoneTag {
+  background: #EEF2FF;
+  color: #4338CA;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.zoneTech {
+  color: #6366F1;
+  font-weight: 500;
+}
+
+.handoff {
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.handoffIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.handoffFrom {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #92400E;
+  margin-bottom: 4px;
+}
+
+.handoffText {
+  font-size: 16px;
+  color: #78350F;
+  line-height: 1.4;
+}
+
+.timelineSection {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  border: 1px solid #E5E7EB;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9CA3AF;
+  margin-bottom: 12px;
+}
+
+.problemBanner {
+  background: #FEF2F2;
+  border: 2px solid #FCA5A5;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.problemIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.problemTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #991B1B;
+  margin-bottom: 4px;
+}
+
+.problemNote {
+  font-size: 15px;
+  color: #B91C1C;
+  line-height: 1.4;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-top: 1px solid #E5E7EB;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.navArrow {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid #E5E7EB;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  transition: all 0.15s;
+}
+
+.navArrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.navArrow:hover:not(:disabled) {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.navCounter {
+  font-size: 14px;
+  color: #6B7280;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 32px;
+  background: #fff;
+  border-top: 1px solid #E5E7EB;
+}
+
+.btn {
+  flex: 1;
+  height: 80px;
+  border: none;
+  border-radius: 16px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btnStart {
+  background: #16A34A;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(22,163,74,0.35);
+}
+
+.btnStart:hover {
+  box-shadow: 0 6px 24px rgba(22,163,74,0.45);
+}
+
+.btnProblem {
+  background: #DC2626;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+}
+
+.btnDone {
+  background: #2563EB;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+}
+
+.btnUnblock {
+  background: #2563EB;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+}

@@ -1,0 +1,230 @@
+.root {
+  min-height: 100vh;
+  background: var(--bg, #f4f5f7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 16px 32px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #111;
+  text-align: center;
+}
+
+.sub {
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+  margin-top: -16px;
+}
+
+/* Camera frame */
+.cameraFrame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #111;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-color: #fff;
+  border-style: solid;
+  z-index: 2;
+}
+
+.cornerTl { top: 12px; left: 12px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+.cornerTr { top: 12px; right: 12px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+.cornerBl { bottom: 12px; left: 12px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+.cornerBr { bottom: 12px; right: 12px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+.scanLine {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: scan 0.8s ease-in-out;
+  z-index: 3;
+}
+
+@keyframes scan {
+  0%   { top: 20%; }
+  50%  { top: 80%; }
+  100% { top: 20%; }
+}
+
+.cameraInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.cameraIcon {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.cameraHint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  text-align: center;
+  padding: 0 16px;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+  outline: none;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: #111;
+}
+
+.submitBtn {
+  padding: 12px 20px;
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.submitBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.submitBtnScanning {
+  background: #6b7280;
+}
+
+.error {
+  font-size: 13px;
+  color: #ef4444;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+/* Quick access */
+.quick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quickLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.quickList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quickBtn {
+  padding: 6px 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  font-family: monospace;
+  transition: background 0.1s;
+}
+
+.quickBtn:hover {
+  background: #e5e7eb;
+}
+
+/* Back button */
+.backBtn {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.1s;
+  align-self: flex-start;
+}
+
+.backBtn:hover {
+  background: #f9fafb;
+}
+
+@media (max-width: 480px) {
+  .root { padding-top: 16px; padding-bottom: 64px; }
+  .card { padding: 24px 20px; }
+}

@@ -1,0 +1,121 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.title {
+  font-size: var(--type-label, 12px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim, #9CA3AF);
+  margin-bottom: 12px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid var(--border-light, #E5E7EB);
+  background: var(--card, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.item:hover {
+  border-color: var(--border-mid, #D1D5DB);
+}
+
+.itemChecked {
+  border-color: #16A34A;
+  background: #F0FDF4;
+}
+
+.checkbox {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  border: 2.5px solid var(--border-mid, #D1D5DB);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  font-size: 22px;
+  color: transparent;
+}
+
+.itemChecked .checkbox {
+  border-color: #16A34A;
+  background: #16A34A;
+  color: #fff;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink, #111827);
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.itemChecked .label {
+  color: #15803D;
+}
+
+.desc {
+  font-size: 13px;
+  color: var(--text-dim, #9CA3AF);
+  line-height: 1.3;
+}
+
+.itemChecked .desc {
+  color: #4ADE80;
+  opacity: 0.8;
+}
+
+.counter {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-mid, #6B7280);
+  text-align: right;
+  padding: 0 2px;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F0FDF4;
+  border: 2px solid #86EFAC;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-top: 8px;
+}
+
+.bannerIcon {
+  font-size: 24px;
+}
+
+.bannerText {
+  font-size: 18px;
+  font-weight: 800;
+  color: #15803D;
+}

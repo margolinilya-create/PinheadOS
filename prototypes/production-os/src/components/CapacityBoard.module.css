@@ -1,0 +1,411 @@
+/* ── Root ── */
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+  padding-top: 48px; /* NavBar height */
+}
+
+/* ── Header ── */
+.header {
+  background: var(--ink);
+  color: #fff;
+  padding: var(--space-lg) var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.headerTitleWrap {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1;
+  margin: 0;
+}
+
+/* ── Week nav ── */
+.weekNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.navBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+  flex-shrink: 0;
+}
+
+.navBtn:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.weekLabel {
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  white-space: nowrap;
+  min-width: 200px;
+  text-align: center;
+}
+
+/* ── Header nav buttons ── */
+.headerNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.85);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.backBtn:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.35);
+}
+
+/* ── Main layout ── */
+.main {
+  flex: 1;
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ── Panel base ── */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.panelTitle {
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.panelCount {
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg3);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+/* ── Heatmap grid ── */
+.hmGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hmRow {
+  display: grid;
+  grid-template-columns: 140px repeat(5, 1fr) 52px;
+  align-items: center;
+  gap: 4px;
+}
+
+.hmRowHead {
+  margin-bottom: 4px;
+}
+
+.hmWs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: var(--space-sm);
+  min-width: 0;
+}
+
+.hmDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hmWsName {
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hmCell {
+  height: 48px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  transition: filter 0.12s;
+  cursor: default;
+}
+
+.hmCell:hover {
+  filter: brightness(0.9);
+}
+
+.hmCellHead {
+  height: 36px;
+  background: var(--bg3);
+  flex-direction: column;
+  gap: 1px;
+}
+
+.hmDayShort {
+  font-size: var(--type-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hmDayNum {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.hmPct {
+  font-size: var(--type-label);
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hmPctHead {
+  font-size: var(--type-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hmLegend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+  flex-wrap: wrap;
+}
+
+.hmLegendItem {
+  font-size: var(--type-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Deadline forecast list ── */
+.dlList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dlRow {
+  display: grid;
+  grid-template-columns: 200px 160px 1fr;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: background 0.12s;
+}
+
+.dlRow:hover {
+  background: var(--bg1);
+}
+
+.dlLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dlNum {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.dlClient {
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dlMid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dlQty {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.dlDate {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+
+.dlRisk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dlRiskIcon {
+  font-size: 14px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.dlRiskMsg {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .root { padding-top: 0; padding-bottom: 48px; }
+  .hmGrid {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .hmRow {
+    grid-template-columns: 90px repeat(5, 52px) 40px;
+    min-width: 460px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: var(--space-md) var(--space-lg);
+    gap: var(--space-sm);
+  }
+  .headerTitle {
+    font-size: 22px;
+  }
+  .weekLabel {
+    min-width: 0;
+    font-size: var(--type-body-sm);
+  }
+  .main {
+    padding: var(--space-md);
+    gap: var(--space-md);
+  }
+  .hmRow {
+    grid-template-columns: 100px repeat(5, 1fr) 44px;
+    gap: 2px;
+  }
+  .hmWsName {
+    font-size: 11px;
+  }
+  .hmCell {
+    height: 40px;
+    font-size: 11px;
+  }
+  .dlRow {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: var(--space-sm);
+  }
+  .dlRisk {
+    grid-column: 1 / -1;
+  }
+  .headerNav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

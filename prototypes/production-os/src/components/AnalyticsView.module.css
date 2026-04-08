@@ -1,0 +1,482 @@
+/* ── Root ── */
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+  padding-top: 48px;
+}
+
+/* ── Header ── */
+.header {
+  background: var(--ink);
+  color: #fff;
+  padding: var(--space-lg) var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: var(--space-lg);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.headerTitleWrap {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1;
+}
+
+.headerSub {
+  font-size: var(--type-body);
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.headerKpis {
+  display: flex;
+  gap: var(--space-lg);
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.kpiLabel {
+  font-size: var(--type-label);
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.backBtn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.85);
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.backBtn:hover {
+  background: rgba(255,255,255,0.18);
+}
+
+/* ── Main ── */
+.main {
+  flex: 1;
+  padding: var(--space-xl);
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+/* ── Panel base ── */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.panelFull {
+  width: 100%;
+}
+
+.panelHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.panelTitle {
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.panelSub {
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+}
+
+.empty {
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+  padding: var(--space-md) 0;
+  text-align: center;
+}
+
+/* ── Panel 1: bars ── */
+.barList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 150px 1fr 32px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.barLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.barIcon {
+  font-size: 14px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.barName {
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barTrack {
+  height: 10px;
+  background: var(--bg3);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 5px;
+  min-width: 2px;
+  transition: width 0.4s ease;
+}
+
+.barCount {
+  font-size: var(--type-body-sm);
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Panel 2: stat cards ── */
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+}
+
+.statCard {
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  padding: var(--space-md) var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+/* ── Panel 3: cycle table ── */
+.cycleTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cycleRow {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.cycleRow:last-child {
+  border-bottom: none;
+}
+
+.cycleRow td {
+  padding: var(--space-sm) 0;
+  font-size: var(--type-body-sm);
+  color: var(--text);
+}
+
+.cycleWs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: 500;
+}
+
+.cycleDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cycleTime {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding-right: var(--space-md);
+}
+
+.cycleCount {
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Panel 4: daily load ── */
+.dailyList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.dailyRow {
+  display: grid;
+  grid-template-columns: 80px 1fr 28px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.dailyRowToday .dailyLabel {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.dailyLabel {
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+
+.dailyTrack {
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dailyFill {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+  transition: width 0.35s ease;
+}
+
+.dailyCount {
+  font-size: var(--type-body-sm);
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Workers section ── */
+.workersSection {
+  margin-top: var(--space-lg);
+}
+
+.workersTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.workersHead th {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.workerRow {
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.1s;
+}
+
+.workerRow:last-child {
+  border-bottom: none;
+}
+
+.workerRow:hover {
+  background: var(--bg1);
+}
+
+.workerRowTop {
+  background: rgba(34,197,94,0.04);
+}
+
+.workerRow td {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.wcName {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.topBadge {
+  color: #eab308;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.wcWs {
+  white-space: nowrap;
+}
+
+.wsDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.wcTasks {
+  text-align: right;
+}
+
+.tasksVal {
+  font-size: var(--type-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.wcTime {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+
+.wcStatus {
+  text-align: right;
+}
+
+.statusBadge {
+  font-size: var(--type-label);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.statusBadgeActive {
+  background: rgba(34,197,94,0.1);
+  color: var(--color-success);
+}
+
+.statusBadgeIdle {
+  background: var(--bg3);
+  color: var(--text-dim);
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .root { padding-top: 0; padding-bottom: 48px; }
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .header {
+    padding: var(--space-md) var(--space-lg);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+  .headerTitle {
+    font-size: 28px;
+  }
+  .main {
+    padding: var(--space-md);
+  }
+  .statRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .barRow {
+    grid-template-columns: 120px 1fr 28px;
+  }
+}

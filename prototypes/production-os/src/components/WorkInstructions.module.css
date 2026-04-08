@@ -1,0 +1,372 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #fff;
+  user-select: none;
+}
+
+.rootError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 24px;
+  background: #fff;
+}
+
+.errorMsg {
+  font-size: 20px;
+  color: #555;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stepNum {
+  font-size: 14px;
+  font-weight: 600;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.orderNum {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: 0.02em;
+}
+
+.closeBtn {
+  padding: 8px 20px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.closeBtn:hover {
+  background: #e5e7eb;
+}
+
+/* Step title */
+.stepTitle {
+  padding: 32px 32px 16px;
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  padding: 16px 32px 24px;
+  overflow-y: auto;
+}
+
+/* Info list */
+.infoList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  gap: 16px;
+}
+
+.infoKey {
+  font-size: 16px;
+  font-weight: 500;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.infoVal {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  text-align: right;
+}
+
+.infoValBig {
+  font-size: 28px;
+  color: #111;
+}
+
+/* Zones */
+.zonesList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoneCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.zoneName {
+  font-size: 20px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.zoneTech {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  background: #e5e7eb;
+  padding: 4px 14px;
+  border-radius: 20px;
+}
+
+/* Sizes grid */
+.sizesWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sizesGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sizeCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  padding: 14px 16px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.sizeLabel {
+  font-size: 15px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sizeQty {
+  font-size: 32px;
+  font-weight: 700;
+  color: #111;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sizesTotal {
+  font-size: 18px;
+  font-weight: 700;
+  color: #6b7280;
+  padding: 12px 20px;
+  background: #f3f4f6;
+  border-radius: 10px;
+  text-align: right;
+}
+
+/* Notes */
+.notesWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.noteBlock {
+  padding: 18px 20px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.noteBlockHandoff {
+  border-left: 4px solid #3b82f6;
+}
+
+.noteBlockOrder {
+  border-left: 4px solid #f97316;
+}
+
+.noteBlockEmpty {
+  opacity: 0.7;
+}
+
+.noteLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 8px;
+}
+
+.noteText {
+  font-size: 18px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.noteTextDim {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* QC checklist */
+.qcList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qcItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.qcNum {
+  font-size: 14px;
+  font-weight: 700;
+  color: #9ca3af;
+  background: #e5e7eb;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.qcText {
+  font-size: 17px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+/* Empty state */
+.empty {
+  font-size: 16px;
+  color: #9ca3af;
+  padding: 24px;
+  text-align: center;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+}
+
+/* Navigation */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.navBtn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+  background: #f9fafb;
+  font-size: 28px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+}
+
+.navBtn:hover:not(:disabled) {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.navBtn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.dots {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d1d5db;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  padding: 0;
+}
+
+.dotActive {
+  background: #111;
+  transform: scale(1.4);
+}
+
+@media (max-width: 600px) {
+  .stepTitle { padding: 20px 16px 12px; font-size: 28px; }
+  .content { padding: 12px 16px 16px; }
+  .infoValBig { font-size: 22px; }
+  .sizeQty { font-size: 24px; }
+  .navBtn { width: 52px; height: 52px; font-size: 22px; }
+}
