@@ -26,7 +26,7 @@ export default function StepItems() {
   return (
     <div className="step-panel">
       <div className="step-header">
-        <div className="step-header-label">// 04 — Позиции</div>
+        <div className="step-header-label">// 03 — Позиции</div>
         <h1 className="step-header-title">ПОЗИЦИИ<br/>ЗАКАЗА</h1>
         <p className="step-header-desc">
           {items.length === 0 ? 'Нет добавленных позиций' : `${items.length} ${items.length === 1 ? 'позиция' : items.length < 5 ? 'позиции' : 'позиций'} в заказе`}

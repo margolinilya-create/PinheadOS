@@ -51,7 +51,7 @@ beforeEach(() => {
 describe('AdminPanel', () => {
   it('renders title', () => {
     renderAdmin();
-    expect(screen.getByText('Админ-панель')).toBeInTheDocument();
+    expect(screen.getByText(/АДМИН-ПАНЕЛЬ/i)).toBeInTheDocument();
   });
 
   it('renders tabs', () => {

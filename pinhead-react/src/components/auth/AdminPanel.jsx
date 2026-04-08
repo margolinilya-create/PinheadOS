@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import PageHeader from '../shared/PageHeader';
 import { supabase } from '../../lib/supabase';
 import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -8,8 +8,6 @@ import { TYPE_NAMES } from '../../data';
 const ALL_ROLES = ['admin', 'director', 'rop', 'manager', 'production', 'designer'];
 
 export default function AdminPanel() {
-  const navigate = useNavigate();
-  const onClose = () => navigate('/');
   const [tab, setTab] = useState('orders');
 
   // Orders from store (shared with KanbanBoard/Dashboard)
@@ -75,25 +73,14 @@ export default function AdminPanel() {
 
   return (
     <div className="kanban-page">
-      {/* Header */}
-      <div className="sku-ed-header">
-        <div className="sku-ed-header-left">
-          <h1 className="sku-ed-title">Админ-панель</h1>
-          <span style={{ fontSize: 11, background: '#fff3cd', color: '#856404', padding: '2px 8px', fontWeight: 700 }}>
-            {orders.length} заказов · {totalRevenue.toLocaleString('ru-RU')} ₽
-          </span>
-        </div>
-        <div className="sku-ed-header-right">
-          <button className="btn" onClick={() => { fetchOrders(); loadUsers(); }}>Обновить</button>
-          <button className="pe-close" onClick={onClose} aria-label="Закрыть">✕</button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="page-tabs">
-        <button className={`page-tab${tab === 'orders' ? ' active' : ''}`} onClick={() => setTab('orders')}>Заказы</button>
-        <button className={`page-tab${tab === 'users' ? ' active' : ''}`} onClick={() => setTab('users')}>Пользователи</button>
-      </div>
+      <PageHeader
+        title="АДМИН-ПАНЕЛЬ"
+        badge={`${orders.length} заказов · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
+        actions={<button className="btn" onClick={() => { fetchOrders(); loadUsers(); }}>Обновить</button>}
+        tabs={[{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
+        activeTab={tab}
+        onTabChange={setTab}
+      />
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 40px 40px' }}>

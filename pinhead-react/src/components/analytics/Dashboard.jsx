@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '../shared/PageHeader';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES } from '../../data';
@@ -460,7 +461,6 @@ function ProductionTab({ orders }) {
 /* ── Main Dashboard ── */
 export default function Dashboard() {
   const navigate = useNavigate();
-  const onClose = () => navigate('/');
   const orders = useOrdersStore(s => s.orders);
   const fetchOrders = useOrdersStore(s => s.fetchOrders);
   const loadOrder = useStore(s => s.loadOrder);
@@ -471,33 +471,12 @@ export default function Dashboard() {
 
   return (
     <div className="kanban-page">
-      {/* Header */}
-      <div className="sku-ed-header" style={{ padding: '20px 40px' }}>
-        <div className="sku-ed-header-left">
-          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
-            <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="sku-ed-title">ДАШБОРД</h1>
-        </div>
-        <div className="sku-ed-header-right">
-          <button className="pe-close" onClick={onClose} aria-label="Закрыть">✕</button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="page-tabs">
-        <button className={`page-tab${tab === 'analytics' ? ' active' : ''}`} onClick={() => setTab('analytics')}>
-          Аналитика
-        </button>
-        <button className={`page-tab${tab === 'production' ? ' active' : ''}`} onClick={() => setTab('production')}>
-          Производство
-        </button>
-      </div>
+      <PageHeader
+        title="ДАШБОРД"
+        tabs={[{ id: 'analytics', name: 'Аналитика' }, { id: 'production', name: 'Производство' }]}
+        activeTab={tab}
+        onTabChange={setTab}
+      />
 
       {/* Body */}
       <div className="dash-body-scroll">
