@@ -166,9 +166,6 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
     return () => window.removeEventListener('keydown', handler);
   }, [order.id, order.status, onStatusChange, onClose]);
 
-  const sectionLabel = { fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: '#888', marginBottom: 4, marginTop: 16 };
-  const sectionValue = { fontSize: 14, fontWeight: 500, marginBottom: 4 };
-
   const panelRef = useFocusTrap(true, onClose);
 
   return (
@@ -192,7 +189,7 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
             {d.company && <span style={{ fontWeight: 400, color: '#888', marginLeft: 8 }}>· {d.company}</span>}
           </div>
 
-          <div style={sectionLabel}>ИЗДЕЛИЕ</div>
+          <div className="kb-drawer-section-label">ИЗДЕЛИЕ</div>
           {d.items?.length > 1 ? (
             d.items.map((it, i) => (
               <div key={i} style={{ marginBottom: 4, fontSize: 13 }}>
@@ -202,18 +199,18 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
               </div>
             ))
           ) : (
-            <div style={sectionValue}>{skuName}{fabricName ? ' · ' + fabricName : ''}</div>
+            <div className="kb-drawer-section-value">{skuName}{fabricName ? ' · ' + fabricName : ''}</div>
           )}
 
-          <div style={sectionLabel}>ТИРАЖ</div>
-          <div style={sectionValue}>
+          <div className="kb-drawer-section-label">ТИРАЖ</div>
+          <div className="kb-drawer-section-value">
             {order.total_qty || 0} шт · {(order.total_sum || 0).toLocaleString('ru-RU')} ₽
           </div>
 
           {(d.contact || d.phone || d.email) && (
             <>
-              <div style={sectionLabel}>КОНТАКТЫ</div>
-              <div style={{ ...sectionValue, fontSize: 13 }}>
+              <div className="kb-drawer-section-label">КОНТАКТЫ</div>
+              <div className="kb-drawer-section-value" style={{ fontSize: 13 }}>
                 {[d.contact, d.phone, d.email].filter(Boolean).join(' · ')}
               </div>
             </>
@@ -221,22 +218,22 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
 
           {d.managerName && (
             <>
-              <div style={sectionLabel}>МЕНЕДЖЕР</div>
-              <div style={{ ...sectionValue, fontSize: 13 }}>{d.managerName}</div>
+              <div className="kb-drawer-section-label">МЕНЕДЖЕР</div>
+              <div className="kb-drawer-section-value" style={{ fontSize: 13 }}>{d.managerName}</div>
             </>
           )}
 
           {techName && (
             <>
-              <div style={sectionLabel}>НАНЕСЕНИЕ</div>
-              <div style={sectionValue}>{techName}</div>
+              <div className="kb-drawer-section-label">НАНЕСЕНИЕ</div>
+              <div className="kb-drawer-section-value">{techName}</div>
             </>
           )}
 
           {d.deadline && (
             <>
-              <div style={sectionLabel}>ДЕДЛАЙН</div>
-              <div style={{ ...sectionValue, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="kb-drawer-section-label">ДЕДЛАЙН</div>
+              <div className="kb-drawer-section-value" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {new Date(d.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })}
                 {dlInfo && (
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', background: dlInfo.color, color: dlInfo.color === '#888' ? '#444' : '#fff' }}>
@@ -249,14 +246,14 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
 
           {d.notes && (
             <>
-              <div style={sectionLabel}>ЗАМЕТКИ</div>
-              <div style={{ ...sectionValue, fontSize: 13, color: '#444', whiteSpace: 'pre-wrap' }}>{d.notes}</div>
+              <div className="kb-drawer-section-label">ЗАМЕТКИ</div>
+              <div className="kb-drawer-section-value" style={{ fontSize: 13, color: '#444', whiteSpace: 'pre-wrap' }}>{d.notes}</div>
             </>
           )}
 
           {d.artworkPath && (
             <>
-              <div style={sectionLabel}>ПАПКА С МАКЕТАМИ</div>
+              <div className="kb-drawer-section-label">ПАПКА С МАКЕТАМИ</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{d.artworkPath}</code>
                 <button className="btn" style={{ fontSize: 11, padding: '2px 8px', flexShrink: 0 }}
@@ -268,7 +265,7 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           )}
 
           {/* Comments */}
-          <div style={sectionLabel}>КОММЕНТАРИИ</div>
+          <div className="kb-drawer-section-label">КОММЕНТАРИИ</div>
           <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 8 }}>
             {commentsLoading[order.id] && <div style={{ fontSize: 12, color: '#888' }}>Загрузка...</div>}
             {orderComments.length === 0 && !commentsLoading[order.id] && (
@@ -314,7 +311,7 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           </div>
 
           {/* Status change buttons */}
-          <div style={sectionLabel}>СМЕНИТЬ СТАТУС</div>
+          <div className="kb-drawer-section-label">СМЕНИТЬ СТАТУС</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {STATUS_LIST.map(s => (
               <button

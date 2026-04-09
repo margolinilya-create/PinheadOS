@@ -6,6 +6,22 @@
   display: flex; flex-direction: column; font-family: 'Roboto Condensed', sans-serif;
   height: calc(100vh - 52px); overflow: hidden;
 }
+
+/* ── OrderDrawer section labels ── */
+.kb-drawer-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 4px;
+  margin-top: 16px;
+}
+.kb-drawer-section-value {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
 /* ── Kanban filters bar (below shared Header) ── */
 .kb-filters-bar {
   display: flex;
