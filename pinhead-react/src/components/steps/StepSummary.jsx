@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore } from '../../store/useOrdersStore';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
-import { isAccessory, calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice } from '../../utils/pricing';
+import { isAccessory, calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice, calcExtrasCost } from '../../utils/pricing';
 import { validateEmail, validatePhone, validateRequired } from '../../utils/validate';
 import PriceBreakdown from '../shared/PriceBreakdown';
 import { findColorEntry } from '../../data';
@@ -288,10 +288,7 @@ export default function StepSummary() {
         const sizeEntries = Object.entries(item.sizes || {}).filter(([, v]) => v > 0);
         const itemState = { ...item, ...catalogs };
         const printPrice = getTotalSurcharge(itemState);
-        const extrasPrice = (item.extras || []).reduce((sum, code) => {
-          const ex = extrasCatalog.find(x => x.code === code);
-          return sum + (ex ? ex.price : 0);
-        }, 0);
+        const extrasPrice = calcExtrasCost(item.extras, extrasCatalog);
         const labelsCost = getLabelConfigPrice(item.labelConfig);
         const labelLines = getLabelsSummary(item.labelConfig);
 
@@ -399,7 +396,7 @@ export default function StepSummary() {
             {itemCalcs.map(({ item, qty, itemTotal }, idx) => {
               const itemState = { ...item, ...catalogs };
               const printP = getTotalSurcharge(itemState);
-              const extP = (item.extras || []).reduce((s, c) => { const e = extrasCatalog.find(x => x.code === c); return s + (e ? e.price : 0); }, 0);
+              const extP = calcExtrasCost(item.extras, extrasCatalog);
               const labP = getLabelConfigPrice(item.labelConfig);
               return (
                 <div key={idx} className="price-breakdown-item">

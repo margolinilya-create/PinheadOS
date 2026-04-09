@@ -5,7 +5,7 @@ import { ZONE_LABELS } from '../../data';
 import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
-import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup } from '../../utils/pricing';
+import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, calcExtrasCost } from '../../utils/pricing';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -171,10 +171,7 @@ export default function ExpressCalc() {
     const base = Math.round(baseRaw * (1 + markupPct));
 
     // Extras cost
-    const extrasCost = selectedExtras.reduce((sum, code) => {
-      const ex = EXTRAS_CATALOG_DEFAULT.find(e => e.code === code);
-      return sum + (ex ? ex.price : 0);
-    }, 0);
+    const extrasCost = calcExtrasCost(selectedExtras, EXTRAS_CATALOG_DEFAULT);
 
     // Tech surcharge from all active zones
     const activeEntries = Object.entries(expZoneData).filter(([, d]) => d.active);

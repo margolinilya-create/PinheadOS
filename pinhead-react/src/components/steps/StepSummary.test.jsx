@@ -28,6 +28,7 @@ vi.mock('../../utils/pricing', () => ({
   getItemTotalQty: vi.fn(() => 10),
   getTotalSurcharge: vi.fn(() => 0),
   getLabelConfigPrice: vi.fn(() => 0),
+  calcExtrasCost: vi.fn(() => 0),
 }));
 
 // Mock mockup

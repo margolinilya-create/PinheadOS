@@ -289,6 +289,20 @@ export function getMarkup(qty, category) {
   return markup;
 }
 
+/**
+ * Sum extras prices for a list of extra codes.
+ * @param {string[]} extras — list of codes
+ * @param {{code:string, price:number}[]} catalog
+ * @returns {number}
+ */
+export function calcExtrasCost(extras, catalog) {
+  if (!extras || !catalog) return 0;
+  return extras.reduce((sum, code) => {
+    const ex = catalog.find(e => e.code === code);
+    return sum + (ex ? ex.price : 0);
+  }, 0);
+}
+
 export function calcTotal(state, debug = false) {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;
@@ -303,10 +317,7 @@ export function calcTotal(state, debug = false) {
       + (P.fabric[state.fabric] || 0);
   }
 
-  const extrasPrice = (state.extras || []).reduce((sum, code) => {
-    const ex = state.extrasCatalog.find(e => e.code === code);
-    return sum + (ex ? ex.price : 0);
-  }, 0);
+  const extrasPrice = calcExtrasCost(state.extras, state.extrasCatalog);
 
   const labelsCost = getLabelConfigPrice(state.labelConfig);
   const printPrice = getTotalSurcharge(state);
@@ -357,10 +368,7 @@ export function calcTotalBreakdown(state) {
       + (P.fabric[state.fabric] || 0);
   }
 
-  const extras = (state.extras || []).reduce((sum, code) => {
-    const ex = state.extrasCatalog.find(e => e.code === code);
-    return sum + (ex ? ex.price : 0);
-  }, 0);
+  const extras = calcExtrasCost(state.extras, state.extrasCatalog);
 
   const labels = getLabelConfigPrice(state.labelConfig);
   const print = getTotalSurcharge(state);

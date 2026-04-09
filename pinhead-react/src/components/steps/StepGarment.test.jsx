@@ -9,6 +9,7 @@ vi.mock('../../utils/pricing', () => ({
   isAccessory: vi.fn((type) => type === 'shopper'),
   getTotalQty: vi.fn(() => 0),
   getUnitPrice: vi.fn(() => 500),
+  calcExtrasCost: vi.fn(() => 0),
 }));
 
 // Mock mockup

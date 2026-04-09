@@ -7,7 +7,7 @@ import { SKU_CATEGORIES } from '../../data';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SIZES } from '../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES } from '../../data';
 import { EXTRAS_DESCS, EXTRAS_GROUPS } from '../../data';
-import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice } from '../../utils/pricing';
+import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice, calcExtrasCost } from '../../utils/pricing';
 import { getGarmentSVG } from '../../utils/mockup';
 
 // ── SKU List ──
@@ -582,10 +582,7 @@ export default function StepGarment() {
       {showSizes && <SizeTable />}
       {/* Extras accordion */}
       {sku && (() => {
-        const totalExtrasCost = extras.reduce((sum, code) => {
-          const e = extrasCatalog.find(x => x.code === code);
-          return sum + (e ? e.price : 0);
-        }, 0);
+        const totalExtrasCost = calcExtrasCost(extras, extrasCatalog);
         const availableExtras = extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category));
         return (
           <div className="extras-accordion" style={{ marginTop: 16 }}>
