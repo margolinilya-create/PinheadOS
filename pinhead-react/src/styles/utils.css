@@ -179,3 +179,31 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Mobile: prevent iOS zoom on focus (inputs must be ≥16px) ── */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="search"],
+  input[type="date"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  /* Touch targets: 44x44 minimum for interactive elements */
+  button,
+  [role="button"],
+  [role="checkbox"],
+  .btn,
+  .btn-primary,
+  .btn-accent,
+  .btn-secondary {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
