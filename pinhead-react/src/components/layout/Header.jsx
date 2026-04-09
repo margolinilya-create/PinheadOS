@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
@@ -9,17 +10,20 @@ import styles from './Header.module.css';
 export default function Header() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const total = useStore(s => calcTotal(s));
+  // calcTotal: Zustand сравнит число — компонент ререндерится только при реальном изменении суммы
+  const total = useStore(calcTotal);
   const formatted = total > 0 ? total.toLocaleString('ru-RU') + ' ₽' : '0 ₽';
   const { draftStatus, resetDraft } = useDraft();
-  const logout = useAuthStore(s => s.logout);
+  const { logout, effectiveRole } = useAuthStore(useShallow(s => ({
+    logout: s.logout,
+    effectiveRole: s.previewRole || s.user?.role,
+  })));
 
   const draftLabel = draftStatus === 'saving' ? 'сохраняю...'
     : draftStatus === 'saved' ? 'сохранено'
     : 'черновик';
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const effectiveRole = useAuthStore(s => s.previewRole || s.user?.role);
   const isAdmin = ['admin', 'director'].includes(effectiveRole);
   const isProd = effectiveRole === 'production';
   const isDes = effectiveRole === 'designer';

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import PageHeader from '../shared/PageHeader';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
@@ -461,8 +462,7 @@ function ProductionTab({ orders }) {
 /* ── Main Dashboard ── */
 export default function Dashboard() {
   const navigate = useNavigate();
-  const orders = useOrdersStore(s => s.orders);
-  const fetchOrders = useOrdersStore(s => s.fetchOrders);
+  const { orders, fetchOrders } = useOrdersStore(useShallow(s => ({ orders: s.orders, fetchOrders: s.fetchOrders })));
   const loadOrder = useStore(s => s.loadOrder);
   const [period, setPeriod] = useState(30);
   const [tab, setTab] = useState('analytics');

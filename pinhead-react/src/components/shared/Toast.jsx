@@ -1,9 +1,9 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useToastStore } from '../../store/useToastStore';
 import styles from './Toast.module.css';
 
 export default function ToastContainer() {
-  const toasts = useToastStore(s => s.toasts);
-  const remove = useToastStore(s => s.remove);
+  const { toasts, remove } = useToastStore(useShallow(s => ({ toasts: s.toasts, remove: s.remove })));
   if (!toasts.length) return null;
 
   return (
