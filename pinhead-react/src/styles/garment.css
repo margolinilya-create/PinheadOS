@@ -141,7 +141,8 @@
 }
 .supplier-btn:last-child      { border-right: none; }
 .supplier-btn:hover           { color: var(--text); background: var(--bg2); }
-.supplier-btn.active          { background: var(--accent) !important; color: var(--white) !important; }
+.supplier-tabs .supplier-btn.active { background: var(--accent); color: var(--white); }
+.supplier-tabs .supplier-btn.active:hover { background: var(--accent); color: var(--white); }
 .color-selected-info { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
 .fabric-color-count {
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;

@@ -96,7 +96,8 @@ textarea::placeholder {
 .form-field input, .form-field textarea {
   font-weight: 400;
 }
-.input-error { border-color: var(--color-error) !important; }
+.form-field input.input-error,
+.form-field textarea.input-error { border-color: var(--color-error); }
 .field-error { color: var(--color-error); font-family: 'Inter', sans-serif; font-size: 11px; margin-top: 4px; display: block; }
 .form-field textarea { min-height: 80px; resize: vertical; }
 /* Toggle switches */
