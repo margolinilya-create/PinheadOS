@@ -180,6 +180,18 @@
   }
 }
 
+/* ── Mobile: tables get horizontal scroll ── */
+@media (max-width: 768px) {
+  .sku-ed-table,
+  .pe-matrix-table,
+  .pp-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+}
+
 /* ── Mobile: prevent iOS zoom on focus (inputs must be ≥16px) ── */
 @media (max-width: 768px) {
   input[type="text"],
