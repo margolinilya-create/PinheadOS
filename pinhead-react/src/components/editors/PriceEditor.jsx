@@ -242,16 +242,20 @@ export default function PriceEditor() {
               {Array.from({ length: prices.screenMaxColors || 8 }, (_, c) => c + 1).map(c => (
                 <tr key={c}>
                   <td className="pe-matrix-label">{c}</td>
-                  {(prices.screenMatrix?.[fmt]?.[c] || []).map((val, ti) => (
+                  {(prices.screenMatrix?.[fmt]?.[c] || []).map((val, ti) => {
+                    const tier = (prices.screenTiers || [])[ti];
+                    return (
                     <td key={ti}>
                       <input
                         type="number"
                         className="pe-matrix-input"
                         value={val}
+                        aria-label={`Шелкография ${fmt}, ${c} цв., тираж ${tier}+`}
                         onChange={e => updateMatrix('screenMatrix', fmt, String(c), ti, e.target.value)}
                       />
                     </td>
-                  ))}
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -261,30 +265,30 @@ export default function PriceEditor() {
 
       <h3>Наценки шелкографии</h3>
       <div className="pe-grid pe-grid-surcharges">
-        <div className="pe-input-row">
+        <label className="pe-input-row">
           <span className="pe-input-label">Цветной текстиль</span>
           <input type="number" step="0.1" value={prices.screenColoredMult ?? 1.3} onChange={e => updateScalar('screenColoredMult', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Футер</span>
           <input type="number" step="0.1" value={prices.screenFutherMult ?? 1.5} onChange={e => updateScalar('screenFutherMult', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">К. база</span>
           <input type="number" step="0.1" value={prices.screenFxStoneMult ?? 2.0} onChange={e => updateScalar('screenFxStoneMult', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">PUFF</span>
           <input type="number" step="0.1" value={prices.screenFxPuffMult ?? 2.0} onChange={e => updateScalar('screenFxPuffMult', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Металлик</span>
           <input type="number" step="0.1" value={prices.screenFxMetallicMult ?? 2.0} onChange={e => updateScalar('screenFxMetallicMult', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Флюр</span>
           <input type="number" step="0.1" value={prices.screenFxFluorMult ?? 2.0} onChange={e => updateScalar('screenFxFluorMult', e.target.value)} />
-        </div>
+        </label>
       </div>
     </div>
   );
@@ -294,28 +298,28 @@ export default function PriceEditor() {
       <h3>Вышивка — расчёт по стежкам</h3>
 
       <div className="pe-grid">
-        <div className="pe-input-row">
+        <label className="pe-input-row">
           <span className="pe-input-label">Стежков на 1 см²</span>
           <input type="number" value={prices.embStitchesPerCm2 ?? 300} onChange={e => updateScalar('embStitchesPerCm2', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Цена за 1000 стежков</span>
           <input type="number" value={prices.embPricePerThousand ?? 14} onChange={e => updateScalar('embPricePerThousand', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Мин. цена вышивки</span>
           <input type="number" value={prices.embMinPrice ?? 50} onChange={e => updateScalar('embMinPrice', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Металлик ×</span>
           <input type="number" step="0.1" value={prices.embMetallicMult ?? 1.2} onChange={e => updateScalar('embMetallicMult', e.target.value)} />
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Объёмная (puff) ×</span>
           <input type="number" step="0.1" value={prices.embPuffMult ?? 1.5} onChange={e => updateScalar('embPuffMult', e.target.value)} />
-        </div>
+        </label>
       </div>
 
       <div className="pe-hint" style={{ marginTop: 12 }}>
@@ -329,26 +333,26 @@ export default function PriceEditor() {
       <h3>DTF — расчёт по площади плёнки</h3>
 
       <div className="pe-grid">
-        <div className="pe-input-row">
+        <label className="pe-input-row">
           <span className="pe-input-label">Цена метра плёнки</span>
           <input type="number" value={prices.dtfPricePerMeter ?? 1400} onChange={e => updateScalar('dtfPricePerMeter', e.target.value)} />
           <span className="pe-input-unit">&#8381;/м</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Цена переноса</span>
           <input type="number" value={prices.dtfTransferPrice ?? 50} onChange={e => updateScalar('dtfTransferPrice', e.target.value)} />
           <span className="pe-input-unit">&#8381;/шт</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Ширина рулона</span>
           <input type="number" value={prices.dtfFilmWidth ?? 550} readOnly style={{ opacity: 0.6 }} />
           <span className="pe-input-unit">мм</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Зазор между макетами</span>
           <input type="number" min="5" max="20" step="1" value={prices.dtfGap ?? 10} onChange={e => updateScalar('dtfGap', e.target.value)} />
           <span className="pe-input-unit">мм</span>
-        </div>
+        </label>
       </div>
 
       <div className="pe-hint" style={{ marginTop: 12 }}>
@@ -362,31 +366,31 @@ export default function PriceEditor() {
       <h3>DTG</h3>
 
       <div className="pe-grid">
-        <div className="pe-input-row">
+        <label className="pe-input-row">
           <span className="pe-input-label">Базовая цена</span>
           <input type="number" value={prices.tech?.dtg ?? 280} onChange={e => updateField('tech', 'dtg', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
-        </div>
+        </label>
       </div>
 
       <h3>Надбавки за формат</h3>
       <div className="pe-grid">
         {DTG_FORMAT_ORDER.map(key => (
-          <div key={key} className="pe-input-row">
+          <label key={key} className="pe-input-row">
             <span className="pe-input-label">{key}</span>
             <input type="number" value={prices.dtgFormatAdd?.[key] ?? 0} onChange={e => updateField('dtgFormatAdd', key, e.target.value)} />
             <span className="pe-input-unit">&#8381;</span>
-          </div>
+          </label>
         ))}
       </div>
 
       <h3>Белая подложка</h3>
       <div className="pe-grid">
-        <div className="pe-input-row">
+        <label className="pe-input-row">
           <span className="pe-input-label">Цена подложки</span>
           <input type="number" value={prices.dtgWhiteUnder ?? 60} onChange={e => updateScalar('dtgWhiteUnder', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
-        </div>
+        </label>
       </div>
     </div>
   );
@@ -417,6 +421,7 @@ export default function PriceEditor() {
                           type="number"
                           className="pe-matrix-input"
                           value={val}
+                          aria-label={`Флекс ${fmt}, ${c} цв., тираж ${FLEX_TIERS[ti]}+`}
                           onChange={e => updateMatrix('flexMatrix', fmt, String(c), ti, e.target.value)}
                         />
                       </td>
@@ -435,17 +440,17 @@ export default function PriceEditor() {
     <div className="pe-section">
       <h3>Дополнительные услуги</h3>
       <div className="pe-grid">
-        <div className="pe-input-row">
+        <label className="pe-input-row">
           <span className="pe-input-label">Бирка</span>
           <input type="number" value={prices.label ?? 30} onChange={e => updateScalar('label', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Упаковка</span>
           <input type="number" value={prices.pack ?? 15} onChange={e => updateScalar('pack', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
-        </div>
-        <div className="pe-input-row">
+        </label>
+        <label className="pe-input-row">
           <span className="pe-input-label">Срочный заказ</span>
           <input
             type="number"
@@ -454,7 +459,7 @@ export default function PriceEditor() {
             onChange={e => updateScalar('urgentMult', Number(e.target.value) / 100)}
           />
           <span className="pe-input-unit">%</span>
-        </div>
+        </label>
       </div>
 
       <h3>Минимальный тираж по технике</h3>
@@ -495,13 +500,14 @@ export default function PriceEditor() {
               return (
                 <tr key={key}>
                   <td className="pe-matrix-label pe-markup-cat">{label}</td>
-                  {tiers.map((_, ti) => (
+                  {tiers.map((t, ti) => (
                     <td key={ti}>
                       <input
                         type="number"
                         className="pe-matrix-input"
                         step="1"
                         value={Math.round((row[ti] ?? 0) * 100)}
+                        aria-label={`Наценка ${label}, от ${t} шт.`}
                         onChange={e => updateMarkup(key, ti, e.target.value)}
                       />
                     </td>
