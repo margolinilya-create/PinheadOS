@@ -67,7 +67,7 @@ describe('AdminPanel', () => {
 
   it('shows order stats', () => {
     renderAdmin();
-    expect(screen.getByText(/1 заказов/)).toBeInTheDocument();
+    expect(screen.getByText(/1 заказ/)).toBeInTheDocument();
   });
 
   it('shows search input', () => {

@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES } from '../../data';
 import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { toast } from '../../store/useToastStore';
+import { pluralize } from '../../utils/i18n';
 
 export default function AdminPanel() {
   const [tab, setTab] = useState('orders');
@@ -78,7 +79,7 @@ export default function AdminPanel() {
     <div className="kanban-page">
       <PageHeader
         title="АДМИН-ПАНЕЛЬ"
-        badge={`${orders.length} заказов · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
+        badge={`${orders.length} ${pluralize(orders.length, 'заказ', 'заказа', 'заказов')} · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
         actions={<button className="btn" onClick={() => { fetchOrders(); loadUsers(); }}>Обновить</button>}
         tabs={[{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
         activeTab={tab}

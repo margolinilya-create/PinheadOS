@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
+import { translateSupabaseError } from '../utils/i18n';
 
 // ─── DEV MODE: bypass авторизации ───
 // В dev-режиме (vite dev) — пропускаем логин, role = admin
@@ -68,7 +69,7 @@ export const useAuthStore = create((set, get) => ({
     set({ error: null, loading: true });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      set({ error: error.message, loading: false });
+      set({ error: translateSupabaseError(error.message), loading: false });
       return false;
     }
     const { data: { session } } = await supabase.auth.getSession();
@@ -83,7 +84,7 @@ export const useAuthStore = create((set, get) => ({
     set({ error: null, loading: true });
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) {
-      set({ error: error.message, loading: false });
+      set({ error: translateSupabaseError(error.message), loading: false });
       return false;
     }
     // Создаём профиль
