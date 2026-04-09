@@ -14,8 +14,6 @@ import StepItems from './components/steps/StepItems'
 import StepDetails from './components/steps/StepDetails'
 import StepSummary from './components/steps/StepSummary'
 import AuthScreen from './components/auth/AuthScreen'
-import PrintPreview from './components/output/PrintPreview'
-import SkuEditor from './components/editors/SkuEditor'
 import ToastContainer from './components/shared/Toast'
 import RolePreviewBar from './components/shared/RolePreviewBar'
 
@@ -24,6 +22,8 @@ const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'))
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
 const AdminPanel = React.lazy(() => import('./components/auth/AdminPanel'));
 const Dashboard = React.lazy(() => import('./components/analytics/Dashboard'));
+const PrintPreview = React.lazy(() => import('./components/output/PrintPreview'));
+const SkuEditor = React.lazy(() => import('./components/editors/SkuEditor'));
 
 const STEPS = [StepGarment, StepDesign, StepItems, StepDetails, StepSummary];
 
@@ -58,7 +58,12 @@ function LoadingScreen() {
 }
 
 function App() {
-  const { user, loading: authLoading, init, previewRole } = useAuthStore();
+  const { user, authLoading, init, previewRole } = useAuthStore(useShallow(s => ({
+    user: s.user,
+    authLoading: s.loading,
+    init: s.init,
+    previewRole: s.previewRole,
+  })));
   const [catalogsReady, setCatalogsReady] = useState(false);
   const { step, saved } = useStore(useShallow(s => ({ step: s.step, saved: s.saved })));
 
@@ -148,10 +153,10 @@ function App() {
       <Routes>
         <Route path="/" element={<WizardPage />} />
         <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
-        <Route path="/print" element={<PrintPreview />} />
+        <Route path="/print" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PrintPreview /></Suspense>} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
         <Route path="/prices" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PriceEditor /></Suspense></RoleGuard>} />
-        <Route path="/sku" element={<RoleGuard allowed={isAdmin}><SkuEditor /></RoleGuard>} />
+        <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
