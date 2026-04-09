@@ -131,6 +131,11 @@ export default function AdminPanel() {
                 </tr>
               </thead>
               <tbody>
+                {filteredOrders.length === 0 && (
+                  <tr><td colSpan={8} style={{ padding: 30, textAlign: 'center', color: '#888', fontSize: 13 }}>
+                    {orderSearch || statusFilter !== 'all' ? 'Ничего не найдено' : 'Заказов пока нет'}
+                  </td></tr>
+                )}
                 {filteredOrders.map(o => (
                   <tr key={o.id}>
                     <td className="sku-code">{o.order_number || '—'}</td>
@@ -174,6 +179,11 @@ export default function AdminPanel() {
               </tr>
             </thead>
             <tbody>
+              {users.length === 0 && (
+                <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#888', fontSize: 13 }}>
+                  Пользователей нет
+                </td></tr>
+              )}
               {users.map(u => (
                 <tr key={u.id}>
                   <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
