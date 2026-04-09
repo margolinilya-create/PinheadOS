@@ -8,6 +8,7 @@ import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS, SI
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES } from '../../data';
 import { EXTRAS_DESCS, EXTRAS_GROUPS } from '../../data';
 import { getSkuEstPrice, isAccessory, getTotalQty, getUnitPrice, calcExtrasCost } from '../../utils/pricing';
+import { sizeOrder } from '../../store/slices/helpers';
 import { getGarmentSVG } from '../../utils/mockup';
 
 // ── SKU List ──
@@ -267,19 +268,6 @@ function ColorPicker() {
 }
 
 // ── Size ordering & sorting ──
-const SIZE_ORDER_MAP = {};
-const ALL_SIZE_ORDER = ['4XS','3XS','2XS','XS','S','M','L','XL','2XL','3XL','4XL','5XL','6XL'];
-ALL_SIZE_ORDER.forEach((s, i) => { SIZE_ORDER_MAP[s] = i; });
-
-function sizeOrder(label) {
-  const up = (label || '').toUpperCase();
-  if (up in SIZE_ORDER_MAP) return SIZE_ORDER_MAP[up];
-  // Try numeric sizes (28, 30, 32, etc.)
-  const num = parseFloat(up);
-  if (!isNaN(num)) return 100 + num;
-  return 200; // unknown sizes go to end
-}
-
 function buildSortedRows(stdSizes, sizes, customSizes) {
   const stdRows = stdSizes.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 }));
   const customRows = (customSizes || []).map((cs, i) => ({ type: 'custom', label: cs.label, qty: cs.qty || 0, idx: i }));

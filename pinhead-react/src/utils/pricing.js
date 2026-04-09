@@ -2,6 +2,7 @@
 // Pricing engine — чистые функции
 // ═══════════════════════════════════════════
 import { PRICES as DEFAULT_PRICES } from '../data';
+import { FLEX_MATRIX } from '../data/prices';
 import { useStore } from '../store/useStore';
 
 // Приоритет: стор (актуальные) → localStorage → дефолт
@@ -59,12 +60,6 @@ const FLEX_QTY_TIERS = [1, 20, 35, 50];
 const FLEX_FORMATS = ['A6', 'A5', 'A4', 'A3'];
 const FLEX_MAX_COLORS = 3;
 const FLEX_SINGLE_PRICE = { 'A6': 450, 'A5': 600, 'A4': 750, 'A3': 850 };
-const FLEX_MATRIX = {
-  'A6': { 1: [450, 159, 141, 128], 2: [450, 206, 177, 148], 3: [450, 238, 203, 188] },
-  'A5': { 1: [600, 238, 203, 172], 2: [600, 285, 244, 204], 3: [600, 316, 270, 227] },
-  'A4': { 1: [750, 316, 270, 227], 2: [750, 405, 345, 291], 3: [750, 475, 405, 341] },
-  'A3': { 1: [850, 423, 352, 296], 2: [850, 519, 443, 374], 3: [850, 632, 540, 454] },
-};
 export { FLEX_FORMATS, FLEX_MAX_COLORS };
 
 export const TECH_TABS = [

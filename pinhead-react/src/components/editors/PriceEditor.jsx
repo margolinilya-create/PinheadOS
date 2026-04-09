@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { PRICES } from '../../data/prices';
+import { PRICES, FLEX_MATRIX as DEFAULT_FLEX_MATRIX } from '../../data/prices';
 import { supabase } from '../../lib/supabase';
 import { useStore } from '../../store/useStore';
 import { toast } from '../../store/useToastStore';
@@ -13,13 +13,6 @@ const HISTORY_KEY = 'ph_price_history';
 const FLEX_TIERS = [1, 20, 35, 50];
 const FLEX_FORMATS = ['A6', 'A5', 'A4', 'A3'];
 const FLEX_MAX_COLORS = 3;
-
-const DEFAULT_FLEX_MATRIX = {
-  'A6': { 1: [450, 159, 141, 128], 2: [450, 206, 177, 148], 3: [450, 238, 203, 188] },
-  'A5': { 1: [600, 238, 203, 172], 2: [600, 285, 244, 204], 3: [600, 316, 270, 227] },
-  'A4': { 1: [750, 316, 270, 227], 2: [750, 405, 345, 291], 3: [750, 475, 405, 341] },
-  'A3': { 1: [850, 423, 352, 296], 2: [850, 519, 443, 374], 3: [850, 632, 540, 454] },
-};
 
 function clonePrices() {
   const stored = storageGet(STORAGE_KEY);

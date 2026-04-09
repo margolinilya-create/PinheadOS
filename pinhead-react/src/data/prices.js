@@ -96,3 +96,13 @@ export const PRICES = {
   },
   markupDefault: [0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40],
 };
+
+// ═══ FLEX MATRIX ═══
+// Single source of truth — used by pricing.js runtime and PriceEditor defaults.
+// flexMatrix[format][colors] = [single, tier1, tier2, tier3]
+export const FLEX_MATRIX = {
+  'A6': { 1: [450, 159, 141, 128], 2: [450, 206, 177, 148], 3: [450, 238, 203, 188] },
+  'A5': { 1: [600, 238, 203, 172], 2: [600, 285, 244, 204], 3: [600, 316, 270, 227] },
+  'A4': { 1: [750, 316, 270, 227], 2: [750, 405, 345, 291], 3: [750, 475, 405, 341] },
+  'A3': { 1: [850, 423, 352, 296], 2: [850, 519, 443, 374], 3: [850, 632, 540, 454] },
+};
