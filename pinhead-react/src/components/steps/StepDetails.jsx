@@ -90,11 +90,11 @@ export default function StepDetails() {
         </div>
         <div className="form-field">
           <label htmlFor="field-messenger">Мессенджер</label>
-          <input id="field-messenger" type="text" value={messenger} placeholder="@username" onChange={e => setField('messenger', e.target.value)} />
+          <input id="field-messenger" type="text" value={messenger} placeholder="@username" maxLength={100} onChange={e => setField('messenger', e.target.value)} />
         </div>
         <div className="form-field">
           <label htmlFor="field-bitrix">Bitrix Deal</label>
-          <input id="field-bitrix" type="text" value={bitrixDeal} placeholder="BX-12345" onChange={e => setField('bitrixDeal', e.target.value)} />
+          <input id="field-bitrix" type="text" value={bitrixDeal} placeholder="BX-12345" maxLength={100} onChange={e => setField('bitrixDeal', e.target.value)} />
         </div>
         <div className="form-field">
           <label htmlFor="field-deadline">Дедлайн <span style={{color:'var(--color-text-danger)',fontSize:11}}>важно</span></label>

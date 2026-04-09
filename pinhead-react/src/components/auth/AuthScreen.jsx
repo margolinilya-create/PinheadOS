@@ -69,13 +69,13 @@ export default function AuthScreen() {
         {tab === 'login' ? (
           <form className="auth-form" onSubmit={handleLogin}>
             <div className="auth-field">
-              <label>Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" autoComplete="email" autoFocus />
+              <label htmlFor="auth-login-email">Email</label>
+              <input id="auth-login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" autoComplete="email" autoFocus maxLength={254} />
             </div>
             <div className="auth-field">
-              <label>Пароль</label>
+              <label htmlFor="auth-login-password">Пароль</label>
               <div className="auth-pass-wrap">
-                <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••" autoComplete="current-password" />
+                <input id="auth-login-password" type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••" autoComplete="current-password" maxLength={128} />
                 <button type="button" className="auth-pass-toggle" onClick={() => setShowPass(!showPass)}>
                   {showPass ? '👁' : '👁‍🗨'}
                 </button>
@@ -88,17 +88,17 @@ export default function AuthScreen() {
         ) : (
           <form className="auth-form" onSubmit={handleRegister}>
             <div className="auth-field">
-              <label>Имя</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ваше имя" autoComplete="name" />
+              <label htmlFor="auth-reg-name">Имя</label>
+              <input id="auth-reg-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ваше имя" autoComplete="name" maxLength={100} />
             </div>
             <div className="auth-field">
-              <label>Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" autoComplete="email" />
+              <label htmlFor="auth-reg-email">Email</label>
+              <input id="auth-reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" autoComplete="email" maxLength={254} />
             </div>
             <div className="auth-field">
-              <label>Пароль</label>
+              <label htmlFor="auth-reg-password">Пароль</label>
               <div className="auth-pass-wrap">
-                <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="мин. 6 символов" autoComplete="new-password" />
+                <input id="auth-reg-password" type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="мин. 6 символов" autoComplete="new-password" maxLength={128} />
                 <button type="button" className="auth-pass-toggle" onClick={() => setShowPass(!showPass)}>
                   {showPass ? '👁' : '👁‍🗨'}
                 </button>
