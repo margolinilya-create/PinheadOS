@@ -8,6 +8,7 @@ import { toast } from '../../store/useToastStore';
 import { useCommentsStore } from '../../store/useCommentsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getDeadlineInfo } from '../../utils/deadline';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 /* ── helpers ── */
 function getInitials(name) {
@@ -167,9 +168,11 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
   const sectionLabel = { fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: '#888', marginBottom: 4, marginTop: 16 };
   const sectionValue = { fontSize: 14, fontWeight: 500, marginBottom: 4 };
 
+  const panelRef = useFocusTrap(true, onClose);
+
   return (
     <div className="exp-overlay" onClick={onClose}>
-      <div className="exp-panel" role="dialog" aria-modal="true" aria-label="Детали заказа" onClick={e => e.stopPropagation()} style={{ width: 380 }}>
+      <div ref={panelRef} className="exp-panel" role="dialog" aria-modal="true" aria-label="Детали заказа" onClick={e => e.stopPropagation()} style={{ width: 'min(380px, calc(100vw - 16px))' }}>
         <div className="exp-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className="exp-title">{order.order_number || '—'}</span>
