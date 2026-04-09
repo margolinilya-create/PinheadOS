@@ -236,9 +236,12 @@ textarea::placeholder {
 .items-td-name { font-weight: 600; }
 .items-td-right { text-align: right; white-space: nowrap; }
 .items-td-sum { font-weight: 700; }
-.items-total-row td {
-  border-top: 2px solid var(--accent) !important; border-bottom: none !important;
-  padding-top: 12px; background: none !important;
+.items-summary-table .items-total-row td,
+.items-total-row td.items-total-label,
+.items-total-row td.items-total-val,
+.items-total-row td.items-total-sum {
+  border-top: 2px solid var(--accent); border-bottom: none;
+  padding-top: 12px; background: none;
 }
 .items-total-label {
   font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px;

@@ -58,7 +58,8 @@
 ::-webkit-scrollbar-thumb { background: var(--text-dim); }
 /* ── Print ── */
 @media print {
-  .btn-row, .no-print { display: none !important; }
+  /* double-class boosts specificity to override component inline display */
+  .btn-row.btn-row, .no-print.no-print { display: none; }
   /* .header, .progress-bar print hiding — moved to their respective module CSS files */
   .pp-overlay, .pp-page-wrap { position: static; overflow: visible; }
   .pp-page { margin: 0; padding: 24px; border: none; box-shadow: none; }
@@ -171,7 +172,11 @@
   /* toast responsive — moved to Toast.module.css */
   .kanban-col         { min-width: 260px; flex: 0 0 260px; }
 }
-/* ── Global reduced-motion ── */
+/* ── Global reduced-motion ──
+ * WCAG 2.1 SC 2.3.3: Universal override of animation-duration / transition-duration
+ * inherently needs !important to beat per-component animation rules. This is the
+ * standard W3C pattern — the only project-wide exception to the "no !important" rule.
+ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

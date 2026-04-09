@@ -32,7 +32,7 @@
 
 /* ── Print ── */
 @media print {
-  .progress-bar { display: none !important; }
+  .progress-bar.progress-bar { display: none; }
 }
 
 /* ── Tablet ── */

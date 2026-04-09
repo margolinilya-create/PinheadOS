@@ -33,7 +33,7 @@
   transition: background 150ms ease-out, color 150ms ease-out;
   white-space: nowrap; flex-shrink: 0;
 }
-.header-nav-btn:hover { color: #fff !important; background: var(--accent) !important; }
+.header-nav-btn:hover { color: #fff; background: var(--accent); }
 .active { background: var(--accent); color: #fff; }
 
 /* Express — always signal */
@@ -98,13 +98,13 @@
   .header-nav          { display: none; }
   .header-nav.open     { display: flex; flex-direction: column; position: fixed; top: 48px; left: 0; right: 0; width: 100vw; background: var(--white); border-bottom: 1px solid var(--border-light); z-index: 200; }
   .header-nav.open .header-nav-btn { height: 44px; border-left: none; border-bottom: 1px solid var(--border-light); justify-content: center; }
-  .burger-btn          { display: flex !important; }
+  .burger-btn          { display: flex; }
   .header-right        { margin-left: auto; }
 }
 
 /* ── Print ── */
 @media print {
-  .header { display: none !important; }
+  .header.header { display: none; }
 }
 
 /* ── Phone ── */
