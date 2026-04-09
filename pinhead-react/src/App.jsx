@@ -1,6 +1,7 @@
 import React, { useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import './styles/index.css'
+import styles from './App.module.css'
 import { useStore } from './store/useStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from './store/useAuthStore'
@@ -53,10 +54,9 @@ function RoleGuard({ allowed, children }) {
 
 function LoadingScreen() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--text-dim)' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid var(--border)', borderTopColor: 'var(--accent, #333)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <span style={{ fontSize: 14 }}>Загрузка...</span>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div className={styles.loadingScreen}>
+      <div className={styles.spinner} />
+      <span className={styles.loadingLabel}>Загрузка...</span>
     </div>
   );
 }
@@ -131,11 +131,7 @@ function App() {
   return (
     <>
       {/* ── Skip to content ── */}
-      <a href="#main-content" className="skip-link" style={{
-        position: 'absolute', left: '-9999px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden',
-        zIndex: 9999, padding: '8px 16px', background: '#000', color: '#fff', textDecoration: 'none',
-      }} onFocus={e => { e.target.style.position = 'fixed'; e.target.style.left = '8px'; e.target.style.top = '8px'; e.target.style.width = 'auto'; e.target.style.height = 'auto'; }}
-         onBlur={e => { e.target.style.position = 'absolute'; e.target.style.left = '-9999px'; e.target.style.width = '1px'; e.target.style.height = '1px'; }}>
+      <a href="#main-content" className={styles.skipLink}>
         Перейти к основному содержимому
       </a>
 
@@ -175,27 +171,19 @@ function App() {
       <ConfirmDialogHost />
 
       {blocker.state === 'blocked' && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
-        }}>
-          <div style={{
-            background: 'var(--bg)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: 24, maxWidth: 360, width: '90%'
-          }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+        <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">
+          <div className={styles.blockerCard}>
+            <div id="blocker-title" className={styles.blockerTitle}>
               Заказ не сохранён
             </div>
-            <div style={{ color: 'var(--text-mid)', fontSize: 14, marginBottom: 20 }}>
+            <div className={styles.blockerText}>
               Если уйти сейчас — черновик сохранится, но несохранённые изменения потеряются.
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }}
-                onClick={() => blocker.reset()}>
+            <div className={styles.blockerActions}>
+              <button className="btn btn-primary" onClick={() => blocker.reset()}>
                 Остаться
               </button>
-              <button className="btn" style={{ flex: 1 }}
-                onClick={() => blocker.proceed()}>
+              <button className="btn" onClick={() => blocker.proceed()}>
                 Всё равно уйти
               </button>
             </div>
