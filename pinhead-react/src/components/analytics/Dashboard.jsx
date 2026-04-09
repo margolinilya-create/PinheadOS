@@ -445,7 +445,7 @@ function ProductionTab({ orders }) {
 /* ── Main Dashboard ── */
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { orders, fetchOrders } = useOrdersStore(useShallow(s => ({ orders: s.orders, fetchOrders: s.fetchOrders })));
+  const { orders, fetchOrders, loading } = useOrdersStore(useShallow(s => ({ orders: s.orders, fetchOrders: s.fetchOrders, loading: s.loading })));
   const loadOrder = useStore(s => s.loadOrder);
   const [period, setPeriod] = useState(30);
   const [tab, setTab] = useState('analytics');
@@ -463,7 +463,11 @@ export default function Dashboard() {
 
       {/* Body */}
       <div className="dash-body-scroll">
-        {tab === 'analytics' ? (
+        {loading && orders.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>Загрузка данных...</div>
+        ) : !loading && orders.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>Нет данных за выбранный период</div>
+        ) : tab === 'analytics' ? (
           <AnalyticsTab orders={orders} period={period} setPeriod={setPeriod} navigate={navigate} loadOrder={loadOrder} />
         ) : (
           <ProductionTab orders={orders} />
