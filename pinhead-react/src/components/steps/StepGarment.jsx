@@ -124,12 +124,16 @@ function SkuList() {
                     key={s.code}
                     className={`garment-row${isSelected ? ' selected' : ''}${dragOver === s.code ? ' drag-target' : ''}`}
                     draggable
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isSelected}
                     onDragStart={e => onDragStart(e, s.code)}
                     onDragEnd={onDragEnd}
                     onDragOver={e => onDragOverRow(e, s.code)}
                     onDragLeave={onDragLeaveRow}
                     onDrop={e => onDropRow(e, s.code)}
                     onClick={() => selectSku(s)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSku(s); } }}
                   >
                     <div className="garment-row-bar" />
                     <span className="garment-row-name">{s.name}</span>
@@ -190,7 +194,15 @@ function FabricGrid() {
       <div className="section-label">Ткань</div>
       <div className="fit-selector">
         {fabrics.map(f => (
-          <div key={f.key} className={`fit-option${fabric === f.key ? ' selected' : ''}`} onClick={() => handleSelectFabric(f)}>
+          <div
+            key={f.key}
+            className={`fit-option${fabric === f.key ? ' selected' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-pressed={fabric === f.key}
+            onClick={() => handleSelectFabric(f)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectFabric(f); } }}
+          >
             <div className="fit-check">{fabric === f.key ? '✓' : ''}</div>
             <div className="fit-info">
               <div className="fit-name">{f.name}</div>
@@ -252,7 +264,12 @@ function ColorPicker() {
                   key={entry.code}
                   className={`swatch${color === entry.code ? ' selected' : ''}${hidden ? ' hidden' : ''}`}
                   title={`${entry.name} (${entry.code})`}
+                  role="button"
+                  tabIndex={hidden ? -1 : 0}
+                  aria-pressed={color === entry.code}
+                  aria-label={`${entry.name} (${entry.code})`}
                   onClick={() => selectColor(entry.code)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColor(entry.code); } }}
                 >
                   <div className="swatch-circle" style={{ backgroundColor: entry.hex }} />
                   <div className="swatch-code">{entry.code}</div>
@@ -594,8 +611,17 @@ export default function StepGarment() {
                         const sel = extras.includes(e.code);
                         const desc = EXTRAS_DESCS[e.code];
                         return (
-                          <div key={e.code} className={`extras-list-item${sel ? ' selected' : ''}`}
-                            onClick={() => toggleExtra(e.code)} title={desc || e.name}>
+                          <div
+                            key={e.code}
+                            className={`extras-list-item${sel ? ' selected' : ''}`}
+                            role="checkbox"
+                            tabIndex={0}
+                            aria-checked={sel}
+                            aria-label={e.name}
+                            onClick={() => toggleExtra(e.code)}
+                            onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleExtra(e.code); } }}
+                            title={desc || e.name}
+                          >
                             <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
                             <div className="extras-list-name">{e.name}</div>
                             <PriceBadge price={e.price} />
@@ -607,8 +633,17 @@ export default function StepGarment() {
                 {availableExtras.filter(e => !e.group).map(e => {
                   const sel = extras.includes(e.code);
                   return (
-                    <div key={e.code} className={`extras-list-item${sel ? ' selected' : ''}`}
-                      onClick={() => toggleExtra(e.code)} title={EXTRAS_DESCS[e.code] || e.name}>
+                    <div
+                      key={e.code}
+                      className={`extras-list-item${sel ? ' selected' : ''}`}
+                      role="checkbox"
+                      tabIndex={0}
+                      aria-checked={sel}
+                      aria-label={e.name}
+                      onClick={() => toggleExtra(e.code)}
+                      onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleExtra(e.code); } }}
+                      title={EXTRAS_DESCS[e.code] || e.name}
+                    >
                       <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
                       <div className="extras-list-name">{e.name}</div>
                       <PriceBadge price={e.price} />
