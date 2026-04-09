@@ -154,7 +154,7 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
   const { comments, loading: commentsLoading, fetchComments, addComment } = useCommentsStore(
     useShallow(s => ({ comments: s.comments, loading: s.loading, fetchComments: s.fetchComments, addComment: s.addComment }))
   );
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore(useShallow(s => s.user));
   const [commentText, setCommentText] = useState('');
   const orderComments = comments[order.id] || [];
 

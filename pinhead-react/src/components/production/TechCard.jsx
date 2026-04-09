@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
@@ -17,7 +18,7 @@ const CHECKLIST_ITEMS = [
 
 export default function TechCard({ order, onClose, onStatusChange }) {
   const patchOrderData = useOrdersStore(s => s.patchOrderData);
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore(useShallow(s => s.user));
   const d = order.data || {};
 
   const [checklist, setChecklist] = useState(d.checklist || {});
