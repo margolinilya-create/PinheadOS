@@ -154,7 +154,7 @@ export default function PriceEditor() {
   const updateField = (section, key, value) => {
     const old = prices[section]?.[key];
     const num = Number(value);
-    if (isNaN(num)) return;
+    if (isNaN(num) || num < 0 || num > 1000000) return;
     setPrices(p => ({ ...p, [section]: { ...p[section], [key]: num } }));
     addHistory(`${section}.${key}`, old, num);
   };
@@ -162,15 +162,18 @@ export default function PriceEditor() {
   const updateScalar = (key, value) => {
     const old = prices[key];
     const num = Number(value);
-    if (isNaN(num)) return;
-    setPrices(p => ({ ...p, [key]: num }));
-    addHistory(key, old, num);
+    if (isNaN(num) || num < 0) return;
+    // Multipliers (keys ending with "Mult") cap at 10, other values cap at 1,000,000
+    const isMult = key.endsWith('Mult');
+    const capped = Math.min(num, isMult ? 10 : 1000000);
+    setPrices(p => ({ ...p, [key]: capped }));
+    addHistory(key, old, capped);
     setChanged(c => c + 1);
   };
 
   const updateMatrix = (matrixKey, fmt, col, tierIdx, value) => {
     const num = Number(value);
-    if (isNaN(num)) return;
+    if (isNaN(num) || num < 0) return;
     const old = prices[matrixKey]?.[fmt]?.[col]?.[tierIdx];
     setPrices(p => {
       const m = { ...p[matrixKey] };

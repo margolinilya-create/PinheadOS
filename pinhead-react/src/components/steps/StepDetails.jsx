@@ -71,7 +71,7 @@ export default function StepDetails() {
             maxLength={100}
             onChange={e => handleSanitizedChange('name', e.target.value, 100)} />
           {showErrors && !name.trim() && (
-            <span className="field-error">Обязательное поле</span>
+            <span className="field-error" role="alert" aria-live="polite">Обязательное поле</span>
           )}
         </div>
         <div className="form-field">
@@ -81,12 +81,12 @@ export default function StepDetails() {
         <div className="form-field">
           <label htmlFor="field-email">Email</label>
           <input id="field-email" type="email" value={email} placeholder="mail@example.com" maxLength={100} onChange={e => handleEmailChange(e.target.value)} />
-          {emailError && <span className="field-error">{emailError}</span>}
+          {emailError && <span className="field-error" role="alert" aria-live="polite">{emailError}</span>}
         </div>
         <div className="form-field">
           <label htmlFor="field-phone">Телефон</label>
           <input id="field-phone" type="tel" value={phone} placeholder="+7 (999) 123-45-67" maxLength={20} onChange={e => handlePhoneChange(e.target.value)} />
-          {phoneError && <span className="field-error">{phoneError}</span>}
+          {phoneError && <span className="field-error" role="alert" aria-live="polite">{phoneError}</span>}
         </div>
         <div className="form-field">
           <label htmlFor="field-messenger">Мессенджер</label>

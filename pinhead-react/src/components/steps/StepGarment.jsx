@@ -330,7 +330,7 @@ function SizeTable() {
         <div className="section-label">Тираж</div>
         <div className="one-size-row">
           <button className="qty-btn" onClick={() => setOneSizeQty(qty - 1)}>−</button>
-          <input type="number" className="qty-input" value={qty} min={1} onChange={e => setOneSizeQty(parseInt(e.target.value) || 1)} />
+          <input type="number" className="qty-input" value={qty} min={1} max={99999} onChange={e => setOneSizeQty(Math.min(99999, parseInt(e.target.value) || 1))} />
           <button className="qty-btn" onClick={() => setOneSizeQty(qty + 1)}>+</button>
           <span className="qty-label">шт</span>
         </div>
@@ -406,6 +406,7 @@ function SizeTable() {
                       type="number"
                       className="qty-input"
                       min={0}
+                      max={99999}
                       value={sizes[row.label] || ''}
                       placeholder="0"
                       disabled={!available}

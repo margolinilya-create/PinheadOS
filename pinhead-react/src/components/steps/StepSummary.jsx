@@ -420,7 +420,7 @@ export default function StepSummary() {
 
       {/* Validation errors */}
       {hasErrors && (
-        <div className="summary-errors" data-testid="validation-errors">
+        <div className="summary-errors" data-testid="validation-errors" role="alert" aria-live="polite">
           {errors.map((err, i) => (
             <div key={i} className="summary-error-line">⚠️ {err}</div>
           ))}
