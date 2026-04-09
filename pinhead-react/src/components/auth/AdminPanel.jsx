@@ -5,6 +5,7 @@ import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrd
 import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES } from '../../data';
 import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
+import { toast } from '../../store/useToastStore';
 
 export default function AdminPanel() {
   const [tab, setTab] = useState('orders');
@@ -34,18 +35,21 @@ export default function AdminPanel() {
   }, [fetchOrders, loadUsers]);
 
   const approveUser = async (id) => {
-    await supabase.from('profiles').update({ approved: true }).eq('id', id);
+    const { error } = await supabase.from('profiles').update({ approved: true }).eq('id', id);
+    if (error) { toast.error('Не удалось подтвердить пользователя'); return; }
     setUsers(u => u.map(x => x.id === id ? { ...x, approved: true } : x));
   };
 
   const changeRole = async (id, newRole) => {
-    await supabase.from('profiles').update({ role: newRole }).eq('id', id);
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', id);
+    if (error) { toast.error('Не удалось изменить роль'); return; }
     setUsers(u => u.map(x => x.id === id ? { ...x, role: newRole } : x));
   };
 
   const deleteUser = async (id) => {
     if (!confirm('Удалить пользователя?')) return;
-    await supabase.from('profiles').delete().eq('id', id);
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (error) { toast.error('Не удалось удалить пользователя'); return; }
     setUsers(u => u.filter(x => x.id !== id));
   };
 
