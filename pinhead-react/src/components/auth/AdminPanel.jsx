@@ -4,8 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES } from '../../data';
-
-const ALL_ROLES = ['admin', 'director', 'rop', 'manager', 'production', 'designer'];
+import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 
 export default function AdminPanel() {
   const [tab, setTab] = useState('orders');
@@ -185,7 +184,7 @@ export default function AdminPanel() {
                         color: u.role === 'admin' ? '#fff' : '#000',
                       }}
                     >
-                      {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      {ALL_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
                     </select>
                   </td>
                   <td>

@@ -1,15 +1,9 @@
 import { useAuthStore } from '../../store/useAuthStore';
 import { useShallow } from 'zustand/react/shallow';
 import styles from './RolePreviewBar.module.css';
+import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 
-const ROLES = [
-  { key: 'admin',      label: 'Admin' },
-  { key: 'director',   label: 'Director' },
-  { key: 'rop',        label: 'ROP' },
-  { key: 'manager',    label: 'Manager' },
-  { key: 'production', label: 'Production' },
-  { key: 'designer',   label: 'Designer' },
-];
+const ROLES = ALL_ROLES.map(key => ({ key }));
 
 export default function RolePreviewBar() {
   const { user, previewRole, setPreviewRole, clearPreviewRole } = useAuthStore(
@@ -30,7 +24,7 @@ export default function RolePreviewBar() {
             className={`${styles.btn}${(previewRole || user.role) === r.key ? ` ${styles.current}` : ''}${previewRole === r.key ? ` ${styles.preview}` : ''}`}
             onClick={() => r.key === user.role ? clearPreviewRole() : setPreviewRole(r.key)}
           >
-            {r.label}
+            {ROLE_LABELS[r.key]}
             {r.key === user.role && <span className={styles.own}>моя</span>}
           </button>
         ))}

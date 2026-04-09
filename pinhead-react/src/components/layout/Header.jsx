@@ -59,7 +59,7 @@ export default function Header() {
       <nav className={`${styles['header-nav']}${menuOpen ? ` ${styles.open}` : ''}`} aria-label="Основная навигация">
         {!isProd && !isDes && (
           <button className={`${styles['header-nav-btn']} ${styles['express-btn']}${isActive('/express') ? ` ${styles.active}` : ''}`} onClick={nav('/express')}>
-            Express
+            Экспресс
           </button>
         )}
         <button className={`${styles['header-nav-btn']}${isActive('/orders') ? ` ${styles.active}` : ''}`} onClick={nav('/orders')}>
@@ -85,7 +85,7 @@ export default function Header() {
         )}
         {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/admin') ? ` ${styles.active}` : ''}`} onClick={nav('/admin')}>
-            Admin
+            Админ
           </button>
         )}
       </nav>

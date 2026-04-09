@@ -45,13 +45,13 @@ describe('Header', () => {
   it('shows admin button for admin role', () => {
     useAuthStore.setState({ user: { role: 'admin' }, logout: vi.fn() });
     renderHeader();
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Админ')).toBeInTheDocument();
   });
 
   it('hides admin button for manager role', () => {
     useAuthStore.setState({ user: { role: 'manager' }, logout: vi.fn() });
     renderHeader();
-    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Админ')).not.toBeInTheDocument();
   });
 
   it('hides Express/SKU/Prices for production role', () => {
