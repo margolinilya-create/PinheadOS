@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useStore } from '../../store/useStore';
 import { toast } from '../../store/useToastStore';
 import { invalidatePricesCache } from '../../utils/pricing';
+import { confirm } from '../../store/useConfirmStore';
 import { clearCatalogsCache } from '../../lib/catalogs';
 import { storageGet, storageSet, storageRemove } from '../../lib/storage';
 
@@ -206,7 +207,8 @@ export default function PriceEditor() {
   };
 
   const reset = async () => {
-    if (!confirm('Сбросить все цены к значениям по умолчанию?')) return;
+    const ok = await confirm({ title: 'Сбросить все цены?', message: 'Цены будут возвращены к значениям по умолчанию.', variant: 'danger', confirmLabel: 'Сбросить' });
+    if (!ok) return;
     const base = defaultPrices();
     setPrices(base);
     storageRemove(STORAGE_KEY);

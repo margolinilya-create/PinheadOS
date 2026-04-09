@@ -7,6 +7,7 @@ import { EXTRAS_CATALOG_DEFAULT, HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT } fro
 import { ZONE_LABELS } from '../../data/constants';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
+import { confirm } from '../../store/useConfirmStore';
 
 const ALL_ZONES = [
   {id:'front', name:'Грудь (перед)'},
@@ -77,8 +78,9 @@ function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onToggleCat }) {
     setShowAddForm(false);
   };
 
-  const handleDelete = (idx) => {
-    if (!confirm(`Удалить «${extras[idx]?.name}»?`)) return;
+  const handleDelete = async (idx) => {
+    const ok = await confirm({ title: `Удалить «${extras[idx]?.name}»?`, variant: 'danger', confirmLabel: 'Удалить' });
+    if (!ok) return;
     onDelete(idx);
     if (selectedIdx >= extras.length - 1) setSelectedIdx(Math.max(0, extras.length - 2));
   };

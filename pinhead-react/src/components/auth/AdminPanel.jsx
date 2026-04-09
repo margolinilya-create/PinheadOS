@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES } from '../../data';
 import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { toast } from '../../store/useToastStore';
+import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 
 export default function AdminPanel() {
@@ -48,14 +49,16 @@ export default function AdminPanel() {
   };
 
   const deleteUser = async (id) => {
-    if (!confirm('Удалить пользователя?')) return;
+    const ok = await confirm({ title: 'Удалить пользователя?', confirmLabel: 'Удалить', variant: 'danger' });
+    if (!ok) return;
     const { error } = await supabase.from('profiles').delete().eq('id', id);
     if (error) { toast.error('Не удалось удалить пользователя'); return; }
     setUsers(u => u.filter(x => x.id !== id));
   };
 
-  const handleDeleteOrder = (id) => {
-    if (!confirm('Удалить заказ?')) return;
+  const handleDeleteOrder = async (id) => {
+    const ok = await confirm({ title: 'Удалить заказ?', confirmLabel: 'Удалить', variant: 'danger' });
+    if (!ok) return;
     storeDeleteOrder(id);
   };
 

@@ -6,6 +6,7 @@ import { calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty } f
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 import PriceBreakdown from '../shared/PriceBreakdown';
+import { confirm } from '../../store/useConfirmStore';
 
 export default function StepItems() {
   const { items, activeItemIdx, nextStep, prevStep, addNewItem, editItem, removeItem,
@@ -81,7 +82,7 @@ export default function StepItems() {
               <div className="item-card-actions">
                 <button className="btn-icon" title="Изменить" onClick={() => editItem(idx)}>&#9998;</button>
                 {items.length > 1 && (
-                  <button className="btn-icon btn-icon-danger" title="Удалить" onClick={() => { if (!confirm('Удалить позицию?')) return; removeItem(idx); }}>&times;</button>
+                  <button className="btn-icon btn-icon-danger" title="Удалить" aria-label="Удалить позицию" onClick={async () => { if (!(await confirm({ title: 'Удалить позицию?', variant: 'danger', confirmLabel: 'Удалить' }))) return; removeItem(idx); }}>&times;</button>
                 )}
               </div>
             </div>

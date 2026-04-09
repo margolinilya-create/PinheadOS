@@ -14,6 +14,7 @@ import StepDetails from './components/steps/StepDetails'
 import StepSummary from './components/steps/StepSummary'
 import AuthScreen from './components/auth/AuthScreen'
 import ToastContainer from './components/shared/Toast'
+import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import RolePreviewBar from './components/shared/RolePreviewBar'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
@@ -169,6 +170,7 @@ function App() {
         <Suspense fallback={null}><Agentation /></Suspense>
       )}
       <ToastContainer />
+      <ConfirmDialogHost />
 
       {blocker.state === 'blocked' && (
         <div style={{

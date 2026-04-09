@@ -9,6 +9,7 @@ import { useCommentsStore } from '../../store/useCommentsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getDeadlineInfo } from '../../utils/deadline';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { confirm } from '../../store/useConfirmStore';
 
 /* ── helpers ── */
 function getInitials(name) {
@@ -87,7 +88,7 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
             <div className="kb-card-actions">
               <button className="kb-open" onClick={stopAndRun(() => onOpenTZ(order))}>Открыть</button>
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать" aria-label="Дублировать заказ">⎘</button>
-              <button onClick={stopAndRun(() => { if (window.confirm(`Удалить заказ #${order.order_number || order.id}? Это действие нельзя отменить`)) onDelete(order.id); })} title="Удалить" aria-label="Удалить заказ">✕</button>
+              <button onClick={stopAndRun(async () => { const ok = await confirm({ title: `Удалить заказ #${order.order_number || order.id}?`, message: 'Это действие нельзя отменить.', variant: 'danger', confirmLabel: 'Удалить' }); if (ok) onDelete(order.id); })} title="Удалить" aria-label="Удалить заказ">✕</button>
             </div>
             {managerInitials && <div className="kb-avatar" title={d.managerName || ''}>{managerInitials}</div>}
           </div>
