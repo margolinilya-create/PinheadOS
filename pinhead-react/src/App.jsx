@@ -38,9 +38,9 @@ function WizardPage() {
   return (
     <>
       <ProgressBar />
-      <main id="main-content" role="main" className="container">
+      <div className="container">
         <CurrentStep />
-      </main>
+      </div>
     </>
   );
 }
@@ -154,6 +154,7 @@ function App() {
       <Header />
       <RolePreviewBar />
 
+      <main id="main-content">
       <Routes>
         <Route path="/" element={<WizardPage />} />
         <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
@@ -165,6 +166,7 @@ function App() {
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </main>
 
       {isRealAdmin && (
         <Suspense fallback={null}><Agentation /></Suspense>
