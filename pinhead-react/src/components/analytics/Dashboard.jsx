@@ -11,6 +11,7 @@ import {
   PieChart, Pie, Cell, Legend,
   AreaChart, Area,
 } from 'recharts';
+import styles from './Dashboard.module.css';
 
 /* ── Constants ── */
 const PERIODS = [
@@ -268,29 +269,29 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
       </div>
 
       {/* Top SKU */}
-      <div className="analytics-section" style={{ marginTop: 32 }}>
+      <div className={`analytics-section ${styles.sectionSpaced}`}>
         <div className="section-label">Топ артикулов</div>
         {topSku.length === 0 ? (
           <div className="empty-state">Нет данных за период</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table className={styles.skuTable}>
             <thead>
-              <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>#</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Артикул</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Кол-во</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Заказов</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Сумма</th>
+              <tr>
+                <th>#</th>
+                <th>Артикул</th>
+                <th className={styles.alignRight}>Кол-во</th>
+                <th className={styles.alignRight}>Заказов</th>
+                <th className={styles.alignRight}>Сумма</th>
               </tr>
             </thead>
             <tbody>
               {topSku.map((s, i) => (
-                <tr key={s.name} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '6px 8px', color: 'var(--text-dim)' }}>{i + 1}</td>
-                  <td style={{ padding: '6px 8px', fontWeight: i < 3 ? 600 : 400 }}>{s.name}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{s.qty.toLocaleString('ru-RU')}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-dim)' }}>{s.orders}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                <tr key={s.name}>
+                  <td className={styles.idx}>{i + 1}</td>
+                  <td className={i < 3 ? styles.nameTop : styles.name}>{s.name}</td>
+                  <td className={styles.num}>{s.qty.toLocaleString('ru-RU')}</td>
+                  <td className={styles.numDim}>{s.orders}</td>
+                  <td className={styles.num}>
                     {s.sum > 0 ? s.sum.toLocaleString('ru-RU') + ' ₽' : '—'}
                   </td>
                 </tr>
@@ -356,23 +357,23 @@ function ProductionTab({ orders }) {
   return (
     <>
       {/* Section A: Current load */}
-      <div className="dash-chart-title" style={{ marginBottom: 12 }}>Текущая загрузка</div>
+      <div className={`dash-chart-title ${styles.chartTitleSpaced}`}>Текущая загрузка</div>
       <div className="dash-load-row">
         <div className="dash-load-card">
           <div className="dash-metric-label">В ПРОИЗВОДСТВЕ</div>
-          <div className="dash-metric-value" style={{ color: '#c04500' }}>{productionOrders.length} заказов</div>
+          <div className={`dash-metric-value ${styles.prodValue}`}>{productionOrders.length} заказов</div>
           <div className="dash-load-sub">{prodQty.toLocaleString('ru-RU')} шт</div>
           <div className="dash-load-bar">
-            <div className="dash-load-fill" style={{ background: '#c04500', width: prodPct + '%' }} />
+            <div className={`dash-load-fill ${styles.prodFill}`} style={{ width: prodPct + '%' }} />
           </div>
           <div className="dash-load-pct">{prodPct}%</div>
         </div>
         <div className="dash-load-card">
           <div className="dash-metric-label">ПОДТВЕРЖДЕНО</div>
-          <div className="dash-metric-value" style={{ color: 'var(--accent)' }}>{approvedOrders.length} заказов</div>
+          <div className={`dash-metric-value ${styles.apprValue}`}>{approvedOrders.length} заказов</div>
           <div className="dash-load-sub">{apprQty.toLocaleString('ru-RU')} шт</div>
           <div className="dash-load-bar">
-            <div className="dash-load-fill" style={{ background: 'var(--accent)', width: apprPct + '%' }} />
+            <div className={`dash-load-fill ${styles.apprFill}`} style={{ width: apprPct + '%' }} />
           </div>
           <div className="dash-load-pct">{apprPct}%</div>
         </div>
@@ -464,9 +465,9 @@ export default function Dashboard() {
       {/* Body */}
       <div className="dash-body-scroll">
         {loading && orders.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>Загрузка данных...</div>
+          <div className={styles.placeholder}>Загрузка данных...</div>
         ) : !loading && orders.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>Нет данных за выбранный период</div>
+          <div className={styles.placeholder}>Нет данных за выбранный период</div>
         ) : tab === 'analytics' ? (
           <AnalyticsTab orders={orders} period={period} setPeriod={setPeriod} navigate={navigate} loadOrder={loadOrder} />
         ) : (

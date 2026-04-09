@@ -1,0 +1,42 @@
+/* Dashboard — extracted from inline styles */
+.sectionSpaced { margin-top: 32px; }
+
+.skuTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.skuTable thead tr { border-bottom: 2px solid var(--border); }
+.skuTable th {
+  text-align: left;
+  padding: 6px 8px;
+  font-weight: 600;
+}
+.skuTable th.alignRight { text-align: right; }
+.skuTable tbody tr { border-bottom: 1px solid var(--border-light); }
+.skuTable td { padding: 6px 8px; }
+.skuTable td.idx { color: var(--text-dim); }
+.skuTable td.name { font-weight: 400; }
+.skuTable td.nameTop { font-weight: 600; }
+.skuTable td.num {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+.skuTable td.numDim {
+  text-align: right;
+  color: var(--text-dim);
+}
+
+.chartTitleSpaced { margin-bottom: 12px; }
+
+.prodValue { color: #c04500; }
+.prodFill { background: #c04500; }
+.apprValue { color: var(--accent); }
+.apprFill { background: var(--accent); }
+
+.placeholder {
+  padding: 40px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}

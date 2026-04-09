@@ -1,0 +1,86 @@
+/* KanbanBoard — inline styles extracted */
+
+/* ── Card row utilities ── */
+.rowFlexGap6 { display: flex; align-items: center; gap: 6px; }
+.rowFlexGap4 { display: flex; align-items: center; gap: 4px; }
+.rowFlexGap8 { display: flex; align-items: center; gap: 8px; }
+.rowFlexGap10 { display: flex; align-items: center; gap: 10px; }
+
+/* ── Drawer body ── */
+.drawerPanel { width: min(380px, calc(100vw - 16px)); }
+.drawerTitle { font-size: 16px; font-weight: 700; }
+.drawerCompany { font-weight: 400; color: #888; margin-left: 8px; }
+.drawerItemRow { margin-bottom: 4px; font-size: 13px; }
+.drawerSectionFs13 { font-size: 13px; }
+.drawerNotes { font-size: 13px; color: #444; white-space: pre-wrap; }
+.drawerPath {
+  display: flex; align-items: center; gap: 8px;
+}
+.drawerPathCode { font-size: 11px; word-break: break-all; }
+.drawerPathBtn { font-size: 11px; padding: 2px 8px; flex-shrink: 0; }
+.drawerDeadlineBadge {
+  font-size: 10px; font-weight: 700; padding: 1px 6px; color: #fff;
+}
+.drawerDeadlineBadgeMuted { color: #444; }
+
+/* ── Comments ── */
+.commentsList { max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
+.commentsHint { font-size: 12px; color: #888; }
+.commentRow { margin-bottom: 8px; font-size: 13px; }
+.commentHead { display: flex; gap: 6px; align-items: baseline; }
+.commentAuthor { font-weight: 600; }
+.commentTime { font-size: 10px; color: #888; }
+.commentText { color: #333; white-space: pre-wrap; }
+
+.commentForm { display: flex; gap: 6px; }
+.commentInput { flex: 1; font-size: 13px; }
+.commentSubmit { font-size: 12px; padding: 0 12px; }
+
+/* ── Status buttons row ── */
+.statusRow { display: flex; gap: 4px; flex-wrap: wrap; }
+.statusBtn { flex: 1; min-width: 0; font-size: 10px; padding: 6px 4px; }
+
+.actionRow {
+  display: flex; gap: 0; margin-top: 16px;
+  border: 1.5px solid #000; overflow: hidden;
+}
+.actionBtnPrimary { flex: 1; border-right: 1px solid rgba(255,255,255,.2); }
+.actionBtn { flex: 1; }
+
+.keysHint {
+  margin-top: 12px; font-size: 10px; color: #888;
+  text-align: center; letter-spacing: .5px;
+}
+.keysHintItem { margin-right: 8px; }
+.keysHintNum { font-weight: 900; }
+
+/* ── Board-level ── */
+.boardSpacer { flex: 1; }
+.loadingCol { padding: 60px; }
+.moreRow { text-align: center; padding: 16px 0; }
+.moreBtn { min-width: 160px; }
+
+/* ── Shortcuts modal ── */
+.shortcutsOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+}
+.shortcutsDialog {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 320px;
+  width: 90%;
+}
+.shortcutsTitle { font-weight: 700; font-size: 16px; margin-bottom: 12px; }
+.shortcutsList { font-size: 13px; line-height: 2; }
+.shortcutsKey {
+  background: var(--bg2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+}
+.shortcutsCloseBtn { margin-top: 16px; width: 100%; }

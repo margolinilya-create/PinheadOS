@@ -10,6 +10,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { getDeadlineInfo } from '../../utils/deadline';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { confirm } from '../../store/useConfirmStore';
+import styles from './KanbanBoard.module.css';
 
 /* ── helpers ── */
 function getInitials(name) {
@@ -55,7 +56,7 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
             {mainNum}
             {bx && <span className="bx-tag">BX</span>}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className={styles.rowFlexGap6}>
             {dlInfo && (
               <span className="kb-deadline-badge" style={{
                 background: dlInfo.color, color: dlInfo.color === '#888' ? '#444' : '#fff',
@@ -84,7 +85,7 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
         </div>
         <div className="kb-card-bottom">
           <div className="kb-card-sum">{(order.total_sum || 0).toLocaleString('ru-RU')} ₽</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className={styles.rowFlexGap4}>
             <div className="kb-card-actions">
               <button className="kb-open" onClick={stopAndRun(() => onOpenTZ(order))}>Открыть</button>
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать" aria-label="Дублировать заказ">⎘</button>
@@ -170,9 +171,9 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
 
   return (
     <div className="exp-overlay" onClick={onClose}>
-      <div ref={panelRef} className="exp-panel" role="dialog" aria-modal="true" aria-label="Детали заказа" onClick={e => e.stopPropagation()} style={{ width: 'min(380px, calc(100vw - 16px))' }}>
+      <div ref={panelRef} className={`exp-panel ${styles.drawerPanel}`} role="dialog" aria-modal="true" aria-label="Детали заказа" onClick={e => e.stopPropagation()}>
         <div className="exp-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className={styles.rowFlexGap10}>
             <span className="exp-title">{order.order_number || '—'}</span>
             <span className="kb-status-badge" style={{
               background: (STATUS_COLORS[order.status] || STATUS_COLORS.draft).bg,
@@ -184,15 +185,15 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           <button className="exp-close" onClick={onClose} aria-label="Закрыть">✕</button>
         </div>
         <div className="exp-body">
-          <div style={{ fontSize: 16, fontWeight: 700 }}>
+          <div className={styles.drawerTitle}>
             {d.name || '—'}
-            {d.company && <span style={{ fontWeight: 400, color: '#888', marginLeft: 8 }}>· {d.company}</span>}
+            {d.company && <span className={styles.drawerCompany}>· {d.company}</span>}
           </div>
 
           <div className="kb-drawer-section-label">ИЗДЕЛИЕ</div>
           {d.items?.length > 1 ? (
             d.items.map((it, i) => (
-              <div key={i} style={{ marginBottom: 4, fontSize: 13 }}>
+              <div key={i} className={styles.drawerItemRow}>
                 {i + 1}. {it.sku?.name || it.type || '—'}
                 {it.fabric ? ' · ' + (FABRIC_NAMES[it.fabric] || it.fabric) : ''}
                 {' · '}{Object.values(it.sizes || {}).reduce((a, b) => a + (b || 0), 0)} шт
@@ -210,7 +211,7 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           {(d.contact || d.phone || d.email) && (
             <>
               <div className="kb-drawer-section-label">КОНТАКТЫ</div>
-              <div className="kb-drawer-section-value" style={{ fontSize: 13 }}>
+              <div className={`kb-drawer-section-value ${styles.drawerSectionFs13}`}>
                 {[d.contact, d.phone, d.email].filter(Boolean).join(' · ')}
               </div>
             </>
@@ -219,7 +220,7 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           {d.managerName && (
             <>
               <div className="kb-drawer-section-label">МЕНЕДЖЕР</div>
-              <div className="kb-drawer-section-value" style={{ fontSize: 13 }}>{d.managerName}</div>
+              <div className={`kb-drawer-section-value ${styles.drawerSectionFs13}`}>{d.managerName}</div>
             </>
           )}
 
@@ -233,10 +234,13 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           {d.deadline && (
             <>
               <div className="kb-drawer-section-label">ДЕДЛАЙН</div>
-              <div className="kb-drawer-section-value" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className={`kb-drawer-section-value ${styles.rowFlexGap8}`}>
                 {new Date(d.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })}
                 {dlInfo && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', background: dlInfo.color, color: dlInfo.color === '#888' ? '#444' : '#fff' }}>
+                  <span
+                    className={`${styles.drawerDeadlineBadge}${dlInfo.color === '#888' ? ' ' + styles.drawerDeadlineBadgeMuted : ''}`}
+                    style={{ background: dlInfo.color }}
+                  >
                     {dlInfo.label}
                   </span>
                 )}
@@ -247,16 +251,16 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           {d.notes && (
             <>
               <div className="kb-drawer-section-label">ЗАМЕТКИ</div>
-              <div className="kb-drawer-section-value" style={{ fontSize: 13, color: '#444', whiteSpace: 'pre-wrap' }}>{d.notes}</div>
+              <div className={`kb-drawer-section-value ${styles.drawerNotes}`}>{d.notes}</div>
             </>
           )}
 
           {d.artworkPath && (
             <>
               <div className="kb-drawer-section-label">ПАПКА С МАКЕТАМИ</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{d.artworkPath}</code>
-                <button className="btn" style={{ fontSize: 11, padding: '2px 8px', flexShrink: 0 }}
+              <div className={styles.drawerPath}>
+                <code className={styles.drawerPathCode}>{d.artworkPath}</code>
+                <button className={`btn ${styles.drawerPathBtn}`}
                   onClick={() => { navigator.clipboard.writeText(d.artworkPath); toast.success('Скопировано'); }}>
                   Копировать
                 </button>
@@ -266,24 +270,24 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
 
           {/* Comments */}
           <div className="kb-drawer-section-label">КОММЕНТАРИИ</div>
-          <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 8 }}>
-            {commentsLoading[order.id] && <div style={{ fontSize: 12, color: '#888' }}>Загрузка...</div>}
+          <div className={styles.commentsList}>
+            {commentsLoading[order.id] && <div className={styles.commentsHint}>Загрузка...</div>}
             {orderComments.length === 0 && !commentsLoading[order.id] && (
-              <div style={{ fontSize: 12, color: '#888' }}>Нет комментариев</div>
+              <div className={styles.commentsHint}>Нет комментариев</div>
             )}
             {orderComments.map(c => (
-              <div key={c.id} style={{ marginBottom: 8, fontSize: 13 }}>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 600 }}>{c.author_name}</span>
-                  <span style={{ fontSize: 10, color: '#888' }}>
+              <div key={c.id} className={styles.commentRow}>
+                <div className={styles.commentHead}>
+                  <span className={styles.commentAuthor}>{c.author_name}</span>
+                  <span className={styles.commentTime}>
                     {new Date(c.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <div style={{ color: '#333', whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                <div className={styles.commentText}>{c.text}</div>
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div className={styles.commentForm}>
             <input
               type="text"
               placeholder="Добавить комментарий..."
@@ -296,15 +300,15 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
                   setCommentText('');
                 }
               }}
-              style={{ flex: 1, fontSize: 13 }}
+              className={styles.commentInput}
             />
             <button
-              className="btn btn-primary"
-              style={{ fontSize: 12, padding: '0 12px' }}
+              className={`btn btn-primary ${styles.commentSubmit}`}
               onClick={() => {
                 addComment(order.id, commentText, user?.name || user?.email || 'Менеджер', user?.role || 'manager');
                 setCommentText('');
               }}
+              aria-label="Отправить комментарий"
             >
               →
             </button>
@@ -312,12 +316,11 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
 
           {/* Status change buttons */}
           <div className="kb-drawer-section-label">СМЕНИТЬ СТАТУС</div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div className={styles.statusRow}>
             {STATUS_LIST.map(s => (
               <button
                 key={s}
-                className={`btn${s === order.status ? ' btn-primary' : ''}`}
-                style={{ flex: 1, minWidth: 0, fontSize: 10, padding: '6px 4px' }}
+                className={`btn${s === order.status ? ' btn-primary' : ''} ${styles.statusBtn}`}
                 disabled={s === order.status}
                 onClick={() => { onStatusChange(order.id, s); toast.success('Статус: ' + STATUS_LABELS[s]); }}
               >
@@ -327,20 +330,20 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 0, marginTop: 16, border: '1.5px solid #000', overflow: 'hidden' }}>
-            <button className="btn btn-primary" style={{ flex: 1, borderRight: '1px solid rgba(255,255,255,.2)' }} onClick={() => onOpenTZ(order)}>
+          <div className={styles.actionRow}>
+            <button className={`btn btn-primary ${styles.actionBtnPrimary}`} onClick={() => onOpenTZ(order)}>
               Открыть ТЗ
             </button>
-            <button className="btn" style={{ flex: 1 }} onClick={() => { onDuplicate(order); onClose(); }}>
+            <button className={`btn ${styles.actionBtn}`} onClick={() => { onDuplicate(order); onClose(); }}>
               Дублировать
             </button>
           </div>
 
           {/* Keyboard hint */}
-          <div style={{ marginTop: 12, fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: .5 }}>
+          <div className={styles.keysHint}>
             {STATUS_LIST.map((s, i) => (
-              <span key={s} style={{ marginRight: 8 }}>
-                <span style={{ fontWeight: 900, color: STATUS_COLORS[s].text }}>{i + 1}</span> {STATUS_LABELS[s]}
+              <span key={s} className={styles.keysHintItem}>
+                <span className={styles.keysHintNum} style={{ color: STATUS_COLORS[s].text }}>{i + 1}</span> {STATUS_LABELS[s]}
               </span>
             ))}
           </div>
@@ -529,7 +532,7 @@ export default function KanbanBoard() {
         <div className="ks-item"><span className="ks-count">{totalQty.toLocaleString('ru-RU')}</span> шт</div>
         <div className="ks-separator" />
         <div className="ks-item"><span className="ks-total">{totalSum.toLocaleString('ru-RU')} ₽</span></div>
-        <div style={{ flex: 1 }} />
+        <div className={styles.boardSpacer} />
         {STATUS_LIST.map(s => {
           const count = columns[s].length;
           return count > 0 ? (
@@ -543,7 +546,7 @@ export default function KanbanBoard() {
 
       {/* ── Board ── */}
       {loading ? (
-        <div className="kb-empty-col" style={{ padding: 60 }}>Загрузка...</div>
+        <div className={`kb-empty-col ${styles.loadingCol}`}>Загрузка...</div>
       ) : (
         <div className="kanban-board">
           {STATUS_LIST.map(s => {
@@ -582,12 +585,11 @@ export default function KanbanBoard() {
 
       {/* ── Load more ── */}
       {hasMore && (
-        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+        <div className={styles.moreRow}>
           <button
-            className="btn"
+            className={`btn ${styles.moreBtn}`}
             onClick={fetchMoreOrders}
             disabled={loadingMore}
-            style={{ minWidth: 160 }}
           >
             {loadingMore ? 'Загрузка...' : 'Загрузить ещё'}
           </button>
@@ -607,19 +609,19 @@ export default function KanbanBoard() {
 
       {/* ── Keyboard shortcuts help ── */}
       {showShortcuts && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+        <div className={styles.shortcutsOverlay}
+          role="dialog" aria-modal="true" aria-label="Горячие клавиши"
           onClick={() => setShowShortcuts(false)}>
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 320, width: '90%' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Горячие клавиши</div>
-            <div style={{ fontSize: 13, lineHeight: 2 }}>
-              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>/</kbd> — Поиск</div>
-              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>n</kbd> — Новый заказ</div>
-              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>1-5</kbd> — Статус (в карточке)</div>
-              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>Esc</kbd> — Закрыть</div>
-              <div><kbd style={{ background: 'var(--bg2)', padding: '2px 6px', borderRadius: 3, fontFamily: 'var(--font-mono)' }}>?</kbd> — Эта справка</div>
+          <div className={styles.shortcutsDialog} onClick={e => e.stopPropagation()}>
+            <div className={styles.shortcutsTitle}>Горячие клавиши</div>
+            <div className={styles.shortcutsList}>
+              <div><kbd className={styles.shortcutsKey}>/</kbd> — Поиск</div>
+              <div><kbd className={styles.shortcutsKey}>n</kbd> — Новый заказ</div>
+              <div><kbd className={styles.shortcutsKey}>1-5</kbd> — Статус (в карточке)</div>
+              <div><kbd className={styles.shortcutsKey}>Esc</kbd> — Закрыть</div>
+              <div><kbd className={styles.shortcutsKey}>?</kbd> — Эта справка</div>
             </div>
-            <button className="btn" style={{ marginTop: 16, width: '100%' }} onClick={() => setShowShortcuts(false)}>Закрыть</button>
+            <button className={`btn ${styles.shortcutsCloseBtn}`} onClick={() => setShowShortcuts(false)}>Закрыть</button>
           </div>
         </div>
       )}

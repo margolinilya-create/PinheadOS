@@ -7,6 +7,7 @@ import { toast } from '../../store/useToastStore';
 import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
 import ZoneMockup from './ZoneMockup';
+import styles from './StepDesign.module.css';
 
 const ALL_ZONES = ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'];
 
@@ -137,7 +138,7 @@ export default function StepDesign() {
 
           {zones.length > 0 && !noPrint && (
             <>
-              <div className="section-label" style={{ marginTop: 24 }}>Техника нанесения по зонам</div>
+              <div className={`section-label ${styles.sectionSpaced}`}>Техника нанесения по зонам</div>
               <div className="zone-tech-blocks">
                 {zones.map(z => (
                   <div key={z}>
@@ -152,13 +153,10 @@ export default function StepDesign() {
       )}
 
       {/* ── Бирки и этикетки ── */}
-      <div className="extras-accordion" style={{ marginTop: 32 }}>
+      <div className={`extras-accordion ${styles.sectionSpacedLg}`}>
         <button
-          className="extras-accordion-toggle"
+          className={`extras-accordion-toggle ${styles.accordionToggle}`}
           onClick={() => setShowLabels(v => !v)}
-          style={{ width:'100%', textAlign:'left', padding:'10px 12px',
-            background:'var(--bg2)', border:'1px solid var(--border-light)',
-            borderRadius:6, cursor:'pointer', fontSize:13, fontWeight:500 }}
         >
           {showLabels ? '\u25B2' : '\u25BC'} Бирки и этикетки
         </button>
@@ -166,7 +164,7 @@ export default function StepDesign() {
       </div>
 
       {/* ── Заметки по дизайну ── */}
-      <div className="section-label" style={{ marginTop: 24 }}>Заметки по дизайну</div>
+      <div className={`section-label ${styles.sectionSpaced}`}>Заметки по дизайну</div>
       <div className="label-field full">
         <textarea
           placeholder="Описание дизайна, ссылки на макеты, пожелания..."
@@ -177,20 +175,19 @@ export default function StepDesign() {
       </div>
 
       {/* ── Папка с макетами ── */}
-      <div className="section-label" style={{ marginTop: 24 }}>Папка с макетами</div>
+      <div className={`section-label ${styles.sectionSpaced}`}>Папка с макетами</div>
       <div className="label-field full">
         <input
           type="text"
           placeholder="\\server\files\PH-0042"
           value={artworkPath}
           onChange={e => setArtworkPath(e.target.value)}
-          style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13 }}
+          className={styles.pathInput}
         />
         {artworkPath && (
           <button
             onClick={() => { navigator.clipboard.writeText(artworkPath); toast.success('Путь скопирован'); }}
-            style={{ marginTop: 6, fontSize: 12, cursor: 'pointer' }}
-            className="btn"
+            className={`btn ${styles.copyPathBtn}`}
           >
             Скопировать путь
           </button>
@@ -206,9 +203,9 @@ export default function StepDesign() {
         return (
           <>
             {screenWarn && (
-              <div className="warning-banner" style={{ background: '#fff8e1', border: '1.5px solid #f0c040', padding: '12px 16px', marginTop: 16, fontSize: 13 }}>
-                <div style={{ marginBottom: 6 }}>⚠ Шелкография — минимальный тираж от 50 шт. Сейчас: {totalQty} шт.</div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+              <div className={`warning-banner ${styles.warningBanner}`}>
+                <div className={styles.warningText}>⚠ Шелкография — минимальный тираж от 50 шт. Сейчас: {totalQty} шт.</div>
+                <label className={styles.warningCheck}>
                   <input type="checkbox" checked={screenConfirmed} onChange={e => setScreenConfirmed(e.target.checked)} />
                   Я понимаю и хочу продолжить
                 </label>
