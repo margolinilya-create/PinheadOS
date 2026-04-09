@@ -3,10 +3,11 @@
 // Combines domain slices into a single store
 // ═══════════════════════════════════════════
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 import { wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice } from './slices';
 import { defaultItemFields } from './slices/helpers';
 
-export const useStore = create((...a) => ({
+export const useStore = create(subscribeWithSelector((...a) => ({
   // Current item fields (initial state)
   ...defaultItemFields,
 
@@ -18,7 +19,7 @@ export const useStore = create((...a) => ({
   ...detailsSlice(...a),
   ...catalogSlice(...a),
   ...orderSlice(...a),
-}));
+})));
 
 
 // Re-export helpers for backward compatibility

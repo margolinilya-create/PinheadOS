@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useStore } from '../store/useStore';
 import { storageGet, storageSet, storageRemove } from '../lib/storage';
 
@@ -55,21 +56,25 @@ export function useDraft() {
   }, []);
 
   // Подписка на изменения store — debounced save
+  // Selector subscribe: только draft-поля, shallow equality → не перезапускается на каждом set()
   useEffect(() => {
-    const unsub = useStore.subscribe((state) => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setDraftStatus('saving');
+    const unsub = useStore.subscribe(
+      getDraftData,
+      (data) => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        setDraftStatus('saving');
 
-      timerRef.current = setTimeout(() => {
-        try {
-          const data = getDraftData(state);
-          storageSet(STORAGE_KEY, data);
-          setDraftStatus('saved');
-        } catch {
-          setDraftStatus('idle');
-        }
-      }, SAVE_DELAY);
-    });
+        timerRef.current = setTimeout(() => {
+          try {
+            storageSet(STORAGE_KEY, data);
+            setDraftStatus('saved');
+          } catch {
+            setDraftStatus('idle');
+          }
+        }, SAVE_DELAY);
+      },
+      { equalityFn: shallow }
+    );
 
     return () => {
       unsub();
