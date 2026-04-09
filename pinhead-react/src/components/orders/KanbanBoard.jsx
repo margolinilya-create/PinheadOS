@@ -7,21 +7,9 @@ import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 import { toast } from '../../store/useToastStore';
 import { useCommentsStore } from '../../store/useCommentsStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getDeadlineInfo } from '../../utils/deadline';
 
 /* ── helpers ── */
-function getDeadlineInfo(deadline) {
-  if (!deadline) return null;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const dl = new Date(deadline);
-  dl.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((dl - now) / 86400000);
-  if (diff < 0) return { label: 'ПРОСРОЧЕН', color: '#e53e3e', urgent: true };
-  if (diff <= 3) return { label: `${diff} дн`, color: '#c04500', urgent: true };
-  if (diff <= 7) return { label: `${diff} дн`, color: '#b89000', urgent: false };
-  return { label: dl.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }), color: '#888', urgent: false };
-}
-
 function getInitials(name) {
   if (!name?.trim()) return null;
   const parts = name.trim().split(/\s+/);

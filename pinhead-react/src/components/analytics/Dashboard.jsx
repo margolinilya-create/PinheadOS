@@ -5,6 +5,7 @@ import PageHeader from '../shared/PageHeader';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES } from '../../data';
+import { getDeadlineColor, getDeadlineLabel } from '../../utils/deadline';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -89,24 +90,6 @@ function exportCSV(orders) {
   const a = document.createElement('a');
   a.href = url; a.download = `pinhead-orders-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
-}
-
-function getDeadlineColor(deadline) {
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  const dl = new Date(deadline); dl.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((dl - now) / 86400000);
-  if (diff < 0) return '#e53e3e';
-  if (diff <= 3) return '#c04500';
-  if (diff <= 7) return '#b89000';
-  return '#007840';
-}
-
-function getDeadlineLabel(deadline) {
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  const dl = new Date(deadline); dl.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((dl - now) / 86400000);
-  if (diff < 0) return 'ПРОСРОЧЕН';
-  return `${diff} дн`;
 }
 
 /* ── Analytics Tab ── */
