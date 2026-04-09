@@ -289,11 +289,6 @@ export function getMarkup(qty, category) {
   return markup;
 }
 
-// deprecated — use getMarkup()
-export function getVolumeDiscount() {
-  return 0;
-}
-
 export function calcTotal(state, debug = false) {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;

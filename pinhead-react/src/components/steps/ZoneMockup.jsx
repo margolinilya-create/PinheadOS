@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { getGarmentSVG } from '../../utils/mockup';
-import { ZONE_LABELS, TECH_NAMES } from '../../data';
 
 // Соотношение сторон SVG-мокапов (width / height из viewBox)
 const GARMENT_ASPECT = {
@@ -102,48 +101,10 @@ function _getZonePos(garmentType, zoneId) {
   return typeMap[zoneId] || ZONE_POSITIONS._default[zoneId] || null;
 }
 
-// Краткое имя техники для чипа
-const TECH_SHORT = {
-  screen: 'Шелко', flex: 'Флекс', dtg: 'DTG', embroidery: 'Выш.', dtf: 'DTF',
-};
 
-function getZoneChipText(zone, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones) {
-  const tech = zoneTechs?.[zone] || 'screen';
-  const techLabel = TECH_SHORT[tech] || tech;
-  let detail = '';
-
-  if (tech === 'screen') {
-    const p = zonePrints?.[zone];
-    if (p) detail = ` ${p.size || 'A4'} (${p.colors || 1}цв.)`;
-  } else if (tech === 'flex') {
-    const p = flexZones?.[zone];
-    if (p) detail = ` ${p.size || 'A4'} (${p.colors || 1}цв.)`;
-  } else if (tech === 'dtg') {
-    const p = dtgZones?.[zone];
-    if (p) detail = ` ${p.size || 'A4'}`;
-  } else if (tech === 'embroidery') {
-    const p = embZones?.[zone];
-    if (p) detail = ` ${(p.area || 's').toUpperCase()}`;
-  } else if (tech === 'dtf') {
-    const p = dtfZones?.[zone];
-    if (p) detail = ` ${p.size || 'A4'}`;
-  }
-
-  return `${ZONE_LABELS[zone] || zone} — ${techLabel}${detail}`;
-}
-
-export default function ZoneMockup({ garmentType, activeZones, onZoneClick: _onZoneClick,
-  availableZones: _availableZones, color, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones }) {
+export default function ZoneMockup({ garmentType, color }) {
 
   const svgMarkup = useMemo(() => getGarmentSVG(garmentType, color), [garmentType, color]);
-
-  // Zone chip text computation (kept for future use)
-  useMemo(() => {
-    if (!activeZones || activeZones.length === 0) return [];
-    return activeZones.map(z =>
-      getZoneChipText(z, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones)
-    );
-  }, [activeZones, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones]);
 
   const aspect = GARMENT_ASPECT[garmentType] || 1;
 

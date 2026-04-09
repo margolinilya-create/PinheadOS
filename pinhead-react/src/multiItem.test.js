@@ -3,7 +3,7 @@ import { useStore } from './store/useStore';
 import { ITEM_FIELDS, snapshotItem, restoreItem, defaultItemFields } from './store/useStore';
 import {
   calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge,
-  getLabelConfigPrice, isAccessory, hasNoPrint, getVolumeDiscount,
+  getLabelConfigPrice, isAccessory, hasNoPrint,
   calcItemTotal, getItemUnitPrice, getItemTotalQty,
   screenLookup, flexLookup, getZoneSurcharge,
 } from './utils/pricing';
@@ -1262,19 +1262,6 @@ describe('Edge cases: setField', () => {
 // ═══════════════════════════════════════════════
 // PART 6: Pricing Deep Dive (50 tests)
 // ═══════════════════════════════════════════════
-
-describe('Volume discount', () => {
-  it('no discount for small qty', () => {
-    expect(getVolumeDiscount(10)).toBe(0);
-  });
-  it('discount increases with qty', () => {
-    const d50 = getVolumeDiscount(50);
-    const d100 = getVolumeDiscount(100);
-    const d500 = getVolumeDiscount(500);
-    expect(d100).toBeGreaterThanOrEqual(d50);
-    expect(d500).toBeGreaterThanOrEqual(d100);
-  });
-});
 
 describe('Screen lookup — extended', () => {
   it('A4/2c/100', () => { expect(screenLookup('A4', 2, 100)).toBeGreaterThan(0); });

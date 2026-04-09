@@ -3,7 +3,7 @@ import {
   PRICES, SKU_CATEGORIES, SKU_CATALOG_DEFAULT,
   FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT,
   MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS,
-  EXTRAS_CATALOG_DEFAULT, EXTRAS_ICONS, EXTRAS_DESCS,
+  EXTRAS_CATALOG_DEFAULT, EXTRAS_DESCS,
   LABELS_CATALOG_DEFAULT, LABEL_CONFIG, HARDWARE_CATALOG_DEFAULT,
   SIZES, TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS,
   DEFAULT_USD_RATE, findColorEntry,
@@ -108,11 +108,6 @@ describe('findColorEntry', () => {
 describe('Extras & Labels', () => {
   it('extras catalog has items', () => {
     expect(EXTRAS_CATALOG_DEFAULT.length).toBeGreaterThan(0);
-  });
-  it('every extra has an icon', () => {
-    EXTRAS_CATALOG_DEFAULT.forEach(e => {
-      expect(EXTRAS_ICONS).toHaveProperty(e.code);
-    });
   });
   it('every extra has a description', () => {
     EXTRAS_CATALOG_DEFAULT.forEach(e => {

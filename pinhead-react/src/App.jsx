@@ -1,7 +1,6 @@
 import React, { useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import './styles/index.css'
-import { Agentation } from 'agentation'
 import { useStore } from './store/useStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from './store/useAuthStore'
@@ -24,6 +23,10 @@ const AdminPanel = React.lazy(() => import('./components/auth/AdminPanel'));
 const Dashboard = React.lazy(() => import('./components/analytics/Dashboard'));
 const PrintPreview = React.lazy(() => import('./components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('./components/editors/SkuEditor'));
+// Agentation — dev widget, lazy-loaded (tree-shakes out of prod admin bundle)
+const Agentation = React.lazy(() =>
+  import('agentation').then(m => ({ default: m.Agentation }))
+);
 
 const STEPS = [StepGarment, StepDesign, StepItems, StepDetails, StepSummary];
 
@@ -162,7 +165,9 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {isRealAdmin && <Agentation />}
+      {isRealAdmin && (
+        <Suspense fallback={null}><Agentation /></Suspense>
+      )}
       <ToastContainer />
 
       {blocker.state === 'blocked' && (

@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  screenLookup, flexLookup, getVolumeDiscount, getMarkup, calcTotal,
+  screenLookup, flexLookup, getMarkup, calcTotal,
   getZoneSurcharge,
   getSkuEstPrice, calcZonePriceDirect, invalidatePricesCache,
 } from './utils/pricing';
@@ -49,17 +49,7 @@ beforeEach(() => {
   invalidatePricesCache();
 });
 // ════════════════════════════════════════════════
-// 1. getVolumeDiscount — deprecated, always 0
-// ════════════════════════════════════════════════
-describe('getVolumeDiscount (deprecated)', () => {
-  it('always returns 0', () => {
-    expect(getVolumeDiscount(1)).toBe(0);
-    expect(getVolumeDiscount(100)).toBe(0);
-    expect(getVolumeDiscount(1000)).toBe(0);
-  });
-});
-// ════════════════════════════════════════════════
-// 1b. getMarkup — наценка по тиражу и категории
+// 1. getMarkup — наценка по тиражу и категории
 // ════════════════════════════════════════════════
 describe('getMarkup', () => {
   // markupTiers: [1, 25, 50, 100, 200, 300, 500, 1000]
