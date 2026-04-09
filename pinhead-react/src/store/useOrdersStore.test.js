@@ -128,7 +128,13 @@ describe('useOrdersStore — getFiltered', () => {
 });
 
 describe('useOrdersStore — deleteOrder', () => {
-  it('removes order optimistically', async () => {
+  it('removes order after Supabase success (non-optimistic)', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      delete: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
     useOrdersStore.setState({
       orders: [
         { id: 1, status: 'draft' },
@@ -138,6 +144,24 @@ describe('useOrdersStore — deleteOrder', () => {
     await useOrdersStore.getState().deleteOrder(1);
     expect(useOrdersStore.getState().orders).toHaveLength(1);
     expect(useOrdersStore.getState().orders[0].id).toBe(2);
+  });
+
+  it('keeps order in list when Supabase delete fails', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      delete: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: { message: 'fail' } }),
+      }),
+    });
+    useOrdersStore.setState({
+      orders: [
+        { id: 1, status: 'draft' },
+        { id: 2, status: 'draft' },
+      ],
+    });
+    const result = await useOrdersStore.getState().deleteOrder(1);
+    expect(result).toBe(false);
+    expect(useOrdersStore.getState().orders).toHaveLength(2);
   });
 });
 
@@ -174,11 +198,31 @@ describe('useOrdersStore — generateOrderNumber via RPC', () => {
 });
 
 describe('useOrdersStore — updateStatus', () => {
-  it('updates status optimistically', async () => {
+  it('updates status optimistically on Supabase success', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
     useOrdersStore.setState({
       orders: [{ id: 1, status: 'draft' }],
     });
     await useOrdersStore.getState().updateStatus(1, 'approved');
     expect(useOrdersStore.getState().orders[0].status).toBe('approved');
+  });
+
+  it('rolls back to previous status on Supabase failure', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: { message: 'fail' } }),
+      }),
+    });
+    useOrdersStore.setState({
+      orders: [{ id: 1, status: 'draft' }],
+    });
+    await useOrdersStore.getState().updateStatus(1, 'approved');
+    expect(useOrdersStore.getState().orders[0].status).toBe('draft');
   });
 });
