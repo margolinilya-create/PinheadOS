@@ -20,29 +20,44 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
-### Сессия 7 (10.04.2026) — техдолг, TS-миграция, E2E
+### Сессия 7 (10.04.2026) — техдолг, UX/UI, SKU каталог (24 коммита)
 
-**God-компоненты — разбиты:**
-- `SkuEditor` (844→419 строк): 7 подкомпонентов в `editors/sku/`
-- `StepGarment` (680→75 строк): 5 подкомпонентов в `steps/garment/`
-- `KanbanBoard` (630→277 строк): `KanbanCard` + `OrderDrawer` в отдельные файлы
+**Техдолг:**
+- God-компоненты разбиты: SkuEditor (844→419), StepGarment (680→75), KanbanBoard (630→277) → 14 подкомпонентов
+- TypeScript: 15 файлов JS→TS (все store/slices, utils, lib включая pricing.ts)
+- E2E: 9→40 сценариев (7 файлов), покрытие всех роутов + dark mode
+- Recharts→Chart.js: Dashboard 393→199 KB (-49%)
+- Lazy-load wizard steps 2-5: main bundle 943→576 KB (-39%)
 
-**TypeScript — полная миграция (15 файлов):**
-- `store/slices/` — все 9 файлов (helpers, 7 слайсов, index) → .ts
-- `utils/` — pricing.ts, deadline.ts, i18n.ts, mockup.ts
-- `lib/` — supabase.ts, catalogs.ts
+**5-агентный аудит (26 находок → все закрыты):**
+- UX: empty states с иконками, Express redesign, sticky PriceEditor headers
+- A11y: focus trap модалки, aria-labels, keyboard DnD (Arrow Left/Right), :focus-visible
+- Mobile: touch targets 36px+, scroll affordance, Express stacking
+- Design system: button consolidation (7→1 с variants), ~120 spacing tokens, ~40 color tokens, inline→CSS
+- CSS: --font-mono баг, ЭКСПРЕСС красный→синий accent
 
-**E2E покрытие — расширено:**
-- 3 новых файла: routes-smoke, kanban-actions, wizard-extras
-- 9 → 33 сценария (desktop), покрытие всех роутов
+**UX/UI фичи:**
+- Dark mode (полная тёмная тема + ~60 CSS фиксов + toggle в хедере)
+- Анимации: fadeSlideIn визард, slideInRight drawer, scaleIn модалки, hover-эффекты
+- Skeleton loading: shimmer-компоненты для Kanban/Dashboard/Admin
+- Wizard progress bar (заполняемая полоска по шагам)
+- DnD визуал: ghost card, dashed drop zone, grab cursor
+- Onboarding: 3-шаговые tooltips для новых пользователей
+- Cmd+K command palette для быстрой навигации
+- Zebra striping + hover на всех таблицах
+- Kanban card polish: shadow, rounded corners, hover lift
+- Garment category icons → заменены на реальные фото/мокапы
 
-**Чистка:**
-- Удалены 5 orphan PNG из корня (~390 KB)
-- `.gitignore` расширен (.env, .playwright-mcp, etc.)
-- Удалены завершённые планы из docs/plans/
-- Обновлены README, CLAUDE.md, PROJECT.md
+**SKU каталог — расширение:**
+- SkuDetailModal: модалка полного редактирования SKU (фото, описание, табель мер, зоны, параметры)
+- До 4 фото на SKU через Supabase Storage (drag&drop upload)
+- Короткое + полное описание, sizeChart с редактируемой таблицей
+- Expandable cards в визарде: клик→раскрытие панели с галереей, описанием, размерами, зонами
+- Supabase: создана таблица app_config, RLS policies, Storage bucket sku-photos
+- Фикс persistence: key mapping sku_catalog→skuCatalog, cache invalidation, localStorage fallback
 
-**Vercel fix:** добавлены env-переменные Supabase (причина белого экрана на проде).
+**Чистка:** PNG из корня, .gitignore, старые планы, обновлены все docs.
+**Vercel:** добавлены env-переменные Supabase (фикс белого экрана на проде).
 
 ### Сессия 6 (09.04.2026) — закрытие 10-agent аудита
 Полное закрытие бэклога `docs/plans/2026-04-09-pinhead-react-audit.md` (30/30 задач).
@@ -80,17 +95,20 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ---
 
-## Статистика (10.04.2026)
+## Статистика (10.04.2026, конец сессии 7)
 
 | Метрика | Значение |
 |---------|----------|
+| Коммитов за сессию | 24 |
 | Тесты (unit) | 721 |
-| Тесты (E2E) | 33 сценария (6 файлов) |
+| Тесты (E2E) | 40 сценариев (7 файлов) |
 | TypeScript | store, slices, utils, lib — 100% .ts |
-| Бандл index.js | ~940 KB |
-| Шагов визарда | 5 |
+| Бандл main | 576 KB (было 943) |
+| Бандл Dashboard | 199 KB (было 393) |
+| Dark mode | полная поддержка |
+| Supabase Storage | sku-photos bucket |
+| SKU фото | до 4 на артикул |
 | God-компоненты (>500 строк) | 0 |
-| `!important` в CSS | 0 (только WCAG reduced-motion) |
 
 ---
 

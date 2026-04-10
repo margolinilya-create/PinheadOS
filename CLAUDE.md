@@ -39,11 +39,11 @@ pinhead-react/src/
 │   │   └── garment/         # SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
 │   ├── orders/              # KanbanBoard, KanbanCard, OrderDrawer
 │   ├── editors/             # PriceEditor, SkuEditor, ExpressCalc
-│   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, AddSkuModal, ZonesModal
+│   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, AddSkuModal, ZonesModal, SkuDetailModal
 │   ├── output/              # PrintPreview (PDF)
 │   ├── analytics/           # Dashboard
 │   ├── production/          # TechCard
-│   └── shared/              # ErrorBoundary, Toast, PageHeader, PriceBreakdown, RolePreviewBar
+│   └── shared/              # ErrorBoundary, Toast, PageHeader, PriceBreakdown, RolePreviewBar, Skeleton, OnboardingTips, CommandPalette
 ├── store/                   # Все файлы — TypeScript (.ts)
 │   ├── useStore.ts          # Главный Zustand store (собирает слайсы)
 │   ├── slices/              # wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts
@@ -58,8 +58,8 @@ pinhead-react/src/
 ├── lib/
 │   ├── supabase.ts          # Supabase client
 │   ├── api.ts               # API-функции (orders, comments, templates)
-│   ├── storage.ts           # localStorage/sessionStorage обёртки + storageClearAll
-│   └── catalogs.ts          # Загрузка каталогов из Supabase
+│   ├── storage.ts           # localStorage/sessionStorage обёртки + storageClearAll + Supabase Storage (sku-photos)
+│   └── catalogs.ts          # Загрузка каталогов из Supabase (catalog_config + app_config)
 ├── data/                    # Статические данные: цвета, ткани, цены, SKU, extras
 ├── types/                   # TypeScript типы: order, catalog, auth, pricing
 ├── utils/
@@ -100,7 +100,7 @@ admin, director, manager, rop, designer, production
 - Компоненты: `.jsx`, утилиты/типы: `.ts`
 - Стейт: Zustand слайсы, useShallow обязателен для объектных селекторов
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
-- Lazy loading: KanbanBoard, PriceEditor, ExpressCalc, AdminPanel, Dashboard
+- Lazy loading: KanbanBoard, PriceEditor, ExpressCalc, AdminPanel, Dashboard, StepDesign, StepItems, StepDetails, StepSummary
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
 
@@ -112,7 +112,13 @@ admin, director, manager, rop, designer, production
 | `profiles` | id, name, email, role, approved |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
-| `app_config` | Конфигурация (цены, каталоги) |
+| `app_config` | SKU каталог (sku_catalog), конфигурация |
+| `catalog_config` | Цены, ткани, отделка, обработки, этикетки |
+
+**Storage:**
+| Bucket | Назначение |
+|--------|-----------|
+| `sku-photos` | Фото моделей (до 4 на SKU), public read |
 
 Статусы заказа: draft → review → approved → production → done
 
@@ -138,6 +144,7 @@ admin, director, manager, rop, designer, production
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, changelog, roadmap |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
+| `docs/2026-04-10-design-audit.md` | 5-агентный аудит UI/UX |
 
 ## Команды
 
