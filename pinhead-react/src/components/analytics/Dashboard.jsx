@@ -12,6 +12,7 @@ import {
   AreaChart, Area,
 } from 'recharts';
 import styles from './Dashboard.module.css';
+import { SkeletonTable } from '../shared/Skeleton';
 
 /* ── Constants ── */
 const PERIODS = [
@@ -465,7 +466,7 @@ export default function Dashboard() {
       {/* Body */}
       <div className="dash-body-scroll">
         {loading && orders.length === 0 ? (
-          <div className={styles.placeholder}>Загрузка данных...</div>
+          <SkeletonTable rows={6} cols={5} />
         ) : !loading && orders.length === 0 ? (
           <div className="empty-state">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">

@@ -24,32 +24,43 @@ export default function ProgressBar() {
     false,
   ];
 
+  const totalSteps = STEPS.length;
+  const progressPercent = (step / (totalSteps - 1)) * 100;
+
   return (
-    <nav className={styles['progress-bar']}>
-      {STEPS.map((s, i) => {
-        let cls = styles['step-tab'];
-        if (i === step) cls += ` ${styles.active}`;
-        else if (i < step) cls += ` ${styles.done}`;
-        else if (i <= maxStep) cls += ` ${styles.visited}`;
-        return (
-          <button
-            key={i}
-            className={cls}
-            onClick={() => goToStep(i)}
-            disabled={i > maxStep}
-          >
-            <div className={styles['step-num']}>
-              {i < step ? <span>✓</span> : <span>{s.num}</span>}
-            </div>
-            <span className={styles['step-label']}>
-              {s.label}
-              {stepDone[i] && i !== step && (
-                <span style={{ fontSize: 10, color: 'var(--color-text-success)', marginLeft: 4 }}>✓</span>
-              )}
-            </span>
-          </button>
-        );
-      })}
+    <nav className={styles['progress-bar-wrapper']}>
+      <div className={styles['progress-bar']}>
+        {STEPS.map((s, i) => {
+          let cls = styles['step-tab'];
+          if (i === step) cls += ` ${styles.active}`;
+          else if (i < step) cls += ` ${styles.done}`;
+          else if (i <= maxStep) cls += ` ${styles.visited}`;
+          return (
+            <button
+              key={i}
+              className={cls}
+              onClick={() => goToStep(i)}
+              disabled={i > maxStep}
+            >
+              <div className={styles['step-num']}>
+                {i < step ? <span>✓</span> : <span>{s.num}</span>}
+              </div>
+              <span className={styles['step-label']}>
+                {s.label}
+                {stepDone[i] && i !== step && (
+                  <span style={{ fontSize: 10, color: 'var(--color-text-success)', marginLeft: 4 }}>✓</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className={styles['progress-fill-track']}>
+        <div
+          className={styles['progress-fill-bar']}
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
     </nav>
   );
 }

@@ -53,11 +53,18 @@
 .kanban-col-count   { font-family: var(--font-display); font-size: 11px; font-weight: 900; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; color: var(--white); }
 .kanban-col-sum     { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-dim); margin-left: auto; margin-right: var(--space-sm); letter-spacing: .5px; }
 .kanban-col-body    { flex: 1; overflow-y: auto; padding: var(--space-sm) var(--space-sm) 60px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
-.kanban-col-body.drag-over { background: var(--accent-light); }
+.kanban-col-body.drag-over {
+  background: var(--accent-light, rgba(43,43,240,0.06));
+  border: 2px dashed var(--accent, #2B2BF0);
+  border-radius: var(--radius-md, 8px);
+  transition: background 0.2s ease, border 0.2s ease;
+}
 /* Cards */
-.kb-card { background: var(--white); border: 1.5px solid var(--border-light); cursor: grab; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 150ms ease-out; position: relative; display: flex; overflow: hidden; min-height: 110px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: var(--radius-md, 8px); }
+.kb-card { background: var(--white); border: 1.5px solid var(--border-light); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 150ms ease-out; position: relative; display: flex; overflow: hidden; min-height: 110px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: var(--radius-md, 8px); }
+.kb-card[draggable]   { cursor: grab; }
+.kb-card[draggable]:active { cursor: grabbing; }
 .kb-card:hover        { transform: translateY(-2px); border-color: var(--black); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.kb-card.dragging     { opacity: .4; transform: rotate(2deg); box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+.kb-card.dragging     { opacity: .5; transform: scale(0.97) rotate(1.5deg); box-shadow: 0 8px 24px rgba(0,0,0,.15); border-color: var(--accent, #2B2BF0); }
 .kb-card-bar     { width: 4px; flex-shrink: 0; align-self: stretch; border-radius: var(--radius-md, 8px) 0 0 var(--radius-md, 8px); }
 .kb-card-content { flex: 1; padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; }
 .kb-card-top     { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }

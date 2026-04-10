@@ -76,7 +76,7 @@ describe('KanbanBoard', () => {
   it('shows loading state', () => {
     useOrdersStore.setState({ loading: true });
     renderKanban();
-    expect(screen.getByText('Загрузка...')).toBeInTheDocument();
+    expect(document.querySelector('.skeleton-card')).toBeInTheDocument();
   });
 
   it('shows search input', () => {

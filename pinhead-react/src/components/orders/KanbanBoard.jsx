@@ -8,6 +8,7 @@ import { toast } from '../../store/useToastStore';
 import styles from './KanbanBoard.module.css';
 import KanbanCard from './KanbanCard';
 import OrderDrawer from './OrderDrawer';
+import { SkeletonCard } from '../shared/Skeleton';
 
 const FINAL_STATUSES = ['done'];
 
@@ -197,7 +198,20 @@ export default function KanbanBoard() {
 
       {/* ── Board ── */}
       {loading ? (
-        <div className={`kb-empty-col ${styles.loadingCol}`}>Загрузка...</div>
+        <div className="kanban-board">
+          {STATUS_LIST.map(s => (
+            <div key={s} className="kanban-col">
+              <div className="kanban-col-header" style={{ borderColor: STATUS_COLORS[s].bar }}>
+                <span className="kanban-col-title" style={{ color: STATUS_COLORS[s].text }}>{STATUS_LABELS[s]}</span>
+                <span className="kanban-col-count" style={{ background: STATUS_COLORS[s].bar }}>-</span>
+              </div>
+              <div className="kanban-col-body">
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="kanban-board">
           {STATUS_LIST.map(s => {

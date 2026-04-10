@@ -1,10 +1,27 @@
 /* ── Progress Bar ── */
-.progress-bar {
-  display: flex; border-bottom: 1px solid var(--border-light); background: var(--white);
-  overflow-x: auto; scrollbar-width: none; padding: 0 40px;
+.progress-bar-wrapper {
   position: sticky; top: calc(var(--header-h) + var(--preview-bar-h)); z-index: 90;
+  background: var(--white);
+}
+.progress-bar {
+  display: flex; border-bottom: 1px solid var(--border-light);
+  overflow-x: auto; scrollbar-width: none; padding: 0 40px;
 }
 .progress-bar::-webkit-scrollbar { display: none; }
+
+/* ── Fill Track ── */
+.progress-fill-track {
+  height: 3px;
+  background: var(--border-light, #dcdcdc);
+  width: 100%;
+  position: relative;
+}
+.progress-fill-bar {
+  height: 100%;
+  background: var(--accent, #2B2BF0);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
 .step-tab {
   display: flex; align-items: center; gap: 12px; padding: 12px 24px 12px;
   cursor: pointer; border: none; border-bottom: 2px solid transparent;
@@ -32,7 +49,7 @@
 
 /* ── Print ── */
 @media print {
-  .progress-bar.progress-bar { display: none; }
+  .progress-bar-wrapper.progress-bar-wrapper { display: none; }
 }
 
 /* ── Tablet ── */

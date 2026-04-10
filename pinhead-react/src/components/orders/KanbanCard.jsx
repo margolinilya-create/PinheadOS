@@ -39,6 +39,10 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
       onDragStart={e => {
         e.dataTransfer.setData('text/plain', String(order.id));
         e.dataTransfer.effectAllowed = 'move';
+        e.currentTarget.classList.add('dragging');
+      }}
+      onDragEnd={e => {
+        e.currentTarget.classList.remove('dragging');
       }}
       onClick={() => onCardClick(order)}
     >

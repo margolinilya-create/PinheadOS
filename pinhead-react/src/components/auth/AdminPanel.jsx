@@ -8,6 +8,7 @@ import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { toast } from '../../store/useToastStore';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
+import { SkeletonTable } from '../shared/Skeleton';
 
 export default function AdminPanel() {
   const [tab, setTab] = useState('orders');
@@ -177,7 +178,7 @@ export default function AdminPanel() {
             </table>
           </>
         ) : loading ? (
-          <div style={{ padding: 30, textAlign: 'center', color: '#888', fontSize: 13 }}>Загрузка...</div>
+          <SkeletonTable rows={5} cols={5} />
         ) : (
           <table className="sku-table">
             <thead>
