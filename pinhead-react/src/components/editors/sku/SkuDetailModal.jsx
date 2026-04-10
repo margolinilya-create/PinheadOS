@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
@@ -29,20 +29,25 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
   const [dragOver, setDragOver] = useState(false);
 
   const photos = sku.photos || (sku.photoUrl ? [sku.photoUrl] : []);
+  const photosRef = useRef(photos);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
   const sizeChart = sku.sizeChart || DEFAULT_SIZE_CHART;
 
   // Photo upload
   const handleFileSelect = async (file) => {
     if (!file || !file.type.startsWith('image/')) return;
-    if (photos.length >= MAX_PHOTOS) {
+    const current = photosRef.current;
+    if (current.length >= MAX_PHOTOS) {
       toast.error(`Максимум ${MAX_PHOTOS} фото`);
       return;
     }
     setUploading(true);
-    const url = await uploadSkuPhoto(sku.code, file, photos.length);
+    const idx = current.length;
+    const url = await uploadSkuPhoto(sku.code, file, idx);
     setUploading(false);
     if (url) {
-      const newPhotos = [...photos, url];
+      const latest = photosRef.current;
+      const newPhotos = [...latest, url];
       onUpdate(skuIndex, 'photos', newPhotos);
       onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
       toast.success('Фото загружено');
@@ -54,7 +59,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files).slice(0, MAX_PHOTOS - photos.length);
+    const files = Array.from(e.dataTransfer.files);
     files.forEach(f => handleFileSelect(f));
   };
 
