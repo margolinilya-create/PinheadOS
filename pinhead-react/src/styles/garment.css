@@ -461,36 +461,32 @@ input[type="text"].qty-input {
 
   .garment-row {
     height: auto;
-    min-height: 56px;
-    padding: 8px var(--space-md);
-    gap: 10px;
-    flex-wrap: wrap;
+    min-height: 52px;
+    padding: 6px var(--space-md);
+    gap: 8px;
   }
 
   .garment-row-photo {
-    width: 40px;
-    height: 40px;
-  }
-
-  .garment-row-info {
-    flex: 1;
-    min-width: 0;
+    width: 36px;
+    height: 36px;
   }
 
   .garment-row-name {
     font-size: 13px;
-    white-space: normal;
-    line-height: 1.3;
   }
 
   .garment-row-meta {
     font-size: 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
     white-space: normal;
-    line-height: 1.4;
   }
 
   .garment-row-price {
     font-size: 13px;
+    white-space: nowrap;
   }
 
   .garment-row-chevron {
