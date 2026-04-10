@@ -91,9 +91,9 @@ export default function SkuEditor() {
     } catch { /* ignore storage errors */ }
     const ts = new Date().toISOString();
     const results = await Promise.all([
-      supabase.from('app_config').upsert({ key: 'sku_catalog', value: currentSku, updated_at: ts }),
-      supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: currentFabrics, updated_at: ts }),
-      supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: currentTrims, updated_at: ts }),
+      supabase.from('app_config').upsert({ key: 'sku_catalog', value: currentSku, updated_at: ts }, { onConflict: 'key' }),
+      supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: currentFabrics, updated_at: ts }, { onConflict: 'key' }),
+      supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: currentTrims, updated_at: ts }, { onConflict: 'key' }),
     ]);
     const hasError = results.some(r => r.error);
     setSaving(false);
@@ -360,6 +360,7 @@ export default function SkuEditor() {
           filteredSku={filteredSku} groupedSku={groupedSku} skuCatalog={skuCatalog} trimCatalog={trimCatalog}
           updateSku={updateSku} deleteSku={deleteSku} estimatePrice={estimatePrice}
           setShowAddModal={setShowAddModal} setShowZonesModal={setShowZonesModal}
+          onPersist={saveAll}
         />
       )}
 

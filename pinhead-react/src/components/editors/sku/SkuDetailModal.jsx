@@ -22,7 +22,7 @@ const DEFAULT_SIZE_CHART = {
   rows: [['S','',''], ['M','',''], ['L','',''], ['XL','','']],
 };
 
-export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
+export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPersist }) {
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -62,6 +62,8 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
       photosRef.current = newPhotos;
       onUpdate(skuIndex, 'photos', newPhotos);
       onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
+      // Auto-persist to Supabase so photos survive page refresh
+      onPersist?.();
       toast.success('Фото загружено');
     } else {
       toast.error('Ошибка загрузки фото');
@@ -95,6 +97,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
     photosRef.current = newPhotos;
     onUpdate(skuIndex, 'photos', newPhotos);
     onUpdate(skuIndex, 'photoUrl', photo);
+    onPersist?.();
   };
 
   const handleDeletePhoto = async (idx) => {
@@ -103,6 +106,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
     const newPhotos = photos.filter((_, i) => i !== idx);
     onUpdate(skuIndex, 'photos', newPhotos);
     onUpdate(skuIndex, 'photoUrl', newPhotos[0] || null);
+    onPersist?.();
     toast.success('Фото удалено');
   };
 
