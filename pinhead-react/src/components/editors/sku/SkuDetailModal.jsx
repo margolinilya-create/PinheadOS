@@ -22,7 +22,7 @@ const DEFAULT_SIZE_CHART = {
   rows: [['S','',''], ['M','',''], ['L','',''], ['XL','','']],
 };
 
-export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
+export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSave }) {
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -170,15 +170,24 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { handleFileSelect(e.target.files[0]); e.target.value = ''; }} />
           </div>
 
-          {/* Section 2: Description */}
+          {/* Section 2: Descriptions */}
           <div className="sku-detail-section">
-            <div className="sku-detail-section-label">ОПИСАНИЕ</div>
+            <div className="sku-detail-section-label">КОРОТКОЕ ОПИСАНИЕ</div>
+            <input
+              className="sku-description-short"
+              value={sku.shortDesc || ''}
+              onChange={e => onUpdate(skuIndex, 'shortDesc', e.target.value)}
+              placeholder="Краткое описание для карточки в списке (1 строка)"
+            />
+          </div>
+          <div className="sku-detail-section">
+            <div className="sku-detail-section-label">ПОЛНОЕ ОПИСАНИЕ</div>
             <textarea
               className="sku-description-field"
               value={sku.description || ''}
               onChange={e => onUpdate(skuIndex, 'description', e.target.value)}
-              placeholder="Описание модели: крой, материал, особенности..."
-              rows={3}
+              placeholder="Подробное описание: крой, материал, особенности, уход..."
+              rows={4}
             />
           </div>
 
@@ -263,6 +272,12 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
                 <input type="number" step="0.1" value={sku.mainFabricUsage} onChange={e => onUpdate(skuIndex, 'mainFabricUsage', Number(e.target.value) || 0)} />
               </label>
             </div>
+          </div>
+
+          {/* Save button */}
+          <div className="sku-detail-footer">
+            <button className="btn btn-ghost" onClick={onClose}>Закрыть</button>
+            <button className="btn btn-primary sku-detail-save" onClick={() => { onSave?.(); onClose(); }}>Сохранить</button>
           </div>
         </div>
       </div>

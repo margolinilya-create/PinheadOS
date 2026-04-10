@@ -234,7 +234,7 @@ export default function SkuList() {
                       <div className="garment-row-info">
                         <div className="garment-row-name">{s.name}</div>
                         <div className="garment-row-meta">
-                          {s.fit || '—'} · {(s.zones || []).length} зон{s.description ? ' · ' + s.description.slice(0, 40) : ''}
+                          {s.fit || '—'} · {(s.zones || []).length} зон{s.shortDesc ? ' · ' + s.shortDesc : s.description ? ' · ' + s.description.slice(0, 40) : ''}
                         </div>
                       </div>
                       <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>

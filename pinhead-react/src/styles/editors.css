@@ -684,6 +684,21 @@ td.pe-markup-cat,
 }
 
 /* ── Description ── */
+.sku-description-short {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--card);
+}
+.sku-description-short:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .sku-description-field {
   width: 100%;
   padding: 10px 12px;
@@ -807,6 +822,22 @@ td.pe-markup-cat,
 .sku-detail-field select:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+/* ── Footer ── */
+.sku-detail-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-light);
+  position: sticky;
+  bottom: 0;
+  background: var(--card);
+  z-index: 1;
+}
+.sku-detail-save {
+  min-width: 120px;
 }
 
 /* ── Mobile ── */

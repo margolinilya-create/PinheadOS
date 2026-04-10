@@ -6,7 +6,7 @@ import SkuDetailModal from './SkuDetailModal';
 export default function SkuItemsTab({
   search, setSearch, catFilter, setCatFilter,
   filteredSku, groupedSku, skuCatalog, trimCatalog,
-  updateSku, deleteSku, estimatePrice, setShowAddModal, setShowZonesModal,
+  updateSku, deleteSku, estimatePrice, setShowAddModal, setShowZonesModal, onSave,
 }) {
   const [detailIdx, setDetailIdx] = useState(null);
   const getCatName = (id) => SKU_CATEGORIES.find(c => c.id === id)?.name || id;
@@ -120,6 +120,7 @@ export default function SkuItemsTab({
           skuIndex={detailIdx}
           onUpdate={updateSku}
           onClose={() => setDetailIdx(null)}
+          onSave={onSave}
         />
       )}
     </div>
