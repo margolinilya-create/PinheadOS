@@ -63,8 +63,8 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
       onUpdate(skuIndex, 'photos', newPhotos);
       onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
       // Auto-persist to Supabase so photos survive page refresh
-      onPersist?.();
-      toast.success('Фото загружено');
+      await onPersist?.();
+      toast.success('Фото сохранено');
     } else {
       toast.error('Ошибка загрузки фото');
     }
@@ -90,14 +90,14 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     if (file) handleFilePreview(file);
   };
 
-  const handleSetMain = (idx) => {
+  const handleSetMain = async (idx) => {
     if (idx === 0) return;
     const photo = photos[idx];
     const newPhotos = [photo, ...photos.filter((_, i) => i !== idx)];
     photosRef.current = newPhotos;
     onUpdate(skuIndex, 'photos', newPhotos);
     onUpdate(skuIndex, 'photoUrl', photo);
-    onPersist?.();
+    await onPersist?.();
   };
 
   const handleDeletePhoto = async (idx) => {
@@ -106,7 +106,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     const newPhotos = photos.filter((_, i) => i !== idx);
     onUpdate(skuIndex, 'photos', newPhotos);
     onUpdate(skuIndex, 'photoUrl', newPhotos[0] || null);
-    onPersist?.();
+    await onPersist?.();
     toast.success('Фото удалено');
   };
 

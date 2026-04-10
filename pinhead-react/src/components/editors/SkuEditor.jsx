@@ -72,6 +72,8 @@ export default function SkuEditor() {
 
   const saveAll = useCallback(async () => {
     setSaving(true);
+    // Clear session cache immediately so a refresh during save won't use stale data
+    clearCatalogsCache();
     // Read latest state directly from store to avoid stale closures
     const state = useStore.getState();
     const currentSku = state.skuCatalog;
