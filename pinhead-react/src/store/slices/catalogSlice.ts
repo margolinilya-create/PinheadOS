@@ -1,6 +1,7 @@
 // Catalog slice: catalogs, prices, usdRate, skuCatalog, fabricsCatalog, etc.
 import { loadAllCatalogs } from '../../lib/catalogs';
 import { invalidatePricesCache } from '../../utils/pricing';
+import { storageGet } from '../../lib/storage';
 import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT } from '../../data';
 import { toast } from '../useToastStore';
 
@@ -30,14 +31,20 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
       if (catalogs.trimCatalog) patch.trimCatalog = catalogs.trimCatalog;
       if (catalogs.labelsCatalog) patch.labelsCatalog = catalogs.labelsCatalog;
     } catch {
+      // Fallback: try localStorage (saved by SkuEditor saveAll)
+      const lsSku = storageGet('ph_sku');
+      const lsFabrics = storageGet('ph_fabrics');
+      const lsTrims = storageGet('ph_trims');
+      const lsExtras = storageGet('ph_extras');
+
       patch.prices = PRICES;
       invalidatePricesCache();
-      patch.skuCatalog = SKU_CATALOG_DEFAULT;
-      patch.fabricsCatalog = FABRICS_CATALOG_DEFAULT;
-      patch.extrasCatalog = EXTRAS_CATALOG_DEFAULT;
-      patch.trimCatalog = TRIM_CATALOG_DEFAULT;
+      patch.skuCatalog = lsSku || SKU_CATALOG_DEFAULT;
+      patch.fabricsCatalog = lsFabrics || FABRICS_CATALOG_DEFAULT;
+      patch.trimCatalog = lsTrims || TRIM_CATALOG_DEFAULT;
+      patch.extrasCatalog = lsExtras || EXTRAS_CATALOG_DEFAULT;
       patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
-      toast.warning('Каталоги загружены в офлайн-режиме. Цены могут быть устаревшими.');
+      toast.warning('Каталоги загружены из локального кэша');
     }
     if (Object.keys(patch).length > 0) set(patch);
   },
