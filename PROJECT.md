@@ -20,6 +20,15 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 6 (09.04.2026) — закрытие 10-agent аудита
+Полное закрытие бэклога `docs/plans/2026-04-09-pinhead-react-audit.md` (30/30 задач).
+- **CSS hygiene**: убраны все `!important` из проекта (22 инстанса → 0; остался только задокументированный `@media (prefers-reduced-motion)` как W3C exception). Замена — повышение специфичности селекторов / double-class boost.
+- **a11y**: `PriceEditor` — 20 `<div className="pe-input-row">` → `<label>` (неявная ассоциация), aria-label на все matrix-инпуты (screen / flex / markup). KanbanBoard — shortcuts-диалог получил role="dialog" + aria-label.
+- **CSS Modules**: инлайн-стили мигрированы из `StepDesign.jsx`, `Dashboard.jsx`, `KanbanBoard.jsx` (дра́вер + shortcuts-модалка + колоночные заголовки). Динамические значения (цвета из STATUS_COLORS, ширины) остаются inline как должно быть.
+- **TypeScript**: `useStore.js` → `useStore.ts`, `useOrdersStore.js` → `useOrdersStore.ts`. Типизирован `OrdersStore` интерфейс, `STATUS_LIST/LABELS/COLORS` получили `OrderStatus`-типы, payload-ы описаны через `Order`/`OrderData`. Слайсы `useStore` остаются JS — загнаны через loose `SlicePart` type.
+- **E2E**: добавлен `e2e/navigation.spec.ts` — smoke-тесты kanban/express/wizard навигации + открытие shortcuts-диалога по `?` и закрытие по Esc.
+- **Verification**: lint 0 errors, 721/721 unit-тестов, build ✓.
+
 ### Сессия 5 (08.04.2026)
 - Security: убраны хардкод Supabase ключи, .env обязателен
 - Security: sanitizeHex XSS-защита SVG мокапов
@@ -47,15 +56,17 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ---
 
-## Статистика (08.04.2026)
+## Статистика (09.04.2026)
 
 | Метрика | Значение |
 |---------|----------|
-| Тесты (unit) | 723 |
-| Тесты (E2E) | 3 |
-| Файлы исходников | 53 |
-| Бандл index.js | 1142 KB |
+| Тесты (unit) | 721 |
+| Тесты (E2E) | 8 (wizard + visual + navigation) |
+| Файлы исходников | 55+ |
+| Бандл index.js | ~940 KB |
 | Шагов визарда | 5 |
+| Стор-файлы в TypeScript | 6 / 6 |
+| `!important` в CSS | 0 (только WCAG reduced-motion) |
 
 ---
 
@@ -88,5 +99,5 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ### Отклонено / отложено
 - Покупательский портал /order — приоритет сменился на CRM/ERP
-- TypeScript миграция — нет критической нужды
-- CSS Modules — конфликтов нет
+- TypeScript миграция остальных `utils/pricing.js` (418 строк pricing-движка) + слайсы `useStore` — инкрементально, по мере касания кода
+- Split `SkuEditor.jsx` (842 строки god-component на 5 tab'ов) — отложено: низкий ROI без активного касания, высокий риск регрессий

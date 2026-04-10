@@ -1,2 +1,8 @@
 dist
 node_modules
+.env
+.env.*
+.playwright-mcp/
+skills-lock.json
+*.png
+!pinhead-react/e2e/**/*.png
