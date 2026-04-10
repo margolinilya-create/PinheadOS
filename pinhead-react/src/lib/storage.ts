@@ -101,11 +101,14 @@ export function sessionRemove(key: string): void {
 
 const SKU_BUCKET = 'sku-photos';
 
-async function ensureBucket(): Promise<boolean> {
+let _bucketChecked = false;
+async function ensureBucket(): Promise<void> {
+  if (_bucketChecked) return;
+  _bucketChecked = true;
   const { data } = await supabase.storage.getBucket(SKU_BUCKET);
-  if (data) return true;
-  const { error } = await supabase.storage.createBucket(SKU_BUCKET, { public: true });
-  return !error;
+  if (!data) {
+    await supabase.storage.createBucket(SKU_BUCKET, { public: true });
+  }
 }
 
 export async function uploadSkuPhoto(code: string, file: File, index: number = 0): Promise<string | null> {

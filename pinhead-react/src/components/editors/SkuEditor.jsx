@@ -94,6 +94,10 @@ export default function SkuEditor() {
     // Read latest state directly from store to avoid stale closures
     const state = useStore.getState();
     const currentSku = state.skuCatalog;
+    if (import.meta.env.DEV) {
+      const t001 = currentSku.find(s => s.code === 'T-001');
+      console.log('[saveAll] T-001 photos:', t001?.photos, 'photoUrl:', t001?.photoUrl);
+    }
     const currentFabrics = state.fabricsCatalog;
     const currentTrims = state.trimCatalog;
     try {

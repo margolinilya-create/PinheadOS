@@ -48,6 +48,8 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
     if (url) {
       const latest = photosRef.current;
       const newPhotos = [...latest, url];
+      // Update ref immediately so next upload sees correct length
+      photosRef.current = newPhotos;
       onUpdate(skuIndex, 'photos', newPhotos);
       onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
       toast.success('Фото загружено');
