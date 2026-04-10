@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { ZONE_LABELS } from '../../../data/constants';
+import SkuDetailModal from './SkuDetailModal';
 
 export default function SkuItemsTab({
   search, setSearch, catFilter, setCatFilter,
   filteredSku, groupedSku, skuCatalog, trimCatalog,
   updateSku, deleteSku, estimatePrice, setShowAddModal, setShowZonesModal,
 }) {
+  const [detailIdx, setDetailIdx] = useState(null);
   const getCatName = (id) => SKU_CATEGORIES.find(c => c.id === id)?.name || id;
 
   return (
@@ -30,6 +33,7 @@ export default function SkuItemsTab({
             <thead>
               <tr>
                 <th className="sku-th-num">№</th>
+                <th className="sku-th-photo"></th>
                 <th className="sku-th-art">Артикул</th>
                 <th className="sku-th-name">Название</th>
                 <th className="sku-th-fit">Fit</th>
@@ -48,6 +52,15 @@ export default function SkuItemsTab({
                 return (
                   <tr key={s.code}>
                     <td className="sku-td-num">{realIdx + 1}</td>
+                    <td className="sku-td-photo">
+                      <button className="sku-photo-thumb" onClick={() => setDetailIdx(realIdx)} title="Редактировать">
+                        {s.photoUrl ? (
+                          <img src={s.photoUrl} alt={s.name} />
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        )}
+                      </button>
+                    </td>
                     <td className="sku-td-art">{s.code}</td>
                     <td>
                       <input className="sku-edit-input sku-edit-name" value={s.name}
@@ -100,6 +113,15 @@ export default function SkuItemsTab({
           </table>
         </div>
       ))}
+
+      {detailIdx !== null && skuCatalog[detailIdx] && (
+        <SkuDetailModal
+          sku={skuCatalog[detailIdx]}
+          skuIndex={detailIdx}
+          onUpdate={updateSku}
+          onClose={() => setDetailIdx(null)}
+        />
+      )}
     </div>
   );
 }

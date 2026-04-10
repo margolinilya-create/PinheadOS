@@ -1,5 +1,7 @@
 /* ── Centralized storage utilities ── */
 
+import { supabase } from './supabase';
+
 // ── localStorage ──
 
 export function storageGet<T = unknown>(key: string, defaultValue: T | null = null): T | null {
@@ -93,4 +95,38 @@ export function sessionRemove(key: string): void {
   } catch {
     // unavailable — silently ignore
   }
+}
+
+// ── Supabase Storage: SKU photos ──
+
+const SKU_BUCKET = 'sku-photos';
+
+export async function uploadSkuPhoto(code: string, file: File): Promise<string | null> {
+  const ext = file.name.split('.').pop() || 'jpg';
+  const path = `${code}.${ext}`;
+
+  // Remove old photo if exists
+  await supabase.storage.from(SKU_BUCKET).remove([path]);
+
+  const { error } = await supabase.storage.from(SKU_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: true,
+  });
+
+  if (error) return null;
+
+  const { data } = supabase.storage.from(SKU_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export function getSkuPhotoUrl(path: string): string {
+  const { data } = supabase.storage.from(SKU_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function deleteSkuPhoto(code: string): Promise<void> {
+  // Try common extensions
+  const exts = ['jpg', 'jpeg', 'png', 'webp'];
+  const paths = exts.map(ext => `${code}.${ext}`);
+  await supabase.storage.from(SKU_BUCKET).remove(paths);
 }
