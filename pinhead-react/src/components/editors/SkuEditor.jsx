@@ -91,19 +91,24 @@ export default function SkuEditor() {
 
   const saveAll = useCallback(async () => {
     setSaving(true);
+    // Read latest state directly from store to avoid stale closures
+    const state = useStore.getState();
+    const currentSku = state.skuCatalog;
+    const currentFabrics = state.fabricsCatalog;
+    const currentTrims = state.trimCatalog;
     try {
-      localStorage.setItem('ph_sku', JSON.stringify(skuCatalog));
-      localStorage.setItem('ph_fabrics', JSON.stringify(fabricsCatalog));
-      localStorage.setItem('ph_trims', JSON.stringify(trimCatalog));
+      localStorage.setItem('ph_sku', JSON.stringify(currentSku));
+      localStorage.setItem('ph_fabrics', JSON.stringify(currentFabrics));
+      localStorage.setItem('ph_trims', JSON.stringify(currentTrims));
       localStorage.setItem('ph_extras', JSON.stringify(extrasCatalog));
       localStorage.setItem('ph_hardware', JSON.stringify(hardwareCatalog));
-      localStorage.setItem('ph_usd_rate', String(usdRate));
+      localStorage.setItem('ph_usd_rate', String(state.usdRate));
     } catch { /* ignore storage errors */ }
     const ts = new Date().toISOString();
     const results = await Promise.all([
-      supabase.from('app_config').upsert({ key: 'sku_catalog', value: skuCatalog, updated_at: ts }),
-      supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: fabricsCatalog, updated_at: ts }),
-      supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: trimCatalog, updated_at: ts }),
+      supabase.from('app_config').upsert({ key: 'sku_catalog', value: currentSku, updated_at: ts }),
+      supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: currentFabrics, updated_at: ts }),
+      supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: currentTrims, updated_at: ts }),
     ]);
     const hasError = results.some(r => r.error);
     setSaving(false);
@@ -114,7 +119,7 @@ export default function SkuEditor() {
     } else {
       toast.warning('Сохранено локально (Supabase недоступен)');
     }
-  }, [skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, usdRate]);
+  }, [extrasCatalog, hardwareCatalog]);
 
   // ── SKU CRUD ──
   const updateSku = (idx, field, value) => {
