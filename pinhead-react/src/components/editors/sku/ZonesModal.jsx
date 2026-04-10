@@ -1,3 +1,5 @@
+import { useFocusTrap } from '../../../hooks/useFocusTrap';
+
 const ALL_ZONES = [
   {id:'front', name:'Грудь (перед)'},
   {id:'back', name:'Спина'},
@@ -10,9 +12,11 @@ const ALL_ZONES = [
 ];
 
 export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
+  const panelRef = useFocusTrap(true, onClose);
+
   return (
     <div className="sku-modal-overlay" onClick={onClose}>
-      <div className="sku-modal" onClick={e => e.stopPropagation()}>
+      <div className="sku-modal" ref={panelRef} role="dialog" aria-modal="true" aria-label="Зоны нанесения" onClick={e => e.stopPropagation()}>
         <h3>Зоны нанесения</h3>
         <p className="sku-modal-hint">{skuItem?.name}</p>
         <div className="sku-zones-grid">

@@ -91,6 +91,7 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
         <select
           className="mobile-status-select"
           value={order.status}
+          aria-label="Изменить статус заказа"
           onClick={e => e.stopPropagation()}
           onChange={e => {
             e.stopPropagation();

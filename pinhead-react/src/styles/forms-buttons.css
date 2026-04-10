@@ -455,6 +455,19 @@ textarea::placeholder {
 .price-line-urgent .name { color: var(--color-error, #FF3B30); font-weight: 600; }
 .price-line-urgent .amount { color: var(--color-error, #FF3B30); font-weight: 700; }
 /* ── PriceBreakdown component — moved to PriceBreakdown.module.css ── */
+/* ── Focus-visible rings ── */
+:focus-visible {
+  outline: 2px solid var(--accent, #2B2BF0);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent, #2B2BF0);
+  outline-offset: 2px;
+}
+
 /* ── Mobile touch targets ── */
 @media (max-width: 768px) {
   .btn-primary, .btn-secondary,

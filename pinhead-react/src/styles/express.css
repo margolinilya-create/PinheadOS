@@ -92,6 +92,8 @@
   .exp-panel { width: 100%; border-left: none; }
   .exp-header { padding: 12px 16px; }
   .exp-body { padding: 16px; }
+  .exp-page-grid { grid-template-columns: 1fr; }
+  .exp-result-section { position: static; }
 }
 @media (max-width: 480px) {
   .exp-zt-techs { grid-template-columns: repeat(3, 1fr); }

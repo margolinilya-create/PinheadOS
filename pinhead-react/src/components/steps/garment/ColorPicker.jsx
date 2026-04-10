@@ -58,7 +58,13 @@ export default function ColorPicker() {
                   onClick={() => selectColor(entry.code)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColor(entry.code); } }}
                 >
-                  <div className="swatch-circle" style={{ backgroundColor: entry.hex }} />
+                  <div className="swatch-circle" style={{ backgroundColor: entry.hex }}>
+                    {color === entry.code && (
+                      <svg className="swatch-check" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 8l4 4 6-6" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
                   <div className="swatch-code">{entry.code}</div>
                   <div className="swatch-label">{entry.name}</div>
                 </div>

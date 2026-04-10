@@ -210,8 +210,9 @@ export default function SizeTable() {
       {/* Add custom size */}
       {showAddForm ? (
         <div className="add-size-form">
-          <span className="add-size-form-label">РАЗМЕР</span>
+          <label htmlFor="add-size-label" className="add-size-form-label">РАЗМЕР</label>
           <input
+            id="add-size-label"
             type="text"
             className="add-size-form-input"
             placeholder="4XL, 5XL..."
@@ -220,8 +221,9 @@ export default function SizeTable() {
             onKeyDown={e => e.key === 'Enter' && handleAddSize()}
             autoFocus
           />
-          <span className="add-size-form-label">КОЛ-ВО</span>
+          <label htmlFor="add-size-qty" className="add-size-form-label">КОЛ-ВО</label>
           <input
+            id="add-size-qty"
             type="number"
             className="add-size-form-qty"
             min={0}

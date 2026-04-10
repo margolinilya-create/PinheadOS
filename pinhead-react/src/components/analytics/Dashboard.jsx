@@ -467,7 +467,14 @@ export default function Dashboard() {
         {loading && orders.length === 0 ? (
           <div className={styles.placeholder}>Загрузка данных...</div>
         ) : !loading && orders.length === 0 ? (
-          <div className={styles.placeholder}>Нет данных за выбранный период</div>
+          <div className="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 16l4-4 4 4 5-5" />
+            </svg>
+            <p>Нет данных за выбранный период</p>
+            <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>Создайте заказы чтобы увидеть аналитику</p>
+          </div>
         ) : tab === 'analytics' ? (
           <AnalyticsTab orders={orders} period={period} setPeriod={setPeriod} navigate={navigate} loadOrder={loadOrder} />
         ) : (

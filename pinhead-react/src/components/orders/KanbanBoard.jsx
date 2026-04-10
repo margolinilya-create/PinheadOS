@@ -134,6 +134,10 @@ export default function KanbanBoard() {
   useEffect(() => {
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'Escape' && showShortcuts) {
+        setShowShortcuts(false);
+        return;
+      }
       if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
         setShowShortcuts(v => !v);
       }
@@ -147,7 +151,7 @@ export default function KanbanBoard() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate]);
+  }, [navigate, showShortcuts]);
 
   return (
     <div className="kanban-page">
@@ -213,7 +217,11 @@ export default function KanbanBoard() {
                 </div>
                 <div className="kanban-col-body">
                   {columns[s].length === 0 ? (
-                    <div className="kb-empty-col">Перетащите карточку сюда</div>
+                    <div className="kb-empty-col">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </div>
                   ) : (
                     columns[s].map(o => (
                       <KanbanCard

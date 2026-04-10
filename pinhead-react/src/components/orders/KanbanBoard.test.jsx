@@ -69,7 +69,7 @@ describe('KanbanBoard', () => {
 
   it('shows empty columns', () => {
     renderKanban();
-    const empties = screen.getAllByText('Перетащите карточку сюда');
+    const empties = document.querySelectorAll('.kb-empty-col');
     expect(empties).toHaveLength(5);
   });
 

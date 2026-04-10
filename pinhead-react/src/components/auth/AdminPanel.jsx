@@ -136,7 +136,15 @@ export default function AdminPanel() {
               <tbody>
                 {filteredOrders.length === 0 && (
                   <tr><td colSpan={8} style={{ padding: 30, textAlign: 'center', color: '#888', fontSize: 13 }}>
-                    {orderSearch || statusFilter !== 'all' ? 'Ничего не найдено' : 'Заказов пока нет'}
+                    {orderSearch || statusFilter !== 'all' ? 'Ничего не найдено' : (
+                      <div className="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <path d="M9 9h6M9 13h4" />
+                        </svg>
+                        <p>Заказов пока нет</p>
+                      </div>
+                    )}
                   </td></tr>
                 )}
                 {filteredOrders.map(o => (

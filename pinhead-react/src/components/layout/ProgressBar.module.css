@@ -47,4 +47,5 @@
   .step-tab           { padding: 8px 12px; font-size: 11px; gap: 8px; }
   .step-label         { display: none; }
   .step-num           { width: 18px; height: 18px; font-size: 9px; }
+  .step-tab           { min-height: 36px; min-width: 36px; }
 }

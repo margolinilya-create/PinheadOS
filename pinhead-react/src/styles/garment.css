@@ -173,6 +173,13 @@
   font-size: 16px; font-weight: 700; color: rgba(255,255,255,.95);
   text-shadow: 0 1px 4px rgba(0,0,0,.8); border-radius: 50%; background: rgba(0,0,0,.08);
 }
+.swatch-check {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+}
 .swatch-code  { font-family: 'Space Grotesk', sans-serif; font-size: 9px; font-weight: 500; color: var(--text-dim); text-align: center; letter-spacing: .5px; }
 .swatch.selected .swatch-code { color: var(--accent); }
 .swatch-label {
