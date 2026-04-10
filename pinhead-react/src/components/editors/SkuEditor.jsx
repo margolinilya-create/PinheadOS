@@ -1,9 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { EXTRAS_CATALOG_DEFAULT, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
 import { supabase } from '../../lib/supabase';
+import { clearCatalogsCache } from '../../lib/catalogs';
 import { toast } from '../../store/useToastStore';
 import SkuItemsTab from './sku/SkuItemsTab';
 import SkuFabricsTab from './sku/SkuFabricsTab';
@@ -66,28 +67,8 @@ export default function SkuEditor() {
   const [changedFabrics, setChangedFabrics] = useState(new Set());
   const [changedTrims, setChangedTrims] = useState(new Set());
 
-  useEffect(() => {
-    supabase.from('app_config').select('key, value').in('key', ['sku_catalog']).then(({ data, error }) => {
-      if (!error && data) {
-        for (const row of data) {
-          if (row.key === 'sku_catalog' && Array.isArray(row.value)) {
-            setField('skuCatalog', row.value);
-            return;
-          }
-        }
-      }
-      // Fallback: localStorage
-      try {
-        const ls = localStorage.getItem('ph_sku');
-        if (ls) {
-          const parsed = JSON.parse(ls);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setField('skuCatalog', parsed);
-          }
-        }
-      } catch { /* ignore */ }
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // No useEffect to reload SKU — catalogSlice.loadCatalogs() already handles this at app startup.
+  // Previously this useEffect was overwriting store with stale Supabase data (without photos).
 
   const saveAll = useCallback(async () => {
     setSaving(true);
@@ -118,6 +99,7 @@ export default function SkuEditor() {
     setSaving(false);
     setChangedFabrics(new Set());
     setChangedTrims(new Set());
+    clearCatalogsCache();
     if (!hasError) {
       toast.success('Каталог сохранён');
     } else {
