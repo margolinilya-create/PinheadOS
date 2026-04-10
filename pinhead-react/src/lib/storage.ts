@@ -101,19 +101,28 @@ export function sessionRemove(key: string): void {
 
 const SKU_BUCKET = 'sku-photos';
 
+async function ensureBucket(): Promise<boolean> {
+  const { data } = await supabase.storage.getBucket(SKU_BUCKET);
+  if (data) return true;
+  const { error } = await supabase.storage.createBucket(SKU_BUCKET, { public: true });
+  return !error;
+}
+
 export async function uploadSkuPhoto(code: string, file: File): Promise<string | null> {
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `${code}.${ext}`;
 
-  // Remove old photo if exists
-  await supabase.storage.from(SKU_BUCKET).remove([path]);
+  await ensureBucket();
 
   const { error } = await supabase.storage.from(SKU_BUCKET).upload(path, file, {
     cacheControl: '3600',
     upsert: true,
   });
 
-  if (error) return null;
+  if (error) {
+    console.error('[uploadSkuPhoto]', error.message);
+    return null;
+  }
 
   const { data } = supabase.storage.from(SKU_BUCKET).getPublicUrl(path);
   return data.publicUrl;
