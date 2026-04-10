@@ -20,7 +20,7 @@
 .skuTable td.nameTop { font-weight: 600; }
 .skuTable td.num {
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--mono);
 }
 .skuTable td.numDim {
   text-align: right;
