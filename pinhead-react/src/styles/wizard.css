@@ -31,7 +31,11 @@
 .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
 .section-badge { font-family: 'Space Grotesk', sans-serif; font-weight: 700; color: var(--accent); font-size: 12px; letter-spacing: 0; }
 /* ── Step Panel ── */
-.step-panel { animation: panel-fade-in 250ms ease-out; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.step-panel { animation: fadeSlideIn 0.3s ease-out; }
 .step-content-grid { display: grid; grid-template-columns: 1fr 240px; gap: 32px; }
 .step-aside { position: sticky; top: var(--space-xl); align-self: start; }
 /* ── Page-level views ── */

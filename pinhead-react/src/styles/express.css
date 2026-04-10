@@ -2,8 +2,16 @@
 /* EXPRESS CALCULATOR                         */
 /* ═══════════════════════════════════════════ */
 /* ── Slide-in panel (legacy overlay mode) ── */
-.exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 150; display: flex; justify-content: flex-end; }
-.exp-panel   { background: var(--white); width: 460px; max-width: 100%; border-left: 1.5px solid var(--border-light); height: 100%; max-height: 90vh; overflow-y: auto; }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 150; display: flex; justify-content: flex-end; animation: fadeIn 0.2s ease-out; }
+.exp-panel   { background: var(--white); width: 460px; max-width: 100%; border-left: 1.5px solid var(--border-light); height: 100%; max-height: 90vh; overflow-y: auto; animation: slideInRight 0.25s ease-out; }
 .exp-header  { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1.5px solid var(--border-light); }
 .exp-title   { font-family: var(--font-display); font-weight: 900; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; }
 .exp-close   { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-dim); }

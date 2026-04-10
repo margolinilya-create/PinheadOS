@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
@@ -24,6 +24,12 @@ export default function Header() {
     : 'черновик';
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('ph_theme') || 'light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('ph_theme', theme);
+  }, [theme]);
   const isAdmin = ['admin', 'director'].includes(effectiveRole);
   const isProd = effectiveRole === 'production';
   const isDes = effectiveRole === 'designer';
@@ -105,6 +111,14 @@ export default function Header() {
             </div>
           </>
         )}
+        <button
+          className={styles['theme-toggle']}
+          onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+          aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+          title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+        >
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
         <button className={styles['header-logout']} onClick={logout}>Выйти</button>
       </div>
     </header>

@@ -219,8 +219,16 @@
 .sku-cat-tag:hover { border-color: var(--text-mid); }
 .sku-cat-tag.active { background: var(--accent); color: var(--white); border-color: var(--accent); }
 /* SKU modals */
-.sku-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: center; justify-content: center; }
-.sku-modal         { background: var(--white); border: 1.5px solid var(--black); padding: 32px; min-width: 360px; max-width: 480px; width: 100%; }
+@keyframes skuFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.sku-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: center; justify-content: center; animation: skuFadeIn 0.15s ease-out; }
+.sku-modal         { background: var(--white); border: 1.5px solid var(--black); padding: 32px; min-width: 360px; max-width: 480px; width: 100%; animation: scaleIn 0.2s ease-out; }
 .sku-modal h3      { font-family: var(--font-display); font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 24px; }
 .sku-modal-hint    { font-size: 12px; color: var(--text-dim); margin: -12px 0 16px; }
 .sku-modal-field   { margin-bottom: 16px; }
@@ -439,6 +447,35 @@ td.pe-markup-cat,
 .supplier-filter { display:flex; gap:4px; }
 .supplier-filter-btn { padding:4px 9px; font-size:11px; font-weight:500; border:0.5px solid var(--border-mid); border-radius:var(--radius-sm); background:transparent; cursor:pointer; color:var(--text-mid); }
 .supplier-filter-btn.active { background:var(--ink); color:var(--white); border-color:var(--ink); }
+
+/* ── Zebra striping + hover ── */
+.sku-ed-table tbody tr:nth-child(even),
+.fabrics-table tbody tr:nth-child(even) {
+  background: var(--surface, #f5f5f5);
+}
+.sku-ed-table tbody tr:hover,
+.fabrics-table tbody tr:hover {
+  background: var(--accent-light);
+}
+.sku-ed-table tbody tr,
+.fabrics-table tbody tr {
+  transition: background 0.15s ease;
+}
+.pe-matrix-table tbody tr:nth-child(even) {
+  background: var(--surface, #f5f5f5);
+}
+.pe-matrix-table tbody tr:hover {
+  background: var(--accent-light);
+}
+.sku-table tbody tr:nth-child(even) {
+  background: var(--surface, #f5f5f5);
+}
+.sku-table tbody tr:hover {
+  background: var(--accent-light);
+}
+.sku-table tbody tr {
+  transition: background 0.15s ease;
+}
 
 @media (max-width: 768px) {
   .sku-ed-panel { padding: 16px; }

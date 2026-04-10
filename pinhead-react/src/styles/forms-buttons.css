@@ -326,7 +326,7 @@ textarea::placeholder {
   padding: 14px var(--space-2xl); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer;
   border: none; border-right: 1px solid var(--border-light);
-  background: var(--white); color: var(--text-mid); transition: background 150ms ease-out, transform 100ms ease-out;
+  background: var(--white); color: var(--text-mid); transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .btn:last-child { border-right: none; }
 .btn:hover:not(:disabled)      { background: var(--bg2); color: var(--black); }
@@ -336,7 +336,7 @@ textarea::placeholder {
   background: var(--ink); color: var(--white); border: none;
   padding: 10px 20px; font-size: 13px; font-weight: 500;
   font-family: var(--font-body); border-radius: var(--radius-sm);
-  cursor: pointer; transition: background 150ms ease-out, transform 100ms ease-out;
+  cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .btn-primary:hover:not(:disabled) { background: var(--accent); }
 .btn-primary:active:not(:disabled) { background: var(--accent-hover); transform: scale(0.97); }
@@ -372,7 +372,7 @@ textarea::placeholder {
   background: var(--white); color: var(--text-dim);
   border: none; padding: 10px 20px; font-size: 13px; font-weight: 500;
   font-family: var(--font-body); border-radius: var(--radius-sm);
-  cursor: pointer; transition: background 150ms ease-out, transform 100ms ease-out;
+  cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .btn-secondary:hover:not(:disabled) { background: var(--surface); }
 .btn-secondary:active:not(:disabled) { transform: scale(0.97); }
@@ -383,7 +383,7 @@ textarea::placeholder {
   background: transparent; color: var(--text);
   border: 0.5px solid var(--border-mid); padding: 10px 20px; font-size: 13px; font-weight: 500;
   font-family: var(--font-body); border-radius: var(--radius-sm);
-  cursor: pointer; transition: background 150ms ease-out, transform 100ms ease-out;
+  cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .btn-ghost:hover:not(:disabled) { background: var(--surface); }
 .btn-ghost:active:not(:disabled) { transform: scale(0.97); }

@@ -85,6 +85,43 @@
   --radius-lg:    12px;
 }
 
+/* ═══════════════════════════════════════════ */
+/* DARK THEME                                  */
+/* ═══════════════════════════════════════════ */
+html[data-theme="dark"] {
+  --bg:           #121212;
+  --bg1:          #1E1E1E;
+  --bg2:          #1E1E1E;
+  --bg3:          #2A2A2A;
+  --card:         #1E1E1E;
+  --surface:      #252525;
+
+  --ink:          #E8E8E8;
+  --text:         #E8E8E8;
+  --text-mid:     #AAAAAA;
+  --text-dim:     #888888;
+  --text-muted:   #777777;
+  --text-secondary: #BBBBBB;
+
+  --border:       #333333;
+  --border-light: #2A2A2A;
+  --border-mid:   #444444;
+
+  --accent:       #5B5BFF;
+  --accent-light: rgba(91,91,255,.1);
+  --accent-hover: #4A4AEE;
+  --accent2:      #1E1E1E;
+
+  --white:        #E8E8E8;
+  --black:        #121212;
+
+  --bg-success:   #0a2e1a;
+  --bg-error:     #2e0a0a;
+  --bg-warning:   #2e1f0a;
+
+  color-scheme: dark;
+}
+
 /* ── Mono utility ── */
 .mono-val { font-family: var(--mono); font-weight: 500; }
 
