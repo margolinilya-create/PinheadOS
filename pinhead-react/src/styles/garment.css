@@ -40,22 +40,8 @@
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   color: var(--text-mid); letter-spacing: .3px; margin-bottom: var(--space-sm);
 }
-/* ── Category Icon ── */
-.sku-cat-icon {
-  flex-shrink: 0;
-  margin-left: 12px;
-  opacity: 0.4;
-  transition: opacity 0.15s ease;
-}
-.garment-row:hover .sku-cat-icon,
-.garment-row.selected .sku-cat-icon {
-  opacity: 0.8;
-}
-.garment-row.selected .sku-cat-icon {
-  stroke: var(--white);
-}
 /* ── Garment List ── */
-.garment-list { border: 1px solid var(--border-light); overflow: hidden; margin-bottom: var(--space-2xl); }
+.garment-list { border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--space-2xl); }
 .garment-sep {
   display: flex; align-items: center; gap: 0; padding: 0 var(--space-lg); height: 28px;
   background: var(--bg2); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);
@@ -66,30 +52,145 @@
   text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
 }
 .garment-sep-line { flex: 1; height: 1px; background: var(--border-light); margin-left: 12px; }
+
+/* ── Row ── */
 .garment-row {
-  display: flex; align-items: center; height: 48px;
+  display: flex; align-items: center; height: 64px;
+  padding: 0 var(--space-lg); gap: 12px;
   border-bottom: 1px solid var(--border-light);
-  cursor: pointer; transition: background 0.15s ease, transform 0.1s ease; overflow: hidden;
+  cursor: pointer; transition: background 0.15s ease;
 }
-.garment-row:last-child   { border-bottom: none; }
-.garment-row:hover        { background: var(--bg2); transform: translateX(4px); }
-.garment-row.selected     { background: var(--accent); }
-.garment-row[draggable]   { cursor: grab; }
+.garment-row:hover { background: var(--surface); }
+.garment-row.expanded { background: var(--accent-light); border-left: 3px solid var(--accent); }
+.garment-row.selected { background: var(--accent); }
+.garment-row[draggable] { cursor: grab; }
 .garment-row[draggable]:active { cursor: grabbing; }
-.garment-row.drag-target  { border-top: 2px solid var(--accent); }
-.garment-row-bar { width: 3px; height: 100%; background: transparent; flex-shrink: 0; transition: background 150ms ease-out; }
-.garment-row.selected .garment-row-bar { background: var(--white); }
+.garment-row.drag-target { border-top: 2px solid var(--accent); }
+
+.garment-row-photo {
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
+  overflow: hidden; flex-shrink: 0; background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+}
+.garment-row-photo img { width: 100%; height: 100%; object-fit: cover; }
+.garment-row-photo-mockup { width: 100%; height: 100%; opacity: 0.2; }
+.garment-row-photo-mockup svg { width: 100%; height: 100%; }
+
+.garment-row-info { flex: 1; min-width: 0; }
 .garment-row-name {
-  font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .5px; color: var(--text); flex: 1;
-  padding-left: var(--space-lg); transition: color 150ms ease-out;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.3px; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color 150ms ease-out;
 }
 .garment-row.selected .garment-row-name { color: var(--white); }
-.garment-row-price { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; color: var(--text-dim); padding-right: 18px; transition: color 150ms ease-out; }
-.garment-row.selected .garment-row-price { color: rgba(255,255,255,.7); }
-.garment-row-fit  { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); margin-left: var(--space-sm); font-weight: 400; letter-spacing: .3px; }
-.garment-row.selected .garment-row-fit { color: rgba(255,255,255,.6); }
+.garment-row-meta {
+  font-size: 11px; color: var(--text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.garment-row.selected .garment-row-meta { color: rgba(255,255,255,.7); }
+
+.garment-row-price {
+  font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700;
+  color: var(--accent); flex-shrink: 0; transition: color 150ms ease-out;
+}
+.garment-row.selected .garment-row-price { color: rgba(255,255,255,.8); }
+
+.garment-row-chevron {
+  font-size: 10px; color: var(--text-dim); flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.garment-row.expanded .garment-row-chevron { transform: rotate(180deg); }
+
+/* ── Expandable Detail Panel ── */
+.garment-expand {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s ease;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+}
+.garment-expand.open { max-height: 600px; }
+
+.garment-expand-inner {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  padding: var(--space-lg) 20px;
+}
+
+.garment-expand-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.garment-expand-photo {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+}
+.garment-expand-photo img { width: 100%; height: 100%; object-fit: cover; }
+.garment-expand-photo.main { grid-column: 1 / -1; aspect-ratio: 4/3; }
+.garment-expand-photo-mockup { width: 80%; height: 80%; opacity: 0.15; }
+.garment-expand-photo-mockup svg { width: 100%; height: 100%; }
+
+.garment-expand-title {
+  font-family: var(--font-display); font-size: 18px;
+  font-weight: 700; text-transform: uppercase; margin-bottom: 2px;
+}
+.garment-expand-subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
+.garment-expand-desc {
+  font-size: 13px; color: var(--text-mid); line-height: 1.5;
+  margin-bottom: 14px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.garment-expand-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;
+}
+
+.garment-expand-size-table {
+  width: 100%; border-collapse: collapse; margin-bottom: 14px;
+}
+.garment-expand-size-table th {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--text-dim);
+  padding: 4px 8px; text-align: center;
+  border-bottom: 2px solid var(--text);
+}
+.garment-expand-size-table td {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 8px; text-align: center;
+  border-bottom: 1px solid var(--border-light);
+}
+.garment-expand-size-table tr:nth-child(even) td { background: var(--surface); }
+
+.garment-expand-zones { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
+.garment-expand-zone {
+  font-size: 10px; padding: 3px 8px;
+  border: 1px solid var(--border-mid); border-radius: 12px;
+  color: var(--text-mid);
+}
+
+.garment-expand-price {
+  font-family: var(--font-display); font-size: 22px;
+  font-weight: 700; color: var(--accent);
+  display: inline-block; margin-right: 12px;
+}
+
+.garment-expand-select {
+  display: inline-block; padding: 8px 24px;
+  background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s;
+}
+.garment-expand-select:hover { background: var(--accent-hover); }
+
+@media (max-width: 640px) {
+  .garment-expand-inner { grid-template-columns: 1fr; }
+}
 /* ── Fabric Grid ── */
 .fabric-grid { display: flex; flex-direction: column; gap: 4px; }
 /* ── Mockup ── */

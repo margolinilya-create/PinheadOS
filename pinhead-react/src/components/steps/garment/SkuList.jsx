@@ -4,7 +4,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../../lib/supabase';
 import { storageSet } from '../../../lib/storage';
 import { SKU_CATEGORIES } from '../../../data';
+import { ZONE_LABELS } from '../../../data/constants';
 import { getSkuEstPrice } from '../../../utils/pricing';
+import { getGarmentSVG } from '../../../utils/mockup';
 
 const FIT_OPTIONS = [
   { key: 'all', label: 'Все фиты' },
@@ -14,20 +16,86 @@ const FIT_OPTIONS = [
   { key: 'oversize', label: 'Oversize' },
 ];
 
-function CategoryIcon({ category }) {
-  const icons = {
-    tshirts: <path d="M6 4h12l-2 4H8L6 4zM8 8v12h8V8" />,
-    longsleeves: <><path d="M6 4h12l-2 4H8L6 4zM8 8v12h8V8" /><path d="M4 6l4 2M20 6l-4 2" /></>,
-    hoodies: <><path d="M6 4h12l-2 4H8L6 4zM8 8v12h8V8" /><path d="M10 4c0-1 2-2 2-2s2 1 2 2" /></>,
-    pants: <path d="M8 4h8v8l2 8h-4l-2-6-2 6H6l2-8V4" />,
-    shorts: <path d="M8 4h8v6l2 4h-4l-2-3-2 3H6l2-4V4" />,
-    accessories: <><path d="M4 8h16v10H4V8z" /><path d="M8 8V6a4 4 0 018 0v2" /></>,
-  };
-  const d = icons[category] || icons.tshirts;
+function SkuPhoto({ s, size = 44 }) {
+  const photo = s.photos?.[0] || s.photoUrl;
+  if (photo) return <img src={photo} alt={s.name} style={{ width: size, height: size }} />;
+  const svg = getGarmentSVG(s.mockupType, '#d9d9d9');
+  if (svg) return <div className="garment-row-photo-mockup" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.2 }}>
+    <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+  </svg>;
+}
+
+function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
+  const photos = s.photos || (s.photoUrl ? [s.photoUrl] : []);
+  const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
+  const mockupSvg = photos.length === 0 ? getGarmentSVG(s.mockupType, '#d9d9d9') : '';
+
   return (
-    <svg className="sku-cat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      {d}
-    </svg>
+    <div className="garment-expand-inner">
+      {/* Photos gallery */}
+      <div className="garment-expand-photos">
+        {photos.length > 0 ? (
+          <>
+            <div className="garment-expand-photo main"><img src={photos[0]} alt={s.name} /></div>
+            {photos.slice(1).map((url, i) => (
+              <div key={i} className="garment-expand-photo"><img src={url} alt={`${s.name} ${i + 2}`} /></div>
+            ))}
+          </>
+        ) : (
+          <div className="garment-expand-photo main">
+            {mockupSvg
+              ? <div className="garment-expand-photo-mockup" dangerouslySetInnerHTML={{ __html: mockupSvg }} />
+              : <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ opacity: 0.15 }}>
+                  <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+                </svg>
+            }
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="garment-expand-info">
+        <div className="garment-expand-title">{s.name}</div>
+        <div className="garment-expand-subtitle">{s.code} · {s.fit ? s.fit + ' fit' : ''}</div>
+
+        {s.description && (
+          <div className="garment-expand-desc">{s.description}</div>
+        )}
+
+        {s.sizeChart && (
+          <>
+            <div className="garment-expand-label">Табель мер (см)</div>
+            <table className="garment-expand-size-table">
+              <thead>
+                <tr>{s.sizeChart.headers.map((h, i) => <th key={i}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {s.sizeChart.rows.map((row, ri) => (
+                  <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {s.zones?.length > 0 && (
+          <>
+            <div className="garment-expand-label">Зоны нанесения</div>
+            <div className="garment-expand-zones">
+              {s.zones.map(z => (
+                <span key={z} className="garment-expand-zone">{ZONE_LABELS[z] || z}</span>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div>
+          <span className="garment-expand-price">от {est.toLocaleString('ru-RU')} ₽</span>
+          <button className="garment-expand-select" onClick={e => { e.stopPropagation(); onSelect(s); }}>Выбрать</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -41,6 +109,7 @@ export default function SkuList() {
   const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
   const [skuSearch, setSkuSearch] = useState('');
+  const [expandedCode, setExpandedCode] = useState(null);
   const deferredSearch = useDeferredValue(skuSearch);
   const usedCats = [...new Set(skuCatalog.map(s => s.category))];
   const cats = SKU_CATEGORIES.filter(c => usedCats.includes(c.id));
@@ -88,6 +157,15 @@ export default function SkuList() {
     }
   };
 
+  const handleRowClick = (s) => {
+    setExpandedCode(prev => prev === s.code ? null : s.code);
+  };
+
+  const handleSelect = (s) => {
+    selectSku(s);
+    setExpandedCode(null);
+  };
+
   return (
     <div className="sku-section">
       <div className="section-label">Изделие</div>
@@ -128,26 +206,51 @@ export default function SkuList() {
               {groups[catId].map(s => {
                 const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
                 const isSelected = sku?.code === s.code;
+                const isExpanded = expandedCode === s.code;
                 return (
-                  <div
-                    key={s.code}
-                    className={`garment-row${isSelected ? ' selected' : ''}${dragOver === s.code ? ' drag-target' : ''}`}
-                    draggable
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={isSelected}
-                    onDragStart={e => onDragStart(e, s.code)}
-                    onDragEnd={onDragEnd}
-                    onDragOver={e => onDragOverRow(e, s.code)}
-                    onDragLeave={onDragLeaveRow}
-                    onDrop={e => onDropRow(e, s.code)}
-                    onClick={() => selectSku(s)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSku(s); } }}
-                  >
-                    <div className="garment-row-bar" />
-                    <CategoryIcon category={s.category} />
-                    <span className="garment-row-name">{s.name}</span>
-                    <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
+                  <div key={s.code}>
+                    <div
+                      className={`garment-row${isSelected ? ' selected' : ''}${isExpanded ? ' expanded' : ''}${dragOver === s.code ? ' drag-target' : ''}`}
+                      draggable
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-expanded={isExpanded}
+                      onDragStart={e => onDragStart(e, s.code)}
+                      onDragEnd={onDragEnd}
+                      onDragOver={e => onDragOverRow(e, s.code)}
+                      onDragLeave={onDragLeaveRow}
+                      onDrop={e => onDropRow(e, s.code)}
+                      onClick={() => handleRowClick(s)}
+                      onDoubleClick={() => handleSelect(s)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleSelect(s); }
+                        if (e.key === ' ') { e.preventDefault(); handleRowClick(s); }
+                      }}
+                    >
+                      <div className="garment-row-photo">
+                        <SkuPhoto s={s} />
+                      </div>
+                      <div className="garment-row-info">
+                        <div className="garment-row-name">{s.name}</div>
+                        <div className="garment-row-meta">
+                          {s.fit || '—'} · {(s.zones || []).length} зон{s.description ? ' · ' + s.description.slice(0, 40) : ''}
+                        </div>
+                      </div>
+                      <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
+                      <span className="garment-row-chevron">▼</span>
+                    </div>
+                    <div className={`garment-expand${isExpanded ? ' open' : ''}`}>
+                      {isExpanded && (
+                        <ExpandPanel
+                          s={s}
+                          fabricsCatalog={fabricsCatalog}
+                          trimCatalog={trimCatalog}
+                          usdRate={usdRate}
+                          onSelect={handleSelect}
+                        />
+                      )}
+                    </div>
                   </div>
                 );
               })}
