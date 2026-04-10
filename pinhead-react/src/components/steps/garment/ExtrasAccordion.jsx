@@ -13,17 +13,16 @@ export default function ExtrasAccordion({ sku, extras, extrasCatalog, toggleExtr
   const availableExtras = extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category));
 
   return (
-    <div className="extras-accordion" style={{ marginTop: 16 }}>
+    <div className="extras-accordion">
       <button
         className="extras-accordion-toggle"
         onClick={() => setShowExtras(v => !v)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-card, #f5f5f5)', border: '1px solid var(--border, #e0e0e0)', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
       >
         {showExtras ? '\u25B2' : '\u25BC'} Доп. обработки
         {extras.length > 0 && <span className="section-badge">+{totalExtrasCost} ₽/шт ({extras.length})</span>}
       </button>
       {showExtras && availableExtras.length > 0 && (
-        <div className="extras-list" style={{ marginTop: 8 }}>
+        <div className="extras-list extras-list-spaced">
           {EXTRAS_GROUPS
             .map(g => ({ ...g, items: availableExtras.filter(e => e.group === g.id) }))
             .filter(g => g.items.length > 0)

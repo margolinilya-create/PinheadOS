@@ -56,7 +56,7 @@ export default function StepGarment() {
       )}
 
       {validationMsg && (
-        <div className="validation-warning" style={{ color: '#b71c1c', background: '#fce4ec', border: '1px solid #ef9a9a', borderRadius: 6, padding: '8px 14px', marginTop: 12, fontSize: 13 }}>
+        <div className="validation-warning">
           {validationMsg}
         </div>
       )}

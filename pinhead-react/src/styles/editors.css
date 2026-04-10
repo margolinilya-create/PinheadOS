@@ -83,6 +83,8 @@
   text-transform: uppercase;
 }
 .sku-actions-right { display: flex; gap: 8px; }
+.sku-actions-label { font-size: 11px; color: var(--text-dim); }
+.sku-actions-rate-input { width: 60px; padding: 3px 6px; text-align: right; font-family: var(--mono); font-size: 12px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-sm); }
 /* ── Actions bar (below shared Header) ── */
 .pe-actions-bar {
   display: flex;

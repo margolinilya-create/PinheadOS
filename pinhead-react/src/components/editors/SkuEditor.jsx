@@ -312,11 +312,11 @@ export default function SkuEditor() {
       <div className="sku-actions-bar">
         <span className="sku-actions-title">Каталог SKU</span>
         <div className="sku-actions-right">
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Курс $</span>
+          <span className="sku-actions-label">Курс $</span>
           <input type="number" id="usd-rate-sku" value={usdRate} step="0.1"
             onChange={e => setField('usdRate', Math.max(1, parseFloat(e.target.value) || 1))}
-            style={{ width: 60, padding: '3px 6px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, border: '0.5px solid var(--border-mid)', borderRadius: 'var(--radius-sm)' }} />
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>₽/$</span>
+            className="sku-actions-rate-input" />
+          <span className="sku-actions-label">₽/$</span>
           <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
           <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
           <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
