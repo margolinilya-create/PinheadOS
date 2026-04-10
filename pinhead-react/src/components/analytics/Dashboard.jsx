@@ -6,13 +6,16 @@ import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../..
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES } from '../../data';
 import { getDeadlineColor, getDeadlineLabel } from '../../utils/deadline';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
-  AreaChart, Area,
-} from 'recharts';
+  Chart as ChartJS,
+  CategoryScale, LinearScale, BarElement, LineElement, PointElement,
+  ArcElement, Filler, Title, Tooltip, Legend,
+} from 'chart.js';
 import styles from './Dashboard.module.css';
 import { SkeletonTable } from '../shared/Skeleton';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend);
 
 /* ── Constants ── */
 const PERIODS = [
@@ -28,6 +31,14 @@ const CATEGORY_COLORS = {
   sweatshirts: '#b89000', sweat: '#b89000',
   longsleeves: '#007840', longsleeve: '#007840',
   pants: '#888', shorts: '#555',
+};
+
+const CHART_FONT = { family: 'Inter, sans-serif', size: 10 };
+const CHART_OPTS_BASE = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y?.toLocaleString('ru-RU') + ' ₽' || ctx.parsed.x?.toLocaleString('ru-RU') + ' ₽' } } },
+  scales: { x: { ticks: { font: CHART_FONT } }, y: { ticks: { font: CHART_FONT } } },
 };
 
 /* ── Helpers ── */
@@ -138,6 +149,38 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
     return Object.values(skuStats).sort((a, b) => b.qty - a.qty).slice(0, 10);
   }, [filtered]);
 
+  // Chart.js data
+  const areaChartData = {
+    labels: weeklyData.map(d => d.week),
+    datasets: [{
+      data: weeklyData.map(d => d.sum),
+      borderColor: '#1D19EA',
+      backgroundColor: 'rgba(29,25,234,0.1)',
+      fill: true,
+      tension: 0.3,
+      borderWidth: 2,
+      pointRadius: 3,
+    }],
+  };
+
+  const managerChartData = {
+    labels: managerData.map(d => d.name),
+    datasets: [{
+      data: managerData.map(d => d.sum),
+      backgroundColor: '#1D19EA',
+      borderRadius: 2,
+    }],
+  };
+
+  const statusChartData = {
+    labels: statusData.map(d => d.name),
+    datasets: [{
+      data: statusData.map(d => d.value),
+      backgroundColor: statusData.map(d => d.color),
+      borderWidth: 0,
+    }],
+  };
+
   return (
     <>
       {/* Period + Export */}
@@ -180,51 +223,40 @@ function AnalyticsTab({ orders, period, setPeriod, navigate, loadOrder }) {
         </div>
       </div>
 
-      {/* Chart: Revenue by week (AreaChart) */}
+      {/* Chart: Revenue by week */}
       <div className="dash-chart">
         <div className="dash-chart-title">Выручка по неделям</div>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={weeklyData}>
-            <defs>
-              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1D19EA" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#1D19EA" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip formatter={v => v.toLocaleString('ru-RU') + ' ₽'} />
-            <Area type="monotone" dataKey="sum" stroke="#1D19EA" fill="url(#areaGrad)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div style={{ height: 220 }}>
+          <Line data={areaChartData} options={{ ...CHART_OPTS_BASE, plugins: { ...CHART_OPTS_BASE.plugins, legend: { display: false } } }} />
+        </div>
       </div>
 
       <div className="dash-row">
         {/* Top managers */}
         <div className="dash-chart dash-chart-half">
           <div className="dash-chart-title">Топ менеджеры по выручке</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={managerData} layout="vertical">
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
-              <Tooltip formatter={v => v.toLocaleString('ru-RU') + ' ₽'} />
-              <Bar dataKey="sum" fill="#1D19EA" radius={[0, 2, 2, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ height: 200 }}>
+            <Bar data={managerChartData} options={{
+              ...CHART_OPTS_BASE,
+              indexAxis: 'y',
+              scales: { x: { ticks: { font: CHART_FONT } }, y: { ticks: { font: CHART_FONT } } },
+            }} />
+          </div>
         </div>
 
         {/* Revenue by status */}
         <div className="dash-chart dash-chart-half">
           <div className="dash-chart-title">Выручка по статусам</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name }) => name}>
-                {statusData.map((d, i) => <Cell key={i} fill={d.color} />)}
-              </Pie>
-              <Tooltip formatter={v => v.toLocaleString('ru-RU') + ' ₽'} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ height: 200 }}>
+            <Doughnut data={statusChartData} options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: 'bottom', labels: { font: CHART_FONT } },
+                tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed.toLocaleString('ru-RU') + ' ₽' } },
+              },
+            }} />
+          </div>
         </div>
       </div>
 
@@ -317,7 +349,6 @@ function ProductionTab({ orders }) {
   const prodPct = totalActive ? Math.round((productionOrders.length / totalActive) * 100) : 0;
   const apprPct = totalActive ? 100 - prodPct : 0;
 
-  // Type breakdown (production only)
   const typeData = useMemo(() => {
     const map = {};
     productionOrders.forEach(o => {
@@ -329,7 +360,6 @@ function ProductionTab({ orders }) {
     return Object.values(map).sort((a, b) => b.qty - a.qty);
   }, [productionOrders]);
 
-  // Deadlines (next 14 days)
   const deadlineOrders = useMemo(() => {
     const now = new Date(); now.setHours(0, 0, 0, 0);
     const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() + 14);
@@ -337,12 +367,11 @@ function ProductionTab({ orders }) {
       .filter(o => o.data?.deadline)
       .filter(o => {
         const dl = new Date(o.data.deadline);
-        return dl <= cutoff || dl < now; // include overdue
+        return dl <= cutoff || dl < now;
       })
       .sort((a, b) => new Date(a.data.deadline) - new Date(b.data.deadline));
   }, [activeOrders]);
 
-  // Weekly load forecast
   const weeklyLoad = useMemo(() => {
     const map = {};
     activeOrders.forEach(o => {
@@ -355,9 +384,26 @@ function ProductionTab({ orders }) {
     return Object.values(map).slice(0, 8);
   }, [activeOrders]);
 
+  const typeChartData = {
+    labels: typeData.map(d => d.name),
+    datasets: [{
+      data: typeData.map(d => d.qty),
+      backgroundColor: typeData.map(d => CATEGORY_COLORS[d.type] || CATEGORY_COLORS[d.type.toLowerCase()] || '#888'),
+      borderRadius: 2,
+    }],
+  };
+
+  const weeklyChartData = {
+    labels: weeklyLoad.map(d => d.week),
+    datasets: [{
+      data: weeklyLoad.map(d => d.qty),
+      backgroundColor: '#1D19EA',
+      borderRadius: 2,
+    }],
+  };
+
   return (
     <>
-      {/* Section A: Current load */}
       <div className={`dash-chart-title ${styles.chartTitleSpaced}`}>Текущая загрузка</div>
       <div className="dash-load-row">
         <div className="dash-load-card">
@@ -380,26 +426,19 @@ function ProductionTab({ orders }) {
         </div>
       </div>
 
-      {/* Section B: By item type */}
       {typeData.length > 0 && (
         <div className="dash-chart">
           <div className="dash-chart-title">Разбивка по типу изделия (в производстве)</div>
-          <ResponsiveContainer width="100%" height={Math.max(150, typeData.length * 36)}>
-            <BarChart data={typeData} layout="vertical">
-              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} />
-              <Tooltip formatter={(v, name) => [v, name === 'qty' ? 'шт' : 'заказов']} />
-              <Bar dataKey="qty" radius={[0, 2, 2, 0]}>
-                {typeData.map((d, i) => (
-                  <Cell key={i} fill={CATEGORY_COLORS[d.type] || CATEGORY_COLORS[d.type.toLowerCase()] || '#888'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ height: Math.max(150, typeData.length * 36) }}>
+            <Bar data={typeChartData} options={{
+              ...CHART_OPTS_BASE,
+              indexAxis: 'y',
+              plugins: { ...CHART_OPTS_BASE.plugins, tooltip: { callbacks: { label: ctx => ctx.parsed.x + ' шт' } } },
+            }} />
+          </div>
         </div>
       )}
 
-      {/* Section C: Deadlines */}
       <div className="dash-chart">
         <div className="dash-chart-title">Дедлайны (ближайшие 14 дней)</div>
         {deadlineOrders.length === 0 ? (
@@ -426,18 +465,15 @@ function ProductionTab({ orders }) {
         )}
       </div>
 
-      {/* Section D: Weekly load forecast */}
       {weeklyLoad.length > 0 && (
         <div className="dash-chart">
           <div className="dash-chart-title">Нагрузка по неделям (прогноз)</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weeklyLoad}>
-              <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v, name) => [v, name === 'qty' ? 'шт' : 'заказов']} />
-              <Bar dataKey="qty" fill="#1D19EA" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ height: 200 }}>
+            <Bar data={weeklyChartData} options={{
+              ...CHART_OPTS_BASE,
+              plugins: { ...CHART_OPTS_BASE.plugins, tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' шт' } } },
+            }} />
+          </div>
         </div>
       )}
     </>
@@ -463,7 +499,6 @@ export default function Dashboard() {
         onTabChange={setTab}
       />
 
-      {/* Body */}
       <div className="dash-body-scroll">
         {loading && orders.length === 0 ? (
           <SkeletonTable rows={6} cols={5} />
