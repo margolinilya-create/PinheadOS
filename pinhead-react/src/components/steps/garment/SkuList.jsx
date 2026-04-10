@@ -26,8 +26,33 @@ function SkuPhoto({ s, size = 44 }) {
   </svg>;
 }
 
+function PhotoLightbox({ photos, startIdx, onClose }) {
+  const [idx, setIdx] = useState(startIdx);
+  const handleKey = (e) => {
+    if (e.key === 'Escape') onClose();
+    if (e.key === 'ArrowRight') setIdx(i => (i + 1) % photos.length);
+    if (e.key === 'ArrowLeft') setIdx(i => (i - 1 + photos.length) % photos.length);
+  };
+  return (
+    <div className="photo-lightbox" onClick={onClose} onKeyDown={handleKey} tabIndex={0} ref={el => el?.focus()}>
+      <div className="photo-lightbox-content" onClick={e => e.stopPropagation()}>
+        <img src={photos[idx]} alt={`Фото ${idx + 1}`} />
+        {photos.length > 1 && (
+          <>
+            <button className="photo-lightbox-prev" onClick={() => setIdx(i => (i - 1 + photos.length) % photos.length)} aria-label="Предыдущее">&#8249;</button>
+            <button className="photo-lightbox-next" onClick={() => setIdx(i => (i + 1) % photos.length)} aria-label="Следующее">&#8250;</button>
+            <span className="photo-lightbox-counter">{idx + 1} / {photos.length}</span>
+          </>
+        )}
+        <button className="photo-lightbox-close" onClick={onClose} aria-label="Закрыть">&#10005;</button>
+      </div>
+    </div>
+  );
+}
+
 function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
   const photos = s.photos || (s.photoUrl ? [s.photoUrl] : []);
+  const [lightbox, setLightbox] = useState(null);
   const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
   const mockupSvg = photos.length === 0 ? getGarmentSVG(s.mockupType, '#d9d9d9') : '';
 
@@ -37,9 +62,9 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
       <div className="garment-expand-photos">
         {photos.length > 0 ? (
           <>
-            <div className="garment-expand-photo main"><img src={photos[0]} alt={s.name} /></div>
+            <div className="garment-expand-photo main" onClick={() => setLightbox(0)} style={{ cursor: 'pointer' }}><img src={photos[0]} alt={s.name} /></div>
             {photos.slice(1).map((url, i) => (
-              <div key={i} className="garment-expand-photo"><img src={url} alt={`${s.name} ${i + 2}`} /></div>
+              <div key={i} className="garment-expand-photo" onClick={() => setLightbox(i + 1)} style={{ cursor: 'pointer' }}><img src={url} alt={`${s.name} ${i + 2}`} /></div>
             ))}
           </>
         ) : (
@@ -95,6 +120,9 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
           <button className="garment-expand-select" onClick={e => { e.stopPropagation(); onSelect(s); }}>Выбрать</button>
         </div>
       </div>
+      {lightbox !== null && photos.length > 0 && (
+        <PhotoLightbox photos={photos} startIdx={lightbox} onClose={() => setLightbox(null)} />
+      )}
     </div>
   );
 }

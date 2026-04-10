@@ -15,6 +15,8 @@ import { useEffect, useRef } from 'react';
  */
 export function useFocusTrap(active, onEscape) {
   const containerRef = useRef(null);
+  const onEscapeRef = useRef(onEscape);
+  useEffect(() => { onEscapeRef.current = onEscape; });
 
   useEffect(() => {
     if (!active) return;
@@ -37,9 +39,9 @@ export function useFocusTrap(active, onEscape) {
     }
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && onEscape) {
+      if (e.key === 'Escape' && onEscapeRef.current) {
         e.preventDefault();
-        onEscape();
+        onEscapeRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -68,7 +70,7 @@ export function useFocusTrap(active, onEscape) {
         previouslyFocused.focus();
       }
     };
-  }, [active, onEscape]);
+  }, [active]);
 
   return containerRef;
 }
