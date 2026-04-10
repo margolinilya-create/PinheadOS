@@ -14,13 +14,19 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
   const cached = sessionGet<Record<string, unknown>>(CACHE_KEY);
   if (cached) return cached;
 
-  // Загрузить из Supabase
-  const { data, error } = await supabase
-    .from('catalog_config')
-    .select('key, value');
-  if (error) throw error;
+  // Загрузить из Supabase (catalog_config + app_config)
+  const [catalogRes, appRes] = await Promise.all([
+    supabase.from('catalog_config').select('key, value'),
+    supabase.from('app_config').select('key, value'),
+  ]);
+  if (catalogRes.error && appRes.error) throw catalogRes.error;
+
+  const rows = [
+    ...((catalogRes.data || []) as Array<{ key: string; value: unknown }>),
+    ...((appRes.data || []) as Array<{ key: string; value: unknown }>),
+  ];
   const result: Record<string, unknown> = Object.fromEntries(
-    (data as Array<{ key: string; value: unknown }>).map(r => [r.key, r.value])
+    rows.map(r => [r.key, r.value])
   );
 
   // Сохранить в кэш с TTL

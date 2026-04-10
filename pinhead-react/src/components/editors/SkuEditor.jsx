@@ -67,14 +67,25 @@ export default function SkuEditor() {
   const [changedTrims, setChangedTrims] = useState(new Set());
 
   useEffect(() => {
-    supabase.from('app_config').select('key, value').in('key', ['sku_catalog']).then(({ data }) => {
-      if (data) {
+    supabase.from('app_config').select('key, value').in('key', ['sku_catalog']).then(({ data, error }) => {
+      if (!error && data) {
         for (const row of data) {
           if (row.key === 'sku_catalog' && Array.isArray(row.value)) {
             setField('skuCatalog', row.value);
+            return;
           }
         }
       }
+      // Fallback: localStorage
+      try {
+        const ls = localStorage.getItem('ph_sku');
+        if (ls) {
+          const parsed = JSON.parse(ls);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setField('skuCatalog', parsed);
+          }
+        }
+      } catch { /* ignore */ }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

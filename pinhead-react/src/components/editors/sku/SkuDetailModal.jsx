@@ -277,7 +277,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
           {/* Save button */}
           <div className="sku-detail-footer">
             <button className="btn btn-ghost" onClick={onClose}>Закрыть</button>
-            <button className="btn btn-primary sku-detail-save" onClick={() => { onSave?.(); onClose(); }}>Сохранить</button>
+            <button className="btn btn-primary sku-detail-save" onClick={async () => { await onSave?.(); onClose(); }}>Сохранить</button>
           </div>
         </div>
       </div>
