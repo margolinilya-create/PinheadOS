@@ -22,33 +22,43 @@ const DEFAULT_SIZE_CHART = {
   rows: [['S','',''], ['M','',''], ['L','',''], ['XL','','']],
 };
 
-export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSave }) {
+export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [preview, setPreview] = useState(null); // { file, objectUrl }
 
   const photos = sku.photos || (sku.photoUrl ? [sku.photoUrl] : []);
   const photosRef = useRef(photos);
   useEffect(() => { photosRef.current = photos; }, [photos]);
   const sizeChart = sku.sizeChart || DEFAULT_SIZE_CHART;
 
-  // Photo upload
-  const handleFileSelect = async (file) => {
+  // Photo preview & upload
+  const handleFilePreview = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
     const current = photosRef.current;
     if (current.length >= MAX_PHOTOS) {
       toast.error(`Максимум ${MAX_PHOTOS} фото`);
       return;
     }
+    const objectUrl = URL.createObjectURL(file);
+    setPreview({ file, objectUrl });
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!preview) return;
+    URL.revokeObjectURL(preview.objectUrl);
+    const { file } = preview;
+    setPreview(null);
     setUploading(true);
+    const current = photosRef.current;
     const idx = current.length;
     const url = await uploadSkuPhoto(sku.code, file, idx);
     setUploading(false);
     if (url) {
       const latest = photosRef.current;
       const newPhotos = [...latest, url];
-      // Update ref immediately so next upload sees correct length
       photosRef.current = newPhotos;
       onUpdate(skuIndex, 'photos', newPhotos);
       onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
@@ -58,11 +68,33 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
     }
   };
 
+  const handleCancelPreview = () => {
+    if (preview) {
+      URL.revokeObjectURL(preview.objectUrl);
+      setPreview(null);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (preview?.objectUrl) URL.revokeObjectURL(preview.objectUrl);
+    };
+  }, [preview]);
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    files.forEach(f => handleFileSelect(f));
+    const file = e.dataTransfer.files[0];
+    if (file) handleFilePreview(file);
+  };
+
+  const handleSetMain = (idx) => {
+    if (idx === 0) return;
+    const photo = photos[idx];
+    const newPhotos = [photo, ...photos.filter((_, i) => i !== idx)];
+    photosRef.current = newPhotos;
+    onUpdate(skuIndex, 'photos', newPhotos);
+    onUpdate(skuIndex, 'photoUrl', photo);
   };
 
   const handleDeletePhoto = async (idx) => {
@@ -142,13 +174,27 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
             <div className="sku-detail-section-label">ФОТО МОДЕЛИ ({photos.length}/{MAX_PHOTOS})</div>
             <div className="sku-photos-grid">
               {photos.map((url, i) => (
-                <div key={url} className="sku-photo-card">
-                  <img src={url} alt={`${sku.name} фото ${i + 1}`} />
-                  <button className="sku-photo-remove" onClick={() => handleDeletePhoto(i)} aria-label="Удалить фото">✕</button>
+                <div key={url} className={`sku-photo-card${i === 0 ? ' main' : ''}`}>
+                  <img
+                    src={url}
+                    alt={`${sku.name} фото ${i + 1}`}
+                    onClick={() => handleSetMain(i)}
+                    title={i !== 0 ? 'Сделать главным' : undefined}
+                  />
+                  <button className="sku-photo-remove" onClick={() => handleDeletePhoto(i)} aria-label="Удалить фото">&#10005;</button>
                   {i === 0 && <span className="sku-photo-main-badge">Главное</span>}
                 </div>
               ))}
-              {photos.length < MAX_PHOTOS && (
+              {preview && (
+                <div className="sku-photo-card sku-photo-preview-card">
+                  <img src={preview.objectUrl} alt="Предпросмотр" />
+                  <div className="sku-photo-preview-actions">
+                    <button className="sku-preview-confirm" onClick={handleConfirmUpload} aria-label="Загрузить">&#10003;</button>
+                    <button className="sku-preview-cancel" onClick={handleCancelPreview} aria-label="Отменить">&#10005;</button>
+                  </div>
+                </div>
+              )}
+              {!preview && photos.length < MAX_PHOTOS && (
                 <div
                   className={`sku-photo-upload-slot${dragOver ? ' drag-over' : ''}`}
                   onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -174,7 +220,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
                 </div>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { handleFileSelect(e.target.files[0]); e.target.value = ''; }} />
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { handleFilePreview(e.target.files[0]); e.target.value = ''; }} />
           </div>
 
           {/* Section 2: Descriptions */}
@@ -281,10 +327,10 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onSav
             </div>
           </div>
 
-          {/* Save button */}
+          {/* Footer */}
           <div className="sku-detail-footer">
+            <span className="sku-autosave-status">&#10003; Изменения сохранены</span>
             <button className="btn btn-ghost" onClick={onClose}>Закрыть</button>
-            <button className="btn btn-primary sku-detail-save" onClick={async () => { await onSave?.(); onClose(); }}>Сохранить</button>
           </div>
         </div>
       </div>

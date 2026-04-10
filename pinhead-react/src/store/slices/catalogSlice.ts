@@ -25,11 +25,11 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
         if ((catalogs.prices as Record<string, unknown>).usdRate) patch.usdRate = (catalogs.prices as Record<string, unknown>).usdRate;
         invalidatePricesCache();
       }
-      if (catalogs.skuCatalog) patch.skuCatalog = catalogs.skuCatalog;
-      if (catalogs.fabricsCatalog) patch.fabricsCatalog = catalogs.fabricsCatalog;
-      if (catalogs.extrasCatalog) patch.extrasCatalog = catalogs.extrasCatalog;
-      if (catalogs.trimCatalog) patch.trimCatalog = catalogs.trimCatalog;
-      if (catalogs.labelsCatalog) patch.labelsCatalog = catalogs.labelsCatalog;
+      if (Array.isArray(catalogs.skuCatalog)) patch.skuCatalog = catalogs.skuCatalog;
+      if (Array.isArray(catalogs.fabricsCatalog)) patch.fabricsCatalog = catalogs.fabricsCatalog;
+      if (Array.isArray(catalogs.extrasCatalog)) patch.extrasCatalog = catalogs.extrasCatalog;
+      if (Array.isArray(catalogs.trimCatalog)) patch.trimCatalog = catalogs.trimCatalog;
+      if (Array.isArray(catalogs.labelsCatalog)) patch.labelsCatalog = catalogs.labelsCatalog;
     } catch {
       // Fallback: try localStorage (saved by SkuEditor saveAll)
       const lsSku = storageGet('ph_sku');

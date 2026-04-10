@@ -360,7 +360,6 @@ export default function SkuEditor() {
           filteredSku={filteredSku} groupedSku={groupedSku} skuCatalog={skuCatalog} trimCatalog={trimCatalog}
           updateSku={updateSku} deleteSku={deleteSku} estimatePrice={estimatePrice}
           setShowAddModal={setShowAddModal} setShowZonesModal={setShowZonesModal}
-          onSave={saveAll}
         />
       )}
 
