@@ -4,42 +4,95 @@
 import { PRICES as DEFAULT_PRICES } from '../data';
 import { FLEX_MATRIX } from '../data/prices';
 import { useStore } from '../store/useStore';
+import type { Prices, PriceBreakdown, ScreenMatrix } from '../types/pricing';
+import type { SkuItem, Fabric, Trim, ExtraItem } from '../types/catalog';
+import type { LabelConfig, CustomSize } from '../types/order';
+
+// ── Extended Prices type (covers optional fields used at runtime) ──
+interface PricesExt extends Prices {
+  packOptions?: { key: string; price: number }[];
+  // Dynamic price keys accessed at runtime (screenFx*, etc.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+// ── State-like object passed to calc functions ──
+// Using a loose record since the full store type isn't defined yet
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PricingState = Record<string, any>;
+
+// ── Screen FX item ──
+interface ScreenFxItem {
+  key: string;
+  label: string;
+  mult: number;
+}
+
+// ── Tech tab item ──
+interface TechTabItem {
+  key: string;
+  label: string;
+}
+
+// ── Zone calc params for calcZonePriceDirect ──
+interface ZoneCalcParams {
+  fmt?: string;
+  size?: string;
+  col?: number | string;
+  colors?: number | string;
+  textile?: string;
+  fx?: string;
+  width_mm?: number;
+  height_mm?: number;
+  fill?: number;
+  extra?: string | null;
+}
+
+// ── Catalogs object for multi-item helpers ──
+interface ItemCatalogs {
+  fabricsCatalog: Fabric[];
+  trimCatalog: Trim[];
+  extrasCatalog: ExtraItem[];
+  usdRate: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
 
 // Приоритет: стор (актуальные) → localStorage → дефолт
-let _cachedPrices = null;
-export function getPrices() {
+let _cachedPrices: PricesExt | null = null;
+export function getPrices(): PricesExt {
   if (_cachedPrices) return _cachedPrices;
   // 1) Стор — всегда актуален после сохранения в PriceEditor
   const storePrices = useStore.getState().prices;
-  if (storePrices) { _cachedPrices = storePrices; return storePrices; }
+  if (storePrices) { _cachedPrices = storePrices as PricesExt; return storePrices as PricesExt; }
   // 2) localStorage — фоллбэк
   try {
     const stored = localStorage.getItem('ph_prices');
     if (stored) {
-      _cachedPrices = JSON.parse(stored);
-      return _cachedPrices;
+      _cachedPrices = JSON.parse(stored) as PricesExt;
+      return _cachedPrices!;
     }
   } catch { /* ignore */ }
-  return DEFAULT_PRICES;
+  return DEFAULT_PRICES as PricesExt;
 }
 // Сбросить кеш (вызывать после сохранения в PriceEditor)
-export function invalidatePricesCache() {
+export function invalidatePricesCache(): void {
   _cachedPrices = null;
 }
 
-const ACCESSORY_TYPES = ['shopper', 'basecap', 'dad-cap', '5panel', 'socks'];
-export const isAccessory = (type) => ACCESSORY_TYPES.includes(type);
-export const hasNoPrint = (type) => type === 'socks';
+const ACCESSORY_TYPES: string[] = ['shopper', 'basecap', 'dad-cap', '5panel', 'socks'];
+export const isAccessory = (type: string): boolean => ACCESSORY_TYPES.includes(type);
+export const hasNoPrint = (type: string): boolean => type === 'socks';
 
 // Screen printing lookup
-const SCREEN_QTY_TIERS = [50, 100, 300, 500, 700, 1000];
+const SCREEN_QTY_TIERS: number[] = [50, 100, 300, 500, 700, 1000];
 const SCREEN_MAX_COLORS = 8;
 const SCREEN_TEXTILE_MULT = 1.3;
 const SCREEN_FUTHER_MULT = 1.5;
-const isFutherFabric = (code) => /futher/i.test(code || '');
+const isFutherFabric = (code: string | null | undefined): boolean => /futher/i.test(code || '');
 
-const SCREEN_FX_DEFAULTS = { stone: 2, puff: 2, metallic: 2, fluor: 2 };
-const SCREEN_FX = [
+const SCREEN_FX_DEFAULTS: Record<string, number> = { stone: 2, puff: 2, metallic: 2, fluor: 2 };
+const SCREEN_FX: ScreenFxItem[] = [
   { key: 'none', label: 'Нет', mult: 1 },
   { key: 'stone', label: 'К. база', mult: 2 },
   { key: 'puff', label: 'PUFF', mult: 2 },
@@ -48,21 +101,28 @@ const SCREEN_FX = [
 ];
 export { SCREEN_FX };
 
-function getScreenFxMult(fxKey) {
+const SCREEN_FX_PRICE_KEYS: Record<string, string> = {
+  stone: 'screenFxStoneMult',
+  puff: 'screenFxPuffMult',
+  metallic: 'screenFxMetallicMult',
+  fluor: 'screenFxFluorMult',
+};
+
+function getScreenFxMult(fxKey: string | undefined | null): number {
   if (!fxKey || fxKey === 'none') return 1;
   const p = getPrices();
-  const priceKeys = { stone: 'screenFxStoneMult', puff: 'screenFxPuffMult', metallic: 'screenFxMetallicMult', fluor: 'screenFxFluorMult' };
+  const priceKeys: Record<string, string> = { stone: 'screenFxStoneMult', puff: 'screenFxPuffMult', metallic: 'screenFxMetallicMult', fluor: 'screenFxFluorMult' };
   return p[priceKeys[fxKey]] ?? SCREEN_FX_DEFAULTS[fxKey] ?? 1;
 }
 
 // Flex printing
-const FLEX_QTY_TIERS = [1, 20, 35, 50];
-const FLEX_FORMATS = ['A6', 'A5', 'A4', 'A3'];
+const FLEX_QTY_TIERS: number[] = [1, 20, 35, 50];
+const FLEX_FORMATS: string[] = ['A6', 'A5', 'A4', 'A3'];
 const FLEX_MAX_COLORS = 3;
-const FLEX_SINGLE_PRICE = { 'A6': 450, 'A5': 600, 'A4': 750, 'A3': 850 };
+const FLEX_SINGLE_PRICE: Record<string, number> = { 'A6': 450, 'A5': 600, 'A4': 750, 'A3': 850 };
 export { FLEX_FORMATS, FLEX_MAX_COLORS };
 
-export const TECH_TABS = [
+export const TECH_TABS: TechTabItem[] = [
   { key: 'screen', label: 'Шелкография' },
   { key: 'flex', label: 'Flex' },
   { key: 'dtg', label: 'DTG' },
@@ -70,7 +130,7 @@ export const TECH_TABS = [
   { key: 'dtf', label: 'DTF' },
 ];
 
-export function screenLookup(format, colors, qty) {
+export function screenLookup(format: string, colors: number, qty: number): number {
   const fmt = getPrices().screenMatrix?.[format];
   if (!fmt) return 0;
   const c = Math.max(1, Math.min(SCREEN_MAX_COLORS, colors));
@@ -83,7 +143,7 @@ export function screenLookup(format, colors, qty) {
   return row[tierIdx] || row[0];
 }
 
-export function flexLookup(format, colors, qty) {
+export function flexLookup(format: string, colors: number, qty: number): number {
   const P = getPrices();
   const fmt = (P.flexMatrix || FLEX_MATRIX)[format];
   if (!fmt) return 0;
@@ -98,7 +158,7 @@ export function flexLookup(format, colors, qty) {
   return row[tierIdx] || row[0];
 }
 
-export function screenCalcZone(zone, state) {
+export function screenCalcZone(zone: string, state: PricingState): number {
   const p = state.zonePrints?.[zone] || { colors: 1, size: 'A4', textile: 'white', fx: 'none' };
   const qty = getTotalQty(state) || 1;
   let base = screenLookup(p.size, parseInt(p.colors) || 1, qty);
@@ -109,7 +169,7 @@ export function screenCalcZone(zone, state) {
   return base;
 }
 
-export function flexCalcZone(zone, state) {
+export function flexCalcZone(zone: string, state: PricingState): number {
   const p = state.flexZones?.[zone] || { colors: 1, size: 'A4' };
   const qty = getTotalQty(state) || 1;
   return flexLookup(p.size, parseInt(p.colors) || 1, qty);
@@ -119,10 +179,10 @@ export function flexCalcZone(zone, state) {
 // tech: 'screen'|'flex'|'dtg'|'embroidery'|'dtf'
 // params: { fmt/size, col/colors, textile, fx }
 // qty: тираж, fabric: код ткани (для футерной надбавки screen)
-export function calcZonePriceDirect(tech, params, qty, fabric) {
+export function calcZonePriceDirect(tech: string, params: ZoneCalcParams, qty: number, fabric?: string): number {
   if (tech === 'screen') {
     const fmt = params.fmt || params.size || 'A4';
-    const col = parseInt(params.col || params.colors) || 1;
+    const col = parseInt(String(params.col || params.colors)) || 1;
     const textile = params.textile || 'white';
     const fx = params.fx || 'none';
     let base = screenLookup(fmt, col, qty);
@@ -134,7 +194,7 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
   }
   if (tech === 'flex') {
     const fmt = params.fmt || params.size || 'A4';
-    const col = parseInt(params.col || params.colors) || 1;
+    const col = parseInt(String(params.col || params.colors)) || 1;
     return flexLookup(fmt, col, qty);
   }
   if (tech === 'dtg') {
@@ -159,7 +219,7 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
   }
   if (tech === 'dtf') {
     const P = getPrices();
-    const FMT_SIZES = {
+    const FMT_SIZES: Record<string, { w: number; h: number }> = {
       'A6':  { w: 105, h: 148 },
       'A5':  { w: 148, h: 210 },
       'A4':  { w: 210, h: 297 },
@@ -190,7 +250,7 @@ export function calcZonePriceDirect(tech, params, qty, fabric) {
   return 0;
 }
 
-export function getZoneSurcharge(zone, state) {
+export function getZoneSurcharge(zone: string, state: PricingState): number {
   const tech = state.zoneTechs?.[zone] || 'screen';
   const qty = getTotalQty(state) || 1;
   if (tech === 'screen') {
@@ -225,18 +285,18 @@ export function getZoneSurcharge(zone, state) {
   return 0;
 }
 
-export function getTotalSurcharge(state) {
+export function getTotalSurcharge(state: PricingState): number {
   if (!state.zones || state.zones.length === 0) return 0;
-  return state.zones.reduce((sum, z) => sum + getZoneSurcharge(z, state), 0);
+  return state.zones.reduce((sum: number, z: string) => sum + getZoneSurcharge(z, state), 0);
 }
 
-export function getTotalQty(state) {
-  const stdQty = Object.values(state.sizes || {}).reduce((a, b) => a + (parseInt(b) || 0), 0);
-  const customQty = (state.customSizes || []).reduce((a, c) => a + (parseInt(c.qty) || 0), 0);
+export function getTotalQty(state: PricingState): number {
+  const stdQty = Object.values(state.sizes || {}).reduce((a: number, b: unknown) => a + (parseInt(String(b)) || 0), 0);
+  const customQty = (state.customSizes || []).reduce((a: number, c: { qty: number | string }) => a + (parseInt(String(c.qty)) || 0), 0);
   return stdQty + customQty;
 }
 
-export function getSkuEstPrice(sku, fabricCode, fabricsCatalog, trimCatalog, usdRate) {
+export function getSkuEstPrice(sku: SkuItem, fabricCode: string | null, fabricsCatalog: Fabric[], trimCatalog: Trim[], usdRate: number): number {
   const fabric = fabricCode
     ? fabricsCatalog.find(f => f.code === fabricCode)
     : null;
@@ -249,7 +309,7 @@ export function getSkuEstPrice(sku, fabricCode, fabricsCatalog, trimCatalog, usd
   return (sku.sewingPrice || 0) + fabricCost + trimCost;
 }
 
-export function getLabelConfigPrice(labelConfig) {
+export function getLabelConfigPrice(labelConfig: LabelConfig | null | undefined): number {
   if (!labelConfig) return 0;
   let total = 0;
   // Care label
@@ -260,20 +320,20 @@ export function getLabelConfigPrice(labelConfig) {
   }
   // Main label
   if (labelConfig.mainLabel?.option !== 'none' && labelConfig.mainLabel?.option !== 'send-own') {
-    const prices = { standard: 30, custom: 45 };
-    const matDelta = { woven: 0, polyester: -5, canvas: 10 };
+    const prices: Record<string, number> = { standard: 30, custom: 45 };
+    const matDelta: Record<string, number> = { woven: 0, polyester: -5, canvas: 10 };
     total += (prices[labelConfig.mainLabel.option] || 0) + (matDelta[labelConfig.mainLabel.material] || 0);
   }
   // Hang tag
   if (labelConfig.hangTag?.option !== 'none') {
-    const prices = { standard: 15, custom: 25 };
+    const prices: Record<string, number> = { standard: 15, custom: 25 };
     total += prices[labelConfig.hangTag.option] || 0;
   }
   return total;
 }
 
 // Наценка по тиражу и категории
-export function getMarkup(qty, category) {
+export function getMarkup(qty: number, category: string): number {
   const P = getPrices();
   const tiers   = P.markupTiers   || [1, 25, 50, 100, 200, 300, 500, 1000];
   const markups = P.markupByType?.[category] || P.markupDefault || [0.70];
@@ -286,23 +346,20 @@ export function getMarkup(qty, category) {
 
 /**
  * Sum extras prices for a list of extra codes.
- * @param {string[]} extras — list of codes
- * @param {{code:string, price:number}[]} catalog
- * @returns {number}
  */
-export function calcExtrasCost(extras, catalog) {
+export function calcExtrasCost(extras: string[] | null | undefined, catalog: { code: string; price: number }[] | null | undefined): number {
   if (!extras || !catalog) return 0;
-  return extras.reduce((sum, code) => {
+  return extras.reduce((sum: number, code: string) => {
     const ex = catalog.find(e => e.code === code);
     return sum + (ex ? ex.price : 0);
   }, 0);
 }
 
-export function calcTotal(state, debug = false) {
+export function calcTotal(state: PricingState, debug = false): number {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;
 
-  let basePrice;
+  let basePrice: number;
   if (state.sku) {
     basePrice = getSkuEstPrice(state.sku, state.fabric, state.fabricsCatalog, state.trimCatalog, state.usdRate);
   } else {
@@ -319,7 +376,7 @@ export function calcTotal(state, debug = false) {
 
   const P = getPrices();
   const packType = state.packType || (state.packOption ? 'bopp' : 'none');
-  const packOpt = (P.packOptions || []).find(o => o.key === packType);
+  const packOpt = (P.packOptions || []).find((o: { key: string; price: number }) => o.key === packType);
   const packCost = packOpt ? packOpt.price : (state.packOption ? (P.pack || 0) : 0);
 
   // Наценка на себестоимость
@@ -327,7 +384,7 @@ export function calcTotal(state, debug = false) {
   const markup = getMarkup(totalQty, category);
   const markedUpBase = Math.round(basePrice * (1 + markup));
 
-  let unitPrice = markedUpBase + extrasPrice + labelsCost + printPrice + packCost;
+  const unitPrice = markedUpBase + extrasPrice + labelsCost + printPrice + packCost;
 
   // Срочность считается ПОСЛЕ наценки
   const urgentSurcharge = state.urgentOption
@@ -349,11 +406,11 @@ export function calcTotal(state, debug = false) {
 }
 
 // Расчёт с полной разбивкой по компонентам
-export function calcTotalBreakdown(state) {
+export function calcTotalBreakdown(state: PricingState): PriceBreakdown {
   const qty = getTotalQty(state);
   if (qty === 0) return { cost: 0, markup: 0, markupPct: 0, markedBase: 0, base: 0, extras: 0, labels: 0, print: 0, pack: 0, discount: 0, urgent: 0, unitPrice: 0, total: 0, qty: 0 };
 
-  let costPrice;
+  let costPrice: number;
   if (state.sku) {
     costPrice = getSkuEstPrice(state.sku, state.fabric, state.fabricsCatalog, state.trimCatalog, state.usdRate);
   } else {
@@ -370,7 +427,7 @@ export function calcTotalBreakdown(state) {
 
   const P = getPrices();
   const packType = state.packType || (state.packOption ? 'bopp' : 'none');
-  const packOpt = (P.packOptions || []).find(o => o.key === packType);
+  const packOpt = (P.packOptions || []).find((o: { key: string; price: number }) => o.key === packType);
   const pack = packOpt ? packOpt.price : (state.packOption ? (P.pack || 0) : 0);
 
   const category = state.sku?.category || state.type || 'tshirts';
@@ -388,28 +445,28 @@ export function calcTotalBreakdown(state) {
   return { cost: costPrice, markup: markupAmount, markupPct, markedBase, base: costPrice, extras, labels, print, pack, discount: markupAmount, urgent: urgentAmount, unitPrice, total, qty };
 }
 
-export function getUnitPrice(state) {
+export function getUnitPrice(state: PricingState): number {
   const totalQty = getTotalQty(state);
   if (totalQty === 0) return 0;
   return Math.round(calcTotal(state) / totalQty);
 }
 
 // ─── Multi-item: расчёт цены одной позиции (из снэпшота item + каталоги) ───
-export function calcItemTotal(item, catalogs) {
+export function calcItemTotal(item: PricingState, catalogs: ItemCatalogs): number {
   const statelike = { ...item, ...catalogs };
   return calcTotal(statelike);
 }
 
-export function calcItemBreakdown(item, catalogs) {
+export function calcItemBreakdown(item: PricingState, catalogs: ItemCatalogs): PriceBreakdown {
   const statelike = { ...item, ...catalogs };
   return calcTotalBreakdown(statelike);
 }
 
-export function getItemUnitPrice(item, catalogs) {
+export function getItemUnitPrice(item: PricingState, catalogs: ItemCatalogs): number {
   const statelike = { ...item, ...catalogs };
   return getUnitPrice(statelike);
 }
 
-export function getItemTotalQty(item) {
+export function getItemTotalQty(item: PricingState): number {
   return getTotalQty(item);
 }
