@@ -11,7 +11,7 @@
   to   { transform: translateX(0); }
 }
 .exp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 150; display: flex; justify-content: flex-end; animation: fadeIn 0.2s ease-out; }
-.exp-panel   { background: var(--white); width: 460px; max-width: 100%; border-left: 1.5px solid var(--border-light); height: 100%; max-height: 90vh; overflow-y: auto; animation: slideInRight 0.25s ease-out; }
+.exp-panel   { background: var(--card); width: 460px; max-width: 100%; border-left: 1.5px solid var(--border-light); height: 100%; max-height: 90vh; overflow-y: auto; animation: slideInRight 0.25s ease-out; }
 .exp-header  { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1.5px solid var(--border-light); }
 .exp-title   { font-family: var(--font-display); font-weight: 900; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; }
 .exp-close   { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-dim); }
@@ -41,7 +41,7 @@
 .exp-plabel { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
 .exp-pbtns  { display: flex; gap: 4px; flex-wrap: wrap; }
 .exp-pbtn   {
-  border: 1.5px solid var(--border-light); background: var(--white);
+  border: 1.5px solid var(--border-light); background: var(--card);
   padding: 4px 12px; font-family: var(--font-display);
   font-size: 11px; font-weight: 800; letter-spacing: .5px;
   cursor: pointer; text-transform: uppercase; transition: all 150ms ease-out;
@@ -55,7 +55,7 @@
 .exp-zt-name     { font-family: var(--font-display); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: .5px; }
 .exp-zt-surcharge { font-family: var(--font-display); font-size: 13px; font-weight: 900; color: var(--accent); }
 .exp-zt-block.active .exp-zt-surcharge { color: var(--accent2); }
-.exp-zt-body         { display: none; padding: 12px 16px; background: var(--white); }
+.exp-zt-body         { display: none; padding: 12px 16px; background: var(--card); }
 .exp-zt-block.active .exp-zt-body { display: block; }
 .exp-zt-techs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 8px; }
 .exp-zt-tech  {
@@ -84,7 +84,7 @@
 .exp-page-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
 .exp-form-section { display: flex; flex-direction: column; gap: 24px; }
 .exp-result-section { position: sticky; top: 80px; background: var(--card, var(--white)); border: 1px solid var(--border-light); border-radius: var(--radius-lg, 12px); padding: 24px; }
-.exp-result-card    { border: 1.5px solid var(--black); padding: 32px; background: var(--white); border-radius: var(--radius-md, 8px); }
+.exp-result-card    { border: 1.5px solid var(--border); padding: 32px; background: var(--card); border-radius: var(--radius-md, 8px); }
 .exp-result-card.exp-result-empty {
   border-color: var(--border-light);
   display: flex;

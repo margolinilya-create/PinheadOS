@@ -287,6 +287,7 @@ export default function KanbanBoard() {
               <div><kbd className={styles.shortcutsKey}>/</kbd> — Поиск</div>
               <div><kbd className={styles.shortcutsKey}>n</kbd> — Новый заказ</div>
               <div><kbd className={styles.shortcutsKey}>1-5</kbd> — Статус (в карточке)</div>
+              <div><kbd className={styles.shortcutsKey}>←→</kbd> — Сменить статус карточки</div>
               <div><kbd className={styles.shortcutsKey}>Esc</kbd> — Закрыть</div>
               <div><kbd className={styles.shortcutsKey}>?</kbd> — Эта справка</div>
             </div>

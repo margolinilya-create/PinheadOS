@@ -90,7 +90,7 @@
 .zones-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 32px; }
 .zone-card {
   position: relative; cursor: pointer; border: 1px solid var(--border-light);
-  background: var(--white); display: flex; align-items: stretch;
+  background: var(--card); display: flex; align-items: stretch;
   overflow: hidden; height: 56px; transition: border-color 150ms ease-out;
   font: inherit; text-align: left; padding: 0; width: 100%;
 }
@@ -103,7 +103,7 @@
 .zone-card-inner { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 12px; gap: 2px; }
 .zone-label {
   font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 1px; color: var(--black); transition: color 150ms ease-out;
+  text-transform: uppercase; letter-spacing: 1px; color: var(--text); transition: color 150ms ease-out;
 }
 .zone-card.selected .zone-label { color: var(--accent); }
 .zone-check { position: absolute; top: 7px; right: 8px; font-size: 9px; font-weight: 700; color: var(--accent); opacity: 0; transition: opacity 150ms ease-out; }
@@ -147,11 +147,11 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
 .zone-tech-tab:last-child              { border-right: none; }
-.zone-tech-tab.active                  { background: var(--white); color: var(--accent); border-bottom: 2px solid var(--accent); }
-.zone-tech-tab:hover:not(.active)      { background: var(--bg3); color: var(--black); }
+.zone-tech-tab.active                  { background: var(--card); color: var(--accent); border-bottom: 2px solid var(--accent); }
+.zone-tech-tab:hover:not(.active)      { background: var(--bg3); color: var(--text); }
 .zone-tech-tab .tab-price             { font-size: 9px; font-weight: 400; color: var(--text-dim); }
 .zone-tech-tab.active .tab-price      { color: var(--accent); }
-.zone-tech-params { padding: 16px 16px; background: var(--white); border-top: 1px solid var(--border-light); }
+.zone-tech-params { padding: 16px 16px; background: var(--card); border-top: 1px solid var(--border-light); }
 .zone-tech-warn   { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--color-warning); background: var(--bg-warning); padding: 8px 12px; margin-top: 8px; }
 .zone-param-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
 .zone-param-row:last-child { margin-bottom: 0; }
@@ -159,13 +159,13 @@
 .zone-param-btns { display: flex; border: 1px solid var(--border-light); overflow: hidden; }
 .zone-param-btn {
   height: 30px; padding: 0 14px; border: none; border-right: 1px solid var(--border-light);
-  background: var(--white); color: var(--text-dim);
+  background: var(--card); color: var(--text-dim);
   font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 150ms ease-out;
 }
 .zone-param-btn:last-child       { border-right: none; }
 .zone-param-btn.active           { background: var(--accent); color: var(--white); }
-.zone-param-btn:hover:not(.active) { background: var(--bg2); color: var(--black); }
+.zone-param-btn:hover:not(.active) { background: var(--bg2); color: var(--text); }
 .zone-colors-wrap  { display: flex; align-items: center; gap: 12px; }
 .zone-colors-input {
   width: 52px; height: 30px; border: 1px solid var(--border-light);
@@ -175,7 +175,7 @@
 .zone-colors-input:focus { border-color: var(--accent); }
 .zone-fx-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .zone-fx-btn {
-  height: 30px; padding: 0 12px; border: 1px solid var(--border-light); background: var(--white);
+  height: 30px; padding: 0 12px; border: 1px solid var(--border-light); background: var(--card);
   font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 150ms ease-out;
   color: var(--text-dim); display: flex; align-items: center; gap: 5px;
@@ -207,7 +207,7 @@
 }
 .zone-mult-chip {
   font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
-  padding: 3px 8px; border: 1px solid var(--border-light); background: var(--white); color: var(--text-dim);
+  padding: 3px 8px; border: 1px solid var(--border-light); background: var(--card); color: var(--text-dim);
 }
 .zone-mult-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 .zone-mult-eq     { font-size: 9px; font-weight: 700; color: var(--text-dim); }

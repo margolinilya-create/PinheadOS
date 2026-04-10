@@ -16,6 +16,24 @@ const FINAL_STATUSES = ['done'];
 
 const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onCardClick }) {
   const [showMenu, setShowMenu] = useState(false);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const currentIdx = STATUS_LIST.indexOf(order.status);
+      const newIdx = e.key === 'ArrowRight'
+        ? Math.min(currentIdx + 1, STATUS_LIST.length - 1)
+        : Math.max(currentIdx - 1, 0);
+      if (newIdx !== currentIdx) {
+        onStatusChange(order.id, STATUS_LIST[newIdx]);
+      }
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onCardClick(order);
+    }
+  };
+
   const d = order.data || {};
   const dt = order.created_at ? new Date(order.created_at) : null;
   const dateStr = dt ? dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) : '';
@@ -34,6 +52,10 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
   return (
     <div
       className="kb-card"
+      tabIndex={0}
+      role="article"
+      aria-label={`Заказ ${order.order_number || order.id}, статус: ${STATUS_LABELS[order.status]}`}
+      onKeyDown={handleKeyDown}
       style={isUrgent ? { borderTop: '2px solid #e53e3e' } : undefined}
       draggable
       onDragStart={e => {

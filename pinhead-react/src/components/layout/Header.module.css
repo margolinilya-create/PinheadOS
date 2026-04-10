@@ -6,7 +6,7 @@
 .header {
   display: flex; align-items: stretch; height: 52px;
   border-bottom: 1px solid var(--border-light);
-  position: sticky; top: 0; background: var(--white); z-index: 100;
+  position: sticky; top: 0; background: var(--card); z-index: 100;
   font-family: 'Inter', sans-serif;
 }
 
@@ -15,7 +15,7 @@
 .logo-mark { width: 24px; height: 24px; flex-shrink: 0; }
 .logo-text {
   font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase; color: var(--black); line-height: 1;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text); line-height: 1;
 }
 .logo-sub {
   font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 500;
@@ -55,7 +55,7 @@
   background: none; border: none; color: var(--text-dim); font-size: 9px; font-weight: 700;
   cursor: pointer; padding: 0 2px; line-height: 1; opacity: .4; transition: opacity 150ms ease-out, color 150ms ease-out;
 }
-.draft-reset-btn:hover { opacity: 1; color: var(--black); }
+.draft-reset-btn:hover { opacity: 1; color: var(--text); }
 .header-total { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--border-light); }
 .total-label {
   font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
@@ -95,7 +95,7 @@
 /* Burger button — hidden by default, shown on mobile */
 .burger-btn {
   display: none; background: none; border: none; border-left: 1px solid var(--border-light);
-  padding: 0 16px; height: 52px; cursor: pointer; font-size: 20px; color: var(--black);
+  padding: 0 16px; height: 52px; cursor: pointer; font-size: 20px; color: var(--text);
   align-items: center; flex-shrink: 0;
 }
 
@@ -114,7 +114,7 @@
   .logo                { padding: 0 16px; }
   .logo-text           { font-size: 16px; }
   .header-nav          { display: none; }
-  .header-nav.open     { display: flex; flex-direction: column; position: fixed; top: 48px; left: 0; right: 0; width: 100vw; background: var(--white); border-bottom: 1px solid var(--border-light); z-index: 200; }
+  .header-nav.open     { display: flex; flex-direction: column; position: fixed; top: 48px; left: 0; right: 0; width: 100vw; background: var(--card); border-bottom: 1px solid var(--border-light); z-index: 200; }
   .header-nav.open .header-nav-btn { height: 44px; border-left: none; border-bottom: 1px solid var(--border-light); justify-content: center; }
   .burger-btn          { display: flex; }
   .header-right        { margin-left: auto; }

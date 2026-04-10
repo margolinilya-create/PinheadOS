@@ -8,7 +8,7 @@
 .pp-toolbar-id      { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--accent); letter-spacing: 1px; }
 .pp-toolbar-actions { display: flex; gap: 0; border: 1px solid rgba(255,255,255,.15); overflow: hidden; }
 .pp-position-header { font-family: var(--font-display); font-weight: 900; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
-.pp-page     { max-width: 800px; margin: 32px auto; padding: 56px 56px 48px; background: var(--white); border: 1px solid var(--border-light); font-family: 'Roboto Condensed', sans-serif; }
+.pp-page     { max-width: 800px; margin: 32px auto; padding: 56px 56px 48px; background: var(--card); border: 1px solid var(--border-light); font-family: 'Roboto Condensed', sans-serif; }
 .pp-header   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
 .pp-logo     { font-family: var(--font-display); font-weight: 900; font-size: 28px; letter-spacing: 3px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
 .pp-logo-mark { flex-shrink: 0; }
@@ -55,11 +55,11 @@
 }
 /* Page-wrap variant */
 .pp-page-wrap .pp-toolbar { display: flex; align-items: center; gap: 16px; padding: 16px 0; margin-bottom: 16px; border-bottom: 1px solid var(--border-light); }
-.pp-page-wrap .pp-page    { max-width: 800px; margin: 0 auto; padding: 48px; background: var(--white); border: 1px solid var(--border-light); }
+.pp-page-wrap .pp-page    { max-width: 800px; margin: 0 auto; padding: 48px; background: var(--card); border: 1px solid var(--border-light); }
 /* ═══════════════════════════════════════════ */
 /* SKU EDITOR v1.7                            */
 /* ═══════════════════════════════════════════ */
-.sku-ed-overlay { background: var(--white); display: flex; justify-content: center; flex: 1; }
+.sku-ed-overlay { background: var(--card); display: flex; justify-content: center; flex: 1; }
 .sku-ed-panel   { width: 100%; max-width: 1200px; padding: 0 40px; display: flex; flex-direction: column; }
 /* ── SKU Actions bar (below shared Header) ── */
 .sku-actions-bar {
@@ -163,17 +163,17 @@
   border-color: var(--ink);
   opacity: .5;
 }
-.sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0 8px; border-bottom: 1px solid var(--border-light); font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); flex-wrap: wrap; position: sticky; top: calc(var(--header-h, 52px) + var(--preview-bar-h, 0px) + 52px + 40px); z-index: 15; background: var(--white); }
+.sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0 8px; border-bottom: 1px solid var(--border-light); font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); flex-wrap: wrap; position: sticky; top: calc(var(--header-h, 52px) + var(--preview-bar-h, 0px) + 52px + 40px); z-index: 15; background: var(--card); }
 .sku-ed-rate-cb      { display: flex; align-items: center; gap: 8px; }
-.sku-ed-rate-cb b    { color: var(--black); font-size: 13px; font-weight: 900; }
+.sku-ed-rate-cb b    { color: var(--text); font-size: 13px; font-weight: 900; }
 .sku-ed-rate-date    { font-size: 11px; color: var(--text-dim); letter-spacing: 0; text-transform: none; }
 .sku-ed-rate-refresh { background: none; border: 1px solid var(--border-light); width: 22px; height: 22px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-dim); transition: all 150ms ease-out; }
-.sku-ed-rate-refresh:hover { border-color: var(--black); color: var(--black); }
+.sku-ed-rate-refresh:hover { border-color: var(--text); color: var(--text); }
 .sku-ed-rate-internal { display: flex; align-items: center; gap: 8px; }
 .sku-ed-rate-internal input { width: 60px; height: 24px; border: 1.5px solid var(--black); text-align: center; font-family: var(--font-display); font-size: 13px; font-weight: 900; color: var(--accent); outline: none; }
 .sku-ed-rate-internal input:focus { border-color: var(--accent); }
 .sku-ed-toolbar   { display: flex; align-items: center; gap: 12px; padding: 16px 0; flex-wrap: wrap; }
-.sku-ed-cat-select { border: 1.5px solid var(--border-light); padding: 8px 12px; font-size: 12px; font-family: 'Roboto Condensed', sans-serif; background: var(--white); }
+.sku-ed-cat-select { border: 1.5px solid var(--border-light); padding: 8px 12px; font-size: 12px; font-family: 'Roboto Condensed', sans-serif; background: var(--card); }
 .sku-ed-count     { font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); margin-left: auto; }
 .sku-ed-add-btn   { background: var(--black); color: var(--white); border: none; padding: 8px 24px; font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: background 150ms ease-out; }
 .sku-ed-add-btn:hover { background: var(--accent); }
@@ -204,8 +204,8 @@
 .sku-td-est  { font-family: var(--font-display); font-weight: 700; font-size: 12px; color: var(--accent); white-space: nowrap; }
 .sku-td-cats { display: flex; gap: 3px; flex-wrap: wrap; }
 .sku-edit-input  { border: 1px solid transparent; background: transparent; padding: 3px 6px; font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: 500; outline: none; transition: border-color 150ms ease-out, background 150ms ease-out; width: 100%; }
-.sku-edit-input:hover  { border-color: var(--border-light); background: var(--white); }
-.sku-edit-input:focus  { border-color: var(--accent); background: var(--white); }
+.sku-edit-input:hover  { border-color: var(--border-light); background: var(--card); }
+.sku-edit-input:focus  { border-color: var(--accent); background: var(--card); }
 .sku-edit-name  { min-width: 140px; }
 .sku-edit-num   { width: 80px; text-align: center; }
 .sku-edit-select { border: 1px solid transparent; background: transparent; padding: 2px 4px; font-family: 'Roboto Condensed', sans-serif; font-size: 11px; cursor: pointer; outline: none; transition: border-color 150ms ease-out; }
@@ -215,7 +215,7 @@
 .sku-zones-btn:hover { border-color: var(--accent); color: var(--accent); }
 .sku-del-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; font-weight: 900; padding: 2px 8px; transition: color 150ms ease-out; opacity: .4; }
 .sku-del-btn:hover { color: var(--color-error); opacity: 1; }
-.sku-cat-tag       { font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--border-light); background: var(--white); cursor: pointer; transition: all 150ms ease-out; color: var(--text-dim); white-space: nowrap; }
+.sku-cat-tag       { font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--border-light); background: var(--card); cursor: pointer; transition: all 150ms ease-out; color: var(--text-dim); white-space: nowrap; }
 .sku-cat-tag:hover { border-color: var(--text-mid); }
 .sku-cat-tag.active { background: var(--accent); color: var(--white); border-color: var(--accent); }
 /* SKU modals */
@@ -228,7 +228,7 @@
   to   { opacity: 1; transform: scale(1); }
 }
 .sku-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: center; justify-content: center; animation: skuFadeIn 0.15s ease-out; }
-.sku-modal         { background: var(--white); border: 1.5px solid var(--black); padding: 32px; min-width: 360px; max-width: 480px; width: 100%; animation: scaleIn 0.2s ease-out; }
+.sku-modal         { background: var(--card); border: 1.5px solid var(--border); padding: 32px; min-width: 360px; max-width: 480px; width: 100%; animation: scaleIn 0.2s ease-out; }
 .sku-modal h3      { font-family: var(--font-display); font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 24px; }
 .sku-modal-hint    { font-size: 12px; color: var(--text-dim); margin: -12px 0 16px; }
 .sku-modal-field   { margin-bottom: 16px; }
@@ -258,18 +258,18 @@
 /* ═══════════════════════════════════════════ */
 .pe-changed  { font-family: var(--font-display); font-size: 11px; font-weight: 800; background: var(--bg-warning); color: var(--color-warning); padding: 3px 10px; letter-spacing: .5px; }
 .pe-close    { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 8px; color: var(--text-dim); transition: color 150ms ease-out; }
-.pe-close:hover { color: var(--black); }
-.pe-tabs  { display: flex; border-bottom: 1.5px solid var(--border-light); gap: 0; position: sticky; top: calc(var(--header-h) + var(--preview-bar-h) + 52px); z-index: 19; background: var(--white); }
+.pe-close:hover { color: var(--text); }
+.pe-tabs  { display: flex; border-bottom: 1.5px solid var(--border-light); gap: 0; position: sticky; top: calc(var(--header-h) + var(--preview-bar-h) + 52px); z-index: 19; background: var(--card); }
 .pe-tab   { padding: 10px 20px; background: none; border: none; cursor: pointer; font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); position: relative; transition: color 150ms ease-out; }
 .pe-tab:hover { color: var(--text-mid); }
-.pe-tab.active { color: var(--black); }
+.pe-tab.active { color: var(--text); }
 .pe-tab.active::after { content: ''; position: absolute; bottom: -1.5px; left: 0; right: 0; height: 2px; background: var(--black); }
 .pe-body { flex: 1; padding: 24px 0; }
 /* Page-level tabs (Analytics, etc.) */
 .page-tabs { display: flex; gap: 0; border-bottom: 1.5px solid var(--border-light); padding: 0 40px; }
 .page-tab  { padding: 10px 24px; background: none; border: none; cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); position: relative; transition: color 150ms ease-out; }
 .page-tab:hover { color: var(--text-mid); }
-.page-tab.active { color: var(--black); }
+.page-tab.active { color: var(--text); }
 .page-tab.active::after { content: ''; position: absolute; bottom: -1.5px; left: 0; right: 0; height: 2px; background: var(--accent); }
 .pe-section h3 { font-family: var(--font-display); font-weight: 800; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); margin: 24px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--bg3); }
 .pe-section h3:first-child { margin-top: 0; }

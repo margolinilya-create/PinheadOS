@@ -118,4 +118,71 @@ test.describe('Order Creation Wizard', () => {
     // Should still be on Design step
     await expect(page.getByRole('heading', { name: 'ДИЗАЙН' })).toBeVisible();
   });
+
+  test('progress bar fills as steps advance', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
+
+    // Progress fill bar should exist and start narrow
+    const fillBar = page.locator('[class*="progress-fill-bar"]');
+    await expect(fillBar).toBeVisible();
+
+    const initialWidth = await fillBar.evaluate(el => {
+      return parseFloat(getComputedStyle(el).width);
+    });
+
+    // Select garment, fabric, color, qty to enable Next
+    await page.locator('.garment-row').first().click();
+    await page.locator('.fit-option').first().waitFor({ state: 'visible' });
+    await page.locator('.fit-option').first().click();
+    await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
+    await page.locator('.swatch:not(.hidden)').first().click();
+    await page.locator('.size-section').waitFor({ state: 'visible' });
+    await page.locator('tr', { has: page.locator('td b', { hasText: 'M' }) }).first().locator('.qty-input').fill('10');
+
+    // Click Next to advance to step 2
+    await page.getByRole('button', { name: 'Далее' }).click();
+    await expect(page.getByRole('heading', { name: 'ДИЗАЙН' })).toBeVisible();
+
+    // Progress bar should be wider now
+    const newWidth = await fillBar.evaluate(el => {
+      return parseFloat(getComputedStyle(el).width);
+    });
+    expect(newWidth).toBeGreaterThan(initialWidth);
+  });
+
+  test('garment selection highlights the row', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.garment-row').first()).toBeVisible();
+
+    const firstRow = page.locator('.garment-row').first();
+    await firstRow.click();
+
+    // Row should get .selected class
+    await expect(firstRow).toHaveClass(/selected/);
+  });
+
+  test('step tabs show visited state after navigating back', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
+
+    // Select garment, fabric, color, qty and go to step 2
+    await page.locator('.garment-row').first().click();
+    await page.locator('.fit-option').first().waitFor({ state: 'visible' });
+    await page.locator('.fit-option').first().click();
+    await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
+    await page.locator('.swatch:not(.hidden)').first().click();
+    await page.locator('.size-section').waitFor({ state: 'visible' });
+    await page.locator('tr', { has: page.locator('td b', { hasText: 'M' }) }).first().locator('.qty-input').fill('5');
+    await page.getByRole('button', { name: 'Далее' }).click();
+    await expect(page.getByRole('heading', { name: 'ДИЗАЙН' })).toBeVisible();
+
+    // Step 1 tab should now be clickable (visited/done state)
+    const step1Tab = page.locator('[class*="step-tab"]').first();
+    await expect(step1Tab).toBeVisible();
+
+    // Click step 1 to go back
+    await step1Tab.click();
+    await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible({ timeout: 5000 });
+  });
 });

@@ -53,11 +53,11 @@
   letter-spacing: 1.5px; text-transform: uppercase; padding: 0; margin-bottom: var(--space-sm);
   transition: color 150ms ease-out;
 }
-.page-back-btn:hover { color: var(--black); }
+.page-back-btn:hover { color: var(--text); }
 .page-search {
   border: 1px solid var(--border-light); padding: var(--space-sm) var(--space-lg);
   font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400;
-  background: var(--white); outline: none; min-width: 200px; transition: border-color 150ms ease-out;
+  background: var(--card); outline: none; min-width: 200px; transition: border-color 150ms ease-out;
 }
 .page-search:focus { border-color: var(--accent); }
 .page-tabs {
@@ -70,7 +70,7 @@
   text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim);
   transition: color 150ms ease-out, border-color 150ms ease-out;
 }
-.page-tab:hover        { color: var(--black); }
+.page-tab:hover        { color: var(--text); }
 .page-tab.active       { color: var(--accent); border-bottom-color: var(--accent); }
 .page-body { padding-bottom: 40px; }
 .pe-changed-badge {
@@ -82,7 +82,7 @@
 .page-header-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 20px 40px; border-bottom: 1px solid var(--border-light);
-  background: var(--white); position: sticky; top: var(--header-h);
+  background: var(--card); position: sticky; top: var(--header-h);
   z-index: var(--z-sticky);
 }
 .page-header-bar .page-header-left {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense } from 'react'
+import React, { lazy, useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import './styles/index.css'
 import styles from './App.module.css'
@@ -9,15 +9,18 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import Header from './components/layout/Header'
 import ProgressBar from './components/layout/ProgressBar'
 import StepGarment from './components/steps/StepGarment'
-import StepDesign from './components/steps/StepDesign'
-import StepItems from './components/steps/StepItems'
-import StepDetails from './components/steps/StepDetails'
-import StepSummary from './components/steps/StepSummary'
+
+// Lazy-load wizard steps 2-5 (rendered only when user advances)
+const StepDesign = lazy(() => import('./components/steps/StepDesign'));
+const StepItems = lazy(() => import('./components/steps/StepItems'));
+const StepDetails = lazy(() => import('./components/steps/StepDetails'));
+const StepSummary = lazy(() => import('./components/steps/StepSummary'));
 import AuthScreen from './components/auth/AuthScreen'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import RolePreviewBar from './components/shared/RolePreviewBar'
 import OnboardingTips from './components/shared/OnboardingTips'
+import CommandPalette from './components/shared/CommandPalette'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
 const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'));
@@ -41,7 +44,9 @@ function WizardPage() {
     <>
       <ProgressBar />
       <div className="container">
-        <CurrentStep />
+        <Suspense fallback={<div className="panel-loading">Загрузка...</div>}>
+          <CurrentStep />
+        </Suspense>
       </div>
     </>
   );
@@ -151,6 +156,7 @@ function App() {
       <Header />
       <RolePreviewBar />
       <OnboardingTips />
+      <CommandPalette />
 
       <main id="main-content">
       <Routes>

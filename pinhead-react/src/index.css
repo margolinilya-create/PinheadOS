@@ -36,6 +36,7 @@
   --signal:       #FF3B30;
   --white:        #ffffff;
   --black:        #0A0A0A;
+  --paper:        #FAFAFA;
 
   /* ── Semantic ── */
   --color-success: #06a77d;
@@ -114,6 +115,7 @@ html[data-theme="dark"] {
 
   --white:        #E8E8E8;
   --black:        #121212;
+  --paper:        #181818;
 
   --bg-success:   #0a2e1a;
   --bg-error:     #2e0a0a;

@@ -2,7 +2,7 @@
 /* KANBAN BOARD — Swiss/Functional            */
 /* ═══════════════════════════════════════════ */
 .kanban-page {
-  background: var(--white);
+  background: var(--bg);
   display: flex; flex-direction: column; font-family: 'Roboto Condensed', sans-serif;
   height: calc(100vh - 52px); overflow: hidden;
 }
@@ -40,7 +40,7 @@
 .kanban-stats-bar .ks-separator { width: 1px; height: 18px; background: var(--border-light); flex-shrink: 0; }
 /* Filter bar */
 .kanban-filter-bar { display: flex; align-items: center; gap: 8px; padding: var(--space-sm) var(--space-2xl); background: var(--bg2); border-bottom: 1px solid var(--border-light); flex-shrink: 0; flex-wrap: wrap; }
-.kanban-filter-btn { height: 28px; padding: 0 12px; border: 1.5px solid var(--border-light); background: var(--white); font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; transition: all 150ms ease-out; display: flex; align-items: center; gap: 4px; }
+.kanban-filter-btn { height: 28px; padding: 0 12px; border: 1.5px solid var(--border-light); background: var(--card); font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; transition: all 150ms ease-out; display: flex; align-items: center; gap: 4px; }
 .kanban-filter-btn:hover      { border-color: var(--black); }
 .kanban-filter-btn.active     { border-color: var(--black); background: var(--black); color: var(--white); }
 .kanban-filter-btn .kf-dot    { width: 6px; height: 6px; border-radius: 50%; }
@@ -60,7 +60,7 @@
   transition: background 0.2s ease, border 0.2s ease;
 }
 /* Cards */
-.kb-card { background: var(--white); border: 1.5px solid var(--border-light); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 150ms ease-out; position: relative; display: flex; overflow: hidden; min-height: 110px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: var(--radius-md, 8px); }
+.kb-card { background: var(--card); border: 1.5px solid var(--border-light); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 150ms ease-out; position: relative; display: flex; overflow: hidden; min-height: 110px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: var(--radius-md, 8px); }
 .kb-card[draggable]   { cursor: grab; }
 .kb-card[draggable]:active { cursor: grabbing; }
 .kb-card:hover        { transform: translateY(-2px); border-color: var(--black); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -106,7 +106,7 @@
 .kb-card-menu-btn { position: absolute; top: 6px; right: 6px; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-dim); padding: 2px 6px; transition: color 150ms ease-out; }
 .kb-card-menu-btn:hover { color: var(--black); }
 .kb-card-menu-backdrop  { display: none; }
-.kb-card-menu { position: absolute; top: 26px; right: 8px; background: var(--white); border: 1.5px solid var(--black); z-index: 10; min-width: 150px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.kb-card-menu { position: absolute; top: 26px; right: 8px; background: var(--card); border: 1.5px solid var(--border); z-index: 10; min-width: 150px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 .kb-card-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: var(--space-sm) 12px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 600; text-align: left; font-family: 'Roboto Condensed', sans-serif; transition: background 150ms ease-out; }
 .kb-card-menu button:hover { background: var(--bg2); }
 /* Deadline badge */
@@ -129,10 +129,10 @@
 .kb-type-filter {
   border: 1.5px solid var(--border-light); padding: 6px 10px; height: 32px;
   font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 600;
-  background: var(--white); cursor: pointer; transition: border-color 150ms ease-out;
+  background: var(--card); cursor: pointer; transition: border-color 150ms ease-out;
   box-sizing: border-box;
 }
-.kb-type-filter:focus { border-color: var(--black); outline: none; }
+.kb-type-filter:focus { border-color: var(--text); outline: none; }
 /* Mobile status select — hidden on desktop, shown on touch/mobile */
 .mobile-status-select { display: none; }
 @media (max-width: 768px) {

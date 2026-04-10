@@ -58,24 +58,24 @@ textarea::placeholder {
 .role-btns     { display: flex; gap: 0; margin-bottom: var(--space-2xl); border: 1px solid var(--border-light); }
 .role-btn {
   flex: 1; padding: 12px; border: none; border-right: 1px solid var(--border-light);
-  background: var(--white); color: var(--text-mid);
+  background: var(--card); color: var(--text-mid);
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 150ms ease-out;
 }
 .role-btn:last-child { border-right: none; }
-.role-btn:hover      { background: var(--bg2); color: var(--black); }
+.role-btn:hover      { background: var(--bg2); color: var(--text); }
 .role-btn.active     { background: var(--accent); color: var(--white); }
 /* Pack options */
 .pack-options  { display: flex; gap: 0; margin-bottom: var(--space-2xl); border: 1px solid var(--border-light); }
 .pack-btn {
   flex: 1; padding: 12px; border: none; border-right: 1px solid var(--border-light);
-  background: var(--white); color: var(--text-mid);
+  background: var(--card); color: var(--text-mid);
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 150ms ease-out;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
 .pack-btn:last-child { border-right: none; }
-.pack-btn:hover      { background: var(--bg2); color: var(--black); }
+.pack-btn:hover      { background: var(--bg2); color: var(--text); }
 .pack-btn.active     { background: var(--accent); color: var(--white); }
 .pack-price { font-size: 10px; opacity: .7; font-weight: 400; }
 /* Fields */
@@ -140,7 +140,7 @@ textarea::placeholder {
 .label-section-body  { padding: 12px var(--space-lg); border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 12px; }
 .label-options-row { display: flex; gap: 4px; flex-wrap: wrap; }
 .label-option-pill {
-  padding: 5px 12px; border: 1px solid var(--border-light); background: var(--white);
+  padding: 5px 12px; border: 1px solid var(--border-light); background: var(--card);
   font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 150ms ease-out;
   display: flex; align-items: center; gap: 4px;
 }
@@ -158,7 +158,7 @@ textarea::placeholder {
 .label-placement-btns { display: flex; gap: 8px; }
 .label-placement-btn  {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: var(--space-sm) 12px; border: 1px solid var(--border-light); background: var(--white);
+  padding: var(--space-sm) 12px; border: 1px solid var(--border-light); background: var(--card);
   cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-dim); transition: all 150ms ease-out;
 }
 .label-placement-btn:hover      { border-color: var(--accent); }
@@ -166,7 +166,7 @@ textarea::placeholder {
 .label-color-btns { display: flex; gap: 8px; }
 .label-color-btn  {
   display: flex; align-items: center; gap: 8px; padding: 4px 12px;
-  border: 1px solid var(--border-light); background: var(--white);
+  border: 1px solid var(--border-light); background: var(--card);
   cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; transition: all 150ms ease-out;
 }
 .label-color-btn:hover      { border-color: var(--accent); }
@@ -176,7 +176,7 @@ textarea::placeholder {
 .items-tray { display: flex; flex-direction: column; gap: 12px; margin-bottom: var(--space-xl); }
 .item-card {
   display: flex; align-items: center; gap: 12px;
-  background: var(--white); border: 1px solid var(--border-light);
+  background: var(--card); border: 1px solid var(--border-light);
   padding: var(--space-lg); transition: border-color 150ms ease-out;
 }
 .item-card.active { border-left: 3px solid var(--accent); }
@@ -253,7 +253,7 @@ textarea::placeholder {
   font-weight: 500; color: var(--accent);
 }
 /* ── Summary Item Blocks ── */
-.summary-item-block  { border: 1px solid var(--border-light); padding: var(--space-lg); margin-bottom: var(--space-lg); background: var(--white); }
+.summary-item-block  { border: 1px solid var(--border-light); padding: var(--space-lg); margin-bottom: var(--space-lg); background: var(--card); }
 .summary-item-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-light); }
 .summary-item-num    { font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-dim); }
 .summary-item-type   { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; flex: 1; }
@@ -326,10 +326,10 @@ textarea::placeholder {
   padding: 14px var(--space-2xl); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer;
   border: none; border-right: 1px solid var(--border-light);
-  background: var(--white); color: var(--text-mid); transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  background: var(--card); color: var(--text-mid); transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .btn:last-child { border-right: none; }
-.btn:hover:not(:disabled)      { background: var(--bg2); color: var(--black); }
+.btn:hover:not(:disabled)      { background: var(--bg2); color: var(--text); }
 .btn:active:not(:disabled)     { transform: scale(0.97); }
 /* ── Primary Button — 5 states ── */
 .btn-primary {
@@ -369,7 +369,7 @@ textarea::placeholder {
 .btn.disabled      { opacity: .35; cursor: not-allowed; pointer-events: none; transform: none; }
 /* ── Secondary Button — 4 states ── */
 .btn-secondary {
-  background: var(--white); color: var(--text-dim);
+  background: var(--card); color: var(--text-dim);
   border: none; padding: 10px 20px; font-size: 13px; font-weight: 500;
   font-family: var(--font-body); border-radius: var(--radius-sm);
   cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
@@ -404,8 +404,8 @@ textarea::placeholder {
 .btn-next:active:not(:disabled) { transform: scale(0.97); }
 .btn-next:disabled,
 .btn-next.disabled    { opacity: .35; cursor: not-allowed; pointer-events: none; transform: none; }
-.btn-prev             { background: var(--white); color: var(--text-mid); }
-.btn-prev:hover:not(:disabled)  { background: var(--bg2); color: var(--black); }
+.btn-prev             { background: var(--card); color: var(--text-mid); }
+.btn-prev:hover:not(:disabled)  { background: var(--bg2); color: var(--text); }
 .btn-prev:active:not(:disabled) { transform: scale(0.97); }
 .pe-btn {
   padding: 7px 14px; font-size: 12px; font-weight: 500;
@@ -433,7 +433,7 @@ textarea::placeholder {
   border: 1px dashed var(--border-light); padding: var(--space-xl); text-align: center;
   cursor: pointer; transition: all 150ms ease-out; background: var(--bg2); margin-bottom: var(--space-xl);
 }
-.general-upload:hover { border-color: var(--accent); border-style: solid; background: var(--white); }
+.general-upload:hover { border-color: var(--accent); border-style: solid; background: var(--card); }
 .general-upload-icon  { font-size: 28px; margin-bottom: var(--space-sm); color: var(--accent); }
 .general-upload-text  { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
 .general-upload-sub   { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); margin-top: 3px; }
@@ -441,7 +441,7 @@ textarea::placeholder {
   border: 1px dashed var(--border-light); padding: var(--space-2xl); text-align: center;
   cursor: pointer; transition: all 150ms ease-out; margin-bottom: var(--space-xl); background: var(--bg2);
 }
-.upload-area:hover { border-color: var(--accent); border-style: solid; background: var(--white); }
+.upload-area:hover { border-color: var(--accent); border-style: solid; background: var(--card); }
 .upload-icon { font-size: 28px; margin-bottom: 12px; color: var(--accent); }
 .upload-text { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
 .upload-sub  { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); margin-top: var(--space-xs); }

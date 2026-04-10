@@ -1,7 +1,7 @@
 /* ── Progress Bar ── */
 .progress-bar-wrapper {
   position: sticky; top: calc(var(--header-h) + var(--preview-bar-h)); z-index: 90;
-  background: var(--white);
+  background: var(--card);
 }
 .progress-bar {
   display: flex; border-bottom: 1px solid var(--border-light);
@@ -34,9 +34,9 @@
 .active                     { border-bottom-color: var(--accent); color: var(--accent); opacity: 1; pointer-events: all; }
 .active .step-label         { color: var(--accent); }
 .done                       { color: var(--text-mid); opacity: 1; pointer-events: all; cursor: pointer; }
-.done:hover                 { color: var(--black); }
+.done:hover                 { color: var(--text); }
 .visited                    { pointer-events: all; cursor: pointer; color: var(--text-mid); opacity: 1; }
-.visited:not(.active):not(.done):hover { color: var(--black); }
+.visited:not(.active):not(.done):hover { color: var(--text); }
 .step-num {
   width: 24px; height: 24px; border: 2px solid var(--black);
   display: flex; align-items: center; justify-content: center;
