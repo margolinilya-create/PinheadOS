@@ -42,12 +42,8 @@ async function loadPricesFromSupabase() {
 async function savePricesToSupabase(prices) {
   const ts = new Date().toISOString();
   const row = { key: 'prices', value: prices, updated_at: ts };
-  const [r1, r2] = await Promise.all([
-    supabase.from('app_config').upsert(row),
-    supabase.from('catalog_config').upsert(row),
-  ]);
-  if (r1.error) throw r1.error;
-  if (r2.error) throw r2.error;
+  const { error } = await supabase.from('app_config').upsert(row);
+  if (error) throw error;
 }
 
 function loadHistory() {

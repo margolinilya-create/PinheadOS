@@ -1,10 +1,9 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS } from '../../data';
-import { SKU_CATALOG_DEFAULT, SKU_CATEGORIES } from '../../data/skuCatalog';
-import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
-import { EXTRAS_CATALOG_DEFAULT } from '../../data/extras';
+import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, calcExtrasCost } from '../../utils/pricing';
 
 // ── Constants ──
@@ -52,7 +51,10 @@ function calcZoneSurcharge(zoneId, d, qty) {
 export default function ExpressCalc() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const usdRate = useStore(s => s.usdRate);
+  const { skuCatalog, fabricsCatalog, extrasCatalog, usdRate } = useStore(
+    useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
+      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate }))
+  );
 
   const [skuCode, setSkuCode] = useState('');
   const [fabricCode, setFabricCode] = useState('');
@@ -63,12 +65,12 @@ export default function ExpressCalc() {
   // ── SKU catalog grouped by category ──
   const categories = useMemo(() => {
     const cats = {};
-    for (const s of SKU_CATALOG_DEFAULT) {
+    for (const s of skuCatalog) {
       if (!cats[s.category]) cats[s.category] = [];
       cats[s.category].push(s);
     }
     return cats;
-  }, []);
+  }, [skuCatalog]);
 
   const catLabels = useMemo(() => {
     const map = {};
@@ -77,17 +79,17 @@ export default function ExpressCalc() {
   }, []);
 
   // ── Selected SKU ──
-  const sku = useMemo(() => SKU_CATALOG_DEFAULT.find(s => s.code === skuCode) || null, [skuCode]);
+  const sku = useMemo(() => skuCatalog.find(s => s.code === skuCode) || null, [skuCode, skuCatalog]);
 
   // ── Fabrics filtered by SKU category ──
   const fabrics = useMemo(() => {
-    if (!sku) return FABRICS_CATALOG_DEFAULT;
-    return FABRICS_CATALOG_DEFAULT.filter(f =>
+    if (!sku) return fabricsCatalog;
+    return fabricsCatalog.filter(f =>
       !f.forCategories || f.forCategories.length === 0 || f.forCategories.includes(sku.category)
     );
-  }, [sku]);
+  }, [sku, fabricsCatalog]);
 
-  const fabric = useMemo(() => FABRICS_CATALOG_DEFAULT.find(f => f.code === fabricCode) || null, [fabricCode]);
+  const fabric = useMemo(() => fabricsCatalog.find(f => f.code === fabricCode) || null, [fabricCode, fabricsCatalog]);
 
   // ── SKU zones ──
   const skuZones = useMemo(() => {
@@ -99,10 +101,10 @@ export default function ExpressCalc() {
   // ── Extras filtered by SKU category ──
   const availableExtras = useMemo(() => {
     if (!sku) return [];
-    return EXTRAS_CATALOG_DEFAULT.filter(e =>
+    return extrasCatalog.filter(e =>
       !e.forCategories?.length || e.forCategories.includes(sku.category)
     );
-  }, [sku]);
+  }, [sku, extrasCatalog]);
 
   const toggleExtra = useCallback((code) => {
     setSelectedExtras(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
@@ -112,14 +114,14 @@ export default function ExpressCalc() {
     setSkuCode(code);
     setFabricCode('');
     setSelectedExtras([]);
-    const s = SKU_CATALOG_DEFAULT.find(x => x.code === code);
+    const s = skuCatalog.find(x => x.code === code);
     if (s) {
       const zones = s.zones && s.zones.length > 0 ? s.zones : DEFAULT_GARMENT_ZONES;
       setExpZoneData(initZoneData(zones));
     } else {
       setExpZoneData({});
     }
-  }, []);
+  }, [skuCatalog]);
 
   // ── Zone actions ──
   const activateZone = useCallback((zoneId) => {
@@ -171,7 +173,7 @@ export default function ExpressCalc() {
     const base = Math.round(baseRaw * (1 + markupPct));
 
     // Extras cost
-    const extrasCost = calcExtrasCost(selectedExtras, EXTRAS_CATALOG_DEFAULT);
+    const extrasCost = calcExtrasCost(selectedExtras, extrasCatalog);
 
     // Tech surcharge from all active zones
     const activeEntries = Object.entries(expZoneData).filter(([, d]) => d.active);
@@ -185,7 +187,7 @@ export default function ExpressCalc() {
     const total = unitPrice * qty;
 
     return { baseRaw, base, markupPct, extrasCost, techTotal, zoneCount, unitPrice, total };
-  }, [sku, fabric, usdRate, expZoneData, qty, selectedExtras]);
+  }, [sku, fabric, usdRate, expZoneData, qty, selectedExtras, extrasCatalog]);
 
   // ── Render zone params ──
   function renderZoneParams(zoneId, d) {

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
-import { EXTRAS_CATALOG_DEFAULT, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
+// extras/hardware defaults now in catalogSlice
 import { supabase } from '../../lib/supabase';
 import { clearCatalogsCache } from '../../lib/catalogs';
 import { toast } from '../../store/useToastStore';
@@ -37,9 +37,10 @@ function getDefaultZones(cat) {
 }
 
 export default function SkuEditor() {
-  const { skuCatalog, fabricsCatalog, trimCatalog, usdRate, setField } = useStore(
+  const { skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, usdRate, setField } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
-      trimCatalog: s.trimCatalog, usdRate: s.usdRate, setField: s.setField }))
+      trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog, hardwareCatalog: s.hardwareCatalog,
+      usdRate: s.usdRate, setField: s.setField }))
   );
   const [tab, setTab] = useState('items');
   const [search, setSearch] = useState('');
@@ -54,18 +55,16 @@ export default function SkuEditor() {
   const [showZonesModal, setShowZonesModal] = useState(null);
   const [addForm, setAddForm] = useState({ name: '', category: 'tshirts', fit: 'regular' });
 
-  const [extrasCatalog, setExtrasCatalog] = useState(() => {
-    try { const s = localStorage.getItem('ph_extras'); return s ? JSON.parse(s) : [...EXTRAS_CATALOG_DEFAULT]; } catch { return [...EXTRAS_CATALOG_DEFAULT]; }
-  });
-  const [hardwareCatalog, setHardwareCatalog] = useState(() => {
-    try { const s = localStorage.getItem('ph_hardware'); return s ? JSON.parse(s) : [...HARDWARE_CATALOG_DEFAULT]; } catch { return [...HARDWARE_CATALOG_DEFAULT]; }
-  });
+  // extras and hardware now come from Zustand store (catalogSlice)
 
   const [saving, setSaving] = useState(false);
   const [fabricSupplierFilter, setFabricSupplierFilter] = useState('all');
   const [fabricSearch, setFabricSearch] = useState('');
+  const [changedItems, setChangedItems] = useState(new Set());
   const [changedFabrics, setChangedFabrics] = useState(new Set());
   const [changedTrims, setChangedTrims] = useState(new Set());
+  const [changedExtras, setChangedExtras] = useState(new Set());
+  const [changedHardware, setChangedHardware] = useState(new Set());
 
   // No useEffect to reload SKU — catalogSlice.loadCatalogs() already handles this at app startup.
   // Previously this useEffect was overwriting store with stale Supabase data (without photos).
@@ -79,16 +78,18 @@ export default function SkuEditor() {
     const currentSku = state.skuCatalog;
     if (import.meta.env.DEV) {
       const t001 = currentSku.find(s => s.code === 'T-001');
-      console.log('[saveAll] T-001 photos:', t001?.photos, 'photoUrl:', t001?.photoUrl);
+      console.log('[saveAll] T-001 photos:', t001?.photos);
     }
     const currentFabrics = state.fabricsCatalog;
     const currentTrims = state.trimCatalog;
+    const currentExtras = state.extrasCatalog;
+    const currentHardware = state.hardwareCatalog;
     try {
       localStorage.setItem('ph_sku', JSON.stringify(currentSku));
       localStorage.setItem('ph_fabrics', JSON.stringify(currentFabrics));
       localStorage.setItem('ph_trims', JSON.stringify(currentTrims));
-      localStorage.setItem('ph_extras', JSON.stringify(extrasCatalog));
-      localStorage.setItem('ph_hardware', JSON.stringify(hardwareCatalog));
+      localStorage.setItem('ph_extras', JSON.stringify(currentExtras));
+      localStorage.setItem('ph_hardware', JSON.stringify(currentHardware));
       localStorage.setItem('ph_usd_rate', String(state.usdRate));
     } catch { /* ignore storage errors */ }
     const ts = new Date().toISOString();
@@ -96,18 +97,23 @@ export default function SkuEditor() {
       supabase.from('app_config').upsert({ key: 'sku_catalog', value: currentSku, updated_at: ts }, { onConflict: 'key' }),
       supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: currentFabrics, updated_at: ts }, { onConflict: 'key' }),
       supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: currentTrims, updated_at: ts }, { onConflict: 'key' }),
+      supabase.from('app_config').upsert({ key: 'extrasCatalog', value: currentExtras, updated_at: ts }, { onConflict: 'key' }),
+      supabase.from('app_config').upsert({ key: 'hardwareCatalog', value: currentHardware, updated_at: ts }, { onConflict: 'key' }),
     ]);
     const hasError = results.some(r => r.error);
     setSaving(false);
+    setChangedItems(new Set());
     setChangedFabrics(new Set());
     setChangedTrims(new Set());
+    setChangedExtras(new Set());
+    setChangedHardware(new Set());
     clearCatalogsCache();
     if (!hasError) {
       toast.success('Каталог сохранён');
     } else {
       toast.warning('Сохранено локально (Supabase недоступен)');
     }
-  }, [extrasCatalog, hardwareCatalog]);
+  }, []);
 
   // ── SKU CRUD ──
   const updateSku = (idx, field, value) => {
@@ -115,6 +121,7 @@ export default function SkuEditor() {
     const current = useStore.getState().skuCatalog;
     const updated = current.map((s, i) => i === idx ? { ...s, [field]: value } : s);
     setField('skuCatalog', updated);
+    setChangedItems(prev => new Set(prev).add(idx));
   };
   const deleteSku = (idx) => {
     setField('skuCatalog', skuCatalog.filter((_, i) => i !== idx));
@@ -175,24 +182,32 @@ export default function SkuEditor() {
 
   // ── Extras CRUD ──
   const updateExtra = (idx, field, value) => {
-    setExtrasCatalog(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e));
+    const current = useStore.getState().extrasCatalog;
+    setField('extrasCatalog', current.map((e, i) => i === idx ? { ...e, [field]: value } : e));
+    setChangedExtras(prev => new Set(prev).add(idx));
   };
   const addExtra = () => {
-    setExtrasCatalog(prev => [...prev, { code: generateCode('новая-обработка-' + (prev.length + 1)), name: 'Новая обработка', price: 30 }]);
+    const current = useStore.getState().extrasCatalog;
+    setField('extrasCatalog', [...current, { code: generateCode('новая-обработка-' + (current.length + 1)), name: 'Новая обработка', price: 30 }]);
   };
   const deleteExtra = (idx) => {
-    setExtrasCatalog(prev => prev.filter((_, i) => i !== idx));
+    const current = useStore.getState().extrasCatalog;
+    setField('extrasCatalog', current.filter((_, i) => i !== idx));
   };
 
   // ── Hardware CRUD ──
   const updateHardware = (idx, field, value) => {
-    setHardwareCatalog(prev => prev.map((h, i) => i === idx ? { ...h, [field]: value } : h));
+    const current = useStore.getState().hardwareCatalog;
+    setField('hardwareCatalog', current.map((h, i) => i === idx ? { ...h, [field]: value } : h));
+    setChangedHardware(prev => new Set(prev).add(idx));
   };
   const addHardware = (group) => {
-    setHardwareCatalog(prev => [...prev, { code: generateCode('новая-фурн-' + (prev.length + 1)), name: 'Новая фурнитура', price: 20, group }]);
+    const current = useStore.getState().hardwareCatalog;
+    setField('hardwareCatalog', [...current, { code: generateCode('новая-фурн-' + (current.length + 1)), name: 'Новая фурнитура', price: 20, group }]);
   };
   const deleteHardware = (idx) => {
-    setHardwareCatalog(prev => prev.filter((_, i) => i !== idx));
+    const current = useStore.getState().hardwareCatalog;
+    setField('hardwareCatalog', current.filter((_, i) => i !== idx));
   };
 
   // ── CB Rate ──
@@ -318,11 +333,6 @@ export default function SkuEditor() {
       <div className="sku-actions-bar">
         <span className="sku-actions-title">Каталог SKU</span>
         <div className="sku-actions-right">
-          <span className="sku-actions-label">Курс $</span>
-          <input type="number" id="usd-rate-sku" value={usdRate} step="0.1"
-            onChange={e => setField('usdRate', Math.max(1, parseFloat(e.target.value) || 1))}
-            className="sku-actions-rate-input" />
-          <span className="sku-actions-label">₽/$</span>
           <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
           <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
           <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
@@ -351,11 +361,14 @@ export default function SkuEditor() {
 
       {/* ── Tabs ── */}
       <div className="pe-tabs">
-        {TABS.map(t => (
-          <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
-            {t.name}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const dirty = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware }[t.id];
+          return (
+            <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+              {t.name}{dirty?.size > 0 && <span className="pe-tab-dot" />}
+            </button>
+          );
+        })}
       </div>
 
       {tab === 'items' && (

@@ -280,6 +280,7 @@
 .pe-tab:hover { color: var(--text-mid); }
 .pe-tab.active { color: var(--text); }
 .pe-tab.active::after { content: ''; position: absolute; bottom: -1.5px; left: 0; right: 0; height: 2px; background: var(--black); }
+.pe-tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
 .pe-body { flex: 1; padding: 24px 0; }
 /* Page-level tabs (Analytics, etc.) */
 .page-tabs { display: flex; gap: 0; border-bottom: 1.5px solid var(--border-light); padding: 0 40px; }

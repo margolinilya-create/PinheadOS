@@ -9,13 +9,18 @@ export interface SkuItem {
   code: string;
   name: string;
   category: string;
-  fit: 'regular' | 'oversize' | 'free' | null;
+  fit: 'regular' | 'oversize' | 'free' | 'classic' | null;
   sewingPrice: number;
   mainFabricUsage: number;
   trimCode: string | null;
   trimUsage: number;
-  mockupType: string;
+  mockupType: string | null;
   zones: string[];
+  photos?: string[];
+  description?: string;
+  shortDesc?: string;
+  sizeChart?: { headers: string[]; rows: (string | number)[][] } | null;
+  article?: string;
 }
 
 export interface Fabric {

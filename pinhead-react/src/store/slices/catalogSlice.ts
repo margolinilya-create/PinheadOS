@@ -2,7 +2,7 @@
 import { loadAllCatalogs } from '../../lib/catalogs';
 import { invalidatePricesCache } from '../../utils/pricing';
 import { storageGet } from '../../lib/storage';
-import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT } from '../../data';
+import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, HARDWARE_CATALOG_DEFAULT } from '../../data';
 import { toast } from '../useToastStore';
 
 type SetFn = (update: Record<string, unknown> | ((s: Record<string, unknown>) => Record<string, unknown>)) => void;
@@ -14,6 +14,7 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
   trimCatalog: TRIM_CATALOG_DEFAULT,
   extrasCatalog: EXTRAS_CATALOG_DEFAULT,
   labelsCatalog: LABELS_CATALOG_DEFAULT,
+  hardwareCatalog: HARDWARE_CATALOG_DEFAULT,
   usdRate: 92,
 
   loadCatalogs: async () => {
@@ -25,24 +26,30 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
         if ((catalogs.prices as Record<string, unknown>).usdRate) patch.usdRate = (catalogs.prices as Record<string, unknown>).usdRate;
         invalidatePricesCache();
       }
+      if (!patch.usdRate && typeof catalogs.usdRate === 'number') patch.usdRate = catalogs.usdRate;
       if (Array.isArray(catalogs.skuCatalog)) patch.skuCatalog = catalogs.skuCatalog;
       if (Array.isArray(catalogs.fabricsCatalog)) patch.fabricsCatalog = catalogs.fabricsCatalog;
       if (Array.isArray(catalogs.extrasCatalog)) patch.extrasCatalog = catalogs.extrasCatalog;
       if (Array.isArray(catalogs.trimCatalog)) patch.trimCatalog = catalogs.trimCatalog;
       if (Array.isArray(catalogs.labelsCatalog)) patch.labelsCatalog = catalogs.labelsCatalog;
+      if (Array.isArray(catalogs.hardwareCatalog)) patch.hardwareCatalog = catalogs.hardwareCatalog;
     } catch {
       // Fallback: try localStorage (saved by SkuEditor saveAll)
       const lsSku = storageGet('ph_sku');
       const lsFabrics = storageGet('ph_fabrics');
       const lsTrims = storageGet('ph_trims');
       const lsExtras = storageGet('ph_extras');
+      const lsUsdRate = storageGet<number>('ph_usd_rate');
 
       patch.prices = PRICES;
+      if (typeof lsUsdRate === 'number') patch.usdRate = lsUsdRate;
       invalidatePricesCache();
       patch.skuCatalog = lsSku || SKU_CATALOG_DEFAULT;
       patch.fabricsCatalog = lsFabrics || FABRICS_CATALOG_DEFAULT;
       patch.trimCatalog = lsTrims || TRIM_CATALOG_DEFAULT;
       patch.extrasCatalog = lsExtras || EXTRAS_CATALOG_DEFAULT;
+      const lsHardware = storageGet('ph_hardware');
+      patch.hardwareCatalog = lsHardware || HARDWARE_CATALOG_DEFAULT;
       patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
       toast.warning('Каталоги загружены из локального кэша');
     }

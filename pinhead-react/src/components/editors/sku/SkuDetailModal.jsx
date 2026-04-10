@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
@@ -29,7 +29,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState(null); // { file, objectUrl }
 
-  const photos = sku.photos || (sku.photoUrl ? [sku.photoUrl] : []);
+  const photos = useMemo(() => sku.photos || [], [sku.photos]);
   const photosRef = useRef(photos);
   useEffect(() => { photosRef.current = photos; }, [photos]);
   const sizeChart = sku.sizeChart || DEFAULT_SIZE_CHART;
@@ -61,7 +61,6 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
       const newPhotos = [...latest, url];
       photosRef.current = newPhotos;
       onUpdate(skuIndex, 'photos', newPhotos);
-      onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
       // Auto-persist to Supabase so photos survive page refresh
       await onPersist?.();
       toast.success('Фото сохранено');
@@ -96,18 +95,17 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     const newPhotos = [photo, ...photos.filter((_, i) => i !== idx)];
     photosRef.current = newPhotos;
     onUpdate(skuIndex, 'photos', newPhotos);
-    onUpdate(skuIndex, 'photoUrl', photo);
     await onPersist?.();
   };
 
   const handleDeletePhoto = async (idx) => {
     const url = photos[idx];
-    await deleteSkuPhotoByUrl(url);
+    const ok = await deleteSkuPhotoByUrl(url);
+    if (!ok) toast.error('Не удалось удалить фото из хранилища');
     const newPhotos = photos.filter((_, i) => i !== idx);
     onUpdate(skuIndex, 'photos', newPhotos);
-    onUpdate(skuIndex, 'photoUrl', newPhotos[0] || null);
     await onPersist?.();
-    toast.success('Фото удалено');
+    if (ok) toast.success('Фото удалено');
   };
 
   // Size chart editing

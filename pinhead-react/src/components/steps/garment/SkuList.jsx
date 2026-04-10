@@ -17,7 +17,7 @@ const FIT_OPTIONS = [
 ];
 
 function SkuPhoto({ s, size = 44 }) {
-  const photo = s.photos?.[0] || s.photoUrl;
+  const photo = s.photos?.[0];
   if (photo) return <img src={photo} alt={s.name} style={{ width: size, height: size }} />;
   const svg = getGarmentSVG(s.mockupType, '#d9d9d9');
   if (svg) return <div className="garment-row-photo-mockup" dangerouslySetInnerHTML={{ __html: svg }} />;
@@ -51,7 +51,7 @@ function PhotoLightbox({ photos, startIdx, onClose }) {
 }
 
 function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
-  const photos = s.photos || (s.photoUrl ? [s.photoUrl] : []);
+  const photos = s.photos || [];
   const [lightbox, setLightbox] = useState(null);
   const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
   const mockupSvg = photos.length === 0 ? getGarmentSVG(s.mockupType, '#d9d9d9') : '';
