@@ -28,21 +28,26 @@ URL: https://pinhead-os.vercel.app
 
 ## Ключевые правила
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
-- Каталоги: Supabase (catalog_config + app_config) -> localStorage -> defaults
-- SKU фото: Supabase Storage bucket `sku-photos`, до 4 фото на артикул
+- Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
+- Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
+- app_config хранит: sku_catalog, prices, extrasCatalog, hardwareCatalog
+- catalog_config хранит: fabricsCatalog, trimCatalog
+- SKU фото: Supabase Storage bucket `sku-photos`, до 4 фото на артикул, поле `photos[]` (photoUrl удалён)
 - Черновик: localStorage 'pinhead_draft'
 - Роли: admin > director > rop > manager > production > designer
+- Auth states (ProfileStatus): active | pending_approval | disabled | no_profile
+- Пользователи: soft-delete (active=false), не hard delete
 - RLS: manager видит только свои заказы
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 - Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
 
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
-- store/slices/ — 721 тест зависят от них
+- store/slices/ — 735 тестов зависят от них
 
 ## Тесты
 ```bash
-npm run test     # 721 unit тестов (Vitest)
+npm run test     # 735 unit тестов (Vitest)
 npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно

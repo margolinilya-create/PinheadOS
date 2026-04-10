@@ -20,6 +20,49 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 9 (11.04.2026) — консолидация SKU-редактора (10 файлов)
+
+**Data flow cleanup:**
+- Hardware + extras перенесены из useState в Zustand store (catalogSlice)
+- Hardware + extras сохраняются в Supabase (app_config) при saveAll()
+- Удалён дубль цен: PriceEditor больше не пишет в catalog_config
+- Удалено мёртвое поле photoUrl — везде photos[0]
+- SkuItem тип обновлён: добавлены photos, description, sizeChart, article
+- ExpressCalc читает из store вместо data/ — видит правки из редактора
+- Убран дубль input курса USD из actions bar
+- Индикатор несохранённых изменений (точка) на всех табах редактора
+
+**Mobile UI:**
+- SKU-карточки на step 1: text wrap, auto height, full-width кнопка
+- SKU editor table: visible numbers, wider columns, no spinners
+
+### Сессия 8 (10.04.2026) — архитектурные фиксы (10 файлов, 14 новых тестов)
+
+**Каталоги и persistence:**
+- catalogs.ts: partial failure logging (catalog_config/app_config падают независимо), валидация обязательных ключей
+- catalogSlice.ts: usdRate fallback из localStorage (try + catch), fallback на top-level catalogs.usdRate
+- Фикс: usdRate больше не теряется при перезагрузке когда Supabase недоступен
+
+**Auth state machine:**
+- Новый тип `ProfileStatus`: active | pending_approval | disabled | no_profile
+- useAuthStore.ts: `profileStatus` поле, `fetchProfile` определяет статус по active+approved
+- Удалённый пользователь → `user: null` вместо phantom manager (ghost-доступ закрыт)
+- types/auth.ts: поле `active: boolean` на User и Profile
+
+**Soft-delete пользователей:**
+- Миграция: `ALTER TABLE profiles ADD COLUMN active BOOLEAN NOT NULL DEFAULT true`
+- AdminPanel.jsx: деактивация вместо hard delete, кнопка реактивации, визуальный маркер "Деактивирован"
+
+**Dev/prod consistency:**
+- useOrdersStore.ts: duplicateOrder фильтрует 'dev' из created_by (как saveOrder)
+
+**SKU фото:**
+- storage.ts: deleteSkuPhotoByUrl возвращает boolean, логирует ошибки
+- SkuDetailModal.jsx: проверяет результат удаления, toast.error при ошибке
+
+**Тесты:** +14 (catalogs.test.ts — 5, useAuthStore.test.js — 5, useOrdersStore.test.js — 1, storage.test.js — 3)
+**Verification:** 735 тестов ✓, lint 0 ошибок, build ✓
+
 ### Сессия 7 (10.04.2026) — техдолг, UX/UI, SKU каталог (24 коммита)
 
 **Техдолг:**
@@ -95,19 +138,20 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ---
 
-## Статистика (10.04.2026, конец сессии 7)
+## Статистика (10.04.2026, конец сессии 8)
 
 | Метрика | Значение |
 |---------|----------|
-| Коммитов за сессию | 24 |
-| Тесты (unit) | 721 |
+| Тесты (unit) | 735 |
 | Тесты (E2E) | 40 сценариев (7 файлов) |
-| TypeScript | store, slices, utils, lib — 100% .ts |
+| TypeScript | store, slices, utils, lib, types — 100% .ts |
 | Бандл main | 576 KB (было 943) |
 | Бандл Dashboard | 199 KB (было 393) |
 | Dark mode | полная поддержка |
 | Supabase Storage | sku-photos bucket |
 | SKU фото | до 4 на артикул |
+| Auth states | active, pending_approval, disabled, no_profile |
+| User deletion | soft-delete (active column) |
 | God-компоненты (>500 строк) | 0 |
 
 ---
@@ -138,6 +182,12 @@ Supabase через CDN. Финальная версия v1.7 — полност
 ### Фаза 4 — Управленческий дашборд
 - [ ] Production heatmap + deadline risk
 - [ ] Supabase Realtime подписки
+
+### Арх. фиксы Batch 2 (после текущего PR)
+- [ ] Типизация store: замена `Record<string, unknown>` на строгие интерфейсы слайсов
+- [ ] Чистка тестовых предупреждений: act() wrapping, глобальный Chart.js/canvas mock
+- [ ] Нормализация error objects в storage/catalog слое
+- [ ] Консолидация хранения prices (сейчас дублируется в app_config + catalog_config)
 
 ### Отклонено / отложено
 - Покупательский портал /order — приоритет сменился на CRM/ERP

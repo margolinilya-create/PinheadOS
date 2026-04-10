@@ -109,11 +109,11 @@ admin, director, manager, rop, designer, production
 | Таблица | Назначение |
 |---------|-----------|
 | `orders` | id, order_number (PH-XXXX), status, data JSONB, bitrix_deal |
-| `profiles` | id, name, email, role, approved |
+| `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
-| `app_config` | SKU каталог (sku_catalog), конфигурация |
-| `catalog_config` | Цены, ткани, отделка, обработки, этикетки |
+| `app_config` | SKU (sku_catalog), цены (prices), обработки (extrasCatalog), фурнитура (hardwareCatalog) |
+| `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog) |
 
 **Storage:**
 | Bucket | Назначение |
@@ -121,6 +121,12 @@ admin, director, manager, rop, designer, production
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
 
 Статусы заказа: draft → review → approved → production → done
+
+Статусы профиля (ProfileStatus): active | pending_approval | disabled | no_profile
+- `active`: approved + active
+- `pending_approval`: active, но не approved
+- `disabled`: active=false (soft-delete)
+- `no_profile`: нет записи в profiles (user=null в store)
 
 ## Правила кода
 
@@ -135,6 +141,10 @@ admin, director, manager, rop, designer, production
 - Не `!important` в CSS
 - Supabase ключи строго из `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 - При logout вызывать `storageClearAll()` — чистит все app-ключи
+- Удаление пользователя: soft-delete (active=false), не hard delete
+- Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)
+- Dev-mode created_by: фильтровать 'dev' → null (и в saveOrder, и в duplicateOrder)
+- deleteSkuPhotoByUrl: проверять результат, показывать toast.error при ошибке
 
 ## Документация
 
