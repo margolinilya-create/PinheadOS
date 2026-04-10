@@ -4,7 +4,9 @@ import { invalidatePricesCache } from '../../utils/pricing';
 import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT } from '../../data';
 import { toast } from '../useToastStore';
 
-export const catalogSlice = (set, _get) => ({
+type SetFn = (update: Record<string, unknown> | ((s: Record<string, unknown>) => Record<string, unknown>)) => void;
+
+export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) => ({
   prices: PRICES,
   skuCatalog: SKU_CATALOG_DEFAULT,
   fabricsCatalog: FABRICS_CATALOG_DEFAULT,
@@ -14,12 +16,12 @@ export const catalogSlice = (set, _get) => ({
   usdRate: 92,
 
   loadCatalogs: async () => {
-    const patch = {};
+    const patch: Record<string, unknown> = {};
     try {
       const catalogs = await loadAllCatalogs();
       if (catalogs.prices) {
         patch.prices = catalogs.prices;
-        if (catalogs.prices.usdRate) patch.usdRate = catalogs.prices.usdRate;
+        if ((catalogs.prices as Record<string, unknown>).usdRate) patch.usdRate = (catalogs.prices as Record<string, unknown>).usdRate;
         invalidatePricesCache();
       }
       if (catalogs.skuCatalog) patch.skuCatalog = catalogs.skuCatalog;

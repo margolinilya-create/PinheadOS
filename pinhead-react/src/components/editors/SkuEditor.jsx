@@ -2,23 +2,16 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
-import { TRIM_CATALOG_DEFAULT, FABRIC_SUPPLIERS } from '../../data/fabricsCatalog';
-import { EXTRAS_CATALOG_DEFAULT, HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
-import { ZONE_LABELS } from '../../data/constants';
+import { EXTRAS_CATALOG_DEFAULT, HARDWARE_CATALOG_DEFAULT } from '../../data/extras';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
-import { confirm } from '../../store/useConfirmStore';
-
-const ALL_ZONES = [
-  {id:'front', name:'Грудь (перед)'},
-  {id:'back', name:'Спина'},
-  {id:'sleeve-l', name:'Левый рукав'},
-  {id:'sleeve-r', name:'Правый рукав'},
-  {id:'hood', name:'Капюшон'},
-  {id:'pocket', name:'Карман'},
-  {id:'side-a', name:'Сторона A'},
-  {id:'side-b', name:'Сторона B'},
-];
+import SkuItemsTab from './sku/SkuItemsTab';
+import SkuFabricsTab from './sku/SkuFabricsTab';
+import SkuTrimsTab from './sku/SkuTrimsTab';
+import ExtrasEditor from './sku/ExtrasEditor';
+import SkuHardwareTab from './sku/SkuHardwareTab';
+import AddSkuModal from './sku/AddSkuModal';
+import ZonesModal from './sku/ZonesModal';
 
 const TABS = [
   { id: 'items', name: 'Изделия' },
@@ -27,19 +20,6 @@ const TABS = [
   { id: 'extras', name: 'Обработки' },
   { id: 'hardware', name: 'Фурнитура' },
 ];
-
-const CATEGORY_NAMES = {
-  tshirts:'Футболки', longsleeves:'Лонгсливы', polo:'Поло',
-  sweatshirts:'Свитшоты', halfzips:'Халф-зипы',
-  hoodies:'Худи', ziphoodies:'Зип-худи',
-  pants:'Штаны', shorts:'Шорты', bombers:'Бомберы',
-};
-
-const SUPPLIER_COLORS = {
-  'Медас': '#2B2BF0',
-  'ТД Коттон': '#06A77D',
-  'ТониТекс': '#C87137',
-};
 
 function generateCode(name) {
   const tr = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'zh',з:'z',и:'i',й:'y',
@@ -53,128 +33,6 @@ function getDefaultZones(cat) {
   if (cat === 'accessories') return ['side-a', 'side-b'];
   if (['hoodies', 'ziphoodies'].includes(cat)) return ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'];
   return ['front', 'back', 'sleeve-l', 'sleeve-r'];
-}
-
-// ── ExtrasEditor with two modes ──
-function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onToggleCat }) {
-  const [mode, setMode] = useState('by-category');
-  const [selectedCat, setSelectedCat] = useState('tshirts');
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newPrice, setNewPrice] = useState(30);
-
-  const handleAdd = () => {
-    if (!newName.trim()) return;
-    onAdd();
-    // The onAdd creates a generic "Новая обработка" — update name/price immediately
-    const idx = extras.length; // will be added at end
-    setTimeout(() => {
-      onUpdate(idx, 'name', newName.trim());
-      onUpdate(idx, 'price', Number(newPrice) || 0);
-    }, 0);
-    setNewName('');
-    setNewPrice(30);
-    setShowAddForm(false);
-  };
-
-  const handleDelete = async (idx) => {
-    const ok = await confirm({ title: `Удалить «${extras[idx]?.name}»?`, variant: 'danger', confirmLabel: 'Удалить' });
-    if (!ok) return;
-    onDelete(idx);
-    if (selectedIdx >= extras.length - 1) setSelectedIdx(Math.max(0, extras.length - 2));
-  };
-
-  const current = extras[selectedIdx] || null;
-
-  return (
-    <div className="sku-ed-body">
-      <div className="sku-ed-toolbar">
-        <div className="extras-mode-switch">
-          <button className={`extras-mode-btn${mode === 'by-category' ? ' active' : ''}`} onClick={() => setMode('by-category')}>По категории</button>
-          <button className={`extras-mode-btn${mode === 'by-extra' ? ' active' : ''}`} onClick={() => setMode('by-extra')}>По обработке</button>
-        </div>
-        <span className="sku-ed-count">Всего: {extras.length} обработок</span>
-      </div>
-
-      {/* ── Mode A: By Category ── */}
-      {mode === 'by-category' && (
-        <>
-          <div className="extras-cat-tabs">
-            {SKU_CATEGORIES.map(c => (
-              <button key={c.id} className={`extras-cat-tab${selectedCat === c.id ? ' active' : ''}`} onClick={() => setSelectedCat(c.id)}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-          <div className="extras-editor-list">
-            {extras.map((e, i) => {
-              const enabled = (e.forCategories || []).includes(selectedCat);
-              return (
-                <div key={e.code + i} className={`extras-list-item${!enabled ? ' disabled' : ''}`} onClick={() => onToggleCat(i, selectedCat)}>
-                  <div className={`extras-check${enabled ? ' checked' : ''}`}>
-                    {enabled && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </div>
-                  <span className="extras-item-name">{e.name}</span>
-                  <span className="extras-price">{e.price} ₽</span>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* ── Mode B: By Extra ── */}
-      {mode === 'by-extra' && (
-        <>
-          <div className="extras-nav-bar">
-            <button className="extras-nav-btn" disabled={selectedIdx <= 0} onClick={() => setSelectedIdx(selectedIdx - 1)}>← Пред</button>
-            <span className="extras-nav-label">{current ? `${selectedIdx + 1} / ${extras.length}` : '—'}</span>
-            <button className="extras-nav-btn" disabled={selectedIdx >= extras.length - 1} onClick={() => setSelectedIdx(selectedIdx + 1)}>След →</button>
-          </div>
-          {current && (
-            <div className="extras-detail">
-              <div className="extras-detail-header">
-                <input className="sku-edit-input sku-edit-name" value={current.name} onChange={e => onUpdate(selectedIdx, 'name', e.target.value)} />
-                <div className="extras-detail-price">
-                  <span className="extras-detail-price-label">Цена:</span>
-                  <input className="sku-edit-input sku-edit-num" type="number" value={current.price} onChange={e => onUpdate(selectedIdx, 'price', Number(e.target.value) || 0)} />
-                  <span>₽</span>
-                </div>
-                <button className="sku-del-btn" onClick={() => handleDelete(selectedIdx)} title="Удалить обработку" aria-label="Удалить обработку">✕</button>
-              </div>
-              <div className="extras-detail-cats">
-                <span className="extras-detail-cats-label">Категории:</span>
-                {SKU_CATEGORIES.map(c => {
-                  const enabled = (current.forCategories || []).includes(c.id);
-                  return (
-                    <div key={c.id} className={`extras-list-item${!enabled ? ' disabled' : ''}`} onClick={() => onToggleCat(selectedIdx, c.id)}>
-                      <div className={`extras-check${enabled ? ' checked' : ''}`}>
-                        {enabled && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                      </div>
-                      <span className="extras-item-name">{c.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Add Extra Form ── */}
-      {showAddForm ? (
-        <div className="extras-add-form">
-          <input className="sku-edit-input" placeholder="Название обработки" value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
-          <input className="sku-edit-input sku-edit-num" type="number" placeholder="Цена" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
-          <button className="pe-btn pe-btn-primary" onClick={handleAdd} disabled={!newName.trim()}>Добавить</button>
-          <button className="pe-btn" onClick={() => setShowAddForm(false)}>Отмена</button>
-        </div>
-      ) : (
-        <button className="sku-ed-add-btn" style={{ marginTop: 12 }} onClick={() => setShowAddForm(true)}>+ Добавить обработку</button>
-      )}
-    </div>
-  );
 }
 
 export default function SkuEditor() {
@@ -192,10 +50,9 @@ export default function SkuEditor() {
     try { const d = JSON.parse(localStorage.getItem('ph_cb_rate') || '{}'); return d.date || ''; } catch { return ''; }
   });
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showZonesModal, setShowZonesModal] = useState(null); // index of sku item
+  const [showZonesModal, setShowZonesModal] = useState(null);
   const [addForm, setAddForm] = useState({ name: '', category: 'tshirts', fit: 'regular' });
 
-  // Extras & hardware from store or defaults
   const [extrasCatalog, setExtrasCatalog] = useState(() => {
     try { const s = localStorage.getItem('ph_extras'); return s ? JSON.parse(s) : [...EXTRAS_CATALOG_DEFAULT]; } catch { return [...EXTRAS_CATALOG_DEFAULT]; }
   });
@@ -209,7 +66,6 @@ export default function SkuEditor() {
   const [changedFabrics, setChangedFabrics] = useState(new Set());
   const [changedTrims, setChangedTrims] = useState(new Set());
 
-  // При монтировании — загрузить каталог из Supabase (если есть)
   useEffect(() => {
     supabase.from('app_config').select('key, value').in('key', ['sku_catalog']).then(({ data }) => {
       if (data) {
@@ -224,7 +80,6 @@ export default function SkuEditor() {
 
   const saveAll = useCallback(async () => {
     setSaving(true);
-    // Сохраняем в localStorage
     try {
       localStorage.setItem('ph_sku', JSON.stringify(skuCatalog));
       localStorage.setItem('ph_fabrics', JSON.stringify(fabricsCatalog));
@@ -233,7 +88,6 @@ export default function SkuEditor() {
       localStorage.setItem('ph_hardware', JSON.stringify(hardwareCatalog));
       localStorage.setItem('ph_usd_rate', String(usdRate));
     } catch { /* ignore storage errors */ }
-    // Сохраняем в Supabase
     const ts = new Date().toISOString();
     const results = await Promise.all([
       supabase.from('app_config').upsert({ key: 'sku_catalog', value: skuCatalog, updated_at: ts }),
@@ -289,17 +143,14 @@ export default function SkuEditor() {
   const addFabric = () => {
     setField('fabricsCatalog', [...fabricsCatalog, {
       code: generateCode('новая-ткань-' + (fabricsCatalog.length + 1)),
-      name: 'Новая ткань',
-      supplier: 'Медас',
-      composition: '100% хб',
-      density: null,
-      priceUSD: 10.00,
-      forCategories: ['tshirts'],
+      name: 'Новая ткань', supplier: 'Медас', composition: '100% хб',
+      density: null, priceUSD: 10.00, forCategories: ['tshirts'],
     }]);
   };
   const deleteFabric = (idx) => {
     setField('fabricsCatalog', fabricsCatalog.filter((_, i) => i !== idx));
   };
+
   // ── Trim CRUD ──
   const updateTrim = (idx, field, value) => {
     const updated = trimCatalog.map((t, i) => i === idx ? { ...t, [field]: value } : t);
@@ -309,9 +160,7 @@ export default function SkuEditor() {
   const addTrim = () => {
     setField('trimCatalog', [...trimCatalog, {
       code: generateCode('новая-отделка-' + (trimCatalog.length + 1)),
-      name: 'Новая отделка',
-      supplier: 'Медас',
-      priceUSD: 13.20,
+      name: 'Новая отделка', supplier: 'Медас', priceUSD: 13.20,
     }]);
   };
   const deleteTrim = (idx) => {
@@ -356,11 +205,10 @@ export default function SkuEditor() {
     } catch { /* ignore fetch errors */ }
   };
 
-  // ── Excel Export ──
+  // ── Excel Export/Import ──
   const exportExcel = () => {
     if (!window.XLSX) { alert('XLSX не загружен'); return; }
     const wb = window.XLSX.utils.book_new();
-    // Sheet 1: SKU
     const skuData = skuCatalog.map(s => ({
       'Артикул': s.code, 'Название': s.name, 'Категория': s.category,
       'Fit': s.fit || '', 'Пошив ₽': s.sewingPrice, 'Расход осн. м': s.mainFabricUsage,
@@ -368,19 +216,15 @@ export default function SkuEditor() {
       'Зоны': (s.zones || []).join(','),
     }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(skuData), 'SKU');
-    // Sheet 2: Ткани
     const fabData = fabricsCatalog.map(f => ({
       'Код': f.code, 'Название': f.name, '$ за метр': f.priceUSD,
       'Категории': (f.forCategories || []).join(','), 'Поставщик': f.supplier || '',
     }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(fabData), 'Ткани');
-    // Sheet 3: Отделка
     const trimData = trimCatalog.map(t => ({ 'Код': t.code, 'Название': t.name, '$ за метр': t.priceUSD }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(trimData), 'Отделка');
-    // Sheet 4: Обработки
     const extData = extrasCatalog.map(e => ({ 'Код': e.code, 'Название': e.name, 'Цена ₽': e.price }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(extData), 'Обработки');
-    // Sheet 5: Фурнитура
     const hwData = hardwareCatalog.map(h => ({ 'Код': h.code, 'Название': h.name, 'Цена ₽': h.price, 'Группа': h.group }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(hwData), 'Фурнитура');
     window.XLSX.writeFile(wb, 'pinhead-sku-catalog.xlsx');
@@ -394,7 +238,6 @@ export default function SkuEditor() {
       if (!file || !window.XLSX) return;
       const data = await file.arrayBuffer();
       const wb = window.XLSX.read(data);
-      // Read SKU sheet
       const skuSheet = wb.Sheets['SKU'];
       if (skuSheet) {
         const rows = window.XLSX.utils.sheet_to_json(skuSheet);
@@ -407,7 +250,6 @@ export default function SkuEditor() {
         }));
         setField('skuCatalog', items);
       }
-      // Read Fabrics
       const fabSheet = wb.Sheets['Ткани'];
       if (fabSheet) {
         const rows = window.XLSX.utils.sheet_to_json(fabSheet);
@@ -416,7 +258,6 @@ export default function SkuEditor() {
           forCategories: (r['Категории'] || '').split(',').filter(Boolean), supplier: r['Поставщик'] || '',
         })));
       }
-      // Read Trims
       const trimSheet = wb.Sheets['Отделка'];
       if (trimSheet) {
         const rows = window.XLSX.utils.sheet_to_json(trimSheet);
@@ -426,7 +267,7 @@ export default function SkuEditor() {
     input.click();
   };
 
-  // ── Filtered SKU ──
+  // ── Computed ──
   const filteredSku = useMemo(() => {
     let items = skuCatalog;
     if (catFilter !== 'all') items = items.filter(s => s.category === catFilter);
@@ -456,9 +297,6 @@ export default function SkuEditor() {
     return items;
   }, [fabricsCatalog, fabricSupplierFilter, fabricSearch]);
 
-  const getCatName = (id) => SKU_CATEGORIES.find(c => c.id === id)?.name || id;
-
-  // ── Estimate price for SKU ──
   const estimatePrice = (s) => {
     const fabric = fabricsCatalog.find(f => (f.forCategories || []).includes(s.category));
     const fabricCost = fabric ? Math.round(s.mainFabricUsage * fabric.priceUSD * usdRate) : 0;
@@ -470,7 +308,7 @@ export default function SkuEditor() {
   return (
     <div className="sku-ed-overlay">
       <div className="sku-ed-panel">
-      {/* ── Actions bar (below shared Header) ── */}
+      {/* ── Actions bar ── */}
       <div className="sku-actions-bar">
         <span className="sku-actions-title">Каталог SKU</span>
         <div className="sku-actions-right">
@@ -514,199 +352,32 @@ export default function SkuEditor() {
         ))}
       </div>
 
-      {/* ══════ TAB: Изделия ══════ */}
       {tab === 'items' && (
-        <div className="sku-ed-body">
-          <div className="sku-ed-toolbar">
-            <input className="page-search" placeholder="Поиск..." value={search} onChange={e => setSearch(e.target.value)} />
-            <select className="sku-ed-cat-select" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
-              <option value="all">Все категории</option>
-              {SKU_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <span className="sku-ed-count">Всего: {filteredSku.length} SKU</span>
-            <button className="sku-ed-add-btn" onClick={() => setShowAddModal(true)}>+ Добавить</button>
-          </div>
-
-          {Object.entries(groupedSku).map(([cat, items]) => (
-            <div key={cat} className="sku-ed-group">
-              <div className="sku-ed-group-header">
-                <span>{getCatName(cat)}</span>
-                <span className="sku-ed-group-count">{items.length}</span>
-              </div>
-              <table className="sku-ed-table">
-                <thead>
-                  <tr>
-                    <th className="sku-th-num">№</th>
-                    <th className="sku-th-art">Артикул</th>
-                    <th className="sku-th-name">Название</th>
-                    <th className="sku-th-fit">Fit</th>
-                    <th className="sku-th-price">Пошив</th>
-                    <th className="sku-th-num2">Осн</th>
-                    <th className="sku-th-num2">Отд</th>
-                    <th className="sku-th-trim">Отделка</th>
-                    <th className="sku-th-zones">Зоны</th>
-                    <th className="sku-th-est">Цена</th>
-                    <th className="sku-th-del"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((s) => {
-                    const realIdx = skuCatalog.indexOf(s);
-                    return (
-                      <tr key={s.code}>
-                        <td className="sku-td-num">{realIdx + 1}</td>
-                        <td className="sku-td-art">{s.code}</td>
-                        <td>
-                          <input className="sku-edit-input sku-edit-name" value={s.name}
-                            onChange={e => updateSku(realIdx, 'name', e.target.value)} />
-                        </td>
-                        <td>
-                          {s.fit !== null ? (
-                            <select className="sku-edit-select" value={s.fit || 'regular'}
-                              onChange={e => updateSku(realIdx, 'fit', e.target.value)}>
-                              <option value="regular">regular</option>
-                              <option value="free">free</option>
-                              <option value="oversize">oversize</option>
-                            </select>
-                          ) : <span className="sku-td-dim">—</span>}
-                        </td>
-                        <td>
-                          <input className="sku-edit-input sku-edit-num" type="number" value={s.sewingPrice}
-                            onChange={e => updateSku(realIdx, 'sewingPrice', Number(e.target.value) || 0)} />
-                        </td>
-                        <td>
-                          <input className="sku-edit-input sku-edit-num" type="number" step="0.1" value={s.mainFabricUsage}
-                            onChange={e => updateSku(realIdx, 'mainFabricUsage', Number(e.target.value) || 0)} />
-                        </td>
-                        <td>
-                          <input className="sku-edit-input sku-edit-num" type="number" step="0.01" value={s.trimUsage || 0}
-                            onChange={e => updateSku(realIdx, 'trimUsage', Number(e.target.value) || 0)} />
-                        </td>
-                        <td>
-                          <select className="sku-edit-select" value={s.trimCode || ''}
-                            onChange={e => updateSku(realIdx, 'trimCode', e.target.value || null)}>
-                            <option value="">—</option>
-                            {trimCatalog.map(t => <option key={t.code} value={t.code}>{t.name}</option>)}
-                          </select>
-                        </td>
-                        <td>
-                          <button className="sku-zones-btn" onClick={() => setShowZonesModal(realIdx)}>
-                            {(s.zones || []).length > 0
-                              ? (s.zones || []).map(z => ZONE_LABELS[z] || z).join(', ')
-                              : '—'}
-                          </button>
-                        </td>
-                        <td className="sku-td-est">от {estimatePrice(s)} ₽</td>
-                        <td>
-                          <button className="sku-del-btn" onClick={() => deleteSku(realIdx)} aria-label="Удалить SKU">✕</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </div>
+        <SkuItemsTab
+          search={search} setSearch={setSearch} catFilter={catFilter} setCatFilter={setCatFilter}
+          filteredSku={filteredSku} groupedSku={groupedSku} skuCatalog={skuCatalog} trimCatalog={trimCatalog}
+          updateSku={updateSku} deleteSku={deleteSku} estimatePrice={estimatePrice}
+          setShowAddModal={setShowAddModal} setShowZonesModal={setShowZonesModal}
+        />
       )}
 
-      {/* ══════ TAB: Основная ткань ══════ */}
       {tab === 'fabrics' && (
-        <div className="sku-ed-body">
-          <div className="sku-ed-toolbar">
-            <div className="supplier-filter">
-              <button className={`supplier-filter-btn${fabricSupplierFilter === 'all' ? ' active' : ''}`} onClick={() => setFabricSupplierFilter('all')}>Все</button>
-              {FABRIC_SUPPLIERS.map(s => (
-                <button key={s} className={`supplier-filter-btn${fabricSupplierFilter === s ? ' active' : ''}`} onClick={() => setFabricSupplierFilter(s)}>{s}</button>
-              ))}
-            </div>
-            <input className="page-search" placeholder="Поиск по названию / составу..." value={fabricSearch} onChange={e => setFabricSearch(e.target.value)} style={{ maxWidth: 220 }} />
-            <span className="sku-ed-count">{filteredFabrics.length} тканей</span>
-            <button className="sku-ed-add-btn" onClick={addFabric}>+ Добавить</button>
-          </div>
-          <table className="fabrics-table">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Состав</th>
-                <th>Плотность</th>
-                <th>Поставщик</th>
-                <th>Используется в</th>
-                <th>$/м</th>
-                <th>≈ ₽/м</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredFabrics.map((f) => {
-                const realIdx = fabricsCatalog.indexOf(f);
-                return (
-                  <tr key={f.code + realIdx} className={changedFabrics.has(realIdx) ? 'fabric-changed' : ''}>
-                    <td>{f.name}</td>
-                    <td style={{ fontSize: 11, color: 'var(--text-dim)' }}>{f.composition || '—'}</td>
-                    <td style={{ textAlign: 'center' }}>{f.density ? f.density + ' г/м²' : '—'}</td>
-                    <td>
-                      <span className="supplier-dot" style={{ background: SUPPLIER_COLORS[f.supplier] || 'var(--text-dim)' }} />
-                      {f.supplier || '—'}
-                    </td>
-                    <td>
-                      {(f.forCategories || []).map(c => (
-                        <span key={c} className="cat-pill">{CATEGORY_NAMES[c] || c}</span>
-                      ))}
-                    </td>
-                    <td>
-                      <input className="fabric-price-inp" type="number" step="0.1" value={f.priceUSD}
-                        onChange={e => updateFabric(realIdx, 'priceUSD', Number(e.target.value) || 0)} />
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'right' }}>{Math.round(f.priceUSD * usdRate)} ₽</td>
-                    <td><button className="sku-del-btn" onClick={() => deleteFabric(realIdx)} aria-label="Удалить ткань">✕</button></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <SkuFabricsTab
+          fabricSupplierFilter={fabricSupplierFilter} setFabricSupplierFilter={setFabricSupplierFilter}
+          fabricSearch={fabricSearch} setFabricSearch={setFabricSearch}
+          filteredFabrics={filteredFabrics} fabricsCatalog={fabricsCatalog}
+          changedFabrics={changedFabrics} usdRate={usdRate}
+          updateFabric={updateFabric} addFabric={addFabric} deleteFabric={deleteFabric}
+        />
       )}
 
-      {/* ══════ TAB: Отделочная ткань ══════ */}
       {tab === 'trims' && (
-        <div className="sku-ed-body">
-          <div className="sku-ed-toolbar">
-            <span className="sku-ed-count">{trimCatalog.length} отделок</span>
-            <button className="sku-ed-add-btn" onClick={addTrim}>+ Добавить</button>
-          </div>
-          <table className="fabrics-table">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Поставщик</th>
-                <th>$/м</th>
-                <th>≈ ₽/м</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {trimCatalog.map((t, i) => (
-                <tr key={t.code + i} className={changedTrims.has(i) ? 'fabric-changed' : ''}>
-                  <td>{t.name}</td>
-                  <td>
-                    <span className="supplier-dot" style={{ background: SUPPLIER_COLORS[t.supplier] || 'var(--text-dim)' }} />
-                    {t.supplier || '—'}
-                  </td>
-                  <td>
-                    <input className="fabric-price-inp" type="number" step="0.1" value={t.priceUSD}
-                      onChange={e => updateTrim(i, 'priceUSD', Number(e.target.value) || 0)} />
-                  </td>
-                  <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'right' }}>{Math.round(t.priceUSD * usdRate)} ₽</td>
-                  <td><button className="sku-del-btn" onClick={() => deleteTrim(i)} aria-label="Удалить отделку">✕</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SkuTrimsTab
+          trimCatalog={trimCatalog} changedTrims={changedTrims} usdRate={usdRate}
+          updateTrim={updateTrim} addTrim={addTrim} deleteTrim={deleteTrim}
+        />
       )}
 
-      {/* ══════ TAB: Обработки ══════ */}
       {tab === 'extras' && (
         <ExtrasEditor
           extras={extrasCatalog}
@@ -722,121 +393,25 @@ export default function SkuEditor() {
         />
       )}
 
-      {/* ══════ TAB: Фурнитура ══════ */}
       {tab === 'hardware' && (
-        <div className="sku-ed-body">
-          {HARDWARE_GROUPS.map(g => {
-            const items = hardwareCatalog.filter(h => h.group === g.id);
-            return (
-              <div key={g.id} className="sku-ed-group">
-                <div className="sku-ed-group-header">
-                  <span>{g.name}</span>
-                  <span className="sku-ed-group-count">{items.length}</span>
-                  <button className="sku-ed-add-btn-sm" onClick={() => addHardware(g.id)}>+</button>
-                </div>
-                <table className="sku-ed-table">
-                  <thead>
-                    <tr>
-                      <th className="sku-th-num">№</th>
-                      <th className="sku-th-art">Код</th>
-                      <th className="sku-th-name">Название</th>
-                      <th className="sku-th-price">Цена ₽</th>
-                      <th className="sku-th-del"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((h) => {
-                      const realIdx = hardwareCatalog.indexOf(h);
-                      return (
-                        <tr key={h.code + realIdx}>
-                          <td className="sku-td-num">{realIdx + 1}</td>
-                          <td className="sku-td-art">{h.code}</td>
-                          <td>
-                            <input className="sku-edit-input sku-edit-name" value={h.name}
-                              onChange={e => updateHardware(realIdx, 'name', e.target.value)} />
-                          </td>
-                          <td>
-                            <input className="sku-edit-input sku-edit-num" type="number" value={h.price}
-                              onChange={e => updateHardware(realIdx, 'price', Number(e.target.value) || 0)} />
-                          </td>
-                          <td><button className="sku-del-btn" onClick={() => deleteHardware(realIdx)} aria-label="Удалить комплектующее">✕</button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </div>
+        <SkuHardwareTab
+          hardwareCatalog={hardwareCatalog}
+          updateHardware={updateHardware} addHardware={addHardware} deleteHardware={deleteHardware}
+        />
       )}
 
-      {/* ── Add SKU Modal ── */}
       {showAddModal && (
-        <div className="sku-modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="sku-modal" onClick={e => e.stopPropagation()}>
-            <h3>Добавить изделие</h3>
-            <div className="sku-modal-field">
-              <label>НАЗВАНИЕ</label>
-              <input value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })}
-                placeholder="Название изделия" autoFocus />
-            </div>
-            <div className="sku-modal-field">
-              <label>КАТЕГОРИЯ</label>
-              <select value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })}>
-                {SKU_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            {addForm.category !== 'accessories' && (
-              <div className="sku-modal-field">
-                <label>FIT</label>
-                <select value={addForm.fit} onChange={e => setAddForm({ ...addForm, fit: e.target.value })}>
-                  <option value="regular">Regular</option>
-                  <option value="free">Free</option>
-                  <option value="oversize">Oversize</option>
-                </select>
-              </div>
-            )}
-            <div className="sku-modal-btns">
-              <button className="btn-secondary" onClick={() => setShowAddModal(false)}>Отмена</button>
-              <button className="btn-accent" onClick={addSku} disabled={!addForm.name.trim()}>Добавить</button>
-            </div>
-          </div>
-        </div>
+        <AddSkuModal
+          addForm={addForm} setAddForm={setAddForm}
+          onAdd={addSku} onClose={() => setShowAddModal(false)}
+        />
       )}
 
-      {/* ── Zone Selection Modal ── */}
       {showZonesModal !== null && (
-        <div className="sku-modal-overlay" onClick={() => setShowZonesModal(null)}>
-          <div className="sku-modal" onClick={e => e.stopPropagation()}>
-            <h3>Зоны нанесения</h3>
-            <p className="sku-modal-hint">{skuCatalog[showZonesModal]?.name}</p>
-            <div className="sku-zones-grid">
-              {ALL_ZONES.filter(z => {
-                const cat = skuCatalog[showZonesModal]?.category;
-                if (cat === 'accessories') return ['side-a', 'side-b'].includes(z.id);
-                return !['side-a', 'side-b'].includes(z.id);
-              }).map(z => {
-                const item = skuCatalog[showZonesModal];
-                const active = (item?.zones || []).includes(z.id);
-                return (
-                  <label key={z.id} className={`sku-zone-check${active ? ' active' : ''}`}>
-                    <input type="checkbox" checked={active}
-                      onChange={() => {
-                        const zones = item.zones || [];
-                        const newZones = active ? zones.filter(x => x !== z.id) : [...zones, z.id];
-                        updateSku(showZonesModal, 'zones', newZones);
-                      }} />
-                    <span>{z.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="sku-modal-btns">
-              <button className="btn-accent" onClick={() => setShowZonesModal(null)}>Готово</button>
-            </div>
-          </div>
-        </div>
+        <ZonesModal
+          skuItem={skuCatalog[showZonesModal]} skuIndex={showZonesModal}
+          updateSku={updateSku} onClose={() => setShowZonesModal(null)}
+        />
       )}
       </div>
     </div>

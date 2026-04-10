@@ -1,12 +1,13 @@
 // Shared helpers and constants used across slices
 import { SIZES } from '../../data';
+import type { OrderItem } from '../../types/order';
 
 // Начальные размеры {2XS:0, XS:0, ...}
-export const initSizes = () => Object.fromEntries(SIZES.map(s => [s, 0]));
+export const initSizes = (): Record<string, number> => Object.fromEntries(SIZES.map(s => [s, 0]));
 
 // Порядок размеров для сортировки (от маленького к большому)
-const SIZE_ORDER_MAP = { '3XS': 1, '2XS': 2, 'XS': 3, 'S': 4, 'M': 5, 'L': 6, 'XL': 7, '2XL': 8, '3XL': 9, '4XL': 10, '5XL': 11, '6XL': 12, '7XL': 13, '8XL': 14, '9XL': 15, '10XL': 16 };
-export function sizeOrder(label) {
+const SIZE_ORDER_MAP: Record<string, number> = { '3XS': 1, '2XS': 2, 'XS': 3, 'S': 4, 'M': 5, 'L': 6, 'XL': 7, '2XL': 8, '3XL': 9, '4XL': 10, '5XL': 11, '6XL': 12, '7XL': 13, '8XL': 14, '9XL': 15, '10XL': 16 };
+export function sizeOrder(label: string): number {
   const up = (label || '').toUpperCase().trim();
   if (SIZE_ORDER_MAP[up]) return SIZE_ORDER_MAP[up];
   const num = parseInt(up);
@@ -15,14 +16,14 @@ export function sizeOrder(label) {
 }
 
 // ─── Поля позиции (line item) ───
-export const ITEM_FIELDS = [
+export const ITEM_FIELDS: (keyof OrderItem)[] = [
   'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes', 'fit', 'fitChosen',
   'extras', 'labels', 'zones', 'tech', 'textileColor', 'zoneTechs', 'zonePrints',
   'flexZones', 'dtgZones', 'embZones', 'dtfZones', 'zoneArtworks', 'designNotes',
   'sizeComment', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];
 
-export const defaultItemFields = {
+export const defaultItemFields: OrderItem = {
   type: '', fabric: '', color: '', sku: null,
   sizes: initSizes(), customSizes: [], fit: 'regular', fitChosen: false,
   extras: [], labels: [],
@@ -37,8 +38,8 @@ export const defaultItemFields = {
   colorSupplier: 'medastex', skuFilter: 'all',
 };
 
-export function snapshotItem(state) {
-  const item = {};
+export function snapshotItem(state: Record<string, unknown>): Record<string, unknown> {
+  const item: Record<string, unknown> = {};
   for (const k of ITEM_FIELDS) {
     const v = state[k];
     item[k] = (v && typeof v === 'object') ? JSON.parse(JSON.stringify(v)) : v;
@@ -46,8 +47,8 @@ export function snapshotItem(state) {
   return item;
 }
 
-export function restoreItem(item) {
-  const patch = {};
+export function restoreItem(item: Record<string, unknown>): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
   for (const k of ITEM_FIELDS) {
     if (k in item) {
       const v = item[k];

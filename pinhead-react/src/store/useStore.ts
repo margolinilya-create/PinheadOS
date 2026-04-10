@@ -4,8 +4,7 @@
 // ═══════════════════════════════════════════
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-// Slices are still JS — imported as untyped modules. Combined store state
-// is loosely typed below; tight types live in individual slice domains.
+// Combined store state is loosely typed below; tight types live in individual slice domains.
 import {
   wizardSlice,
   productSlice,

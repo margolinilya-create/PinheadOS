@@ -9,7 +9,7 @@
  * @param few form for 2-4, 22-24 (e.g. "заказа")
  * @param many form for 0, 5-20, 25-30 (e.g. "заказов")
  */
-export function pluralize(n, one, few, many) {
+export function pluralize(n: number, one: string, few: string, many: string): string {
   const mod10 = Math.abs(n) % 10;
   const mod100 = Math.abs(n) % 100;
   if (mod100 >= 11 && mod100 <= 19) return many;
@@ -21,7 +21,7 @@ export function pluralize(n, one, few, many) {
 /**
  * Map common Supabase/Auth error messages to Russian.
  */
-const ERROR_MAP = {
+const ERROR_MAP: Record<string, string> = {
   'Invalid login credentials':       'Неверный email или пароль',
   'Email not confirmed':             'Email не подтверждён',
   'User already registered':         'Пользователь уже зарегистрирован',
@@ -32,7 +32,7 @@ const ERROR_MAP = {
   'Failed to fetch':                 'Ошибка соединения',
 };
 
-export function translateSupabaseError(msg) {
+export function translateSupabaseError(msg: string | null | undefined): string {
   if (!msg) return 'Неизвестная ошибка';
   return ERROR_MAP[msg] || msg;
 }

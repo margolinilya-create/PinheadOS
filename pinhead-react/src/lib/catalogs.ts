@@ -9,9 +9,9 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 минут
  * Использует sessionStorage кэш с TTL 30 минут.
  * Возвращает объект { key: value, ... }
  */
-export async function loadAllCatalogs() {
+export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
   // Проверить кэш (sessionGet handles TTL expiry automatically)
-  const cached = sessionGet(CACHE_KEY);
+  const cached = sessionGet<Record<string, unknown>>(CACHE_KEY);
   if (cached) return cached;
 
   // Загрузить из Supabase
@@ -19,7 +19,9 @@ export async function loadAllCatalogs() {
     .from('catalog_config')
     .select('key, value');
   if (error) throw error;
-  const result = Object.fromEntries(data.map(r => [r.key, r.value]));
+  const result: Record<string, unknown> = Object.fromEntries(
+    (data as Array<{ key: string; value: unknown }>).map(r => [r.key, r.value])
+  );
 
   // Сохранить в кэш с TTL
   sessionSet(CACHE_KEY, result, CACHE_TTL);
@@ -31,6 +33,6 @@ export async function loadAllCatalogs() {
  * Очистить кэш каталогов.
  * Вызывать после сохранения цен / обновления каталогов.
  */
-export function clearCatalogsCache() {
+export function clearCatalogsCache(): void {
   sessionRemove(CACHE_KEY);
 }
