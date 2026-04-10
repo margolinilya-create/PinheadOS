@@ -309,6 +309,9 @@ export default function ExpressCalc() {
         <div className="exp-page-grid">
           {/* Left: Form */}
           <div className="exp-form-section">
+            <div className="exp-form-group">
+              <div className="exp-form-group-title">Параметры заказа</div>
+            </div>
             {/* SKU select */}
             <div className="exp-field">
               <label>Изделие</label>
@@ -479,8 +482,11 @@ export default function ExpressCalc() {
               </div>
             ) : (
               <div className="exp-result-card exp-result-empty">
-                <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>+</div>
-                <p>Выберите изделие для расчёта стоимости</p>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v8M8 12h8" />
+                </svg>
+                <span>Выберите изделие для расчёта стоимости</span>
               </div>
             )}
           </div>

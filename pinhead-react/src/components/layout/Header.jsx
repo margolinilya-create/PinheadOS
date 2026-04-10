@@ -68,7 +68,7 @@ export default function Header() {
             Экспресс
           </button>
         )}
-        <button className={`${styles['header-nav-btn']}${isActive('/orders') ? ` ${styles.active}` : ''}`} onClick={nav('/orders')}>
+        <button className={`${styles['header-nav-btn']}${isActive('/orders') ? ` ${styles.active}` : ''}`} data-nav="orders" onClick={nav('/orders')}>
           Заказы
         </button>
         <button className={`${styles['header-nav-btn']}${isActive('/print') ? ` ${styles.active}` : ''}`} onClick={nav('/print')}>

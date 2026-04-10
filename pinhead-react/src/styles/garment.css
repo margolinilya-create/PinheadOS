@@ -40,6 +40,20 @@
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   color: var(--text-mid); letter-spacing: .3px; margin-bottom: var(--space-sm);
 }
+/* ── Category Icon ── */
+.sku-cat-icon {
+  flex-shrink: 0;
+  margin-left: 12px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+.garment-row:hover .sku-cat-icon,
+.garment-row.selected .sku-cat-icon {
+  opacity: 0.8;
+}
+.garment-row.selected .sku-cat-icon {
+  stroke: var(--white);
+}
 /* ── Garment List ── */
 .garment-list { border: 1px solid var(--border-light); overflow: hidden; margin-bottom: var(--space-2xl); }
 .garment-sep {

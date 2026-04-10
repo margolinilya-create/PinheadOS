@@ -83,10 +83,23 @@
 /* ── Page layout (full-page calc) ── */
 .exp-page-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
 .exp-form-section { display: flex; flex-direction: column; gap: 24px; }
-.exp-result-section { position: sticky; top: 80px; }
-.exp-result-card    { border: 1.5px solid var(--black); padding: 32px; background: var(--white); }
-.exp-result-card.exp-result-empty { border-color: var(--border-light); text-align: center; color: var(--text-dim); padding: 60px 32px; }
-.exp-result-card.exp-result-empty p { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; margin-top: 16px; }
+.exp-result-section { position: sticky; top: 80px; background: var(--card, var(--white)); border: 1px solid var(--border-light); border-radius: var(--radius-lg, 12px); padding: 24px; }
+.exp-result-card    { border: 1.5px solid var(--black); padding: 32px; background: var(--white); border-radius: var(--radius-md, 8px); }
+.exp-result-card.exp-result-empty {
+  border-color: var(--border-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+  padding: 60px 32px;
+}
+.exp-result-card.exp-result-empty svg { opacity: 0.4; }
+.exp-result-card.exp-result-empty span { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; }
 .exp-result-title   { font-family: var(--font-display); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 24px; color: var(--text-dim); }
 .exp-result-row     { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-family: 'Roboto Condensed', sans-serif; font-size: 13px; border-bottom: 1px solid var(--bg2); }
 .exp-result-row span { color: var(--text-dim); }
@@ -95,6 +108,24 @@
 .exp-result-unit span { color: var(--black); }
 .exp-result-divider  { height: 1.5px; background: var(--black); margin: 12px 0; }
 .exp-result-total    { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 0; margin-top: 8px; font-family: var(--font-display); font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+
+/* ── Form group ── */
+.exp-form-group-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid var(--border-light);
+}
+
+/* ── Input polish ── */
+.exp-field select,
+.exp-field input {
+  border-radius: var(--radius-sm, 4px);
+}
 
 @media (max-width: 768px) {
   .exp-panel { width: 100%; border-left: none; }

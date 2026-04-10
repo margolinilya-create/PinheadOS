@@ -17,6 +17,7 @@ import AuthScreen from './components/auth/AuthScreen'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import RolePreviewBar from './components/shared/RolePreviewBar'
+import OnboardingTips from './components/shared/OnboardingTips'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
 const PriceEditor = React.lazy(() => import('./components/editors/PriceEditor'));
@@ -149,6 +150,7 @@ function App() {
 
       <Header />
       <RolePreviewBar />
+      <OnboardingTips />
 
       <main id="main-content">
       <Routes>

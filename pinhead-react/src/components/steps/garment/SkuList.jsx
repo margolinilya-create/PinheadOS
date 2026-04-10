@@ -14,6 +14,23 @@ const FIT_OPTIONS = [
   { key: 'oversize', label: 'Oversize' },
 ];
 
+function CategoryIcon({ category }) {
+  const icons = {
+    tshirts: <path d="M6 4h12l-2 4H8L6 4zM8 8v12h8V8" />,
+    longsleeves: <><path d="M6 4h12l-2 4H8L6 4zM8 8v12h8V8" /><path d="M4 6l4 2M20 6l-4 2" /></>,
+    hoodies: <><path d="M6 4h12l-2 4H8L6 4zM8 8v12h8V8" /><path d="M10 4c0-1 2-2 2-2s2 1 2 2" /></>,
+    pants: <path d="M8 4h8v8l2 8h-4l-2-6-2 6H6l2-8V4" />,
+    shorts: <path d="M8 4h8v6l2 4h-4l-2-3-2 3H6l2-4V4" />,
+    accessories: <><path d="M4 8h16v10H4V8z" /><path d="M8 8V6a4 4 0 018 0v2" /></>,
+  };
+  const d = icons[category] || icons.tshirts;
+  return (
+    <svg className="sku-cat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {d}
+    </svg>
+  );
+}
+
 export default function SkuList() {
   const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, skuFilter: s.skuFilter, setSkuFilter: s.setSkuFilter,
@@ -128,6 +145,7 @@ export default function SkuList() {
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSku(s); } }}
                   >
                     <div className="garment-row-bar" />
+                    <CategoryIcon category={s.category} />
                     <span className="garment-row-name">{s.name}</span>
                     <span className="garment-row-price">от {est.toLocaleString('ru-RU')} ₽</span>
                   </div>
