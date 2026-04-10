@@ -109,7 +109,9 @@ export default function SkuEditor() {
 
   // ── SKU CRUD ──
   const updateSku = (idx, field, value) => {
-    const updated = skuCatalog.map((s, i) => i === idx ? { ...s, [field]: value } : s);
+    // Read latest state to avoid stale closure when called multiple times in sequence
+    const current = useStore.getState().skuCatalog;
+    const updated = current.map((s, i) => i === idx ? { ...s, [field]: value } : s);
     setField('skuCatalog', updated);
   };
   const deleteSku = (idx) => {
