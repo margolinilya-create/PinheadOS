@@ -20,6 +20,30 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 7 (10.04.2026) — техдолг, TS-миграция, E2E
+
+**God-компоненты — разбиты:**
+- `SkuEditor` (844→419 строк): 7 подкомпонентов в `editors/sku/`
+- `StepGarment` (680→75 строк): 5 подкомпонентов в `steps/garment/`
+- `KanbanBoard` (630→277 строк): `KanbanCard` + `OrderDrawer` в отдельные файлы
+
+**TypeScript — полная миграция (15 файлов):**
+- `store/slices/` — все 9 файлов (helpers, 7 слайсов, index) → .ts
+- `utils/` — pricing.ts, deadline.ts, i18n.ts, mockup.ts
+- `lib/` — supabase.ts, catalogs.ts
+
+**E2E покрытие — расширено:**
+- 3 новых файла: routes-smoke, kanban-actions, wizard-extras
+- 9 → 33 сценария (desktop), покрытие всех роутов
+
+**Чистка:**
+- Удалены 5 orphan PNG из корня (~390 KB)
+- `.gitignore` расширен (.env, .playwright-mcp, etc.)
+- Удалены завершённые планы из docs/plans/
+- Обновлены README, CLAUDE.md, PROJECT.md
+
+**Vercel fix:** добавлены env-переменные Supabase (причина белого экрана на проде).
+
 ### Сессия 6 (09.04.2026) — закрытие 10-agent аудита
 Полное закрытие бэклога `docs/plans/2026-04-09-pinhead-react-audit.md` (30/30 задач).
 - **CSS hygiene**: убраны все `!important` из проекта (22 инстанса → 0; остался только задокументированный `@media (prefers-reduced-motion)` как W3C exception). Замена — повышение специфичности селекторов / double-class boost.
@@ -56,16 +80,16 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ---
 
-## Статистика (09.04.2026)
+## Статистика (10.04.2026)
 
 | Метрика | Значение |
 |---------|----------|
 | Тесты (unit) | 721 |
-| Тесты (E2E) | 8 (wizard + visual + navigation) |
-| Файлы исходников | 55+ |
+| Тесты (E2E) | 33 сценария (6 файлов) |
+| TypeScript | store, slices, utils, lib — 100% .ts |
 | Бандл index.js | ~940 KB |
 | Шагов визарда | 5 |
-| Стор-файлы в TypeScript | 6 / 6 |
+| God-компоненты (>500 строк) | 0 |
 | `!important` в CSS | 0 (только WCAG reduced-motion) |
 
 ---

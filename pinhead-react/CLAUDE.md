@@ -5,19 +5,26 @@ ERP/CRM для типографии (печать на одежде). React 19 +
 URL: https://pinhead-os.vercel.app
 
 ## Структура src/
-- components/ — UI (steps/, editors/, orders/, layout/, shared/, production/, analytics/, auth/, output/)
-- store/ — Zustand: useStore (7 слайсов), useAuthStore, useOrdersStore, useCommentsStore, useToastStore
-- store/slices/ — wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
-- utils/pricing.js — движок ценообразования (покрыт тестами)
-- utils/validate.ts — валидация (email, password, required)
-- utils/mockup.js — SVG-мокап генерация (sanitizeHex для XSS)
-- lib/supabase.js — клиент (ключи строго из .env)
-- lib/api.ts — CRUD orders, comments
-- lib/storage.ts — localStorage/sessionStorage обёртки + storageClearAll
-- lib/catalogs.js — загрузка каталогов из Supabase
+- components/ — UI-компоненты
+  - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary
+  - steps/garment/ — SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
+  - orders/ — KanbanBoard, KanbanCard, OrderDrawer
+  - editors/ — PriceEditor, SkuEditor, ExpressCalc
+  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, AddSkuModal, ZonesModal
+  - analytics/ — Dashboard
+  - auth/ — AuthScreen, AdminPanel
+  - layout/ — Header, ProgressBar
+  - output/ — PrintPreview
+  - shared/ — ErrorBoundary, Toast, PageHeader, PriceBreakdown, RolePreviewBar
+- store/ — Zustand (все .ts)
+  - useStore.ts — главный store (7 слайсов)
+  - slices/ — wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice (все .ts)
+  - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
+- utils/ — pricing.ts, validate.ts, mockup.ts, deadline.ts, i18n.ts (все .ts)
+- lib/ — supabase.ts, api.ts, storage.ts, catalogs.ts (все .ts)
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog, extras, fabrics, colors
-- hooks/useDraft.js — авто-сохранение черновика
+- hooks/ — useDraft.js, useFocusTrap.js
 
 ## Ключевые правила
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
@@ -28,13 +35,13 @@ URL: https://pinhead-os.vercel.app
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 
 ## Не трогать без тестов
-- utils/pricing.js — только через pricing.test.js
-- store/slices/ — 723 теста зависят от них
+- utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
+- store/slices/ — 721 тест зависят от них
 
 ## Тесты
 ```bash
-npm run test     # 723 unit тестов
-npm run e2e      # 3 Playwright E2E
+npm run test     # 721 unit тестов (Vitest)
+npm run e2e      # 33 E2E сценариев (Playwright, desktop)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно
 ```
