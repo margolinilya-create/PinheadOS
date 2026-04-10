@@ -108,9 +108,9 @@ async function ensureBucket(): Promise<boolean> {
   return !error;
 }
 
-export async function uploadSkuPhoto(code: string, file: File): Promise<string | null> {
+export async function uploadSkuPhoto(code: string, file: File, index: number = 0): Promise<string | null> {
   const ext = file.name.split('.').pop() || 'jpg';
-  const path = `${code}.${ext}`;
+  const path = `${code}_${index}.${ext}`;
 
   await ensureBucket();
 
@@ -133,9 +133,19 @@ export function getSkuPhotoUrl(path: string): string {
   return data.publicUrl;
 }
 
+export async function deleteSkuPhotoByUrl(url: string): Promise<void> {
+  // Extract path from public URL
+  const match = url.match(/sku-photos\/(.+)$/);
+  if (match) {
+    await supabase.storage.from(SKU_BUCKET).remove([match[1]]);
+  }
+}
+
 export async function deleteSkuPhoto(code: string): Promise<void> {
-  // Try common extensions
   const exts = ['jpg', 'jpeg', 'png', 'webp'];
-  const paths = exts.map(ext => `${code}.${ext}`);
+  const paths: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    exts.forEach(ext => paths.push(`${code}_${i}.${ext}`));
+  }
   await supabase.storage.from(SKU_BUCKET).remove(paths);
 }

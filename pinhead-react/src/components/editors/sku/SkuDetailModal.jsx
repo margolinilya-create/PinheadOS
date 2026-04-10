@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
-import { uploadSkuPhoto, deleteSkuPhoto } from '../../../lib/storage';
+import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
+
+const MAX_PHOTOS = 4;
 
 const ALL_ZONES = [
   {id:'front', name:'Грудь (перед)'},
@@ -26,16 +28,23 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
+  const photos = sku.photos || (sku.photoUrl ? [sku.photoUrl] : []);
   const sizeChart = sku.sizeChart || DEFAULT_SIZE_CHART;
 
   // Photo upload
   const handleFileSelect = async (file) => {
     if (!file || !file.type.startsWith('image/')) return;
+    if (photos.length >= MAX_PHOTOS) {
+      toast.error(`Максимум ${MAX_PHOTOS} фото`);
+      return;
+    }
     setUploading(true);
-    const url = await uploadSkuPhoto(sku.code, file);
+    const url = await uploadSkuPhoto(sku.code, file, photos.length);
     setUploading(false);
     if (url) {
-      onUpdate(skuIndex, 'photoUrl', url);
+      const newPhotos = [...photos, url];
+      onUpdate(skuIndex, 'photos', newPhotos);
+      onUpdate(skuIndex, 'photoUrl', newPhotos[0]);
       toast.success('Фото загружено');
     } else {
       toast.error('Ошибка загрузки фото');
@@ -45,13 +54,16 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    handleFileSelect(file);
+    const files = Array.from(e.dataTransfer.files).slice(0, MAX_PHOTOS - photos.length);
+    files.forEach(f => handleFileSelect(f));
   };
 
-  const handleDeletePhoto = async () => {
-    await deleteSkuPhoto(sku.code);
-    onUpdate(skuIndex, 'photoUrl', null);
+  const handleDeletePhoto = async (idx) => {
+    const url = photos[idx];
+    await deleteSkuPhotoByUrl(url);
+    const newPhotos = photos.filter((_, i) => i !== idx);
+    onUpdate(skuIndex, 'photos', newPhotos);
+    onUpdate(skuIndex, 'photoUrl', newPhotos[0] || null);
     toast.success('Фото удалено');
   };
 
@@ -97,14 +109,12 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
     onUpdate(skuIndex, 'zones', newZones);
   };
 
-  // Available zones based on category
   const availableZones = ALL_ZONES.filter(z => {
     if (sku.category === 'accessories') return ['side-a', 'side-b'].includes(z.id);
     return !['side-a', 'side-b'].includes(z.id);
   });
 
-  // Fallback mockup SVG
-  const mockupSvg = !sku.photoUrl ? getGarmentSVG(sku.mockupType, '#d9d9d9') : '';
+  const mockupSvg = photos.length === 0 ? getGarmentSVG(sku.mockupType, '#d9d9d9') : '';
 
   return (
     <div className="sku-modal-overlay" onClick={onClose}>
@@ -120,44 +130,44 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose }) {
         </div>
 
         <div className="sku-detail-body">
-          {/* Section 1: Photo */}
+          {/* Section 1: Photos (up to 4) */}
           <div className="sku-detail-section">
-            <div className="sku-detail-section-label">ФОТО МОДЕЛИ</div>
-            {sku.photoUrl ? (
-              <div className="sku-photo-preview">
-                <img src={sku.photoUrl} alt={sku.name} />
-                <div className="sku-photo-actions">
-                  <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Заменить</button>
-                  <button className="btn btn-danger" onClick={handleDeletePhoto}>Удалить</button>
+            <div className="sku-detail-section-label">ФОТО МОДЕЛИ ({photos.length}/{MAX_PHOTOS})</div>
+            <div className="sku-photos-grid">
+              {photos.map((url, i) => (
+                <div key={url} className="sku-photo-card">
+                  <img src={url} alt={`${sku.name} фото ${i + 1}`} />
+                  <button className="sku-photo-remove" onClick={() => handleDeletePhoto(i)} aria-label="Удалить фото">✕</button>
+                  {i === 0 && <span className="sku-photo-main-badge">Главное</span>}
                 </div>
-              </div>
-            ) : (
-              <div
-                className={`sku-photo-upload${dragOver ? ' drag-over' : ''}`}
-                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? (
-                  <span>Загрузка...</span>
-                ) : mockupSvg ? (
-                  <>
-                    <div className="sku-photo-mockup" dangerouslySetInnerHTML={{ __html: mockupSvg }} />
-                    <span>Перетащите фото или нажмите для загрузки</span>
-                  </>
-                ) : (
-                  <>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <path d="M12 8v8M8 12h8" />
-                    </svg>
-                    <span>Перетащите фото или нажмите для загрузки</span>
-                  </>
-                )}
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => handleFileSelect(e.target.files[0])} />
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <div
+                  className={`sku-photo-upload-slot${dragOver ? ' drag-over' : ''}`}
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {uploading ? (
+                    <span className="sku-photo-uploading">Загрузка...</span>
+                  ) : photos.length === 0 && mockupSvg ? (
+                    <>
+                      <div className="sku-photo-mockup" dangerouslySetInnerHTML={{ __html: mockupSvg }} />
+                      <span>Добавить фото</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      <span>Добавить</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { handleFileSelect(e.target.files[0]); e.target.value = ''; }} />
           </div>
 
           {/* Section 2: Description */}

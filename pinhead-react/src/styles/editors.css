@@ -578,34 +578,86 @@ td.pe-markup-cat,
   color: var(--accent);
 }
 
-/* ── Photo Upload ── */
-.sku-photo-upload {
+/* ── Photos Grid (up to 4) ── */
+.sku-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+@media (max-width: 480px) {
+  .sku-photos-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.sku-photo-card {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+.sku-photo-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sku-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sku-photo-card:hover .sku-photo-remove { opacity: 1; }
+.sku-photo-main-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sku-photo-upload-slot {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  min-height: 180px;
+  gap: 6px;
+  aspect-ratio: 1;
   border: 2px dashed var(--border-mid);
   border-radius: var(--radius-md);
   cursor: pointer;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: 11px;
   transition: border-color 0.2s ease, background 0.2s ease;
-  padding: 24px;
 }
-.sku-photo-upload:hover,
-.sku-photo-upload.drag-over {
+.sku-photo-upload-slot:hover,
+.sku-photo-upload-slot.drag-over {
   border-color: var(--accent);
   background: var(--accent-light);
 }
-.sku-photo-upload svg {
-  opacity: 0.4;
-}
+.sku-photo-upload-slot svg { opacity: 0.4; }
+.sku-photo-uploading { font-size: 11px; color: var(--text-dim); }
 
 .sku-photo-mockup {
-  width: 100px;
-  height: 100px;
+  width: 60px;
+  height: 60px;
   opacity: 0.3;
 }
 .sku-photo-mockup svg {
