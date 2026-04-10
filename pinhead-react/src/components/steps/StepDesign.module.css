@@ -27,8 +27,8 @@
 }
 
 .warningBanner {
-  background: #fff8e1;
-  border: 1.5px solid #f0c040;
+  background: var(--bg-warning, #fff8e1);
+  border: 1.5px solid var(--color-warning, #f0c040);
   padding: 12px 16px;
   margin-top: 16px;
   font-size: 13px;

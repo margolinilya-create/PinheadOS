@@ -9,28 +9,28 @@
 /* ── Drawer body ── */
 .drawerPanel { width: min(380px, calc(100vw - 16px)); }
 .drawerTitle { font-size: 16px; font-weight: 700; }
-.drawerCompany { font-weight: 400; color: #888; margin-left: 8px; }
+.drawerCompany { font-weight: 400; color: var(--text-muted, #888); margin-left: 8px; }
 .drawerItemRow { margin-bottom: 4px; font-size: 13px; }
 .drawerSectionFs13 { font-size: 13px; }
-.drawerNotes { font-size: 13px; color: #444; white-space: pre-wrap; }
+.drawerNotes { font-size: 13px; color: var(--text-secondary, #444); white-space: pre-wrap; }
 .drawerPath {
   display: flex; align-items: center; gap: 8px;
 }
 .drawerPathCode { font-size: 11px; word-break: break-all; }
 .drawerPathBtn { font-size: 11px; padding: 2px 8px; flex-shrink: 0; }
 .drawerDeadlineBadge {
-  font-size: 10px; font-weight: 700; padding: 1px 6px; color: #fff;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; color: var(--white, #fff);
 }
-.drawerDeadlineBadgeMuted { color: #444; }
+.drawerDeadlineBadgeMuted { color: var(--text-secondary, #444); }
 
 /* ── Comments ── */
 .commentsList { max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
-.commentsHint { font-size: 12px; color: #888; }
+.commentsHint { font-size: 12px; color: var(--text-muted, #888); }
 .commentRow { margin-bottom: 8px; font-size: 13px; }
 .commentHead { display: flex; gap: 6px; align-items: baseline; }
 .commentAuthor { font-weight: 600; }
-.commentTime { font-size: 10px; color: #888; }
-.commentText { color: #333; white-space: pre-wrap; }
+.commentTime { font-size: 10px; color: var(--text-muted, #888); }
+.commentText { color: var(--ink, #333); white-space: pre-wrap; }
 
 .commentForm { display: flex; gap: 6px; }
 .commentInput { flex: 1; font-size: 13px; }
@@ -42,13 +42,13 @@
 
 .actionRow {
   display: flex; gap: 0; margin-top: 16px;
-  border: 1.5px solid #000; overflow: hidden;
+  border: 1.5px solid var(--black, #000); overflow: hidden;
 }
 .actionBtnPrimary { flex: 1; border-right: 1px solid rgba(255,255,255,.2); }
 .actionBtn { flex: 1; }
 
 .keysHint {
-  margin-top: 12px; font-size: 10px; color: #888;
+  margin-top: 12px; font-size: 10px; color: var(--text-muted, #888);
   text-align: center; letter-spacing: .5px;
 }
 .keysHintItem { margin-right: 8px; }

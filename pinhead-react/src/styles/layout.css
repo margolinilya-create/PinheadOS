@@ -35,10 +35,10 @@ html, body { overflow-x: hidden; }
 }
 .header-action-btn:hover  { background: var(--accent); color: var(--white); }
 .header-action-btn.active { background: var(--accent); color: var(--white); }
-.header-action-btn.express { background: var(--signal); color: var(--white); border-left: 1px solid var(--border-light); }
+.header-action-btn.express { background: var(--accent); color: var(--white); border-left: 1px solid var(--border-light); }
 .header-action-btn.express:hover { opacity: 0.85; }
 .header-action-btn .badge {
-  background: var(--accent); color: #fff; font-size: 9px; padding: 1px 8px;
+  background: var(--accent); color: var(--white, #fff); font-size: 9px; padding: 1px 8px;
   font-weight: 600; letter-spacing: 0;
 }
 /* Panel loading fallback for React.lazy */

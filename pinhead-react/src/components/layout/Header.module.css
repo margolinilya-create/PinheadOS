@@ -33,13 +33,13 @@
   transition: background 150ms ease-out, color 150ms ease-out;
   white-space: nowrap; flex-shrink: 0;
 }
-.header-nav-btn:hover { color: #fff; background: var(--accent); }
-.active { background: var(--accent); color: #fff; }
+.header-nav-btn:hover { color: var(--white, #fff); background: var(--accent); }
+.active { background: var(--accent); color: var(--white, #fff); }
 
-/* Express — always signal */
-.express-btn { background: var(--signal); color: #fff; border-left-color: var(--signal); }
+/* Express — accent like other nav items */
+.express-btn { background: var(--accent); color: var(--white, #fff); border-left-color: var(--accent); }
 .express-btn:hover { opacity: 0.85; }
-.express-btn.active { background: var(--signal); }
+.express-btn.active { background: var(--accent); }
 
 /* Header right section */
 .header-right { display: flex; align-items: stretch; margin-left: 0; flex-shrink: 0; }

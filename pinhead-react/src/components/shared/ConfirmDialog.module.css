@@ -71,8 +71,8 @@
 }
 
 .confirm.danger {
-  background: #e53e3e;
-  border-color: #e53e3e;
+  background: var(--color-error, #e53e3e);
+  border-color: var(--color-error, #e53e3e);
 }
 
 @keyframes fadeIn {

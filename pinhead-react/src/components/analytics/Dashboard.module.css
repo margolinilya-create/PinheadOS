@@ -37,6 +37,6 @@
 .placeholder {
   padding: 40px;
   text-align: center;
-  color: #888;
+  color: var(--text-muted, #888);
   font-size: 13px;
 }

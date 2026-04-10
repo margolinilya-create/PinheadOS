@@ -20,6 +20,8 @@
   --text:         #0A0A0A;
   --text-mid:     #555555;
   --text-dim:     #666666;  /* was #999, now 5.7:1 contrast on white (WCAG AA) */
+  --text-muted:   #888888;
+  --text-secondary: #444444;
 
   /* ── Borders ── */
   --border:       #0A0A0A;
