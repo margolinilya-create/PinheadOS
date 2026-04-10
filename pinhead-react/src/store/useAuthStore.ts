@@ -3,13 +3,14 @@ import { supabase } from '../lib/supabase';
 import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
 import { translateSupabaseError } from '../utils/i18n';
-import type { User, UserRole } from '../types/auth';
+import type { User, UserRole, ProfileStatus } from '../types/auth';
 
 // ─── DEV MODE: bypass авторизации ───
 const DEV_MODE = import.meta.env.DEV;
 
 interface AuthStore {
   user: User | null;
+  profileStatus: ProfileStatus;
   loading: boolean;
   error: string | null;
   previewRole: UserRole | null;
@@ -32,6 +33,7 @@ interface AuthStore {
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
+  profileStatus: 'no_profile' as ProfileStatus,
   loading: true,
   error: null,
   previewRole: null,
@@ -40,7 +42,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   init: async () => {
     if (DEV_MODE) {
       set({
-        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', approved: true },
+        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', approved: true, active: true },
+        profileStatus: 'active' as ProfileStatus,
         loading: false,
         error: null,
       });
@@ -72,13 +75,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   fetchProfile: async (id, email) => {
     const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
     if (data) {
+      const active = data.active !== false;
+      const status: ProfileStatus = !active ? 'disabled' : data.approved ? 'active' : 'pending_approval';
       set({
-        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved: data.approved },
+        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved: data.approved, active },
+        profileStatus: status,
         loading: false,
         error: null,
       });
     } else {
-      set({ user: { id, email, name: email, role: 'manager', approved: false }, loading: false });
+      set({ user: null, profileStatus: 'no_profile', loading: false });
     }
   },
 
@@ -112,7 +118,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         approved: false,
       });
       set({
-        user: { id: data.user.id, email, name, role: 'manager', approved: false },
+        user: { id: data.user.id, email, name, role: 'manager', approved: false, active: true },
+        profileStatus: 'pending_approval' as ProfileStatus,
         loading: false,
       });
     }
@@ -122,7 +129,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   logout: async () => {
     await supabase.auth.signOut();
     storageClearAll();
-    set({ user: null, error: null });
+    set({ user: null, profileStatus: 'no_profile' as ProfileStatus, error: null });
   },
 
   clearError: () => set({ error: null }),

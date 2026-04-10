@@ -136,12 +136,15 @@ export function getSkuPhotoUrl(path: string): string {
   return data.publicUrl;
 }
 
-export async function deleteSkuPhotoByUrl(url: string): Promise<void> {
-  // Extract path from public URL
+export async function deleteSkuPhotoByUrl(url: string): Promise<boolean> {
   const match = url.match(/sku-photos\/(.+)$/);
-  if (match) {
-    await supabase.storage.from(SKU_BUCKET).remove([match[1]]);
+  if (!match) return false;
+  const { error } = await supabase.storage.from(SKU_BUCKET).remove([match[1]]);
+  if (error) {
+    console.error('[deleteSkuPhotoByUrl]', error.message);
+    return false;
   }
+  return true;
 }
 
 export async function deleteSkuPhoto(code: string): Promise<void> {

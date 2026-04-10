@@ -22,7 +22,7 @@ vi.mock('../lib/supabase', () => ({
 const { useAuthStore } = await import('./useAuthStore');
 
 beforeEach(() => {
-  useAuthStore.setState({ user: null, loading: false, error: null, previewRole: null });
+  useAuthStore.setState({ user: null, profileStatus: 'no_profile', loading: false, error: null, previewRole: null });
 });
 
 describe('useAuthStore — state', () => {
@@ -145,5 +145,65 @@ describe('useAuthStore — logout', () => {
     await useAuthStore.getState().logout();
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('logout resets profileStatus to no_profile', async () => {
+    useAuthStore.setState({ user: { id: '1', role: 'admin' }, profileStatus: 'active' });
+    await useAuthStore.getState().logout();
+    expect(useAuthStore.getState().profileStatus).toBe('no_profile');
+  });
+});
+
+describe('useAuthStore — profileStatus', () => {
+  it('fetchProfile sets profileStatus to disabled when active=false', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { name: 'Test', role: 'manager', approved: true, active: false },
+      }),
+    });
+    await useAuthStore.getState().fetchProfile('uid-1', 'test@test.com');
+    expect(useAuthStore.getState().profileStatus).toBe('disabled');
+    expect(useAuthStore.getState().user.active).toBe(false);
+  });
+
+  it('fetchProfile sets profileStatus to pending_approval when not approved', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { name: 'Test', role: 'manager', approved: false, active: true },
+      }),
+    });
+    await useAuthStore.getState().fetchProfile('uid-2', 'test@test.com');
+    expect(useAuthStore.getState().profileStatus).toBe('pending_approval');
+  });
+
+  it('fetchProfile sets profileStatus to active for approved active user', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { name: 'Test', role: 'admin', approved: true, active: true },
+      }),
+    });
+    await useAuthStore.getState().fetchProfile('uid-3', 'test@test.com');
+    expect(useAuthStore.getState().profileStatus).toBe('active');
+  });
+
+  it('fetchProfile sets no_profile and user=null when no data', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null }),
+    });
+    await useAuthStore.getState().fetchProfile('uid-4', 'test@test.com');
+    expect(useAuthStore.getState().profileStatus).toBe('no_profile');
+    expect(useAuthStore.getState().user).toBeNull();
   });
 });

@@ -27,7 +27,7 @@ async function generateOrderNumber(): Promise<string> {
     if (!error && data) return data as string;
   } catch { /* fallback below */ }
   // Fallback: timestamp-based to avoid collisions
-  return `PH-${Date.now()}`;
+  return `PH-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 const PAGE_SIZE = 50;
@@ -290,6 +290,8 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
   duplicateOrder: async (order) => {
     const orderNumber = await generateOrderNumber();
     const auth = useAuthStore.getState();
+    const userId = auth.user?.id;
+    const createdBy = (userId && userId !== 'dev') ? userId : null;
     const dup = {
       order_number: orderNumber,
       status: 'draft' as OrderStatus,
@@ -299,7 +301,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       item_type: order.item_type || '',
       bitrix_deal: order.bitrix_deal || null,
       notes: order.notes || null,
-      created_by: auth.user?.id || null,
+      created_by: createdBy,
       created_at: new Date().toISOString(),
     };
 

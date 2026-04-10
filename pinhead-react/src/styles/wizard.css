@@ -80,14 +80,18 @@
 
 /* ── Unified Page Header Bar ── */
 .page-header-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 20px 40px; border-bottom: 1px solid var(--border-light);
+  display: flex; flex-direction: column;
   background: var(--card); position: sticky; top: var(--header-h);
-  z-index: var(--z-sticky);
+  z-index: var(--z-sticky); border-bottom: 1px solid var(--border-light);
+}
+.page-header-bar .page-header-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 20px 40px;
 }
 .page-header-bar .page-header-left {
   display: flex; align-items: center; gap: 16px;
 }
+.page-header-bar .page-tabs { border-bottom: none; }
 .page-header-back {
   background: none; border: none; cursor: pointer;
   font-family: var(--font-body); font-size: 12px; font-weight: 600;
@@ -117,7 +121,7 @@
   .step-aside { position: static; }
   .page-view { padding: 0 var(--space-lg) 40px; }
   .page-header { flex-direction: column; gap: 12px; padding: var(--space-xl) 0 20px; }
-  .page-header-bar { padding: 12px var(--space-lg); flex-wrap: wrap; }
+  .page-header-bar .page-header-row { padding: 12px var(--space-lg); flex-wrap: wrap; }
   .page-header-title { font-size: 14px; }
 }
 @media (max-width: 480px) {

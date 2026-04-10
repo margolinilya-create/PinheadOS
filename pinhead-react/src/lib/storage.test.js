@@ -1,4 +1,16 @@
-import { storageGet, storageSet, storageRemove, sessionGet, sessionSet, sessionRemove } from './storage';
+import { storageGet, storageSet, storageRemove, sessionGet, sessionSet, sessionRemove, deleteSkuPhotoByUrl } from './storage';
+
+// Mock supabase for deleteSkuPhotoByUrl tests
+const mockRemove = vi.fn();
+vi.mock('./supabase', () => ({
+  supabase: {
+    storage: {
+      from: vi.fn(() => ({
+        remove: mockRemove,
+      })),
+    },
+  },
+}));
 
 // Mock localStorage and sessionStorage
 function createMockStorage() {
@@ -127,5 +139,30 @@ describe('sessionStorage utilities', () => {
       sessionRemove('k');
       expect(mockStorage.removeItem).toHaveBeenCalledWith('k');
     });
+  });
+});
+
+describe('deleteSkuPhotoByUrl', () => {
+  beforeEach(() => {
+    mockRemove.mockReset();
+  });
+
+  it('returns true on successful deletion', async () => {
+    mockRemove.mockResolvedValue({ error: null });
+    const result = await deleteSkuPhotoByUrl('https://example.com/storage/v1/object/public/sku-photos/T001_0.jpg');
+    expect(result).toBe(true);
+    expect(mockRemove).toHaveBeenCalledWith(['T001_0.jpg']);
+  });
+
+  it('returns false on storage error', async () => {
+    mockRemove.mockResolvedValue({ error: { message: 'not found' } });
+    const result = await deleteSkuPhotoByUrl('https://example.com/storage/v1/object/public/sku-photos/T001_0.jpg');
+    expect(result).toBe(false);
+  });
+
+  it('returns false for malformed URL', async () => {
+    const result = await deleteSkuPhotoByUrl('https://example.com/no-match');
+    expect(result).toBe(false);
+    expect(mockRemove).not.toHaveBeenCalled();
   });
 });

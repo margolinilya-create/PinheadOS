@@ -49,12 +49,18 @@ export default function AdminPanel() {
     setUsers(u => u.map(x => x.id === id ? { ...x, role: newRole } : x));
   };
 
-  const deleteUser = async (id) => {
-    const ok = await confirm({ title: 'Удалить пользователя?', confirmLabel: 'Удалить', variant: 'danger' });
+  const deactivateUser = async (id) => {
+    const ok = await confirm({ title: 'Деактивировать пользователя?', confirmLabel: 'Деактивировать', variant: 'danger' });
     if (!ok) return;
-    const { error } = await supabase.from('profiles').delete().eq('id', id);
-    if (error) { toast.error('Не удалось удалить пользователя'); return; }
-    setUsers(u => u.filter(x => x.id !== id));
+    const { error } = await supabase.from('profiles').update({ active: false, approved: false }).eq('id', id);
+    if (error) { toast.error('Не удалось деактивировать пользователя'); return; }
+    setUsers(u => u.map(x => x.id === id ? { ...x, active: false, approved: false } : x));
+  };
+
+  const reactivateUser = async (id) => {
+    const { error } = await supabase.from('profiles').update({ active: true }).eq('id', id);
+    if (error) { toast.error('Не удалось активировать пользователя'); return; }
+    setUsers(u => u.map(x => x.id === id ? { ...x, active: true } : x));
   };
 
   const handleDeleteOrder = async (id) => {
@@ -215,7 +221,9 @@ export default function AdminPanel() {
                     </select>
                   </td>
                   <td>
-                    {u.approved ? (
+                    {u.active === false ? (
+                      <span style={{ color: '#999', fontWeight: 600, fontSize: 11 }}>Деактивирован</span>
+                    ) : u.approved ? (
                       <span style={{ color: '#007840', fontWeight: 600, fontSize: 11 }}>Активен</span>
                     ) : (
                       <button className="btn btn-primary" style={{ padding: '3px 10px', fontSize: 10 }} onClick={() => approveUser(u.id)}>
@@ -224,7 +232,13 @@ export default function AdminPanel() {
                     )}
                   </td>
                   <td>
-                    <button className="sku-del-btn" onClick={() => deleteUser(u.id)} aria-label="Удалить пользователя">✕</button>
+                    {u.active === false ? (
+                      <button className="btn" style={{ padding: '3px 10px', fontSize: 10 }} onClick={() => reactivateUser(u.id)}>
+                        Активировать
+                      </button>
+                    ) : (
+                      <button className="sku-del-btn" onClick={() => deactivateUser(u.id)} aria-label="Деактивировать пользователя">✕</button>
+                    )}
                   </td>
                 </tr>
               ))}

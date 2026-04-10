@@ -226,3 +226,26 @@ describe('useOrdersStore — updateStatus', () => {
     expect(useOrdersStore.getState().orders[0].status).toBe('draft');
   });
 });
+
+describe('useOrdersStore — duplicateOrder dev-mode', () => {
+  it('filters dev user id to null in created_by', async () => {
+    mockRpc.mockResolvedValueOnce({ data: 'PH-9999', error: null });
+    let capturedRow;
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      insert: vi.fn((row) => {
+        capturedRow = row;
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: [{ id: 77, order_number: 'PH-9999', status: 'draft', ...row }],
+            error: null,
+          }),
+        };
+      }),
+    });
+
+    const order = { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Test' }, total_sum: 100, total_qty: 10, item_type: 'tee' };
+    await useOrdersStore.getState().duplicateOrder(order);
+    expect(capturedRow.created_by).toBeNull();
+  });
+});

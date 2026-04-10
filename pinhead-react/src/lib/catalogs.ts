@@ -20,6 +20,8 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
     supabase.from('app_config').select('key, value'),
   ]);
   if (catalogRes.error && appRes.error) throw catalogRes.error;
+  if (catalogRes.error) console.warn('[loadAllCatalogs] catalog_config failed:', catalogRes.error.message);
+  if (appRes.error) console.warn('[loadAllCatalogs] app_config failed:', appRes.error.message);
 
   const rows = [
     ...((catalogRes.data || []) as Array<{ key: string; value: unknown }>),
@@ -35,6 +37,12 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
     result.skuCatalog = raw.sku_catalog;
   } else if (raw.sku && Array.isArray(raw.sku)) {
     result.skuCatalog = raw.sku;
+  }
+
+  // Warn about missing critical keys (catalogSlice falls back to defaults for these)
+  const REQUIRED_KEYS = ['skuCatalog', 'fabricsCatalog', 'trimCatalog'] as const;
+  for (const key of REQUIRED_KEYS) {
+    if (!result[key]) console.warn(`[loadAllCatalogs] Missing required catalog key: ${key}`);
   }
 
   // Сохранить в кэш с TTL

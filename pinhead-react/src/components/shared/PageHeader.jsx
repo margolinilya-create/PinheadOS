@@ -4,8 +4,8 @@ export default function PageHeader({ title, badge, actions, tabs, activeTab, onT
   const navigate = useNavigate();
 
   return (
-    <>
-      <div className="page-header-bar">
+    <div className="page-header-bar">
+      <div className="page-header-row">
         <div className="page-header-left">
           <button className="page-header-back" onClick={() => navigate('/')} aria-label="На главную">
             ← Назад
@@ -30,6 +30,6 @@ export default function PageHeader({ title, badge, actions, tabs, activeTab, onT
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
