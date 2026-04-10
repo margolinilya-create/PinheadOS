@@ -29,9 +29,13 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
     rows.map(r => [r.key, r.value])
   );
   // Normalize keys: app_config uses 'sku_catalog', catalogSlice expects 'skuCatalog'
+  // Priority: sku_catalog (app_config, canonical) > sku (legacy)
   const result: Record<string, unknown> = { ...raw };
-  if (raw.sku_catalog && !raw.skuCatalog) result.skuCatalog = raw.sku_catalog;
-  if (raw.sku && !raw.skuCatalog) result.skuCatalog = raw.sku;
+  if (raw.sku_catalog) {
+    result.skuCatalog = raw.sku_catalog;
+  } else if (raw.sku && Array.isArray(raw.sku)) {
+    result.skuCatalog = raw.sku;
+  }
 
   // Сохранить в кэш с TTL
   sessionSet(CACHE_KEY, result, CACHE_TTL);
