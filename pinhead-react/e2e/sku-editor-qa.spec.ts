@@ -202,36 +202,83 @@ test.describe('SKU Editor — Zones Tab', () => {
     await page.goto('/sku?tab=zones');
     await page.waitForTimeout(1000);
 
-    // Check for zone names
-    const zones = ['Грудь', 'Спина', 'Капюшон', 'Карман'];
+    // Zone names in the table use textbox values: "Грудь (перед)", "Спина", etc.
+    const zones = ['Грудь', 'Спина', 'Капюшон', 'Карман', 'Сторона A', 'Сторона B'];
     let foundCount = 0;
     for (const zone of zones) {
-      const zoneEl = page.getByText(zone).first();
-      const found = await zoneEl.isVisible().catch(() => false);
+      // Check both textbox values and cell text
+      const zoneInput = page.locator(`input[value*="${zone}"]`).first();
+      const zoneCell = page.locator(`td`, { hasText: zone }).first();
+      const foundInput = await zoneInput.isVisible().catch(() => false);
+      const foundCell = await zoneCell.isVisible().catch(() => false);
+      const found = foundInput || foundCell;
       if (found) foundCount++;
       console.log(`  Zone "${zone}": ${found ? 'VISIBLE' : 'NOT FOUND'}`);
     }
 
-    // Some zones should be visible
-    expect(foundCount, 'At least 2 zones should be visible').toBeGreaterThanOrEqual(1);
+    // Also check the table structure
+    const table = page.locator('table').first();
+    const tableVisible = await table.isVisible().catch(() => false);
+    console.log(`  Zones table: ${tableVisible ? 'VISIBLE' : 'NOT FOUND'}`);
+
+    // Count rows in the table body
+    const rows = page.locator('tbody tr');
+    const rowCount = await rows.count();
+    console.log(`  Zone rows count: ${rowCount}`);
+
+    // At least some zones should be visible
+    expect(rowCount, 'At least 4 zone rows should exist').toBeGreaterThanOrEqual(4);
   });
 
-  test('should allow adding a new zone', async ({ page }) => {
+  test('should allow adding a new zone via ID + Name fields', async ({ page }) => {
     await page.goto('/sku?tab=zones');
     await page.waitForTimeout(1000);
 
-    // Look for "Add zone" button
-    const addBtn = page.getByRole('button', { name: /добавить|новая|add/i }).first();
+    // The "Добавить" button is disabled until both ID and Name are filled
+    const addBtn = page.getByRole('button', { name: /добавить/i }).first();
     const found = await addBtn.isVisible().catch(() => false);
     console.log(`  Add zone button: ${found ? 'VISIBLE' : 'NOT FOUND'}`);
 
     if (found) {
-      await addBtn.click();
-      await page.waitForTimeout(500);
-      // Check if input appeared for zone name
-      const input = page.locator('input[type="text"]').last();
-      const inputVisible = await input.isVisible().catch(() => false);
-      console.log(`  Zone name input after add: ${inputVisible ? 'VISIBLE' : 'NOT FOUND'}`);
+      // Check that button is disabled initially
+      const isDisabled = await addBtn.isDisabled();
+      console.log(`  Add button initially disabled: ${isDisabled}`);
+      expect(isDisabled, 'Add button should be disabled when fields are empty').toBeTruthy();
+
+      // Fill in ID and Name fields
+      const idInput = page.getByPlaceholder('ID (латиница)').or(page.locator('input[placeholder*="ID"]')).first();
+      const nameInput = page.getByPlaceholder('Название').first();
+
+      await idInput.fill('test-zone');
+      await nameInput.fill('Тестовая зона');
+      await page.waitForTimeout(300);
+
+      // Button should now be enabled
+      const isEnabledAfterFill = await addBtn.isEnabled();
+      console.log(`  Add button enabled after filling fields: ${isEnabledAfterFill}`);
+      expect(isEnabledAfterFill, 'Add button should be enabled when fields are filled').toBeTruthy();
+    }
+  });
+
+  test('should allow renaming a zone', async ({ page }) => {
+    await page.goto('/sku?tab=zones');
+    await page.waitForTimeout(1000);
+
+    // Find a zone name input (textbox in table cells)
+    const zoneNameInput = page.locator('tbody tr td input[type="text"], tbody tr td textbox').first();
+    const found = await zoneNameInput.isVisible().catch(() => false);
+    console.log(`  Zone name input editable: ${found}`);
+
+    if (found) {
+      const origVal = await zoneNameInput.inputValue();
+      await zoneNameInput.fill(origVal + ' (test)');
+      await page.waitForTimeout(300);
+      const newVal = await zoneNameInput.inputValue();
+      console.log(`  Renamed from "${origVal}" to "${newVal}"`);
+      expect(newVal).toContain('(test)');
+
+      // Restore original value
+      await zoneNameInput.fill(origVal);
     }
   });
 });
@@ -243,36 +290,37 @@ test.describe('SKU Editor — SKU Detail Modal', () => {
     await page.goto('/sku');
     await expect(page.getByText('Изделия')).toBeVisible({ timeout: 10000 });
 
-    // Click on a SKU card/row to open detail modal
-    const skuCard = page.locator('.sku-ed-card, .garment-row, [class*="sku-item"], [class*="sku-card"]').first();
-    const cardVisible = await skuCard.isVisible().catch(() => false);
+    // Click on photo thumbnail to open SkuDetailModal
+    const photoThumb = page.locator('.sku-photo-thumb').first();
+    await expect(photoThumb).toBeVisible({ timeout: 5000 });
+    await photoThumb.click();
+    await page.waitForTimeout(1000);
 
-    if (cardVisible) {
-      await skuCard.click();
-      await page.waitForTimeout(500);
+    // Check for modal/dialog appearance
+    const modal = page.locator('.sku-detail-modal, [class*="modal"], [class*="drawer"], dialog').first();
+    const modalVisible = await modal.isVisible().catch(() => false);
+    console.log(`  Detail modal visible: ${modalVisible}`);
 
-      // Check for modal sections
-      const sections = ['Фото', 'Описание', 'Зоны', 'Экономика', 'Переопределения', 'Параметры'];
-      for (const s of sections) {
-        const section = page.getByText(new RegExp(s, 'i')).first();
-        const found = await section.isVisible().catch(() => false);
-        console.log(`  Modal section "${s}": ${found ? 'VISIBLE' : 'NOT FOUND'}`);
-      }
-
-      // Check for override controls
-      const overrides = ['техники', 'MOQ', 'множитель', 'цвета', 'ткани', 'обработки', 'размеры'];
-      for (const o of overrides) {
-        const override = page.getByText(new RegExp(o, 'i')).first();
-        const found = await override.isVisible().catch(() => false);
-        console.log(`  Override "${o}": ${found ? 'VISIBLE' : 'NOT FOUND'}`);
-      }
-    } else {
-      console.log('  No SKU card found to click');
-      // Try clicking edit button
-      const editBtn = page.locator('[class*="edit"], [class*="detail"]').first();
-      const editVisible = await editBtn.isVisible().catch(() => false);
-      console.log(`  Edit/detail button: ${editVisible ? 'VISIBLE' : 'NOT FOUND'}`);
+    // Check for modal sections
+    const sections = ['Фото', 'Описание', 'Табель мер', 'Зоны', 'Экономика', 'Переопределения', 'Параметры'];
+    for (const s of sections) {
+      const section = page.getByText(new RegExp(s, 'i')).first();
+      const found = await section.isVisible().catch(() => false);
+      console.log(`  Modal section "${s}": ${found ? 'VISIBLE' : 'NOT FOUND'}`);
     }
+
+    // Check for override controls in the modal
+    const overrides = ['техники', 'MOQ', 'множитель', 'цвета', 'ткани', 'обработки', 'размеры'];
+    for (const o of overrides) {
+      const override = page.getByText(new RegExp(o, 'i')).first();
+      const found = await override.isVisible().catch(() => false);
+      console.log(`  Override "${o}": ${found ? 'VISIBLE' : 'NOT FOUND'}`);
+    }
+
+    // Check footer message about saving
+    const footerMsg = page.getByText(/Изменения применены|сохраните каталог/i).first();
+    const footerVisible = await footerMsg.isVisible().catch(() => false);
+    console.log(`  Footer save message: ${footerVisible ? 'VISIBLE' : 'NOT FOUND'}`);
   });
 });
 
@@ -301,10 +349,14 @@ test.describe('Wizard — Filtering with SKU config', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible({ timeout: 10000 });
 
-    // Select first SKU
+    // Expand first SKU card
     await page.locator('.garment-row').first().click();
 
-    // FabricGrid should appear
+    // Click "Выбрать" button inside the expand panel
+    await page.locator('.garment-expand-select').first().waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('.garment-expand-select').first().click();
+
+    // FabricGrid should appear after SKU selection
     await page.locator('.fit-option, .fabric-grid, [class*="fabric"]').first().waitFor({ state: 'visible', timeout: 5000 });
     const fabricsVisible = await page.locator('.fit-option').first().isVisible().catch(() => false);
     console.log(`  FabricGrid visible: ${fabricsVisible}`);
@@ -334,12 +386,20 @@ test.describe('Wizard — Filtering with SKU config', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible({ timeout: 10000 });
 
-    // Quick garment setup
+    // Expand first SKU card, then click Выбрать
     await page.locator('.garment-row').first().click();
+    await page.locator('.garment-expand-select').first().waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('.garment-expand-select').first().click();
+
+    // Select fabric
     await page.locator('.fit-option').first().waitFor({ state: 'visible' });
     await page.locator('.fit-option').first().click();
+
+    // Select color
     await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
     await page.locator('.swatch:not(.hidden)').first().click();
+
+    // Enter quantity
     await page.locator('.size-section').waitFor({ state: 'visible' });
     await page.locator('tr', { has: page.locator('td b', { hasText: 'M' }) }).first().locator('.qty-input').fill('10');
 
@@ -353,8 +413,8 @@ test.describe('Wizard — Filtering with SKU config', () => {
     console.log(`  Zone cards on Design step: ${zoneCount}`);
     expect(zoneCount).toBeGreaterThan(0);
 
-    // Check zone names
-    const zoneTexts = ['Грудь', 'Спина', 'Без нанесения'];
+    // Check zone names (zones from the SKU: front, back, sleeve-l, sleeve-r)
+    const zoneTexts = ['Без нанесения'];
     for (const z of zoneTexts) {
       const zone = page.getByText(z).first();
       const found = await zone.isVisible().catch(() => false);
@@ -401,7 +461,7 @@ test.describe('SKU Editor — No JS errors', () => {
     await page.goto('/sku');
     await page.waitForTimeout(2000);
 
-    // Filter out expected Supabase errors (since we're in dev mode with placeholder key)
+    // Filter out expected Supabase/network errors (since we're in dev mode with placeholder key)
     const realErrors = errors.filter(e =>
       !e.includes('supabase') &&
       !e.includes('Supabase') &&
@@ -409,9 +469,13 @@ test.describe('SKU Editor — No JS errors', () => {
       !e.includes('JWT') &&
       !e.includes('401') &&
       !e.includes('403') &&
+      !e.includes('407') &&
       !e.includes('fetch') &&
       !e.includes('Failed to fetch') &&
-      !e.includes('NetworkError')
+      !e.includes('Failed to load resource') &&
+      !e.includes('NetworkError') &&
+      !e.includes('net::ERR') &&
+      !e.includes('Proxy Authentication')
     );
 
     if (realErrors.length > 0) {
