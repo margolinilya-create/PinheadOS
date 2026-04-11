@@ -9,8 +9,8 @@ URL: https://pinhead-os.vercel.app
   - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
   - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
   - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
-  - editors/ — PriceEditor (sticky headers), SkuEditor, ExpressCalc
-  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, AddSkuModal, ZonesModal, SkuDetailModal
+  - editors/ — PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
+  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
   - analytics/ — Dashboard (Chart.js)
   - auth/ — AuthScreen, AdminPanel
   - layout/ — Header (dark mode toggle), ProgressBar (fill bar)
@@ -20,18 +20,23 @@ URL: https://pinhead-os.vercel.app
   - useStore.ts — главный store (7 слайсов)
   - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
   - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
-- utils/ — все .ts: pricing, validate, mockup, deadline, i18n
+- utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js
+- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts
 
 ## Ключевые правила
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
 - Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
 - Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
-- app_config хранит: sku_catalog, prices, extrasCatalog, hardwareCatalog
+- app_config хранит: sku_catalog, prices, extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog
 - catalog_config хранит: fabricsCatalog, trimCatalog
+- SKU Editor: 8 табов (items, fabrics, trims, extras, hardware, pricing, rules, zones)
+- CategoryRules: per-категория (allowedTechs, moq, availableSizes, defaultExtras, allowedZoneTechs)
+- Per-SKU overrides: allowedFabrics, allowedExtras, availableSizes, overrides (techs/moq/colors), priceMultiplier
+- Зоны нанесения: динамические (ZoneDefinition в zonesCatalog), не хардкод
+- Визард: useEffectiveRules() → фильтрация техник, цветов, размеров, тканей, обработок
 - SKU фото: Supabase Storage bucket `sku-photos`, до 4 фото на артикул, поле `photos[]` (photoUrl удалён)
 - Черновик: localStorage 'pinhead_draft'
 - Роли: admin > director > rop > manager > production > designer
@@ -43,11 +48,11 @@ URL: https://pinhead-os.vercel.app
 
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
-- store/slices/ — 735 тестов зависят от них
+- store/slices/ — 796 тестов зависят от них
 
 ## Тесты
 ```bash
-npm run test     # 735 unit тестов (Vitest)
+npm run test     # 796 unit тестов (Vitest)
 npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно

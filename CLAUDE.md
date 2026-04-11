@@ -38,8 +38,8 @@ pinhead-react/src/
 │   ├── steps/               # Wizard: StepGarment → StepDesign → StepItems → StepDetails → StepSummary
 │   │   └── garment/         # SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
 │   ├── orders/              # KanbanBoard, KanbanCard, OrderDrawer
-│   ├── editors/             # PriceEditor, SkuEditor, ExpressCalc
-│   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, AddSkuModal, ZonesModal, SkuDetailModal
+│   ├── editors/             # PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
+│   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
 │   ├── output/              # PrintPreview (PDF)
 │   ├── analytics/           # Dashboard
 │   ├── production/          # TechCard
@@ -54,7 +54,8 @@ pinhead-react/src/
 │   └── useConfirmStore.ts   # Imperative confirm dialog
 ├── hooks/
 │   ├── useDraft.js          # Авто-сохранение черновика
-│   └── useFocusTrap.js      # Focus trap для модалок
+│   ├── useFocusTrap.js      # Focus trap для модалок
+│   └── useEffectiveRules.ts # Resolved category rules для визарда
 ├── lib/
 │   ├── supabase.ts          # Supabase client
 │   ├── api.ts               # API-функции (orders, comments, templates)
@@ -63,7 +64,8 @@ pinhead-react/src/
 ├── data/                    # Статические данные: цвета, ткани, цены, SKU, extras
 ├── types/                   # TypeScript типы: order, catalog, auth, pricing
 ├── utils/
-│   ├── pricing.ts           # Расчёт цен (покрыт 84 тестами)
+│   ├── pricing.ts           # Расчёт цен (покрыт 88 тестами), TECH_TABS, priceMultiplier
+│   ├── skuRules.ts          # CategoryRules резолюция, getEffectiveRules, динамические зоны (29 тестов)
 │   ├── validate.ts          # Валидация заказа
 │   ├── mockup.ts            # SVG-мокап генерация
 │   ├── deadline.ts          # Расчёт дедлайнов
@@ -84,8 +86,8 @@ supabase/
 | `/orders` | KanbanBoard | Все |
 | `/print` | PrintPreview | Все |
 | `/express` | ExpressCalc | Не production/designer |
-| `/prices` | PriceEditor | admin, director |
-| `/sku` | SkuEditor | admin, director |
+| `/prices` | → redirect `/sku?tab=pricing` | admin, director |
+| `/sku` | SkuEditor (8 табов) | admin, director |
 | `/admin` | AdminPanel | admin, director |
 | `/analytics` | Dashboard | admin, director, rop, production |
 
@@ -112,7 +114,7 @@ admin, director, manager, rop, designer, production
 | `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
-| `app_config` | SKU (sku_catalog), цены (prices), обработки (extrasCatalog), фурнитура (hardwareCatalog) |
+| `app_config` | SKU (sku_catalog), цены (prices), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog) |
 | `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog) |
 
 **Storage:**

@@ -20,6 +20,45 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 10 (11.04.2026) — SKU как центр управления ТЗ (28 файлов, 796 тестов)
+
+**Фаза 1: Ценообразование → SKU Editor**
+- PriceEditor извлечён в PricingTabContent (переиспользуемый компонент)
+- 6-й таб «Ценообразование» в SkuEditor с dirty-индикатором
+- Секция «Экономика» (read-only себестоимость) в SkuDetailModal
+- `/prices` → redirect `/sku?tab=pricing`, кнопка убрана из Header
+
+**Фаза 2: Правила категорий**
+- Типы: CategoryRules, CategoryRulesOverrides, ZoneDefinition
+- getEffectiveRules() — мерж категория + per-SKU overrides (29 unit-тестов)
+- 7-й таб «Правила категорий» — аккордеон с техниками, MOQ, размерами, zone↔tech матрицей
+- Секция «Переопределения» в SkuDetailModal
+
+**Фаза 3: Умный визард**
+- useEffectiveRules() хук для визарда
+- ZoneTechBlock — disabled техники, SizeTable — фильтр размеров
+- ColorPicker — фильтр палитры, selectSku — авто defaultExtras + labelPresets
+- StepSummary — MOQ warning
+
+**Фаза 4: Продвинутые правила**
+- priceMultiplier в getSkuEstPrice() — per-SKU множитель себестоимости
+- Per-SKU color picker (swatch grid), Zone↔Tech матрица
+
+**Динамические зоны + per-SKU конфигурация:**
+- ZoneDefinition тип + ZONES_CATALOG_DEFAULT (8 зон)
+- zonesCatalog в catalogSlice (Supabase + localStorage)
+- 8-й таб «Зоны нанесения» — CRUD зон (add/rename/delete)
+- Убран хардкод ALL_ZONES из 4 файлов → getAvailableZonesForSku()
+- Per-SKU: allowedFabrics, allowedExtras, availableSizes в SkuDetailModal
+- Wizard: FabricGrid + ExtrasAccordion фильтруют per-SKU
+
+**Тестирование и качество:**
+- Supabase mock в setupTests.js — починены 18 падавших тестов
+- 796 unit-тестов (41 файл), все зелёные
+- E2E: sku-editor.spec.ts (8 сценариев навигации/табов)
+- Аудит: 6 багов найдено и исправлено (pricingDirty, ложный autosave, toast, TECHS дупликат, etc.)
+- Мобильная адаптация: горизонтальный скролл табов, compact layout
+
 ### Сессия 9 (11.04.2026) — консолидация SKU-редактора (10 файлов)
 
 **Data flow cleanup:**
