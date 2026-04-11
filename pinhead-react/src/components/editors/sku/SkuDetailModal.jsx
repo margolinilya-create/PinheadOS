@@ -5,6 +5,15 @@ import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
+import { getEffectiveRules } from '../../../utils/skuRules';
+
+const TECHS = [
+  { key: 'screen', label: 'Шелкография' },
+  { key: 'flex', label: 'Flex' },
+  { key: 'dtg', label: 'DTG' },
+  { key: 'embroidery', label: 'Вышивка' },
+  { key: 'dtf', label: 'DTF' },
+];
 
 const MAX_PHOTOS = 4;
 
@@ -25,8 +34,8 @@ const DEFAULT_SIZE_CHART = {
 };
 
 export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPersist }) {
-  const { fabricsCatalog, trimCatalog, usdRate } = useStore(
-    useShallow(s => ({ fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
+  const { fabricsCatalog, trimCatalog, usdRate, categoryRules } = useStore(
+    useShallow(s => ({ fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, usdRate: s.usdRate, categoryRules: s.categoryRules }))
   );
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
@@ -176,6 +185,38 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
       total: sewingCost + fabricCost + trimCost,
     };
   }, [sku.sewingPrice, sku.mainFabricUsage, sku.trimCode, sku.trimUsage, sku.category, fabricsCatalog, trimCatalog, usdRate]);
+
+  // Resolved rules for this SKU (category rules + per-SKU overrides)
+  const resolvedRules = useMemo(
+    () => getEffectiveRules(sku, categoryRules || []),
+    [sku, categoryRules]
+  );
+  const overrides = sku.overrides || {};
+
+  const toggleOverrideTech = (techKey) => {
+    const current = overrides.allowedTechs || resolvedRules.allowedTechs || TECHS.map(t => t.key);
+    const next = current.includes(techKey)
+      ? current.filter(t => t !== techKey)
+      : [...current, techKey];
+    onUpdate(skuIndex, 'overrides', { ...overrides, allowedTechs: next });
+  };
+
+  const clearOverrideField = (field) => {
+    const next = { ...overrides };
+    delete next[field];
+    onUpdate(skuIndex, 'overrides', Object.keys(next).length > 0 ? next : undefined);
+  };
+
+  const setOverrideMoq = (value) => {
+    const num = Math.max(1, Number(value) || 1);
+    onUpdate(skuIndex, 'overrides', { ...overrides, moq: num });
+  };
+
+  const setOverridePriceMultiplier = (value) => {
+    const num = Number(value);
+    if (isNaN(num) || num < 0) return;
+    onUpdate(skuIndex, 'priceMultiplier', num || undefined);
+  };
 
   const mockupSvg = photos.length === 0 ? getGarmentSVG(sku.mockupType, '#d9d9d9') : '';
 
@@ -339,7 +380,74 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
             </div>
           </div>
 
-          {/* Section 6: Basic fields */}
+          {/* Section 6: Overrides */}
+          <div className="sku-detail-section">
+            <div className="sku-detail-section-label">ПЕРЕОПРЕДЕЛЕНИЯ</div>
+            <p className="sku-overrides-hint">Серым показаны правила категории. Переопределите для этого артикула.</p>
+
+            {/* Tech overrides */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">Техники</span>
+              <div className="cat-rule-chips">
+                {TECHS.map(t => {
+                  const inherited = !resolvedRules.allowedTechs || resolvedRules.allowedTechs.includes(t.key);
+                  const hasOverride = overrides.allowedTechs !== undefined;
+                  const active = hasOverride
+                    ? (overrides.allowedTechs || []).includes(t.key)
+                    : inherited;
+                  return (
+                    <button
+                      key={t.key}
+                      className={`cat-rule-chip${active ? ' active' : ''}${!hasOverride ? ' inherited' : ''}`}
+                      onClick={() => toggleOverrideTech(t.key)}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+                {overrides.allowedTechs !== undefined && (
+                  <button className="sku-override-clear" onClick={() => clearOverrideField('allowedTechs')}>сбросить</button>
+                )}
+              </div>
+            </div>
+
+            {/* MOQ override */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">MOQ</span>
+              <input
+                type="number"
+                className="cat-rule-moq-input"
+                min="1"
+                value={overrides.moq ?? resolvedRules.moq}
+                onChange={e => setOverrideMoq(e.target.value)}
+              />
+              {overrides.moq !== undefined && (
+                <button className="sku-override-clear" onClick={() => clearOverrideField('moq')}>сбросить</button>
+              )}
+              {overrides.moq === undefined && resolvedRules.moq > 1 && (
+                <span className="sku-override-inherited">от категории</span>
+              )}
+            </div>
+
+            {/* Price multiplier */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">Множитель цены</span>
+              <input
+                type="number"
+                className="cat-rule-moq-input"
+                step="0.1"
+                min="0"
+                value={sku.priceMultiplier ?? 1}
+                onChange={e => setOverridePriceMultiplier(e.target.value)}
+                placeholder="1.0"
+              />
+              {sku.priceMultiplier && sku.priceMultiplier !== 1 && (
+                <span className="sku-override-badge">{sku.priceMultiplier > 1 ? '+' : ''}{Math.round((sku.priceMultiplier - 1) * 100)}%</span>
+              )}
+            </div>
+          </div>
+
+          {/* Section 7: Basic fields */}
           <div className="sku-detail-section">
             <div className="sku-detail-section-label">ПАРАМЕТРЫ</div>
             <div className="sku-detail-fields">

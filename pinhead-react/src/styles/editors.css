@@ -367,6 +367,97 @@ td.pe-markup-cat,
 }
 .sku-economics-grid .econ-total .econ-value { font-weight: 700; }
 /* ═══════════════════════════════════════════ */
+/* CATEGORY RULES TAB                         */
+/* ═══════════════════════════════════════════ */
+.cat-rules-tab { padding: 16px 0; }
+.cat-rules-hint {
+  font-size: 12px; color: var(--text-dim); margin-bottom: 16px;
+  padding: 8px 12px; background: var(--bg3); border-left: 3px solid var(--accent);
+}
+.cat-rules-list { display: flex; flex-direction: column; gap: 4px; }
+.cat-rule-card {
+  border: 1px solid var(--border-light); background: var(--card);
+  transition: border-color 150ms;
+}
+.cat-rule-card.expanded { border-color: var(--accent); }
+.cat-rule-header {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  width: 100%; background: none; border: none; cursor: pointer;
+  font-size: 13px; text-align: left;
+}
+.cat-rule-name {
+  font-family: var(--font-display); font-weight: 800; font-size: 13px;
+  letter-spacing: 0.5px; text-transform: uppercase; min-width: 140px;
+}
+.cat-rule-badges { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.cat-rule-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  padding: 2px 8px; background: var(--accent); color: var(--white);
+  text-transform: uppercase; font-family: var(--font-display);
+}
+.cat-rule-badge-none { background: var(--bg3); color: var(--text-dim); }
+.cat-rule-chevron { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+.cat-rule-body { padding: 0 16px 16px; }
+.cat-rule-section { margin-bottom: 16px; }
+.cat-rule-section:last-child { margin-bottom: 0; }
+.cat-rule-section-label {
+  font-family: var(--font-display); font-size: 10px; font-weight: 800;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.cat-rule-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cat-rule-chip {
+  padding: 5px 12px; border: 1.5px solid var(--border-light);
+  background: var(--card); font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--text-dim); transition: all 150ms;
+}
+.cat-rule-chip:hover { border-color: var(--text-mid); color: var(--text-mid); }
+.cat-rule-chip.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
+.cat-rule-chip.inherited { opacity: 0.6; }
+.cat-rule-moq-input {
+  width: 80px; height: 28px; border: 1.5px solid var(--border-light);
+  text-align: center; font-family: var(--font-display); font-size: 13px; font-weight: 700;
+}
+.cat-rule-moq-input:focus { border-color: var(--black); outline: none; }
+.cat-rule-sizes { display: flex; gap: 4px; flex-wrap: wrap; }
+.cat-rule-size {
+  display: flex; align-items: center; gap: 4px; padding: 4px 8px;
+  border: 1px solid var(--border-light); font-size: 11px; font-weight: 600;
+  cursor: pointer; color: var(--text-dim); transition: all 150ms;
+}
+.cat-rule-size input { display: none; }
+.cat-rule-size.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
+.cat-rule-extras { display: flex; gap: 6px; flex-wrap: wrap; }
+.cat-rule-extra {
+  display: flex; align-items: center; gap: 4px; padding: 4px 10px;
+  border: 1px solid var(--border-light); font-size: 11px;
+  cursor: pointer; color: var(--text-dim); transition: all 150ms;
+}
+.cat-rule-extra input { display: none; }
+.cat-rule-extra.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cat-rule-empty { font-size: 11px; color: var(--text-dim); font-style: italic; }
+/* Overrides in SkuDetailModal */
+.sku-overrides-hint { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+.sku-override-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sku-override-label {
+  font-size: 12px; font-weight: 600; min-width: 110px; color: var(--text-mid);
+}
+.sku-override-clear {
+  font-size: 10px; color: var(--color-error); background: none; border: 1px solid var(--color-error);
+  padding: 2px 8px; cursor: pointer; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.3px; text-transform: uppercase;
+}
+.sku-override-clear:hover { background: var(--color-error); color: var(--white); }
+.sku-override-inherited { font-size: 10px; color: var(--text-dim); font-style: italic; }
+.sku-override-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  background: var(--bg-warning); color: var(--color-warning);
+  font-family: var(--font-display);
+}
+/* ═══════════════════════════════════════════ */
 /* TECHCARD                                   */
 /* ═══════════════════════════════════════════ */
 .tc-status-select { padding: 8px 12px; border: 1.5px solid rgba(255,255,255,.2); background: var(--black); color: var(--white); font-size: 12px; font-weight: 700; letter-spacing: 1px; font-family: var(--font-display); text-transform: uppercase; cursor: pointer; }
