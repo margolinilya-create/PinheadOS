@@ -5,6 +5,16 @@ export interface SkuCategory {
   name: string;
 }
 
+/** Zone definition — dynamic, stored in Supabase */
+export interface ZoneDefinition {
+  id: string;
+  name: string;
+  /** Categories that can use this zone (null = all) */
+  forCategories?: string[] | null;
+  /** Display sort order */
+  sortOrder?: number;
+}
+
 /** Category-level rules for wizard filtering and defaults */
 export interface CategoryRules {
   categoryId: string;
@@ -47,6 +57,12 @@ export interface SkuItem {
   overrides?: CategoryRulesOverrides;
   /** Price multiplier: 1.1 = +10% to cost */
   priceMultiplier?: number;
+  /** Restrict available fabrics (null/undefined = use category filter) */
+  allowedFabrics?: string[] | null;
+  /** Restrict available extras (null/undefined = use category filter) */
+  allowedExtras?: string[] | null;
+  /** Restrict available sizes (null/undefined = use category rules) */
+  availableSizes?: string[] | null;
 }
 
 export interface Fabric {

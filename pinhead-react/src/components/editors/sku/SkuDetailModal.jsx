@@ -5,8 +5,8 @@ import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
-import { getEffectiveRules } from '../../../utils/skuRules';
-import { MEDASTEX_COLORS, COLOR_GROUPS } from '../../../data';
+import { getEffectiveRules, getAvailableZonesForSku } from '../../../utils/skuRules';
+import { MEDASTEX_COLORS, COLOR_GROUPS, SIZES } from '../../../data';
 
 const TECHS = [
   { key: 'screen', label: 'Шелкография' },
@@ -18,25 +18,14 @@ const TECHS = [
 
 const MAX_PHOTOS = 4;
 
-const ALL_ZONES = [
-  {id:'front', name:'Грудь (перед)'},
-  {id:'back', name:'Спина'},
-  {id:'sleeve-l', name:'Левый рукав'},
-  {id:'sleeve-r', name:'Правый рукав'},
-  {id:'hood', name:'Капюшон'},
-  {id:'pocket', name:'Карман'},
-  {id:'side-a', name:'Сторона A'},
-  {id:'side-b', name:'Сторона B'},
-];
-
 const DEFAULT_SIZE_CHART = {
   headers: ['Размер', 'Длина', 'Ширина'],
   rows: [['S','',''], ['M','',''], ['L','',''], ['XL','','']],
 };
 
 export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPersist }) {
-  const { fabricsCatalog, trimCatalog, usdRate, categoryRules } = useStore(
-    useShallow(s => ({ fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, usdRate: s.usdRate, categoryRules: s.categoryRules }))
+  const { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, categoryRules, zonesCatalog } = useStore(
+    useShallow(s => ({ fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, categoryRules: s.categoryRules, zonesCatalog: s.zonesCatalog }))
   );
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
@@ -165,10 +154,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     onUpdate(skuIndex, 'zones', newZones);
   };
 
-  const availableZones = ALL_ZONES.filter(z => {
-    if (sku.category === 'accessories') return ['side-a', 'side-b'].includes(z.id);
-    return !['side-a', 'side-b'].includes(z.id);
-  });
+  const availableZones = getAvailableZonesForSku(zonesCatalog || [], sku.category);
 
   // Economics: cost breakdown for this SKU
   const economics = useMemo(() => {
@@ -453,6 +439,47 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
               onUpdate={(colors) => onUpdate(skuIndex, 'overrides', { ...overrides, allowedColors: colors })}
               onClear={() => clearOverrideField('allowedColors')}
             />
+
+            {/* Per-SKU allowed fabrics */}
+            <SkuAllowedList
+              label="Допустимые ткани"
+              items={fabricsCatalog.filter(f => (f.forCategories || []).includes(sku.category))}
+              allowed={sku.allowedFabrics}
+              onUpdate={(codes) => onUpdate(skuIndex, 'allowedFabrics', codes)}
+              onClear={() => onUpdate(skuIndex, 'allowedFabrics', undefined)}
+            />
+
+            {/* Per-SKU allowed extras */}
+            <SkuAllowedList
+              label="Допустимые обработки"
+              items={(extrasCatalog || []).filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category))}
+              allowed={sku.allowedExtras}
+              onUpdate={(codes) => onUpdate(skuIndex, 'allowedExtras', codes)}
+              onClear={() => onUpdate(skuIndex, 'allowedExtras', undefined)}
+            />
+
+            {/* Per-SKU available sizes */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">Размеры</span>
+              <div className="cat-rule-sizes">
+                {SIZES.map(s => {
+                  const active = !sku.availableSizes || sku.availableSizes.includes(s);
+                  return (
+                    <label key={s} className={`cat-rule-size${active ? ' active' : ''}${!sku.availableSizes ? ' inherited' : ''}`}>
+                      <input type="checkbox" checked={active} onChange={() => {
+                        const current = sku.availableSizes || [...SIZES];
+                        const next = current.includes(s) ? current.filter(x => x !== s) : [...current, s];
+                        onUpdate(skuIndex, 'availableSizes', next.length === SIZES.length ? undefined : next);
+                      }} />
+                      <span>{s}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {sku.availableSizes && (
+                <button className="sku-override-clear" onClick={() => onUpdate(skuIndex, 'availableSizes', undefined)}>сбросить</button>
+              )}
+            </div>
           </div>
 
           {/* Section 7: Basic fields */}
@@ -548,6 +575,55 @@ function SkuColorPicker({ allowedColors, onUpdate, onClear }) {
                   })}
                 </div>
               </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Reusable per-SKU allowed list (fabrics or extras) with toggle chips */
+function SkuAllowedList({ label, items, allowed, onUpdate, onClear }) {
+  const [open, setOpen] = useState(false);
+  const hasOverride = allowed !== undefined && allowed !== null;
+
+  const toggle = (code) => {
+    if (!hasOverride) {
+      onUpdate(items.map(i => i.code).filter(c => c !== code));
+    } else {
+      const next = allowed.includes(code)
+        ? allowed.filter(c => c !== code)
+        : [...allowed, code];
+      onUpdate(next);
+    }
+  };
+
+  if (!items.length) return null;
+
+  return (
+    <div className="sku-override-colors">
+      <div className="sku-override-row">
+        <span className="sku-override-label">{label}</span>
+        <button className="cat-rule-chip" onClick={() => setOpen(v => !v)}>
+          {hasOverride ? `${allowed.length} из ${items.length}` : `все (${items.length})`} {open ? '▲' : '▼'}
+        </button>
+        {hasOverride && (
+          <button className="sku-override-clear" onClick={() => { onClear(); setOpen(false); }}>сбросить</button>
+        )}
+      </div>
+      {open && (
+        <div className="sku-allowed-list">
+          {items.map(item => {
+            const active = !hasOverride || allowed.includes(item.code);
+            return (
+              <button
+                key={item.code}
+                className={`cat-rule-chip${active ? ' active' : ''}`}
+                onClick={() => toggle(item.code)}
+              >
+                {item.name}
+              </button>
             );
           })}
         </div>

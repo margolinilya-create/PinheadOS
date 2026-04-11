@@ -1,18 +1,12 @@
+import { useStore } from '../../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
-
-const ALL_ZONES = [
-  {id:'front', name:'Грудь (перед)'},
-  {id:'back', name:'Спина'},
-  {id:'sleeve-l', name:'Левый рукав'},
-  {id:'sleeve-r', name:'Правый рукав'},
-  {id:'hood', name:'Капюшон'},
-  {id:'pocket', name:'Карман'},
-  {id:'side-a', name:'Сторона A'},
-  {id:'side-b', name:'Сторона B'},
-];
+import { getAvailableZonesForSku } from '../../../utils/skuRules';
 
 export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
   const panelRef = useFocusTrap(true, onClose);
+  const zonesCatalog = useStore(useShallow(s => s.zonesCatalog));
+  const availableZones = getAvailableZonesForSku(zonesCatalog || [], skuItem?.category || '');
 
   return (
     <div className="sku-modal-overlay" onClick={onClose}>
@@ -20,11 +14,7 @@ export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
         <h3>Зоны нанесения</h3>
         <p className="sku-modal-hint">{skuItem?.name}</p>
         <div className="sku-zones-grid">
-          {ALL_ZONES.filter(z => {
-            const cat = skuItem?.category;
-            if (cat === 'accessories') return ['side-a', 'side-b'].includes(z.id);
-            return !['side-a', 'side-b'].includes(z.id);
-          }).map(z => {
+          {availableZones.map(z => {
             const active = (skuItem?.zones || []).includes(z.id);
             return (
               <label key={z.id} className={`sku-zone-check${active ? ' active' : ''}`}>
