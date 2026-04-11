@@ -137,6 +137,7 @@ export default function SkuEditor() {
     setChangedHardware(new Set());
     setRulesDirty(false);
     setZonesDirty(false);
+    setPricingDirty(false);
     clearCatalogsCache();
     if (!hasError) {
       toast.success('Каталог сохранён');

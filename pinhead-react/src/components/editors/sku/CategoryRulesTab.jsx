@@ -2,14 +2,7 @@ import { useState } from 'react';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { SIZES } from '../../../data/constants';
 import { getAvailableZonesForSku } from '../../../utils/skuRules';
-
-const TECHS = [
-  { key: 'screen', label: 'Шелкография' },
-  { key: 'flex', label: 'Flex' },
-  { key: 'dtg', label: 'DTG' },
-  { key: 'embroidery', label: 'Вышивка' },
-  { key: 'dtf', label: 'DTF' },
-];
+import { TECH_TABS } from '../../../utils/pricing';
 
 export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCatalog, onUpdate }) {
   const [expanded, setExpanded] = useState(null);
@@ -27,11 +20,11 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
 
   const toggleTech = (catId, techKey) => {
     const rule = getRuleForCategory(catId);
-    const current = rule.allowedTechs || TECHS.map(t => t.key);
+    const current = rule.allowedTechs || TECH_TABS.map(t => t.key);
     const next = current.includes(techKey)
       ? current.filter(t => t !== techKey)
       : [...current, techKey];
-    updateRule(catId, 'allowedTechs', next.length === TECHS.length ? undefined : next);
+    updateRule(catId, 'allowedTechs', next.length === TECH_TABS.length ? undefined : next);
   };
 
   const toggleDefaultExtra = (catId, extraCode) => {
@@ -60,11 +53,11 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
   const toggleZoneTech = (catId, zoneId, techKey) => {
     const rule = getRuleForCategory(catId);
     const zoneTechs = rule.allowedZoneTechs || {};
-    const current = zoneTechs[zoneId] || TECHS.map(t => t.key);
+    const current = zoneTechs[zoneId] || TECH_TABS.map(t => t.key);
     const next = current.includes(techKey)
       ? current.filter(t => t !== techKey)
       : [...current, techKey];
-    const isAllTechs = next.length === TECHS.length;
+    const isAllTechs = next.length === TECH_TABS.length;
     const updated = { ...zoneTechs };
     if (isAllTechs) {
       delete updated[zoneId];
@@ -84,7 +77,7 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
         {SKU_CATEGORIES.map(cat => {
           const rule = getRuleForCategory(cat.id);
           const isExpanded = expanded === cat.id;
-          const hasTechRestriction = rule.allowedTechs && rule.allowedTechs.length < TECHS.length;
+          const hasTechRestriction = rule.allowedTechs && rule.allowedTechs.length < TECH_TABS.length;
           const hasExtras = rule.defaultExtras?.length > 0;
           const hasMoq = rule.moq && rule.moq > 1;
           const hasSizeRestriction = rule.availableSizes && rule.availableSizes.length < SIZES.length;
@@ -100,7 +93,7 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
               >
                 <span className="cat-rule-name">{cat.name}</span>
                 <span className="cat-rule-badges">
-                  {hasTechRestriction && <span className="cat-rule-badge">техники: {rule.allowedTechs.length}/{TECHS.length}</span>}
+                  {hasTechRestriction && <span className="cat-rule-badge">техники: {rule.allowedTechs.length}/{TECH_TABS.length}</span>}
                   {hasMoq && <span className="cat-rule-badge">MOQ: {rule.moq}</span>}
                   {hasSizeRestriction && <span className="cat-rule-badge">размеры: {rule.availableSizes.length}/{SIZES.length}</span>}
                   {hasExtras && <span className="cat-rule-badge">обработки: {rule.defaultExtras.length}</span>}
@@ -117,7 +110,7 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
                   <div className="cat-rule-section">
                     <div className="cat-rule-section-label">ТЕХНИКИ НАНЕСЕНИЯ</div>
                     <div className="cat-rule-chips">
-                      {TECHS.map(t => {
+                      {TECH_TABS.map(t => {
                         const allowed = !rule.allowedTechs || rule.allowedTechs.includes(t.key);
                         return (
                           <button
@@ -139,16 +132,16 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
                       <thead>
                         <tr>
                           <th>Зона</th>
-                          {TECHS.map(t => <th key={t.key}>{t.label}</th>)}
+                          {TECH_TABS.map(t => <th key={t.key}>{t.label}</th>)}
                         </tr>
                       </thead>
                       <tbody>
-                        {getAvailableZonesForSku(zonesCatalog || [], cat.id).map(z => {
+                        {getAvailableZonesForSku(zonesCatalog, cat.id).map(z => {
                           const zoneTechs = rule.allowedZoneTechs?.[z.id];
                           return (
                             <tr key={z.id}>
                               <td>{z.name}</td>
-                              {TECHS.map(t => {
+                              {TECH_TABS.map(t => {
                                 const checked = !zoneTechs || zoneTechs.includes(t.key);
                                 return (
                                   <td key={t.key}>

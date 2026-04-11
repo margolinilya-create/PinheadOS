@@ -6,7 +6,7 @@ import { getAvailableZonesForSku } from '../../../utils/skuRules';
 export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
   const panelRef = useFocusTrap(true, onClose);
   const zonesCatalog = useStore(useShallow(s => s.zonesCatalog));
-  const availableZones = getAvailableZonesForSku(zonesCatalog || [], skuItem?.category || '');
+  const availableZones = getAvailableZonesForSku(zonesCatalog, skuItem?.category || '');
 
   return (
     <div className="sku-modal-overlay" onClick={onClose}>

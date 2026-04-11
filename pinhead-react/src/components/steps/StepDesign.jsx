@@ -107,11 +107,11 @@ export default function StepDesign() {
                       onClick={() => toggleZone(z)}
                       disabled={!available}
                       aria-pressed={active}
-                      aria-label={getZoneName(z, zonesCatalog || [])}
+                      aria-label={getZoneName(z, zonesCatalog)}
                     >
                       <div className="zone-bar" />
                       <div className="zone-card-inner">
-                        <div className="zone-label">{getZoneName(z, zonesCatalog || [])}</div>
+                        <div className="zone-label">{getZoneName(z, zonesCatalog)}</div>
                         {active && <div className="zone-mini-summary">{getZoneMiniSummary(z, store)}</div>}
                       </div>
                       <div className="zone-check">{active ? '✓' : ''}</div>
