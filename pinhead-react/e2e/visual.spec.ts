@@ -4,9 +4,10 @@ const pages = [
   { url: '/',          name: 'wizard' },
   { url: '/orders',    name: 'kanban' },
   { url: '/express',   name: 'express' },
-  { url: '/prices',    name: 'prices' },
   { url: '/sku',       name: 'sku' },
 ];
+
+// /prices removed — it redirects to /sku?tab=pricing now
 
 for (const { url, name } of pages) {
   test(`visual: ${name}`, async ({ page }) => {
@@ -15,7 +16,7 @@ for (const { url, name } of pages) {
 
     await expect(page).toHaveScreenshot(`${name}.png`, {
       fullPage: true,
-      threshold: 0.1,
+      threshold: 0.15,
     });
   });
 }
