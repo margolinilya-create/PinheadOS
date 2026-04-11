@@ -1079,3 +1079,111 @@ td.pe-markup-cat,
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════ */
+/* MOBILE — SKU Editor & new tabs             */
+/* ═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* ── Main tabs: horizontal scroll ── */
+  .pe-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    top: calc(var(--header-h) + var(--preview-bar-h) + 44px);
+  }
+  .pe-tabs::-webkit-scrollbar { display: none; }
+  .pe-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Actions bar ── */
+  .sku-actions-bar {
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    height: auto;
+    min-height: 44px;
+  }
+  .sku-actions-title { font-size: 13px; letter-spacing: 1px; }
+  .pe-actions-bar {
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    min-height: 44px;
+  }
+  .pe-actions-title { font-size: 13px; }
+
+  /* ── Exchange rate bar ── */
+  .sku-ed-rate-bar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 0;
+    position: static;
+  }
+
+  /* ── Pricing sub-tabs ── */
+  .pricing-sub-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .pricing-sub-tabs::-webkit-scrollbar { display: none; }
+  .pricing-sub-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+  .pricing-tab-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pricing-tab-actions-right { width: 100%; justify-content: flex-end; }
+
+  /* ── Price matrix tables ── */
+  .pe-matrix-table { font-size: 11px; }
+  .pe-matrix-input { width: 48px !important; font-size: 11px; }
+  .pe-matrix-title {
+    position: static;
+    font-size: 11px;
+  }
+  .pe-grid { grid-template-columns: 1fr; }
+  .pe-input-label { min-width: 80px; font-size: 11px; }
+  .pe-input-row input { width: 64px; height: 26px; font-size: 12px; }
+  .pe-markup-table { font-size: 10px; }
+  .pe-markup-table .pe-matrix-input { width: 40px !important; }
+
+  /* ── Category Rules Tab ── */
+  .cat-rules-hint { font-size: 11px; padding: 6px 10px; }
+  .cat-rule-header { padding: 8px 12px; gap: 8px; }
+  .cat-rule-name { min-width: auto; font-size: 12px; }
+  .cat-rule-badges { gap: 4px; }
+  .cat-rule-badge { font-size: 9px; padding: 1px 6px; }
+  .cat-rule-body { padding: 0 12px 12px; }
+  .cat-rule-chips { gap: 4px; }
+  .cat-rule-chip { padding: 4px 8px; font-size: 11px; }
+  .cat-rule-sizes { gap: 3px; }
+  .cat-rule-size { padding: 3px 6px; font-size: 10px; }
+  .cat-rule-extras { gap: 4px; }
+  .cat-rule-extra { padding: 3px 8px; font-size: 10px; }
+
+  /* ── Zone-Tech matrix ── */
+  .zone-tech-matrix { font-size: 10px; }
+  .zone-tech-matrix th { padding: 3px 4px; font-size: 8px; letter-spacing: 0; }
+  .zone-tech-matrix td { padding: 3px 4px; }
+  .zone-tech-matrix td:first-child { font-size: 10px; }
+  .zone-tech-matrix input[type="checkbox"] { width: 14px; height: 14px; }
+
+  /* ── SkuDetailModal overrides ── */
+  .sku-override-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .sku-override-label { min-width: auto; }
+  .sku-color-grid { max-height: 200px; }
+  .sku-color-swatch { width: 18px; height: 18px; }
+
+  /* ── Economics ── */
+  .sku-economics-grid { max-width: 100%; }
+}
