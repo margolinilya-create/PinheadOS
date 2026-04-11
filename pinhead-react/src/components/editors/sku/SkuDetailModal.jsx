@@ -6,15 +6,8 @@ import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
 import { getEffectiveRules, getAvailableZonesForSku } from '../../../utils/skuRules';
+import { TECH_TABS } from '../../../utils/pricing';
 import { MEDASTEX_COLORS, COLOR_GROUPS, SIZES } from '../../../data';
-
-const TECHS = [
-  { key: 'screen', label: 'Шелкография' },
-  { key: 'flex', label: 'Flex' },
-  { key: 'dtg', label: 'DTG' },
-  { key: 'embroidery', label: 'Вышивка' },
-  { key: 'dtf', label: 'DTF' },
-];
 
 const MAX_PHOTOS = 4;
 
@@ -154,7 +147,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     onUpdate(skuIndex, 'zones', newZones);
   };
 
-  const availableZones = getAvailableZonesForSku(zonesCatalog || [], sku.category);
+  const availableZones = getAvailableZonesForSku(zonesCatalog, sku.category);
 
   // Economics: cost breakdown for this SKU
   const economics = useMemo(() => {
@@ -181,7 +174,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
   const overrides = sku.overrides || {};
 
   const toggleOverrideTech = (techKey) => {
-    const current = overrides.allowedTechs || resolvedRules.allowedTechs || TECHS.map(t => t.key);
+    const current = overrides.allowedTechs || resolvedRules.allowedTechs || TECH_TABS.map(t => t.key);
     const next = current.includes(techKey)
       ? current.filter(t => t !== techKey)
       : [...current, techKey];
@@ -376,7 +369,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
             <div className="sku-override-row">
               <span className="sku-override-label">Техники</span>
               <div className="cat-rule-chips">
-                {TECHS.map(t => {
+                {TECH_TABS.map(t => {
                   const inherited = !resolvedRules.allowedTechs || resolvedRules.allowedTechs.includes(t.key);
                   const hasOverride = overrides.allowedTechs !== undefined;
                   const active = hasOverride
@@ -513,7 +506,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
 
           {/* Footer */}
           <div className="sku-detail-footer">
-            <span className="sku-autosave-status">&#10003; Изменения сохранены</span>
+            <span className="sku-autosave-status">Изменения применены — сохраните каталог</span>
             <button className="btn btn-ghost" onClick={onClose}>Закрыть</button>
           </div>
         </div>
@@ -592,7 +585,12 @@ function SkuAllowedList({ label, items, allowed, onUpdate, onClear }) {
     if (!hasOverride) {
       onUpdate(items.map(i => i.code).filter(c => c !== code));
     } else {
-      const next = allowed.includes(code)
+      const isRemoving = allowed.includes(code);
+      if (isRemoving && allowed.length <= 1) {
+        toast.warning('Нельзя убрать последний элемент — сбросьте ограничение');
+        return;
+      }
+      const next = isRemoving
         ? allowed.filter(c => c !== code)
         : [...allowed, code];
       onUpdate(next);

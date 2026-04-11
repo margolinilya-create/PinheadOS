@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
+import { toast } from '../../../store/useToastStore';
 
 export default function ZonesCatalogTab({ zonesCatalog, skuCatalog, onUpdate }) {
   const [newId, setNewId] = useState('');
@@ -7,17 +8,20 @@ export default function ZonesCatalogTab({ zonesCatalog, skuCatalog, onUpdate }) 
 
   const addZone = () => {
     const id = newId.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-|-$/g, '');
-    if (!id || zonesCatalog.some(z => z.id === id)) return;
+    if (!id) { toast.error('ID зоны не может быть пустым'); return; }
+    if (zonesCatalog.some(z => z.id === id)) { toast.error(`Зона «${id}» уже существует`); return; }
     const sortOrder = zonesCatalog.length > 0 ? Math.max(...zonesCatalog.map(z => z.sortOrder ?? 0)) + 1 : 1;
     onUpdate([...zonesCatalog, { id, name: newName.trim() || id, forCategories: null, sortOrder }]);
     setNewId('');
     setNewName('');
+    toast.success('Зона добавлена');
   };
 
   const removeZone = (zoneId) => {
     const usedBy = (skuCatalog || []).filter(s => (s.zones || []).includes(zoneId));
     if (usedBy.length > 0 && !window.confirm(`Зона "${zoneId}" используется в ${usedBy.length} SKU. Удалить?`)) return;
     onUpdate(zonesCatalog.filter(z => z.id !== zoneId));
+    toast.success('Зона удалена');
   };
 
   const updateZone = (idx, field, value) => {
