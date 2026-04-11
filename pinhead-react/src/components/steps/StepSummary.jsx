@@ -10,6 +10,7 @@ import { validateEmail, validatePhone, validateRequired } from '../../utils/vali
 import PriceBreakdown from '../shared/PriceBreakdown';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
+import { getEffectiveRules } from '../../utils/skuRules';
 
 function EditBtn({ step, goToStep }) {
   return (
@@ -315,6 +316,15 @@ export default function StepSummary() {
                   </div>
                 )}
                 <div className="summary-row"><span className="key">Тираж</span><span className="val"><b>{qty} шт</b></span></div>
+                {(() => {
+                  const categoryRules = useStore.getState().categoryRules || [];
+                  if (!item.sku || !categoryRules.length) return null;
+                  const rules = getEffectiveRules(item.sku, categoryRules);
+                  if (rules.moq > 1 && qty > 0 && qty < rules.moq) {
+                    return <div className="summary-moq-warn">Минимальный тираж: {rules.moq} шт</div>;
+                  }
+                  return null;
+                })()}
               </div>
 
               <div className="summary-block">

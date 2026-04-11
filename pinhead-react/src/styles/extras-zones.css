@@ -151,6 +151,8 @@
 .zone-tech-tab:hover:not(.active)      { background: var(--bg3); color: var(--text); }
 .zone-tech-tab .tab-price             { font-size: 9px; font-weight: 400; color: var(--text-dim); }
 .zone-tech-tab.active .tab-price      { color: var(--accent); }
+.zone-tech-tab.disabled                { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
+.zone-tech-tab.disabled:hover          { background: none; color: var(--text-dim); }
 .zone-tech-params { padding: 16px 16px; background: var(--card); border-top: 1px solid var(--border-light); }
 .zone-tech-warn   { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--color-warning); background: var(--bg-warning); padding: 8px 12px; margin-top: 8px; }
 .zone-param-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }

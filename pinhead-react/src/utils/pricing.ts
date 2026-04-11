@@ -306,7 +306,10 @@ export function getSkuEstPrice(sku: SkuItem, fabricCode: string | null, fabricsC
   const fabricCost = usedFabric ? Math.round(sku.mainFabricUsage * usedFabric.priceUSD * usdRate) : 0;
   const trim = trimCatalog.find(t => t.code === sku.trimCode);
   const trimCost = trim ? Math.round((sku.trimUsage || 0) * trim.priceUSD * usdRate) : 0;
-  return (sku.sewingPrice || 0) + fabricCost + trimCost;
+  const baseCost = (sku.sewingPrice || 0) + fabricCost + trimCost;
+  // Apply per-SKU price multiplier (e.g. 1.1 = +10%)
+  const multiplier = sku.priceMultiplier ?? 1;
+  return multiplier !== 1 ? Math.round(baseCost * multiplier) : baseCost;
 }
 
 export function getLabelConfigPrice(labelConfig: LabelConfig | null | undefined): number {
