@@ -105,3 +105,39 @@ describe('selectSku with category rules', () => {
     expect(extras).toEqual(['custom-finish']);
   });
 });
+
+describe('per-SKU filtering fields', () => {
+  it('SKU with allowedFabrics is stored in state', () => {
+    useStore.setState({ categoryRules: [], sku: null, type: '' });
+    const sku = makeSku({ allowedFabrics: ['kulirnaya', 'dvunitka'] });
+    useStore.getState().selectSku(sku);
+    const { sku: stored } = useStore.getState();
+    expect(stored.allowedFabrics).toEqual(['kulirnaya', 'dvunitka']);
+  });
+
+  it('SKU with allowedExtras is stored in state', () => {
+    useStore.setState({ categoryRules: [], sku: null, type: '' });
+    const sku = makeSku({ allowedExtras: ['overlock', 'wash-label'] });
+    useStore.getState().selectSku(sku);
+    const { sku: stored } = useStore.getState();
+    expect(stored.allowedExtras).toEqual(['overlock', 'wash-label']);
+  });
+
+  it('SKU with availableSizes is stored in state', () => {
+    useStore.setState({ categoryRules: [], sku: null, type: '' });
+    const sku = makeSku({ availableSizes: ['S', 'M', 'L'] });
+    useStore.getState().selectSku(sku);
+    const { sku: stored } = useStore.getState();
+    expect(stored.availableSizes).toEqual(['S', 'M', 'L']);
+  });
+
+  it('SKU without per-SKU fields defaults to undefined', () => {
+    useStore.setState({ categoryRules: [], sku: null, type: '' });
+    const sku = makeSku();
+    useStore.getState().selectSku(sku);
+    const { sku: stored } = useStore.getState();
+    expect(stored.allowedFabrics).toBeUndefined();
+    expect(stored.allowedExtras).toBeUndefined();
+    expect(stored.availableSizes).toBeUndefined();
+  });
+});

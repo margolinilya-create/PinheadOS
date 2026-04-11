@@ -4,8 +4,10 @@ import {
   isTechAllowed,
   isSizeAvailable,
   buildDefaultCategoryRules,
+  getAvailableZonesForSku,
+  getZoneName,
 } from './skuRules';
-import type { CategoryRules } from '../types/catalog';
+import type { CategoryRules, ZoneDefinition } from '../types/catalog';
 
 // ── Helpers ──
 
@@ -186,5 +188,89 @@ describe('buildDefaultCategoryRules', () => {
   it('creates minimal rules with just categoryId', () => {
     const result = buildDefaultCategoryRules('pants');
     expect(result).toEqual({ categoryId: 'pants' });
+  });
+});
+
+// ── Dynamic Zones Tests ──
+
+const zonesCatalog: ZoneDefinition[] = [
+  { id: 'front', name: 'Грудь (перед)', forCategories: null, sortOrder: 1 },
+  { id: 'back', name: 'Спина', forCategories: null, sortOrder: 2 },
+  { id: 'sleeve-l', name: 'Левый рукав', forCategories: null, sortOrder: 3 },
+  { id: 'sleeve-r', name: 'Правый рукав', forCategories: null, sortOrder: 4 },
+  { id: 'hood', name: 'Капюшон', forCategories: ['hoodies', 'ziphoodies', 'halfzips'], sortOrder: 5 },
+  { id: 'pocket', name: 'Карман', forCategories: null, sortOrder: 6 },
+  { id: 'side-a', name: 'Сторона A', forCategories: ['accessories'], sortOrder: 7 },
+  { id: 'side-b', name: 'Сторона B', forCategories: ['accessories'], sortOrder: 8 },
+];
+
+describe('getAvailableZonesForSku', () => {
+  it('returns all universal zones for tshirts', () => {
+    const result = getAvailableZonesForSku(zonesCatalog, 'tshirts');
+    const ids = result.map(z => z.id);
+    expect(ids).toContain('front');
+    expect(ids).toContain('back');
+    expect(ids).toContain('sleeve-l');
+    expect(ids).toContain('pocket');
+    expect(ids).not.toContain('hood');
+    expect(ids).not.toContain('side-a');
+  });
+
+  it('includes hood for hoodies', () => {
+    const result = getAvailableZonesForSku(zonesCatalog, 'hoodies');
+    const ids = result.map(z => z.id);
+    expect(ids).toContain('hood');
+    expect(ids).toContain('front');
+    expect(ids).not.toContain('side-a');
+  });
+
+  it('returns only side-a/side-b for accessories', () => {
+    const result = getAvailableZonesForSku(zonesCatalog, 'accessories');
+    const ids = result.map(z => z.id);
+    expect(ids).toContain('side-a');
+    expect(ids).toContain('side-b');
+    // Universal zones (forCategories: null) are also included
+    expect(ids).toContain('front');
+  });
+
+  it('returns sorted by sortOrder', () => {
+    const result = getAvailableZonesForSku(zonesCatalog, 'hoodies');
+    for (let i = 1; i < result.length; i++) {
+      expect((result[i].sortOrder ?? 99) >= (result[i - 1].sortOrder ?? 99)).toBe(true);
+    }
+  });
+
+  it('handles empty catalog', () => {
+    expect(getAvailableZonesForSku([], 'tshirts')).toEqual([]);
+  });
+
+  it('handles unknown category', () => {
+    const result = getAvailableZonesForSku(zonesCatalog, 'unknown');
+    // Should return only zones with forCategories: null (universal)
+    const ids = result.map(z => z.id);
+    expect(ids).toContain('front');
+    expect(ids).not.toContain('hood');
+    expect(ids).not.toContain('side-a');
+  });
+});
+
+describe('getZoneName', () => {
+  it('returns name from dynamic catalog', () => {
+    expect(getZoneName('front', zonesCatalog)).toBe('Грудь (перед)');
+    expect(getZoneName('hood', zonesCatalog)).toBe('Капюшон');
+  });
+
+  it('falls back to ZONE_LABELS for unknown zone IDs', () => {
+    expect(getZoneName('chest', zonesCatalog)).toBe('Грудь');
+    expect(getZoneName('left-sleeve', zonesCatalog)).toBe('Лев. рукав');
+  });
+
+  it('returns zone ID itself when not found anywhere', () => {
+    expect(getZoneName('completely-unknown', zonesCatalog)).toBe('completely-unknown');
+  });
+
+  it('handles empty catalog with fallback', () => {
+    expect(getZoneName('front', [])).toBe('Лицевая сторона'); // from ZONE_LABELS
+    expect(getZoneName('unknown', [])).toBe('unknown');
   });
 });
