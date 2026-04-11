@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useStore } from '../../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
@@ -23,6 +25,9 @@ const DEFAULT_SIZE_CHART = {
 };
 
 export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPersist }) {
+  const { fabricsCatalog, trimCatalog, usdRate } = useStore(
+    useShallow(s => ({ fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
+  );
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -154,6 +159,23 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     if (sku.category === 'accessories') return ['side-a', 'side-b'].includes(z.id);
     return !['side-a', 'side-b'].includes(z.id);
   });
+
+  // Economics: cost breakdown for this SKU
+  const economics = useMemo(() => {
+    const fabric = fabricsCatalog.find(f => (f.forCategories || []).includes(sku.category));
+    const fabricCost = fabric ? Math.round(sku.mainFabricUsage * fabric.priceUSD * usdRate) : 0;
+    const trim = trimCatalog.find(t => t.code === sku.trimCode);
+    const trimCost = trim ? Math.round((sku.trimUsage || 0) * trim.priceUSD * usdRate) : 0;
+    const sewingCost = sku.sewingPrice || 0;
+    return {
+      sewingCost,
+      fabricCost,
+      fabricName: fabric?.name || '—',
+      trimCost,
+      trimName: trim?.name || '—',
+      total: sewingCost + fabricCost + trimCost,
+    };
+  }, [sku.sewingPrice, sku.mainFabricUsage, sku.trimCode, sku.trimUsage, sku.category, fabricsCatalog, trimCatalog, usdRate]);
 
   const mockupSvg = photos.length === 0 ? getGarmentSVG(sku.mockupType, '#d9d9d9') : '';
 
@@ -300,7 +322,24 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
             </div>
           </div>
 
-          {/* Section 5: Basic fields */}
+          {/* Section 5: Economics (read-only) */}
+          <div className="sku-detail-section">
+            <div className="sku-detail-section-label">ЭКОНОМИКА (СЕБЕСТОИМОСТЬ)</div>
+            <div className="sku-economics">
+              <div className="sku-economics-grid">
+                <span className="econ-label">Пошив</span>
+                <span className="econ-value">{economics.sewingCost} &#8381;</span>
+                <span className="econ-label">Ткань ({economics.fabricName})</span>
+                <span className="econ-value">{economics.fabricCost} &#8381;</span>
+                <span className="econ-label">Отделка ({economics.trimName})</span>
+                <span className="econ-value">{economics.trimCost} &#8381;</span>
+                <span className="econ-label econ-total">Итого</span>
+                <span className="econ-value econ-total">{economics.total} &#8381;</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 6: Basic fields */}
           <div className="sku-detail-section">
             <div className="sku-detail-section-label">ПАРАМЕТРЫ</div>
             <div className="sku-detail-fields">

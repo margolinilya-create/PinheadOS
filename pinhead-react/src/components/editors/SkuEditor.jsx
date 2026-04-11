@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
@@ -6,11 +7,14 @@ import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { supabase } from '../../lib/supabase';
 import { clearCatalogsCache } from '../../lib/catalogs';
 import { toast } from '../../store/useToastStore';
+import { invalidatePricesCache } from '../../utils/pricing';
+import { storageSet } from '../../lib/storage';
 import SkuItemsTab from './sku/SkuItemsTab';
 import SkuFabricsTab from './sku/SkuFabricsTab';
 import SkuTrimsTab from './sku/SkuTrimsTab';
 import ExtrasEditor from './sku/ExtrasEditor';
 import SkuHardwareTab from './sku/SkuHardwareTab';
+import PricingTabContent from './sku/PricingTabContent';
 import AddSkuModal from './sku/AddSkuModal';
 import ZonesModal from './sku/ZonesModal';
 
@@ -20,6 +24,7 @@ const TABS = [
   { id: 'trims', name: 'Отделочная ткань' },
   { id: 'extras', name: 'Обработки' },
   { id: 'hardware', name: 'Фурнитура' },
+  { id: 'pricing', name: 'Ценообразование' },
 ];
 
 function generateCode(name) {
@@ -42,7 +47,13 @@ export default function SkuEditor() {
       trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog, hardwareCatalog: s.hardwareCatalog,
       usdRate: s.usdRate, setField: s.setField }))
   );
-  const [tab, setTab] = useState('items');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'items';
+  const [tab, setTabState] = useState(initialTab);
+  const setTab = (id) => {
+    setTabState(id);
+    setSearchParams(id === 'items' ? {} : { tab: id }, { replace: true });
+  };
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
   const [cbRate, setCbRate] = useState(() => {
@@ -65,6 +76,7 @@ export default function SkuEditor() {
   const [changedTrims, setChangedTrims] = useState(new Set());
   const [changedExtras, setChangedExtras] = useState(new Set());
   const [changedHardware, setChangedHardware] = useState(new Set());
+  const [pricingDirty, setPricingDirty] = useState(false);
 
   // No useEffect to reload SKU — catalogSlice.loadCatalogs() already handles this at app startup.
   // Previously this useEffect was overwriting store with stale Supabase data (without photos).
@@ -84,6 +96,7 @@ export default function SkuEditor() {
     const currentTrims = state.trimCatalog;
     const currentExtras = state.extrasCatalog;
     const currentHardware = state.hardwareCatalog;
+    const currentPrices = state.prices;
     try {
       localStorage.setItem('ph_sku', JSON.stringify(currentSku));
       localStorage.setItem('ph_fabrics', JSON.stringify(currentFabrics));
@@ -91,7 +104,9 @@ export default function SkuEditor() {
       localStorage.setItem('ph_extras', JSON.stringify(currentExtras));
       localStorage.setItem('ph_hardware', JSON.stringify(currentHardware));
       localStorage.setItem('ph_usd_rate', String(state.usdRate));
+      storageSet('ph_prices', currentPrices);
     } catch { /* ignore storage errors */ }
+    invalidatePricesCache();
     const ts = new Date().toISOString();
     const results = await Promise.all([
       supabase.from('app_config').upsert({ key: 'sku_catalog', value: currentSku, updated_at: ts }, { onConflict: 'key' }),
@@ -99,6 +114,7 @@ export default function SkuEditor() {
       supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: currentTrims, updated_at: ts }, { onConflict: 'key' }),
       supabase.from('app_config').upsert({ key: 'extrasCatalog', value: currentExtras, updated_at: ts }, { onConflict: 'key' }),
       supabase.from('app_config').upsert({ key: 'hardwareCatalog', value: currentHardware, updated_at: ts }, { onConflict: 'key' }),
+      supabase.from('app_config').upsert({ key: 'prices', value: currentPrices, updated_at: ts }, { onConflict: 'key' }),
     ]);
     const hasError = results.some(r => r.error);
     setSaving(false);
@@ -362,10 +378,11 @@ export default function SkuEditor() {
       {/* ── Tabs ── */}
       <div className="pe-tabs">
         {TABS.map(t => {
-          const dirty = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware }[t.id];
+          const dirtyMap = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware };
+          const dirty = t.id === 'pricing' ? pricingDirty : dirtyMap[t.id]?.size > 0;
           return (
             <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.name}{dirty?.size > 0 && <span className="pe-tab-dot" />}
+              {t.name}{dirty && <span className="pe-tab-dot" />}
             </button>
           );
         })}
@@ -418,6 +435,10 @@ export default function SkuEditor() {
           hardwareCatalog={hardwareCatalog}
           updateHardware={updateHardware} addHardware={addHardware} deleteHardware={deleteHardware}
         />
+      )}
+
+      {tab === 'pricing' && (
+        <PricingTabContent onDirtyChange={setPricingDirty} />
       )}
 
       {showAddModal && (
