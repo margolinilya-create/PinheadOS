@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
-import { SIZES } from '../../../data/constants';
+import { SIZES, ZONE_LABELS } from '../../../data/constants';
 
 const TECHS = [
   { key: 'screen', label: 'Шелкография' },
@@ -8,6 +8,15 @@ const TECHS = [
   { key: 'dtg', label: 'DTG' },
   { key: 'embroidery', label: 'Вышивка' },
   { key: 'dtf', label: 'DTF' },
+];
+
+const ALL_ZONES = [
+  { id: 'front', name: 'Грудь' },
+  { id: 'back', name: 'Спина' },
+  { id: 'sleeve-l', name: 'Лев. рукав' },
+  { id: 'sleeve-r', name: 'Прав. рукав' },
+  { id: 'hood', name: 'Капюшон' },
+  { id: 'pocket', name: 'Карман' },
 ];
 
 export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdate }) {
@@ -56,6 +65,23 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdat
     updateRule(catId, 'moq', num === 1 ? undefined : num);
   };
 
+  const toggleZoneTech = (catId, zoneId, techKey) => {
+    const rule = getRuleForCategory(catId);
+    const zoneTechs = rule.allowedZoneTechs || {};
+    const current = zoneTechs[zoneId] || TECHS.map(t => t.key);
+    const next = current.includes(techKey)
+      ? current.filter(t => t !== techKey)
+      : [...current, techKey];
+    const isAllTechs = next.length === TECHS.length;
+    const updated = { ...zoneTechs };
+    if (isAllTechs) {
+      delete updated[zoneId];
+    } else {
+      updated[zoneId] = next;
+    }
+    updateRule(catId, 'allowedZoneTechs', Object.keys(updated).length > 0 ? updated : undefined);
+  };
+
   return (
     <div className="cat-rules-tab">
       <div className="cat-rules-hint">
@@ -70,7 +96,8 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdat
           const hasExtras = rule.defaultExtras?.length > 0;
           const hasMoq = rule.moq && rule.moq > 1;
           const hasSizeRestriction = rule.availableSizes && rule.availableSizes.length < SIZES.length;
-          const hasRules = hasTechRestriction || hasExtras || hasMoq || hasSizeRestriction;
+          const hasZoneTechs = rule.allowedZoneTechs && Object.keys(rule.allowedZoneTechs).length > 0;
+          const hasRules = hasTechRestriction || hasExtras || hasMoq || hasSizeRestriction || hasZoneTechs;
 
           return (
             <div key={cat.id} className={`cat-rule-card${isExpanded ? ' expanded' : ''}`}>
@@ -85,6 +112,7 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdat
                   {hasMoq && <span className="cat-rule-badge">MOQ: {rule.moq}</span>}
                   {hasSizeRestriction && <span className="cat-rule-badge">размеры: {rule.availableSizes.length}/{SIZES.length}</span>}
                   {hasExtras && <span className="cat-rule-badge">обработки: {rule.defaultExtras.length}</span>}
+                  {hasZoneTechs && <span className="cat-rule-badge">зоны: {Object.keys(rule.allowedZoneTechs).length}</span>}
                   {!hasRules && <span className="cat-rule-badge cat-rule-badge-none">без ограничений</span>}
                 </span>
                 <span className="cat-rule-chevron">{isExpanded ? '▲' : '▼'}</span>
@@ -110,6 +138,41 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdat
                         );
                       })}
                     </div>
+                  </div>
+
+                  {/* Zone-Tech matrix */}
+                  <div className="cat-rule-section">
+                    <div className="cat-rule-section-label">ТЕХНИКИ ПО ЗОНАМ</div>
+                    <table className="zone-tech-matrix">
+                      <thead>
+                        <tr>
+                          <th>Зона</th>
+                          {TECHS.map(t => <th key={t.key}>{t.label}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ALL_ZONES.map(z => {
+                          const zoneTechs = rule.allowedZoneTechs?.[z.id];
+                          return (
+                            <tr key={z.id}>
+                              <td>{z.name}</td>
+                              {TECHS.map(t => {
+                                const checked = !zoneTechs || zoneTechs.includes(t.key);
+                                return (
+                                  <td key={t.key}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => toggleZoneTech(cat.id, z.id, t.key)}
+                                    />
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
                   {/* MOQ */}

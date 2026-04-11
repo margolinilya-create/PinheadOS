@@ -259,6 +259,7 @@
 .supplier-tabs .supplier-btn.active { background: var(--accent); color: var(--white); }
 .supplier-tabs .supplier-btn.active:hover { background: var(--accent); color: var(--white); }
 .color-selected-info { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
+.color-filter-hint { font-size: 10px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
 .fabric-color-count {
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   color: var(--text-mid); letter-spacing: .3px; margin-top: -20px; margin-bottom: var(--space-lg);

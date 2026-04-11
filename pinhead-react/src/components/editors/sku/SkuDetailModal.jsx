@@ -6,6 +6,7 @@ import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
 import { getEffectiveRules } from '../../../utils/skuRules';
+import { MEDASTEX_COLORS, COLOR_GROUPS } from '../../../data';
 
 const TECHS = [
   { key: 'screen', label: 'Шелкография' },
@@ -445,6 +446,13 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
                 <span className="sku-override-badge">{sku.priceMultiplier > 1 ? '+' : ''}{Math.round((sku.priceMultiplier - 1) * 100)}%</span>
               )}
             </div>
+
+            {/* Per-SKU color palette override */}
+            <SkuColorPicker
+              allowedColors={overrides.allowedColors}
+              onUpdate={(colors) => onUpdate(skuIndex, 'overrides', { ...overrides, allowedColors: colors })}
+              onClear={() => clearOverrideField('allowedColors')}
+            />
           </div>
 
           {/* Section 7: Basic fields */}
@@ -483,6 +491,67 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Collapsible per-SKU color swatch picker */
+function SkuColorPicker({ allowedColors, onUpdate, onClear }) {
+  const [open, setOpen] = useState(false);
+  const hasOverride = allowedColors !== undefined && allowedColors !== null;
+  const selectedSet = hasOverride ? new Set(allowedColors) : null;
+
+  const toggleColor = (code) => {
+    if (!hasOverride) {
+      // First click: start with all colors selected, then toggle off
+      const allCodes = MEDASTEX_COLORS.map(c => c.code);
+      onUpdate(allCodes.filter(c => c !== code));
+    } else {
+      const next = selectedSet.has(code)
+        ? allowedColors.filter(c => c !== code)
+        : [...allowedColors, code];
+      onUpdate(next);
+    }
+  };
+
+  return (
+    <div className="sku-override-colors">
+      <div className="sku-override-row">
+        <span className="sku-override-label">Цвета</span>
+        <button className="cat-rule-chip" onClick={() => setOpen(v => !v)}>
+          {hasOverride ? `${allowedColors.length} из ${MEDASTEX_COLORS.length}` : 'все цвета'} {open ? '▲' : '▼'}
+        </button>
+        {hasOverride && (
+          <button className="sku-override-clear" onClick={() => { onClear(); setOpen(false); }}>сбросить</button>
+        )}
+      </div>
+      {open && (
+        <div className="sku-color-grid">
+          {COLOR_GROUPS.map(g => {
+            const groupColors = g.codes.map(code => MEDASTEX_COLORS.find(c => c.code === code)).filter(Boolean);
+            if (!groupColors.length) return null;
+            return (
+              <div key={g.label} className="sku-color-group">
+                <div className="sku-color-group-label">{g.label}</div>
+                <div className="sku-color-swatches">
+                  {groupColors.map(c => {
+                    const active = !hasOverride || selectedSet.has(c.code);
+                    return (
+                      <button
+                        key={c.code}
+                        className={`sku-color-swatch${active ? ' active' : ''}`}
+                        style={{ backgroundColor: c.hex }}
+                        title={`${c.name} (${c.code})`}
+                        onClick={() => toggleColor(c.code)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
