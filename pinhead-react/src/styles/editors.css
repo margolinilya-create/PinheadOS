@@ -325,6 +325,170 @@ td.pe-markup-cat,
 .pe-history-undo   { background: none; border: 1px solid var(--border-light); padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--text-dim); }
 .pe-history-undo:hover { border-color: var(--accent); color: var(--accent); }
 /* ═══════════════════════════════════════════ */
+/* PRICING TAB (embedded in SKU Editor)       */
+/* ═══════════════════════════════════════════ */
+.pricing-tab-content { display: flex; flex-direction: column; flex: 1; padding: 0; }
+.pricing-tab-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; gap: 12px; flex-wrap: wrap;
+}
+.pricing-tab-status { display: flex; align-items: center; gap: 8px; }
+.pricing-tab-actions-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pricing-sub-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border-light);
+  margin-bottom: 0;
+}
+.pricing-sub-tab {
+  padding: 8px 16px; background: none; border: none; cursor: pointer;
+  font-family: var(--font-display); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim);
+  position: relative; transition: color 150ms ease-out;
+}
+.pricing-sub-tab:hover { color: var(--text-mid); }
+.pricing-sub-tab.active { color: var(--accent); }
+.pricing-sub-tab.active::after {
+  content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
+  height: 2px; background: var(--accent);
+}
+/* Economics section in SkuDetailModal */
+.sku-economics { padding: 0; }
+.sku-economics-grid {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+  font-size: 13px; max-width: 320px;
+}
+.sku-economics-grid .econ-label { color: var(--text-dim); }
+.sku-economics-grid .econ-value {
+  text-align: right; font-family: var(--mono); font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.sku-economics-grid .econ-total {
+  border-top: 1.5px solid var(--black); padding-top: 6px; margin-top: 4px;
+  font-weight: 700; color: var(--text);
+}
+.sku-economics-grid .econ-total .econ-value { font-weight: 700; }
+/* ═══════════════════════════════════════════ */
+/* CATEGORY RULES TAB                         */
+/* ═══════════════════════════════════════════ */
+.cat-rules-tab { padding: 16px 0; }
+.cat-rules-hint {
+  font-size: 12px; color: var(--text-dim); margin-bottom: 16px;
+  padding: 8px 12px; background: var(--bg3); border-left: 3px solid var(--accent);
+}
+.cat-rules-list { display: flex; flex-direction: column; gap: 4px; }
+.cat-rule-card {
+  border: 1px solid var(--border-light); background: var(--card);
+  transition: border-color 150ms;
+}
+.cat-rule-card.expanded { border-color: var(--accent); }
+.cat-rule-header {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  width: 100%; background: none; border: none; cursor: pointer;
+  font-size: 13px; text-align: left;
+}
+.cat-rule-name {
+  font-family: var(--font-display); font-weight: 800; font-size: 13px;
+  letter-spacing: 0.5px; text-transform: uppercase; min-width: 140px;
+}
+.cat-rule-badges { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.cat-rule-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  padding: 2px 8px; background: var(--accent); color: var(--white);
+  text-transform: uppercase; font-family: var(--font-display);
+}
+.cat-rule-badge-none { background: var(--bg3); color: var(--text-dim); }
+.cat-rule-chevron { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+.cat-rule-body { padding: 0 16px 16px; }
+.cat-rule-section { margin-bottom: 16px; }
+.cat-rule-section:last-child { margin-bottom: 0; }
+.cat-rule-section-label {
+  font-family: var(--font-display); font-size: 10px; font-weight: 800;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.cat-rule-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cat-rule-chip {
+  padding: 5px 12px; border: 1.5px solid var(--border-light);
+  background: var(--card); font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--text-dim); transition: all 150ms;
+}
+.cat-rule-chip:hover { border-color: var(--text-mid); color: var(--text-mid); }
+.cat-rule-chip.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
+.cat-rule-chip.inherited { opacity: 0.6; }
+.cat-rule-moq-input {
+  width: 80px; height: 28px; border: 1.5px solid var(--border-light);
+  text-align: center; font-family: var(--font-display); font-size: 13px; font-weight: 700;
+}
+.cat-rule-moq-input:focus { border-color: var(--black); outline: none; }
+.cat-rule-sizes { display: flex; gap: 4px; flex-wrap: wrap; }
+.cat-rule-size {
+  display: flex; align-items: center; gap: 4px; padding: 4px 8px;
+  border: 1px solid var(--border-light); font-size: 11px; font-weight: 600;
+  cursor: pointer; color: var(--text-dim); transition: all 150ms;
+}
+.cat-rule-size input { display: none; }
+.cat-rule-size.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
+.cat-rule-extras { display: flex; gap: 6px; flex-wrap: wrap; }
+.cat-rule-extra {
+  display: flex; align-items: center; gap: 4px; padding: 4px 10px;
+  border: 1px solid var(--border-light); font-size: 11px;
+  cursor: pointer; color: var(--text-dim); transition: all 150ms;
+}
+.cat-rule-extra input { display: none; }
+.cat-rule-extra.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cat-rule-empty { font-size: 11px; color: var(--text-dim); font-style: italic; }
+/* Overrides in SkuDetailModal */
+.sku-overrides-hint { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+.sku-override-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sku-override-label {
+  font-size: 12px; font-weight: 600; min-width: 110px; color: var(--text-mid);
+}
+.sku-override-clear {
+  font-size: 10px; color: var(--color-error); background: none; border: 1px solid var(--color-error);
+  padding: 2px 8px; cursor: pointer; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.3px; text-transform: uppercase;
+}
+.sku-override-clear:hover { background: var(--color-error); color: var(--white); }
+.sku-override-inherited { font-size: 10px; color: var(--text-dim); font-style: italic; }
+.sku-override-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  background: var(--bg-warning); color: var(--color-warning);
+  font-family: var(--font-display);
+}
+/* Per-SKU color picker */
+.sku-override-colors { margin-bottom: 10px; }
+.sku-color-grid {
+  margin-top: 8px; max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--border-light); padding: 8px;
+}
+.sku-color-group { margin-bottom: 8px; }
+.sku-color-group:last-child { margin-bottom: 0; }
+.sku-color-group-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px;
+}
+.sku-color-swatches { display: flex; flex-wrap: wrap; gap: 3px; }
+.sku-color-swatch {
+  width: 22px; height: 22px; border: 2px solid transparent;
+  cursor: pointer; transition: all 100ms; padding: 0;
+}
+.sku-color-swatch.active { border-color: var(--black); }
+.sku-color-swatch:not(.active) { opacity: 0.25; }
+.sku-color-swatch:hover { transform: scale(1.2); z-index: 1; }
+/* Zone-Tech matrix in CategoryRulesTab */
+.zone-tech-matrix { width: 100%; border-collapse: collapse; font-size: 11px; }
+.zone-tech-matrix th {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; padding: 4px 8px; text-align: center;
+  color: var(--text-dim); border-bottom: 1px solid var(--border-light);
+}
+.zone-tech-matrix th:first-child { text-align: left; }
+.zone-tech-matrix td { padding: 4px 8px; text-align: center; border-bottom: 1px solid var(--bg3); }
+.zone-tech-matrix td:first-child { text-align: left; font-weight: 600; font-size: 11px; color: var(--text-mid); }
+.zone-tech-matrix input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent); }
+/* ═══════════════════════════════════════════ */
 /* TECHCARD                                   */
 /* ═══════════════════════════════════════════ */
 .tc-status-select { padding: 8px 12px; border: 1.5px solid rgba(255,255,255,.2); background: var(--black); color: var(--white); font-size: 12px; font-weight: 700; letter-spacing: 1px; font-family: var(--font-display); text-transform: uppercase; cursor: pointer; }

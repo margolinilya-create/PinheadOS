@@ -2,6 +2,8 @@ import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS } from '../../data';
 import { TECH_TABS, getZoneSurcharge, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, getTotalQty } from '../../utils/pricing';
+import { useEffectiveRules } from '../../hooks/useEffectiveRules';
+import { isTechAllowed } from '../../utils/skuRules';
 
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;
@@ -22,6 +24,7 @@ export default function ZoneTechBlock({ zone }) {
   const tech = zoneTechs?.[zone] || 'screen';
   const surcharge = useStore(s => getZoneSurcharge(zone, s));
   const totalQty = useStore(s => getTotalQty(s)) || 1;
+  const rules = useEffectiveRules();
 
   return (
     <div className="zone-tech-block">
@@ -30,11 +33,20 @@ export default function ZoneTechBlock({ zone }) {
         <span className="zone-surcharge">+{surcharge} ₽/шт</span>
       </div>
       <div className="zone-tech-tabs">
-        {TECH_TABS.map(t => (
-          <button key={t.key} className={`zone-tech-tab${tech === t.key ? ' active' : ''}`} onClick={() => setZoneTech(zone, t.key)}>
-            {t.label}
-          </button>
-        ))}
+        {TECH_TABS.map(t => {
+          const allowed = !rules || isTechAllowed(rules, t.key, zone);
+          return (
+            <button
+              key={t.key}
+              className={`zone-tech-tab${tech === t.key ? ' active' : ''}${!allowed ? ' disabled' : ''}`}
+              onClick={() => allowed && setZoneTech(zone, t.key)}
+              disabled={!allowed}
+              title={!allowed ? `${t.label} недоступна для этой зоны/категории` : undefined}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
       {TECH_HELP[tech] && (
         <div className="zone-tech-help" style={{ fontSize: 12, color: '#888', margin: '4px 0 8px', fontStyle: 'italic' }}>

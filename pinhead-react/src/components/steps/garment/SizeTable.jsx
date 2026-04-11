@@ -4,6 +4,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { SIZES } from '../../../data';
 import { isAccessory, getUnitPrice } from '../../../utils/pricing';
 import { sizeOrder } from '../../../store/slices/helpers';
+import { useEffectiveRules } from '../../../hooks/useEffectiveRules';
+import { isSizeAvailable as checkSizeRule } from '../../../utils/skuRules';
 
 function buildSortedRows(stdSizes, sizes, customSizes) {
   const stdRows = stdSizes.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 }));
@@ -25,9 +27,15 @@ export default function SizeTable() {
   const [newQty, setNewQty] = useState(0);
   const sizeRefs = useRef({});
   const isAcc = isAccessory(type);
+  const rules = useEffectiveRules();
 
-  const availableSizes = sku?.availableSizes || null;
-  const isSizeAvailable = (s) => !availableSizes || availableSizes.includes(s);
+  const isSizeAvailable = (s) => {
+    // Check per-SKU availableSizes (existing behavior)
+    if (sku?.availableSizes && !sku.availableSizes.includes(s)) return false;
+    // Check category rules
+    if (rules && !checkSizeRule(rules, s)) return false;
+    return true;
+  };
 
   const handleSizeKeyDown = (e, currentLabel, allLabels) => {
     if (e.key === 'Tab' && !e.shiftKey) {

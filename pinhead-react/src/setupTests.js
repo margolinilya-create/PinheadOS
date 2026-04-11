@@ -8,6 +8,41 @@ vi.mock('../assets/garments/sweatshirt.svg?raw', () => ({ default: '<svg>sweatsh
 vi.mock('../assets/garments/hoodie.svg?raw', () => ({ default: '<svg>hoodie</svg>' }));
 vi.mock('../assets/garments/shopper.svg?raw', () => ({ default: '<svg>shopper</svg>' }));
 
+// Mock Supabase client (no credentials needed in test env)
+const mockChain = {
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+  upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
+  insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+  update: vi.fn().mockResolvedValue({ data: null, error: null }),
+  delete: vi.fn().mockReturnThis(),
+  order: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
+  match: vi.fn().mockReturnThis(),
+  then: vi.fn((cb) => cb({ data: [], error: null })),
+};
+vi.mock('./lib/supabase', () => ({
+  supabase: {
+    from: vi.fn(() => mockChain),
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      signInWithPassword: vi.fn().mockResolvedValue({ data: {}, error: null }),
+      signUp: vi.fn().mockResolvedValue({ data: {}, error: null }),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+    },
+    storage: {
+      from: vi.fn(() => ({
+        upload: vi.fn().mockResolvedValue({ data: { path: 'test.jpg' }, error: null }),
+        remove: vi.fn().mockResolvedValue({ data: null, error: null }),
+        getPublicUrl: vi.fn(() => ({ data: { publicUrl: 'https://test.com/test.jpg' } })),
+        list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      })),
+    },
+  },
+}));
+
 // Mock window.print
 window.print = vi.fn();
 

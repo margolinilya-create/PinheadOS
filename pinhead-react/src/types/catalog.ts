@@ -5,6 +5,28 @@ export interface SkuCategory {
   name: string;
 }
 
+/** Category-level rules for wizard filtering and defaults */
+export interface CategoryRules {
+  categoryId: string;
+  /** Allowed print techniques, null/undefined = all */
+  allowedTechs?: string[] | null;
+  /** Per-zone tech restrictions, e.g. { hood: ['flex', 'dtg'] } */
+  allowedZoneTechs?: Record<string, string[]> | null;
+  /** Allowed color codes, null/undefined = all */
+  allowedColors?: string[] | null;
+  /** Auto-selected extras on SKU selection */
+  defaultExtras?: string[];
+  /** Minimum order quantity */
+  moq?: number;
+  /** Available sizes for this category */
+  availableSizes?: string[];
+  /** Default label presets */
+  labelPresets?: Record<string, unknown> | null;
+}
+
+/** Fields that can be overridden per-SKU */
+export type CategoryRulesOverrides = Partial<Omit<CategoryRules, 'categoryId'>>;
+
 export interface SkuItem {
   code: string;
   name: string;
@@ -21,6 +43,10 @@ export interface SkuItem {
   shortDesc?: string;
   sizeChart?: { headers: string[]; rows: (string | number)[][] } | null;
   article?: string;
+  /** Per-SKU overrides of category rules */
+  overrides?: CategoryRulesOverrides;
+  /** Price multiplier: 1.1 = +10% to cost */
+  priceMultiplier?: number;
 }
 
 export interface Fabric {

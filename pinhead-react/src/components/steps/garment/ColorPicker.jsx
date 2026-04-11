@@ -3,6 +3,7 @@ import { useStore } from '../../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS } from '../../../data';
 import { isAccessory } from '../../../utils/pricing';
+import { useEffectiveRules } from '../../../hooks/useEffectiveRules';
 
 export default function ColorPicker() {
   const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore(
@@ -10,10 +11,15 @@ export default function ColorPicker() {
       colorSupplier: s.colorSupplier, setColorSupplier: s.setColorSupplier }))
   );
   const [colorSearch, setColorSearch] = useState('');
+  const rules = useEffectiveRules();
   if (isAccessory(type)) return null;
 
-  const colors = colorSupplier === 'medastex' ? MEDASTEX_COLORS : COTTONPROM_COLORS;
+  const allColors = colorSupplier === 'medastex' ? MEDASTEX_COLORS : COTTONPROM_COLORS;
   const groups = colorSupplier === 'medastex' ? COLOR_GROUPS : COTTONPROM_GROUPS;
+
+  // Filter colors by category rules (allowedColors)
+  const allowedSet = rules?.allowedColors ? new Set(rules.allowedColors) : null;
+  const colors = allowedSet ? allColors.filter(c => allowedSet.has(c.code)) : allColors;
 
   const searchLower = colorSearch.toLowerCase();
 
@@ -37,6 +43,7 @@ export default function ColorPicker() {
           onChange={e => setColorSearch(e.target.value)}
         />
         {color && <div className="color-selected-info">Выбран: {colors.find(c => c.code === color)?.name || color}</div>}
+        {allowedSet && <div className="color-filter-hint">Показаны {colors.length} из {allColors.length} цветов для этой категории</div>}
       </div>
       <div className="swatches">
         {groups.map(g => {

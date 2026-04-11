@@ -79,11 +79,7 @@ export default function Header() {
             SKU
           </button>
         )}
-        {isAdmin && (
-          <button className={`${styles['header-nav-btn']}${isActive('/prices') ? ` ${styles.active}` : ''}`} onClick={nav('/prices')}>
-            Цены нанесений
-          </button>
-        )}
+        {/* "Цены нанесений" tab removed — pricing is now the 6th tab inside SKU Editor */}
         {(isAdmin || isProd || effectiveRole === 'rop') && (
           <button className={`${styles['header-nav-btn']}${isActive('/analytics') ? ` ${styles.active}` : ''}`} onClick={nav('/analytics')}>
             Аналитика

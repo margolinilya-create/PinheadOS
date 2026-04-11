@@ -1,9 +1,10 @@
-// Catalog slice: catalogs, prices, usdRate, skuCatalog, fabricsCatalog, etc.
+// Catalog slice: catalogs, prices, usdRate, skuCatalog, fabricsCatalog, categoryRules, etc.
 import { loadAllCatalogs } from '../../lib/catalogs';
 import { invalidatePricesCache } from '../../utils/pricing';
 import { storageGet } from '../../lib/storage';
 import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT, LABELS_CATALOG_DEFAULT, HARDWARE_CATALOG_DEFAULT } from '../../data';
 import { toast } from '../useToastStore';
+import type { CategoryRules } from '../../types/catalog';
 
 type SetFn = (update: Record<string, unknown> | ((s: Record<string, unknown>) => Record<string, unknown>)) => void;
 
@@ -15,6 +16,7 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
   extrasCatalog: EXTRAS_CATALOG_DEFAULT,
   labelsCatalog: LABELS_CATALOG_DEFAULT,
   hardwareCatalog: HARDWARE_CATALOG_DEFAULT,
+  categoryRules: [] as CategoryRules[],
   usdRate: 92,
 
   loadCatalogs: async () => {
@@ -33,6 +35,7 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
       if (Array.isArray(catalogs.trimCatalog)) patch.trimCatalog = catalogs.trimCatalog;
       if (Array.isArray(catalogs.labelsCatalog)) patch.labelsCatalog = catalogs.labelsCatalog;
       if (Array.isArray(catalogs.hardwareCatalog)) patch.hardwareCatalog = catalogs.hardwareCatalog;
+      if (Array.isArray(catalogs.categoryRules)) patch.categoryRules = catalogs.categoryRules;
     } catch {
       // Fallback: try localStorage (saved by SkuEditor saveAll)
       const lsSku = storageGet('ph_sku');
@@ -51,6 +54,8 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
       const lsHardware = storageGet('ph_hardware');
       patch.hardwareCatalog = lsHardware || HARDWARE_CATALOG_DEFAULT;
       patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
+      const lsCategoryRules = storageGet<CategoryRules[]>('ph_category_rules');
+      patch.categoryRules = lsCategoryRules || [];
       toast.warning('Каталоги загружены из локального кэша');
     }
     if (Object.keys(patch).length > 0) set(patch);

@@ -2,7 +2,8 @@
 import { SIZES } from '../../data';
 import { sizeOrder } from './helpers';
 import type { CustomSize, LabelConfig } from '../../types/order';
-import type { SkuItem } from '../../types/catalog';
+import type { SkuItem, CategoryRules } from '../../types/catalog';
+import { getEffectiveRules } from '../../utils/skuRules';
 
 type SetFn = (update: Record<string, unknown> | ((s: Record<string, unknown>) => Record<string, unknown>)) => void;
 
@@ -22,6 +23,17 @@ export const productSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
     const prevType = s.type as string;
     const currentSku = s.sku as SkuItem | null;
     const needReset = prevType !== type || !currentSku || currentSku.code !== sku.code;
+
+    // Resolve category rules to get defaults
+    const categoryRules = (s.categoryRules || []) as CategoryRules[];
+    const rules = getEffectiveRules(sku, categoryRules);
+    const defaultExtras = rules.defaultExtras?.length ? rules.defaultExtras : [];
+
+    // Apply label presets from rules if available
+    const labelConfig = rules.labelPresets
+      ? { ...(s.labelConfig as LabelConfig), ...rules.labelPresets }
+      : s.labelConfig;
+
     return {
       sku,
       type,
@@ -30,7 +42,7 @@ export const productSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
       ...(needReset ? {
         fabric: '',
         color: '',
-        extras: [],
+        extras: defaultExtras,
         labels: [],
         zones: sku.zones?.length ? [sku.zones[0]] : [],
         zoneTechs: {},
@@ -38,6 +50,7 @@ export const productSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
         dtgZones: {},
         embZones: {},
         dtfZones: {},
+        labelConfig,
       } : {}),
     };
   }),

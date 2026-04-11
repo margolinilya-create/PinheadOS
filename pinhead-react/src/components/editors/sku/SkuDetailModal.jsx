@@ -1,8 +1,20 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useStore } from '../../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
+import { getEffectiveRules } from '../../../utils/skuRules';
+import { MEDASTEX_COLORS, COLOR_GROUPS } from '../../../data';
+
+const TECHS = [
+  { key: 'screen', label: 'Шелкография' },
+  { key: 'flex', label: 'Flex' },
+  { key: 'dtg', label: 'DTG' },
+  { key: 'embroidery', label: 'Вышивка' },
+  { key: 'dtf', label: 'DTF' },
+];
 
 const MAX_PHOTOS = 4;
 
@@ -23,6 +35,9 @@ const DEFAULT_SIZE_CHART = {
 };
 
 export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPersist }) {
+  const { fabricsCatalog, trimCatalog, usdRate, categoryRules } = useStore(
+    useShallow(s => ({ fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, usdRate: s.usdRate, categoryRules: s.categoryRules }))
+  );
   const panelRef = useFocusTrap(true, onClose);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -154,6 +169,55 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     if (sku.category === 'accessories') return ['side-a', 'side-b'].includes(z.id);
     return !['side-a', 'side-b'].includes(z.id);
   });
+
+  // Economics: cost breakdown for this SKU
+  const economics = useMemo(() => {
+    const fabric = fabricsCatalog.find(f => (f.forCategories || []).includes(sku.category));
+    const fabricCost = fabric ? Math.round(sku.mainFabricUsage * fabric.priceUSD * usdRate) : 0;
+    const trim = trimCatalog.find(t => t.code === sku.trimCode);
+    const trimCost = trim ? Math.round((sku.trimUsage || 0) * trim.priceUSD * usdRate) : 0;
+    const sewingCost = sku.sewingPrice || 0;
+    return {
+      sewingCost,
+      fabricCost,
+      fabricName: fabric?.name || '—',
+      trimCost,
+      trimName: trim?.name || '—',
+      total: sewingCost + fabricCost + trimCost,
+    };
+  }, [sku.sewingPrice, sku.mainFabricUsage, sku.trimCode, sku.trimUsage, sku.category, fabricsCatalog, trimCatalog, usdRate]);
+
+  // Resolved rules for this SKU (category rules + per-SKU overrides)
+  const resolvedRules = useMemo(
+    () => getEffectiveRules(sku, categoryRules || []),
+    [sku, categoryRules]
+  );
+  const overrides = sku.overrides || {};
+
+  const toggleOverrideTech = (techKey) => {
+    const current = overrides.allowedTechs || resolvedRules.allowedTechs || TECHS.map(t => t.key);
+    const next = current.includes(techKey)
+      ? current.filter(t => t !== techKey)
+      : [...current, techKey];
+    onUpdate(skuIndex, 'overrides', { ...overrides, allowedTechs: next });
+  };
+
+  const clearOverrideField = (field) => {
+    const next = { ...overrides };
+    delete next[field];
+    onUpdate(skuIndex, 'overrides', Object.keys(next).length > 0 ? next : undefined);
+  };
+
+  const setOverrideMoq = (value) => {
+    const num = Math.max(1, Number(value) || 1);
+    onUpdate(skuIndex, 'overrides', { ...overrides, moq: num });
+  };
+
+  const setOverridePriceMultiplier = (value) => {
+    const num = Number(value);
+    if (isNaN(num) || num < 0) return;
+    onUpdate(skuIndex, 'priceMultiplier', num || undefined);
+  };
 
   const mockupSvg = photos.length === 0 ? getGarmentSVG(sku.mockupType, '#d9d9d9') : '';
 
@@ -300,7 +364,98 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
             </div>
           </div>
 
-          {/* Section 5: Basic fields */}
+          {/* Section 5: Economics (read-only) */}
+          <div className="sku-detail-section">
+            <div className="sku-detail-section-label">ЭКОНОМИКА (СЕБЕСТОИМОСТЬ)</div>
+            <div className="sku-economics">
+              <div className="sku-economics-grid">
+                <span className="econ-label">Пошив</span>
+                <span className="econ-value">{economics.sewingCost} &#8381;</span>
+                <span className="econ-label">Ткань ({economics.fabricName})</span>
+                <span className="econ-value">{economics.fabricCost} &#8381;</span>
+                <span className="econ-label">Отделка ({economics.trimName})</span>
+                <span className="econ-value">{economics.trimCost} &#8381;</span>
+                <span className="econ-label econ-total">Итого</span>
+                <span className="econ-value econ-total">{economics.total} &#8381;</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 6: Overrides */}
+          <div className="sku-detail-section">
+            <div className="sku-detail-section-label">ПЕРЕОПРЕДЕЛЕНИЯ</div>
+            <p className="sku-overrides-hint">Серым показаны правила категории. Переопределите для этого артикула.</p>
+
+            {/* Tech overrides */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">Техники</span>
+              <div className="cat-rule-chips">
+                {TECHS.map(t => {
+                  const inherited = !resolvedRules.allowedTechs || resolvedRules.allowedTechs.includes(t.key);
+                  const hasOverride = overrides.allowedTechs !== undefined;
+                  const active = hasOverride
+                    ? (overrides.allowedTechs || []).includes(t.key)
+                    : inherited;
+                  return (
+                    <button
+                      key={t.key}
+                      className={`cat-rule-chip${active ? ' active' : ''}${!hasOverride ? ' inherited' : ''}`}
+                      onClick={() => toggleOverrideTech(t.key)}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+                {overrides.allowedTechs !== undefined && (
+                  <button className="sku-override-clear" onClick={() => clearOverrideField('allowedTechs')}>сбросить</button>
+                )}
+              </div>
+            </div>
+
+            {/* MOQ override */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">MOQ</span>
+              <input
+                type="number"
+                className="cat-rule-moq-input"
+                min="1"
+                value={overrides.moq ?? resolvedRules.moq}
+                onChange={e => setOverrideMoq(e.target.value)}
+              />
+              {overrides.moq !== undefined && (
+                <button className="sku-override-clear" onClick={() => clearOverrideField('moq')}>сбросить</button>
+              )}
+              {overrides.moq === undefined && resolvedRules.moq > 1 && (
+                <span className="sku-override-inherited">от категории</span>
+              )}
+            </div>
+
+            {/* Price multiplier */}
+            <div className="sku-override-row">
+              <span className="sku-override-label">Множитель цены</span>
+              <input
+                type="number"
+                className="cat-rule-moq-input"
+                step="0.1"
+                min="0"
+                value={sku.priceMultiplier ?? 1}
+                onChange={e => setOverridePriceMultiplier(e.target.value)}
+                placeholder="1.0"
+              />
+              {sku.priceMultiplier && sku.priceMultiplier !== 1 && (
+                <span className="sku-override-badge">{sku.priceMultiplier > 1 ? '+' : ''}{Math.round((sku.priceMultiplier - 1) * 100)}%</span>
+              )}
+            </div>
+
+            {/* Per-SKU color palette override */}
+            <SkuColorPicker
+              allowedColors={overrides.allowedColors}
+              onUpdate={(colors) => onUpdate(skuIndex, 'overrides', { ...overrides, allowedColors: colors })}
+              onClear={() => clearOverrideField('allowedColors')}
+            />
+          </div>
+
+          {/* Section 7: Basic fields */}
           <div className="sku-detail-section">
             <div className="sku-detail-section-label">ПАРАМЕТРЫ</div>
             <div className="sku-detail-fields">
@@ -336,6 +491,67 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Collapsible per-SKU color swatch picker */
+function SkuColorPicker({ allowedColors, onUpdate, onClear }) {
+  const [open, setOpen] = useState(false);
+  const hasOverride = allowedColors !== undefined && allowedColors !== null;
+  const selectedSet = hasOverride ? new Set(allowedColors) : null;
+
+  const toggleColor = (code) => {
+    if (!hasOverride) {
+      // First click: start with all colors selected, then toggle off
+      const allCodes = MEDASTEX_COLORS.map(c => c.code);
+      onUpdate(allCodes.filter(c => c !== code));
+    } else {
+      const next = selectedSet.has(code)
+        ? allowedColors.filter(c => c !== code)
+        : [...allowedColors, code];
+      onUpdate(next);
+    }
+  };
+
+  return (
+    <div className="sku-override-colors">
+      <div className="sku-override-row">
+        <span className="sku-override-label">Цвета</span>
+        <button className="cat-rule-chip" onClick={() => setOpen(v => !v)}>
+          {hasOverride ? `${allowedColors.length} из ${MEDASTEX_COLORS.length}` : 'все цвета'} {open ? '▲' : '▼'}
+        </button>
+        {hasOverride && (
+          <button className="sku-override-clear" onClick={() => { onClear(); setOpen(false); }}>сбросить</button>
+        )}
+      </div>
+      {open && (
+        <div className="sku-color-grid">
+          {COLOR_GROUPS.map(g => {
+            const groupColors = g.codes.map(code => MEDASTEX_COLORS.find(c => c.code === code)).filter(Boolean);
+            if (!groupColors.length) return null;
+            return (
+              <div key={g.label} className="sku-color-group">
+                <div className="sku-color-group-label">{g.label}</div>
+                <div className="sku-color-swatches">
+                  {groupColors.map(c => {
+                    const active = !hasOverride || selectedSet.has(c.code);
+                    return (
+                      <button
+                        key={c.code}
+                        className={`sku-color-swatch${active ? ' active' : ''}`}
+                        style={{ backgroundColor: c.hex }}
+                        title={`${c.name} (${c.code})`}
+                        onClick={() => toggleColor(c.code)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -16,9 +16,14 @@ beforeEach(() => {
 });
 
 describe('PriceEditor', () => {
-  it('renders actions bar', () => {
+  it('renders actions bar with title', () => {
     renderPriceEditor();
-    expect(screen.getByText('Сохранить')).toBeInTheDocument();
+    expect(screen.getByText('Редактор цен')).toBeInTheDocument();
+  });
+
+  it('renders pricing tab content with save button', () => {
+    renderPriceEditor();
+    expect(screen.getByText('Сохранить цены')).toBeInTheDocument();
     expect(screen.getByText('Экспорт')).toBeInTheDocument();
   });
 
@@ -56,19 +61,10 @@ describe('PriceEditor', () => {
     expect(screen.getByText('Нет изменений')).toBeInTheDocument();
   });
 
-  it('shows save button', () => {
-    renderPriceEditor();
-    expect(screen.getByText('Сохранить')).toBeInTheDocument();
-  });
-
-  it('shows export/import buttons', () => {
+  it('shows export/import/reset buttons', () => {
     renderPriceEditor();
     expect(screen.getByText('Экспорт')).toBeInTheDocument();
     expect(screen.getByText('Импорт')).toBeInTheDocument();
-  });
-
-  it('shows reset button', () => {
-    renderPriceEditor();
     expect(screen.getByText('Сброс')).toBeInTheDocument();
   });
 

@@ -158,6 +158,34 @@ describe('getSkuEstPrice', () => {
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     expect(price).toBe(141 + 0 + Math.round(0.15 * 13.20 * 92)); // no fabric match, trim only
   });
+
+  it('applies priceMultiplier when set', () => {
+    const sku = { ...SKU_CATALOG_DEFAULT[0], priceMultiplier: 1.1 };
+    const base = getSkuEstPrice({ ...SKU_CATALOG_DEFAULT[0] }, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const withMult = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    expect(withMult).toBe(Math.round(base * 1.1));
+  });
+
+  it('priceMultiplier of 1 returns same as no multiplier', () => {
+    const sku = { ...SKU_CATALOG_DEFAULT[0], priceMultiplier: 1 };
+    const base = getSkuEstPrice({ ...SKU_CATALOG_DEFAULT[0] }, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const withMult = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    expect(withMult).toBe(base);
+  });
+
+  it('priceMultiplier of 0.9 reduces cost by 10%', () => {
+    const sku = { ...SKU_CATALOG_DEFAULT[0], priceMultiplier: 0.9 };
+    const base = getSkuEstPrice({ ...SKU_CATALOG_DEFAULT[0] }, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const withMult = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    expect(withMult).toBe(Math.round(base * 0.9));
+  });
+
+  it('undefined priceMultiplier returns base cost', () => {
+    const sku = { ...SKU_CATALOG_DEFAULT[0], priceMultiplier: undefined };
+    const base = getSkuEstPrice({ ...SKU_CATALOG_DEFAULT[0] }, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    const withMult = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
+    expect(withMult).toBe(base);
+  });
 });
 
 // ═══════════════════════════════
