@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
-import { SIZES, ZONE_LABELS } from '../../../data/constants';
+import { SIZES } from '../../../data/constants';
+import { getAvailableZonesForSku } from '../../../utils/skuRules';
 
 const TECHS = [
   { key: 'screen', label: 'Шелкография' },
@@ -10,16 +11,7 @@ const TECHS = [
   { key: 'dtf', label: 'DTF' },
 ];
 
-const ALL_ZONES = [
-  { id: 'front', name: 'Грудь' },
-  { id: 'back', name: 'Спина' },
-  { id: 'sleeve-l', name: 'Лев. рукав' },
-  { id: 'sleeve-r', name: 'Прав. рукав' },
-  { id: 'hood', name: 'Капюшон' },
-  { id: 'pocket', name: 'Карман' },
-];
-
-export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdate }) {
+export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCatalog, onUpdate }) {
   const [expanded, setExpanded] = useState(null);
 
   const getRuleForCategory = (catId) =>
@@ -151,7 +143,7 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, onUpdat
                         </tr>
                       </thead>
                       <tbody>
-                        {ALL_ZONES.map(z => {
+                        {getAvailableZonesForSku(zonesCatalog || [], cat.id).map(z => {
                           const zoneTechs = rule.allowedZoneTechs?.[z.id];
                           return (
                             <tr key={z.id}>

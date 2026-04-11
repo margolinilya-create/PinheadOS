@@ -10,7 +10,11 @@ function PriceBadge({ price }) {
 export default function ExtrasAccordion({ sku, extras, extrasCatalog, toggleExtra }) {
   const [showExtras, setShowExtras] = useState(false);
   const totalExtrasCost = calcExtrasCost(extras, extrasCatalog);
-  const availableExtras = extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category));
+  let availableExtras = extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category));
+  // Per-SKU extras restriction
+  if (sku.allowedExtras?.length) {
+    availableExtras = availableExtras.filter(e => sku.allowedExtras.includes(e.code));
+  }
 
   return (
     <div className="extras-accordion">

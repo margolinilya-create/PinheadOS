@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════
 // SKU Rules — resolve category rules + per-SKU overrides
 // ═══════════════════════════════════════════
-import type { CategoryRules, CategoryRulesOverrides, SkuItem } from '../types/catalog';
+import type { CategoryRules, CategoryRulesOverrides, SkuItem, ZoneDefinition } from '../types/catalog';
+import { ZONE_LABELS } from '../data/constants';
 
 /** Fully resolved rules for a given SKU (no undefined = sensible defaults) */
 export interface ResolvedRules {
@@ -109,4 +110,26 @@ export function isSizeAvailable(rules: ResolvedRules, size: string): boolean {
 /** Build default (empty) category rules for a given category ID */
 export function buildDefaultCategoryRules(categoryId: string): CategoryRules {
   return { categoryId };
+}
+
+/**
+ * Get zones available for a given SKU category from the dynamic zones catalog.
+ * Filters by zone.forCategories (null = available for all categories).
+ */
+export function getAvailableZonesForSku(
+  zonesCatalog: ZoneDefinition[],
+  skuCategory: string,
+): ZoneDefinition[] {
+  return zonesCatalog
+    .filter(z => !z.forCategories || z.forCategories.includes(skuCategory))
+    .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
+}
+
+/**
+ * Resolve zone display name: first from dynamic catalog, fallback to ZONE_LABELS constant.
+ */
+export function getZoneName(zoneId: string, zonesCatalog: ZoneDefinition[]): string {
+  const found = zonesCatalog.find(z => z.id === zoneId);
+  if (found) return found.name;
+  return (ZONE_LABELS as Record<string, string>)[zoneId] || zoneId;
 }

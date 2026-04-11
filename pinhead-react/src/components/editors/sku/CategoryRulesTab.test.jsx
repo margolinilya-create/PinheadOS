@@ -7,6 +7,14 @@ const mockExtras = [
   { code: 'overlock', name: 'Обметка', price: 30 },
   { code: 'wash-label', name: 'Этикетка', price: 15 },
 ];
+const mockZones = [
+  { id: 'front', name: 'Грудь', forCategories: null, sortOrder: 1 },
+  { id: 'back', name: 'Спина', forCategories: null, sortOrder: 2 },
+  { id: 'sleeve-l', name: 'Лев. рукав', forCategories: null, sortOrder: 3 },
+  { id: 'sleeve-r', name: 'Прав. рукав', forCategories: null, sortOrder: 4 },
+  { id: 'hood', name: 'Капюшон', forCategories: ['hoodies','ziphoodies','halfzips'], sortOrder: 5 },
+  { id: 'pocket', name: 'Карман', forCategories: null, sortOrder: 6 },
+];
 
 function renderTab(rules = emptyRules, onUpdate = vi.fn()) {
   return {
@@ -15,6 +23,7 @@ function renderTab(rules = emptyRules, onUpdate = vi.fn()) {
       <CategoryRulesTab
         categoryRules={rules}
         extrasCatalog={mockExtras}
+        zonesCatalog={mockZones}
         onUpdate={onUpdate}
       />
     ),

@@ -477,6 +477,35 @@ td.pe-markup-cat,
 .sku-color-swatch.active { border-color: var(--black); }
 .sku-color-swatch:not(.active) { opacity: 0.25; }
 .sku-color-swatch:hover { transform: scale(1.2); z-index: 1; }
+/* Per-SKU allowed list (fabrics/extras chips) */
+.sku-allowed-list {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 8px; padding: 8px;
+  border: 1px solid var(--border-light); max-height: 200px; overflow-y: auto;
+}
+/* Zones Catalog Tab */
+.zones-catalog-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.zones-catalog-table th {
+  text-align: left; font-family: var(--font-display); font-size: 10px;
+  font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-dim); padding: 6px 8px; border-bottom: 1.5px solid var(--border-light);
+}
+.zones-catalog-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg3); vertical-align: middle; }
+.zones-id-cell { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.zones-name-input {
+  width: 100%; border: 1px solid var(--border-light); padding: 4px 8px;
+  font-size: 12px; font-weight: 600;
+}
+.zones-name-input:focus { border-color: var(--accent); outline: none; }
+.zones-cat-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.cat-rule-chip-sm { padding: 2px 6px; font-size: 9px; }
+.zones-add-row {
+  display: flex; gap: 8px; align-items: center; margin-top: 12px;
+  padding: 8px 0; border-top: 1px solid var(--border-light);
+}
+.zones-add-input { border: 1px solid var(--border-light); padding: 6px 10px; font-size: 12px; width: 140px; }
+.zones-add-name { flex: 1; min-width: 120px; }
+.zones-add-input:focus { border-color: var(--accent); outline: none; }
 /* Zone-Tech matrix in CategoryRulesTab */
 .zone-tech-matrix { width: 100%; border-collapse: collapse; font-size: 11px; }
 .zone-tech-matrix th {

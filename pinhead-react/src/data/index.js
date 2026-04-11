@@ -21,5 +21,5 @@ export {
 } from './extras';
 export {
   SIZES, TYPE_NAMES, FABRIC_NAMES, TECH_NAMES,
-  ZONE_LABELS, DEFAULT_USD_RATE
+  ZONE_LABELS, DEFAULT_USD_RATE, ZONES_CATALOG_DEFAULT
 } from './constants';

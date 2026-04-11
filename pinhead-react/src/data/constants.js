@@ -37,3 +37,14 @@ export const ZONE_LABELS = {
 };
 
 export const DEFAULT_USD_RATE = 92;
+
+export const ZONES_CATALOG_DEFAULT = [
+  { id: 'front',    name: 'Грудь (перед)',  forCategories: null, sortOrder: 1 },
+  { id: 'back',     name: 'Спина',          forCategories: null, sortOrder: 2 },
+  { id: 'sleeve-l', name: 'Левый рукав',    forCategories: null, sortOrder: 3 },
+  { id: 'sleeve-r', name: 'Правый рукав',   forCategories: null, sortOrder: 4 },
+  { id: 'hood',     name: 'Капюшон',        forCategories: ['hoodies','ziphoodies','halfzips'], sortOrder: 5 },
+  { id: 'pocket',   name: 'Карман',          forCategories: null, sortOrder: 6 },
+  { id: 'side-a',   name: 'Сторона A',      forCategories: ['accessories'], sortOrder: 7 },
+  { id: 'side-b',   name: 'Сторона B',      forCategories: ['accessories'], sortOrder: 8 },
+];

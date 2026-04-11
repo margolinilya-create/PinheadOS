@@ -15,6 +15,10 @@ export default function FabricGrid() {
   let catalogFabrics = [];
   if (sku?.category) {
     catalogFabrics = fabricsCatalog.filter(f => (f.forCategories || []).includes(sku.category));
+    // Per-SKU fabric restriction
+    if (sku.allowedFabrics?.length) {
+      catalogFabrics = catalogFabrics.filter(f => sku.allowedFabrics.includes(f.code));
+    }
     if (catalogFabrics.length > 0) {
       fabrics = catalogFabrics.map(f => ({ key: f.code, name: f.name, meta: [f.composition, f.density ? f.density + ' г/м²' : null].filter(Boolean).join(' · '), sub: Math.round(f.priceUSD * usdRate) + ' ₽/м · ' + f.supplier, supplier: f.supplier }));
     }

@@ -35,6 +35,13 @@ beforeEach(() => {
     sizes: { M: 100 },
     customSizes: [],
     zoneTechs: {},
+    zonesCatalog: [
+      { id: 'front', name: 'Грудь (перед)', forCategories: null, sortOrder: 1 },
+      { id: 'back', name: 'Спина', forCategories: null, sortOrder: 2 },
+      { id: 'sleeve-l', name: 'Левый рукав', forCategories: null, sortOrder: 3 },
+      { id: 'sleeve-r', name: 'Правый рукав', forCategories: null, sortOrder: 4 },
+      { id: 'hood', name: 'Капюшон', forCategories: ['hoodies','ziphoodies','halfzips'], sortOrder: 5 },
+    ],
   });
 });
 

@@ -3,13 +3,14 @@ import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS, TECH_NAMES } from '../../data';
 import { hasNoPrint, getZoneSurcharge } from '../../utils/pricing';
+import { getZoneName } from '../../utils/skuRules';
 import { toast } from '../../store/useToastStore';
 import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
 import ZoneMockup from './ZoneMockup';
 import styles from './StepDesign.module.css';
 
-const ALL_ZONES = ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'];
+// ALL_ZONES removed — now uses sku.zones from store directly
 
 const SHORT_TECH = { screen: 'Шелко', flex: 'Flex', dtg: 'DTG', embroidery: 'Выш.', dtf: 'DTF' };
 
@@ -45,13 +46,14 @@ function getZoneMiniSummary(zone, state) {
 export default function StepDesign() {
   const { sku, type, color, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
     sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones,
-    artworkPath, setArtworkPath } = useStore(
+    artworkPath, setArtworkPath, zonesCatalog } = useStore(
     useShallow(s => ({ sku: s.sku, type: s.type, color: s.color, zones: s.zones, toggleZone: s.toggleZone,
       noPrint: s.noPrint, toggleNoPrint: s.toggleNoPrint, designNotes: s.designNotes, setField: s.setField,
       nextStep: s.nextStep, prevStep: s.prevStep, sizes: s.sizes, customSizes: s.customSizes,
       zoneTechs: s.zoneTechs, zonePrints: s.zonePrints, flexZones: s.flexZones, dtgZones: s.dtgZones,
       embZones: s.embZones, dtfZones: s.dtfZones,
-      artworkPath: s.artworkPath, setArtworkPath: s.setArtworkPath }))
+      artworkPath: s.artworkPath, setArtworkPath: s.setArtworkPath,
+      zonesCatalog: s.zonesCatalog }))
   );
   const store = { zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, sizes, customSizes };
   const [screenConfirmed, setScreenConfirmed] = useState(false);
@@ -61,8 +63,7 @@ export default function StepDesign() {
     return <div className="step-panel"><div className="empty-state">Сначала выберите изделие</div></div>;
   }
 
-  const availableZones = sku.zones || [];
-  const displayZones = ALL_ZONES.filter(z => availableZones.includes(z));
+  const displayZones = sku.zones || [];
   const noPrintType = hasNoPrint(type);
 
   return (
@@ -95,7 +96,7 @@ export default function StepDesign() {
                 </button>
 
                 {displayZones.map(z => {
-                  const available = availableZones.includes(z);
+                  const available = displayZones.includes(z);
                   const active = zones.includes(z);
                   const cls = `zone-card${active ? ' selected' : ''}`;
                   return (
@@ -106,11 +107,11 @@ export default function StepDesign() {
                       onClick={() => toggleZone(z)}
                       disabled={!available}
                       aria-pressed={active}
-                      aria-label={ZONE_LABELS[z] || z}
+                      aria-label={getZoneName(z, zonesCatalog || [])}
                     >
                       <div className="zone-bar" />
                       <div className="zone-card-inner">
-                        <div className="zone-label">{ZONE_LABELS[z] || z}</div>
+                        <div className="zone-label">{getZoneName(z, zonesCatalog || [])}</div>
                         {active && <div className="zone-mini-summary">{getZoneMiniSummary(z, store)}</div>}
                       </div>
                       <div className="zone-check">{active ? '✓' : ''}</div>
@@ -124,7 +125,7 @@ export default function StepDesign() {
               {sku?.mockupType && <ZoneMockup
                 garmentType={sku.mockupType}
                 activeZones={zones}
-                availableZones={availableZones}
+                displayZones={displayZones}
                 color={color}
                 zoneTechs={zoneTechs}
                 zonePrints={zonePrints}

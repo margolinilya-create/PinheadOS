@@ -16,6 +16,7 @@ import ExtrasEditor from './sku/ExtrasEditor';
 import SkuHardwareTab from './sku/SkuHardwareTab';
 import PricingTabContent from './sku/PricingTabContent';
 import CategoryRulesTab from './sku/CategoryRulesTab';
+import ZonesCatalogTab from './sku/ZonesCatalogTab';
 import AddSkuModal from './sku/AddSkuModal';
 import ZonesModal from './sku/ZonesModal';
 
@@ -27,6 +28,7 @@ const TABS = [
   { id: 'hardware', name: 'Фурнитура' },
   { id: 'pricing', name: 'Ценообразование' },
   { id: 'rules', name: 'Правила категорий' },
+  { id: 'zones', name: 'Зоны нанесения' },
 ];
 
 function generateCode(name) {
@@ -44,10 +46,10 @@ function getDefaultZones(cat) {
 }
 
 export default function SkuEditor() {
-  const { skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, categoryRules, usdRate, setField } = useStore(
+  const { skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, usdRate, setField } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
       trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog, hardwareCatalog: s.hardwareCatalog,
-      categoryRules: s.categoryRules, usdRate: s.usdRate, setField: s.setField }))
+      categoryRules: s.categoryRules, zonesCatalog: s.zonesCatalog, usdRate: s.usdRate, setField: s.setField }))
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'items';
@@ -80,6 +82,7 @@ export default function SkuEditor() {
   const [changedHardware, setChangedHardware] = useState(new Set());
   const [pricingDirty, setPricingDirty] = useState(false);
   const [rulesDirty, setRulesDirty] = useState(false);
+  const [zonesDirty, setZonesDirty] = useState(false);
 
   // No useEffect to reload SKU — catalogSlice.loadCatalogs() already handles this at app startup.
   // Previously this useEffect was overwriting store with stale Supabase data (without photos).
@@ -101,6 +104,7 @@ export default function SkuEditor() {
     const currentHardware = state.hardwareCatalog;
     const currentPrices = state.prices;
     const currentRules = state.categoryRules;
+    const currentZones = state.zonesCatalog;
     try {
       localStorage.setItem('ph_sku', JSON.stringify(currentSku));
       localStorage.setItem('ph_fabrics', JSON.stringify(currentFabrics));
@@ -110,6 +114,7 @@ export default function SkuEditor() {
       localStorage.setItem('ph_usd_rate', String(state.usdRate));
       storageSet('ph_prices', currentPrices);
       storageSet('ph_category_rules', currentRules);
+      storageSet('ph_zones', currentZones);
     } catch { /* ignore storage errors */ }
     invalidatePricesCache();
     const ts = new Date().toISOString();
@@ -121,6 +126,7 @@ export default function SkuEditor() {
       supabase.from('app_config').upsert({ key: 'hardwareCatalog', value: currentHardware, updated_at: ts }, { onConflict: 'key' }),
       supabase.from('app_config').upsert({ key: 'prices', value: currentPrices, updated_at: ts }, { onConflict: 'key' }),
       supabase.from('app_config').upsert({ key: 'categoryRules', value: currentRules, updated_at: ts }, { onConflict: 'key' }),
+      supabase.from('app_config').upsert({ key: 'zonesCatalog', value: currentZones, updated_at: ts }, { onConflict: 'key' }),
     ]);
     const hasError = results.some(r => r.error);
     setSaving(false);
@@ -130,6 +136,7 @@ export default function SkuEditor() {
     setChangedExtras(new Set());
     setChangedHardware(new Set());
     setRulesDirty(false);
+    setZonesDirty(false);
     clearCatalogsCache();
     if (!hasError) {
       toast.success('Каталог сохранён');
@@ -386,7 +393,7 @@ export default function SkuEditor() {
       <div className="pe-tabs">
         {TABS.map(t => {
           const dirtyMap = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware };
-          const dirty = t.id === 'pricing' ? pricingDirty : t.id === 'rules' ? rulesDirty : dirtyMap[t.id]?.size > 0;
+          const dirty = t.id === 'pricing' ? pricingDirty : t.id === 'rules' ? rulesDirty : t.id === 'zones' ? zonesDirty : dirtyMap[t.id]?.size > 0;
           return (
             <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
               {t.name}{dirty && <span className="pe-tab-dot" />}
@@ -452,7 +459,16 @@ export default function SkuEditor() {
         <CategoryRulesTab
           categoryRules={categoryRules}
           extrasCatalog={extrasCatalog}
+          zonesCatalog={zonesCatalog}
           onUpdate={(rules) => { setField('categoryRules', rules); setRulesDirty(true); }}
+        />
+      )}
+
+      {tab === 'zones' && (
+        <ZonesCatalogTab
+          zonesCatalog={zonesCatalog}
+          skuCatalog={skuCatalog}
+          onUpdate={(zones) => { setField('zonesCatalog', zones); setZonesDirty(true); }}
         />
       )}
 
