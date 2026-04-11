@@ -1215,4 +1215,138 @@ td.pe-markup-cat,
 
   /* ── Economics ── */
   .sku-economics-grid { max-width: 100%; }
+
+  /* ═══════════════════════════════════════════ */
+  /* SKU ITEMS TABLE — mobile column hiding      */
+  /* ═══════════════════════════════════════════ */
+  .sku-ed-group { min-width: 0; }
+  .sku-ed-table { table-layout: auto; }
+
+  /* Hide: №(1), Photo(2), Article(3), TrimUsage(8), Zones(10) — scoped to items tab */
+  .sku-items-view .sku-ed-table th:nth-child(1),
+  .sku-items-view .sku-ed-table td:nth-child(1),
+  .sku-items-view .sku-ed-table th:nth-child(2),
+  .sku-items-view .sku-ed-table td:nth-child(2),
+  .sku-items-view .sku-ed-table th:nth-child(3),
+  .sku-items-view .sku-ed-table td:nth-child(3),
+  .sku-items-view .sku-ed-table th:nth-child(8),
+  .sku-items-view .sku-ed-table td:nth-child(8),
+  .sku-items-view .sku-ed-table th:nth-child(10),
+  .sku-items-view .sku-ed-table td:nth-child(10) { display: none; }
+
+  .sku-ed-table th { font-size: 9px; padding: 6px 4px; letter-spacing: 0.5px; }
+  .sku-ed-table td { padding: 5px 4px; }
+  .sku-edit-name { min-width: 80px; font-size: 11px; }
+  .sku-edit-num { font-size: 11px; }
+  .sku-edit-select { font-size: 10px; padding: 3px 2px; }
+  .sku-td-est { font-size: 11px; }
+
+  /* ── SKU Toolbar: wrap to stack ── */
+  .sku-ed-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .sku-ed-toolbar .page-search {
+    order: 1;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .sku-ed-cat-select {
+    order: 2;
+    max-width: none;
+    flex: 1;
+  }
+  .sku-ed-count { order: 3; margin-left: 0; }
+  .sku-ed-add-btn {
+    order: 4;
+    padding: 8px 16px;
+    font-size: 11px;
+  }
+
+  /* ── Group header compact ── */
+  .sku-ed-group-header {
+    padding: 8px 10px;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  /* ═══════════════════════════════════════════ */
+  /* FABRICS TABLE — mobile column hiding        */
+  /* ═══════════════════════════════════════════ */
+  .fabrics-table { table-layout: auto; }
+  .fabrics-table th { font-size: 9px; padding: 5px 6px; }
+  .fabrics-table td { padding: 5px 6px; font-size: 12px; }
+
+  /* Hide: Состав(2), Плотность(3), Используется в(5) */
+  .fabrics-table th:nth-child(2),
+  .fabrics-table td:nth-child(2),
+  .fabrics-table th:nth-child(3),
+  .fabrics-table td:nth-child(3),
+  .fabrics-table th:nth-child(5),
+  .fabrics-table td:nth-child(5) { display: none; }
+
+  .fabric-price-inp { width: 60px; font-size: 11px; }
+
+  /* ── Supplier filter: scroll ── */
+  .supplier-filter {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
+    width: 100%;
+  }
+  .supplier-filter::-webkit-scrollbar { display: none; }
+  .supplier-filter-btn { white-space: nowrap; flex-shrink: 0; }
+
+  /* ── Extras editor mobile ── */
+  .extras-detail-header { flex-wrap: wrap; gap: 8px; }
+  .extras-detail-price { flex-wrap: wrap; }
+  .extras-add-form { flex-wrap: wrap; }
+  .extras-cat-tabs { gap: 4px; }
+  .extras-cat-tab { padding: 4px 8px; font-size: 10px; }
+  .extras-mode-btn { padding: 5px 10px; font-size: 11px; }
+
+  /* ── SKU modal mobile ── */
+  .sku-modal { min-width: 0; max-width: calc(100vw - 32px); padding: 20px 16px; }
+  .sku-modal h3 { font-size: 16px; }
+
+  /* ── Print preview mobile ── */
+  .pp-page { margin: 16px auto; }
+  .pp-table th { padding: 6px 8px; font-size: 9px; }
+  .pp-table td { padding: 6px 8px; font-size: 12px; }
+}
+
+/* ═══════════════════════════════════════════ */
+/* EXTRA-SMALL — ≤480px                       */
+/* ═══════════════════════════════════════════ */
+@media (max-width: 480px) {
+  /* SKU Items: also hide Fit(5) and Trim(9) — scoped to items tab */
+  .sku-items-view .sku-ed-table th:nth-child(5),
+  .sku-items-view .sku-ed-table td:nth-child(5),
+  .sku-items-view .sku-ed-table th:nth-child(9),
+  .sku-items-view .sku-ed-table td:nth-child(9) { display: none; }
+
+  .sku-ed-table th { font-size: 8px; padding: 5px 3px; }
+  .sku-ed-table td { padding: 4px 3px; }
+  .sku-edit-name { min-width: 60px; font-size: 11px; }
+  .sku-edit-num { font-size: 11px; }
+  .sku-td-est { font-size: 10px; }
+  .sku-ed-panel { padding: 0 8px; }
+
+  /* Fabrics: also hide Поставщик(4) */
+  .fabrics-table th:nth-child(4),
+  .fabrics-table td:nth-child(4) { display: none; }
+
+  /* Actions bar compact */
+  .sku-actions-bar { padding: 6px 10px; }
+  .sku-actions-title { font-size: 11px; letter-spacing: 0.5px; }
+  .pe-btn { padding: 5px 10px; font-size: 11px; }
+
+  /* Tabs even more compact */
+  .pe-tab { padding: 6px 8px; font-size: 9px; }
+
+  /* Rate bar compact */
+  .sku-ed-rate-bar { font-size: 10px; gap: 6px; padding: 6px 0; }
+  .sku-ed-rate-internal input { width: 50px; font-size: 12px; }
 }

@@ -19,7 +19,7 @@
 |---|---------|----------|-----|
 | 5 | Mobile | **Хедер без hamburger-меню** — 9 пунктов навигации overflow на 375px, нет индикатора скролла | Header.jsx, layout.css |
 | 6 | Mobile | **PriceEditor неюзабелен на мобилке** — 8-колоночная матрица без адаптации | PriceEditor, editors.css |
-| 7 | Mobile | **SkuEditor таблицы overflow** — 11 колонок, нет мобильного layout | SkuEditor, editors.css |
+| 7 | Mobile | ~~**SkuEditor таблицы overflow** — 11 колонок, нет мобильного layout~~ ✅ Закрыто в сессии 10: column hiding + auto layout + scoped rules | SkuEditor, editors.css |
 | 8 | UX | **Красный цвет семантически перегружен** — кнопка ЭКСПРЕСС + ошибки + urgent badge — всё красное | Header, nav styles |
 | 9 | UX | **PriceEditor — нет sticky headers/навигации** — 200+ строк скролла без якорей | PriceEditor.jsx |
 | 10 | Perf | **Main bundle 939 KB** — wizard steps 2-5 не lazy-loaded | App.jsx |
@@ -72,7 +72,7 @@
 ### Wave 2 — Mobile (P1)
 - Hamburger-меню в хедере
 - PriceEditor мобильная адаптация
-- SkuEditor мобильная адаптация
+- ~~SkuEditor мобильная адаптация~~ ✅ Сессия 10
 
 ### Wave 3 — Design system (P1)
 - Button компонент (consolidate 7 вариантов)

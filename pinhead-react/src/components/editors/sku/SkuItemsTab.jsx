@@ -12,7 +12,7 @@ export default function SkuItemsTab({
   const getCatName = (id) => SKU_CATEGORIES.find(c => c.id === id)?.name || id;
 
   return (
-    <div className="sku-ed-body">
+    <div className="sku-ed-body sku-items-view">
       <div className="sku-ed-toolbar">
         <input className="page-search" placeholder="Поиск..." value={search} onChange={e => setSearch(e.target.value)} />
         <select className="sku-ed-cat-select" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
