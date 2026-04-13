@@ -4,8 +4,9 @@
 // batches (admin/director only). After close: paid_at stamped, DB
 // trigger locks entries forever.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePayrollStore } from '../../../store/usePayrollStore';
+import { useWorkersStore } from '../../../store/useWorkersStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
@@ -33,10 +34,20 @@ export default function PayrollScreen() {
   const loadEntriesForBatch = usePayrollStore((st) => st.loadEntriesForBatch);
   const closeBatch = usePayrollStore((st) => st.closeBatch);
 
+  const workers = useWorkersStore((st) => st.workers);
+  const loadWorkers = useWorkersStore((st) => st.loadAll);
+
   const [expanded, setExpanded] = useState(null);
   const [closing, setClosing] = useState(null);
 
   useEffect(() => { loadBatches(); }, [loadBatches]);
+  useEffect(() => { loadWorkers(); }, [loadWorkers]);
+
+  const workerNameById = useMemo(() => {
+    const map = {};
+    for (const w of workers) map[w.id] = w.full_name;
+    return map;
+  }, [workers]);
 
   const toggle = async (batchId) => {
     if (expanded === batchId) {
@@ -121,7 +132,7 @@ export default function PayrollScreen() {
                       {entries.map((e) => (
                         <tr key={e.id}>
                           <td>{ENTRY_TYPE_LABEL[e.entry_type] ?? e.entry_type}</td>
-                          <td>{e.worker_id.slice(0, 8)}…</td>
+                          <td>{workerNameById[e.worker_id] ?? `${e.worker_id.slice(0, 8)}…`}</td>
                           <td className={s.numCol}>{e.qty}</td>
                           <td className={s.numCol}>{e.rate}</td>
                           <td className={s.numCol} style={{ fontWeight: 600 }}>{e.amount}₽</td>
