@@ -6,9 +6,39 @@
 
 import { NavLink } from 'react-router-dom';
 import { useFeatureFlag } from '../../../hooks/useFeatureFlag';
+import { useAuthStore } from '../../../store/useAuthStore';
+import { supabase } from '../../../lib/supabase';
+import { toast } from '../../../store/useToastStore';
 import s from './v2.module.css';
 
+const DEMO_EMAIL = 'demo@pinhead.local';
+const DEMO_PASSWORD = 'DemoPass2026!';
+
+async function signInAsDemo() {
+  const { error } = await supabase.auth.signInWithPassword({
+    email: DEMO_EMAIL,
+    password: DEMO_PASSWORD,
+  });
+  if (error) {
+    toast.error(`Login failed: ${error.message}`);
+    return;
+  }
+  // Reload so useAuthStore.init picks up the fresh session.
+  window.location.reload();
+}
+
+async function signOutDemo() {
+  await supabase.auth.signOut();
+  window.location.reload();
+}
+
 export default function V2Nav() {
+  const userId = useAuthStore((st) => st.user?.id);
+  const userEmail = useAuthStore((st) => st.user?.email);
+  // 'dev' = fake DEV_MODE user → no real Supabase session → RLS blocks reads.
+  // Show a one-click "log in as demo" button.
+  const isFakeDev = userId === 'dev';
+
   const techCard = useFeatureFlag('tech_card_builder');
   const workshop = useFeatureFlag('workshop_board');
   const foreman = useFeatureFlag('foreman_screen');
@@ -29,6 +59,27 @@ export default function V2Nav() {
       {foreman && <NavLink to="/foreman" className={chipClass}>Мастер</NavLink>}
       {payroll && <NavLink to="/payroll" className={chipClass}>Payroll</NavLink>}
       {trash && <NavLink to="/trash" className={chipClass}>Корзина</NavLink>}
+
+      <span style={{ flex: 1 }} />
+      {isFakeDev ? (
+        <button
+          type="button"
+          className={s.navChip}
+          onClick={signInAsDemo}
+          title="Создать реальную сессию через demo@pinhead.local — нужно для RLS"
+        >
+          🔐 Войти как demo
+        </button>
+      ) : userEmail === DEMO_EMAIL ? (
+        <button
+          type="button"
+          className={s.navChip}
+          onClick={signOutDemo}
+          title="Выйти из demo сессии"
+        >
+          {userEmail} · выход
+        </button>
+      ) : null}
     </div>
   );
 }
