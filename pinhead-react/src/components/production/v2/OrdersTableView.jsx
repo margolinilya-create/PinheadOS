@@ -147,7 +147,11 @@ export default function OrdersTableView() {
               const colors = STATUS_COLORS[o.status] ?? {};
               return (
                 <tr key={o.id}>
-                  <td><strong>{o.order_number}</strong></td>
+                  <td>
+                    <Link to={`/tech-cards/${o.id}`} style={{ fontWeight: 600 }}>
+                      {o.order_number}
+                    </Link>
+                  </td>
                   <td>
                     <span
                       className={s.badge}

@@ -4,6 +4,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { supabase } from '../../../lib/supabase';
 import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
@@ -25,7 +26,8 @@ const STATUS_CLASS = {
 
 export default function TechCardBuilder() {
   const { orderId } = useParams();
-  useDocumentTitle(orderId ? `Tech Card · ${orderId.slice(0, 8)}` : 'Tech Card');
+  const [orderNumber, setOrderNumber] = useState(null);
+  useDocumentTitle(orderNumber ? `Tech Card · ${orderNumber}` : 'Tech Card');
   const role = useAuthStore((st) => st.effectiveRole());
   const canEdit = ['admin', 'director', 'production'].includes(role);
 
@@ -58,6 +60,20 @@ export default function TechCardBuilder() {
   useEffect(() => {
     if (orderId) loadTechCardForOrder(orderId);
   }, [orderId, loadTechCardForOrder]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!orderId) return undefined;
+    (async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('order_number')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (alive && data?.order_number) setOrderNumber(data.order_number);
+    })();
+    return () => { alive = false; };
+  }, [orderId]);
 
   const opsInSection = useMemo(
     () => operationTypes.filter((o) => o.section_id === selectedSectionId),
@@ -130,11 +146,12 @@ export default function TechCardBuilder() {
   return (
     <div className={s.page}>
       <div className={s.header}>
-        <h1>Tech Card</h1>
+        <h1>{orderNumber ? `Tech Card · ${orderNumber}` : 'Tech Card'}</h1>
         <Link to="/tech-cards" className="btn btn-ghost">← К списку</Link>
       </div>
       <p className={s.subtitle}>
-        Заказ: <span className={s.code}>{orderId}</span>
+        {orderNumber && <>Заказ <strong>{orderNumber}</strong> · </>}
+        <span className={s.code}>{orderId.slice(0, 8)}…</span>
         {techCard && (
           <> · <span className={`${s.badge} ${STATUS_CLASS[techCard.status]}`}>
             {STATUS_LABEL[techCard.status]}
