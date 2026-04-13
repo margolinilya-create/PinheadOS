@@ -30,6 +30,7 @@ const WorkshopBoard = React.lazy(() => import('./components/production/v2/Worksh
 const ForemanScreen = React.lazy(() => import('./components/production/v2/ForemanScreen'));
 const PayrollScreen = React.lazy(() => import('./components/production/v2/PayrollScreen'));
 const TrashScreen = React.lazy(() => import('./components/production/v2/TrashScreen'));
+const OrdersTableView = React.lazy(() => import('./components/production/v2/OrdersTableView'));
 const NotificationsBell = React.lazy(() => import('./components/production/v2/NotificationsBell'));
 const V2Nav = React.lazy(() => import('./components/production/v2/V2Nav'));
 const UndoToastHost = React.lazy(() => import('./components/production/v2/UndoToastHost'));
@@ -127,6 +128,7 @@ function App() {
   const payrollScreenEnabled = useFeatureFlag('payroll_screen');
   const notificationsBellEnabled = useFeatureFlag('notifications_bell');
   const trashScreenEnabled = useFeatureFlag('trash_screen');
+  const ordersTableViewEnabled = useFeatureFlag('orders_table_view');
 
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
@@ -206,6 +208,9 @@ function App() {
         )}
         {trashScreenEnabled && (
           <Route path="/trash" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TrashScreen /></Suspense></RoleGuard>} />
+        )}
+        {ordersTableViewEnabled && (
+          <Route path="/orders/table" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><OrdersTableView /></Suspense>} />
         )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -14,14 +14,16 @@ export default function V2Nav() {
   const foreman = useFeatureFlag('foreman_screen');
   const payroll = useFeatureFlag('payroll_screen');
   const trash = useFeatureFlag('trash_screen');
+  const ordersTable = useFeatureFlag('orders_table_view');
 
-  if (!techCard && !workshop && !foreman && !payroll && !trash) return null;
+  if (!techCard && !workshop && !foreman && !payroll && !trash && !ordersTable) return null;
 
   const chipClass = ({ isActive }) => `${s.navChip} ${isActive ? s.navChipActive : ''}`;
 
   return (
     <div className={s.navBar} data-testid="v2-nav">
       <span className={s.navLabel}>V2</span>
+      {ordersTable && <NavLink to="/orders/table" className={chipClass}>Заказы (таблица)</NavLink>}
       {techCard && <NavLink to="/tech-cards" className={chipClass}>Tech Cards</NavLink>}
       {workshop && <NavLink to="/workshop" className={chipClass}>Цех</NavLink>}
       {foreman && <NavLink to="/foreman" className={chipClass}>Мастер</NavLink>}
