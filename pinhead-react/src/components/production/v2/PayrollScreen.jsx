@@ -33,12 +33,15 @@ export default function PayrollScreen() {
   const loadBatches = usePayrollStore((st) => st.loadBatches);
   const loadEntriesForBatch = usePayrollStore((st) => st.loadEntriesForBatch);
   const closeBatch = usePayrollStore((st) => st.closeBatch);
+  const reverseEntry = usePayrollStore((st) => st.reverseEntry);
 
   const workers = useWorkersStore((st) => st.workers);
   const loadWorkers = useWorkersStore((st) => st.loadAll);
 
   const [expanded, setExpanded] = useState(null);
   const [closing, setClosing] = useState(null);
+  const [reversingId, setReversingId] = useState(null);
+  const [reversalReason, setReversalReason] = useState('');
 
   useEffect(() => { loadBatches(); }, [loadBatches]);
   useEffect(() => { loadWorkers(); }, [loadWorkers]);
@@ -57,6 +60,29 @@ export default function PayrollScreen() {
     setExpanded(batchId);
     if (!entriesByBatch[batchId]) {
       await loadEntriesForBatch(batchId);
+    }
+  };
+
+  const handleReverseStart = (entryId) => {
+    setReversingId(entryId);
+    setReversalReason('');
+  };
+
+  const handleReverseCancel = () => {
+    setReversingId(null);
+    setReversalReason('');
+  };
+
+  const handleReverseConfirm = async (entry) => {
+    const created = await reverseEntry(entry, reversalReason);
+    if (created) {
+      toast.success?.('Сторно создано') ?? null;
+      setReversingId(null);
+      setReversalReason('');
+      // Reload entries — the new reversal lives in the open batch.
+      await loadEntriesForBatch(created.batch_id);
+      // Refresh batches in case a new one was auto-created.
+      await usePayrollStore.getState().loadBatches();
     }
   };
 
@@ -126,26 +152,77 @@ export default function PayrollScreen() {
                         <th className={s.numCol}>Сумма</th>
                         <th>Причина</th>
                         <th className={s.numCol}>Оплачено</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {entries.map((e) => (
-                        <tr key={e.id}>
-                          <td>{ENTRY_TYPE_LABEL[e.entry_type] ?? e.entry_type}</td>
-                          <td>{workerNameById[e.worker_id] ?? `${e.worker_id.slice(0, 8)}…`}</td>
-                          <td className={s.numCol}>{e.qty}</td>
-                          <td className={s.numCol}>{e.rate}</td>
-                          <td className={s.numCol} style={{ fontWeight: 600 }}>{e.amount}₽</td>
-                          <td>{e.reason ?? '—'}</td>
-                          <td className={s.numCol}>
-                            {e.paid_at ? new Date(e.paid_at).toLocaleDateString('ru-RU') : '—'}
-                          </td>
-                        </tr>
-                      ))}
+                      {entries.map((e) => {
+                        const canReverse = canClose
+                          && e.entry_type !== 'reversal_of'
+                          && Number(e.amount) !== 0;
+                        const isReversingThis = reversingId === e.id;
+                        return (
+                          <tr key={e.id}>
+                            <td>{ENTRY_TYPE_LABEL[e.entry_type] ?? e.entry_type}</td>
+                            <td>{workerNameById[e.worker_id] ?? `${e.worker_id.slice(0, 8)}…`}</td>
+                            <td className={s.numCol}>{e.qty}</td>
+                            <td className={s.numCol}>{e.rate}</td>
+                            <td className={s.numCol} style={{ fontWeight: 600 }}>{e.amount}₽</td>
+                            <td>
+                              {isReversingThis ? (
+                                <input
+                                  type="text"
+                                  placeholder="Причина сторно"
+                                  value={reversalReason}
+                                  onChange={(ev) => setReversalReason(ev.target.value)}
+                                  autoFocus
+                                  style={{ width: '100%' }}
+                                />
+                              ) : (
+                                e.reason ?? '—'
+                              )}
+                            </td>
+                            <td className={s.numCol}>
+                              {e.paid_at ? new Date(e.paid_at).toLocaleDateString('ru-RU') : '—'}
+                            </td>
+                            <td className={s.numCol}>
+                              {isReversingThis ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={() => handleReverseConfirm(e)}
+                                    disabled={!reversalReason.trim()}
+                                  >
+                                    OK
+                                  </button>
+                                  {' '}
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    onClick={handleReverseCancel}
+                                  >
+                                    Отмена
+                                  </button>
+                                </>
+                              ) : canReverse ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => handleReverseStart(e.id)}
+                                  title="Создать новую запись reversal_of с обратной суммой"
+                                >
+                                  Сторно
+                                </button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
                       <tr className={s.totalsRow}>
                         <td colSpan={4} className={s.numCol}>Итого:</td>
                         <td className={s.numCol}>{totals.toFixed(2)}₽</td>
-                        <td colSpan={2}></td>
+                        <td colSpan={3}></td>
                       </tr>
                     </tbody>
                   </table>

@@ -30,6 +30,11 @@ interface PayrollStore {
   createEntry: (
     entry: Omit<PieceworkEntry, 'id' | 'paid_at' | 'created_at' | 'created_by'>
   ) => Promise<PieceworkEntry | null>;
+  reverseEntry: (
+    originalEntry: PieceworkEntry,
+    reason: string,
+    amount?: number
+  ) => Promise<PieceworkEntry | null>;
   closeBatch: (batchId: string) => Promise<boolean>;
 
   reset: () => void;
@@ -42,7 +47,7 @@ const initialState = {
   error: null,
 };
 
-export const usePayrollStore = create<PayrollStore>((set) => ({
+export const usePayrollStore = create<PayrollStore>((set, get) => ({
   ...initialState,
 
   loadBatches: async () => {
@@ -146,6 +151,38 @@ export const usePayrollStore = create<PayrollStore>((set) => ({
     });
 
     return row;
+  },
+
+  reverseEntry: async (originalEntry, reason, amount) => {
+    if (!reason?.trim()) {
+      toast.error('Причина обязательна для сторно');
+      return null;
+    }
+
+    // Find or create an open batch — reversals must land in unpaid territory.
+    let openBatch = get().batches.find((b) => b.status === 'open');
+    if (!openBatch) {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      openBatch = await get().createBatch(start, end, 'Auto-created for reversal');
+      if (!openBatch) return null;
+    }
+
+    // Default to full reversal of the original amount (negated).
+    const reversalAmount = amount !== undefined ? amount : -originalEntry.amount;
+
+    return get().createEntry({
+      batch_id: openBatch.id,
+      worker_id: originalEntry.worker_id,
+      tech_operation_id: originalEntry.tech_operation_id,
+      entry_type: 'reversal_of',
+      qty: 0,
+      rate: 0,
+      amount: reversalAmount,
+      reason: reason.trim(),
+      reversal_of: originalEntry.id,
+    });
   },
 
   closeBatch: async (batchId) => {

@@ -92,6 +92,34 @@ describe('usePayrollStore.closeBatch', () => {
   });
 });
 
+describe('usePayrollStore.reverseEntry', () => {
+  it('refuses without a reason', async () => {
+    const original = { id: 'e1', batch_id: 'b1', worker_id: 'w1', amount: 500, tech_operation_id: 'op1' };
+    const result = await usePayrollStore.getState().reverseEntry(original, '');
+    expect(result).toBeNull();
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it('uses existing open batch and inserts negated amount', async () => {
+    usePayrollStore.setState({
+      batches: [{ id: 'b1', status: 'open' }],
+    });
+    const inserted = {
+      id: 'e2', batch_id: 'b1', worker_id: 'w1',
+      tech_operation_id: 'op1', entry_type: 'reversal_of',
+      qty: 0, rate: 0, amount: -500,
+      reason: 'defect', reversal_of: 'e1',
+    };
+    fromMock.mockReturnValueOnce(chain({ data: inserted, error: null }, 'single'));
+
+    const original = { id: 'e1', batch_id: 'b1', worker_id: 'w1', amount: 500, tech_operation_id: 'op1' };
+    const result = await usePayrollStore.getState().reverseEntry(original, 'defect');
+
+    expect(result).toEqual(inserted);
+    expect(usePayrollStore.getState().entriesByBatch.b1).toContainEqual(inserted);
+  });
+});
+
 describe('usePayrollStore.createEntry', () => {
   it('appends to the batch cache map', async () => {
     const row = { id: 'e1', batch_id: 'b1', worker_id: 'w1', amount: 500 };
