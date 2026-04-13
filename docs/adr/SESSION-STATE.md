@@ -1,27 +1,34 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-13 (конец Day-0)
-**Текущая фаза:** Day-0 завершён, W1 Day-1 следующая сессия
+**Последнее обновление:** 2026-04-13 (конец W1 Day-1, автономная сессия)
+**Текущая фаза:** W1 Day-1 завершён, W1 Day-2 следующая сессия
 **Активная ветка разработки:** `redesign/v2`
 
 > Этот файл существует чтобы любая новая сессия (я или другой разработчик) могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
 
 ## TL;DR
 
-Идёт 3-месячный production-first редизайн PinheadOS 2.0 в параллельной ветке `redesign/v2`. Менеджеры продолжают работать на `main` в prod. Day-0 закрыт: ветка + ADR + Supabase v2 project + Vercel Preview scoping. Следующая сессия — W1 Day-1: CI workflows + первая миграция + edge function stub.
+Идёт 3-месячный production-first редизайн PinheadOS 2.0 в параллельной ветке `redesign/v2`. Менеджеры продолжают работать на `main` в prod. **Day-0 + W1 Day-1 закрыты.** Есть: ветка, ADR-0001..0009, Supabase v2 project, Vercel Preview scoping, CI workflows (diff-guard + rls-gate), миграция 20260501 production_foundation, миграция 20260510 db_guards (stubs), edge function domain-events-dispatcher (stub). **Миграции НЕ применены** — ждут ручного запуска пользователем с шагом init-from-prod.
+
+Следующая сессия — W1 Day-2: init-from-prod dump OR W2 задачи если юзер хочет перепрыгнуть применение.
 
 ## Сейчас
 
 | Area | Status |
 |---|---|
-| Ветка `redesign/v2` | создана, запушена, 4 коммита (+ этот) |
+| Ветка `redesign/v2` | создана, запушена, 7 коммитов |
 | ADR-0001..0009 | написаны в `docs/adr/` |
 | `CLAUDE.md` | обновлён с branch rules + diff-guard списком |
-| Supabase project v2 (`pinhead-os-v2`) | создан, пустой schema, ключи в `.env.local` |
+| Supabase project v2 (`pinhead-os-v2`) | создан, **пустой schema** (ещё не init), ключи в `.env.local` |
 | Vercel Preview env vars | scoped к `redesign/v2` → v2 Supabase (main НЕ тронут) |
-| Migrations 20260501..20260510 | **НЕ написаны** (W1 Day-1 работа) |
+| **CI: diff-guard workflow** | ✅ написан (`.github/workflows/diff-guard.yml`) |
+| **CI: rls-gate workflow** | ✅ написан (`.github/workflows/rls-gate.yml`) |
+| **Migration 20260501** production_foundation | ✅ написан (336 lines), **НЕ применён** |
+| **Migration 20260510** db_guards | ✅ написан (138 lines, функции-stubs), **НЕ применён** |
+| **Edge function** domain-events-dispatcher | ✅ написан (247 lines stub + 100 lines README), **НЕ задеплоен** |
 | Production screens (Tech Card / Workshop / Foreman) | **НЕ написаны** (W3+) |
-| Bitrix webhook URL | **отложен** (нужен для baseline-extract в W1 Day-1) |
+| Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
+| Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
 
 ## Ключевые факты о проекте
 
@@ -63,45 +70,51 @@
 ## Коммиты на `redesign/v2`
 
 ```
+e0175e1 feat(redesign/v2): production foundation migrations + events dispatcher
+ac4bda0 ci(redesign/v2): add diff-guard + rls-gate workflows (W1 Day-1)
+c120663 docs(redesign/v2): ADR-0009 sync strategy + SESSION-STATE recovery doc
 0eb4a93 chore(redesign/v2): gitignore .vercel/
 0e5c791 chore(redesign/v2): trigger rebuild with new v2 env vars
 387b87e docs(redesign/v2): Day-0 manual steps checklist
 e024ebd docs(redesign/v2): W1 foundation — ADR-0001..0008 + CLAUDE.md notes
 ```
 
-## Следующая сессия — W1 Day-1 план
+## Следующая сессия — W1 Day-2
 
-Задачи для меня (в порядке):
+Решить с пользователем: сначала **применять** W1 Day-1 артефакты к Supabase, или продолжать **писать** код W2?
 
-1. **`.github/workflows/diff-guard.yml`** — CI job проверяет что коммиты на `redesign/v2` не меняют защищённые файлы (паттерн выше)
-2. **`.github/workflows/rls-gate.yml`** — CI job проверяет что каждая новая миграция имеет `ENABLE ROW LEVEL SECURITY` + минимум 2 policy
-3. **`supabase/migrations/20260501_production_foundation.sql`**:
-   - ALTER `profiles` ADD `sub_role`, `assigned_section_id`
-   - CREATE TABLE `sections` (должна быть перед role predicate functions — критичный fix из code-review)
-   - CREATE SECURITY DEFINER functions: `auth_is_foreman_of()`, `auth_is_technologist()`, `auth_is_production()`, `auth_is_senior_foreman()`
-   - CREATE TABLE `domain_events` PARTITION BY RANGE (created_at) + `processed_at` колонка + индексы
-   - Ежемесячная partition auto-rollover (первая партиция создаётся руками)
-   - ENABLE RLS + 2+ policies на все новые таблицы
-4. **`supabase/migrations/20260510_db_guards.sql`** — заготовки:
-   - `piecework_forbid_update_if_paid()` функция (триггер применится когда появится таблица в 20260505)
-   - `tech_operation_order_id_consistent()` функция (триггер применится когда появится таблица в 20260504)
-   - CHECK constraints объявляются в месте где таблицы создаются, не здесь
-5. **`supabase/functions/domain-events-dispatcher/index.ts`** — stub:
-   - Deno + Supabase JS
-   - Read `domain_events where processed_at is null`
-   - Pseudo consumer logic (log only, не writing в notifications пока той таблицы нет)
-   - Mark processed
-   - pg_cron scheduling командой (пользователь применяет в Supabase Dashboard SQL editor)
+### Вариант A — применить Day-1 (ручные шаги пользователя, ~30 мин)
 
-**НЕ ДЕЛАТЬ автоматически:**
-- Не применять миграции к Supabase (только писать файлы)
-- Не устанавливать дополнительные npm packages (Radix, Framer, dnd-kit — в W2+, не W1 Day-1)
-- Не менять `package.json` в W1 Day-1
-- Не трогать существующий код — только новые файлы в `.github/workflows/`, `supabase/migrations/`, `supabase/functions/`
+1. **Init-from-prod schema dump** — критичный предварительный шаг. v2 Supabase пустой, миграция 20260501 требует существующих `profiles` и `orders` таблиц. Варианты:
+   - Supabase Dashboard → prod project → Database → Backups → Generate schema dump → apply to v2 via SQL editor
+   - Или через CLI: `supabase db dump --project-ref <prod-ref> --schema-only > init.sql` затем `supabase db push --project-ref glhwbktsokphgksdvcxj < init.sql`
+2. **Применить 20260501** через Dashboard SQL editor или CLI
+3. **Применить 20260510** (опционально сейчас — функции без триггеров)
+4. **Deploy edge function** `supabase functions deploy domain-events-dispatcher --project-ref glhwbktsokphgksdvcxj --no-verify-jwt`
+5. **Enable pg_cron extension** в Dashboard → Database → Extensions
+6. **Schedule dispatcher cron** из README в `supabase/functions/domain-events-dispatcher/README.md`
+7. **Verify** verification queries из §6 migration 20260501
+8. **Push редизайн ветки** — CI workflows `diff-guard` + `rls-gate` прогонится впервые, проверит зелёность
 
-**Перед стартом W1 Day-1 спросить у пользователя:**
+### Вариант B — продолжать писать W2 код без применения
+
+1. **Миграция 20260502_seed_sections_and_ops.sql** — seed sections (7) + базовые operation_types (~30)
+2. **Store `useTechCardStore.ts`** — Zustand root store для TechDesign контекста (ADR-0001)
+3. **Миграция 20260503_tech_cards.sql** — sku_tech_templates + order_tech_cards с unique constraints
+4. Подготовка к W3 Tech Card Builder UI
+
+### Вариант C — hybrid
+
+Применить Day-1 Supabase артефакты (Вариант A) + параллельно писать W2 код.
+
+### Рекомендация
+
+Variant A в следующей сессии имеет смысл если есть 30 мин свободных рук. Variant B — если хочется продолжать разработку без context switching к UI.
+
+**Перед стартом W1 Day-2 спросить у пользователя:**
 - Готов ли Bitrix webhook URL (если да — добавить в `.env.local` и написать `scripts/baseline-extract.js`)
-- Если нет — пропустить baseline-extract, остальное W1 Day-1 не блокируется
+- Вариант A / B / C?
+- Есть ли новые изменения на main, которые нужно мержить в redesign/v2 первым делом (см. ADR-0009 weekly sync)?
 
 ## Проверки перед закрытием каждой сессии
 
