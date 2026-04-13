@@ -3,7 +3,7 @@
 // Live view of approved/locked tech operations grouped by section.
 // Read-only — drag-reassign deferred.
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorkshopStore } from '../../../store/useWorkshopStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
@@ -21,7 +21,28 @@ export default function WorkshopBoard() {
     loadBoard();
   }, [loadBoard]);
 
-  const totalOps = Object.values(operationsBySection).reduce((sum, ops) => sum + ops.length, 0);
+  const kpis = useMemo(() => {
+    let totalOps = 0;
+    let totalMinutes = 0;
+    let totalValue = 0;
+    const orderIds = new Set();
+    for (const ops of Object.values(operationsBySection)) {
+      for (const op of ops) {
+        totalOps++;
+        totalMinutes += (op.minutes_snapshot || 0) * op.qty;
+        totalValue += (op.rate_snapshot || 0) * op.qty;
+        orderIds.add(op.order_id);
+      }
+    }
+    return {
+      orders: orderIds.size,
+      ops: totalOps,
+      hours: (totalMinutes / 60).toFixed(1),
+      value: Math.round(totalValue),
+    };
+  }, [operationsBySection]);
+
+  const totalOps = kpis.ops;
 
   if (loading && sections.length === 0) {
     return (
@@ -41,6 +62,29 @@ export default function WorkshopBoard() {
       <p className={s.subtitle}>
         {sections.length} участков, <strong>{totalOps}</strong> операций в работе
       </p>
+
+      <div className={s.kpiGrid}>
+        <div className={s.kpiTile}>
+          <div className={s.kpiLabel}>Заказов</div>
+          <div className={s.kpiValue}>{kpis.orders}</div>
+          <div className={s.kpiSub}>В работе</div>
+        </div>
+        <div className={s.kpiTile}>
+          <div className={s.kpiLabel}>Операций</div>
+          <div className={s.kpiValue}>{kpis.ops}</div>
+          <div className={s.kpiSub}>Утверждённых задач</div>
+        </div>
+        <div className={s.kpiTile}>
+          <div className={s.kpiLabel}>Часов</div>
+          <div className={s.kpiValue}>{kpis.hours}</div>
+          <div className={s.kpiSub}>Норма-часов в очереди</div>
+        </div>
+        <div className={s.kpiTile}>
+          <div className={s.kpiLabel}>Сумма</div>
+          <div className={s.kpiValue}>{kpis.value.toLocaleString('ru-RU')}₽</div>
+          <div className={s.kpiSub}>Сделка по утверждённым ставкам</div>
+        </div>
+      </div>
 
       <div
         className={s.columnBoard}
