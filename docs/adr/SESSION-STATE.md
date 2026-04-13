@@ -37,7 +37,10 @@ Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3
 | **Migration 20260505** piecework | ✅ применён (trigger paid_at immutability активен) |
 | **Migration 20260510** db_guards | ✅ применён (функции зарегистрированы) |
 | **v2 init-from-prod** (6 базовых таблиц) | ✅ применён напрямую через Management API (pg_dump блокирован supavisor; см. docs/adr/W1-APPLY-CHECKLIST.md) |
-| **Edge function** domain-events-dispatcher | ✅ написан (stub + README), **НЕ задеплоен** |
+| **Edge function** domain-events-dispatcher | ✅ задеплоен на v2, dispatchEvent поддерживает новые dotted event names + manual trigger end-to-end ✓ |
+| **pg_cron extension + pg_net** на v2 | ✅ enabled через Management API |
+| **Cron job** `dispatch-domain-events` | ✅ schedule `* * * * *` (1 min), service_role POST в edge function |
+| **Outbox producers** в stores | ✅ TechCardStore.approveTechCard, PayrollStore.createEntry, PayrollStore.closeBatch |
 | **Store** `useTechCardStore.ts` | ✅ W1 Day-2 (CRUD скелет, lint+tsc clean) |
 | **Store** `useWorkshopStore.ts` | ✅ W1 Day-3 (board loaders, lint+tsc clean) |
 | **Store** `useWorkersStore.ts` | ✅ W2 Day-1 (CRUD + soft-delete, lint+tsc clean) |
