@@ -1,18 +1,22 @@
 // redesign/v2 — /tech-cards index
-//
-// Lists orders with their tech card status. Minimal: just order_number,
-// order status, and tech card status. Click through to the builder.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { translateSupabaseError } from '../../../utils/i18n';
+import s from './v2.module.css';
 
 const TC_STATUS_LABEL = {
   draft: 'Черновик',
   approved: 'Утверждена',
   locked: 'Заблокирована',
+};
+
+const TC_STATUS_CLASS = {
+  draft: s.badgeDraft,
+  approved: s.badgeApproved,
+  locked: s.badgeLocked,
 };
 
 export default function TechCardOrderList() {
@@ -41,20 +45,20 @@ export default function TechCardOrderList() {
   if (loading) return <div className="panel-loading">Загрузка…</div>;
 
   return (
-    <div className="container" style={{ maxWidth: 900 }}>
+    <div className={s.page}>
       <h1>Tech Cards</h1>
-      <p style={{ opacity: 0.7 }}>
+      <p className={s.subtitle}>
         Список заказов. Кликните, чтобы открыть или создать технологическую карту.
       </p>
 
       {orders.length === 0 ? (
-        <div className="panel">
+        <div className={s.card}>
           <p>Нет заказов. Создайте один через <Link to="/">визард</Link>.</p>
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className={s.table}>
           <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
+            <tr>
               <th>№ заказа</th>
               <th>Статус заказа</th>
               <th>Tech card</th>
@@ -65,17 +69,19 @@ export default function TechCardOrderList() {
             {orders.map((o) => {
               const tc = o.order_tech_cards?.[0];
               return (
-                <tr key={o.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                <tr key={o.id}>
                   <td><strong>{o.order_number}</strong></td>
                   <td>{o.status}</td>
                   <td>
                     {tc ? (
-                      <span>{TC_STATUS_LABEL[tc.status] ?? tc.status}</span>
+                      <span className={`${s.badge} ${TC_STATUS_CLASS[tc.status] ?? ''}`}>
+                        {TC_STATUS_LABEL[tc.status] ?? tc.status}
+                      </span>
                     ) : (
-                      <span style={{ opacity: 0.5 }}>не создана</span>
+                      <span className={s.empty} style={{ padding: 0 }}>не создана</span>
                     )}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td className={s.numCol}>
                     <Link className="btn btn-primary" to={`/tech-cards/${o.id}`}>
                       {tc ? 'Открыть' : 'Создать'}
                     </Link>

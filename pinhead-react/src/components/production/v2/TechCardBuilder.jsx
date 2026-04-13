@@ -1,19 +1,13 @@
-// redesign/v2 — Tech Card Builder (W3 Day-2)
+// redesign/v2 — Tech Card Builder
 //
-// Full CRUD for a single order's tech card:
-//   - Load existing card or offer to create a draft
-//   - Add operations from the operation_types catalog
-//   - Edit qty inline / remove
-//   - Approve (freezes snapshots via useTechCardStore.approveTechCard)
-//
-// Expects `:orderId` URL param. Admin + technologist can write; foreman
-// read-only (enforced in RLS + buttons disabled).
+// Full CRUD for a single order's tech card.
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import s from './v2.module.css';
 
 const STATUS_LABEL = {
   draft: 'Черновик',
@@ -21,25 +15,31 @@ const STATUS_LABEL = {
   locked: 'Заблокирована',
 };
 
+const STATUS_CLASS = {
+  draft: s.badgeDraft,
+  approved: s.badgeApproved,
+  locked: s.badgeLocked,
+};
+
 export default function TechCardBuilder() {
   const { orderId } = useParams();
-  const role = useAuthStore((s) => s.effectiveRole());
+  const role = useAuthStore((st) => st.effectiveRole());
   const canEdit = ['admin', 'director', 'production'].includes(role);
 
-  const sections = useTechCardStore((s) => s.sections);
-  const operationTypes = useTechCardStore((s) => s.operationTypes);
-  const catalogLoaded = useTechCardStore((s) => s.catalogLoaded);
-  const techCard = useTechCardStore((s) => s.techCard);
-  const operations = useTechCardStore((s) => s.operations);
-  const loading = useTechCardStore((s) => s.loading);
+  const sections = useTechCardStore((st) => st.sections);
+  const operationTypes = useTechCardStore((st) => st.operationTypes);
+  const catalogLoaded = useTechCardStore((st) => st.catalogLoaded);
+  const techCard = useTechCardStore((st) => st.techCard);
+  const operations = useTechCardStore((st) => st.operations);
+  const loading = useTechCardStore((st) => st.loading);
 
-  const loadCatalog = useTechCardStore((s) => s.loadCatalog);
-  const loadTechCardForOrder = useTechCardStore((s) => s.loadTechCardForOrder);
-  const createDraftTechCard = useTechCardStore((s) => s.createDraftTechCard);
-  const addOperation = useTechCardStore((s) => s.addOperation);
-  const updateOperationQty = useTechCardStore((s) => s.updateOperationQty);
-  const removeOperation = useTechCardStore((s) => s.removeOperation);
-  const approveTechCard = useTechCardStore((s) => s.approveTechCard);
+  const loadCatalog = useTechCardStore((st) => st.loadCatalog);
+  const loadTechCardForOrder = useTechCardStore((st) => st.loadTechCardForOrder);
+  const createDraftTechCard = useTechCardStore((st) => st.createDraftTechCard);
+  const addOperation = useTechCardStore((st) => st.addOperation);
+  const updateOperationQty = useTechCardStore((st) => st.updateOperationQty);
+  const removeOperation = useTechCardStore((st) => st.removeOperation);
+  const approveTechCard = useTechCardStore((st) => st.approveTechCard);
 
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState('');
@@ -71,10 +71,8 @@ export default function TechCardBuilder() {
 
   if (!orderId) {
     return (
-      <div className="container">
-        <p>
-          Не указан заказ. Перейдите со страницы <Link to="/tech-cards">списка</Link>.
-        </p>
+      <div className={s.page}>
+        <p>Не указан заказ. Перейдите со страницы <Link to="/tech-cards">списка</Link>.</p>
       </div>
     );
   }
@@ -118,20 +116,22 @@ export default function TechCardBuilder() {
   const editable = canEdit && techCard?.status === 'draft';
 
   return (
-    <div className="container" style={{ maxWidth: 900 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className={s.page}>
+      <div className={s.header}>
         <h1>Tech Card</h1>
         <Link to="/tech-cards" className="btn btn-ghost">← К списку</Link>
       </div>
-      <p style={{ opacity: 0.7 }}>
-        Заказ: <code>{orderId}</code>
+      <p className={s.subtitle}>
+        Заказ: <span className={s.code}>{orderId}</span>
         {techCard && (
-          <> · Статус: <strong>{STATUS_LABEL[techCard.status]}</strong></>
+          <> · <span className={`${s.badge} ${STATUS_CLASS[techCard.status]}`}>
+            {STATUS_LABEL[techCard.status]}
+          </span></>
         )}
       </p>
 
       {!techCard && (
-        <div className="panel">
+        <div className={s.card}>
           <p>Для этого заказа tech card ещё не создана.</p>
           {canEdit && (
             <button className="btn btn-primary" onClick={handleCreateDraft} disabled={submitting}>
@@ -143,34 +143,32 @@ export default function TechCardBuilder() {
 
       {techCard && (
         <>
-          <section style={{ marginTop: 'var(--space-4)' }}>
+          <section className={s.section}>
             <h2>Операции ({operations.length})</h2>
             {operations.length === 0 ? (
-              <p style={{ opacity: 0.6 }}>Пока нет операций.</p>
+              <p className={s.empty}>Пока нет операций.</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className={s.table}>
                 <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
+                  <tr>
                     <th>Операция</th>
                     <th>Участок</th>
-                    <th style={{ textAlign: 'right' }}>Тариф</th>
-                    <th style={{ textAlign: 'right' }}>Кол-во</th>
-                    <th style={{ textAlign: 'right' }}>Сумма</th>
-                    <th style={{ textAlign: 'right' }}>Мин</th>
+                    <th className={s.numCol}>Тариф</th>
+                    <th className={s.numCol}>Кол-во</th>
+                    <th className={s.numCol}>Сумма</th>
+                    <th className={s.numCol}>Мин</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {operations.map((op) => {
-                    const section = sections.find((s) => s.id === op.section_id);
+                    const section = sections.find((sec) => sec.id === op.section_id);
                     return (
-                      <tr key={op.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                      <tr key={op.id}>
                         <td>{op.name_snapshot}</td>
                         <td style={{ color: section?.color ?? undefined }}>{section?.name ?? '—'}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          {op.rate_snapshot}₽/{op.unit_snapshot}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
+                        <td className={s.numCol}>{op.rate_snapshot}₽/{op.unit_snapshot}</td>
+                        <td className={s.numCol}>
                           {editable ? (
                             <input
                               type="number"
@@ -178,18 +176,19 @@ export default function TechCardBuilder() {
                               step="1"
                               value={op.qty}
                               onChange={(e) => updateOperationQty(op.id, Number(e.target.value))}
-                              style={{ width: 70, textAlign: 'right' }}
+                              className={s.qtyInput}
                             />
                           ) : (
                             op.qty
                           )}
                         </td>
-                        <td style={{ textAlign: 'right' }}>{(op.rate_snapshot * op.qty).toFixed(2)}₽</td>
-                        <td style={{ textAlign: 'right' }}>{op.minutes_snapshot * op.qty}</td>
-                        <td style={{ textAlign: 'right' }}>
+                        <td className={s.numCol}>{(op.rate_snapshot * op.qty).toFixed(2)}₽</td>
+                        <td className={s.numCol}>{op.minutes_snapshot * op.qty}</td>
+                        <td className={s.numCol}>
                           {editable && (
                             <button
-                              className="btn btn-ghost btn-danger"
+                              type="button"
+                              className={s.removeBtn}
                               onClick={() => removeOperation(op.id)}
                               aria-label="Удалить"
                             >
@@ -200,10 +199,10 @@ export default function TechCardBuilder() {
                       </tr>
                     );
                   })}
-                  <tr style={{ fontWeight: 600 }}>
-                    <td colSpan={4} style={{ textAlign: 'right' }}>Итого:</td>
-                    <td style={{ textAlign: 'right' }}>{totals.sum.toFixed(2)}₽</td>
-                    <td style={{ textAlign: 'right' }}>{totals.minutes}</td>
+                  <tr className={s.totalsRow}>
+                    <td colSpan={4} className={s.numCol}>Итого:</td>
+                    <td className={s.numCol}>{totals.sum.toFixed(2)}₽</td>
+                    <td className={s.numCol}>{totals.minutes}</td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -212,16 +211,16 @@ export default function TechCardBuilder() {
           </section>
 
           {editable && (
-            <section style={{ marginTop: 'var(--space-4)' }}>
+            <section className={s.section}>
               <h3>Добавить операцию</h3>
-              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={s.formRow}>
                 <select
                   value={selectedSectionId}
                   onChange={(e) => { setSelectedSectionId(e.target.value); setSelectedOpId(''); }}
                 >
                   <option value="">— Участок —</option>
-                  {sections.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                  {sections.map((sec) => (
+                    <option key={sec.id} value={sec.id}>{sec.name}</option>
                   ))}
                 </select>
                 <select
@@ -242,10 +241,10 @@ export default function TechCardBuilder() {
                   step="1"
                   value={newQty}
                   onChange={(e) => setNewQty(e.target.value)}
-                  style={{ width: 80 }}
                   aria-label="Количество"
                 />
                 <button
+                  type="button"
                   className="btn btn-primary"
                   onClick={handleAdd}
                   disabled={!selectedOpId || submitting}
@@ -257,8 +256,9 @@ export default function TechCardBuilder() {
           )}
 
           {editable && (
-            <section style={{ marginTop: 'var(--space-4)' }}>
+            <section className={s.section}>
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={handleApprove}
                 disabled={!operations.length || submitting}
@@ -266,7 +266,7 @@ export default function TechCardBuilder() {
               >
                 Утвердить карту
               </button>
-              <p style={{ opacity: 0.6, fontSize: '0.9em', marginTop: 4 }}>
+              <p className={s.subtitle} style={{ fontSize: 12, marginTop: 8 }}>
                 После утверждения тарифы и нормы минут замораживаются. Изменения в каталоге
                 операций на эту карту больше не повлияют.
               </p>

@@ -1,14 +1,14 @@
-// redesign/v2 — Payroll screen (W3 Day-6)
+// redesign/v2 — Payroll screen
 //
 // Lists batches. Click to drill into entries. Close button on open
-// batches (admin/director only). After close: paid_at is stamped on
-// all entries and the DB trigger locks them forever (ADR-0002,
-// ADR-0007). Corrections happen as new reversal_of entries.
+// batches (admin/director only). After close: paid_at stamped, DB
+// trigger locks entries forever.
 
 import { useEffect, useState } from 'react';
 import { usePayrollStore } from '../../../store/usePayrollStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import s from './v2.module.css';
 
 const ENTRY_TYPE_LABEL = {
   accrual: 'начисление',
@@ -20,15 +20,15 @@ const ENTRY_TYPE_LABEL = {
 };
 
 export default function PayrollScreen() {
-  const role = useAuthStore((s) => s.effectiveRole());
+  const role = useAuthStore((st) => st.effectiveRole());
   const canClose = ['admin', 'director'].includes(role);
 
-  const batches = usePayrollStore((s) => s.batches);
-  const entriesByBatch = usePayrollStore((s) => s.entriesByBatch);
-  const loading = usePayrollStore((s) => s.loading);
-  const loadBatches = usePayrollStore((s) => s.loadBatches);
-  const loadEntriesForBatch = usePayrollStore((s) => s.loadEntriesForBatch);
-  const closeBatch = usePayrollStore((s) => s.closeBatch);
+  const batches = usePayrollStore((st) => st.batches);
+  const entriesByBatch = usePayrollStore((st) => st.entriesByBatch);
+  const loading = usePayrollStore((st) => st.loading);
+  const loadBatches = usePayrollStore((st) => st.loadBatches);
+  const loadEntriesForBatch = usePayrollStore((st) => st.loadEntriesForBatch);
+  const closeBatch = usePayrollStore((st) => st.closeBatch);
 
   const [expanded, setExpanded] = useState(null);
   const [closing, setClosing] = useState(null);
@@ -57,16 +57,16 @@ export default function PayrollScreen() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 1100 }}>
+    <div className={s.page}>
       <h1>Payroll</h1>
-      <p style={{ opacity: 0.7 }}>
+      <p className={s.subtitle}>
         Периоды и сдельные начисления. Закрытые периоды неизменяемы на уровне БД.
       </p>
 
       {loading && batches.length === 0 && <div className="panel-loading">Загрузка…</div>}
 
       {batches.length === 0 && !loading && (
-        <p style={{ opacity: 0.6 }}>Пока нет ни одного period'а.</p>
+        <p className={s.empty}>Пока нет ни одного period'а.</p>
       )}
 
       {batches.map((b) => {
@@ -74,74 +74,66 @@ export default function PayrollScreen() {
         const totals = entries.reduce((acc, e) => acc + Number(e.amount), 0);
         const isExpanded = expanded === b.id;
         return (
-          <div key={b.id} className="panel" style={{ marginBottom: 'var(--space-3)' }}>
+          <div key={b.id} className={s.card}>
             <div
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
               onClick={() => toggle(b.id)}
             >
               <div>
                 <strong>{b.period_start} … {b.period_end}</strong>
-                <span style={{
-                  marginLeft: 'var(--space-2)',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontSize: '0.8em',
-                  background: b.status === 'open' ? '#10b98133' : '#64748b33',
-                  color: b.status === 'open' ? '#10b981' : '#64748b',
-                }}>
+                <span className={`${s.badge} ${b.status === 'open' ? s.badgeOpen : s.badgeClosed}`} style={{ marginLeft: 12 }}>
                   {b.status === 'open' ? 'открыт' : 'закрыт'}
                 </span>
               </div>
-              <div style={{ opacity: 0.7 }}>
+              <div className={s.subtitle} style={{ margin: 0 }}>
                 {isExpanded ? '▼' : '▶'} {entries.length || '?'} записей
               </div>
             </div>
 
             {isExpanded && (
-              <div style={{ marginTop: 'var(--space-2)' }}>
+              <div style={{ marginTop: 12 }}>
                 {entries.length === 0 ? (
-                  <p style={{ opacity: 0.5 }}>Нет записей.</p>
+                  <p className={s.empty}>Нет записей.</p>
                 ) : (
-                  <>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
-                      <thead>
-                        <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
-                          <th>Тип</th>
-                          <th>Работник</th>
-                          <th style={{ textAlign: 'right' }}>Кол-во</th>
-                          <th style={{ textAlign: 'right' }}>Тариф</th>
-                          <th style={{ textAlign: 'right' }}>Сумма</th>
-                          <th>Причина</th>
-                          <th style={{ textAlign: 'right' }}>Оплачено</th>
+                  <table className={s.table}>
+                    <thead>
+                      <tr>
+                        <th>Тип</th>
+                        <th>Работник</th>
+                        <th className={s.numCol}>Кол-во</th>
+                        <th className={s.numCol}>Тариф</th>
+                        <th className={s.numCol}>Сумма</th>
+                        <th>Причина</th>
+                        <th className={s.numCol}>Оплачено</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {entries.map((e) => (
+                        <tr key={e.id}>
+                          <td>{ENTRY_TYPE_LABEL[e.entry_type] ?? e.entry_type}</td>
+                          <td>{e.worker_id.slice(0, 8)}…</td>
+                          <td className={s.numCol}>{e.qty}</td>
+                          <td className={s.numCol}>{e.rate}</td>
+                          <td className={s.numCol} style={{ fontWeight: 600 }}>{e.amount}₽</td>
+                          <td>{e.reason ?? '—'}</td>
+                          <td className={s.numCol}>
+                            {e.paid_at ? new Date(e.paid_at).toLocaleDateString('ru-RU') : '—'}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {entries.map((e) => (
-                          <tr key={e.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                            <td>{ENTRY_TYPE_LABEL[e.entry_type] ?? e.entry_type}</td>
-                            <td>{e.worker_id.slice(0, 8)}…</td>
-                            <td style={{ textAlign: 'right' }}>{e.qty}</td>
-                            <td style={{ textAlign: 'right' }}>{e.rate}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{e.amount}₽</td>
-                            <td style={{ opacity: 0.6 }}>{e.reason ?? '—'}</td>
-                            <td style={{ textAlign: 'right', opacity: 0.6 }}>
-                              {e.paid_at ? new Date(e.paid_at).toLocaleDateString('ru-RU') : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr style={{ fontWeight: 700 }}>
-                          <td colSpan={4} style={{ textAlign: 'right' }}>Итого:</td>
-                          <td style={{ textAlign: 'right' }}>{totals.toFixed(2)}₽</td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </>
+                      ))}
+                      <tr className={s.totalsRow}>
+                        <td colSpan={4} className={s.numCol}>Итого:</td>
+                        <td className={s.numCol}>{totals.toFixed(2)}₽</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tbody>
+                  </table>
                 )}
 
                 {b.status === 'open' && canClose && (
-                  <div style={{ marginTop: 'var(--space-3)' }}>
+                  <div style={{ marginTop: 16 }}>
                     <button
+                      type="button"
                       className="btn btn-danger"
                       onClick={() => handleClose(b.id)}
                       disabled={closing === b.id}
@@ -158,4 +150,3 @@ export default function PayrollScreen() {
     </div>
   );
 }
-

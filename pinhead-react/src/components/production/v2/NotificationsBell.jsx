@@ -1,15 +1,12 @@
-// redesign/v2 — Notifications bell (W3 Day-5)
+// redesign/v2 — Notifications bell
 //
 // Fixed-position corner widget. On mount: loads recent events and
 // subscribes to realtime INSERTs. Click opens a dropdown with the
-// latest 20, clicking "mark all seen" stores a timestamp in
-// localStorage and zeros the unread badge.
-//
-// Intentionally self-contained — does NOT touch Header.jsx (red zone
-// for main/v2 merge conflicts per ADR-0009).
+// latest 20, marking all as seen on first open.
 
 import { useEffect, useState } from 'react';
 import { useNotificationsStore } from '../../../store/useNotificationsStore';
+import s from './v2.module.css';
 
 function formatTime(iso) {
   try {
@@ -20,12 +17,12 @@ function formatTime(iso) {
 }
 
 export default function NotificationsBell() {
-  const events = useNotificationsStore((s) => s.events);
-  const seenAt = useNotificationsStore((s) => s.seenAt);
-  const loadRecent = useNotificationsStore((s) => s.loadRecent);
-  const subscribe = useNotificationsStore((s) => s.subscribe);
-  const unsubscribe = useNotificationsStore((s) => s.unsubscribe);
-  const markAllSeen = useNotificationsStore((s) => s.markAllSeen);
+  const events = useNotificationsStore((st) => st.events);
+  const seenAt = useNotificationsStore((st) => st.seenAt);
+  const loadRecent = useNotificationsStore((st) => st.loadRecent);
+  const subscribe = useNotificationsStore((st) => st.subscribe);
+  const unsubscribe = useNotificationsStore((st) => st.unsubscribe);
+  const markAllSeen = useNotificationsStore((st) => st.markAllSeen);
 
   const [open, setOpen] = useState(false);
 
@@ -40,88 +37,39 @@ export default function NotificationsBell() {
     : events.length;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 60,
-        right: 20,
-        zIndex: 100,
-      }}
-    >
+    <div className={s.bellWrap}>
       <button
-        className="btn btn-ghost"
+        type="button"
+        className={s.bellBtn}
         onClick={() => {
           setOpen((v) => !v);
           if (!open) markAllSeen();
         }}
         aria-label={`Уведомления (${unread} непрочитанных)`}
-        style={{
-          position: 'relative',
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          fontSize: '1.3em',
-        }}
       >
         🔔
         {unread > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              background: '#ef4444',
-              color: 'white',
-              borderRadius: '999px',
-              fontSize: '0.7em',
-              fontWeight: 700,
-              minWidth: 18,
-              padding: '2px 5px',
-              lineHeight: 1,
-            }}
-          >
-            {unread > 99 ? '99+' : unread}
-          </span>
+          <span className={s.bellBadge}>{unread > 99 ? '99+' : unread}</span>
         )}
       </button>
 
       {open && (
-        <div
-          className="panel"
-          style={{
-            position: 'absolute',
-            top: 48,
-            right: 0,
-            width: 360,
-            maxHeight: 500,
-            overflowY: 'auto',
-            padding: 'var(--space-2)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+        <div className={s.bellDropdown}>
+          <div className={s.bellDropdownHeader}>
             <strong>Уведомления</strong>
-            <button className="btn btn-ghost" onClick={() => setOpen(false)}>×</button>
+            <button type="button" className={s.removeBtn} onClick={() => setOpen(false)} aria-label="Закрыть">×</button>
           </div>
           {events.length === 0 ? (
-            <p style={{ opacity: 0.5, textAlign: 'center' }}>Пока ничего</p>
+            <p className={s.empty}>Пока ничего</p>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <ul className={s.bellList}>
               {events.slice(0, 20).map((e) => (
-                <li
-                  key={e.id}
-                  style={{
-                    padding: 'var(--space-2)',
-                    borderBottom: '1px solid var(--color-border-subtle)',
-                    fontSize: '0.85em',
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>{e.event_type}</div>
-                  <div style={{ opacity: 0.6 }}>
+                <li key={e.id} className={s.bellItem}>
+                  <div className={s.bellItemTitle}>{e.event_type}</div>
+                  <div className={s.bellItemMeta}>
                     {e.aggregate_type}: {e.aggregate_id.slice(0, 8)}…
                   </div>
-                  <div style={{ opacity: 0.5, fontSize: '0.9em', marginTop: 2 }}>
-                    {formatTime(e.created_at)}
-                  </div>
+                  <div className={s.bellItemTime}>{formatTime(e.created_at)}</div>
                 </li>
               ))}
             </ul>

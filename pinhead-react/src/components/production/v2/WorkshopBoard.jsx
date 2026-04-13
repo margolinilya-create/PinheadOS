@@ -1,17 +1,18 @@
-// redesign/v2 — Workshop Board (W3 Day-3)
+// redesign/v2 — Workshop Board
 //
-// Live view of all approved/locked tech operations grouped by section.
-// Read-only columns — drag-and-drop assignment lands in a later day.
+// Live view of approved/locked tech operations grouped by section.
+// Read-only — drag-reassign deferred.
 
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorkshopStore } from '../../../store/useWorkshopStore';
+import s from './v2.module.css';
 
 export default function WorkshopBoard() {
-  const sections = useWorkshopStore((s) => s.sections);
-  const operationsBySection = useWorkshopStore((s) => s.operationsBySection);
-  const loading = useWorkshopStore((s) => s.loading);
-  const loadBoard = useWorkshopStore((s) => s.loadBoard);
+  const sections = useWorkshopStore((st) => st.sections);
+  const operationsBySection = useWorkshopStore((st) => st.operationsBySection);
+  const loading = useWorkshopStore((st) => st.loading);
+  const loadBoard = useWorkshopStore((st) => st.loadBoard);
 
   useEffect(() => {
     loadBoard();
@@ -24,65 +25,39 @@ export default function WorkshopBoard() {
   const totalOps = Object.values(operationsBySection).reduce((sum, ops) => sum + ops.length, 0);
 
   return (
-    <div className="container" style={{ maxWidth: 1400 }}>
+    <div className={s.pageWide}>
       <h1>Цех</h1>
-      <p style={{ opacity: 0.7 }}>
+      <p className={s.subtitle}>
         {sections.length} участков, <strong>{totalOps}</strong> операций в работе
       </p>
 
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(220px, 1fr))`,
-          gap: 'var(--space-3)',
-          marginTop: 'var(--space-3)',
-          alignItems: 'start',
-        }}
+        className={s.columnBoard}
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(220px, 1fr))` }}
       >
         {sections.map((section) => {
           const ops = operationsBySection[section.id] ?? [];
           return (
-            <div
-              key={section.id}
-              className="panel"
-              style={{
-                borderTop: `3px solid ${section.color ?? 'var(--color-border)'}`,
-              }}
-            >
-              <h3 style={{ margin: 0, color: section.color ?? undefined }}>
-                {section.name}{' '}
-                <span style={{ opacity: 0.5, fontWeight: 'normal', fontSize: '0.85em' }}>
-                  {ops.length}
-                </span>
+            <div key={section.id} className={s.column} style={{ borderTopColor: section.color ?? undefined }}>
+              <h3 className={s.columnHeading}>
+                <span style={{ color: section.color ?? undefined }}>{section.name}</span>
+                <span className={s.columnCount}>{ops.length}</span>
               </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-                {ops.length === 0 ? (
-                  <p style={{ opacity: 0.4, fontSize: '0.85em' }}>Нет задач</p>
-                ) : (
-                  ops.map((op) => (
-                    <Link
-                      key={op.id}
-                      to={`/tech-cards/${op.order_id}`}
-                      className="panel"
-                      style={{
-                        padding: 'var(--space-2)',
-                        textDecoration: 'none',
-                        color: 'inherit',
-                        fontSize: '0.85em',
-                        display: 'block',
-                      }}
-                    >
-                      <div style={{ fontWeight: 600 }}>{op.name_snapshot}</div>
-                      <div style={{ opacity: 0.6, fontSize: '0.9em', marginTop: 2 }}>
-                        {op.order_number ?? op.order_id.slice(0, 8)} · {op.qty} {op.unit_snapshot}
-                      </div>
-                      <div style={{ opacity: 0.5, fontSize: '0.85em', marginTop: 2 }}>
-                        {(op.rate_snapshot * op.qty).toFixed(0)}₽ · {op.minutes_snapshot * op.qty}мин
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </div>
+              {ops.length === 0 ? (
+                <p className={s.empty}>Нет задач</p>
+              ) : (
+                ops.map((op) => (
+                  <Link key={op.id} to={`/tech-cards/${op.order_id}`} className={s.opCard}>
+                    <div className={s.opCardTitle}>{op.name_snapshot}</div>
+                    <div className={s.opCardMeta}>
+                      {op.order_number ?? op.order_id.slice(0, 8)} · {op.qty} {op.unit_snapshot}
+                    </div>
+                    <div className={s.opCardCost}>
+                      {(op.rate_snapshot * op.qty).toFixed(0)}₽ · {op.minutes_snapshot * op.qty}мин
+                    </div>
+                  </Link>
+                ))
+              )}
             </div>
           );
         })}

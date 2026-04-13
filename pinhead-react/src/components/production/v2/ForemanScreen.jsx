@@ -1,11 +1,7 @@
-// redesign/v2 — Мастер-экран бригадира (W3 Day-4)
+// redesign/v2 — Мастер-экран бригадира
 //
-// Section-scoped view: list of operations in my section + workers. Each
-// op has a quick "log piecework" mini-form that pre-fills from the
-// snapshotted rate (ADR-0002) so the foreman only picks worker + qty.
-//
-// Creates a piecework_entries row of entry_type='accrual' linked to
-// the current open batch (or prompts to create one if none open).
+// Section-scoped view: list of operations + workers + inline piecework
+// entry form. Auto-creates a monthly batch on first entry if none open.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useForemanStore } from '../../../store/useForemanStore';
@@ -13,29 +9,30 @@ import { useTechCardStore } from '../../../store/useTechCardStore';
 import { usePayrollStore } from '../../../store/usePayrollStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import s from './v2.module.css';
 
 export default function ForemanScreen() {
-  const role = useAuthStore((s) => s.effectiveRole());
+  const role = useAuthStore((st) => st.effectiveRole());
   const canWrite = ['admin', 'director', 'production'].includes(role);
 
-  const sections = useTechCardStore((s) => s.sections);
-  const catalogLoaded = useTechCardStore((s) => s.catalogLoaded);
-  const loadCatalog = useTechCardStore((s) => s.loadCatalog);
+  const sections = useTechCardStore((st) => st.sections);
+  const catalogLoaded = useTechCardStore((st) => st.catalogLoaded);
+  const loadCatalog = useTechCardStore((st) => st.loadCatalog);
 
-  const sectionId = useForemanStore((s) => s.sectionId);
-  const operations = useForemanStore((s) => s.operations);
-  const sectionWorkers = useForemanStore((s) => s.sectionWorkers);
-  const loading = useForemanStore((s) => s.loading);
-  const loadSection = useForemanStore((s) => s.loadSection);
-  const refresh = useForemanStore((s) => s.refresh);
+  const sectionId = useForemanStore((st) => st.sectionId);
+  const operations = useForemanStore((st) => st.operations);
+  const sectionWorkers = useForemanStore((st) => st.sectionWorkers);
+  const loading = useForemanStore((st) => st.loading);
+  const loadSection = useForemanStore((st) => st.loadSection);
+  const refresh = useForemanStore((st) => st.refresh);
 
-  const batches = usePayrollStore((s) => s.batches);
-  const loadBatches = usePayrollStore((s) => s.loadBatches);
-  const createBatch = usePayrollStore((s) => s.createBatch);
-  const createEntry = usePayrollStore((s) => s.createEntry);
+  const batches = usePayrollStore((st) => st.batches);
+  const loadBatches = usePayrollStore((st) => st.loadBatches);
+  const createBatch = usePayrollStore((st) => st.createBatch);
+  const createEntry = usePayrollStore((st) => st.createEntry);
 
   const [selectedSection, setSelectedSection] = useState('');
-  const [entryForms, setEntryForms] = useState({}); // opId → {workerId, qty}
+  const [entryForms, setEntryForms] = useState({});
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
   useEffect(() => { loadBatches(); }, [loadBatches]);
@@ -47,12 +44,10 @@ export default function ForemanScreen() {
 
   const ensureOpenBatch = async () => {
     if (openBatch) return openBatch;
-    // Convenience: create a monthly batch for the current month.
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-    const batch = await createBatch(start, end, 'Авто-создана из мастер-экрана');
-    return batch;
+    return createBatch(start, end, 'Авто-создана из мастер-экрана');
   };
 
   const handleFormChange = (opId, patch) => {
@@ -97,27 +92,27 @@ export default function ForemanScreen() {
   if (!catalogLoaded) return <div className="panel-loading">Загрузка…</div>;
 
   return (
-    <div className="container" style={{ maxWidth: 1100 }}>
+    <div className={s.page}>
       <h1>Мастер-экран</h1>
-      <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className={s.formRow}>
         <label>
           Участок:{' '}
           <select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)}>
             <option value="">—</option>
-            {sections.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+            {sections.map((sec) => (
+              <option key={sec.id} value={sec.id}>{sec.name}</option>
             ))}
           </select>
         </label>
-        <div style={{ opacity: 0.7 }}>
+        <span className={s.subtitle} style={{ margin: 0 }}>
           {openBatch
-            ? <>Открыт period: <code>{openBatch.period_start}…{openBatch.period_end}</code></>
-            : <>Нет открытого period — будет создан автоматически при первой записи</>}
-        </div>
+            ? <>Открыт period: <span className={s.code}>{openBatch.period_start}…{openBatch.period_end}</span></>
+            : <>Period не открыт — будет создан автоматически при первой записи</>}
+        </span>
       </div>
 
       {!sectionId && (
-        <p style={{ opacity: 0.6, marginTop: 'var(--space-3)' }}>
+        <p className={s.subtitle} style={{ marginTop: 16 }}>
           Выберите участок, чтобы увидеть задачи и работников.
         </p>
       )}
@@ -126,18 +121,18 @@ export default function ForemanScreen() {
 
       {sectionId && !loading && (
         <>
-          <section style={{ marginTop: 'var(--space-3)' }}>
+          <section className={s.section}>
             <h2>Задачи ({operations.length})</h2>
             {operations.length === 0 ? (
-              <p style={{ opacity: 0.6 }}>Нет утверждённых задач для этого участка.</p>
+              <p className={s.empty}>Нет утверждённых задач для этого участка.</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className={s.table}>
                 <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
+                  <tr>
                     <th>Операция</th>
                     <th>Заказ</th>
-                    <th style={{ textAlign: 'right' }}>Кол-во</th>
-                    <th style={{ textAlign: 'right' }}>Тариф</th>
+                    <th className={s.numCol}>Кол-во</th>
+                    <th className={s.numCol}>Тариф</th>
                     <th>Работник</th>
                     <th>Факт</th>
                     <th></th>
@@ -147,11 +142,11 @@ export default function ForemanScreen() {
                   {operations.map((op) => {
                     const form = entryForms[op.id] ?? { workerId: '', qty: '' };
                     return (
-                      <tr key={op.id} style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                      <tr key={op.id}>
                         <td>{op.name_snapshot}</td>
                         <td>{op.order_number ?? op.order_id.slice(0, 8)}</td>
-                        <td style={{ textAlign: 'right' }}>{op.qty}</td>
-                        <td style={{ textAlign: 'right' }}>{op.rate_snapshot}₽/{op.unit_snapshot}</td>
+                        <td className={s.numCol}>{op.qty}</td>
+                        <td className={s.numCol}>{op.rate_snapshot}₽/{op.unit_snapshot}</td>
                         <td>
                           <select
                             value={form.workerId}
@@ -171,12 +166,13 @@ export default function ForemanScreen() {
                             step="1"
                             value={form.qty}
                             onChange={(e) => handleFormChange(op.id, { qty: e.target.value })}
-                            style={{ width: 70 }}
+                            className={s.qtyInput}
                             disabled={!canWrite}
                           />
                         </td>
                         <td>
                           <button
+                            type="button"
                             className="btn btn-primary"
                             onClick={() => handleLogEntry(op)}
                             disabled={!canWrite || !form.workerId || !form.qty}
@@ -192,10 +188,10 @@ export default function ForemanScreen() {
             )}
           </section>
 
-          <section style={{ marginTop: 'var(--space-4)' }}>
+          <section className={s.section}>
             <h3>Работники на участке ({sectionWorkers.length})</h3>
             {sectionWorkers.length === 0 ? (
-              <p style={{ opacity: 0.6 }}>Не назначено. Добавьте работников через раздел HR.</p>
+              <p className={s.empty}>Не назначено. Добавьте работников через раздел HR.</p>
             ) : (
               <ul>
                 {sectionWorkers.map((w) => (
