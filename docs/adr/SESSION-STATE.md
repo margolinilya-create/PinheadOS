@@ -1,7 +1,7 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-14 (W3 Day-6 + tests + V2Nav, все этапы автономно)
-**Текущая фаза:** v2 MVP end-to-end прототип готов. Next: polish / dispatcher consumers / baseline extract.
+**Последнее обновление:** 2026-04-14 (MVP scope полностью закрыт)
+**Текущая фаза:** v2 MVP feature-complete. Bitrix sync блокирован (нужен webhook URL). Готов к UAT.
 **Активная ветка разработки:** `redesign/v2`
 
 > Этот файл существует чтобы любая новая сессия (я или другой разработчик) могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
@@ -57,7 +57,12 @@ Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3
 | **Route** `/foreman` (flag-gated) + `ForemanScreen.jsx` | ✅ W3 Day-4 — section picker, task list, piecework entry logging с auto-создаваемым batch |
 | **Component** `NotificationsBell.jsx` + `/` integration | ✅ W3 Day-5 — fixed-position, realtime subscribe, unread badge, localStorage seenAt |
 | **Component** `V2Nav.jsx` | ✅ floating nav bar со ссылками на v2 routes, не трогает Header (red-zone safe) |
-| **Unit tests** для v2 stores | ✅ 28 тестов: useTechCardStore(7) + useWorkersStore(6) + usePayrollStore(4) + useNotificationsStore(4) + useWorkshopStore(3) + useForemanStore(4). Full suite 824/824 |
+| **Unit tests** для v2 stores | ✅ 33 теста (+ 5 useUndoStore + 4 RTL V2Nav). Full suite **838/838** |
+| **Component** `UndoToastHost.jsx` + useUndoStore | ✅ MVP undo: 5s toast после destructive action в TechCardBuilder, "Отменить" восстанавливает |
+| **Route** `/trash` + `TrashScreen.jsx` | ✅ MVP trash: восстановление soft-deleted ops после 5s undo expiry |
+| **Route** `/orders/table` + `OrdersTableView.jsx` | ✅ MVP Kanban table view: альтернативный листинг через useOrdersStore (без трогания KanbanBoard.jsx) |
+| **CSS modules** | ✅ все v2 экраны на `v2.module.css`, никаких inline styles |
+| **`useDocumentTitle` hook** | ✅ tab title для каждого v2 route |
 | **Route** `/payroll` + `PayrollScreen.jsx` | ✅ W3 Day-6 — batches list, expand to entries, Close button (admin only) стэмпит paid_at |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
