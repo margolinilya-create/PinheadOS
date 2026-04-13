@@ -4,7 +4,7 @@
 // Restricted via RLS to admin/director or senior_foreman (workers_write_*
 // policy from 20260504).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useWorkersStore } from '../../../store/useWorkersStore';
 import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -31,6 +31,13 @@ export default function WorkersScreen() {
 
   const [form, setForm] = useState({ full_name: '', section_id: '', hourly_rate: '300' });
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return workers;
+    const q = search.trim().toLowerCase();
+    return workers.filter((w) => w.full_name.toLowerCase().includes(q));
+  }, [workers, search]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
@@ -138,11 +145,32 @@ export default function WorkersScreen() {
         </div>
       )}
 
+      {workers.length > 0 && (
+        <div className={s.formRow}>
+          <input
+            type="search"
+            placeholder="Поиск по имени"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={s.searchInput}
+          />
+          <span className={s.spacer} />
+          <span className={s.subtitle} style={{ margin: 0 }}>
+            {filtered.length} из {workers.length}
+          </span>
+        </div>
+      )}
+
       {workers.length === 0 ? (
         <div className={s.emptyState}>
           <span className={s.emptyStateIcon}>👤</span>
           <div className={s.emptyStateTitle}>Работников ещё нет</div>
           <p>Добавьте первого работника через форму выше.</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>🔍</span>
+          <div className={s.emptyStateTitle}>Никого не найдено</div>
         </div>
       ) : (
         <table className={s.table}>
@@ -155,7 +183,7 @@ export default function WorkersScreen() {
             </tr>
           </thead>
           <tbody>
-            {workers.map((w) => {
+            {filtered.map((w) => {
               const section = sections.find((sec) => sec.id === w.section_id);
               return (
                 <tr key={w.id}>

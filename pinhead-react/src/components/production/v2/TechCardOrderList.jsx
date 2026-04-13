@@ -1,6 +1,6 @@
 // redesign/v2 — /tech-cards index
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
@@ -25,6 +25,7 @@ export default function TechCardOrderList() {
   useDocumentTitle('Tech Cards');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -45,12 +46,37 @@ export default function TechCardOrderList() {
     })();
   }, []);
 
+  const filtered = useMemo(() => {
+    if (!search.trim()) return orders;
+    const q = search.trim().toLowerCase();
+    return orders.filter((o) =>
+      (o.order_number ?? '').toLowerCase().includes(q)
+      || (o.status ?? '').toLowerCase().includes(q)
+    );
+  }, [orders, search]);
+
   return (
     <div className={s.page}>
       <h1>Tech Cards</h1>
       <p className={s.subtitle}>
         Список заказов. Кликните, чтобы открыть или создать технологическую карту.
       </p>
+
+      {orders.length > 0 && (
+        <div className={s.formRow}>
+          <input
+            type="search"
+            placeholder="Поиск по номеру или статусу"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={s.searchInput}
+          />
+          <span className={s.spacer} />
+          <span className={s.subtitle} style={{ margin: 0 }}>
+            {filtered.length} из {orders.length}
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <div className={s.skeletonRow}>
@@ -64,6 +90,11 @@ export default function TechCardOrderList() {
           <div className={s.emptyStateTitle}>Заказов пока нет</div>
           <p>Создайте первый заказ через <Link to="/">визард</Link>.</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>🔍</span>
+          <div className={s.emptyStateTitle}>Ничего не найдено</div>
+        </div>
       ) : (
         <table className={s.table}>
           <thead>
@@ -75,7 +106,7 @@ export default function TechCardOrderList() {
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => {
+            {filtered.map((o) => {
               const tc = o.order_tech_cards?.[0];
               return (
                 <tr key={o.id}>
