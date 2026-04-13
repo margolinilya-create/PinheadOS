@@ -17,14 +17,21 @@ URL: https://pinhead-os.vercel.app
   - output/ — PrintPreview
   - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, OnboardingTips, CommandPalette, PriceBreakdown, RolePreviewBar
 - store/ — Zustand (все .ts)
-  - useStore.ts — главный store (7 слайсов)
+  - useStore.ts — главный store (7 sales/catalog слайсов)
   - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
   - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
+  - **redesign/v2 (отдельные root stores):** useTechCardStore.ts, useWorkshopStore.ts, useForemanStore.ts, useWorkersStore.ts, usePayrollStore.ts, useNotificationsStore.ts, useUndoStore.ts
 - utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
-- lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
-- types/ — TypeScript типы: order, catalog, auth, pricing
+- lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs, **featureFlags.ts, domainEvents.ts (redesign/v2)**
+- types/ — TypeScript типы: order, catalog, auth, pricing, **production.ts (redesign/v2)**
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts
+- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, **useFeatureFlag.ts, useDocumentTitle.ts (redesign/v2)**
+
+### redesign/v2 production-слой компоненты
+- components/production/v2/ — все экраны под feature flags:
+  - TechCardOrderList, TechCardBuilder, WorkshopBoard, ForemanScreen, PayrollScreen, WorkersScreen, TrashScreen, OrdersTableView
+  - NotificationsBell, V2Nav, UndoToastHost (floating widgets)
+  - v2.module.css — общий стилевой модуль
 
 ## Ключевые правила
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
@@ -46,13 +53,15 @@ URL: https://pinhead-os.vercel.app
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 - Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
 
-## Не трогать без тестов
+## Не трогать без тестов (CI diff-guard на redesign/v2)
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
 - store/slices/ — 796 тестов зависят от них
+- components/steps/** — DOM-чувствительные тесты
+- components/shared/CommandPalette.jsx — hand-rolled
 
 ## Тесты
 ```bash
-npm run test     # 796 unit тестов (Vitest)
+npm run test     # main: 796 / redesign/v2: 837 unit тестов (Vitest)
 npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно

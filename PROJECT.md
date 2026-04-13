@@ -16,9 +16,60 @@ Supabase через CDN. Финальная версия v1.7 — полност
 ### ERA 3 — Стабилизация + CRM/ERP (апрель 2026)
 Сессии 1-5: баги, качество, UX, аудит UI, security hardening. Стратегический разворот к CRM/ERP интеграции.
 
+### ERA 4 — redesign/v2 production-first (апрель 2026 →)
+Параллельная ветка `redesign/v2`. 3-месячный production-first редизайн: Tech Card Builder → Workshop Board → Мастер-экран бригадира с встроенной ОТК. Отдельный Supabase project (`pinhead-os-v2`), feature-flag rollout, dual-deploy на Vercel preview. Main-ветка остаётся стабильной для менеджеров. Bus factor mitigation через DB-level invariants (paid_at immutability, snapshot freeze, denorm consistency triggers).
+
 ---
 
 ## Changelog
+
+### Сессия 11 (13-14.04.2026) — redesign/v2 W1+W2+W3+W4 (50+ коммитов на отдельной ветке)
+
+Параллельная ветка `redesign/v2` с собственным Supabase project. Production-first редизайн PinheadOS 2.0 — feature-complete за один спринт.
+
+**W1 — Foundation (DB + edge function)**
+- 6 миграций (20260501..05 + 20260510): sections, operation_types, sku_tech_templates, order_tech_cards, order_tech_operations со snapshot колонками (rate/minutes/name/unit), workers, piecework_batches, piecework_entries, partitioned domain_events outbox
+- Триггеры: `piecework_immutable_after_pay`, `tech_operation_order_id_consistency`, `orders_audit_trigger`
+- 6 `auth_is_*` SECURITY DEFINER RLS predicates
+- pg_cron + pg_net включены, dispatcher edge function задеплоен с минутным cron
+- ADR-0001..0009 + W1-APPLY-CHECKLIST.md
+- Diff-guard CI workflow защищает 84 pricing + 796 wizard slice тестов
+
+**W2 — Stores (Zustand root stores per ADR-0001)**
+- 6 bounded contexts: useTechCardStore, useWorkshopStore, useForemanStore, useWorkersStore, usePayrollStore, useNotificationsStore
+- types/production.ts mirrors всю схему
+- lib/domainEvents.ts — transactional outbox producer
+- Outbox loop замкнут: producer → INSERT → cron → dispatcher → mark processed → realtime → bell
+
+**W3 — UI Screens (8 production routes под feature flags)**
+- `/orders/table` OrdersTableView — alt листинг Kanban с сортировкой+поиском
+- `/tech-cards` + `/tech-cards/:orderId` — list + full CRUD builder, snapshot freeze on approve, delete с undo
+- `/workshop` WorkshopBoard — kanban-style колонки по секциям
+- `/foreman` ForemanScreen — section picker + задачи + worker dropdown + auto-batch piecework recording
+- `/payroll` PayrollScreen — batches → entries → Close → **Сторно** (reversal_of) для корректировок
+- `/workers` WorkersScreen — HR CRUD
+- `/trash` TrashScreen — две секции: tech cards + операции
+- 🔔 NotificationsBell — realtime subscribe domain_events
+- V2Nav — floating nav bar, dev "Войти как demo" button
+- UndoToastHost — 5с undo для destructive ops
+- 8 feature flags в `app_config.feature_flags` — main дарк, v2 active
+
+**W4 — Polish + extras**
+- CSS modules (`v2.module.css`) для всех v2 экранов
+- Skeleton loaders + emoji empty states
+- useDocumentTitle hook
+- Order number в TechCardBuilder header (вместо UUID)
+- Worker name в payroll entries
+- Demo seed (`supabase/seed/v2_uat_demo.sql`) + real auth user `demo@pinhead.local`
+- piecework reversal flow (ADR-0007 trust loop)
+- 41 новых unit тестов
+
+**Не закрыто (блокировано внешними входами):**
+- Bitrix one-way sync — нужен webhook URL
+- baseline-extract — нужен Bitrix API
+- piecework parallel-run vs Excel — нужны Excel-данные
+
+**Метрики:** 837/837 тестов зелёные, build чистый, diff-guard не потревожен. main абсолютно нетронут.
 
 ### Сессия 10 (11.04.2026) — SKU как центр управления ТЗ (28 файлов, 796 тестов)
 
@@ -177,28 +228,38 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ---
 
-## Статистика (10.04.2026, конец сессии 8)
+## Статистика (14.04.2026, конец сессии 11)
 
-| Метрика | Значение |
-|---------|----------|
-| Тесты (unit) | 735 |
-| Тесты (E2E) | 40 сценариев (7 файлов) |
-| TypeScript | store, slices, utils, lib, types — 100% .ts |
-| Бандл main | 576 KB (было 943) |
-| Бандл Dashboard | 199 KB (было 393) |
-| Dark mode | полная поддержка |
-| Supabase Storage | sku-photos bucket |
-| SKU фото | до 4 на артикул |
-| Auth states | active, pending_approval, disabled, no_profile |
-| User deletion | soft-delete (active column) |
-| God-компоненты (>500 строк) | 0 |
+| Метрика | Main | redesign/v2 |
+|---------|------|-------------|
+| Тесты (unit) | 796 | **837** (796 + 41 v2) |
+| Тесты (E2E) | 40 сценариев | (унаследованы) |
+| TypeScript | store, slices, utils, lib, types — 100% .ts | + types/production.ts, lib/domainEvents.ts |
+| Production-слой DB tables | — | 10 (sections, operation_types, sku_tech_templates+items, order_tech_cards+operations, workers, piecework_batches+entries, domain_events partitioned) |
+| Production routes | — | 8 (`/orders/table`, `/tech-cards`, `/tech-cards/:id`, `/workshop`, `/foreman`, `/payroll`, `/workers`, `/trash`) + bell + V2Nav + UndoToastHost |
+| ADR-0001 root stores | — | 6 + useUndoStore |
+| Триггеры (DB invariants) | order_audit | + paid_at immutability + tech_op denorm consistency |
+| RLS policies | full | + 6 auth_is_* SECURITY DEFINER predicates |
+| Edge functions | — | domain-events-dispatcher (deployed, cron 1 min) |
+| Supabase Storage | sku-photos | (унаследовано) |
+| Feature flags | — | 8 в app_config.feature_flags (main дарк) |
+| Diff-guard CI | — | защищает 84 pricing + 796 wizard slice тестов |
 
 ---
 
 ## Roadmap
 
 ### Закрыто
-Все P0/P1/P2 задачи сессий 1-4: баги, качество, UX, UI/UX аудит.
+- Все P0/P1/P2 задачи сессий 1-4: баги, качество, UX, UI/UX аудит
+- **redesign/v2 W1+W2+W3+W4**: production-слой схема, 6 stores, 8 экранов, outbox loop, undo+trash+reversal, demo seed, polish (см. сессия 11)
+
+### Фаза redesign/v2 — следующие шаги (заблокировано внешними входами)
+- [ ] **Bitrix one-way sync** (production status → Bitrix deal stage) — нужен webhook URL
+- [ ] **baseline-extract.js** (ADR-0006 KPI baseline) — нужен Bitrix API + история заказов
+- [ ] **piecework parallel-run vs Excel** (ADR-0007 trust) — нужны Excel-данные за прошлый период
+- [ ] Real dispatcher consumers (audit projection, notifications insert) — пока stub
+- [ ] More RTL component тесты для остальных v2 экранов
+- [ ] DnD operations between sections (для технолога, нишево)
 
 ### Фаза 2 — Планирование производства (следующая)
 - [ ] Supabase таблицы: production_slots, production_capacity

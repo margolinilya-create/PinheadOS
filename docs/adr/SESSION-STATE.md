@@ -1,92 +1,124 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-14 (MVP scope полностью закрыт)
-**Текущая фаза:** v2 MVP feature-complete. Bitrix sync блокирован (нужен webhook URL). Готов к UAT.
-**Активная ветка разработки:** `redesign/v2`
+**Последнее обновление:** 2026-04-14 (W4 Day-1+, polish + reversal flow)
+**Текущая фаза:** v2 MVP полностью feature-complete, готов к UAT. Bitrix sync блокирован.
+**Активная ветка:** `redesign/v2`
 
-> Этот файл существует чтобы любая новая сессия (я или другой разработчик) могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
+> Этот файл существует чтобы любая новая сессия могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
 
 ## TL;DR
 
-Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 закрыты** в этой мега-сессии (2026-04-14, автономно):
-- 6 миграций применены к v2 Supabase через Management API (pg_dump заблокирован supavisor)
-- 6 ADR-0001 stores написаны, все с unit тестами (28 новых тестов)
-- 5 production UI экранов + realtime bell + feature-flag навигация V2Nav
-- `profiles.active` prod-миграция найдена локально, закоммичена в main, смержена в v2
-- **824/824 тестов** зелёные (796 старых + 28 новых), build зелёный, lint clean, diff-guard не потревожен
+Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + основная часть W4 закрыты.** ~50 коммитов с момента старта ветки.
 
-**Все production экраны живут под feature flags** (`app_config.feature_flags`): tech_card_builder, workshop_board, foreman_screen, payroll_screen, notifications_bell. Main Supabase не имеет row → на prod всё дарк. v2 Supabase имеет row с флагами=true → на redesign/v2 preview URL всё живое.
+- 6 миграций применены к v2 Supabase через Management API
+- 6 ADR-0001 stores + 1 utility (useUndoStore) + 1 hook (useDocumentTitle)
+- 8 production routes + bell + V2Nav + UndoToastHost
+- Outbox loop работает end-to-end: producer → cron (1 min) → dispatcher → mark processed_at
+- **837/837 тестов** зелёные, build чистый, diff-guard не потревожен
+- Demo seed + real auth user `demo@pinhead.local` для UAT
 
-Следующие шаги: polish (CSS modules вместо inline), dispatcher consumer logic, baseline-extract (ждёт Bitrix webhook), weekly main→v2 sync merge.
+Все экраны под `app_config.feature_flags`. Main = все флаги отсутствуют → дарк. v2 = флаги=true → активно. Cutover = вставить row в prod app_config.
 
-## Сейчас
+## Текущее состояние v2
 
-| Area | Status |
+### DB (v2 Supabase `glhwbktsokphgksdvcxj`)
+
+| Таблица | Status |
 |---|---|
-| Ветка `redesign/v2` | создана, запушена, 7 коммитов |
-| ADR-0001..0009 | написаны в `docs/adr/` |
-| `CLAUDE.md` | обновлён с branch rules + diff-guard списком |
-| Supabase project v2 (`pinhead-os-v2`) | создан, **пустой schema** (ещё не init), ключи в `.env.local` |
-| Vercel Preview env vars | scoped к `redesign/v2` → v2 Supabase (main НЕ тронут) |
-| **CI: diff-guard workflow** | ✅ написан (`.github/workflows/diff-guard.yml`) |
-| **CI: rls-gate workflow** | ✅ написан (`.github/workflows/rls-gate.yml`) |
-| **Migration 20260501** production_foundation | ✅ применён (Variant A, idempotency index фикс) |
-| **Migration 20260502** seed_sections_and_ops | ✅ применён (7 sections, 30 ops) |
-| **Migration 20260503** tech_cards | ✅ применён |
-| **Migration 20260504** workers | ✅ применён |
-| **Migration 20260505** piecework | ✅ применён (trigger paid_at immutability активен) |
-| **Migration 20260510** db_guards | ✅ применён (функции зарегистрированы) |
-| **v2 init-from-prod** (6 базовых таблиц) | ✅ применён напрямую через Management API (pg_dump блокирован supavisor; см. docs/adr/W1-APPLY-CHECKLIST.md) |
-| **Edge function** domain-events-dispatcher | ✅ задеплоен на v2, dispatchEvent поддерживает новые dotted event names + manual trigger end-to-end ✓ |
-| **pg_cron extension + pg_net** на v2 | ✅ enabled через Management API |
-| **Cron job** `dispatch-domain-events` | ✅ schedule `* * * * *` (1 min), service_role POST в edge function |
-| **Outbox producers** в stores | ✅ TechCardStore.approveTechCard, PayrollStore.createEntry, PayrollStore.closeBatch |
-| **Store** `useTechCardStore.ts` | ✅ W1 Day-2 (CRUD скелет, lint+tsc clean) |
-| **Store** `useWorkshopStore.ts` | ✅ W1 Day-3 (board loaders, lint+tsc clean) |
-| **Store** `useWorkersStore.ts` | ✅ W2 Day-1 (CRUD + soft-delete, lint+tsc clean) |
-| **Store** `usePayrollStore.ts` | ✅ W2 Day-1 (batches/entries, closeBatch с paid_at stamping, lint+tsc clean) |
-| **Store** `useForemanStore.ts` | ✅ W2 Day-2 (section-scoped ops + workers, lint+tsc clean) |
-| **Store** `useNotificationsStore.ts` | ✅ W2 Day-2 (domain_events realtime subscribe, localStorage seenAt, lint+tsc clean) |
-| **Types** `types/production.ts` | ✅ включая Worker/Piecework*/DomainEvent |
-| **Feature flags** (app_config + `useFeatureFlag` hook) | ✅ W3 Day-1 (seeded в v2 app_config.feature_flags) |
-| **Route** `/tech-cards` (flag-gated) | ✅ W3 Day-2 — index: список заказов + Tech Card status |
-| **Route** `/tech-cards/:orderId` (flag-gated) | ✅ W3 Day-2 — полный builder |
-| **Component** `TechCardBuilder.jsx` | ✅ W3 Day-2: create draft, add/remove/qty ops, approve button с snapshot freeze |
-| **Component** `TechCardOrderList.jsx` | ✅ W3 Day-2 index |
-| **Route** `/workshop` (flag-gated) + `WorkshopBoard.jsx` | ✅ W3 Day-3 — kanban-like sections view, read-only |
-| **Route** `/foreman` (flag-gated) + `ForemanScreen.jsx` | ✅ W3 Day-4 — section picker, task list, piecework entry logging с auto-создаваемым batch |
-| **Component** `NotificationsBell.jsx` + `/` integration | ✅ W3 Day-5 — fixed-position, realtime subscribe, unread badge, localStorage seenAt |
-| **Component** `V2Nav.jsx` | ✅ floating nav bar со ссылками на v2 routes, не трогает Header (red-zone safe) |
-| **Unit tests** для v2 stores | ✅ 33 теста (+ 5 useUndoStore + 4 RTL V2Nav). Full suite **838/838** |
-| **Component** `UndoToastHost.jsx` + useUndoStore | ✅ MVP undo: 5s toast после destructive action в TechCardBuilder, "Отменить" восстанавливает |
-| **Route** `/trash` + `TrashScreen.jsx` | ✅ MVP trash: восстановление soft-deleted ops после 5s undo expiry |
-| **Route** `/orders/table` + `OrdersTableView.jsx` | ✅ MVP Kanban table view: альтернативный листинг через useOrdersStore (без трогания KanbanBoard.jsx) |
-| **CSS modules** | ✅ все v2 экраны на `v2.module.css`, никаких inline styles |
-| **`useDocumentTitle` hook** | ✅ tab title для каждого v2 route |
-| **Route** `/payroll` + `PayrollScreen.jsx` | ✅ W3 Day-6 — batches list, expand to entries, Close button (admin only) стэмпит paid_at |
-| Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
-| Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
+| `sections` (7 seed) | ✅ |
+| `operation_types` (30 seed) | ✅ |
+| `sku_tech_templates` + `*_items` | ✅ |
+| `order_tech_cards` | ✅ |
+| `order_tech_operations` (snapshot cols) | ✅ |
+| `workers` | ✅ |
+| `piecework_batches` | ✅ |
+| `piecework_entries` | ✅ |
+| `domain_events` (partitioned) | ✅ |
+| `profiles` `orders` `app_config` `catalog_config` `order_comments` `order_audit` `order_templates` (init-from-prod) | ✅ |
 
-## Ключевые факты о проекте
+**Триггеры:**
+- `piecework_immutable_after_pay` — рот для `paid_at IS NOT NULL`
+- `tech_operation_order_id_consistency` — denorm consistency
+- `orders_audit_trigger` — audit log
+
+**RLS:** все 10 новых таблиц — RLS on, ≥2 политики на каждой. 6 `auth_is_*` SECURITY DEFINER predicates.
+
+**Cron:** `dispatch-domain-events` каждую минуту → POST edge function → drains outbox.
+
+**Edge function:** `domain-events-dispatcher` deployed, dispatchEvent поддерживает event_type vocabulary `tech_card.approved`, `piecework.entry_created`, `payroll.batch_closed`, `test.smoke`.
+
+### Stores (`pinhead-react/src/store/`)
+
+| Store | Tests |
+|---|---|
+| `useTechCardStore.ts` | 9 (loadCatalog, addOperation snapshot copy, approve refresh, deleteTechCard) |
+| `useWorkshopStore.ts` | 3 |
+| `useForemanStore.ts` | 4 |
+| `useWorkersStore.ts` | 6 |
+| `usePayrollStore.ts` | 6 (включая reverseEntry) |
+| `useNotificationsStore.ts` | 4 |
+| `useUndoStore.ts` (utility) | 5 |
+| `lib/domainEvents.ts` (producer) | — |
+| RTL `V2Nav.test.jsx` | 4 |
+
+### UI Routes (все flag-gated)
+
+| Route | Component | Что делает |
+|---|---|---|
+| `/orders/table` | OrdersTableView | Альтернативный листинг Kanban с сортировкой+поиском, кликабельные order_number → builder |
+| `/tech-cards` | TechCardOrderList | Список заказов с tech card status |
+| `/tech-cards/:orderId` | TechCardBuilder | Create/delete draft, add/remove ops, qty edit, approve со snapshot freeze. Header показывает PH-NNNN |
+| `/workshop` | WorkshopBoard | Kanban-style колонки по секциям |
+| `/foreman` | ForemanScreen | Section picker + задачи + worker dropdown + запись piecework + auto-batch |
+| `/workers` | WorkersScreen | HR CRUD: add, inline section+rate edit, soft-delete |
+| `/payroll` | PayrollScreen | Batches → entries (с именами через workers lookup) → Close → **Сторно** для корректировок (reversal_of) |
+| `/trash` | TrashScreen | Две секции: tech cards + операции, restore |
+| 🔔 NotificationsBell | float widget | Realtime subscribe, unread badge, localStorage seenAt |
+| V2Nav | float nav bar | Chips + dev "Войти как demo" button |
+| UndoToastHost | float widget | 5с undo для destructive ops |
+
+### Feature flags (v2 `app_config.feature_flags`)
+
+```json
+{
+  "tech_card_builder": true,
+  "workshop_board": true,
+  "foreman_screen": true,
+  "payroll_screen": true,
+  "notifications_bell": true,
+  "trash_screen": true,
+  "orders_table_view": true,
+  "workers_screen": true
+}
+```
+
+## UAT login
+
+- **URL:** `npm run dev` → пойдёт на `localhost:5176` (или другой порт), Vite читает `pinhead-react/.env.local` → v2 Supabase
+- **Credentials:** `demo@pinhead.local` / `DemoPass2026!`
+- **Как:** в DEV_MODE авто-логинит fake user → RLS блокирует → жми **🔐 Войти как demo** в правой части V2Nav → reload → реальная сессия → всё видно
+- **Seed:** 3 заказа PH-0004..06, 5 workers, 2 approved tech cards, 4 операции, 1 open batch, 2 entries
+
+## Ключевые факты
 
 - **Стек:** React 19 + Vite 7 + Zustand 5 + Supabase + TypeScript
-- **Команда:** 1 developer (bus factor = 1, главный риск)
-- **Scope v2 MVP:** Tech Card Builder → Workshop Board → Мастер-экран бригадира (с встроенной ОТК) → bell + undo + trash + Bitrix one-way + Kanban с Table view. TV Dashboard дропнут в phase 2.
-- **KPI:** On-time delivery `baseline + 5..+20 п.п.`, middle target +10. Baseline ещё не измерен (W1 работа).
-- **Критичное правило payroll:** ни одна зарплата не выплачивается до parallel-run drift <1% с Excel (ADR-0007)
+- **Команда:** 1 developer (bus factor = 1)
+- **MVP scope (TL;DR):** Tech Card Builder → Workshop → Мастер → bell + undo + trash + Bitrix one-way + Kanban table view. **Bitrix блокирован**, остальное закрыто. TV Dashboard дропнут в phase 2.
+- **KPI:** On-time delivery `baseline + 5..+20 п.п.`, цель +10. Baseline ещё не измерен — ждёт Bitrix data.
+- **Payroll правило:** ни одна зарплата не выплачивается до parallel-run drift <1% с Excel (ADR-0007). Excel data ещё нет.
 
 ## Параллельная разработка main + redesign/v2
 
-**ВАЖНО:** Пользователь ведёт улучшения в `main` одновременно с работой в `redesign/v2`. См. **ADR-0009** для полной sync-стратегии.
-
-Коротко:
-- Еженедельный `git merge main --no-ff` в `redesign/v2` (понедельники)
+См. **ADR-0009**. Коротко:
+- Еженедельный `git merge main --no-ff` в `redesign/v2`
 - Never rebase
-- Diff-guard защищает существующие слайсы и pricing.ts от случайных изменений
-- Красная зона конфликтов: `App.jsx`, `KanbanBoard.jsx`, `Header.jsx`, `package.json`
+- Diff-guard защищает existing slices/pricing/wizard steps от случайных изменений
+- Красная зона merge-конфликтов: `App.jsx`, `KanbanBoard.jsx`, `Header.jsx`, `package.json`
 - Синяя зона (main свободно меняет): Wizard, pricing, SKU editors, Dashboard
 
-## Защищённые файлы (CI diff-guard, W1 Day-1 workflow)
+**Текущий статус merge:** main не двигался с последнего sync (2026-04-13). Никаких diffs нет.
+
+## Защищённые файлы (CI diff-guard)
 
 Ни одно изменение в `redesign/v2` не должно трогать:
 - `pinhead-react/src/utils/pricing.ts` (84 теста)
@@ -94,72 +126,60 @@ Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3
 - `pinhead-react/src/components/steps/**`
 - `pinhead-react/src/components/shared/CommandPalette.jsx`
 
+## Outbox loop end-to-end
+
+```
+1. UI action (e.g. approveTechCard)
+   → store updates DB (order_tech_cards.status='approved')
+   → emitDomainEvent → INSERT domain_events
+2. pg_cron tick (каждую минуту)
+   → POST https://glhwbktsokphgksdvcxj.functions.supabase.co/domain-events-dispatcher
+3. Edge function:
+   → SELECT * FROM domain_events WHERE processed_at IS NULL ORDER BY created_at LIMIT 500
+   → for each: dispatchEvent (stub log) + UPDATE processed_at = now()
+4. Realtime channel в NotificationsBell
+   → постгрес-changes INSERT subscription
+   → bell badge увеличивается
+```
+
+Verified: вставлен test.smoke event → cron подобрал → processed_at проставлен → bell обновился.
+
 ## Где искать важные документы
 
 | Что | Путь |
 |---|---|
-| Полный план v3 (15 разделов + §16 долгов) | `/Users/margolinilya/.claude/plans/merry-seeking-allen.md` (вне git, у разработчика) |
-| ADR (все архитектурные решения) | `docs/adr/0001..0009.md` |
-| Day-0 manual checklist (Supabase, Vercel, Bitrix) | `docs/adr/0000-day0-manual-steps.md` |
 | Этот файл (текущее состояние) | `docs/adr/SESSION-STATE.md` |
+| ADR (архитектурные решения) | `docs/adr/0001..0009.md` |
+| Day-0 manual checklist | `docs/adr/0000-day0-manual-steps.md` |
+| W1 apply checklist (как накатывать на v2) | `docs/adr/W1-APPLY-CHECKLIST.md` |
+| Demo seed | `supabase/seed/v2_uat_demo.sql` |
 | Контекст проекта | `CLAUDE.md` + `pinhead-react/CLAUDE.md` |
+| Changelog/история | `PROJECT.md` |
 
-## Коммиты на `redesign/v2`
+## Что осталось (не блокирует UAT)
 
-```
-e0175e1 feat(redesign/v2): production foundation migrations + events dispatcher
-ac4bda0 ci(redesign/v2): add diff-guard + rls-gate workflows (W1 Day-1)
-c120663 docs(redesign/v2): ADR-0009 sync strategy + SESSION-STATE recovery doc
-0eb4a93 chore(redesign/v2): gitignore .vercel/
-0e5c791 chore(redesign/v2): trigger rebuild with new v2 env vars
-387b87e docs(redesign/v2): Day-0 manual steps checklist
-e024ebd docs(redesign/v2): W1 foundation — ADR-0001..0008 + CLAUDE.md notes
-```
+| Item | Why not yet |
+|---|---|
+| **Bitrix one-way sync** | Блокирован — нужен webhook URL от пользователя |
+| **Baseline-extract** (ADR-0006) | Блокирован — нужен Bitrix API + история заказов |
+| **piecework parallel-run** vs Excel (ADR-0007) | Нужны Excel-данные для drift сравнения |
+| **Real dispatcher consumers** (notifications insert, audit projection) | Stub OK — bell работает через realtime |
+| **DnD operations between sections** | Не входило в MVP |
+| **More RTL tests** для остальных v2 screens | Incremental safety |
+| **Manual chunks split** (904kB warning) | Touches main bundle, risky |
+| **TV Dashboard** | Дропнут в phase 2 |
 
-## Следующая сессия — W1 Day-2
+## Следующие шаги
 
-Решить с пользователем: сначала **применять** W1 Day-1 артефакты к Supabase, или продолжать **писать** код W2?
-
-### Вариант A — применить Day-1 (ручные шаги пользователя, ~30 мин)
-
-1. **Init-from-prod schema dump** — критичный предварительный шаг. v2 Supabase пустой, миграция 20260501 требует существующих `profiles` и `orders` таблиц. Варианты:
-   - Supabase Dashboard → prod project → Database → Backups → Generate schema dump → apply to v2 via SQL editor
-   - Или через CLI: `supabase db dump --project-ref <prod-ref> --schema-only > init.sql` затем `supabase db push --project-ref glhwbktsokphgksdvcxj < init.sql`
-2. **Применить 20260501** через Dashboard SQL editor или CLI
-3. **Применить 20260510** (опционально сейчас — функции без триггеров)
-4. **Deploy edge function** `supabase functions deploy domain-events-dispatcher --project-ref glhwbktsokphgksdvcxj --no-verify-jwt`
-5. **Enable pg_cron extension** в Dashboard → Database → Extensions
-6. **Schedule dispatcher cron** из README в `supabase/functions/domain-events-dispatcher/README.md`
-7. **Verify** verification queries из §6 migration 20260501
-8. **Push редизайн ветки** — CI workflows `diff-guard` + `rls-gate` прогонится впервые, проверит зелёность
-
-### Вариант B — продолжать писать W2 код без применения
-
-1. **Миграция 20260502_seed_sections_and_ops.sql** — seed sections (7) + базовые operation_types (~30)
-2. **Store `useTechCardStore.ts`** — Zustand root store для TechDesign контекста (ADR-0001)
-3. **Миграция 20260503_tech_cards.sql** — sku_tech_templates + order_tech_cards с unique constraints
-4. Подготовка к W3 Tech Card Builder UI
-
-### Вариант C — hybrid
-
-Применить Day-1 Supabase артефакты (Вариант A) + параллельно писать W2 код.
-
-### Рекомендация
-
-Variant A в следующей сессии имеет смысл если есть 30 мин свободных рук. Variant B — если хочется продолжать разработку без context switching к UI.
-
-**Перед стартом W1 Day-2 спросить у пользователя:**
-- Готов ли Bitrix webhook URL (если да — добавить в `.env.local` и написать `scripts/baseline-extract.js`)
-- Вариант A / B / C?
-- Есть ли новые изменения на main, которые нужно мержить в redesign/v2 первым делом (см. ADR-0009 weekly sync)?
+1. **UAT:** пользователь открывает приложение, кликает по экранам, репортит баги
+2. **Bitrix unblock:** как только webhook URL — пишу `scripts/baseline-extract.js` + одностороннюю sync ProductionStatus → BitrixDealStage
+3. **Excel parallel-run:** когда будут Excel-данные, пишу diff-script
+4. **Polish on demand:** конкретные жалобы → конкретные фиксы
 
 ## Проверки перед закрытием каждой сессии
 
-Прогнать чек-лист:
-
-- [ ] `git status` чист (нет случайных изменений)
+- [ ] `git status` чист
 - [ ] Коммиты внятно описывают что сделано
-- [ ] `SESSION-STATE.md` обновлён с «где остановились»
-- [ ] MEMORY.md файлы в `~/.claude/projects/.../memory/` отражают текущее состояние
-- [ ] Если был merge main → redesign/v2 — все 796 тестов зелёные
-- [ ] `git push origin redesign/v2` выполнен
+- [ ] `SESSION-STATE.md` обновлён
+- [ ] Все тесты зелёные
+- [ ] `git push origin redesign/v2`
