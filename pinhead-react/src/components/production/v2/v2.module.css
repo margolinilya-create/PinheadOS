@@ -3,13 +3,40 @@
 .page {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 32px 24px 64px;
 }
 
 .pageWide {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 32px 24px 64px;
+}
+
+.page h1,
+.pageWide h1 {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+
+.page h2,
+.pageWide h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  margin: 0 0 12px;
+}
+
+.page h3,
+.pageWide h3 {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-mid);
+  margin: 0 0 12px;
 }
 
 .header {
@@ -36,9 +63,34 @@
 .card {
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.card:hover {
+  border-color: var(--border-mid);
+}
+
+.cardClickable {
+  cursor: pointer;
+}
+
+.cardClickable:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.expanderHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.expanderHeader strong {
+  font-size: 15px;
 }
 
 .cardHeading {
@@ -61,28 +113,55 @@
 
 .table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 14px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .table thead tr {
   text-align: left;
-  border-bottom: 1px solid var(--border-light);
+  background: var(--bg1);
 }
 
 .table th {
-  padding: 8px 12px;
-  font-weight: 600;
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
   color: var(--text-mid);
-}
-
-.table td {
-  padding: 10px 12px;
   border-bottom: 1px solid var(--border-light);
 }
 
+.table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr {
+  transition: background 0.12s;
+}
+
 .table tbody tr:hover {
-  background: var(--surface);
+  background: var(--bg1);
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  color: var(--text);
 }
 
 .numCol {
@@ -99,19 +178,39 @@
 
 .formRow {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 12px;
+  margin-bottom: 16px;
 }
 
 .formRow select,
 .formRow input {
-  padding: 6px 10px;
+  padding: 9px 14px;
   border: 1px solid var(--border-light);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
+  font-family: inherit;
   background: var(--card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.formRow select:focus,
+.formRow input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.searchInput {
+  min-width: 300px;
+  flex: 1;
+  max-width: 480px;
+}
+
+.spacer {
+  flex: 1;
 }
 
 .formRow input[type="number"] {
@@ -190,10 +289,11 @@
 .column {
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-top-width: 3px;
-  border-radius: 8px;
-  padding: 12px;
-  min-height: 120px;
+  border-top: 3px solid var(--border-mid);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 160px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .columnHeading {
@@ -213,20 +313,21 @@
 
 .opCard {
   display: block;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: var(--bg);
   border: 1px solid var(--border-light);
-  border-radius: 6px;
+  border-radius: 8px;
   text-decoration: none;
   color: inherit;
   font-size: 13px;
   margin-bottom: 8px;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
 .opCard:hover {
   border-color: var(--accent);
   transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(43, 43, 240, 0.08);
 }
 
 .opCardTitle {
@@ -247,9 +348,39 @@
 
 .empty {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
-  padding: 20px 0;
+  padding: 32px 0;
+}
+
+.emptyState {
+  background: var(--card);
+  border: 1px dashed var(--border-mid);
+  border-radius: 12px;
+  padding: 48px 32px;
+  text-align: center;
+  color: var(--text-mid);
+}
+
+.emptyStateIcon {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.emptyStateTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.skeletonRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
 }
 
 /* ── V2 nav chips ────────────────────────────────────── */
@@ -257,7 +388,7 @@
 .navBar {
   display: flex;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg1);
   align-items: center;
@@ -265,56 +396,74 @@
 }
 
 .navLabel {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-dim);
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  margin-right: 4px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-right: 8px;
+  padding: 2px 6px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
 }
 
 .navChip {
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: var(--surface);
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: var(--card);
   color: var(--text);
+  border: 1px solid var(--border-light);
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
-  transition: background 0.15s;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
 }
 
 .navChip:hover {
-  background: var(--border-light);
+  background: var(--bg1);
+  border-color: var(--border-mid);
+  transform: translateY(-1px);
 }
 
 .navChipActive {
-  background: var(--accent);
-  color: white;
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.navChipActive:hover {
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
 /* ── Notifications bell ───────────────────────────────── */
 
 .bellWrap {
   position: fixed;
-  top: 60px;
-  right: 20px;
+  top: 64px;
+  right: 24px;
   z-index: 100;
 }
 
 .bellBtn {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--card);
   border: 1px solid var(--border-light);
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+  transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .bellBtn:hover {
-  background: var(--surface);
+  background: var(--bg1);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
 }
 
 .bellBadge {
@@ -334,16 +483,16 @@
 
 .bellDropdown {
   position: absolute;
-  top: 48px;
+  top: 52px;
   right: 0;
-  width: 360px;
-  max-height: 500px;
+  width: 380px;
+  max-height: 520px;
   overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  padding: 16px;
 }
 
 .bellDropdownHeader {

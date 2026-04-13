@@ -9,6 +9,7 @@ import { usePayrollStore } from '../../../store/usePayrollStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
+import { Skeleton } from '../../shared/Skeleton';
 import s from './v2.module.css';
 
 const ENTRY_TYPE_LABEL = {
@@ -65,10 +66,19 @@ export default function PayrollScreen() {
         Периоды и сдельные начисления. Закрытые периоды неизменяемы на уровне БД.
       </p>
 
-      {loading && batches.length === 0 && <div className="panel-loading">Загрузка…</div>}
+      {loading && batches.length === 0 && (
+        <div className={s.skeletonRow}>
+          <Skeleton height={64} />
+          <Skeleton height={64} />
+        </div>
+      )}
 
       {batches.length === 0 && !loading && (
-        <p className={s.empty}>Пока нет ни одного period'а.</p>
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>💰</span>
+          <div className={s.emptyStateTitle}>Periods нет</div>
+          <p>Они создадутся автоматически когда мастер запишет первую сделку.</p>
+        </div>
       )}
 
       {batches.map((b) => {
@@ -76,14 +86,12 @@ export default function PayrollScreen() {
         const totals = entries.reduce((acc, e) => acc + Number(e.amount), 0);
         const isExpanded = expanded === b.id;
         return (
-          <div key={b.id} className={s.card}>
-            <div
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-              onClick={() => toggle(b.id)}
-            >
+          <div key={b.id} className={`${s.card} ${s.cardClickable}`} onClick={() => toggle(b.id)}>
+            <div className={s.expanderHeader}>
               <div>
                 <strong>{b.period_start} … {b.period_end}</strong>
-                <span className={`${s.badge} ${b.status === 'open' ? s.badgeOpen : s.badgeClosed}`} style={{ marginLeft: 12 }}>
+                {' '}
+                <span className={`${s.badge} ${b.status === 'open' ? s.badgeOpen : s.badgeClosed}`}>
                   {b.status === 'open' ? 'открыт' : 'закрыт'}
                 </span>
               </div>
@@ -93,9 +101,9 @@ export default function PayrollScreen() {
             </div>
 
             {isExpanded && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 16 }} onClick={(e) => e.stopPropagation()}>
                 {entries.length === 0 ? (
-                  <p className={s.empty}>Нет записей.</p>
+                  <p className={s.empty}>В этом period'е ещё нет начислений.</p>
                 ) : (
                   <table className={s.table}>
                     <thead>

@@ -16,6 +16,7 @@ import {
   STATUS_COLORS,
 } from '../../../store/useOrdersStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
+import { Skeleton } from '../../shared/Skeleton';
 import s from './v2.module.css';
 
 function formatDate(iso) {
@@ -95,37 +96,48 @@ export default function OrdersTableView() {
           placeholder="Поиск по номеру или Bitrix deal"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ minWidth: 280 }}
+          className={s.searchInput}
         />
+        <span className={s.spacer} />
         <span className={s.subtitle} style={{ margin: 0 }}>
           {filtered.length} из {orders.length}
         </span>
       </div>
 
-      {loading && orders.length === 0 && <div className="panel-loading">Загрузка…</div>}
+      {loading && orders.length === 0 && (
+        <div className={s.skeletonRow}>
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </div>
+      )}
 
       {!loading && filtered.length === 0 && (
-        <p className={s.empty}>Нет заказов под фильтр.</p>
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>🔍</span>
+          <div className={s.emptyStateTitle}>Ничего не найдено</div>
+          <p>Попробуйте изменить статус-фильтр или поиск.</p>
+        </div>
       )}
 
       {filtered.length > 0 && (
-        <table className={s.table} style={{ marginTop: 16 }}>
+        <table className={s.table}>
           <thead>
             <tr>
-              <th onClick={() => toggleSort('order_number')} style={{ cursor: 'pointer' }}>
+              <th onClick={() => toggleSort('order_number')} className={s.sortable}>
                 № заказа{headerSort('order_number')}
               </th>
-              <th onClick={() => toggleSort('status')} style={{ cursor: 'pointer' }}>
+              <th onClick={() => toggleSort('status')} className={s.sortable}>
                 Статус{headerSort('status')}
               </th>
               <th>Bitrix deal</th>
-              <th className={s.numCol} onClick={() => toggleSort('total_qty')} style={{ cursor: 'pointer' }}>
+              <th className={`${s.numCol} ${s.sortable}`} onClick={() => toggleSort('total_qty')}>
                 Кол-во{headerSort('total_qty')}
               </th>
-              <th className={s.numCol} onClick={() => toggleSort('total_sum')} style={{ cursor: 'pointer' }}>
+              <th className={`${s.numCol} ${s.sortable}`} onClick={() => toggleSort('total_sum')}>
                 Сумма{headerSort('total_sum')}
               </th>
-              <th onClick={() => toggleSort('created_at')} style={{ cursor: 'pointer' }}>
+              <th onClick={() => toggleSort('created_at')} className={s.sortable}>
                 Создан{headerSort('created_at')}
               </th>
             </tr>

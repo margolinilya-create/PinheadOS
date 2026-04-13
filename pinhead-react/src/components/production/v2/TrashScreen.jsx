@@ -12,6 +12,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { translateSupabaseError } from '../../../utils/i18n';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
+import { Skeleton } from '../../shared/Skeleton';
 import s from './v2.module.css';
 
 function formatDate(iso) {
@@ -80,10 +81,19 @@ export default function TrashScreen() {
         Полная очистка — через DB cron (out of scope MVP).
       </p>
 
-      {loading && <div className="panel-loading">Загрузка…</div>}
+      {loading && (
+        <div className={s.skeletonRow}>
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </div>
+      )}
 
       {!loading && items.length === 0 && (
-        <p className={s.empty}>Корзина пуста.</p>
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>🗑️</span>
+          <div className={s.emptyStateTitle}>Корзина пуста</div>
+          <p>Удалённые операции появятся здесь после истечения 5-секундного undo.</p>
+        </div>
       )}
 
       {!loading && items.length > 0 && (

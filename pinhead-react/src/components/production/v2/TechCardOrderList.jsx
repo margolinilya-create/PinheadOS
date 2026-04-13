@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { translateSupabaseError } from '../../../utils/i18n';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
+import { Skeleton } from '../../shared/Skeleton';
 import s from './v2.module.css';
 
 const TC_STATUS_LABEL = {
@@ -44,8 +45,6 @@ export default function TechCardOrderList() {
     })();
   }, []);
 
-  if (loading) return <div className="panel-loading">Загрузка…</div>;
-
   return (
     <div className={s.page}>
       <h1>Tech Cards</h1>
@@ -53,9 +52,17 @@ export default function TechCardOrderList() {
         Список заказов. Кликните, чтобы открыть или создать технологическую карту.
       </p>
 
-      {orders.length === 0 ? (
-        <div className={s.card}>
-          <p>Нет заказов. Создайте один через <Link to="/">визард</Link>.</p>
+      {loading ? (
+        <div className={s.skeletonRow}>
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </div>
+      ) : orders.length === 0 ? (
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>📋</span>
+          <div className={s.emptyStateTitle}>Заказов пока нет</div>
+          <p>Создайте первый заказ через <Link to="/">визард</Link>.</p>
         </div>
       ) : (
         <table className={s.table}>
@@ -80,7 +87,7 @@ export default function TechCardOrderList() {
                         {TC_STATUS_LABEL[tc.status] ?? tc.status}
                       </span>
                     ) : (
-                      <span className={s.empty} style={{ padding: 0 }}>не создана</span>
+                      <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>не создана</span>
                     )}
                   </td>
                   <td className={s.numCol}>

@@ -83,7 +83,14 @@ export default function TechCardBuilder() {
   }
 
   if (loading && !catalogLoaded) {
-    return <div className="panel-loading">Загрузка каталога…</div>;
+    return (
+      <div className={s.page}>
+        <h1>Tech Card</h1>
+        <div className={s.skeletonRow}>
+          <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+        </div>
+      </div>
+    );
   }
 
   const handleCreateDraft = async () => {
@@ -136,8 +143,10 @@ export default function TechCardBuilder() {
       </p>
 
       {!techCard && (
-        <div className={s.card}>
-          <p>Для этого заказа tech card ещё не создана.</p>
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>📝</span>
+          <div className={s.emptyStateTitle}>Tech card ещё не создана</div>
+          <p style={{ marginBottom: 16 }}>Создайте черновик и добавьте операции по списку каталога.</p>
           {canEdit && (
             <button className="btn btn-primary" onClick={handleCreateDraft} disabled={submitting}>
               Создать черновик
@@ -151,7 +160,11 @@ export default function TechCardBuilder() {
           <section className={s.section}>
             <h2>Операции ({operations.length})</h2>
             {operations.length === 0 ? (
-              <p className={s.empty}>Пока нет операций.</p>
+              <div className={s.emptyState}>
+                <span className={s.emptyStateIcon}>✚</span>
+                <div className={s.emptyStateTitle}>Карта пуста</div>
+                <p>Добавьте операции из формы ниже.</p>
+              </div>
             ) : (
               <table className={s.table}>
                 <thead>

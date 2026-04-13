@@ -91,7 +91,16 @@ export default function ForemanScreen() {
     }
   };
 
-  if (!catalogLoaded) return <div className="panel-loading">Загрузка…</div>;
+  if (!catalogLoaded) {
+    return (
+      <div className={s.page}>
+        <h1>Мастер-экран</h1>
+        <div className={s.skeletonRow}>
+          <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={s.page}>
@@ -114,12 +123,19 @@ export default function ForemanScreen() {
       </div>
 
       {!sectionId && (
-        <p className={s.subtitle} style={{ marginTop: 16 }}>
-          Выберите участок, чтобы увидеть задачи и работников.
-        </p>
+        <div className={s.emptyState}>
+          <span className={s.emptyStateIcon}>👷</span>
+          <div className={s.emptyStateTitle}>Выберите участок</div>
+          <p>Чтобы увидеть задачи и работников.</p>
+        </div>
       )}
 
-      {sectionId && loading && <div className="panel-loading">Загрузка участка…</div>}
+      {sectionId && loading && (
+        <div className={s.skeletonRow}>
+          <div className="skeleton" style={{ height: 64, borderRadius: 8 }} />
+          <div className="skeleton" style={{ height: 64, borderRadius: 8 }} />
+        </div>
+      )}
 
       {sectionId && !loading && (
         <>

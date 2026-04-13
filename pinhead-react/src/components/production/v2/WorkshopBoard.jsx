@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorkshopStore } from '../../../store/useWorkshopStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
+import { Skeleton } from '../../shared/Skeleton';
 import s from './v2.module.css';
 
 export default function WorkshopBoard() {
@@ -20,11 +21,19 @@ export default function WorkshopBoard() {
     loadBoard();
   }, [loadBoard]);
 
-  if (loading && sections.length === 0) {
-    return <div className="panel-loading">Загрузка цеха…</div>;
-  }
-
   const totalOps = Object.values(operationsBySection).reduce((sum, ops) => sum + ops.length, 0);
+
+  if (loading && sections.length === 0) {
+    return (
+      <div className={s.pageWide}>
+        <h1>Цех</h1>
+        <div className={s.skeletonRow}>
+          <Skeleton height={120} />
+          <Skeleton height={120} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={s.pageWide}>
