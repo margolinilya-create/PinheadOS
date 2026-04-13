@@ -45,8 +45,10 @@ W1 Day-2 работа шла по **Variant B** — писать код без �
 | **Route** `/tech-cards/:orderId` (flag-gated) | ✅ W3 Day-2 — полный builder |
 | **Component** `TechCardBuilder.jsx` | ✅ W3 Day-2: create draft, add/remove/qty ops, approve button с snapshot freeze |
 | **Component** `TechCardOrderList.jsx` | ✅ W3 Day-2 index |
-| Workshop Board UI | ⏳ W3 Day-3+ |
-| Мастер-экран бригадира UI | ⏳ W3 Day-4+ |
+| **Route** `/workshop` (flag-gated) + `WorkshopBoard.jsx` | ✅ W3 Day-3 — kanban-like sections view, read-only |
+| **Route** `/foreman` (flag-gated) + `ForemanScreen.jsx` | ✅ W3 Day-4 — section picker, task list, piecework entry logging с auto-создаваемым batch |
+| Notifications bell в Header | ⏳ W3 Day-5 |
+| Payroll screen | ⏳ W3 Day-6 |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
 

@@ -26,6 +26,8 @@ import { useFeatureFlag } from './hooks/useFeatureFlag'
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
 const TechCardOrderList = React.lazy(() => import('./components/production/v2/TechCardOrderList'));
 const TechCardBuilder = React.lazy(() => import('./components/production/v2/TechCardBuilder'));
+const WorkshopBoard = React.lazy(() => import('./components/production/v2/WorkshopBoard'));
+const ForemanScreen = React.lazy(() => import('./components/production/v2/ForemanScreen'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
@@ -112,9 +114,11 @@ function App() {
     return () => document.body.classList.remove('has-preview-bar');
   }, [isRealAdmin]);
 
-  // redesign/v2 feature flag — must be called before any early return to
-  // satisfy rules-of-hooks. Route is dark on prod main, live on v2 preview.
+  // redesign/v2 feature flags — must be called before any early return to
+  // satisfy rules-of-hooks. Routes are dark on prod main, live on v2 preview.
   const techCardBuilderEnabled = useFeatureFlag('tech_card_builder');
+  const workshopBoardEnabled = useFeatureFlag('workshop_board');
+  const foremanScreenEnabled = useFeatureFlag('foreman_screen');
 
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
@@ -181,6 +185,12 @@ function App() {
             <Route path="/tech-cards" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TechCardOrderList /></Suspense></RoleGuard>} />
             <Route path="/tech-cards/:orderId" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TechCardBuilder /></Suspense></RoleGuard>} />
           </>
+        )}
+        {workshopBoardEnabled && (
+          <Route path="/workshop" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><WorkshopBoard /></Suspense></RoleGuard>} />
+        )}
+        {foremanScreenEnabled && (
+          <Route path="/foreman" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ForemanScreen /></Suspense></RoleGuard>} />
         )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
