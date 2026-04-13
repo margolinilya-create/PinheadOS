@@ -11,6 +11,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../lib/supabase';
+import { emitDomainEvent } from '../lib/domainEvents';
 import { toast } from './useToastStore';
 import { translateSupabaseError } from '../utils/i18n';
 import type { PieceworkBatch, PieceworkEntry } from '../types/production';
@@ -130,6 +131,20 @@ export const usePayrollStore = create<PayrollStore>((set) => ({
         },
       };
     });
+
+    void emitDomainEvent({
+      event_type: 'piecework.entry_created',
+      aggregate_type: 'piecework_entry',
+      aggregate_id: row.id,
+      payload: {
+        batch_id: row.batch_id,
+        worker_id: row.worker_id,
+        amount: row.amount,
+        entry_type: row.entry_type,
+      },
+      idempotency_suffix: 'create',
+    });
+
     return row;
   },
 
@@ -172,6 +187,15 @@ export const usePayrollStore = create<PayrollStore>((set) => ({
     set((s) => ({
       batches: s.batches.map((b) => (b.id === batchId ? (data as PieceworkBatch) : b)),
     }));
+
+    void emitDomainEvent({
+      event_type: 'payroll.batch_closed',
+      aggregate_type: 'piecework_batch',
+      aggregate_id: batchId,
+      payload: { closed_by: userId, closed_at: nowIso },
+      idempotency_suffix: 'close',
+    });
+
     return true;
   },
 

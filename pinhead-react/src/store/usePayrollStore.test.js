@@ -4,6 +4,10 @@ vi.mock('./useToastStore', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+vi.mock('../lib/domainEvents', () => ({
+  emitDomainEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 const fromMock = vi.fn();
 vi.mock('../lib/supabase', () => ({
   supabase: {

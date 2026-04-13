@@ -5,6 +5,10 @@ vi.mock('./useToastStore', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+vi.mock('../lib/domainEvents', () => ({
+  emitDomainEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Shared supabase mock — we reassign .from() per-test to stage responses.
 const fromMock = vi.fn();
 vi.mock('../lib/supabase', () => ({
@@ -15,6 +19,7 @@ vi.mock('../lib/supabase', () => ({
 }));
 
 const { useTechCardStore } = await import('./useTechCardStore');
+const { emitDomainEvent } = await import('../lib/domainEvents');
 
 // Helper: build a chain mock that resolves the terminal call with `value`.
 // Call order of Supabase builders in the store:
@@ -55,6 +60,7 @@ beforeEach(() => {
     error: null,
   });
   fromMock.mockReset();
+  emitDomainEvent.mockClear();
 });
 
 describe('useTechCardStore.loadCatalog', () => {
@@ -151,6 +157,13 @@ describe('useTechCardStore.approveTechCard', () => {
 
     const ok = await useTechCardStore.getState().approveTechCard();
     expect(ok).toBe(true);
+    expect(emitDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: 'tech_card.approved',
+        aggregate_type: 'order_tech_card',
+        aggregate_id: 'tc1',
+      })
+    );
   });
 
   it('returns false when not in draft state', async () => {

@@ -8,6 +8,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../lib/supabase';
+import { emitDomainEvent } from '../lib/domainEvents';
 import { toast } from './useToastStore';
 import { translateSupabaseError } from '../utils/i18n';
 import type {
@@ -331,6 +332,22 @@ export const useTechCardStore = create<TechCardStore>((set, get) => ({
     }
 
     set({ techCard: data as OrderTechCard });
+
+    // Emit domain event (ADR-0004). Best-effort; not wrapped in the
+    // same tx as the UPDATE above, but idempotency_key scopes it per
+    // card so replays dedupe consumer-side.
+    void emitDomainEvent({
+      event_type: 'tech_card.approved',
+      aggregate_type: 'order_tech_card',
+      aggregate_id: techCard.id,
+      payload: {
+        order_id: techCard.order_id,
+        operation_count: operations.length,
+        approved_by: userId,
+      },
+      idempotency_suffix: 'approve',
+    });
+
     // Reload operations to pick up refreshed snapshots
     await get().loadTechCardForOrder(techCard.order_id);
     return true;
