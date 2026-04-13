@@ -1,16 +1,18 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-13 (конец W1 Day-1, автономная сессия)
-**Текущая фаза:** W1 Day-1 завершён, W1 Day-2 следующая сессия
+**Последнее обновление:** 2026-04-14 (конец W1 Day-2, Variant B)
+**Текущая фаза:** W1 Day-2 завершён, W1 Day-3 следующая сессия
 **Активная ветка разработки:** `redesign/v2`
 
 > Этот файл существует чтобы любая новая сессия (я или другой разработчик) могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
 
 ## TL;DR
 
-Идёт 3-месячный production-first редизайн PinheadOS 2.0 в параллельной ветке `redesign/v2`. Менеджеры продолжают работать на `main` в prod. **Day-0 + W1 Day-1 закрыты.** Есть: ветка, ADR-0001..0009, Supabase v2 project, Vercel Preview scoping, CI workflows (diff-guard + rls-gate), миграция 20260501 production_foundation, миграция 20260510 db_guards (stubs), edge function domain-events-dispatcher (stub). **Миграции НЕ применены** — ждут ручного запуска пользователем с шагом init-from-prod.
+Идёт 3-месячный production-first редизайн PinheadOS 2.0 в параллельной ветке `redesign/v2`. Менеджеры продолжают работать на `main` в prod. **Day-0 + W1 Day-1 + W1 Day-2 закрыты.** Есть: ветка, ADR-0001..0009, Supabase v2 project, Vercel Preview scoping, CI workflows (diff-guard + rls-gate), миграции 20260501 (foundation), 20260502 (sections+operation_types seed), 20260503 (tech_cards schema), 20260510 (db_guards stubs), edge function domain-events-dispatcher (stub), store `useTechCardStore.ts` + типы production.ts. **Миграции по-прежнему НЕ применены** к v2 Supabase — ждут ручного запуска (Variant A) с предварительным init-from-prod dump.
 
-Следующая сессия — W1 Day-2: init-from-prod dump OR W2 задачи если юзер хочет перепрыгнуть применение.
+W1 Day-2 работа шла по **Variant B** — писать код без применения. Также смержена недостающая prod-миграция `20260410120000_soft_delete_profiles.sql` из main в redesign/v2 (она была uncommitted локально, но frontend уже зависел от `profiles.active`).
+
+Следующая сессия — W1 Day-3: продолжить Variant B (миграции workers + piecework, store useWorkshopStore) **или** переключиться на Variant A (наконец применить Day-1+Day-2 артефакты к v2 Supabase).
 
 ## Сейчас
 
@@ -23,9 +25,13 @@
 | Vercel Preview env vars | scoped к `redesign/v2` → v2 Supabase (main НЕ тронут) |
 | **CI: diff-guard workflow** | ✅ написан (`.github/workflows/diff-guard.yml`) |
 | **CI: rls-gate workflow** | ✅ написан (`.github/workflows/rls-gate.yml`) |
-| **Migration 20260501** production_foundation | ✅ написан (336 lines), **НЕ применён** |
-| **Migration 20260510** db_guards | ✅ написан (138 lines, функции-stubs), **НЕ применён** |
-| **Edge function** domain-events-dispatcher | ✅ написан (247 lines stub + 100 lines README), **НЕ задеплоен** |
+| **Migration 20260501** production_foundation | ✅ написан, **НЕ применён** |
+| **Migration 20260502** seed_sections_and_ops | ✅ написан (W1 Day-2), **НЕ применён** |
+| **Migration 20260503** tech_cards | ✅ написан (W1 Day-2), **НЕ применён** |
+| **Migration 20260510** db_guards | ✅ написан (stubs), **НЕ применён** |
+| **Edge function** domain-events-dispatcher | ✅ написан (stub + README), **НЕ задеплоен** |
+| **Store** `useTechCardStore.ts` | ✅ написан (W1 Day-2, CRUD скелет, lint+tsc clean) |
+| **Types** `types/production.ts` | ✅ написан (W1 Day-2, mirror миграций) |
 | Production screens (Tech Card / Workshop / Foreman) | **НЕ написаны** (W3+) |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
