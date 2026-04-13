@@ -244,9 +244,17 @@ CREATE INDEX IF NOT EXISTS domain_events_by_aggregate_idx
 CREATE INDEX IF NOT EXISTS domain_events_by_type_idx
   ON domain_events (event_type, created_at);
 
--- Global unique idempotency key (prevents duplicate events from retries).
--- Partial index so NULL idempotency_key is allowed for app-level emissions.
-CREATE UNIQUE INDEX IF NOT EXISTS domain_events_idempotency_key_uniq
+-- Idempotency lookup index (fast "have we seen this key recently?" queries).
+-- NOT unique: Postgres forbids unique constraints on partitioned tables
+-- unless they include the partition key (created_at). Including created_at
+-- in the uniqueness tuple would defeat the purpose — the same idempotency
+-- key in two different months would both succeed.
+--
+-- Enforcement strategy: the dispatcher edge function checks this index
+-- before inserting consumer-side side-effects, treating a hit as "already
+-- processed, skip." App-level idempotency is sufficient because the outbox
+-- is append-only and the dispatcher is the only consumer.
+CREATE INDEX IF NOT EXISTS domain_events_idempotency_key_idx
   ON domain_events (idempotency_key)
   WHERE idempotency_key IS NOT NULL;
 
