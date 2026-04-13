@@ -28,6 +28,8 @@ const TechCardOrderList = React.lazy(() => import('./components/production/v2/Te
 const TechCardBuilder = React.lazy(() => import('./components/production/v2/TechCardBuilder'));
 const WorkshopBoard = React.lazy(() => import('./components/production/v2/WorkshopBoard'));
 const ForemanScreen = React.lazy(() => import('./components/production/v2/ForemanScreen'));
+const PayrollScreen = React.lazy(() => import('./components/production/v2/PayrollScreen'));
+const NotificationsBell = React.lazy(() => import('./components/production/v2/NotificationsBell'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
@@ -119,6 +121,8 @@ function App() {
   const techCardBuilderEnabled = useFeatureFlag('tech_card_builder');
   const workshopBoardEnabled = useFeatureFlag('workshop_board');
   const foremanScreenEnabled = useFeatureFlag('foreman_screen');
+  const payrollScreenEnabled = useFeatureFlag('payroll_screen');
+  const notificationsBellEnabled = useFeatureFlag('notifications_bell');
 
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
@@ -192,12 +196,18 @@ function App() {
         {foremanScreenEnabled && (
           <Route path="/foreman" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ForemanScreen /></Suspense></RoleGuard>} />
         )}
+        {payrollScreenEnabled && (
+          <Route path="/payroll" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PayrollScreen /></Suspense></RoleGuard>} />
+        )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </main>
 
       {isRealAdmin && (
         <Suspense fallback={null}><Agentation /></Suspense>
+      )}
+      {notificationsBellEnabled && (
+        <Suspense fallback={null}><NotificationsBell /></Suspense>
       )}
       <ToastContainer />
       <ConfirmDialogHost />

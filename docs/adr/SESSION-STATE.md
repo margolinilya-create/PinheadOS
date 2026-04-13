@@ -47,8 +47,8 @@ W1 Day-2 работа шла по **Variant B** — писать код без �
 | **Component** `TechCardOrderList.jsx` | ✅ W3 Day-2 index |
 | **Route** `/workshop` (flag-gated) + `WorkshopBoard.jsx` | ✅ W3 Day-3 — kanban-like sections view, read-only |
 | **Route** `/foreman` (flag-gated) + `ForemanScreen.jsx` | ✅ W3 Day-4 — section picker, task list, piecework entry logging с auto-создаваемым batch |
-| Notifications bell в Header | ⏳ W3 Day-5 |
-| Payroll screen | ⏳ W3 Day-6 |
+| **Component** `NotificationsBell.jsx` + `/` integration | ✅ W3 Day-5 — fixed-position, realtime subscribe, unread badge, localStorage seenAt |
+| **Route** `/payroll` + `PayrollScreen.jsx` | ✅ W3 Day-6 — batches list, expand to entries, Close button (admin only) стэмпит paid_at |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
 
