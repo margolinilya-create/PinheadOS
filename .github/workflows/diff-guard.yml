@@ -1,0 +1,97 @@
+name: Diff Guard (redesign/v2)
+
+# Protects critical files from being accidentally changed on the long-lived
+# redesign/v2 branch. Files listed in PROTECTED_PATHS are covered by 796 unit
+# tests and 84 pricing tests — touching them risks regressions that would
+# force main → rollback.
+#
+# Fails the workflow if any protected file differs between the PR head and
+# the base (main). Exceptions require removing the pattern here with an
+# accompanying ADR explaining why.
+#
+# See: docs/adr/0009-main-redesign-v2-sync-strategy.md
+
+on:
+  push:
+    branches: [redesign/v2]
+  pull_request:
+    branches: [main, redesign/v2]
+
+jobs:
+  diff-guard:
+    name: Protected files unchanged
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            # On push to redesign/v2, compare against origin/main
+            git fetch origin main --depth=200
+            MERGE_BASE=$(git merge-base HEAD origin/main)
+            echo "base=$MERGE_BASE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check protected files
+        run: |
+          BASE="${{ steps.base.outputs.base }}"
+          echo "Comparing HEAD against base: $BASE"
+
+          PROTECTED_PATHS=(
+            "pinhead-react/src/utils/pricing.ts"
+            "pinhead-react/src/store/slices/wizardSlice.ts"
+            "pinhead-react/src/store/slices/productSlice.ts"
+            "pinhead-react/src/store/slices/designSlice.ts"
+            "pinhead-react/src/store/slices/itemsSlice.ts"
+            "pinhead-react/src/store/slices/detailsSlice.ts"
+            "pinhead-react/src/store/slices/catalogSlice.ts"
+            "pinhead-react/src/store/slices/orderSlice.ts"
+            "pinhead-react/src/components/shared/CommandPalette.jsx"
+          )
+
+          PROTECTED_DIRS=(
+            "pinhead-react/src/components/steps/"
+          )
+
+          VIOLATIONS=()
+
+          for file in "${PROTECTED_PATHS[@]}"; do
+            if git diff --quiet "$BASE" HEAD -- "$file"; then
+              : # unchanged
+            else
+              VIOLATIONS+=("$file")
+            fi
+          done
+
+          for dir in "${PROTECTED_DIRS[@]}"; do
+            changed=$(git diff --name-only "$BASE" HEAD -- "$dir")
+            if [ -n "$changed" ]; then
+              while IFS= read -r line; do
+                VIOLATIONS+=("$line")
+              done <<< "$changed"
+            fi
+          done
+
+          if [ ${#VIOLATIONS[@]} -gt 0 ]; then
+            echo "::error::Diff-guard violation — protected files changed:"
+            for v in "${VIOLATIONS[@]}"; do
+              echo "::error::  $v"
+            done
+            echo ""
+            echo "These files are covered by 796+ unit tests and protected on"
+            echo "redesign/v2 to prevent regressions. If the change is"
+            echo "intentional (e.g. merge main → v2 brought a hotfix):"
+            echo "  1. Verify tests still pass: npm run test"
+            echo "  2. Document the rationale in docs/adr/"
+            echo "  3. Temporarily remove the pattern from this workflow with"
+            echo "     an inline comment linking to the ADR"
+            exit 1
+          fi
+
+          echo "✓ Protected files unchanged"

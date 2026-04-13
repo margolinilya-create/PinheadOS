@@ -1,0 +1,110 @@
+name: RLS Gate
+
+# Ensures every new Supabase migration that creates a table enables Row
+# Level Security and declares at least one policy. Prevents silent data
+# leaks through the anon API key.
+#
+# Scans supabase/migrations/*.sql files that are new or modified in this
+# PR/push. For each CREATE TABLE statement found, verifies that:
+#   1. A matching ALTER TABLE ... ENABLE ROW LEVEL SECURITY exists
+#   2. At least one CREATE POLICY targets that table
+#
+# See: docs/adr/0001-seven-bounded-contexts-root-stores.md
+
+on:
+  push:
+    branches: [redesign/v2]
+  pull_request:
+    branches: [main, redesign/v2]
+
+jobs:
+  rls-gate:
+    name: New tables have RLS + policies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            git fetch origin main --depth=200
+            MERGE_BASE=$(git merge-base HEAD origin/main)
+            echo "base=$MERGE_BASE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Identify new migration files
+        id: migrations
+        run: |
+          BASE="${{ steps.base.outputs.base }}"
+          NEW_FILES=$(git diff --name-only --diff-filter=A "$BASE" HEAD -- 'supabase/migrations/*.sql' || true)
+          MODIFIED_FILES=$(git diff --name-only --diff-filter=M "$BASE" HEAD -- 'supabase/migrations/*.sql' || true)
+          ALL=$(printf "%s\n%s" "$NEW_FILES" "$MODIFIED_FILES" | sort -u | grep -v '^$' || true)
+          {
+            echo "files<<MIGRATIONS_EOF"
+            echo "$ALL"
+            echo "MIGRATIONS_EOF"
+          } >> "$GITHUB_OUTPUT"
+          if [ -z "$ALL" ]; then
+            echo "No new or modified migrations in this change."
+          else
+            echo "Migrations to check:"
+            echo "$ALL"
+          fi
+
+      - name: Verify RLS on new tables
+        if: steps.migrations.outputs.files != ''
+        run: |
+          VIOLATIONS=()
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ ! -f "$file" ] && continue
+
+            echo "--- Checking $file"
+
+            # Extract CREATE TABLE names (excluding PARTITION OF children)
+            TABLES=$(grep -iE '^[[:space:]]*CREATE TABLE(\s+IF NOT EXISTS)?' "$file" \
+              | grep -viE 'PARTITION OF' \
+              | sed -E 's/^[[:space:]]*CREATE TABLE[[:space:]]+(IF NOT EXISTS[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*).*/\2/' \
+              | sort -u)
+
+            if [ -z "$TABLES" ]; then
+              echo "  (no CREATE TABLE statements — skipping RLS check)"
+              continue
+            fi
+
+            for tbl in $TABLES; do
+              # Check ENABLE ROW LEVEL SECURITY
+              if ! grep -iE "ALTER TABLE[[:space:]]+${tbl}[[:space:]]+ENABLE ROW LEVEL SECURITY" "$file" > /dev/null; then
+                VIOLATIONS+=("$file: table '$tbl' missing 'ALTER TABLE $tbl ENABLE ROW LEVEL SECURITY'")
+                continue
+              fi
+
+              # Check at least one CREATE POLICY on that table
+              POLICY_COUNT=$(grep -icE "CREATE POLICY[[:space:]]+.*[[:space:]]+ON[[:space:]]+${tbl}([[:space:]]|$)" "$file" || echo 0)
+              if [ "$POLICY_COUNT" -lt 1 ]; then
+                VIOLATIONS+=("$file: table '$tbl' has RLS enabled but no CREATE POLICY")
+              fi
+            done
+          done <<< "${{ steps.migrations.outputs.files }}"
+
+          if [ ${#VIOLATIONS[@]} -gt 0 ]; then
+            echo "::error::RLS gate failed:"
+            for v in "${VIOLATIONS[@]}"; do
+              echo "::error::  $v"
+            done
+            echo ""
+            echo "Every new table must:"
+            echo "  1. ALTER TABLE <name> ENABLE ROW LEVEL SECURITY;"
+            echo "  2. Have at least one CREATE POLICY defining access"
+            echo ""
+            echo "Missing RLS = data leak through anon API key."
+            exit 1
+          fi
+
+          echo "✓ All new tables have RLS + policies"
