@@ -31,6 +31,7 @@ const ForemanScreen = React.lazy(() => import('./components/production/v2/Forema
 const PayrollScreen = React.lazy(() => import('./components/production/v2/PayrollScreen'));
 const NotificationsBell = React.lazy(() => import('./components/production/v2/NotificationsBell'));
 const V2Nav = React.lazy(() => import('./components/production/v2/V2Nav'));
+const UndoToastHost = React.lazy(() => import('./components/production/v2/UndoToastHost'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
@@ -211,6 +212,7 @@ function App() {
       {notificationsBellEnabled && (
         <Suspense fallback={null}><NotificationsBell /></Suspense>
       )}
+      <Suspense fallback={null}><UndoToastHost /></Suspense>
       <ToastContainer />
       <ConfirmDialogHost />
 

@@ -7,6 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import { useUndoStore } from '../../../store/useUndoStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
@@ -41,7 +42,9 @@ export default function TechCardBuilder() {
   const addOperation = useTechCardStore((st) => st.addOperation);
   const updateOperationQty = useTechCardStore((st) => st.updateOperationQty);
   const removeOperation = useTechCardStore((st) => st.removeOperation);
+  const restoreOperation = useTechCardStore((st) => st.restoreOperation);
   const approveTechCard = useTechCardStore((st) => st.approveTechCard);
+  const pushUndo = useUndoStore((st) => st.push);
 
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState('');
@@ -191,7 +194,15 @@ export default function TechCardBuilder() {
                             <button
                               type="button"
                               className={s.removeBtn}
-                              onClick={() => removeOperation(op.id)}
+                              onClick={async () => {
+                                const removed = await removeOperation(op.id);
+                                if (removed) {
+                                  pushUndo({
+                                    label: `Операция «${removed.name_snapshot}» удалена`,
+                                    restore: () => restoreOperation(removed),
+                                  });
+                                }
+                              }}
                               aria-label="Удалить"
                             >
                               ×

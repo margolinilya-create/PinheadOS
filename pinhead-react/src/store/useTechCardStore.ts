@@ -45,7 +45,8 @@ interface TechCardStore {
   createDraftTechCard: (orderId: string, templateId?: string) => Promise<OrderTechCard | null>;
   addOperation: (operationTypeId: string, qty: number) => Promise<void>;
   updateOperationQty: (operationId: string, qty: number) => Promise<void>;
-  removeOperation: (operationId: string) => Promise<void>;
+  removeOperation: (operationId: string) => Promise<OrderTechOperation | null>;
+  restoreOperation: (operation: OrderTechOperation) => Promise<void>;
   approveTechCard: () => Promise<boolean>;
 
   reset: () => void;
@@ -263,11 +264,13 @@ export const useTechCardStore = create<TechCardStore>((set, get) => ({
   },
 
   removeOperation: async (operationId) => {
-    const { techCard } = get();
+    const { techCard, operations } = get();
     if (!techCard || techCard.status !== 'draft') {
       toast.error('Удаление возможно только в draft статусе');
-      return;
+      return null;
     }
+
+    const removed = operations.find((o) => o.id === operationId) ?? null;
 
     const { error } = await supabase
       .from('order_tech_operations')
@@ -276,10 +279,35 @@ export const useTechCardStore = create<TechCardStore>((set, get) => ({
 
     if (error) {
       toast.error(translateSupabaseError(error.message));
-      return;
+      return null;
     }
 
     set((s) => ({ operations: s.operations.filter((o) => o.id !== operationId) }));
+    return removed;
+  },
+
+  restoreOperation: async (operation) => {
+    const { error } = await supabase
+      .from('order_tech_operations')
+      .update({ deleted_at: null })
+      .eq('id', operation.id);
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return;
+    }
+
+    set((s) => {
+      // Re-insert at original sort position; if the list moved, append.
+      const exists = s.operations.some((o) => o.id === operation.id);
+      if (exists) return s;
+      const restored = { ...operation, deleted_at: null };
+      const next = [...s.operations];
+      const insertIdx = next.findIndex((o) => o.sort_order > restored.sort_order);
+      if (insertIdx === -1) next.push(restored);
+      else next.splice(insertIdx, 0, restored);
+      return { operations: next };
+    });
   },
 
   approveTechCard: async () => {
