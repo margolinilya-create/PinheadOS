@@ -27,6 +27,7 @@ interface NotificationsStore {
   subscribe: () => void;
   unsubscribe: () => void;
   markAllRead: () => Promise<void>;
+  markOneRead: (id: string) => Promise<void>;
   unreadCount: () => number;
   reset: () => void;
 }
@@ -108,6 +109,32 @@ export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
       set({ notifications: get().notifications.map((n) =>
         unread.find((u) => u.id === n.id) ? { ...n, read_at: null } : n
       ) });
+    }
+  },
+
+  markOneRead: async (id) => {
+    const target = get().notifications.find((n) => n.id === id);
+    if (!target || target.read_at) return;
+
+    const nowIso = new Date().toISOString();
+    set((s) => ({
+      notifications: s.notifications.map((n) =>
+        n.id === id ? { ...n, read_at: nowIso } : n
+      ),
+    }));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: nowIso })
+      .eq('id', id);
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      set((s) => ({
+        notifications: s.notifications.map((n) =>
+          n.id === id ? { ...n, read_at: null } : n
+        ),
+      }));
     }
   },
 

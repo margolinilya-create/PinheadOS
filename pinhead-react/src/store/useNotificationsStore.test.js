@@ -77,6 +77,30 @@ describe('useNotificationsStore.loadRecent', () => {
   });
 });
 
+describe('useNotificationsStore.markOneRead', () => {
+  it('updates a single row optimistically', async () => {
+    useNotificationsStore.setState({
+      notifications: [
+        { id: '1', read_at: null },
+        { id: '2', read_at: null },
+      ],
+    });
+    fromMock.mockReturnValueOnce(chain({ data: null, error: null }, 'eq'));
+    await useNotificationsStore.getState().markOneRead('1');
+    const all = useNotificationsStore.getState().notifications;
+    expect(all.find((n) => n.id === '1').read_at).toBeTruthy();
+    expect(all.find((n) => n.id === '2').read_at).toBeNull();
+  });
+
+  it('no-ops when row is already read', async () => {
+    useNotificationsStore.setState({
+      notifications: [{ id: '1', read_at: '2026-04-14T10:00:00Z' }],
+    });
+    await useNotificationsStore.getState().markOneRead('1');
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('useNotificationsStore.markAllRead', () => {
   it('no-ops when nothing is unread', async () => {
     useNotificationsStore.setState({
