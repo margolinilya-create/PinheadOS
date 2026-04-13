@@ -27,24 +27,37 @@ function formatDate(iso) {
 export default function TrashScreen() {
   useDocumentTitle('Корзина');
   const [items, setItems] = useState([]);
+  const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('order_tech_operations')
-      .select('id, name_snapshot, qty, rate_snapshot, unit_snapshot, order_id, deleted_at, orders(order_number)')
-      .not('deleted_at', 'is', null)
-      .order('deleted_at', { ascending: false })
-      .limit(200);
+    const [opsRes, cardsRes] = await Promise.all([
+      supabase
+        .from('order_tech_operations')
+        .select('id, name_snapshot, qty, rate_snapshot, unit_snapshot, order_id, deleted_at, orders(order_number)')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('order_tech_cards')
+        .select('id, status, order_id, deleted_at, orders(order_number)')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+        .limit(200),
+    ]);
 
-    if (error) {
-      toast.error(translateSupabaseError(error.message));
-      setLoading(false);
-      return;
+    if (opsRes.error) {
+      toast.error(translateSupabaseError(opsRes.error.message));
+    } else {
+      setItems(opsRes.data ?? []);
     }
-    setItems(data ?? []);
+    if (cardsRes.error) {
+      toast.error(translateSupabaseError(cardsRes.error.message));
+    } else {
+      setCards(cardsRes.data ?? []);
+    }
     setLoading(false);
   }, []);
 
@@ -73,6 +86,22 @@ export default function TrashScreen() {
     setItems((prev) => prev.filter((i) => i.id !== item.id));
   };
 
+  const handleRestoreCard = async (card) => {
+    setRestoring(card.id);
+    const { error } = await supabase
+      .from('order_tech_cards')
+      .update({ deleted_at: null })
+      .eq('id', card.id);
+
+    setRestoring(null);
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return;
+    }
+    toast.success?.('Tech card восстановлена') ?? null;
+    setCards((prev) => prev.filter((c) => c.id !== card.id));
+  };
+
   return (
     <div className={s.page}>
       <h1>Корзина</h1>
@@ -88,15 +117,56 @@ export default function TrashScreen() {
         </div>
       )}
 
-      {!loading && items.length === 0 && (
+      {!loading && items.length === 0 && cards.length === 0 && (
         <div className={s.emptyState}>
           <span className={s.emptyStateIcon}>🗑️</span>
           <div className={s.emptyStateTitle}>Корзина пуста</div>
-          <p>Удалённые операции появятся здесь после истечения 5-секундного undo.</p>
+          <p>Удалённые операции и tech cards появятся здесь после истечения 5-секундного undo.</p>
         </div>
       )}
 
+      {!loading && cards.length > 0 && (
+        <section className={s.section}>
+          <h2>Tech cards ({cards.length})</h2>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>Заказ</th>
+                <th>Статус</th>
+                <th>Удалено</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {cards.map((c) => (
+                <tr key={c.id}>
+                  <td>
+                    <Link to={`/tech-cards/${c.order_id}`}>
+                      {c.orders?.order_number ?? c.order_id.slice(0, 8)}
+                    </Link>
+                  </td>
+                  <td>{c.status}</td>
+                  <td>{formatDate(c.deleted_at)}</td>
+                  <td className={s.numCol}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => handleRestoreCard(c)}
+                      disabled={restoring === c.id}
+                    >
+                      Восстановить
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       {!loading && items.length > 0 && (
+        <section className={s.section}>
+          <h2>Операции ({items.length})</h2>
         <table className={s.table}>
           <thead>
             <tr>
@@ -134,6 +204,7 @@ export default function TrashScreen() {
             ))}
           </tbody>
         </table>
+        </section>
       )}
     </div>
   );

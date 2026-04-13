@@ -138,6 +138,30 @@ describe('useTechCardStore.addOperation', () => {
   });
 });
 
+describe('useTechCardStore.deleteTechCard', () => {
+  it('refuses when card not in draft state', async () => {
+    useTechCardStore.setState({
+      techCard: { id: 'tc1', order_id: 'ord1', status: 'approved' },
+      operations: [],
+    });
+    const removed = await useTechCardStore.getState().deleteTechCard();
+    expect(removed).toBeNull();
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes draft card and clears operations', async () => {
+    useTechCardStore.setState({
+      techCard: { id: 'tc1', order_id: 'ord1', status: 'draft' },
+      operations: [{ id: 'op1' }],
+    });
+    fromMock.mockReturnValueOnce(chain({ data: null, error: null }, 'eq'));
+    const removed = await useTechCardStore.getState().deleteTechCard();
+    expect(removed).toEqual(expect.objectContaining({ id: 'tc1' }));
+    expect(useTechCardStore.getState().techCard).toBeNull();
+    expect(useTechCardStore.getState().operations).toEqual([]);
+  });
+});
+
 describe('useTechCardStore.approveTechCard', () => {
   it('skips refresh when snapshot already matches catalog', async () => {
     useTechCardStore.setState({

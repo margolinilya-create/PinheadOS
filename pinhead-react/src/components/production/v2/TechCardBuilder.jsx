@@ -45,6 +45,8 @@ export default function TechCardBuilder() {
   const updateOperationQty = useTechCardStore((st) => st.updateOperationQty);
   const removeOperation = useTechCardStore((st) => st.removeOperation);
   const restoreOperation = useTechCardStore((st) => st.restoreOperation);
+  const deleteTechCard = useTechCardStore((st) => st.deleteTechCard);
+  const restoreTechCard = useTechCardStore((st) => st.restoreTechCard);
   const approveTechCard = useTechCardStore((st) => st.approveTechCard);
   const pushUndo = useUndoStore((st) => st.push);
 
@@ -128,6 +130,18 @@ export default function TechCardBuilder() {
     setSubmitting(false);
     setSelectedOpId('');
     setNewQty('1');
+  };
+
+  const handleDeleteCard = async () => {
+    setSubmitting(true);
+    const removed = await deleteTechCard();
+    setSubmitting(false);
+    if (removed) {
+      pushUndo({
+        label: 'Tech card удалена',
+        restore: () => restoreTechCard(removed),
+      });
+    }
   };
 
   const handleApprove = async () => {
@@ -300,15 +314,26 @@ export default function TechCardBuilder() {
 
           {editable && (
             <section className={s.section}>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleApprove}
-                disabled={!operations.length || submitting}
-                title="Замораживает rate/minutes snapshot навсегда"
-              >
-                Утвердить карту
-              </button>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleApprove}
+                  disabled={!operations.length || submitting}
+                  title="Замораживает rate/minutes snapshot навсегда"
+                >
+                  Утвердить карту
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleDeleteCard}
+                  disabled={submitting}
+                  title="Soft delete — можно восстановить через корзину или undo (5с)"
+                >
+                  Удалить карту
+                </button>
+              </div>
               <p className={s.subtitle} style={{ fontSize: 12, marginTop: 8 }}>
                 После утверждения тарифы и нормы минут замораживаются. Изменения в каталоге
                 операций на эту карту больше не повлияют.

@@ -47,6 +47,8 @@ interface TechCardStore {
   updateOperationQty: (operationId: string, qty: number) => Promise<void>;
   removeOperation: (operationId: string) => Promise<OrderTechOperation | null>;
   restoreOperation: (operation: OrderTechOperation) => Promise<void>;
+  deleteTechCard: () => Promise<OrderTechCard | null>;
+  restoreTechCard: (card: OrderTechCard) => Promise<void>;
   approveTechCard: () => Promise<boolean>;
 
   reset: () => void;
@@ -308,6 +310,43 @@ export const useTechCardStore = create<TechCardStore>((set, get) => ({
       else next.splice(insertIdx, 0, restored);
       return { operations: next };
     });
+  },
+
+  deleteTechCard: async () => {
+    const { techCard } = get();
+    if (!techCard) return null;
+    if (techCard.status !== 'draft') {
+      toast.error('Удалить можно только черновик');
+      return null;
+    }
+
+    const { error } = await supabase
+      .from('order_tech_cards')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', techCard.id);
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return null;
+    }
+
+    set({ techCard: null, operations: [] });
+    return techCard;
+  },
+
+  restoreTechCard: async (card) => {
+    const { error } = await supabase
+      .from('order_tech_cards')
+      .update({ deleted_at: null })
+      .eq('id', card.id);
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return;
+    }
+
+    // Reload from server so operations come back too
+    await get().loadTechCardForOrder(card.order_id);
   },
 
   approveTechCard: async () => {
