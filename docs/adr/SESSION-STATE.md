@@ -1,20 +1,24 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-14 (W4 Day-1+, polish + reversal flow)
-**Текущая фаза:** v2 MVP полностью feature-complete, готов к UAT. Bitrix sync блокирован.
+**Последнее обновление:** 2026-04-14 (W4 Day-1+, конец сессии 11)
+**Текущая фаза:** v2 MVP feature-complete + production polish. Bitrix sync блокирован.
 **Активная ветка:** `redesign/v2`
 
 > Этот файл существует чтобы любая новая сессия могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
 
 ## TL;DR
 
-Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + основная часть W4 закрыты.** ~50 коммитов с момента старта ветки.
+Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + W4 закрыты.** 60+ коммитов с момента старта ветки.
 
-- 6 миграций применены к v2 Supabase через Management API
-- 6 ADR-0001 stores + 1 utility (useUndoStore) + 1 hook (useDocumentTitle)
-- 8 production routes + bell + V2Nav + UndoToastHost
-- Outbox loop работает end-to-end: producer → cron (1 min) → dispatcher → mark processed_at
-- **837/837 тестов** зелёные, build чистый, diff-guard не потревожен
+- 7 миграций применены к v2 Supabase через Management API (последняя 20260520_notifications)
+- 6 ADR-0001 stores + useUndoStore + lib/csvExport + lib/domainEvents + 2 hooks
+- 9 production routes + bell + V2Nav + UndoToastHost
+- **Real outbox consumer:** dispatcher теперь INSERTs в notifications таблицу с title/body — bell показывает реальные сообщения, не event_types
+- CSV export для payroll/workers/orders с UTF-8 BOM (1С/Excel ready)
+- KPI tiles на /workshop и /tech-cards
+- Search filters в /tech-cards, /workers, /orders/table
+- piecework reversal flow для closed batches (ADR-0007)
+- **846/846 тестов** зелёные, build чистый, diff-guard не потревожен
 - Demo seed + real auth user `demo@pinhead.local` для UAT
 
 Все экраны под `app_config.feature_flags`. Main = все флаги отсутствуют → дарк. v2 = флаги=true → активно. Cutover = вставить row в prod app_config.

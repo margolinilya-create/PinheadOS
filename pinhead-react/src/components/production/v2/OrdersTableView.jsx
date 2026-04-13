@@ -17,6 +17,7 @@ import {
 } from '../../../store/useOrdersStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import { Skeleton } from '../../shared/Skeleton';
+import { downloadCsv } from '../../../lib/csvExport';
 import s from './v2.module.css';
 
 function formatDate(iso) {
@@ -74,6 +75,19 @@ export default function OrdersTableView() {
 
   const headerSort = (col) => sortBy === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
 
+  const handleExportCsv = () => {
+    const headers = ['order_number', 'status', 'bitrix_deal', 'total_qty', 'total_sum', 'created_at'];
+    const rows = filtered.map((o) => [
+      o.order_number,
+      o.status,
+      o.bitrix_deal ?? '',
+      o.total_qty ?? 0,
+      o.total_sum ?? 0,
+      o.created_at,
+    ]);
+    downloadCsv(`orders_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
   return (
     <div className={s.pageWide}>
       <div className={s.header}>
@@ -102,6 +116,11 @@ export default function OrdersTableView() {
         <span className={s.subtitle} style={{ margin: 0 }}>
           {filtered.length} из {orders.length}
         </span>
+        {filtered.length > 0 && (
+          <button type="button" className="btn btn-ghost" onClick={handleExportCsv} title="Выгрузить в CSV">
+            📥 CSV
+          </button>
+        )}
       </div>
 
       {loading && orders.length === 0 && (

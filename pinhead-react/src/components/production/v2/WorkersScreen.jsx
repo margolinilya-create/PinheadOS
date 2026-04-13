@@ -11,6 +11,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import { toast } from '../../../store/useToastStore';
 import { Skeleton } from '../../shared/Skeleton';
+import { downloadCsv } from '../../../lib/csvExport';
 import s from './v2.module.css';
 
 export default function WorkersScreen() {
@@ -81,6 +82,16 @@ export default function WorkersScreen() {
   const handleDelete = async (worker) => {
     if (!window.confirm(`Удалить ${worker.full_name}? Это soft-delete, можно восстановить через БД.`)) return;
     await softDelete(worker.id);
+  };
+
+  const handleExportCsv = () => {
+    const headers = ['full_name', 'section', 'hourly_rate', 'created_at'];
+    const rows = filtered.map((w) => {
+      const section = sections.find((sec) => sec.id === w.section_id);
+      return [w.full_name, section?.name ?? '', w.hourly_rate, w.created_at];
+    });
+    downloadCsv(`workers_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    toast.success?.('CSV выгружен') ?? null;
   };
 
   if (!catalogLoaded || loading) {
@@ -158,6 +169,9 @@ export default function WorkersScreen() {
           <span className={s.subtitle} style={{ margin: 0 }}>
             {filtered.length} из {workers.length}
           </span>
+          <button type="button" className="btn btn-ghost" onClick={handleExportCsv} title="Выгрузить в CSV">
+            📥 CSV
+          </button>
         </div>
       )}
 
