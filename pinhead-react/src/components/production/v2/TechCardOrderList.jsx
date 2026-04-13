@@ -55,6 +55,21 @@ export default function TechCardOrderList() {
     );
   }, [orders, search]);
 
+  const kpis = useMemo(() => {
+    let drafts = 0;
+    let approved = 0;
+    let locked = 0;
+    let none = 0;
+    for (const o of orders) {
+      const tc = o.order_tech_cards?.[0];
+      if (!tc) { none++; continue; }
+      if (tc.status === 'draft') drafts++;
+      else if (tc.status === 'approved') approved++;
+      else if (tc.status === 'locked') locked++;
+    }
+    return { drafts, approved, locked, none };
+  }, [orders]);
+
   return (
     <div className={s.page}>
       <h1>Tech Cards</h1>
@@ -63,19 +78,44 @@ export default function TechCardOrderList() {
       </p>
 
       {orders.length > 0 && (
-        <div className={s.formRow}>
-          <input
-            type="search"
-            placeholder="Поиск по номеру или статусу"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={s.searchInput}
-          />
-          <span className={s.spacer} />
-          <span className={s.subtitle} style={{ margin: 0 }}>
-            {filtered.length} из {orders.length}
-          </span>
-        </div>
+        <>
+          <div className={s.kpiGrid}>
+            <div className={s.kpiTile}>
+              <div className={s.kpiLabel}>Без карты</div>
+              <div className={s.kpiValue}>{kpis.none}</div>
+              <div className={s.kpiSub}>Заказов</div>
+            </div>
+            <div className={s.kpiTile}>
+              <div className={s.kpiLabel}>Черновик</div>
+              <div className={s.kpiValue}>{kpis.drafts}</div>
+              <div className={s.kpiSub}>В работе у технолога</div>
+            </div>
+            <div className={s.kpiTile}>
+              <div className={s.kpiLabel}>Утверждены</div>
+              <div className={s.kpiValue}>{kpis.approved}</div>
+              <div className={s.kpiSub}>Готовы к производству</div>
+            </div>
+            <div className={s.kpiTile}>
+              <div className={s.kpiLabel}>Заблокированы</div>
+              <div className={s.kpiValue}>{kpis.locked}</div>
+              <div className={s.kpiSub}>Идут начисления</div>
+            </div>
+          </div>
+
+          <div className={s.formRow}>
+            <input
+              type="search"
+              placeholder="Поиск по номеру или статусу"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={s.searchInput}
+            />
+            <span className={s.spacer} />
+            <span className={s.subtitle} style={{ margin: 0 }}>
+              {filtered.length} из {orders.length}
+            </span>
+          </div>
+        </>
       )}
 
       {loading ? (
