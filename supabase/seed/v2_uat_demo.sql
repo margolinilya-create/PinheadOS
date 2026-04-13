@@ -15,11 +15,19 @@ DELETE FROM order_tech_cards WHERE order_id IN (
 );
 DELETE FROM workers WHERE full_name LIKE '[demo] %';
 DELETE FROM orders WHERE data->>'_demo_seed' = 'v2-uat-1';
-DELETE FROM profiles WHERE name = '[demo] Технолог';
-
--- ============ Demo profile (referenced by approved_by) ============
-INSERT INTO profiles (id, name, role, email, approved)
-VALUES ('11111111-1111-1111-1111-111111111111', '[demo] Технолог', 'admin', 'demo@pinhead.local', true);
+-- ============ Demo profile (linked to a real auth user) ============
+-- Prerequisite: create the matching auth.users row via Supabase admin API
+-- BEFORE applying this seed. The id below MUST match the returned user id.
+--
+--   curl -X POST 'https://<v2-ref>.supabase.co/auth/v1/admin/users' \
+--     -H 'apikey: <service_role>' -H 'Authorization: Bearer <service_role>' \
+--     -H 'Content-Type: application/json' \
+--     -d '{"email":"demo@pinhead.local","password":"<choose>","email_confirm":true}'
+--
+-- Without this, app login won't work and RLS will hide all the seeded data.
+INSERT INTO profiles (id, name, role, email, approved, active)
+VALUES ('b9c3e42e-9e07-44c2-8b15-839ce327c40c', 'Demo Admin', 'admin', 'demo@pinhead.local', true, true)
+ON CONFLICT (id) DO UPDATE SET role='admin', approved=true, active=true;
 
 -- ============ Workers (5 across sections) ============
 WITH section_ids AS (
@@ -48,7 +56,7 @@ WITH ords AS (
   FROM orders WHERE data->>'_demo_seed' = 'v2-uat-1'
 )
 INSERT INTO order_tech_cards (order_id, status, approved_at, approved_by)
-SELECT id, 'approved', now(), '11111111-1111-1111-1111-111111111111'::uuid
+SELECT id, 'approved', now(), 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'::uuid
 FROM ords
 WHERE rn IN (2, 3);  -- skip the most recent (review-status order)
 
