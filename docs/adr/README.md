@@ -36,6 +36,7 @@
 | [0006](0006-baseline-kpi-measurement.md) | Baseline KPI методология для on-time delivery rate | accepted | W1 |
 | [0007](0007-piecework-parallel-run-policy.md) | Piecework parallel-run policy перед cutover | accepted | W6 |
 | [0008](0008-domain-events-dispatcher.md) | Domain events dispatcher via pg_cron polling | accepted | W1 |
+| [0009](0009-main-redesign-v2-sync-strategy.md) | Weekly merge main → redesign/v2 sync strategy | accepted | Day-0 |
 
 ## ADR-queue (решаются по мере кодирования)
 
