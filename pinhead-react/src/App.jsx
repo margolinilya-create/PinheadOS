@@ -24,6 +24,7 @@ import CommandPalette from './components/shared/CommandPalette'
 import { useFeatureFlag } from './hooks/useFeatureFlag'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
+const TechCardOrderList = React.lazy(() => import('./components/production/v2/TechCardOrderList'));
 const TechCardBuilder = React.lazy(() => import('./components/production/v2/TechCardBuilder'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
@@ -176,7 +177,10 @@ function App() {
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         {techCardBuilderEnabled && (
-          <Route path="/tech-cards" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TechCardBuilder /></Suspense></RoleGuard>} />
+          <>
+            <Route path="/tech-cards" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TechCardOrderList /></Suspense></RoleGuard>} />
+            <Route path="/tech-cards/:orderId" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TechCardBuilder /></Suspense></RoleGuard>} />
+          </>
         )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

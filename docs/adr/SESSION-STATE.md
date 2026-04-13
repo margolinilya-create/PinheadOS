@@ -41,9 +41,12 @@ W1 Day-2 работа шла по **Variant B** — писать код без �
 | **Store** `useNotificationsStore.ts` | ✅ W2 Day-2 (domain_events realtime subscribe, localStorage seenAt, lint+tsc clean) |
 | **Types** `types/production.ts` | ✅ включая Worker/Piecework*/DomainEvent |
 | **Feature flags** (app_config + `useFeatureFlag` hook) | ✅ W3 Day-1 (seeded в v2 app_config.feature_flags) |
-| **Route** `/tech-cards` (flag-gated) | ✅ W3 Day-1 stub — smoke-test каталога |
-| **Component** `TechCardBuilder.jsx` (v2) | ✅ W3 Day-1 stub: рендерит 7 секций × 30 операций |
-| Production screens (full UI) | ⏳ W3 Day-2+ |
+| **Route** `/tech-cards` (flag-gated) | ✅ W3 Day-2 — index: список заказов + Tech Card status |
+| **Route** `/tech-cards/:orderId` (flag-gated) | ✅ W3 Day-2 — полный builder |
+| **Component** `TechCardBuilder.jsx` | ✅ W3 Day-2: create draft, add/remove/qty ops, approve button с snapshot freeze |
+| **Component** `TechCardOrderList.jsx` | ✅ W3 Day-2 index |
+| Workshop Board UI | ⏳ W3 Day-3+ |
+| Мастер-экран бригадира UI | ⏳ W3 Day-4+ |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
 
