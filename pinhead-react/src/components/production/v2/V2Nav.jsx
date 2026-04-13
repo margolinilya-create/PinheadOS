@@ -13,8 +13,9 @@ export default function V2Nav() {
   const workshop = useFeatureFlag('workshop_board');
   const foreman = useFeatureFlag('foreman_screen');
   const payroll = useFeatureFlag('payroll_screen');
+  const trash = useFeatureFlag('trash_screen');
 
-  if (!techCard && !workshop && !foreman && !payroll) return null;
+  if (!techCard && !workshop && !foreman && !payroll && !trash) return null;
 
   const chipClass = ({ isActive }) => `${s.navChip} ${isActive ? s.navChipActive : ''}`;
 
@@ -25,6 +26,7 @@ export default function V2Nav() {
       {workshop && <NavLink to="/workshop" className={chipClass}>Цех</NavLink>}
       {foreman && <NavLink to="/foreman" className={chipClass}>Мастер</NavLink>}
       {payroll && <NavLink to="/payroll" className={chipClass}>Payroll</NavLink>}
+      {trash && <NavLink to="/trash" className={chipClass}>Корзина</NavLink>}
     </div>
   );
 }

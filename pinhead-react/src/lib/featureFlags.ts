@@ -15,7 +15,8 @@ export type FeatureFlag =
   | 'workshop_board'
   | 'foreman_screen'
   | 'payroll_screen'
-  | 'notifications_bell';
+  | 'notifications_bell'
+  | 'trash_screen';
 
 type FlagMap = Partial<Record<FeatureFlag, boolean>>;
 
