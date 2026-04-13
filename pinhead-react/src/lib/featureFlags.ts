@@ -27,18 +27,26 @@ let cached: FlagMap | null = null;
 export async function loadFeatureFlags(): Promise<FlagMap> {
   if (cached) return cached;
 
-  const { data, error } = await supabase
-    .from('app_config')
-    .select('value')
-    .eq('key', 'feature_flags')
-    .maybeSingle();
+  // try/catch guards against supabase client contract breaks (test mocks
+  // missing maybeSingle, network layers throwing instead of returning error).
+  // Defensive: flags failing to load should degrade to all-off, not crash.
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'feature_flags')
+      .maybeSingle();
 
-  if (error || !data?.value) {
+    if (error || !data?.value) {
+      cached = DEFAULT_FLAGS;
+      return cached;
+    }
+    cached = data.value as FlagMap;
+    return cached;
+  } catch {
     cached = DEFAULT_FLAGS;
     return cached;
   }
-  cached = data.value as FlagMap;
-  return cached;
 }
 
 export function getFeatureFlagSync(flag: FeatureFlag): boolean {
