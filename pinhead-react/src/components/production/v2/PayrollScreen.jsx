@@ -11,6 +11,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import { Skeleton } from '../../shared/Skeleton';
+import { downloadCsv } from '../../../lib/csvExport';
 import s from './v2.module.css';
 
 const ENTRY_TYPE_LABEL = {
@@ -84,6 +85,30 @@ export default function PayrollScreen() {
       // Refresh batches in case a new one was auto-created.
       await usePayrollStore.getState().loadBatches();
     }
+  };
+
+  const handleExportCsv = (batch, batchEntries) => {
+    const headers = [
+      'period_start', 'period_end', 'batch_status',
+      'worker', 'entry_type', 'qty', 'rate', 'amount',
+      'reason', 'paid_at', 'created_at',
+    ];
+    const rows = batchEntries.map((e) => [
+      batch.period_start,
+      batch.period_end,
+      batch.status,
+      workerNameById[e.worker_id] ?? e.worker_id,
+      e.entry_type,
+      e.qty,
+      e.rate,
+      e.amount,
+      e.reason ?? '',
+      e.paid_at ?? '',
+      e.created_at,
+    ]);
+    const filename = `payroll_${batch.period_start}_${batch.period_end}.csv`;
+    downloadCsv(filename, headers, rows);
+    toast.success?.('CSV выгружен') ?? null;
   };
 
   const handleClose = async (batchId) => {
@@ -228,8 +253,18 @@ export default function PayrollScreen() {
                   </table>
                 )}
 
-                {b.status === 'open' && canClose && (
-                  <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {entries.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => handleExportCsv(b, entries)}
+                      title="Скачать CSV для импорта в 1С / банк"
+                    >
+                      📥 CSV
+                    </button>
+                  )}
+                  {b.status === 'open' && canClose && (
                     <button
                       type="button"
                       className="btn btn-danger"
@@ -238,8 +273,8 @@ export default function PayrollScreen() {
                     >
                       Закрыть period (заморозить записи)
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
