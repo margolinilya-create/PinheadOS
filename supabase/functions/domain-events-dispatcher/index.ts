@@ -88,6 +88,7 @@ async function dispatchEvent(event: DomainEvent): Promise<void> {
   // TODO W11: trigger materialized view refresh (TV Dashboard phase 2)
 
   switch (event.event_type) {
+    // Legacy names (W1 placeholder vocabulary)
     case 'task_started':
     case 'task_completed':
     case 'qc_passed':
@@ -96,6 +97,11 @@ async function dispatchEvent(event: DomainEvent): Promise<void> {
     case 'piecework_accrued':
     case 'tech_card_approved':
     case 'order_cancelled':
+    // Production producer names (W3+, dotted convention)
+    case 'tech_card.approved':
+    case 'piecework.entry_created':
+    case 'payroll.batch_closed':
+    case 'test.smoke':
       // Stub: structured log entry. Real consumers added in later weeks.
       console.log(JSON.stringify({
         level: 'info',
