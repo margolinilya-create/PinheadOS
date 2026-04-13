@@ -133,6 +133,25 @@ export interface DomainEvent {
   created_at: string;
 }
 
+// Per-user notification populated by the dispatcher consumer.
+// user_id NULL = broadcast to all authenticated.
+export type NotificationKind =
+  | 'tech_card_approved'
+  | 'piecework_entry_created'
+  | 'payroll_batch_closed'
+  | 'manual';
+
+export interface Notification {
+  id: string;
+  user_id: string | null;
+  event_id: string | null;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface PieceworkEntry {
   id: string;
   batch_id: string;

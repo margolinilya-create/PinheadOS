@@ -80,50 +80,125 @@ interface DispatchResult {
   errors: Array<{ event_id: string; message: string }>;
 }
 
-// ============ consumers (stub — log only until downstream tables exist) ============
+// ============ consumers ============
+//
+// W4+: notifications table is live (migration 20260520). Each event maps
+// to a notifications row with title/body. Dispatcher inserts via
+// service_role — bypasses RLS no_insert policy.
+//
+// Targeting: NULL user_id = broadcast to all authenticated. Per-user
+// targeting will land when worker → profile linking is filled in.
+//
+// Idempotent: notifications has UNIQUE (event_id, user_id) so a re-pick
+// of an unprocessed event won't double-insert.
 
-async function dispatchEvent(event: DomainEvent): Promise<void> {
-  // TODO W6+: when notifications table exists, call notification_from_event
-  // TODO W9: when order_audit extension applied, call audit_from_event
-  // TODO W11: trigger materialized view refresh (TV Dashboard phase 2)
+interface NotificationRow {
+  user_id: string | null;
+  event_id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+}
 
+function notificationFromEvent(event: DomainEvent): NotificationRow | null {
   switch (event.event_type) {
-    // Legacy names (W1 placeholder vocabulary)
+    case 'tech_card.approved':
+    case 'tech_card_approved': {
+      const orderId = event.payload?.order_id ?? event.aggregate_id;
+      const opCount = event.payload?.operation_count ?? '?';
+      return {
+        user_id: null, // broadcast
+        event_id: event.id,
+        kind: 'tech_card_approved',
+        title: 'Tech card утверждена',
+        body: `Заказ ${String(orderId).slice(0, 8)}, ${opCount} операций. Снапшоты заморожены.`,
+      };
+    }
+    case 'piecework.entry_created':
+    case 'piecework_accrued': {
+      const amount = event.payload?.amount ?? 0;
+      const entryType = event.payload?.entry_type ?? 'accrual';
+      return {
+        user_id: null,
+        event_id: event.id,
+        kind: 'piecework_entry_created',
+        title: 'Сделка записана',
+        body: `${entryType}: ${amount}₽`,
+      };
+    }
+    case 'payroll.batch_closed': {
+      return {
+        user_id: null,
+        event_id: event.id,
+        kind: 'payroll_batch_closed',
+        title: 'Период закрыт',
+        body: 'Записи заморожены, корректировки только через сторно (reversal_of).',
+      };
+    }
+    case 'test.smoke': {
+      return {
+        user_id: null,
+        event_id: event.id,
+        kind: 'manual',
+        title: 'Smoke event',
+        body: 'Test event from dispatcher pipeline.',
+      };
+    }
+    // Legacy names (W1 placeholder vocabulary) — log only, no notification
     case 'task_started':
     case 'task_completed':
     case 'qc_passed':
     case 'qc_rejected':
     case 'rework_created':
-    case 'piecework_accrued':
-    case 'tech_card_approved':
     case 'order_cancelled':
-    // Production producer names (W3+, dotted convention)
-    case 'tech_card.approved':
-    case 'piecework.entry_created':
-    case 'payroll.batch_closed':
-    case 'test.smoke':
-      // Stub: structured log entry. Real consumers added in later weeks.
+      return null;
+    default:
+      return null;
+  }
+}
+
+async function dispatchEvent(
+  event: DomainEvent,
+  // @ts-ignore — supabase client type lives at runtime
+  sb: any
+): Promise<void> {
+  const notif = notificationFromEvent(event);
+
+  if (!notif) {
+    console.log(JSON.stringify({
+      level: 'info',
+      dispatcher: 'domain-events-dispatcher',
+      action: 'skip_no_consumer',
+      event_type: event.event_type,
+      event_id: event.id,
+    }));
+    return;
+  }
+
+  const { error } = await sb.from('notifications').insert(notif);
+
+  if (error) {
+    // Unique-constraint violation = already inserted (idempotent retry). OK.
+    if (error.code === '23505') {
       console.log(JSON.stringify({
         level: 'info',
         dispatcher: 'domain-events-dispatcher',
-        action: 'stub_dispatch',
-        event_type: event.event_type,
-        aggregate_type: event.aggregate_type,
-        aggregate_id: event.aggregate_id,
-        event_id: event.id,
-        payload_keys: Object.keys(event.payload),
-      }));
-      break;
-
-    default:
-      console.warn(JSON.stringify({
-        level: 'warn',
-        dispatcher: 'domain-events-dispatcher',
-        action: 'unknown_event_type',
-        event_type: event.event_type,
+        action: 'dedupe_skip',
         event_id: event.id,
       }));
+      return;
+    }
+    throw new Error(`notifications insert failed: ${error.message}`);
   }
+
+  console.log(JSON.stringify({
+    level: 'info',
+    dispatcher: 'domain-events-dispatcher',
+    action: 'notification_inserted',
+    event_type: event.event_type,
+    event_id: event.id,
+    kind: notif.kind,
+  }));
 }
 
 // ============ main handler ============
@@ -170,7 +245,7 @@ async function dispatch(): Promise<DispatchResult> {
 
   for (const event of events as DomainEvent[]) {
     try {
-      await dispatchEvent(event);
+      await dispatchEvent(event, sb);
       processedIds.push(event.id);
       processedCreatedAts.push(event.created_at);
       result.processed++;

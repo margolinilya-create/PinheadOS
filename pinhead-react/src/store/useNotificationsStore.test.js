@@ -24,7 +24,7 @@ function chain(terminalResult, terminalMethod = 'limit') {
   const handler = {
     get: (_t, prop) => {
       if (prop === terminalMethod) return vi.fn().mockResolvedValue(terminalResult);
-      if (['select', 'order', 'limit', 'eq', 'in', 'is'].includes(prop)) {
+      if (['select', 'order', 'limit', 'eq', 'in', 'is', 'update'].includes(prop)) {
         return vi.fn().mockReturnValue(proxy);
       }
       return undefined;
@@ -36,8 +36,7 @@ function chain(terminalResult, terminalMethod = 'limit') {
 
 beforeEach(() => {
   useNotificationsStore.setState({
-    events: [],
-    seenAt: null,
+    notifications: [],
     loading: false,
     error: null,
     subscribed: false,
@@ -46,44 +45,57 @@ beforeEach(() => {
 });
 
 describe('useNotificationsStore.unreadCount', () => {
-  it('equals events.length when seenAt is null', () => {
+  it('counts rows with read_at = null', () => {
     useNotificationsStore.setState({
-      events: [
-        { id: 'e1', created_at: '2026-04-14T10:00:00Z' },
-        { id: 'e2', created_at: '2026-04-14T11:00:00Z' },
+      notifications: [
+        { id: '1', read_at: null, created_at: '2026-04-14T10:00:00Z' },
+        { id: '2', read_at: '2026-04-14T11:00:00Z', created_at: '2026-04-14T11:00:00Z' },
+        { id: '3', read_at: null, created_at: '2026-04-14T12:00:00Z' },
       ],
-      seenAt: null,
     });
     expect(useNotificationsStore.getState().unreadCount()).toBe(2);
   });
 
-  it('counts only events newer than seenAt', () => {
+  it('returns 0 when all read', () => {
     useNotificationsStore.setState({
-      events: [
-        { id: 'e1', created_at: '2026-04-14T10:00:00Z' },
-        { id: 'e2', created_at: '2026-04-14T12:00:00Z' },
-        { id: 'e3', created_at: '2026-04-14T13:00:00Z' },
+      notifications: [
+        { id: '1', read_at: '2026-04-14T11:00:00Z', created_at: '2026-04-14T10:00:00Z' },
       ],
-      seenAt: '2026-04-14T11:00:00Z',
     });
-    expect(useNotificationsStore.getState().unreadCount()).toBe(2);
-  });
-});
-
-describe('useNotificationsStore.markAllSeen', () => {
-  it('advances seenAt to now', () => {
-    const before = useNotificationsStore.getState().seenAt;
-    useNotificationsStore.getState().markAllSeen();
-    const after = useNotificationsStore.getState().seenAt;
-    expect(after).not.toBe(before);
-    expect(typeof after).toBe('string');
+    expect(useNotificationsStore.getState().unreadCount()).toBe(0);
   });
 });
 
 describe('useNotificationsStore.loadRecent', () => {
-  it('populates events from supabase', async () => {
-    fromMock.mockReturnValueOnce(chain({ data: [{ id: 'e1', created_at: '2026-04-14T10:00:00Z' }], error: null }));
+  it('populates notifications from supabase', async () => {
+    fromMock.mockReturnValueOnce(chain({
+      data: [{ id: 'n1', title: 'Test', read_at: null, created_at: '2026-04-14T10:00:00Z' }],
+      error: null,
+    }));
     await useNotificationsStore.getState().loadRecent();
-    expect(useNotificationsStore.getState().events).toHaveLength(1);
+    expect(useNotificationsStore.getState().notifications).toHaveLength(1);
+  });
+});
+
+describe('useNotificationsStore.markAllRead', () => {
+  it('no-ops when nothing is unread', async () => {
+    useNotificationsStore.setState({
+      notifications: [{ id: '1', read_at: '2026-04-14T11:00:00Z' }],
+    });
+    await useNotificationsStore.getState().markAllRead();
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it('optimistically stamps read_at on unread rows', async () => {
+    useNotificationsStore.setState({
+      notifications: [
+        { id: '1', read_at: null },
+        { id: '2', read_at: null },
+      ],
+    });
+    fromMock.mockReturnValueOnce(chain({ data: null, error: null }, 'in'));
+    await useNotificationsStore.getState().markAllRead();
+    const all = useNotificationsStore.getState().notifications;
+    expect(all.every((n) => n.read_at !== null)).toBe(true);
   });
 });

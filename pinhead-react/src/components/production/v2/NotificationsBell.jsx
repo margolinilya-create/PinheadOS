@@ -1,8 +1,8 @@
 // redesign/v2 — Notifications bell
 //
-// Fixed-position corner widget. On mount: loads recent events and
-// subscribes to realtime INSERTs. Click opens a dropdown with the
-// latest 20, marking all as seen on first open.
+// Reads from notifications table (populated by dispatcher consumer).
+// Title/body come from the dispatcher, no event_type leakage to UI.
+// Mark-as-read is persistent — survives refresh.
 
 import { useEffect, useState } from 'react';
 import { useNotificationsStore } from '../../../store/useNotificationsStore';
@@ -17,12 +17,11 @@ function formatTime(iso) {
 }
 
 export default function NotificationsBell() {
-  const events = useNotificationsStore((st) => st.events);
-  const seenAt = useNotificationsStore((st) => st.seenAt);
+  const notifications = useNotificationsStore((st) => st.notifications);
   const loadRecent = useNotificationsStore((st) => st.loadRecent);
   const subscribe = useNotificationsStore((st) => st.subscribe);
   const unsubscribe = useNotificationsStore((st) => st.unsubscribe);
-  const markAllSeen = useNotificationsStore((st) => st.markAllSeen);
+  const markAllRead = useNotificationsStore((st) => st.markAllRead);
 
   const [open, setOpen] = useState(false);
 
@@ -32,9 +31,7 @@ export default function NotificationsBell() {
     return () => unsubscribe();
   }, [loadRecent, subscribe, unsubscribe]);
 
-  const unread = seenAt
-    ? events.filter((e) => e.created_at > seenAt).length
-    : events.length;
+  const unread = notifications.filter((n) => !n.read_at).length;
 
   return (
     <div className={s.bellWrap}>
@@ -43,7 +40,7 @@ export default function NotificationsBell() {
         className={s.bellBtn}
         onClick={() => {
           setOpen((v) => !v);
-          if (!open) markAllSeen();
+          if (!open) markAllRead();
         }}
         aria-label={`Уведомления (${unread} непрочитанных)`}
       >
@@ -59,17 +56,19 @@ export default function NotificationsBell() {
             <strong>Уведомления</strong>
             <button type="button" className={s.removeBtn} onClick={() => setOpen(false)} aria-label="Закрыть">×</button>
           </div>
-          {events.length === 0 ? (
+          {notifications.length === 0 ? (
             <p className={s.empty}>Пока ничего</p>
           ) : (
             <ul className={s.bellList}>
-              {events.slice(0, 20).map((e) => (
-                <li key={e.id} className={s.bellItem}>
-                  <div className={s.bellItemTitle}>{e.event_type}</div>
-                  <div className={s.bellItemMeta}>
-                    {e.aggregate_type}: {e.aggregate_id.slice(0, 8)}…
-                  </div>
-                  <div className={s.bellItemTime}>{formatTime(e.created_at)}</div>
+              {notifications.slice(0, 20).map((n) => (
+                <li
+                  key={n.id}
+                  className={s.bellItem}
+                  style={!n.read_at ? { background: 'var(--accent-light)' } : undefined}
+                >
+                  <div className={s.bellItemTitle}>{n.title}</div>
+                  {n.body && <div className={s.bellItemMeta}>{n.body}</div>}
+                  <div className={s.bellItemTime}>{formatTime(n.created_at)}</div>
                 </li>
               ))}
             </ul>

@@ -1,26 +1,24 @@
 // redesign/v2 — Notifications bounded context (ADR-0001, ADR-0004)
 //
-// W2 skeleton: subscribe to the domain_events outbox via Supabase
-// realtime (postgres_changes), cache recent events, expose unread count
-// for the header bell. Filtering by event_type happens at the consumer
-// level — the outbox is a shared bus (ADR-0004).
+// Reads from `notifications` table (populated by domain-events-dispatcher
+// consumer) — NOT from raw domain_events. The dispatcher does the
+// translation from event_type to user-facing title/body.
 //
-// "Unread" is a client-side concept (localStorage seenAt). Once we have
-// per-user notification routing (W3+), this will move to a real table.
+// Subscribes to realtime INSERTs on notifications. Unread = count of
+// rows where read_at IS NULL. Mark-as-read is a real DB update so the
+// state survives refresh / multi-device.
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../lib/supabase';
 import { toast } from './useToastStore';
 import { translateSupabaseError } from '../utils/i18n';
-import type { DomainEvent } from '../types/production';
+import type { Notification } from '../types/production';
 
-const SEEN_AT_KEY = 'pinhead_notifications_seen_at';
 const RECENT_LIMIT = 50;
 
 interface NotificationsStore {
-  events: DomainEvent[];
-  seenAt: string | null;
+  notifications: Notification[];
   loading: boolean;
   error: string | null;
   subscribed: boolean;
@@ -28,29 +26,18 @@ interface NotificationsStore {
   loadRecent: () => Promise<void>;
   subscribe: () => void;
   unsubscribe: () => void;
-  markAllSeen: () => void;
+  markAllRead: () => Promise<void>;
   unreadCount: () => number;
   reset: () => void;
 }
 
-const initialSeenAt = (() => {
-  try {
-    return localStorage.getItem(SEEN_AT_KEY);
-  } catch {
-    return null;
-  }
-})();
-
 const initialState = {
-  events: [] as DomainEvent[],
-  seenAt: initialSeenAt,
+  notifications: [] as Notification[],
   loading: false,
   error: null,
   subscribed: false,
 };
 
-// Supabase realtime channel handle kept module-scoped so subscribe/
-// unsubscribe works across remounts without leaking channels.
 let channel: ReturnType<typeof supabase.channel> | null = null;
 
 export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
@@ -59,7 +46,7 @@ export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
   loadRecent: async () => {
     set({ loading: true, error: null });
     const { data, error } = await supabase
-      .from('domain_events')
+      .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(RECENT_LIMIT);
@@ -69,20 +56,20 @@ export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
       set({ loading: false, error: error.message });
       return;
     }
-    set({ events: (data ?? []) as DomainEvent[], loading: false });
+    set({ notifications: (data ?? []) as Notification[], loading: false });
   },
 
   subscribe: () => {
     if (channel) return;
     channel = supabase
-      .channel('domain_events_stream')
+      .channel('notifications_stream')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'domain_events' },
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
         (payload) => {
-          const row = payload.new as DomainEvent;
+          const row = payload.new as Notification;
           set((s) => ({
-            events: [row, ...s.events].slice(0, RECENT_LIMIT),
+            notifications: [row, ...s.notifications].slice(0, RECENT_LIMIT),
           }));
         }
       )
@@ -98,21 +85,33 @@ export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
     set({ subscribed: false });
   },
 
-  markAllSeen: () => {
-    const now = new Date().toISOString();
-    try {
-      localStorage.setItem(SEEN_AT_KEY, now);
-    } catch {
-      /* ignore quota errors */
+  markAllRead: async () => {
+    const unread = get().notifications.filter((n) => !n.read_at);
+    if (unread.length === 0) return;
+
+    const nowIso = new Date().toISOString();
+    // Optimistic
+    set((s) => ({
+      notifications: s.notifications.map((n) =>
+        n.read_at ? n : { ...n, read_at: nowIso }
+      ),
+    }));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: nowIso })
+      .in('id', unread.map((n) => n.id));
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      // Best-effort rollback
+      set({ notifications: get().notifications.map((n) =>
+        unread.find((u) => u.id === n.id) ? { ...n, read_at: null } : n
+      ) });
     }
-    set({ seenAt: now });
   },
 
-  unreadCount: () => {
-    const { events, seenAt } = get();
-    if (!seenAt) return events.length;
-    return events.filter((e) => e.created_at > seenAt).length;
-  },
+  unreadCount: () => get().notifications.filter((n) => !n.read_at).length,
 
   reset: () => {
     get().unsubscribe();
