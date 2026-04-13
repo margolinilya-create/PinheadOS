@@ -86,3 +86,51 @@ export interface OrderTechOperation {
   deleted_at: string | null;
   created_at: string;
 }
+
+export interface Worker {
+  id: string;
+  profile_id: string | null;
+  full_name: string;
+  section_id: string | null;
+  hourly_rate: number;
+  deleted_at: string | null;
+  created_at: string;
+}
+
+export type PieceworkBatchStatus = 'open' | 'closed';
+
+export interface PieceworkBatch {
+  id: string;
+  period_start: string;
+  period_end: string;
+  status: PieceworkBatchStatus;
+  closed_at: string | null;
+  closed_by: string | null;
+  notes: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+export type PieceworkEntryType =
+  | 'accrual'
+  | 'rework_penalty'
+  | 'defect_penalty'
+  | 'bonus'
+  | 'manual_adjustment'
+  | 'reversal_of';
+
+export interface PieceworkEntry {
+  id: string;
+  batch_id: string;
+  worker_id: string;
+  tech_operation_id: string | null;
+  entry_type: PieceworkEntryType;
+  qty: number;
+  rate: number;
+  amount: number;
+  reason: string | null;
+  reversal_of: string | null;
+  paid_at: string | null;
+  created_at: string;
+  created_by: string | null;
+}

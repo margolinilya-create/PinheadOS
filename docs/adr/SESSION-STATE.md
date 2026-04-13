@@ -35,7 +35,9 @@ W1 Day-2 работа шла по **Variant B** — писать код без �
 | **Edge function** domain-events-dispatcher | ✅ написан (stub + README), **НЕ задеплоен** |
 | **Store** `useTechCardStore.ts` | ✅ W1 Day-2 (CRUD скелет, lint+tsc clean) |
 | **Store** `useWorkshopStore.ts` | ✅ W1 Day-3 (board loaders, lint+tsc clean) |
-| **Types** `types/production.ts` | ✅ mirror миграций |
+| **Store** `useWorkersStore.ts` | ✅ W2 Day-1 (CRUD + soft-delete, lint+tsc clean) |
+| **Store** `usePayrollStore.ts` | ✅ W2 Day-1 (batches/entries, closeBatch с paid_at stamping, lint+tsc clean) |
+| **Types** `types/production.ts` | ✅ включая Worker/PieceworkBatch/PieceworkEntry/entry_type |
 | Production screens (Tech Card / Workshop / Foreman) | **НЕ написаны** (W3+) |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |

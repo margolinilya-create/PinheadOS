@@ -1,0 +1,182 @@
+// redesign/v2 — Payroll bounded context (ADR-0001)
+//
+// Read-heavy: load batches, load entries (by batch, by worker), create
+// new entries, close a batch. NEVER update a paid entry — corrections
+// take the form of new reversal_of rows (ADR-0002, DB trigger enforces).
+//
+// Critical invariant reminder: once paid_at is set, piecework_entries
+// row is immutable at DB level. This store never issues UPDATEs that
+// would touch a paid row — the trigger would reject it anyway.
+
+import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
+import { supabase } from '../lib/supabase';
+import { toast } from './useToastStore';
+import { translateSupabaseError } from '../utils/i18n';
+import type { PieceworkBatch, PieceworkEntry } from '../types/production';
+
+interface PayrollStore {
+  batches: PieceworkBatch[];
+  entriesByBatch: Record<string, PieceworkEntry[]>;
+  loading: boolean;
+  error: string | null;
+
+  loadBatches: () => Promise<void>;
+  loadEntriesForBatch: (batchId: string) => Promise<void>;
+  loadEntriesForWorker: (workerId: string, limit?: number) => Promise<PieceworkEntry[]>;
+
+  createBatch: (periodStart: string, periodEnd: string, notes?: string) => Promise<PieceworkBatch | null>;
+  createEntry: (
+    entry: Omit<PieceworkEntry, 'id' | 'paid_at' | 'created_at' | 'created_by'>
+  ) => Promise<PieceworkEntry | null>;
+  closeBatch: (batchId: string) => Promise<boolean>;
+
+  reset: () => void;
+}
+
+const initialState = {
+  batches: [] as PieceworkBatch[],
+  entriesByBatch: {} as Record<string, PieceworkEntry[]>,
+  loading: false,
+  error: null,
+};
+
+export const usePayrollStore = create<PayrollStore>((set) => ({
+  ...initialState,
+
+  loadBatches: async () => {
+    set({ loading: true, error: null });
+    const { data, error } = await supabase
+      .from('piecework_batches')
+      .select('*')
+      .order('period_start', { ascending: false });
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      set({ loading: false, error: error.message });
+      return;
+    }
+    set({ batches: (data ?? []) as PieceworkBatch[], loading: false });
+  },
+
+  loadEntriesForBatch: async (batchId) => {
+    set({ loading: true, error: null });
+    const { data, error } = await supabase
+      .from('piecework_entries')
+      .select('*')
+      .eq('batch_id', batchId)
+      .order('created_at');
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      set({ loading: false, error: error.message });
+      return;
+    }
+    set((s) => ({
+      entriesByBatch: { ...s.entriesByBatch, [batchId]: (data ?? []) as PieceworkEntry[] },
+      loading: false,
+    }));
+  },
+
+  loadEntriesForWorker: async (workerId, limit = 100) => {
+    const { data, error } = await supabase
+      .from('piecework_entries')
+      .select('*')
+      .eq('worker_id', workerId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return [];
+    }
+    return (data ?? []) as PieceworkEntry[];
+  },
+
+  createBatch: async (periodStart, periodEnd, notes) => {
+    const { data, error } = await supabase
+      .from('piecework_batches')
+      .insert({ period_start: periodStart, period_end: periodEnd, notes: notes ?? null })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return null;
+    }
+    const row = data as PieceworkBatch;
+    set((s) => ({ batches: [row, ...s.batches] }));
+    return row;
+  },
+
+  createEntry: async (entry) => {
+    const { data, error } = await supabase
+      .from('piecework_entries')
+      .insert(entry)
+      .select()
+      .single();
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return null;
+    }
+    const row = data as PieceworkEntry;
+    set((s) => {
+      const existing = s.entriesByBatch[row.batch_id] ?? [];
+      return {
+        entriesByBatch: {
+          ...s.entriesByBatch,
+          [row.batch_id]: [...existing, row],
+        },
+      };
+    });
+    return row;
+  },
+
+  closeBatch: async (batchId) => {
+    // Two-step close: (1) flip batch status, (2) stamp paid_at on all
+    // entries inside. Once paid_at is set, the DB trigger freezes the
+    // rows forever. Order matters: update entries BEFORE flipping batch
+    // status in case the batch update fails — entries with paid_at but
+    // no closed batch are a recoverable state (just flip batch later).
+    // The reverse would leave a closed batch with unpaid entries, which
+    // is a harder state to reason about.
+    const nowIso = new Date().toISOString();
+
+    const { error: entriesErr } = await supabase
+      .from('piecework_entries')
+      .update({ paid_at: nowIso })
+      .eq('batch_id', batchId)
+      .is('paid_at', null);
+
+    if (entriesErr) {
+      toast.error(translateSupabaseError(entriesErr.message));
+      return false;
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id ?? null;
+
+    const { data, error } = await supabase
+      .from('piecework_batches')
+      .update({ status: 'closed', closed_at: nowIso, closed_by: userId })
+      .eq('id', batchId)
+      .select()
+      .single();
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return false;
+    }
+
+    set((s) => ({
+      batches: s.batches.map((b) => (b.id === batchId ? (data as PieceworkBatch) : b)),
+    }));
+    return true;
+  },
+
+  reset: () => set(initialState),
+}));
+
+export const usePayroll = <T>(selector: (s: PayrollStore) => T) =>
+  usePayrollStore(useShallow(selector));
