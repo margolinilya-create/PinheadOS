@@ -40,7 +40,10 @@ W1 Day-2 работа шла по **Variant B** — писать код без �
 | **Store** `useForemanStore.ts` | ✅ W2 Day-2 (section-scoped ops + workers, lint+tsc clean) |
 | **Store** `useNotificationsStore.ts` | ✅ W2 Day-2 (domain_events realtime subscribe, localStorage seenAt, lint+tsc clean) |
 | **Types** `types/production.ts` | ✅ включая Worker/Piecework*/DomainEvent |
-| Production screens (Tech Card / Workshop / Foreman) | **НЕ написаны** (W3+) |
+| **Feature flags** (app_config + `useFeatureFlag` hook) | ✅ W3 Day-1 (seeded в v2 app_config.feature_flags) |
+| **Route** `/tech-cards` (flag-gated) | ✅ W3 Day-1 stub — smoke-test каталога |
+| **Component** `TechCardBuilder.jsx` (v2) | ✅ W3 Day-1 stub: рендерит 7 секций × 30 операций |
+| Production screens (full UI) | ⏳ W3 Day-2+ |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |
 

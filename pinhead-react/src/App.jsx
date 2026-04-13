@@ -21,8 +21,10 @@ import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import RolePreviewBar from './components/shared/RolePreviewBar'
 import OnboardingTips from './components/shared/OnboardingTips'
 import CommandPalette from './components/shared/CommandPalette'
+import { useFeatureFlag } from './hooks/useFeatureFlag'
 
 const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
+const TechCardBuilder = React.lazy(() => import('./components/production/v2/TechCardBuilder'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
@@ -109,6 +111,10 @@ function App() {
     return () => document.body.classList.remove('has-preview-bar');
   }, [isRealAdmin]);
 
+  // redesign/v2 feature flag — must be called before any early return to
+  // satisfy rules-of-hooks. Route is dark on prod main, live on v2 preview.
+  const techCardBuilderEnabled = useFeatureFlag('tech_card_builder');
+
   if (authLoading || !catalogsReady) {
     return <LoadingScreen />;
   }
@@ -169,6 +175,9 @@ function App() {
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><AdminPanel /></Suspense></RoleGuard>} />
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
+        {techCardBuilderEnabled && (
+          <Route path="/tech-cards" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TechCardBuilder /></Suspense></RoleGuard>} />
+        )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </main>
