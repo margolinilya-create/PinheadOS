@@ -9,9 +9,11 @@ import { useTechCardStore } from '../../../store/useTechCardStore';
 import { usePayrollStore } from '../../../store/usePayrollStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
 export default function ForemanScreen() {
+  useDocumentTitle('Мастер-экран');
   const role = useAuthStore((st) => st.effectiveRole());
   const canWrite = ['admin', 'director', 'production'].includes(role);
 

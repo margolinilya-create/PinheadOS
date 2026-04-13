@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { translateSupabaseError } from '../../../utils/i18n';
+import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
 const TC_STATUS_LABEL = {
@@ -20,6 +21,7 @@ const TC_STATUS_CLASS = {
 };
 
 export default function TechCardOrderList() {
+  useDocumentTitle('Tech Cards');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 

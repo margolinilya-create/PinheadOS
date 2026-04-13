@@ -7,6 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
 const STATUS_LABEL = {
@@ -23,6 +24,7 @@ const STATUS_CLASS = {
 
 export default function TechCardBuilder() {
   const { orderId } = useParams();
+  useDocumentTitle(orderId ? `Tech Card · ${orderId.slice(0, 8)}` : 'Tech Card');
   const role = useAuthStore((st) => st.effectiveRole());
   const canEdit = ['admin', 'director', 'production'].includes(role);
 

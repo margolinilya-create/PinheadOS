@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { usePayrollStore } from '../../../store/usePayrollStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
 const ENTRY_TYPE_LABEL = {
@@ -20,6 +21,7 @@ const ENTRY_TYPE_LABEL = {
 };
 
 export default function PayrollScreen() {
+  useDocumentTitle('Payroll');
   const role = useAuthStore((st) => st.effectiveRole());
   const canClose = ['admin', 'director'].includes(role);
 

@@ -6,9 +6,11 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorkshopStore } from '../../../store/useWorkshopStore';
+import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
 export default function WorkshopBoard() {
+  useDocumentTitle('Цех');
   const sections = useWorkshopStore((st) => st.sections);
   const operationsBySection = useWorkshopStore((st) => st.operationsBySection);
   const loading = useWorkshopStore((st) => st.loading);
