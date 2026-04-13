@@ -45,8 +45,9 @@ export default function V2Nav() {
   const payroll = useFeatureFlag('payroll_screen');
   const trash = useFeatureFlag('trash_screen');
   const ordersTable = useFeatureFlag('orders_table_view');
+  const workersScreen = useFeatureFlag('workers_screen');
 
-  if (!techCard && !workshop && !foreman && !payroll && !trash && !ordersTable) return null;
+  if (!techCard && !workshop && !foreman && !payroll && !trash && !ordersTable && !workersScreen) return null;
 
   const chipClass = ({ isActive }) => `${s.navChip} ${isActive ? s.navChipActive : ''}`;
 
@@ -57,6 +58,7 @@ export default function V2Nav() {
       {techCard && <NavLink to="/tech-cards" className={chipClass}>Tech Cards</NavLink>}
       {workshop && <NavLink to="/workshop" className={chipClass}>Цех</NavLink>}
       {foreman && <NavLink to="/foreman" className={chipClass}>Мастер</NavLink>}
+      {workersScreen && <NavLink to="/workers" className={chipClass}>Работники</NavLink>}
       {payroll && <NavLink to="/payroll" className={chipClass}>Payroll</NavLink>}
       {trash && <NavLink to="/trash" className={chipClass}>Корзина</NavLink>}
 
