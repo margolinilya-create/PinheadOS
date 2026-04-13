@@ -37,7 +37,9 @@ W1 Day-2 работа шла по **Variant B** — писать код без �
 | **Store** `useWorkshopStore.ts` | ✅ W1 Day-3 (board loaders, lint+tsc clean) |
 | **Store** `useWorkersStore.ts` | ✅ W2 Day-1 (CRUD + soft-delete, lint+tsc clean) |
 | **Store** `usePayrollStore.ts` | ✅ W2 Day-1 (batches/entries, closeBatch с paid_at stamping, lint+tsc clean) |
-| **Types** `types/production.ts` | ✅ включая Worker/PieceworkBatch/PieceworkEntry/entry_type |
+| **Store** `useForemanStore.ts` | ✅ W2 Day-2 (section-scoped ops + workers, lint+tsc clean) |
+| **Store** `useNotificationsStore.ts` | ✅ W2 Day-2 (domain_events realtime subscribe, localStorage seenAt, lint+tsc clean) |
+| **Types** `types/production.ts` | ✅ включая Worker/Piecework*/DomainEvent |
 | Production screens (Tech Card / Workshop / Foreman) | **НЕ написаны** (W3+) |
 | Bitrix webhook URL | **отложен** (нужен для baseline-extract) |
 | Init-from-prod schema dump | **⚠️ обязательный шаг** перед применением 20260501 |

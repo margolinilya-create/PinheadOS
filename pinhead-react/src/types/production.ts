@@ -119,6 +119,20 @@ export type PieceworkEntryType =
   | 'manual_adjustment'
   | 'reversal_of';
 
+// Outbox row from domain_events (ADR-0004). Read-only from the client —
+// inserts happen transactionally with business rows, updates are forbidden
+// by RLS (only dispatcher edge function can mark processed_at).
+export interface DomainEvent {
+  id: string;
+  event_type: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  payload: Record<string, unknown>;
+  idempotency_key: string | null;
+  processed_at: string | null;
+  created_at: string;
+}
+
 export interface PieceworkEntry {
   id: string;
   batch_id: string;
