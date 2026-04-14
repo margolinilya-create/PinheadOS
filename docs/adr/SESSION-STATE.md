@@ -1,16 +1,16 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-14 (W4 Day-1+, конец сессии 11)
-**Текущая фаза:** v2 MVP feature-complete + production polish. Bitrix sync блокирован.
+**Последнее обновление:** 2026-04-14 (сессия 12, UAT round 1 + fixes)
+**Текущая фаза:** v2 MVP UAT-validated, готов к cutover. Bitrix sync блокирован.
 **Активная ветка:** `redesign/v2`
 
 > Этот файл существует чтобы любая новая сессия могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
 
 ## TL;DR
 
-Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + W4 закрыты.** 60+ коммитов с момента старта ветки.
+Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + W4 закрыты, UAT round 1 пройден.** 60+ коммитов с момента старта ветки.
 
-- 7 миграций применены к v2 Supabase через Management API (последняя 20260520_notifications)
+- 8 миграций применены к v2 Supabase (последняя 20260525_piecework_update_policy_fix)
 - 6 ADR-0001 stores + useUndoStore + lib/csvExport + lib/domainEvents + 2 hooks
 - 9 production routes + bell + V2Nav + UndoToastHost
 - **Real outbox consumer:** dispatcher теперь INSERTs в notifications таблицу с title/body — bell показывает реальные сообщения, не event_types
@@ -20,8 +20,51 @@ Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3
 - piecework reversal flow для closed batches (ADR-0007)
 - **846/846 тестов** зелёные, build чистый, diff-guard не потревожен
 - Demo seed + real auth user `demo@pinhead.local` для UAT
+- **UAT round 1:** найден 1 blocker + 3 major + 5 minor → всё починено → round 2 PASS по всем пунктам
+- **Director UAT checklist:** `docs/UAT-director-checklist.md` готов (20-30 мин прогон)
 
 Все экраны под `app_config.feature_flags`. Main = все флаги отсутствуют → дарк. v2 = флаги=true → активно. Cutover = вставить row в prod app_config.
+
+## UAT round 1 + 2 (2026-04-14, сессия 12)
+
+**Round 1:** pinhead-qa агент нашёл:
+- **[blocker]** `/payroll` close batch падал с 403 — policy `piecework_entries_update_admin_unpaid` имела `WITH CHECK (... AND paid_at IS NULL)`, что блокировало транзит NULL→timestamp, ради которого policy и существовала. Trigger `piecework_forbid_update_if_paid` корректен (проверяет `OLD.paid_at`), баг строго в RLS.
+- **[major]** `window.confirm()` вместо `useConfirmStore` в `/payroll` → close batch
+- **[major]** Delete worker без confirm и без UndoToast
+- **[major]** Approve tech card без confirm (действие необратимо)
+- **[minor]** `/tech-cards` показывал сырые enum статусы заказа
+- **[minor]** «period» вместо «период» в Payroll/Foreman, отсутствие плюрализации «записей»
+- **[minor]** Onboarding backdrop перехватывал клики V2Nav на первой загрузке
+
+**Исправления (коммит `0137a42`):**
+1. Migration `20260525_piecework_update_policy_fix.sql` — policy WITH CHECK больше не требует `paid_at IS NULL` на NEW row. Belt (USING) + suspenders (trigger) продолжают защищать paid rows.
+2. `PayrollScreen`: `window.confirm` → `useConfirmStore` (danger variant)
+3. `WorkersScreen`: confirm dialog + `useUndoStore.push()` с `restore` действием; новый `useWorkersStore.restore()` очищает `deleted_at`
+4. `TechCardBuilder`: confirm dialog перед approve (irreversible action)
+5. `TechCardOrderList`: локализация через `STATUS_LABELS` из useOrdersStore
+6. i18n: «period» → «период» везде, `pluralize(n, 'запись', 'записи', 'записей')`
+7. `v2.module.css`: `.navBar { position: sticky; top: 0; z-index: calc(var(--z-overlay) + 10); }` — V2Nav выше onboarding overlay
+
+**Round 2 (после фиксов):** PASS по всем пунктам.
+- Blocker verified: `PATCH piecework_entries → 204`, batch закрылся без 4xx
+- 3 major verified: кастомные danger-диалоги работают, undo toast + restore работают end-to-end
+- i18n и onboarding z-index confirmed
+- Regression: golden path работает, 0 console errors
+- Новых багов нет
+
+**Migration applied:** `20260525_piecework_update_policy_fix.sql` уже в v2 Supabase (`glhwbktsokphgksdvcxj`). **В prod Supabase (`pulzirakjqehsulmjhdj`) ещё НЕ применена** — применить перед включением флагов payroll в prod.
+
+**3 замечания low-priority (не блокеры):**
+- Deep-link на защищённый route редиректит на `/` до инициализации auth store (RoleGuard видит isAdmin=false)
+- `order_tech_cards` reset в draft требует сбрасывать ОБА поля (`approved_at` + `approved_by`), CHECK `order_tech_cards_approved_consistency` корректен
+- UndoToast 5s window может быть коротким для медленных пользователей — UX polish
+
+## Следующие шаги перед cutover
+
+1. **Директорский UAT:** отдать `docs/UAT-director-checklist.md` директору, вставив Vercel preview URL в placeholder (строка 6)
+2. **Prod migration:** применить `20260525_piecework_update_policy_fix.sql` в prod Supabase **до** включения payroll флагов в prod
+3. **Merge strategy:** `git merge redesign/v2 --no-ff` в main с флагами=OFF в prod `app_config.feature_flags`. Per ADR-0009: never rebase. Red zone файлы для конфликтов: `App.jsx`, `KanbanBoard.jsx`, `Header.jsx`, `package.json`
+4. **Post-merge:** включать флаги постепенно через prod `app_config` update — сначала демо-пользователь, потом менеджеры
 
 ## Текущее состояние v2
 
