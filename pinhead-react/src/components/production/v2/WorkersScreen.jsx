@@ -10,6 +10,8 @@ import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import { toast } from '../../../store/useToastStore';
+import { confirm } from '../../../store/useConfirmStore';
+import { useUndoStore } from '../../../store/useUndoStore';
 import { Skeleton } from '../../shared/Skeleton';
 import { downloadCsv } from '../../../lib/csvExport';
 import s from './v2.module.css';
@@ -25,6 +27,8 @@ export default function WorkersScreen() {
   const create = useWorkersStore((st) => st.create);
   const update = useWorkersStore((st) => st.update);
   const softDelete = useWorkersStore((st) => st.softDelete);
+  const restore = useWorkersStore((st) => st.restore);
+  const pushUndo = useUndoStore((st) => st.push);
 
   const sections = useTechCardStore((st) => st.sections);
   const catalogLoaded = useTechCardStore((st) => st.catalogLoaded);
@@ -80,8 +84,20 @@ export default function WorkersScreen() {
   };
 
   const handleDelete = async (worker) => {
-    if (!window.confirm(`Удалить ${worker.full_name}? Это soft-delete, можно восстановить через БД.`)) return;
-    await softDelete(worker.id);
+    const ok = await confirm({
+      title: `Удалить ${worker.full_name}?`,
+      message: 'Soft-delete — 5 секунд на отмену через тост.',
+      confirmLabel: 'Удалить',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    const deleted = await softDelete(worker.id);
+    if (deleted) {
+      pushUndo({
+        label: `${worker.full_name} удалён`,
+        restore: () => restore(worker.id),
+      });
+    }
   };
 
   const handleExportCsv = () => {

@@ -433,6 +433,9 @@
   background: var(--bg1);
   align-items: center;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-overlay) + 10);
 }
 
 .navLabel {

@@ -19,7 +19,8 @@ interface WorkersStore {
   loadBySection: (sectionId: string) => Promise<void>;
   create: (patch: Omit<Worker, 'id' | 'deleted_at' | 'created_at'>) => Promise<Worker | null>;
   update: (id: string, patch: Partial<Omit<Worker, 'id' | 'created_at'>>) => Promise<void>;
-  softDelete: (id: string) => Promise<void>;
+  softDelete: (id: string) => Promise<boolean>;
+  restore: (id: string) => Promise<boolean>;
   reset: () => void;
 }
 
@@ -104,9 +105,31 @@ export const useWorkersStore = create<WorkersStore>((set, get) => ({
 
     if (error) {
       toast.error(translateSupabaseError(error.message));
-      return;
+      return false;
     }
     set((s) => ({ workers: s.workers.filter((w) => w.id !== id) }));
+    return true;
+  },
+
+  restore: async (id) => {
+    const { data, error } = await supabase
+      .from('workers')
+      .update({ deleted_at: null })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      toast.error(translateSupabaseError(error.message));
+      return false;
+    }
+    set((s) => {
+      const next = s.workers.filter((w) => w.id !== id);
+      next.push(data as Worker);
+      next.sort((a, b) => a.full_name.localeCompare(b.full_name));
+      return { workers: next };
+    });
+    return true;
   },
 
   reset: () => set(initialState),

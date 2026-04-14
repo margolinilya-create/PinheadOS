@@ -9,6 +9,7 @@ import { useTechCardStore } from '../../../store/useTechCardStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
 import { useUndoStore } from '../../../store/useUndoStore';
+import { confirm } from '../../../store/useConfirmStore';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import s from './v2.module.css';
 
@@ -149,6 +150,13 @@ export default function TechCardBuilder() {
       toast.error('Нельзя утвердить пустую карту');
       return;
     }
+    const confirmed = await confirm({
+      title: 'Утвердить tech card?',
+      message: 'Тарифы и нормы минут будут заморожены. Изменения после утверждения невозможны — придётся удалить карту и создать заново.',
+      confirmLabel: 'Утвердить',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setSubmitting(true);
     const ok = await approveTechCard();
     setSubmitting(false);

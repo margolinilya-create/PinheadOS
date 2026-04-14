@@ -9,6 +9,8 @@ import { usePayrollStore } from '../../../store/usePayrollStore';
 import { useWorkersStore } from '../../../store/useWorkersStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from '../../../store/useToastStore';
+import { confirm } from '../../../store/useConfirmStore';
+import { pluralize } from '../../../utils/i18n';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
 import { Skeleton } from '../../shared/Skeleton';
 import { downloadCsv } from '../../../lib/csvExport';
@@ -112,13 +114,17 @@ export default function PayrollScreen() {
   };
 
   const handleClose = async (batchId) => {
-    if (!window.confirm(
-      'Закрыть period? После этого записи будут заморожены навсегда. Корректировки — только через новые reversal_of записи.'
-    )) return;
+    const ok = await confirm({
+      title: 'Закрыть период?',
+      message: 'После этого записи будут заморожены навсегда. Корректировки — только через новые reversal_of записи.',
+      confirmLabel: 'Закрыть период',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setClosing(batchId);
-    const ok = await closeBatch(batchId);
+    const closed = await closeBatch(batchId);
     setClosing(null);
-    if (ok) toast.success?.('Period закрыт') ?? null;
+    if (closed) toast.success?.('Период закрыт') ?? null;
   };
 
   return (
@@ -138,8 +144,8 @@ export default function PayrollScreen() {
       {batches.length === 0 && !loading && (
         <div className={s.emptyState}>
           <span className={s.emptyStateIcon}>💰</span>
-          <div className={s.emptyStateTitle}>Periods нет</div>
-          <p>Они создадутся автоматически когда мастер запишет первую сделку.</p>
+          <div className={s.emptyStateTitle}>Периодов нет</div>
+          <p>Они создадутся автоматически, когда мастер запишет первую сделку.</p>
         </div>
       )}
 
@@ -158,14 +164,17 @@ export default function PayrollScreen() {
                 </span>
               </div>
               <div className={s.subtitle} style={{ margin: 0 }}>
-                {isExpanded ? '▼' : '▶'} {entries.length || '?'} записей
+                {isExpanded ? '▼' : '▶'}{' '}
+                {entries.length
+                  ? `${entries.length} ${pluralize(entries.length, 'запись', 'записи', 'записей')}`
+                  : '?'}
               </div>
             </div>
 
             {isExpanded && (
               <div style={{ marginTop: 16 }} onClick={(e) => e.stopPropagation()}>
                 {entries.length === 0 ? (
-                  <p className={s.empty}>В этом period'е ещё нет начислений.</p>
+                  <p className={s.empty}>В этом периоде ещё нет начислений.</p>
                 ) : (
                   <table className={s.table}>
                     <thead>
@@ -271,7 +280,7 @@ export default function PayrollScreen() {
                       onClick={() => handleClose(b.id)}
                       disabled={closing === b.id}
                     >
-                      Закрыть period (заморозить записи)
+                      Закрыть период (заморозить записи)
                     </button>
                   )}
                 </div>

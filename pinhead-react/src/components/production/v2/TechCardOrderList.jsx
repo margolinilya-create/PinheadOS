@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
+import { STATUS_LABELS } from '../../../store/useOrdersStore';
 import { toast } from '../../../store/useToastStore';
 import { translateSupabaseError } from '../../../utils/i18n';
 import { useDocumentTitle } from '../../../hooks/useDocumentTitle';
@@ -151,7 +152,7 @@ export default function TechCardOrderList() {
               return (
                 <tr key={o.id}>
                   <td><strong>{o.order_number}</strong></td>
-                  <td>{o.status}</td>
+                  <td>{STATUS_LABELS[o.status] ?? o.status}</td>
                   <td>
                     {tc ? (
                       <span className={`${s.badge} ${TC_STATUS_CLASS[tc.status] ?? ''}`}>

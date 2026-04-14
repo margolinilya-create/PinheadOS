@@ -117,8 +117,8 @@ export default function ForemanScreen() {
         </label>
         <span className={s.subtitle} style={{ margin: 0 }}>
           {openBatch
-            ? <>Открыт period: <span className={s.code}>{openBatch.period_start}…{openBatch.period_end}</span></>
-            : <>Period не открыт — будет создан автоматически при первой записи</>}
+            ? <>Открыт период: <span className={s.code}>{openBatch.period_start}…{openBatch.period_end}</span></>
+            : <>Период не открыт — будет создан автоматически при первой записи</>}
         </span>
       </div>
 
