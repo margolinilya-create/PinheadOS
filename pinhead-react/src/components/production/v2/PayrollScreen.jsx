@@ -25,10 +25,21 @@ const ENTRY_TYPE_LABEL = {
   reversal_of: 'сторно',
 };
 
+// Reversal reasons per director session 13 Q7. "Другое" collapses the
+// dropdown to a free-text field — the DB still stores a single `reason`
+// string, so the preset is saved verbatim ("Опечатка в записи" etc).
+const REVERSAL_REASONS = [
+  'Опечатка в записи',
+  'Брак / переделка',
+  'Неправильный работник или дубликат',
+];
+const REVERSAL_OTHER = 'Другое';
+
 export default function PayrollScreen() {
   useDocumentTitle('Payroll');
-  const role = useAuthStore((st) => st.effectiveRole());
-  const canClose = ['admin', 'director'].includes(role);
+  // RLS piecework_batches_write_admin_senior_hr mirrors this exactly —
+  // director, senior_foreman (мастера цехов), or hr.
+  const canClose = useAuthStore((st) => st.canClosePayroll());
 
   const batches = usePayrollStore((st) => st.batches);
   const entriesByBatch = usePayrollStore((st) => st.entriesByBatch);
@@ -44,7 +55,16 @@ export default function PayrollScreen() {
   const [expanded, setExpanded] = useState(null);
   const [closing, setClosing] = useState(null);
   const [reversingId, setReversingId] = useState(null);
-  const [reversalReason, setReversalReason] = useState('');
+  // Two-part reversal form: a preset pick (one of REVERSAL_REASONS, or
+  // "Другое" to reveal the free-text box), and the resolved text we
+  // actually send to the DB.
+  const [reversalPreset, setReversalPreset] = useState('');
+  const [reversalCustom, setReversalCustom] = useState('');
+  // For the preset flow the final reason IS the preset label. For the
+  // "Другое" flow it's whatever the user typed. Blank until chosen.
+  const resolvedReversalReason = reversalPreset === REVERSAL_OTHER
+    ? reversalCustom.trim()
+    : reversalPreset;
 
   useEffect(() => { loadBatches(); }, [loadBatches]);
   useEffect(() => { loadWorkers(); }, [loadWorkers]);
@@ -68,20 +88,25 @@ export default function PayrollScreen() {
 
   const handleReverseStart = (entryId) => {
     setReversingId(entryId);
-    setReversalReason('');
+    setReversalPreset('');
+    setReversalCustom('');
   };
 
   const handleReverseCancel = () => {
     setReversingId(null);
-    setReversalReason('');
+    setReversalPreset('');
+    setReversalCustom('');
   };
 
   const handleReverseConfirm = async (entry) => {
-    const created = await reverseEntry(entry, reversalReason);
+    const reason = resolvedReversalReason;
+    if (!reason) return;
+    const created = await reverseEntry(entry, reason);
     if (created) {
       toast.success?.('Сторно создано') ?? null;
       setReversingId(null);
-      setReversalReason('');
+      setReversalPreset('');
+      setReversalCustom('');
       // Reload entries — the new reversal lives in the open batch.
       await loadEntriesForBatch(created.batch_id);
       // Refresh batches in case a new one was auto-created.
@@ -204,14 +229,29 @@ export default function PayrollScreen() {
                             <td className={s.numCol} style={{ fontWeight: 600 }}>{e.amount}₽</td>
                             <td>
                               {isReversingThis ? (
-                                <input
-                                  type="text"
-                                  placeholder="Причина сторно"
-                                  value={reversalReason}
-                                  onChange={(ev) => setReversalReason(ev.target.value)}
-                                  autoFocus
-                                  style={{ width: '100%' }}
-                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  <select
+                                    value={reversalPreset}
+                                    onChange={(ev) => setReversalPreset(ev.target.value)}
+                                    autoFocus
+                                    style={{ width: '100%' }}
+                                  >
+                                    <option value="">— выбрать причину —</option>
+                                    {REVERSAL_REASONS.map((r) => (
+                                      <option key={r} value={r}>{r}</option>
+                                    ))}
+                                    <option value={REVERSAL_OTHER}>{REVERSAL_OTHER}…</option>
+                                  </select>
+                                  {reversalPreset === REVERSAL_OTHER && (
+                                    <input
+                                      type="text"
+                                      placeholder="Опишите причину"
+                                      value={reversalCustom}
+                                      onChange={(ev) => setReversalCustom(ev.target.value)}
+                                      style={{ width: '100%' }}
+                                    />
+                                  )}
+                                </div>
                               ) : (
                                 e.reason ?? '—'
                               )}
@@ -226,7 +266,7 @@ export default function PayrollScreen() {
                                     type="button"
                                     className="btn btn-primary"
                                     onClick={() => handleReverseConfirm(e)}
-                                    disabled={!reversalReason.trim()}
+                                    disabled={!resolvedReversalReason}
                                   >
                                     OK
                                   </button>

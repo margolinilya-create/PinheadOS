@@ -31,6 +31,7 @@ const ForemanScreen = React.lazy(() => import('./components/production/v2/Forema
 const PayrollScreen = React.lazy(() => import('./components/production/v2/PayrollScreen'));
 const TrashScreen = React.lazy(() => import('./components/production/v2/TrashScreen'));
 const OrdersTableView = React.lazy(() => import('./components/production/v2/OrdersTableView'));
+const OrdersPageShell = React.lazy(() => import('./components/production/v2/OrdersPageShell'));
 const WorkersScreen = React.lazy(() => import('./components/production/v2/WorkersScreen'));
 const NotificationsScreen = React.lazy(() => import('./components/production/v2/NotificationsScreen'));
 const NotificationsBell = React.lazy(() => import('./components/production/v2/NotificationsBell'));
@@ -158,7 +159,11 @@ function App() {
   const isAdmin = ['admin', 'director'].includes(effectiveRole);
   const isProduction = effectiveRole === 'production';
   const isDesigner = effectiveRole === 'designer';
-  const canEdit = !isProduction && !isDesigner;
+  const isHr = effectiveRole === 'hr';
+  const isSeniorForeman = user.role === 'production' && user.sub_role === 'senior_foreman';
+  const canEdit = !isProduction && !isDesigner && !isHr;
+  // Mirrors RLS piecework_batches_write_admin_senior_hr from 20260530.
+  const canClosePayroll = isAdmin || isHr || isSeniorForeman;
 
   return (
     <>
@@ -188,7 +193,11 @@ function App() {
       <main id="main-content">
       <Routes>
         <Route path="/" element={<WizardPage />} />
-        <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
+        <Route path="/orders" element={
+          ordersTableViewEnabled
+            ? <Suspense fallback={<div className="panel-loading">Загрузка...</div>}><OrdersPageShell><KanbanBoard /></OrdersPageShell></Suspense>
+            : <Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>
+        } />
         <Route path="/print" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PrintPreview /></Suspense>} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
         <Route path="/prices" element={<Navigate to="/sku?tab=pricing" replace />} />
@@ -208,16 +217,16 @@ function App() {
           <Route path="/foreman" element={<RoleGuard allowed={isAdmin || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ForemanScreen /></Suspense></RoleGuard>} />
         )}
         {payrollScreenEnabled && (
-          <Route path="/payroll" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PayrollScreen /></Suspense></RoleGuard>} />
+          <Route path="/payroll" element={<RoleGuard allowed={canClosePayroll}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PayrollScreen /></Suspense></RoleGuard>} />
         )}
         {trashScreenEnabled && (
           <Route path="/trash" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><TrashScreen /></Suspense></RoleGuard>} />
         )}
         {ordersTableViewEnabled && (
-          <Route path="/orders/table" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><OrdersTableView /></Suspense>} />
+          <Route path="/orders/table" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><OrdersPageShell><OrdersTableView /></OrdersPageShell></Suspense>} />
         )}
         {workersScreenEnabled && (
-          <Route path="/workers" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><WorkersScreen /></Suspense></RoleGuard>} />
+          <Route path="/workers" element={<RoleGuard allowed={isAdmin || isHr || isSeniorForeman}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><WorkersScreen /></Suspense></RoleGuard>} />
         )}
         {notificationsScreenEnabled && (
           <Route path="/notifications" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><NotificationsScreen /></Suspense>} />

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
 import { translateSupabaseError } from '../utils/i18n';
-import type { User, UserRole, ProfileStatus } from '../types/auth';
+import type { User, UserRole, SubRole, ProfileStatus } from '../types/auth';
 
 // ─── DEV MODE: bypass авторизации ───
 const DEV_MODE = import.meta.env.DEV;
@@ -29,6 +29,12 @@ interface AuthStore {
   isROP: () => boolean;
   isProduction: () => boolean;
   isDesigner: () => boolean;
+  isHr: () => boolean;
+  isSeniorForeman: () => boolean;
+  // Who is allowed to close payroll batches: director + senior_foreman + hr.
+  // Mirrors the RLS policy piecework_batches_write_admin_senior_hr from
+  // 20260530_hr_role_and_payroll_close.
+  canClosePayroll: () => boolean;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -42,7 +48,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   init: async () => {
     if (DEV_MODE) {
       set({
-        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', approved: true, active: true },
+        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', sub_role: null, approved: true, active: true },
         profileStatus: 'active' as ProfileStatus,
         loading: false,
         error: null,
@@ -78,7 +84,15 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const active = data.active !== false;
       const status: ProfileStatus = !active ? 'disabled' : data.approved ? 'active' : 'pending_approval';
       set({
-        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved: data.approved, active },
+        user: {
+          id,
+          email,
+          name: data.name || email,
+          role: (data.role as UserRole) || 'manager',
+          sub_role: (data.sub_role as SubRole) || null,
+          approved: data.approved,
+          active,
+        },
         profileStatus: status,
         loading: false,
         error: null,
@@ -118,7 +132,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         approved: false,
       });
       set({
-        user: { id: data.user.id, email, name, role: 'manager', approved: false, active: true },
+        user: { id: data.user.id, email, name, role: 'manager', sub_role: null, approved: false, active: true },
         profileStatus: 'pending_approval' as ProfileStatus,
         loading: false,
       });
@@ -144,4 +158,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isROP: () => ['admin', 'director', 'rop'].includes(get().effectiveRole() || ''),
   isProduction: () => get().effectiveRole() === 'production',
   isDesigner: () => get().effectiveRole() === 'designer',
+  isHr: () => get().effectiveRole() === 'hr',
+  // sub_role is a real profile attribute, not something previewRole flips.
+  // Preview-as-hr doesn't pretend to be a foreman.
+  isSeniorForeman: () => {
+    const u = get().user;
+    return u?.role === 'production' && u?.sub_role === 'senior_foreman';
+  },
+  canClosePayroll: () => {
+    const { effectiveRole, isSeniorForeman } = get();
+    const r = effectiveRole();
+    return r === 'admin' || r === 'director' || r === 'hr' || isSeniorForeman();
+  },
 }));

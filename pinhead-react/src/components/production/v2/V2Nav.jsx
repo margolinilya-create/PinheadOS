@@ -68,18 +68,18 @@ export default function V2Nav() {
   const foreman = useFeatureFlag('foreman_screen');
   const payroll = useFeatureFlag('payroll_screen');
   const trash = useFeatureFlag('trash_screen');
-  const ordersTable = useFeatureFlag('orders_table_view');
+  // ordersTable is still a flag-gated feature but no longer surfaces as
+  // a V2Nav chip — it lives as a tab inside /orders (OrdersPageShell).
   const workersScreen = useFeatureFlag('workers_screen');
   const notificationsScreen = useFeatureFlag('notifications_screen');
 
-  if (!techCard && !workshop && !foreman && !payroll && !trash && !ordersTable && !workersScreen && !notificationsScreen) return null;
+  if (!techCard && !workshop && !foreman && !payroll && !trash && !workersScreen && !notificationsScreen) return null;
 
   const chipClass = ({ isActive }) => `${s.navChip} ${isActive ? s.navChipActive : ''}`;
 
   return (
     <div className={s.navBar} data-testid="v2-nav">
       <span className={s.navLabel}>V2</span>
-      {ordersTable && <NavLink to="/orders/table" className={chipClass}>Заказы (таблица)</NavLink>}
       {techCard && <NavLink to="/tech-cards" className={chipClass}>Tech Cards</NavLink>}
       {workshop && <NavLink to="/workshop" className={chipClass}>Цех</NavLink>}
       {foreman && <NavLink to="/foreman" className={chipClass}>Мастер</NavLink>}
