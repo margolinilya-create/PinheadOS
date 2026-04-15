@@ -19,7 +19,8 @@ export type FeatureFlag =
   | 'trash_screen'
   | 'orders_table_view'
   | 'workers_screen'
-  | 'notifications_screen';
+  | 'notifications_screen'
+  | 'kpi_screen';
 
 type FlagMap = Partial<Record<FeatureFlag, boolean>>;
 

@@ -317,6 +317,15 @@
   margin-top: 2px;
 }
 
+.blockedCard {
+  background: var(--bg1);
+  border: 1px dashed var(--border-mid);
+  border-radius: 12px;
+  padding: 20px 24px;
+  text-align: center;
+  color: var(--text-mid);
+}
+
 /* ── Workshop column board ──────────────────────────── */
 
 .columnBoard {

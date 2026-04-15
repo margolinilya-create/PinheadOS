@@ -72,8 +72,9 @@ export default function V2Nav() {
   // a V2Nav chip — it lives as a tab inside /orders (OrdersPageShell).
   const workersScreen = useFeatureFlag('workers_screen');
   const notificationsScreen = useFeatureFlag('notifications_screen');
+  const kpiScreen = useFeatureFlag('kpi_screen');
 
-  if (!techCard && !workshop && !foreman && !payroll && !trash && !workersScreen && !notificationsScreen) return null;
+  if (!techCard && !workshop && !foreman && !payroll && !trash && !workersScreen && !notificationsScreen && !kpiScreen) return null;
 
   const chipClass = ({ isActive }) => `${s.navChip} ${isActive ? s.navChipActive : ''}`;
 
@@ -86,6 +87,7 @@ export default function V2Nav() {
       {workersScreen && <NavLink to="/workers" className={chipClass}>Работники</NavLink>}
       {payroll && <NavLink to="/payroll" className={chipClass}>Payroll</NavLink>}
       {notificationsScreen && <NavLink to="/notifications" className={chipClass}>Уведомления</NavLink>}
+      {kpiScreen && <NavLink to="/kpi" className={chipClass}>KPI</NavLink>}
       {trash && <NavLink to="/trash" className={chipClass}>Корзина</NavLink>}
 
       <span style={{ flex: 1 }} />
