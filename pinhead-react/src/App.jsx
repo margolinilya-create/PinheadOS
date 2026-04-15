@@ -68,9 +68,26 @@ function WizardPage() {
   );
 }
 
-// Role guard — redirects to / if role doesn't match
+// Role guard — renders a "no access" panel when the role doesn't match
+// instead of auto-redirecting. The old redirect flow created a race on
+// deep links: if the route was rendered before auth finished resolving
+// (fake dev user → real user replace), the guard would evaluate false
+// once, fire Navigate('/'), and then never re-enter the target route
+// even after the real role arrived. A static panel is clearer UX and
+// side-step the race entirely.
 function RoleGuard({ allowed, children }) {
-  if (!allowed) return <Navigate to="/" replace />;
+  if (!allowed) {
+    return (
+      <div className="no-access" role="alert">
+        <div className="no-access-icon">🔒</div>
+        <div className="no-access-title">Нет доступа</div>
+        <p className="no-access-desc">
+          Этот раздел доступен только определённым ролям. Если думаешь что это ошибка —
+          попроси администратора открыть доступ.
+        </p>
+      </div>
+    );
+  }
   return children;
 }
 

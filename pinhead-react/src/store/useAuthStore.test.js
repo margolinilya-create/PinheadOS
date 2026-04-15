@@ -104,6 +104,59 @@ describe('useAuthStore — role helpers', () => {
   });
 });
 
+describe('useAuthStore — HR + senior_foreman (session 13)', () => {
+  it('isHr returns true for hr role', () => {
+    useAuthStore.setState({ user: { role: 'hr', sub_role: null } });
+    expect(useAuthStore.getState().isHr()).toBe(true);
+  });
+
+  it('isHr returns false for admin', () => {
+    useAuthStore.setState({ user: { role: 'admin', sub_role: null } });
+    expect(useAuthStore.getState().isHr()).toBe(false);
+  });
+
+  it('isSeniorForeman requires role=production AND sub_role=senior_foreman', () => {
+    useAuthStore.setState({ user: { role: 'production', sub_role: 'senior_foreman' } });
+    expect(useAuthStore.getState().isSeniorForeman()).toBe(true);
+
+    useAuthStore.setState({ user: { role: 'production', sub_role: 'foreman' } });
+    expect(useAuthStore.getState().isSeniorForeman()).toBe(false);
+
+    useAuthStore.setState({ user: { role: 'admin', sub_role: 'senior_foreman' } });
+    expect(useAuthStore.getState().isSeniorForeman()).toBe(false);
+  });
+
+  it('canClosePayroll true for director', () => {
+    useAuthStore.setState({ user: { role: 'director', sub_role: null } });
+    expect(useAuthStore.getState().canClosePayroll()).toBe(true);
+  });
+
+  it('canClosePayroll true for hr', () => {
+    useAuthStore.setState({ user: { role: 'hr', sub_role: null } });
+    expect(useAuthStore.getState().canClosePayroll()).toBe(true);
+  });
+
+  it('canClosePayroll true for senior_foreman (production + sub_role)', () => {
+    useAuthStore.setState({ user: { role: 'production', sub_role: 'senior_foreman' } });
+    expect(useAuthStore.getState().canClosePayroll()).toBe(true);
+  });
+
+  it('canClosePayroll false for plain production foreman', () => {
+    useAuthStore.setState({ user: { role: 'production', sub_role: 'foreman' } });
+    expect(useAuthStore.getState().canClosePayroll()).toBe(false);
+  });
+
+  it('canClosePayroll false for manager', () => {
+    useAuthStore.setState({ user: { role: 'manager', sub_role: null } });
+    expect(useAuthStore.getState().canClosePayroll()).toBe(false);
+  });
+
+  it('canClosePayroll false when user is null', () => {
+    useAuthStore.setState({ user: null });
+    expect(useAuthStore.getState().canClosePayroll()).toBe(false);
+  });
+});
+
 describe('useAuthStore — previewRole', () => {
   it('effectiveRole returns user role when no preview', () => {
     useAuthStore.setState({ user: { role: 'admin' } });

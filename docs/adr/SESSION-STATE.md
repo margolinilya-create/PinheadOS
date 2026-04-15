@@ -1,24 +1,24 @@
 # Session State — быстрый восстановитель контекста
 
-**Последнее обновление:** 2026-04-14 (сессия 12, UAT round 1 + fixes)
-**Текущая фаза:** v2 MVP UAT-validated, готов к cutover. Bitrix sync блокирован.
+**Последнее обновление:** 2026-04-15 (сессия 13, director Q&A + 4 фичи + RoleGuard fix)
+**Текущая фаза:** v2 MVP UAT-validated + дополнительная пачка фичей по директорским ответам. Готов к cutover. Bitrix sync блокирован.
 **Активная ветка:** `redesign/v2`
 
 > Этот файл существует чтобы любая новая сессия могла за 2 минуты понять где мы остановились. Обновляется в конце каждой рабочей сессии.
 
 ## TL;DR
 
-Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + W4 закрыты, UAT round 1 пройден.** 60+ коммитов с момента старта ветки.
+Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3 + W4 закрыты, UAT round 1+2 пройдены, сессия 13 — 4 фичи по директорским Q&A.** 65+ коммитов с момента старта ветки.
 
-- 8 миграций применены к v2 Supabase (последняя 20260525_piecework_update_policy_fix)
+- **9 миграций** применены к v2 Supabase (последняя 20260530_hr_role_and_payroll_close)
 - 6 ADR-0001 stores + useUndoStore + lib/csvExport + lib/domainEvents + 2 hooks
-- 9 production routes + bell + V2Nav + UndoToastHost
+- **10 production routes** + bell + V2Nav + UndoToastHost + OrdersPageShell + KpiScreen
 - **Real outbox consumer:** dispatcher теперь INSERTs в notifications таблицу с title/body — bell показывает реальные сообщения, не event_types
 - CSV export для payroll/workers/orders с UTF-8 BOM (1С/Excel ready)
 - KPI tiles на /workshop и /tech-cards
 - Search filters в /tech-cards, /workers, /orders/table
 - piecework reversal flow для closed batches (ADR-0007)
-- **846/846 тестов** зелёные, build чистый, diff-guard не потревожен
+- **865/865 тестов** зелёные (846 до сессии 13 + 9 canClosePayroll/hr/senior_foreman + 5 OrdersPageShell + 5 KpiScreen), build чистый, diff-guard не потревожен
 - Demo seed + real auth user `demo@pinhead.local` для UAT
 - **UAT round 1:** найден 1 blocker + 3 major + 5 minor → всё починено → round 2 PASS по всем пунктам
 - **Director UAT checklist:** `docs/UAT-director-checklist.md` готов (20-30 мин прогон)
@@ -58,6 +58,39 @@ Production-first редизайн PinheadOS 2.0 в `redesign/v2`. **W1 + W2 + W3
 - Deep-link на защищённый route редиректит на `/` до инициализации auth store (RoleGuard видит isAdmin=false)
 - `order_tech_cards` reset в draft требует сбрасывать ОБА поля (`approved_at` + `approved_by`), CHECK `order_tech_cards_approved_consistency` корректен
 - UndoToast 5s window может быть коротким для медленных пользователей — UX polish
+
+## Сессия 13 (2026-04-15, director Q&A block)
+
+Директор ответил на 20 вопросов по Bitrix / Payroll / HR / Cutover / Scope / UX polish. 4 фичи + polish landed из ответов:
+
+**1. UX polish (commit `fe5b473`):**
+- UndoToast 5с → 10с (разумный баланс, но не навязчиво)
+- OnboardingTips hard opt-out через `ph_onboarding_enabled`; тумблер в V2Nav («🎓 Подсказки: вкл/выкл»), re-enable сбрасывает `ph_onboarding_done` + reload
+
+**2. HR роль + payroll delegation + reversal dropdown + orders tabs (commit `11d8547`):**
+- Миграция `20260530_hr_role_and_payroll_close.sql` применена к v2 Supabase:
+  - Новый `auth_is_hr()` SECURITY DEFINER predicate
+  - `workers` write: admin/director/**senior_foreman**/**hr**
+  - `piecework_batches` write: admin/director/**senior_foreman**/**hr** (close delegation per Q11)
+  - `piecework_entries_update_admin_senior_hr_unpaid`: belt to trigger suspenders
+- `UserRole` теперь включает `'hr'`, `SubRole` тип, `sub_role` в User/Profile, fetchProfile читает
+- `useAuthStore.isHr()`, `isSeniorForeman()`, `canClosePayroll()` — зеркала RLS
+- App.jsx: `/workers` и `/payroll` guards расширены
+- `OrdersPageShell.jsx` — новый shell с табами «Канбан | Таблица» над обоими route'ами (KanbanBoard не тронут, red zone). V2Nav потерял дубль «Заказы (таблица)»
+- PayrollScreen: reversal reason → dropdown (3 preset + «Другое…» c free-text), `canClosePayroll()` вместо хардкода
+
+**3. /kpi экран (commit `a3f5562`):**
+- `KpiScreen.jsx` + `kpi_screen` feature flag (включён в v2)
+- Period selector (7/30/90д/всё), 3 KPI tile (участков, часов, сдельная ₽), per-section таблица с progress-bar
+- Placeholder'ы для маржи (блок: cost-model) и on-time (блок: Bitrix baseline)
+- Data из snapshot-полей — не ломается при изменении каталога операций
+
+**4. Housekeeping + tests (этот коммит):**
+- **RoleGuard fix:** вместо `Navigate('/')` рендерит `.no-access` карточку. Причина: deep-link race — guard мог сработать до инициализации auth store, и после получения реальной роли редирект уже произошёл. Static panel side-steps race.
+- `useAuthStore.test.js`: +9 тестов для `isHr()`, `isSeniorForeman()`, `canClosePayroll()` (все комбинации ролей + null user)
+- `OrdersPageShell.test.jsx`: 5 тестов (оба таба, активный класс per-route, end matcher)
+- `KpiScreen.test.jsx`: 5 smoke-тестов (хедеры, вычисление часов из snapshot, per-section table, блок-placeholder'ы, period selector)
+- SESSION-STATE.md + CLAUDE.md актуализированы
 
 ## Следующие шаги перед cutover
 
