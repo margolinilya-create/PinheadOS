@@ -4,6 +4,7 @@
 // Mounts only when at least one v2 flag is enabled; each link is
 // individually flag-gated.
 
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useFeatureFlag } from '../../../hooks/useFeatureFlag';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -13,6 +14,21 @@ import s from './v2.module.css';
 
 const DEMO_EMAIL = 'demo@pinhead.local';
 const DEMO_PASSWORD = 'DemoPass2026!';
+
+// Onboarding toggle — per director UAT feedback, tips should be
+// opt-out (hard off) AND replayable. When flipped ON we also clear
+// ph_onboarding_done so the tour restarts on next reload.
+function readOnboardingEnabled() {
+  return localStorage.getItem('ph_onboarding_enabled') !== '0';
+}
+function writeOnboardingEnabled(next) {
+  if (next) {
+    localStorage.setItem('ph_onboarding_enabled', '1');
+    localStorage.removeItem('ph_onboarding_done');
+  } else {
+    localStorage.setItem('ph_onboarding_enabled', '0');
+  }
+}
 
 async function signInAsDemo() {
   const { error } = await supabase.auth.signInWithPassword({
@@ -38,6 +54,14 @@ export default function V2Nav() {
   // 'dev' = fake DEV_MODE user → no real Supabase session → RLS blocks reads.
   // Show a one-click "log in as demo" button.
   const isFakeDev = userId === 'dev';
+
+  const [tipsEnabled, setTipsEnabled] = useState(readOnboardingEnabled);
+  const toggleTips = () => {
+    const next = !tipsEnabled;
+    writeOnboardingEnabled(next);
+    setTipsEnabled(next);
+    if (next) window.location.reload();
+  };
 
   const techCard = useFeatureFlag('tech_card_builder');
   const workshop = useFeatureFlag('workshop_board');
@@ -65,6 +89,15 @@ export default function V2Nav() {
       {trash && <NavLink to="/trash" className={chipClass}>Корзина</NavLink>}
 
       <span style={{ flex: 1 }} />
+      <button
+        type="button"
+        className={s.navChip}
+        onClick={toggleTips}
+        title={tipsEnabled ? 'Выключить подсказки интерфейса' : 'Включить подсказки и перезагрузить'}
+        aria-pressed={tipsEnabled}
+      >
+        🎓 Подсказки: {tipsEnabled ? 'вкл' : 'выкл'}
+      </button>
       {isFakeDev ? (
         <button
           type="button"

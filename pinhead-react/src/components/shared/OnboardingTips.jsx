@@ -9,16 +9,19 @@ const TIPS = [
 export default function OnboardingTips() {
   const [step, setStep] = useState(0);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem('ph_onboarding_done') === '1');
+  // Hard opt-out: if the user disabled tips in the profile toggle,
+  // never render anything — not even the first-visit flow.
+  const disabled = localStorage.getItem('ph_onboarding_enabled') === '0';
 
   useEffect(() => {
-    if (dismissed) return;
+    if (dismissed || disabled) return;
     const el = document.querySelector(TIPS[step]?.target);
     if (el?.scrollIntoView) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [step, dismissed]);
+  }, [step, dismissed, disabled]);
 
-  if (dismissed || step >= TIPS.length) return null;
+  if (disabled || dismissed || step >= TIPS.length) return null;
 
   const tip = TIPS[step];
   const targetEl = document.querySelector(tip.target);

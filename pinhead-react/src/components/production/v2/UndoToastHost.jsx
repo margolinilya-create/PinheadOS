@@ -1,7 +1,7 @@
 // redesign/v2 — undo toast host
 //
 // Renders the stack of undo entries from useUndoStore. Each card
-// auto-dismisses after AUTO_DISMISS_MS (5s, set in the store). The
+// auto-dismisses after AUTO_DISMISS_MS (10s, set in the store). The
 // "Отменить" button calls the restore lambda and removes the card.
 
 import { useUndoStore } from '../../../store/useUndoStore';

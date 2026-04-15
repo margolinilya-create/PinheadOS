@@ -9,12 +9,12 @@
 //   });
 //
 // UndoToastHost renders each entry with a "Отменить" button. Entries
-// auto-expire after AUTO_DISMISS_MS (5s) — at that point the soft delete
+// auto-expire after AUTO_DISMISS_MS (10s) — at that point the soft delete
 // is effectively permanent (the row is already deleted_at=now in DB).
 
 import { create } from 'zustand';
 
-export const AUTO_DISMISS_MS = 5000;
+export const AUTO_DISMISS_MS = 10000;
 
 export interface UndoEntry {
   id: number;
