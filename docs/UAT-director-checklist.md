@@ -2,7 +2,8 @@
 
 **Что это:** новый production-слой PinheadOS (редизайн, ветка `redesign/v2`). Проверь золотой путь и отметь что сломано/непонятно/неудобно.
 
-**Где тестировать:** `<Vercel preview URL — вставить>`
+**Где тестировать:** https://pinhead-os-git-redesign-v2-margolinilya-creates-projects.vercel.app/?_vercel_share=j1GwQY8Ak0XjiEBPVBMT2ThdKyZBTeDC
+_(ссылка действует до **16.04.2026 18:35**, после — попроси разработчика перегенерировать)_
 **Логин:** `demo@pinhead.local` / `DemoPass2026!`
 **Если видишь экран авторизации после загрузки** — жми кнопку **🔐 Войти как demo** в верхней панели «V2».
 
