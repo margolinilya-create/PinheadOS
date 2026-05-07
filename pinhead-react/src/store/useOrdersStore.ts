@@ -31,6 +31,8 @@ async function generateOrderNumber(): Promise<string> {
 }
 
 const PAGE_SIZE = 50;
+// Explicit column list — не тянуть лишние/будущие колонки через select('*')
+const ORDER_COLUMNS = 'id, order_number, status, data, total_sum, total_qty, item_type, bitrix_deal, notes, created_by, created_at' as const;
 
 // Raw payload from wizard — shape is loose during active migration of slice types
 type OrderPayload = Record<string, unknown> & {
@@ -85,7 +87,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       const role = auth.user?.role;
       const userId = auth.user?.id;
 
-      let query = supabase.from('orders').select('*')
+      let query = supabase.from('orders').select(ORDER_COLUMNS)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
 
@@ -126,7 +128,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       const role = auth.user?.role;
       const userId = auth.user?.id;
 
-      let query = supabase.from('orders').select('*')
+      let query = supabase.from('orders').select(ORDER_COLUMNS)
         .order('created_at', { ascending: false })
         .lt('created_at', lastCreatedAt)
         .limit(PAGE_SIZE);

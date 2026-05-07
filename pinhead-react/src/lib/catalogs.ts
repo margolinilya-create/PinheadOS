@@ -4,9 +4,13 @@ import { sessionGet, sessionSet, sessionRemove } from './storage';
 const CACHE_KEY = 'pinhead_catalogs_v1';
 const CACHE_TTL = 30 * 60 * 1000; // 30 минут
 
+// Dedup: main.jsx + App.jsx вызывают loadCatalogs параллельно
+let _loadPromise: Promise<Record<string, unknown>> | null = null;
+
 /**
  * Загружает все каталоги из таблицы catalog_config в Supabase.
  * Использует sessionStorage кэш с TTL 30 минут.
+ * Dedup: повторный вызов возвращает тот же промис.
  * Возвращает объект { key: value, ... }
  */
 export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
@@ -14,6 +18,17 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
   const cached = sessionGet<Record<string, unknown>>(CACHE_KEY);
   if (cached) return cached;
 
+  // Dedup: если запрос уже в полёте, вернуть тот же промис
+  if (_loadPromise) return _loadPromise;
+
+  _loadPromise = _fetchCatalogs().catch((err) => {
+    _loadPromise = null; // сброс при ошибке — следующий вызов повторит запрос
+    throw err;
+  });
+  return _loadPromise;
+}
+
+async function _fetchCatalogs(): Promise<Record<string, unknown>> {
   // Загрузить из Supabase (catalog_config + app_config)
   const [catalogRes, appRes] = await Promise.all([
     supabase.from('catalog_config').select('key, value'),
@@ -57,4 +72,5 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
  */
 export function clearCatalogsCache(): void {
   sessionRemove(CACHE_KEY);
+  _loadPromise = null;
 }

@@ -8,6 +8,9 @@ import type { User, UserRole, SubRole, ProfileStatus } from '../types/auth';
 // ─── DEV MODE: bypass авторизации ───
 const DEV_MODE = import.meta.env.DEV;
 
+// Dedup: не вызывать init() дважды (main.jsx + App.jsx race)
+let _initPromise: Promise<void> | null = null;
+
 interface AuthStore {
   user: User | null;
   profileStatus: ProfileStatus;
@@ -44,42 +47,38 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   error: null,
   previewRole: null,
 
-  // Инициализация — проверка сессии
+  // Инициализация — проверка сессии (dedup: main.jsx + App.jsx вызывают параллельно)
   init: async () => {
-    if (DEV_MODE) {
-      set({
-        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', sub_role: null, approved: true, active: true },
-        profileStatus: 'active' as ProfileStatus,
-        loading: false,
-        error: null,
-      });
+    if (_initPromise) return _initPromise;
+    _initPromise = (async () => {
+      if (DEV_MODE) {
+        set({
+          user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', sub_role: null, approved: true, active: true },
+          profileStatus: 'active' as ProfileStatus,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           await get().fetchProfile(session.user.id, session.user.email!);
+        } else {
+          set({ loading: false });
         }
-      } catch {
-        if (import.meta.env.DEV) console.log('Supabase offline, running in dev mode');
-      }
-      return;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await get().fetchProfile(session.user.id, session.user.email!);
-      } else {
+      } catch (err) {
+        console.error('[auth.init]', err);
+        toast.error('Ошибка авторизации');
         set({ loading: false });
       }
-    } catch (err) {
-      console.error('[auth.init]', err);
-      toast.error('Ошибка авторизации');
-      set({ loading: false });
-    }
+    })();
+    return _initPromise;
   },
 
   fetchProfile: async (id, email) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
+    const { data } = await supabase.from('profiles').select('id, name, email, role, sub_role, approved, active').eq('id', id).single();
     if (data) {
       const active = data.active !== false;
       const status: ProfileStatus = !active ? 'disabled' : data.approved ? 'active' : 'pending_approval';

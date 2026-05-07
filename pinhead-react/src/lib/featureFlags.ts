@@ -8,7 +8,7 @@
 // See CLAUDE.md "Feature flags" rule. Protected slices (catalogSlice)
 // stay untouched; this loader is its own tiny store.
 
-import { supabase } from './supabase';
+import { loadAllCatalogs } from './catalogs';
 
 export type FeatureFlag =
   | 'tech_card_builder'
@@ -32,21 +32,12 @@ let cached: FlagMap | null = null;
 export async function loadFeatureFlags(): Promise<FlagMap> {
   if (cached) return cached;
 
-  // try/catch guards against supabase client contract breaks (test mocks
-  // missing maybeSingle, network layers throwing instead of returning error).
-  // Defensive: flags failing to load should degrade to all-off, not crash.
+  // Читаем из уже загруженных каталогов (loadAllCatalogs fetches all app_config
+  // rows including feature_flags) — без лишнего round-trip к Supabase.
   try {
-    const { data, error } = await supabase
-      .from('app_config')
-      .select('value')
-      .eq('key', 'feature_flags')
-      .maybeSingle();
-
-    if (error || !data?.value) {
-      cached = DEFAULT_FLAGS;
-      return cached;
-    }
-    cached = data.value as FlagMap;
+    const catalogs = await loadAllCatalogs();
+    const flags = catalogs.feature_flags;
+    cached = (flags && typeof flags === 'object') ? flags as FlagMap : DEFAULT_FLAGS;
     return cached;
   } catch {
     cached = DEFAULT_FLAGS;

@@ -24,6 +24,7 @@ const { sessionGet, sessionRemove } = await import('./storage');
 beforeEach(() => {
   vi.clearAllMocks();
   (sessionGet as ReturnType<typeof vi.fn>).mockReturnValue(null);
+  clearCatalogsCache(); // сброс dedup-промиса между тестами
 });
 
 describe('loadAllCatalogs', () => {
