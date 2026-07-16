@@ -198,3 +198,46 @@ export const SHIPPED_STATUS_LABELS: Record<ErpShippedStatus, string> = {
   partial: 'Отгружено частично',
   shipped: 'Отгружено',
 };
+
+// --- Сотрудники и аудит (блок улучшений) -------------------------------------
+
+export type EmployeeRole =
+  | 'worker' | 'foreman' | 'dispatcher' | 'purchaser'
+  | 'storekeeper' | 'hr' | 'manager' | 'director';
+
+export interface ErpEmployee {
+  id: string;
+  full_name: string;
+  role: EmployeeRole;
+  department_id: string | null;
+  extra_department_ids: string[];
+  profile_id: string | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ErpStageEvent {
+  id: string;
+  stage_id: string;
+  order_id: string;
+  actor: string | null;
+  from_status: string | null;
+  to_status: string;
+  qty_done: number | null;
+  qty_rework: number | null;
+  comment: string | null;
+  created_at: string;
+}
+
+export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
+  worker: 'Сотрудник цеха',
+  foreman: 'Бригадир',
+  dispatcher: 'Диспетчер',
+  purchaser: 'Закупщик',
+  storekeeper: 'Кладовщик',
+  hr: 'HR',
+  manager: 'Менеджер',
+  director: 'Директор',
+};

@@ -20,10 +20,14 @@ function daysLeft(dueDate) {
   return Math.round((due - today) / 86400000);
 }
 
-function QueueCard({ entry, onStart, onDone, onBlock, onUnblock }) {
+function QueueCard({ entry, onStart, onDone, onBlock, onUnblock, onDefect }) {
   const { order, item, stage, reason, group } = entry;
   const [blockMode, setBlockMode] = useState(false);
   const [blockText, setBlockText] = useState('');
+  const [defectMode, setDefectMode] = useState(false);
+  const [defectQty, setDefectQty] = useState('');
+  const [defectText, setDefectText] = useState('');
+  const [doneQty, setDoneQty] = useState(String(item.qty));
   const d = daysLeft(order.due_date);
   const cardCls = [
     styles.queueCard,
@@ -74,15 +78,38 @@ function QueueCard({ entry, onStart, onDone, onBlock, onUnblock }) {
         )}
         {group === 'in_progress' && (
           <>
-            <button type="button" className="btn btn-primary" onClick={() => onDone(stage, item)}>
-              ✓ Готово ({item.qty} шт)
+            <input
+              type="number"
+              min="1"
+              className={styles.input}
+              style={{ maxWidth: 84, flex: '0 0 auto' }}
+              value={doneQty}
+              onChange={(e) => setDoneQty(e.target.value)}
+              aria-label="Сколько сделано, шт"
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => onDone(stage, item, Math.max(1, Number(doneQty) || item.qty))}
+            >
+              ✓ Готово
             </button>
-            {!blockMode && (
-              <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
-                🚫 Проблема
-              </button>
+            {!blockMode && !defectMode && (
+              <>
+                <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
+                  ↩ Брак
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
+                  🚫 Проблема
+                </button>
+              </>
             )}
           </>
+        )}
+        {group === 'done' && !defectMode && (
+          <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
+            ↩ Брак / переделка
+          </button>
         )}
         {group === 'blocked' && (
           <button type="button" className="btn btn-secondary" onClick={() => onUnblock(stage)}>
@@ -113,6 +140,42 @@ function QueueCard({ entry, onStart, onDone, onBlock, onUnblock }) {
           </button>
         </div>
       )}
+
+      {defectMode && (
+        <div className={styles.queueBlockForm}>
+          <input
+            type="number"
+            min="1"
+            className={styles.input}
+            style={{ maxWidth: 84, flex: '0 0 auto' }}
+            placeholder="шт"
+            value={defectQty}
+            onChange={(e) => setDefectQty(e.target.value)}
+            aria-label="Сколько штук в брак"
+            autoFocus
+          />
+          <input
+            className={styles.input}
+            placeholder="Причина брака (кривая строчка, пятно…)"
+            value={defectText}
+            onChange={(e) => setDefectText(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={!defectText.trim() || !(Number(defectQty) > 0)}
+            onClick={() => {
+              onDefect(stage, Number(defectQty), defectText.trim());
+              setDefectMode(false); setDefectQty(''); setDefectText('');
+            }}
+          >
+            В переделку
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(false)}>
+            Отмена
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -126,7 +189,7 @@ const GROUP_TITLES = {
 };
 
 export default function DepartmentQueue() {
-  const { orders, departments, loading, loaded, loadAll, setStageStatus } = useErpStore(
+  const { orders, departments, loading, loaded, loadAll, setStageStatus, reportDefect } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
@@ -134,6 +197,7 @@ export default function DepartmentQueue() {
       loaded: s.loaded,
       loadAll: s.loadAll,
       setStageStatus: s.setStageStatus,
+      reportDefect: s.reportDefect,
     })),
   );
   const [deptCode, setDeptCode] = useState(() => localStorage.getItem('erp_my_dept') || '');
@@ -210,9 +274,11 @@ export default function DepartmentQueue() {
   }, [orders, dept, deptNameById]);
 
   const onStart = (stage) => setStageStatus(stage.id, 'in_progress');
-  const onDone = (stage, item) => setStageStatus(stage.id, 'done', { qty_done: item.qty });
+  const onDone = (stage, item, qty) =>
+    setStageStatus(stage.id, 'done', { qty_done: qty ?? item.qty });
   const onBlock = (stage, reason) => setStageStatus(stage.id, 'blocked', { block_reason: reason });
   const onUnblock = (stage) => setStageStatus(stage.id, 'waiting', { block_reason: null });
+  const onDefect = (stage, qty, reason) => reportDefect(stage.id, qty, reason);
 
   return (
     <>
@@ -260,6 +326,7 @@ export default function DepartmentQueue() {
                   onDone={onDone}
                   onBlock={onBlock}
                   onUnblock={onUnblock}
+                  onDefect={onDefect}
                 />
               ))}
             </div>

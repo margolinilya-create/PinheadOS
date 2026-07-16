@@ -4,6 +4,7 @@ import ErpDashboard from './screens/ErpDashboard';
 import OrdersScreen from './screens/OrdersScreen';
 import ProductionBoard from './screens/ProductionBoard';
 import DepartmentQueue from './screens/DepartmentQueue';
+import OrderCard from './screens/OrderCard';
 import EmployeesScreen from './screens/EmployeesScreen';
 import DepartmentsScreen from './screens/DepartmentsScreen';
 import FabricPurchasing from './screens/FabricPurchasing';
@@ -30,6 +31,7 @@ export default function ErpApp({ user }) {
       <Routes>
         <Route path="/" element={<ErpDashboard />} />
         <Route path="/orders" element={<OrdersScreen user={user} />} />
+        <Route path="/orders/:orderId" element={<OrderCard />} />
         <Route path="/board" element={<ProductionBoard />} />
         <Route path="/queue" element={<DepartmentQueue />} />
         <Route path="/employees" element={<ErpGuard allowed={isAdmin}><EmployeesScreen /></ErpGuard>} />

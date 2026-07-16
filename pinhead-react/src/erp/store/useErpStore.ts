@@ -8,19 +8,38 @@
 import { create } from 'zustand';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { buildRoute } from '../utils/routes';
 import type {
   BrandingMethod,
   BrandingOn,
   ErpCalendarSlot,
   ErpDepartment,
+  ErpEmployee,
   ErpItemStage,
   ErpMaterial,
   ErpOrder,
   ErpOrderItem,
+  ErpStageEvent,
   ProductionType,
   StageStatus,
 } from '../types';
+
+/** Имя действующего пользователя для аудита */
+function currentActor(): string {
+  const u = useAuthStore.getState().user;
+  return u?.name || u?.email || 'неизвестно';
+}
+
+/** Запись события аудита — fire-and-forget, ошибки не блокируют работу */
+function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
+  supabase
+    .from('erp_stage_events')
+    .insert({ ...ev, actor: currentActor() })
+    .then(({ error }) => {
+      if (error) console.warn('stage event not logged:', error.message);
+    });
+}
 
 /** Заказ со вложенными позициями/этапами/материалами (join при загрузке) */
 export interface ErpOrderFull extends ErpOrder {
@@ -52,6 +71,8 @@ export interface NewOrderInput {
 interface ErpStore {
   departments: ErpDepartment[];
   orders: ErpOrderFull[];
+  employees: ErpEmployee[];
+  employeesLoaded: boolean;
   loading: boolean;
   loaded: boolean;
 
@@ -62,13 +83,25 @@ interface ErpStore {
   setStageStatus: (
     stageId: string,
     status: StageStatus,
-    extra?: { qty_done?: number; block_reason?: string },
+    extra?: { qty_done?: number; block_reason?: string | null; comment?: string },
   ) => Promise<boolean>;
+  /** Брак: qty на переделку + причина; этап возвращается в работу */
+  reportDefect: (stageId: string, qty: number, reason: string) => Promise<boolean>;
+  /** Ручные плановые даты этапа */
+  setStagePlan: (
+    stageId: string,
+    plan: { planned_start?: string | null; planned_end?: string | null },
+  ) => Promise<boolean>;
+  loadOrderEvents: (orderId: string) => Promise<ErpStageEvent[] | null>;
   addMaterial: (
     orderId: string,
     material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
   ) => Promise<ErpMaterial | null>;
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
+
+  loadEmployees: () => Promise<void>;
+  createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
+  updateEmployee: (id: string, patch: Partial<ErpEmployee>) => Promise<boolean>;
 }
 
 const ORDER_SELECT = `
@@ -96,6 +129,8 @@ function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
 export const useErpStore = create<ErpStore>((set, get) => ({
   departments: [],
   orders: [],
+  employees: [],
+  employeesLoaded: false,
   loading: false,
   loaded: false,
 
@@ -246,9 +281,20 @@ export const useErpStore = create<ErpStore>((set, get) => ({
 
   setStageStatus: async (stageId, status, extra = {}) => {
     const prev = get().orders;
-    const patch: Partial<ErpItemStage> = { status, ...extra };
+    const { comment, ...fields } = extra;
+    const patch: Partial<ErpItemStage> = { status, ...fields };
     if (status === 'in_progress') patch.started_at = new Date().toISOString();
     if (status === 'done') patch.finished_at = new Date().toISOString();
+
+    // найдём заказ и прежний статус для аудита
+    let fromStatus: string | null = null;
+    let orderId: string | null = null;
+    for (const o of prev) {
+      for (const it of o.items) {
+        const st = it.stages.find((s) => s.id === stageId);
+        if (st) { fromStatus = st.status; orderId = o.id; }
+      }
+    }
 
     // optimistic с rollback
     set((s) => ({
@@ -264,6 +310,133 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить этап');
+      return false;
+    }
+    if (orderId) {
+      logStageEvent({
+        stage_id: stageId,
+        order_id: orderId,
+        from_status: fromStatus,
+        to_status: status,
+        qty_done: extra.qty_done ?? null,
+        qty_rework: null,
+        comment: comment ?? extra.block_reason ?? null,
+      });
+    }
+    return true;
+  },
+
+  reportDefect: async (stageId, qty, reason) => {
+    const prev = get().orders;
+    let stage: ErpItemStage | null = null;
+    let orderId: string | null = null;
+    for (const o of prev) {
+      for (const it of o.items) {
+        const st = it.stages.find((s) => s.id === stageId);
+        if (st) { stage = st; orderId = o.id; }
+      }
+    }
+    if (!stage || !orderId) return false;
+
+    const patch: Partial<ErpItemStage> = {
+      qty_rework: stage.qty_rework + qty,
+      // брак возвращает этап в работу (переделка)
+      status: 'in_progress',
+      finished_at: null,
+    };
+    set((s) => ({
+      orders: s.orders.map((o) => ({
+        ...o,
+        items: o.items.map((it) => ({
+          ...it,
+          stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...patch } : st)),
+        })),
+      })),
+    }));
+    const { error } = await supabase.from('erp_item_stages').update(patch).eq('id', stageId);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось записать брак');
+      return false;
+    }
+    logStageEvent({
+      stage_id: stageId,
+      order_id: orderId,
+      from_status: stage.status,
+      to_status: 'in_progress',
+      qty_done: null,
+      qty_rework: qty,
+      comment: `Брак: ${reason}`,
+    });
+    return true;
+  },
+
+  setStagePlan: async (stageId, plan) => {
+    const prev = get().orders;
+    set((s) => ({
+      orders: s.orders.map((o) => ({
+        ...o,
+        items: o.items.map((it) => ({
+          ...it,
+          stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...plan } : st)),
+        })),
+      })),
+    }));
+    const { error } = await supabase.from('erp_item_stages').update(plan).eq('id', stageId);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось сохранить план этапа');
+      return false;
+    }
+    return true;
+  },
+
+  loadOrderEvents: async (orderId) => {
+    const { data, error } = await supabase
+      .from('erp_stage_events')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) {
+      toast.error('Не удалось загрузить историю');
+      return null;
+    }
+    return (data ?? []) as ErpStageEvent[];
+  },
+
+  loadEmployees: async () => {
+    const { data, error } = await supabase
+      .from('erp_employees')
+      .select('*')
+      .order('full_name');
+    if (error) {
+      toast.error('Не удалось загрузить сотрудников');
+      return;
+    }
+    set({ employees: (data ?? []) as ErpEmployee[], employeesLoaded: true });
+  },
+
+  createEmployee: async (emp) => {
+    const { data, error } = await supabase.from('erp_employees').insert(emp).select();
+    const row = data?.[0] as ErpEmployee | undefined;
+    if (error || !row) {
+      toast.error('Не удалось добавить сотрудника');
+      return null;
+    }
+    set((s) => ({ employees: [...s.employees, row].sort((a, b) => a.full_name.localeCompare(b.full_name)) }));
+    return row;
+  },
+
+  updateEmployee: async (id, patch) => {
+    const prev = get().employees;
+    set((s) => ({
+      employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    }));
+    const { error } = await supabase.from('erp_employees').update(patch).eq('id', id);
+    if (error) {
+      set({ employees: prev });
+      toast.error('Не удалось обновить сотрудника');
       return false;
     }
     return true;

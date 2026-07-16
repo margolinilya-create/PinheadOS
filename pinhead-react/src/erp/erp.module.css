@@ -531,3 +531,18 @@ a.kpiTile:hover { border-color: var(--accent); }
   .queueDue { white-space: normal; max-width: 40%; }
   .queueDue > div { white-space: normal; }
 }
+
+/* Кнопка-ячейка плановых дат в карточке заказа */
+.planBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+.planBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }

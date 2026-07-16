@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
@@ -68,8 +69,17 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
       >
         <td>{order.bitrix_id || '—'}</td>
         <td>
-          <strong>{order.title}</strong>
-          {order.notes && <div className={styles.subText}>{order.notes}</div>}
+          <Link
+            to={`/orders/${order.id}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{ color: 'inherit', fontWeight: 700, textDecoration: 'none' }}
+            title="Открыть карточку заказа"
+          >
+            {order.title} ↗
+          </Link>
+          {order.notes && order.notes !== 'imported' && (
+            <div className={styles.subText}>{order.notes}</div>
+          )}
         </td>
         <td>{order.manager || '—'}</td>
         <td>{totalQty}</td>
