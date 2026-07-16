@@ -214,3 +214,135 @@
     padding: 18px 16px;
   }
 }
+
+/* ─── Таблицы ─── */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body-sm, 13px);
+}
+.table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: var(--type-caption, 11px);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+}
+.table tr:last-child td { border-bottom: none; }
+.rowClickable { cursor: pointer; }
+.rowClickable:hover td { background: var(--surface); }
+
+/* ─── Статус-чипы ─── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.chipWaiting  { background: var(--surface); color: var(--text-dim); border-color: var(--border); }
+.chipReady    { background: var(--bg-success); color: var(--color-success); }
+.chipProgress { background: var(--bg-warning); color: var(--color-warning); }
+.chipDone     { background: var(--bg-success); color: var(--color-success); opacity: 0.65; }
+.chipBlocked  { background: var(--bg-error); color: var(--color-error); }
+.chipSkipped  { background: var(--surface); color: var(--text-muted); text-decoration: line-through; }
+.chipNeutral  { background: var(--surface); color: var(--text-mid); border-color: var(--border); }
+.chipDanger   { background: var(--bg-error); color: var(--color-error); }
+
+/* ─── Форма ─── */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-sm, 10px);
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+.fieldLabel {
+  font-size: var(--type-caption, 11px);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.input, .select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body-sm, 13px);
+  min-width: 0;
+}
+.input:focus, .select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.itemRow {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 70px 1.1fr 1.4fr 0.9fr 32px;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+}
+.checkRow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.checkLabel {
+  display: inline-flex; gap: 5px; align-items: center;
+  font-size: var(--type-body-sm, 13px); cursor: pointer; white-space: nowrap;
+}
+
+/* ─── Модалка ─── */
+.modalOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: var(--z-modal, 1000);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 4vh 16px;
+  overflow-y: auto;
+}
+.modal {
+  background: var(--card);
+  border-radius: var(--radius-lg, 14px);
+  width: 100%;
+  max-width: 880px;
+  padding: 22px;
+  display: flex; flex-direction: column; gap: var(--space-md, 14px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
+}
+.modalTitle { font-family: var(--font-display); font-size: 22px; text-transform: uppercase; }
+.modalActions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ─── Разное ─── */
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: var(--space-md, 14px); flex-wrap: wrap; }
+.emptyState {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md, 10px);
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.dueSoon { color: var(--color-warning); font-weight: 700; }
+.overdue { color: var(--color-error); font-weight: 700; }
+.stageChips { display: flex; flex-wrap: wrap; gap: 4px; }
+.subText { color: var(--text-dim); font-size: var(--type-caption, 11px); }
+
+@media (max-width: 760px) {
+  .itemRow { grid-template-columns: 1fr 1fr; }
+}

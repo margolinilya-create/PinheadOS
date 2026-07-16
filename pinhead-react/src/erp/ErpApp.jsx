@@ -28,7 +28,7 @@ export default function ErpApp({ user }) {
     <ErpLayout user={user}>
       <Routes>
         <Route path="/" element={<ErpDashboard />} />
-        <Route path="/orders" element={<OrdersScreen />} />
+        <Route path="/orders" element={<OrdersScreen user={user} />} />
         <Route path="/board" element={<ProductionBoard />} />
         <Route path="/employees" element={<ErpGuard allowed={isAdmin}><EmployeesScreen /></ErpGuard>} />
         <Route path="/departments" element={<ErpGuard allowed={isAdmin}><DepartmentsScreen /></ErpGuard>} />
