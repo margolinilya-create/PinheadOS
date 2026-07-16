@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
+import { FEATURES } from './config/features'
 
 // Catch unhandled promise rejections globally
 window.addEventListener('unhandledrejection', (event) => {
@@ -14,21 +15,21 @@ window.addEventListener('unhandledrejection', (event) => {
   toast.error(msg);
 });
 
-// Restore draft from localStorage if available
-const draft = localStorage.getItem('pinhead_draft');
-if (draft) {
-  try {
-    useStore.getState().restoreFromDraft(JSON.parse(draft));
-  } catch {
-    localStorage.removeItem('pinhead_draft');
-  }
-}
+// Загружаем авторизацию сразу
+useAuthStore.getState().init().catch(() => {});
 
-// Загружаем авторизацию и каталоги параллельно при старте
-Promise.all([
-  useAuthStore.getState().init(),
-  useStore.getState().loadCatalogs(),
-]).catch(() => {});
+// Order Studio-специфичное: черновик и каталоги грузим только при включённом флаге
+if (FEATURES.orderStudio) {
+  const draft = localStorage.getItem('pinhead_draft');
+  if (draft) {
+    try {
+      useStore.getState().restoreFromDraft(JSON.parse(draft));
+    } catch {
+      localStorage.removeItem('pinhead_draft');
+    }
+  }
+  useStore.getState().loadCatalogs().catch(() => {});
+}
 
 const router = createBrowserRouter([
   { path: '*', Component: App },

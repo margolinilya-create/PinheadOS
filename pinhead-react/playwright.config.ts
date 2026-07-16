@@ -4,7 +4,8 @@ export default defineConfig({
   testDir: './e2e',
   snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}',
   webServer: {
-    command: 'npm run dev',
+    // Order Studio заархивирован за флагом; e2e-спеки визарда гоняем с включённым флагом.
+    command: 'VITE_FEATURE_ORDER_STUDIO=1 npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
   },

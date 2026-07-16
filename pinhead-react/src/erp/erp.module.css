@@ -1,0 +1,216 @@
+/* ─── ERP layout ─── */
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'topbar topbar'
+    'sidebar main';
+}
+
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.brandSub {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.userChip {
+  font-size: 13px;
+  color: var(--text-mid);
+}
+
+.userRole {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sidebar {
+  grid-area: sidebar;
+  border-right: 1px solid var(--border);
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg);
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-mid);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.navLink:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  color: var(--text);
+}
+
+.navLinkActive {
+  background: var(--surface-active, rgba(0, 0, 0, 0.07));
+  color: var(--text);
+  font-weight: 600;
+}
+
+.navIcon {
+  width: 20px;
+  text-align: center;
+}
+
+.main {
+  grid-area: main;
+  padding: 24px 28px;
+  min-width: 0;
+}
+
+.pageHead {
+  margin-bottom: 20px;
+}
+
+.pageTitle {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.pageSub {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* ─── Department cards ─── */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  padding: 16px;
+  background: var(--bg);
+}
+
+.cardName {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.cardMeta {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cardMetric {
+  margin-top: 12px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 22px;
+  color: var(--text-mid);
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--surface-active, rgba(0, 0, 0, 0.07));
+  color: var(--text-mid);
+  vertical-align: middle;
+}
+
+/* ─── Placeholder / stub screens ─── */
+.stub {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 10px);
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.stubIcon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.stubPhase {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--surface-active, rgba(0, 0, 0, 0.07));
+  color: var(--text-mid);
+}
+
+.noAccess {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 10px);
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'topbar'
+      'sidebar'
+      'main';
+  }
+  .sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .main {
+    padding: 18px 16px;
+  }
+}

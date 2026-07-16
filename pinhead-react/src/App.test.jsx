@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/useAuthStore';
 import { useStore } from './store/useStore';
+import { setFeature, clearFeature } from './config/features';
 
 // Mock catalogs loader
 vi.mock('./lib/catalogs', () => ({
@@ -94,6 +95,7 @@ function renderApp(path = '/') {
 }
 
 beforeEach(() => {
+  clearFeature('orderStudio');
   useAuthStore.setState({
     user: null,
     loading: false,
@@ -108,6 +110,10 @@ beforeEach(() => {
     isProduction: () => false,
     isDesigner: () => false,
   });
+});
+
+afterEach(() => {
+  clearFeature('orderStudio');
 });
 
 describe('App', () => {
@@ -131,7 +137,19 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByText(/Ожидание подтверждения/)).toBeInTheDocument());
   });
 
-  it('shows main wizard for authenticated admin', async () => {
+  it('shows ERP dashboard by default for authenticated user', async () => {
+    useAuthStore.setState({
+      user: { id: '1', role: 'manager', email: 'test@test.com', approved: true },
+      logout: vi.fn(),
+    });
+    renderApp();
+    await waitFor(() => expect(screen.getByText('Обзор производства')).toBeInTheDocument());
+    // ERP nav present
+    expect(screen.getByText('Производство')).toBeInTheDocument();
+  });
+
+  it('shows main wizard for authenticated admin when orderStudio flag is on', async () => {
+    setFeature('orderStudio', true);
     useAuthStore.setState({
       user: { id: '1', role: 'admin', email: 'test@test.com', approved: true },
       logout: vi.fn(),
@@ -142,7 +160,8 @@ describe('App', () => {
     expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument();
   });
 
-  it('shows header with navigation for authenticated user', async () => {
+  it('shows header with navigation for authenticated user when orderStudio flag is on', async () => {
+    setFeature('orderStudio', true);
     useAuthStore.setState({
       user: { id: '1', role: 'manager', email: 'test@test.com', approved: true },
       logout: vi.fn(),
@@ -151,7 +170,8 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByText('Заказы')).toBeInTheDocument());
   });
 
-  it('redirects unknown routes to home', async () => {
+  it('redirects unknown routes to home (orderStudio flag on)', async () => {
+    setFeature('orderStudio', true);
     useAuthStore.setState({
       user: { id: '1', role: 'admin', email: 'test@test.com', approved: true },
       logout: vi.fn(),
