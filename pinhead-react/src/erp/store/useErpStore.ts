@@ -473,6 +473,24 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       toast.error('Не удалось обновить материал');
       return false;
     }
+
+    // Логика закупки: все материалы заказа пришли → этап «Закупка» закрывается сам
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === id));
+    const supplyDept = get().departments.find((d) => d.code === 'supply');
+    if (order && supplyDept) {
+      const allIn = order.materials.every(
+        (m) => m.status === 'received' || m.status === 'not_needed');
+      if (allIn) {
+        const openSupply = order.items.flatMap((it) =>
+          it.stages.filter(
+            (st) => st.department_id === supplyDept.id &&
+              st.status !== 'done' && st.status !== 'skipped'));
+        for (const st of openSupply) {
+          await get().setStageStatus(st.id, 'done', { comment: 'Материалы пришли — закупка закрыта автоматически' });
+        }
+        if (openSupply.length > 0) toast.success('Материалы пришли — закупка по заказу закрыта');
+      }
+    }
     return true;
   },
 }));

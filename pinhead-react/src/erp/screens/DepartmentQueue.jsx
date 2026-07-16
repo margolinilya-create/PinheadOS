@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
-import { deptShortName } from '../data/departments';
+import { deptShortName, isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
 /**
@@ -288,7 +288,7 @@ export default function DepartmentQueue() {
       />
 
       <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха">
-        {departments.filter((d) => d.active).map((d) => {
+        {departments.filter((d) => d.active && isQueueDept(d.code)).map((d) => {
           const count = readyByDept.get(d.code) || 0;
           return (
             <button

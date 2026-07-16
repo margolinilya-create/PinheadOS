@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
+import { isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
 /**
@@ -70,7 +71,7 @@ export default function ErpDashboard() {
       overdue,
       dueSoon,
       deptLoad: [...deptLoad.values()].filter(
-        (s) => s.ready + s.inProgress + s.blocked > 0,
+        (s) => isQueueDept(s.dept.code) && s.ready + s.inProgress + s.blocked > 0,
       ),
       burning: burning.slice(0, 8),
     };

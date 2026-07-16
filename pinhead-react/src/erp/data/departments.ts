@@ -67,3 +67,16 @@ export const DEPT_SHORT_NAMES: Record<string, string> = {
 export function deptShortName(code: string, fallback?: string): string {
   return DEPT_SHORT_NAMES[code] || fallback || code;
 }
+
+/**
+ * Цеха с рабочей очередью («Мой цех», загрузка на дашборде).
+ * Закупка управляется своим экраном (материалы), логистика и склады
+ * пока без операций — в очередях не показываем.
+ */
+export const QUEUE_DEPT_CODES = new Set([
+  'experimental', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto',
+]);
+
+export function isQueueDept(code: string): boolean {
+  return QUEUE_DEPT_CODES.has(code);
+}
