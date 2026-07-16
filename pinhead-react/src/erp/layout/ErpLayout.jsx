@@ -6,9 +6,10 @@ const NAV = [
   { to: '/', label: 'Обзор', icon: '📊', end: true },
   { to: '/orders', label: 'Заказы', icon: '📋' },
   { to: '/board', label: 'Производство', icon: '🏭' },
+  { to: '/queue', label: 'Мой цех', icon: '🔧' },
   { to: '/employees', label: 'Сотрудники', icon: '👥', admin: true },
   { to: '/departments', label: 'Цеха', icon: '🧵', admin: true },
-  { to: '/purchasing', label: 'Закупка ткани', icon: '🚚', admin: true },
+  { to: '/purchasing', label: 'Закупка', icon: '🚚', admin: true },
 ];
 
 export default function ErpLayout({ user, children }) {

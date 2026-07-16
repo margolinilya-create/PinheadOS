@@ -3,6 +3,7 @@ import ErpLayout from './layout/ErpLayout';
 import ErpDashboard from './screens/ErpDashboard';
 import OrdersScreen from './screens/OrdersScreen';
 import ProductionBoard from './screens/ProductionBoard';
+import DepartmentQueue from './screens/DepartmentQueue';
 import EmployeesScreen from './screens/EmployeesScreen';
 import DepartmentsScreen from './screens/DepartmentsScreen';
 import FabricPurchasing from './screens/FabricPurchasing';
@@ -30,6 +31,7 @@ export default function ErpApp({ user }) {
         <Route path="/" element={<ErpDashboard />} />
         <Route path="/orders" element={<OrdersScreen user={user} />} />
         <Route path="/board" element={<ProductionBoard />} />
+        <Route path="/queue" element={<DepartmentQueue />} />
         <Route path="/employees" element={<ErpGuard allowed={isAdmin}><EmployeesScreen /></ErpGuard>} />
         <Route path="/departments" element={<ErpGuard allowed={isAdmin}><DepartmentsScreen /></ErpGuard>} />
         <Route path="/purchasing" element={<ErpGuard allowed={isAdmin}><FabricPurchasing /></ErpGuard>} />

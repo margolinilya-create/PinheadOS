@@ -346,3 +346,95 @@
 @media (max-width: 760px) {
   .itemRow { grid-template-columns: 1fr 1fr; }
 }
+
+/* ─── Очередь цеха ─── */
+.queueGroupTitle {
+  font-family: var(--font-display);
+  font-size: 17px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+}
+.queueGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-sm, 10px);
+}
+.queueCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.queueCardHead { display: flex; justify-content: space-between; gap: 10px; }
+.queueReason {
+  font-size: var(--type-body-sm, 13px);
+  color: var(--text-mid);
+  background: var(--surface);
+  border-radius: var(--radius-sm, 6px);
+  padding: 6px 10px;
+}
+.queueActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.queueActions .btn { min-height: 42px; }  /* планшетные кнопки */
+.queueBlockForm { display: flex; gap: 8px; flex-wrap: wrap; }
+.queueBlockForm .input { flex: 1; min-width: 180px; }
+
+/* ─── KPI плитки ─── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-sm, 10px);
+  margin-bottom: var(--space-lg, 20px);
+}
+.kpiTile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+  padding: 16px 18px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.1;
+}
+.kpiLabel {
+  font-size: var(--type-caption, 11px);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.kpiWarn { border-color: var(--color-warning); }
+.kpiWarn .kpiValue { color: var(--color-warning); }
+.kpiDanger { border-color: var(--color-error); }
+.kpiDanger .kpiValue { color: var(--color-error); }
+
+/* ─── Закупка ─── */
+.matSection {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+  padding: 14px;
+  margin-bottom: var(--space-md, 14px);
+}
+.matSectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.addMatRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.addMatRow .input:nth-child(2) { flex: 1; min-width: 200px; }
