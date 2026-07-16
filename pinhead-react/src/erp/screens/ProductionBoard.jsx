@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { deptShortName } from '../data/departments';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
@@ -72,7 +73,7 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
       disabled={!clickable}
       onClick={() => clickable && onAdvance(stage, NEXT_STATUS[displayStatus], item)}
     >
-      {dept?.name?.replace(' цех', '').replace('Цех ', '') || '?'}
+      {dept ? deptShortName(dept.code, dept.name) : '?'}
       {displayStatus === 'done' && ' ✓'}
     </button>
   );
@@ -158,6 +159,7 @@ export default function ProductionBoard() {
                 <th>Заказ / позиция</th>
                 <th>Кол-во</th>
                 <th>Срок</th>
+                <th>Прогресс</th>
                 <th>Этапы</th>
               </tr>
             </thead>
@@ -167,6 +169,8 @@ export default function ProductionBoard() {
                 const dueCls = d !== null && d < 0
                   ? styles.overdue
                   : d !== null && d <= 3 ? styles.dueSoon : undefined;
+                const relevant = item.stages.filter((s) => s.status !== 'skipped');
+                const doneCount = relevant.filter((s) => s.status === 'done').length;
                 return (
                   <tr key={item.id}>
                     <td>{order.bitrix_id || '—'}</td>
@@ -188,6 +192,9 @@ export default function ProductionBoard() {
                           {d >= 0 ? `${d} дн.` : `просрочен ${-d}`}
                         </div>
                       )}
+                    </td>
+                    <td className={styles.progressCell}>
+                      {doneCount}/{relevant.length}
                     </td>
                     <td>
                       <div className={styles.stageChips}>

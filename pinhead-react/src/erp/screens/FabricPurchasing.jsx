@@ -128,7 +128,10 @@ export default function FabricPurchasing() {
         const blocking = order.materials.some(
           (m) => m.status !== 'received' && m.status !== 'not_needed');
         return (
-          <section key={order.id} className={styles.matSection}>
+          <section
+            key={order.id}
+            className={`${styles.matSection} ${blocking ? styles.matSectionBlocked : ''}`}
+          >
             <div className={styles.matSectionHead}>
               <div>
                 <strong>{order.title}</strong>

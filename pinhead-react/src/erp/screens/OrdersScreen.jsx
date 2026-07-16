@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
+import { deptShortName } from '../data/departments';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import {
@@ -113,9 +114,13 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
                 <span
                   key={st.id}
                   className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[st.status]]}`}
-                  title={STAGE_STATUS_LABELS[st.status]}
+                  title={`${deptById.get(st.department_id)?.name || '?'} · ${STAGE_STATUS_LABELS[st.status]}`}
                 >
-                  {deptById.get(st.department_id)?.name || '?'}
+                  {(() => {
+                    const dd = deptById.get(st.department_id);
+                    return dd ? deptShortName(dd.code, dd.name) : '?';
+                  })()}
+                  {st.status === 'done' && ' ✓'}
                 </span>
               ))}
             </div>

@@ -1,218 +1,199 @@
-/* ─── ERP layout ─── */
+/* ═══════════════════════════════════════════════════════════════
+   PINHEAD ERP — дизайн-язык Order Studio.
+   Светлая «бумага», белая шапка 52px, вкладки на всю высоту,
+   синий акцент, Inter uppercase 11px/1.5px, тонкие границы,
+   Barlow Condensed для заголовков, Roboto Mono для цифр.
+   Тёмная тема — через токены :root автоматически.
+   ═══════════════════════════════════════════════════════════════ */
+
 .shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    'topbar topbar'
-    'sidebar main';
-}
-
-.topbar {
-  grid-area: topbar;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.brand {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.brandSub {
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-left: 8px;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.userChip {
-  font-size: 13px;
-  color: var(--text-mid);
-}
-
-.userRole {
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.sidebar {
-  grid-area: sidebar;
-  border-right: 1px solid var(--border);
-  padding: 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
   background: var(--bg);
 }
 
+/* ─── Шапка (как Header Order Studio) ─── */
+.topbar {
+  display: flex;
+  align-items: stretch;
+  height: 52px;
+  border-bottom: 1px solid var(--border-light);
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: var(--z-header, 100);
+  font-family: 'Inter', sans-serif;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.brandSub {
+  display: flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.spacer { flex: 1; }
+.userChip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: right;
+  padding: 0 16px;
+  border-left: 1px solid var(--border-light);
+  font-size: 11px;
+  color: var(--text-mid);
+  line-height: 1.3;
+}
+.userRole {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.topbar :global(.btn) {
+  height: 100%;
+  border: none;
+  border-left: 1px solid var(--border-light);
+  border-radius: 0;
+  background: none;
+  color: var(--text-mid);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 0 20px;
+}
+.topbar :global(.btn:hover) { background: var(--accent); color: var(--white, #fff); }
+
+/* ─── Вкладки навигации (стиль header-nav Order Studio) ─── */
+.sidebar {
+  display: flex;
+  align-items: stretch;
+  background: var(--card);
+  border-bottom: 1px solid var(--border-light);
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: sticky;
+  top: 52px;
+  z-index: var(--z-sticky, 90);
+}
+.sidebar::-webkit-scrollbar { display: none; }
 .navLink {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm, 6px);
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border-right: 1px solid var(--border-light);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
   color: var(--text-mid);
   text-decoration: none;
-  font-size: 14px;
-  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+  transition: background 150ms ease-out, color 150ms ease-out;
+  flex-shrink: 0;
 }
-
-.navLink:hover {
-  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
-  color: var(--text);
-}
-
-.navLinkActive {
-  background: var(--surface-active, rgba(0, 0, 0, 0.07));
-  color: var(--text);
-  font-weight: 600;
-}
-
-.navIcon {
-  width: 20px;
-  text-align: center;
-}
+.navLink:hover { background: var(--accent); color: var(--white, #fff); }
+.navLinkActive { background: var(--accent); color: var(--white, #fff); }
+.navIcon { font-size: 13px; }
 
 .main {
-  grid-area: main;
-  padding: 24px 28px;
-  min-width: 0;
+  flex: 1;
+  padding: 24px 40px 48px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
 }
 
-.pageHead {
-  margin-bottom: 20px;
-}
-
+/* ─── Заголовок страницы (wizard-стиль) ─── */
+.pageHead { margin-bottom: 20px; }
 .pageTitle {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
-  font-size: 26px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.05;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  margin: 0;
 }
+.pageSub { color: var(--text-dim); margin-top: 4px; font-size: var(--type-body-sm, 13px); }
 
-.pageSub {
-  color: var(--text-dim);
-  font-size: 14px;
-  margin-top: 4px;
-}
-
-/* ─── Department cards ─── */
+/* ─── Карточки цехов ─── */
 .cardGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 12px;
 }
-
 .card {
   border: 1px solid var(--border);
-  border-radius: var(--radius, 10px);
-  padding: 16px;
-  background: var(--bg);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+  padding: 14px 16px;
+  transition: border-color 150ms ease-out;
 }
-
+.card:hover { border-color: var(--border-mid); }
 .cardName {
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 6px;
-}
-
-.cardMeta {
-  font-size: 12px;
-  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
-.cardMetric {
-  margin-top: 12px;
-  font-family: 'Roboto Mono', monospace;
-  font-size: 22px;
-  color: var(--text-mid);
-}
-
+.cardMeta { color: var(--text-dim); font-size: var(--type-caption, 11px); }
+.cardMetric { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  background: var(--accent-light);
+  color: var(--accent);
   border-radius: 999px;
-  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  background: var(--surface-active, rgba(0, 0, 0, 0.07));
-  color: var(--text-mid);
-  vertical-align: middle;
 }
 
-/* ─── Placeholder / stub screens ─── */
-.stub {
+/* ─── Заглушки ─── */
+.stub, .noAccess {
   border: 1px dashed var(--border);
-  border-radius: var(--radius, 10px);
-  padding: 40px 24px;
+  border-radius: var(--radius-md, 10px);
+  padding: 48px 24px;
   text-align: center;
   color: var(--text-dim);
 }
-
-.stubIcon {
-  font-size: 32px;
-  margin-bottom: 10px;
-}
-
+.stubIcon { font-size: 34px; margin-bottom: 10px; }
 .stubPhase {
   display: inline-block;
   margin-top: 14px;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 11px;
-  background: var(--surface-active, rgba(0, 0, 0, 0.07));
-  color: var(--text-mid);
-}
-
-.noAccess {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius, 10px);
-  padding: 40px 24px;
-  text-align: center;
-  color: var(--text-dim);
-}
-
-/* ─── Responsive ─── */
-@media (max-width: 760px) {
-  .shell {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'topbar'
-      'sidebar'
-      'main';
-  }
-  .sidebar {
-    flex-direction: row;
-    flex-wrap: wrap;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .main {
-    padding: 18px 16px;
-  }
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: var(--accent-light);
+  color: var(--accent);
 }
 
 /* ─── Таблицы ─── */
@@ -230,12 +211,15 @@
 .table th {
   text-align: left;
   padding: 10px 12px;
-  font-size: var(--type-caption, 11px);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 1.2px;
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  background: var(--surface);
 }
 .table td {
   padding: 10px 12px;
@@ -253,21 +237,60 @@
   gap: 5px;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
+  line-height: 1.5;
 }
 .chipWaiting  { background: var(--surface); color: var(--text-dim); border-color: var(--border); }
 .chipReady    { background: var(--bg-success); color: var(--color-success); }
 .chipProgress { background: var(--bg-warning); color: var(--color-warning); }
-.chipDone     { background: var(--bg-success); color: var(--color-success); opacity: 0.65; }
+.chipDone     { background: transparent; color: var(--text-muted); border-color: var(--border-light); }
 .chipBlocked  { background: var(--bg-error); color: var(--color-error); }
-.chipSkipped  { background: var(--surface); color: var(--text-muted); text-decoration: line-through; }
+.chipSkipped  { background: transparent; color: var(--text-muted); text-decoration: line-through; }
 .chipNeutral  { background: var(--surface); color: var(--text-mid); border-color: var(--border); }
 .chipDanger   { background: var(--bg-error); color: var(--color-error); }
 
-/* ─── Форма ─── */
+/* ─── KPI ─── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.kpiTile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+  padding: 16px 18px 14px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color 150ms ease-out;
+}
+a.kpiTile:hover { border-color: var(--accent); }
+.kpiValue {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1.05;
+}
+.kpiLabel {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.kpiWarn { border-color: var(--color-warning); }
+.kpiWarn .kpiValue { color: var(--color-warning); }
+.kpiDanger { border-color: var(--color-error); }
+.kpiDanger .kpiValue { color: var(--color-error); }
+
+/* ─── Формы ─── */
 .formGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -275,13 +298,15 @@
 }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .fieldLabel {
-  font-size: var(--type-caption, 11px);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 1.2px;
   color: var(--text-dim);
 }
 .input, .select {
-  padding: 8px 10px;
+  padding: 9px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 6px);
   background: var(--card);
@@ -289,6 +314,7 @@
   font: inherit;
   font-size: var(--type-body-sm, 13px);
   min-width: 0;
+  min-height: 40px;
 }
 .input:focus, .select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
@@ -297,21 +323,22 @@
   grid-template-columns: 1.2fr 1fr 70px 1.1fr 1.4fr 0.9fr 32px;
   gap: 8px;
   align-items: end;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm, 6px);
   background: var(--surface);
 }
 .checkRow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .checkLabel {
-  display: inline-flex; gap: 5px; align-items: center;
+  display: inline-flex; gap: 6px; align-items: center;
   font-size: var(--type-body-sm, 13px); cursor: pointer; white-space: nowrap;
+  min-height: 28px;
 }
 
 /* ─── Модалка ─── */
 .modalOverlay {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(10, 10, 10, 0.55);
   z-index: var(--z-modal, 1000);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 4vh 16px;
@@ -321,20 +348,84 @@
   background: var(--card);
   border-radius: var(--radius-lg, 14px);
   width: 100%;
-  max-width: 880px;
-  padding: 22px;
+  max-width: 900px;
+  padding: 24px;
   display: flex; flex-direction: column; gap: var(--space-md, 14px);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
 }
-.modalTitle { font-family: var(--font-display); font-size: 22px; text-transform: uppercase; }
+.modalTitle {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 26px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 .modalActions { display: flex; gap: 10px; justify-content: flex-end; }
 
-/* ─── Разное ─── */
-.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: var(--space-md, 14px); flex-wrap: wrap; }
+/* ─── Тулбар / вкладки цехов ─── */
+.toolbar {
+  display: flex; gap: 10px; align-items: center;
+  margin-bottom: var(--space-md, 14px); flex-wrap: wrap;
+}
+.deptTabs {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 0 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+}
+.deptTabs::-webkit-scrollbar { display: none; }
+.deptTab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border-light);
+  padding: 0 16px;
+  min-height: 46px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 150ms ease-out, color 150ms ease-out;
+  flex-shrink: 0;
+}
+.deptTab:last-child { border-right: none; }
+.deptTab:hover { background: var(--accent); color: var(--white, #fff); }
+.deptTab:hover .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
+.deptTabActive { background: var(--accent); color: var(--white, #fff); }
+.deptTabActive .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
+.deptTabCount {
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-mid);
+}
+.deptTabHot {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+}
+.deptTab:hover .deptTabHot, .deptTabActive .deptTabHot { background: var(--signal); color: #fff; }
+
 .emptyState {
   border: 1px dashed var(--border);
   border-radius: var(--radius-md, 10px);
-  padding: 44px 20px;
+  padding: 46px 20px;
   text-align: center;
   color: var(--text-dim);
 }
@@ -342,26 +433,33 @@
 .overdue { color: var(--color-error); font-weight: 700; }
 .stageChips { display: flex; flex-wrap: wrap; gap: 4px; }
 .subText { color: var(--text-dim); font-size: var(--type-caption, 11px); }
-
-@media (max-width: 760px) {
-  .itemRow { grid-template-columns: 1fr 1fr; }
+.progressCell {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-mid);
+  white-space: nowrap;
 }
 
 /* ─── Очередь цеха ─── */
 .queueGroupTitle {
   font-family: var(--font-display);
-  font-size: 17px;
+  font-weight: 700;
+  font-size: 19px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .queueGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-sm, 10px);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
 }
 .queueCard {
   border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
   border-radius: var(--radius-md, 10px);
   background: var(--card);
   padding: 14px;
@@ -369,51 +467,36 @@
   flex-direction: column;
   gap: 10px;
 }
-.queueCardHead { display: flex; justify-content: space-between; gap: 10px; }
+.queueCardReady { border-left-color: var(--color-success); }
+.queueCardProgress { border-left-color: var(--color-warning); }
+.queueCardBlocked { border-left-color: var(--color-error); }
+.queueCardUrgent { border-color: var(--color-error); }
+.queueCardHead { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.queueCardTitle {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.queueQty {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.queueDue { text-align: right; font-size: 12px; white-space: nowrap; }
 .queueReason {
   font-size: var(--type-body-sm, 13px);
   color: var(--text-mid);
   background: var(--surface);
   border-radius: var(--radius-sm, 6px);
-  padding: 6px 10px;
+  padding: 7px 10px;
 }
 .queueActions { display: flex; gap: 8px; flex-wrap: wrap; }
-.queueActions .btn { min-height: 42px; }  /* планшетные кнопки */
+.queueActions :global(.btn) { min-height: 46px; flex: 1; }
+.queueActions :global(.btn-ghost) { flex: 0 0 auto; }
 .queueBlockForm { display: flex; gap: 8px; flex-wrap: wrap; }
-.queueBlockForm .input { flex: 1; min-width: 180px; }
-
-/* ─── KPI плитки ─── */
-.kpiGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: var(--space-sm, 10px);
-  margin-bottom: var(--space-lg, 20px);
-}
-.kpiTile {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
-  background: var(--card);
-  padding: 16px 18px;
-  text-decoration: none;
-  color: inherit;
-  display: block;
-}
-.kpiValue {
-  font-family: var(--font-display);
-  font-size: 34px;
-  line-height: 1.1;
-}
-.kpiLabel {
-  font-size: var(--type-caption, 11px);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-.kpiWarn { border-color: var(--color-warning); }
-.kpiWarn .kpiValue { color: var(--color-warning); }
-.kpiDanger { border-color: var(--color-error); }
-.kpiDanger .kpiValue { color: var(--color-error); }
+.queueBlockForm .input { flex: 1; min-width: 170px; }
 
 /* ─── Закупка ─── */
 .matSection {
@@ -423,6 +506,7 @@
   padding: 14px;
   margin-bottom: var(--space-md, 14px);
 }
+.matSectionBlocked { border-color: var(--color-error); }
 .matSectionHead {
   display: flex;
   justify-content: space-between;
@@ -431,10 +515,19 @@
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
-.addMatRow {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
+.addMatRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .addMatRow .input:nth-child(2) { flex: 1; min-width: 200px; }
+
+/* ─── Мобильный ─── */
+@media (max-width: 760px) {
+  .brand { padding: 0 14px; font-size: 16px; }
+  .brandSub { display: none; }
+  .userChip { display: none; }
+  .navLink { padding: 0 13px; }
+  .main { padding: 16px 14px 48px; }
+  .itemRow { grid-template-columns: 1fr 1fr; }
+  .queueGrid { grid-template-columns: 1fr; }
+  .kpiValue { font-size: 28px; }
+  .queueDue { white-space: normal; max-width: 40%; }
+  .queueDue > div { white-space: normal; }
+}

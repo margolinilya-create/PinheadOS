@@ -48,3 +48,22 @@ export const DEPARTMENTS: Department[] = [
 export function getDepartmentByCode(code: string): Department | undefined {
   return DEPARTMENTS.find((d) => d.code === code);
 }
+
+/** Короткие имена для чипов/вкладок (единый словарь UI) */
+export const DEPT_SHORT_NAMES: Record<string, string> = {
+  supply: 'Закупка',
+  logistics: 'Логистика',
+  experimental: 'Эксперим.',
+  warehouse: 'Склад',
+  cutting: 'Закрой',
+  silkscreen: 'Шелкография',
+  dtf: 'ДТФ',
+  embroidery: 'Вышивка',
+  sewing: 'Швейка',
+  vto: 'ВТО',
+  warehouse_fg: 'Склад ГП',
+};
+
+export function deptShortName(code: string, fallback?: string): string {
+  return DEPT_SHORT_NAMES[code] || fallback || code;
+}

@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { deptShortName } from '../data/departments';
 import styles from '../erp.module.css';
 
 /**
@@ -24,23 +25,33 @@ function QueueCard({ entry, onStart, onDone, onBlock, onUnblock }) {
   const [blockMode, setBlockMode] = useState(false);
   const [blockText, setBlockText] = useState('');
   const d = daysLeft(order.due_date);
+  const cardCls = [
+    styles.queueCard,
+    group === 'ready' && styles.queueCardReady,
+    group === 'in_progress' && styles.queueCardProgress,
+    group === 'blocked' && styles.queueCardBlocked,
+    d !== null && d < 0 && styles.queueCardUrgent,
+  ].filter(Boolean).join(' ');
 
   return (
-    <div className={styles.queueCard}>
+    <div className={cardCls}>
       <div className={styles.queueCardHead}>
         <div>
-          <strong>{order.title}</strong>
+          <div className={styles.queueCardTitle}>{order.title}</div>
           <div className={styles.subText}>
             №{order.bitrix_id || '—'} · {item.product_type}
-            {item.variant ? ` · ${item.variant}` : ''} · {item.qty} шт
+            {item.variant ? ` · ${item.variant}` : ''}
           </div>
         </div>
-        {order.due_date && (
-          <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
-            до {new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}
-            {d !== null && <div className={styles.subText}>{d >= 0 ? `${d} дн.` : `просрочен ${-d}`}</div>}
-          </div>
-        )}
+        <div className={styles.queueDue}>
+          <div className={styles.queueQty}>{item.qty} шт</div>
+          {order.due_date && (
+            <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
+              до {new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}
+              {d !== null && ` · ${d >= 0 ? `${d} дн.` : `−${-d} дн.`}`}
+            </div>
+          )}
+        </div>
       </div>
 
       {reason && <div className={styles.queueReason}>⏳ {reason}</div>}
@@ -141,6 +152,27 @@ export default function DepartmentQueue() {
     [departments],
   );
 
+  /** Счётчик «готово к работе» по каждому цеху — для бейджей на вкладках */
+  const readyByDept = useMemo(() => {
+    const counts = new Map();
+    const deptById = new Map(departments.map((d) => [d.id, d]));
+    for (const order of orders) {
+      if (order.status !== 'active') continue;
+      for (const item of order.items) {
+        for (const stage of item.stages) {
+          const dd = deptById.get(stage.department_id);
+          if (!dd) continue;
+          const isReady =
+            stage.status === 'in_progress' ||
+            (stage.status === 'waiting' &&
+              isStageReady(stage, item.stages, order.materials, dd.code));
+          if (isReady) counts.set(dd.code, (counts.get(dd.code) || 0) + 1);
+        }
+      }
+    }
+    return counts;
+  }, [orders, departments]);
+
   const groups = useMemo(() => {
     const g = { ready: [], in_progress: [], waiting: [], blocked: [], done: [] };
     if (!dept) return g;
@@ -185,24 +217,29 @@ export default function DepartmentQueue() {
   return (
     <>
       <PageHead
-        title={dept ? `Цех: ${dept.name}` : 'Мой цех'}
+        title={dept ? dept.name : 'Мой цех'}
         sub="Очередь работ цеха: бери в работу, отмечай готово, сообщай о проблемах."
       />
 
-      <div className={styles.toolbar} role="tablist" aria-label="Выбор цеха">
-        {departments.filter((d) => d.active).map((d) => (
-          <button
-            key={d.code}
-            type="button"
-            role="tab"
-            aria-selected={deptCode === d.code}
-            className={`${styles.chip} ${deptCode === d.code ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
-            onClick={() => setDeptCode(d.code)}
-          >
-            {d.name}
-          </button>
-        ))}
+      <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха">
+        {departments.filter((d) => d.active).map((d) => {
+          const count = readyByDept.get(d.code) || 0;
+          return (
+            <button
+              key={d.code}
+              type="button"
+              role="tab"
+              aria-selected={deptCode === d.code}
+              className={`${styles.deptTab} ${deptCode === d.code ? styles.deptTabActive : ''}`}
+              onClick={() => setDeptCode(d.code)}
+            >
+              {deptShortName(d.code, d.name)}
+              {count > 0 && (
+                <span className={`${styles.deptTabCount} ${styles.deptTabHot}`}>{count}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {!dept && <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>}
