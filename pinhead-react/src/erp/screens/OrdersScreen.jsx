@@ -356,6 +356,7 @@ export default function OrdersScreen({ user }) {
   );
   const [showCreate, setShowCreate] = useState(false);
   const [query, setQuery] = useState('');
+  const [tab, setTab] = useState('active'); // active | archive
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -363,16 +364,21 @@ export default function OrdersScreen({ user }) {
 
   const canDelete = ['admin', 'director'].includes(user?.role);
 
+  const inTab = useMemo(
+    () => orders.filter((o) => (tab === 'active' ? o.status === 'active' : o.status !== 'active')),
+    [orders, tab],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter(
+    if (!q) return inTab;
+    return inTab.filter(
       (o) =>
         o.title.toLowerCase().includes(q) ||
         (o.bitrix_id || '').includes(q) ||
         (o.manager || '').toLowerCase().includes(q),
     );
-  }, [orders, query]);
+  }, [inTab, query]);
 
   const onDelete = async (order) => {
     const ok = await confirm({
@@ -392,6 +398,28 @@ export default function OrdersScreen({ user }) {
       <PageHead title="Заказы" sub="Производственные заказы: позиции, маршрут по цехам, сроки." />
 
       <div className={styles.toolbar}>
+        <div role="tablist" aria-label="Фильтр заказов" style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'active'}
+            className={`${styles.chip} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
+            style={{ cursor: 'pointer', font: 'inherit' }}
+            onClick={() => setTab('active')}
+          >
+            Активные ({orders.filter((o) => o.status === 'active').length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'archive'}
+            className={`${styles.chip} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
+            style={{ cursor: 'pointer', font: 'inherit' }}
+            onClick={() => setTab('archive')}
+          >
+            Архив ({orders.filter((o) => o.status !== 'active').length})
+          </button>
+        </div>
         <input
           type="search"
           className={styles.input}
@@ -402,7 +430,7 @@ export default function OrdersScreen({ user }) {
           aria-label="Поиск заказов"
         />
         <div className={styles.spacer} />
-        <span className={styles.subText}>{filtered.length} из {orders.length}</span>
+        <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
           + Новый заказ
         </button>
@@ -412,8 +440,10 @@ export default function OrdersScreen({ user }) {
 
       {loaded && filtered.length === 0 && (
         <div className={styles.emptyState}>
-          {orders.length === 0
-            ? 'Заказов пока нет — создайте первый.'
+          {inTab.length === 0
+            ? tab === 'active'
+              ? 'Активных заказов нет — создайте первый.'
+              : 'Архив пуст.'
             : 'Ничего не найдено по запросу.'}
         </div>
       )}

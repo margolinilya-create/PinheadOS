@@ -60,8 +60,6 @@ export interface ErpDepartment {
   type: string;
   sort_order: number;
   is_branding: boolean;
-  capacity_per_day: number | null;
-  target_load_per_day: number | null;
   active: boolean;
   created_at: string;
   updated_at: string;

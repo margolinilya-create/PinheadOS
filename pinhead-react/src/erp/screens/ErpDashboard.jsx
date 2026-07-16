@@ -70,7 +70,7 @@ export default function ErpDashboard() {
       overdue,
       dueSoon,
       deptLoad: [...deptLoad.values()].filter(
-        (s) => s.ready + s.inProgress + s.blocked > 0 || s.dept.capacity_per_day,
+        (s) => s.ready + s.inProgress + s.blocked > 0,
       ),
       burning: burning.slice(0, 8),
     };
@@ -109,11 +109,6 @@ export default function ErpDashboard() {
             <div className={styles.cardName}>
               {dept.name}
               {dept.is_branding && <span className={styles.badge}>брендирование</span>}
-            </div>
-            <div className={styles.cardMeta}>
-              {dept.capacity_per_day
-                ? `мощность ${dept.capacity_per_day} шт/день`
-                : ' '}
             </div>
             <div className={styles.cardMetric}>
               <span className={`${styles.chip} ${styles.chipReady}`}>готово: {ready}</span>{' '}
