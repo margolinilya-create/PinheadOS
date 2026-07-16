@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { setFeature } from '../../config/features';
 import styles from '../erp.module.css';
 
 const NAV = [
@@ -22,6 +23,18 @@ export default function ErpLayout({ user, children }) {
         <span className={styles.brand}>PINHEAD</span>
         <span className={styles.brandSub}>ERP · Производство</span>
         <div className={styles.spacer} />
+        {isAdmin && (
+          <button
+            className="btn"
+            title="Перейти в Order Studio (создание ТЗ)"
+            onClick={() => {
+              setFeature('orderStudio', true);
+              window.location.href = '/';
+            }}
+          >
+            ✏️ ТЗ
+          </button>
+        )}
         <div className={styles.userChip}>
           {user?.name || user?.email}
           <div className={styles.userRole}>{user?.role}</div>

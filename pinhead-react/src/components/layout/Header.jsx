@@ -5,6 +5,7 @@ import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
+import { setFeature } from '../../config/features';
 import styles from './Header.module.css';
 
 export default function Header() {
@@ -88,6 +89,18 @@ export default function Header() {
         {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/admin') ? ` ${styles.active}` : ''}`} onClick={nav('/admin')}>
             Админ
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            className={styles['header-nav-btn']}
+            title="Перейти во внутреннее ERP производства"
+            onClick={() => {
+              setFeature('orderStudio', false);
+              window.location.href = '/';
+            }}
+          >
+            🏭 Производство
           </button>
         )}
       </nav>
