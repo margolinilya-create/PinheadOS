@@ -9,7 +9,8 @@ import { supabase } from '../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
-import { STAGE_CHIP_CLASS } from '../utils/stageUi';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
+import { confirm } from '../../store/useConfirmStore';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -90,6 +91,14 @@ const AUDIT_FIELD_LABELS = {
   notes: 'Заметка',
 };
 
+/** Читабельные значения аудита: статусы заказа/отгрузки — на русском */
+function auditValue(field, v) {
+  if (v == null) return '—';
+  if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
+  if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
+  return v;
+}
+
 /** Тонкая лента этапов позиции (паттерн kontora24 OrderStepper) */
 function StageStepper({ item, order, deptById, events }) {
   const lastEventByStage = useMemo(() => {
@@ -143,6 +152,7 @@ export default function OrderCard() {
   const {
     orders, departments, loaded, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
+    shipOrder, profilesList, employees,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -156,6 +166,9 @@ export default function OrderCard() {
       updateOrder: s.updateOrder,
       loadComments: s.loadComments,
       addComment: s.addComment,
+      shipOrder: s.shipOrder,
+      profilesList: s.profilesList,
+      employees: s.employees,
     })),
   );
   const [events, setEvents] = useState(null);
@@ -204,6 +217,24 @@ export default function OrderCard() {
 
   const order = orders.find((o) => o.id === orderId);
   const preview = order ? orderPreviewUrl(order) : null;
+  const readyToShip = order ? isOrderReadyToShip(order) : false;
+  // Имя отгрузившего: profilesList / erp_employees, если загружены; иначе только дата
+  const shippedByName = useMemo(() => {
+    if (!order?.shipped_by) return null;
+    const p = profilesList.find((x) => x.id === order.shipped_by);
+    if (p) return p.name || p.email;
+    return employees.find((x) => x.profile_id === order.shipped_by)?.full_name ?? null;
+  }, [order, profilesList, employees]);
+
+  const onShip = async () => {
+    if (!order) return;
+    const ok = await confirm({
+      title: `Отгрузить заказ «${order.title}»?`,
+      message: 'Заказ уйдёт в архив.',
+      confirmLabel: 'Отгрузить',
+    });
+    if (ok) await shipOrder(order.id);
+  };
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const deptNameById = useMemo(
     () => new Map(departments.map((d) => [d.id, d.name])),
@@ -293,9 +324,26 @@ export default function OrderCard() {
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
           {ORDER_STATUS_LABELS[order.status]}
         </span>
+        {readyToShip && (
+          <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>
+        )}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>
           {SHIPPED_STATUS_LABELS[order.shipped_status]}
         </span>
+        {readyToShip && (
+          <button
+            type="button"
+            className={`btn btn-primary ${styles.shipBtn}`}
+            onClick={onShip}
+          >
+            🚚 Отгрузить
+          </button>
+        )}
+        {order.shipped_at && (
+          <span className={styles.subText}>
+            Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}
+          </span>
+        )}
         {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
         {order.packaging && order.packaging !== 'none' && (
           <span className={`${styles.chip} ${styles.chipNeutral}`}>
@@ -513,9 +561,9 @@ export default function OrderCard() {
                           <td><span className={`${styles.chip} ${styles.chipNeutral}`}>правка</span></td>
                           <td>
                             {AUDIT_FIELD_LABELS[row.field_name] || row.field_name}:{' '}
-                            <span className={styles.subText}>{row.old_value ?? '—'}</span>
+                            <span className={styles.subText}>{auditValue(row.field_name, row.old_value)}</span>
                             {' → '}
-                            <strong>{row.new_value ?? '—'}</strong>
+                            <strong>{auditValue(row.field_name, row.new_value)}</strong>
                           </td>
                         </tr>
                       );

@@ -10,6 +10,8 @@ import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { buildRoute, isStageReady } from '../utils/routes';
+import { isOrderReadyToShip } from '../utils/stageUi';
+import { daysLeft } from '../utils/time';
 import type {
   BrandingMethod,
   BrandingOn,
@@ -22,6 +24,7 @@ import type {
   ErpMaterial,
   ErpOrder,
   ErpOrderItem,
+  ErpOrderStatus,
   ErpStageEvent,
   ProductionType,
   StageStatus,
@@ -206,6 +209,11 @@ interface ErpStore {
   loadMyDept: (profileId: string | undefined) => Promise<void>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
   updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
+  /**
+   * Отгрузка готового заказа: status → done_* (по сроку клиента),
+   * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
+   */
+  shipOrder: (orderId: string) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   setStageStatus: (
     stageId: string,
@@ -526,6 +534,43 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       toast.error('Не удалось обновить заказ');
       return false;
     }
+    return true;
+  },
+
+  shipOrder: async (orderId) => {
+    const prev = get().orders;
+    const order = prev.find((o) => o.id === orderId);
+    if (!order) return false;
+    // отгружать можно только готовый заказ (все этапы done/skipped)
+    if (!isOrderReadyToShip(order)) {
+      toast.error('Заказ ещё не готов к отгрузке');
+      return false;
+    }
+    // архивный статус — по сроку клиента (как в ORDER_STATUS_LABELS)
+    const d = daysLeft(order.due_date);
+    const status: ErpOrderStatus =
+      d === null || d === 0 ? 'done_on_time' : d < 0 ? 'done_late' : 'done_early';
+    // dev-режим: user.id 'dev' — не валидный uuid (паттерн useOrdersStore)
+    const userId = useAuthStore.getState().user?.id;
+    const patch: Partial<ErpOrder> = {
+      status,
+      shipped_status: 'shipped',
+      shipped_at: new Date().toISOString(),
+      shipped_by: userId && userId !== 'dev' ? userId : null,
+    };
+
+    // optimistic с rollback + pending-ключ (защита от «старого» realtime)
+    set((s) => ({
+      orders: s.orders.map((o) => (o.id === orderId ? { ...o, ...patch } : o)),
+    }));
+    const { error } = await withPending(`order:${orderId}`, () =>
+      supabase.from('erp_orders').update(patch).eq('id', orderId));
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось отгрузить заказ');
+      return false;
+    }
+    toast.success('Заказ отгружен и перемещён в архив');
     return true;
   },
 

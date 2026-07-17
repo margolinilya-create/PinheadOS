@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
@@ -8,7 +8,7 @@ import { deptShortName } from '../data/departments';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { daysLeft } from '../utils/time';
-import { STAGE_CHIP_CLASS, stageProgress } from '../utils/stageUi';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
@@ -221,13 +221,14 @@ function DueCell({ dueDate }) {
   );
 }
 
-function OrderRow({ order, departments, onDelete, canDelete }) {
+function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
   );
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
+  const ready = isOrderReadyToShip(order);
 
   return (
     <>
@@ -254,11 +255,29 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
         <td>{totalQty}</td>
         <td><DueCell dueDate={order.due_date} /></td>
         <td>
-          <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-            {ORDER_STATUS_LABELS[order.status]}
-          </span>
+          {ready ? (
+            <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>
+          ) : (
+            <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
+              {ORDER_STATUS_LABELS[order.status]}
+            </span>
+          )}
+          {order.shipped_at && (
+            <div className={styles.subText}>
+              отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
+            </div>
+          )}
         </td>
         <td onClick={(e) => e.stopPropagation()}>
+          {ready && (
+            <button
+              type="button"
+              className={`btn btn-primary ${styles.shipBtn}`}
+              onClick={() => onShip(order)}
+            >
+              🚚 Отгрузить
+            </button>
+          )}
           {canDelete && (
             <button
               type="button"
@@ -311,13 +330,14 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
 }
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
-function OrderCardMobile({ order, departments, onDelete, canDelete }) {
+function OrderCardMobile({ order, departments, onDelete, canDelete, onShip }) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
   );
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
   const progress = stageProgress(order.items.flatMap((it) => it.stages));
+  const ready = isOrderReadyToShip(order);
 
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
@@ -341,9 +361,18 @@ function OrderCardMobile({ order, departments, onDelete, canDelete }) {
         {order.manager ? ` · ${order.manager}` : ''} · {totalQty} шт
       </div>
       <div className={styles.orderCardMMeta}>
-        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
+        {ready ? (
+          <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>
+        ) : (
+          <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
+            {ORDER_STATUS_LABELS[order.status]}
+          </span>
+        )}
+        {order.shipped_at && (
+          <span className={styles.subText}>
+            отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
+          </span>
+        )}
         <DueCell dueDate={order.due_date} />
         {progress.total > 0 && (
           <span className={styles.progressCell} aria-label={`Этапов готово: ${progress.done} из ${progress.total}`}>
@@ -351,6 +380,15 @@ function OrderCardMobile({ order, departments, onDelete, canDelete }) {
           </span>
         )}
       </div>
+      {ready && (
+        <button
+          type="button"
+          className={`btn btn-primary ${styles.shipBtn}`}
+          onClick={() => onShip(order)}
+        >
+          🚚 Отгрузить
+        </button>
+      )}
       {order.items.map((it) => (
         <div key={it.id} className={styles.orderCardMItem}>
           <span className={styles.subText}>{it.product_type} × {it.qty}</span>
@@ -1010,7 +1048,7 @@ function CreateOrderModal({ onClose }) {
 
 export default function OrdersScreen({ user }) {
   const {
-    orders, departments, loading, loaded, loadAll, deleteOrder,
+    orders, departments, loading, loaded, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, loadArchive,
   } = useErpStore(
     useShallow((s) => ({
@@ -1020,6 +1058,7 @@ export default function OrdersScreen({ user }) {
       loaded: s.loaded,
       loadAll: s.loadAll,
       deleteOrder: s.deleteOrder,
+      shipOrder: s.shipOrder,
       archiveLoaded: s.archiveLoaded,
       archiveLoading: s.archiveLoading,
       loadArchive: s.loadArchive,
@@ -1029,6 +1068,13 @@ export default function OrdersScreen({ user }) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('active'); // active | archive
   const isMobile = useMediaQuery('(max-width: 760px)');
+  // Фильтр «Готовы к отгрузке» — в URL (?filter=ready), чтобы работала ссылка с дашборда
+  const [searchParams, setSearchParams] = useSearchParams();
+  const readyFilter = searchParams.get('filter') === 'ready';
+  const readyCount = useMemo(
+    () => orders.filter((o) => isOrderReadyToShip(o)).length,
+    [orders],
+  );
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -1042,8 +1088,12 @@ export default function OrdersScreen({ user }) {
   const canDelete = ['admin', 'director'].includes(user?.role);
 
   const inTab = useMemo(
-    () => orders.filter((o) => (tab === 'active' ? o.status === 'active' : o.status !== 'active')),
-    [orders, tab],
+    () => orders.filter((o) => {
+      if (tab === 'archive') return o.status !== 'active';
+      if (o.status !== 'active') return false;
+      return !readyFilter || isOrderReadyToShip(o);
+    }),
+    [orders, tab, readyFilter],
   );
 
   const filtered = useMemo(() => {
@@ -1068,6 +1118,15 @@ export default function OrdersScreen({ user }) {
       const done = await deleteOrder(order.id);
       if (done) toast.success('Заказ удалён');
     }
+  };
+
+  const onShip = async (order) => {
+    const ok = await confirm({
+      title: `Отгрузить заказ «${order.title}»?`,
+      message: 'Заказ уйдёт в архив.',
+      confirmLabel: 'Отгрузить',
+    });
+    if (ok) await shipOrder(order.id);
   };
 
   return (
@@ -1096,6 +1155,18 @@ export default function OrdersScreen({ user }) {
           >
             Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
           </button>
+          {tab === 'active' && (
+            <button
+              type="button"
+              aria-pressed={readyFilter}
+              className={`${styles.chip} ${readyFilter ? styles.chipReady : styles.chipNeutral}`}
+              style={{ cursor: 'pointer', font: 'inherit' }}
+              onClick={() =>
+                setSearchParams(readyFilter ? {} : { filter: 'ready' }, { replace: true })}
+            >
+              ✅ Готовы к отгрузке ({readyCount})
+            </button>
+          )}
         </div>
         <input
           type="search"
@@ -1121,7 +1192,9 @@ export default function OrdersScreen({ user }) {
         <div className={styles.emptyState}>
           {inTab.length === 0
             ? tab === 'active'
-              ? 'Активных заказов нет — создайте первый.'
+              ? readyFilter
+                ? 'Готовых к отгрузке заказов пока нет.'
+                : 'Активных заказов нет — создайте первый.'
               : 'Архив пуст.'
             : 'Ничего не найдено по запросу.'}
         </div>
@@ -1136,6 +1209,7 @@ export default function OrdersScreen({ user }) {
               departments={departments}
               onDelete={onDelete}
               canDelete={canDelete}
+              onShip={onShip}
             />
           ))}
         </div>
@@ -1163,6 +1237,7 @@ export default function OrdersScreen({ user }) {
                   departments={departments}
                   onDelete={onDelete}
                   canDelete={canDelete}
+                  onShip={onShip}
                 />
               ))}
             </tbody>

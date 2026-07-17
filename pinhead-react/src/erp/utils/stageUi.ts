@@ -25,3 +25,21 @@ export function stageProgress(
     total: relevant.length,
   };
 }
+
+/** Минимум заказа, по которому судим о готовности к отгрузке */
+export interface OrderShipReadiness {
+  status: string;
+  items: { stages: Pick<ErpItemStage, 'status'>[] }[];
+}
+
+/**
+ * Стадия «Готов к отгрузке»: заказ активен, у него есть хотя бы один этап
+ * и ВСЕ этапы всех позиций завершены (done/skipped).
+ * Единый источник для Dashboard / OrdersScreen / OrderCard / ProductionBoard.
+ */
+export function isOrderReadyToShip(order: OrderShipReadiness): boolean {
+  if (order.status !== 'active') return false;
+  const stages = order.items.flatMap((it) => it.stages);
+  if (stages.length === 0) return false;
+  return stages.every((s) => s.status === 'done' || s.status === 'skipped');
+}

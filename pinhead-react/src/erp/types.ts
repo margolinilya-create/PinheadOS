@@ -77,6 +77,9 @@ export interface ErpOrder {
   status: ErpOrderStatus;
   shipped_status: ErpShippedStatus;
   delivered_at: string | null;
+  /** Отгрузка (кнопка «Отгрузить»): когда и кто (uuid профиля; dev-режим — null) */
+  shipped_at?: string | null;
+  shipped_by?: string | null;
   notes: string | null;
   packaging?: PackagingType;
   packaging_note?: string | null;

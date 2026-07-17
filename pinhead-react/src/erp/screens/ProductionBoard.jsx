@@ -7,7 +7,7 @@ import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
 import { daysLeft } from '../utils/time';
-import { STAGE_CHIP_CLASS, stageProgress } from '../utils/stageUi';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
@@ -196,6 +196,15 @@ export default function ProductionBoard() {
                     <td>{order.bitrix_id || '—'}</td>
                     <td>
                       <span className={styles.cellTitle} title={order.title}>{order.title}</span>
+                      {isOrderReadyToShip(order) && (
+                        <span
+                          className={`${styles.chip} ${styles.chipReady}`}
+                          style={{ marginLeft: 6 }}
+                          title="Все этапы завершены — заказ готов к отгрузке"
+                        >
+                          ✅ к отгрузке
+                        </span>
+                      )}
                       <div className={styles.subText}>
                         {item.product_type}
                         {item.variant ? ` · ${item.variant}` : ''}
