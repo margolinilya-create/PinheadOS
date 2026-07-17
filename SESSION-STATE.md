@@ -36,8 +36,29 @@
    фикс поля `is_branding`, токены `--overlay`/`--shadow-modal` (dark mode), мелкий
    текст ≥12px, empty states, превью с onError-заглушкой.
 
-Тесты: **887/887** (было 796), lint 0, build ок. Миграции применены к БД:
-`20260717170000_erp_stage_qty_done.sql`, `20260717190000_erp_create_order_rpc.sql`.
+Тесты: **901/901** (было 796), lint 0, build ок. Миграции применены к БД:
+`20260717170000_erp_stage_qty_done.sql`, `20260717190000_erp_create_order_rpc.sql`,
+`20260718090000_erp_order_shipping.sql`, `20260101000000_baseline_order_studio.sql`.
+
+### Сессия 12, часть 2: отгрузка + QA + CI
+- **Отгрузка**: вычисляемая стадия «Готов к отгрузке» (все этапы done/skipped,
+  `isOrderReadyToShip`), KPI на дашборде, фильтр `?filter=ready`, кнопка
+  «🚚 Отгрузить» (confirm) → `shipped_at/shipped_by/shipped_status` → архивный
+  статус по сроку (done_on_time/late/early). История через аудит-триггер.
+- **CI починен**: baseline-миграция `20260101000000` (базовая схема Order
+  Studio — реплей preview-веток Supabase больше не падает), guard
+  `cron.unschedule` через execute; visual-эталоны разделены per-project
+  (`{arg}-{projectName}` — mobile был вечно красным из-за общего файла),
+  workflow_dispatch `update_snapshots=true` коммитит эталоны сам.
+- **QA-прогон (полный, враждебный)**: 0 critical, 1 major (брак > тиража —
+  починен), 8 minor (3 починены: maxLength названия, буфер ≥0, предупреждение
+  о клампе частичной готовности). Открытые minor: BUG-01 (инлайн-правки полей
+  не пишутся в Историю карточки), даты в прошлом без min, KPI «Срок ≤3»/
+  «Просрочено» не кликабельны, 20px overflow на мобиле, нет тумблера тёмной
+  темы в ERP (CSS темы готов), в тёмной теме кнопка «+ Новый заказ» бледная.
+- **QA-мост**: `scripts/qa-supabase-bridge.mjs` (QA_SB_BRIDGE=1) — браузер
+  ходит в Supabase через localhost:5173/sb, curl-прокси с актуальным
+  $HTTPS_PROXY на каждый запрос. Решает ERR_CONNECTION_RESET в контейнере.
 
 ### Архитектура продукта
 - **🏭 Производство (ERP)** — корень приложения. Раздел по умолчанию.
