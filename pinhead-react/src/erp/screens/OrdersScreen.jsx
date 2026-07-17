@@ -559,7 +559,7 @@ function CreateOrderModal({ onClose }) {
       manager: form.manager.trim() || undefined,
       launch_date: form.launch_date || undefined,
       due_date: form.due_date || undefined,
-      buffer_days: Number(form.buffer_days) || 0,
+      buffer_days: Math.max(0, Number(form.buffer_days) || 0),
       packaging: form.packaging,
       packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || undefined : undefined,
       stickers: form.stickers,
@@ -666,6 +666,7 @@ function CreateOrderModal({ onClose }) {
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="BOX39 свитшоты"
               required
+              maxLength={140}
               aria-invalid={err('title') ? true : undefined}
               aria-describedby={err('title') ? 'err-order-title' : undefined}
               data-invalid={err('title') ? true : undefined}
@@ -709,7 +710,7 @@ function CreateOrderModal({ onClose }) {
               min="0"
               className={styles.input}
               value={form.buffer_days}
-              onChange={(e) => setForm({ ...form, buffer_days: e.target.value })}
+              onChange={(e) => setForm({ ...form, buffer_days: e.target.value.replace('-', '') })}
             />
             <span className={styles.subText}>Запас до срока клиента</span>
           </label>

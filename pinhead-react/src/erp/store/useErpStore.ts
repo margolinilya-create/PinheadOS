@@ -627,6 +627,9 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     const total = item.qty;
     const newDone = Math.min((stage.qty_done ?? 0) + qty, total);
     const isDone = newDone >= total;
+    if ((stage.qty_done ?? 0) + qty > total) {
+      toast.warning(`Введено больше остатка — засчитано ${total - (stage.qty_done ?? 0)} шт (до полного тиража)`);
+    }
     const patch: Partial<ErpItemStage> = { qty_done: newDone };
     if (isDone) {
       patch.status = 'done';
@@ -658,7 +661,13 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     const prev = get().orders;
     const found = findStage(prev, stageId);
     if (!found) return false;
-    const { stage, order } = found;
+    const { stage, order, item } = found;
+
+    // брак не может превышать тираж позиции
+    if (item.qty > 0 && qty > item.qty) {
+      toast.error(`Брак не может превышать тираж (${item.qty} шт)`);
+      return false;
+    }
 
     const patch: Partial<ErpItemStage> = {
       qty_rework: (stage.qty_rework ?? 0) + qty,

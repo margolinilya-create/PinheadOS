@@ -385,6 +385,7 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
           <input
             type="number"
             min="1"
+            max={item.qty}
             className={`${styles.input} ${styles.qtySmallInput}`}
             placeholder="шт"
             value={defectQty}
@@ -402,7 +403,7 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
           <button
             type="button"
             className="btn btn-danger"
-            disabled={!defectText.trim() || !(Number(defectQty) > 0)}
+            disabled={!defectText.trim() || !(Number(defectQty) > 0) || Number(defectQty) > item.qty}
             onClick={() => {
               onDefect(entry, Number(defectQty), defectText.trim(), defectPhoto);
               setDefectMode(false); setDefectQty(''); setDefectText(''); setDefectPhoto(null);
