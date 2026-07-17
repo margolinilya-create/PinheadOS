@@ -12,7 +12,7 @@ describe('DEPARTMENTS seed', () => {
   });
 
   it('отмечает три цеха брендирования', () => {
-    const branding = DEPARTMENTS.filter((d) => d.branding).map((d) => d.code);
+    const branding = DEPARTMENTS.filter((d) => d.is_branding).map((d) => d.code);
     expect(branding).toEqual(['silkscreen', 'dtf', 'embroidery']);
   });
 

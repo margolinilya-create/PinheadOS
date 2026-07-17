@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
+import { daysLeft } from '../utils/time';
+import { STAGE_CHIP_CLASS, stageProgress } from '../utils/stageUi';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
@@ -14,28 +17,11 @@ import styles from '../erp.module.css';
  * Клик по этапу циклит статус: ready → in_progress → done.
  */
 
-const STAGE_CHIP_CLASS = {
-  waiting: 'chipWaiting',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  skipped: 'chipSkipped',
-  blocked: 'chipBlocked',
-};
-
 /** Следующий статус по клику (простая механика MVP) */
 const NEXT_STATUS = {
   ready: 'in_progress',
   in_progress: 'done',
 };
-
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
-}
 
 function StageChip({ stage, item, order, deptById, onAdvance }) {
   const dept = deptById.get(stage.department_id);
@@ -81,7 +67,10 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
 }
 
 export default function ProductionBoard() {
-  const { orders, departments, loading, loaded, loadAll, setStageStatus } = useErpStore(
+  const {
+    orders, departments, loading, loaded, loadAll, setStageStatus,
+    archiveLoaded, loadArchive,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
@@ -89,6 +78,8 @@ export default function ProductionBoard() {
       loaded: s.loaded,
       loadAll: s.loadAll,
       setStageStatus: s.setStageStatus,
+      archiveLoaded: s.archiveLoaded,
+      loadArchive: s.loadArchive,
     })),
   );
   const [onlyActive, setOnlyActive] = useState(true);
@@ -98,6 +89,11 @@ export default function ProductionBoard() {
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+
+  // Снят фильтр «Только активные» → нужны и архивные (лениво)
+  useEffect(() => {
+    if (!onlyActive && !archiveLoaded) loadArchive();
+  }, [onlyActive, archiveLoaded, loadArchive]);
 
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -167,7 +163,7 @@ export default function ProductionBoard() {
 
       {view === 'kanban' && loaded && <ErpKanban />}
 
-      {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
+      {loading && !loaded && <TableSkeleton rows={6} label="Загрузка производственного плана" />}
 
       {view === 'table' && loaded && rows.length === 0 && (
         <div className={styles.emptyState}>
@@ -194,13 +190,12 @@ export default function ProductionBoard() {
                 const dueCls = d !== null && d < 0
                   ? styles.overdue
                   : d !== null && d <= 3 ? styles.dueSoon : undefined;
-                const relevant = item.stages.filter((s) => s.status !== 'skipped');
-                const doneCount = relevant.filter((s) => s.status === 'done').length;
+                const progress = stageProgress(item.stages);
                 return (
                   <tr key={item.id}>
                     <td>{order.bitrix_id || '—'}</td>
                     <td>
-                      <strong>{order.title}</strong>
+                      <span className={styles.cellTitle} title={order.title}>{order.title}</span>
                       <div className={styles.subText}>
                         {item.product_type}
                         {item.variant ? ` · ${item.variant}` : ''}
@@ -219,7 +214,7 @@ export default function ProductionBoard() {
                       )}
                     </td>
                     <td className={styles.progressCell}>
-                      {doneCount}/{relevant.length}
+                      {progress.done}/{progress.total}
                     </td>
                     <td>
                       <div className={styles.stageChips}>

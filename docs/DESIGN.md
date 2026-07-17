@@ -30,19 +30,26 @@
 | Вкладки цехов | `deptTabs/deptTab/deptTabActive` + `deptTabCount` (красный бейдж `deptTabHot`) | скролл-бар без скроллбара |
 | KPI-плитки | `kpiTile/kpiValue/kpiLabel` (+`kpiWarn/kpiDanger`) | значение — Mono 34px |
 | Канбан | `kanbanBoard/kanbanCol` (290px, flex-shrink:0 у лейнов!) `kanbanLane` (ready/in_progress/done) `kanbanCard` | drag только внутри колонки; дедлайн-точка `kanbanDot`; время-в-этапе |
-| Очередь цеха | `queueCard` + полоса слева (Ready зел./Progress жёлт./Blocked красн.), просрочка — красная рамка | кнопки min-height 46px (планшет) |
+| Очередь цеха | `queueCard` + полоса слева (Ready зел./Progress жёлт./Blocked красн.), просрочка — красная рамка | кнопки min-height 46px (планшет); разворачиваемый блок «📋 ТЗ позиции» (сетка/нанесения/упаковка/материалы); превью 48px + лайтбокс; прогресс-бар qty_done N/M; фото брака/блока |
 | Карточка заказа | `matSection` секции; `stepper*` (точки этапов); `printBlock` (нанесение, синяя полоса слева) | InlineEdit: клик→input→Enter |
-| Формы | `tile/tileActive` (плитки-radio) · `errorSummary` (красный баннер) · `dropZone` (превью, Ctrl+V) · `sizeGrid` | noValidate + своя валидация |
+| Формы | `tile/tileActive` (плитки-radio) · `accSection/accHeader` (аккордеон) · `inputError/fieldError` (инлайн-ошибки) · `draftBanner` (черновик) · `dropZone` (превью, Ctrl+V) · `sizeGrid` + чипсы-пресеты | noValidate + инлайн-валидация с автоскроллом; автосейв черновика; focus-trap + Escape |
 | Таблицы | `tableWrap/table` | th: Inter 10px uppercase, фон surface |
 
 ## UX-правила
-- Действие цеха = 1 тап; тач-таргеты ≥44px
+- Действие цеха = 1 тап; тач-таргеты ≥44px (глобально через `@media (pointer: coarse)`)
 - Просрочка — красный `--color-error`, ≤3 дней — жёлтый `--color-warning`
-- Ошибка формы: error-summary сверху + scroll к нему; ошибки списком
+- Ошибка формы: инлайн у поля (красная рамка + текст, aria-invalid) + автоскролл
+  к первому ошибочному; у кнопки — «Осталось заполнить: …»
 - Инлайн-правки вместо модалок там, где правится 1 поле (карандаш при hover)
-- Optimistic UI с rollback; toast на каждую ошибку Supabase
+- Optimistic UI с rollback + защита от race с realtime (pendingMutations)
+- toast на каждую ошибку Supabase
 - Короткие имена цехов (deptShortName) во всех чипах: Закрой, Швейка, ДТФ…
-- Mobile: скролл-вкладки, полноширинные карточки, `queueDue` переносится
+- Mobile: брейкпоинты 760/480; <760 модалки полноэкранные (sticky-кнопки),
+  список заказов — карточки; канбан — touch-DnD (mobile-drag-drop) + scroll-snap
+- Загрузка: скелетоны (`ErpSkeletons.jsx`), не текст «Загрузка…»
+- Названия: line-clamp 2 + title с полным текстом
+- Мелкий текст ≥12px; оверлей/тени модалок — токены `--overlay`/`--shadow-modal`
+- PWA: manifest + иконки 192/512, установка на планшеты цехов
 
 ## Импортированные паттерны kontora24
 Время-в-статусе (мин/ч/дн) · дедлайн-точки · блокировка DnD-зон затемнением ·

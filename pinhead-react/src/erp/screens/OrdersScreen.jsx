@@ -2,10 +2,33 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { daysLeft } from '../utils/time';
+import { STAGE_CHIP_CLASS, stageProgress } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
+import { pluralize } from '../../utils/i18n';
+import {
+  EMPTY_ITEM,
+  EMPTY_PRINT,
+  SIZE_PRESETS,
+  SIZE_PRESET_LABELS,
+  clearOrderDraft,
+  effectiveQty,
+  emptyOrderForm,
+  gridToPayload,
+  gridTotal,
+  isFormEmpty,
+  loadOrderDraft,
+  localToday,
+  saveOrderDraft,
+  toggleSize,
+  validateOrderForm,
+} from '../utils/orderForm';
 import {
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
@@ -16,58 +39,107 @@ import {
 } from '../types';
 import styles from '../erp.module.css';
 
-const EMPTY_ITEM = {
-  product_type: '',
-  variant: '',
-  qty: '',
-  production_type: 'sewing',
-  branding_methods: [],
-  branding_on: 'cut',
-  prints: [],
-  size_grid: null,
-};
-
-const EMPTY_PRINT = {
-  method: 'embroidery',
-  zone: '',
-  width_mm: '',
-  height_mm: '',
-  offset_note: '',
-  pantone: '',
-  comment: '',
-};
-
-/** Редактор размерной сетки: размеры колонками, цвета строками, сумма = тираж */
+/** Редактор размерной сетки: пресеты-чипсы размеров, цвета строками, сумма = тираж */
 function SizeGridEditor({ grid, onChange }) {
   const sizes = grid?.sizes ?? [];
   const rows = grid?.rows ?? [];
+  const [preset, setPreset] = useState(() => {
+    const inKids = sizes.some((s) => SIZE_PRESETS.kids.includes(s));
+    const inAdult = sizes.some((s) => SIZE_PRESETS.adult.includes(s));
+    return inKids && !inAdult ? 'kids' : 'adult';
+  });
+  const [customSize, setCustomSize] = useState('');
   const set = (patch) => onChange({ sizes, rows, ...patch });
+  const total = gridTotal(grid);
+
+  const onToggleSize = (sz) => {
+    const g = toggleSize(grid, sz);
+    // первая активация размера — сразу даём строку цвета для ввода количеств
+    onChange(g.sizes.length > 0 && (g.rows?.length ?? 0) === 0
+      ? { ...g, rows: [{ color: '', sizes: {} }] }
+      : g);
+  };
+
+  const addCustom = () => {
+    const v = customSize.trim();
+    if (!v) return;
+    if (!sizes.includes(v)) onToggleSize(v);
+    setCustomSize('');
+  };
+
+  const presetSizes = preset === 'custom' ? [] : SIZE_PRESETS[preset];
+  const shownSizes = [...presetSizes, ...sizes.filter((s) => !presetSizes.includes(s))];
 
   return (
     <div className={styles.sizeGrid}>
       <div className={styles.checkRow}>
-        <span className={styles.fieldLabel}>Размеры (через запятую)</span>
-        <input
-          className={styles.input}
-          style={{ flex: 1, minWidth: 180, minHeight: 32 }}
-          placeholder="XS-S, M-L, XL-2XL"
-          value={sizes.join(', ')}
-          onChange={(e) =>
-            set({ sizes: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-        />
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}
-        >
-          + Цвет
-        </button>
+        <span className={styles.fieldLabel}>Шкала</span>
+        <div className={styles.tileRow} role="radiogroup" aria-label="Шкала размеров">
+          {Object.entries(SIZE_PRESET_LABELS).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={preset === v}
+              className={`${styles.tile} ${styles.tileSm} ${preset === v ? styles.tileActive : ''}`}
+              onClick={() => setPreset(v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
-      {rows.map((row, ri) => (
+      <div className={styles.checkRow}>
+        <span className={styles.fieldLabel}>Размеры</span>
+        <div className={styles.tileRow} aria-label="Размеры сетки">
+          {shownSizes.map((sz) => (
+            <button
+              key={sz}
+              type="button"
+              aria-pressed={sizes.includes(sz)}
+              className={`${styles.tile} ${styles.tileSm} ${sizes.includes(sz) ? styles.tileActive : ''}`}
+              onClick={() => onToggleSize(sz)}
+            >
+              {sz}
+            </button>
+          ))}
+          {shownSizes.length === 0 && (
+            <span className={styles.subText}>Добавьте свой размер ниже</span>
+          )}
+        </div>
+      </div>
+      {preset === 'custom' && (
+        <div className={styles.checkRow}>
+          <input
+            className={`${styles.input} ${styles.inputSm} ${styles.customSizeInput}`}
+            placeholder="Размер (56, 4XL…)"
+            aria-label="Свой размер"
+            value={customSize}
+            onChange={(e) => setCustomSize(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
+            }}
+          />
+          <button type="button" className="btn btn-secondary" onClick={addCustom}>
+            Добавить
+          </button>
+        </div>
+      )}
+      {sizes.length > 0 && (
+        <div className={styles.checkRow}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}
+          >
+            + Цвет
+          </button>
+        </div>
+      )}
+      {sizes.length > 0 && rows.map((row, ri) => (
         <div key={ri} className={styles.checkRow}>
           <input
-            className={styles.input}
-            style={{ width: 130, minHeight: 32 }}
+            className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
             placeholder="Цвет"
             value={row.color}
             aria-label={`Цвет ${ri + 1}`}
@@ -80,8 +152,7 @@ function SizeGridEditor({ grid, onChange }) {
               <input
                 type="number"
                 min="0"
-                className={styles.input}
-                style={{ width: 64, minHeight: 32 }}
+                className={`${styles.input} ${styles.inputSm} ${styles.qtyCellInput}`}
                 value={row.sizes[sz] ?? ''}
                 aria-label={`${row.color || 'цвет'} ${sz}`}
                 onChange={(e) =>
@@ -104,25 +175,38 @@ function SizeGridEditor({ grid, onChange }) {
           </button>
         </div>
       ))}
-      {rows.length > 0 && (
-        <div className={styles.subText}>
-          Итого по сетке:{' '}
-          <strong>
-            {rows.reduce((s, r) => s + Object.values(r.sizes).reduce((a, b) => a + b, 0), 0)} шт
-          </strong>{' '}
-          — подставится в количество позиции
-        </div>
-      )}
+      <div className={styles.subText} aria-live="polite">
+        Сумма по сетке: <strong>{total} шт</strong>
+        {total > 0 && ' — подставится в количество позиции'}
+      </div>
     </div>
   );
 }
 
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
+/** Сворачиваемая секция формы: заголовок с chevron + краткое резюме, когда свёрнута */
+function FormSection({ id, title, summary, open, onToggle, children }) {
+  return (
+    <section className={styles.accSection}>
+      <button
+        type="button"
+        className={styles.accHeader}
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={onToggle}
+      >
+        <span className={styles.accChevron} aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span className={styles.accTitle}>{title}</span>
+        {!open && summary && <span className={styles.accSummary}>{summary}</span>}
+      </button>
+      {open && <div id={id} className={styles.accBody}>{children}</div>}
+    </section>
+  );
+}
+
+/** Текст ошибки под полем (инлайн-валидация) */
+function FieldError({ id, text }) {
+  if (!text) return null;
+  return <span id={id} className={styles.fieldError}>{text}</span>;
 }
 
 function DueCell({ dueDate }) {
@@ -136,15 +220,6 @@ function DueCell({ dueDate }) {
     </span>
   );
 }
-
-const STAGE_CHIP_CLASS = {
-  waiting: 'chipWaiting',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  skipped: 'chipSkipped',
-  blocked: 'chipBlocked',
-};
 
 function OrderRow({ order, departments, onDelete, canDelete }) {
   const [open, setOpen] = useState(false);
@@ -166,8 +241,8 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
           <Link
             to={`/orders/${order.id}`}
             onClick={(e) => e.stopPropagation()}
-            style={{ color: 'inherit', fontWeight: 700, textDecoration: 'none' }}
-            title="Открыть карточку заказа"
+            className={styles.cellTitle}
+            title={order.title}
           >
             {order.title} ↗
           </Link>
@@ -235,11 +310,73 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
   );
 }
 
+/** Карточка заказа вместо строки таблицы (мобильный <760px) */
+function OrderCardMobile({ order, departments, onDelete, canDelete }) {
+  const deptById = useMemo(
+    () => new Map(departments.map((d) => [d.id, d])),
+    [departments],
+  );
+  const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
+  const progress = stageProgress(order.items.flatMap((it) => it.stages));
+
+  return (
+    <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
+      <div className={styles.orderCardMHead}>
+        <Link to={`/orders/${order.id}`} className={styles.orderCardMTitle} title={order.title}>
+          {order.title} ↗
+        </Link>
+        {canDelete && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            aria-label={`Удалить заказ ${order.title}`}
+            onClick={() => onDelete(order)}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <div className={styles.subText}>
+        №{order.bitrix_id || '—'}
+        {order.manager ? ` · ${order.manager}` : ''} · {totalQty} шт
+      </div>
+      <div className={styles.orderCardMMeta}>
+        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
+          {ORDER_STATUS_LABELS[order.status]}
+        </span>
+        <DueCell dueDate={order.due_date} />
+        {progress.total > 0 && (
+          <span className={styles.progressCell} aria-label={`Этапов готово: ${progress.done} из ${progress.total}`}>
+            {progress.done}/{progress.total}
+          </span>
+        )}
+      </div>
+      {order.items.map((it) => (
+        <div key={it.id} className={styles.orderCardMItem}>
+          <span className={styles.subText}>{it.product_type} × {it.qty}</span>
+          {it.stages.map((st) => (
+            <span
+              key={st.id}
+              className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[st.status]]}`}
+              title={`${deptById.get(st.department_id)?.name || '?'} · ${STAGE_STATUS_LABELS[st.status]}`}
+            >
+              {(() => {
+                const dd = deptById.get(st.department_id);
+                return dd ? deptShortName(dd.code, dd.name) : '?';
+              })()}
+              {st.status === 'done' && ' ✓'}
+            </span>
+          ))}
+        </div>
+      ))}
+    </article>
+  );
+}
+
 function CreateOrderModal({ onClose }) {
   const createOrder = useErpStore((s) => s.createOrder);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const [saving, setSaving] = useState(false);
-  const [formErrors, setFormErrors] = useState([]);
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
@@ -272,18 +409,83 @@ function CreateOrderModal({ onClose }) {
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
   }, []);
-  const [form, setForm] = useState({
-    bitrix_id: '', title: '', manager: '', launch_date: '', due_date: '',
-    packaging: 'none', packaging_note: '', stickers: 'none', stickers_note: '',
-    no_chestny_znak: false,
-  });
-  const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
+  // Дата запуска по умолчанию — сегодня; черновик восстанавливается из localStorage
+  const initialLaunch = useMemo(() => localToday(), []);
+  const [restoredDraft] = useState(() => loadOrderDraft());
+  const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
+  const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
+  const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
+
+  // Аккордеон-секции: все раскрыты по умолчанию
+  const [open, setOpen] = useState({ main: true, items: true, extra: true });
+  const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
+
+  // Инлайн-валидация: после первой попытки сабмита ошибки живут вместе с вводом
+  const [submitted, setSubmitted] = useState(false);
+  const validation = useMemo(() => validateOrderForm(form, items), [form, items]);
+  const fieldErrors = submitted ? validation.errors : {};
+  const err = (key) => fieldErrors[key];
+  const inputCls = (key) => (err(key) ? `${styles.input} ${styles.inputError}` : styles.input);
+
+  // Автосейв черновика (debounce 500 мс); пустая форма — черновик удаляется
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (isFormEmpty(form, items, initialLaunch)) clearOrderDraft();
+      else saveOrderDraft(form, items);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [form, items, initialLaunch]);
+
+  const resetDraft = () => {
+    clearOrderDraft();
+    setForm(emptyOrderForm(initialLaunch));
+    setItems([{ ...EMPTY_ITEM }]);
+    setDraftRestored(false);
+    setSubmitted(false);
+  };
+
+  // Закрытие (фон/крестик/Escape): пустая форма — сразу, иначе confirm
+  const closingRef = useRef(false);
+  const requestClose = async () => {
+    if (saving || closingRef.current) return;
+    if (isFormEmpty(form, items, initialLaunch)) {
+      clearOrderDraft();
+      onClose();
+      return;
+    }
+    closingRef.current = true;
+    const ok = await confirm({
+      title: 'Закрыть форму заказа?',
+      message: 'Заполненные поля сохранены как черновик — он восстановится при следующем открытии формы.',
+      confirmLabel: 'Закрыть',
+      cancelLabel: 'Продолжить редактирование',
+    });
+    closingRef.current = false;
+    if (ok) {
+      saveOrderDraft(form, items);
+      onClose();
+    }
+  };
+
+  // Focus-trap + Escape → requestClose (важно: до эффекта autofocus, чтобы фокус остался на первом поле)
+  const trapRef = useFocusTrap(true, requestClose);
   const firstFieldRef = useRef(null);
 
   useEffect(() => { firstFieldRef.current?.focus(); }, []);
 
   const setItem = (i, patch) =>
     setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+
+  // Брендирование: при включении сразу добавляется одна пустая строка нанесения
+  const setBranding = (i, on) =>
+    setItems((arr) => arr.map((it, idx) =>
+      idx === i
+        ? {
+            ...it,
+            has_branding: on,
+            prints: on && it.prints.length === 0 ? [{ ...EMPTY_PRINT }] : it.prints,
+          }
+        : it));
 
   const setPrint = (i, pi, patch) =>
     setItems((arr) => arr.map((it, idx) =>
@@ -293,28 +495,25 @@ function CreateOrderModal({ onClose }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    // Ступень 1: собрать все ошибки (error-summary как в kontora24)
-    const errs = [];
-    if (!form.title.trim()) errs.push('Укажите название заказа');
-    items.forEach((it, i) => {
-      const filled = it.product_type.trim() || it.variant.trim() || it.qty;
-      if (!filled && items.length > 1) return; // пустую доп. строку пропускаем
-      if (!it.product_type.trim()) errs.push(`Позиция ${i + 1}: укажите изделие`);
-      if (!(Number(it.qty) > 0)) errs.push(`Позиция ${i + 1}: количество должно быть больше 0`);
-    });
-    const today = new Date().toISOString().slice(0, 10);
-    if (form.due_date && form.due_date < today) {
-      errs.push('Срок клиента в прошлом — проверьте дату');
-    }
-    if (errs.length > 0) {
-      setFormErrors(errs);
+    setSubmitted(true);
+    const { errors } = validateOrderForm(form, items);
+    if (Object.keys(errors).length > 0) {
+      // раскрыть секции с ошибками и проскроллить к первому ошибочному полю
+      const inMain = Boolean(errors.title || errors.due_date);
+      const inItems = Object.keys(errors).some((k) => k.startsWith('item_'));
+      setOpen((o) => ({
+        ...o,
+        main: o.main || inMain,
+        items: o.items || inItems,
+      }));
       requestAnimationFrame(() => {
-        document.querySelector('[data-form-errors]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const el = document.querySelector('[data-invalid="true"]');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof el?.focus === 'function') el.focus({ preventScroll: true });
       });
       return;
     }
-    setFormErrors([]);
-    const validItems = items.filter((it) => it.product_type.trim() && Number(it.qty) > 0);
+    const validItems = items.filter((it) => it.product_type.trim() && effectiveQty(it) > 0);
     setSaving(true);
     const created = await createOrder({
       bitrix_id: form.bitrix_id.trim() || undefined,
@@ -322,66 +521,94 @@ function CreateOrderModal({ onClose }) {
       manager: form.manager.trim() || undefined,
       launch_date: form.launch_date || undefined,
       due_date: form.due_date || undefined,
+      buffer_days: Number(form.buffer_days) || 0,
       packaging: form.packaging,
       packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || undefined : undefined,
       stickers: form.stickers,
       stickers_note: form.stickers === 'other' ? form.stickers_note.trim() || undefined : undefined,
       no_chestny_znak: form.no_chestny_znak,
-      items: validItems.map((it) => ({
-        product_type: it.product_type.trim(),
-        variant: it.variant.trim() || undefined,
-        qty: Number(it.qty),
-        production_type: it.production_type,
-        // маршрут строится по техникам из блоков «Нанесение №N»
-        branding_methods: [...new Set(it.prints.map((p) => p.method))],
-        branding_on: it.branding_on,
-        size_grid:
-          it.size_grid?.rows?.length
-            ? it.size_grid.rows
-                .filter((r) => r.color.trim() || Object.keys(r.sizes).length)
-                .map((r) => ({ color: r.color.trim() || '—', sizes: r.sizes }))
-            : null,
-        prints: it.prints.map((p) => ({
-          method: p.method,
-          zone: p.zone.trim() || undefined,
-          width_mm: Number(p.width_mm) || null,
-          height_mm: Number(p.height_mm) || null,
-          offset_note: p.offset_note.trim() || undefined,
-          pantone: p.pantone.trim() || undefined,
-          comment: p.comment.trim() || undefined,
-        })),
-      })),
+      items: validItems.map((it) => {
+        const prints = it.has_branding ? it.prints : [];
+        return {
+          product_type: it.product_type.trim(),
+          variant: it.variant.trim() || undefined,
+          // сетка заполнена → количество из сетки, иначе ручной ввод
+          qty: effectiveQty(it),
+          production_type: it.production_type,
+          // маршрут строится по техникам из блоков «Нанесение №N»
+          branding_methods: [...new Set(prints.map((p) => p.method))],
+          branding_on: it.branding_on,
+          size_grid: gridToPayload(it.size_grid),
+          prints: prints.map((p) => ({
+            method: p.method,
+            zone: p.zone.trim() || undefined,
+            width_mm: Number(p.width_mm) || null,
+            height_mm: Number(p.height_mm) || null,
+            offset_note: p.offset_note.trim() || undefined,
+            pantone: p.pantone.trim() || undefined,
+            comment: p.comment.trim() || undefined,
+          })),
+        };
+      }),
     });
     if (created && previewFile) {
       await uploadOrderPreview(created.id, previewFile);
     }
     setSaving(false);
     if (created) {
+      clearOrderDraft();
       toast.success(`Заказ «${created.title}» создан, маршрут построен`);
       onClose();
     }
   };
 
+  const printsCount = items.reduce((s, it) => s + (it.has_branding ? it.prints.length : 0), 0);
+  const mainSummary = [
+    form.title.trim() || 'без названия',
+    form.due_date
+      ? `до ${new Date(form.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}`
+      : null,
+  ].filter(Boolean).join(' · ');
+  const itemsSummary =
+    `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
+    ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
+  const extraSummary = [
+    `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
+    `стикеры: ${STICKERS_LABELS[form.stickers]}`,
+    form.no_chestny_znak ? 'без ЧЗ' : null,
+    previewFile ? 'превью ✓' : null,
+  ].filter(Boolean).join(' · ');
+
   return (
-    <div className={styles.modalOverlay} onClick={onClose} role="presentation">
+    <div className={styles.modalOverlay} onClick={requestClose} role="presentation">
       <form
+        ref={trapRef}
         className={styles.modal}
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
         noValidate
+        role="dialog"
+        aria-modal="true"
         aria-label="Новый производственный заказ"
       >
         <div className={styles.modalTitle}>Новый заказ</div>
 
-        {formErrors.length > 0 && (
-          <div className={styles.errorSummary} data-form-errors role="alert">
-            <strong>Исправьте перед созданием:</strong>
-            <ul>
-              {formErrors.map((er) => <li key={er}>{er}</li>)}
-            </ul>
+        {draftRestored && (
+          <div className={styles.draftBanner} role="status">
+            <span>Восстановлен черновик</span>
+            <button type="button" className="btn btn-ghost" onClick={resetDraft}>
+              Очистить
+            </button>
           </div>
         )}
 
+        <FormSection
+          id="order-section-main"
+          title="Основное"
+          summary={mainSummary}
+          open={open.main}
+          onToggle={() => toggleSection('main')}
+        >
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>№ сделки Bitrix</span>
@@ -393,15 +620,19 @@ function CreateOrderModal({ onClose }) {
               placeholder="54766"
             />
           </label>
-          <label className={styles.field} style={{ gridColumn: 'span 2' }}>
+          <label className={`${styles.field} ${styles.fieldWide}`}>
             <span className={styles.fieldLabel}>Название *</span>
             <input
-              className={styles.input}
+              className={inputCls('title')}
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="BOX39 свитшоты"
               required
+              aria-invalid={err('title') ? true : undefined}
+              aria-describedby={err('title') ? 'err-order-title' : undefined}
+              data-invalid={err('title') ? true : undefined}
             />
+            <FieldError id="err-order-title" text={err('title')} />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Менеджер</span>
@@ -424,25 +655,54 @@ function CreateOrderModal({ onClose }) {
             <span className={styles.fieldLabel}>Срок клиента</span>
             <input
               type="date"
-              className={styles.input}
+              className={inputCls('due_date')}
               value={form.due_date}
               onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+              aria-invalid={err('due_date') ? true : undefined}
+              aria-describedby={err('due_date') ? 'err-order-due' : undefined}
+              data-invalid={err('due_date') ? true : undefined}
             />
+            <FieldError id="err-order-due" text={err('due_date')} />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Буфер, дн.</span>
+            <input
+              type="number"
+              min="0"
+              className={styles.input}
+              value={form.buffer_days}
+              onChange={(e) => setForm({ ...form, buffer_days: e.target.value })}
+            />
+            <span className={styles.subText}>Запас до срока клиента</span>
           </label>
         </div>
+        </FormSection>
 
-        <div className={styles.fieldLabel}>Позиции (изделие × вариант × кол-во)</div>
-        {items.map((it, i) => (
+        <FormSection
+          id="order-section-items"
+          title="Позиции и ТЗ"
+          summary={itemsSummary}
+          open={open.items}
+          onToggle={() => toggleSection('items')}
+        >
+        {items.map((it, i) => {
+          const gTotal = gridTotal(it.size_grid);
+          return (
           <div key={i} className={styles.itemBlock}>
           <div className={styles.itemRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Изделие *</span>
               <input
-                className={styles.input}
+                className={inputCls(`item_${i}_product_type`)}
                 value={it.product_type}
                 onChange={(e) => setItem(i, { product_type: e.target.value })}
                 placeholder="футболка"
+                aria-required="true"
+                aria-invalid={err(`item_${i}_product_type`) ? true : undefined}
+                aria-describedby={err(`item_${i}_product_type`) ? `err-item-${i}-product` : undefined}
+                data-invalid={err(`item_${i}_product_type`) ? true : undefined}
               />
+              <FieldError id={`err-item-${i}-product`} text={err(`item_${i}_product_type`)} />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Вариант / цвет</span>
@@ -453,16 +713,34 @@ function CreateOrderModal({ onClose }) {
                 placeholder="голубые"
               />
             </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Кол-во *</span>
-              <input
-                type="number"
-                min="1"
-                className={styles.input}
-                value={it.qty}
-                onChange={(e) => setItem(i, { qty: e.target.value })}
-              />
-            </label>
+            {gTotal > 0 ? (
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Кол-во</span>
+                <input
+                  className={styles.input}
+                  value={gTotal}
+                  readOnly
+                  aria-label={`Количество позиции ${i + 1} — из размерной сетки`}
+                />
+                <span className={styles.subText}>из размерной сетки</span>
+              </label>
+            ) : (
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Кол-во *</span>
+                <input
+                  type="number"
+                  min="1"
+                  className={inputCls(`item_${i}_qty`)}
+                  value={it.qty}
+                  onChange={(e) => setItem(i, { qty: e.target.value })}
+                  aria-required="true"
+                  aria-invalid={err(`item_${i}_qty`) ? true : undefined}
+                  aria-describedby={err(`item_${i}_qty`) ? `err-item-${i}-qty` : undefined}
+                  data-invalid={err(`item_${i}_qty`) ? true : undefined}
+                />
+                <FieldError id={`err-item-${i}-qty`} text={err(`item_${i}_qty`)} />
+              </label>
+            )}
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Тип производства</span>
               <div className={styles.tileRow} role="radiogroup" aria-label="Тип производства">
@@ -481,20 +759,22 @@ function CreateOrderModal({ onClose }) {
               </div>
             </div>
             <div className={styles.field}>
-              <span className={styles.fieldLabel}>Нанесения</span>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}
-              >
-                + Нанесение ({it.prints.length})
-              </button>
+              <span className={styles.fieldLabel}>Брендирование</span>
+              <label className={styles.checkLabel}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(it.has_branding)}
+                  onChange={(e) => setBranding(i, e.target.checked)}
+                />
+                С нанесением
+              </label>
             </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Нанесение на</span>
               <select
                 className={styles.select}
                 value={it.branding_on}
+                disabled={!it.has_branding}
                 onChange={(e) => setItem(i, { branding_on: e.target.value })}
               >
                 <option value="cut">на крое</option>
@@ -512,13 +792,12 @@ function CreateOrderModal({ onClose }) {
             </button>
           </div>
 
-          {it.prints.map((p, pi) => (
+          {it.has_branding && it.prints.map((p, pi) => (
             <div key={pi} className={styles.printBlock}>
-              <div className={styles.checkRow}>
+              <div className={`${styles.checkRow} ${styles.printRow}`}>
                 <strong className={styles.fieldLabel}>Нанесение №{pi + 1}</strong>
                 <select
-                  className={styles.select}
-                  style={{ minHeight: 32 }}
+                  className={`${styles.select} ${styles.inputSm}`}
                   value={p.method}
                   aria-label="Техника нанесения"
                   onChange={(e) => setPrint(i, pi, { method: e.target.value })}
@@ -528,23 +807,22 @@ function CreateOrderModal({ onClose }) {
                   ))}
                 </select>
                 <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: 160, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.printZoneInput}`}
                   placeholder="Расположение (спина справа по втачке)"
                   value={p.zone}
                   onChange={(e) => setPrint(i, pi, { zone: e.target.value })}
                 />
-                <label className={styles.checkLabel} style={{ gap: 3 }}>
+                <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
                   <span className={styles.subText}>В, мм</span>
-                  <input type="number" min="1" className={styles.input}
-                    style={{ width: 70, minHeight: 32 }}
+                  <input type="number" min="1"
+                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
                     value={p.height_mm}
                     onChange={(e) => setPrint(i, pi, { height_mm: e.target.value })} />
                 </label>
-                <label className={styles.checkLabel} style={{ gap: 3 }}>
+                <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
                   <span className={styles.subText}>Ш, мм</span>
-                  <input type="number" min="1" className={styles.input}
-                    style={{ width: 70, minHeight: 32 }}
+                  <input type="number" min="1"
+                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
                     value={p.width_mm}
                     onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
                 </label>
@@ -553,24 +831,21 @@ function CreateOrderModal({ onClose }) {
                   ✕
                 </button>
               </div>
-              <div className={styles.checkRow}>
+              <div className={`${styles.checkRow} ${styles.printRow}`}>
                 <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: 150, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
                   placeholder="Отступ (10см от шва горловины)"
                   value={p.offset_note}
                   onChange={(e) => setPrint(i, pi, { offset_note: e.target.value })}
                 />
                 <input
-                  className={styles.input}
-                  style={{ width: 150, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.pantoneInput}`}
                   placeholder="Pantone (1163, 1181)"
                   value={p.pantone}
                   onChange={(e) => setPrint(i, pi, { pantone: e.target.value })}
                 />
                 <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: 150, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
                   placeholder="Комментарий (макет как в сделке…)"
                   value={p.comment}
                   onChange={(e) => setPrint(i, pi, { comment: e.target.value })}
@@ -579,19 +854,35 @@ function CreateOrderModal({ onClose }) {
             </div>
           ))}
 
+          {it.has_branding && (
+            <div
+              className={styles.checkRow}
+              data-invalid={err(`item_${i}_prints`) ? true : undefined}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary"
+                aria-describedby={err(`item_${i}_prints`) ? `err-item-${i}-prints` : undefined}
+                onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}
+              >
+                + Нанесение ({it.prints.length})
+              </button>
+              <FieldError id={`err-item-${i}-prints`} text={err(`item_${i}_prints`)} />
+            </div>
+          )}
+
           <details className={styles.gridDetails}>
-            <summary className={styles.subText}>Размерная сетка (цвет × размер)</summary>
+            <summary className={styles.subText}>
+              Размерная сетка (цвет × размер){gTotal > 0 ? ` — ${gTotal} шт` : ''}
+            </summary>
             <SizeGridEditor
               grid={it.size_grid}
-              onChange={(g) => {
-                const total = (g.rows ?? []).reduce(
-                  (s, r) => s + Object.values(r.sizes).reduce((a, b) => a + b, 0), 0);
-                setItem(i, { size_grid: g, ...(total > 0 ? { qty: String(total) } : {}) });
-              }}
+              onChange={(g) => setItem(i, { size_grid: g })}
             />
           </details>
           </div>
-        ))}
+          );
+        })}
         <div>
           <button
             type="button"
@@ -601,7 +892,15 @@ function CreateOrderModal({ onClose }) {
             + Добавить позицию
           </button>
         </div>
+        </FormSection>
 
+        <FormSection
+          id="order-section-extra"
+          title="Упаковка и доп."
+          summary={extraSummary}
+          open={open.extra}
+          onToggle={() => toggleSection('extra')}
+        >
         <div className={styles.formGrid}>
           <div className={styles.field}>
             <span className={styles.fieldLabel}>Упаковка</span>
@@ -687,9 +986,20 @@ function CreateOrderModal({ onClose }) {
           />
         </div>
 
+        </FormSection>
+
         <div className={styles.modalActions}>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
+          {submitted && validation.missing.length > 0 && (
+            <span className={styles.remainingHint} role="status">
+              Осталось заполнить: {validation.missing.join(', ')}
+            </span>
+          )}
+          <button type="button" className="btn btn-ghost" onClick={requestClose}>Отмена</button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={saving || (submitted && validation.missing.length > 0)}
+          >
             {saving ? 'Создание…' : 'Создать заказ'}
           </button>
         </div>
@@ -699,7 +1009,10 @@ function CreateOrderModal({ onClose }) {
 }
 
 export default function OrdersScreen({ user }) {
-  const { orders, departments, loading, loaded, loadAll, deleteOrder } = useErpStore(
+  const {
+    orders, departments, loading, loaded, loadAll, deleteOrder,
+    archiveLoaded, archiveLoading, loadArchive,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
@@ -707,15 +1020,24 @@ export default function OrdersScreen({ user }) {
       loaded: s.loaded,
       loadAll: s.loadAll,
       deleteOrder: s.deleteOrder,
+      archiveLoaded: s.archiveLoaded,
+      archiveLoading: s.archiveLoading,
+      loadArchive: s.loadArchive,
     })),
   );
   const [showCreate, setShowCreate] = useState(false);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('active'); // active | archive
+  const isMobile = useMediaQuery('(max-width: 760px)');
 
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+
+  // Архив лениво: грузится при первом заходе на вкладку
+  useEffect(() => {
+    if (tab === 'archive' && !archiveLoaded && !archiveLoading) loadArchive();
+  }, [tab, archiveLoaded, archiveLoading, loadArchive]);
 
   const canDelete = ['admin', 'director'].includes(user?.role);
 
@@ -772,16 +1094,15 @@ export default function OrdersScreen({ user }) {
             style={{ cursor: 'pointer', font: 'inherit' }}
             onClick={() => setTab('archive')}
           >
-            Архив ({orders.filter((o) => o.status !== 'active').length})
+            Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
           </button>
         </div>
         <input
           type="search"
-          className={styles.input}
+          className={`${styles.input} ${styles.searchInput}`}
           placeholder="Поиск: название, № сделки, менеджер"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ minWidth: 260 }}
           aria-label="Поиск заказов"
         />
         <div className={styles.spacer} />
@@ -791,9 +1112,12 @@ export default function OrdersScreen({ user }) {
         </button>
       </div>
 
-      {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
+      {loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
+      {loaded && tab === 'archive' && !archiveLoaded && (
+        <TableSkeleton rows={4} label="Загрузка архива" />
+      )}
 
-      {loaded && filtered.length === 0 && (
+      {loaded && (tab !== 'archive' || archiveLoaded) && filtered.length === 0 && (
         <div className={styles.emptyState}>
           {inTab.length === 0
             ? tab === 'active'
@@ -803,7 +1127,21 @@ export default function OrdersScreen({ user }) {
         </div>
       )}
 
-      {filtered.length > 0 && (
+      {filtered.length > 0 && isMobile && (
+        <div className={styles.orderCardList}>
+          {filtered.map((o) => (
+            <OrderCardMobile
+              key={o.id}
+              order={o}
+              departments={departments}
+              onDelete={onDelete}
+              canDelete={canDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {filtered.length > 0 && !isMobile && (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>

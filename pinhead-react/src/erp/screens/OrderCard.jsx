@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { ScreenSkeleton } from '../components/ErpSkeletons';
+import { Skeleton } from '../../components/shared/Skeleton';
 import InlineEdit from '../components/InlineEdit';
 import { supabase } from '../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
+import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -23,15 +26,6 @@ import styles from '../erp.module.css';
  * Карточка заказа — «трекинг посылки»: маршрут по этапам с план/фактом,
  * ручные плановые даты, материалы, история событий.
  */
-
-const STAGE_CHIP_CLASS = {
-  waiting: 'chipWaiting',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  skipped: 'chipSkipped',
-  blocked: 'chipBlocked',
-};
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('ru-RU') : '—');
 const fmtTs = (d) => (d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
@@ -147,7 +141,7 @@ function StageStepper({ item, order, deptById, events }) {
 export default function OrderCard() {
   const { orderId } = useParams();
   const {
-    orders, departments, loaded, loadAll, setStagePlan,
+    orders, departments, loaded, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
   } = useErpStore(
     useShallow((s) => ({
@@ -155,6 +149,7 @@ export default function OrderCard() {
       departments: s.departments,
       loaded: s.loaded,
       loadAll: s.loadAll,
+      loadOne: s.loadOne,
       setStagePlan: s.setStagePlan,
       loadOrderEvents: s.loadOrderEvents,
       loadOrderAudit: s.loadOrderAudit,
@@ -167,10 +162,25 @@ export default function OrderCard() {
   const [audit, setAudit] = useState(null);
   const [comments, setComments] = useState(null);
   const [commentDraft, setCommentDraft] = useState('');
+  // Ошибка загрузки превью — с привязкой к заказу (смена orderId сбрасывает сама собой)
+  const [previewErrorFor, setPreviewErrorFor] = useState(null);
+  const previewError = previewErrorFor === orderId;
+  // Заказа нет среди загруженных (архив лениво) → однократная точечная догрузка;
+  // храним orderId, для которого догрузка уже выполнена (сброс при смене — сам собой)
+  const [lookedUpFor, setLookedUpFor] = useState(null);
+  const lookedUp = lookedUpFor === orderId;
 
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+
+  const inStore = orders.some((o) => o.id === orderId);
+  useEffect(() => {
+    if (!loaded || inStore || lookedUp || !orderId) return;
+    let alive = true;
+    loadOne(orderId).finally(() => { if (alive) setLookedUpFor(orderId); });
+    return () => { alive = false; };
+  }, [loaded, inStore, lookedUp, loadOne, orderId]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -193,6 +203,7 @@ export default function OrderCard() {
   }, [orderId, loadOrderEvents, loadOrderAudit, loadComments]);
 
   const order = orders.find((o) => o.id === orderId);
+  const preview = order ? orderPreviewUrl(order) : null;
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const deptNameById = useMemo(
     () => new Map(departments.map((d) => [d.id, d.name])),
@@ -204,7 +215,7 @@ export default function OrderCard() {
     return m;
   }, [order]);
 
-  if (loaded && !order) {
+  if (loaded && !order && lookedUp) {
     return (
       <>
         <PageHead title="Заказ не найден" />
@@ -212,7 +223,7 @@ export default function OrderCard() {
       </>
     );
   }
-  if (!order) return <div className={styles.emptyState}>Загрузка…</div>;
+  if (!order) return <ScreenSkeleton />;
 
   return (
     <>
@@ -259,12 +270,24 @@ export default function OrderCard() {
           />
         </span>
       </div>
-      {orderPreviewUrl(order) && (
+      {preview && !previewError && (
         <img
-          src={orderPreviewUrl(order)}
-          alt="Превью заказа"
+          src={preview}
+          alt={`Превью заказа «${order.title}»`}
+          onError={() => setPreviewErrorFor(orderId)}
           style={{ maxHeight: 140, maxWidth: 260, borderRadius: 8, border: '1px solid var(--border-light)', marginBottom: 10, objectFit: 'contain' }}
         />
+      )}
+      {preview && previewError && (
+        <div
+          className={styles.queueThumbStub}
+          style={{ marginBottom: 10 }}
+          role="img"
+          aria-label="Превью не загрузилось"
+          title="Превью не загрузилось"
+        >
+          🖼
+        </div>
       )}
       <div className={styles.toolbar}>
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
@@ -404,9 +427,9 @@ export default function OrderCard() {
         </section>
       ))}
 
-      {order.materials.length > 0 && (
-        <section className={styles.matSection}>
-          <div className={styles.matSectionHead}><strong>Материалы</strong></div>
+      <section className={styles.matSection}>
+        <div className={styles.matSectionHead}><strong>Материалы</strong></div>
+        {order.materials.length > 0 ? (
           <div className={styles.stageChips}>
             {order.materials.map((m) => (
               <span
@@ -417,13 +440,15 @@ export default function OrderCard() {
               </span>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <div className={styles.subText}>Материалы не ожидаются.</div>
+        )}
+      </section>
 
       <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>Комментарии</strong></div>
         <div className={styles.commentList}>
-          {comments === null && <div className={styles.subText}>Загрузка…</div>}
+          {comments === null && <Skeleton width="45%" height={12} />}
           {comments && comments.length === 0 && (
             <div className={styles.subText}>Пока пусто — обсуждайте заказ прямо здесь.</div>
           )}
@@ -462,7 +487,7 @@ export default function OrderCard() {
 
       <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>История</strong></div>
-        {events === null && <div className={styles.subText}>Загрузка…</div>}
+        {events === null && <Skeleton width="45%" height={12} />}
         {events && events.length === 0 && (!audit || audit.length === 0) && (
           <div className={styles.subText}>Событий пока нет — история пишется при смене статусов и правках.</div>
         )}

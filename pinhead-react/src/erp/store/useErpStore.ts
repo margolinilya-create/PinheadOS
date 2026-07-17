@@ -33,15 +33,52 @@ function currentActor(): string {
   return u?.name || u?.email || 'неизвестно';
 }
 
-/** Запись события аудита — fire-and-forget, ошибки не блокируют работу */
+/** Пауза перед повторной попыткой записи аудита */
+const STAGE_EVENT_RETRY_MS = 1500;
+
+/**
+ * Запись события аудита — fire-and-forget, ошибки не блокируют работу.
+ * При ошибке — 1 повторная попытка через ~1.5с; если обе неудачны —
+ * toast.error + console.warn.
+ */
 function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
-  supabase
-    .from('erp_stage_events')
-    .insert({ ...ev, actor: currentActor() })
-    .then(({ error }) => {
-      if (error) console.warn('stage event not logged:', error.message);
-    });
+  const row = { ...ev, actor: currentActor() };
+  const attempt = () => supabase.from('erp_stage_events').insert(row);
+  void attempt().then(({ error }) => {
+    if (!error) return;
+    setTimeout(() => {
+      void attempt().then(({ error: retryError }) => {
+        if (retryError) {
+          console.warn('stage event not logged:', retryError.message);
+          toast.error('Событие истории не записалось');
+        }
+      });
+    }, STAGE_EVENT_RETRY_MS);
+  });
 }
+
+/**
+ * Защита от race (п.29): ключи сущностей с незавершённой мутацией.
+ * Realtime-события по таким ключам не применяются сразу — состояние станет
+ * консистентным после ответа сервера (или rollback). Экспорт — для тестов.
+ */
+export const _pendingMutations = new Set<string>();
+
+/** Выполнить мутацию под pending-ключом (ключ снимается в finally) */
+async function withPending<T>(key: string, fn: () => PromiseLike<T>): Promise<T> {
+  _pendingMutations.add(key);
+  try {
+    return await fn();
+  } finally {
+    _pendingMutations.delete(key);
+  }
+}
+
+/** Отсрочка применения realtime-события по сущности с pending-мутацией */
+const REALTIME_DEFER_MS = 1000;
+/** Debounce последнего fallback — полной перезагрузки loadAll */
+const FULL_RELOAD_DEBOUNCE_MS = 500;
+let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
 export interface StaffProfile {
@@ -134,6 +171,14 @@ export interface NewOrderInput {
   items: NewOrderItemInput[];
 }
 
+/** Нормализованное realtime-событие postgres_changes (для точечного применения) */
+export interface ErpRealtimeEvent {
+  table: string;
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: Record<string, unknown> | null;
+  old: Record<string, unknown> | null;
+}
+
 interface ErpStore {
   departments: ErpDepartment[];
   orders: ErpOrderFull[];
@@ -142,8 +187,23 @@ interface ErpStore {
   employeesLoaded: boolean;
   loading: boolean;
   loaded: boolean;
+  /** Архив (status != active) грузится лениво — при первом заходе на вкладку */
+  archiveLoaded: boolean;
+  archiveLoading: boolean;
+  /** Цех текущего пользователя (erp_employees.department_id по profile_id) */
+  myDeptId: string | null;
+  myDeptLoaded: boolean;
 
+  /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
+  /** Ленивая загрузка архива (status != active) при первом заходе на вкладку */
+  loadArchive: () => Promise<void>;
+  /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
+  loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
+  /** Точечное применение realtime-события (экспорт действия — для тестов) */
+  applyRealtimeEvent: (ev: ErpRealtimeEvent) => void;
+  /** Автопривязка цеха: ищет erp_employees по profile_id текущего пользователя */
+  loadMyDept: (profileId: string | undefined) => Promise<void>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
   updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
@@ -152,8 +212,15 @@ interface ErpStore {
     status: StageStatus,
     extra?: { qty_done?: number; block_reason?: string | null; comment?: string },
   ) => Promise<boolean>;
+  /**
+   * Частичная готовность: qty_done += qty; при qty_done >= qty позиции
+   * этап закрывается (done), иначе остаётся in_progress с прогрессом «300/500».
+   */
+  reportProgress: (stageId: string, qty: number) => Promise<boolean>;
   /** Брак: qty на переделку + причина; этап возвращается в работу */
   reportDefect: (stageId: string, qty: number, reason: string) => Promise<boolean>;
+  /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
+  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
   /** Ручные плановые даты этапа */
   setStagePlan: (
     stageId: string,
@@ -208,8 +275,66 @@ function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
   };
 }
 
-/** Сколько работ «готово/в работе» в цехе — для уведомления о новой работе */
-function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
+/** Найти этап по id вместе с позицией и заказом */
+function findStage(
+  orders: ErpOrderFull[],
+  stageId: string,
+): { order: ErpOrderFull; item: ErpOrderFull['items'][number]; stage: ErpItemStage } | null {
+  for (const order of orders) {
+    for (const item of order.items) {
+      const stage = item.stages.find((s) => s.id === stageId);
+      if (stage) return { order, item, stage };
+    }
+  }
+  return null;
+}
+
+/**
+ * Точечный патч этапа: пересоздаются ТОЛЬКО заказ/позиция с этим этапом,
+ * остальные заказы сохраняют объектную идентичность (критично для ререндеров).
+ */
+function patchStageIn(
+  orders: ErpOrderFull[],
+  stageId: string,
+  patch: Partial<ErpItemStage>,
+): ErpOrderFull[] {
+  return orders.map((order) => {
+    if (!order.items.some((it) => it.stages.some((st) => st.id === stageId))) return order;
+    return {
+      ...order,
+      items: order.items.map((it) =>
+        it.stages.some((st) => st.id === stageId)
+          ? {
+              ...it,
+              stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...patch } : st)),
+            }
+          : it),
+    };
+  });
+}
+
+/**
+ * Обёртка применения realtime-изменений: если после них в цехе пользователя
+ * прибавилось работ «готово/в работе» — уведомляем (как раньше при loadAll).
+ */
+function withNewWorkToast(
+  get: () => { orders: ErpOrderFull[]; departments: ErpDepartment[] },
+  apply: () => void | Promise<unknown>,
+): Promise<void> {
+  const myDept =
+    typeof localStorage !== 'undefined' ? localStorage.getItem('erp_my_dept') : null;
+  const before = myDept
+    ? readyCountFor(get().orders, get().departments, myDept)
+    : 0;
+  return Promise.resolve(apply()).then(() => {
+    if (!myDept) return;
+    const after = readyCountFor(get().orders, get().departments, myDept);
+    if (after > before) toast.success('В вашем цехе появилась новая работа');
+  });
+}
+
+/** Сколько работ «готово/в работе» в цехе — для уведомления и бейджа «Мой цех» */
+export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
   const dept = departments.find((d) => d.code === deptCode);
   if (!dept) return 0;
   let n = 0;
@@ -234,15 +359,43 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   employeesLoaded: false,
   loading: false,
   loaded: false,
+  archiveLoaded: false,
+  archiveLoading: false,
+  myDeptId: null,
+  myDeptLoaded: false,
+
+  loadMyDept: async (profileId) => {
+    // dev-режим и отсутствие логина — свободный выбор, запрос не нужен
+    if (!profileId || profileId === 'dev') {
+      set({ myDeptId: null, myDeptLoaded: true });
+      return;
+    }
+    const { data, error } = await supabase
+      .from('erp_employees')
+      .select('department_id')
+      .eq('profile_id', profileId)
+      .eq('active', true)
+      .limit(1);
+    if (error) {
+      toast.error('Не удалось определить ваш цех');
+      set({ myDeptLoaded: true });
+      return;
+    }
+    set({ myDeptId: data?.[0]?.department_id ?? null, myDeptLoaded: true });
+  },
 
   loadAll: async () => {
     set({ loading: true });
+    // Архив лениво (п.26): пока архив не открывали — грузим только активные.
+    // Если архив уже загружен, полная перезагрузка обновляет и его.
+    let ordersQuery = supabase
+      .from('erp_orders')
+      .select(ORDER_SELECT)
+      .order('due_date', { ascending: true, nullsFirst: false });
+    if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
     const [deps, orders] = await Promise.all([
       supabase.from('erp_departments').select('*').order('sort_order'),
-      supabase
-        .from('erp_orders')
-        .select(ORDER_SELECT)
-        .order('due_date', { ascending: true, nullsFirst: false }),
+      ordersQuery,
     ]);
     if (deps.error || orders.error) {
       toast.error('Не удалось загрузить данные ERP');
@@ -257,136 +410,117 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     });
   },
 
+  loadArchive: async () => {
+    if (get().archiveLoading || get().archiveLoaded) return;
+    set({ archiveLoading: true });
+    const { data, error } = await supabase
+      .from('erp_orders')
+      .select(ORDER_SELECT)
+      .neq('status', 'active')
+      .order('due_date', { ascending: true, nullsFirst: false });
+    if (error) {
+      toast.error('Не удалось загрузить архив');
+      set({ archiveLoading: false });
+      return;
+    }
+    set((s) => ({
+      orders: [
+        ...s.orders.filter((o) => o.status === 'active'),
+        ...((data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+      ],
+      archiveLoading: false,
+      archiveLoaded: true,
+    }));
+  },
+
+  loadOne: async (orderId) => {
+    const { data, error } = await supabase
+      .from('erp_orders')
+      .select(ORDER_SELECT)
+      .eq('id', orderId)
+      .maybeSingle();
+    if (error) {
+      toast.error('Не удалось загрузить заказ');
+      return null;
+    }
+    if (!data) return null;
+    const full = sortOrderFull(data as ErpOrderFull);
+    set((s) => ({
+      orders: s.orders.some((o) => o.id === full.id)
+        ? s.orders.map((o) => (o.id === full.id ? full : o))
+        : [full, ...s.orders],
+    }));
+    return full;
+  },
+
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-
-    // 1. Заказ
     const { items, ...orderFields } = input;
-    const { data: orderRows, error: orderErr } = await supabase
-      .from('erp_orders')
-      .insert({ ...orderFields, status: 'active' })
-      .select();
-    const order = orderRows?.[0] as ErpOrder | undefined;
-    if (orderErr || !order) {
+
+    // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
+    // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
+    // depends_on в payload — индексы этапов той же позиции (всегда более ранних).
+    const payload = {
+      order: { ...orderFields, status: 'active' },
+      items: items.map((it, i) => {
+        const route = buildRoute({
+          productionType: it.production_type,
+          brandingMethods: it.branding_methods,
+          brandingOn: it.branding_on ?? 'cut',
+        });
+        const valid = route.filter((r) => deptByCode.has(r.departmentCode));
+        const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));
+        return {
+          product_type: it.product_type,
+          variant: it.variant || null,
+          qty: it.qty,
+          production_type: it.production_type,
+          branding_methods: it.branding_methods,
+          branding_on: it.branding_on,
+          notes: it.notes || null,
+          size_grid: it.size_grid ?? null,
+          sort_order: (i + 1) * 10,
+          prints: (it.prints ?? []).map((p, j) => ({
+            seq: j + 1,
+            method: p.method,
+            fabric: p.fabric || null,
+            zone: p.zone || null,
+            width_mm: p.width_mm ?? null,
+            height_mm: p.height_mm ?? null,
+            offset_note: p.offset_note || null,
+            pantone: p.pantone || null,
+            comment: p.comment || null,
+          })),
+          stages: valid.map((r) => ({
+            department_id: deptByCode.get(r.departmentCode)!.id,
+            sort_order: r.sortOrder,
+            depends_on: r.dependsOnCodes
+              .map((c) => codeToIdx.get(c))
+              .filter((x): x is number => x !== undefined),
+          })),
+        };
+      }),
+      materials: [],
+    };
+
+    const { data, error } = await supabase.rpc('erp_create_order', { payload });
+    if (error || !data) {
       toast.error('Не удалось создать заказ');
       return null;
     }
-
-    // 2. Позиции
-    const itemsPayload = items.map((it, i) => ({
-      order_id: order.id,
-      product_type: it.product_type,
-      variant: it.variant || null,
-      qty: it.qty,
-      production_type: it.production_type,
-      branding_methods: it.branding_methods,
-      branding_on: it.branding_on,
-      notes: it.notes || null,
-      size_grid: it.size_grid ?? null,
-      sort_order: (i + 1) * 10,
-    }));
-    const { data: itemRows, error: itemsErr } = await supabase
-      .from('erp_order_items')
-      .insert(itemsPayload)
-      .select();
-    if (itemsErr || !itemRows) {
-      toast.error('Заказ создан, но позиции не сохранились');
-      return null;
-    }
-
-    // 2б. Нанесения с параметрами (страницы «Нанесение №N» ТЗ)
-    const printsPayload = (itemRows as ErpOrderItem[]).flatMap((row, i) =>
-      (items[i]?.prints ?? []).map((p, j) => ({
-        item_id: row.id,
-        seq: j + 1,
-        method: p.method,
-        fabric: p.fabric || null,
-        zone: p.zone || null,
-        width_mm: p.width_mm ?? null,
-        height_mm: p.height_mm ?? null,
-        offset_note: p.offset_note || null,
-        pantone: p.pantone || null,
-        comment: p.comment || null,
-      })));
-    let printRows: ErpItemPrint[] = [];
-    if (printsPayload.length > 0) {
-      const { data: prData, error: prErr } = await supabase
-        .from('erp_item_prints')
-        .insert(printsPayload)
-        .select();
-      if (prErr) toast.error('Заказ создан, но параметры нанесений не сохранились');
-      printRows = (prData ?? []) as ErpItemPrint[];
-    }
-
-    // 3. Этапы по маршруту (двухфазно: insert → проставить depends_on по id)
-    const allStages: ErpItemStage[] = [];
-    for (const row of itemRows as ErpOrderItem[]) {
-      const route = buildRoute({
-        productionType: row.production_type,
-        brandingMethods: row.branding_methods,
-        brandingOn: row.branding_on ?? 'cut',
-      });
-      const valid = route.filter((r) => deptByCode.has(r.departmentCode));
-      if (valid.length === 0) continue;
-
-      const { data: stageRows, error: stErr } = await supabase
-        .from('erp_item_stages')
-        .insert(valid.map((r) => ({
-          item_id: row.id,
-          department_id: deptByCode.get(r.departmentCode)!.id,
-          sort_order: r.sortOrder,
-        })))
-        .select();
-      if (stErr || !stageRows) {
-        toast.error('Не удалось создать этапы маршрута');
-        return null;
-      }
-
-      const deptIdToStageId = new Map(
-        (stageRows as ErpItemStage[]).map((s) => [s.department_id, s.id]),
-      );
-      for (const r of valid) {
-        const stageId = deptIdToStageId.get(deptByCode.get(r.departmentCode)!.id);
-        const depIds = r.dependsOnCodes
-          .map((c) => deptIdToStageId.get(deptByCode.get(c)?.id ?? ''))
-          .filter((x): x is string => Boolean(x));
-        if (stageId && depIds.length > 0) {
-          const { error: depErr } = await supabase
-            .from('erp_item_stages')
-            .update({ depends_on: depIds })
-            .eq('id', stageId);
-          if (depErr) {
-            toast.error('Не удалось связать этапы маршрута');
-            return null;
-          }
-        }
-      }
-      const { data: finalStages } = await supabase
-        .from('erp_item_stages').select('*').eq('item_id', row.id);
-      allStages.push(...((finalStages ?? []) as ErpItemStage[]));
-    }
-
-    const full = sortOrderFull({
-      ...order,
-      items: (itemRows as ErpOrderItem[]).map((it) => ({
-        ...it,
-        stages: allStages.filter((s) => s.item_id === it.id),
-        prints: printRows.filter((p) => p.item_id === it.id),
-      })),
-      materials: [],
-    });
-    set((s) => ({ orders: [full, ...s.orders] }));
-    return full;
+    // Созданный заказ забираем тем же вложенным select
+    return get().loadOne(data as string);
   },
 
   updateOrder: async (id, patch) => {
     const prev = get().orders;
-    // optimistic с rollback
+    // optimistic с rollback + pending-ключ (защита от «старого» realtime)
     set((s) => ({
       orders: s.orders.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }));
-    const { error } = await supabase.from('erp_orders').update(patch).eq('id', id);
+    const { error } = await withPending(`order:${id}`, () =>
+      supabase.from('erp_orders').update(patch).eq('id', id));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить заказ');
@@ -414,36 +548,22 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     if (status === 'done') patch.finished_at = new Date().toISOString();
 
     // найдём заказ и прежний статус для аудита
-    let fromStatus: string | null = null;
-    let orderId: string | null = null;
-    for (const o of prev) {
-      for (const it of o.items) {
-        const st = it.stages.find((s) => s.id === stageId);
-        if (st) { fromStatus = st.status; orderId = o.id; }
-      }
-    }
+    const found = findStage(prev, stageId);
 
-    // optimistic с rollback
-    set((s) => ({
-      orders: s.orders.map((o) => ({
-        ...o,
-        items: o.items.map((it) => ({
-          ...it,
-          stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...patch } : st)),
-        })),
-      })),
-    }));
-    const { error } = await supabase.from('erp_item_stages').update(patch).eq('id', stageId);
+    // optimistic с rollback (нетронутые заказы сохраняют идентичность)
+    set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
+    const { error } = await withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить этап');
       return false;
     }
-    if (orderId) {
+    if (found) {
       logStageEvent({
         stage_id: stageId,
-        order_id: orderId,
-        from_status: fromStatus,
+        order_id: found.order.id,
+        from_status: found.stage.status,
         to_status: status,
         qty_done: extra.qty_done ?? null,
         qty_rework: null,
@@ -453,34 +573,57 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     return true;
   },
 
+  reportProgress: async (stageId, qty) => {
+    const prev = get().orders;
+    const found = findStage(prev, stageId);
+    if (!found || !(qty > 0)) return false;
+    const { stage, item, order } = found;
+
+    const total = item.qty;
+    const newDone = Math.min((stage.qty_done ?? 0) + qty, total);
+    const isDone = newDone >= total;
+    const patch: Partial<ErpItemStage> = { qty_done: newDone };
+    if (isDone) {
+      patch.status = 'done';
+      patch.finished_at = new Date().toISOString();
+    }
+
+    // optimistic с rollback
+    set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
+    const { error } = await withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось записать прогресс');
+      return false;
+    }
+    logStageEvent({
+      stage_id: stageId,
+      order_id: order.id,
+      from_status: stage.status,
+      to_status: isDone ? 'done' : stage.status,
+      qty_done: qty,
+      qty_rework: null,
+      comment: `Частичная готовность: ${newDone}/${total}`,
+    });
+    return true;
+  },
+
   reportDefect: async (stageId, qty, reason) => {
     const prev = get().orders;
-    let stage: ErpItemStage | null = null;
-    let orderId: string | null = null;
-    for (const o of prev) {
-      for (const it of o.items) {
-        const st = it.stages.find((s) => s.id === stageId);
-        if (st) { stage = st; orderId = o.id; }
-      }
-    }
-    if (!stage || !orderId) return false;
+    const found = findStage(prev, stageId);
+    if (!found) return false;
+    const { stage, order } = found;
 
     const patch: Partial<ErpItemStage> = {
-      qty_rework: stage.qty_rework + qty,
+      qty_rework: (stage.qty_rework ?? 0) + qty,
       // брак возвращает этап в работу (переделка)
       status: 'in_progress',
       finished_at: null,
     };
-    set((s) => ({
-      orders: s.orders.map((o) => ({
-        ...o,
-        items: o.items.map((it) => ({
-          ...it,
-          stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...patch } : st)),
-        })),
-      })),
-    }));
-    const { error } = await supabase.from('erp_item_stages').update(patch).eq('id', stageId);
+    set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
+    const { error } = await withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось записать брак');
@@ -488,7 +631,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     }
     logStageEvent({
       stage_id: stageId,
-      order_id: orderId,
+      order_id: order.id,
       from_status: stage.status,
       to_status: 'in_progress',
       qty_done: null,
@@ -500,16 +643,9 @@ export const useErpStore = create<ErpStore>((set, get) => ({
 
   setStagePlan: async (stageId, plan) => {
     const prev = get().orders;
-    set((s) => ({
-      orders: s.orders.map((o) => ({
-        ...o,
-        items: o.items.map((it) => ({
-          ...it,
-          stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...plan } : st)),
-        })),
-      })),
-    }));
-    const { error } = await supabase.from('erp_item_stages').update(plan).eq('id', stageId);
+    set((s) => ({ orders: patchStageIn(s.orders, stageId, plan) }));
+    const { error } = await withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(plan).eq('id', stageId));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось сохранить план этапа');
@@ -566,6 +702,40 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     return true;
   },
 
+  uploadOrderAttachment: async (orderId, file, note) => {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${orderId}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from('erp-attachments')
+      .upload(path, file, { contentType: file.type || 'image/jpeg' });
+    if (upErr) {
+      toast.error('Не удалось загрузить фото');
+      return false;
+    }
+    const { data, error } = await supabase
+      .from('erp_order_attachments')
+      .insert({
+        order_id: orderId,
+        file_path: path,
+        file_name: note ? `${note} — ${file.name}` : file.name,
+        kind: 'attachment',
+        uploaded_by: currentActor(),
+      })
+      .select();
+    const row = data?.[0] as ErpOrderAttachment | undefined;
+    if (error || !row) {
+      toast.error('Фото загружено, но не привязано к заказу');
+      return false;
+    }
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === orderId
+          ? { ...o, attachments: [...(o.attachments ?? []), row] }
+          : o),
+    }));
+    return true;
+  },
+
   loadOrderAudit: async (orderId) => {
     const { data, error } = await supabase
       .from('erp_order_audit')
@@ -607,32 +777,130 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     return row;
   },
 
+  applyRealtimeEvent: (ev) => {
+    const row = (ev.eventType === 'DELETE' ? ev.old : ev.new) ?? {};
+    const id = row.id as string | undefined;
+
+    // Последний fallback: точечно применить нельзя — debounced полная перезагрузка
+    const scheduleFullReload = () => {
+      if (fullReloadTimer) clearTimeout(fullReloadTimer);
+      fullReloadTimer = setTimeout(() => {
+        fullReloadTimer = null;
+        void withNewWorkToast(get, () => get().loadAll());
+      }, FULL_RELOAD_DEBOUNCE_MS);
+    };
+    if (!id) {
+      scheduleFullReload();
+      return;
+    }
+
+    // Защита от race (п.29): по сущности идёт мутация — отложить событие на ~1с
+    // и применить, только если ключ снят (иначе состояние выправит ответ сервера).
+    const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
+    if (_pendingMutations.has(key)) {
+      setTimeout(() => {
+        if (!_pendingMutations.has(key)) get().applyRealtimeEvent(ev);
+      }, REALTIME_DEFER_MS);
+      return;
+    }
+
+    if (ev.table === 'erp_item_stages') {
+      if (ev.eventType === 'UPDATE') {
+        // Точечная замена этапа; этап незагруженного (архивного) заказа — мимо
+        if (!findStage(get().orders, id)) return;
+        void withNewWorkToast(get, () => {
+          set((s) => ({ orders: patchStageIn(s.orders, id, row as Partial<ErpItemStage>) }));
+        });
+        return;
+      }
+      if (ev.eventType === 'DELETE') {
+        const found = findStage(get().orders, id);
+        if (!found) return;
+        set((s) => ({
+          orders: s.orders.map((o) =>
+            o.id !== found.order.id
+              ? o
+              : {
+                  ...o,
+                  items: o.items.map((it) => ({
+                    ...it,
+                    stages: it.stages.filter((st) => st.id !== id),
+                  })),
+                }),
+        }));
+        return;
+      }
+      // INSERT этапа: точечно не применить — перезагрузим один заказ, если позиция наша
+      // (этапы новых заказов придут вместе с INSERT erp_orders → loadOne там)
+      const itemId = (ev.new?.item_id ?? null) as string | null;
+      const order = itemId
+        ? get().orders.find((o) => o.items.some((it) => it.id === itemId))
+        : null;
+      if (order) void withNewWorkToast(get, () => get().loadOne(order.id));
+      return;
+    }
+
+    if (ev.table === 'erp_orders') {
+      if (ev.eventType === 'DELETE') {
+        set((s) => ({ orders: s.orders.filter((o) => o.id !== id) }));
+        return;
+      }
+      const existing = get().orders.find((o) => o.id === id);
+      if (ev.eventType === 'UPDATE' && existing) {
+        // merge полей заказа — вложенные items/materials/attachments не затираются
+        void withNewWorkToast(get, () => {
+          set((s) => ({
+            orders: s.orders.map((o) =>
+              o.id === id ? { ...o, ...(row as Partial<ErpOrder>) } : o),
+          }));
+        });
+        return;
+      }
+      // INSERT нового заказа (или UPDATE незагруженного) → перезагрузка одного по id.
+      // Незагруженный неактивный заказ при незагруженном архиве не тянем — не нужен.
+      const status = (ev.new?.status ?? 'active') as string;
+      if (status === 'active' || get().archiveLoaded) {
+        void withNewWorkToast(get, () => get().loadOne(id));
+      }
+      return;
+    }
+
+    // Неизвестная таблица — старый путь
+    scheduleFullReload();
+  },
+
   subscribeRealtime: () => {
-    // Уникальное имя канала (паттерн kontora24) + debounce 500ms
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const refresh = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(async () => {
-        const myDept = localStorage.getItem('erp_my_dept');
-        const before = myDept
-          ? readyCountFor(get().orders, get().departments, myDept)
-          : 0;
-        await get().loadAll();
-        if (myDept) {
-          const after = readyCountFor(get().orders, get().departments, myDept);
-          if (after > before) {
-            toast.success('В вашем цехе появилась новая работа');
-          }
-        }
-      }, 500);
+    // Уникальное имя канала (паттерн kontora24); события применяются точечно (п.27)
+    const forward = (table: string) => (payload: {
+      eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+      new: Record<string, unknown>;
+      old: Record<string, unknown>;
+    }) => {
+      get().applyRealtimeEvent({
+        table,
+        eventType: payload.eventType,
+        new: payload.new ?? null,
+        old: payload.old ?? null,
+      });
     };
     const channel = supabase
       .channel(`erp-live-${crypto.randomUUID()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_item_stages' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_orders' }, refresh)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_item_stages' },
+        forward('erp_item_stages'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_orders' },
+        forward('erp_orders'),
+      )
       .subscribe();
     return () => {
-      if (timer) clearTimeout(timer);
+      if (fullReloadTimer) {
+        clearTimeout(fullReloadTimer);
+        fullReloadTimer = null;
+      }
       supabase.removeChannel(channel);
     };
   },

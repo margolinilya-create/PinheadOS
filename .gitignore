@@ -6,5 +6,6 @@ node_modules
 skills-lock.json
 *.png
 !pinhead-react/e2e/**/*.png
+!pinhead-react/public/icon-*.png
 .DS_Store
 test-results/

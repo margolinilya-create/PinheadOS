@@ -3,12 +3,41 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
-## Состояние на 2026-07-17
+## Состояние на 2026-07-17 (сессия 12)
 
 ### Что развёрнуто
 - **Прод:** https://pinhead-os.vercel.app (main → Vercel auto-deploy)
 - **БД:** Supabase `pinhead-os-v2` (glhwbktsokphgksdvcxj)
-- **Рабочая ветка:** `claude/project-overview-jooe83` → ff-merge в `main`
+- **Рабочая ветка:** `claude/workshop-orders-usability-review-7uk82y` (5 коммитов,
+  запушена, ждёт merge в `main`)
+
+### Сессия 12 — юзабилити-аудит и 38 улучшений (все реализованы)
+Аудит (код-анализ, 43 находки) → 38 решений заказчика через опрос → 5 блоков:
+1. **Цех** (`/queue`): автопривязка цеха по `erp_employees.profile_id` (чужие цеха
+   read-only, admin/director/rop — полный доступ), полное ТЗ в карточке очереди
+   (сетка/нанесения/упаковка/материалы), ссылка на заказ, превью макета + лайтбокс,
+   частичная готовность (`erp_item_stages.qty_done`, прогресс N/M), фото брака/блока
+   в `erp-attachments`, бейдж готовых этапов на «Мой цех».
+2. **Форма заказа**: автосейв черновика (localStorage `erp_order_draft`) + confirm,
+   3 аккордеон-секции, инлайн-валидация с автоскроллом, пресеты размерных сеток
+   (взрослая/детская/своя, чипсы), авторасчёт qty из сетки, обязательное нанесение
+   при брендировании, дефолт даты запуска + `buffer_days`, focus-trap + Escape.
+   Хелперы: `erp/utils/orderForm.ts`.
+3. **Мобильная**: брейкпоинт 480px, полноэкранная модалка (sticky-кнопки), карточки
+   вместо таблицы заказов (`useMediaQuery`), touch-DnD канбана (`mobile-drag-drop`,
+   dynamic import при pointer:coarse), тач-таргеты 44px (`pointer: coarse`),
+   градиент-подсказки вкладок (`useScrollHints`), PWA manifest + иконки.
+4. **Техбаза**: loadAll грузит только активные, архив лениво (`loadArchive`),
+   точечный realtime (`applyRealtimeEvent` + `loadOne`, fallback loadAll),
+   защита от race (`_pendingMutations`), RPC `erp_create_order(payload)` — атомарное
+   создание заказа (маршрут считает клиент), lazy loading экранов, дедупликация
+   (`erp/utils/time.ts`, `stageUi.ts`), ретрай аудита + toast.
+5. **Полировка**: скелетоны (`ErpSkeletons.jsx`) на всех экранах, line-clamp названий,
+   фикс поля `is_branding`, токены `--overlay`/`--shadow-modal` (dark mode), мелкий
+   текст ≥12px, empty states, превью с onError-заглушкой.
+
+Тесты: **887/887** (было 796), lint 0, build ок. Миграции применены к БД:
+`20260717170000_erp_stage_qty_done.sql`, `20260717190000_erp_create_order_rpc.sql`.
 
 ### Архитектура продукта
 - **🏭 Производство (ERP)** — корень приложения. Раздел по умолчанию.

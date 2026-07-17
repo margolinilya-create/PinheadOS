@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
-import { formatTimeIn } from '../utils/time';
+import { daysLeft, formatTimeIn } from '../utils/time';
 import { deptShortName, isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
@@ -11,14 +11,41 @@ import styles from '../erp.module.css';
  * Канбан цехов (механика kontora24, движок — наш HTML5 DnD как в Order Studio).
  * Колонка = цех, карточка = этап позиции. Drag ВНУТРИ колонки меняет статус
  * (готов → в работе → готово); между цехами не таскаем — маршрут решает граф.
+ *
+ * Тач-устройства: HTML5 DnD не работает на touch — на pointer:coarse лениво
+ * подгружается полифилл mobile-drag-drop (~10KB), десктоп его не грузит.
  */
 
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
+let dndPolyfillLoaded = false;
+
+/** Ленивая инициализация mobile-drag-drop только на тач-устройствах */
+function useTouchDndPolyfill() {
+  useEffect(() => {
+    if (dndPolyfillLoaded) return;
+    if (typeof window.matchMedia !== 'function') return;
+    if (!window.matchMedia('(pointer: coarse)').matches) return;
+    dndPolyfillLoaded = true;
+    Promise.all([
+      import('mobile-drag-drop'),
+      import('mobile-drag-drop/scroll-behaviour'),
+      import('mobile-drag-drop/default.css'),
+    ]).then(([{ polyfill }, { scrollBehaviourDragImageTranslateOverride }]) => {
+      const applied = polyfill({
+        // прокрутка страницы во время drag у края экрана
+        dragImageTranslateOverride: scrollBehaviourDragImageTranslateOverride,
+        // удержание 300мс перед drag — обычный тап/скролл не конфликтует
+        holdToDrag: 300,
+        dragImageCenterOnTouch: true,
+      });
+      if (applied) {
+        // iOS Safari: без «неленивого» touchmove-слушателя drag не стартует
+        // (opt-in из README пакета — usePassiveEventListeners workaround)
+        window.addEventListener('touchmove', () => {}, { passive: false });
+      }
+    }).catch(() => {
+      dndPolyfillLoaded = false; // сеть моргнула — попробуем при следующем монтировании
+    });
+  }, []);
 }
 
 /** Цветная точка дедлайна (как в kontora24 DraggableCard) */
@@ -37,6 +64,8 @@ function DeadlineDot({ due }) {
 
 function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
   const { order, item, stage, group } = entry;
+  const [imgError, setImgError] = useState(false);
+  const preview = orderPreviewUrl(order);
   const timeIn = group === 'in_progress'
     ? formatTimeIn(stage.started_at)
     : formatTimeIn(stage.updated_at);
@@ -51,14 +80,24 @@ function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >
       <div className={styles.kanbanCardHead}>
-        {orderPreviewUrl(order) && (
-          <img src={orderPreviewUrl(order)} alt="" className={styles.orderThumb} draggable={false} />
+        {preview && !imgError && (
+          <img
+            src={preview}
+            alt={`Макет: ${order.title}`}
+            className={styles.orderThumb}
+            draggable={false}
+            onError={() => setImgError(true)}
+          />
+        )}
+        {preview && imgError && (
+          <div className={styles.orderThumbStub} aria-hidden="true">🖼</div>
         )}
         <Link
           to={`/orders/${order.id}`}
           onClick={(e) => e.stopPropagation()}
           draggable={false}
           className={styles.kanbanCardTitle}
+          title={order.title}
         >
           {order.title}
         </Link>
@@ -104,6 +143,7 @@ export default function ErpKanban() {
   );
   const [drag, setDrag] = useState(null); // { entry, deptId }
   const [overLane, setOverLane] = useState(null); // `${deptId}:${lane}`
+  useTouchDndPolyfill();
 
   const columns = useMemo(() => {
     const deps = departments.filter((d) => d.active && isQueueDept(d.code));
@@ -179,6 +219,7 @@ export default function ErpKanban() {
                   droppable && isOver && styles.kanbanLaneOver,
                   drag && !droppable && styles.kanbanLaneDisabled,
                 ].filter(Boolean).join(' ')}
+                onDragEnter={(e) => { if (droppable) e.preventDefault(); }}
                 onDragOver={(e) => { if (droppable) { e.preventDefault(); setOverLane(`${dept.id}:${lane}`); } }}
                 onDragLeave={() => isOver && setOverLane(null)}
                 onDrop={() => onDrop(dept.id, lane)}
