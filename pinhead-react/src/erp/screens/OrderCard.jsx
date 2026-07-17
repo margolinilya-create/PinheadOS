@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
 import { supabase } from '../../lib/supabase';
-import { useErpStore } from '../store/useErpStore';
+import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
 import {
@@ -256,6 +256,13 @@ export default function OrderCard() {
           />
         </span>
       </div>
+      {orderPreviewUrl(order) && (
+        <img
+          src={orderPreviewUrl(order)}
+          alt="Превью заказа"
+          style={{ maxHeight: 140, maxWidth: 260, borderRadius: 8, border: '1px solid var(--border-light)', marginBottom: 10, objectFit: 'contain' }}
+        />
+      )}
       <div className={styles.toolbar}>
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
           {ORDER_STATUS_LABELS[order.status]}

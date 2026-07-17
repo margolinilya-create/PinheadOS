@@ -711,3 +711,55 @@ a.kpiTile:hover { border-color: var(--accent); }
 .commentMeta { font-size: 10.5px; color: var(--text-dim); margin-bottom: 2px; }
 .commentForm { display: flex; gap: 8px; }
 .commentForm .input { flex: 1; }
+
+/* ─── Плитки и drop-zone (волна 3) ─── */
+.tileRow { display: flex; flex-wrap: wrap; gap: 5px; }
+.tile {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-mid);
+  border-radius: var(--radius-sm, 6px);
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 36px;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.tile:hover { border-color: var(--accent); color: var(--text); }
+.tileActive { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.errorSummary {
+  border: 1px solid var(--color-error);
+  background: var(--bg-error);
+  color: var(--color-error);
+  border-radius: var(--radius-sm, 6px);
+  padding: 10px 14px;
+  font-size: var(--type-body-sm, 13px);
+}
+.errorSummary ul { margin: 6px 0 0; padding-left: 18px; }
+
+.dropZone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md, 10px);
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 64px;
+}
+.dropZone:hover { border-color: var(--accent); }
+.dropZoneImg { max-height: 110px; max-width: 220px; border-radius: 6px; object-fit: contain; }
+
+.orderThumb {
+  width: 40px; height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--border-light);
+  flex-shrink: 0;
+}

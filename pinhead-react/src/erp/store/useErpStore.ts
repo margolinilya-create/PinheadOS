@@ -9,7 +9,7 @@ import { create } from 'zustand';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { buildRoute } from '../utils/routes';
+import { buildRoute, isStageReady } from '../utils/routes';
 import type {
   BrandingMethod,
   BrandingOn,
@@ -60,9 +60,27 @@ export interface ErpOrderComment {
 }
 
 /** Заказ со вложенными позициями/этапами/материалами (join при загрузке) */
+export interface ErpOrderAttachment {
+  id: string;
+  order_id: string;
+  file_path: string;
+  file_name: string | null;
+  kind: 'preview' | 'attachment';
+  uploaded_by: string | null;
+  created_at: string;
+}
+
 export interface ErpOrderFull extends ErpOrder {
   items: (ErpOrderItem & { stages: ErpItemStage[] })[];
   materials: ErpMaterial[];
+  attachments?: ErpOrderAttachment[];
+}
+
+/** Публичный URL превью заказа (первое вложение kind=preview) */
+export function orderPreviewUrl(order: ErpOrderFull): string | null {
+  const att = order.attachments?.find((a) => a.kind === 'preview');
+  if (!att) return null;
+  return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
 }
 
 export interface NewOrderItemInput {
@@ -112,6 +130,7 @@ interface ErpStore {
   ) => Promise<boolean>;
   loadOrderEvents: (orderId: string) => Promise<ErpStageEvent[] | null>;
   loadOrderAudit: (orderId: string) => Promise<ErpOrderAuditRow[] | null>;
+  uploadOrderPreview: (orderId: string, file: File) => Promise<boolean>;
   loadComments: (orderId: string) => Promise<ErpOrderComment[] | null>;
   addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
   addMaterial: (
@@ -120,6 +139,8 @@ interface ErpStore {
   ) => Promise<ErpMaterial | null>;
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
 
+  /** Realtime: доска/очереди обновляются сами; возвращает отписку */
+  subscribeRealtime: () => () => void;
   loadEmployees: () => Promise<void>;
   createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
   updateEmployee: (id: string, patch: Partial<ErpEmployee>) => Promise<boolean>;
@@ -131,7 +152,8 @@ const ORDER_SELECT = `
     *,
     stages:erp_item_stages (*)
   ),
-  materials:erp_materials (*)
+  materials:erp_materials (*),
+  attachments:erp_order_attachments (*)
 `;
 
 function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
@@ -145,6 +167,24 @@ function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
       .sort((a, b) => a.sort_order - b.sort_order),
     materials: o.materials ?? [],
   };
+}
+
+/** Сколько работ «готово/в работе» в цехе — для уведомления о новой работе */
+function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
+  const dept = departments.find((d) => d.code === deptCode);
+  if (!dept) return 0;
+  let n = 0;
+  for (const o of orders) {
+    if (o.status !== 'active') continue;
+    for (const it of o.items) {
+      for (const st of it.stages) {
+        if (st.department_id !== dept.id) continue;
+        if (st.status === 'in_progress') n += 1;
+        else if (st.status === 'waiting' && isStageReady(st, it.stages, o.materials, deptCode)) n += 1;
+      }
+    }
+  }
+  return n;
 }
 
 export const useErpStore = create<ErpStore>((set, get) => ({
@@ -426,6 +466,40 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     return (data ?? []) as ErpStageEvent[];
   },
 
+  uploadOrderPreview: async (orderId, file) => {
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const path = `${orderId}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from('erp-attachments')
+      .upload(path, file, { contentType: file.type || 'image/png' });
+    if (upErr) {
+      toast.error('Не удалось загрузить превью');
+      return false;
+    }
+    const { data, error } = await supabase
+      .from('erp_order_attachments')
+      .insert({
+        order_id: orderId,
+        file_path: path,
+        file_name: file.name,
+        kind: 'preview',
+        uploaded_by: currentActor(),
+      })
+      .select();
+    const row = data?.[0] as ErpOrderAttachment | undefined;
+    if (error || !row) {
+      toast.error('Превью загружено, но не привязано к заказу');
+      return false;
+    }
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === orderId
+          ? { ...o, attachments: [...(o.attachments ?? []), row] }
+          : o),
+    }));
+    return true;
+  },
+
   loadOrderAudit: async (orderId) => {
     const { data, error } = await supabase
       .from('erp_order_audit')
@@ -465,6 +539,36 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       return null;
     }
     return row;
+  },
+
+  subscribeRealtime: () => {
+    // Уникальное имя канала (паттерн kontora24) + debounce 500ms
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const myDept = localStorage.getItem('erp_my_dept');
+        const before = myDept
+          ? readyCountFor(get().orders, get().departments, myDept)
+          : 0;
+        await get().loadAll();
+        if (myDept) {
+          const after = readyCountFor(get().orders, get().departments, myDept);
+          if (after > before) {
+            toast.success('В вашем цехе появилась новая работа');
+          }
+        }
+      }, 500);
+    };
+    const channel = supabase
+      .channel(`erp-live-${crypto.randomUUID()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_item_stages' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_orders' }, refresh)
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   },
 
   loadEmployees: async () => {

@@ -143,7 +143,41 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
 
 function CreateOrderModal({ onClose }) {
   const createOrder = useErpStore((s) => s.createOrder);
+  const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState([]);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const acceptPreview = (file) => {
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+      toast.error('Превью: только JPG/PNG/WEBP');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Превью: файл больше 2 МБ');
+      return;
+    }
+    setPreviewFile(file);
+    setPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  // Ctrl+V из буфера (приём kontora24): вне текстовых полей
+  useEffect(() => {
+    const onPaste = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && t.type !== 'file') return;
+      const file = [...(e.clipboardData?.files ?? [])][0];
+      if (file) acceptPreview(file);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
   const [form, setForm] = useState({
     bitrix_id: '', title: '', manager: '', launch_date: '', due_date: '',
   });
@@ -169,12 +203,28 @@ function CreateOrderModal({ onClose }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) { toast.error('Укажите название заказа'); return; }
-    const validItems = items.filter((it) => it.product_type.trim() && Number(it.qty) > 0);
-    if (validItems.length === 0) {
-      toast.error('Добавьте хотя бы одну позицию (изделие и количество)');
+    // Ступень 1: собрать все ошибки (error-summary как в kontora24)
+    const errs = [];
+    if (!form.title.trim()) errs.push('Укажите название заказа');
+    items.forEach((it, i) => {
+      const filled = it.product_type.trim() || it.variant.trim() || it.qty;
+      if (!filled && items.length > 1) return; // пустую доп. строку пропускаем
+      if (!it.product_type.trim()) errs.push(`Позиция ${i + 1}: укажите изделие`);
+      if (!(Number(it.qty) > 0)) errs.push(`Позиция ${i + 1}: количество должно быть больше 0`);
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    if (form.due_date && form.due_date < today) {
+      errs.push('Срок клиента в прошлом — проверьте дату');
+    }
+    if (errs.length > 0) {
+      setFormErrors(errs);
+      requestAnimationFrame(() => {
+        document.querySelector('[data-form-errors]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       return;
     }
+    setFormErrors([]);
+    const validItems = items.filter((it) => it.product_type.trim() && Number(it.qty) > 0);
     setSaving(true);
     const created = await createOrder({
       bitrix_id: form.bitrix_id.trim() || undefined,
@@ -191,6 +241,9 @@ function CreateOrderModal({ onClose }) {
         branding_on: it.branding_on,
       })),
     });
+    if (created && previewFile) {
+      await uploadOrderPreview(created.id, previewFile);
+    }
     setSaving(false);
     if (created) {
       toast.success(`Заказ «${created.title}» создан, маршрут построен`);
@@ -204,9 +257,19 @@ function CreateOrderModal({ onClose }) {
         className={styles.modal}
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
+        noValidate
         aria-label="Новый производственный заказ"
       >
         <div className={styles.modalTitle}>Новый заказ</div>
+
+        {formErrors.length > 0 && (
+          <div className={styles.errorSummary} data-form-errors role="alert">
+            <strong>Исправьте перед созданием:</strong>
+            <ul>
+              {formErrors.map((er) => <li key={er}>{er}</li>)}
+            </ul>
+          </div>
+        )}
 
         <div className={styles.formGrid}>
           <label className={styles.field}>
@@ -288,18 +351,23 @@ function CreateOrderModal({ onClose }) {
                 onChange={(e) => setItem(i, { qty: e.target.value })}
               />
             </label>
-            <label className={styles.field}>
+            <div className={styles.field}>
               <span className={styles.fieldLabel}>Тип производства</span>
-              <select
-                className={styles.select}
-                value={it.production_type}
-                onChange={(e) => setItem(i, { production_type: e.target.value })}
-              >
+              <div className={styles.tileRow} role="radiogroup" aria-label="Тип производства">
                 {Object.entries(PRODUCTION_TYPE_LABELS).map(([v, label]) => (
-                  <option key={v} value={v}>{label}</option>
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={it.production_type === v}
+                    className={`${styles.tile} ${it.production_type === v ? styles.tileActive : ''}`}
+                    onClick={() => setItem(i, { production_type: v })}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Нанесения</span>
               <div className={styles.checkRow}>
@@ -345,6 +413,46 @@ function CreateOrderModal({ onClose }) {
           >
             + Добавить позицию
           </button>
+        </div>
+
+        <div
+          className={styles.dropZone}
+          role="button"
+          tabIndex={0}
+          aria-label="Превью заказа: перетащите картинку, вставьте Ctrl+V или кликните"
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => { if (e.key === 'Enter') fileInputRef.current?.click(); }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); acceptPreview(e.dataTransfer.files?.[0]); }}
+        >
+          {previewUrl ? (
+            <>
+              <img src={previewUrl} alt="Превью заказа" className={styles.dropZoneImg} />
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewFile(null);
+                  setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
+                }}
+              >
+                ✕ Убрать
+              </button>
+            </>
+          ) : (
+            <span className={styles.subText}>
+              🖼 Превью заказа: перетащите картинку сюда, вставьте <kbd>Ctrl+V</kbd> или кликните
+              (JPG/PNG/WEBP до 2 МБ)
+            </span>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => acceptPreview(e.target.files?.[0])}
+          />
         </div>
 
         <div className={styles.modalActions}>

@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useErpStore } from '../store/useErpStore';
 import { setFeature } from '../../config/features';
 import styles from '../erp.module.css';
 
@@ -15,6 +17,12 @@ const NAV = [
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
+
+  // Живой ERP: изменения этапов/заказов долетают без обновления страницы
+  useEffect(() => {
+    const unsubscribe = useErpStore.getState().subscribeRealtime();
+    return unsubscribe;
+  }, []);
   const items = NAV.filter((n) => !n.admin || isAdmin);
 
   return (

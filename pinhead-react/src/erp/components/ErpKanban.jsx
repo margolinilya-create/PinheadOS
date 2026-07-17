@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { useErpStore } from '../store/useErpStore';
+import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
 import { formatTimeIn } from '../utils/time';
 import { deptShortName, isQueueDept } from '../data/departments';
@@ -51,6 +51,9 @@ function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >
       <div className={styles.kanbanCardHead}>
+        {orderPreviewUrl(order) && (
+          <img src={orderPreviewUrl(order)} alt="" className={styles.orderThumb} draggable={false} />
+        )}
         <Link
           to={`/orders/${order.id}`}
           onClick={(e) => e.stopPropagation()}
