@@ -10,7 +10,7 @@ import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import { SkeletonTable } from '../shared/Skeleton';
 
-export default function AdminPanel() {
+export default function AdminPanel({ ordersOnly = false }) {
   const [tab, setTab] = useState('orders');
 
   // Orders from store (shared with KanbanBoard/Dashboard)
@@ -91,7 +91,9 @@ export default function AdminPanel() {
         title="АДМИН-ПАНЕЛЬ"
         badge={`${orders.length} ${pluralize(orders.length, 'заказ', 'заказа', 'заказов')} · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
         actions={<button className="btn" onClick={() => { fetchOrders(); loadUsers(); }}>Обновить</button>}
-        tabs={[{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
+        tabs={ordersOnly
+          ? [{ id: 'orders', name: 'Заказы' }]
+          : [{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
         activeTab={tab}
         onTabChange={setTab}
       />

@@ -23,7 +23,7 @@ function statusChip(p) {
   return { cls: 'chipReady', label: 'Активен' };
 }
 
-export default function EmployeesScreen() {
+export default function EmployeesScreen({ embedded = false }) {
   const {
     employees, profilesList, employeesLoaded, departments, loaded,
     loadAll, loadEmployees, createEmployee, updateEmployee,
@@ -77,10 +77,12 @@ export default function EmployeesScreen() {
 
   return (
     <>
-      <PageHead
-        title="Сотрудники"
-        sub="Единый список с Order Studio: логины, роли и статусы общие. Здесь же — привязка к цеху."
-      />
+      {!embedded && (
+        <PageHead
+          title="Сотрудники"
+          sub="Единый список с Order Studio: логины, роли и статусы общие. Здесь же — привязка к цеху."
+        />
+      )}
 
       <div className={styles.toolbar}>
         <label className={styles.checkLabel}>

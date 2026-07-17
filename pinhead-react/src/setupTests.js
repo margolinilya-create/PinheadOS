@@ -25,6 +25,11 @@ const mockChain = {
 vi.mock('./lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => mockChain),
+    channel: vi.fn(() => {
+      const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
+      return ch;
+    }),
+    removeChannel: vi.fn(),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
       signInWithPassword: vi.fn().mockResolvedValue({ data: {}, error: null }),

@@ -5,8 +5,7 @@ import OrdersScreen from './screens/OrdersScreen';
 import ProductionBoard from './screens/ProductionBoard';
 import DepartmentQueue from './screens/DepartmentQueue';
 import OrderCard from './screens/OrderCard';
-import EmployeesScreen from './screens/EmployeesScreen';
-import DepartmentsScreen from './screens/DepartmentsScreen';
+import AdminScreen from './screens/AdminScreen';
 import FabricPurchasing from './screens/FabricPurchasing';
 import styles from './erp.module.css';
 
@@ -34,8 +33,9 @@ export default function ErpApp({ user }) {
         <Route path="/orders/:orderId" element={<OrderCard />} />
         <Route path="/board" element={<ProductionBoard />} />
         <Route path="/queue" element={<DepartmentQueue />} />
-        <Route path="/employees" element={<ErpGuard allowed={isAdmin}><EmployeesScreen /></ErpGuard>} />
-        <Route path="/departments" element={<ErpGuard allowed={isAdmin}><DepartmentsScreen /></ErpGuard>} />
+        <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
+        <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
+        <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
         <Route path="/purchasing" element={<ErpGuard allowed={isAdmin}><FabricPurchasing /></ErpGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

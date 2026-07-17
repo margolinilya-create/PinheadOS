@@ -20,6 +20,11 @@ vi.mock('./lib/supabase', () => ({
       signUp: vi.fn(),
       signOut: vi.fn(),
     },
+    channel: vi.fn(() => {
+      const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
+      return ch;
+    }),
+    removeChannel: vi.fn(),
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
