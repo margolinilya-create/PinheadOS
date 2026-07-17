@@ -7,6 +7,24 @@ export function daysLeft(dueDate: string | null | undefined, now: Date = new Dat
   return Math.round((due.getTime() - today.getTime()) / 86400000);
 }
 
+/**
+ * «Горящий» срок: осталось 0–3 дня включительно.
+ * Единая логика для KPI-плитки дашборда и фильтр-чипа «Срок ≤ 3 дней».
+ */
+export function isUrgent(dueDate: string | null | undefined, now: Date = new Date()): boolean {
+  const d = daysLeft(dueDate, now);
+  return d !== null && d >= 0 && d <= 3;
+}
+
+/**
+ * Срок просрочен (daysLeft < 0).
+ * Единая логика для KPI-плитки дашборда и фильтр-чипа «Просрочено».
+ */
+export function isOverdue(dueDate: string | null | undefined, now: Date = new Date()): boolean {
+  const d = daysLeft(dueDate, now);
+  return d !== null && d < 0;
+}
+
 /** «Время в этапе» — компактный формат как в kontora24 (мин/ч/дн). */
 export function formatTimeIn(since: string | null, nowMs: number = Date.now()): string {
   if (!since) return '';

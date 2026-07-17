@@ -333,13 +333,13 @@ textarea::placeholder {
 .btn:active:not(:disabled)     { transform: scale(0.97); }
 /* ── Primary Button — 5 states ── */
 .btn-primary {
-  background: var(--ink); color: var(--white); border: none;
+  background: var(--btn-primary-bg, var(--ink)); color: var(--btn-primary-fg, var(--white)); border: none;
   padding: 10px 20px; font-size: 13px; font-weight: 500;
   font-family: var(--font-body); border-radius: var(--radius-sm);
   cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
-.btn-primary:hover:not(:disabled) { background: var(--accent); }
-.btn-primary:active:not(:disabled) { background: var(--accent-hover); transform: scale(0.97); }
+.btn-primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg, var(--accent)); }
+.btn-primary:active:not(:disabled) { background: var(--btn-primary-active-bg, var(--accent-hover)); transform: scale(0.97); }
 .btn-primary:disabled,
 .btn-primary.disabled {
   background: var(--surface); color: var(--text-dim);

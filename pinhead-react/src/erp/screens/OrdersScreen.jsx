@@ -7,7 +7,7 @@ import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { daysLeft } from '../utils/time';
+import { daysLeft, isUrgent, isOverdue } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
@@ -537,7 +537,7 @@ function CreateOrderModal({ onClose }) {
     const { errors } = validateOrderForm(form, items);
     if (Object.keys(errors).length > 0) {
       // раскрыть секции с ошибками и проскроллить к первому ошибочному полю
-      const inMain = Boolean(errors.title || errors.due_date);
+      const inMain = Boolean(errors.title || errors.launch_date || errors.due_date);
       const inItems = Object.keys(errors).some((k) => k.startsWith('item_'));
       setOpen((o) => ({
         ...o,
@@ -685,15 +685,21 @@ function CreateOrderModal({ onClose }) {
             <span className={styles.fieldLabel}>Дата запуска</span>
             <input
               type="date"
-              className={styles.input}
+              min={initialLaunch}
+              className={inputCls('launch_date')}
               value={form.launch_date}
               onChange={(e) => setForm({ ...form, launch_date: e.target.value })}
+              aria-invalid={err('launch_date') ? true : undefined}
+              aria-describedby={err('launch_date') ? 'err-order-launch' : undefined}
+              data-invalid={err('launch_date') ? true : undefined}
             />
+            <FieldError id="err-order-launch" text={err('launch_date')} />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Срок клиента</span>
             <input
               type="date"
+              min={initialLaunch}
               className={inputCls('due_date')}
               value={form.due_date}
               onChange={(e) => setForm({ ...form, due_date: e.target.value })}
@@ -1069,13 +1075,22 @@ export default function OrdersScreen({ user }) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('active'); // active | archive
   const isMobile = useMediaQuery('(max-width: 760px)');
-  // Фильтр «Готовы к отгрузке» — в URL (?filter=ready), чтобы работала ссылка с дашборда
+  // Фильтры сроков/готовности — в URL (?filter=ready|urgent|overdue),
+  // чтобы работали ссылки с KPI-плиток дашборда
   const [searchParams, setSearchParams] = useSearchParams();
-  const readyFilter = searchParams.get('filter') === 'ready';
-  const readyCount = useMemo(
-    () => orders.filter((o) => isOrderReadyToShip(o)).length,
-    [orders],
-  );
+  const filterParam = searchParams.get('filter');
+  const filter = ['ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
+  const toggleFilter = (name) =>
+    setSearchParams(filter === name ? {} : { filter: name }, { replace: true });
+  // Счётчики чипов — та же логика, что у KPI-плиток дашборда (активные заказы)
+  const counts = useMemo(() => {
+    const active = orders.filter((o) => o.status === 'active');
+    return {
+      ready: active.filter((o) => isOrderReadyToShip(o)).length,
+      urgent: active.filter((o) => isUrgent(o.due_date)).length,
+      overdue: active.filter((o) => isOverdue(o.due_date)).length,
+    };
+  }, [orders]);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -1092,9 +1107,12 @@ export default function OrdersScreen({ user }) {
     () => orders.filter((o) => {
       if (tab === 'archive') return o.status !== 'active';
       if (o.status !== 'active') return false;
-      return !readyFilter || isOrderReadyToShip(o);
+      if (filter === 'ready') return isOrderReadyToShip(o);
+      if (filter === 'urgent') return isUrgent(o.due_date);
+      if (filter === 'overdue') return isOverdue(o.due_date);
+      return true;
     }),
-    [orders, tab, readyFilter],
+    [orders, tab, filter],
   );
 
   const filtered = useMemo(() => {
@@ -1135,7 +1153,7 @@ export default function OrdersScreen({ user }) {
       <PageHead title="Заказы" sub="Производственные заказы: позиции, маршрут по цехам, сроки." />
 
       <div className={styles.toolbar}>
-        <div role="tablist" aria-label="Фильтр заказов" style={{ display: 'flex', gap: 6 }}>
+        <div role="tablist" aria-label="Фильтр заказов" className={styles.filterRow}>
           <button
             type="button"
             role="tab"
@@ -1157,16 +1175,35 @@ export default function OrdersScreen({ user }) {
             Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
           </button>
           {tab === 'active' && (
-            <button
-              type="button"
-              aria-pressed={readyFilter}
-              className={`${styles.chip} ${readyFilter ? styles.chipReady : styles.chipNeutral}`}
-              style={{ cursor: 'pointer', font: 'inherit' }}
-              onClick={() =>
-                setSearchParams(readyFilter ? {} : { filter: 'ready' }, { replace: true })}
-            >
-              ✅ Готовы к отгрузке ({readyCount})
-            </button>
+            <>
+              <button
+                type="button"
+                aria-pressed={filter === 'ready'}
+                className={`${styles.chip} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
+                style={{ cursor: 'pointer', font: 'inherit' }}
+                onClick={() => toggleFilter('ready')}
+              >
+                ✅ Готовы к отгрузке ({counts.ready})
+              </button>
+              <button
+                type="button"
+                aria-pressed={filter === 'urgent'}
+                className={`${styles.chip} ${filter === 'urgent' ? styles.chipProgress : styles.chipNeutral}`}
+                style={{ cursor: 'pointer', font: 'inherit' }}
+                onClick={() => toggleFilter('urgent')}
+              >
+                🔥 Срок ≤ 3 дней ({counts.urgent})
+              </button>
+              <button
+                type="button"
+                aria-pressed={filter === 'overdue'}
+                className={`${styles.chip} ${filter === 'overdue' ? styles.chipBlocked : styles.chipNeutral}`}
+                style={{ cursor: 'pointer', font: 'inherit' }}
+                onClick={() => toggleFilter('overdue')}
+              >
+                ⏰ Просрочено ({counts.overdue})
+              </button>
+            </>
           )}
         </div>
         <input
@@ -1193,9 +1230,13 @@ export default function OrdersScreen({ user }) {
         <div className={styles.emptyState}>
           {inTab.length === 0
             ? tab === 'active'
-              ? readyFilter
+              ? filter === 'ready'
                 ? 'Готовых к отгрузке заказов пока нет.'
-                : 'Активных заказов нет — создайте первый.'
+                : filter === 'urgent'
+                  ? 'Заказов со сроком ≤ 3 дней нет.'
+                  : filter === 'overdue'
+                    ? 'Просроченных заказов нет.'
+                    : 'Активных заказов нет — создайте первый.'
               : 'Архив пуст.'
             : 'Ничего не найдено по запросу.'}
         </div>

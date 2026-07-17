@@ -235,6 +235,27 @@ describe('validateOrderForm', () => {
     );
     expect(v.errors.due_date).toBe('Срок клиента в прошлом — проверьте дату');
   });
+
+  it('дата запуска в прошлом — обычная инлайн-ошибка (как у срока клиента)', () => {
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-07-01' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.errors.launch_date).toBe('Дата запуска в прошлом — проверьте дату');
+    expect(v.missing).toContain('Дата запуска');
+  });
+
+  it('дата запуска сегодня, в будущем или пустая — без ошибки', () => {
+    for (const launch_date of [today, '2026-07-20', '']) {
+      const v = validateOrderForm(
+        { ...okForm, launch_date },
+        [item({ product_type: 'ф', qty: '1' })],
+        today,
+      );
+      expect(v.errors.launch_date).toBeUndefined();
+    }
+  });
 });
 
 // ─── Пустота формы ────────────────────────────────────────────────────────────

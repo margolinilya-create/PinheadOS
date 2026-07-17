@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useTheme } from '../../hooks/useTheme';
 import { useErpStore, readyCountFor } from '../store/useErpStore';
 import { setFeature } from '../../config/features';
 import styles from '../erp.module.css';
@@ -17,6 +18,7 @@ const NAV = [
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
+  const { theme, toggleTheme } = useTheme();
   const { orders, departments, myDeptId, myDeptLoaded } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -65,6 +67,15 @@ export default function ErpLayout({ user, children }) {
             ✏️ ТЗ
           </button>
         )}
+        <button
+          type="button"
+          className={`btn ${styles.themeToggle}`}
+          onClick={toggleTheme}
+          aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+          title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+        >
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
         <div className={styles.userChip}>
           {user?.name || user?.email}
           <div className={styles.userRole}>{user?.role}</div>

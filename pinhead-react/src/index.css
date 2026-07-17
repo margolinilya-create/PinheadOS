@@ -33,6 +33,13 @@
   --accent-light: rgba(43,43,240,.06);
   --accent-hover: #1E1ED4;
   --accent2:      #fff;
+
+  /* ── Primary button (в тёмной теме --ink и --white совпадают —
+        кнопке нужны свои токены, чтобы не терять контраст) ── */
+  --btn-primary-bg:        var(--ink);
+  --btn-primary-fg:        #ffffff;
+  --btn-primary-hover-bg:  var(--accent);
+  --btn-primary-active-bg: var(--accent-hover);
   --signal:       #FF3B30;
   --white:        #ffffff;
   --black:        #0A0A0A;
@@ -116,6 +123,12 @@ html[data-theme="dark"] {
   --accent-light: rgba(91,91,255,.1);
   --accent-hover: #4A4AEE;
   --accent2:      #1E1E1E;
+
+  /* Primary button: в тёмной теме — акцентная, с белым текстом */
+  --btn-primary-bg:        var(--accent);
+  --btn-primary-fg:        #ffffff;
+  --btn-primary-hover-bg:  var(--accent-hover);
+  --btn-primary-active-bg: #3D3DDB;
 
   --white:        #E8E8E8;
   --black:        #121212;

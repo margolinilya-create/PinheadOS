@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { daysLeft, formatTimeIn } from './time';
+import { daysLeft, formatTimeIn, isUrgent, isOverdue } from './time';
 
 describe('daysLeft — дней до срока клиента (единый хелпер экранов)', () => {
   const now = new Date('2026-07-17T15:30:00');
@@ -17,6 +17,35 @@ describe('daysLeft — дней до срока клиента (единый х�
 
   it('просроченный срок → отрицательное', () => {
     expect(daysLeft('2026-07-15', now)).toBe(-2);
+  });
+});
+
+describe('isUrgent / isOverdue — фильтры сроков (дашборд ↔ чипы заказов)', () => {
+  const now = new Date('2026-07-17T15:30:00');
+
+  it('isUrgent: 0–3 дня включительно', () => {
+    expect(isUrgent('2026-07-17', now)).toBe(true);  // сегодня (0)
+    expect(isUrgent('2026-07-20', now)).toBe(true);  // ровно 3 дня
+    expect(isUrgent('2026-07-21', now)).toBe(false); // 4 дня — не горит
+  });
+
+  it('isUrgent: просроченный и пустой срок не считаются горящими', () => {
+    expect(isUrgent('2026-07-15', now)).toBe(false);
+    expect(isUrgent(null, now)).toBe(false);
+    expect(isUrgent(undefined, now)).toBe(false);
+  });
+
+  it('isOverdue: только даты в прошлом', () => {
+    expect(isOverdue('2026-07-16', now)).toBe(true);
+    expect(isOverdue('2026-07-17', now)).toBe(false); // сегодня — ещё не просрочен
+    expect(isOverdue('2026-07-18', now)).toBe(false);
+    expect(isOverdue(null, now)).toBe(false);
+  });
+
+  it('urgent и overdue взаимоисключающие — счётчики дашборда не пересекаются', () => {
+    for (const d of ['2026-07-10', '2026-07-17', '2026-07-19', '2026-08-01']) {
+      expect(isUrgent(d, now) && isOverdue(d, now)).toBe(false);
+    }
   });
 });
 
