@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { QueueSkeleton } from '../components/ErpSkeletons';
 import { useErpStore, orderPreviewUrl, readyCountFor } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
@@ -172,9 +173,9 @@ function TzBlock({ order, item }) {
             </div>
           ))}
 
-          {(order.materials ?? []).length > 0 && (
-            <div>
-              <div className={styles.fieldLabel}>Материалы</div>
+          <div>
+            <div className={styles.fieldLabel}>Материалы</div>
+            {(order.materials ?? []).length > 0 ? (
               <ul className={styles.tzMatList}>
                 {order.materials.map((m) => (
                   <li key={m.id}>
@@ -184,8 +185,10 @@ function TzBlock({ order, item }) {
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <div className={styles.subText}>Материалы не ожидаются.</div>
+            )}
+          </div>
 
           {item.notes && <div className={styles.subText}>Заметка: {item.notes}</div>}
         </div>
@@ -240,7 +243,11 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
           <div className={styles.queueThumbStub} aria-hidden="true">🖼</div>
         )}
         <div className={styles.queueCardHeadText}>
-          <Link to={`/orders/${order.id}`} className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}>
+          <Link
+            to={`/orders/${order.id}`}
+            className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}
+            title={order.title}
+          >
             {order.title}
           </Link>
           <div className={styles.subText}>
@@ -610,7 +617,7 @@ export default function DepartmentQueue() {
       </div>
 
       {!dept && <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>}
-      {dept && loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
+      {dept && loading && !loaded && <QueueSkeleton />}
 
       {dept && !canAct && (
         <div className={styles.queueReason} style={{ marginBottom: 'var(--space-md, 14px)' }}>

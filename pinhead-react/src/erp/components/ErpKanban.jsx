@@ -64,6 +64,8 @@ function DeadlineDot({ due }) {
 
 function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
   const { order, item, stage, group } = entry;
+  const [imgError, setImgError] = useState(false);
+  const preview = orderPreviewUrl(order);
   const timeIn = group === 'in_progress'
     ? formatTimeIn(stage.started_at)
     : formatTimeIn(stage.updated_at);
@@ -78,14 +80,24 @@ function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >
       <div className={styles.kanbanCardHead}>
-        {orderPreviewUrl(order) && (
-          <img src={orderPreviewUrl(order)} alt="" className={styles.orderThumb} draggable={false} />
+        {preview && !imgError && (
+          <img
+            src={preview}
+            alt={`Макет: ${order.title}`}
+            className={styles.orderThumb}
+            draggable={false}
+            onError={() => setImgError(true)}
+          />
+        )}
+        {preview && imgError && (
+          <div className={styles.orderThumbStub} aria-hidden="true">🖼</div>
         )}
         <Link
           to={`/orders/${order.id}`}
           onClick={(e) => e.stopPropagation()}
           draggable={false}
           className={styles.kanbanCardTitle}
+          title={order.title}
         >
           {order.title}
         </Link>

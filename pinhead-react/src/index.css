@@ -84,6 +84,10 @@
   --radius-sm:    4px;
   --radius-md:    8px;
   --radius-lg:    12px;
+
+  /* ── Overlay & shadows (модалки) ── */
+  --overlay:      rgba(10, 10, 10, 0.55);
+  --shadow-modal: 0 24px 80px rgba(0, 0, 0, 0.35);
 }
 
 /* ═══════════════════════════════════════════ */
@@ -120,6 +124,10 @@ html[data-theme="dark"] {
   --bg-success:   #0a2e1a;
   --bg-error:     #2e0a0a;
   --bg-warning:   #2e1f0a;
+
+  /* Тёмная тема: непрозрачнее, иначе модалка сливается с тёмным фоном */
+  --overlay:      rgba(0, 0, 0, 0.72);
+  --shadow-modal: 0 24px 80px rgba(0, 0, 0, 0.7);
 
   color-scheme: dark;
 }

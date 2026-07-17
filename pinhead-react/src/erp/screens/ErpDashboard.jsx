@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
 import { daysLeft } from '../utils/time';
@@ -77,6 +78,10 @@ export default function ErpDashboard() {
         sub="Где какой заказ, загрузка цехов, горящие сроки — всё в одном месте."
       />
 
+      {!loaded && <DashboardSkeleton />}
+
+      {loaded && (
+      <>
       <div className={styles.kpiGrid}>
         <Link to="/orders" className={styles.kpiTile}>
           <div className={styles.kpiValue}>{stats.activeOrders}</div>
@@ -97,6 +102,10 @@ export default function ErpDashboard() {
       </div>
 
       <h2 className={styles.queueGroupTitle}>Загрузка цехов</h2>
+      {stats.deptLoad.length === 0 && (
+        <div className={styles.emptyState}>Цеха свободны — активных этапов нет.</div>
+      )}
+      {stats.deptLoad.length > 0 && (
       <div className={styles.cardGrid}>
         {stats.deptLoad.map(({ dept, ready, inProgress, blocked }) => (
           <div key={dept.id} className={styles.card}>
@@ -116,6 +125,7 @@ export default function ErpDashboard() {
           </div>
         ))}
       </div>
+      )}
 
       {stats.burning.length > 0 && (
         <>
@@ -131,7 +141,7 @@ export default function ErpDashboard() {
                 {stats.burning.map(({ order, days }) => (
                   <tr key={order.id}>
                     <td>{order.bitrix_id || '—'}</td>
-                    <td><strong>{order.title}</strong></td>
+                    <td><span className={styles.cellTitle} title={order.title}>{order.title}</span></td>
                     <td>{order.manager || '—'}</td>
                     <td>{new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}</td>
                     <td className={days < 0 ? styles.overdue : styles.dueSoon}>
@@ -143,6 +153,8 @@ export default function ErpDashboard() {
             </table>
           </div>
         </>
+      )}
+      </>
       )}
     </>
   );

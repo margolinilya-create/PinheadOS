@@ -161,7 +161,7 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.cardMeta { color: var(--text-dim); font-size: var(--type-caption, 11px); }
+.cardMeta { color: var(--text-dim); font-size: 12px; }
 .cardMetric { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .badge {
   font-size: 9px;
@@ -212,7 +212,7 @@
   text-align: left;
   padding: 10px 12px;
   font-family: 'Inter', sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.2px;
@@ -278,7 +278,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .kpiLabel {
   font-family: 'Inter', sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.2px;
@@ -353,7 +353,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 /* ─── Модалка ─── */
 .modalOverlay {
   position: fixed; inset: 0;
-  background: rgba(10, 10, 10, 0.55);
+  background: var(--overlay, rgba(10, 10, 10, 0.55));
   z-index: var(--z-modal, 1000);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 4vh 16px;
@@ -366,7 +366,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   max-width: 900px;
   padding: 24px;
   display: flex; flex-direction: column; gap: var(--space-md, 14px);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-modal, 0 24px 80px rgba(0, 0, 0, 0.35));
 }
 .modalTitle {
   font-family: var(--font-display);
@@ -468,7 +468,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 .dueSoon { color: var(--color-warning); font-weight: 700; }
 .overdue { color: var(--color-error); font-weight: 700; }
 .stageChips { display: flex; flex-wrap: wrap; gap: 4px; }
-.subText { color: var(--text-dim); font-size: var(--type-caption, 11px); }
+.subText { color: var(--text-dim); font-size: 12px; }
 .progressCell {
   font-family: var(--mono);
   font-size: 12px;
@@ -513,6 +513,12 @@ a.kpiTile:hover { border-color: var(--accent); }
   font-size: 18px;
   font-weight: 700;
   line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .queueQty {
   font-family: var(--mono);
@@ -607,7 +613,6 @@ a.kpiTile:hover { border-color: var(--accent); }
 .queueCardTitleLink {
   color: inherit;
   text-decoration: none;
-  display: inline-block;
   border-radius: 4px;
 }
 .queueCardTitleLink:hover { color: var(--accent); }
@@ -734,6 +739,13 @@ a.kpiTile:hover { border-color: var(--accent); }
   line-height: 1.15;
   color: inherit;
   text-decoration: none;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .orderCardMTitle:hover { color: var(--accent); }
 .orderCardMMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
@@ -880,6 +892,14 @@ a.kpiTile:hover { border-color: var(--accent); }
   line-height: 1.15;
   color: inherit;
   text-decoration: none;
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .kanbanCardTitle:hover { color: var(--accent); }
 .kanbanCardFoot {
@@ -962,7 +982,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   padding: 8px 11px;
   font-size: var(--type-body-sm, 13px);
 }
-.commentMeta { font-size: 10.5px; color: var(--text-dim); margin-bottom: 2px; }
+.commentMeta { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
 .commentForm { display: flex; gap: 8px; }
 .commentForm .input { flex: 1; }
 
@@ -1017,6 +1037,31 @@ a.kpiTile:hover { border-color: var(--accent); }
   border: 1px solid var(--border-light);
   flex-shrink: 0;
 }
+/* Заглушка битой миниатюры (паттерн 🖼 из очереди цеха) */
+.orderThumbStub {
+  width: 40px; height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ─── Обрезка длинных названий в ячейках таблиц (полное имя — в title) ─── */
+.cellTitle {
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  max-width: 420px;
+}
+a.cellTitle { color: inherit; text-decoration: none; }
+a.cellTitle:hover { color: var(--accent); }
 
 /* ─── Поля ТЗ в форме ─── */
 .itemBlock {
@@ -1076,7 +1121,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .accSummary {
   color: var(--text-dim);
-  font-size: var(--type-caption, 11px);
+  font-size: 12px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1104,7 +1149,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
-.fieldError { color: var(--color-error); font-size: var(--type-caption, 11px); }
+.fieldError { color: var(--color-error); font-size: 12px; }
 .remainingHint {
   flex: 1;
   align-self: center;

@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import EmployeesScreen from './EmployeesScreen';
 import DepartmentsScreen from './DepartmentsScreen';
 import styles from '../erp.module.css';
@@ -47,7 +48,7 @@ export default function AdminScreen() {
       {tab === 'users' && <EmployeesScreen embedded />}
       {tab === 'depts' && <DepartmentsScreen embedded />}
       {tab === 'studio' && (
-        <Suspense fallback={<div className={styles.emptyState}>Загрузка…</div>}>
+        <Suspense fallback={<TableSkeleton rows={5} label="Загрузка админки" />}>
           <AdminPanel ordersOnly />
         </Suspense>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
@@ -162,7 +163,7 @@ export default function ProductionBoard() {
 
       {view === 'kanban' && loaded && <ErpKanban />}
 
-      {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
+      {loading && !loaded && <TableSkeleton rows={6} label="Загрузка производственного плана" />}
 
       {view === 'table' && loaded && rows.length === 0 && (
         <div className={styles.emptyState}>
@@ -194,7 +195,7 @@ export default function ProductionBoard() {
                   <tr key={item.id}>
                     <td>{order.bitrix_id || '—'}</td>
                     <td>
-                      <strong>{order.title}</strong>
+                      <span className={styles.cellTitle} title={order.title}>{order.title}</span>
                       <div className={styles.subText}>
                         {item.product_type}
                         {item.variant ? ` · ${item.variant}` : ''}

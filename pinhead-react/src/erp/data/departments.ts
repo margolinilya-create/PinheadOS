@@ -27,8 +27,8 @@ export interface Department {
   type: DepartmentType;
   /** Ориентировочный порядок в производственном потоке */
   order: number;
-  /** Этап брендирования (параллельные ветки) */
-  branding?: boolean;
+  /** Этап брендирования (параллельные ветки); имя — как колонка erp_departments.is_branding */
+  is_branding?: boolean;
 }
 
 export const DEPARTMENTS: Department[] = [
@@ -37,9 +37,9 @@ export const DEPARTMENTS: Department[] = [
   { code: 'experimental', name: 'Экспериментальный цех',   type: 'experimental', order: 30 },
   { code: 'warehouse',    name: 'Склад',                   type: 'warehouse',    order: 40 },
   { code: 'cutting',      name: 'Закройный цех',           type: 'cutting',      order: 50 },
-  { code: 'silkscreen',   name: 'Цех шелкографии',         type: 'silkscreen',   order: 60, branding: true },
-  { code: 'dtf',          name: 'Цех ДТФ',                 type: 'dtf',          order: 61, branding: true },
-  { code: 'embroidery',   name: 'Цех вышивки',             type: 'embroidery',   order: 62, branding: true },
+  { code: 'silkscreen',   name: 'Цех шелкографии',         type: 'silkscreen',   order: 60, is_branding: true },
+  { code: 'dtf',          name: 'Цех ДТФ',                 type: 'dtf',          order: 61, is_branding: true },
+  { code: 'embroidery',   name: 'Цех вышивки',             type: 'embroidery',   order: 62, is_branding: true },
   { code: 'sewing',       name: 'Швейный цех',             type: 'sewing',       order: 70 },
   { code: 'vto',          name: 'ВТО цех',                 type: 'vto',          order: 80 },
   { code: 'warehouse_fg', name: 'Склад готовой продукции', type: 'warehouse_fg', order: 90 },

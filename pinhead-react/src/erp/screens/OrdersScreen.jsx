@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -240,8 +241,8 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
           <Link
             to={`/orders/${order.id}`}
             onClick={(e) => e.stopPropagation()}
-            style={{ color: 'inherit', fontWeight: 700, textDecoration: 'none' }}
-            title="Открыть карточку заказа"
+            className={styles.cellTitle}
+            title={order.title}
           >
             {order.title} ↗
           </Link>
@@ -321,7 +322,7 @@ function OrderCardMobile({ order, departments, onDelete, canDelete }) {
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
       <div className={styles.orderCardMHead}>
-        <Link to={`/orders/${order.id}`} className={styles.orderCardMTitle}>
+        <Link to={`/orders/${order.id}`} className={styles.orderCardMTitle} title={order.title}>
           {order.title} ↗
         </Link>
         {canDelete && (
@@ -1111,9 +1112,9 @@ export default function OrdersScreen({ user }) {
         </button>
       </div>
 
-      {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
-      {tab === 'archive' && !archiveLoaded && (
-        <div className={styles.emptyState} role="status">Загрузка архива…</div>
+      {loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
+      {loaded && tab === 'archive' && !archiveLoaded && (
+        <TableSkeleton rows={4} label="Загрузка архива" />
       )}
 
       {loaded && (tab !== 'archive' || archiveLoaded) && filtered.length === 0 && (
