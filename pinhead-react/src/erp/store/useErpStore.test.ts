@@ -77,6 +77,7 @@ vi.mock('../../store/useToastStore', () => ({
 
 const { useErpStore, readyCountFor, _pendingMutations } = await import('./useErpStore');
 const { toast } = await import('../../store/useToastStore');
+const { useAuthStore } = await import('../../store/useAuthStore');
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function seed(stageOverrides: Record<string, unknown> = {}, itemQty = 500) {
@@ -294,6 +295,90 @@ const stageUpdateEvent = (patch: Record<string, unknown> = {}) => ({
   eventType: 'UPDATE' as const,
   new: { id: 'st1', item_id: 'it1', status: 'done', qty_done: 500, ...patch },
   old: null,
+});
+
+describe('shipOrder — отгрузка готового заказа в архив', () => {
+  /** Готовый к отгрузке заказ: единственный этап done; срок — override */
+  function seedReady(dueDate?: string) {
+    seed({ status: 'done' });
+    if (dueDate !== undefined) {
+      useErpStore.setState((s) => ({
+        orders: s.orders.map((o) => (o.id === 'o1' ? { ...o, due_date: dueDate } : o)),
+      }));
+    }
+  }
+  const getOrder = () => useErpStore.getState().orders[0];
+
+  it('optimistic: status/shipped-поля сразу в сторе, toast об успехе', async () => {
+    seedReady();
+    const ok = await useErpStore.getState().shipOrder('o1');
+    expect(ok).toBe(true);
+    const o = getOrder();
+    expect(o.status).toBe('done_on_time'); // срока нет → «вовремя»
+    expect(o.shipped_status).toBe('shipped');
+    expect(o.shipped_at).toBeTruthy();
+    expect(o.shipped_by).toBe('u1');
+    const call = h.updateCalls.find((c) => c.table === 'erp_orders');
+    expect(call?.patch).toMatchObject({
+      status: 'done_on_time',
+      shipped_status: 'shipped',
+      shipped_by: 'u1',
+    });
+    expect(toast.success).toHaveBeenCalledWith('Заказ отгружен и перемещён в архив');
+  });
+
+  it('архивный статус по сроку: просрочен → done_late, раньше срока → done_early', async () => {
+    seedReady('2000-01-01');
+    await useErpStore.getState().shipOrder('o1');
+    expect(getOrder().status).toBe('done_late');
+
+    seedReady('2999-01-01');
+    await useErpStore.getState().shipOrder('o1');
+    expect(getOrder().status).toBe('done_early');
+  });
+
+  it('dev-режим: user.id="dev" — не uuid, shipped_by = null', async () => {
+    seedReady();
+    vi.mocked(useAuthStore.getState).mockReturnValueOnce(
+      { user: { id: 'dev', name: 'Dev' } } as never,
+    );
+    await useErpStore.getState().shipOrder('o1');
+    const call = h.updateCalls.find((c) => c.table === 'erp_orders');
+    expect(call?.patch.shipped_by).toBeNull();
+  });
+
+  it('rollback при ошибке Supabase + toast.error', async () => {
+    seedReady();
+    h.updateError = { message: 'boom' };
+    const ok = await useErpStore.getState().shipOrder('o1');
+    expect(ok).toBe(false);
+    const o = getOrder();
+    expect(o.status).toBe('active');
+    expect(o.shipped_at).toBeUndefined();
+    expect(toast.error).toHaveBeenCalledWith('Не удалось отгрузить заказ');
+  });
+
+  it('не готовый заказ (этап in_progress) → false, запрос не уходит', async () => {
+    seed(); // этап in_progress
+    const ok = await useErpStore.getState().shipOrder('o1');
+    expect(ok).toBe(false);
+    expect(getOrder().status).toBe('active');
+    expect(h.updateCalls).toHaveLength(0);
+    expect(toast.error).toHaveBeenCalledWith('Заказ ещё не готов к отгрузке');
+  });
+
+  it('неизвестный заказ → false', async () => {
+    seedReady();
+    expect(await useErpStore.getState().shipOrder('nope')).toBe(false);
+  });
+
+  it('ставит и снимает pending-ключ order:<id> вокруг await (п.29)', async () => {
+    seedReady();
+    const p = useErpStore.getState().shipOrder('o1');
+    expect(_pendingMutations.has('order:o1')).toBe(true);
+    await p;
+    expect(_pendingMutations.has('order:o1')).toBe(false);
+  });
 });
 
 describe('applyRealtimeEvent — точечное применение (п.27)', () => {

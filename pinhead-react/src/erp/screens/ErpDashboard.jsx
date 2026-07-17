@@ -5,6 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
+import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft } from '../utils/time';
 import { isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
@@ -61,6 +62,7 @@ export default function ErpDashboard() {
     burning.sort((a, b) => a.days - b.days);
     return {
       activeOrders: active.length,
+      readyToShip: active.filter((o) => isOrderReadyToShip(o)).length,
       itemsInWork,
       overdue,
       dueSoon,
@@ -90,6 +92,13 @@ export default function ErpDashboard() {
         <Link to="/board" className={styles.kpiTile}>
           <div className={styles.kpiValue}>{stats.itemsInWork}</div>
           <div className={styles.kpiLabel}>Позиций в работе</div>
+        </Link>
+        <Link
+          to="/orders?filter=ready"
+          className={`${styles.kpiTile} ${stats.readyToShip > 0 ? styles.kpiOk : ''}`}
+        >
+          <div className={styles.kpiValue}>{stats.readyToShip}</div>
+          <div className={styles.kpiLabel}>Готовы к отгрузке</div>
         </Link>
         <div className={`${styles.kpiTile} ${stats.dueSoon > 0 ? styles.kpiWarn : ''}`}>
           <div className={styles.kpiValue}>{stats.dueSoon}</div>

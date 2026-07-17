@@ -289,6 +289,11 @@ a.kpiTile:hover { border-color: var(--accent); }
 .kpiWarn .kpiValue { color: var(--color-warning); }
 .kpiDanger { border-color: var(--color-error); }
 .kpiDanger .kpiValue { color: var(--color-error); }
+.kpiOk { border-color: var(--color-success); }
+.kpiOk .kpiValue { color: var(--color-success); }
+
+/* Кнопка «Отгрузить» (строка/карточка заказа) */
+.shipBtn { white-space: nowrap; align-self: flex-start; }
 
 /* ─── Формы ─── */
 .formGrid {
@@ -1200,6 +1205,7 @@ a.cellTitle:hover { color: var(--accent); }
   .deptTab { min-height: 48px; }
   .accHeader { min-height: 44px; }
   .planBtn { min-height: 44px; }
+  .shipBtn { min-height: 44px; }
   .checkLabel { min-height: 36px; }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
 }

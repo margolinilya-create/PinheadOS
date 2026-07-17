@@ -2,7 +2,9 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}',
+  // {projectName} обязателен: desktop и mobile снимают разные вьюпорты,
+  // общий файл эталона делал mobile-прогон вечно красным.
+  snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}-{projectName}{ext}',
   webServer: {
     // Order Studio заархивирован за флагом; e2e-спеки визарда гоняем с включённым флагом.
     command: 'VITE_FEATURE_ORDER_STUDIO=1 npm run dev',
