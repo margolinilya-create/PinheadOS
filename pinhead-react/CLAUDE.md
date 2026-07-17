@@ -5,10 +5,14 @@ ERP/CRM для типографии (печать на одежде). React 19 +
 URL: https://pinhead-os.vercel.app
 
 ## Два раздела (переключение в шапке, admin/director)
-- **erp/** — 🏭 Производство (по умолчанию): ErpApp, layout, screens
-  (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
-  FabricPurchasing/AdminScreen), store/useErpStore.ts, utils (routes/time),
-  data/departments, types.ts, erp.module.css
+- **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
+  screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
+  FabricPurchasing/AdminScreen), components (ErpKanban, InlineEdit, PageHead,
+  ErpSkeletons), store/useErpStore.ts (точечный realtime, ленивый архив,
+  RPC erp_create_order, pendingMutations), utils (routes/time/stageUi/orderForm),
+  data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
+  pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
+  PWA: public/manifest.webmanifest + icon-192/512.
 - **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
   SKU, аналитика. Компоненты ниже — его состав.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
@@ -34,7 +38,7 @@ URL: https://pinhead-os.vercel.app
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts
+- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js
 
 ## Ключевые правила
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
@@ -62,7 +66,7 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test     # 796 unit тестов (Vitest)
+npm run test     # 887 unit тестов (Vitest)
 npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно
