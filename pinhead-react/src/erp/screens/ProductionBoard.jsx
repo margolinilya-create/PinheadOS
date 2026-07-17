@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
@@ -91,6 +92,8 @@ export default function ProductionBoard() {
     })),
   );
   const [onlyActive, setOnlyActive] = useState(true);
+  const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
+  const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -130,27 +133,49 @@ export default function ProductionBoard() {
       />
 
       <div className={styles.toolbar}>
-        <label className={styles.checkLabel}>
-          <input
-            type="checkbox"
-            checked={onlyActive}
-            onChange={(e) => setOnlyActive(e.target.checked)}
-          />
-          Только активные
-        </label>
+        <div role="tablist" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button" role="tab" aria-selected={view === 'table'}
+            className={`${styles.chip} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
+            style={{ cursor: 'pointer', font: 'inherit' }}
+            onClick={() => switchView('table')}
+          >
+            ☰ Таблица
+          </button>
+          <button
+            type="button" role="tab" aria-selected={view === 'kanban'}
+            className={`${styles.chip} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
+            style={{ cursor: 'pointer', font: 'inherit' }}
+            onClick={() => switchView('kanban')}
+          >
+            ▦ Канбан
+          </button>
+        </div>
+        {view === 'table' && (
+          <label className={styles.checkLabel}>
+            <input
+              type="checkbox"
+              checked={onlyActive}
+              onChange={(e) => setOnlyActive(e.target.checked)}
+            />
+            Только активные
+          </label>
+        )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{rows.length} позиций</span>
       </div>
 
+      {view === 'kanban' && loaded && <ErpKanban />}
+
       {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
 
-      {loaded && rows.length === 0 && (
+      {view === 'table' && loaded && rows.length === 0 && (
         <div className={styles.emptyState}>
           Нет позиций в работе. Создайте заказ на экране «Заказы».
         </div>
       )}
 
-      {rows.length > 0 && (
+      {view === 'table' && rows.length > 0 && (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>

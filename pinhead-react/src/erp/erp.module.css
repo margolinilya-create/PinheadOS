@@ -546,3 +546,101 @@ a.kpiTile:hover { border-color: var(--accent); }
   text-align: left;
 }
 .planBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }
+
+/* ─── Канбан цехов ─── */
+.kanbanBoard {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  align-items: flex-start;
+  scroll-snap-type: x proximity;
+}
+.kanbanCol {
+  flex: 0 0 290px;
+  scroll-snap-align: start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.kanbanColHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--card);
+  border-bottom: 2px solid var(--accent);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.kanbanLane { padding: 8px 10px 10px; min-height: 52px; flex-shrink: 0; }
+.kanbanLane + .kanbanLane { border-top: 1px dashed var(--border-light); }
+.kanbanLaneTitle {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.kanbanLaneDroppable {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: var(--radius-sm, 6px);
+}
+.kanbanLaneOver { background: var(--accent-light); }
+.kanbanLaneDisabled { opacity: 0.45; }
+.kanbanEmpty { color: var(--text-muted); text-align: center; font-size: 12px; padding: 4px 0 2px; }
+
+.kanbanCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  padding: 9px 11px;
+  margin-bottom: 6px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kanbanCard:active { cursor: grabbing; }
+.kanbanCardDragging { opacity: 0.4; border-style: dashed; }
+.kanbanCardBlocked { border-left: 3px solid var(--color-error); cursor: default; }
+.kanbanCardHead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.kanbanCardTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14.5px;
+  line-height: 1.15;
+  color: inherit;
+  text-decoration: none;
+}
+.kanbanCardTitle:hover { color: var(--accent); }
+.kanbanCardFoot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 11.5px;
+}
+.kanbanDue {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--text-mid);
+}
+.kanbanDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
