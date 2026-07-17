@@ -4,6 +4,16 @@
 ERP/CRM для типографии (печать на одежде). React 19 + Vite 7 + Zustand 5 + Supabase.
 URL: https://pinhead-os.vercel.app
 
+## Два раздела (переключение в шапке, admin/director)
+- **erp/** — 🏭 Производство (по умолчанию): ErpApp, layout, screens
+  (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
+  FabricPurchasing/AdminScreen), store/useErpStore.ts, utils (routes/time),
+  data/departments, types.ts, erp.module.css
+- **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
+  SKU, аналитика. Компоненты ниже — его состав.
+- Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
+- Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
+
 ## Структура src/
 - components/ — UI-компоненты
   - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)

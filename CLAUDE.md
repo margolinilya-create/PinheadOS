@@ -143,6 +143,15 @@ admin, director, manager, rop, designer, production
 - `disabled`: active=false (soft-delete)
 - `no_profile`: нет записи в profiles (user=null в store)
 
+## Правило конца сессии (обязательное)
+
+В конце КАЖДОЙ сессии обновить:
+1. `SESSION-STATE.md` — текущее состояние, новые решения, next steps
+2. `PROJECT.md` — запись сессии в Changelog (что сделано)
+3. `docs/DESIGN.md` — если менялся визуал/компоненты
+4. `CLAUDE.md` (корневой и pinhead-react/) — если менялась структура/правила
+Также: удалить временные QA-политики из БД (tmp_*), остановить dev-серверы.
+
 ## Правила кода
 
 - `useShallow` для объектных селекторов Zustand — обязательно
@@ -168,6 +177,9 @@ admin, director, manager, rop, designer, production
 | `CLAUDE.md` | Контекст для Claude (этот файл) |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, changelog, roadmap |
+| `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps |
+| `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
+| `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 | `docs/2026-04-10-design-audit.md` | 5-агентный аудит UI/UX |
 
