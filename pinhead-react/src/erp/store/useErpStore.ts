@@ -142,8 +142,13 @@ interface ErpStore {
   employeesLoaded: boolean;
   loading: boolean;
   loaded: boolean;
+  /** Цех текущего пользователя (erp_employees.department_id по profile_id) */
+  myDeptId: string | null;
+  myDeptLoaded: boolean;
 
   loadAll: () => Promise<void>;
+  /** Автопривязка цеха: ищет erp_employees по profile_id текущего пользователя */
+  loadMyDept: (profileId: string | undefined) => Promise<void>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
   updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
@@ -152,8 +157,15 @@ interface ErpStore {
     status: StageStatus,
     extra?: { qty_done?: number; block_reason?: string | null; comment?: string },
   ) => Promise<boolean>;
+  /**
+   * Частичная готовность: qty_done += qty; при qty_done >= qty позиции
+   * этап закрывается (done), иначе остаётся in_progress с прогрессом «300/500».
+   */
+  reportProgress: (stageId: string, qty: number) => Promise<boolean>;
   /** Брак: qty на переделку + причина; этап возвращается в работу */
   reportDefect: (stageId: string, qty: number, reason: string) => Promise<boolean>;
+  /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
+  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
   /** Ручные плановые даты этапа */
   setStagePlan: (
     stageId: string,
@@ -208,8 +220,8 @@ function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
   };
 }
 
-/** Сколько работ «готово/в работе» в цехе — для уведомления о новой работе */
-function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
+/** Сколько работ «готово/в работе» в цехе — для уведомления и бейджа «Мой цех» */
+export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
   const dept = departments.find((d) => d.code === deptCode);
   if (!dept) return 0;
   let n = 0;
@@ -234,6 +246,28 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   employeesLoaded: false,
   loading: false,
   loaded: false,
+  myDeptId: null,
+  myDeptLoaded: false,
+
+  loadMyDept: async (profileId) => {
+    // dev-режим и отсутствие логина — свободный выбор, запрос не нужен
+    if (!profileId || profileId === 'dev') {
+      set({ myDeptId: null, myDeptLoaded: true });
+      return;
+    }
+    const { data, error } = await supabase
+      .from('erp_employees')
+      .select('department_id')
+      .eq('profile_id', profileId)
+      .eq('active', true)
+      .limit(1);
+    if (error) {
+      toast.error('Не удалось определить ваш цех');
+      set({ myDeptLoaded: true });
+      return;
+    }
+    set({ myDeptId: data?.[0]?.department_id ?? null, myDeptLoaded: true });
+  },
 
   loadAll: async () => {
     set({ loading: true });
@@ -453,6 +487,56 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     return true;
   },
 
+  reportProgress: async (stageId, qty) => {
+    const prev = get().orders;
+    let stage: ErpItemStage | null = null;
+    let item: ErpOrderItem | null = null;
+    let orderId: string | null = null;
+    for (const o of prev) {
+      for (const it of o.items) {
+        const st = it.stages.find((s) => s.id === stageId);
+        if (st) { stage = st; item = it; orderId = o.id; }
+      }
+    }
+    if (!stage || !item || !orderId || !(qty > 0)) return false;
+
+    const total = item.qty;
+    const newDone = Math.min((stage.qty_done ?? 0) + qty, total);
+    const isDone = newDone >= total;
+    const patch: Partial<ErpItemStage> = { qty_done: newDone };
+    if (isDone) {
+      patch.status = 'done';
+      patch.finished_at = new Date().toISOString();
+    }
+
+    // optimistic с rollback
+    set((s) => ({
+      orders: s.orders.map((o) => ({
+        ...o,
+        items: o.items.map((it) => ({
+          ...it,
+          stages: it.stages.map((st) => (st.id === stageId ? { ...st, ...patch } : st)),
+        })),
+      })),
+    }));
+    const { error } = await supabase.from('erp_item_stages').update(patch).eq('id', stageId);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось записать прогресс');
+      return false;
+    }
+    logStageEvent({
+      stage_id: stageId,
+      order_id: orderId,
+      from_status: stage.status,
+      to_status: isDone ? 'done' : stage.status,
+      qty_done: qty,
+      qty_rework: null,
+      comment: `Частичная готовность: ${newDone}/${total}`,
+    });
+    return true;
+  },
+
   reportDefect: async (stageId, qty, reason) => {
     const prev = get().orders;
     let stage: ErpItemStage | null = null;
@@ -466,7 +550,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     if (!stage || !orderId) return false;
 
     const patch: Partial<ErpItemStage> = {
-      qty_rework: stage.qty_rework + qty,
+      qty_rework: (stage.qty_rework ?? 0) + qty,
       // брак возвращает этап в работу (переделка)
       status: 'in_progress',
       finished_at: null,
@@ -555,6 +639,40 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     const row = data?.[0] as ErpOrderAttachment | undefined;
     if (error || !row) {
       toast.error('Превью загружено, но не привязано к заказу');
+      return false;
+    }
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === orderId
+          ? { ...o, attachments: [...(o.attachments ?? []), row] }
+          : o),
+    }));
+    return true;
+  },
+
+  uploadOrderAttachment: async (orderId, file, note) => {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${orderId}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from('erp-attachments')
+      .upload(path, file, { contentType: file.type || 'image/jpeg' });
+    if (upErr) {
+      toast.error('Не удалось загрузить фото');
+      return false;
+    }
+    const { data, error } = await supabase
+      .from('erp_order_attachments')
+      .insert({
+        order_id: orderId,
+        file_path: path,
+        file_name: note ? `${note} — ${file.name}` : file.name,
+        kind: 'attachment',
+        uploaded_by: currentActor(),
+      })
+      .select();
+    const row = data?.[0] as ErpOrderAttachment | undefined;
+    if (error || !row) {
+      toast.error('Фото загружено, но не привязано к заказу');
       return false;
     }
     set((s) => ({

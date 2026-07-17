@@ -497,6 +497,167 @@ a.kpiTile:hover { border-color: var(--accent); }
 .queueActions :global(.btn-ghost) { flex: 0 0 auto; }
 .queueBlockForm { display: flex; gap: 8px; flex-wrap: wrap; }
 .queueBlockForm .input { flex: 1; min-width: 170px; }
+.queueCardHeadText { flex: 1; min-width: 0; }
+
+/* Миниатюра превью макета в карточке очереди (тап → лайтбокс) */
+.queueThumbBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm, 6px);
+}
+.queueThumbBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.queueThumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border-light);
+}
+.queueThumbStub {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Лайтбокс превью на весь экран */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.85);
+  z-index: var(--z-modal, 600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.lightboxImg {
+  max-width: min(96vw, 1100px);
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: var(--radius-md, 10px);
+}
+.lightboxClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+.lightboxClose:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Ссылка-заголовок карточки очереди → карточка заказа */
+.queueCardTitleLink {
+  color: inherit;
+  text-decoration: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+.queueCardTitleLink:hover { color: var(--accent); }
+.queueCardTitleLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Разворачиваемое полное ТЗ в карточке очереди */
+.tzToggle { min-height: 44px; }
+.tzBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px dashed var(--border-light);
+  padding-top: 10px;
+}
+.tzMatList {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: var(--type-body-sm, 13px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Прогресс частичной готовности «300/500» */
+.progressLine { display: flex; align-items: center; gap: 8px; }
+.progressTrack {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-success);
+  transition: width 200ms ease-out;
+}
+
+/* Кнопка «прикрепить фото» (брак/блокировка) */
+.fileBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  color: var(--text-mid);
+  font-size: var(--type-body-sm, 13px);
+  cursor: pointer;
+  max-width: 100%;
+}
+.fileBtn:hover { border-color: var(--accent); color: var(--text); }
+.fileBtn:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
+.fileBtnText {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Бейдж «Мой цех» в навигации */
+.navBadge {
+  font-family: var(--mono);
+  font-size: 10px;
+  min-width: 18px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--signal);
+  color: #fff;
+}
 
 /* ─── Закупка ─── */
 .matSection {
