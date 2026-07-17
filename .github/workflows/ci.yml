@@ -37,6 +37,14 @@ jobs:
     defaults:
       run:
         working-directory: pinhead-react
+    # Visual гоняется против DEV-сервера: в dev срабатывает автологин
+    # («Dev Mode», admin), поэтому снимаются реальные экраны, а не форма логина.
+    # Supabase замокан в самом спеке (e2e/support/mockSupabase.ts) — реальная БД
+    # и секреты не нужны. Эти dummy-значения лишь дают приложению стартовать
+    # (lib/supabase.ts падает без VITE_SUPABASE_*); весь сетевой трафик перехватывает мок.
+    env:
+      VITE_SUPABASE_URL: https://mock.supabase.co
+      VITE_SUPABASE_ANON_KEY: mock-anon-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,8 +54,8 @@ jobs:
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run build && npm run preview &
-      - run: sleep 3
+      # Dev-сервер поднимает сам Playwright (webServer в playwright.config.ts,
+      # команда `VITE_FEATURE_ORDER_STUDIO=1 npm run dev`).
       - name: Decide snapshot mode
         id: snap
         # update-режим: явный запрос через workflow_dispatch ЛИБО эталонов нет
