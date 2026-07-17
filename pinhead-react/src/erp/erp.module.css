@@ -947,3 +947,76 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .sizeGrid { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 2px; }
 .gridDetails summary { cursor: pointer; padding: 2px 0; }
+
+/* ─── Форма заказа: аккордеон, черновик, инлайн-валидация, чипсы размеров ─── */
+.accSection {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+}
+.accHeader {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md, 10px);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  min-height: 40px;
+}
+.accHeader:hover { background: var(--surface); }
+.accHeader:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.accChevron { color: var(--text-dim); font-size: 11px; width: 12px; flex-shrink: 0; }
+.accTitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  white-space: nowrap;
+}
+.accSummary {
+  color: var(--text-dim);
+  font-size: var(--type-caption, 11px);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.accBody {
+  padding: 2px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 14px);
+}
+
+.draftBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-sm, 6px);
+  padding: 4px 8px 4px 12px;
+  font-size: var(--type-body-sm, 13px);
+  color: var(--text-mid);
+}
+
+.inputError { border-color: var(--color-error); }
+.inputError:focus { outline-color: var(--color-error); }
+.fieldError { color: var(--color-error); font-size: var(--type-caption, 11px); }
+.remainingHint {
+  flex: 1;
+  align-self: center;
+  color: var(--color-error);
+  font-size: var(--type-body-sm, 13px);
+}
+
+.tileSm { min-height: 30px; padding: 4px 9px; }
