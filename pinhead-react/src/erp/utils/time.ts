@@ -1,3 +1,12 @@
+/** Дней до срока клиента: 0 = сегодня, отрицательное = просрочен, null = срока нет */
+export function daysLeft(dueDate: string | null | undefined, now: Date = new Date()): number | null {
+  if (!dueDate) return null;
+  const due = new Date(dueDate + 'T00:00:00');
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
 /** «Время в этапе» — компактный формат как в kontora24 (мин/ч/дн). */
 export function formatTimeIn(since: string | null, nowMs: number = Date.now()): string {
   if (!since) return '';

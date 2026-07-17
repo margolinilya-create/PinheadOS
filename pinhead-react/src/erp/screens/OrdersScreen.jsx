@@ -6,6 +6,8 @@ import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { daysLeft } from '../utils/time';
+import { STAGE_CHIP_CLASS, stageProgress } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
@@ -206,14 +208,6 @@ function FieldError({ id, text }) {
   return <span id={id} className={styles.fieldError}>{text}</span>;
 }
 
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
-}
-
 function DueCell({ dueDate }) {
   const d = daysLeft(dueDate);
   if (d === null) return <span className={styles.subText}>—</span>;
@@ -225,15 +219,6 @@ function DueCell({ dueDate }) {
     </span>
   );
 }
-
-const STAGE_CHIP_CLASS = {
-  waiting: 'chipWaiting',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  skipped: 'chipSkipped',
-  blocked: 'chipBlocked',
-};
 
 function OrderRow({ order, departments, onDelete, canDelete }) {
   const [open, setOpen] = useState(false);
@@ -331,8 +316,7 @@ function OrderCardMobile({ order, departments, onDelete, canDelete }) {
     [departments],
   );
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
-  const relevant = order.items.flatMap((it) => it.stages).filter((st) => st.status !== 'skipped');
-  const doneCount = relevant.filter((st) => st.status === 'done').length;
+  const progress = stageProgress(order.items.flatMap((it) => it.stages));
 
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
@@ -360,9 +344,9 @@ function OrderCardMobile({ order, departments, onDelete, canDelete }) {
           {ORDER_STATUS_LABELS[order.status]}
         </span>
         <DueCell dueDate={order.due_date} />
-        {relevant.length > 0 && (
-          <span className={styles.progressCell} aria-label={`Этапов готово: ${doneCount} из ${relevant.length}`}>
-            {doneCount}/{relevant.length}
+        {progress.total > 0 && (
+          <span className={styles.progressCell} aria-label={`Этапов готово: ${progress.done} из ${progress.total}`}>
+            {progress.done}/{progress.total}
           </span>
         )}
       </div>
@@ -1024,7 +1008,10 @@ function CreateOrderModal({ onClose }) {
 }
 
 export default function OrdersScreen({ user }) {
-  const { orders, departments, loading, loaded, loadAll, deleteOrder } = useErpStore(
+  const {
+    orders, departments, loading, loaded, loadAll, deleteOrder,
+    archiveLoaded, archiveLoading, loadArchive,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
@@ -1032,6 +1019,9 @@ export default function OrdersScreen({ user }) {
       loaded: s.loaded,
       loadAll: s.loadAll,
       deleteOrder: s.deleteOrder,
+      archiveLoaded: s.archiveLoaded,
+      archiveLoading: s.archiveLoading,
+      loadArchive: s.loadArchive,
     })),
   );
   const [showCreate, setShowCreate] = useState(false);
@@ -1042,6 +1032,11 @@ export default function OrdersScreen({ user }) {
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+
+  // Архив лениво: грузится при первом заходе на вкладку
+  useEffect(() => {
+    if (tab === 'archive' && !archiveLoaded && !archiveLoading) loadArchive();
+  }, [tab, archiveLoaded, archiveLoading, loadArchive]);
 
   const canDelete = ['admin', 'director'].includes(user?.role);
 
@@ -1098,7 +1093,7 @@ export default function OrdersScreen({ user }) {
             style={{ cursor: 'pointer', font: 'inherit' }}
             onClick={() => setTab('archive')}
           >
-            Архив ({orders.filter((o) => o.status !== 'active').length})
+            Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
           </button>
         </div>
         <input
@@ -1117,8 +1112,11 @@ export default function OrdersScreen({ user }) {
       </div>
 
       {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
+      {tab === 'archive' && !archiveLoaded && (
+        <div className={styles.emptyState} role="status">Загрузка архива…</div>
+      )}
 
-      {loaded && filtered.length === 0 && (
+      {loaded && (tab !== 'archive' || archiveLoaded) && filtered.length === 0 && (
         <div className={styles.emptyState}>
           {inTab.length === 0
             ? tab === 'active'

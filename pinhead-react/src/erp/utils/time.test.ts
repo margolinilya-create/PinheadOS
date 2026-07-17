@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { formatTimeIn } from './time';
+import { daysLeft, formatTimeIn } from './time';
+
+describe('daysLeft — дней до срока клиента (единый хелпер экранов)', () => {
+  const now = new Date('2026-07-17T15:30:00');
+
+  it('null/пусто → null', () => {
+    expect(daysLeft(null, now)).toBeNull();
+    expect(daysLeft(undefined, now)).toBeNull();
+    expect(daysLeft('', now)).toBeNull();
+  });
+
+  it('сегодня → 0, будущее → положительное', () => {
+    expect(daysLeft('2026-07-17', now)).toBe(0);
+    expect(daysLeft('2026-07-20', now)).toBe(3);
+  });
+
+  it('просроченный срок → отрицательное', () => {
+    expect(daysLeft('2026-07-15', now)).toBe(-2);
+  });
+});
 
 describe('formatTimeIn — «время в этапе» (механика kontora24)', () => {
   const now = new Date('2026-07-17T12:00:00Z').getTime();

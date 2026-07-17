@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
+import { daysLeft } from '../utils/time';
 import { isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
@@ -11,14 +12,6 @@ import styles from '../erp.module.css';
  * Обзор производства: KPI, загрузка цехов, горящие заказы.
  * Прозрачность = директор и руководители видят всё сразу.
  */
-
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
-}
 
 export default function ErpDashboard() {
   const { orders, departments, loaded, loadAll } = useErpStore(

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
-import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
+import { useErpStore, orderPreviewUrl, readyCountFor } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { daysLeft } from '../utils/time';
 import { deptShortName, isQueueDept } from '../data/departments';
 import {
   BRANDING_METHOD_LABELS,
@@ -26,14 +27,6 @@ import styles from '../erp.module.css';
 
 /** Роли с полным доступом ко всем цехам */
 const FULL_ACCESS_ROLES = ['admin', 'director', 'rop'];
-
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
-}
 
 /** Полноэкранный просмотр превью: закрытие по клику и Escape */
 function Lightbox({ src, alt, onClose }) {
@@ -504,20 +497,8 @@ export default function DepartmentQueue() {
   /** Счётчик «готово к работе» по каждому цеху — для бейджей на вкладках */
   const readyByDept = useMemo(() => {
     const counts = new Map();
-    const deptById = new Map(departments.map((dd) => [dd.id, dd]));
-    for (const order of orders) {
-      if (order.status !== 'active') continue;
-      for (const item of order.items) {
-        for (const stage of item.stages) {
-          const dd = deptById.get(stage.department_id);
-          if (!dd) continue;
-          const isReady =
-            stage.status === 'in_progress' ||
-            (stage.status === 'waiting' &&
-              isStageReady(stage, item.stages, order.materials, dd.code));
-          if (isReady) counts.set(dd.code, (counts.get(dd.code) || 0) + 1);
-        }
-      }
+    for (const dd of departments) {
+      counts.set(dd.code, readyCountFor(orders, departments, dd.code));
     }
     return counts;
   }, [orders, departments]);

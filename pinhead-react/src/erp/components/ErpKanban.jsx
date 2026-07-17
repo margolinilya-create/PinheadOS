@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
-import { formatTimeIn } from '../utils/time';
+import { daysLeft, formatTimeIn } from '../utils/time';
 import { deptShortName, isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
@@ -46,14 +46,6 @@ function useTouchDndPolyfill() {
       dndPolyfillLoaded = false; // сеть моргнула — попробуем при следующем монтировании
     });
   }, []);
-}
-
-function daysLeft(dueDate) {
-  if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due - today) / 86400000);
 }
 
 /** Цветная точка дедлайна (как в kontora24 DraggableCard) */

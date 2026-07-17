@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
+import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -23,15 +24,6 @@ import styles from '../erp.module.css';
  * Карточка заказа — «трекинг посылки»: маршрут по этапам с план/фактом,
  * ручные плановые даты, материалы, история событий.
  */
-
-const STAGE_CHIP_CLASS = {
-  waiting: 'chipWaiting',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  skipped: 'chipSkipped',
-  blocked: 'chipBlocked',
-};
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('ru-RU') : '—');
 const fmtTs = (d) => (d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
@@ -147,7 +139,7 @@ function StageStepper({ item, order, deptById, events }) {
 export default function OrderCard() {
   const { orderId } = useParams();
   const {
-    orders, departments, loaded, loadAll, setStagePlan,
+    orders, departments, loaded, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
   } = useErpStore(
     useShallow((s) => ({
@@ -155,6 +147,7 @@ export default function OrderCard() {
       departments: s.departments,
       loaded: s.loaded,
       loadAll: s.loadAll,
+      loadOne: s.loadOne,
       setStagePlan: s.setStagePlan,
       loadOrderEvents: s.loadOrderEvents,
       loadOrderAudit: s.loadOrderAudit,
@@ -167,10 +160,22 @@ export default function OrderCard() {
   const [audit, setAudit] = useState(null);
   const [comments, setComments] = useState(null);
   const [commentDraft, setCommentDraft] = useState('');
+  // Заказа нет среди загруженных (архив лениво) → однократная точечная догрузка;
+  // храним orderId, для которого догрузка уже выполнена (сброс при смене — сам собой)
+  const [lookedUpFor, setLookedUpFor] = useState(null);
+  const lookedUp = lookedUpFor === orderId;
 
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+
+  const inStore = orders.some((o) => o.id === orderId);
+  useEffect(() => {
+    if (!loaded || inStore || lookedUp || !orderId) return;
+    let alive = true;
+    loadOne(orderId).finally(() => { if (alive) setLookedUpFor(orderId); });
+    return () => { alive = false; };
+  }, [loaded, inStore, lookedUp, loadOne, orderId]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -204,7 +209,7 @@ export default function OrderCard() {
     return m;
   }, [order]);
 
-  if (loaded && !order) {
+  if (loaded && !order && lookedUp) {
     return (
       <>
         <PageHead title="Заказ не найден" />
