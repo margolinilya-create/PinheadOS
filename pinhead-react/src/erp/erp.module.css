@@ -79,6 +79,11 @@
   padding: 0 20px;
 }
 .topbar :global(.btn:hover) { background: var(--accent); color: var(--white, #fff); }
+/* Тумблер темы в шапке ERP: эмодзи-иконка, тач-таргет ≥44px */
+.themeToggle {
+  font-size: 16px;
+  min-width: 48px;
+}
 
 /* ─── Вкладки навигации (стиль header-nav Order Studio) ─── */
 .sidebar {
@@ -387,6 +392,9 @@ a.kpiTile:hover { border-color: var(--accent); }
   display: flex; gap: 10px; align-items: center;
   margin-bottom: var(--space-md, 14px); flex-wrap: wrap;
 }
+/* Ряд фильтр-чипов внутри тулбара: без переноса ряд был шире 390px
+   и вылезал за вьюпорт (мобильный overflow ~20px) */
+.filterRow { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .deptTabs {
   display: flex;
   align-items: stretch;
@@ -1206,6 +1214,7 @@ a.cellTitle:hover { color: var(--accent); }
   .accHeader { min-height: 44px; }
   .planBtn { min-height: 44px; }
   .shipBtn { min-height: 44px; }
+  .themeToggle { min-width: 44px; min-height: 44px; }
   .checkLabel { min-height: 36px; }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
 }

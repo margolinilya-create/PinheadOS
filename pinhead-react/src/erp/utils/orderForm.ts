@@ -196,7 +196,7 @@ export function isFormEmpty(
 // --- Валидация ------------------------------------------------------------------
 
 export interface OrderFormValidation {
-  /** Ошибки по ключам полей: title, due_date, item_{i}_product_type, item_{i}_qty, item_{i}_prints */
+  /** Ошибки по ключам полей: title, launch_date, due_date, item_{i}_product_type, item_{i}_qty, item_{i}_prints */
   errors: Record<string, string>;
   /** Короткие названия незаполненных полей — для строки «Осталось заполнить: …» */
   missing: string[];
@@ -213,6 +213,10 @@ export function validateOrderForm(
   if (!form.title.trim()) {
     errors.title = 'Укажите название заказа';
     missing.push('Название');
+  }
+  if (form.launch_date && form.launch_date < today) {
+    errors.launch_date = 'Дата запуска в прошлом — проверьте дату';
+    missing.push('Дата запуска');
   }
   if (form.due_date && form.due_date < today) {
     errors.due_date = 'Срок клиента в прошлом — проверьте дату';

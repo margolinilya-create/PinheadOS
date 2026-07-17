@@ -6,7 +6,7 @@ import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
 import { isOrderReadyToShip } from '../utils/stageUi';
-import { daysLeft } from '../utils/time';
+import { daysLeft, isUrgent, isOverdue } from '../utils/time';
 import { isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
@@ -41,8 +41,8 @@ export default function ErpDashboard() {
 
     for (const order of active) {
       const d = daysLeft(order.due_date);
-      if (d !== null && d < 0) overdue += 1;
-      else if (d !== null && d <= 3) dueSoon += 1;
+      if (isOverdue(order.due_date)) overdue += 1;
+      else if (isUrgent(order.due_date)) dueSoon += 1;
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
       for (const item of order.items) {
@@ -100,14 +100,20 @@ export default function ErpDashboard() {
           <div className={styles.kpiValue}>{stats.readyToShip}</div>
           <div className={styles.kpiLabel}>Готовы к отгрузке</div>
         </Link>
-        <div className={`${styles.kpiTile} ${stats.dueSoon > 0 ? styles.kpiWarn : ''}`}>
+        <Link
+          to="/orders?filter=urgent"
+          className={`${styles.kpiTile} ${stats.dueSoon > 0 ? styles.kpiWarn : ''}`}
+        >
           <div className={styles.kpiValue}>{stats.dueSoon}</div>
           <div className={styles.kpiLabel}>Срок ≤ 3 дней</div>
-        </div>
-        <div className={`${styles.kpiTile} ${stats.overdue > 0 ? styles.kpiDanger : ''}`}>
+        </Link>
+        <Link
+          to="/orders?filter=overdue"
+          className={`${styles.kpiTile} ${stats.overdue > 0 ? styles.kpiDanger : ''}`}
+        >
           <div className={styles.kpiValue}>{stats.overdue}</div>
           <div className={styles.kpiLabel}>Просрочено</div>
-        </div>
+        </Link>
       </div>
 
       <h2 className={styles.queueGroupTitle}>Загрузка цехов</h2>

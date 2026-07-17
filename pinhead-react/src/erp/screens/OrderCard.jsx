@@ -89,13 +89,29 @@ const AUDIT_FIELD_LABELS = {
   shipped_status: 'Отгрузка',
   delivered_at: 'Сдан',
   notes: 'Заметка',
+  packaging: 'Упаковка',
+  packaging_note: 'Упаковка: уточнение',
+  stickers: 'Стикеры',
+  stickers_note: 'Стикеры: уточнение',
+  no_chestny_znak: 'Без Честного знака',
+  planned_start: 'План этапа: начало',
+  planned_end: 'План этапа: конец',
 };
 
-/** Читабельные значения аудита: статусы заказа/отгрузки — на русском */
+/** Поля-даты аудита — показываем в русском формате */
+const AUDIT_DATE_FIELDS = new Set([
+  'launch_date', 'due_date', 'delivered_at', 'planned_start', 'planned_end',
+]);
+
+/** Читабельные значения аудита: статусы, даты и флаги — на русском */
 function auditValue(field, v) {
-  if (v == null) return '—';
+  if (v == null || v === '') return '—';
   if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
   if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
+  if (field === 'packaging') return PACKAGING_LABELS[v] || v;
+  if (field === 'stickers') return STICKERS_LABELS[v] || v;
+  if (field === 'no_chestny_znak') return v === 'true' ? 'да' : 'нет';
+  if (AUDIT_DATE_FIELDS.has(field)) return fmt(v);
   return v;
 }
 
@@ -217,6 +233,14 @@ export default function OrderCard() {
 
   const order = orders.find((o) => o.id === orderId);
   const preview = order ? orderPreviewUrl(order) : null;
+  /** Перечитать историю правок — после инлайн-правки её строка сразу видна */
+  const refreshAudit = () => loadOrderAudit(orderId).then((a) => setAudit(a ?? []));
+  /** Инлайн-правка поля заказа + мгновенное обновление истории */
+  const saveOrderField = async (patch) => {
+    const ok = await updateOrder(orderId, patch);
+    if (ok) refreshAudit();
+    return ok;
+  };
   const readyToShip = order ? isOrderReadyToShip(order) : false;
   // Имя отгрузившего: profilesList / erp_employees, если загружены; иначе только дата
   const shippedByName = useMemo(() => {
@@ -268,7 +292,7 @@ export default function OrderCard() {
           <InlineEdit
             value={order.manager}
             ariaLabel="Менеджер"
-            onSave={(v) => updateOrder(order.id, { manager: v })}
+            onSave={(v) => saveOrderField({ manager: v })}
           />
         </span>
         <span>
@@ -278,7 +302,7 @@ export default function OrderCard() {
             value={order.launch_date}
             format={fmt}
             ariaLabel="Дата запуска"
-            onSave={(v) => updateOrder(order.id, { launch_date: v })}
+            onSave={(v) => saveOrderField({ launch_date: v })}
           />
         </span>
         <span>
@@ -288,7 +312,7 @@ export default function OrderCard() {
             value={order.due_date}
             format={fmt}
             ariaLabel="Срок клиента"
-            onSave={(v) => updateOrder(order.id, { due_date: v })}
+            onSave={(v) => saveOrderField({ due_date: v })}
           />
         </span>
         <span>
@@ -297,7 +321,7 @@ export default function OrderCard() {
             value={order.notes === 'imported' ? null : order.notes}
             placeholder="добавить…"
             ariaLabel="Заметка"
-            onSave={(v) => updateOrder(order.id, { notes: v })}
+            onSave={(v) => saveOrderField({ notes: v })}
           />
         </span>
       </div>
@@ -454,7 +478,16 @@ export default function OrderCard() {
                         </span>
                         {reason && <div className={styles.subText}>{reason}</div>}
                       </td>
-                      <td><PlanCell stage={st} onSave={(plan) => setStagePlan(st.id, plan)} /></td>
+                      <td>
+                        <PlanCell
+                          stage={st}
+                          onSave={async (plan) => {
+                            const ok = await setStagePlan(st.id, plan);
+                            if (ok) refreshAudit();
+                            return ok;
+                          }}
+                        />
+                      </td>
                       <td className={styles.subText}>
                         {st.started_at || st.finished_at
                           ? `${fmtTs(st.started_at)} → ${fmtTs(st.finished_at)}`

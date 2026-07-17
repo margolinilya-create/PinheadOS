@@ -7,6 +7,18 @@ import { qaSupabaseBridge } from './scripts/qa-supabase-bridge.mjs'
 export default defineConfig({
   plugins: [react(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
   base: '/',
+  build: {
+    rollupOptions: {
+      output: {
+        // Крупные вендоры — в отдельные чанки: меньше главный бандл, лучше кеширование
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
