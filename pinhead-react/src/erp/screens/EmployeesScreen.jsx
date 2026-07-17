@@ -1,108 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import InlineEdit from '../components/InlineEdit';
 import { useErpStore } from '../store/useErpStore';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { deptShortName } from '../data/departments';
+import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { EMPLOYEE_ROLE_LABELS } from '../types';
 import styles from '../erp.module.css';
 
-/** Сотрудники: CRUD для HR/директора, привязка к цеху, soft-delete. */
+/**
+ * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
+ * Формат и действия как в Админке (роль, Подтвердить/Отключить/Вернуть)
+ * + цеховая надстройка ERP (цех, цеховая роль, заметка) в erp_employees.
+ * Отдельно внизу — цеховые работники без логина.
+ */
 
-const EMPTY = { full_name: '', role: 'worker', department_id: '', notes: '' };
-
-function EmployeeModal({ initial, departments, onSave, onClose }) {
-  const [form, setForm] = useState(initial || EMPTY);
-  const [saving, setSaving] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!form.full_name.trim()) { toast.error('Укажите имя'); return; }
-    setSaving(true);
-    const ok = await onSave({
-      full_name: form.full_name.trim(),
-      role: form.role,
-      department_id: form.department_id || null,
-      notes: form.notes?.trim() || null,
-    });
-    setSaving(false);
-    if (ok) onClose();
-  };
-
-  return (
-    <div className={styles.modalOverlay} onClick={onClose} role="presentation">
-      <form
-        className={styles.modal}
-        style={{ maxWidth: 520 }}
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-        aria-label={initial ? 'Правка сотрудника' : 'Новый сотрудник'}
-      >
-        <div className={styles.modalTitle}>{initial ? 'Сотрудник' : 'Новый сотрудник'}</div>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Имя *</span>
-          <input
-            className={styles.input}
-            value={form.full_name}
-            onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-            autoFocus
-          />
-        </label>
-        <div className={styles.formGrid}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Роль</span>
-            <select
-              className={styles.select}
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-            >
-              {Object.entries(EMPLOYEE_ROLE_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Цех</span>
-            <select
-              className={styles.select}
-              value={form.department_id || ''}
-              onChange={(e) => setForm({ ...form, department_id: e.target.value })}
-            >
-              <option value="">— без цеха —</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Заметка</span>
-          <input
-            className={styles.input}
-            value={form.notes || ''}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            placeholder="график, особенности…"
-          />
-        </label>
-        <div className={styles.modalActions}>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Сохранение…' : 'Сохранить'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+function statusChip(p) {
+  if (p.active === false) return { cls: 'chipBlocked', label: 'Отключён' };
+  if (!p.approved) return { cls: 'chipProgress', label: 'Ждёт подтверждения' };
+  return { cls: 'chipReady', label: 'Активен' };
 }
 
 export default function EmployeesScreen() {
   const {
-    employees, employeesLoaded, departments, loaded,
+    employees, profilesList, employeesLoaded, departments, loaded,
     loadAll, loadEmployees, createEmployee, updateEmployee,
+    updateProfile, upsertProfileDept,
   } = useErpStore(
     useShallow((s) => ({
       employees: s.employees,
+      profilesList: s.profilesList,
       employeesLoaded: s.employeesLoaded,
       departments: s.departments,
       loaded: s.loaded,
@@ -110,39 +39,48 @@ export default function EmployeesScreen() {
       loadEmployees: s.loadEmployees,
       createEmployee: s.createEmployee,
       updateEmployee: s.updateEmployee,
+      updateProfile: s.updateProfile,
+      upsertProfileDept: s.upsertProfileDept,
     })),
   );
-  const [modal, setModal] = useState(null); // null | 'new' | employee
   const [showInactive, setShowInactive] = useState(false);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => {
     if (!loaded) loadAll();
     if (!employeesLoaded) loadEmployees();
   }, [loaded, loadAll, employeesLoaded, loadEmployees]);
 
-  const deptById = useMemo(
-    () => new Map(departments.map((d) => [d.id, d])),
-    [departments],
+  const empByProfile = useMemo(
+    () => new Map(employees.filter((e) => e.profile_id).map((e) => [e.profile_id, e])),
+    [employees],
   );
 
-  const list = useMemo(
-    () => employees.filter((e) => showInactive || e.active),
+  const profileRows = useMemo(
+    () => profilesList.filter((p) => showInactive || p.active !== false),
+    [profilesList, showInactive],
+  );
+  const looseEmployees = useMemo(
+    () => employees.filter((e) => !e.profile_id && (showInactive || e.active)),
     [employees, showInactive],
   );
 
-  const onDeactivate = async (emp) => {
+  const onDisable = async (p) => {
     const ok = await confirm({
-      title: 'Отключить сотрудника?',
-      message: `${emp.full_name} останется в истории, но исчезнет из списков.`,
+      title: 'Отключить пользователя?',
+      message: `${p.name || p.email} потеряет доступ. Это мягкое отключение — как в Админке.`,
       confirmLabel: 'Отключить',
       variant: 'danger',
     });
-    if (ok) await updateEmployee(emp.id, { active: false });
+    if (ok) await updateProfile(p.id, { active: false, approved: false });
   };
 
   return (
     <>
-      <PageHead title="Сотрудники" sub="Люди по цехам: роли, бригадиры. Отключение — мягкое, история сохраняется." />
+      <PageHead
+        title="Сотрудники"
+        sub="Единый список с Order Studio: логины, роли и статусы общие. Здесь же — привязка к цеху."
+      />
 
       <div className={styles.toolbar}>
         <label className={styles.checkLabel}>
@@ -154,61 +92,98 @@ export default function EmployeesScreen() {
           Показывать отключённых
         </label>
         <div className={styles.spacer} />
-        <span className={styles.subText}>{list.length} чел.</span>
-        <button type="button" className="btn btn-primary" onClick={() => setModal('new')}>
-          + Сотрудник
-        </button>
+        <span className={styles.subText}>
+          {profileRows.length} с логином · {looseEmployees.length} без логина
+        </span>
       </div>
 
-      {employeesLoaded && list.length === 0 && (
-        <div className={styles.emptyState}>Сотрудников пока нет — добавьте первого.</div>
+      {employeesLoaded && profileRows.length === 0 && looseEmployees.length === 0 && (
+        <div className={styles.emptyState}>Пользователей не видно — нужны права администратора.</div>
       )}
 
-      {list.length > 0 && (
-        <div className={styles.tableWrap}>
+      {profileRows.length > 0 && (
+        <div className={styles.tableWrap} style={{ marginBottom: 16 }}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Имя</th><th>Роль</th><th>Цех</th><th>Заметка</th><th aria-label="Действия" />
+                <th>Имя</th><th>Email</th><th>Роль</th><th>Цех</th>
+                <th>Цеховая роль</th><th>Статус</th><th aria-label="Действия" />
               </tr>
             </thead>
             <tbody>
-              {list.map((emp) => {
-                const dept = emp.department_id ? deptById.get(emp.department_id) : null;
+              {profileRows.map((p) => {
+                const emp = empByProfile.get(p.id);
+                const st = statusChip(p);
                 return (
-                  <tr key={emp.id} style={emp.active ? undefined : { opacity: 0.5 }}>
+                  <tr key={p.id} style={p.active === false ? { opacity: 0.55 } : undefined}>
+                    <td><strong>{p.name || '—'}</strong></td>
+                    <td className={styles.subText}>{p.email}</td>
                     <td>
-                      <strong>{emp.full_name}</strong>
-                      {!emp.active && <span className={styles.subText}> · отключён</span>}
+                      <select
+                        className={styles.select}
+                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        value={p.role}
+                        aria-label={`Роль ${p.name || p.email}`}
+                        onChange={(e) => updateProfile(p.id, { role: e.target.value })}
+                      >
+                        {ALL_ROLES.map((r) => (
+                          <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+                        ))}
+                      </select>
                     </td>
                     <td>
-                      <span className={`${styles.chip} ${emp.role === 'foreman' ? styles.chipProgress : styles.chipNeutral}`}>
-                        {EMPLOYEE_ROLE_LABELS[emp.role] || emp.role}
-                      </span>
+                      <select
+                        className={styles.select}
+                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        value={emp?.department_id || ''}
+                        aria-label={`Цех ${p.name || p.email}`}
+                        onChange={(e) =>
+                          upsertProfileDept(p, { department_id: e.target.value || null })}
+                      >
+                        <option value="">—</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {deptShortName(d.code, d.name)}
+                          </option>
+                        ))}
+                      </select>
                     </td>
-                    <td>{dept ? deptShortName(dept.code, dept.name) : '—'}</td>
-                    <td className={styles.subText}>{emp.notes || ''}</td>
                     <td>
-                      <button type="button" className="btn btn-ghost" onClick={() => setModal(emp)}>
-                        ✎
-                      </button>
-                      {emp.active ? (
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          aria-label={`Отключить ${emp.full_name}`}
-                          onClick={() => onDeactivate(emp)}
-                        >
-                          ✕
+                      <select
+                        className={styles.select}
+                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        value={emp?.role || 'worker'}
+                        aria-label={`Цеховая роль ${p.name || p.email}`}
+                        onChange={(e) => upsertProfileDept(p, { role: e.target.value })}
+                      >
+                        {Object.entries(EMPLOYEE_ROLE_LABELS).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <span className={`${styles.chip} ${styles[st.cls]}`}>{st.label}</span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {p.active === false ? (
+                        <button type="button" className="btn btn-secondary"
+                          onClick={() => updateProfile(p.id, { active: true })}>
+                          Вернуть
                         </button>
+                      ) : !p.approved ? (
+                        <>
+                          <button type="button" className="btn btn-primary"
+                            onClick={() => updateProfile(p.id, { approved: true })}>
+                            Подтвердить
+                          </button>{' '}
+                          <button type="button" className="btn btn-ghost"
+                            aria-label={`Отключить ${p.name || p.email}`}
+                            onClick={() => onDisable(p)}>✕</button>
+                        </>
                       ) : (
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          onClick={() => updateEmployee(emp.id, { active: true })}
-                        >
-                          ↩
-                        </button>
+                        <button type="button" className="btn btn-ghost"
+                          aria-label={`Отключить ${p.name || p.email}`}
+                          onClick={() => onDisable(p)}>✕</button>
                       )}
                     </td>
                   </tr>
@@ -219,17 +194,95 @@ export default function EmployeesScreen() {
         </div>
       )}
 
-      {modal && (
-        <EmployeeModal
-          initial={modal === 'new' ? null : modal}
-          departments={departments}
-          onClose={() => setModal(null)}
-          onSave={async (fields) => {
-            if (modal === 'new') return Boolean(await createEmployee(fields));
-            return updateEmployee(modal.id, fields);
-          }}
-        />
+      <h2 className={styles.queueGroupTitle}>Без логина (цеховые)</h2>
+      <p className={styles.subText} style={{ marginTop: -6, marginBottom: 10 }}>
+        Работники, которые пока не заходят в систему сами. Появится логин — привяжутся к общему списку.
+      </p>
+
+      {looseEmployees.length > 0 && (
+        <div className={styles.tableWrap} style={{ marginBottom: 12 }}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Имя</th><th>Цех</th><th>Цеховая роль</th><th>Заметка</th><th aria-label="Действия" /></tr>
+            </thead>
+            <tbody>
+              {looseEmployees.map((emp) => {
+                return (
+                  <tr key={emp.id} style={emp.active ? undefined : { opacity: 0.55 }}>
+                    <td><strong>{emp.full_name}</strong></td>
+                    <td>
+                      <select
+                        className={styles.select}
+                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        value={emp.department_id || ''}
+                        aria-label={`Цех ${emp.full_name}`}
+                        onChange={(e) => updateEmployee(emp.id, { department_id: e.target.value || null })}
+                      >
+                        <option value="">—</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>{deptShortName(d.code, d.name)}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        className={styles.select}
+                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        value={emp.role}
+                        aria-label={`Цеховая роль ${emp.full_name}`}
+                        onChange={(e) => updateEmployee(emp.id, { role: e.target.value })}
+                      >
+                        {Object.entries(EMPLOYEE_ROLE_LABELS).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <InlineEdit
+                        value={emp.notes}
+                        placeholder="добавить…"
+                        ariaLabel={`Заметка ${emp.full_name}`}
+                        onSave={(v) => updateEmployee(emp.id, { notes: v })}
+                      />
+                    </td>
+                    <td>
+                      {emp.active ? (
+                        <button type="button" className="btn btn-ghost"
+                          aria-label={`Отключить ${emp.full_name}`}
+                          onClick={() => updateEmployee(emp.id, { active: false })}>✕</button>
+                      ) : (
+                        <button type="button" className="btn btn-ghost"
+                          onClick={() => updateEmployee(emp.id, { active: true })}>↩</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      <form
+        className={styles.addMatRow}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const name = newName.trim();
+          if (!name) { toast.error('Укажите имя'); return; }
+          const row = await createEmployee({ full_name: name, role: 'worker' });
+          if (row) setNewName('');
+        }}
+      >
+        <input
+          className={styles.input}
+          placeholder="Имя нового работника без логина"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          aria-label="Имя нового работника"
+          style={{ minWidth: 240 }}
+        />
+        <button type="submit" className="btn btn-secondary">+ Добавить без логина</button>
+      </form>
     </>
   );
 }

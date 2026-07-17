@@ -41,6 +41,16 @@ function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
     });
 }
 
+/** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
+export interface StaffProfile {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  approved: boolean;
+  active: boolean | null;
+}
+
 export interface ErpOrderAuditRow {
   id: string;
   order_id: string;
@@ -108,6 +118,7 @@ interface ErpStore {
   departments: ErpDepartment[];
   orders: ErpOrderFull[];
   employees: ErpEmployee[];
+  profilesList: StaffProfile[];
   employeesLoaded: boolean;
   loading: boolean;
   loaded: boolean;
@@ -144,6 +155,13 @@ interface ErpStore {
   loadEmployees: () => Promise<void>;
   createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
   updateEmployee: (id: string, patch: Partial<ErpEmployee>) => Promise<boolean>;
+  /** Профили общие с Order Studio: те же действия, что в Админке */
+  updateProfile: (id: string, patch: Partial<StaffProfile>) => Promise<boolean>;
+  /** Цеховая надстройка профиля: upsert erp_employees по profile_id */
+  upsertProfileDept: (
+    profile: StaffProfile,
+    patch: Partial<Pick<ErpEmployee, 'department_id' | 'role' | 'notes'>>,
+  ) => Promise<boolean>;
 }
 
 const ORDER_SELECT = `
@@ -191,6 +209,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   departments: [],
   orders: [],
   employees: [],
+  profilesList: [],
   employeesLoaded: false,
   loading: false,
   loaded: false,
@@ -572,15 +591,48 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   },
 
   loadEmployees: async () => {
-    const { data, error } = await supabase
-      .from('erp_employees')
-      .select('*')
-      .order('full_name');
-    if (error) {
+    const [emps, profs] = await Promise.all([
+      supabase.from('erp_employees').select('*').order('full_name'),
+      supabase
+        .from('profiles')
+        .select('id, name, email, role, approved, active')
+        .order('name'),
+    ]);
+    if (emps.error || profs.error) {
       toast.error('Не удалось загрузить сотрудников');
       return;
     }
-    set({ employees: (data ?? []) as ErpEmployee[], employeesLoaded: true });
+    set({
+      employees: (emps.data ?? []) as ErpEmployee[],
+      profilesList: (profs.data ?? []) as StaffProfile[],
+      employeesLoaded: true,
+    });
+  },
+
+  updateProfile: async (id, patch) => {
+    const prev = get().profilesList;
+    set((s) => ({
+      profilesList: s.profilesList.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    }));
+    const { error } = await supabase.from('profiles').update(patch).eq('id', id);
+    if (error) {
+      set({ profilesList: prev });
+      toast.error('Не удалось обновить пользователя');
+      return false;
+    }
+    return true;
+  },
+
+  upsertProfileDept: async (profile, patch) => {
+    const existing = get().employees.find((e) => e.profile_id === profile.id);
+    if (existing) return get().updateEmployee(existing.id, patch);
+    const created = await get().createEmployee({
+      full_name: profile.name || profile.email || 'Без имени',
+      profile_id: profile.id,
+      role: 'worker',
+      ...patch,
+    });
+    return Boolean(created);
   },
 
   createEmployee: async (emp) => {
