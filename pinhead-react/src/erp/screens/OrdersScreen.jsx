@@ -5,6 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
@@ -107,8 +108,7 @@ function SizeGridEditor({ grid, onChange }) {
       {preset === 'custom' && (
         <div className={styles.checkRow}>
           <input
-            className={styles.input}
-            style={{ width: 140, minHeight: 32 }}
+            className={`${styles.input} ${styles.inputSm} ${styles.customSizeInput}`}
             placeholder="Размер (56, 4XL…)"
             aria-label="Свой размер"
             value={customSize}
@@ -136,8 +136,7 @@ function SizeGridEditor({ grid, onChange }) {
       {sizes.length > 0 && rows.map((row, ri) => (
         <div key={ri} className={styles.checkRow}>
           <input
-            className={styles.input}
-            style={{ width: 130, minHeight: 32 }}
+            className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
             placeholder="Цвет"
             value={row.color}
             aria-label={`Цвет ${ri + 1}`}
@@ -150,8 +149,7 @@ function SizeGridEditor({ grid, onChange }) {
               <input
                 type="number"
                 min="0"
-                className={styles.input}
-                style={{ width: 64, minHeight: 32 }}
+                className={`${styles.input} ${styles.inputSm} ${styles.qtyCellInput}`}
                 value={row.sizes[sz] ?? ''}
                 aria-label={`${row.color || 'цвет'} ${sz}`}
                 onChange={(e) =>
@@ -323,6 +321,70 @@ function OrderRow({ order, departments, onDelete, canDelete }) {
         </tr>
       ))}
     </>
+  );
+}
+
+/** Карточка заказа вместо строки таблицы (мобильный <760px) */
+function OrderCardMobile({ order, departments, onDelete, canDelete }) {
+  const deptById = useMemo(
+    () => new Map(departments.map((d) => [d.id, d])),
+    [departments],
+  );
+  const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
+  const relevant = order.items.flatMap((it) => it.stages).filter((st) => st.status !== 'skipped');
+  const doneCount = relevant.filter((st) => st.status === 'done').length;
+
+  return (
+    <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
+      <div className={styles.orderCardMHead}>
+        <Link to={`/orders/${order.id}`} className={styles.orderCardMTitle}>
+          {order.title} ↗
+        </Link>
+        {canDelete && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            aria-label={`Удалить заказ ${order.title}`}
+            onClick={() => onDelete(order)}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <div className={styles.subText}>
+        №{order.bitrix_id || '—'}
+        {order.manager ? ` · ${order.manager}` : ''} · {totalQty} шт
+      </div>
+      <div className={styles.orderCardMMeta}>
+        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
+          {ORDER_STATUS_LABELS[order.status]}
+        </span>
+        <DueCell dueDate={order.due_date} />
+        {relevant.length > 0 && (
+          <span className={styles.progressCell} aria-label={`Этапов готово: ${doneCount} из ${relevant.length}`}>
+            {doneCount}/{relevant.length}
+          </span>
+        )}
+      </div>
+      {order.items.map((it) => (
+        <div key={it.id} className={styles.orderCardMItem}>
+          <span className={styles.subText}>{it.product_type} × {it.qty}</span>
+          {it.stages.map((st) => (
+            <span
+              key={st.id}
+              className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[st.status]]}`}
+              title={`${deptById.get(st.department_id)?.name || '?'} · ${STAGE_STATUS_LABELS[st.status]}`}
+            >
+              {(() => {
+                const dd = deptById.get(st.department_id);
+                return dd ? deptShortName(dd.code, dd.name) : '?';
+              })()}
+              {st.status === 'done' && ' ✓'}
+            </span>
+          ))}
+        </div>
+      ))}
+    </article>
   );
 }
 
@@ -573,7 +635,7 @@ function CreateOrderModal({ onClose }) {
               placeholder="54766"
             />
           </label>
-          <label className={styles.field} style={{ gridColumn: 'span 2' }}>
+          <label className={`${styles.field} ${styles.fieldWide}`}>
             <span className={styles.fieldLabel}>Название *</span>
             <input
               className={inputCls('title')}
@@ -747,11 +809,10 @@ function CreateOrderModal({ onClose }) {
 
           {it.has_branding && it.prints.map((p, pi) => (
             <div key={pi} className={styles.printBlock}>
-              <div className={styles.checkRow}>
+              <div className={`${styles.checkRow} ${styles.printRow}`}>
                 <strong className={styles.fieldLabel}>Нанесение №{pi + 1}</strong>
                 <select
-                  className={styles.select}
-                  style={{ minHeight: 32 }}
+                  className={`${styles.select} ${styles.inputSm}`}
                   value={p.method}
                   aria-label="Техника нанесения"
                   onChange={(e) => setPrint(i, pi, { method: e.target.value })}
@@ -761,23 +822,22 @@ function CreateOrderModal({ onClose }) {
                   ))}
                 </select>
                 <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: 160, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.printZoneInput}`}
                   placeholder="Расположение (спина справа по втачке)"
                   value={p.zone}
                   onChange={(e) => setPrint(i, pi, { zone: e.target.value })}
                 />
-                <label className={styles.checkLabel} style={{ gap: 3 }}>
+                <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
                   <span className={styles.subText}>В, мм</span>
-                  <input type="number" min="1" className={styles.input}
-                    style={{ width: 70, minHeight: 32 }}
+                  <input type="number" min="1"
+                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
                     value={p.height_mm}
                     onChange={(e) => setPrint(i, pi, { height_mm: e.target.value })} />
                 </label>
-                <label className={styles.checkLabel} style={{ gap: 3 }}>
+                <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
                   <span className={styles.subText}>Ш, мм</span>
-                  <input type="number" min="1" className={styles.input}
-                    style={{ width: 70, minHeight: 32 }}
+                  <input type="number" min="1"
+                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
                     value={p.width_mm}
                     onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
                 </label>
@@ -786,24 +846,21 @@ function CreateOrderModal({ onClose }) {
                   ✕
                 </button>
               </div>
-              <div className={styles.checkRow}>
+              <div className={`${styles.checkRow} ${styles.printRow}`}>
                 <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: 150, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
                   placeholder="Отступ (10см от шва горловины)"
                   value={p.offset_note}
                   onChange={(e) => setPrint(i, pi, { offset_note: e.target.value })}
                 />
                 <input
-                  className={styles.input}
-                  style={{ width: 150, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.pantoneInput}`}
                   placeholder="Pantone (1163, 1181)"
                   value={p.pantone}
                   onChange={(e) => setPrint(i, pi, { pantone: e.target.value })}
                 />
                 <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: 150, minHeight: 32 }}
+                  className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
                   placeholder="Комментарий (макет как в сделке…)"
                   value={p.comment}
                   onChange={(e) => setPrint(i, pi, { comment: e.target.value })}
@@ -980,6 +1037,7 @@ export default function OrdersScreen({ user }) {
   const [showCreate, setShowCreate] = useState(false);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('active'); // active | archive
+  const isMobile = useMediaQuery('(max-width: 760px)');
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -1045,11 +1103,10 @@ export default function OrdersScreen({ user }) {
         </div>
         <input
           type="search"
-          className={styles.input}
+          className={`${styles.input} ${styles.searchInput}`}
           placeholder="Поиск: название, № сделки, менеджер"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ minWidth: 260 }}
           aria-label="Поиск заказов"
         />
         <div className={styles.spacer} />
@@ -1071,7 +1128,21 @@ export default function OrdersScreen({ user }) {
         </div>
       )}
 
-      {filtered.length > 0 && (
+      {filtered.length > 0 && isMobile && (
+        <div className={styles.orderCardList}>
+          {filtered.map((o) => (
+            <OrderCardMobile
+              key={o.id}
+              order={o}
+              departments={departments}
+              onDelete={onDelete}
+              canDelete={canDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {filtered.length > 0 && !isMobile && (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>

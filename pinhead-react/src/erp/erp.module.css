@@ -335,6 +335,21 @@ a.kpiTile:hover { border-color: var(--accent); }
   min-height: 28px;
 }
 
+/* ─── Ширины полей формы заказа (вместо инлайн-стилей — управляются media query).
+   Составные селекторы (.input.xxx) — чтобы перебить глобальный
+   input[type="…"] { width: 100% } из forms-buttons.css ─── */
+.inputSm { min-height: 32px; }
+.input.customSizeInput { width: 140px; }
+.input.colorInput { width: 130px; }
+.input.qtyCellInput { width: 64px; }
+.input.mmInput { width: 70px; }
+.input.pantoneInput { width: 150px; }
+.input.printZoneInput { flex: 1; min-width: 160px; }
+.input.printNoteInput { flex: 1; min-width: 150px; }
+.input.searchInput { min-width: 260px; }
+.input.qtySmallInput { max-width: 84px; flex: 0 0 auto; }
+.fieldWide { grid-column: span 2; }
+
 /* ─── Модалка ─── */
 .modalOverlay {
   position: fixed; inset: 0;
@@ -378,6 +393,27 @@ a.kpiTile:hover { border-color: var(--accent); }
   background: var(--card);
 }
 .deptTabs::-webkit-scrollbar { display: none; }
+/* Обёртка вкладок: градиенты-подсказки, что справа/слева есть скрытые вкладки */
+.deptTabsWrap { position: relative; margin: 0 0 18px; }
+.deptTabsWrap .deptTabs { margin: 0; }
+.deptTabsFade {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 32px;
+  pointer-events: none;
+  z-index: 1;
+}
+.deptTabsFadeL {
+  left: 1px;
+  border-radius: var(--radius-md, 10px) 0 0 var(--radius-md, 10px);
+  background: linear-gradient(90deg, var(--card) 15%, transparent);
+}
+.deptTabsFadeR {
+  right: 1px;
+  border-radius: 0 var(--radius-md, 10px) var(--radius-md, 10px) 0;
+  background: linear-gradient(270deg, var(--card) 15%, transparent);
+}
 .deptTab {
   appearance: none;
   background: none;
@@ -679,6 +715,37 @@ a.kpiTile:hover { border-color: var(--accent); }
 .addMatRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .addMatRow .input:nth-child(2) { flex: 1; min-width: 200px; }
 
+/* ─── Список заказов карточками (мобильный, <760px) ─── */
+.orderCardList { display: flex; flex-direction: column; gap: 10px; }
+.orderCardM {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.orderCardMHead { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.orderCardMTitle {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: inherit;
+  text-decoration: none;
+}
+.orderCardMTitle:hover { color: var(--accent); }
+.orderCardMMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.orderCardMItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  border-top: 1px dashed var(--border-light);
+  padding-top: 8px;
+}
+
 /* ─── Мобильный ─── */
 @media (max-width: 760px) {
   .brand { padding: 0 14px; font-size: 16px; }
@@ -691,6 +758,32 @@ a.kpiTile:hover { border-color: var(--accent); }
   .kpiValue { font-size: 28px; }
   .queueDue { white-space: normal; max-width: 40%; }
   .queueDue > div { white-space: normal; }
+  .searchInput { flex: 1; min-width: 0; }
+
+  /* Полноэкранная модалка: 100dvh, без скруглений, скролл внутри оверлея */
+  .modalOverlay { padding: 0; align-items: stretch; }
+  .modal {
+    min-height: 100dvh;
+    max-width: none;
+    border-radius: 0;
+    padding: var(--space-lg, 20px) var(--space-md, 14px) 0;
+    box-shadow: none;
+  }
+  .modalTitle { font-size: 22px; }
+  /* Кнопки сабмита прилипают к низу экрана */
+  .modalActions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: auto;
+    background: var(--card);
+    border-top: 1px solid var(--border-light);
+    padding: var(--space-sm, 10px) 0 var(--space-md, 14px);
+    flex-wrap: wrap;
+  }
+
+  /* Канбан: жёсткий scroll-snap по колонкам на тач-экранах */
+  .kanbanBoard { scroll-snap-type: x mandatory; }
 }
 
 /* Кнопка-ячейка плановых дат в карточке заказа */
@@ -1020,3 +1113,48 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 
 .tileSm { min-height: 30px; padding: 4px 9px; }
+
+/* ─── Узкий мобильный (360–480px): один столбец, без горизонтального скролла ─── */
+@media (max-width: 480px) {
+  .main { padding: 12px 10px 40px; }
+  .navLink { padding: 0 10px; gap: 6px; }
+  .topbar :global(.btn) { padding: 0 12px; }
+  .kpiGrid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpiValue { font-size: 24px; }
+  .cardGrid { grid-template-columns: 1fr; }
+  .formGrid { grid-template-columns: 1fr; }
+  .fieldWide { grid-column: 1 / -1; }
+  .itemRow { grid-template-columns: 1fr; }
+  .itemRow > :global(.btn-ghost) { justify-self: end; }
+  .queueCardHead { flex-wrap: wrap; }
+  .queueDue { max-width: none; text-align: left; }
+  .matSection { padding: 10px; }
+  .modal { padding: var(--space-md, 14px) var(--space-sm, 10px) 0; }
+  .accBody { padding: 2px 10px 12px; }
+  .toolbar { gap: 8px; }
+
+  /* Ширины полей формы: строки нанесений и размерной сетки — в колонку/2 колонки */
+  .input.customSizeInput { width: 100%; }
+  .input.colorInput { width: 100%; flex: 1 1 100%; }
+  .input.pantoneInput { width: 100%; }
+  .input.printZoneInput, .input.printNoteInput { min-width: 0; }
+  .printRow { display: grid; grid-template-columns: 1fr 1fr; }
+  .printRow > * { grid-column: 1 / -1; min-width: 0; }
+  .printRow > .mmLabel { grid-column: auto; }
+  .mmLabel { display: flex; }
+  .mmLabel .input.mmInput { width: 100%; flex: 1; }
+  .printRow > :global(.btn-ghost) { justify-self: end; }
+}
+
+/* ─── Тач-таргеты ≥44px на устройствах с грубым указателем ─── */
+@media (pointer: coarse) {
+  .input, .select { min-height: 44px; }
+  .inputSm { min-height: 44px; }
+  .tile { min-height: 44px; }
+  .tileSm { min-height: 44px; }
+  .deptTab { min-height: 48px; }
+  .accHeader { min-height: 44px; }
+  .planBtn { min-height: 44px; }
+  .checkLabel { min-height: 36px; }
+  .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
+}

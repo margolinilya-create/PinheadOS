@@ -514,3 +514,13 @@ select:focus-visible {
     min-height: 48px;
   }
 }
+
+/* ── Touch targets ≥44px на тач-устройствах (pointer: coarse) ── */
+@media (pointer: coarse) {
+  .btn-primary, .btn-secondary, .btn-danger, .btn-ghost,
+  .btn-next, .btn-prev, .btn-accent {
+    min-height: 44px;
+  }
+  .btn-icon { width: 44px; height: 44px; }
+  .pe-btn { min-height: 44px; }
+}

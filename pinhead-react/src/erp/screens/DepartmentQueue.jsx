@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName, isQueueDept } from '../data/departments';
@@ -308,8 +309,7 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
                 type="number"
                 min="1"
                 max={item.qty}
-                className={styles.input}
-                style={{ maxWidth: 84, flex: '0 0 auto' }}
+                className={`${styles.input} ${styles.qtySmallInput}`}
                 value={doneQty}
                 onChange={(e) => setDoneQty(e.target.value)}
                 aria-label="Сколько сделано, шт"
@@ -385,8 +385,7 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
           <input
             type="number"
             min="1"
-            className={styles.input}
-            style={{ maxWidth: 84, flex: '0 0 auto' }}
+            className={`${styles.input} ${styles.qtySmallInput}`}
             placeholder="шт"
             value={defectQty}
             onChange={(e) => setDefectQty(e.target.value)}
@@ -458,6 +457,9 @@ export default function DepartmentQueue() {
   // dev-режим — свободный выбор, роли рук. состава — полный доступ
   const privileged = user?.id === 'dev' || FULL_ACCESS_ROLES.includes(user?.role);
 
+  // Вкладки цехов: градиенты-подсказки скрытого контента + автопрокрутка активной
+  const { ref: tabsRef, hints: tabHints } = useScrollHints();
+
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
@@ -479,6 +481,13 @@ export default function DepartmentQueue() {
     setSessionPick(true);
     localStorage.setItem('erp_my_dept', code);
   };
+
+  // Активная вкладка цеха — всегда в видимой области скролла
+  useEffect(() => {
+    if (!deptCode) return;
+    const el = tabsRef.current?.querySelector('[aria-selected="true"]');
+    el?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+  }, [deptCode, tabsRef]);
 
   const dept = departments.find((dd) => dd.code === deptCode) || null;
   const deptNameById = useMemo(
@@ -592,27 +601,31 @@ export default function DepartmentQueue() {
         sub="Очередь работ цеха: бери в работу, отмечай готово, сообщай о проблемах."
       />
 
-      <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха">
-        {departments.filter((dd) => dd.active && isQueueDept(dd.code)).map((dd) => {
-          const count = readyByDept.get(dd.code) || 0;
-          const isMine = boundDept?.code === dd.code;
-          return (
-            <button
-              key={dd.code}
-              type="button"
-              role="tab"
-              aria-selected={deptCode === dd.code}
-              className={`${styles.deptTab} ${deptCode === dd.code ? styles.deptTabActive : ''}`}
-              onClick={() => selectDept(dd.code)}
-            >
-              {deptShortName(dd.code, dd.name)}
-              {isMine && <span aria-label="ваш цех" title="Ваш цех">★</span>}
-              {count > 0 && (
-                <span className={`${styles.deptTabCount} ${styles.deptTabHot}`}>{count}</span>
-              )}
-            </button>
-          );
-        })}
+      <div className={styles.deptTabsWrap}>
+        <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef}>
+          {departments.filter((dd) => dd.active && isQueueDept(dd.code)).map((dd) => {
+            const count = readyByDept.get(dd.code) || 0;
+            const isMine = boundDept?.code === dd.code;
+            return (
+              <button
+                key={dd.code}
+                type="button"
+                role="tab"
+                aria-selected={deptCode === dd.code}
+                className={`${styles.deptTab} ${deptCode === dd.code ? styles.deptTabActive : ''}`}
+                onClick={() => selectDept(dd.code)}
+              >
+                {deptShortName(dd.code, dd.name)}
+                {isMine && <span aria-label="ваш цех" title="Ваш цех">★</span>}
+                {count > 0 && (
+                  <span className={`${styles.deptTabCount} ${styles.deptTabHot}`}>{count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {tabHints.left && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeL}`} aria-hidden="true" />}
+        {tabHints.right && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeR}`} aria-hidden="true" />}
       </div>
 
       {!dept && <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>}
