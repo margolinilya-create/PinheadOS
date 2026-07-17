@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import InlineEdit from '../components/InlineEdit';
+import { supabase } from '../../lib/supabase';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
@@ -76,9 +78,75 @@ function PlanCell({ stage, onSave }) {
   );
 }
 
+
+const AUDIT_FIELD_LABELS = {
+  title: 'Название',
+  manager: 'Менеджер',
+  bitrix_id: '№ сделки',
+  launch_date: 'Дата запуска',
+  due_date: 'Срок клиента',
+  buffer_days: 'Буфер, дн',
+  priority: 'Приоритет',
+  status: 'Статус заказа',
+  shipped_status: 'Отгрузка',
+  delivered_at: 'Сдан',
+  notes: 'Заметка',
+};
+
+/** Тонкая лента этапов позиции (паттерн kontora24 OrderStepper) */
+function StageStepper({ item, order, deptById, events }) {
+  const lastEventByStage = useMemo(() => {
+    const m = new Map();
+    for (const ev of events ?? []) {
+      if (!m.has(ev.stage_id)) m.set(ev.stage_id, ev); // events отсортированы desc
+    }
+    return m;
+  }, [events]);
+
+  return (
+    <div className={styles.stepper} role="list" aria-label="Лента этапов">
+      {item.stages.map((st, i) => {
+        const dept = deptById.get(st.department_id);
+        const effReady = st.status === 'waiting' &&
+          isStageReady(st, item.stages, order.materials, dept?.code);
+        const display = effReady ? 'ready' : st.status;
+        const ev = lastEventByStage.get(st.id);
+        const tooltip = [
+          dept?.name,
+          STAGE_STATUS_LABELS[display],
+          st.finished_at && `завершён ${fmtTs(st.finished_at)}`,
+          ev?.actor && `последний: ${ev.actor}`,
+        ].filter(Boolean).join(' · ');
+        const dotCls = [
+          styles.stepperDot,
+          display === 'done' && styles.stepperDotDone,
+          (display === 'in_progress' || display === 'ready') && styles.stepperDotActive,
+          display === 'blocked' && styles.stepperDotBlocked,
+        ].filter(Boolean).join(' ');
+        return (
+          <span key={st.id} className={styles.stepperItem} role="listitem">
+            {i > 0 && (
+              <span className={`${styles.stepperLine} ${st.status === 'done' ? styles.stepperLineDone : ''}`} />
+            )}
+            <span className={dotCls} title={tooltip} aria-label={tooltip}>
+              {display === 'done' ? '✓' : i + 1}
+            </span>
+            <span className={styles.stepperLabel}>
+              {dept ? deptShortName(dept.code, dept.name) : '?'}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function OrderCard() {
   const { orderId } = useParams();
-  const { orders, departments, loaded, loadAll, setStagePlan, loadOrderEvents } = useErpStore(
+  const {
+    orders, departments, loaded, loadAll, setStagePlan,
+    loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
@@ -86,17 +154,40 @@ export default function OrderCard() {
       loadAll: s.loadAll,
       setStagePlan: s.setStagePlan,
       loadOrderEvents: s.loadOrderEvents,
+      loadOrderAudit: s.loadOrderAudit,
+      updateOrder: s.updateOrder,
+      loadComments: s.loadComments,
+      addComment: s.addComment,
     })),
   );
   const [events, setEvents] = useState(null);
+  const [audit, setAudit] = useState(null);
+  const [comments, setComments] = useState(null);
+  const [commentDraft, setCommentDraft] = useState('');
 
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
 
   useEffect(() => {
-    if (orderId) loadOrderEvents(orderId).then((ev) => setEvents(ev ?? []));
-  }, [orderId, loadOrderEvents]);
+    if (!orderId) return;
+    loadOrderEvents(orderId).then((ev) => setEvents(ev ?? []));
+    loadOrderAudit(orderId).then((a) => setAudit(a ?? []));
+    loadComments(orderId).then((c) => setComments(c ?? []));
+    // realtime: уникальное имя канала (паттерн kontora24 — иначе ломается на HMR)
+    const channel = supabase
+      .channel(`erp-comments-${orderId}-${crypto.randomUUID()}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'erp_order_comments', filter: `order_id=eq.${orderId}` },
+        (payload) => {
+          setComments((prev) => {
+            if (!prev || prev.some((c) => c.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [orderId, loadOrderEvents, loadOrderAudit, loadComments]);
 
   const order = orders.find((o) => o.id === orderId);
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
@@ -125,14 +216,46 @@ export default function OrderCard() {
       <div className={styles.toolbar} style={{ marginBottom: 4 }}>
         <Link to="/orders" className={styles.subText}>← Заказы</Link>
       </div>
-      <PageHead
-        title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`}
-        sub={[
-          order.manager && `Менеджер: ${order.manager}`,
-          order.launch_date && `запуск ${fmt(order.launch_date)}`,
-          order.due_date && `срок ${fmt(order.due_date)}`,
-        ].filter(Boolean).join(' · ')}
-      />
+      <PageHead title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`} />
+      <div className={styles.toolbar} style={{ gap: 18, marginTop: -8 }}>
+        <span>
+          <span className={styles.subText}>Менеджер: </span>
+          <InlineEdit
+            value={order.manager}
+            ariaLabel="Менеджер"
+            onSave={(v) => updateOrder(order.id, { manager: v })}
+          />
+        </span>
+        <span>
+          <span className={styles.subText}>Запуск: </span>
+          <InlineEdit
+            type="date"
+            value={order.launch_date}
+            format={fmt}
+            ariaLabel="Дата запуска"
+            onSave={(v) => updateOrder(order.id, { launch_date: v })}
+          />
+        </span>
+        <span>
+          <span className={styles.subText}>Срок клиента: </span>
+          <InlineEdit
+            type="date"
+            value={order.due_date}
+            format={fmt}
+            ariaLabel="Срок клиента"
+            onSave={(v) => updateOrder(order.id, { due_date: v })}
+          />
+        </span>
+        <span>
+          <span className={styles.subText}>Заметка: </span>
+          <InlineEdit
+            value={order.notes === 'imported' ? null : order.notes}
+            placeholder="добавить…"
+            ariaLabel="Заметка"
+            onSave={(v) => updateOrder(order.id, { notes: v })}
+          />
+        </span>
+      </div>
       <div className={styles.toolbar}>
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
           {ORDER_STATUS_LABELS[order.status]}
@@ -153,6 +276,7 @@ export default function OrderCard() {
             </div>
             <span className={styles.queueQty}>{item.qty} шт</span>
           </div>
+          <StageStepper item={item} order={order} deptById={deptById} events={events} />
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
@@ -216,37 +340,99 @@ export default function OrderCard() {
       )}
 
       <section className={styles.matSection}>
+        <div className={styles.matSectionHead}><strong>Комментарии</strong></div>
+        <div className={styles.commentList}>
+          {comments === null && <div className={styles.subText}>Загрузка…</div>}
+          {comments && comments.length === 0 && (
+            <div className={styles.subText}>Пока пусто — обсуждайте заказ прямо здесь.</div>
+          )}
+          {comments && comments.map((c) => (
+            <div key={c.id} className={styles.commentItem}>
+              <div className={styles.commentMeta}>{c.author} · {fmtTs(c.created_at)}</div>
+              {c.text}
+            </div>
+          ))}
+        </div>
+        <form
+          className={styles.commentForm}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const text = commentDraft.trim();
+            if (!text) return;
+            const row = await addComment(order.id, text);
+            if (row) {
+              setCommentDraft('');
+              setComments((prev) => (prev && !prev.some((c) => c.id === row.id) ? [...prev, row] : prev));
+            }
+          }}
+        >
+          <input
+            className={styles.input}
+            placeholder="Комментарий для производства…"
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            aria-label="Новый комментарий"
+          />
+          <button type="submit" className="btn btn-primary" disabled={!commentDraft.trim()}>
+            Отправить
+          </button>
+        </form>
+      </section>
+
+      <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>История</strong></div>
         {events === null && <div className={styles.subText}>Загрузка…</div>}
-        {events && events.length === 0 && (
-          <div className={styles.subText}>Событий пока нет — история пишется при смене статусов.</div>
+        {events && events.length === 0 && (!audit || audit.length === 0) && (
+          <div className={styles.subText}>Событий пока нет — история пишется при смене статусов и правках.</div>
         )}
-        {events && events.length > 0 && (
+        {events && (events.length > 0 || (audit && audit.length > 0)) && (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr><th>Когда</th><th>Кто</th><th>Этап</th><th>Что</th></tr>
               </thead>
               <tbody>
-                {events.map((ev) => {
-                  const info = stageById.get(ev.stage_id);
-                  const dept = info ? deptById.get(info.st.department_id) : null;
-                  return (
-                    <tr key={ev.id}>
-                      <td className={styles.subText}>{fmtTs(ev.created_at)}</td>
-                      <td>{ev.actor || '—'}</td>
-                      <td>{dept ? deptShortName(dept.code, dept.name) : '—'}
-                        {info?.it?.variant ? ` · ${info.it.variant}` : ''}
-                      </td>
-                      <td>
-                        {STAGE_STATUS_LABELS[ev.to_status] || ev.to_status}
-                        {ev.qty_done ? ` · ${ev.qty_done} шт` : ''}
-                        {ev.qty_rework ? ` · брак ${ev.qty_rework} шт` : ''}
-                        {ev.comment && <div className={styles.subText}>{ev.comment}</div>}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {[
+                  ...(events ?? []).map((ev) => ({ kind: 'stage', at: ev.created_at, row: ev })),
+                  ...(audit ?? []).map((a) => ({ kind: 'audit', at: a.changed_at, row: a })),
+                ]
+                  .sort((x, y) => y.at.localeCompare(x.at))
+                  .slice(0, 120)
+                  .map(({ kind, row }) => {
+                    if (kind === 'audit') {
+                      return (
+                        <tr key={`a-${row.id}`}>
+                          <td className={styles.subText}>{fmtTs(row.changed_at)}</td>
+                          <td>{row.changed_by || '—'}</td>
+                          <td><span className={`${styles.chip} ${styles.chipNeutral}`}>правка</span></td>
+                          <td>
+                            {AUDIT_FIELD_LABELS[row.field_name] || row.field_name}:{' '}
+                            <span className={styles.subText}>{row.old_value ?? '—'}</span>
+                            {' → '}
+                            <strong>{row.new_value ?? '—'}</strong>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    const ev = row;
+                    const info = stageById.get(ev.stage_id);
+                    const dept = info ? deptById.get(info.st.department_id) : null;
+                    return (
+                      <tr key={`e-${ev.id}`}>
+                        <td className={styles.subText}>{fmtTs(ev.created_at)}</td>
+                        <td>{ev.actor || '—'}</td>
+                        <td>{dept ? deptShortName(dept.code, dept.name) : '—'}
+                          {info?.it?.variant ? ` · ${info.it.variant}` : ''}
+                        </td>
+                        <td>
+                          {STAGE_STATUS_LABELS[ev.to_status] || ev.to_status}
+                          {ev.qty_done ? ` · ${ev.qty_done} шт` : ''}
+                          {ev.qty_rework ? ` · брак ${ev.qty_rework} шт` : ''}
+                          {ev.comment && <div className={styles.subText}>{ev.comment}</div>}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

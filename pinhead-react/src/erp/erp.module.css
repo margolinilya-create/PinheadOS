@@ -644,3 +644,70 @@ a.kpiTile:hover { border-color: var(--accent); }
   color: var(--text-mid);
 }
 .kanbanDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ─── Инлайн-правка ─── */
+.inlineEditBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }
+.inlineEditBtn:disabled { cursor: default; }
+.inlineEditBtn:disabled:hover { background: none; outline: none; }
+.inlineEditPen { font-size: 10px; opacity: 0; transition: opacity 120ms; }
+.inlineEditBtn:hover .inlineEditPen { opacity: 0.6; }
+
+/* ─── Степпер этапов ─── */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+}
+.stepperItem { display: flex; align-items: center; flex-shrink: 0; }
+.stepperDot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--card);
+  color: var(--text-dim);
+  cursor: default;
+}
+.stepperDotDone { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.stepperDotActive { border-color: var(--color-warning); color: var(--color-warning); box-shadow: 0 0 0 4px var(--bg-warning); }
+.stepperDotBlocked { border-color: var(--color-error); color: var(--color-error); }
+.stepperLabel {
+  margin: 0 8px 0 6px;
+  font-size: 11px;
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+.stepperLine { width: 26px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 8px; }
+.stepperLineDone { background: var(--color-success); }
+
+/* ─── Комментарии ─── */
+.commentList { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; max-height: 320px; overflow-y: auto; }
+.commentItem {
+  background: var(--surface);
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 11px;
+  font-size: var(--type-body-sm, 13px);
+}
+.commentMeta { font-size: 10.5px; color: var(--text-dim); margin-bottom: 2px; }
+.commentForm { display: flex; gap: 8px; }
+.commentForm .input { flex: 1; }

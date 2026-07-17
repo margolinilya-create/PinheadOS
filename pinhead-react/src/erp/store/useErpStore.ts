@@ -41,6 +41,24 @@ function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
     });
 }
 
+export interface ErpOrderAuditRow {
+  id: string;
+  order_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  changed_at: string;
+}
+
+export interface ErpOrderComment {
+  id: string;
+  order_id: string;
+  author: string;
+  text: string;
+  created_at: string;
+}
+
 /** Заказ со вложенными позициями/этапами/материалами (join при загрузке) */
 export interface ErpOrderFull extends ErpOrder {
   items: (ErpOrderItem & { stages: ErpItemStage[] })[];
@@ -93,6 +111,9 @@ interface ErpStore {
     plan: { planned_start?: string | null; planned_end?: string | null },
   ) => Promise<boolean>;
   loadOrderEvents: (orderId: string) => Promise<ErpStageEvent[] | null>;
+  loadOrderAudit: (orderId: string) => Promise<ErpOrderAuditRow[] | null>;
+  loadComments: (orderId: string) => Promise<ErpOrderComment[] | null>;
+  addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
   addMaterial: (
     orderId: string,
     material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
@@ -403,6 +424,47 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       return null;
     }
     return (data ?? []) as ErpStageEvent[];
+  },
+
+  loadOrderAudit: async (orderId) => {
+    const { data, error } = await supabase
+      .from('erp_order_audit')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('changed_at', { ascending: false })
+      .limit(100);
+    if (error) {
+      toast.error('Не удалось загрузить историю правок');
+      return null;
+    }
+    return (data ?? []) as ErpOrderAuditRow[];
+  },
+
+  loadComments: async (orderId) => {
+    const { data, error } = await supabase
+      .from('erp_order_comments')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: true })
+      .limit(200);
+    if (error) {
+      toast.error('Не удалось загрузить комментарии');
+      return null;
+    }
+    return (data ?? []) as ErpOrderComment[];
+  },
+
+  addComment: async (orderId, text) => {
+    const { data, error } = await supabase
+      .from('erp_order_comments')
+      .insert({ order_id: orderId, author: currentActor(), text })
+      .select();
+    const row = data?.[0] as ErpOrderComment | undefined;
+    if (error || !row) {
+      toast.error('Не удалось отправить комментарий');
+      return null;
+    }
+    return row;
   },
 
   loadEmployees: async () => {
