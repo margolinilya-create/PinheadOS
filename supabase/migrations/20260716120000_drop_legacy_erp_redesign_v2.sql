@@ -9,10 +9,17 @@
 -- 1. Снять cron-джоб диспетчера событий (guard: на свежей preview-ветке
 -- pg_cron/джоба может не быть — реплей не должен падать)
 do $$
+declare
+  has_job boolean;
 begin
-  if exists (select 1 from pg_extension where extname = 'pg_cron')
-     and exists (select 1 from cron.job where jobname = 'dispatch-domain-events') then
-    perform cron.unschedule('dispatch-domain-events');
+  -- cron.job нельзя упоминать в статически парсимом SQL: без pg_cron
+  -- парсинг упадёт раньше проверки. Поэтому только через execute.
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    execute 'select exists (select 1 from cron.job where jobname = ''dispatch-domain-events'')'
+      into has_job;
+    if has_job then
+      perform cron.unschedule('dispatch-domain-events');
+    end if;
   end if;
 end $$;
 
