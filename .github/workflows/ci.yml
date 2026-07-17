@@ -48,14 +48,24 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build && npm run preview &
       - run: sleep 3
+      - name: Decide snapshot mode
+        id: snap
+        # update-режим: явный запрос через workflow_dispatch ЛИБО эталонов нет
+        # вовсе (self-heal — свежие эталоны сгенерятся и закоммитятся на main)
+        run: |
+          if [ "${{ inputs.update_snapshots }}" = "true" ] || [ -z "$(ls e2e/visual.spec.ts-snapshots/*.png 2>/dev/null)" ]; then
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          fi
       - run: |
-          if [ "${{ inputs.update_snapshots }}" = "true" ]; then
+          if [ "${{ steps.snap.outputs.update }}" = "true" ]; then
             npx playwright test e2e/visual.spec.ts --update-snapshots
           else
             npx playwright test e2e/visual.spec.ts
           fi
       - name: Commit updated snapshots
-        if: ${{ inputs.update_snapshots == true }}
+        if: ${{ steps.snap.outputs.update == 'true' && github.ref == 'refs/heads/main' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
