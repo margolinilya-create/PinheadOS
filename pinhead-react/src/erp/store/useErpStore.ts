@@ -13,6 +13,8 @@ import { buildRoute, isStageReady } from '../utils/routes';
 import type {
   BrandingMethod,
   BrandingOn,
+  ErpItemPrint,
+  SizeGridRow,
   ErpCalendarSlot,
   ErpDepartment,
   ErpEmployee,
@@ -81,7 +83,7 @@ export interface ErpOrderAttachment {
 }
 
 export interface ErpOrderFull extends ErpOrder {
-  items: (ErpOrderItem & { stages: ErpItemStage[] })[];
+  items: (ErpOrderItem & { stages: ErpItemStage[]; prints?: ErpItemPrint[] })[];
   materials: ErpMaterial[];
   attachments?: ErpOrderAttachment[];
 }
@@ -93,6 +95,17 @@ export function orderPreviewUrl(order: ErpOrderFull): string | null {
   return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
 }
 
+export interface NewPrintInput {
+  method: BrandingMethod;
+  fabric?: string;
+  zone?: string;
+  width_mm?: number | null;
+  height_mm?: number | null;
+  offset_note?: string;
+  pantone?: string;
+  comment?: string;
+}
+
 export interface NewOrderItemInput {
   product_type: string;
   variant?: string;
@@ -101,6 +114,8 @@ export interface NewOrderItemInput {
   branding_methods: BrandingMethod[];
   branding_on: BrandingOn;
   notes?: string;
+  size_grid?: SizeGridRow[] | null;
+  prints?: NewPrintInput[];
 }
 
 export interface NewOrderInput {
@@ -111,6 +126,11 @@ export interface NewOrderInput {
   due_date?: string;
   buffer_days?: number;
   notes?: string;
+  packaging?: string;
+  packaging_note?: string;
+  stickers?: string;
+  stickers_note?: string;
+  no_chestny_znak?: boolean;
   items: NewOrderItemInput[];
 }
 
@@ -168,7 +188,8 @@ const ORDER_SELECT = `
   *,
   items:erp_order_items (
     *,
-    stages:erp_item_stages (*)
+    stages:erp_item_stages (*),
+    prints:erp_item_prints (*)
   ),
   materials:erp_materials (*),
   attachments:erp_order_attachments (*)
@@ -262,6 +283,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       branding_methods: it.branding_methods,
       branding_on: it.branding_on,
       notes: it.notes || null,
+      size_grid: it.size_grid ?? null,
       sort_order: (i + 1) * 10,
     }));
     const { data: itemRows, error: itemsErr } = await supabase
@@ -271,6 +293,30 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     if (itemsErr || !itemRows) {
       toast.error('Заказ создан, но позиции не сохранились');
       return null;
+    }
+
+    // 2б. Нанесения с параметрами (страницы «Нанесение №N» ТЗ)
+    const printsPayload = (itemRows as ErpOrderItem[]).flatMap((row, i) =>
+      (items[i]?.prints ?? []).map((p, j) => ({
+        item_id: row.id,
+        seq: j + 1,
+        method: p.method,
+        fabric: p.fabric || null,
+        zone: p.zone || null,
+        width_mm: p.width_mm ?? null,
+        height_mm: p.height_mm ?? null,
+        offset_note: p.offset_note || null,
+        pantone: p.pantone || null,
+        comment: p.comment || null,
+      })));
+    let printRows: ErpItemPrint[] = [];
+    if (printsPayload.length > 0) {
+      const { data: prData, error: prErr } = await supabase
+        .from('erp_item_prints')
+        .insert(printsPayload)
+        .select();
+      if (prErr) toast.error('Заказ создан, но параметры нанесений не сохранились');
+      printRows = (prData ?? []) as ErpItemPrint[];
     }
 
     // 3. Этапы по маршруту (двухфазно: insert → проставить depends_on по id)
@@ -326,6 +372,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       items: (itemRows as ErpOrderItem[]).map((it) => ({
         ...it,
         stages: allStages.filter((s) => s.item_id === it.id),
+        prints: printRows.filter((p) => p.item_id === it.id),
       })),
       materials: [],
     });

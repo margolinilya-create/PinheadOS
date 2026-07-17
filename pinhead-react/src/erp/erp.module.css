@@ -763,3 +763,26 @@ a.kpiTile:hover { border-color: var(--accent); }
   border: 1px solid var(--border-light);
   flex-shrink: 0;
 }
+
+/* ─── Поля ТЗ в форме ─── */
+.itemBlock {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.itemBlock .itemRow { border: none; background: none; padding: 0; }
+.printBlock {
+  border-left: 3px solid var(--accent);
+  background: var(--card);
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sizeGrid { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 2px; }
+.gridDetails summary { cursor: pointer; padding: 2px 0; }

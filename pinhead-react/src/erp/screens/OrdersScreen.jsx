@@ -11,6 +11,8 @@ import {
   BRANDING_METHOD_LABELS,
   ORDER_STATUS_LABELS,
   STAGE_STATUS_LABELS,
+  PACKAGING_LABELS,
+  STICKERS_LABELS,
 } from '../types';
 import styles from '../erp.module.css';
 
@@ -21,7 +23,99 @@ const EMPTY_ITEM = {
   production_type: 'sewing',
   branding_methods: [],
   branding_on: 'cut',
+  prints: [],
+  size_grid: null,
 };
+
+const EMPTY_PRINT = {
+  method: 'embroidery',
+  zone: '',
+  width_mm: '',
+  height_mm: '',
+  offset_note: '',
+  pantone: '',
+  comment: '',
+};
+
+/** Редактор размерной сетки: размеры колонками, цвета строками, сумма = тираж */
+function SizeGridEditor({ grid, onChange }) {
+  const sizes = grid?.sizes ?? [];
+  const rows = grid?.rows ?? [];
+  const set = (patch) => onChange({ sizes, rows, ...patch });
+
+  return (
+    <div className={styles.sizeGrid}>
+      <div className={styles.checkRow}>
+        <span className={styles.fieldLabel}>Размеры (через запятую)</span>
+        <input
+          className={styles.input}
+          style={{ flex: 1, minWidth: 180, minHeight: 32 }}
+          placeholder="XS-S, M-L, XL-2XL"
+          value={sizes.join(', ')}
+          onChange={(e) =>
+            set({ sizes: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}
+        >
+          + Цвет
+        </button>
+      </div>
+      {rows.map((row, ri) => (
+        <div key={ri} className={styles.checkRow}>
+          <input
+            className={styles.input}
+            style={{ width: 130, minHeight: 32 }}
+            placeholder="Цвет"
+            value={row.color}
+            aria-label={`Цвет ${ri + 1}`}
+            onChange={(e) =>
+              set({ rows: rows.map((r, i) => (i === ri ? { ...r, color: e.target.value } : r)) })}
+          />
+          {sizes.map((sz) => (
+            <label key={sz} className={styles.checkLabel} style={{ gap: 3 }}>
+              <span className={styles.subText}>{sz}</span>
+              <input
+                type="number"
+                min="0"
+                className={styles.input}
+                style={{ width: 64, minHeight: 32 }}
+                value={row.sizes[sz] ?? ''}
+                aria-label={`${row.color || 'цвет'} ${sz}`}
+                onChange={(e) =>
+                  set({
+                    rows: rows.map((r, i) =>
+                      i === ri
+                        ? { ...r, sizes: { ...r.sizes, [sz]: Number(e.target.value) || 0 } }
+                        : r),
+                  })}
+              />
+            </label>
+          ))}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            aria-label="Убрать цвет"
+            onClick={() => set({ rows: rows.filter((_, i) => i !== ri) })}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      {rows.length > 0 && (
+        <div className={styles.subText}>
+          Итого по сетке:{' '}
+          <strong>
+            {rows.reduce((s, r) => s + Object.values(r.sizes).reduce((a, b) => a + b, 0), 0)} шт
+          </strong>{' '}
+          — подставится в количество позиции
+        </div>
+      )}
+    </div>
+  );
+}
 
 function daysLeft(dueDate) {
   if (!dueDate) return null;
@@ -180,6 +274,8 @@ function CreateOrderModal({ onClose }) {
   }, []);
   const [form, setForm] = useState({
     bitrix_id: '', title: '', manager: '', launch_date: '', due_date: '',
+    packaging: 'none', packaging_note: '', stickers: 'none', stickers_note: '',
+    no_chestny_znak: false,
   });
   const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
   const firstFieldRef = useRef(null);
@@ -189,17 +285,11 @@ function CreateOrderModal({ onClose }) {
   const setItem = (i, patch) =>
     setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
 
-  const toggleMethod = (i, method) =>
-    setItems((arr) => arr.map((it, idx) => {
-      if (idx !== i) return it;
-      const has = it.branding_methods.includes(method);
-      return {
-        ...it,
-        branding_methods: has
-          ? it.branding_methods.filter((m) => m !== method)
-          : [...it.branding_methods, method],
-      };
-    }));
+  const setPrint = (i, pi, patch) =>
+    setItems((arr) => arr.map((it, idx) =>
+      idx === i
+        ? { ...it, prints: it.prints.map((p, j) => (j === pi ? { ...p, ...patch } : p)) }
+        : it));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -232,13 +322,34 @@ function CreateOrderModal({ onClose }) {
       manager: form.manager.trim() || undefined,
       launch_date: form.launch_date || undefined,
       due_date: form.due_date || undefined,
+      packaging: form.packaging,
+      packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || undefined : undefined,
+      stickers: form.stickers,
+      stickers_note: form.stickers === 'other' ? form.stickers_note.trim() || undefined : undefined,
+      no_chestny_znak: form.no_chestny_znak,
       items: validItems.map((it) => ({
         product_type: it.product_type.trim(),
         variant: it.variant.trim() || undefined,
         qty: Number(it.qty),
         production_type: it.production_type,
-        branding_methods: it.branding_methods,
+        // маршрут строится по техникам из блоков «Нанесение №N»
+        branding_methods: [...new Set(it.prints.map((p) => p.method))],
         branding_on: it.branding_on,
+        size_grid:
+          it.size_grid?.rows?.length
+            ? it.size_grid.rows
+                .filter((r) => r.color.trim() || Object.keys(r.sizes).length)
+                .map((r) => ({ color: r.color.trim() || '—', sizes: r.sizes }))
+            : null,
+        prints: it.prints.map((p) => ({
+          method: p.method,
+          zone: p.zone.trim() || undefined,
+          width_mm: Number(p.width_mm) || null,
+          height_mm: Number(p.height_mm) || null,
+          offset_note: p.offset_note.trim() || undefined,
+          pantone: p.pantone.trim() || undefined,
+          comment: p.comment.trim() || undefined,
+        })),
       })),
     });
     if (created && previewFile) {
@@ -322,7 +433,8 @@ function CreateOrderModal({ onClose }) {
 
         <div className={styles.fieldLabel}>Позиции (изделие × вариант × кол-во)</div>
         {items.map((it, i) => (
-          <div key={i} className={styles.itemRow}>
+          <div key={i} className={styles.itemBlock}>
+          <div className={styles.itemRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Изделие *</span>
               <input
@@ -370,18 +482,13 @@ function CreateOrderModal({ onClose }) {
             </div>
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Нанесения</span>
-              <div className={styles.checkRow}>
-                {Object.entries(BRANDING_METHOD_LABELS).map(([v, label]) => (
-                  <label key={v} className={styles.checkLabel}>
-                    <input
-                      type="checkbox"
-                      checked={it.branding_methods.includes(v)}
-                      onChange={() => toggleMethod(i, v)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}
+              >
+                + Нанесение ({it.prints.length})
+              </button>
             </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Нанесение на</span>
@@ -404,6 +511,86 @@ function CreateOrderModal({ onClose }) {
               ✕
             </button>
           </div>
+
+          {it.prints.map((p, pi) => (
+            <div key={pi} className={styles.printBlock}>
+              <div className={styles.checkRow}>
+                <strong className={styles.fieldLabel}>Нанесение №{pi + 1}</strong>
+                <select
+                  className={styles.select}
+                  style={{ minHeight: 32 }}
+                  value={p.method}
+                  aria-label="Техника нанесения"
+                  onChange={(e) => setPrint(i, pi, { method: e.target.value })}
+                >
+                  {Object.entries(BRANDING_METHOD_LABELS).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+                <input
+                  className={styles.input}
+                  style={{ flex: 1, minWidth: 160, minHeight: 32 }}
+                  placeholder="Расположение (спина справа по втачке)"
+                  value={p.zone}
+                  onChange={(e) => setPrint(i, pi, { zone: e.target.value })}
+                />
+                <label className={styles.checkLabel} style={{ gap: 3 }}>
+                  <span className={styles.subText}>В, мм</span>
+                  <input type="number" min="1" className={styles.input}
+                    style={{ width: 70, minHeight: 32 }}
+                    value={p.height_mm}
+                    onChange={(e) => setPrint(i, pi, { height_mm: e.target.value })} />
+                </label>
+                <label className={styles.checkLabel} style={{ gap: 3 }}>
+                  <span className={styles.subText}>Ш, мм</span>
+                  <input type="number" min="1" className={styles.input}
+                    style={{ width: 70, minHeight: 32 }}
+                    value={p.width_mm}
+                    onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
+                </label>
+                <button type="button" className="btn btn-ghost" aria-label="Убрать нанесение"
+                  onClick={() => setItem(i, { prints: it.prints.filter((_, j) => j !== pi) })}>
+                  ✕
+                </button>
+              </div>
+              <div className={styles.checkRow}>
+                <input
+                  className={styles.input}
+                  style={{ flex: 1, minWidth: 150, minHeight: 32 }}
+                  placeholder="Отступ (10см от шва горловины)"
+                  value={p.offset_note}
+                  onChange={(e) => setPrint(i, pi, { offset_note: e.target.value })}
+                />
+                <input
+                  className={styles.input}
+                  style={{ width: 150, minHeight: 32 }}
+                  placeholder="Pantone (1163, 1181)"
+                  value={p.pantone}
+                  onChange={(e) => setPrint(i, pi, { pantone: e.target.value })}
+                />
+                <input
+                  className={styles.input}
+                  style={{ flex: 1, minWidth: 150, minHeight: 32 }}
+                  placeholder="Комментарий (макет как в сделке…)"
+                  value={p.comment}
+                  onChange={(e) => setPrint(i, pi, { comment: e.target.value })}
+                />
+              </div>
+            </div>
+          ))}
+
+          <details className={styles.gridDetails}>
+            <summary className={styles.subText}>Размерная сетка (цвет × размер)</summary>
+            <SizeGridEditor
+              grid={it.size_grid}
+              onChange={(g) => {
+                const total = (g.rows ?? []).reduce(
+                  (s, r) => s + Object.values(r.sizes).reduce((a, b) => a + b, 0), 0);
+                setItem(i, { size_grid: g, ...(total > 0 ? { qty: String(total) } : {}) });
+              }}
+            />
+          </details>
+          </div>
         ))}
         <div>
           <button
@@ -413,6 +600,51 @@ function CreateOrderModal({ onClose }) {
           >
             + Добавить позицию
           </button>
+        </div>
+
+        <div className={styles.formGrid}>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Упаковка</span>
+            <div className={styles.tileRow} role="radiogroup" aria-label="Упаковка">
+              {Object.entries(PACKAGING_LABELS).map(([v, l]) => (
+                <button key={v} type="button" role="radio" aria-checked={form.packaging === v}
+                  className={`${styles.tile} ${form.packaging === v ? styles.tileActive : ''}`}
+                  onClick={() => setForm({ ...form, packaging: v })}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {form.packaging === 'other' && (
+              <input className={styles.input} placeholder="Какая? (с дизайном…)"
+                value={form.packaging_note}
+                onChange={(e) => setForm({ ...form, packaging_note: e.target.value })} />
+            )}
+          </div>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Стикеры</span>
+            <div className={styles.tileRow} role="radiogroup" aria-label="Стикеры">
+              {Object.entries(STICKERS_LABELS).map(([v, l]) => (
+                <button key={v} type="button" role="radio" aria-checked={form.stickers === v}
+                  className={`${styles.tile} ${form.stickers === v ? styles.tileActive : ''}`}
+                  onClick={() => setForm({ ...form, stickers: v })}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {form.stickers === 'other' && (
+              <input className={styles.input} placeholder="Какие? (со смежными размерами…)"
+                value={form.stickers_note}
+                onChange={(e) => setForm({ ...form, stickers_note: e.target.value })} />
+            )}
+          </div>
+          <label className={styles.checkLabel} style={{ alignSelf: 'end', minHeight: 40 }}>
+            <input
+              type="checkbox"
+              checked={form.no_chestny_znak}
+              onChange={(e) => setForm({ ...form, no_chestny_znak: e.target.checked })}
+            />
+            Без Честного знака
+          </label>
         </div>
 
         <div

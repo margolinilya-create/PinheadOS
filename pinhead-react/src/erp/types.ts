@@ -78,6 +78,11 @@ export interface ErpOrder {
   shipped_status: ErpShippedStatus;
   delivered_at: string | null;
   notes: string | null;
+  packaging?: PackagingType;
+  packaging_note?: string | null;
+  stickers?: StickersType;
+  stickers_note?: string | null;
+  no_chestny_znak?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -93,6 +98,7 @@ export interface ErpOrderItem {
   branding_methods: BrandingMethod[];
   branding_on: BrandingOn | null;
   notes: string | null;
+  size_grid?: SizeGridRow[] | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -240,4 +246,58 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   hr: 'HR',
   manager: 'Менеджер',
   director: 'Директор',
+};
+
+// --- Поля ТЗ (docs/erp/tz-format-analysis.md) --------------------------------
+
+export type PackagingType = 'none' | 'bopp' | 'zip' | 'other';
+export type StickersType = 'none' | 'blank' | 'other';
+
+export const PACKAGING_LABELS: Record<PackagingType, string> = {
+  none: 'Нет',
+  bopp: 'БОПП-пакет',
+  zip: 'ZIP-пакет',
+  other: 'Другое',
+};
+
+export const STICKERS_LABELS: Record<StickersType, string> = {
+  none: 'Нет',
+  blank: 'Бланк',
+  other: 'Другое',
+};
+
+/** Размерная сетка позиции: цвет × размер → шт */
+export interface SizeGridRow {
+  color: string;
+  sizes: Record<string, number>;
+}
+
+/** Нанесение с параметрами (страницы «Нанесение №N» ТЗ) */
+export interface ErpItemPrint {
+  id: string;
+  item_id: string;
+  seq: number;
+  method: BrandingMethod;
+  fabric: string | null;
+  zone: string | null;
+  width_mm: number | null;
+  height_mm: number | null;
+  offset_note: string | null;
+  pantone: string | null;
+  special: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+export type MaterialRole =
+  | 'main' | 'trim' | 'lining' | 'hardware' | 'labels' | 'packaging' | 'other';
+
+export const MATERIAL_ROLE_LABELS: Record<MaterialRole, string> = {
+  main: 'Основное полотно',
+  trim: 'Отделочное',
+  lining: 'Подклад',
+  hardware: 'Фурнитура',
+  labels: 'Бирки/этикетки',
+  packaging: 'Упаковка',
+  other: 'Прочее',
 };
