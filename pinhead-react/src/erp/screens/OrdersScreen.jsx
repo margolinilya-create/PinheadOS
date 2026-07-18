@@ -7,7 +7,7 @@ import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { daysLeft, isUrgent, isOverdue } from '../utils/time';
+import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
@@ -253,6 +253,7 @@ function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         </td>
         <td>{order.manager || '—'}</td>
         <td>{totalQty}</td>
+        <td>{formatDateShort(order.created_at) || '—'}</td>
         <td><DueCell dueDate={order.due_date} /></td>
         <td>
           {ready ? (
@@ -293,7 +294,7 @@ function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
       {open && order.items.map((it) => (
         <tr key={it.id}>
           <td />
-          <td colSpan={6}>
+          <td colSpan={7}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <strong>{it.product_type}</strong>
               {it.variant && <span className={styles.subText}>{it.variant}</span>}
@@ -359,6 +360,7 @@ function OrderCardMobile({ order, departments, onDelete, canDelete, onShip }) {
       <div className={styles.subText}>
         №{order.bitrix_id || '—'}
         {order.manager ? ` · ${order.manager}` : ''} · {totalQty} шт
+        {order.created_at ? ` · создан ${formatDateShort(order.created_at)}` : ''}
       </div>
       <div className={styles.orderCardMMeta}>
         {ready ? (
@@ -1073,6 +1075,8 @@ export default function OrdersScreen({ user }) {
   );
   const [showCreate, setShowCreate] = useState(false);
   const [query, setQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [tab, setTab] = useState('active'); // active | archive
   const isMobile = useMediaQuery('(max-width: 760px)');
   // Фильтры сроков/готовности — в URL (?filter=ready|urgent|overdue),
@@ -1117,14 +1121,21 @@ export default function OrdersScreen({ user }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return inTab;
-    return inTab.filter(
-      (o) =>
-        o.title.toLowerCase().includes(q) ||
-        (o.bitrix_id || '').includes(q) ||
-        (o.manager || '').toLowerCase().includes(q),
-    );
-  }, [inTab, query]);
+    return inTab.filter((o) => {
+      if (q) {
+        const match =
+          o.title.toLowerCase().includes(q) ||
+          (o.bitrix_id || '').includes(q) ||
+          (o.manager || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      // Фильтр по дате создания (границы включительно, каждая необязательна)
+      const created = (o.created_at || '').slice(0, 10);
+      if (dateFrom && (!created || created < dateFrom)) return false;
+      if (dateTo && (!created || created > dateTo)) return false;
+      return true;
+    });
+  }, [inTab, query, dateFrom, dateTo]);
 
   const onDelete = async (order) => {
     const ok = await confirm({
@@ -1214,6 +1225,37 @@ export default function OrdersScreen({ user }) {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Поиск заказов"
         />
+        <label className={styles.checkLabel}>
+          Создан с
+          <input
+            type="date"
+            className={styles.input}
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => setDateFrom(e.target.value)}
+            aria-label="Дата создания: с"
+          />
+        </label>
+        <label className={styles.checkLabel}>
+          по
+          <input
+            type="date"
+            className={styles.input}
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            aria-label="Дата создания: по"
+          />
+        </label>
+        {(dateFrom || dateTo) && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => { setDateFrom(''); setDateTo(''); }}
+          >
+            Сбросить даты
+          </button>
+        )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
@@ -1266,6 +1308,7 @@ export default function OrdersScreen({ user }) {
                 <th>Заказ</th>
                 <th>Менеджер</th>
                 <th>Кол-во</th>
+                <th>Создан</th>
                 <th>Срок клиента</th>
                 <th>Статус</th>
                 <th aria-label="Действия" />

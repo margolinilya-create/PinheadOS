@@ -41,6 +41,7 @@ URL: https://pinhead-os.vercel.app
 - hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js
 
 ## Ключевые правила
+- Общение с пользователем: всегда на русском языке
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
 - Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
 - Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog

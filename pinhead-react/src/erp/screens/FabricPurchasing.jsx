@@ -3,12 +3,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
+import { materialsBlockStage } from '../utils/routes';
 import { MATERIAL_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
 /**
  * Закупка: материалы по заказам (ткань, фурнитура, бирки).
- * Приход материалов (received) открывает закрой — см. materialsBlockCutting.
+ * Приход ткани открывает закрой — см. materialsBlockStage.
  */
 
 const KIND_LABELS = {
@@ -35,23 +36,28 @@ const STATUS_CHIP = {
   not_needed: 'chipSkipped',
 };
 
+const EMPTY_MAT = { kind: 'fabric', name: '', source: 'purchase', supplier: '', qty: '', eta_date: '' };
+
 function AddMaterialRow({ orderId, onAdd }) {
-  const [form, setForm] = useState({ kind: 'fabric', name: '', source: 'purchase', qty: '', eta_date: '' });
+  const [form, setForm] = useState(EMPTY_MAT);
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     if (!form.name.trim()) { toast.error('Укажите название материала'); return; }
+    // План прихода обязателен для закупаемых материалов
+    if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
     setSaving(true);
     const row = await onAdd(orderId, {
       kind: form.kind,
       name: form.name.trim(),
       source: form.source,
+      supplier: form.supplier.trim() || null,
       qty: form.qty.trim() || null,
       eta_date: form.eta_date || null,
       status: form.source === 'purchase' ? 'pending' : 'received',
     });
     setSaving(false);
-    if (row) setForm({ kind: 'fabric', name: '', source: 'purchase', qty: '', eta_date: '' });
+    if (row) setForm(EMPTY_MAT);
   };
 
   return (
@@ -63,6 +69,7 @@ function AddMaterialRow({ orderId, onAdd }) {
       <select className={styles.select} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} aria-label="Источник">
         {Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
+      <input className={styles.input} placeholder="Поставщик" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} aria-label="Поставщик" style={{ maxWidth: 140 }} />
       <input className={styles.input} placeholder="120 м / 40 кг" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 110 }} />
       <input type="date" className={styles.input} value={form.eta_date} onChange={(e) => setForm({ ...form, eta_date: e.target.value })} aria-label="План прихода" />
       <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
@@ -82,20 +89,31 @@ export default function FabricPurchasing() {
     })),
   );
   const [onlyWaiting, setOnlyWaiting] = useState(false);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
 
-  /** Активные заказы; при фильтре — только те, где материалы блокируют закрой */
+  /** Активные заказы (для счётчика «N из M») */
+  const active = useMemo(() => orders.filter((o) => o.status === 'active'), [orders]);
+
+  /** Отфильтрованные заказы: чекбокс непришедших + поиск по заказу/№/материалу */
   const rows = useMemo(() => {
-    let list = orders.filter((o) => o.status === 'active');
+    let list = active;
     if (onlyWaiting) {
       list = list.filter((o) =>
         o.materials.some((m) => m.status !== 'received' && m.status !== 'not_needed'));
     }
+    const q = query.trim().toLowerCase();
+    if (q) {
+      list = list.filter((o) =>
+        o.title.toLowerCase().includes(q) ||
+        (o.bitrix_id || '').includes(q) ||
+        o.materials.some((m) => m.name.toLowerCase().includes(q)));
+    }
     return list;
-  }, [orders, onlyWaiting]);
+  }, [active, onlyWaiting, query]);
 
   const setStatus = async (m, status) => {
     const patch = { status };
@@ -115,8 +133,16 @@ export default function FabricPurchasing() {
           <input type="checkbox" checked={onlyWaiting} onChange={(e) => setOnlyWaiting(e.target.checked)} />
           Только с непришедшими материалами
         </label>
+        <input
+          type="search"
+          className={`${styles.input} ${styles.searchInput}`}
+          placeholder="Поиск: заказ, № сделки, материал"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Поиск по закупке"
+        />
         <div className={styles.spacer} />
-        <span className={styles.subText}>{rows.length} заказов</span>
+        <span className={styles.subText}>{rows.length} из {active.length}</span>
       </div>
 
       {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
@@ -125,8 +151,7 @@ export default function FabricPurchasing() {
       )}
 
       {rows.map((order) => {
-        const blocking = order.materials.some(
-          (m) => m.status !== 'received' && m.status !== 'not_needed');
+        const blocking = materialsBlockStage(order.materials, 'cutting');
         return (
           <section
             key={order.id}
@@ -152,7 +177,7 @@ export default function FabricPurchasing() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Тип</th><th>Материал</th><th>Источник</th><th>Кол-во</th>
+                      <th>Тип</th><th>Материал</th><th>Источник</th><th>Поставщик</th><th>Кол-во</th>
                       <th>План прихода</th><th>Статус</th><th>Действие</th>
                     </tr>
                   </thead>
@@ -162,6 +187,7 @@ export default function FabricPurchasing() {
                         <td>{KIND_LABELS[m.kind]}</td>
                         <td>{m.name}{m.notes && <div className={styles.subText}>{m.notes}</div>}</td>
                         <td>{SOURCE_LABELS[m.source]}</td>
+                        <td>{m.supplier || '—'}</td>
                         <td>{m.qty || '—'}</td>
                         <td>
                           {m.eta_date ? new Date(m.eta_date + 'T00:00:00').toLocaleDateString('ru-RU') : '—'}

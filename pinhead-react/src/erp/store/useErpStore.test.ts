@@ -52,9 +52,16 @@ vi.mock('../../lib/supabase', () => {
             return Promise.resolve({ error: h.updateError });
           }),
         })),
-        insert: vi.fn((row: unknown) => {
+        insert: vi.fn((row: any) => {
           h.insertCalls.push({ table, row });
-          return Promise.resolve({ error: h.insertErrors.shift() ?? null });
+          const result = {
+            data: Array.isArray(row) ? row : [row],
+            error: h.insertErrors.shift() ?? null,
+          };
+          // Поддержка обоих стилей: await insert(row) и insert(row).select()
+          const p: any = Promise.resolve(result);
+          p.select = () => Promise.resolve(result);
+          return p;
         }),
       })),
       rpc: vi.fn((fn: string, args: { payload?: unknown }) => {
@@ -238,6 +245,93 @@ describe('useErpStore — reportDefect (фикс NaN)', () => {
     seed({ qty_rework: 3 });
     await useErpStore.getState().reportDefect('st1', 2, 'кривая строчка');
     expect(getStage().qty_rework).toBe(5);
+  });
+});
+
+describe('useErpStore — reportDefect (деление партии на предыдущий этап)', () => {
+  /** Цепочка закрой(done) → швейка(done), швейка зависит от закроя */
+  function seedChain() {
+    const base = {
+      item_id: 'it1', qty_done: 500, qty_rework: 0,
+      planned_start: null, planned_end: null, started_at: null,
+      assignee: null, block_reason: null, notes: null,
+    };
+    const cutting = { ...base, id: 'st-cut', department_id: 'd-cut', depends_on: [], status: 'done', finished_at: '2026-01-01', sort_order: 10 };
+    const sewing = { ...base, id: 'st-sew', department_id: 'd-sew', depends_on: ['st-cut'], status: 'done', finished_at: '2026-01-02', sort_order: 20 };
+    const item = {
+      id: 'it1', order_id: 'o1', product_type: 'Футболка', variant: null, qty: 500,
+      production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+      notes: null, sort_order: 10, stages: [cutting, sewing], prints: [],
+    };
+    const order = { id: 'o1', title: 'Заказ', status: 'active', items: [item], materials: [] };
+    useErpStore.setState({
+      orders: [order] as any,
+      departments: [
+        { id: 'd-cut', code: 'cutting', name: 'Закрой', active: true },
+        { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true },
+      ] as any,
+      loaded: true,
+    });
+  }
+  const stages = () => useErpStore.getState().orders[0].items[0].stages;
+
+  it('N брака уходит на предыдущий этап, годные остаются', async () => {
+    seedChain();
+    const ok = await useErpStore.getState().reportDefect('st-sew', 20, 'кривая строчка');
+    expect(ok).toBe(true);
+    const cut = stages().find((s) => s.id === 'st-cut');
+    const sew = stages().find((s) => s.id === 'st-sew');
+    // предыдущий этап переоткрыт на 20 штук
+    expect(cut?.status).toBe('in_progress');
+    expect(cut?.qty_done).toBe(480);
+    expect(cut?.qty_rework).toBe(20);
+    expect(cut?.finished_at).toBeNull();
+    // текущий этап вернулся в очередь, брак учтён, годные 480 остались
+    expect(sew?.status).toBe('waiting');
+    expect(sew?.qty_done).toBe(480);
+    expect(sew?.qty_rework).toBe(20);
+    // два обновления этапов в БД
+    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(2);
+  });
+
+  it('аудит-событие пишется на получателя (предыдущий этап) с причиной', async () => {
+    seedChain();
+    await useErpStore.getState().reportDefect('st-sew', 5, 'пятно');
+    const ev = h.insertCalls.find((c) => c.table === 'erp_stage_events');
+    expect((ev?.row as any).stage_id).toBe('st-cut');
+    expect((ev?.row as any).qty_rework).toBe(5);
+    expect((ev?.row as any).comment).toContain('Возврат брака');
+    expect((ev?.row as any).comment).toContain('Швейка');
+  });
+
+  it('без предыдущего этапа — переделка на месте (fallback)', async () => {
+    seed({ status: 'done', qty_done: 500, depends_on: [] });
+    await useErpStore.getState().reportDefect('st1', 10, 'брак');
+    const st = getStage();
+    expect(st.status).toBe('in_progress');
+    expect(st.qty_rework).toBe(10);
+    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(1);
+  });
+
+  it('брак больше тиража отклоняется', async () => {
+    seedChain();
+    const ok = await useErpStore.getState().reportDefect('st-sew', 999, 'много');
+    expect(ok).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Брак не может превышать тираж (500 шт)');
+  });
+});
+
+describe('useErpStore — addMaterial (поставщик)', () => {
+  it('передаёт supplier в insert и добавляет материал в стор', async () => {
+    seed();
+    const row = await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'Кулирка', source: 'purchase',
+      supplier: 'ООО Ткани', eta_date: '2026-07-20', status: 'pending',
+    } as any);
+    expect(row).toBeTruthy();
+    const call = h.insertCalls.find((c) => c.table === 'erp_materials');
+    expect(call?.row).toMatchObject({ order_id: 'o1', supplier: 'ООО Ткани', name: 'Кулирка' });
+    expect(useErpStore.getState().orders[0].materials.some((m) => m.supplier === 'ООО Ткани')).toBe(true);
   });
 });
 

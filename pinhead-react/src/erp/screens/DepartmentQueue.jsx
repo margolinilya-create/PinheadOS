@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
-import { useErpStore, orderPreviewUrl, readyCountFor } from '../store/useErpStore';
+import { useErpStore, orderPreviewUrl, readyCountFor, lastDefectPhotoUrl } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, waitingReason } from '../utils/routes';
-import { daysLeft } from '../utils/time';
+import { daysLeft, formatDateShort } from '../utils/time';
 import { deptShortName, isQueueDept } from '../data/departments';
 import {
   BRANDING_METHOD_LABELS,
@@ -177,13 +177,20 @@ function TzBlock({ order, item }) {
             <div className={styles.fieldLabel}>Материалы</div>
             {(order.materials ?? []).length > 0 ? (
               <ul className={styles.tzMatList}>
-                {order.materials.map((m) => (
-                  <li key={m.id}>
-                    {m.name}
-                    {m.qty ? ` · ${m.qty}` : ''}
-                    <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>
-                  </li>
-                ))}
+                {order.materials.map((m) => {
+                  const pending = m.status !== 'received' && m.status !== 'not_needed';
+                  const eta = pending ? formatDateShort(m.eta_date) : '';
+                  return (
+                    <li key={m.id}>
+                      {m.name}
+                      {m.qty ? ` · ${m.qty}` : ''}
+                      <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>
+                      {pending && (
+                        <span className={styles.subText}> · план {eta || 'не указан'}</span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <div className={styles.subText}>Материалы не ожидаются.</div>
@@ -197,8 +204,13 @@ function TzBlock({ order, item }) {
   );
 }
 
-function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnblock, onDefect }) {
+function QueueCard({ entry, canAct, rework, onStart, onDone, onProgress, onBlock, onUnblock, onDefect }) {
   const { order, item, stage, reason, group } = entry;
+  const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
+  const [startMode, setStartMode] = useState(false);
+  const [startDate, setStartDate] = useState(
+    stage.planned_end || new Date().toISOString().slice(0, 10),
+  );
   const [blockMode, setBlockMode] = useState(false);
   const [blockText, setBlockText] = useState('');
   const [blockPhoto, setBlockPhoto] = useState(null);
@@ -274,6 +286,17 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
       {stage.status === 'blocked' && stage.block_reason && (
         <div className={styles.queueReason}>🚫 {stage.block_reason}</div>
       )}
+      {rework && (
+        <div className={styles.queueReason}>
+          ↩ На переделку: {rework.qty_rework} шт · {(rework.comment || '').replace(' (фото во вложениях)', '')}
+          {reworkPhoto && (
+            <>
+              {' · '}
+              <a href={reworkPhoto} target="_blank" rel="noreferrer">📷 фото</a>
+            </>
+          )}
+        </div>
+      )}
 
       {group === 'in_progress' && qtyDone > 0 && (
         <div className={styles.progressLine} aria-label={`Сделано ${qtyDone} из ${item.qty}`}>
@@ -291,9 +314,9 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
 
       {canAct && (
         <div className={styles.queueActions}>
-          {group === 'ready' && (
+          {group === 'ready' && !startMode && (
             <>
-              <button type="button" className="btn btn-primary" onClick={() => onStart(entry)}>
+              <button type="button" className="btn btn-primary" onClick={() => setStartMode(true)}>
                 ▶ Взять в работу
               </button>
               {!blockMode && (
@@ -350,6 +373,33 @@ function QueueCard({ entry, canAct, onStart, onDone, onProgress, onBlock, onUnbl
               Снять блокировку
             </button>
           )}
+        </div>
+      )}
+
+      {canAct && group === 'ready' && startMode && (
+        <div className={styles.queueBlockForm}>
+          <label className={styles.subText}>
+            План завершения
+            <input
+              type="date"
+              className={styles.input}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              aria-label="Плановая дата завершения"
+              autoFocus
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!startDate}
+            onClick={() => { onStart(entry, startDate); setStartMode(false); }}
+          >
+            ▶ В работу
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setStartMode(false)}>
+            Отмена
+          </button>
         </div>
       )}
 
@@ -432,7 +482,8 @@ export default function DepartmentQueue() {
   const {
     orders, departments, loading, loaded, loadAll,
     myDeptId, myDeptLoaded, loadMyDept,
-    setStageStatus, reportProgress, reportDefect, uploadOrderAttachment,
+    setStageStatus, setStagePlan, reportProgress, reportDefect, uploadOrderAttachment,
+    loadStageReworkEvents,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -444,11 +495,15 @@ export default function DepartmentQueue() {
       myDeptLoaded: s.myDeptLoaded,
       loadMyDept: s.loadMyDept,
       setStageStatus: s.setStageStatus,
+      setStagePlan: s.setStagePlan,
       reportProgress: s.reportProgress,
       reportDefect: s.reportDefect,
       uploadOrderAttachment: s.uploadOrderAttachment,
+      loadStageReworkEvents: s.loadStageReworkEvents,
     })),
   );
+  // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
+  const [reworkByStage, setReworkByStage] = useState({});
   const user = useAuthStore((s) => s.user);
   // Ручной выбор вкладки: legacy localStorage — начальное значение
   const [pickedDept, setPickedDept] = useState(() => localStorage.getItem('erp_my_dept') || '');
@@ -547,7 +602,21 @@ export default function DepartmentQueue() {
     return g;
   }, [orders, dept, deptNameById]);
 
-  const onStart = (entry) => setStageStatus(entry.stage.id, 'in_progress');
+  // Подтягиваем причины возврата брака для этапов с qty_rework (баннер получателю)
+  useEffect(() => {
+    const ids = [...groups.ready, ...groups.in_progress]
+      .filter((e) => (e.stage.qty_rework ?? 0) > 0)
+      .map((e) => e.stage.id);
+    let alive = true;
+    // loadStageReworkEvents([]) сразу резолвится в {} — setState только в async-колбэке
+    loadStageReworkEvents(ids).then((map) => { if (alive) setReworkByStage(map); });
+    return () => { alive = false; };
+  }, [groups, loadStageReworkEvents]);
+
+  const onStart = async (entry, plannedEnd) => {
+    if (plannedEnd) await setStagePlan(entry.stage.id, { planned_end: plannedEnd });
+    await setStageStatus(entry.stage.id, 'in_progress');
+  };
   /** «Готово» без числа — закрыть этап целиком */
   const onDone = (entry) =>
     setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty });
@@ -638,6 +707,7 @@ export default function DepartmentQueue() {
                   key={entry.stage.id}
                   entry={entry}
                   canAct={canAct}
+                  rework={reworkByStage[entry.stage.id] || null}
                   onStart={onStart}
                   onDone={onDone}
                   onProgress={onProgress}

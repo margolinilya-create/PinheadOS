@@ -25,6 +25,18 @@ export function isOverdue(dueDate: string | null | undefined, now: Date = new Da
   return d !== null && d < 0;
 }
 
+/**
+ * Короткая дата ru-RU (dd.MM.yyyy). Безопасно для null и для дат без времени
+ * ('YYYY-MM-DD' парсим как локальную полночь, чтобы не сдвинуть на день).
+ */
+export function formatDateShort(d: string | null | undefined): string {
+  if (!d) return '';
+  const iso = d.length === 10 ? `${d}T00:00:00` : d;
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 /** «Время в этапе» — компактный формат как в kontora24 (мин/ч/дн). */
 export function formatTimeIn(since: string | null, nowMs: number = Date.now()): string {
   if (!since) return '';

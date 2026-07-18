@@ -17,8 +17,10 @@ import type {
   BrandingOn,
   ErpItemStage,
   ErpMaterial,
+  MaterialKind,
   ProductionType,
 } from '../types';
+import { formatDateShort } from './time';
 
 export interface RouteStage {
   departmentCode: string;
@@ -109,8 +111,44 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
 }
 
 /**
+ * Какой тип материала нужен какому цеху — гейт запуска этапа.
+ * Этап блокируется только своими материалами (а не всеми материалами заказа):
+ *  - ткань нужна закрою; фурнитура и бирки — швейке.
+ *  - упаковка и «прочее» этапы не гейтят (упаковка — на уровне заказа).
+ * Карта централизована — легко расширить под новые цеха/типы.
+ */
+const MATERIAL_GATE_DEPT: Record<MaterialKind, string[]> = {
+  fabric: ['cutting'],
+  hardware: ['sewing'],
+  labels: ['sewing'],
+  packaging: [],
+  other: [],
+};
+
+/** Материал ещё не на складе (не пришёл и не «не требуется») */
+function materialPending(m: ErpMaterial): boolean {
+  return m.status !== 'received' && m.status !== 'not_needed';
+}
+
+/** Непришедшие материалы, которые нужны данному цеху (для гейта и причины ожидания) */
+export function missingMaterialsForStage(
+  materials: ErpMaterial[],
+  departmentCode?: string,
+): ErpMaterial[] {
+  if (!departmentCode) return [];
+  return materials.filter(
+    (m) => materialPending(m) && (MATERIAL_GATE_DEPT[m.kind] ?? []).includes(departmentCode),
+  );
+}
+
+/** Блокируют ли материалы запуск этапа этого цеха */
+export function materialsBlockStage(materials: ErpMaterial[], departmentCode?: string): boolean {
+  return missingMaterialsForStage(materials, departmentCode).length > 0;
+}
+
+/**
  * Готов ли этап к работе: все зависимости done/skipped.
- * (Материальный гейт закроя проверяется отдельно — materialsBlockCutting.)
+ * (Материальный гейт проверяется отдельно — materialsBlockStage.)
  */
 export function isStageReady(
   stage: Pick<ErpItemStage, 'depends_on' | 'status'>,
@@ -118,7 +156,7 @@ export function isStageReady(
   materials: ErpMaterial[],
   departmentCode?: string,
 ): boolean {
-  if (departmentCode === 'cutting' && materialsBlockCutting(materials)) return false;
+  if (materialsBlockStage(materials, departmentCode)) return false;
   const byId = new Map(allStages.map((s) => [s.id, s]));
   return stage.depends_on.every((depId) => {
     const dep = byId.get(depId);
@@ -126,11 +164,9 @@ export function isStageReady(
   });
 }
 
-/** Блокируют ли материалы закрой: есть хоть один не пришедший */
+/** @deprecated Блокируют ли материалы закрой — используйте materialsBlockStage(materials, 'cutting') */
 export function materialsBlockCutting(materials: ErpMaterial[]): boolean {
-  return materials.some(
-    (m) => m.status !== 'received' && m.status !== 'not_needed',
-  );
+  return materialsBlockStage(materials, 'cutting');
 }
 
 /**
@@ -145,8 +181,13 @@ export function waitingReason(
   departmentCode?: string,
 ): string | null {
   if (stage.status === 'blocked') return stage.block_reason || 'Заблокирован цехом';
-  if (departmentCode === 'cutting' && materialsBlockCutting(materials)) {
-    return 'Материалы ещё не пришли';
+  const missing = missingMaterialsForStage(materials, departmentCode);
+  if (missing.length > 0) {
+    const parts = missing.map((m) => {
+      const eta = formatDateShort(m.eta_date);
+      return `${m.name}${eta ? ` (план ${eta})` : ' (план не указан)'}`;
+    });
+    return `Ждём материалы: ${parts.join(', ')}`;
   }
   const byId = new Map(allStages.map((s) => [s.id, s]));
   for (const depId of stage.depends_on) {

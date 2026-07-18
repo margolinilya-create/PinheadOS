@@ -3,6 +3,37 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
+## Состояние на 2026-07-18 (сессия 13)
+
+### Сессия 13 — правки проджект-менеджера (10 доработок ERP)
+Рабочая ветка: `claude/project-manager-edits-5bw6mj`. Миграции БД не требовались —
+нужные колонки уже были (`orders.created_at`, `erp_materials.supplier`/`eta_date`,
+`erp_item_stages.planned_end`/`qty_rework`). Блоки:
+1. **Заказы** (`erp/screens/OrdersScreen.jsx`): колонка «Создан» (`created_at`) в
+   таблице и мобильной карточке; фильтр по диапазону дат создания (`dateFrom`/`dateTo`
+   + «Сбросить даты»).
+2. **Закупка** (`erp/screens/FabricPurchasing.jsx`): поиск по названию заказа/№ сделки/
+   материалу; поле и колонка «Поставщик» (`supplier` — добавлен в тип `ErpMaterial`,
+   в БД/RPC уже был); план прихода (`eta_date`) обязателен для `source=purchase`.
+3. **Мой цех / Закрой** (`erp/utils/routes.ts`, `DepartmentQueue.jsx`, `OrderCard.jsx`):
+   гейт запуска этапа только «своими» материалами — карта `MATERIAL_GATE_DEPT`
+   (ткань→закрой, фурнитура/бирки→швейка), `materialsBlockStage`/`missingMaterialsForStage`
+   вместо `materialsBlockCutting`; в причине ожидания и в ТЗ/карточке показываются планы
+   прихода недостающих материалов; «Взять в работу» требует плановую дату завершения
+   (инлайн-форма → `setStagePlan(planned_end)` + `setStageStatus`).
+4. **Брак** (`useErpStore.reportDefect`): деление партии — N брака возвращаются на
+   предыдущий этап (`depends_on`, ближайший по `sort_order`) как `in_progress` на N штук,
+   годные остаются; аудит-событие пишется на получателя. Получателю в очереди виден
+   баннер «↩ На переделку: N шт · причина · 📷 фото» (`loadStageReworkEvents`,
+   `lastDefectPhotoUrl`).
+5. **Общее**: хелпер `formatDateShort` в `erp/utils/time.ts`; правило «общаемся всегда
+   на русском» добавлено в оба `CLAUDE.md`.
+
+Тесты: **920/920** (добавлены проверки `materialsBlockStage`/`waitingReason` и деления
+партии в `reportDefect` + `addMaterial` supplier), lint 0, build ок.
+⚠️ Визуальные e2e-эталоны `erp-orders`/`erp-queue` менялись намеренно — пересобрать в CI
+(`npm run e2e:update`); локально не пересобирались из-за рассинхрона версии браузера Playwright.
+
 ## Состояние на 2026-07-17 (сессия 12)
 
 ### Что развёрнуто

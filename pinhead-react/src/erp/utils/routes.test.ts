@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildRoute, isStageReady, materialsBlockCutting } from './routes';
-import type { ErpMaterial, StageStatus } from '../types';
+import {
+  buildRoute,
+  isStageReady,
+  materialsBlockCutting,
+  materialsBlockStage,
+  missingMaterialsForStage,
+  waitingReason,
+} from './routes';
+import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
 
 /** Хелпер: находит этап по коду цеха */
 function stage(route: ReturnType<typeof buildRoute>, code: string) {
@@ -139,16 +146,21 @@ describe('isStageReady — вычисление готовности', () => {
   });
 });
 
-describe('materialsBlockCutting — материалы гейтят закрой', () => {
-  const mkMat = (status: string, kind = 'fabric'): ErpMaterial => ({
-    id: 'm1', order_id: 'o1', item_id: null,
-    kind: kind as ErpMaterial['kind'], name: 'Кулирка',
-    source: 'purchase', qty: null,
-    status: status as ErpMaterial['status'],
-    eta_date: null, received_at: null, notes: null,
-    created_at: '', updated_at: '',
-  });
+const mkMat = (
+  status: string,
+  kind = 'fabric',
+  eta: string | null = null,
+  name = 'Кулирка',
+): ErpMaterial => ({
+  id: 'm1', order_id: 'o1', item_id: null,
+  kind: kind as ErpMaterial['kind'], name,
+  source: 'purchase', supplier: null, qty: null,
+  status: status as ErpMaterial['status'],
+  eta_date: eta, received_at: null, notes: null,
+  created_at: '', updated_at: '',
+});
 
+describe('materialsBlockCutting — материалы гейтят закрой', () => {
   it('не пришедшая ткань блокирует', () => {
     expect(materialsBlockCutting([mkMat('ordered')])).toBe(true);
     expect(materialsBlockCutting([mkMat('pending')])).toBe(true);
@@ -166,5 +178,65 @@ describe('materialsBlockCutting — материалы гейтят закрой
 
   it('без материалов не блокирует', () => {
     expect(materialsBlockCutting([])).toBe(false);
+  });
+});
+
+describe('materialsBlockStage — гейт по типу материала на нужный цех', () => {
+  it('ткань блокирует закрой, но не швейку', () => {
+    const mats = [mkMat('pending', 'fabric')];
+    expect(materialsBlockStage(mats, 'cutting')).toBe(true);
+    expect(materialsBlockStage(mats, 'sewing')).toBe(false);
+  });
+
+  it('фурнитура/бирки блокируют швейку, но не закрой', () => {
+    expect(materialsBlockStage([mkMat('pending', 'hardware')], 'sewing')).toBe(true);
+    expect(materialsBlockStage([mkMat('pending', 'labels')], 'sewing')).toBe(true);
+    expect(materialsBlockStage([mkMat('pending', 'hardware')], 'cutting')).toBe(false);
+  });
+
+  it('упаковка/прочее не гейтят ни один этап', () => {
+    expect(materialsBlockStage([mkMat('pending', 'packaging')], 'sewing')).toBe(false);
+    expect(materialsBlockStage([mkMat('pending', 'other')], 'cutting')).toBe(false);
+  });
+
+  it('пришедшие материалы не блокируют', () => {
+    expect(materialsBlockStage([mkMat('received', 'fabric')], 'cutting')).toBe(false);
+  });
+
+  it('missingMaterialsForStage возвращает только непришедшие материалы цеха', () => {
+    const mats = [
+      mkMat('received', 'fabric'),
+      mkMat('pending', 'hardware', null, 'Молния'),
+      mkMat('pending', 'fabric', null, 'Кулирка'),
+    ];
+    expect(missingMaterialsForStage(mats, 'sewing').map((m) => m.name)).toEqual(['Молния']);
+    expect(missingMaterialsForStage(mats, 'cutting').map((m) => m.name)).toEqual(['Кулирка']);
+  });
+});
+
+describe('waitingReason — причина ожидания с планом прихода', () => {
+  const mkStage = (
+    depends: string[] = [],
+    status: StageStatus = 'waiting',
+  ): Pick<ErpItemStage, 'depends_on' | 'status' | 'block_reason'> => ({
+    depends_on: depends, status, block_reason: null,
+  });
+
+  it('перечисляет недостающие материалы цеха с датой плана', () => {
+    const mats = [mkMat('pending', 'hardware', '2026-07-20', 'Молния')];
+    const reason = waitingReason(mkStage(), [], mats, new Map(), 'sewing');
+    expect(reason).toContain('Ждём материалы');
+    expect(reason).toContain('Молния');
+    expect(reason).toContain('20.07.2026');
+  });
+
+  it('материал без даты — «план не указан»', () => {
+    const mats = [mkMat('pending', 'fabric', null, 'Кулирка')];
+    const reason = waitingReason(mkStage(), [], mats, new Map(), 'cutting');
+    expect(reason).toContain('план не указан');
+  });
+
+  it('нет недостающих материалов и зависимостей — null', () => {
+    expect(waitingReason(mkStage(), [], [], new Map(), 'sewing')).toBeNull();
   });
 });

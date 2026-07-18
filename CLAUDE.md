@@ -110,6 +110,7 @@ admin, director, manager, rop, designer, production
 
 ## Правила и стиль
 
+- Общение с пользователем: всегда на русском языке
 - Язык интерфейса: русский
 - CSS: vanilla + CSS Modules, токены в `styles/index.css`
 - Компоненты: `.jsx`, утилиты/типы: `.ts`
