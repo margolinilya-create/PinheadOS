@@ -135,6 +135,15 @@ export function orderPreviewUrl(order: ErpOrderFull): string | null {
   return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
 }
 
+/** URL последнего фото брака заказа (вложение с префиксом «Брак:») */
+export function lastDefectPhotoUrl(order: ErpOrderFull): string | null {
+  const atts = (order.attachments ?? []).filter(
+    (a) => a.kind === 'attachment' && (a.file_name ?? '').startsWith('Брак:'));
+  if (atts.length === 0) return null;
+  const att = atts[atts.length - 1];
+  return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
+}
+
 export interface NewPrintInput {
   method: BrandingMethod;
   fabric?: string;
@@ -225,8 +234,10 @@ interface ErpStore {
    * этап закрывается (done), иначе остаётся in_progress с прогрессом «300/500».
    */
   reportProgress: (stageId: string, qty: number) => Promise<boolean>;
-  /** Брак: qty на переделку + причина; этап возвращается в работу */
+  /** Брак: N штук возвращаются на предыдущий этап, годные идут дальше */
   reportDefect: (stageId: string, qty: number, reason: string) => Promise<boolean>;
+  /** Последние события возврата брака по этапам (для баннера получателю) */
+  loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
   uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
   /** Ручные плановые даты этапа */
@@ -660,7 +671,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   reportDefect: async (stageId, qty, reason) => {
     const prev = get().orders;
     const found = findStage(prev, stageId);
-    if (!found) return false;
+    if (!found || !(qty > 0)) return false;
     const { stage, order, item } = found;
 
     // брак не может превышать тираж позиции
@@ -669,30 +680,96 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       return false;
     }
 
-    const patch: Partial<ErpItemStage> = {
-      qty_rework: (stage.qty_rework ?? 0) + qty,
-      // брак возвращает этап в работу (переделка)
-      status: 'in_progress',
-      finished_at: null,
-    };
-    set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
-    const { error } = await withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
-    if (error) {
+    // Предыдущий этап P: ближайший из depends_on (с макс. sort_order)
+    const byId = new Map(item.stages.map((s) => [s.id, s]));
+    const predecessors = stage.depends_on
+      .map((id) => byId.get(id))
+      .filter((s): s is ErpItemStage => Boolean(s));
+    const prevStage = predecessors.length
+      ? predecessors.reduce((a, b) => (b.sort_order > a.sort_order ? b : a))
+      : null;
+
+    const deptName =
+      get().departments.find((d) => d.id === stage.department_id)?.name || 'предыдущий цех';
+
+    // Патчи этапов: деление партии (брак → назад, годные → дальше)
+    const patches: { id: string; patch: Partial<ErpItemStage> }[] = [];
+    if (prevStage) {
+      // Текущий S: снять N с готовых, вернуть в очередь (переработает N после P), +брак
+      patches.push({
+        id: stage.id,
+        patch: {
+          qty_done: Math.max((stage.qty_done ?? 0) - qty, 0),
+          qty_rework: (stage.qty_rework ?? 0) + qty,
+          status: stage.status === 'done' ? 'waiting' : stage.status,
+          finished_at: stage.status === 'done' ? null : stage.finished_at,
+        },
+      });
+      // Предыдущий P: переоткрыть на N штук
+      patches.push({
+        id: prevStage.id,
+        patch: {
+          status: 'in_progress',
+          qty_done: Math.max((prevStage.qty_done ?? 0) - qty, 0),
+          qty_rework: (prevStage.qty_rework ?? 0) + qty,
+          finished_at: null,
+        },
+      });
+    } else {
+      // Нет предыдущего этапа — переделка на месте (как раньше)
+      patches.push({
+        id: stage.id,
+        patch: {
+          qty_rework: (stage.qty_rework ?? 0) + qty,
+          status: 'in_progress',
+          finished_at: null,
+        },
+      });
+    }
+
+    // optimistic с rollback
+    let next = prev;
+    for (const p of patches) next = patchStageIn(next, p.id, p.patch);
+    set({ orders: next });
+    const results = await Promise.all(
+      patches.map((p) =>
+        withPending(`stage:${p.id}`, () =>
+          supabase.from('erp_item_stages').update(p.patch).eq('id', p.id))),
+    );
+    if (results.some((r) => r.error)) {
       set({ orders: prev });
       toast.error('Не удалось записать брак');
       return false;
     }
+
+    // Аудит: событие на получателе (предыдущий этап, если есть)
+    const receiver = prevStage ?? stage;
     logStageEvent({
-      stage_id: stageId,
+      stage_id: receiver.id,
       order_id: order.id,
-      from_status: stage.status,
+      from_status: receiver.status,
       to_status: 'in_progress',
       qty_done: null,
       qty_rework: qty,
-      comment: `Брак: ${reason}`,
+      comment: prevStage ? `Возврат брака из «${deptName}»: ${reason}` : `Брак: ${reason}`,
     });
     return true;
+  },
+
+  loadStageReworkEvents: async (stageIds) => {
+    if (stageIds.length === 0) return {};
+    const { data, error } = await supabase
+      .from('erp_stage_events')
+      .select('*')
+      .in('stage_id', stageIds)
+      .not('qty_rework', 'is', null)
+      .order('created_at', { ascending: false });
+    if (error) return {};
+    const map: Record<string, ErpStageEvent> = {};
+    for (const ev of (data ?? []) as ErpStageEvent[]) {
+      if (!map[ev.stage_id]) map[ev.stage_id] = ev;
+    }
+    return map;
   },
 
   setStagePlan: async (stageId, plan) => {

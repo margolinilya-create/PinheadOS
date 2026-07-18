@@ -134,6 +134,7 @@ export interface ErpMaterial {
   kind: MaterialKind;
   name: string;
   source: MaterialSource;
+  supplier: string | null;
   qty: string | null;
   status: MaterialStatus;
   eta_date: string | null;

@@ -8,6 +8,7 @@ import InlineEdit from '../components/InlineEdit';
 import { supabase } from '../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { formatDateShort } from '../utils/time';
 import { deptShortName } from '../data/departments';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
@@ -512,14 +513,19 @@ export default function OrderCard() {
         <div className={styles.matSectionHead}><strong>Материалы</strong></div>
         {order.materials.length > 0 ? (
           <div className={styles.stageChips}>
-            {order.materials.map((m) => (
-              <span
-                key={m.id}
-                className={`${styles.chip} ${m.status === 'received' || m.status === 'not_needed' ? styles.chipReady : styles.chipProgress}`}
-              >
-                {m.name} · {MATERIAL_STATUS_LABELS[m.status]}
-              </span>
-            ))}
+            {order.materials.map((m) => {
+              const pending = m.status !== 'received' && m.status !== 'not_needed';
+              const eta = pending ? formatDateShort(m.eta_date) : '';
+              return (
+                <span
+                  key={m.id}
+                  className={`${styles.chip} ${pending ? styles.chipProgress : styles.chipReady}`}
+                >
+                  {m.name} · {MATERIAL_STATUS_LABELS[m.status]}
+                  {pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                </span>
+              );
+            })}
           </div>
         ) : (
           <div className={styles.subText}>Материалы не ожидаются.</div>
