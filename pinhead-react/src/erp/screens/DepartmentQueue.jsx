@@ -14,6 +14,7 @@ import {
   BRANDING_METHOD_LABELS,
   MATERIAL_STATUS_LABELS,
   PACKAGING_LABELS,
+  PROCUREMENT_CAUSE_LABELS,
   STICKERS_LABELS,
 } from '../types';
 import styles from '../erp.module.css';
@@ -204,7 +205,7 @@ function TzBlock({ order, item }) {
   );
 }
 
-function QueueCard({ entry, canAct, rework, onStart, onDone, onProgress, onBlock, onUnblock, onDefect }) {
+function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDone, onProgress, onBlock, onUnblock, onDefect }) {
   const { order, item, stage, reason, group } = entry;
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
   const [startMode, setStartMode] = useState(false);
@@ -218,6 +219,20 @@ function QueueCard({ entry, canAct, rework, onStart, onDone, onProgress, onBlock
   const [defectQty, setDefectQty] = useState('');
   const [defectText, setDefectText] = useState('');
   const [defectPhoto, setDefectPhoto] = useState(null);
+  // Правка 3: выбор этапа устранения + правки 1-2: задача закупки
+  const [defectTarget, setDefectTarget] = useState('current');
+  const [defectNeedsMaterial, setDefectNeedsMaterial] = useState(false);
+  const [defectCause, setDefectCause] = useState('other');
+  const [defectSupplier, setDefectSupplier] = useState('');
+  const [defectPlanned, setDefectPlanned] = useState('');
+  const [defectMaterial, setDefectMaterial] = useState('');
+  const showProcurement = defectNeedsMaterial || defectTarget === 'procurement';
+  const otherStages = item.stages.filter((s) => s.id !== stage.id && s.status !== 'skipped');
+  const resetDefect = () => {
+    setDefectMode(false); setDefectQty(''); setDefectText(''); setDefectPhoto(null);
+    setDefectTarget('current'); setDefectNeedsMaterial(false); setDefectCause('other');
+    setDefectSupplier(''); setDefectPlanned(''); setDefectMaterial('');
+  };
   const qtyDone = stage.qty_done ?? 0;
   const remaining = Math.max(item.qty - qtyDone, 0);
   const [doneQty, setDoneQty] = useState(String(remaining || item.qty));
@@ -449,19 +464,86 @@ function QueueCard({ entry, canAct, rework, onStart, onDone, onProgress, onBlock
             value={defectText}
             onChange={(e) => setDefectText(e.target.value)}
           />
+          <select
+            className={styles.select}
+            value={defectTarget}
+            onChange={(e) => setDefectTarget(e.target.value)}
+            aria-label="Этап устранения"
+          >
+            <option value="current">Устранить на текущем этапе</option>
+            {otherStages.map((s) => (
+              <option key={s.id} value={s.id}>
+                Вернуть: {deptShortById?.get(s.department_id) || 'этап'}
+              </option>
+            ))}
+            <option value="procurement">На закупку (материал испорчен)</option>
+          </select>
+          <label className={styles.checkLabel}>
+            <input
+              type="checkbox"
+              checked={defectNeedsMaterial}
+              disabled={defectTarget === 'procurement'}
+              onChange={(e) => setDefectNeedsMaterial(e.target.checked)}
+            />
+            Нужен новый материал
+          </label>
+          {showProcurement && (
+            <>
+              <input
+                className={styles.input}
+                placeholder="Материал (что закупить)"
+                value={defectMaterial}
+                onChange={(e) => setDefectMaterial(e.target.value)}
+                aria-label="Название материала"
+              />
+              <select
+                className={styles.select}
+                value={defectCause}
+                onChange={(e) => setDefectCause(e.target.value)}
+                aria-label="Причина закупки"
+              >
+                {Object.entries(PROCUREMENT_CAUSE_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+              <input
+                className={styles.input}
+                placeholder="Поставщик (необязательно)"
+                value={defectSupplier}
+                onChange={(e) => setDefectSupplier(e.target.value)}
+                aria-label="Поставщик"
+              />
+              <input
+                type="date"
+                className={styles.input}
+                value={defectPlanned}
+                onChange={(e) => setDefectPlanned(e.target.value)}
+                aria-label="Плановая дата замены/поставки"
+              />
+            </>
+          )}
           <PhotoAttach file={defectPhoto} onFile={setDefectPhoto} label="Фото (необязательно)" />
           <button
             type="button"
             className="btn btn-danger"
             disabled={!defectText.trim() || !(Number(defectQty) > 0) || Number(defectQty) > item.qty}
             onClick={() => {
-              onDefect(entry, Number(defectQty), defectText.trim(), defectPhoto);
-              setDefectMode(false); setDefectQty(''); setDefectText(''); setDefectPhoto(null);
+              onDefect(entry, {
+                qty: Number(defectQty),
+                reason: defectText.trim(),
+                target: defectTarget,
+                needsMaterial: showProcurement,
+                cause: defectCause,
+                supplier: defectSupplier.trim() || null,
+                plannedDate: defectPlanned || null,
+                materialName: defectMaterial.trim() || null,
+              }, defectPhoto);
+              resetDefect();
             }}
           >
-            В переделку
+            {showProcurement ? 'В переделку + заявка' : 'В переделку'}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => { setDefectMode(false); setDefectPhoto(null); }}>
+          <button type="button" className="btn btn-ghost" onClick={resetDefect}>
             Отмена
           </button>
         </div>
@@ -550,6 +632,10 @@ export default function DepartmentQueue() {
     () => new Map(departments.map((dd) => [dd.id, dd.name])),
     [departments],
   );
+  const deptShortById = useMemo(
+    () => new Map(departments.map((dd) => [dd.id, deptShortName(dd.code, dd.name)])),
+    [departments],
+  );
 
   // Привязки нет и нет legacy-выбора (localStorage) → заглушка для рядовых ролей
   const showStub = !privileged && myDeptLoaded && !boundDept && !deptCode;
@@ -631,10 +717,13 @@ export default function DepartmentQueue() {
     if (photo && !photoOk) toast.warning('Блокировка записана, но фото не загрузилось');
   };
   const onUnblock = (entry) => setStageStatus(entry.stage.id, 'waiting', { block_reason: null });
-  const onDefect = async (entry, qty, reason, photo) => {
+  const onDefect = async (entry, opts, photo) => {
     let photoOk = false;
-    if (photo) photoOk = await uploadOrderAttachment(entry.order.id, photo, `Брак: ${reason}`);
-    await reportDefect(entry.stage.id, qty, photoOk ? `${reason} (фото во вложениях)` : reason);
+    if (photo) photoOk = await uploadOrderAttachment(entry.order.id, photo, `Брак: ${opts.reason}`);
+    await reportDefect(entry.stage.id, {
+      ...opts,
+      reason: photoOk ? `${opts.reason} (фото во вложениях)` : opts.reason,
+    });
     if (photo && !photoOk) toast.warning('Брак записан, но фото не загрузилось');
   };
 
@@ -708,6 +797,7 @@ export default function DepartmentQueue() {
                   entry={entry}
                   canAct={canAct}
                   rework={reworkByStage[entry.stage.id] || null}
+                  deptShortById={deptShortById}
                   onStart={onStart}
                   onDone={onDone}
                   onProgress={onProgress}

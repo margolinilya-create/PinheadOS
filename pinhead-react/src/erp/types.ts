@@ -144,6 +144,42 @@ export interface ErpMaterial {
   updated_at: string;
 }
 
+// --- Задачи закупки (возврат из закроя → дозакупка/замена) -------------------
+
+export type ProcurementCauseType =
+  | 'supplier_defect'         // брак поставщика
+  | 'wrong_consumption'       // неверно рассчитанный расход
+  | 'damaged_in_production'   // материал испорчен на производстве
+  | 'shortage'                // нехватка материала
+  | 'other';                  // прочая причина
+
+/** replacement = возврат/замена (брак поставщика); restock = дозакупка (внутренняя ошибка) */
+export type ProcurementTaskKind = 'replacement' | 'restock';
+
+export type ProcurementTaskStatus =
+  | 'new' | 'in_progress' | 'ordered' | 'done' | 'cancelled';
+
+export interface ErpProcurementTask {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  source_stage_id: string | null;
+  initiating_dept: string | null;
+  material_name: string;
+  rework_qty: number | null;
+  required_qty: string | null;
+  cause_type: ProcurementCauseType;
+  kind: ProcurementTaskKind;
+  reason: string | null;
+  supplier: string | null;
+  planned_date: string | null;
+  responsible: string | null;
+  status: ProcurementTaskStatus;
+  counts_as_purchase: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ErpCalendarSlot {
   id: string;
   department_id: string;
@@ -193,6 +229,27 @@ export const MATERIAL_STATUS_LABELS: Record<MaterialStatus, string> = {
   received: 'Пришло',
   partial: 'Частично',
   not_needed: 'Не требуется',
+};
+
+export const PROCUREMENT_CAUSE_LABELS: Record<ProcurementCauseType, string> = {
+  supplier_defect: 'Брак поставщика',
+  wrong_consumption: 'Неверно рассчитанный расход',
+  damaged_in_production: 'Материал испорчен на производстве',
+  shortage: 'Нехватка материала',
+  other: 'Прочая причина',
+};
+
+export const PROCUREMENT_STATUS_LABELS: Record<ProcurementTaskStatus, string> = {
+  new: 'Новая',
+  in_progress: 'В работе',
+  ordered: 'Заказано',
+  done: 'Выполнено',
+  cancelled: 'Отменена',
+};
+
+export const PROCUREMENT_KIND_LABELS: Record<ProcurementTaskKind, string> = {
+  replacement: 'Возврат/замена',
+  restock: 'Дозакупка',
 };
 
 export const ORDER_STATUS_LABELS: Record<ErpOrderStatus, string> = {
