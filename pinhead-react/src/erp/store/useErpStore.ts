@@ -27,6 +27,7 @@ import type {
   ErpOrderStatus,
   ErpProcurementTask,
   ErpStageEvent,
+  ErpSubcontractOp,
   ProductionType,
   StageStatus,
 } from '../types';
@@ -217,6 +218,9 @@ interface ErpStore {
   employees: ErpEmployee[];
   profilesList: StaffProfile[];
   employeesLoaded: boolean;
+  /** Подряд: операции у внешних подрядчиков (грузятся лениво по вкладке) */
+  subcontracting: ErpSubcontractOp[];
+  subcontractingLoaded: boolean;
   loading: boolean;
   loaded: boolean;
   /** Архив (status != active) грузится лениво — при первом заходе на вкладку */
@@ -285,6 +289,12 @@ interface ErpStore {
     task: Partial<ErpProcurementTask> & Pick<ErpProcurementTask, 'material_name' | 'cause_type'>,
   ) => Promise<ErpProcurementTask | null>;
   updateProcurementTask: (id: string, patch: Partial<ErpProcurementTask>) => Promise<boolean>;
+  /** Подряд: список операций у подрядчиков (join заголовок заказа) */
+  loadSubcontracting: () => Promise<void>;
+  createSubcontractOp: (
+    op: Partial<ErpSubcontractOp> & Pick<ErpSubcontractOp, 'order_id' | 'operation'>,
+  ) => Promise<ErpSubcontractOp | null>;
+  updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
 
   /** Realtime: доска/очереди обновляются сами; возвращает отписку */
   subscribeRealtime: () => () => void;
@@ -408,6 +418,8 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   employees: [],
   profilesList: [],
   employeesLoaded: false,
+  subcontracting: [],
+  subcontractingLoaded: false,
   loading: false,
   loaded: false,
   archiveLoaded: false,
@@ -1273,6 +1285,46 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить задачу закупки');
+      return false;
+    }
+    return true;
+  },
+
+  loadSubcontracting: async () => {
+    const { data, error } = await supabase
+      .from('erp_subcontracting')
+      .select('*, order:erp_orders (title, bitrix_id)')
+      .order('created_at', { ascending: false });
+    if (error) {
+      toast.error('Не удалось загрузить операции подряда');
+      return;
+    }
+    set({ subcontracting: (data ?? []) as ErpSubcontractOp[], subcontractingLoaded: true });
+  },
+
+  createSubcontractOp: async (op) => {
+    const { data, error } = await supabase
+      .from('erp_subcontracting')
+      .insert({ status: 'planned', ...op })
+      .select('*, order:erp_orders (title, bitrix_id)');
+    const row = data?.[0] as ErpSubcontractOp | undefined;
+    if (error || !row) {
+      toast.error('Не удалось добавить операцию подряда');
+      return null;
+    }
+    set((s) => ({ subcontracting: [row, ...s.subcontracting] }));
+    return row;
+  },
+
+  updateSubcontractOp: async (id, patch) => {
+    const prev = get().subcontracting;
+    set((s) => ({
+      subcontracting: s.subcontracting.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    }));
+    const { error } = await supabase.from('erp_subcontracting').update(patch).eq('id', id);
+    if (error) {
+      set({ subcontracting: prev });
+      toast.error('Не удалось обновить операцию подряда');
       return false;
     }
     return true;
