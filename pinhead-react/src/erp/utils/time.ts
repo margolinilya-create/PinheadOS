@@ -37,6 +37,24 @@ export function formatDateShort(d: string | null | undefined): string {
   return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/**
+ * SLA первичной обработки закупки (правка 6): нормативный срок 3 дня.
+ * Незаказанный материал (pending) старше 3 дней → 'overdue' («Просрочено»),
+ * иначе 'processing' («На обработке»). Уже обработанные статусы → null.
+ */
+export function procurementSla(
+  createdAt: string | null | undefined,
+  status: string,
+  now: Date = new Date(),
+): 'processing' | 'overdue' | null {
+  if (status !== 'pending') return null;
+  if (!createdAt) return 'processing';
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return 'processing';
+  const days = Math.floor((now.getTime() - created.getTime()) / 86400000);
+  return days > 3 ? 'overdue' : 'processing';
+}
+
 /** «Время в этапе» — компактный формат как в kontora24 (мин/ч/дн). */
 export function formatTimeIn(since: string | null, nowMs: number = Date.now()): string {
   if (!since) return '';

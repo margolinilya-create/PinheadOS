@@ -125,9 +125,9 @@ const MATERIAL_GATE_DEPT: Record<MaterialKind, string[]> = {
   other: [],
 };
 
-/** Материал ещё не на складе (не пришёл и не «не требуется») */
+/** Материал ещё не на складе (не пришёл, не «не требуется» и не зарезервирован со склада) */
 function materialPending(m: ErpMaterial): boolean {
-  return m.status !== 'received' && m.status !== 'not_needed';
+  return m.status !== 'received' && m.status !== 'not_needed' && m.status !== 'reserved';
 }
 
 /** Непришедшие материалы, которые нужны данному цеху (для гейта и причины ожидания) */

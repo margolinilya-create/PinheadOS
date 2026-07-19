@@ -47,7 +47,7 @@ export type StageStatus =
 export type MaterialKind = 'fabric' | 'hardware' | 'labels' | 'packaging' | 'other';
 export type MaterialSource = 'purchase' | 'stock' | 'client' | 'none';
 export type MaterialStatus =
-  | 'pending' | 'ordered' | 'in_transit' | 'received' | 'partial' | 'not_needed';
+  | 'pending' | 'ordered' | 'in_transit' | 'received' | 'partial' | 'not_needed' | 'reserved';
 
 export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled';
 
@@ -229,6 +229,7 @@ export const MATERIAL_STATUS_LABELS: Record<MaterialStatus, string> = {
   received: 'Пришло',
   partial: 'Частично',
   not_needed: 'Не требуется',
+  reserved: 'Доступен со склада',
 };
 
 export const PROCUREMENT_CAUSE_LABELS: Record<ProcurementCauseType, string> = {

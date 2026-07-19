@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { daysLeft, formatTimeIn, isUrgent, isOverdue } from './time';
+import { daysLeft, formatDateShort, formatTimeIn, isUrgent, isOverdue, procurementSla } from './time';
 
 describe('daysLeft — дней до срока клиента (единый хелпер экранов)', () => {
   const now = new Date('2026-07-17T15:30:00');
@@ -70,5 +70,37 @@ describe('formatTimeIn — «время в этапе» (механика kontor
 
   it('меньше минуты → «только что»', () => {
     expect(formatTimeIn('2026-07-17T11:59:40Z', now)).toBe('только что');
+  });
+});
+
+describe('procurementSla — SLA первичной обработки закупки (3 дня)', () => {
+  const now = new Date('2026-07-19T12:00:00');
+
+  it('pending старше 3 дней → overdue', () => {
+    expect(procurementSla('2026-07-14T10:00:00', 'pending', now)).toBe('overdue'); // 5 дней
+  });
+
+  it('pending в пределах 3 дней → processing', () => {
+    expect(procurementSla('2026-07-18T10:00:00', 'pending', now)).toBe('processing'); // 1 день
+    expect(procurementSla('2026-07-16T10:00:00', 'pending', now)).toBe('processing'); // 3 дня — ещё не просрочен
+  });
+
+  it('обработанные статусы → null', () => {
+    for (const st of ['ordered', 'in_transit', 'received', 'reserved', 'not_needed', 'partial']) {
+      expect(procurementSla('2026-07-01', st, now)).toBeNull();
+    }
+  });
+
+  it('без даты создания → processing', () => {
+    expect(procurementSla(null, 'pending', now)).toBe('processing');
+  });
+});
+
+describe('formatDateShort — короткая дата ru-RU', () => {
+  it('дата без времени не сдвигается', () => {
+    expect(formatDateShort('2026-07-20')).toBe('20.07.2026');
+  });
+  it('null → пустая строка', () => {
+    expect(formatDateShort(null)).toBe('');
   });
 });
