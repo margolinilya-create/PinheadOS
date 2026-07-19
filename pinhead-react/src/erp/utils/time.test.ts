@@ -125,4 +125,8 @@ describe('formatDateShort — короткая дата ru-RU', () => {
   it('null → пустая строка', () => {
     expect(formatDateShort(null)).toBe('');
   });
+  it('нераспознаваемая строка → пустая строка, а не «Invalid Date»', () => {
+    expect(formatDateShort('не дата')).toBe('');
+    expect(formatDateShort('2026-13-99')).toBe('');
+  });
 });

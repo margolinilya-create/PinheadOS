@@ -238,7 +238,7 @@ export default function FabricPurchasing() {
                 <span className={styles.subText}> №{order.bitrix_id || '—'}</span>
                 {order.due_date && (
                   <span className={styles.subText}>
-                    {' '}· срок {new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}
+                    {' '}· срок {formatDateShort(order.due_date) || '—'}
                   </span>
                 )}
               </div>
@@ -265,10 +265,10 @@ export default function FabricPurchasing() {
                         <td>{m.supplier || '—'}</td>
                         <td>{m.qty || '—'}</td>
                         <td>
-                          {m.eta_date ? new Date(m.eta_date + 'T00:00:00').toLocaleDateString('ru-RU') : '—'}
+                          {formatDateShort(m.eta_date) || '—'}
                           {m.received_at && (
                             <div className={styles.subText}>
-                              факт {new Date(m.received_at + 'T00:00:00').toLocaleDateString('ru-RU')}
+                              факт {formatDateShort(m.received_at) || '—'}
                             </div>
                           )}
                         </td>
