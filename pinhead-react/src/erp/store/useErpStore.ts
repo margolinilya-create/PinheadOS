@@ -275,6 +275,10 @@ interface ErpStore {
     material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
   ) => Promise<ErpMaterial | null>;
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
+  /** Подтвердить наличие материала со склада → «Доступен со склада» (открывает закрой) */
+  confirmStockMaterial: (id: string) => Promise<boolean>;
+  /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
+  maybeCloseSupply: (orderId: string) => Promise<void>;
   /** Задача закупки (возврат из закроя → дозакупка/замена, не трогая исходную закупку) */
   createProcurementTask: (
     orderId: string,
@@ -1176,6 +1180,8 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       orders: s.orders.map((o) =>
         o.id === orderId ? { ...o, materials: [...o.materials, row] } : o),
     }));
+    // Правка 4: добавление сразу-готового материала тоже должно закрывать этап «Закупка»
+    await get().maybeCloseSupply(orderId);
     return row;
   },
 
@@ -1193,25 +1199,36 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       toast.error('Не удалось обновить материал');
       return false;
     }
-
-    // Логика закупки: все материалы заказа пришли → этап «Закупка» закрывается сам
     const order = get().orders.find((o) => o.materials.some((m) => m.id === id));
-    const supplyDept = get().departments.find((d) => d.code === 'supply');
-    if (order && supplyDept) {
-      const allIn = order.materials.every(
-        (m) => m.status === 'received' || m.status === 'not_needed');
-      if (allIn) {
-        const openSupply = order.items.flatMap((it) =>
-          it.stages.filter(
-            (st) => st.department_id === supplyDept.id &&
-              st.status !== 'done' && st.status !== 'skipped'));
-        for (const st of openSupply) {
-          await get().setStageStatus(st.id, 'done', { comment: 'Материалы пришли — закупка закрыта автоматически' });
-        }
-        if (openSupply.length > 0) toast.success('Материалы пришли — закупка по заказу закрыта');
-      }
-    }
+    if (order) await get().maybeCloseSupply(order.id);
     return true;
+  },
+
+  confirmStockMaterial: async (id) => {
+    // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)
+    const ok = await get().updateMaterial(id, {
+      status: 'reserved',
+      received_at: new Date().toISOString().slice(0, 10),
+    });
+    return ok;
+  },
+
+  maybeCloseSupply: async (orderId) => {
+    const order = get().orders.find((o) => o.id === orderId);
+    const supplyDept = get().departments.find((d) => d.code === 'supply');
+    if (!order || !supplyDept) return;
+    // «Готов» = пришло / зарезервировано со склада / не требуется
+    const allIn = order.materials.every(
+      (m) => m.status === 'received' || m.status === 'reserved' || m.status === 'not_needed');
+    if (!allIn) return;
+    const openSupply = order.items.flatMap((it) =>
+      it.stages.filter(
+        (st) => st.department_id === supplyDept.id &&
+          st.status !== 'done' && st.status !== 'skipped'));
+    for (const st of openSupply) {
+      await get().setStageStatus(st.id, 'done', { comment: 'Материалы готовы — закупка закрыта автоматически' });
+    }
+    if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
   },
 
   createProcurementTask: async (orderId, task) => {

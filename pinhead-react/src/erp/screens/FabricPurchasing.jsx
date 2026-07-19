@@ -4,7 +4,7 @@ import { PageHead } from '../components/PageHead';
 import { useErpStore, lastDefectPhotoUrl } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { materialsBlockStage } from '../utils/routes';
-import { formatDateShort } from '../utils/time';
+import { formatDateShort, procurementSla } from '../utils/time';
 import {
   MATERIAL_STATUS_LABELS,
   PROCUREMENT_CAUSE_LABELS,
@@ -39,6 +39,7 @@ const STATUS_CHIP = {
   in_transit: 'chipProgress',
   partial: 'chipBlocked',
   received: 'chipReady',
+  reserved: 'chipReady',
   not_needed: 'chipSkipped',
 };
 
@@ -60,7 +61,8 @@ function AddMaterialRow({ orderId, onAdd }) {
       supplier: form.supplier.trim() || null,
       qty: form.qty.trim() || null,
       eta_date: form.eta_date || null,
-      status: form.source === 'purchase' ? 'pending' : 'received',
+      // purchase/stock ждут действия (закупка / подтверждение наличия), остальное — сразу готово
+      status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
     });
     setSaving(false);
     if (row) setForm(EMPTY_MAT);
@@ -145,8 +147,10 @@ function ProcurementTasksBlock({ order, onUpdate }) {
 }
 
 export default function FabricPurchasing() {
-  const { orders, loading, loaded, loadAll, addMaterial, updateMaterial, updateProcurementTask } =
-    useErpStore(
+  const {
+    orders, loading, loaded, loadAll, addMaterial, updateMaterial,
+    confirmStockMaterial, updateProcurementTask,
+  } = useErpStore(
       useShallow((s) => ({
         orders: s.orders,
         loading: s.loading,
@@ -154,6 +158,7 @@ export default function FabricPurchasing() {
         loadAll: s.loadAll,
         addMaterial: s.addMaterial,
         updateMaterial: s.updateMaterial,
+        confirmStockMaterial: s.confirmStockMaterial,
         updateProcurementTask: s.updateProcurementTask,
       })),
     );
@@ -172,7 +177,8 @@ export default function FabricPurchasing() {
     let list = active;
     if (onlyWaiting) {
       list = list.filter((o) =>
-        o.materials.some((m) => m.status !== 'received' && m.status !== 'not_needed'));
+        o.materials.some(
+          (m) => m.status !== 'received' && m.status !== 'not_needed' && m.status !== 'reserved'));
     }
     const q = query.trim().toLowerCase();
     if (q) {
@@ -270,18 +276,40 @@ export default function FabricPurchasing() {
                           <span className={`${styles.chip} ${styles[STATUS_CHIP[m.status]]}`}>
                             {MATERIAL_STATUS_LABELS[m.status]}
                           </span>
+                          {(() => {
+                            // SLA первичной обработки (правка 6): только для закупаемых
+                            const sla = m.source === 'purchase'
+                              ? procurementSla(m.created_at, m.status)
+                              : null;
+                            if (!sla) return null;
+                            return (
+                              <div className={`${styles.chip} ${sla === 'overdue' ? styles.chipBlocked : styles.chipWaiting}`}>
+                                {sla === 'overdue' ? 'Просрочено' : 'На обработке'}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td>
-                          <select
-                            className={styles.select}
-                            value={m.status}
-                            onChange={(e) => setStatus(m, e.target.value)}
-                            aria-label={`Статус материала ${m.name}`}
-                          >
-                            {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => (
-                              <option key={v} value={v}>{l}</option>
-                            ))}
-                          </select>
+                          {m.source === 'stock' && m.status === 'pending' ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => confirmStockMaterial(m.id)}
+                            >
+                              Подтвердить наличие
+                            </button>
+                          ) : (
+                            <select
+                              className={styles.select}
+                              value={m.status}
+                              onChange={(e) => setStatus(m, e.target.value)}
+                              aria-label={`Статус материала ${m.name}`}
+                            >
+                              {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => (
+                                <option key={v} value={v}>{l}</option>
+                              ))}
+                            </select>
+                          )}
                         </td>
                       </tr>
                     ))}

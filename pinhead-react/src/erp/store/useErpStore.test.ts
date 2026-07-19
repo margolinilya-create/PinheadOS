@@ -394,6 +394,60 @@ describe('useErpStore — addMaterial (поставщик)', () => {
   });
 });
 
+describe('useErpStore — материал со склада / авто-закрытие закупки', () => {
+  function seedSupply(materials: any[] = []) {
+    const supplyStage = {
+      id: 'st-sup', item_id: 'it1', department_id: 'd-sup', depends_on: [],
+      status: 'in_progress', qty_done: 0, qty_rework: 0, sort_order: 10,
+      planned_start: null, planned_end: null, started_at: null,
+      finished_at: null, assignee: null, block_reason: null, notes: null,
+    };
+    const item = {
+      id: 'it1', order_id: 'o1', product_type: 'Футболка', variant: null, qty: 100,
+      production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+      notes: null, sort_order: 10, stages: [supplyStage], prints: [],
+    };
+    const order = { id: 'o1', title: 'Заказ', status: 'active', items: [item], materials };
+    useErpStore.setState({
+      orders: [order] as any,
+      departments: [{ id: 'd-sup', code: 'supply', name: 'Закупка', active: true }] as any,
+      loaded: true,
+    });
+  }
+  const supplyStage = () => useErpStore.getState().orders[0].items[0].stages[0];
+  const mat = (over: any) => ({
+    id: 'm1', order_id: 'o1', item_id: null, kind: 'fabric', name: 'Ткань',
+    source: 'stock', supplier: null, qty: null, status: 'pending',
+    eta_date: null, received_at: null, notes: null, created_at: '', updated_at: '', ...over,
+  });
+
+  it('addMaterial сразу-готового материала закрывает этап «Закупка» (баг-фикс)', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'client', status: 'received',
+    } as any);
+    expect(supplyStage().status).toBe('done');
+  });
+
+  it('addMaterial pending НЕ закрывает закупку', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'purchase', status: 'pending',
+    } as any);
+    expect(supplyStage().status).toBe('in_progress');
+  });
+
+  it('confirmStockMaterial → reserved + закрывает закупку', async () => {
+    seedSupply([mat({ status: 'pending' })]);
+    const ok = await useErpStore.getState().confirmStockMaterial('m1');
+    expect(ok).toBe(true);
+    const m = useErpStore.getState().orders[0].materials[0];
+    expect(m.status).toBe('reserved');
+    expect(m.received_at).toBeTruthy();
+    expect(supplyStage().status).toBe('done');
+  });
+});
+
 describe('readyCountFor — бейдж «Мой цех»', () => {
   it('считает in_progress и готовые к работе waiting-этапы цеха', () => {
     seed({ status: 'in_progress' });
