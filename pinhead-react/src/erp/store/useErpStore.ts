@@ -25,6 +25,7 @@ import type {
   ErpOrder,
   ErpOrderItem,
   ErpOrderStatus,
+  ErpProcurementTask,
   ErpStageEvent,
   ProductionType,
   StageStatus,
@@ -126,6 +127,25 @@ export interface ErpOrderFull extends ErpOrder {
   items: (ErpOrderItem & { stages: ErpItemStage[]; prints?: ErpItemPrint[] })[];
   materials: ErpMaterial[];
   attachments?: ErpOrderAttachment[];
+  procurement_tasks?: ErpProcurementTask[];
+}
+
+/**
+ * Параметры возврата брака (правка 3): пользователь выбирает этап устранения.
+ * target: 'current' — переделка на месте; <stageId> — перенос на конкретный этап
+ * (в т.ч. закрой); 'procurement' — материал испорчен, нужна закупка.
+ * needsMaterial — создать задачу закупки при любом target.
+ */
+export interface ReportDefectOptions {
+  qty: number;
+  reason: string;
+  target?: 'current' | 'procurement' | (string & {});
+  needsMaterial?: boolean;
+  cause?: import('../types').ProcurementCauseType;
+  supplier?: string | null;
+  plannedDate?: string | null;
+  materialName?: string | null;
+  requiredQty?: string | null;
 }
 
 /** Публичный URL превью заказа (первое вложение kind=preview) */
@@ -234,8 +254,8 @@ interface ErpStore {
    * этап закрывается (done), иначе остаётся in_progress с прогрессом «300/500».
    */
   reportProgress: (stageId: string, qty: number) => Promise<boolean>;
-  /** Брак: N штук возвращаются на предыдущий этап, годные идут дальше */
-  reportDefect: (stageId: string, qty: number, reason: string) => Promise<boolean>;
+  /** Брак: пользователь выбирает этап устранения; при необходимости — задача закупки */
+  reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
@@ -255,6 +275,12 @@ interface ErpStore {
     material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
   ) => Promise<ErpMaterial | null>;
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
+  /** Задача закупки (возврат из закроя → дозакупка/замена, не трогая исходную закупку) */
+  createProcurementTask: (
+    orderId: string,
+    task: Partial<ErpProcurementTask> & Pick<ErpProcurementTask, 'material_name' | 'cause_type'>,
+  ) => Promise<ErpProcurementTask | null>;
+  updateProcurementTask: (id: string, patch: Partial<ErpProcurementTask>) => Promise<boolean>;
 
   /** Realtime: доска/очереди обновляются сами; возвращает отписку */
   subscribeRealtime: () => () => void;
@@ -278,7 +304,8 @@ const ORDER_SELECT = `
     prints:erp_item_prints (*)
   ),
   materials:erp_materials (*),
-  attachments:erp_order_attachments (*)
+  attachments:erp_order_attachments (*),
+  procurement_tasks:erp_procurement_tasks (*)
 `;
 
 function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
@@ -291,6 +318,7 @@ function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
     materials: o.materials ?? [],
+    procurement_tasks: o.procurement_tasks ?? [],
   };
 }
 
@@ -668,7 +696,12 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     return true;
   },
 
-  reportDefect: async (stageId, qty, reason) => {
+  reportDefect: async (stageId, opts) => {
+    const {
+      qty, reason, target = 'current', needsMaterial = false,
+      cause = 'other', supplier = null, plannedDate = null,
+      materialName = null, requiredQty = null,
+    } = opts;
     const prev = get().orders;
     const found = findStage(prev, stageId);
     if (!found || !(qty > 0)) return false;
@@ -680,22 +713,18 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       return false;
     }
 
-    // Предыдущий этап P: ближайший из depends_on (с макс. sort_order)
+    const dept = get().departments.find((d) => d.id === stage.department_id);
+    const deptName = dept?.name || 'цех';
+
+    // Целевой этап устранения: конкретный этап позиции (в т.ч. закрой), либо null
     const byId = new Map(item.stages.map((s) => [s.id, s]));
-    const predecessors = stage.depends_on
-      .map((id) => byId.get(id))
-      .filter((s): s is ErpItemStage => Boolean(s));
-    const prevStage = predecessors.length
-      ? predecessors.reduce((a, b) => (b.sort_order > a.sort_order ? b : a))
-      : null;
+    const targetStage =
+      target !== 'current' && target !== 'procurement' ? byId.get(target) ?? null : null;
 
-    const deptName =
-      get().departments.find((d) => d.id === stage.department_id)?.name || 'предыдущий цех';
-
-    // Патчи этапов: деление партии (брак → назад, годные → дальше)
+    // Патчи этапов
     const patches: { id: string; patch: Partial<ErpItemStage> }[] = [];
-    if (prevStage) {
-      // Текущий S: снять N с готовых, вернуть в очередь (переработает N после P), +брак
+    if (targetStage) {
+      // Текущий S: снять N с готовых, вернуть в очередь, +брак
       patches.push({
         id: stage.id,
         patch: {
@@ -705,18 +734,29 @@ export const useErpStore = create<ErpStore>((set, get) => ({
           finished_at: stage.status === 'done' ? null : stage.finished_at,
         },
       });
-      // Предыдущий P: переоткрыть на N штук
+      // Целевой этап T: переоткрыть на N штук
       patches.push({
-        id: prevStage.id,
+        id: targetStage.id,
         patch: {
           status: 'in_progress',
-          qty_done: Math.max((prevStage.qty_done ?? 0) - qty, 0),
-          qty_rework: (prevStage.qty_rework ?? 0) + qty,
+          qty_done: Math.max((targetStage.qty_done ?? 0) - qty, 0),
+          qty_rework: (targetStage.qty_rework ?? 0) + qty,
+          finished_at: null,
+        },
+      });
+    } else if (target === 'procurement') {
+      // Материал испорчен: N уходят в ожидание закупки нового материала
+      patches.push({
+        id: stage.id,
+        patch: {
+          qty_done: Math.max((stage.qty_done ?? 0) - qty, 0),
+          qty_rework: (stage.qty_rework ?? 0) + qty,
+          status: 'waiting',
           finished_at: null,
         },
       });
     } else {
-      // Нет предыдущего этапа — переделка на месте (как раньше)
+      // 'current' — переделка на месте
       patches.push({
         id: stage.id,
         patch: {
@@ -742,8 +782,8 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       return false;
     }
 
-    // Аудит: событие на получателе (предыдущий этап, если есть)
-    const receiver = prevStage ?? stage;
+    // Аудит: событие на получателе (целевой этап, если есть)
+    const receiver = targetStage ?? stage;
     logStageEvent({
       stage_id: receiver.id,
       order_id: order.id,
@@ -751,8 +791,24 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       to_status: 'in_progress',
       qty_done: null,
       qty_rework: qty,
-      comment: prevStage ? `Возврат брака из «${deptName}»: ${reason}` : `Брак: ${reason}`,
+      comment: targetStage ? `Возврат брака из «${deptName}»: ${reason}` : `Брак (${deptName}): ${reason}`,
     });
+
+    // Правки 1-2: нужна закупка → отдельная задача закупщику (исходную закупку не трогаем)
+    if (needsMaterial || target === 'procurement') {
+      await get().createProcurementTask(order.id, {
+        item_id: item.id,
+        source_stage_id: stage.id,
+        initiating_dept: dept?.code ?? null,
+        material_name: materialName || 'Материал (уточнить)',
+        rework_qty: qty,
+        required_qty: requiredQty,
+        cause_type: cause,
+        reason,
+        supplier,
+        planned_date: plannedDate,
+      });
+    }
     return true;
   },
 
@@ -1154,6 +1210,53 @@ export const useErpStore = create<ErpStore>((set, get) => ({
         }
         if (openSupply.length > 0) toast.success('Материалы пришли — закупка по заказу закрыта');
       }
+    }
+    return true;
+  },
+
+  createProcurementTask: async (orderId, task) => {
+    // Правка 2: брак поставщика → замена (не считается закупкой компании);
+    // прочие причины → дозакупка (внутренняя ошибка).
+    const isSupplier = task.cause_type === 'supplier_defect';
+    const row0 = {
+      kind: isSupplier ? 'replacement' : 'restock',
+      counts_as_purchase: !isSupplier,
+      status: 'new',
+      ...task,
+      order_id: orderId,
+    };
+    const { data, error } = await supabase
+      .from('erp_procurement_tasks')
+      .insert(row0)
+      .select();
+    const row = data?.[0] as ErpProcurementTask | undefined;
+    if (error || !row) {
+      toast.error('Не удалось создать задачу закупки');
+      return null;
+    }
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === orderId
+          ? { ...o, procurement_tasks: [...(o.procurement_tasks ?? []), row] }
+          : o),
+    }));
+    return row;
+  },
+
+  updateProcurementTask: async (id, patch) => {
+    const prev = get().orders;
+    set((s) => ({
+      orders: s.orders.map((o) => ({
+        ...o,
+        procurement_tasks: (o.procurement_tasks ?? []).map((t) =>
+          t.id === id ? { ...t, ...patch } : t),
+      })),
+    }));
+    const { error } = await supabase.from('erp_procurement_tasks').update(patch).eq('id', id);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось обновить задачу закупки');
+      return false;
     }
     return true;
   },

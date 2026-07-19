@@ -3,6 +3,32 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
+## Состояние на 2026-07-19 (сессия 14)
+
+### Правки ПМ (волна 2) — 6 доработок, доставка этапами. Фаза 1 готова.
+Ветка `claude/project-manager-edits-5bw6mj` (пересоздана от `main`). План — 3 фазы:
+(1) брак+задачи закупки, (2) склад+SLA, (3) Подряд.
+
+**Фаза 1 (правки 1-3) — реализована:**
+- Новая таблица `erp_procurement_tasks` (миграция `20260719120000_erp_procurement_tasks.sql`,
+  **применена на прод** через Supabase MCP): id, order_id, item_id, source_stage_id,
+  initiating_dept, material_name, rework_qty, required_qty, cause_type, kind
+  (replacement/restock), reason, supplier, planned_date, responsible, status,
+  counts_as_purchase. RLS: read/insert/update authenticated, delete admin.
+- Типы `ErpProcurementTask` + `PROCUREMENT_*` метки; `procurement_tasks` в `ErpOrderFull`/`ORDER_SELECT`.
+- Стор: `createProcurementTask` (правка 2: supplier_defect→replacement/counts=false,
+  прочее→restock/counts=true), `updateProcurementTask`.
+- `reportDefect(stageId, opts)` — новая сигнатура (правка 3): `target` = current /
+  <stageId> / 'procurement'; `needsMaterial` → создаёт задачу закупки. Заменил
+  прошлый автовозврат на предыдущий этап.
+- UI: форма брака в `DepartmentQueue` (селект этапа устранения + блок закупки),
+  секция «Задачи на дозакупку/замену» в `FabricPurchasing`.
+- Тесты 924/924, lint 0, build ок.
+
+**Следующее:** Фаза 2 — материал со склада → «Доступен со склада» + починка авто-закрытия
+supply в `addMaterial` + SLA 3 дня (`procurementSla`). Фаза 3 — вкладка «Подряд»
+(таблица `erp_subcontracting` + экран + nav).
+
 ## Состояние на 2026-07-18 (сессия 13)
 
 ### Сессия 13 — правки проджект-менеджера (10 доработок ERP)

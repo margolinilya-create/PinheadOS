@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
-import { useErpStore } from '../store/useErpStore';
+import { useErpStore, lastDefectPhotoUrl } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { materialsBlockStage } from '../utils/routes';
-import { MATERIAL_STATUS_LABELS } from '../types';
+import { formatDateShort } from '../utils/time';
+import {
+  MATERIAL_STATUS_LABELS,
+  PROCUREMENT_CAUSE_LABELS,
+  PROCUREMENT_KIND_LABELS,
+  PROCUREMENT_STATUS_LABELS,
+} from '../types';
 import styles from '../erp.module.css';
 
 /**
@@ -77,17 +83,80 @@ function AddMaterialRow({ orderId, onAdd }) {
   );
 }
 
-export default function FabricPurchasing() {
-  const { orders, loading, loaded, loadAll, addMaterial, updateMaterial } = useErpStore(
-    useShallow((s) => ({
-      orders: s.orders,
-      loading: s.loading,
-      loaded: s.loaded,
-      loadAll: s.loadAll,
-      addMaterial: s.addMaterial,
-      updateMaterial: s.updateMaterial,
-    })),
+/** Задачи на дозакупку/замену по заказу (возврат из закроя). Исходную закупку не трогают. */
+function ProcurementTasksBlock({ order, onUpdate }) {
+  const tasks = order.procurement_tasks ?? [];
+  if (tasks.length === 0) return null;
+  const photo = lastDefectPhotoUrl(order);
+  return (
+    <div className={styles.tableWrap} style={{ marginTop: 8, marginBottom: 8 }}>
+      <div className={styles.fieldLabel}>Задачи на дозакупку / замену</div>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>Материал</th><th>Тип</th><th>Причина</th><th>Изделий</th>
+            <th>Поставщик</th><th>План</th><th>Ответственный</th><th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((t) => (
+            <tr key={t.id}>
+              <td>
+                {t.material_name}
+                {photo && (
+                  <>
+                    {' '}
+                    <a href={photo} target="_blank" rel="noreferrer">📷</a>
+                  </>
+                )}
+              </td>
+              <td>
+                {PROCUREMENT_KIND_LABELS[t.kind]}
+                {!t.counts_as_purchase && (
+                  <div className={styles.subText}>не закупка компании</div>
+                )}
+              </td>
+              <td>
+                {PROCUREMENT_CAUSE_LABELS[t.cause_type]}
+                {t.reason && <div className={styles.subText}>{t.reason}</div>}
+              </td>
+              <td>{t.rework_qty ?? '—'}</td>
+              <td>{t.supplier || '—'}</td>
+              <td>{formatDateShort(t.planned_date) || '—'}</td>
+              <td>{t.responsible || '—'}</td>
+              <td>
+                <select
+                  className={styles.select}
+                  value={t.status}
+                  onChange={(e) => onUpdate(t.id, { status: e.target.value })}
+                  aria-label={`Статус задачи ${t.material_name}`}
+                >
+                  {Object.entries(PROCUREMENT_STATUS_LABELS).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
+}
+
+export default function FabricPurchasing() {
+  const { orders, loading, loaded, loadAll, addMaterial, updateMaterial, updateProcurementTask } =
+    useErpStore(
+      useShallow((s) => ({
+        orders: s.orders,
+        loading: s.loading,
+        loaded: s.loaded,
+        loadAll: s.loadAll,
+        addMaterial: s.addMaterial,
+        updateMaterial: s.updateMaterial,
+        updateProcurementTask: s.updateProcurementTask,
+      })),
+    );
   const [onlyWaiting, setOnlyWaiting] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -222,6 +291,8 @@ export default function FabricPurchasing() {
             )}
 
             <AddMaterialRow orderId={order.id} onAdd={addMaterial} />
+
+            <ProcurementTasksBlock order={order} onUpdate={updateProcurementTask} />
           </section>
         );
       })}
