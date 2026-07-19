@@ -55,6 +55,21 @@ export function procurementSla(
   return days > 3 ? 'overdue' : 'processing';
 }
 
+/**
+ * Операция подряда просрочена (правка 5): план готовности в прошлом, при этом
+ * ещё не возвращено и не отменено.
+ */
+export function subcontractOverdue(
+  plannedDate: string | null | undefined,
+  returnedDate: string | null | undefined,
+  status: string,
+  today: string,
+): boolean {
+  if (!plannedDate || returnedDate) return false;
+  if (status === 'returned' || status === 'cancelled') return false;
+  return plannedDate < today;
+}
+
 /** «Время в этапе» — компактный формат как в kontora24 (мин/ч/дн). */
 export function formatTimeIn(since: string | null, nowMs: number = Date.now()): string {
   if (!since) return '';

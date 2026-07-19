@@ -180,6 +180,29 @@ export interface ErpProcurementTask {
   updated_at: string;
 }
 
+// --- Подряд (операции, переданные внешним подрядчикам) -----------------------
+
+export type SubcontractStatus =
+  | 'planned' | 'sent' | 'in_progress' | 'returned' | 'delayed' | 'cancelled';
+
+export interface ErpSubcontractOp {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  operation: string;
+  contractor: string | null;
+  qty: number | null;
+  sent_date: string | null;
+  planned_date: string | null;
+  returned_date: string | null;
+  status: SubcontractStatus;
+  delay_comment: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Присоединяется при загрузке (заголовок/№ заказа для таблицы) */
+  order?: { title: string; bitrix_id: string | null } | null;
+}
+
 export interface ErpCalendarSlot {
   id: string;
   department_id: string;
@@ -251,6 +274,15 @@ export const PROCUREMENT_STATUS_LABELS: Record<ProcurementTaskStatus, string> = 
 export const PROCUREMENT_KIND_LABELS: Record<ProcurementTaskKind, string> = {
   replacement: 'Возврат/замена',
   restock: 'Дозакупка',
+};
+
+export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
+  planned: 'Запланировано',
+  sent: 'Передано',
+  in_progress: 'В работе',
+  returned: 'Возвращено',
+  delayed: 'Задержка',
+  cancelled: 'Отменено',
 };
 
 export const ORDER_STATUS_LABELS: Record<ErpOrderStatus, string> = {

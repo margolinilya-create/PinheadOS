@@ -34,7 +34,19 @@
 - UI: кнопка «Подтвердить наличие» для stock pending; SLA-чип в таблице материалов.
 - Тесты 933/933, lint 0, build ок.
 
-**Следующее:** Фаза 3 — вкладка «Подряд» (таблица `erp_subcontracting` + экран + nav).
+**Фаза 3 (правка 5) — реализована:**
+- Таблица `erp_subcontracting` (миграция `20260719140000`, **на проде**): order_id, item_id,
+  operation, contractor, qty, sent_date, planned_date, returned_date, status, delay_comment.
+- Стор: `subcontracting` + `subcontractingLoaded`, `loadSubcontracting` (join title/bitrix_id),
+  `createSubcontractOp`, `updateSubcontractOp`. Хелпер `subcontractOverdue` в `utils/time.ts`.
+- Экран `screens/Subcontracting.jsx` (таблица + инлайн-добавление/редактирование),
+  роут `/subcontracting` (ErpGuard admin), пункт «Подряд» 🤝 в `ErpLayout` NAV.
+- Тесты 939/939, lint 0, build ок.
+
+**Итог волны 2:** все 6 правок в проде (PR #98, #99 и текущий). Три новые таблицы
+(`erp_procurement_tasks`, статус `reserved`, `erp_subcontracting`) применены на прод.
+⚠️ Новый пункт nav «Подряд» меняет визуальные эталоны всех ERP-экранов — пересобрать
+на `main` штатным self-heal (сброс PNG).
 
 ## Состояние на 2026-07-18 (сессия 13)
 

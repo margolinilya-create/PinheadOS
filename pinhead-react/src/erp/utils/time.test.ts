@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { daysLeft, formatDateShort, formatTimeIn, isUrgent, isOverdue, procurementSla } from './time';
+import {
+  daysLeft, formatDateShort, formatTimeIn, isUrgent, isOverdue,
+  procurementSla, subcontractOverdue,
+} from './time';
 
 describe('daysLeft — дней до срока клиента (единый хелпер экранов)', () => {
   const now = new Date('2026-07-17T15:30:00');
@@ -93,6 +96,25 @@ describe('procurementSla — SLA первичной обработки заку�
 
   it('без даты создания → processing', () => {
     expect(procurementSla(null, 'pending', now)).toBe('processing');
+  });
+});
+
+describe('subcontractOverdue — просрочка операции подряда', () => {
+  const today = '2026-07-19';
+
+  it('план в прошлом и не возвращено → просрочено', () => {
+    expect(subcontractOverdue('2026-07-15', null, 'sent', today)).toBe(true);
+  });
+
+  it('возвращено или отменено → не просрочено', () => {
+    expect(subcontractOverdue('2026-07-15', '2026-07-18', 'returned', today)).toBe(false);
+    expect(subcontractOverdue('2026-07-15', null, 'returned', today)).toBe(false);
+    expect(subcontractOverdue('2026-07-15', null, 'cancelled', today)).toBe(false);
+  });
+
+  it('план в будущем или пустой → не просрочено', () => {
+    expect(subcontractOverdue('2026-07-25', null, 'sent', today)).toBe(false);
+    expect(subcontractOverdue(null, null, 'sent', today)).toBe(false);
   });
 });
 

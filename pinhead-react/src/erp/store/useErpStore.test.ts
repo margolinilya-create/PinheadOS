@@ -394,6 +394,45 @@ describe('useErpStore — addMaterial (поставщик)', () => {
   });
 });
 
+describe('useErpStore — Подряд (subcontracting)', () => {
+  beforeEach(() => {
+    useErpStore.setState({ subcontracting: [], subcontractingLoaded: false } as any);
+  });
+
+  it('createSubcontractOp: статус planned по умолчанию, добавляется в начало', async () => {
+    const row = await useErpStore.getState().createSubcontractOp({
+      order_id: 'o1', operation: 'Пошив', contractor: 'ИП Иванов', qty: 100,
+    } as any);
+    expect(row).toBeTruthy();
+    const call = h.insertCalls.find((c) => c.table === 'erp_subcontracting');
+    expect((call?.row as any).status).toBe('planned');
+    expect((call?.row as any).operation).toBe('Пошив');
+    expect(useErpStore.getState().subcontracting[0].operation).toBe('Пошив');
+  });
+
+  it('loadSubcontracting наполняет список и ставит флаг', async () => {
+    h.tableData = { erp_subcontracting: [{ id: 's1', order_id: 'o1', operation: 'Вышивка', status: 'sent' }] };
+    await useErpStore.getState().loadSubcontracting();
+    const s = useErpStore.getState();
+    expect(s.subcontractingLoaded).toBe(true);
+    expect(s.subcontracting.map((o) => o.id)).toEqual(['s1']);
+  });
+
+  it('updateSubcontractOp: optimistic обновление + rollback при ошибке', async () => {
+    useErpStore.setState({
+      subcontracting: [{ id: 's1', order_id: 'o1', operation: 'Пошив', status: 'sent' }] as any,
+    });
+    const ok = await useErpStore.getState().updateSubcontractOp('s1', { status: 'returned' });
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().subcontracting[0].status).toBe('returned');
+
+    h.updateError = { message: 'boom' };
+    const ok2 = await useErpStore.getState().updateSubcontractOp('s1', { status: 'delayed' });
+    expect(ok2).toBe(false);
+    expect(useErpStore.getState().subcontracting[0].status).toBe('returned'); // откат
+  });
+});
+
 describe('useErpStore — материал со склада / авто-закрытие закупки', () => {
   function seedSupply(materials: any[] = []) {
     const supplyStage = {
