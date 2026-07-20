@@ -20,8 +20,11 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
   acceptMaterial: async (materialId, { qty_received, accept_status, accept_comment = null }) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) return false;
-    // Патч материала (optimistic + rollback + авто-закрытие закупки) — через materialsSlice
+    // Патч материала (optimistic + rollback + авто-закрытие закупки) — через materialsSlice.
+    // Приёмка складом означает, что материал ФИЗИЧЕСКИ прибыл → status='received'
+    // (иначе гейт закроя по приёмке не сработает: он ждёт received + accept_status).
     const ok = await get().updateMaterial(materialId, {
+      status: 'received',
       qty_received,
       accept_status,
       accepted_at: new Date().toISOString().slice(0, 10),

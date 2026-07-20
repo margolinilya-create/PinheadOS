@@ -18,9 +18,18 @@
    `ackStageOverdue`, плашка «Требуется комментарий», бейдж+фильтр в «Мой цех».
 
 Стор: 9 слайсов (добавлены `warehouseSlice`, `experimentalSlice`). 981 тест. Правки ПМ волны 3 закрыты.
-Прод-проект Supabase: `pinhead-os-v2` (glhwbktsokphgksdvcxj). Realtime-публикация: только
-`erp_item_stages`/`erp_order_comments` (материалы/закупка/подряд/склад/эксперим. — code-only, не
-вещают на уровне БД; обновление через loadOne/loadX — латентный момент, не в scope волны).
+Прод-проект Supabase: `pinhead-os-v2` (glhwbktsokphgksdvcxj).
+
+**Follow-up после волны 3 (тот же branch, отдельный PR):**
+- **Живой QA прода** (6/7 сценариев ✅). Найден и исправлен баг: `acceptMaterial` проставлял
+  `accept_status`, но не `status='received'` → гейт закроя не срабатывал. Теперь приёмка ставит
+  `status='received'`. QA-артефакты на реальных заказах 55948/43232 откачены на проде.
+- **Realtime-публикация закрыта:** миграция `20260721180000_erp_realtime_publication` (на проде)
+  добавила в `supabase_realtime` `erp_orders/order_items/materials/procurement_tasks/subcontracting/
+  warehouse_ops/experimental/experimental_ops` — точечные подписки `realtimeSlice` теперь реально
+  получают `postgres_changes` (раньше вещали только `erp_item_stages`/`erp_order_comments`).
+- **Декомпозиция `Experimental.jsx`** (292 → 105): под-компоненты `screens/experimental/`
+  (`ExperimentalCard`, `OpForm`).
 
 ## Состояние на 2026-07-20 (сессия 15)
 

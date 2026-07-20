@@ -518,13 +518,14 @@ describe('useErpStore — материал со склада / авто-закр
     expect(supplyStage().status).toBe('done');
   });
 
-  it('acceptMaterial: пишет приёмку + строку истории склада (правки 2, 3)', async () => {
-    seedSupply([mat({ status: 'received', accept_status: null })]);
+  it('acceptMaterial: помечает материал received + пишет строку истории склада (правки 2, 3)', async () => {
+    seedSupply([mat({ status: 'pending', accept_status: null })]);
     const ok = await useErpStore.getState().acceptMaterial('m1', {
       qty_received: 100, accept_status: 'accepted_full', accept_comment: 'ок',
     });
     expect(ok).toBe(true);
     const m = useErpStore.getState().orders[0].materials[0];
+    expect(m.status).toBe('received'); // приёмка помечает прибытие
     expect(m.accept_status).toBe('accepted_full');
     expect(m.qty_received).toBe(100);
     expect(m.accepted_at).toBeTruthy();
