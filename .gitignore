@@ -9,3 +9,11 @@ skills-lock.json
 !pinhead-react/public/icon-*.png
 .DS_Store
 test-results/
+
+# Ruflo / claude-flow runtime & data (не версионируется)
+.claude-flow/
+.swarm/
+.agents/
+.claude/helpers/*.db
+.hive-mind/
+memory.db
