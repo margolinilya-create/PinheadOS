@@ -3,11 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/useAuthStore';
-import { useStore } from './store/useStore';
+import { useStore } from './orderstudio/store/useStore';
 import { setFeature, clearFeature } from './config/features';
 
 // Mock catalogs loader
-vi.mock('./lib/catalogs', () => ({
+vi.mock('./orderstudio/lib/catalogs', () => ({
   loadAllCatalogs: vi.fn().mockResolvedValue({}),
 }));
 
@@ -46,12 +46,12 @@ vi.mock('agentation', () => ({
 }));
 
 // Mock useDraft
-vi.mock('./hooks/useDraft', () => ({
+vi.mock('./orderstudio/hooks/useDraft', () => ({
   useDraft: () => ({ draftStatus: 'idle', resetDraft: vi.fn() }),
 }));
 
 // Mock pricing
-vi.mock('./utils/pricing', () => ({
+vi.mock('./orderstudio/utils/pricing', () => ({
   calcTotal: vi.fn(() => 0),
   getTotalQty: vi.fn(() => 0),
   isAccessory: vi.fn(() => false),
@@ -66,7 +66,7 @@ vi.mock('./utils/pricing', () => ({
 }));
 
 // Mock mockup
-vi.mock('./utils/mockup', () => ({
+vi.mock('./orderstudio/utils/mockup', () => ({
   getGarmentSVG: vi.fn(() => ''),
 }));
 

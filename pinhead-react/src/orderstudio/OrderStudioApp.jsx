@@ -1,30 +1,30 @@
 import React, { lazy, useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import styles from '../App.module.css'
-import { useStore } from '../store/useStore'
+import { useStore } from './store/useStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/useAuthStore'
-import Header from '../components/layout/Header'
-import ProgressBar from '../components/layout/ProgressBar'
-import StepGarment from '../components/steps/StepGarment'
+import Header from './components/layout/Header'
+import ProgressBar from './components/layout/ProgressBar'
+import StepGarment from './components/steps/StepGarment'
 
 // Lazy-load wizard steps 2-5 (rendered only when user advances)
-const StepDesign = lazy(() => import('../components/steps/StepDesign'));
-const StepItems = lazy(() => import('../components/steps/StepItems'));
-const StepDetails = lazy(() => import('../components/steps/StepDetails'));
-const StepSummary = lazy(() => import('../components/steps/StepSummary'));
-import RolePreviewBar from '../components/shared/RolePreviewBar'
-import OnboardingTips from '../components/shared/OnboardingTips'
-import CommandPalette from '../components/shared/CommandPalette'
+const StepDesign = lazy(() => import('./components/steps/StepDesign'));
+const StepItems = lazy(() => import('./components/steps/StepItems'));
+const StepDetails = lazy(() => import('./components/steps/StepDetails'));
+const StepSummary = lazy(() => import('./components/steps/StepSummary'));
+import RolePreviewBar from './components/shared/RolePreviewBar'
+import OnboardingTips from './components/shared/OnboardingTips'
+import CommandPalette from './components/shared/CommandPalette'
 
-const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'));
+const KanbanBoard = React.lazy(() => import('./components/orders/KanbanBoard'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
-const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc'));
+const ExpressCalc = React.lazy(() => import('./components/editors/ExpressCalc'));
 const AdminScreen = React.lazy(() => import('../erp/screens/AdminScreen'));
-const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
-const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
-const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
+const Dashboard = React.lazy(() => import('./components/analytics/Dashboard'));
+const PrintPreview = React.lazy(() => import('./components/output/PrintPreview'));
+const SkuEditor = React.lazy(() => import('./components/editors/SkuEditor'));
 // Agentation — dev widget, lazy-loaded (tree-shakes out of prod admin bundle)
 const Agentation = React.lazy(() =>
   import('agentation').then(m => ({ default: m.Agentation }))

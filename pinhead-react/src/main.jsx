@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
-import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
 import { FEATURES } from './config/features'
@@ -18,17 +17,20 @@ window.addEventListener('unhandledrejection', (event) => {
 // Загружаем авторизацию сразу
 useAuthStore.getState().init().catch(() => {});
 
-// Order Studio-специфичное: черновик и каталоги грузим только при включённом флаге
+// Order Studio-специфичное: черновик и каталоги грузим только при включённом флаге.
+// Динамический импорт держит ТЗ-store (useStore) вне корневого бандла ERP.
 if (FEATURES.orderStudio) {
-  const draft = localStorage.getItem('pinhead_draft');
-  if (draft) {
-    try {
-      useStore.getState().restoreFromDraft(JSON.parse(draft));
-    } catch {
-      localStorage.removeItem('pinhead_draft');
+  import('./orderstudio/store/useStore').then(({ useStore }) => {
+    const draft = localStorage.getItem('pinhead_draft');
+    if (draft) {
+      try {
+        useStore.getState().restoreFromDraft(JSON.parse(draft));
+      } catch {
+        localStorage.removeItem('pinhead_draft');
+      }
     }
-  }
-  useStore.getState().loadCatalogs().catch(() => {});
+    useStore.getState().loadCatalogs().catch(() => {});
+  });
 }
 
 const router = createBrowserRouter([

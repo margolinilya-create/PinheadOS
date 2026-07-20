@@ -13,32 +13,31 @@ URL: https://pinhead-os.vercel.app
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
-- **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
-  SKU, аналитика. Компоненты ниже — его состав.
+- **orderstudio/** — ⛔ ✏️ ТЗ (Order Studio, за флагом orderStudio) — **ЗАМОРОЖЕН**.
+  Весь код ТЗ физически здесь (`src/orderstudio/**`). НЕ читать/не трогать/не
+  тестировать без явной команды пользователя (экономия токенов). Работая над ERP —
+  игнорировать эту папку.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
 ## Структура src/
-- components/ — UI-компоненты
-  - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
-  - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
-  - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
-  - editors/ — PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
-  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
-  - analytics/ — Dashboard (Chart.js)
-  - auth/ — AuthScreen, AdminPanel
-  - layout/ — Header (dark mode toggle), ProgressBar (fill bar)
-  - output/ — PrintPreview
-  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, OnboardingTips, CommandPalette, PriceBreakdown, RolePreviewBar
-- store/ — Zustand (все .ts)
-  - useStore.ts — главный store (7 слайсов)
-  - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
-  - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
-- utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
-- lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
-- types/ — TypeScript типы: order, catalog, auth, pricing
-- data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js
+
+### 🏭 ERP (активный) + ОБЩЕЕ — здесь ведём разработку
+- **erp/** — весь код производства (screens, components, store/useErpStore.ts, utils, data)
+- components/auth/ — AuthScreen (+ **AdminPanel\*** — мостик «Заказы ТЗ» в ERP-админке)
+- components/shared/ — ErrorBoundary, Toast, ConfirmDialog(Host), Skeleton (+ **PageHeader\***)
+- store/ — useAuthStore, useToastStore, useConfirmStore (+ **useOrdersStore\***)
+- hooks/ — useFocusTrap, useMediaQuery, useScrollHints, useTheme
+- lib/ — supabase, storage · utils/ — i18n (+ **validate\***)
+- data/ — roles (+ **каталоги\***: prices, skuCatalog, fabricsCatalog, colors, extras, constants, index)
+- types/ — auth (+ **order\***, **catalog\***) · styles/ — CSS-токены
+- `*` — реально общее (тянет ERP-мостик «Заказы ТЗ»), поэтому НЕ в orderstudio/
+
+### ⛔ orderstudio/ (ЗАМОРОЖЕН — не трогать)
+- components/ — steps/ (визард + garment/), orders/ (Kanban), editors/ (SkuEditor + sku/), output/ (PrintPreview), analytics/ (Dashboard), layout/ (Header, ProgressBar), shared/ (PriceBreakdown, RolePreviewBar, OnboardingTips, CommandPalette), production/
+- store/ — useStore + slices/, useCommentsStore, useEmployeesStore, useDepartmentsStore
+- utils/ — pricing, skuRules, mockup, deadline · hooks/ — useDraft, useEffectiveRules
+- lib/ — api, catalogs · data/data.test · types/ — pricing, index
 
 ## Ключевые правила
 - Общение с пользователем: всегда на русском языке
@@ -61,13 +60,13 @@ URL: https://pinhead-os.vercel.app
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 - Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
 
-## Не трогать без тестов
-- utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
-- store/slices/ — 796 тестов зависят от них
+## Не трогать без тестов (в замороженном orderstudio/)
+- orderstudio/utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
+- orderstudio/store/slices/ — тесты зависят от них
 
 ## Тесты
 ```bash
-npm run test     # 887 unit тестов (Vitest)
+npm run test     # 953 unit теста (Vitest, 48 файлов)
 npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно

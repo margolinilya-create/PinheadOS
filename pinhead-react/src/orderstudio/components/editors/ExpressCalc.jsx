@@ -1,0 +1,499 @@
+import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useStore } from '../../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
+import { ZONE_LABELS } from '../../../data';
+import { SKU_CATEGORIES } from '../../../data/skuCatalog';
+import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, calcExtrasCost } from '../../utils/pricing';
+
+// ── Constants ──
+const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
+const SCREEN_MAX_COLORS = 8;
+const DTG_DTF_FORMATS = ['A6', 'A5', 'A4', 'A3', 'A3+'];
+const EMB_AREAS = [
+  { k: 's', l: 'до 7см' },
+  { k: 'm', l: 'до 12см' },
+  { k: 'l', l: 'до 20см' },
+];
+const TEXTILES = [
+  { k: 'white', l: 'Белый' },
+  { k: 'color', l: 'Цвет ×1.3' },
+];
+
+const TECH_OPTIONS = [
+  { key: 'screen', label: 'Шелкография' },
+  { key: 'flex', label: 'Flex' },
+  { key: 'dtf', label: 'DTF' },
+  { key: 'dtg', label: 'DTG' },
+  { key: 'embroidery', label: 'Вышивка' },
+];
+
+const DEFAULT_GARMENT_ZONES = ['front', 'back', 'sleeve-l', 'sleeve-r'];
+
+function makeDefaultZoneEntry(active) {
+  return { active, tech: 'screen', fmt: 'A4', col: 1, textile: 'white', fx: 'none' };
+}
+
+function initZoneData(zones) {
+  const data = {};
+  zones.forEach((zId, i) => {
+    data[zId] = makeDefaultZoneEntry(i === 0);
+  });
+  return data;
+}
+
+function calcZoneSurcharge(zoneId, d, qty) {
+  if (!d || !d.active) return 0;
+  return calcZonePriceDirect(d.tech, d, qty);
+}
+
+// ── Component ──
+export default function ExpressCalc() {
+  const navigate = useNavigate();
+  const onClose = () => navigate('/');
+  const { skuCatalog, fabricsCatalog, extrasCatalog, usdRate } = useStore(
+    useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
+      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate }))
+  );
+
+  const [skuCode, setSkuCode] = useState('');
+  const [fabricCode, setFabricCode] = useState('');
+  const [qty, setQty] = useState(100);
+  const [expZoneData, setExpZoneData] = useState({});
+  const [selectedExtras, setSelectedExtras] = useState([]);
+
+  // ── SKU catalog grouped by category ──
+  const categories = useMemo(() => {
+    const cats = {};
+    for (const s of skuCatalog) {
+      if (!cats[s.category]) cats[s.category] = [];
+      cats[s.category].push(s);
+    }
+    return cats;
+  }, [skuCatalog]);
+
+  const catLabels = useMemo(() => {
+    const map = {};
+    for (const c of SKU_CATEGORIES) map[c.id] = c.name;
+    return map;
+  }, []);
+
+  // ── Selected SKU ──
+  const sku = useMemo(() => skuCatalog.find(s => s.code === skuCode) || null, [skuCode, skuCatalog]);
+
+  // ── Fabrics filtered by SKU category ──
+  const fabrics = useMemo(() => {
+    if (!sku) return fabricsCatalog;
+    return fabricsCatalog.filter(f =>
+      !f.forCategories || f.forCategories.length === 0 || f.forCategories.includes(sku.category)
+    );
+  }, [sku, fabricsCatalog]);
+
+  const fabric = useMemo(() => fabricsCatalog.find(f => f.code === fabricCode) || null, [fabricCode, fabricsCatalog]);
+
+  // ── SKU zones ──
+  const skuZones = useMemo(() => {
+    if (!sku) return [];
+    return sku.zones && sku.zones.length > 0 ? sku.zones : DEFAULT_GARMENT_ZONES;
+  }, [sku]);
+
+  // ── When SKU changes ──
+  // ── Extras filtered by SKU category ──
+  const availableExtras = useMemo(() => {
+    if (!sku) return [];
+    return extrasCatalog.filter(e =>
+      !e.forCategories?.length || e.forCategories.includes(sku.category)
+    );
+  }, [sku, extrasCatalog]);
+
+  const toggleExtra = useCallback((code) => {
+    setSelectedExtras(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  }, []);
+
+  const handleSkuChange = useCallback((code) => {
+    setSkuCode(code);
+    setFabricCode('');
+    setSelectedExtras([]);
+    const s = skuCatalog.find(x => x.code === code);
+    if (s) {
+      const zones = s.zones && s.zones.length > 0 ? s.zones : DEFAULT_GARMENT_ZONES;
+      setExpZoneData(initZoneData(zones));
+    } else {
+      setExpZoneData({});
+    }
+  }, [skuCatalog]);
+
+  // ── Zone actions ──
+  const activateZone = useCallback((zoneId) => {
+    setExpZoneData(prev => ({
+      ...prev,
+      [zoneId]: { ...(prev[zoneId] || makeDefaultZoneEntry(false)), active: true },
+    }));
+  }, []);
+
+  const deactivateZone = useCallback((zoneId) => {
+    setExpZoneData(prev => {
+      const activeCount = Object.values(prev).filter(d => d.active).length;
+      if (activeCount <= 1) return prev;
+      return { ...prev, [zoneId]: { ...prev[zoneId], active: false } };
+    });
+  }, []);
+
+  const setZoneTech = useCallback((zoneId, tech) => {
+    setExpZoneData(prev => {
+      const d = { ...(prev[zoneId] || makeDefaultZoneEntry(true)) };
+      d.tech = tech;
+      if (tech === 'embroidery') { d.fmt = 's'; d.col = 1; }
+      else if (tech === 'screen') { d.fmt = 'A4'; d.col = 1; d.textile = 'white'; d.fx = 'none'; }
+      else if (tech === 'flex') { d.fmt = 'A4'; d.col = 1; }
+      else { d.fmt = 'A4'; d.col = 1; }
+      return { ...prev, [zoneId]: d };
+    });
+  }, []);
+
+  const setZoneParam = useCallback((zoneId, key, val) => {
+    setExpZoneData(prev => ({
+      ...prev,
+      [zoneId]: { ...prev[zoneId], [key]: val },
+    }));
+  }, []);
+
+  // ── Calc results ──
+  const calc = useMemo(() => {
+    if (!sku) return null;
+
+    // Base price from SKU + fabric
+    const sewingPrice = sku.sewingPrice || 0;
+    const fabricPriceRub = fabric ? Math.round(fabric.priceUSD * usdRate * (sku.mainFabricUsage || 0)) : 0;
+    const baseRaw = sewingPrice + fabricPriceRub;
+
+    // Markup on base
+    const category = sku?.category || 'tshirts';
+    const markupPct = getMarkup(qty, category);
+    const base = Math.round(baseRaw * (1 + markupPct));
+
+    // Extras cost
+    const extrasCost = calcExtrasCost(selectedExtras, extrasCatalog);
+
+    // Tech surcharge from all active zones
+    const activeEntries = Object.entries(expZoneData).filter(([, d]) => d.active);
+    const zoneCount = activeEntries.length;
+    let techTotal = 0;
+    activeEntries.forEach(([id, d]) => {
+      techTotal += calcZoneSurcharge(id, d, qty);
+    });
+
+    const unitPrice = base + extrasCost + techTotal;
+    const total = unitPrice * qty;
+
+    return { baseRaw, base, markupPct, extrasCost, techTotal, zoneCount, unitPrice, total };
+  }, [sku, fabric, usdRate, expZoneData, qty, selectedExtras, extrasCatalog]);
+
+  // ── Render zone params ──
+  function renderZoneParams(zoneId, d) {
+    const { tech } = d;
+
+    if (tech === 'screen') {
+      return (
+        <>
+          <span className="exp-plabel">Формат</span>
+          <div className="exp-pbtns">
+            {SCREEN_FORMATS.map(s => (
+              <button key={s} className={`exp-pbtn${d.fmt === s ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'fmt', s)}>{s}</button>
+            ))}
+          </div>
+          <span className="exp-plabel" style={{ marginLeft: 6 }}>Цвета</span>
+          <div className="exp-pbtns">
+            {Array.from({ length: SCREEN_MAX_COLORS }, (_, i) => i + 1).map(c => (
+              <button key={c} className={`exp-pbtn${d.col === c ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'col', c)}>{c}</button>
+            ))}
+          </div>
+          <span className="exp-plabel" style={{ marginLeft: 6 }}>Текстиль</span>
+          <div className="exp-pbtns">
+            {TEXTILES.map(t => (
+              <button key={t.k} className={`exp-pbtn${(d.textile || 'white') === t.k ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'textile', t.k)}>{t.l}</button>
+            ))}
+          </div>
+          <span className="exp-plabel" style={{ marginLeft: 6 }}>Эффект</span>
+          <div className="exp-pbtns">
+            {SCREEN_FX.map(f => (
+              <button key={f.key} className={`exp-pbtn${(d.fx || 'none') === f.key ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'fx', f.key)}>{f.label}</button>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    if (tech === 'flex') {
+      return (
+        <>
+          <span className="exp-plabel">Формат</span>
+          <div className="exp-pbtns">
+            {FLEX_FORMATS.map(s => (
+              <button key={s} className={`exp-pbtn${d.fmt === s ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'fmt', s)}>{s}</button>
+            ))}
+          </div>
+          <span className="exp-plabel" style={{ marginLeft: 6 }}>Цвета</span>
+          <div className="exp-pbtns">
+            {Array.from({ length: FLEX_MAX_COLORS }, (_, i) => i + 1).map(c => (
+              <button key={c} className={`exp-pbtn${d.col === c ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'col', c)}>{c}</button>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    if (tech === 'dtf' || tech === 'dtg') {
+      return (
+        <>
+          <span className="exp-plabel">Формат</span>
+          <div className="exp-pbtns">
+            {DTG_DTF_FORMATS.map(s => (
+              <button key={s} className={`exp-pbtn${d.fmt === s ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'fmt', s)}>{s}</button>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    if (tech === 'embroidery') {
+      return (
+        <>
+          <span className="exp-plabel">Область</span>
+          <div className="exp-pbtns">
+            {EMB_AREAS.map(a => (
+              <button key={a.k} className={`exp-pbtn${d.fmt === a.k ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'fmt', a.k)}>{a.l}</button>
+            ))}
+          </div>
+          <span className="exp-plabel" style={{ marginLeft: 6 }}>Нити</span>
+          <div className="exp-pbtns">
+            {[1, 2, 3, 4, 5].map(c => (
+              <button key={c} className={`exp-pbtn${d.col === c ? ' active' : ''}`}
+                onClick={() => setZoneParam(zoneId, 'col', c)}>{c}</button>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    return null;
+  }
+
+  // ── Render ──
+  return (
+    <div className="kanban-page">
+      {/* ── Header ── */}
+      <div className="sku-ed-header" style={{ padding: '20px 40px' }}>
+        <div className="sku-ed-header-left">
+          <div className="logo" onClick={onClose} style={{ cursor: 'pointer', padding: 0, marginRight: 16 }}>
+            <svg className="logo-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="16" y1="2" x2="16" y2="30" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="2" y1="16" x2="30" y2="16" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="5" y1="5" x2="27" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="27" y1="5" x2="5" y2="27" stroke="#000" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h1 className="sku-ed-title">EXPRESS КАЛЬКУЛЯТОР</h1>
+        </div>
+        <div className="sku-ed-header-right" />
+      </div>
+
+      {/* ── Body ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px 60px' }}>
+        <div className="exp-page-grid">
+          {/* Left: Form */}
+          <div className="exp-form-section">
+            <div className="exp-form-group">
+              <div className="exp-form-group-title">Параметры заказа</div>
+            </div>
+            {/* SKU select */}
+            <div className="exp-field">
+              <label>Изделие</label>
+              <select value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
+                <option value="">— Выберите —</option>
+                {Object.keys(categories).length === 0 && (
+                  <option disabled>Загрузка каталога...</option>
+                )}
+                {Object.entries(categories).map(([cat, items]) => (
+                  <optgroup key={cat} label={catLabels[cat] || cat}>
+                    {items.map(s => (
+                      <option key={s.code} value={s.code}>{s.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            {/* Fabric select */}
+            <div className="exp-field">
+              <label>Ткань</label>
+              <select value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
+                <option value="">— Выберите —</option>
+                {fabrics.map(f => (
+                  <option key={f.code} value={f.code}>
+                    {f.name}{f.density ? ` ${f.density}г` : ''}{f.composition ? ` (${f.composition})` : ''}{' — '}{Math.round(f.priceUSD * usdRate)} ₽/м · {f.supplier}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quantity */}
+            <div className="exp-field">
+              <label>Тираж (шт)</label>
+              <input
+                type="number"
+                value={qty}
+                onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                min="1"
+              />
+            </div>
+
+            {/* Per-zone technology blocks */}
+            {sku && skuZones.length > 0 && (
+              <div className="exp-field">
+                <label>Зоны нанесения</label>
+                <div className="exp-zones-wrap">
+                  {skuZones.map(zId => {
+                    const d = expZoneData[zId];
+                    if (!d) return null;
+
+                    if (!d.active) {
+                      return (
+                        <div key={zId} className="exp-zone-chip" onClick={() => activateZone(zId)}>
+                          <span className="exp-zone-dot" />
+                          {ZONE_LABELS[zId] || zId}
+                        </div>
+                      );
+                    }
+
+                    const surcharge = calcZoneSurcharge(zId, d, qty);
+                    const screenWarn = d.tech === 'screen' && qty > 0 && qty < 50;
+
+                    return (
+                      <div key={zId} className="exp-zt-block active">
+                        <div className="exp-zt-header" onClick={() => deactivateZone(zId)}>
+                          <span className="exp-zt-name">{ZONE_LABELS[zId] || zId}</span>
+                          <span className="exp-zt-surcharge">+{surcharge} ₽</span>
+                        </div>
+                        <div className="exp-zt-body">
+                          <div className="exp-zt-techs">
+                            {TECH_OPTIONS.map(t => (
+                              <div
+                                key={t.key}
+                                className={`exp-zt-tech${d.tech === t.key ? ' active' : ''}`}
+                                onClick={() => setZoneTech(zId, t.key)}
+                              >
+                                {t.label}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="exp-zt-params">
+                            {renderZoneParams(zId, d)}
+                          </div>
+                          {screenWarn && (
+                            <div className="exp-zt-warn">Шелкография — минимальный тираж от 50 шт</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {sku && skuZones.length === 0 && (
+              <div className="exp-zt-warn" style={{ padding: '12px 0' }}>
+                Для данного изделия нанесение недоступно
+              </div>
+            )}
+
+            {/* Extras selection */}
+            {sku && availableExtras.length > 0 && (
+              <div className="exp-field">
+                <label>Обработки{selectedExtras.length > 0 && <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 12 }}>+{calc?.extrasCost || 0} ₽/шт</span>}</label>
+                <div className="exp-extras-grid">
+                  {availableExtras.map(e => {
+                    const sel = selectedExtras.includes(e.code);
+                    return (
+                      <div key={e.code}
+                        className={`exp-extra-chip${sel ? ' active' : ''}`}
+                        onClick={() => toggleExtra(e.code)}
+                      >
+                        <span className="exp-extra-name">{e.name}</span>
+                        <span className="exp-extra-price">+{e.price} ₽</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {sku && !fabric && (
+              <div className="exp-zt-warn" style={{ padding: '10px 0', opacity: 0.8, fontSize: 12 }}>
+                Выберите ткань для точного расчёта. Показана базовая цена пошива.
+              </div>
+            )}
+          </div>
+
+          {/* Right: Result card */}
+          <div className="exp-result-section">
+            {calc ? (
+              <div className="exp-result-card">
+                <div className="exp-result-title">Расчёт стоимости</div>
+                <div className="exp-result-row">
+                  <span>Себестоимость</span>
+                  <b>{calc.baseRaw.toLocaleString('ru-RU')} ₽</b>
+                </div>
+                {calc.markupPct > 0 && (
+                  <div className="exp-result-row">
+                    <span>Наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
+                    <b>{calc.base.toLocaleString('ru-RU')} ₽</b>
+                  </div>
+                )}
+                {calc.extrasCost > 0 && (
+                  <div className="exp-result-row">
+                    <span>Обработки ({selectedExtras.length})</span>
+                    <b>+{calc.extrasCost.toLocaleString('ru-RU')} ₽</b>
+                  </div>
+                )}
+                <div className="exp-result-row">
+                  <span>
+                    {calc.zoneCount > 0
+                      ? `Нанесение × ${calc.zoneCount} зон${calc.zoneCount === 1 ? 'а' : 'ы'}`
+                      : 'Нанесение'}
+                  </span>
+                  <b>{skuZones.length === 0 ? '—' : `${calc.techTotal.toLocaleString('ru-RU')} ₽`}</b>
+                </div>
+                <div className="exp-result-divider" />
+                <div className="exp-result-row exp-result-unit">
+                  <span>Цена / шт</span>
+                  <span className="mono-val">{calc.unitPrice.toLocaleString('ru-RU')} ₽</span>
+                </div>
+                <div className="exp-result-total">
+                  <span>ИТОГО ({qty} шт)</span>
+                  <b className="mono-val" style={{ color: 'var(--accent)' }}>{calc.total.toLocaleString('ru-RU')} ₽</b>
+                </div>
+              </div>
+            ) : (
+              <div className="exp-result-card exp-result-empty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v8M8 12h8" />
+                </svg>
+                <span>Выберите изделие для расчёта стоимости</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
