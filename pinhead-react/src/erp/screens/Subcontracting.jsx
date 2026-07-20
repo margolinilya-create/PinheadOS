@@ -71,13 +71,14 @@ function AddOpRow({ orders, onAdd }) {
 
 export default function Subcontracting() {
   const {
-    orders, loaded, loadAll,
+    orders, loaded, loadError, loadAll,
     subcontracting, subcontractingLoaded, loadSubcontracting,
     createSubcontractOp, updateSubcontractOp,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       subcontracting: s.subcontracting,
       subcontractingLoaded: s.subcontractingLoaded,
@@ -126,6 +127,12 @@ export default function Subcontracting() {
 
       <AddOpRow orders={activeOrders} onAdd={createSubcontractOp} />
 
+      {loadError && !loaded && (
+        <div className={styles.emptyState}>
+          Не удалось загрузить данные.{' '}
+          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
+        </div>
+      )}
       {subcontractingLoaded && subcontracting.length === 0 && (
         <div className={styles.emptyState}>Операций подряда пока нет — добавьте первую выше.</div>
       )}

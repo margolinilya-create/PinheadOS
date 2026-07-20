@@ -185,6 +185,8 @@ interface ErpStore {
   subcontractingLoaded: boolean;
   loading: boolean;
   loaded: boolean;
+  /** Ошибка загрузки loadAll — для inline-блока «Не удалось загрузить · Повторить» */
+  loadError: boolean;
   /** Архив (status != active) грузится лениво — при первом заходе на вкладку */
   archiveLoaded: boolean;
   archiveLoading: boolean;
@@ -390,6 +392,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   subcontractingLoaded: false,
   loading: false,
   loaded: false,
+  loadError: false,
   archiveLoaded: false,
   archiveLoading: false,
   myDeptId: null,
@@ -416,7 +419,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   },
 
   loadAll: async () => {
-    set({ loading: true });
+    set({ loading: true, loadError: false });
     // Архив лениво (п.26): пока архив не открывали — грузим только активные.
     // Если архив уже загружен, полная перезагрузка обновляет и его.
     let ordersQuery = supabase
@@ -430,7 +433,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     ]);
     if (deps.error || orders.error) {
       toast.error('Не удалось загрузить данные ERP');
-      set({ loading: false });
+      set({ loading: false, loadError: true });
       return;
     }
     set({
@@ -696,6 +699,12 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       toast.error(`Брак не может превышать тираж (${item.qty} шт)`);
       return false;
     }
+    // ...и не больше, чем этап реально сделал (аудит correctness #3)
+    const processed = stage.qty_done ?? 0;
+    if (processed > 0 && qty > processed) {
+      toast.error(`Брак не может превышать сделанное на этапе (${processed} шт)`);
+      return false;
+    }
 
     const dept = get().departments.find((d) => d.id === stage.department_id);
     const deptName = dept?.name || 'цех';
@@ -728,6 +737,24 @@ export const useErpStore = create<ErpStore>((set, get) => ({
           finished_at: null,
         },
       });
+      // Промежуточные этапы между T и S тоже переоткрыть на N — перекроенные единицы
+      // должны заново пройти их (аудит correctness #4), иначе они «застрянут» в done.
+      const lo = Math.min(targetStage.sort_order, stage.sort_order);
+      const hi = Math.max(targetStage.sort_order, stage.sort_order);
+      for (const mid of item.stages) {
+        if (mid.id === stage.id || mid.id === targetStage.id) continue;
+        if (mid.sort_order <= lo || mid.sort_order >= hi) continue;
+        if (mid.status !== 'done' && mid.status !== 'in_progress') continue;
+        patches.push({
+          id: mid.id,
+          patch: {
+            status: 'waiting',
+            qty_done: Math.max((mid.qty_done ?? 0) - qty, 0),
+            qty_rework: (mid.qty_rework ?? 0) + qty,
+            finished_at: null,
+          },
+        });
+      }
     } else if (target === 'procurement') {
       // Материал испорчен: N уходят в ожидание закупки нового материала
       patches.push({

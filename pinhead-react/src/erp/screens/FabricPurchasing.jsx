@@ -125,7 +125,19 @@ function ProcurementTasksBlock({ order, onUpdate }) {
               <td>{t.rework_qty ?? '—'}</td>
               <td>{t.supplier || '—'}</td>
               <td>{formatDateShort(t.planned_date) || '—'}</td>
-              <td>{t.responsible || '—'}</td>
+              <td>
+                <input
+                  className={styles.input}
+                  placeholder="—"
+                  defaultValue={t.responsible || ''}
+                  onBlur={(e) => {
+                    const val = e.target.value.trim() || null;
+                    if (val !== (t.responsible || null)) onUpdate(t.id, { responsible: val });
+                  }}
+                  aria-label={`Ответственный за ${t.material_name}`}
+                  style={{ maxWidth: 130 }}
+                />
+              </td>
               <td>
                 <select
                   className={styles.select}
@@ -148,13 +160,14 @@ function ProcurementTasksBlock({ order, onUpdate }) {
 
 export default function FabricPurchasing() {
   const {
-    orders, loading, loaded, loadAll, addMaterial, updateMaterial,
+    orders, loading, loaded, loadError, loadAll, addMaterial, updateMaterial,
     confirmStockMaterial, updateProcurementTask,
   } = useErpStore(
       useShallow((s) => ({
         orders: s.orders,
         loading: s.loading,
         loaded: s.loaded,
+        loadError: s.loadError,
         loadAll: s.loadAll,
         addMaterial: s.addMaterial,
         updateMaterial: s.updateMaterial,
@@ -221,6 +234,12 @@ export default function FabricPurchasing() {
       </div>
 
       {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
+      {loadError && !loaded && (
+        <div className={styles.emptyState}>
+          Не удалось загрузить данные.{' '}
+          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
+        </div>
+      )}
       {loaded && rows.length === 0 && (
         <div className={styles.emptyState}>Нет активных заказов с материалами.</div>
       )}

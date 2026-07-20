@@ -44,4 +44,15 @@ describe('isOrderReadyToShip — стадия «Готов к отгрузке»
     expect(isOrderReadyToShip(order('done_on_time', [['done']]))).toBe(false);
     expect(isOrderReadyToShip(order('cancelled', [['done']]))).toBe(false);
   });
+
+  it('непришедший материал → не готов, даже если все этапы done (аудит #5)', () => {
+    const withMats = (mats: string[]) => ({
+      ...order('active', [['done']]),
+      materials: mats.map((status) => ({ status })),
+    });
+    expect(isOrderReadyToShip(withMats(['received', 'reserved', 'not_needed']))).toBe(true);
+    expect(isOrderReadyToShip(withMats(['pending']))).toBe(false);        // сирота-материал не пришёл
+    expect(isOrderReadyToShip(withMats(['received', 'ordered']))).toBe(false);
+    expect(isOrderReadyToShip({ ...order('active', [['done']]), materials: [] })).toBe(true);
+  });
 });
