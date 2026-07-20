@@ -7,7 +7,10 @@ URL: https://pinhead-os.vercel.app
 ## Два раздела (переключение в шапке, admin/director)
 - **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
-  FabricPurchasing/AdminScreen), components (ErpKanban, InlineEdit, PageHead,
+  FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
+  screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
+  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard),
+  components (ErpKanban, InlineEdit, PageHead,
   ErpSkeletons), store/ (composition-root useErpStore.ts + 7 слайсов в slices/:
   orders/stages/materials/procurement/subcontracting/employees/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
