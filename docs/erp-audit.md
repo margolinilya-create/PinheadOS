@@ -11,11 +11,11 @@
 | `store/useErpStore.ts` | 1251 | **59** | ✅ распил на 7 слайсов (`store/slices/`) |
 | `screens/OrdersScreen.jsx` | 1283 | **322** | ✅ декомпозиция (`screens/orders/`) |
 | `screens/DepartmentQueue.jsx` | 777 | **292** | ✅ декомпозиция (`screens/queue/`) |
-| `screens/OrderCard.jsx` | 612 | 612 | 🟡 бэклог |
-| `components/ErpKanban.jsx` | 232 | 232 | 🟡 бэклог |
+| `screens/OrderCard.jsx` | 612 | **293** | ✅ декомпозиция (`screens/orderCard/`) |
+| `components/ErpKanban.jsx` | 232 | **130** | ✅ декомпозиция (`kanban/` + `utils/kanbanColumns`) |
 
-Три худших файла модуля разъяты (организационно, поведение идентично). Следующие
-кандидаты — `OrderCard.jsx` и `ErpKanban.jsx`.
+**Все 5 «Very Complex» файлов разъяты** (организационно, поведение идентично). Бонус:
+логика группировки канбана вынесена в чистую `utils/kanbanColumns.js` и покрыта тестами.
 
 ## Статус находок
 
@@ -64,7 +64,13 @@
 публичный API идентичен, 953 теста зелёные **без правок тестов**. Единый синглтон
 `_pendingMutations` — по-прежнему в `shared.ts`.
 
-**Сделано (декомпозиция экранов):** `OrdersScreen` 1283 → 322 (`screens/orders/`:
-DueCell/OrderRow/OrderCardMobile/CreateOrderModal); `DepartmentQueue` 777 → 292
-(`screens/queue/`: Lightbox/PhotoAttach/TzBlock/QueueCard). JSX-вывод идентичен,
-953 теста зелёные. **Осталось (бэклог):** `OrderCard.jsx` (612), `ErpKanban.jsx` (232).
+**Сделано (декомпозиция экранов, завершено):**
+- `OrdersScreen` 1283 → 322 (`screens/orders/`: DueCell/OrderRow/OrderCardMobile/CreateOrderModal).
+- `DepartmentQueue` 777 → 292 (`screens/queue/`: Lightbox/PhotoAttach/TzBlock/QueueCard).
+- `OrderCard` 612 → 293 (`screens/orderCard/`: format/PlanCell/StageStepper/OrderItemSection/
+  CommentsSection/HistorySection).
+- `ErpKanban` 232 → 130 (`components/kanban/`: KanbanCard/useTouchDndPolyfill;
+  `utils/kanbanColumns.js` — чистая группировка + 5 тестов).
+
+JSX-вывод идентичен, 958 тестов зелёные. **Бэклог рефакторинга закрыт** — все находки
+аудита обработаны.

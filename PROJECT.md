@@ -22,12 +22,15 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
 
-**Декомпозиция крупных экранов (техдолг аудита):**
-- `OrdersScreen.jsx` 1336 → 322 строки → `screens/orders/`: DueCell, OrderRow,
-  OrderCardMobile, CreateOrderModal (+ SizeGridEditor/FormSection/FieldError).
-- `DepartmentQueue.jsx` 821 → 292 строки → `screens/queue/`: Lightbox, PhotoAttach,
-  TzBlock, QueueCard. Три худших файла модуля разъяты; JSX-вывод идентичен, 953 теста зелёные.
-- Осталось в бэклоге: `OrderCard.jsx` (612), `ErpKanban.jsx` (232).
+**Декомпозиция крупных экранов (техдолг аудита, завершено):**
+- `OrdersScreen.jsx` 1336 → 322 → `screens/orders/` (DueCell, OrderRow, OrderCardMobile,
+  CreateOrderModal + SizeGridEditor/FormSection/FieldError).
+- `DepartmentQueue.jsx` 821 → 292 → `screens/queue/` (Lightbox, PhotoAttach, TzBlock, QueueCard).
+- `OrderCard.jsx` 638 → 293 → `screens/orderCard/` (format, PlanCell, StageStepper,
+  OrderItemSection, CommentsSection, HistorySection).
+- `ErpKanban.jsx` 248 → 130 → `components/kanban/` (KanbanCard, useTouchDndPolyfill) +
+  `utils/kanbanColumns.js` (чистая группировка + 5 юнит-тестов).
+- **Все 5 «Very Complex» файлов аудита разъяты.** JSX-вывод идентичен, 958 тестов зелёные.
 
 **Распил стора (PR #107, в проде):**
 
