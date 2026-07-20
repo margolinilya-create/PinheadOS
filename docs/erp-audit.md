@@ -51,11 +51,17 @@
   реэкспорт из `useErpStore.ts`. Разрывает циклы для будущих слайсов.
 - `useErpStore.ts`: 1376 → 1280 строк, чистое разделение типы/плумбинг/действия.
 
-**Осталось (следующий focused-PR):** распил 35 действий на 7 слайсов
-(`orders/stages/materials/procurement/subcontracting/employees/realtime`) в composition-root.
-Инварианты: слайсы в каталоге `store/` (относительные пути не меняются), реэкспорт
-`useErpStore`/`readyCountFor`/`_pendingMutations`/`orderPreviewUrl`/`lastDefectPhotoUrl`,
-единый синглтон `_pendingMutations` в `shared.ts`. Порядок — «от листьев к корню»
-(subcontracting→procurement→materials→employees→stages→realtime→orders), атомарные коммиты,
-тесты после каждого. Это чисто организационный шаг (сложность функций не падает) —
-делать отдельно, не в спешке. Отдельно — разбить крупные экраны (`OrdersScreen`, `DepartmentQueue`).
+**Сделано (распил завершён):** 35 действий разнесены на 7 слайсов в `store/slices/`
+(`orders/stages/materials/procurement/subcontracting/employees/realtime`);
+`useErpStore.ts` — composition-root на 59 строк (было 1280). Общие чистые хелперы
+(`findStage`/`patchStageIn`/`sortOrderFull`/`ORDER_SELECT`/`readyCountFor`/`withNewWorkToast`/
+`orderPreviewUrl`/`lastDefectPhotoUrl`) — в `store/orderHelpers.ts`. Контракт `ErpStore`
+разбит на 7 под-интерфейсов в `store/types.ts` (пересечение = `ErpStore`; слайсы
+типизированы `StateCreator<ErpStore,[],[],XxxSlice>`, `get()` видит весь стор). Реэкспорты
+`useErpStore`/`readyCountFor`/`_pendingMutations`/`orderPreviewUrl`/`lastDefectPhotoUrl` и DTO
+сохранены — пути импорта у 11 экранов и тестов не менялись. Чисто организационный шаг:
+публичный API идентичен, 953 теста зелёные **без правок тестов**. Единый синглтон
+`_pendingMutations` — по-прежнему в `shared.ts`.
+
+**Осталось (отдельным заходом):** разбить крупные экраны (`OrdersScreen` 1283,
+`DepartmentQueue` 777) на под-компоненты.

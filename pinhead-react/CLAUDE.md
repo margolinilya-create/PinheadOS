@@ -8,8 +8,11 @@ URL: https://pinhead-os.vercel.app
 - **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   FabricPurchasing/AdminScreen), components (ErpKanban, InlineEdit, PageHead,
-  ErpSkeletons), store/useErpStore.ts (точечный realtime, ленивый архив,
-  RPC erp_create_order, pendingMutations), utils (routes/time/stageUi/orderForm),
+  ErpSkeletons), store/ (composition-root useErpStore.ts + 7 слайсов в slices/:
+  orders/stages/materials/procurement/subcontracting/employees/realtime;
+  контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
+  точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
+  utils (routes/time/stageUi/orderForm),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.

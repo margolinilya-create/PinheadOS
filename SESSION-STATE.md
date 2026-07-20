@@ -14,8 +14,12 @@
   realtime на materials/procurement/subcontracting; триггер `erp_procurement_task_derive`
   (миграция `20260720120000`, на проде) форсит `kind`/`counts_as_purchase` из `cause_type`;
   «Invalid Date» → `formatDateShort` во всех экранах. Тесты 950/950.
-- **Рефакторинг стора:** вынесен `store/shared.ts` (аудит/pending/тайминги). Полный распил
-  на 7 слайсов + `store/types.ts` — следующий focused-PR (план в `docs/erp-audit.md`).
+- **Рефакторинг стора (завершён):** `useErpStore.ts` 1280 → 59 строк (composition-root).
+  35 действий → 7 слайсов в `store/slices/` (orders/stages/materials/procurement/
+  subcontracting/employees/realtime); контракт `ErpStore` (7 под-интерфейсов) + DTO в
+  `store/types.ts`; плумбинг в `shared.ts`; чистые хелперы в `store/orderHelpers.ts`.
+  Публичный API идентичен, 953 теста зелёные без правок тестов. Осталось (бэклог): разбить
+  крупные экраны `OrdersScreen`/`DepartmentQueue` на под-компоненты.
 
 ### Открытые вопросы (нужны решения/бэклог)
 - **RLS admin-разделов (A4):** «Закупка»/«Подряд» admin-only только в UI; задачи создаются
