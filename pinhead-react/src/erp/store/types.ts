@@ -81,13 +81,16 @@ export interface ErpOrderFull extends ErpOrder {
 export interface ReportDefectOptions {
   qty: number;
   reason: string;
-  target?: 'current' | 'procurement' | (string & {});
+  target?: 'current' | 'procurement' | 'subcontractor' | (string & {});
   needsMaterial?: boolean;
   cause?: ProcurementCauseType;
   supplier?: string | null;
   plannedDate?: string | null;
   materialName?: string | null;
   requiredQty?: string | null;
+  /** target='subcontractor': операция и контрагент для создаваемой операции подряда */
+  subcontractOperation?: string | null;
+  contractor?: string | null;
 }
 
 export interface NewPrintInput {

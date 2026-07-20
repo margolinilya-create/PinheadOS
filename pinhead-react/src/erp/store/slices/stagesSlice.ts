@@ -90,6 +90,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       qty, reason, target = 'current', needsMaterial = false,
       cause = 'other', supplier = null, plannedDate = null,
       materialName = null, requiredQty = null,
+      subcontractOperation = null, contractor = null,
     } = opts;
     const prev = get().orders;
     const found = findStage(prev, stageId);
@@ -111,10 +112,11 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const dept = get().departments.find((d) => d.id === stage.department_id);
     const deptName = dept?.name || 'цех';
 
-    // Целевой этап устранения: конкретный этап позиции (в т.ч. закрой), либо null
+    // Целевой этап устранения: конкретный этап позиции (в т.ч. закрой), либо null.
+    // Спец-цели (current/procurement/subcontractor) не резолвятся в этап.
+    const SPECIAL_TARGETS = new Set(['current', 'procurement', 'subcontractor']);
     const byId = new Map(item.stages.map((s) => [s.id, s]));
-    const targetStage =
-      target !== 'current' && target !== 'procurement' ? byId.get(target) ?? null : null;
+    const targetStage = SPECIAL_TARGETS.has(target) ? null : byId.get(target) ?? null;
 
     // Патчи этапов
     const patches: { id: string; patch: Partial<ErpItemStage> }[] = [];
@@ -157,8 +159,9 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
           },
         });
       }
-    } else if (target === 'procurement') {
-      // Материал испорчен: N уходят в ожидание закупки нового материала
+    } else if (target === 'procurement' || target === 'subcontractor') {
+      // Материал испорчен (procurement) или брак уходит подрядчику (subcontractor):
+      // N единиц уходят в ожидание — этап в очередь до возврата закупки/подрядчика
       patches.push({
         id: stage.id,
         patch: {
@@ -224,6 +227,22 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       // Аудит-агент: этап уже в waiting/переделке — если заявка не создалась, предупреждаем,
       // иначе этап «ждёт закупку», которой нет (createProcurementTask сам покажет error).
       if (!task) toast.warning('Брак записан, но заявка на закупку не создана — создайте вручную');
+    }
+
+    // Правка 4: брак уходит подрядчику → создать операцию подряда (тип «отдельная операция»,
+    // возврат на текущий цех). Единый механизм возврата для всех участков производства.
+    if (target === 'subcontractor') {
+      const op = await get().createSubcontractOp({
+        order_id: order.id,
+        item_id: item.id,
+        operation: subcontractOperation || reason,
+        op_type: 'operation',
+        return_dept: dept?.code ?? null,
+        contractor,
+        qty,
+        status: 'planned',
+      });
+      if (!op) toast.warning('Брак записан, но операция подряда не создана — добавьте вручную');
     }
     return true;
   },

@@ -29,12 +29,17 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
   const [defectSupplier, setDefectSupplier] = useState('');
   const [defectPlanned, setDefectPlanned] = useState('');
   const [defectMaterial, setDefectMaterial] = useState('');
+  // Правка 4: возврат брака подрядчику
+  const [defectContractor, setDefectContractor] = useState('');
+  const [defectOperation, setDefectOperation] = useState('');
   const showProcurement = defectNeedsMaterial || defectTarget === 'procurement';
+  const showSubcontract = defectTarget === 'subcontractor';
   const otherStages = item.stages.filter((s) => s.id !== stage.id && s.status !== 'skipped');
   const resetDefect = () => {
     setDefectMode(false); setDefectQty(''); setDefectText(''); setDefectPhoto(null);
     setDefectTarget('current'); setDefectNeedsMaterial(false); setDefectCause('other');
     setDefectSupplier(''); setDefectPlanned(''); setDefectMaterial('');
+    setDefectContractor(''); setDefectOperation('');
   };
   const qtyDone = stage.qty_done ?? 0;
   const remaining = Math.max(item.qty - qtyDone, 0);
@@ -280,7 +285,26 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
               </option>
             ))}
             <option value="procurement">На закупку (материал испорчен)</option>
+            <option value="subcontractor">Отправить подрядчику</option>
           </select>
+          {showSubcontract && (
+            <>
+              <input
+                className={styles.input}
+                placeholder="Операция подряда (что сделать)"
+                value={defectOperation}
+                onChange={(e) => setDefectOperation(e.target.value)}
+                aria-label="Операция подряда"
+              />
+              <input
+                className={styles.input}
+                placeholder="Контрагент (необязательно)"
+                value={defectContractor}
+                onChange={(e) => setDefectContractor(e.target.value)}
+                aria-label="Контрагент подряда"
+              />
+            </>
+          )}
           <label className={styles.checkLabel}>
             <input
               type="checkbox"
@@ -340,11 +364,13 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
                 supplier: defectSupplier.trim() || null,
                 plannedDate: defectPlanned || null,
                 materialName: defectMaterial.trim() || null,
+                subcontractOperation: defectOperation.trim() || null,
+                contractor: defectContractor.trim() || null,
               }, defectPhoto);
               resetDefect();
             }}
           >
-            {showProcurement ? 'В переделку + заявка' : 'В переделку'}
+            {showSubcontract ? 'Отправить подрядчику' : showProcurement ? 'В переделку + заявка' : 'В переделку'}
           </button>
           <button type="button" className="btn btn-ghost" onClick={resetDefect}>
             Отмена
