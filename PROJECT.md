@@ -38,7 +38,13 @@ Supabase через CDN. Финальная версия v1.7 — полност
 - Типы `MaterialAcceptStatus`/`WarehouseOpType` + лейблы; `ErpWarehouseOp`; `warehouse_ops` в
   `ErpOrderFull`/`ORDER_SELECT`. Новый `warehouseSlice` (`acceptMaterial`, `logWarehouseOp`).
 - Новый экран `Warehouse.jsx` (nav «📦 Склад», роут `/warehouse`): приёмка план/факт/статус,
-  история склада, упаковка/отгрузка/маркировка. 965 тестов (+4). PR #NNN.
+  история склада, упаковка/отгрузка/маркировка. 965 тестов (+4). PR #111.
+
+**Wave 3 (правка 4) — Возврат брака: цель «подрядчику»:**
+- `reportDefect` += target `subcontractor` (этап в ожидание + `createSubcontractOp` тип
+  «операция», возврат на текущий цех). `ReportDefectOptions` += `subcontractOperation`/`contractor`.
+- `QueueCard` defect-форма: пункт «Отправить подрядчику» + поля операция/контрагент.
+  Единый механизм возврата на всех цехах (форма уже была на всех). 966 тестов (+1). PR #NNN.
 
 ### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
 

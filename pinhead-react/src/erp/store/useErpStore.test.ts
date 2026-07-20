@@ -354,6 +354,25 @@ describe('useErpStore — reportDefect (задача закупки)', () => {
     expect((task?.row as any).supplier).toBe('ООО Ткани');
     expect((task?.row as any).planned_date).toBe('2026-07-25');
   });
+
+  it('target=subcontractor: этап в ожидание + создаётся операция подряда (правка 4)', async () => {
+    seedChain();
+    const ok = await useErpStore.getState().reportDefect('st-sew', {
+      qty: 12, reason: 'перешить рукав', target: 'subcontractor',
+      subcontractOperation: 'Перешив', contractor: 'ИП Швейкин',
+    });
+    expect(ok).toBe(true);
+    const sew = useErpStore.getState().orders[0].items[0].stages.find((s: any) => s.id === 'st-sew');
+    expect(sew?.status).toBe('waiting');
+    expect(sew?.qty_rework).toBe(12);
+    const op = h.insertCalls.find((c) => c.table === 'erp_subcontracting');
+    expect(op).toBeTruthy();
+    expect((op?.row as any).operation).toBe('Перешив');
+    expect((op?.row as any).contractor).toBe('ИП Швейкин');
+    expect((op?.row as any).op_type).toBe('operation');
+    expect((op?.row as any).return_dept).toBe('sewing');
+    expect((op?.row as any).qty).toBe(12);
+  });
 });
 
 describe('useErpStore — createProcurementTask (классификация причины)', () => {
