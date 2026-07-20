@@ -9,8 +9,9 @@ URL: https://pinhead-os.vercel.app
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
-  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard),
-  components (ErpKanban, InlineEdit, PageHead,
+  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard;
+  screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection),
+  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead,
   ErpSkeletons), store/ (composition-root useErpStore.ts + 7 слайсов в slices/:
   orders/stages/materials/procurement/subcontracting/employees/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;

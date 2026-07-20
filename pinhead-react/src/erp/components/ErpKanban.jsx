@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
-import { isStageReady } from '../utils/routes';
-import { daysLeft, formatTimeIn } from '../utils/time';
-import { deptShortName, isQueueDept } from '../data/departments';
+import { useErpStore } from '../store/useErpStore';
+import { deptShortName } from '../data/departments';
+import { buildKanbanColumns } from '../utils/kanbanColumns';
 import styles from '../erp.module.css';
+import { KanbanCard } from './kanban/KanbanCard';
+import { useTouchDndPolyfill } from './kanban/useTouchDndPolyfill';
 
 /**
  * Канбан цехов (механика kontora24, движок — наш HTML5 DnD как в Order Studio).
@@ -14,112 +14,8 @@ import styles from '../erp.module.css';
  *
  * Тач-устройства: HTML5 DnD не работает на touch — на pointer:coarse лениво
  * подгружается полифилл mobile-drag-drop (~10KB), десктоп его не грузит.
+ * Группировка этапов по цехам/дорожкам — в utils/kanbanColumns (покрыта тестами).
  */
-
-let dndPolyfillLoaded = false;
-
-/** Ленивая инициализация mobile-drag-drop только на тач-устройствах */
-function useTouchDndPolyfill() {
-  useEffect(() => {
-    if (dndPolyfillLoaded) return;
-    if (typeof window.matchMedia !== 'function') return;
-    if (!window.matchMedia('(pointer: coarse)').matches) return;
-    dndPolyfillLoaded = true;
-    Promise.all([
-      import('mobile-drag-drop'),
-      import('mobile-drag-drop/scroll-behaviour'),
-      import('mobile-drag-drop/default.css'),
-    ]).then(([{ polyfill }, { scrollBehaviourDragImageTranslateOverride }]) => {
-      const applied = polyfill({
-        // прокрутка страницы во время drag у края экрана
-        dragImageTranslateOverride: scrollBehaviourDragImageTranslateOverride,
-        // удержание 300мс перед drag — обычный тап/скролл не конфликтует
-        holdToDrag: 300,
-        dragImageCenterOnTouch: true,
-      });
-      if (applied) {
-        // iOS Safari: без «неленивого» touchmove-слушателя drag не стартует
-        // (opt-in из README пакета — usePassiveEventListeners workaround)
-        window.addEventListener('touchmove', () => {}, { passive: false });
-      }
-    }).catch(() => {
-      dndPolyfillLoaded = false; // сеть моргнула — попробуем при следующем монтировании
-    });
-  }, []);
-}
-
-/** Цветная точка дедлайна (как в kontora24 DraggableCard) */
-function DeadlineDot({ due }) {
-  const d = daysLeft(due);
-  if (d === null) return null;
-  const color = d < 0 ? 'var(--color-error)' : d <= 3 ? 'var(--color-warning)' : 'var(--color-success)';
-  const label = d < 0 ? `просрочен ${-d} дн` : `${d} дн до срока`;
-  return (
-    <span className={styles.kanbanDue} title={label}>
-      <span className={styles.kanbanDot} style={{ background: color }} />
-      {due && new Date(due + 'T00:00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
-    </span>
-  );
-}
-
-function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
-  const { order, item, stage, group } = entry;
-  const [imgError, setImgError] = useState(false);
-  const preview = orderPreviewUrl(order);
-  const timeIn = group === 'in_progress'
-    ? formatTimeIn(stage.started_at)
-    : formatTimeIn(stage.updated_at);
-
-  return (
-    <div
-      className={`${styles.kanbanCard} ${dragging ? styles.kanbanCardDragging : ''} ${group === 'blocked' ? styles.kanbanCardBlocked : ''}`}
-      draggable={group !== 'blocked'}
-      onDragStart={(e) => onDragStart(e, entry)}
-      onDragEnd={onDragEnd}
-      role="listitem"
-      aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
-    >
-      <div className={styles.kanbanCardHead}>
-        {preview && !imgError && (
-          <img
-            src={preview}
-            alt={`Макет: ${order.title}`}
-            className={styles.orderThumb}
-            draggable={false}
-            onError={() => setImgError(true)}
-          />
-        )}
-        {preview && imgError && (
-          <div className={styles.orderThumbStub} aria-hidden="true">🖼</div>
-        )}
-        <Link
-          to={`/orders/${order.id}`}
-          onClick={(e) => e.stopPropagation()}
-          draggable={false}
-          className={styles.kanbanCardTitle}
-          title={order.title}
-        >
-          {order.title}
-        </Link>
-        <DeadlineDot due={order.due_date} />
-      </div>
-      <div className={styles.subText}>
-        №{order.bitrix_id || '—'} · {item.product_type}
-        {item.variant ? ` · ${item.variant}` : ''}
-      </div>
-      <div className={styles.kanbanCardFoot}>
-        <span className={styles.queueQty}>{item.qty} шт</span>
-        {stage.qty_rework > 0 && (
-          <span className={styles.overdue}>брак {stage.qty_rework}</span>
-        )}
-        {timeIn && <span className={styles.subText}>⏱ {timeIn}</span>}
-        {group === 'blocked' && stage.block_reason && (
-          <span className={styles.overdue} title={stage.block_reason}>🚫</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 const LANE_TITLES = {
   ready: 'Готово к работе',
@@ -145,35 +41,10 @@ export default function ErpKanban() {
   const [overLane, setOverLane] = useState(null); // `${deptId}:${lane}`
   useTouchDndPolyfill();
 
-  const columns = useMemo(() => {
-    const deps = departments.filter((d) => d.active && isQueueDept(d.code));
-    const byDept = new Map(deps.map((d) => [d.id, { dept: d, ready: [], in_progress: [], blocked: [], done: [] }]));
-    for (const order of orders) {
-      if (order.status !== 'active') continue;
-      for (const item of order.items) {
-        for (const stage of item.stages) {
-          const col = byDept.get(stage.department_id);
-          if (!col) continue;
-          const entry = { order, item, stage };
-          if (stage.status === 'in_progress') col.in_progress.push({ ...entry, group: 'in_progress' });
-          else if (stage.status === 'blocked') col.blocked.push({ ...entry, group: 'blocked' });
-          else if (stage.status === 'done') col.done.push({ ...entry, group: 'done' });
-          else if (
-            stage.status === 'waiting' &&
-            isStageReady(stage, item.stages, order.materials, col.dept.code)
-          ) col.ready.push({ ...entry, group: 'ready' });
-        }
-      }
-    }
-    const byDue = (a, b) => (a.order.due_date || '9999').localeCompare(b.order.due_date || '9999');
-    for (const col of byDept.values()) {
-      col.ready.sort(byDue);
-      col.in_progress.sort(byDue);
-      col.done.sort((a, b) => (b.stage.finished_at || '').localeCompare(a.stage.finished_at || ''));
-      col.done = col.done.slice(0, 5);
-    }
-    return [...byDept.values()];
-  }, [orders, departments]);
+  const columns = useMemo(
+    () => buildKanbanColumns(orders, departments),
+    [orders, departments],
+  );
 
   const onDragStart = (e, entry) => {
     e.dataTransfer.effectAllowed = 'move';
