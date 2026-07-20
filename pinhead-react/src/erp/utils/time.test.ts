@@ -1,8 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import {
   daysLeft, formatDateShort, formatTimeIn, isUrgent, isOverdue,
-  procurementSla, subcontractOverdue,
+  procurementSla, subcontractOverdue, stageOverdue,
 } from './time';
+
+describe('stageOverdue — просрочка этапа по planned_end (правка 8)', () => {
+  const now = new Date('2026-07-20T12:00:00');
+  it('planned_end в прошлом и этап не завершён → просрочен', () => {
+    expect(stageOverdue('2026-07-18', 'in_progress', now)).toBe(true);
+    expect(stageOverdue('2026-07-18', 'waiting', now)).toBe(true);
+  });
+  it('завершённый/пропущенный этап не считается просроченным', () => {
+    expect(stageOverdue('2026-07-18', 'done', now)).toBe(false);
+    expect(stageOverdue('2026-07-18', 'skipped', now)).toBe(false);
+  });
+  it('план в будущем или отсутствует → не просрочен', () => {
+    expect(stageOverdue('2026-07-25', 'in_progress', now)).toBe(false);
+    expect(stageOverdue(null, 'in_progress', now)).toBe(false);
+  });
+});
 
 describe('daysLeft — дней до срока клиента (единый хелпер экранов)', () => {
   const now = new Date('2026-07-17T15:30:00');

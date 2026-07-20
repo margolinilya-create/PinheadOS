@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
-import { daysLeft, formatDateShort } from '../../utils/time';
+import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Lightbox } from './Lightbox';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
 
-export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDone, onProgress, onBlock, onUnblock, onDefect }) {
+export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onAckOverdue }) {
   const { order, item, stage, reason, group } = entry;
+  const [ackText, setAckText] = useState('');
+  const overdue = stageOverdue(stage.planned_end, stage.status);
+  const needsAck = overdue && !stage.overdue_ack_at;
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
   const [startMode, setStartMode] = useState(false);
   const [startDate, setStartDate] = useState(
@@ -53,7 +56,7 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
     group === 'ready' && styles.queueCardReady,
     group === 'in_progress' && styles.queueCardProgress,
     group === 'blocked' && styles.queueCardBlocked,
-    d !== null && d < 0 && styles.queueCardUrgent,
+    ((d !== null && d < 0) || overdue) && styles.queueCardUrgent,
   ].filter(Boolean).join(' ');
 
   return (
@@ -108,6 +111,29 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
       {reason && <div className={styles.queueReason}>⏳ {reason}</div>}
       {stage.status === 'blocked' && stage.block_reason && (
         <div className={styles.queueReason}>🚫 {stage.block_reason}</div>
+      )}
+      {overdue && stage.overdue_ack_at && stage.overdue_comment && (
+        <div className={styles.subText}>⏰ Просрочка: {stage.overdue_comment}</div>
+      )}
+      {canAct && needsAck && (
+        <div className={styles.queueBlockForm}>
+          <span className={styles.overdue}>⏰ Этап просрочен — требуется комментарий</span>
+          <input
+            className={styles.input}
+            placeholder="Причина задержки"
+            value={ackText}
+            onChange={(e) => setAckText(e.target.value)}
+            aria-label="Причина задержки этапа"
+          />
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!ackText.trim()}
+            onClick={() => { onAckOverdue(stage.id, ackText.trim()); setAckText(''); }}
+          >
+            Сохранить
+          </button>
+        </div>
       )}
       {rework && (
         <div className={styles.queueReason}>

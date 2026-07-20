@@ -198,6 +198,8 @@ export interface StagesSlice {
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
+  /** Обработка просрочки этапа (правка 8): комментарий причины + отметка времени */
+  ackStageOverdue: (stageId: string, comment: string) => Promise<boolean>;
   /** Ручные плановые даты этапа */
   setStagePlan: (
     stageId: string,

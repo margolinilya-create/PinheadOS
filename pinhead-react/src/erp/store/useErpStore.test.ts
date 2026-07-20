@@ -230,6 +230,19 @@ describe('useErpStore — setStageStatus (полное закрытие)', () =>
   });
 });
 
+describe('useErpStore — ackStageOverdue (обработка просрочки, правка 8)', () => {
+  it('пишет комментарий и время подтверждения на этап', async () => {
+    seed();
+    const ok = await useErpStore.getState().ackStageOverdue('st1', 'ждём фурнитуру');
+    expect(ok).toBe(true);
+    const st = getStage();
+    expect(st.overdue_comment).toBe('ждём фурнитуру');
+    expect(st.overdue_ack_at).toBeTruthy();
+    const upd = h.updateCalls.find((c) => c.table === 'erp_item_stages');
+    expect((upd?.patch as any).overdue_comment).toBe('ждём фурнитуру');
+  });
+});
+
 describe('useErpStore — reportDefect (переделка на текущем этапе)', () => {
   it('target=current: qty_rework накапливается, этап in_progress', async () => {
     seed({ status: 'done', qty_rework: undefined });

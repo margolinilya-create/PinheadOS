@@ -3,11 +3,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
 import { SearchInput } from '../components/SearchInput';
-import { useErpStore, readyCountFor } from '../store/useErpStore';
+import { useErpStore, readyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../utils/routes';
+import { stageOverdue } from '../utils/time';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import { deptShortName, isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
@@ -38,7 +39,7 @@ export default function DepartmentQueue() {
     orders, departments, loading, loaded, loadAll,
     myDeptId, myDeptLoaded, loadMyDept,
     setStageStatus, setStagePlan, reportProgress, reportDefect, uploadOrderAttachment,
-    loadStageReworkEvents,
+    loadStageReworkEvents, ackStageOverdue,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -55,11 +56,13 @@ export default function DepartmentQueue() {
       reportDefect: s.reportDefect,
       uploadOrderAttachment: s.uploadOrderAttachment,
       loadStageReworkEvents: s.loadStageReworkEvents,
+      ackStageOverdue: s.ackStageOverdue,
     })),
   );
   // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
   const [reworkByStage, setReworkByStage] = useState({});
   const [query, setQuery] = useState('');
+  const [onlyOverdue, setOnlyOverdue] = useState(false);
   const user = useAuthStore((s) => s.user);
   // Ручной выбор вкладки: legacy localStorage — начальное значение
   const [pickedDept, setPickedDept] = useState(() => localStorage.getItem('erp_my_dept') || '');
@@ -126,6 +129,14 @@ export default function DepartmentQueue() {
     return counts;
   }, [orders, departments]);
 
+  const overdueByDept = useMemo(() => {
+    const counts = new Map();
+    for (const dd of departments) {
+      counts.set(dd.code, overdueUnackCountFor(orders, departments, dd.code));
+    }
+    return counts;
+  }, [orders, departments]);
+
   const groups = useMemo(() => {
     const g = { ready: [], in_progress: [], waiting: [], blocked: [], done: [] };
     if (!dept) return g;
@@ -136,6 +147,7 @@ export default function DepartmentQueue() {
         for (const stage of item.stages) {
           if (stage.department_id !== dept.id) continue;
           if (stage.status === 'skipped') continue;
+          if (onlyOverdue && !(stageOverdue(stage.planned_end, stage.status) && !stage.overdue_ack_at)) continue;
           const entry = { order, item, stage, reason: null };
           const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
           if (stage.status === 'done') {
@@ -162,7 +174,7 @@ export default function DepartmentQueue() {
     g.done.sort((a, b) => (b.stage.finished_at || '').localeCompare(a.stage.finished_at || ''));
     g.done = g.done.slice(0, 10);
     return g;
-  }, [orders, dept, deptNameById, query]);
+  }, [orders, dept, deptNameById, query, onlyOverdue]);
 
   // Подтягиваем причины возврата брака для этапов с qty_rework (баннер получателю)
   useEffect(() => {
@@ -228,6 +240,7 @@ export default function DepartmentQueue() {
         <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef}>
           {departments.filter((dd) => dd.active && isQueueDept(dd.code)).map((dd) => {
             const count = readyByDept.get(dd.code) || 0;
+            const overdueCount = overdueByDept.get(dd.code) || 0;
             const isMine = boundDept?.code === dd.code;
             return (
               <button
@@ -242,6 +255,11 @@ export default function DepartmentQueue() {
                 {isMine && <span aria-label="ваш цех" title="Ваш цех">★</span>}
                 {count > 0 && (
                   <span className={`${styles.deptTabCount} ${styles.deptTabHot}`}>{count}</span>
+                )}
+                {overdueCount > 0 && (
+                  <span className={styles.deptTabCount} style={{ background: 'var(--color-error)' }} title="Необработанные просрочки">
+                    ⏰{overdueCount}
+                  </span>
                 )}
               </button>
             );
@@ -259,6 +277,15 @@ export default function DepartmentQueue() {
             placeholder="Поиск: заказ, № сделки, изделие, материал"
             ariaLabel="Поиск в очереди цеха"
           />
+          <button
+            type="button"
+            aria-pressed={onlyOverdue}
+            className={`${styles.chip} ${onlyOverdue ? styles.chipBlocked : styles.chipNeutral}`}
+            style={{ cursor: 'pointer', font: 'inherit' }}
+            onClick={() => setOnlyOverdue((v) => !v)}
+          >
+            ⏰ Только необработанные просрочки
+          </button>
         </div>
       )}
 
@@ -291,6 +318,7 @@ export default function DepartmentQueue() {
                   onBlock={onBlock}
                   onUnblock={onUnblock}
                   onDefect={onDefect}
+                  onAckOverdue={ackStageOverdue}
                 />
               ))}
             </div>

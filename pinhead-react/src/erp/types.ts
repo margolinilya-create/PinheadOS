@@ -129,6 +129,9 @@ export interface ErpItemStage {
   block_reason: string | null;
   notes: string | null;
   sort_order: number;
+  // Обработка просрочки (правка 8): комментарий причины задержки + время подтверждения
+  overdue_comment?: string | null;
+  overdue_ack_at?: string | null;
   created_at: string;
   updated_at: string;
 }
