@@ -30,16 +30,20 @@ export function stageProgress(
 export interface OrderShipReadiness {
   status: string;
   items: { stages: Pick<ErpItemStage, 'status'>[] }[];
+  materials?: { status: string }[];
 }
 
 /**
- * Стадия «Готов к отгрузке»: заказ активен, у него есть хотя бы один этап
- * и ВСЕ этапы всех позиций завершены (done/skipped).
- * Единый источник для Dashboard / OrdersScreen / OrderCard / ProductionBoard.
+ * Стадия «Готов к отгрузке»: заказ активен, есть хотя бы один этап, ВСЕ этапы
+ * завершены (done/skipped) И все материалы получены. Материальная проверка (аудит #5)
+ * страхует «сиротские» материалы (packaging/other или цех вне маршрута), которые
+ * не гейтят ни один этап, но не должны позволять отгрузку с непришедшим материалом.
  */
 export function isOrderReadyToShip(order: OrderShipReadiness): boolean {
   if (order.status !== 'active') return false;
   const stages = order.items.flatMap((it) => it.stages);
   if (stages.length === 0) return false;
-  return stages.every((s) => s.status === 'done' || s.status === 'skipped');
+  if (!stages.every((s) => s.status === 'done' || s.status === 'skipped')) return false;
+  return (order.materials ?? []).every(
+    (m) => m.status === 'received' || m.status === 'reserved' || m.status === 'not_needed');
 }

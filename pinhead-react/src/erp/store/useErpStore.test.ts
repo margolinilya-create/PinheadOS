@@ -559,6 +559,38 @@ describe('useErpStore — updateProcurementTask + error-пути (аудит P1)
   });
 });
 
+describe('useErpStore — reportDefect бэклог-фиксы (qty vs сделанное, промежут. этапы)', () => {
+  it('qty больше сделанного на этапе → отклоняется', async () => {
+    seed({ status: 'in_progress', qty_done: 100 }, 500);
+    const ok = await useErpStore.getState().reportDefect('st1', { qty: 200, reason: 'x', target: 'current' });
+    expect(ok).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Брак не может превышать сделанное на этапе (100 шт)');
+  });
+
+  it('возврат на ранний этап переоткрывает промежуточные (correctness #4)', async () => {
+    const base = { item_id: 'it1', qty_done: 500, qty_rework: 0, planned_start: null, planned_end: null, started_at: null, assignee: null, block_reason: null, notes: null };
+    const cut = { ...base, id: 's-cut', department_id: 'd1', depends_on: [], status: 'done', finished_at: 'x', sort_order: 10 };
+    const sew = { ...base, id: 's-sew', department_id: 'd2', depends_on: ['s-cut'], status: 'done', finished_at: 'x', sort_order: 20 };
+    const vto = { ...base, id: 's-vto', department_id: 'd3', depends_on: ['s-sew'], status: 'done', finished_at: 'x', sort_order: 30 };
+    const item = { id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 500, production_type: 'sewing', branding_methods: [], branding_on: 'cut', notes: null, sort_order: 10, stages: [cut, sew, vto], prints: [] };
+    useErpStore.setState({
+      orders: [{ id: 'o1', title: 'З', status: 'active', items: [item], materials: [] }] as any,
+      departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', active: true }, { id: 'd2', code: 'sewing', name: 'Швейка', active: true }, { id: 'd3', code: 'vto', name: 'ВТО', active: true }] as any,
+      loaded: true,
+    });
+    const ok = await useErpStore.getState().reportDefect('s-vto', { qty: 20, reason: 'x', target: 's-cut' });
+    expect(ok).toBe(true);
+    const st = (id: string) => useErpStore.getState().orders[0].items[0].stages.find((s) => s.id === id);
+    expect(st('s-cut')?.status).toBe('in_progress');       // целевой
+    expect(st('s-sew')?.status).toBe('waiting');           // промежуточный переоткрыт
+    expect(st('s-sew')?.qty_done).toBe(480);
+    expect(st('s-sew')?.qty_rework).toBe(20);
+    expect(st('s-vto')?.status).toBe('waiting');           // текущий
+    // 3 обновления этапов (cut, vto, sew)
+    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
+  });
+});
+
 describe('readyCountFor — бейдж «Мой цех»', () => {
   it('считает in_progress и готовые к работе waiting-этапы цеха', () => {
     seed({ status: 'in_progress' });
