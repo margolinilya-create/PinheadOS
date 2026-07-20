@@ -40,7 +40,7 @@ export { _pendingMutations } from './shared';
 
 // Общие чистые хелперы — в ./orderHelpers. Реэкспорт публичных: readyCountFor нужен
 // экрану «Мой цех» и тестам, orderPreviewUrl/lastDefectPhotoUrl — карточкам/канбану/закупке.
-export { readyCountFor, orderPreviewUrl, lastDefectPhotoUrl } from './orderHelpers';
+export { readyCountFor, overdueUnackCountFor, orderPreviewUrl, lastDefectPhotoUrl } from './orderHelpers';
 
 // DTO-типы стора вынесены в ./types — реэкспорт для экранов/тестов, импортирующих их отсюда.
 export type {

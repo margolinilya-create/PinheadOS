@@ -26,6 +26,21 @@ export function isOverdue(dueDate: string | null | undefined, now: Date = new Da
 }
 
 /**
+ * Просрочен ли этап по своей плановой дате завершения (правка 8):
+ * planned_end раньше сегодня и этап ещё не завершён/не пропущен.
+ */
+export function stageOverdue(
+  plannedEnd: string | null | undefined,
+  status: string,
+  now: Date = new Date(),
+): boolean {
+  if (!plannedEnd) return false;
+  if (status === 'done' || status === 'skipped') return false;
+  const d = daysLeft(plannedEnd, now);
+  return d !== null && d < 0;
+}
+
+/**
  * Короткая дата ru-RU (dd.MM.yyyy). Безопасно для null и для дат без времени
  * ('YYYY-MM-DD' парсим как локальную полночь, чтобы не сдвинуть на день).
  */

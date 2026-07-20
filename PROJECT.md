@@ -57,7 +57,16 @@ Supabase через CDN. Финальная версия v1.7 — полност
 - Яркое выделение «🔔 дозакупка» на заказах в списке (`OrderRow`/`OrderCardMobile`).
 - Панель «🔔 Требуют внимания» в `OrderCard` (`orderCard/NotificationsSection`): открытые задачи
   закупки — что / с какого этапа / причина / статус + переход в «Закупка». Без новой таблицы
-  (реюз procurement_tasks). 974 теста (+2). PR #NNN.
+  (реюз procurement_tasks). 974 теста (+2). PR #114.
+
+**Wave 6 (правка 8) — Контроль просроченных этапов:**
+- Миграция `20260721150000_erp_stage_overdue_ack.sql` (на проде): `erp_item_stages` +=
+  `overdue_comment`, `overdue_ack_at`.
+- `time.ts` `stageOverdue(planned_end, status)` (planned_end истёк, этап не done/skipped).
+- Стор `ackStageOverdue(stageId, comment)`. `QueueCard`: плашка «Требуется комментарий» при
+  просрочке без ack (красная рамка сохраняется); после коммента плашка исчезает.
+- `DepartmentQueue`: бейдж «⏰N» необработанных просрочек на вкладках (`overdueUnackCountFor`)
+  + фильтр-чип «Только необработанные просрочки». 978 тестов (+5). PR #NNN.
 
 ### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
 

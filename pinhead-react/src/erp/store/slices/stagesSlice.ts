@@ -263,6 +263,20 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return map;
   },
 
+  ackStageOverdue: async (stageId, comment) => {
+    const prev = get().orders;
+    const patch = { overdue_comment: comment, overdue_ack_at: new Date().toISOString() };
+    set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
+    const { error } = await withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось сохранить комментарий просрочки');
+      return false;
+    }
+    return true;
+  },
+
   setStagePlan: async (stageId, plan) => {
     const prev = get().orders;
     set((s) => ({ orders: patchStageIn(s.orders, stageId, plan) }));
