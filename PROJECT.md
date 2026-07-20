@@ -20,6 +20,19 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов
+
+- **Рефакторинг стора (завершён):** `useErpStore.ts` 1280 → 59 строк (composition-root).
+  35 действий разнесены на 7 доменных слайсов в `store/slices/`: orders, stages, materials,
+  procurement, subcontracting, employees, realtime. Общие чистые хелперы (`findStage`,
+  `patchStageIn`, `sortOrderFull`, `ORDER_SELECT`, `readyCountFor`, `withNewWorkToast`,
+  `orderPreviewUrl`, `lastDefectPhotoUrl`) → `store/orderHelpers.ts`. Контракт `ErpStore`
+  разбит на 7 под-интерфейсов в `store/types.ts` (пересечение = `ErpStore`).
+- Чисто организационный шаг: публичный API, сигнатуры и пути импорта не менялись
+  (11 экранов и тесты импортируют из `./useErpStore` как раньше). **953 теста зелёные без
+  правок тестов** — доказательство неизменности API. Lint 0, build ок.
+- Осталось (бэклог): разбить крупные экраны `OrdersScreen`/`DepartmentQueue`.
+
 ### Сессия 15 (20.07.2026) — Ruflo + мульти-агентный аудит ERP + фиксы
 
 - **Ruflo v3.32.8** (claude-flow) установлен в репо (`.claude/`, PR #102): агенты,
