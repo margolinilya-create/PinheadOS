@@ -38,7 +38,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
 
     // Аудит-агент (A3): materials/procurement_tasks/subcontracting не подписаны были —
     // теперь точечно обновляем связанный заказ / список подряда у других пользователей.
-    if (ev.table === 'erp_materials' || ev.table === 'erp_procurement_tasks') {
+    if (ev.table === 'erp_materials' || ev.table === 'erp_procurement_tasks' || ev.table === 'erp_warehouse_ops') {
       const orderId = (row.order_id ?? null) as string | null;
       if (orderId && get().orders.some((o) => o.id === orderId)) {
         void withNewWorkToast(get, () => get().loadOne(orderId));
@@ -165,6 +165,11 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_subcontracting' },
         forward('erp_subcontracting'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_warehouse_ops' },
+        forward('erp_warehouse_ops'),
       )
       .subscribe();
     return () => {

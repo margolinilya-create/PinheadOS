@@ -27,8 +27,18 @@ Supabase через CDN. Финальная версия v1.7 — полност
   += `op_type` (finished_product/operation), `material_source` (pinhead/contractor), `return_dept`.
 - Типы `SubcontractOpType`/`SubcontractMaterialSource` + лейблы; поля в `ErpSubcontractOp`.
 - `Subcontracting.jsx`: селекты типа/источника + «Возврат на цех» для операции, колонки таблицы.
-- Материалы подрядчика (not_needed) не гейтят закрой. 961 тест (+3).
-- План волн 2–7 — в `SESSION-STATE.md` / плане сессии.
+- Материалы подрядчика (not_needed) не гейтят закрой. 961 тест (+3). PR #110.
+
+**Wave 2 (правки 2, 3) — Склад: числовая приёмка + история операций:**
+- Миграции (на проде): `20260721130000_erp_material_acceptance.sql` (`erp_materials` +=
+  qty_expected/qty_received/accept_status/accepted_at/accepted_by/accept_comment, грандфазер
+  существующих received → accepted_full); `20260721140000_erp_warehouse_ops.sql` (таблица истории).
+- Гейт закроя (`routes.ts`): пришедший материал годен только после приёмки складом
+  (accepted_full/partial); недостача/пересорт/отказ блокируют. Причина «Ожидает приёмки складом».
+- Типы `MaterialAcceptStatus`/`WarehouseOpType` + лейблы; `ErpWarehouseOp`; `warehouse_ops` в
+  `ErpOrderFull`/`ORDER_SELECT`. Новый `warehouseSlice` (`acceptMaterial`, `logWarehouseOp`).
+- Новый экран `Warehouse.jsx` (nav «📦 Склад», роут `/warehouse`): приёмка план/факт/статус,
+  история склада, упаковка/отгрузка/маркировка. 965 тестов (+4). PR #NNN.
 
 ### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
 

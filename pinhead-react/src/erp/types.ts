@@ -48,6 +48,12 @@ export type MaterialKind = 'fabric' | 'hardware' | 'labels' | 'packaging' | 'oth
 export type MaterialSource = 'purchase' | 'stock' | 'client' | 'none';
 export type MaterialStatus =
   | 'pending' | 'ordered' | 'in_transit' | 'received' | 'partial' | 'not_needed' | 'reserved';
+/** Статус приёмки складом (правка 3): результат сверки план/факт */
+export type MaterialAcceptStatus =
+  | 'accepted_full' | 'accepted_partial' | 'shortage' | 'mismatch' | 'rejected';
+/** Тип складской операции (правка 2): история сопровождения заказа складом */
+export type WarehouseOpType =
+  | 'material_receipt' | 'rework_receipt' | 'partial_receipt' | 'packaging' | 'shipment' | 'marking';
 
 export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled';
 
@@ -140,8 +146,27 @@ export interface ErpMaterial {
   eta_date: string | null;
   received_at: string | null;
   notes: string | null;
+  // Приёмка складом (правка 3)
+  qty_expected: number | null;
+  qty_received: number | null;
+  accept_status: MaterialAcceptStatus | null;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  accept_comment: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Складская операция (правка 2): строка истории сопровождения заказа складом */
+export interface ErpWarehouseOp {
+  id: string;
+  order_id: string;
+  material_id: string | null;
+  op_type: WarehouseOpType;
+  qty: number | null;
+  note: string | null;
+  actor: string | null;
+  created_at: string;
 }
 
 // --- Задачи закупки (возврат из закроя → дозакупка/замена) -------------------
@@ -262,6 +287,23 @@ export const MATERIAL_STATUS_LABELS: Record<MaterialStatus, string> = {
   partial: 'Частично',
   not_needed: 'Не требуется',
   reserved: 'Доступен со склада',
+};
+
+export const MATERIAL_ACCEPT_LABELS: Record<MaterialAcceptStatus, string> = {
+  accepted_full: 'Принято полностью',
+  accepted_partial: 'Принято частично',
+  shortage: 'Недостача',
+  mismatch: 'Пересорт',
+  rejected: 'Не принято',
+};
+
+export const WAREHOUSE_OP_LABELS: Record<WarehouseOpType, string> = {
+  material_receipt: 'Приёмка материалов',
+  rework_receipt: 'Приёмка после дозакупки',
+  partial_receipt: 'Частичная приёмка',
+  packaging: 'Упаковка',
+  shipment: 'Отгрузка',
+  marking: 'Выпуск маркировки',
 };
 
 export const PROCUREMENT_CAUSE_LABELS: Record<ProcurementCauseType, string> = {

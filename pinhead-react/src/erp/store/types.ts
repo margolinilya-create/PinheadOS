@@ -17,10 +17,13 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
+  ErpWarehouseOp,
+  MaterialAcceptStatus,
   ProcurementCauseType,
   ProductionType,
   SizeGridRow,
   StageStatus,
+  WarehouseOpType,
 } from '../types';
 
 /** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
@@ -67,6 +70,7 @@ export interface ErpOrderFull extends ErpOrder {
   materials: ErpMaterial[];
   attachments?: ErpOrderAttachment[];
   procurement_tasks?: ErpProcurementTask[];
+  warehouse_ops?: ErpWarehouseOp[];
 }
 
 /**
@@ -211,6 +215,24 @@ export interface MaterialsSlice {
   maybeCloseSupply: (orderId: string) => Promise<void>;
 }
 
+/** Склад: числовая приёмка материалов + история складских операций (правки 2, 3) */
+export interface WarehouseSlice {
+  /** Приёмка материала складом: сверка план/факт + статус + запись в историю склада */
+  acceptMaterial: (
+    materialId: string,
+    opts: {
+      qty_received: number | null;
+      accept_status: MaterialAcceptStatus;
+      accept_comment?: string | null;
+    },
+  ) => Promise<boolean>;
+  /** Прочая складская операция (упаковка/отгрузка/маркировка) → строка erp_warehouse_ops */
+  logWarehouseOp: (
+    orderId: string,
+    op: { op_type: WarehouseOpType; material_id?: string | null; qty?: number | null; note?: string | null },
+  ) => Promise<ErpWarehouseOp | null>;
+}
+
 /** Задачи закупки (дозакупка/замена при возврате брака) */
 export interface ProcurementSlice {
   /** Задача закупки (возврат из закроя → дозакупка/замена, не трогая исходную закупку) */
@@ -268,6 +290,7 @@ export interface RealtimeSlice {
 export type ErpStore = OrdersSlice &
   StagesSlice &
   MaterialsSlice &
+  WarehouseSlice &
   ProcurementSlice &
   SubcontractingSlice &
   EmployeesSlice &

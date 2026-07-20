@@ -152,12 +152,15 @@ const mkMat = (
   kind = 'fabric',
   eta: string | null = null,
   name = 'Кулирка',
+  accept: ErpMaterial['accept_status'] = null,
 ): ErpMaterial => ({
   id: 'm1', order_id: 'o1', item_id: null,
   kind: kind as ErpMaterial['kind'], name,
   source: 'purchase', supplier: null, qty: null,
   status: status as ErpMaterial['status'],
   eta_date: eta, received_at: null, notes: null,
+  qty_expected: null, qty_received: null, accept_status: accept,
+  accepted_at: null, accepted_by: null, accept_comment: null,
   created_at: '', updated_at: '',
 });
 
@@ -168,9 +171,21 @@ describe('materialsBlockCutting — материалы гейтят закрой
     expect(materialsBlockCutting([mkMat('in_transit')])).toBe(true);
   });
 
-  it('received / not_needed не блокируют', () => {
-    expect(materialsBlockCutting([mkMat('received')])).toBe(false);
+  it('пришедший, но НЕ принятый складом материал блокирует (правка 3)', () => {
+    expect(materialsBlockCutting([mkMat('received')])).toBe(true);
+  });
+
+  it('принятый склад / зарезервированный / not_needed не блокируют', () => {
+    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')])).toBe(false);
+    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_partial')])).toBe(false);
+    expect(materialsBlockCutting([mkMat('reserved')])).toBe(false);
     expect(materialsBlockCutting([mkMat('not_needed')])).toBe(false);
+  });
+
+  it('недостача/пересорт/отказ по приёмке блокируют закрой', () => {
+    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'shortage')])).toBe(true);
+    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'mismatch')])).toBe(true);
+    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'rejected')])).toBe(true);
   });
 
   it('partial блокирует (пришло не всё)', () => {
@@ -200,18 +215,18 @@ describe('materialsBlockStage — гейт по типу материала на
     expect(materialsBlockStage([mkMat('pending', 'other')], 'cutting')).toBe(false);
   });
 
-  it('пришедшие материалы не блокируют', () => {
-    expect(materialsBlockStage([mkMat('received', 'fabric')], 'cutting')).toBe(false);
+  it('принятые складом материалы не блокируют', () => {
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')], 'cutting')).toBe(false);
   });
 
-  it('missingMaterialsForStage возвращает только непришедшие материалы цеха', () => {
+  it('missingMaterialsForStage возвращает только неготовые материалы цеха', () => {
     const mats = [
-      mkMat('received', 'fabric'),
+      mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full'), // принят → не в списке
       mkMat('pending', 'hardware', null, 'Молния'),
-      mkMat('pending', 'fabric', null, 'Кулирка'),
+      mkMat('pending', 'fabric', null, 'Дюспо'),
     ];
     expect(missingMaterialsForStage(mats, 'sewing').map((m) => m.name)).toEqual(['Молния']);
-    expect(missingMaterialsForStage(mats, 'cutting').map((m) => m.name)).toEqual(['Кулирка']);
+    expect(missingMaterialsForStage(mats, 'cutting').map((m) => m.name)).toEqual(['Дюспо']);
   });
 });
 
