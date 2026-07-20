@@ -125,9 +125,21 @@ const MATERIAL_GATE_DEPT: Record<MaterialKind, string[]> = {
   other: [],
 };
 
-/** Материал ещё не на складе (не пришёл, не «не требуется» и не зарезервирован со склада) */
+/** Приёмка склада завершена приёмкой (полностью/частично) — материал годен в производство */
+function materialAccepted(m: ErpMaterial): boolean {
+  return m.accept_status === 'accepted_full' || m.accept_status === 'accepted_partial';
+}
+
+/**
+ * Материал ещё не готов к производству (гейтит цех-потребитель).
+ * «Не требуется» и «Доступен со склада» (reserved) — годны без приёмки.
+ * Пришедший закупочный материал (received) годен ТОЛЬКО после приёмки складом
+ * (правка 3): недостача/пересорт/отказ/непринятое — блокируют закрой.
+ */
 function materialPending(m: ErpMaterial): boolean {
-  return m.status !== 'received' && m.status !== 'not_needed' && m.status !== 'reserved';
+  if (m.status === 'not_needed' || m.status === 'reserved') return false;
+  if (m.status === 'received') return !materialAccepted(m);
+  return true;
 }
 
 /** Непришедшие материалы, которые нужны данному цеху (для гейта и причины ожидания) */
@@ -204,9 +216,15 @@ export function waitingReason(
   if (blockedByProcurement) return 'Ожидает закупку материала на замену';
   const missing = missingMaterialsForStage(materials, departmentCode);
   if (missing.length > 0) {
+    // Пришли, но склад не принял → «ожидает приёмки»; иначе → «ждём приход»
+    const awaitingAcceptance = missing.filter((m) => m.status === 'received');
+    if (awaitingAcceptance.length === missing.length) {
+      return `Ожидает приёмки складом: ${awaitingAcceptance.map((m) => m.name).join(', ')}`;
+    }
     const parts = missing.map((m) => {
       const eta = formatDateShort(m.eta_date);
-      return `${m.name}${eta ? ` (план ${eta})` : ' (план не указан)'}`;
+      const tail = m.status === 'received' ? ' (ожидает приёмки)' : eta ? ` (план ${eta})` : ' (план не указан)';
+      return `${m.name}${tail}`;
     });
     return `Ждём материалы: ${parts.join(', ')}`;
   }

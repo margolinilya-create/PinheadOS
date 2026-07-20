@@ -21,7 +21,8 @@ export const ORDER_SELECT = `
   ),
   materials:erp_materials (*),
   attachments:erp_order_attachments (*),
-  procurement_tasks:erp_procurement_tasks (*)
+  procurement_tasks:erp_procurement_tasks (*),
+  warehouse_ops:erp_warehouse_ops (*)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */
@@ -36,6 +37,7 @@ export function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
       .sort((a, b) => a.sort_order - b.sort_order),
     materials: o.materials ?? [],
     procurement_tasks: o.procurement_tasks ?? [],
+    warehouse_ops: o.warehouse_ops ?? [],
   };
 }
 

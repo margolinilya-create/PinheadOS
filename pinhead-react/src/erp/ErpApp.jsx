@@ -12,6 +12,7 @@ const OrderCard = lazy(() => import('./screens/OrderCard'));
 const ProductionBoard = lazy(() => import('./screens/ProductionBoard')); // + ErpKanban в чанке
 const AdminScreen = lazy(() => import('./screens/AdminScreen')); // + Employees/Departments
 const FabricPurchasing = lazy(() => import('./screens/FabricPurchasing'));
+const Warehouse = lazy(() => import('./screens/Warehouse'));
 const Subcontracting = lazy(() => import('./screens/Subcontracting'));
 
 /** Инлайн-панель «нет доступа» — без redirect, чтобы избежать гонки с загрузкой роли */
@@ -43,6 +44,7 @@ export default function ErpApp({ user }) {
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
           <Route path="/purchasing" element={<ErpGuard allowed={isAdmin}><FabricPurchasing /></ErpGuard>} />
+          <Route path="/warehouse" element={<ErpGuard allowed={isAdmin}><Warehouse /></ErpGuard>} />
           <Route path="/subcontracting" element={<ErpGuard allowed={isAdmin}><Subcontracting /></ErpGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

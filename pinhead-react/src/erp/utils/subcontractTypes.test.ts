@@ -10,6 +10,8 @@ const mat = (status: ErpMaterial['status']): ErpMaterial => ({
   id: 'm1', order_id: 'o1', item_id: null, kind: 'fabric', name: 'Ткань',
   source: 'purchase', supplier: null, qty: null, status,
   eta_date: null, received_at: null, notes: null,
+  qty_expected: null, qty_received: null, accept_status: null,
+  accepted_at: null, accepted_by: null, accept_comment: null,
   created_at: '', updated_at: '',
 });
 

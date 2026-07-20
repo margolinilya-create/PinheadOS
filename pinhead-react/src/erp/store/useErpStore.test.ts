@@ -485,6 +485,32 @@ describe('useErpStore — материал со склада / авто-закр
     expect(m.received_at).toBeTruthy();
     expect(supplyStage().status).toBe('done');
   });
+
+  it('acceptMaterial: пишет приёмку + строку истории склада (правки 2, 3)', async () => {
+    seedSupply([mat({ status: 'received', accept_status: null })]);
+    const ok = await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 100, accept_status: 'accepted_full', accept_comment: 'ок',
+    });
+    expect(ok).toBe(true);
+    const m = useErpStore.getState().orders[0].materials[0];
+    expect(m.accept_status).toBe('accepted_full');
+    expect(m.qty_received).toBe(100);
+    expect(m.accepted_at).toBeTruthy();
+    expect(m.accepted_by).toBe('Тест');
+    const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
+    expect(ops).toHaveLength(1);
+    expect(ops[0].op_type).toBe('material_receipt');
+    expect(ops[0].qty).toBe(100);
+  });
+
+  it('acceptMaterial: частичная приёмка пишется как partial_receipt', async () => {
+    seedSupply([mat({ status: 'received', accept_status: null })]);
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 60, accept_status: 'accepted_partial',
+    });
+    const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
+    expect(ops[0].op_type).toBe('partial_receipt');
+  });
 });
 
 describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => {
