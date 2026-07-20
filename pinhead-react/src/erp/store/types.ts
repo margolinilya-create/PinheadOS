@@ -14,6 +14,8 @@ import type {
   ErpMaterial,
   ErpOrder,
   ErpOrderItem,
+  ErpExperimental,
+  ErpExperimentalOp,
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
@@ -291,6 +293,21 @@ export interface RealtimeSlice {
   subscribeRealtime: () => () => void;
 }
 
+/** Экспериментальный цех (правка 6): воронка разработки со стейт-машиной фаз */
+export interface ExperimentalSlice {
+  experimental: ErpExperimental[];
+  experimentalLoaded: boolean;
+  loadExperimental: () => Promise<void>;
+  createExperimental: (orderId: string) => Promise<ErpExperimental | null>;
+  updateExperimental: (id: string, patch: Partial<ErpExperimental>) => Promise<boolean>;
+  createExperimentalOp: (
+    experimentalId: string,
+    op: Partial<ErpExperimentalOp> & Pick<ErpExperimentalOp, 'kind'>,
+  ) => Promise<ErpExperimentalOp | null>;
+  /** Завершить передачу (returned) → заказ авто-возвращается на фазу «Проработка» */
+  completeExperimentalOp: (opId: string) => Promise<boolean>;
+}
+
 /** Полный контракт ERP-стора — пересечение доменных слайсов */
 export type ErpStore = OrdersSlice &
   StagesSlice &
@@ -299,4 +316,5 @@ export type ErpStore = OrdersSlice &
   ProcurementSlice &
   SubcontractingSlice &
   EmployeesSlice &
+  ExperimentalSlice &
   RealtimeSlice;

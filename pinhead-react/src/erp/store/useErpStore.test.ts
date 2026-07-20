@@ -1017,3 +1017,40 @@ describe('logStageEvent — ретрай аудита (п.33)', () => {
     await vi.advanceTimersByTimeAsync(1600);
   });
 });
+
+describe('useErpStore — экспериментальный цех (правка 6)', () => {
+  it('createExperimental создаёт разработку в фазе patterns', async () => {
+    useErpStore.setState({ experimental: [], experimentalLoaded: true } as any);
+    const row = await useErpStore.getState().createExperimental('o1');
+    expect(row).toBeTruthy();
+    expect(useErpStore.getState().experimental[0].phase).toBe('patterns');
+  });
+
+  it('createExperimentalOp добавляет передачу', async () => {
+    useErpStore.setState({
+      experimental: [{ id: 'e1', order_id: 'o1', phase: 'development', ops: [] }],
+      experimentalLoaded: true,
+    } as any);
+    const row = await useErpStore.getState().createExperimentalOp('e1', {
+      kind: 'to_branding', branding_method: 'DTF',
+    });
+    expect(row).toBeTruthy();
+    expect(useErpStore.getState().experimental[0].ops).toHaveLength(1);
+  });
+
+  it('completeExperimentalOp возвращает передачу и авто-возвращает на «Проработку»', async () => {
+    useErpStore.setState({
+      experimental: [{
+        id: 'e1', order_id: 'o1', phase: 'final_fitting',
+        ops: [{ id: 'op1', experimental_id: 'e1', kind: 'to_sewing', status: 'sent' }],
+      }],
+      experimentalLoaded: true,
+    } as any);
+    const ok = await useErpStore.getState().completeExperimentalOp('op1');
+    expect(ok).toBe(true);
+    const e = useErpStore.getState().experimental[0];
+    expect(e.phase).toBe('development'); // авто-возврат
+    expect(e.ops[0].status).toBe('returned');
+    expect(e.ops[0].returned_at).toBeTruthy();
+  });
+});

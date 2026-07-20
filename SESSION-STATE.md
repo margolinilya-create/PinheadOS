@@ -3,6 +3,25 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
+## Состояние на 2026-07-20 (сессия 17) — Правки ПМ волна 3 (8 доработок, все в проде)
+
+Доставлены волнами (PR #110–#116), каждая — мёрдж в прод + миграции на прод:
+1. **Подряд**: `op_type` (готовое изделие/операция), `material_source` (Pinhead/подрядчик), `return_dept`.
+2+3. **Склад**: числовая приёмка (`erp_materials` += qty_expected/received/accept_status/…),
+   история `erp_warehouse_ops`, гейт закроя по приёмке, экран `Warehouse.jsx`, `warehouseSlice`.
+4. **Брак** → цель `subcontractor` (единый механизм на всех цехах).
+5. **Единый поиск**: `SearchInput` + `matchesOrderQuery` во все разделы (Мой цех/Производство).
+6. **Эксперим. цех**: новый модуль `erp_experimental`(+ops) со стейт-машиной фаз, `experimentalSlice`,
+   экран `Experimental.jsx`; убран из `QUEUE_DEPT_CODES`/`BASE_CHAIN.samples`.
+7. **Уведомления**: `hasOpenProcurement` + «🔔 дозакупка» + панель `NotificationsSection` (без новой таблицы).
+8. **Просрочки**: `stage_overdue_ack` (`overdue_comment`/`overdue_ack_at`), `stageOverdue`,
+   `ackStageOverdue`, плашка «Требуется комментарий», бейдж+фильтр в «Мой цех».
+
+Стор: 9 слайсов (добавлены `warehouseSlice`, `experimentalSlice`). 981 тест. Правки ПМ волны 3 закрыты.
+Прод-проект Supabase: `pinhead-os-v2` (glhwbktsokphgksdvcxj). Realtime-публикация: только
+`erp_item_stages`/`erp_order_comments` (материалы/закупка/подряд/склад/эксперим. — code-only, не
+вещают на уровне БД; обновление через loadOne/loadX — латентный момент, не в scope волны).
+
 ## Состояние на 2026-07-20 (сессия 15)
 
 ### Ruflo + аудит ERP + фиксы

@@ -240,6 +240,52 @@ export interface ErpSubcontractOp {
   order?: { title: string; bitrix_id: string | null } | null;
 }
 
+// --- Экспериментальный цех (правка 6) --------------------------------------
+
+export type ExperimentalPhase =
+  | 'patterns' | 'development' | 'final_fitting' | 'returned_to_constructor' | 'done';
+export type ExperimentalOutcome =
+  | 'approved' | 'needs_rework' | 'needs_rebranding' | 'needs_pattern_change' | 'ready_for_serial';
+export type ExperimentalOpKind = 'to_sewing' | 'to_branding';
+export type ExperimentalOpStatus = 'sent' | 'in_progress' | 'returned' | 'cancelled';
+
+export interface ErpExperimentalOp {
+  id: string;
+  experimental_id: string;
+  kind: ExperimentalOpKind;
+  operation: string | null;
+  qty: number | null;
+  responsible: string | null;
+  planned_date: string | null;
+  comment: string | null;
+  status: ExperimentalOpStatus;
+  returned_at: string | null;
+  branding_method: string | null;
+  mockup: string | null;
+  zone: string | null;
+  size_mm: string | null;
+  colors: string | null;
+  created_at: string;
+}
+
+export interface ErpExperimental {
+  id: string;
+  order_id: string;
+  phase: ExperimentalPhase;
+  tech_name: string | null;
+  measurement_table: string | null;
+  has_3d: boolean;
+  constructor: string | null;
+  technologist: string | null;
+  final_outcome: ExperimentalOutcome | null;
+  constructor_return_comment: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Присоединяются при загрузке */
+  ops?: ErpExperimentalOp[];
+  order?: { title: string; bitrix_id: string | null } | null;
+}
+
 export interface ErpCalendarSlot {
   id: string;
   department_id: string;
@@ -347,6 +393,34 @@ export const SUBCONTRACT_OP_TYPE_LABELS: Record<SubcontractOpType, string> = {
 export const SUBCONTRACT_MATERIAL_SOURCE_LABELS: Record<SubcontractMaterialSource, string> = {
   pinhead: 'Материалы Pinhead',
   contractor: 'Материалы подрядчика',
+};
+
+export const EXPERIMENTAL_PHASE_LABELS: Record<ExperimentalPhase, string> = {
+  patterns: 'Построение лекал',
+  development: 'Проработка',
+  final_fitting: 'Финальная примерка',
+  returned_to_constructor: 'Возврат конструктору',
+  done: 'Готов к серии',
+};
+
+export const EXPERIMENTAL_OUTCOME_LABELS: Record<ExperimentalOutcome, string> = {
+  approved: 'Образец утверждён',
+  needs_rework: 'Нужна доработка',
+  needs_rebranding: 'Повторное нанесение',
+  needs_pattern_change: 'Изменение лекал',
+  ready_for_serial: 'Готов к серийному производству',
+};
+
+export const EXPERIMENTAL_OP_KIND_LABELS: Record<ExperimentalOpKind, string> = {
+  to_sewing: 'В общий швейный цех',
+  to_branding: 'На нанесение',
+};
+
+export const EXPERIMENTAL_OP_STATUS_LABELS: Record<ExperimentalOpStatus, string> = {
+  sent: 'Передано',
+  in_progress: 'В работе',
+  returned: 'Возвращено',
+  cancelled: 'Отменено',
 };
 
 export const ORDER_STATUS_LABELS: Record<ErpOrderStatus, string> = {
