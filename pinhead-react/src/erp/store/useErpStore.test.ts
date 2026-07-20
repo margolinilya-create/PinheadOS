@@ -487,6 +487,78 @@ describe('useErpStore — материал со склада / авто-закр
   });
 });
 
+describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => {
+  function seedChainLocal() {
+    const base = {
+      item_id: 'it1', qty_done: 500, qty_rework: 0,
+      planned_start: null, planned_end: null, started_at: null,
+      assignee: null, block_reason: null, notes: null,
+    };
+    const cutting = { ...base, id: 'st-cut', department_id: 'd-cut', depends_on: [], status: 'done', finished_at: '2026-01-01', sort_order: 10 };
+    const sewing = { ...base, id: 'st-sew', department_id: 'd-sew', depends_on: ['st-cut'], status: 'done', finished_at: '2026-01-02', sort_order: 20 };
+    const item = { id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 500, production_type: 'sewing', branding_methods: [], branding_on: 'cut', notes: null, sort_order: 10, stages: [cutting, sewing], prints: [] };
+    const order = { id: 'o1', title: 'Заказ', status: 'active', items: [item], materials: [] };
+    useErpStore.setState({
+      orders: [order] as any,
+      departments: [{ id: 'd-cut', code: 'cutting', name: 'Закрой', active: true }, { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true }] as any,
+      loaded: true,
+    });
+  }
+  const stages = () => useErpStore.getState().orders[0].items[0].stages;
+
+  it('rollback при ошибке Supabase — оба этапа возвращаются к исходному', async () => {
+    seedChainLocal();
+    h.updateError = { message: 'boom' };
+    const ok = await useErpStore.getState().reportDefect('st-sew', { qty: 20, reason: 'x', target: 'st-cut' });
+    expect(ok).toBe(false);
+    expect(stages().find((s) => s.id === 'st-cut')?.status).toBe('done');
+    expect(stages().find((s) => s.id === 'st-cut')?.qty_rework).toBe(0);
+    expect(stages().find((s) => s.id === 'st-sew')?.status).toBe('done');
+    expect(toast.error).toHaveBeenCalledWith('Не удалось записать брак');
+  });
+
+  it('guard: qty<=0 / несуществующий этап → false, без запросов', async () => {
+    seedChainLocal();
+    expect(await useErpStore.getState().reportDefect('st-sew', { qty: 0, reason: 'x' })).toBe(false);
+    expect(await useErpStore.getState().reportDefect('st-sew', { qty: -3, reason: 'x' })).toBe(false);
+    expect(await useErpStore.getState().reportDefect('nope', { qty: 5, reason: 'x' })).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+});
+
+describe('useErpStore — updateProcurementTask + error-пути (аудит P1)', () => {
+  it('updateProcurementTask: optimistic + rollback', async () => {
+    useErpStore.setState({
+      orders: [{ id: 'o1', title: 'З', status: 'active', items: [], materials: [], procurement_tasks: [{ id: 'pt1', order_id: 'o1', status: 'new', material_name: 'X' }] }] as any,
+    });
+    const ok = await useErpStore.getState().updateProcurementTask('pt1', { status: 'ordered' });
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().orders[0].procurement_tasks?.[0].status).toBe('ordered');
+
+    h.updateError = { message: 'boom' };
+    const ok2 = await useErpStore.getState().updateProcurementTask('pt1', { status: 'done' });
+    expect(ok2).toBe(false);
+    expect(useErpStore.getState().orders[0].procurement_tasks?.[0].status).toBe('ordered');
+    expect(toast.error).toHaveBeenCalledWith('Не удалось обновить задачу закупки');
+  });
+
+  it('createProcurementTask: ошибка insert → null + toast', async () => {
+    seed();
+    h.insertErrors.push({ message: 'down' });
+    const row = await useErpStore.getState().createProcurementTask('o1', { material_name: 'X', cause_type: 'shortage' });
+    expect(row).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith('Не удалось создать задачу закупки');
+  });
+
+  it('addMaterial: ошибка insert → null + toast, материал не добавлен', async () => {
+    seed();
+    h.insertErrors.push({ message: 'down' });
+    const row = await useErpStore.getState().addMaterial('o1', { kind: 'fabric', name: 'X', source: 'purchase', status: 'pending' } as any);
+    expect(row).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith('Не удалось добавить материал');
+  });
+});
+
 describe('readyCountFor — бейдж «Мой цех»', () => {
   it('считает in_progress и готовые к работе waiting-этапы цеха', () => {
     seed({ status: 'in_progress' });

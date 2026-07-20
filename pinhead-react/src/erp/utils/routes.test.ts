@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildRoute,
   isStageReady,
+  isStageAwaitingProcurement,
   materialsBlockCutting,
   materialsBlockStage,
   missingMaterialsForStage,
@@ -238,5 +239,47 @@ describe('waitingReason — причина ожидания с планом пр
 
   it('нет недостающих материалов и зависимостей — null', () => {
     expect(waitingReason(mkStage(), [], [], new Map(), 'sewing')).toBeNull();
+  });
+
+  it('blocked — возвращает block_reason либо дефолт (аудит P1)', () => {
+    const blocked = { depends_on: [], status: 'blocked' as StageStatus, block_reason: 'Нет ниток' };
+    expect(waitingReason(blocked, [], [], new Map(), 'sewing')).toBe('Нет ниток');
+    const blockedNoReason = { depends_on: [], status: 'blocked' as StageStatus, block_reason: null };
+    expect(waitingReason(blockedNoReason, [], [], new Map(), 'sewing')).toBe('Заблокирован цехом');
+  });
+
+  it('незавершённая зависимость — «<цех>: ещё не завершено» + fallback (аудит P1)', () => {
+    const dep = { id: 'd1', status: 'in_progress' as StageStatus, department_id: 'dep-cut' };
+    const st = mkStage(['d1']);
+    expect(waitingReason(st, [dep], [], new Map([['dep-cut', 'Закрой']]), 'sewing'))
+      .toBe('Закрой: ещё не завершено');
+    expect(waitingReason(st, [dep], [], new Map(), 'sewing'))
+      .toBe('предыдущий этап: ещё не завершено');
+  });
+});
+
+describe('isStageAwaitingProcurement / гейт закупки (аудит A1)', () => {
+  const task = (source_stage_id: string | null, status: string) => ({ source_stage_id, status });
+
+  it('открытая задача по этапу → ожидание закупки', () => {
+    expect(isStageAwaitingProcurement([task('st1', 'new')], 'st1')).toBe(true);
+    expect(isStageAwaitingProcurement([task('st1', 'in_progress')], 'st1')).toBe(true);
+  });
+
+  it('закрытая/отменённая или чужая задача не гейтит', () => {
+    expect(isStageAwaitingProcurement([task('st1', 'done')], 'st1')).toBe(false);
+    expect(isStageAwaitingProcurement([task('st1', 'cancelled')], 'st1')).toBe(false);
+    expect(isStageAwaitingProcurement([task('st2', 'new')], 'st1')).toBe(false);
+    expect(isStageAwaitingProcurement([], 'st1')).toBe(false);
+    expect(isStageAwaitingProcurement(null, 'st1')).toBe(false);
+  });
+
+  it('blockedByProcurement=true делает этап неготовым и даёт причину', () => {
+    const st = { depends_on: [] as string[], status: 'waiting' as StageStatus, block_reason: null };
+    // без гейта — готов
+    expect(isStageReady(st, [], [], 'sewing', false)).toBe(true);
+    // с гейтом — не готов
+    expect(isStageReady(st, [], [], 'sewing', true)).toBe(false);
+    expect(waitingReason(st, [], [], new Map(), 'sewing', true)).toBe('Ожидает закупку материала на замену');
   });
 });

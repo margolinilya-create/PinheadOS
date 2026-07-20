@@ -6,7 +6,7 @@ import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { deptShortName } from '../data/departments';
-import { daysLeft } from '../utils/time';
+import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
@@ -214,7 +214,7 @@ export default function ProductionBoard() {
                     <td>{item.qty}</td>
                     <td className={dueCls}>
                       {order.due_date
-                        ? new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')
+                        ? formatDateShort(order.due_date)
                         : '—'}
                       {d !== null && (
                         <div className={styles.subText}>

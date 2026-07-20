@@ -9,7 +9,7 @@ import { create } from 'zustand';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { buildRoute, isStageReady } from '../utils/routes';
+import { buildRoute, isStageReady, isStageAwaitingProcurement } from '../utils/routes';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft } from '../utils/time';
 import type {
@@ -405,7 +405,13 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
         if (st.status === 'in_progress') n += 1;
-        else if (st.status === 'waiting' && isStageReady(st, it.stages, o.materials, deptCode)) n += 1;
+        else if (
+          st.status === 'waiting' &&
+          isStageReady(
+            st, it.stages, o.materials, deptCode,
+            isStageAwaitingProcurement(o.procurement_tasks, st.id),
+          )
+        ) n += 1;
       }
     }
   }
@@ -812,7 +818,7 @@ export const useErpStore = create<ErpStore>((set, get) => ({
 
     // Правки 1-2: нужна закупка → отдельная задача закупщику (исходную закупку не трогаем)
     if (needsMaterial || target === 'procurement') {
-      await get().createProcurementTask(order.id, {
+      const task = await get().createProcurementTask(order.id, {
         item_id: item.id,
         source_stage_id: stage.id,
         initiating_dept: dept?.code ?? null,
@@ -824,6 +830,9 @@ export const useErpStore = create<ErpStore>((set, get) => ({
         supplier,
         planned_date: plannedDate,
       });
+      // Аудит-агент: этап уже в waiting/переделке — если заявка не создалась, предупреждаем,
+      // иначе этап «ждёт закупку», которой нет (createProcurementTask сам покажет error).
+      if (!task) toast.warning('Брак записан, но заявка на закупку не создана — создайте вручную');
     }
     return true;
   },
@@ -997,6 +1006,20 @@ export const useErpStore = create<ErpStore>((set, get) => ({
       return;
     }
 
+    // Аудит-агент (A3): materials/procurement_tasks/subcontracting не подписаны были —
+    // теперь точечно обновляем связанный заказ / список подряда у других пользователей.
+    if (ev.table === 'erp_materials' || ev.table === 'erp_procurement_tasks') {
+      const orderId = (row.order_id ?? null) as string | null;
+      if (orderId && get().orders.some((o) => o.id === orderId)) {
+        void withNewWorkToast(get, () => get().loadOne(orderId));
+      }
+      return;
+    }
+    if (ev.table === 'erp_subcontracting') {
+      if (get().subcontractingLoaded) void get().loadSubcontracting();
+      return;
+    }
+
     // Защита от race (п.29): по сущности идёт мутация — отложить событие на ~1с
     // и применить, только если ключ снят (иначе состояние выправит ответ сервера).
     const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
@@ -1097,6 +1120,21 @@ export const useErpStore = create<ErpStore>((set, get) => ({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_orders' },
         forward('erp_orders'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_materials' },
+        forward('erp_materials'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_procurement_tasks' },
+        forward('erp_procurement_tasks'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_subcontracting' },
+        forward('erp_subcontracting'),
       )
       .subscribe();
     return () => {
@@ -1229,8 +1267,9 @@ export const useErpStore = create<ErpStore>((set, get) => ({
     const order = get().orders.find((o) => o.id === orderId);
     const supplyDept = get().departments.find((d) => d.code === 'supply');
     if (!order || !supplyDept) return;
-    // «Готов» = пришло / зарезервировано со склада / не требуется
-    const allIn = order.materials.every(
+    // «Готов» = пришло / зарезервировано со склада / не требуется.
+    // length>0 — не закрывать закупку у заказа вовсе без материалов (аудит, LOW).
+    const allIn = order.materials.length > 0 && order.materials.every(
       (m) => m.status === 'received' || m.status === 'reserved' || m.status === 'not_needed');
     if (!allIn) return;
     const openSupply = order.items.flatMap((it) =>
@@ -1246,12 +1285,14 @@ export const useErpStore = create<ErpStore>((set, get) => ({
   createProcurementTask: async (orderId, task) => {
     // Правка 2: брак поставщика → замена (не считается закупкой компании);
     // прочие причины → дозакупка (внутренняя ошибка).
+    // Аудит (A5): вычисляемые kind/counts_as_purchase идут ПОСЛЕ ...task —
+    // вызывающий не может их переопределить (сервер также форсит их триггером).
     const isSupplier = task.cause_type === 'supplier_defect';
     const row0 = {
-      kind: isSupplier ? 'replacement' : 'restock',
-      counts_as_purchase: !isSupplier,
       status: 'new',
       ...task,
+      kind: isSupplier ? 'replacement' : 'restock',
+      counts_as_purchase: !isSupplier,
       order_id: orderId,
     };
     const { data, error } = await supabase

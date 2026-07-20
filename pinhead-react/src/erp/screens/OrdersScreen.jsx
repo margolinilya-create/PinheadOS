@@ -215,7 +215,7 @@ function DueCell({ dueDate }) {
   const cls = d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : undefined;
   return (
     <span className={cls}>
-      {new Date(dueDate + 'T00:00:00').toLocaleDateString('ru-RU')}
+      {formatDateShort(dueDate)}
       <span className={styles.subText}> ({d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`})</span>
     </span>
   );
@@ -606,7 +606,7 @@ function CreateOrderModal({ onClose }) {
   const mainSummary = [
     form.title.trim() || 'без названия',
     form.due_date
-      ? `до ${new Date(form.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}`
+      ? `до ${formatDateShort(form.due_date)}`
       : null,
   ].filter(Boolean).join(' · ');
   const itemsSummary =
