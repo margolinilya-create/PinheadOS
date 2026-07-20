@@ -45,12 +45,17 @@
 
 ## Рефакторинг `useErpStore.ts` (план architecture-агента)
 
-**Сделано (PR C):** вынесена инфраструктура (аудит/pending/тайминги) в `store/shared.ts`.
+**Сделано:**
+- `store/shared.ts` — инфраструктура (аудит/pending/тайминги).
+- `store/types.ts` — DTO стора (`ErpOrderFull`, `ReportDefectOptions`, `NewOrderInput`, …),
+  реэкспорт из `useErpStore.ts`. Разрывает циклы для будущих слайсов.
+- `useErpStore.ts`: 1376 → 1280 строк, чистое разделение типы/плумбинг/действия.
 
-**Осталось (следующий focused-PR):** распил на composition-root + 7 слайсов
-(`orders/stages/materials/procurement/subcontracting/employees/realtime`) + `store/types.ts`
-(DTO, чтобы разорвать циклические импорты). Инварианты: слайсы в том же каталоге `store/`
-(относительные пути не меняются), реэкспорт `useErpStore`/`readyCountFor`/`_pendingMutations`/
-`orderPreviewUrl`/`lastDefectPhotoUrl`, единые синглтоны `_pendingMutations`/`fullReloadTimer`
-в `shared.ts`. Порядок — «от листьев к корню», атомарные коммиты, тесты после каждого шага.
-Отдельно — разбить крупные экраны (`OrdersScreen`, `DepartmentQueue`).
+**Осталось (следующий focused-PR):** распил 35 действий на 7 слайсов
+(`orders/stages/materials/procurement/subcontracting/employees/realtime`) в composition-root.
+Инварианты: слайсы в каталоге `store/` (относительные пути не меняются), реэкспорт
+`useErpStore`/`readyCountFor`/`_pendingMutations`/`orderPreviewUrl`/`lastDefectPhotoUrl`,
+единый синглтон `_pendingMutations` в `shared.ts`. Порядок — «от листьев к корню»
+(subcontracting→procurement→materials→employees→stages→realtime→orders), атомарные коммиты,
+тесты после каждого. Это чисто организационный шаг (сложность функций не падает) —
+делать отдельно, не в спешке. Отдельно — разбить крупные экраны (`OrdersScreen`, `DepartmentQueue`).
