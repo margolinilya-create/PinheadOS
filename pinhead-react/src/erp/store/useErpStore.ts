@@ -21,6 +21,32 @@ import {
   FULL_RELOAD_DEBOUNCE_MS,
 } from './shared';
 import type {
+  StaffProfile,
+  ErpOrderAuditRow,
+  ErpOrderComment,
+  ErpOrderAttachment,
+  ErpOrderFull,
+  ReportDefectOptions,
+  NewPrintInput,
+  NewOrderItemInput,
+  NewOrderInput,
+  ErpRealtimeEvent,
+} from './types';
+
+// DTO-типы вынесены в ./types — реэкспорт для экранов/тестов, импортирующих их отсюда.
+export type {
+  StaffProfile,
+  ErpOrderAuditRow,
+  ErpOrderComment,
+  ErpOrderAttachment,
+  ErpOrderFull,
+  ReportDefectOptions,
+  NewPrintInput,
+  NewOrderItemInput,
+  NewOrderInput,
+  ErpRealtimeEvent,
+};
+import type {
   BrandingMethod,
   BrandingOn,
   ErpItemPrint,
@@ -47,70 +73,6 @@ export { _pendingMutations };
 /** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
 let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
-export interface StaffProfile {
-  id: string;
-  name: string | null;
-  email: string | null;
-  role: string;
-  approved: boolean;
-  active: boolean | null;
-}
-
-export interface ErpOrderAuditRow {
-  id: string;
-  order_id: string;
-  field_name: string;
-  old_value: string | null;
-  new_value: string | null;
-  changed_by: string | null;
-  changed_at: string;
-}
-
-export interface ErpOrderComment {
-  id: string;
-  order_id: string;
-  author: string;
-  text: string;
-  created_at: string;
-}
-
-/** Заказ со вложенными позициями/этапами/материалами (join при загрузке) */
-export interface ErpOrderAttachment {
-  id: string;
-  order_id: string;
-  file_path: string;
-  file_name: string | null;
-  kind: 'preview' | 'attachment';
-  uploaded_by: string | null;
-  created_at: string;
-}
-
-export interface ErpOrderFull extends ErpOrder {
-  items: (ErpOrderItem & { stages: ErpItemStage[]; prints?: ErpItemPrint[] })[];
-  materials: ErpMaterial[];
-  attachments?: ErpOrderAttachment[];
-  procurement_tasks?: ErpProcurementTask[];
-}
-
-/**
- * Параметры возврата брака (правка 3): пользователь выбирает этап устранения.
- * target: 'current' — переделка на месте; <stageId> — перенос на конкретный этап
- * (в т.ч. закрой); 'procurement' — материал испорчен, нужна закупка.
- * needsMaterial — создать задачу закупки при любом target.
- */
-export interface ReportDefectOptions {
-  qty: number;
-  reason: string;
-  target?: 'current' | 'procurement' | (string & {});
-  needsMaterial?: boolean;
-  cause?: import('../types').ProcurementCauseType;
-  supplier?: string | null;
-  plannedDate?: string | null;
-  materialName?: string | null;
-  requiredQty?: string | null;
-}
-
 /** Публичный URL превью заказа (первое вложение kind=preview) */
 export function orderPreviewUrl(order: ErpOrderFull): string | null {
   const att = order.attachments?.find((a) => a.kind === 'preview');
@@ -125,53 +87,6 @@ export function lastDefectPhotoUrl(order: ErpOrderFull): string | null {
   if (atts.length === 0) return null;
   const att = atts[atts.length - 1];
   return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
-}
-
-export interface NewPrintInput {
-  method: BrandingMethod;
-  fabric?: string;
-  zone?: string;
-  width_mm?: number | null;
-  height_mm?: number | null;
-  offset_note?: string;
-  pantone?: string;
-  comment?: string;
-}
-
-export interface NewOrderItemInput {
-  product_type: string;
-  variant?: string;
-  qty: number;
-  production_type: ProductionType;
-  branding_methods: BrandingMethod[];
-  branding_on: BrandingOn;
-  notes?: string;
-  size_grid?: SizeGridRow[] | null;
-  prints?: NewPrintInput[];
-}
-
-export interface NewOrderInput {
-  bitrix_id?: string;
-  title: string;
-  manager?: string;
-  launch_date?: string;
-  due_date?: string;
-  buffer_days?: number;
-  notes?: string;
-  packaging?: string;
-  packaging_note?: string;
-  stickers?: string;
-  stickers_note?: string;
-  no_chestny_znak?: boolean;
-  items: NewOrderItemInput[];
-}
-
-/** Нормализованное realtime-событие postgres_changes (для точечного применения) */
-export interface ErpRealtimeEvent {
-  table: string;
-  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-  new: Record<string, unknown> | null;
-  old: Record<string, unknown> | null;
 }
 
 interface ErpStore {
