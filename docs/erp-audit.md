@@ -6,15 +6,16 @@
 
 ## Метрики сложности (`ruflo analyze complexity src/erp`)
 
-| Файл | Цикломатика | Когнитивная | LOC | Оценка |
-|---|---|---|---|---|
-| `store/useErpStore.ts` | 96 | 297 | 1251 | Very Complex |
-| `screens/OrdersScreen.jsx` | 38 | 118 | 1283 | Very Complex |
-| `screens/DepartmentQueue.jsx` | 29 | 97 | 777 | Very Complex |
-| `screens/OrderCard.jsx` | 29 | 82 | 612 | Very Complex |
-| `components/ErpKanban.jsx` | 26 | 83 | 232 | Very Complex |
+| Файл | LOC (до) | LOC (после) | Статус |
+|---|---|---|---|
+| `store/useErpStore.ts` | 1251 | **59** | ✅ распил на 7 слайсов (`store/slices/`) |
+| `screens/OrdersScreen.jsx` | 1283 | **322** | ✅ декомпозиция (`screens/orders/`) |
+| `screens/DepartmentQueue.jsx` | 777 | **292** | ✅ декомпозиция (`screens/queue/`) |
+| `screens/OrderCard.jsx` | 612 | 612 | 🟡 бэклог |
+| `components/ErpKanban.jsx` | 232 | 232 | 🟡 бэклог |
 
-Циклические зависимости: 1 (high). Средняя сложность ERP: 12; 6 файлов >15.
+Три худших файла модуля разъяты (организационно, поведение идентично). Следующие
+кандидаты — `OrderCard.jsx` и `ErpKanban.jsx`.
 
 ## Статус находок
 
@@ -63,5 +64,7 @@
 публичный API идентичен, 953 теста зелёные **без правок тестов**. Единый синглтон
 `_pendingMutations` — по-прежнему в `shared.ts`.
 
-**Осталось (отдельным заходом):** разбить крупные экраны (`OrdersScreen` 1283,
-`DepartmentQueue` 777) на под-компоненты.
+**Сделано (декомпозиция экранов):** `OrdersScreen` 1283 → 322 (`screens/orders/`:
+DueCell/OrderRow/OrderCardMobile/CreateOrderModal); `DepartmentQueue` 777 → 292
+(`screens/queue/`: Lightbox/PhotoAttach/TzBlock/QueueCard). JSX-вывод идентичен,
+953 теста зелёные. **Осталось (бэклог):** `OrderCard.jsx` (612), `ErpKanban.jsx` (232).

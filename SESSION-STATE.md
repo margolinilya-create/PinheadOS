@@ -18,8 +18,10 @@
   35 действий → 7 слайсов в `store/slices/` (orders/stages/materials/procurement/
   subcontracting/employees/realtime); контракт `ErpStore` (7 под-интерфейсов) + DTO в
   `store/types.ts`; плумбинг в `shared.ts`; чистые хелперы в `store/orderHelpers.ts`.
-  Публичный API идентичен, 953 теста зелёные без правок тестов. Осталось (бэклог): разбить
-  крупные экраны `OrdersScreen`/`DepartmentQueue` на под-компоненты.
+  Публичный API идентичен, 953 теста зелёные без правок тестов.
+- **Декомпозиция экранов (завершена):** `OrdersScreen` 1336 → 322 (`screens/orders/`),
+  `DepartmentQueue` 821 → 292 (`screens/queue/`). Три худших файла модуля разъяты.
+  Осталось (бэклог): `OrderCard.jsx` (612), `ErpKanban.jsx` (232).
 
 ### Открытые вопросы (нужны решения/бэклог)
 - **RLS admin-разделов (A4):** «Закупка»/«Подряд» admin-only только в UI; задачи создаются

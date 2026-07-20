@@ -20,7 +20,16 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
-### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов
+### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
+
+**Декомпозиция крупных экранов (техдолг аудита):**
+- `OrdersScreen.jsx` 1336 → 322 строки → `screens/orders/`: DueCell, OrderRow,
+  OrderCardMobile, CreateOrderModal (+ SizeGridEditor/FormSection/FieldError).
+- `DepartmentQueue.jsx` 821 → 292 строки → `screens/queue/`: Lightbox, PhotoAttach,
+  TzBlock, QueueCard. Три худших файла модуля разъяты; JSX-вывод идентичен, 953 теста зелёные.
+- Осталось в бэклоге: `OrderCard.jsx` (612), `ErpKanban.jsx` (232).
+
+**Распил стора (PR #107, в проде):**
 
 - **Рефакторинг стора (завершён):** `useErpStore.ts` 1280 → 59 строк (composition-root).
   35 действий разнесены на 7 доменных слайсов в `store/slices/`: orders, stages, materials,
