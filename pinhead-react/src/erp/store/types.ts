@@ -7,15 +7,20 @@
 import type {
   BrandingMethod,
   BrandingOn,
+  ErpDepartment,
+  ErpEmployee,
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
   ErpOrder,
   ErpOrderItem,
   ErpProcurementTask,
+  ErpStageEvent,
+  ErpSubcontractOp,
   ProcurementCauseType,
   ProductionType,
   SizeGridRow,
+  StageStatus,
 } from '../types';
 
 /** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
@@ -127,3 +132,143 @@ export interface ErpRealtimeEvent {
   new: Record<string, unknown> | null;
   old: Record<string, unknown> | null;
 }
+
+/**
+ * Контракт стора разбит на доменные под-интерфейсы (по одному на слайс,
+ * рефакторинг по плану аудита). ErpStore = их пересечение. Слайсы (store/slices/*)
+ * импортируют ErpStore и свой под-интерфейс отсюда — односторонний импорт,
+ * без рантайм-цикла (файл типов стирается при компиляции).
+ */
+
+/** Заказы: загрузка (активные/архив/один), CRUD, отгрузка, вложения, история, комментарии */
+export interface OrdersSlice {
+  departments: ErpDepartment[];
+  orders: ErpOrderFull[];
+  loading: boolean;
+  loaded: boolean;
+  /** Ошибка загрузки loadAll — для inline-блока «Не удалось загрузить · Повторить» */
+  loadError: boolean;
+  /** Архив (status != active) грузится лениво — при первом заходе на вкладку */
+  archiveLoaded: boolean;
+  archiveLoading: boolean;
+
+  /** Основная загрузка: только активные заказы (архив — loadArchive) */
+  loadAll: () => Promise<void>;
+  /** Ленивая загрузка архива (status != active) при первом заходе на вкладку */
+  loadArchive: () => Promise<void>;
+  /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
+  loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
+  createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
+  updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
+  /**
+   * Отгрузка готового заказа: status → done_* (по сроку клиента),
+   * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
+   */
+  shipOrder: (orderId: string) => Promise<boolean>;
+  deleteOrder: (id: string) => Promise<boolean>;
+  /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
+  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
+  loadOrderEvents: (orderId: string) => Promise<ErpStageEvent[] | null>;
+  loadOrderAudit: (orderId: string) => Promise<ErpOrderAuditRow[] | null>;
+  uploadOrderPreview: (orderId: string, file: File) => Promise<boolean>;
+  loadComments: (orderId: string) => Promise<ErpOrderComment[] | null>;
+  addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
+}
+
+/** Этапы: смена статуса, частичная готовность, брак/переделка, план дат */
+export interface StagesSlice {
+  setStageStatus: (
+    stageId: string,
+    status: StageStatus,
+    extra?: { qty_done?: number; block_reason?: string | null; comment?: string },
+  ) => Promise<boolean>;
+  /**
+   * Частичная готовность: qty_done += qty; при qty_done >= qty позиции
+   * этап закрывается (done), иначе остаётся in_progress с прогрессом «300/500».
+   */
+  reportProgress: (stageId: string, qty: number) => Promise<boolean>;
+  /** Брак: пользователь выбирает этап устранения; при необходимости — задача закупки */
+  reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
+  /** Последние события возврата брака по этапам (для баннера получателю) */
+  loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
+  /** Ручные плановые даты этапа */
+  setStagePlan: (
+    stageId: string,
+    plan: { planned_start?: string | null; planned_end?: string | null },
+  ) => Promise<boolean>;
+}
+
+/** Материалы: добавление/правка, подтверждение склада, авто-закрытие закупки */
+export interface MaterialsSlice {
+  addMaterial: (
+    orderId: string,
+    material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
+  ) => Promise<ErpMaterial | null>;
+  updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
+  /** Подтвердить наличие материала со склада → «Доступен со склада» (открывает закрой) */
+  confirmStockMaterial: (id: string) => Promise<boolean>;
+  /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
+  maybeCloseSupply: (orderId: string) => Promise<void>;
+}
+
+/** Задачи закупки (дозакупка/замена при возврате брака) */
+export interface ProcurementSlice {
+  /** Задача закупки (возврат из закроя → дозакупка/замена, не трогая исходную закупку) */
+  createProcurementTask: (
+    orderId: string,
+    task: Partial<ErpProcurementTask> & Pick<ErpProcurementTask, 'material_name' | 'cause_type'>,
+  ) => Promise<ErpProcurementTask | null>;
+  updateProcurementTask: (id: string, patch: Partial<ErpProcurementTask>) => Promise<boolean>;
+}
+
+/** Подряд: операции у внешних подрядчиков (грузятся лениво по вкладке) */
+export interface SubcontractingSlice {
+  subcontracting: ErpSubcontractOp[];
+  subcontractingLoaded: boolean;
+  /** Подряд: список операций у подрядчиков (join заголовок заказа) */
+  loadSubcontracting: () => Promise<void>;
+  createSubcontractOp: (
+    op: Partial<ErpSubcontractOp> & Pick<ErpSubcontractOp, 'order_id' | 'operation'>,
+  ) => Promise<ErpSubcontractOp | null>;
+  updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
+}
+
+/** Сотрудники и профили: список, привязка цеха, роли */
+export interface EmployeesSlice {
+  employees: ErpEmployee[];
+  profilesList: StaffProfile[];
+  employeesLoaded: boolean;
+  /** Цех текущего пользователя (erp_employees.department_id по profile_id) */
+  myDeptId: string | null;
+  myDeptLoaded: boolean;
+
+  /** Автопривязка цеха: ищет erp_employees по profile_id текущего пользователя */
+  loadMyDept: (profileId: string | undefined) => Promise<void>;
+  loadEmployees: () => Promise<void>;
+  createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
+  updateEmployee: (id: string, patch: Partial<ErpEmployee>) => Promise<boolean>;
+  /** Профили общие с Order Studio: те же действия, что в Админке */
+  updateProfile: (id: string, patch: Partial<StaffProfile>) => Promise<boolean>;
+  /** Цеховая надстройка профиля: upsert erp_employees по profile_id */
+  upsertProfileDept: (
+    profile: StaffProfile,
+    patch: Partial<Pick<ErpEmployee, 'department_id' | 'role' | 'notes'>>,
+  ) => Promise<boolean>;
+}
+
+/** Realtime: точечное применение postgres_changes + подписка */
+export interface RealtimeSlice {
+  /** Точечное применение realtime-события (экспорт действия — для тестов) */
+  applyRealtimeEvent: (ev: ErpRealtimeEvent) => void;
+  /** Realtime: доска/очереди обновляются сами; возвращает отписку */
+  subscribeRealtime: () => () => void;
+}
+
+/** Полный контракт ERP-стора — пересечение доменных слайсов */
+export type ErpStore = OrdersSlice &
+  StagesSlice &
+  MaterialsSlice &
+  ProcurementSlice &
+  SubcontractingSlice &
+  EmployeesSlice &
+  RealtimeSlice;
