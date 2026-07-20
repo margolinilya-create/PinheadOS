@@ -49,6 +49,10 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       if (get().subcontractingLoaded) void get().loadSubcontracting();
       return;
     }
+    if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_ops') {
+      if (get().experimentalLoaded) void get().loadExperimental();
+      return;
+    }
 
     // Защита от race (п.29): по сущности идёт мутация — отложить событие на ~1с
     // и применить, только если ключ снят (иначе состояние выправит ответ сервера).
@@ -170,6 +174,11 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_warehouse_ops' },
         forward('erp_warehouse_ops'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_experimental' },
+        forward('erp_experimental'),
       )
       .subscribe();
     return () => {

@@ -35,7 +35,8 @@ const BASE_CHAIN: Record<ProductionType, string[]> = {
   ready_garment: ['supply'],
   cut: ['supply', 'cutting'],
   sewing: ['supply', 'cutting', 'sewing', 'vto'],
-  samples: ['supply', 'experimental', 'cutting', 'sewing', 'vto'],
+  // experimental вынесен в отдельный модуль «Эксперим. цех» (правка 6) — не этап позиции
+  samples: ['supply', 'cutting', 'sewing', 'vto'],
   outsource: ['supply'],
 };
 

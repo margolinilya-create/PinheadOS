@@ -15,6 +15,7 @@ const NAV = [
   { to: '/purchasing', label: 'Закупка', icon: '🚚', admin: true },
   { to: '/warehouse', label: 'Склад', icon: '📦', admin: true },
   { to: '/subcontracting', label: 'Подряд', icon: '🤝', admin: true },
+  { to: '/experimental', label: 'Эксперим. цех', icon: '🧪', admin: true },
   { to: '/admin', label: 'Админка', icon: '⚙️', admin: true },
 ];
 

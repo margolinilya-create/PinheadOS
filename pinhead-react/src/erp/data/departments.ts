@@ -73,8 +73,9 @@ export function deptShortName(code: string, fallback?: string): string {
  * Закупка управляется своим экраном (материалы), логистика и склады
  * пока без операций — в очередях не показываем.
  */
+// experimental вынесен в отдельную вкладку «Эксперим. цех» (правка 6) — не в общей очереди
 export const QUEUE_DEPT_CODES = new Set([
-  'experimental', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto',
+  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto',
 ]);
 
 export function isQueueDept(code: string): boolean {

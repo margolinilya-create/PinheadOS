@@ -14,6 +14,7 @@ const AdminScreen = lazy(() => import('./screens/AdminScreen')); // + Employees/
 const FabricPurchasing = lazy(() => import('./screens/FabricPurchasing'));
 const Warehouse = lazy(() => import('./screens/Warehouse'));
 const Subcontracting = lazy(() => import('./screens/Subcontracting'));
+const Experimental = lazy(() => import('./screens/Experimental'));
 
 /** Инлайн-панель «нет доступа» — без redirect, чтобы избежать гонки с загрузкой роли */
 function ErpGuard({ allowed, children }) {
@@ -46,6 +47,7 @@ export default function ErpApp({ user }) {
           <Route path="/purchasing" element={<ErpGuard allowed={isAdmin}><FabricPurchasing /></ErpGuard>} />
           <Route path="/warehouse" element={<ErpGuard allowed={isAdmin}><Warehouse /></ErpGuard>} />
           <Route path="/subcontracting" element={<ErpGuard allowed={isAdmin}><Subcontracting /></ErpGuard>} />
+          <Route path="/experimental" element={<ErpGuard allowed={isAdmin}><Experimental /></ErpGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
