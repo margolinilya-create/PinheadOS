@@ -12,6 +12,14 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { buildRoute, isStageReady, isStageAwaitingProcurement } from '../utils/routes';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft } from '../utils/time';
+import {
+  currentActor,
+  logStageEvent,
+  withPending,
+  _pendingMutations,
+  REALTIME_DEFER_MS,
+  FULL_RELOAD_DEBOUNCE_MS,
+} from './shared';
 import type {
   BrandingMethod,
   BrandingOn,
@@ -32,57 +40,11 @@ import type {
   StageStatus,
 } from '../types';
 
-/** Имя действующего пользователя для аудита */
-function currentActor(): string {
-  const u = useAuthStore.getState().user;
-  return u?.name || u?.email || 'неизвестно';
-}
+// Инфраструктура (currentActor/logStageEvent/withPending/_pendingMutations/тайминги)
+// вынесена в ./shared. Реэкспорт _pendingMutations — для тестов, импортирующих его отсюда.
+export { _pendingMutations };
 
-/** Пауза перед повторной попыткой записи аудита */
-const STAGE_EVENT_RETRY_MS = 1500;
-
-/**
- * Запись события аудита — fire-and-forget, ошибки не блокируют работу.
- * При ошибке — 1 повторная попытка через ~1.5с; если обе неудачны —
- * toast.error + console.warn.
- */
-function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
-  const row = { ...ev, actor: currentActor() };
-  const attempt = () => supabase.from('erp_stage_events').insert(row);
-  void attempt().then(({ error }) => {
-    if (!error) return;
-    setTimeout(() => {
-      void attempt().then(({ error: retryError }) => {
-        if (retryError) {
-          console.warn('stage event not logged:', retryError.message);
-          toast.error('Событие истории не записалось');
-        }
-      });
-    }, STAGE_EVENT_RETRY_MS);
-  });
-}
-
-/**
- * Защита от race (п.29): ключи сущностей с незавершённой мутацией.
- * Realtime-события по таким ключам не применяются сразу — состояние станет
- * консистентным после ответа сервера (или rollback). Экспорт — для тестов.
- */
-export const _pendingMutations = new Set<string>();
-
-/** Выполнить мутацию под pending-ключом (ключ снимается в finally) */
-async function withPending<T>(key: string, fn: () => PromiseLike<T>): Promise<T> {
-  _pendingMutations.add(key);
-  try {
-    return await fn();
-  } finally {
-    _pendingMutations.delete(key);
-  }
-}
-
-/** Отсрочка применения realtime-события по сущности с pending-мутацией */
-const REALTIME_DEFER_MS = 1000;
-/** Debounce последнего fallback — полной перезагрузки loadAll */
-const FULL_RELOAD_DEBOUNCE_MS = 500;
+/** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
 let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
