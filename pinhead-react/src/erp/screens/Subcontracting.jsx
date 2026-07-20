@@ -4,7 +4,12 @@ import { PageHead } from '../components/PageHead';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
-import { SUBCONTRACT_STATUS_LABELS } from '../types';
+import { deptShortName, isQueueDept } from '../data/departments';
+import {
+  SUBCONTRACT_STATUS_LABELS,
+  SUBCONTRACT_OP_TYPE_LABELS,
+  SUBCONTRACT_MATERIAL_SOURCE_LABELS,
+} from '../types';
 import styles from '../erp.module.css';
 
 /**
@@ -21,9 +26,12 @@ const STATUS_CHIP = {
   cancelled: 'chipSkipped',
 };
 
-const EMPTY_OP = { order_id: '', operation: '', contractor: '', qty: '', sent_date: '', planned_date: '' };
+const EMPTY_OP = {
+  order_id: '', operation: '', op_type: 'operation', material_source: 'pinhead',
+  return_dept: '', contractor: '', qty: '', sent_date: '', planned_date: '',
+};
 
-function AddOpRow({ orders, onAdd }) {
+function AddOpRow({ orders, queueDepts, onAdd }) {
   const [form, setForm] = useState(EMPTY_OP);
   const [saving, setSaving] = useState(false);
 
@@ -34,6 +42,10 @@ function AddOpRow({ orders, onAdd }) {
     const row = await onAdd({
       order_id: form.order_id,
       operation: form.operation.trim(),
+      op_type: form.op_type,
+      material_source: form.material_source,
+      // Возврат на цех — только для отдельной операции; готовое изделие идёт на внутренние этапы
+      return_dept: form.op_type === 'operation' ? (form.return_dept || null) : null,
       contractor: form.contractor.trim() || null,
       qty: form.qty ? Number(form.qty) : null,
       sent_date: form.sent_date || null,
@@ -59,6 +71,39 @@ function AddOpRow({ orders, onAdd }) {
           </option>
         ))}
       </select>
+      <select
+        className={styles.select}
+        value={form.op_type}
+        onChange={(e) => setForm({ ...form, op_type: e.target.value })}
+        aria-label="Тип операции"
+      >
+        {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, l]) => (
+          <option key={v} value={v}>{l}</option>
+        ))}
+      </select>
+      <select
+        className={styles.select}
+        value={form.material_source}
+        onChange={(e) => setForm({ ...form, material_source: e.target.value })}
+        aria-label="Источник материалов"
+      >
+        {Object.entries(SUBCONTRACT_MATERIAL_SOURCE_LABELS).map(([v, l]) => (
+          <option key={v} value={v}>{l}</option>
+        ))}
+      </select>
+      {form.op_type === 'operation' && (
+        <select
+          className={styles.select}
+          value={form.return_dept}
+          onChange={(e) => setForm({ ...form, return_dept: e.target.value })}
+          aria-label="Возврат на цех"
+        >
+          <option value="">Возврат на цех…</option>
+          {queueDepts.map((d) => (
+            <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
+          ))}
+        </select>
+      )}
       <input className={styles.input} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" />
       <input className={styles.input} placeholder="Контрагент" value={form.contractor} onChange={(e) => setForm({ ...form, contractor: e.target.value })} aria-label="Контрагент" style={{ maxWidth: 150 }} />
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 90 }} />
@@ -71,12 +116,13 @@ function AddOpRow({ orders, onAdd }) {
 
 export default function Subcontracting() {
   const {
-    orders, loaded, loadError, loadAll,
+    orders, departments, loaded, loadError, loadAll,
     subcontracting, subcontractingLoaded, loadSubcontracting,
     createSubcontractOp, updateSubcontractOp,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
+      departments: s.departments,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
@@ -94,6 +140,10 @@ export default function Subcontracting() {
   useEffect(() => { if (!subcontractingLoaded) loadSubcontracting(); }, [subcontractingLoaded, loadSubcontracting]);
 
   const activeOrders = useMemo(() => orders.filter((o) => o.status === 'active'), [orders]);
+  const queueDepts = useMemo(
+    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    [departments],
+  );
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -125,7 +175,7 @@ export default function Subcontracting() {
         <span className={styles.subText}>{rows.length} из {subcontracting.length}</span>
       </div>
 
-      <AddOpRow orders={activeOrders} onAdd={createSubcontractOp} />
+      <AddOpRow orders={activeOrders} queueDepts={queueDepts} onAdd={createSubcontractOp} />
 
       {loadError && !loaded && (
         <div className={styles.emptyState}>
@@ -142,7 +192,7 @@ export default function Subcontracting() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>№ / Заказ</th><th>Операция</th><th>Кол-во</th><th>Контрагент</th>
+                <th>№ / Заказ</th><th>Тип</th><th>Материалы</th><th>Операция</th><th>Кол-во</th><th>Контрагент</th>
                 <th>Передан</th><th>План готов.</th><th>Возврат</th><th>Статус</th><th>Задержка</th>
               </tr>
             </thead>
@@ -154,6 +204,29 @@ export default function Subcontracting() {
                     <td>
                       №{op.order?.bitrix_id || '—'}
                       <div className={styles.subText}>{op.order?.title || '—'}</div>
+                    </td>
+                    <td>
+                      <select
+                        className={styles.select}
+                        value={op.op_type}
+                        onChange={(e) => updateSubcontractOp(op.id, {
+                          op_type: e.target.value,
+                          ...(e.target.value === 'finished_product' ? { return_dept: null } : {}),
+                        })}
+                        aria-label={`Тип операции ${op.operation}`}
+                      >
+                        {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                      {op.op_type === 'operation' && op.return_dept && (
+                        <div className={styles.subText}>↩ {deptShortName(op.return_dept, op.return_dept)}</div>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`${styles.chip} ${op.material_source === 'contractor' ? styles.chipNeutral : styles.chipProgress}`}>
+                        {SUBCONTRACT_MATERIAL_SOURCE_LABELS[op.material_source]}
+                      </span>
                     </td>
                     <td>{op.operation}</td>
                     <td>{op.qty ?? '—'}</td>

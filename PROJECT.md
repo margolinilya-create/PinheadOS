@@ -20,6 +20,16 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 17 (20.07.2026) — Правки ПМ волна 3 (8 доработок, доставка волнами)
+
+**Wave 1 (правка 1) — Подряд: два типа операций + источник материалов:**
+- Миграция `20260721120000_erp_subcontracting_types.sql` (на проде): `erp_subcontracting`
+  += `op_type` (finished_product/operation), `material_source` (pinhead/contractor), `return_dept`.
+- Типы `SubcontractOpType`/`SubcontractMaterialSource` + лейблы; поля в `ErpSubcontractOp`.
+- `Subcontracting.jsx`: селекты типа/источника + «Возврат на цех» для операции, колонки таблицы.
+- Материалы подрядчика (not_needed) не гейтят закрой. 961 тест (+3).
+- План волн 2–7 — в `SESSION-STATE.md` / плане сессии.
+
 ### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
 
 **Декомпозиция крупных экранов (техдолг аудита, завершено):**
