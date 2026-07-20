@@ -3,6 +3,7 @@ import {
   buildRoute,
   isStageReady,
   isStageAwaitingProcurement,
+  hasOpenProcurement,
   materialsBlockCutting,
   materialsBlockStage,
   missingMaterialsForStage,
@@ -296,5 +297,20 @@ describe('isStageAwaitingProcurement / гейт закупки (аудит A1)',
     // с гейтом — не готов
     expect(isStageReady(st, [], [], 'sewing', true)).toBe(false);
     expect(waitingReason(st, [], [], new Map(), 'sewing', true)).toBe('Ожидает закупку материала на замену');
+  });
+});
+
+describe('hasOpenProcurement — открытая задача дозакупки (правка 7)', () => {
+  it('true если есть задача не done/cancelled', () => {
+    expect(hasOpenProcurement([{ source_stage_id: null, status: 'new' }])).toBe(true);
+    expect(hasOpenProcurement([{ source_stage_id: null, status: 'in_progress' }])).toBe(true);
+    expect(hasOpenProcurement([{ source_stage_id: null, status: 'ordered' }])).toBe(true);
+  });
+
+  it('false если все задачи done/cancelled или их нет', () => {
+    expect(hasOpenProcurement([{ source_stage_id: null, status: 'done' }])).toBe(false);
+    expect(hasOpenProcurement([{ source_stage_id: null, status: 'cancelled' }])).toBe(false);
+    expect(hasOpenProcurement([])).toBe(false);
+    expect(hasOpenProcurement(null)).toBe(false);
   });
 });

@@ -176,6 +176,16 @@ export function isStageAwaitingProcurement(
 }
 
 /**
+ * Есть ли у заказа открытая задача дозакупки/замены (правка 7): любая задача
+ * закупки со статусом ∉ done/cancelled. Для яркого выделения заказа и уведомлений.
+ */
+export function hasOpenProcurement(
+  procurementTasks: ProcurementGateTask[] | null | undefined,
+): boolean {
+  return (procurementTasks ?? []).some((t) => t.status !== 'done' && t.status !== 'cancelled');
+}
+
+/**
  * Готов ли этап к работе: все зависимости done/skipped.
  * (Материальный гейт и гейт закупки проверяются отдельно.)
  */

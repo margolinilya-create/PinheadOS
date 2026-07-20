@@ -50,7 +50,14 @@ Supabase через CDN. Финальная версия v1.7 — полност
 - Общий компонент `components/SearchInput.jsx` + матчер `utils/orderSearch.js`
   (`matchesOrderQuery`: № заказа/сделки, название, менеджер, изделие, материал).
 - Поиск добавлен в `DepartmentQueue` (Мой цех) и `ProductionBoard` (таблица) — раньше их не было.
-  Прочие разделы уже используют `styles.searchInput` (единый вид). 972 теста (+6). PR #NNN.
+  Прочие разделы уже используют `styles.searchInput` (единый вид). 972 теста (+6). PR #113.
+
+**Wave 5 (правка 7) — Уведомления по дозакупке (лёгкий вариант):**
+- Хелпер `hasOpenProcurement(procurement_tasks)` в `routes.ts` (задача ∉ done/cancelled).
+- Яркое выделение «🔔 дозакупка» на заказах в списке (`OrderRow`/`OrderCardMobile`).
+- Панель «🔔 Требуют внимания» в `OrderCard` (`orderCard/NotificationsSection`): открытые задачи
+  закупки — что / с какого этапа / причина / статус + переход в «Закупка». Без новой таблицы
+  (реюз procurement_tasks). 974 теста (+2). PR #NNN.
 
 ### Сессия 16 (20.07.2026) — Распил useErpStore на 7 слайсов + декомпозиция экранов
 

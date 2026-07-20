@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../../utils/stageUi';
+import { hasOpenProcurement } from '../../utils/routes';
 import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { DueCell } from './DueCell';
@@ -51,6 +52,9 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
           <span className={styles.subText}>
             отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
           </span>
+        )}
+        {hasOpenProcurement(order.procurement_tasks) && (
+          <span className={`${styles.chip} ${styles.chipBlocked}`}>🔔 дозакупка</span>
         )}
         <DueCell dueDate={order.due_date} />
         {progress.total > 0 && (

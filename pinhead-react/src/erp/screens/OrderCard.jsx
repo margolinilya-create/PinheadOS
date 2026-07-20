@@ -21,6 +21,7 @@ import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
+import { NotificationsSection } from './orderCard/NotificationsSection';
 
 /**
  * Карточка заказа — «трекинг посылки»: маршрут по этапам с план/фактом,
@@ -258,6 +259,8 @@ export default function OrderCard() {
           <span className={`${styles.chip} ${styles.chipDanger}`}>Без Честного знака</span>
         )}
       </div>
+
+      <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
 
       {order.items.map((item) => (
         <OrderItemSection

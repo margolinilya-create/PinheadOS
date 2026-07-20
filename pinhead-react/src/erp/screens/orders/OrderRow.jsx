@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
+import { hasOpenProcurement } from '../../utils/routes';
 import {
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
@@ -53,6 +54,11 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
           ) : (
             <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
               {ORDER_STATUS_LABELS[order.status]}
+            </span>
+          )}
+          {hasOpenProcurement(order.procurement_tasks) && (
+            <span className={`${styles.chip} ${styles.chipBlocked}`} title="Есть открытая задача дозакупки">
+              🔔 дозакупка
             </span>
           )}
           {order.shipped_at && (
