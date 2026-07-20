@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
+import { SearchInput } from '../components/SearchInput';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { matchesOrderQuery } from '../utils/orderSearch';
 import { deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
@@ -83,6 +85,7 @@ export default function ProductionBoard() {
     })),
   );
   const [onlyActive, setOnlyActive] = useState(true);
+  const [query, setQuery] = useState('');
   const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
   const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
 
@@ -105,6 +108,7 @@ export default function ProductionBoard() {
     const list = [];
     for (const order of orders) {
       if (onlyActive && order.status !== 'active') continue;
+      if (!matchesOrderQuery(order, query)) continue;
       for (const item of order.items) {
         list.push({ order, item });
       }
@@ -114,7 +118,7 @@ export default function ProductionBoard() {
       const db = b.order.due_date || '9999';
       return da.localeCompare(db);
     });
-  }, [orders, onlyActive]);
+  }, [orders, onlyActive, query]);
 
   const onAdvance = async (stage, nextStatus, item) => {
     const extra = nextStatus === 'done' ? { qty_done: item.qty } : {};
@@ -148,14 +152,22 @@ export default function ProductionBoard() {
           </button>
         </div>
         {view === 'table' && (
-          <label className={styles.checkLabel}>
-            <input
-              type="checkbox"
-              checked={onlyActive}
-              onChange={(e) => setOnlyActive(e.target.checked)}
+          <>
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Поиск: заказ, № сделки, изделие, материал"
+              ariaLabel="Поиск по производственному плану"
             />
-            Только активные
-          </label>
+            <label className={styles.checkLabel}>
+              <input
+                type="checkbox"
+                checked={onlyActive}
+                onChange={(e) => setOnlyActive(e.target.checked)}
+              />
+              Только активные
+            </label>
+          </>
         )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{rows.length} позиций</span>

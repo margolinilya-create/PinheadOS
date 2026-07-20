@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
+import { SearchInput } from '../components/SearchInput';
 import { useErpStore, readyCountFor } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../utils/routes';
+import { matchesOrderQuery } from '../utils/orderSearch';
 import { deptShortName, isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 import { QueueCard } from './queue/QueueCard';
@@ -57,6 +59,7 @@ export default function DepartmentQueue() {
   );
   // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
   const [reworkByStage, setReworkByStage] = useState({});
+  const [query, setQuery] = useState('');
   const user = useAuthStore((s) => s.user);
   // Ручной выбор вкладки: legacy localStorage — начальное значение
   const [pickedDept, setPickedDept] = useState(() => localStorage.getItem('erp_my_dept') || '');
@@ -128,6 +131,7 @@ export default function DepartmentQueue() {
     if (!dept) return g;
     for (const order of orders) {
       if (order.status !== 'active') continue;
+      if (!matchesOrderQuery(order, query)) continue;
       for (const item of order.items) {
         for (const stage of item.stages) {
           if (stage.department_id !== dept.id) continue;
@@ -158,7 +162,7 @@ export default function DepartmentQueue() {
     g.done.sort((a, b) => (b.stage.finished_at || '').localeCompare(a.stage.finished_at || ''));
     g.done = g.done.slice(0, 10);
     return g;
-  }, [orders, dept, deptNameById]);
+  }, [orders, dept, deptNameById, query]);
 
   // Подтягиваем причины возврата брака для этапов с qty_rework (баннер получателю)
   useEffect(() => {
@@ -246,6 +250,17 @@ export default function DepartmentQueue() {
         {tabHints.left && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeL}`} aria-hidden="true" />}
         {tabHints.right && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeR}`} aria-hidden="true" />}
       </div>
+
+      {dept && loaded && (
+        <div className={styles.toolbar}>
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Поиск: заказ, № сделки, изделие, материал"
+            ariaLabel="Поиск в очереди цеха"
+          />
+        </div>
+      )}
 
       {!dept && <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>}
       {dept && loading && !loaded && <QueueSkeleton />}
