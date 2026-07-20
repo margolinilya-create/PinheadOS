@@ -7,7 +7,7 @@ import { useErpStore, orderPreviewUrl, readyCountFor, lastDefectPhotoUrl } from 
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
-import { isStageReady, waitingReason } from '../utils/routes';
+import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../utils/routes';
 import { daysLeft, formatDateShort } from '../utils/time';
 import { deptShortName, isQueueDept } from '../data/departments';
 import {
@@ -286,7 +286,7 @@ function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDone, onPr
           <div className={styles.queueQty}>{item.qty} шт</div>
           {order.due_date && (
             <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
-              до {new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}
+              до {formatDateShort(order.due_date)}
               {d !== null && ` · ${d >= 0 ? `${d} дн.` : `−${-d} дн.`}`}
             </div>
           )}
@@ -662,19 +662,20 @@ export default function DepartmentQueue() {
           if (stage.department_id !== dept.id) continue;
           if (stage.status === 'skipped') continue;
           const entry = { order, item, stage, reason: null };
+          const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
           if (stage.status === 'done') {
             g.done.push({ ...entry, group: 'done' });
           } else if (stage.status === 'blocked') {
             g.blocked.push({ ...entry, group: 'blocked' });
           } else if (stage.status === 'in_progress') {
             g.in_progress.push({ ...entry, group: 'in_progress' });
-          } else if (isStageReady(stage, item.stages, order.materials, dept.code)) {
+          } else if (isStageReady(stage, item.stages, order.materials, dept.code, awaitProc)) {
             g.ready.push({ ...entry, group: 'ready' });
           } else {
             g.waiting.push({
               ...entry,
               group: 'waiting',
-              reason: waitingReason(stage, item.stages, order.materials, deptNameById, dept.code),
+              reason: waitingReason(stage, item.stages, order.materials, deptNameById, dept.code, awaitProc),
             });
           }
         }

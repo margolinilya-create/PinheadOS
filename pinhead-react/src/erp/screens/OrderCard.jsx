@@ -7,7 +7,7 @@ import { Skeleton } from '../../components/shared/Skeleton';
 import InlineEdit from '../components/InlineEdit';
 import { supabase } from '../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
-import { isStageReady, waitingReason } from '../utils/routes';
+import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../utils/routes';
 import { formatDateShort } from '../utils/time';
 import { deptShortName } from '../data/departments';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
@@ -130,8 +130,9 @@ function StageStepper({ item, order, deptById, events }) {
     <div className={styles.stepper} role="list" aria-label="Лента этапов">
       {item.stages.map((st, i) => {
         const dept = deptById.get(st.department_id);
+        const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
         const effReady = st.status === 'waiting' &&
-          isStageReady(st, item.stages, order.materials, dept?.code);
+          isStageReady(st, item.stages, order.materials, dept?.code, awaitProc);
         const display = effReady ? 'ready' : st.status;
         const ev = lastEventByStage.get(st.id);
         const tooltip = [
@@ -464,11 +465,12 @@ export default function OrderCard() {
               <tbody>
                 {item.stages.map((st) => {
                   const dept = deptById.get(st.department_id);
+                  const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
                   const effReady = st.status === 'waiting' &&
-                    isStageReady(st, item.stages, order.materials, dept?.code);
+                    isStageReady(st, item.stages, order.materials, dept?.code, awaitProc);
                   const display = effReady ? 'ready' : st.status;
                   const reason = display === 'waiting' || display === 'blocked'
-                    ? waitingReason(st, item.stages, order.materials, deptNameById, dept?.code)
+                    ? waitingReason(st, item.stages, order.materials, deptNameById, dept?.code, awaitProc)
                     : null;
                   return (
                     <tr key={st.id}>

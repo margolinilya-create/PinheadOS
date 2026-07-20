@@ -6,7 +6,7 @@ import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady } from '../utils/routes';
 import { isOrderReadyToShip } from '../utils/stageUi';
-import { daysLeft, isUrgent, isOverdue } from '../utils/time';
+import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
 import { isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
 
@@ -158,7 +158,7 @@ export default function ErpDashboard() {
                     <td>{order.bitrix_id || '—'}</td>
                     <td><span className={styles.cellTitle} title={order.title}>{order.title}</span></td>
                     <td>{order.manager || '—'}</td>
-                    <td>{new Date(order.due_date + 'T00:00:00').toLocaleDateString('ru-RU')}</td>
+                    <td>{formatDateShort(order.due_date)}</td>
                     <td className={days < 0 ? styles.overdue : styles.dueSoon}>
                       {days >= 0 ? `${days} дн.` : `просрочен ${-days} дн.`}
                     </td>

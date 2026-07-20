@@ -146,16 +146,35 @@ export function materialsBlockStage(materials: ErpMaterial[], departmentCode?: s
   return missingMaterialsForStage(materials, departmentCode).length > 0;
 }
 
+/** Минимальная форма задачи закупки для гейта (чтобы не тянуть весь тип) */
+type ProcurementGateTask = { source_stage_id: string | null; status: string };
+
+/**
+ * Ждёт ли этап закупку: есть открытая (не done/cancelled) задача закупки,
+ * привязанная к этому этапу (source_stage_id). Тогда этап не запускать, пока
+ * материал не закуплен и задача не закрыта (замыкает цикл производство↔закупка).
+ */
+export function isStageAwaitingProcurement(
+  procurementTasks: ProcurementGateTask[] | null | undefined,
+  stageId: string,
+): boolean {
+  return (procurementTasks ?? []).some(
+    (t) => t.source_stage_id === stageId && t.status !== 'done' && t.status !== 'cancelled',
+  );
+}
+
 /**
  * Готов ли этап к работе: все зависимости done/skipped.
- * (Материальный гейт проверяется отдельно — materialsBlockStage.)
+ * (Материальный гейт и гейт закупки проверяются отдельно.)
  */
 export function isStageReady(
   stage: Pick<ErpItemStage, 'depends_on' | 'status'>,
   allStages: Pick<ErpItemStage, 'id' | 'status'>[],
   materials: ErpMaterial[],
   departmentCode?: string,
+  blockedByProcurement = false,
 ): boolean {
+  if (blockedByProcurement) return false;
   if (materialsBlockStage(materials, departmentCode)) return false;
   const byId = new Map(allStages.map((s) => [s.id, s]));
   return stage.depends_on.every((depId) => {
@@ -179,8 +198,10 @@ export function waitingReason(
   materials: ErpMaterial[],
   departmentNameById: Map<string, string>,
   departmentCode?: string,
+  blockedByProcurement = false,
 ): string | null {
   if (stage.status === 'blocked') return stage.block_reason || 'Заблокирован цехом';
+  if (blockedByProcurement) return 'Ожидает закупку материала на замену';
   const missing = missingMaterialsForStage(materials, departmentCode);
   if (missing.length > 0) {
     const parts = missing.map((m) => {
