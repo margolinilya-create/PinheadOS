@@ -185,11 +185,20 @@ export interface ErpProcurementTask {
 export type SubcontractStatus =
   | 'planned' | 'sent' | 'in_progress' | 'returned' | 'delayed' | 'cancelled';
 
+/** Тип операции подряда: готовое изделие целиком или отдельная тех. операция */
+export type SubcontractOpType = 'finished_product' | 'operation';
+/** Кто предоставляет материалы: Pinhead (проходит закупку) или подрядчик (не проходит) */
+export type SubcontractMaterialSource = 'pinhead' | 'contractor';
+
 export interface ErpSubcontractOp {
   id: string;
   order_id: string;
   item_id: string | null;
   operation: string;
+  op_type: SubcontractOpType;
+  material_source: SubcontractMaterialSource;
+  /** Цех возврата после «отдельной операции» (null для готового изделия) */
+  return_dept: string | null;
   contractor: string | null;
   qty: number | null;
   sent_date: string | null;
@@ -283,6 +292,16 @@ export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
   returned: 'Возвращено',
   delayed: 'Задержка',
   cancelled: 'Отменено',
+};
+
+export const SUBCONTRACT_OP_TYPE_LABELS: Record<SubcontractOpType, string> = {
+  finished_product: 'Готовое изделие',
+  operation: 'Отдельная операция',
+};
+
+export const SUBCONTRACT_MATERIAL_SOURCE_LABELS: Record<SubcontractMaterialSource, string> = {
+  pinhead: 'Материалы Pinhead',
+  contractor: 'Материалы подрядчика',
 };
 
 export const ORDER_STATUS_LABELS: Record<ErpOrderStatus, string> = {
