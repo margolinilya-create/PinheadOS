@@ -217,10 +217,19 @@ export default function Subcontracting() {
                       <select
                         className={styles.select}
                         value={op.op_type}
-                        onChange={(e) => updateSubcontractOp(op.id, {
-                          op_type: e.target.value,
-                          ...(e.target.value === 'finished_product' ? { return_dept: null } : {}),
-                        })}
+                        onChange={(e) => {
+                          const nextType = e.target.value;
+                          const inFinished = SUBCONTRACT_FINISHED_FLOW.includes(op.status);
+                          // Смена типа согласует статус со стейт-машиной нового типа
+                          const patch = { op_type: nextType };
+                          if (nextType === 'finished_product') {
+                            patch.return_dept = null;
+                            if (!inFinished) patch.status = 'awaiting_payment';
+                          } else if (inFinished) {
+                            patch.status = 'planned';
+                          }
+                          updateSubcontractOp(op.id, patch);
+                        }}
                         aria-label={`Тип операции ${op.operation}`}
                       >
                         {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, l]) => (
@@ -245,16 +254,21 @@ export default function Subcontracting() {
                       {overdue && <div className={styles.subText}>просрочено</div>}
                     </td>
                     <td>
-                      <input
-                        type="date"
-                        className={styles.input}
-                        value={op.returned_date || ''}
-                        onChange={(e) => updateSubcontractOp(op.id, {
-                          returned_date: e.target.value || null,
-                          status: e.target.value ? 'returned' : op.status,
-                        })}
-                        aria-label={`Дата возврата ${op.operation}`}
-                      />
+                      {op.op_type === 'operation' ? (
+                        <input
+                          type="date"
+                          className={styles.input}
+                          value={op.returned_date || ''}
+                          onChange={(e) => updateSubcontractOp(op.id, {
+                            returned_date: e.target.value || null,
+                            status: e.target.value ? 'returned' : op.status,
+                          })}
+                          aria-label={`Дата возврата ${op.operation}`}
+                        />
+                      ) : (
+                        // Готовое изделие ведётся кнопочной стейт-машиной, «Возврат» не применим
+                        <span className={styles.subText}>—</span>
+                      )}
                     </td>
                     <td>
                       <span className={`${styles.chip} ${styles[overdue && op.status !== 'returned' ? 'chipBlocked' : STATUS_CHIP[op.status]]}`}>

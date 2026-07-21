@@ -81,7 +81,8 @@ export function subcontractOverdue(
   today: string,
 ): boolean {
   if (!plannedDate || returnedDate) return false;
-  if (status === 'returned' || status === 'cancelled') return false;
+  // Терминальные статусы (в т.ч. «Поступило на производство» для готового изделия) — не просрочка
+  if (status === 'returned' || status === 'cancelled' || status === 'received_at_pinhead') return false;
   return plannedDate < today;
 }
 
