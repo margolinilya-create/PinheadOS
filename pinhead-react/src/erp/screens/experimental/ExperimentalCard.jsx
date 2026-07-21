@@ -17,11 +17,16 @@ const PHASE_CHIP = {
   done: 'chipReady',
 };
 
-export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp }) {
+/** Куда сейчас передан образец (открытая передача) — для бейджа локации */
+const OP_LOCATION = { to_sewing: 'в швейном цехе', to_branding: 'на нанесениях' };
+
+export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, materialReady = true }) {
   const [ret, setRet] = useState('');
   const ops = exp.ops ?? [];
-  const canAdvancePatterns = Boolean(exp.tech_name && exp.measurement_table);
+  // Гейт «Проработки»: лекала (тех. название + табель мер) И материал принят складом (волна 4.3)
+  const canAdvancePatterns = Boolean(exp.tech_name && exp.measurement_table) && materialReady;
   const openOps = ops.filter((o) => o.status !== 'returned' && o.status !== 'cancelled');
+  const location = openOps.length > 0 ? (OP_LOCATION[openOps[0].kind] || 'на передаче') : null;
 
   const setOutcome = (outcome) => {
     if (outcome === 'needs_pattern_change') {
@@ -38,7 +43,10 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp }) {
         <div>
           <strong>№{exp.order?.bitrix_id || '—'} · {exp.order?.title || 'Заказ'}</strong>
         </div>
-        <span className={`${styles.chip} ${styles[PHASE_CHIP[exp.phase]]}`}>{EXPERIMENTAL_PHASE_LABELS[exp.phase]}</span>
+        <div className={styles.checkRow}>
+          {location && <span className={`${styles.chip} ${styles.chipProgress}`}>сейчас: {location}</span>}
+          <span className={`${styles.chip} ${styles[PHASE_CHIP[exp.phase]]}`}>{EXPERIMENTAL_PHASE_LABELS[exp.phase]}</span>
+        </div>
       </div>
 
       {exp.phase === 'patterns' && (
@@ -60,10 +68,17 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp }) {
           </div>
           <button type="button" className="btn btn-primary" disabled={!canAdvancePatterns}
             onClick={() => onUpdate(exp.id, { phase: 'development' })}
-            title={canAdvancePatterns ? '' : 'Заполните тех. название лекал и табель мер'}>
+            title={canAdvancePatterns ? '' : 'Нужны лекала (тех. название + табель мер) и приёмка материала складом'}>
             → Проработка
           </button>
-          {!canAdvancePatterns && <span className={styles.subText}> Нужны тех. название лекал и табель мер</span>}
+          {!canAdvancePatterns && (
+            <span className={styles.subText}>
+              {' '}
+              {!(exp.tech_name && exp.measurement_table)
+                ? 'Нужны тех. название лекал и табель мер'
+                : 'Ожидает приёмки материала складом'}
+            </span>
+          )}
         </div>
       )}
 

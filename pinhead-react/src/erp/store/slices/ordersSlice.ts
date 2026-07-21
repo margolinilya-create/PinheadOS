@@ -182,6 +182,11 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           status: it.subcontract_kind === 'finished_product' ? 'awaiting_payment' : 'planned',
         });
       }
+      // Эксперимент (волна 4.3): заказ-образец сразу заводит разработку в эксперим. цехе
+      // (фаза «Построение лекал»), чтобы проработка не создавалась вручную.
+      if (created.items.some((it) => it.production_type === 'samples')) {
+        await get().createExperimental(created.id);
+      }
     }
     return created;
   },
