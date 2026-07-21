@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
+import { isQueueDept, deptShortName } from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
@@ -205,6 +206,11 @@ function FieldError({ id, text }) {
 export function CreateOrderModal({ onClose }) {
   const createOrder = useErpStore((s) => s.createOrder);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
+  const departments = useErpStore((s) => s.departments);
+  const queueDepts = useMemo(
+    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    [departments],
+  );
   const [saving, setSaving] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -367,7 +373,10 @@ export function CreateOrderModal({ onClose }) {
           // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
           ...(it.production_type === 'outsource'
             ? { subcontract_kind: it.subcontract_kind || 'finished_product',
-                material_source: it.material_source || 'pinhead' }
+                material_source: it.material_source || 'pinhead',
+                // Возврат на цех — только для отдельной операции
+                return_dept: (it.subcontract_kind || 'finished_product') === 'operation'
+                  ? (it.return_dept || null) : null }
             : {}),
           // маршрут строится по техникам из блоков «Нанесение №N»
           branding_methods: [...new Set(prints.map((p) => p.method))],
@@ -627,6 +636,22 @@ export function CreateOrderModal({ onClose }) {
                     ))}
                   </select>
                 </label>
+                {(it.subcontract_kind ?? 'finished_product') === 'operation' && (
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Возврат на цех</span>
+                    <select
+                      className={styles.select}
+                      value={it.return_dept ?? ''}
+                      onChange={(e) => setItem(i, { return_dept: e.target.value })}
+                      aria-label="Возврат на цех после операции подряда"
+                    >
+                      <option value="">Возврат на цех…</option>
+                      {queueDepts.map((d) => (
+                        <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </>
             )}
             <div className={styles.field}>

@@ -122,6 +122,8 @@ export interface NewOrderItemInput {
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: 'finished_product' | 'operation';
   material_source?: 'pinhead' | 'contractor';
+  /** Возврат на цех после отдельной операции подряда (код цеха) */
+  return_dept?: string | null;
 }
 
 export interface NewOrderInput {
