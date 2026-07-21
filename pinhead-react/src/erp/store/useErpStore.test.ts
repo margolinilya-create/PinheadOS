@@ -1109,6 +1109,27 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     expect((subInsert!.row as any).status).toBe('awaiting_payment');
     expect((subInsert!.row as any).order_id).toBe('o-sub');
   });
+
+  it('образец (волна 4.3): авто-создаёт эксперим. разработку в фазе patterns', async () => {
+    useErpStore.setState({ departments: DEPS as any });
+    h.rpcResult = { data: 'o-exp', error: null };
+    h.singleData = {
+      id: 'o-exp', title: 'Образец', status: 'active', materials: [],
+      items: [{
+        id: 'it-exp', order_id: 'o-exp', product_type: 'Худи', qty: 2,
+        production_type: 'samples', branding_methods: [], branding_on: 'cut',
+        sort_order: 10, stages: [], prints: [],
+      }],
+    };
+    await useErpStore.getState().createOrder({
+      title: 'Образец',
+      items: [{ product_type: 'Худи', qty: 2, production_type: 'samples', branding_methods: [], branding_on: 'cut' }],
+    });
+    const expInsert = h.insertCalls.find((c) => c.table === 'erp_experimental');
+    expect(expInsert).toBeTruthy();
+    expect((expInsert!.row as any).order_id).toBe('o-exp');
+    expect((expInsert!.row as any).phase).toBe('patterns');
+  });
 });
 
 describe('logStageEvent — ретрай аудита (п.33)', () => {

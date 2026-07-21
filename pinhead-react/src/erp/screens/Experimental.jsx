@@ -56,6 +56,15 @@ export default function Experimental() {
     });
   }, [experimental, orders, query]);
 
+  // Гейт «Проработки» (волна 4.3): материал принят складом? Нет заказа/материалов — свободно;
+  // иначе ждём задачу приёмки склада в статусе «accepted».
+  const materialReadyFor = (orderId) => {
+    const o = orders.find((x) => x.id === orderId);
+    if (!o || (o.materials?.length ?? 0) === 0) return true;
+    const task = (o.warehouse_tasks ?? []).find((t) => t.task_type === 'material_receipt');
+    return task ? task.status === 'accepted' : false;
+  };
+
   const addExperimental = async () => {
     if (!newOrderId) { toast.error('Выберите заказ'); return; }
     const row = await createExperimental(newOrderId);
@@ -89,6 +98,7 @@ export default function Experimental() {
         <ExperimentalCard
           key={exp.id}
           exp={exp}
+          materialReady={materialReadyFor(exp.order_id)}
           onUpdate={updateExperimental}
           onCreateOp={createExperimentalOp}
           onCompleteOp={completeExperimentalOp}
