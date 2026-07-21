@@ -48,6 +48,9 @@ export interface DraftItem {
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
   has_branding?: boolean;
+  /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
+  subcontract_kind?: string;
+  material_source?: string;
   prints: DraftPrint[];
   size_grid: DraftGrid | null;
 }
@@ -83,6 +86,8 @@ export const EMPTY_ITEM: DraftItem = {
   production_type: 'sewing',
   branding_on: 'cut',
   has_branding: false,
+  subcontract_kind: 'finished_product',
+  material_source: 'pinhead',
   prints: [],
   size_grid: null,
 };

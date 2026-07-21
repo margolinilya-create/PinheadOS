@@ -1077,6 +1077,38 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     expect(created).toBeNull();
     expect(toast.error).toHaveBeenCalledWith('Не удалось создать заказ');
   });
+
+  it('подряд (волна 4.2): несёт поля подряда и авто-создаёт операцию подряда', async () => {
+    useErpStore.setState({ departments: DEPS as any });
+    h.rpcResult = { data: 'o-sub', error: null };
+    h.singleData = {
+      id: 'o-sub', title: 'Подряд', status: 'active', materials: [],
+      items: [{
+        id: 'it-sub', order_id: 'o-sub', product_type: 'Худи', qty: 50,
+        production_type: 'outsource', branding_methods: [], branding_on: 'cut',
+        sort_order: 10, stages: [], prints: [],
+        subcontract_kind: 'finished_product', material_source: 'pinhead',
+      }],
+    };
+    const created = await useErpStore.getState().createOrder({
+      title: 'Подряд',
+      items: [{
+        product_type: 'Худи', qty: 50, production_type: 'outsource',
+        branding_methods: [], branding_on: 'cut',
+        subcontract_kind: 'finished_product', material_source: 'pinhead',
+      }],
+    });
+    expect(created?.id).toBe('o-sub');
+    const payloadItem = (h.rpcCalls[0].args.payload as any).items[0];
+    expect(payloadItem.subcontract_kind).toBe('finished_product');
+    expect(payloadItem.material_source).toBe('pinhead');
+    // авто-создана операция подряда «готовое изделие» в статусе awaiting_payment
+    const subInsert = h.insertCalls.find((c) => c.table === 'erp_subcontracting');
+    expect(subInsert).toBeTruthy();
+    expect((subInsert!.row as any).op_type).toBe('finished_product');
+    expect((subInsert!.row as any).status).toBe('awaiting_payment');
+    expect((subInsert!.row as any).order_id).toBe('o-sub');
+  });
 });
 
 describe('logStageEvent — ретрай аудита (п.33)', () => {

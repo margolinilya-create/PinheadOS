@@ -134,6 +134,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           notes: it.notes || null,
           size_grid: it.size_grid ?? null,
           sort_order: (i + 1) * 10,
+          // Подряд (волна 4.2): тип/источник материалов для production_type='outsource'
+          subcontract_kind: it.production_type === 'outsource' ? (it.subcontract_kind ?? null) : null,
+          material_source: it.production_type === 'outsource' ? (it.material_source ?? null) : null,
           prints: (it.prints ?? []).map((p, j) => ({
             seq: j + 1,
             method: p.method,
@@ -163,7 +166,24 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       return null;
     }
     // Созданный заказ забираем тем же вложенным select
-    return get().loadOne(data as string);
+    const created = await get().loadOne(data as string);
+    // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
+    // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
+    if (created) {
+      for (const it of created.items) {
+        if (!it.subcontract_kind) continue;
+        await get().createSubcontractOp({
+          order_id: created.id,
+          item_id: it.id,
+          operation: it.product_type,
+          op_type: it.subcontract_kind,
+          material_source: it.material_source ?? 'pinhead',
+          qty: it.qty,
+          status: it.subcontract_kind === 'finished_product' ? 'awaiting_payment' : 'planned',
+        });
+      }
+    }
+    return created;
   },
 
   updateOrder: async (id, patch) => {

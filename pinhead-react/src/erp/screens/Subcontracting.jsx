@@ -9,6 +9,7 @@ import {
   SUBCONTRACT_STATUS_LABELS,
   SUBCONTRACT_OP_TYPE_LABELS,
   SUBCONTRACT_MATERIAL_SOURCE_LABELS,
+  SUBCONTRACT_FINISHED_FLOW,
 } from '../types';
 import styles from '../erp.module.css';
 
@@ -24,6 +25,13 @@ const STATUS_CHIP = {
   returned: 'chipReady',
   delayed: 'chipBlocked',
   cancelled: 'chipSkipped',
+  // готовое изделие от подрядчика (волна 4.2)
+  awaiting_payment: 'chipNeutral',
+  awaiting_materials: 'chipNeutral',
+  started: 'chipProgress',
+  ready_to_ship: 'chipProgress',
+  shipped_by_contractor: 'chipProgress',
+  received_at_pinhead: 'chipReady',
 };
 
 const EMPTY_OP = {
@@ -252,16 +260,35 @@ export default function Subcontracting() {
                       <span className={`${styles.chip} ${styles[overdue && op.status !== 'returned' ? 'chipBlocked' : STATUS_CHIP[op.status]]}`}>
                         {overdue && op.status !== 'returned' ? 'Задержка' : SUBCONTRACT_STATUS_LABELS[op.status]}
                       </span>
-                      <select
-                        className={styles.select}
-                        value={op.status}
-                        onChange={(e) => updateSubcontractOp(op.id, { status: e.target.value })}
-                        aria-label={`Статус операции ${op.operation}`}
-                      >
-                        {Object.entries(SUBCONTRACT_STATUS_LABELS).map(([v, l]) => (
-                          <option key={v} value={v}>{l}</option>
-                        ))}
-                      </select>
+                      {op.op_type === 'finished_product' ? (
+                        (() => {
+                          // Готовое изделие: кнопочная стейт-машина (оплата→…→поступило)
+                          const idx = SUBCONTRACT_FINISHED_FLOW.indexOf(op.status);
+                          const next = idx === -1 ? SUBCONTRACT_FINISHED_FLOW[0] : SUBCONTRACT_FINISHED_FLOW[idx + 1];
+                          return next ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => updateSubcontractOp(op.id, { status: next })}
+                            >
+                              → {SUBCONTRACT_STATUS_LABELS[next]}
+                            </button>
+                          ) : null;
+                        })()
+                      ) : (
+                        <select
+                          className={styles.select}
+                          value={op.status}
+                          onChange={(e) => updateSubcontractOp(op.id, { status: e.target.value })}
+                          aria-label={`Статус операции ${op.operation}`}
+                        >
+                          {Object.entries(SUBCONTRACT_STATUS_LABELS)
+                            .filter(([v]) => !SUBCONTRACT_FINISHED_FLOW.includes(v))
+                            .map(([v, l]) => (
+                              <option key={v} value={v}>{l}</option>
+                            ))}
+                        </select>
+                      )}
                     </td>
                     <td>
                       <input

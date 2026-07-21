@@ -119,6 +119,9 @@ export interface NewOrderItemInput {
   notes?: string;
   size_grid?: SizeGridRow[] | null;
   prints?: NewPrintInput[];
+  /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
+  subcontract_kind?: 'finished_product' | 'operation';
+  material_source?: 'pinhead' | 'contractor';
 }
 
 export interface NewOrderInput {
