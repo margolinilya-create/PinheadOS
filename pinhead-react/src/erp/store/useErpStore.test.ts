@@ -943,6 +943,34 @@ describe('applyRealtimeEvent — точечное применение (п.27)',
     const call = h.selectCalls.find((c) => c.table === 'erp_orders');
     expect(call?.filters).toContain('eq:id=o-new');
   });
+
+  it('warehouse_tasks событие — точечный upsert, БЕЗ loadOne (этапы не тронуты)', () => {
+    seed({ status: 'in_progress' });
+    useErpStore.setState((s) => ({ orders: s.orders.map((o) => ({ ...o, warehouse_tasks: [] })) }));
+    const ordersSelectsBefore = h.selectCalls.filter((c) => c.table === 'erp_orders').length;
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_warehouse_tasks', eventType: 'INSERT',
+      new: { id: 'wt1', order_id: 'o1', task_type: 'material_receipt', status: 'awaiting' }, old: null,
+    });
+    const o = useErpStore.getState().orders[0];
+    expect(o.warehouse_tasks).toHaveLength(1);
+    expect((o.warehouse_tasks as any)[0].id).toBe('wt1');
+    expect(o.items[0].stages[0].status).toBe('in_progress'); // этап НЕ затёрт
+    // loadOne (полная перезагрузка заказа) НЕ вызывался
+    expect(h.selectCalls.filter((c) => c.table === 'erp_orders').length).toBe(ordersSelectsBefore);
+  });
+
+  it('materials событие — точечный upsert материала, этапы не тронуты', () => {
+    seed({ status: 'in_progress' });
+    useErpStore.setState((s) => ({ orders: s.orders.map((o) => ({ ...o, materials: [] })) }));
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_materials', eventType: 'INSERT',
+      new: { id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Ткань', status: 'received' }, old: null,
+    });
+    const o = useErpStore.getState().orders[0];
+    expect(o.materials).toHaveLength(1);
+    expect(o.items[0].stages[0].status).toBe('in_progress');
+  });
 });
 
 describe('applyRealtimeEvent — защита от race (pendingMutations, п.29)', () => {

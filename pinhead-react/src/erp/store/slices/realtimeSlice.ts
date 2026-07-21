@@ -13,10 +13,37 @@ import {
   FULL_RELOAD_DEBOUNCE_MS,
 } from '../shared';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
-import type { ErpStore, RealtimeSlice } from '../types';
+import type { ErpOrderFull, ErpStore, RealtimeSlice } from '../types';
 
 /** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
 let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
+type ChildKey = 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks';
+const TABLE_TO_CHILD: Record<string, ChildKey> = {
+  erp_materials: 'materials',
+  erp_procurement_tasks: 'procurement_tasks',
+  erp_warehouse_ops: 'warehouse_ops',
+  erp_warehouse_tasks: 'warehouse_tasks',
+};
+
+/**
+ * Точечный upsert/удаление дочерней строки заказа (материал/закупка/склад).
+ * Раньше эти события вызывали полный loadOne заказа — а он затирал оптимистичные
+ * мутации ЭТАПОВ, если прилетал во время незавершённой мутации (регрессия волны 4.1:
+ * триггер складских задач шлёт события на каждом переходе этапа). Точечный патч
+ * массива готовность этапов не ломает (она считается из материалов при рендере).
+ */
+function upsertChildRow(
+  order: ErpOrderFull, key: ChildKey, row: Record<string, unknown>, id: string, eventType: string,
+): ErpOrderFull {
+  const list = (order[key] ?? []) as { id: string }[];
+  let next: unknown[];
+  if (eventType === 'DELETE') next = list.filter((r) => r.id !== id);
+  else if (list.some((r) => r.id === id)) next = list.map((r) => (r.id === id ? { ...r, ...row } : r));
+  else next = [...list, row];
+  return { ...order, [key]: next };
+}
 
 export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set, get) => ({
   applyRealtimeEvent: (ev) => {
@@ -36,17 +63,21 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
 
-    // Аудит-агент (A3): materials/procurement_tasks/subcontracting не подписаны были —
-    // теперь точечно обновляем связанный заказ / список подряда у других пользователей.
-    if (
-      ev.table === 'erp_materials'
-      || ev.table === 'erp_procurement_tasks'
-      || ev.table === 'erp_warehouse_ops'
-      || ev.table === 'erp_warehouse_tasks'
-    ) {
+    // Материалы/закупка/склад: точечный upsert в массив заказа, БЕЗ полного loadOne
+    // (loadOne затирал бы оптимистичные мутации этапов — «откат»/«перескок»).
+    const childKey = TABLE_TO_CHILD[ev.table];
+    if (childKey) {
       const orderId = (row.order_id ?? null) as string | null;
       if (orderId && get().orders.some((o) => o.id === orderId)) {
-        void withNewWorkToast(get, () => get().loadOne(orderId));
+        // материалы/закупка влияют на готовность → уведомление о новой работе; склад — нет
+        void withNewWorkToast(get, () => {
+          set((s) => ({
+            orders: s.orders.map((o) =>
+              o.id === orderId
+                ? upsertChildRow(o, childKey, row as Record<string, unknown>, id, ev.eventType)
+                : o),
+          }));
+        });
       }
       return;
     }
