@@ -8,7 +8,6 @@ import { supabase } from '../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { formatDateShort } from '../utils/time';
 import { isOrderReadyToShip } from '../utils/stageUi';
-import { confirm } from '../../store/useConfirmStore';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -33,7 +32,7 @@ export default function OrderCard() {
   const {
     orders, departments, loaded, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
-    shipOrder, profilesList, employees,
+    profilesList, employees,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -47,7 +46,6 @@ export default function OrderCard() {
       updateOrder: s.updateOrder,
       loadComments: s.loadComments,
       addComment: s.addComment,
-      shipOrder: s.shipOrder,
       profilesList: s.profilesList,
       employees: s.employees,
     })),
@@ -126,15 +124,6 @@ export default function OrderCard() {
     return employees.find((x) => x.profile_id === order.shipped_by)?.full_name ?? null;
   }, [order, profilesList, employees]);
 
-  const onShip = async () => {
-    if (!order) return;
-    const ok = await confirm({
-      title: `Отгрузить заказ «${order.title}»?`,
-      message: 'Заказ уйдёт в архив.',
-      confirmLabel: 'Отгрузить',
-    });
-    if (ok) await shipOrder(order.id);
-  };
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const deptNameById = useMemo(
     () => new Map(departments.map((d) => [d.id, d.name])),
@@ -230,14 +219,8 @@ export default function OrderCard() {
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>
           {SHIPPED_STATUS_LABELS[order.shipped_status]}
         </span>
-        {readyToShip && (
-          <button
-            type="button"
-            className={`btn btn-primary ${styles.shipBtn}`}
-            onClick={onShip}
-          >
-            🚚 Отгрузить
-          </button>
+        {readyToShip && order.shipped_status !== 'shipped' && (
+          <span className={styles.subText}>🚚 Отгрузка — во вкладке «Склад»</span>
         )}
         {order.shipped_at && (
           <span className={styles.subText}>

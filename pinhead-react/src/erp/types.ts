@@ -55,6 +55,15 @@ export type MaterialAcceptStatus =
 export type WarehouseOpType =
   | 'material_receipt' | 'rework_receipt' | 'partial_receipt' | 'packaging' | 'shipment' | 'marking';
 
+/** Тип задачи склада (волна 4): заказ проходит склад несколько раз */
+export type WarehouseTaskType = 'material_receipt' | 'marking' | 'pack_ship';
+/** Статусы задач склада по типам */
+export type MaterialReceiptStatus = 'awaiting' | 'accepted';
+export type MarkingStatus = 'new' | 'in_progress' | 'issued';
+export type PackShipStatus =
+  | 'awaiting_receipt' | 'accepted' | 'packing' | 'packed' | 'ready_to_ship' | 'shipped';
+export type WarehouseTaskStatus = MaterialReceiptStatus | MarkingStatus | PackShipStatus;
+
 export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled';
 
 // --- Строки таблиц ----------------------------------------------------------
@@ -170,6 +179,20 @@ export interface ErpWarehouseOp {
   note: string | null;
   actor: string | null;
   created_at: string;
+}
+
+/** Задача склада (волна 4): приёмка материалов / выпуск маркировки / упаковка и отгрузка */
+export interface ErpWarehouseTask {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  task_type: WarehouseTaskType;
+  status: WarehouseTaskStatus;
+  marking_type: string | null;
+  deadline: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // --- Задачи закупки (возврат из закроя → дозакупка/замена) -------------------
@@ -353,6 +376,27 @@ export const WAREHOUSE_OP_LABELS: Record<WarehouseOpType, string> = {
   packaging: 'Упаковка',
   shipment: 'Отгрузка',
   marking: 'Выпуск маркировки',
+};
+
+export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
+  material_receipt: 'Приёмка материалов',
+  marking: 'Выпуск маркировки',
+  pack_ship: 'Упаковка и отгрузка',
+};
+
+export const MARKING_STATUS_LABELS: Record<MarkingStatus, string> = {
+  new: 'Новая',
+  in_progress: 'В работе',
+  issued: 'Маркировка выпущена',
+};
+
+export const PACK_SHIP_STATUS_LABELS: Record<PackShipStatus, string> = {
+  awaiting_receipt: 'Ожидает приёмки',
+  accepted: 'Принято',
+  packing: 'На упаковке',
+  packed: 'Упаковано',
+  ready_to_ship: 'Готово к отгрузке',
+  shipped: 'Отгружено',
 };
 
 export const PROCUREMENT_CAUSE_LABELS: Record<ProcurementCauseType, string> = {

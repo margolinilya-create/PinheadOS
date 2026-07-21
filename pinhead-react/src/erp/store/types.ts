@@ -20,12 +20,14 @@ import type {
   ErpStageEvent,
   ErpSubcontractOp,
   ErpWarehouseOp,
+  ErpWarehouseTask,
   MaterialAcceptStatus,
   ProcurementCauseType,
   ProductionType,
   SizeGridRow,
   StageStatus,
   WarehouseOpType,
+  WarehouseTaskStatus,
 } from '../types';
 
 /** Профиль из общей таблицы profiles (единый источник сотрудников с Order Studio) */
@@ -73,6 +75,7 @@ export interface ErpOrderFull extends ErpOrder {
   attachments?: ErpOrderAttachment[];
   procurement_tasks?: ErpProcurementTask[];
   warehouse_ops?: ErpWarehouseOp[];
+  warehouse_tasks?: ErpWarehouseTask[];
 }
 
 /**
@@ -238,6 +241,16 @@ export interface WarehouseSlice {
     orderId: string,
     op: { op_type: WarehouseOpType; material_id?: string | null; qty?: number | null; note?: string | null },
   ) => Promise<ErpWarehouseOp | null>;
+  /**
+   * Продвижение задачи склада по её стейт-машине (волна 4). Optimistic+rollback;
+   * значимые переходы пишутся в историю erp_warehouse_ops; pack_ship→shipped
+   * вызывает shipOrder (гейт isOrderReadyToShip) — заказ уходит в архив.
+   */
+  advanceWarehouseTask: (
+    taskId: string,
+    status: WarehouseTaskStatus,
+    extra?: { marking_type?: string | null; deadline?: string | null; note?: string | null },
+  ) => Promise<boolean>;
 }
 
 /** Задачи закупки (дозакупка/замена при возврате брака) */
