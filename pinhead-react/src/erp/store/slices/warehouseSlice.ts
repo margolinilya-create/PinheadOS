@@ -1,19 +1,42 @@
 /**
- * Слайс склада (правки 2, 3): числовая приёмка материалов (план/факт/статус) с записью
- * в историю складских операций, и прочие складские операции (упаковка/отгрузка/маркировка).
- * warehouse_ops приходят join'ом в ORDER_SELECT; здесь оптимистично дописываем строки.
+ * Слайс склада (правки 2, 3 + волна 4): числовая приёмка материалов (план/факт/статус)
+ * с записью в историю складских операций; прочие операции (упаковка/отгрузка/маркировка);
+ * и задачи склада с жизненным циклом (erp_warehouse_tasks) — приёмка → маркировка →
+ * упаковка и отгрузка. Задачи авто-создаются триггером БД по переходам маршрута; здесь —
+ * их продвижение по стейт-машине с записью значимых переходов в историю.
  */
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
-import type { ErpWarehouseOp } from '../../types';
+import type { ErpMaterial, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType } from '../../types';
 import { currentActor } from '../shared';
-import type { ErpStore, WarehouseSlice } from '../types';
+import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 
 /** Тип складской операции для приёмки по статусу приёмки */
 function receiptOpType(acceptStatus: string): ErpWarehouseOp['op_type'] {
   return acceptStatus === 'accepted_partial' ? 'partial_receipt' : 'material_receipt';
+}
+
+/** Материал ещё ждёт приёмки складом (пришёл, но не принят) */
+function awaitsAcceptance(m: ErpMaterial): boolean {
+  if (m.status !== 'received') return false;
+  return m.accept_status !== 'accepted_full' && m.accept_status !== 'accepted_partial';
+}
+
+/** Значимые статусы задач → строка истории склада (прочие переходы историю не пишут) */
+const OP_FOR_STATUS: Record<string, WarehouseOpType> = {
+  issued: 'marking',
+  packed: 'packaging',
+  shipped: 'shipment',
+};
+
+/** Точечный патч задачи склада в orders[].warehouse_tasks (сохраняет идентичность прочих заказов) */
+function patchTaskIn(orders: ErpOrderFull[], taskId: string, patch: Partial<ErpWarehouseTask>): ErpOrderFull[] {
+  return orders.map((o) =>
+    (o.warehouse_tasks ?? []).some((t) => t.id === taskId)
+      ? { ...o, warehouse_tasks: o.warehouse_tasks!.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) }
+      : o);
 }
 
 export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (set, get) => ({
@@ -40,6 +63,14 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       note: accept_comment,
     });
     if (!opRow) toast.warning('Приёмка записана, но не попала в историю склада');
+
+    // Если приёмка заказа завершена (нечего больше принимать) — закрыть задачу приёмки.
+    const fresh = get().orders.find((o) => o.id === order.id);
+    const task = fresh?.warehouse_tasks?.find(
+      (t) => t.task_type === 'material_receipt' && t.status !== 'accepted');
+    if (task && fresh && !fresh.materials.some(awaitsAcceptance)) {
+      await get().advanceWarehouseTask(task.id, 'accepted');
+    }
     return true;
   },
 
@@ -67,5 +98,37 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
           : o),
     }));
     return row;
+  },
+
+  advanceWarehouseTask: async (taskId, status, extra) => {
+    const prev = get().orders;
+    const order = prev.find((o) => (o.warehouse_tasks ?? []).some((t) => t.id === taskId));
+    const task = order?.warehouse_tasks?.find((t) => t.id === taskId);
+    if (!order || !task) return false;
+
+    // Отгрузка — единственное место отгрузки заказа: сперва shipOrder (гейт готовности),
+    // затем закрываем задачу. Если заказ не готов — задачу не трогаем.
+    if (task.task_type === 'pack_ship' && status === 'shipped') {
+      const shipped = await get().shipOrder(order.id);
+      if (!shipped) return false;
+    }
+
+    const patch: Partial<ErpWarehouseTask> = {
+      status,
+      ...(extra?.marking_type !== undefined ? { marking_type: extra.marking_type } : {}),
+      ...(extra?.deadline !== undefined ? { deadline: extra.deadline } : {}),
+      ...(extra?.note !== undefined ? { note: extra.note } : {}),
+    };
+    set((s) => ({ orders: patchTaskIn(s.orders, taskId, patch) }));
+    const { error } = await supabase.from('erp_warehouse_tasks').update(patch).eq('id', taskId);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось обновить задачу склада');
+      return false;
+    }
+    // История склада для значимых переходов (маркировка выпущена / упаковано / отгружено)
+    const opType = OP_FOR_STATUS[status];
+    if (opType) await get().logWarehouseOp(order.id, { op_type: opType });
+    return true;
   },
 });

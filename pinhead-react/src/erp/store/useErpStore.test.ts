@@ -544,6 +544,105 @@ describe('useErpStore — материал со склада / авто-закр
     const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
     expect(ops[0].op_type).toBe('partial_receipt');
   });
+
+  it('acceptMaterial: закрывает задачу приёмки, когда все материалы приняты', async () => {
+    seedSupply([mat({ status: 'pending', accept_status: null })]);
+    useErpStore.setState({
+      orders: [{
+        ...useErpStore.getState().orders[0],
+        warehouse_tasks: [{ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'material_receipt', status: 'awaiting' }],
+      }] as any,
+    });
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 100, accept_status: 'accepted_full',
+    });
+    const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
+    expect(task?.status).toBe('accepted');
+  });
+});
+
+describe('useErpStore — задачи склада (волна 4): advanceWarehouseTask', () => {
+  function seedTask(task: any, orderOver: any = {}) {
+    const item = {
+      id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 100,
+      production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+      notes: null, sort_order: 10, stages: [], prints: [],
+    };
+    const order = {
+      id: 'o1', title: 'Заказ', status: 'active', due_date: null,
+      shipped_status: 'not_shipped', items: [item], materials: [],
+      warehouse_ops: [], warehouse_tasks: [task], ...orderOver,
+    };
+    useErpStore.setState({ orders: [order] as any, departments: [] as any, loaded: true });
+  }
+  const task0 = () => useErpStore.getState().orders[0].warehouse_tasks?.[0];
+
+  it('marking new→in_progress: optimistic + update Supabase', async () => {
+    seedTask({ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'marking', status: 'new' });
+    const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'in_progress', { marking_type: 'ЧЗ' });
+    expect(ok).toBe(true);
+    expect(task0()?.status).toBe('in_progress');
+    expect(task0()?.marking_type).toBe('ЧЗ');
+    expect(h.updateCalls.some((c) => c.table === 'erp_warehouse_tasks')).toBe(true);
+  });
+
+  it('marking →issued: пишет строку истории marking', async () => {
+    seedTask({ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'marking', status: 'in_progress' });
+    await useErpStore.getState().advanceWarehouseTask('wt1', 'issued');
+    const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
+    expect(ops.some((o) => o.op_type === 'marking')).toBe(true);
+  });
+
+  it('rollback при ошибке Supabase', async () => {
+    seedTask({ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'pack_ship', status: 'accepted' });
+    h.updateError = { message: 'boom' };
+    const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'packing');
+    expect(ok).toBe(false);
+    expect(task0()?.status).toBe('accepted');
+    expect(toast.error).toHaveBeenCalledWith('Не удалось обновить задачу склада');
+  });
+
+  it('pack_ship ready_to_ship→shipped: отгружает заказ (все этапы done) → done_* + shipment', async () => {
+    const doneStage = {
+      id: 'st1', item_id: 'it1', department_id: 'd1', depends_on: [], status: 'done',
+      qty_done: 100, qty_rework: 0, sort_order: 10, planned_start: null, planned_end: null,
+      started_at: null, finished_at: '2026-01-01', assignee: null, block_reason: null, notes: null,
+    };
+    seedTask(
+      { id: 'wt1', order_id: 'o1', item_id: null, task_type: 'pack_ship', status: 'ready_to_ship' },
+      { items: [{
+        id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 100,
+        production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+        notes: null, sort_order: 10, stages: [doneStage], prints: [],
+      }], materials: [] },
+    );
+    const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'shipped');
+    expect(ok).toBe(true);
+    expect(task0()?.status).toBe('shipped');
+    expect(useErpStore.getState().orders[0].status).toMatch(/^done_/);
+    const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
+    expect(ops.some((o) => o.op_type === 'shipment')).toBe(true);
+  });
+
+  it('pack_ship →shipped при неготовом заказе: shipOrder блокирует, задача не меняется', async () => {
+    const openStage = {
+      id: 'st1', item_id: 'it1', department_id: 'd1', depends_on: [], status: 'in_progress',
+      qty_done: 0, qty_rework: 0, sort_order: 10, planned_start: null, planned_end: null,
+      started_at: null, finished_at: null, assignee: null, block_reason: null, notes: null,
+    };
+    seedTask(
+      { id: 'wt1', order_id: 'o1', item_id: null, task_type: 'pack_ship', status: 'ready_to_ship' },
+      { items: [{
+        id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 100,
+        production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+        notes: null, sort_order: 10, stages: [openStage], prints: [],
+      }], materials: [] },
+    );
+    const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'shipped');
+    expect(ok).toBe(false);
+    expect(task0()?.status).toBe('ready_to_ship');
+    expect(useErpStore.getState().orders[0].status).toBe('active');
+  });
 });
 
 describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => {
