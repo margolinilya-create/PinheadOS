@@ -170,7 +170,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
     // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
     if (created) {
-      for (const it of created.items) {
+      // created.items идут в том же порядке, что и input items (sort_order = (k+1)*10),
+      // поэтому return_dept (не хранится на позиции) берём из входных items по индексу.
+      for (let k = 0; k < created.items.length; k++) {
+        const it = created.items[k];
         if (!it.subcontract_kind) continue;
         await get().createSubcontractOp({
           order_id: created.id,
@@ -180,6 +183,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           material_source: it.material_source ?? 'pinhead',
           qty: it.qty,
           status: it.subcontract_kind === 'finished_product' ? 'awaiting_payment' : 'planned',
+          return_dept: it.subcontract_kind === 'operation' ? (items[k]?.return_dept ?? null) : null,
         });
       }
       // Эксперимент (волна 4.3): заказ-образец сразу заводит разработку в эксперим. цехе

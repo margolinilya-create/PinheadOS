@@ -1110,6 +1110,32 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     expect((subInsert!.row as any).order_id).toBe('o-sub');
   });
 
+  it('подряд-операция (S2-1): передаёт return_dept из формы в авто-операцию', async () => {
+    useErpStore.setState({ departments: DEPS as any });
+    h.rpcResult = { data: 'o-op', error: null };
+    h.singleData = {
+      id: 'o-op', title: 'Операция', status: 'active', materials: [],
+      items: [{
+        id: 'it-op', order_id: 'o-op', product_type: 'Свитшот', qty: 30,
+        production_type: 'outsource', branding_methods: [], branding_on: 'cut',
+        sort_order: 10, stages: [], prints: [],
+        subcontract_kind: 'operation', material_source: 'contractor',
+      }],
+    };
+    await useErpStore.getState().createOrder({
+      title: 'Операция',
+      items: [{
+        product_type: 'Свитшот', qty: 30, production_type: 'outsource',
+        branding_methods: [], branding_on: 'cut',
+        subcontract_kind: 'operation', material_source: 'contractor', return_dept: 'sewing',
+      }],
+    });
+    const subInsert = h.insertCalls.find((c) => c.table === 'erp_subcontracting');
+    expect((subInsert!.row as any).op_type).toBe('operation');
+    expect((subInsert!.row as any).status).toBe('planned');
+    expect((subInsert!.row as any).return_dept).toBe('sewing');
+  });
+
   it('образец (волна 4.3): авто-создаёт эксперим. разработку в фазе patterns', async () => {
     useErpStore.setState({ departments: DEPS as any });
     h.rpcResult = { data: 'o-exp', error: null };
