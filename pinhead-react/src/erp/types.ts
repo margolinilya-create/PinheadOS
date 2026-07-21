@@ -118,6 +118,9 @@ export interface ErpOrderItem {
   notes: string | null;
   size_grid?: SizeGridRow[] | null;
   sort_order: number;
+  /** Подряд (волна 4.2): выбирается при создании заказа с типом «Подряд» */
+  subcontract_kind?: SubcontractOpType | null;
+  material_source?: SubcontractMaterialSource | null;
   created_at: string;
   updated_at: string;
 }
@@ -234,7 +237,17 @@ export interface ErpProcurementTask {
 // --- Подряд (операции, переданные внешним подрядчикам) -----------------------
 
 export type SubcontractStatus =
-  | 'planned' | 'sent' | 'in_progress' | 'returned' | 'delayed' | 'cancelled';
+  // отдельная операция
+  | 'planned' | 'sent' | 'in_progress' | 'returned' | 'delayed' | 'cancelled'
+  // готовое изделие от подрядчика (волна 4.2)
+  | 'awaiting_payment' | 'awaiting_materials' | 'started'
+  | 'ready_to_ship' | 'shipped_by_contractor' | 'received_at_pinhead';
+
+/** Жизненный цикл статусов «готового изделия» от подрядчика (для стейт-машины) */
+export const SUBCONTRACT_FINISHED_FLOW: SubcontractStatus[] = [
+  'awaiting_payment', 'awaiting_materials', 'started',
+  'ready_to_ship', 'shipped_by_contractor', 'received_at_pinhead',
+];
 
 /** Тип операции подряда: готовое изделие целиком или отдельная тех. операция */
 export type SubcontractOpType = 'finished_product' | 'operation';
@@ -427,6 +440,13 @@ export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
   returned: 'Возвращено',
   delayed: 'Задержка',
   cancelled: 'Отменено',
+  // готовое изделие от подрядчика (волна 4.2)
+  awaiting_payment: 'Ожидает оплаты',
+  awaiting_materials: 'Ожидает материалов',
+  started: 'Начал работу',
+  ready_to_ship: 'Готово к отгрузке',
+  shipped_by_contractor: 'Отгружено подрядчиком',
+  received_at_pinhead: 'Поступило на производство',
 };
 
 export const SUBCONTRACT_OP_TYPE_LABELS: Record<SubcontractOpType, string> = {

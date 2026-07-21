@@ -27,6 +27,8 @@ import {
   BRANDING_METHOD_LABELS,
   PACKAGING_LABELS,
   STICKERS_LABELS,
+  SUBCONTRACT_OP_TYPE_LABELS,
+  SUBCONTRACT_MATERIAL_SOURCE_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
 
@@ -362,6 +364,11 @@ export function CreateOrderModal({ onClose }) {
           // сетка заполнена → количество из сетки, иначе ручной ввод
           qty: effectiveQty(it),
           production_type: it.production_type,
+          // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
+          ...(it.production_type === 'outsource'
+            ? { subcontract_kind: it.subcontract_kind || 'finished_product',
+                material_source: it.material_source || 'pinhead' }
+            : {}),
           // маршрут строится по техникам из блоков «Нанесение №N»
           branding_methods: [...new Set(prints.map((p) => p.method))],
           branding_on: it.branding_on,
@@ -592,6 +599,36 @@ export function CreateOrderModal({ onClose }) {
                 ))}
               </div>
             </div>
+            {it.production_type === 'outsource' && (
+              <>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Тип подряда</span>
+                  <select
+                    className={styles.select}
+                    value={it.subcontract_kind ?? 'finished_product'}
+                    onChange={(e) => setItem(i, { subcontract_kind: e.target.value })}
+                    aria-label="Тип подряда"
+                  >
+                    {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, label]) => (
+                      <option key={v} value={v}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Материалы</span>
+                  <select
+                    className={styles.select}
+                    value={it.material_source ?? 'pinhead'}
+                    onChange={(e) => setItem(i, { material_source: e.target.value })}
+                    aria-label="Источник материалов"
+                  >
+                    {Object.entries(SUBCONTRACT_MATERIAL_SOURCE_LABELS).map(([v, label]) => (
+                      <option key={v} value={v}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Брендирование</span>
               <label className={styles.checkLabel}>
