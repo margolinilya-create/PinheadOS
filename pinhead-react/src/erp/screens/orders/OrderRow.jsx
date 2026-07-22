@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
+import { orderLinkClick } from '../../store/useOrderDrawer';
 import { hasOpenProcurement } from '../../utils/routes';
 import {
   PRODUCTION_TYPE_LABELS,
@@ -34,7 +35,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         <td>
           <Link
             to={`/orders/${order.id}`}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => orderLinkClick(order.id, e)}
             className={styles.cellTitle}
             title={order.title}
           >

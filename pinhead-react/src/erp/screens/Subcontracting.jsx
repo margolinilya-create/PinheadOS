@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { SearchInput } from '../components/SearchInput';
+import { Stepper } from '../components/Stepper';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
@@ -36,25 +37,19 @@ const STATUS_CHIP = {
   received_at_pinhead: 'chipReady',
 };
 
-/** Верхний Stepper-легенда маршрута готового изделия (с обязательной приёмкой складом) */
-const FINISHED_STEPPER = [
-  'Оплата', 'Материалы', 'В работе', 'Готово к отгрузке',
-  'Отгружено', 'Приёмка складом', 'На производстве',
+/**
+ * Верхний нумерованный степпер-воронка готового изделия от подрядчика (редизайн PR6).
+ * Шаги = 6 статусов SUBCONTRACT_FINISHED_FLOW; счётчик — сколько операций сейчас в этой фазе.
+ * Приёмка складом (правка 4.2.1) — обязательный гейт между «Отгружено» и «На производстве».
+ */
+const FINISHED_STEPS = [
+  { key: 'awaiting_payment', label: 'Оплата' },
+  { key: 'awaiting_materials', label: 'Материалы' },
+  { key: 'started', label: 'В работе' },
+  { key: 'ready_to_ship', label: 'Готово' },
+  { key: 'shipped_by_contractor', label: 'Отгружено' },
+  { key: 'received_at_pinhead', label: 'На производстве' },
 ];
-
-function FlowStepper() {
-  return (
-    <div className={styles.flowStepper}>
-      <span className={styles.subText}>Готовое изделие:</span>
-      {FINISHED_STEPPER.map((s, i) => (
-        <span key={s} className={styles.flowStep}>
-          <span className={`${styles.chip} ${styles.chipNeutral}`}>{s}</span>
-          {i < FINISHED_STEPPER.length - 1 && <span className={styles.flowArrow}>›</span>}
-        </span>
-      ))}
-    </div>
-  );
-}
 
 const EMPTY_OP = {
   order_id: '', operation: '', op_type: 'operation', material_source: 'pinhead',
@@ -197,6 +192,16 @@ export default function Subcontracting() {
       op.operation.toLowerCase().includes(q));
   }, [subcontracting, query]);
 
+  // Воронка готового изделия: сколько операций-«готовое изделие» сейчас в каждой фазе
+  const finishedSteps = useMemo(() => {
+    const counts = {};
+    for (const op of subcontracting) {
+      if (op.op_type !== 'finished_product') continue;
+      counts[op.status] = (counts[op.status] || 0) + 1;
+    }
+    return FINISHED_STEPS.map((s) => ({ ...s, count: counts[s.key] || 0 }));
+  }, [subcontracting]);
+
   return (
     <>
       <PageHead
@@ -204,7 +209,7 @@ export default function Subcontracting() {
         sub="Рабочая очередь операций у подрядчиков: где заказ сейчас и что дальше."
       />
 
-      <FlowStepper />
+      <Stepper title="Готовое изделие от подрядчика" steps={finishedSteps} />
 
       <div className={styles.toolbar}>
         <SearchInput

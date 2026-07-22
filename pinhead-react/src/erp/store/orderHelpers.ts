@@ -123,6 +123,54 @@ export function overdueUnackCountFor(orders: ErpOrderFull[], departments: ErpDep
   return n;
 }
 
+/** Активных заказов (status='active') — счётчик раздела «Заказы»/«Производство» */
+export function activeOrdersCount(orders: ErpOrderFull[]): number {
+  return orders.filter((o) => o.status === 'active').length;
+}
+
+/** Терминальный статус задачи склада по типу (не считается «открытой») */
+const WAREHOUSE_TERMINAL: Record<string, string> = {
+  material_receipt: 'accepted',
+  subcontract_receipt: 'accepted',
+  marking: 'issued',
+  pack_ship: 'shipped',
+};
+
+/** Открытых задач склада (не в терминальном статусе) у активных заказов — бейдж «Склад» */
+export function openWarehouseTaskCount(orders: ErpOrderFull[]): number {
+  let n = 0;
+  for (const o of orders) {
+    if (o.status !== 'active') continue;
+    for (const t of o.warehouse_tasks ?? []) {
+      if (t.status !== WAREHOUSE_TERMINAL[t.task_type]) n += 1;
+    }
+  }
+  return n;
+}
+
+/** Открытых задач закупки (дозакупка/замена, не done/cancelled) у активных заказов — бейдж «Закупка» */
+export function openProcurementCount(orders: ErpOrderFull[]): number {
+  let n = 0;
+  for (const o of orders) {
+    if (o.status !== 'active') continue;
+    for (const t of o.procurement_tasks ?? []) {
+      if (t.status !== 'done' && t.status !== 'cancelled') n += 1;
+    }
+  }
+  return n;
+}
+
+/** Незакрытых операций подряда (у подрядчика: не возвращено/принято/отменено) — бейдж «Подряд» */
+export function openSubcontractCount(subcontracting: { status: string }[]): number {
+  const terminal = new Set(['received_at_pinhead', 'cancelled', 'returned']);
+  return subcontracting.filter((o) => !terminal.has(o.status)).length;
+}
+
+/** Активных разработок в эксперим. цехе (фаза ≠ done) — бейдж «Эксперим. цех» */
+export function activeExperimentalCount(experimental: { phase: string }[]): number {
+  return experimental.filter((e) => e.phase !== 'done').length;
+}
+
 /**
  * Обёртка применения realtime-изменений: если после них в цехе пользователя
  * прибавилось работ «готово/в работе» — уведомляем (как раньше при loadAll).

@@ -87,7 +87,11 @@ vi.mock('../../store/useToastStore', () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
-const { useErpStore, readyCountFor, _pendingMutations } = await import('./useErpStore');
+const {
+  useErpStore, readyCountFor, _pendingMutations,
+  openWarehouseTaskCount, openProcurementCount, openSubcontractCount,
+  activeExperimentalCount, activeOrdersCount,
+} = await import('./useErpStore');
 const { toast } = await import('../../store/useToastStore');
 const { useAuthStore } = await import('../../store/useAuthStore');
 
@@ -1456,5 +1460,45 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
     const stageDone = h.updateCalls.find(
       (c) => c.table === 'erp_item_stages' && c.patch.status === 'done');
     expect(stageDone).toBeTruthy();
+  });
+});
+
+describe('orderHelpers — счётчики разделов (сайдбар редизайна)', () => {
+  const active = (extra: any) => ({ id: 'o', status: 'active', items: [], materials: [], ...extra });
+
+  it('activeOrdersCount: только активные', () => {
+    expect(activeOrdersCount(
+      [{ status: 'active' }, { status: 'done_on_time' }, { status: 'active' }] as any,
+    )).toBe(2);
+  });
+
+  it('openWarehouseTaskCount: открытые задачи склада (не терминальные), только активные заказы', () => {
+    const orders = [active({ warehouse_tasks: [
+      { task_type: 'material_receipt', status: 'awaiting' },
+      { task_type: 'material_receipt', status: 'accepted' },
+      { task_type: 'pack_ship', status: 'packing' },
+      { task_type: 'subcontract_receipt', status: 'accepted' },
+    ] }), { status: 'done_on_time', warehouse_tasks: [{ task_type: 'pack_ship', status: 'packing' }] }];
+    expect(openWarehouseTaskCount(orders as any)).toBe(2);
+  });
+
+  it('openProcurementCount: задачи закупки не в done/cancelled', () => {
+    const orders = [active({ procurement_tasks: [
+      { status: 'new' }, { status: 'ordered' }, { status: 'done' }, { status: 'cancelled' },
+    ] })];
+    expect(openProcurementCount(orders as any)).toBe(2);
+  });
+
+  it('openSubcontractCount: активные операции (не returned/received/cancelled)', () => {
+    expect(openSubcontractCount([
+      { status: 'sent' }, { status: 'in_progress' }, { status: 'returned' },
+      { status: 'received_at_pinhead' }, { status: 'cancelled' }, { status: 'awaiting_payment' },
+    ])).toBe(3);
+  });
+
+  it('activeExperimentalCount: разработки с фазой ≠ done', () => {
+    expect(activeExperimentalCount([
+      { phase: 'patterns' }, { phase: 'development' }, { phase: 'done' },
+    ])).toBe(2);
   });
 });

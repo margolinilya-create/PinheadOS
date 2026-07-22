@@ -6,126 +6,317 @@
    Тёмная тема — через токены :root автоматически.
    ═══════════════════════════════════════════════════════════════ */
 
-.shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
+/* ═══ Дизайн-система редизайна (по UI Kit заказчика) — ERP-scoped ═══
+   Токены переопределяются на корне .shell, чтобы Order Studio (ТЗ) не менялся.
+   Повышенная специфичность (html .shell / html[data-theme] .shell) гарантирует
+   победу над :root/тёмной темой index.css в обеих темах. */
+:global(html) .shell {
+  --accent: #2563EB;
+  --accent-light: rgba(37, 99, 235, 0.08);
+  --accent-hover: #1D4ED8;
+  --btn-primary-bg: #2563EB;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover-bg: #1D4ED8;
+  --btn-primary-active-bg: #1E40AF;
+  --bg: #F5F6F8;
+  --card: #ffffff;
+  --surface: #F3F4F6;
+  --border-light: #E5E7EB;
+  --border-mid: #D1D5DB;
+  --text: #111827;
+  --text-mid: #4B5563;
+  --text-dim: #6B7280;
+  --text-muted: #9CA3AF;
+  --color-success: #10A34A;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #2563EB;
+  --color-violet: #8B5CF6;
+  --color-cyan: #06B6D4;
+  --bg-success: #ECFDF3;
+  --bg-warning: #FFF7ED;
+  --bg-error: #FEF2F2;
+  --bg-info: #EFF6FF;
+  --bg-violet: #F5F3FF;
+  --bg-cyan: #ECFEFF;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+}
+:global(html[data-theme='dark']) .shell {
+  --accent: #3B82F6;
+  --accent-light: rgba(59, 130, 246, 0.14);
+  --accent-hover: #60A5FA;
+  --btn-primary-bg: #2563EB;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover-bg: #1D4ED8;
+  --btn-primary-active-bg: #1E40AF;
+  --bg: #0F1420;
+  --card: #161B26;
+  --surface: #1B2130;
+  --border-light: #242B39;
+  --border-mid: #313A4C;
+  --text: #E8EAED;
+  --text-mid: #A9B0BD;
+  --text-dim: #8A93A3;
+  --text-muted: #6B7385;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #F87171;
+  --color-info: #3B82F6;
+  --color-violet: #A78BFA;
+  --color-cyan: #22D3EE;
+  --bg-success: #0E2A1B;
+  --bg-warning: #2A2210;
+  --bg-error: #2A1416;
+  --bg-info: #12233F;
+  --bg-violet: #211B3A;
+  --bg-cyan: #0C2A30;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-/* ─── Шапка (как Header Order Studio) ─── */
-.topbar {
+.shell {
+  height: 100vh;
   display: flex;
-  align-items: stretch;
-  height: 52px;
-  border-bottom: 1px solid var(--border-light);
-  position: sticky;
-  top: 0;
-  background: var(--card);
-  z-index: var(--z-header, 100);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
   font-family: 'Inter', sans-serif;
 }
-.brand {
+
+/* ─── Правая колонка: header + прокручиваемый main ─── */
+.rightcol {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text);
-  flex-shrink: 0;
+  flex-direction: column;
+  height: 100vh;
 }
-.brandSub {
+
+/* ─── Header ─── */
+.topbar {
   display: flex;
   align-items: center;
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  gap: 12px;
+  height: 60px;
+  flex-shrink: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+}
+.headerSearch {
+  flex: 1;
+  max-width: 520px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
   color: var(--text-dim);
+  font-size: 13px;
+}
+.headerSearch input {
+  border: none;
+  background: none;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
 }
 .spacer { flex: 1; }
+.iconBtn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text-mid);
+  cursor: pointer;
+  font-size: 16px;
+}
+.iconBtn:hover { background: var(--surface); }
+.iconDot {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-error);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.themeToggle { font-size: 15px; }
 .userChip {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  text-align: right;
-  padding: 0 16px;
+  padding-left: 12px;
+  margin-left: 4px;
   border-left: 1px solid var(--border-light);
-  font-size: 11px;
-  color: var(--text-mid);
-  line-height: 1.3;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
 }
 .userRole {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.topbar :global(.btn) {
-  height: 100%;
-  border: none;
-  border-left: 1px solid var(--border-light);
-  border-radius: 0;
-  background: none;
-  color: var(--text-mid);
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  padding: 0 20px;
-}
-.topbar :global(.btn:hover) { background: var(--accent); color: var(--white, #fff); }
-/* Тумблер темы в шапке ERP: эмодзи-иконка, тач-таргет ≥44px */
-.themeToggle {
-  font-size: 16px;
-  min-width: 48px;
+  font-weight: 500;
+  color: var(--text-dim);
 }
 
-/* ─── Вкладки навигации (стиль header-nav Order Studio) ─── */
+/* ─── Sidebar (вертикальная навигация, сгруппированная) ─── */
 .sidebar {
-  display: flex;
-  align-items: stretch;
+  width: 236px;
+  flex-shrink: 0;
   background: var(--card);
-  border-bottom: 1px solid var(--border-light);
-  overflow-x: auto;
-  scrollbar-width: none;
-  position: sticky;
-  top: 52px;
-  z-index: var(--z-sticky, 90);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  transition: width 160ms ease;
 }
-.sidebar::-webkit-scrollbar { display: none; }
+.sidebarCollapsed { width: 64px; }
+.sidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 60px;
+  padding: 0 18px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text);
+}
+.sidebarLogo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+}
+.sidebarBrandText {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebarNav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  scrollbar-width: thin;
+}
+.navGroup {
+  padding: 14px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
 .navLink {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 20px;
-  border-right: 1px solid var(--border-light);
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+  gap: 11px;
+  height: 38px;
+  padding: 0 12px;
+  margin: 2px 0;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-mid);
   text-decoration: none;
   white-space: nowrap;
-  transition: background 150ms ease-out, color 150ms ease-out;
+  overflow: hidden;
+  transition: background 130ms ease, color 130ms ease;
+}
+.navLink:hover { background: var(--surface); color: var(--text); }
+.navLinkActive,
+.navLinkActive:hover { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.navIcon {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 15px;
+}
+.navLabel { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.navBadge {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-mid);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.navLinkActive .navBadge { background: var(--accent); color: #fff; }
+.sidebarFooter {
+  border-top: 1px solid var(--border-light);
+  padding: 8px;
   flex-shrink: 0;
 }
-.navLink:hover { background: var(--accent); color: var(--white, #fff); }
-.navLinkActive { background: var(--accent); color: var(--white, #fff); }
-.navIcon { font-size: 13px; }
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.collapseBtn:hover { background: var(--surface); color: var(--text); }
+/* Свёрнутый режим: только иконки */
+.sidebarCollapsed .sidebarBrandText,
+.sidebarCollapsed .navGroup,
+.sidebarCollapsed .navLabel,
+.sidebarCollapsed .navBadge,
+.sidebarCollapsed .collapseLabel { display: none; }
+.sidebarCollapsed .navLink,
+.sidebarCollapsed .collapseBtn { justify-content: center; gap: 0; padding: 0; }
+.sidebarCollapsed .sidebarBrand { justify-content: center; padding: 0; }
 
 .main {
   flex: 1;
-  padding: 24px 40px 48px;
-  max-width: 1280px;
-  width: 100%;
-  margin: 0 auto;
+  overflow-y: auto;
+  padding: 24px 28px 48px;
 }
 
 /* ─── Заголовок страницы (wizard-стиль) ─── */
@@ -248,14 +439,18 @@
   border: 1px solid transparent;
   line-height: 1.5;
 }
-.chipWaiting  { background: var(--surface); color: var(--text-dim); border-color: var(--border); }
+/* Семантика статусов по макету: ожидает — амбер, в работе — синий, готово — зелёный */
+.chipWaiting  { background: var(--bg-warning); color: var(--color-warning); }
 .chipReady    { background: var(--bg-success); color: var(--color-success); }
-.chipProgress { background: var(--bg-warning); color: var(--color-warning); }
-.chipDone     { background: transparent; color: var(--text-muted); border-color: var(--border-light); }
+.chipProgress { background: var(--bg-info); color: var(--color-info); }
+.chipInfo     { background: var(--bg-info); color: var(--color-info); }
+.chipDone     { background: var(--bg-success); color: var(--color-success); }
 .chipBlocked  { background: var(--bg-error); color: var(--color-error); }
 .chipSkipped  { background: transparent; color: var(--text-muted); text-decoration: line-through; }
-.chipNeutral  { background: var(--surface); color: var(--text-mid); border-color: var(--border); }
+.chipNeutral  { background: var(--surface); color: var(--text-mid); }
 .chipDanger   { background: var(--bg-error); color: var(--color-error); }
+.chipViolet   { background: var(--bg-violet); color: var(--color-violet); }
+.chipCyan     { background: var(--bg-cyan); color: var(--color-cyan); }
 
 /* ─── KPI ─── */
 .kpiGrid {
@@ -701,17 +896,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   border: 0;
 }
 
-/* Бейдж «Мой цех» в навигации */
-.navBadge {
-  font-family: var(--mono);
-  font-size: 10px;
-  min-width: 18px;
-  text-align: center;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--signal);
-  color: #fff;
-}
+/* .navBadge — определён выше в блоке Sidebar (редизайн) */
 
 /* ─── Закупка ─── */
 .matSection {
@@ -773,10 +958,9 @@ a.kpiTile:hover { border-color: var(--accent); }
 
 /* ─── Мобильный ─── */
 @media (max-width: 760px) {
-  .brand { padding: 0 14px; font-size: 16px; }
-  .brandSub { display: none; }
   .userChip { display: none; }
-  .navLink { padding: 0 13px; }
+  .headerSearch { max-width: none; }
+  .topbar { padding: 0 14px; gap: 8px; }
   .main { padding: 16px 14px 48px; }
   .itemRow { grid-template-columns: 1fr 1fr; }
   .queueGrid { grid-template-columns: 1fr; }
@@ -1219,20 +1403,245 @@ a.cellTitle:hover { color: var(--accent); }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
 }
 
-/* ─── Подряд: Stepper-легенда маршрута готового изделия (правка 4.2.4) ─── */
-.flowStepper {
+/* ─── Подряд: нумерованный степпер-воронка готового изделия (редизайн PR6) ─── */
+.numStepper {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-card);
+  padding: 12px 16px;
+  margin: 4px 0 14px;
+}
+.numStepperTitle {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.numStepperTrack {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 4px 0 12px;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.flowStep {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.numStepperTrack::-webkit-scrollbar { display: none; }
+.numStep { display: flex; align-items: center; flex-shrink: 0; }
+.numStepDot {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--card); color: var(--text-dim);
+  flex-shrink: 0;
 }
-.flowArrow {
-  color: var(--text-dim);
-  font-weight: 700;
+.numStepDotActive {
+  border-color: var(--accent); background: var(--accent); color: #fff;
+}
+.numStepText { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 8px; }
+.numStepLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.numStepCount {
+  min-width: 20px; height: 20px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; font-size: 12px; font-weight: 700;
+  background: var(--surface); color: var(--text-mid);
+}
+.numStepDotActive ~ .numStepText .numStepCount {
+  background: var(--bg-info); color: var(--accent);
+}
+.numStepBar { width: 30px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 10px; }
+
+/* ─── Эксперимент: пайплайн фаз со счётчиками (редизайн PR6) ─── */
+.pipeline {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px 4px;
+  margin: 4px 0 14px;
+}
+.pipeNodeWrap { display: inline-flex; align-items: center; }
+.pipeNode {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-card);
+}
+.pipeNodeActive { border-color: var(--accent); }
+.pipeNodeAside { border-style: dashed; border-color: var(--color-error); margin-left: 8px; }
+.pipeCount {
+  min-width: 24px; height: 24px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 12px; font-size: 13px; font-weight: 700;
+  background: var(--surface); color: var(--text-mid);
+}
+.pipeNodeActive .pipeCount { background: var(--bg-info); color: var(--accent); }
+.pipeNodeAside .pipeCount { background: var(--bg-error); color: var(--color-error); }
+.pipeLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.pipeArrow { color: var(--text-dim); font-weight: 700; margin: 0 6px; }
+
+/* ─── Dashboard (редизайн, по макету) ─── */
+.dash { display: flex; flex-direction: column; gap: 16px; }
+.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.kpiCard {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  text-decoration: none; color: inherit;
+}
+.kpiCard:hover { border-color: var(--border-mid); }
+.kpiIcon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; background: var(--bg-info);
+}
+.kpiIconOk { background: var(--bg-success); }
+.kpiIconWarn { background: var(--bg-warning); }
+.kpiIconDanger { background: var(--bg-error); }
+.kpiIconViolet { background: var(--bg-violet); }
+.kpiBody { display: flex; flex-direction: column; min-width: 0; }
+.kpiCardLabel { font-size: 12px; color: var(--text-dim); }
+.kpiCardValue {
+  font-family: var(--mono); font-size: 26px; font-weight: 600;
+  color: var(--text); line-height: 1.1;
+}
+
+.dashRow { display: grid; gap: 16px; align-items: start; }
+.dashRow3 { grid-template-columns: minmax(0, 1.9fr) minmax(0, 0.9fr) minmax(0, 1.15fr); }
+.dashRow2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.widget {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 16px; min-width: 0;
+}
+.widgetHead {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; gap: 8px;
+}
+.widgetTitle { font-size: 15px; font-weight: 700; color: var(--text); }
+.widgetLink { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+
+.loadRow { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
+.loadName {
+  width: 92px; flex-shrink: 0; font-size: 12px; color: var(--text-mid);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.loadTrack { flex: 1; height: 8px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+.loadFill { height: 100%; border-radius: 999px; background: var(--accent); }
+.loadVal { width: 30px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text-mid); }
+
+.deadlineItem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border-light);
+}
+.deadlineItem:last-child { border-bottom: none; }
+.deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
+.deadlineDay { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); line-height: 1; }
+.deadlineMon { font-size: 10px; text-transform: uppercase; color: var(--text-dim); }
+.deadlineBody { flex: 1; min-width: 0; }
+.deadlineName {
+  font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deadlineMeta { font-size: 11px; color: var(--text-dim); }
+
+.quickGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.quickAction {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 8px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); text-decoration: none;
+  color: var(--text-mid); font-size: 12px; text-align: center;
+}
+.quickAction:hover { background: var(--surface); color: var(--text); }
+.quickIcon {
+  width: 40px; height: 40px; border-radius: 10px; background: var(--bg-info);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+
+.notifItem { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-light); }
+.notifItem:last-child { border-bottom: none; }
+.notifText { flex: 1; font-size: 13px; color: var(--text); min-width: 0; }
+.notifSub { font-size: 11px; color: var(--text-dim); }
+
+@media (max-width: 1100px) {
+  .dashRow3, .dashRow2 { grid-template-columns: 1fr; }
+}
+
+/* ─── Pagination (редизайн) ─── */
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-top: 14px;
+}
+.pager { display: flex; align-items: center; gap: 4px; }
+.pageBtn {
+  min-width: 32px; height: 32px; padding: 0 8px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); color: var(--text-mid);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.pageBtn:hover:not(:disabled) { background: var(--surface); }
+.pageBtn:disabled { opacity: 0.45; cursor: default; }
+.pageBtnActive, .pageBtnActive:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pageEllipsis { padding: 0 4px; color: var(--text-dim); }
+
+/* ─── FilterBar (редизайн) ─── */
+.filterBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* ─── Drawer (правая боковая панель, редизайн) ─── */
+.drawerOverlay {
+  position: fixed; inset: 0;
+  background: var(--overlay, rgba(10, 10, 10, 0.5));
+  z-index: var(--z-modal, 600);
+  display: flex; justify-content: flex-end;
+  animation: erpFade 0.18s ease;
+}
+.drawerPanel {
+  width: min(560px, 100%); height: 100%;
+  background: var(--card); border-left: 1px solid var(--border-light);
+  box-shadow: var(--shadow-modal);
+  display: flex; flex-direction: column;
+  animation: erpSlideIn 0.22s ease;
+}
+.drawerHead {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid var(--border-light);
+}
+.drawerHeadMain { flex: 1; min-width: 0; }
+.drawerTitle { font-size: 17px; font-weight: 700; color: var(--text); }
+.drawerClose {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: none; background: none; cursor: pointer;
+  border-radius: var(--radius-md); color: var(--text-mid); font-size: 16px;
+}
+.drawerClose:hover { background: var(--surface); }
+.drawerTabs {
+  display: flex; gap: 4px; padding: 0 12px;
+  border-bottom: 1px solid var(--border-light);
+  overflow-x: auto; scrollbar-width: none;
+}
+.drawerTabs::-webkit-scrollbar { display: none; }
+.drawerTab {
+  padding: 10px 12px; border: none; background: none; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--text-mid);
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.drawerTab:hover { color: var(--text); }
+.drawerTabActive { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.drawerBody { flex: 1; overflow-y: auto; padding: 16px 18px; }
+.drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
+
+@keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+@media (max-width: 760px) {
+  .drawerPanel { width: 100%; border-left: none; }
 }

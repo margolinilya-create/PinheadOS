@@ -22,6 +22,25 @@
   hover/active = заливка `--accent` + белый текст
 - ERP: второй ряд вкладок 44px; переключатели режимов: «✏️ ТЗ» / «🏭 Производство»
 
+## Редизайн ERP (сессия 20, 6 фаз) — по макетам заказчика + UI Kit
+
+Палитра ERP переопределена **на корне `.shell`** (ERP-scoped, Order Studio не трогаем; селекторы
+`:global(html) .shell` / `:global(html[data-theme='dark']) .shell` выигрывают у :root/тёмной темы):
+primary `#2563EB`, success `#10A34A`, warning `#F59E0B`, error `#EF4444`, +violet `#8B5CF6`/cyan `#06B6D4`,
+светло-серый фон + белые карточки. Оболочка: вертикальный сгруппированный **Sidebar**
+(`layout/Sidebar.jsx`, счётчики задач, сворачивание) + Header + прокручиваемый Main. Компонент
+**Badge** (`components/Badge.jsx`). Чипы: в работе=синий (`chipProgress`), ожидает=амбер (`chipWaiting`).
+
+Новые переиспользуемые примитивы (`erp/components/`): **Drawer** (правая боковая панель на токенах,
+`useFocusTrap` + Escape, опциональные вкладки — монтируется родителем только когда открыта),
+**Pagination**, **FilterBar** (поиск + чипы-вкладки + правый слот), **Stepper** (нумерованная
+воронка со счётчиками), **Pipeline** (соединённые узлы-фазы со счётчиками). Детали заказа — единый
+**OrderDrawer** (хук `useOrderDetail` общий со страницей `/orders/:id`); открытие из всех разделов
+через `useOrderDrawer` + `orderLinkClick` (ЛКМ → Drawer, Ctrl/Cmd/Shift → диплинк). Dashboard —
+KPI-плитки + «Заказы в работе»/«Загрузка цехов»/«Дедлайны»/«Быстрые действия»/«Уведомления».
+Паттерны React Compiler: пагинация без `setState` в effect (`safePage = min(page, pageCount)`);
+дешёвые производные с ранними return — инлайн, не в `useMemo`.
+
 ## ERP-компоненты (erp.module.css)
 
 | Паттерн | Классы | Правила |
@@ -33,9 +52,12 @@
 | Очередь цеха | `queueCard` + полоса слева (Ready зел./Progress жёлт./Blocked красн.), просрочка — красная рамка | кнопки min-height 46px (планшет); разворачиваемый блок «📋 ТЗ позиции» (сетка/нанесения/упаковка/материалы); превью 48px + лайтбокс; прогресс-бар qty_done N/M; фото брака/блока |
 | Карточка заказа | `matSection` секции; `stepper*` (точки этапов); `printBlock` (нанесение, синяя полоса слева) | InlineEdit: клик→input→Enter |
 | Формы | `tile/tileActive` (плитки-radio) · `accSection/accHeader` (аккордеон) · `inputError/fieldError` (инлайн-ошибки) · `draftBanner` (черновик) · `dropZone` (превью, Ctrl+V) · `sizeGrid` + чипсы-пресеты | noValidate + инлайн-валидация с автоскроллом; автосейв черновика; focus-trap + Escape |
-| Таблицы | `tableWrap/table` | th: Inter 10px uppercase, фон surface |
+| Таблицы | `tableWrap/table` + `Pagination`/`FilterBar` (`erp/components/`) | th: Inter 10px uppercase, фон surface; пагинация «Показывать по N»; FilterBar = поиск + чипы-вкладки со счётчиками + правый слот |
+| Боковая панель | `Drawer` (`erp/components/`): `drawerOverlay/drawerPanel/drawerHead/drawerTabs/drawerTab/drawerBody` | правый оверлей на токенах, `useFocusTrap`+Escape, вкладки; монтируется только когда открыта |
+| Карточка заказа (Drawer) | `OrderDrawer`+`OrderDrawerHost` (вкладки Информация/Маршрут/Материалы/Комментарии/История) | хук `useOrderDetail` общий со страницей; `useOrderDrawer`+`orderLinkClick` (ЛКМ→Drawer, Ctrl/Cmd→диплинк) |
 | Приёмка склада (4.1.3) | блок «Поле / План / Факт» на материал (в `matSection`) | план read-only из закупки; факт — inputs (`fact_*`/кол-во) + статус приёмки + комментарий |
-| Подряд (4.2.4) | `flowStepper/flowStep/flowArrow` + `table` | текущий статус и следующее действие — в РАЗНЫХ колонках; сверху Stepper-легенда маршрута готового изделия |
+| Подряд (4.2.4) | `Stepper` (`numStepper*`) + `table` | текущий статус и следующее действие — в РАЗНЫХ колонках; сверху нумерованный степпер-воронка готового изделия со счётчиками по 6 статусам |
+| Эксперимент | `Pipeline` (`pipe*`): узлы-фазы со счётчиками + боковой узел | Лекала→Проработка→Примерка→Готов к серии; активные (count>0) — акцентные; «Возврат конструктору» — пунктирный красный |
 
 ## UX-правила
 - Действие цеха = 1 тап; тач-таргеты ≥44px (глобально через `@media (pointer: coarse)`)

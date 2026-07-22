@@ -5,6 +5,7 @@ import ErpDashboard from './screens/ErpDashboard';
 import OrdersScreen from './screens/OrdersScreen';
 import DepartmentQueue from './screens/DepartmentQueue';
 import { ScreenSkeleton } from './components/ErpSkeletons';
+import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import styles from './erp.module.css';
 
 // Тяжёлые экраны — отдельные чанки (п.30): первые экраны остаются статикой
@@ -51,6 +52,7 @@ export default function ErpApp({ user }) {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      <OrderDrawerHost />
     </ErpLayout>
   );
 }

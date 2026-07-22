@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
+import { orderLinkClick } from '../../store/useOrderDrawer';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import styles from '../../erp.module.css';
@@ -83,6 +84,7 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
         <div className={styles.queueCardHeadText}>
           <Link
             to={`/orders/${order.id}`}
+            onClick={(e) => orderLinkClick(order.id, e)}
             className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}
             title={order.title}
           >

@@ -10,11 +10,13 @@ URL: https://pinhead-os.vercel.app
   FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard;
-  screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection;
+  screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
+  useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
-  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead,
-  ErpSkeletons), store/ (composition-root useErpStore.ts + 7 слайсов в slices/:
+  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons +
+  редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
+  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts;
   orders/stages/materials/procurement/subcontracting/employees/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
