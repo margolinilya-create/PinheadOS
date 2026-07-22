@@ -148,8 +148,13 @@ describe('App', () => {
       logout: vi.fn(),
     });
     renderApp();
-    await waitFor(() => expect(screen.getByText('Обзор производства')).toBeInTheDocument());
-    // ERP nav present
+    // integration-рендер ERP (lazy ErpApp + загрузка стора) — под полной парал. нагрузкой
+    // дефолтного 1000ms waitFor мало; даём запас
+    await waitFor(
+      () => expect(screen.getByText('Обзор производства')).toBeInTheDocument(),
+      { timeout: 4000 },
+    );
+    // ERP nav present (пункт /board в сайдбаре)
     expect(screen.getByText('Производство')).toBeInTheDocument();
   });
 

@@ -22,6 +22,15 @@
   hover/active = заливка `--accent` + белый текст
 - ERP: второй ряд вкладок 44px; переключатели режимов: «✏️ ТЗ» / «🏭 Производство»
 
+## Редизайн ERP (PR1, сессия 20) — по макетам заказчика + UI Kit
+
+Палитра ERP переопределена **на корне `.shell`** (ERP-scoped, Order Studio не трогаем; селекторы
+`:global(html) .shell` / `:global(html[data-theme='dark']) .shell` выигрывают у :root/тёмной темы):
+primary `#2563EB`, success `#10A34A`, warning `#F59E0B`, error `#EF4444`, +violet `#8B5CF6`/cyan `#06B6D4`,
+светло-серый фон + белые карточки. Оболочка: вертикальный сгруппированный **Sidebar**
+(`layout/Sidebar.jsx`, счётчики задач, сворачивание) + Header + прокручиваемый Main. Компонент
+**Badge** (`components/Badge.jsx`). Чипы: в работе=синий (`chipProgress`), ожидает=амбер (`chipWaiting`).
+
 ## ERP-компоненты (erp.module.css)
 
 | Паттерн | Классы | Правила |

@@ -1,35 +1,43 @@
-import { useEffect, useMemo } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useTheme } from '../../hooks/useTheme';
-import { useErpStore, readyCountFor } from '../store/useErpStore';
+import {
+  useErpStore,
+  readyCountFor,
+  overdueUnackCountFor,
+  openWarehouseTaskCount,
+  openProcurementCount,
+  openSubcontractCount,
+  activeExperimentalCount,
+} from '../store/useErpStore';
 import { setFeature } from '../../config/features';
+import { Sidebar } from './Sidebar';
 import styles from '../erp.module.css';
-
-const NAV = [
-  { to: '/', label: 'Обзор', icon: '📊', end: true },
-  { to: '/orders', label: 'Заказы', icon: '📋' },
-  { to: '/board', label: 'Производство', icon: '🏭' },
-  { to: '/queue', label: 'Мой цех', icon: '🔧' },
-  { to: '/purchasing', label: 'Закупка', icon: '🚚', admin: true },
-  { to: '/warehouse', label: 'Склад', icon: '📦', admin: true },
-  { to: '/subcontracting', label: 'Подряд', icon: '🤝', admin: true },
-  { to: '/experimental', label: 'Эксперим. цех', icon: '🧪', admin: true },
-  { to: '/admin', label: 'Админка', icon: '⚙️', admin: true },
-];
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
-  const { orders, departments, myDeptId, myDeptLoaded } = useErpStore(
+  const { orders, departments, myDeptId, myDeptLoaded, subcontracting, experimental } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       myDeptId: s.myDeptId,
       myDeptLoaded: s.myDeptLoaded,
+      subcontracting: s.subcontracting,
+      experimental: s.experimental,
     })),
   );
+
+  // Сворачивание сайдбара (persist); на узких экранах — по умолчанию свёрнут
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem('erp_sidebar_collapsed');
+    if (saved != null) return saved === '1';
+    return typeof window !== 'undefined' && window.innerWidth < 900;
+  });
+  useEffect(() => {
+    localStorage.setItem('erp_sidebar_collapsed', collapsed ? '1' : '0');
+  }, [collapsed]);
 
   // Живой ERP: изменения этапов/заказов долетают без обновления страницы
   useEffect(() => {
@@ -37,84 +45,100 @@ export default function ErpLayout({ user, children }) {
     return unsubscribe;
   }, []);
 
-  // Цех пользователя для бейджа «Мой цех»
+  // Цех пользователя для бейджей «Мой цех» / уведомлений
   useEffect(() => {
     if (!myDeptLoaded) useErpStore.getState().loadMyDept(user?.id);
   }, [myDeptLoaded, user?.id]);
 
-  /** Число этапов «готово/в работе» в цехе пользователя — бейдж на «Мой цех» */
-  const queueBadge = useMemo(() => {
+  const myCode = useMemo(() => {
     const bound = departments.find((d) => d.id === myDeptId);
-    const code = bound?.code || localStorage.getItem('erp_my_dept') || '';
-    if (!code) return 0;
-    return readyCountFor(orders, departments, code);
-  }, [orders, departments, myDeptId]);
+    return bound?.code || localStorage.getItem('erp_my_dept') || '';
+  }, [departments, myDeptId]);
 
-  const items = NAV.filter((n) => !n.admin || isAdmin);
+  // Счётчики активных задач по разделам (из уже загруженных данных стора)
+  const counts = useMemo(
+    () => ({
+      '/queue': myCode ? readyCountFor(orders, departments, myCode) : 0,
+      '/warehouse': openWarehouseTaskCount(orders),
+      '/purchasing': openProcurementCount(orders),
+      '/subcontracting': openSubcontractCount(subcontracting ?? []),
+      '/experimental': activeExperimentalCount(experimental ?? []),
+    }),
+    [orders, departments, myCode, subcontracting, experimental],
+  );
+
+  const overdueCount = useMemo(
+    () => (myCode ? overdueUnackCountFor(orders, departments, myCode) : 0),
+    [orders, departments, myCode],
+  );
 
   return (
     <div className={styles.shell}>
-      <header className={styles.topbar}>
-        <span className={styles.brand}>PINHEAD</span>
-        <span className={styles.brandSub}>ERP · Производство</span>
-        <div className={styles.spacer} />
-        {isAdmin && (
-          <button
-            className="btn"
-            title="Перейти в Order Studio (создание ТЗ)"
-            onClick={() => {
-              setFeature('orderStudio', true);
-              window.location.href = '/';
-            }}
-          >
-            ✏️ ТЗ
+      <Sidebar
+        isAdmin={isAdmin}
+        counts={counts}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed((c) => !c)}
+      />
+
+      <div className={styles.rightcol}>
+        <header className={styles.topbar}>
+          <div className={styles.headerSearch}>
+            <span aria-hidden="true">🔍</span>
+            <input type="search" placeholder="Поиск: заказы, изделия, задачи…" aria-label="Глобальный поиск" />
+          </div>
+          <div className={styles.spacer} />
+
+          <button type="button" className={styles.iconBtn} title="Уведомления" aria-label="Уведомления">
+            🔔
+            {overdueCount > 0 && <span className={styles.iconDot}>{overdueCount}</span>}
           </button>
-        )}
-        <button
-          type="button"
-          className={`btn ${styles.themeToggle}`}
-          onClick={toggleTheme}
-          aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
-          title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
-        >
-          {theme === 'light' ? '🌙' : '☀️'}
-        </button>
-        <div className={styles.userChip}>
-          {user?.name || user?.email}
-          <div className={styles.userRole}>{user?.role}</div>
-        </div>
-        <button className="btn btn-ghost" onClick={() => useAuthStore.getState().logout()}>
-          Выйти
-        </button>
-      </header>
 
-      <nav className={styles.sidebar}>
-        {items.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.end}
-            className={({ isActive }) =>
-              isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
-            }
+          <button
+            type="button"
+            className={`${styles.iconBtn} ${styles.themeToggle}`}
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
+            title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
           >
-            <span className={styles.navIcon} aria-hidden="true">{n.icon}</span>
-            {n.label}
-            {n.to === '/queue' && queueBadge > 0 && (
-              <span
-                className={styles.navBadge}
-                aria-label={`Работ, готовых в вашем цехе: ${queueBadge}`}
-              >
-                {queueBadge}
-              </span>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
 
-      <main className={styles.main} id="main-content">
-        {children}
-      </main>
+          {isAdmin && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title="Перейти в Order Studio (создание ТЗ)"
+              aria-label="Order Studio"
+              onClick={() => {
+                setFeature('orderStudio', true);
+                window.location.href = '/';
+              }}
+            >
+              ✏️
+            </button>
+          )}
+
+          <div className={styles.userChip}>
+            {user?.name || user?.email}
+            <div className={styles.userRole}>{user?.role}</div>
+          </div>
+
+          <button
+            type="button"
+            className={styles.iconBtn}
+            title="Выйти"
+            aria-label="Выйти"
+            onClick={() => useAuthStore.getState().logout()}
+          >
+            ⏻
+          </button>
+        </header>
+
+        <main className={styles.main} id="main-content">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
