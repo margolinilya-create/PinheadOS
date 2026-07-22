@@ -3,11 +3,35 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
-## Состояние на 2026-07-22 (сессия 20) — Редизайн фронтенда, PR1 (оболочка)
+## Состояние на 2026-07-22 (сессия 20) — Редизайн фронтенда ERP завершён (6 фаз, 1 ветка)
 
 **Контекст:** правки 4.1.3 + 4.2.1–4.2.4 смёрджены на прод (PR #123, squash `1cc5047`; CI `test`
-зелёный, `visual` — non-blocking, эталоны обновим позже). Начат трек редизайна по макетам заказчика
-+ UI Kit. План: `/root/.claude/plans/rosy-wobbling-pie.md`; трек — `docs/erp/frontend-redesign-plan.md`.
+зелёный, `visual` — non-blocking, эталоны обновим позже). Затем — **полный редизайн ERP по макетам
+заказчика + UI Kit**, накоплен 6 фазами в одной ветке `claude/warehouse-auto-fill-plan-9f9bhq`
+(перезапущена от main после #123). План: `/root/.claude/plans/rosy-wobbling-pie.md`; трек —
+`docs/erp/frontend-redesign-plan.md`. Backend/API/маршруты/статусы НЕ менялись — только frontend.
+
+**Коммиты редизайна (поверх main):** `c96555e` PR1 · `3f5aa81` PR2 · `fb17085` PR3–4 ·
+`2979c86` PR5 · `62c3d53` PR6. Итог по фазам:
+- **PR2 — Dashboard/Обзор:** KPI-плитки, «Заказы в работе»/«Загрузка цехов»/«Ближайшие дедлайны»,
+  «Быстрые действия», «Уведомления» (`ErpDashboard` переписан; лейблы быстрых действий отличны от
+  пунктов Sidebar во избежание коллизий `getByText` в App.test).
+- **PR3–4 — примитивы + таблицы:** `erp/components/` — `Pagination`, `FilterBar`, `Drawer`; Закупка
+  (`FabricPurchasing`) и Склад (`Warehouse`) приведены к макету: KPI-плитки, вкладки-чипы со счётчиками,
+  пагинация (паттерн `safePage = min(page, pageCount)` вместо `setState` в effect — правило React
+  Compiler), детали задач склада — в правом `Drawer`. `open` в Warehouse считается инлайн (ранние
+  return в `useMemo` не сохраняются компилятором).
+- **PR5 — карточка заказа как боковой Drawer:** общий хук `useOrderDetail` (события/аудит/комментарии
+  + realtime, инлайн-правки, план этапов) — им же питается страница `OrderCard`; `OrderDrawer`
+  (вкладки Информация/Маршрут/Материалы/Комментарии/История) + `OrderDrawerHost` в `ErpApp`; стор
+  `useOrderDrawer` + хелпер `orderLinkClick` (ЛКМ → Drawer, Ctrl/Cmd/Shift → диплинк `/orders/:id`).
+  Точки открытия: `KanbanCard`/`OrderRow`/`OrderCardMobile`/`QueueCard`.
+- **PR6 — Подряд степпер + Эксперимент пайплайн:** `erp/components/Stepper.jsx` — нумерованная
+  воронка готового изделия со счётчиками по 6 статусам (заменил статичную `flowStepper`-легенду);
+  `erp/components/Pipeline.jsx` — фазы разработки образца (Лекала→Проработка→Примерка→Готов к серии)
+  + боковой узел «Возврат конструктору». CSS: `.numStepper*`/`.pipe*` на токенах.
+- Проверка: **1006 тестов**, lint/build чисто; headless-Playwright прогнан по всем экранам (route-mock
+  Supabase REST; в свежем контейнере нужен `.env` с любым валидным URL/anon-key — REST перехвачен).
 
 **PR1 — фундамент/оболочка (ветка `claude/warehouse-auto-fill-plan-9f9bhq`, перезапущена от main):**
 - **Палитра из UI Kit, ERP-scoped:** токены переопределены на корне `.shell`
@@ -25,8 +49,10 @@
   `openSubcontractCount`/`activeExperimentalCount` (реэкспорт из `useErpStore`).
 - Проверка: **1006 тестов** (+5), lint/build чисто; визуальная проверка через Playwright (свет/тьма/
   свёрнутый) — оболочка совпадает с макетом. (App.test: `waitFor` таймаут поднят до 4с — integration под нагрузкой.)
-- **Дальше:** PR2 Dashboard → PR3 таблицы+FilterBar+Pagination → PR4 карточка-Drawer+Stepper →
-  PR5 Подряд Stepper + Эксперимент Pipeline → PR6 добивка. Эталоны visual-снапшотов обновить, когда UI устаканится.
+
+**Next steps (после мёрджа редизайна):** обновить эталоны visual-снапшотов (Playwright), когда UI
+устаканится; wiring глобального поиска в Header; следующая очередь по продукту — мост «ТЗ →
+авто-создание производственного заказа» и генерация ТЗ-PDF (см. CLAUDE.md «Логика продукта»).
 
 ## Состояние на 2026-07-22 (сессия 19) — Правки ПМ 4.1.3 + 4.2.1–4.2.4 (Склад / Подряд / Закупка)
 
