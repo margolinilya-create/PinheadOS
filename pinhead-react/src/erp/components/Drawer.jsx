@@ -1,19 +1,14 @@
-import { useEffect } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import styles from '../erp.module.css';
 
 /**
  * Правая боковая панель деталей (редизайн). Монтируется родителем только когда открыта
- * (`{open && <Drawer.../>}`) — фокус-трап и Escape активны всё время жизни. Опциональные
- * вкладки (`tabs` + `activeTab`/`onTab`). Оверлей закрывает по клику, панель — стоп-пропагация.
+ * (`{open && <Drawer.../>}`). Escape и фокус-трап — в `useFocusTrap` (кнопка «Закрыть» всегда
+ * фокусируется первой, фокус заперт внутри). Опциональные вкладки (`tabs` + `activeTab`/`onTab`).
+ * Оверлей закрывает по клику, панель — стоп-пропагация.
  */
 export function Drawer({ onClose, title, subtitle, badge, tabs, activeTab, onTab, children }) {
   const panelRef = useFocusTrap(true, onClose);
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   return (
     <div className={styles.drawerOverlay} onClick={onClose} role="presentation">

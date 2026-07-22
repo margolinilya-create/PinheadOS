@@ -20,6 +20,22 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 21 (22.07.2026) — Хвосты редизайна ERP + прогон тестов на ошибки
+
+Ветка перезапущена от main (redesign уже смёржен, PR #124). Разведка — 3 Explore-агента.
+- **Реальные баги:** гонка/устаревание данных карточки заказа (keyed `OrderCard` + `alive`-гард в
+  `useOrderDetail`), null-deref в `onSendComment` (`orderId`), мёртвый импорт + `stopPropagation` в
+  `orderLinkClick`, дублирующий Escape в `Drawer`.
+- **Оживлён UI:** глобальный поиск в шапке (стор `useErpSearch`, единый с «Заказами»); колокол →
+  `/orders?filter=overdue`; «Новый заказ» → модалка через `?new=1`; вкладки **ТЗ** (переиспользован
+  `TzBlock`) и **Файлы** (`order.attachments` через `getPublicUrl`) в боковой карточке — 7 вкладок.
+- **Тесты:** +12 unit (`orderLinkClick`/`useOrderDrawer`, `Badge`/`Stepper`/`Pipeline`) → **1018**.
+  Найдены и починены **2 сломанных visual-гейта**, влитых с редизайном (дашборд ассертил
+  несуществующую «Горящие заказы» и `<span>` как heading; очередь — отсутствующую в фикстуре группу).
+  **e2e: 68 passed** (все 8 spec-ов). lint 0, build ок.
+- **Эталоны:** 8 ERP перегенерены и сверены; `studio-sku` без изменений. `visual` non-blocking; при
+  host-drift на CI — self-heal `update_snapshots=true`.
+
 ### Сессия 20 (22.07.2026) — Полный редизайн фронтенда ERP (6 фаз) + мёрдж правок 4.x
 
 - **Мёрдж на прод:** правки 4.1.3 + 4.2.1–4.2.4 (PR #123, squash `1cc5047`; CI `test` зелёный).

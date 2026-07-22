@@ -3,6 +3,47 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
+## Состояние на 2026-07-22 (сессия 21) — Хвосты редизайна + прогон тестов на ошибки
+
+**Замысел:** доделать «хвосты» после мёрджа редизайна (PR #124) и прогнать весь набор тестов на
+выявление ошибок. Ветка `claude/warehouse-auto-fill-plan-9f9bhq` перезапущена от main (merged-PR rule).
+3 Explore-агента + чтение критических файлов дали план (`/root/.claude/plans/rosy-wobbling-pie.md`).
+
+**Реальные баги (найдены аудитом, исправлены):**
+- **P1 — гонка/устаревание данных карточки заказа.** `useOrderDetail.js`: эффект грузил
+  events/audit/comments без `alive`-гарда и без сброса при смене `orderId`; страница `OrderCard` не
+  keyed → при A→B мигали чужие данные, медленный ответ A перезаписывал B. Фикс: `OrderCardRoute` с
+  `key={orderId}` в `ErpApp.jsx` (полный remount, как `OrderDrawerHost`) + `alive`-гард в хуке.
+- **P2** — `onSendComment` дёргал `order.id` вместо `orderId` (null-deref) → `orderId`.
+- Мёртвый импорт `MouseEvent` в `useOrderDrawer.ts` (был `React.MouseEvent`); `orderLinkClick` теперь
+  гасит всплытие и на модификатор-клике (Ctrl/Cmd → строка заказа не тогглится).
+- `Drawer.jsx`: убран дублирующий window-Escape (его закрывает `useFocusTrap`).
+
+**Оживлён декоративный UI (все 4 «хвоста»):**
+- **Поиск в шапке** — общий стор `store/useErpSearch.ts`; поле шапки и поиск в «Заказах» — один
+  источник; Enter в шапке → `/orders`. `OrdersScreen` использует стор вместо локального `query`.
+- **Колокол уведомлений** → `/orders?filter=overdue` (бейдж `overdueCount` оставлен).
+- **«Новый заказ»** на дашборде → `/orders?new=1`; `OrdersScreen` открывает `CreateOrderModal`
+  из `useState(() => searchParams.get('new')==='1')`, чистит `?new` при закрытии.
+- **Вкладки ТЗ + Файлы** в боковой карточке (`OrderDrawer`): 7 вкладок. ТЗ — переиспользован
+  `TzBlock` (+пропы `defaultOpen`/`hideToggle`); Файлы — `order.attachments` через
+  `getPublicUrl('erp-attachments')`, сетка `.fileGrid`/`.fileCard`/`.fileThumb`.
+
+**Тесты / ошибки:**
+- +12 unit-тестов (`useOrderDrawer`/`orderLinkClick`, `Badge`, `Stepper`, `Pipeline`) → **1018 зелёных**.
+- **Найдены 2 реальных сломанных visual-гейта, влитых с редизайном:** дашборд ассертил
+  несуществующие «Горящие заказы» и `<span>` как heading; очередь — группу «Готово к работе», которой
+  нет в фикстуре. Гейты исправлены под фактический UI (Playwright `getByText` — подстрока+
+  регистронезависимо; «Загрузка цехов» коллизировала с sub-текстом PageHead — заменена на уникальную).
+- **e2e: все 8 spec-ов зелёные (68 passed)** — визуальные на перегенеренных эталонах ERP + функц.
+  спеки Order Studio (не тронуты). lint 0, build ок.
+
+**Эталоны visual:** 8 ERP-эталонов перегенерены локально и сверены глазами; `studio-sku` оставлены
+как есть (были зелёными на CI). Локальный Chromium (1194) ≠ CI (1208) → возможен host-drift; при
+красном `visual` на CI — self-heal-диспатч `update_snapshots=true` (идиома репо, `visual` non-blocking).
+Прогон e2e локально: `PW_EXECUTABLE=/opt/pw-browsers/chromium npx playwright test` (несовпадение
+версии @playwright/test ↔ предустановленного браузера).
+
 ## Состояние на 2026-07-22 (сессия 20) — Редизайн фронтенда ERP завершён (6 фаз, 1 ветка)
 
 **Контекст:** правки 4.1.3 + 4.2.1–4.2.4 смёрджены на прод (PR #123, squash `1cc5047`; CI `test`

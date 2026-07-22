@@ -20,7 +20,7 @@ import styles from '../erp.module.css';
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
 const QUICK_ACTIONS = [
-  { to: '/orders', icon: '➕', label: 'Новый заказ' },
+  { to: '/orders?new=1', icon: '➕', label: 'Новый заказ' },
   { to: '/board', icon: '🏭', label: 'Канбан' },
   { to: '/queue', icon: '🔧', label: 'Очередь' },
   { to: '/purchasing', icon: '🚚', label: 'Закупки' },

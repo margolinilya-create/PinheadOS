@@ -16,7 +16,7 @@ URL: https://pinhead-os.vercel.app
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
-  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts;
+  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск);
   orders/stages/materials/procurement/subcontracting/employees/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
