@@ -1420,3 +1420,97 @@ a.cellTitle:hover { color: var(--accent); }
   color: var(--text-dim);
   font-weight: 700;
 }
+
+/* ─── Dashboard (редизайн, по макету) ─── */
+.dash { display: flex; flex-direction: column; gap: 16px; }
+.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.kpiCard {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  text-decoration: none; color: inherit;
+}
+.kpiCard:hover { border-color: var(--border-mid); }
+.kpiIcon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; background: var(--bg-info);
+}
+.kpiIconOk { background: var(--bg-success); }
+.kpiIconWarn { background: var(--bg-warning); }
+.kpiIconDanger { background: var(--bg-error); }
+.kpiIconViolet { background: var(--bg-violet); }
+.kpiBody { display: flex; flex-direction: column; min-width: 0; }
+.kpiCardLabel { font-size: 12px; color: var(--text-dim); }
+.kpiCardValue {
+  font-family: var(--mono); font-size: 26px; font-weight: 600;
+  color: var(--text); line-height: 1.1;
+}
+
+.dashRow { display: grid; gap: 16px; align-items: start; }
+.dashRow3 { grid-template-columns: minmax(0, 1.9fr) minmax(0, 0.9fr) minmax(0, 1.15fr); }
+.dashRow2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.widget {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 16px; min-width: 0;
+}
+.widgetHead {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; gap: 8px;
+}
+.widgetTitle { font-size: 15px; font-weight: 700; color: var(--text); }
+.widgetLink { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+
+.loadRow { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
+.loadName {
+  width: 92px; flex-shrink: 0; font-size: 12px; color: var(--text-mid);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.loadTrack { flex: 1; height: 8px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+.loadFill { height: 100%; border-radius: 999px; background: var(--accent); }
+.loadVal { width: 30px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text-mid); }
+
+.deadlineItem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border-light);
+}
+.deadlineItem:last-child { border-bottom: none; }
+.deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
+.deadlineDay { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); line-height: 1; }
+.deadlineMon { font-size: 10px; text-transform: uppercase; color: var(--text-dim); }
+.deadlineBody { flex: 1; min-width: 0; }
+.deadlineName {
+  font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deadlineMeta { font-size: 11px; color: var(--text-dim); }
+
+.quickGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.quickAction {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 8px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); text-decoration: none;
+  color: var(--text-mid); font-size: 12px; text-align: center;
+}
+.quickAction:hover { background: var(--surface); color: var(--text); }
+.quickIcon {
+  width: 40px; height: 40px; border-radius: 10px; background: var(--bg-info);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+
+.notifItem { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-light); }
+.notifItem:last-child { border-bottom: none; }
+.notifText { flex: 1; font-size: 13px; color: var(--text); min-width: 0; }
+.notifSub { font-size: 11px; color: var(--text-dim); }
+
+@media (max-width: 1100px) {
+  .dashRow3, .dashRow2 { grid-template-columns: 1fr; }
+}
