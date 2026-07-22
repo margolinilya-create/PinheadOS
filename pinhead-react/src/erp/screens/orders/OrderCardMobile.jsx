@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../../utils/stageUi';
+import { orderLinkClick } from '../../store/useOrderDrawer';
 import { hasOpenProcurement } from '../../utils/routes';
 import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
@@ -21,7 +22,12 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
       <div className={styles.orderCardMHead}>
-        <Link to={`/orders/${order.id}`} className={styles.orderCardMTitle} title={order.title}>
+        <Link
+          to={`/orders/${order.id}`}
+          onClick={(e) => orderLinkClick(order.id, e)}
+          className={styles.orderCardMTitle}
+          title={order.title}
+        >
           {order.title} ↗
         </Link>
         {canDelete && (

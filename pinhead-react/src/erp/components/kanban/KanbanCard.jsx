@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderPreviewUrl } from '../../store/useErpStore';
+import { orderLinkClick } from '../../store/useOrderDrawer';
 import { daysLeft, formatTimeIn } from '../../utils/time';
 import styles from '../../erp.module.css';
 
@@ -51,7 +52,7 @@ export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
         )}
         <Link
           to={`/orders/${order.id}`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => orderLinkClick(order.id, e)}
           draggable={false}
           className={styles.kanbanCardTitle}
           title={order.title}

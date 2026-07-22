@@ -1576,6 +1576,7 @@ a.cellTitle:hover { color: var(--accent); }
 .drawerTab:hover { color: var(--text); }
 .drawerTabActive { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .drawerBody { flex: 1; overflow-y: auto; padding: 16px 18px; }
+.drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
