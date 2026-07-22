@@ -9,6 +9,7 @@ import styles from '../erp.module.css';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
 import { MarkingCard } from './warehouse/MarkingCard';
 import { PackShipCard } from './warehouse/PackShipCard';
+import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
 
 /**
  * Склад (волна 4): заказ проходит склад несколькими задачами с жизненным циклом —
@@ -19,25 +20,27 @@ import { PackShipCard } from './warehouse/PackShipCard';
 const TYPE_FILTERS = [
   { key: 'all', label: 'Все' },
   { key: 'material_receipt', label: WAREHOUSE_TASK_TYPE_LABELS.material_receipt },
+  { key: 'subcontract_receipt', label: WAREHOUSE_TASK_TYPE_LABELS.subcontract_receipt },
   { key: 'marking', label: WAREHOUSE_TASK_TYPE_LABELS.marking },
   { key: 'pack_ship', label: WAREHOUSE_TASK_TYPE_LABELS.pack_ship },
 ];
 
 /** Терминальный статус каждого типа задачи (для фильтра «только открытые») */
-const TERMINAL = { material_receipt: 'accepted', marking: 'issued', pack_ship: 'shipped' };
+const TERMINAL = {
+  material_receipt: 'accepted', subcontract_receipt: 'accepted', marking: 'issued', pack_ship: 'shipped',
+};
 /** Порядок сортировки по типу задачи */
-const TYPE_ORDER = { material_receipt: 0, marking: 1, pack_ship: 2 };
+const TYPE_ORDER = { material_receipt: 0, subcontract_receipt: 1, marking: 2, pack_ship: 3 };
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, updateMaterial, acceptMaterial, advanceWarehouseTask,
+    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
-      updateMaterial: s.updateMaterial,
       acceptMaterial: s.acceptMaterial,
       advanceWarehouseTask: s.advanceWarehouseTask,
     })),
@@ -114,9 +117,13 @@ export default function Warehouse() {
       {rows.map(({ order, task }) => {
         if (task.task_type === 'material_receipt') {
           return (
-            <MaterialReceiptCard
-              key={task.id} order={order} task={task}
-              onUpdateMaterial={updateMaterial} onAccept={acceptMaterial}
+            <MaterialReceiptCard key={task.id} order={order} task={task} onAccept={acceptMaterial} />
+          );
+        }
+        if (task.task_type === 'subcontract_receipt') {
+          return (
+            <SubcontractReceiptCard
+              key={task.id} order={order} task={task} onAdvance={advanceWarehouseTask}
             />
           );
         }

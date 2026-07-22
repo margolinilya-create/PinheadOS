@@ -349,6 +349,15 @@ export function CreateOrderModal({ onClose }) {
       return;
     }
     const validItems = items.filter((it) => it.product_type.trim() && effectiveQty(it) > 0);
+    // Правка 4.2.3: если для отдельной операции нужна доработка — участок обязателен
+    const missingNextDept = validItems.some(
+      (it) => it.production_type === 'outsource'
+        && (it.subcontract_kind || 'finished_product') === 'operation'
+        && it.needs_further && !it.return_dept);
+    if (missingNextDept) {
+      toast.error('Выберите следующий участок для доработки после операции подряда');
+      return;
+    }
     setSaving(true);
     const created = await createOrder({
       bitrix_id: form.bitrix_id.trim() || undefined,
@@ -374,8 +383,11 @@ export function CreateOrderModal({ onClose }) {
           ...(it.production_type === 'outsource'
             ? { subcontract_kind: it.subcontract_kind || 'finished_product',
                 material_source: it.material_source || 'pinhead',
-                // Возврат на цех — только для отдельной операции
-                return_dept: (it.subcontract_kind || 'finished_product') === 'operation'
+                // Операция (правка 4.2.3) — только для отдельной операции
+                subcontract_operation: (it.subcontract_kind || 'finished_product') === 'operation'
+                  ? (it.subcontract_operation?.trim() || undefined) : undefined,
+                // Следующий участок — только если для отдельной операции нужна доработка
+                return_dept: (it.subcontract_kind || 'finished_product') === 'operation' && it.needs_further
                   ? (it.return_dept || null) : null }
             : {}),
           // маршрут строится по техникам из блоков «Нанесение №N»
@@ -637,20 +649,57 @@ export function CreateOrderModal({ onClose }) {
                   </select>
                 </label>
                 {(it.subcontract_kind ?? 'finished_product') === 'operation' && (
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Возврат на цех</span>
-                    <select
-                      className={styles.select}
-                      value={it.return_dept ?? ''}
-                      onChange={(e) => setItem(i, { return_dept: e.target.value })}
-                      aria-label="Возврат на цех после операции подряда"
-                    >
-                      <option value="">Возврат на цех…</option>
-                      {queueDepts.map((d) => (
-                        <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
-                      ))}
-                    </select>
-                  </label>
+                  <>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Операция подрядчика</span>
+                      <input
+                        className={styles.input}
+                        value={it.subcontract_operation ?? ''}
+                        onChange={(e) => setItem(i, { subcontract_operation: e.target.value })}
+                        placeholder="печать по полотну / варка / вышивка…"
+                        aria-label="Какая операция выполняется подрядчиком"
+                      />
+                    </label>
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>Требуется доработка в Pinhead?</span>
+                      <div className={styles.tileRow} role="radiogroup" aria-label="Требуется доработка в Pinhead">
+                        {[['no', 'Нет'], ['yes', 'Да']].map(([v, label]) => {
+                          const on = (v === 'yes') === Boolean(it.needs_further);
+                          return (
+                            <button
+                              key={v}
+                              type="button"
+                              role="radio"
+                              aria-checked={on}
+                              className={`${styles.tile} ${on ? styles.tileActive : ''}`}
+                              onClick={() => setItem(i, {
+                                needs_further: v === 'yes',
+                                return_dept: v === 'yes' ? it.return_dept : '',
+                              })}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {it.needs_further && (
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>Следующий участок</span>
+                        <select
+                          className={styles.select}
+                          value={it.return_dept ?? ''}
+                          onChange={(e) => setItem(i, { return_dept: e.target.value })}
+                          aria-label="Следующий участок после операции подряда"
+                        >
+                          <option value="">Выберите участок…</option>
+                          {queueDepts.map((d) => (
+                            <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </>
                 )}
               </>
             )}

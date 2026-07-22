@@ -9,7 +9,9 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
-import type { ErpMaterial, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType } from '../../types';
+import type {
+  ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
+} from '../../types';
 import { currentActor } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 
@@ -40,12 +42,17 @@ function patchTaskIn(orders: ErpOrderFull[], taskId: string, patch: Partial<ErpW
 }
 
 export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (set, get) => ({
-  acceptMaterial: async (materialId, { qty_received, accept_status, accept_comment = null }) => {
+  acceptMaterial: async (
+    materialId,
+    { qty_received, accept_status, accept_comment = null,
+      fact_name = null, fact_color = null, fact_article = null },
+  ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) return false;
     // Патч материала (optimistic + rollback + авто-закрытие закупки) — через materialsSlice.
     // Приёмка складом означает, что материал ФИЗИЧЕСКИ прибыл → status='received'
     // (иначе гейт закроя по приёмке не сработает: он ждёт received + accept_status).
+    // Факт-атрибуты (правка 4.1.3): что фактически поступило (пересорт/расхождение с планом).
     const ok = await get().updateMaterial(materialId, {
       status: 'received',
       qty_received,
@@ -53,6 +60,9 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       accepted_at: new Date().toISOString().slice(0, 10),
       accepted_by: currentActor(),
       accept_comment,
+      fact_name,
+      fact_color,
+      fact_article,
     });
     if (!ok) return false;
     // История склада: строка приёмки
@@ -129,6 +139,28 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     // История склада для значимых переходов (маркировка выпущена / упаковано / отгружено)
     const opType = OP_FOR_STATUS[status];
     if (opType) await get().logWarehouseOp(order.id, { op_type: opType });
+
+    // Приёмка готовой продукции от подрядчика принята (правка 4.2.1): переводим подрядную
+    // операцию в «Поступило на производство» — это заведёт задачу упаковки/отгрузки.
+    if (task.task_type === 'subcontract_receipt' && status === 'accepted') {
+      const { data } = await supabase
+        .from('erp_subcontracting')
+        .select('*, order:erp_orders (title, bitrix_id)')
+        .eq('order_id', order.id)
+        .eq('op_type', 'finished_product')
+        .eq('status', 'shipped_by_contractor')
+        .limit(1);
+      const op = data?.[0] as ErpSubcontractOp | undefined;
+      if (op) {
+        // операция могла быть не загружена (вкладка подряда лениво) — вносим в стейт для optimistic
+        set((s) => ({
+          subcontracting: s.subcontracting.some((o) => o.id === op.id)
+            ? s.subcontracting
+            : [op, ...s.subcontracting],
+        }));
+        await get().updateSubcontractOp(op.id, { status: 'received_at_pinhead' });
+      }
+    }
     return true;
   },
 });

@@ -11,7 +11,8 @@ URL: https://pinhead-os.vercel.app
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard;
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection;
-  screens/warehouse/ — MaterialReceiptCard/MarkingCard/PackShipCard (задачи склада)),
+  screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
+  SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead,
   ErpSkeletons), store/ (composition-root useErpStore.ts + 7 слайсов в slices/:
   orders/stages/materials/procurement/subcontracting/employees/realtime;

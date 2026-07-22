@@ -55,14 +55,18 @@ export type MaterialAcceptStatus =
 export type WarehouseOpType =
   | 'material_receipt' | 'rework_receipt' | 'partial_receipt' | 'packaging' | 'shipment' | 'marking';
 
-/** Тип задачи склада (волна 4): заказ проходит склад несколько раз */
-export type WarehouseTaskType = 'material_receipt' | 'marking' | 'pack_ship';
+/** Тип задачи склада (волна 4 + правка 4.2.1): заказ проходит склад несколько раз */
+export type WarehouseTaskType =
+  | 'material_receipt' | 'marking' | 'pack_ship' | 'subcontract_receipt';
 /** Статусы задач склада по типам */
 export type MaterialReceiptStatus = 'awaiting' | 'accepted';
 export type MarkingStatus = 'new' | 'in_progress' | 'issued';
 export type PackShipStatus =
   | 'awaiting_receipt' | 'accepted' | 'packing' | 'packed' | 'ready_to_ship' | 'shipped';
-export type WarehouseTaskStatus = MaterialReceiptStatus | MarkingStatus | PackShipStatus;
+/** Приёмка готовой продукции от подрядчика (правка 4.2.1) */
+export type SubcontractReceiptStatus = 'awaiting_receipt' | 'accepted';
+export type WarehouseTaskStatus =
+  | MaterialReceiptStatus | MarkingStatus | PackShipStatus | SubcontractReceiptStatus;
 
 export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled';
 
@@ -156,14 +160,22 @@ export interface ErpMaterial {
   name: string;
   source: MaterialSource;
   supplier: string | null;
+  // План материала (заводит закупка; на приёмке read-only для склада, правка 4.1.3)
+  role: string | null;
+  color: string | null;
+  article: string | null;
   qty: string | null;
   status: MaterialStatus;
   eta_date: string | null;
   received_at: string | null;
   notes: string | null;
-  // Приёмка складом (правка 3)
+  // Приёмка складом (правка 3 + 4.1.3): числовая сверка план/факт + фактические атрибуты
   qty_expected: number | null;
   qty_received: number | null;
+  // Факт приёмки (правка 4.1.3): что фактически поступило (пересорт/расхождение с планом)
+  fact_name: string | null;
+  fact_color: string | null;
+  fact_article: string | null;
   accept_status: MaterialAcceptStatus | null;
   accepted_at: string | null;
   accepted_by: string | null;
@@ -395,6 +407,12 @@ export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
   material_receipt: 'Приёмка материалов',
   marking: 'Выпуск маркировки',
   pack_ship: 'Упаковка и отгрузка',
+  subcontract_receipt: 'Приёмка продукции от подрядчика',
+};
+
+export const SUBCONTRACT_RECEIPT_STATUS_LABELS: Record<SubcontractReceiptStatus, string> = {
+  awaiting_receipt: 'Ожидает приёмки',
+  accepted: 'Продукция принята',
 };
 
 export const MARKING_STATUS_LABELS: Record<MarkingStatus, string> = {

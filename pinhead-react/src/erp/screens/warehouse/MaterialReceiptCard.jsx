@@ -4,9 +4,10 @@ import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 
 /**
- * Задача склада «Приёмка материалов»: числовая сверка план/факт + статус приёмки
- * по каждому материалу заказа. Приёмка разблокирует закрой (гейт в routes.ts) и
- * закрывает задачу (материалы приняты) в warehouseSlice.acceptMaterial.
+ * Задача склада «Приёмка материалов» (правка 4.1.3): сравнение План↔Факт по каждому материалу.
+ * План (материал/цвет/артикул/кол-во) заводит закупка и он read-only для склада; кладовщик вносит
+ * только факт (что фактически поступило + кол-во) и статус приёмки. Приёмка разблокирует закрой
+ * (гейт в routes.ts) и закрывает задачу в warehouseSlice.acceptMaterial.
  */
 
 const KIND_LABELS = {
@@ -27,84 +28,106 @@ function awaitsAcceptance(m) {
   return m.accept_status !== 'accepted_full' && m.accept_status !== 'accepted_partial';
 }
 
-/** Строка приёмки одного материала (числовая сверка план/факт + статус + комментарий) */
-function AcceptRow({ material, onUpdateMaterial, onAccept }) {
-  const done = !awaitsAcceptance(material) && material.accept_status;
-  const [received, setReceived] = useState(material.qty_received ?? '');
-  const [status, setStatus] = useState(material.accept_status ?? 'accepted_full');
-  const [comment, setComment] = useState(material.accept_comment ?? '');
+/** Приёмка одного материала: план read-only слева, факт (заполняет кладовщик) справа */
+function AcceptBlock({ material: m, onAccept }) {
+  const done = !awaitsAcceptance(m) && m.accept_status;
+  // Факт-атрибуты преднаполняются планом — кладовщик правит только при пересорте/расхождении
+  const [factName, setFactName] = useState(m.fact_name ?? m.name ?? '');
+  const [factColor, setFactColor] = useState(m.fact_color ?? m.color ?? '');
+  const [factArticle, setFactArticle] = useState(m.fact_article ?? m.article ?? '');
+  const [received, setReceived] = useState(m.qty_received ?? '');
+  const [status, setStatus] = useState(m.accept_status ?? 'accepted_full');
+  const [comment, setComment] = useState(m.accept_comment ?? '');
   const [saving, setSaving] = useState(false);
 
   const accept = async () => {
     setSaving(true);
-    await onAccept(material.id, {
+    await onAccept(m.id, {
       qty_received: received === '' ? null : Number(received),
       accept_status: status,
       accept_comment: comment.trim() || null,
+      fact_name: factName.trim() || null,
+      fact_color: factColor.trim() || null,
+      fact_article: factArticle.trim() || null,
     });
     setSaving(false);
   };
 
   return (
-    <tr>
-      <td>
-        <strong>{material.name}</strong>
-        <div className={styles.subText}>{KIND_LABELS[material.kind]} · {MATERIAL_STATUS_LABELS[material.status]}</div>
-      </td>
-      <td>
-        <input
-          type="number" min="0" className={`${styles.input} ${styles.inputSm}`} style={{ maxWidth: 90 }}
-          defaultValue={material.qty_expected ?? ''}
-          placeholder="план"
-          aria-label={`План поступления ${material.name}`}
-          onBlur={(e) => {
-            const v = e.target.value === '' ? null : Number(e.target.value);
-            if (v !== (material.qty_expected ?? null)) onUpdateMaterial(material.id, { qty_expected: v });
-          }}
-        />
-      </td>
-      <td>
-        <input
-          type="number" min="0" className={`${styles.input} ${styles.inputSm}`} style={{ maxWidth: 90 }}
-          value={received} placeholder="факт"
-          aria-label={`Фактически поступило ${material.name}`}
-          onChange={(e) => setReceived(e.target.value)}
-        />
-      </td>
-      <td>
-        <select
-          className={styles.select} value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          aria-label={`Статус приёмки ${material.name}`}
-        >
+    <div style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+      <div className={styles.matSectionHead}>
+        <div>
+          <strong>{m.name}</strong>
+          <div className={styles.subText}>{KIND_LABELS[m.kind]} · {MATERIAL_STATUS_LABELS[m.status]}</div>
+        </div>
+        {done && (
+          <span className={`${styles.chip} ${styles[ACCEPT_CHIP[m.accept_status]]}`}>
+            {MATERIAL_ACCEPT_LABELS[m.accept_status]}
+            {m.accepted_at ? ` · ${formatDateShort(m.accepted_at)}` : ''}
+          </span>
+        )}
+      </div>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr><th>Поле</th><th>План (закупка)</th><th>Факт (склад)</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Материал</td>
+              <td>{m.name || '—'}</td>
+              <td>
+                <input className={styles.input} value={factName}
+                  onChange={(e) => setFactName(e.target.value)} aria-label={`Факт материал ${m.name}`} />
+              </td>
+            </tr>
+            <tr>
+              <td>Цвет</td>
+              <td>{m.color || '—'}</td>
+              <td>
+                <input className={styles.input} value={factColor}
+                  onChange={(e) => setFactColor(e.target.value)} aria-label={`Факт цвет ${m.name}`} />
+              </td>
+            </tr>
+            <tr>
+              <td>Артикул</td>
+              <td>{m.article || '—'}</td>
+              <td>
+                <input className={styles.input} value={factArticle}
+                  onChange={(e) => setFactArticle(e.target.value)} aria-label={`Факт артикул ${m.name}`} />
+              </td>
+            </tr>
+            <tr>
+              <td>Количество, кг</td>
+              <td>{m.qty_expected ?? '—'}</td>
+              <td>
+                <input type="number" min="0" step="0.01" className={styles.input} value={received}
+                  placeholder="факт" onChange={(e) => setReceived(e.target.value)}
+                  aria-label={`Факт количество ${m.name}`} style={{ maxWidth: 120 }} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+        <select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value)}
+          aria-label={`Статус приёмки ${m.name}`}>
           {Object.entries(MATERIAL_ACCEPT_LABELS).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
-      </td>
-      <td>
-        <input
-          className={styles.input} style={{ maxWidth: 160 }} placeholder="Комментарий"
+        <input className={styles.input} style={{ flex: 1, minWidth: 160 }} placeholder="Комментарий"
           value={comment} onChange={(e) => setComment(e.target.value)}
-          aria-label={`Комментарий приёмки ${material.name}`}
-        />
-      </td>
-      <td>
-        {done && (
-          <span className={`${styles.chip} ${styles[ACCEPT_CHIP[material.accept_status]]}`}>
-            {MATERIAL_ACCEPT_LABELS[material.accept_status]}
-            {material.accepted_at ? ` · ${formatDateShort(material.accepted_at)}` : ''}
-          </span>
-        )}
+          aria-label={`Комментарий приёмки ${m.name}`} />
         <button type="button" className="btn btn-primary" disabled={saving} onClick={accept}>
           {done ? 'Обновить приёмку' : 'Принять'}
         </button>
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 
-export function MaterialReceiptCard({ order, task, onUpdateMaterial, onAccept }) {
+export function MaterialReceiptCard({ order, task, onAccept }) {
   const accepted = task.status === 'accepted';
   return (
     <section className={styles.matSection}>
@@ -115,18 +138,9 @@ export function MaterialReceiptCard({ order, task, onUpdateMaterial, onAccept })
         </div>
         {accepted && <span className={`${styles.chip} ${styles.chipDone}`}>Материалы приняты</span>}
       </div>
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr><th>Материал</th><th>План</th><th>Факт</th><th>Статус приёмки</th><th>Комментарий</th><th>Действие</th></tr>
-          </thead>
-          <tbody>
-            {order.materials.map((m) => (
-              <AcceptRow key={m.id} material={m} onUpdateMaterial={onUpdateMaterial} onAccept={onAccept} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {order.materials.map((m) => (
+        <AcceptBlock key={m.id} material={m} onAccept={onAccept} />
+      ))}
     </section>
   );
 }

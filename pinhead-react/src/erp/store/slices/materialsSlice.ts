@@ -67,6 +67,14 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     const allIn = order.materials.length > 0 && order.materials.every(
       (m) => m.status === 'received' || m.status === 'reserved' || m.status === 'not_needed');
     if (!allIn) return;
+    // Правка 4.1.3: плановое кол-во (qty_expected) — обязательная графа закупки. Без него
+    // сделка не идёт дальше (иначе на приёмке склад не увидит план). Гейтим только закупаемые.
+    const missingPlan = order.materials.filter(
+      (m) => m.source === 'purchase' && (m.qty_expected == null || m.qty_expected <= 0));
+    if (missingPlan.length > 0) {
+      toast.warning(`Укажите плановое кол-во в закупке: ${missingPlan.map((m) => m.name).join(', ')}`);
+      return;
+    }
     const openSupply = order.items.flatMap((it) =>
       it.stages.filter(
         (st) => st.department_id === supplyDept.id &&
