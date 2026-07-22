@@ -6,7 +6,7 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useTheme } from '../../hooks/useTheme';
 import {
   useErpStore,
-  readyCountFor,
+  readyOnlyCountFor,
   overdueUnackCountFor,
   openWarehouseTaskCount,
   openProcurementCount,
@@ -55,6 +55,14 @@ export default function ErpLayout({ user, children }) {
     if (!myDeptLoaded) useErpStore.getState().loadMyDept(user?.id);
   }, [myDeptLoaded, user?.id]);
 
+  // Бейджи «Подряд»/«Эксперим. цех» должны быть стабильны на любом экране (ERP-08):
+  // грузим их данные заранее, а не лениво при первом заходе на эти разделы.
+  useEffect(() => {
+    const s = useErpStore.getState();
+    if (!s.subcontractingLoaded) s.loadSubcontracting();
+    if (!s.experimentalLoaded) s.loadExperimental();
+  }, []);
+
   const myCode = useMemo(() => {
     const bound = departments.find((d) => d.id === myDeptId);
     return bound?.code || localStorage.getItem('erp_my_dept') || '';
@@ -63,7 +71,7 @@ export default function ErpLayout({ user, children }) {
   // Счётчики активных задач по разделам (из уже загруженных данных стора)
   const counts = useMemo(
     () => ({
-      '/queue': myCode ? readyCountFor(orders, departments, myCode) : 0,
+      '/queue': myCode ? readyOnlyCountFor(orders, departments, myCode) : 0,
       '/warehouse': openWarehouseTaskCount(orders),
       '/purchasing': openProcurementCount(orders),
       '/subcontracting': openSubcontractCount(subcontracting ?? []),

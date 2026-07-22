@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
 import { SearchInput } from '../components/SearchInput';
-import { useErpStore, readyCountFor, overdueUnackCountFor } from '../store/useErpStore';
+import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
@@ -120,11 +120,11 @@ export default function DepartmentQueue() {
   // без привязки (legacy localStorage) — как раньше, в выбранном цехе
   const canAct = privileged || !boundDept || (dept ? dept.code === boundDept.code : false);
 
-  /** Счётчик «готово к работе» по каждому цеху — для бейджей на вкладках */
+  /** Счётчик «готово к работе» (только ready) по каждому цеху — для бейджей на вкладках (ERP-06) */
   const readyByDept = useMemo(() => {
     const counts = new Map();
     for (const dd of departments) {
-      counts.set(dd.code, readyCountFor(orders, departments, dd.code));
+      counts.set(dd.code, readyOnlyCountFor(orders, departments, dd.code));
     }
     return counts;
   }, [orders, departments]);
