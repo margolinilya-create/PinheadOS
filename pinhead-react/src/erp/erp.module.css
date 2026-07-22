@@ -1218,3 +1218,21 @@ a.cellTitle:hover { color: var(--accent); }
   .checkLabel { min-height: 36px; }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
 }
+
+/* ─── Подряд: Stepper-легенда маршрута готового изделия (правка 4.2.4) ─── */
+.flowStepper {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 12px;
+}
+.flowStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.flowArrow {
+  color: var(--text-dim);
+  font-weight: 700;
+}

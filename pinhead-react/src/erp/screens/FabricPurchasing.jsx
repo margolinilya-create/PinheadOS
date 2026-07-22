@@ -43,7 +43,10 @@ const STATUS_CHIP = {
   not_needed: 'chipSkipped',
 };
 
-const EMPTY_MAT = { kind: 'fabric', name: '', source: 'purchase', supplier: '', qty: '', eta_date: '' };
+const EMPTY_MAT = {
+  kind: 'fabric', name: '', source: 'purchase', supplier: '',
+  color: '', article: '', qty: '', qty_expected: '', eta_date: '',
+};
 
 function AddMaterialRow({ orderId, onAdd }) {
   const [form, setForm] = useState(EMPTY_MAT);
@@ -53,13 +56,20 @@ function AddMaterialRow({ orderId, onAdd }) {
     if (!form.name.trim()) { toast.error('Укажите название материала'); return; }
     // План прихода обязателен для закупаемых материалов
     if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
+    // Правка 4.1.3: плановое кол-во (кг) — обязательная графа закупки
+    if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
+      toast.error('Укажите плановое кол-во (кг)'); return;
+    }
     setSaving(true);
     const row = await onAdd(orderId, {
       kind: form.kind,
       name: form.name.trim(),
       source: form.source,
       supplier: form.supplier.trim() || null,
+      color: form.color.trim() || null,
+      article: form.article.trim() || null,
       qty: form.qty.trim() || null,
+      qty_expected: form.qty_expected === '' ? null : Number(form.qty_expected),
       eta_date: form.eta_date || null,
       // purchase/stock ждут действия (закупка / подтверждение наличия), остальное — сразу готово
       status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
@@ -74,11 +84,14 @@ function AddMaterialRow({ orderId, onAdd }) {
         {Object.entries(KIND_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
       <input className={styles.input} placeholder="Кулирка 230гр чёрная" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Название материала" />
+      <input className={styles.input} placeholder="Цвет" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} aria-label="Цвет" style={{ maxWidth: 100 }} />
+      <input className={styles.input} placeholder="Артикул" value={form.article} onChange={(e) => setForm({ ...form, article: e.target.value })} aria-label="Артикул" style={{ maxWidth: 110 }} />
       <select className={styles.select} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} aria-label="Источник">
         {Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-      <input className={styles.input} placeholder="Поставщик" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} aria-label="Поставщик" style={{ maxWidth: 140 }} />
-      <input className={styles.input} placeholder="120 м / 40 кг" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 110 }} />
+      <input className={styles.input} placeholder="Поставщик" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} aria-label="Поставщик" style={{ maxWidth: 130 }} />
+      <input type="number" min="0" step="0.01" className={styles.input} placeholder="План, кг" value={form.qty_expected} onChange={(e) => setForm({ ...form, qty_expected: e.target.value })} aria-label="Плановое количество, кг" style={{ maxWidth: 90 }} />
+      <input className={styles.input} placeholder="120 м / 40 кг" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество (заметка)" style={{ maxWidth: 110 }} />
       <input type="date" className={styles.input} value={form.eta_date} onChange={(e) => setForm({ ...form, eta_date: e.target.value })} aria-label="План прихода" />
       <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
     </div>
@@ -271,7 +284,8 @@ export default function FabricPurchasing() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Тип</th><th>Материал</th><th>Источник</th><th>Поставщик</th><th>Кол-во</th>
+                      <th>Тип</th><th>Материал</th><th>Цвет</th><th>Артикул</th>
+                      <th>Источник</th><th>Поставщик</th><th>План, кг</th><th>Кол-во</th>
                       <th>План прихода</th><th>Статус</th><th>Действие</th>
                     </tr>
                   </thead>
@@ -280,8 +294,39 @@ export default function FabricPurchasing() {
                       <tr key={m.id}>
                         <td>{KIND_LABELS[m.kind]}</td>
                         <td>{m.name}{m.notes && <div className={styles.subText}>{m.notes}</div>}</td>
+                        <td>
+                          <input
+                            className={styles.input} defaultValue={m.color || ''} placeholder="—"
+                            onBlur={(e) => {
+                              const v = e.target.value.trim() || null;
+                              if (v !== (m.color || null)) updateMaterial(m.id, { color: v });
+                            }}
+                            aria-label={`Цвет ${m.name}`} style={{ maxWidth: 90 }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className={styles.input} defaultValue={m.article || ''} placeholder="—"
+                            onBlur={(e) => {
+                              const v = e.target.value.trim() || null;
+                              if (v !== (m.article || null)) updateMaterial(m.id, { article: v });
+                            }}
+                            aria-label={`Артикул ${m.name}`} style={{ maxWidth: 100 }}
+                          />
+                        </td>
                         <td>{SOURCE_LABELS[m.source]}</td>
                         <td>{m.supplier || '—'}</td>
+                        <td>
+                          <input
+                            type="number" min="0" step="0.01" className={styles.input}
+                            defaultValue={m.qty_expected ?? ''} placeholder="—"
+                            onBlur={(e) => {
+                              const v = e.target.value === '' ? null : Number(e.target.value);
+                              if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v });
+                            }}
+                            aria-label={`Плановое кол-во ${m.name}`} style={{ maxWidth: 80 }}
+                          />
+                        </td>
                         <td>{m.qty || '—'}</td>
                         <td>
                           {formatDateShort(m.eta_date) || '—'}

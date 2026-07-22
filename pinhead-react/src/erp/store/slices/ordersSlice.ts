@@ -117,11 +117,18 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const payload = {
       order: { ...orderFields, status: 'active' },
       items: items.map((it, i) => {
-        const route = buildRoute({
+        let route = buildRoute({
           productionType: it.production_type,
           brandingMethods: it.branding_methods,
           brandingOn: it.branding_on ?? 'cut',
         });
+        // Правка 4.2.2: материал предоставляет подрядчик → закупку не заводим.
+        // Убираем этап supply и вычищаем его из depends_on остальных, чтобы не осиротить зависимость.
+        if (it.production_type === 'outsource' && it.material_source === 'contractor') {
+          route = route
+            .filter((r) => r.departmentCode !== 'supply')
+            .map((r) => ({ ...r, dependsOnCodes: r.dependsOnCodes.filter((c) => c !== 'supply') }));
+        }
         const valid = route.filter((r) => deptByCode.has(r.departmentCode));
         const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));
         return {
@@ -175,10 +182,15 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       for (let k = 0; k < created.items.length; k++) {
         const it = created.items[k];
         if (!it.subcontract_kind) continue;
+        // Правка 4.2.3: для «отдельной операции» имя операции берём из формы (не хранится
+        // на позиции), для готового изделия — вид изделия.
+        const operation = it.subcontract_kind === 'operation'
+          ? (items[k]?.subcontract_operation?.trim() || it.product_type)
+          : it.product_type;
         await get().createSubcontractOp({
           order_id: created.id,
           item_id: it.id,
-          operation: it.product_type,
+          operation,
           op_type: it.subcontract_kind,
           material_source: it.material_source ?? 'pinhead',
           qty: it.qty,

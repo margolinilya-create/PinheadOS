@@ -51,7 +51,11 @@ export interface DraftItem {
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: string;
   material_source?: string;
-  /** Возврат на цех после отдельной операции подряда (код цеха) */
+  /** Что за операция делает подрядчик (правка 4.2.3) — для «отдельной операции» */
+  subcontract_operation?: string;
+  /** Требуется ли доработка внутри Pinhead после отдельной операции (правка 4.2.3) */
+  needs_further?: boolean;
+  /** Следующий участок после отдельной операции подряда (код цеха) */
   return_dept?: string;
   prints: DraftPrint[];
   size_grid: DraftGrid | null;
@@ -90,6 +94,8 @@ export const EMPTY_ITEM: DraftItem = {
   has_branding: false,
   subcontract_kind: 'finished_product',
   material_source: 'pinhead',
+  subcontract_operation: '',
+  needs_further: false,
   return_dept: '',
   prints: [],
   size_grid: null,

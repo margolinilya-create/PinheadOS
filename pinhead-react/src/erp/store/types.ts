@@ -122,7 +122,9 @@ export interface NewOrderItemInput {
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: 'finished_product' | 'operation';
   material_source?: 'pinhead' | 'contractor';
-  /** Возврат на цех после отдельной операции подряда (код цеха) */
+  /** Что за операция делает подрядчик (правка 4.2.3) — для «отдельной операции» */
+  subcontract_operation?: string;
+  /** Следующий участок после отдельной операции (код цеха); null = доработка не нужна */
   return_dept?: string | null;
 }
 
@@ -232,13 +234,19 @@ export interface MaterialsSlice {
 
 /** Склад: числовая приёмка материалов + история складских операций (правки 2, 3) */
 export interface WarehouseSlice {
-  /** Приёмка материала складом: сверка план/факт + статус + запись в историю склада */
+  /**
+   * Приёмка материала складом: сверка план/факт + статус + запись в историю склада.
+   * Факт-атрибуты (правка 4.1.3) — что фактически поступило (пересорт/расхождение).
+   */
   acceptMaterial: (
     materialId: string,
     opts: {
       qty_received: number | null;
       accept_status: MaterialAcceptStatus;
       accept_comment?: string | null;
+      fact_name?: string | null;
+      fact_color?: string | null;
+      fact_article?: string | null;
     },
   ) => Promise<boolean>;
   /** Прочая складская операция (упаковка/отгрузка/маркировка) → строка erp_warehouse_ops */

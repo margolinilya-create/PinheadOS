@@ -34,6 +34,8 @@
 | Карточка заказа | `matSection` секции; `stepper*` (точки этапов); `printBlock` (нанесение, синяя полоса слева) | InlineEdit: клик→input→Enter |
 | Формы | `tile/tileActive` (плитки-radio) · `accSection/accHeader` (аккордеон) · `inputError/fieldError` (инлайн-ошибки) · `draftBanner` (черновик) · `dropZone` (превью, Ctrl+V) · `sizeGrid` + чипсы-пресеты | noValidate + инлайн-валидация с автоскроллом; автосейв черновика; focus-trap + Escape |
 | Таблицы | `tableWrap/table` | th: Inter 10px uppercase, фон surface |
+| Приёмка склада (4.1.3) | блок «Поле / План / Факт» на материал (в `matSection`) | план read-only из закупки; факт — inputs (`fact_*`/кол-во) + статус приёмки + комментарий |
+| Подряд (4.2.4) | `flowStepper/flowStep/flowArrow` + `table` | текущий статус и следующее действие — в РАЗНЫХ колонках; сверху Stepper-легенда маршрута готового изделия |
 
 ## UX-правила
 - Действие цеха = 1 тап; тач-таргеты ≥44px (глобально через `@media (pointer: coarse)`)

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { SearchInput } from '../components/SearchInput';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
@@ -14,8 +15,10 @@ import {
 import styles from '../erp.module.css';
 
 /**
- * Подряд: операции, переданные внешним подрядчикам (правка 5).
- * Контроль контрагентов, дат передачи/готовности/возврата и задержек.
+ * Подряд (правки 4.2.1/4.2.4): рабочая очередь операций у подрядчиков.
+ * Компактная таблица; текущий статус и следующее действие — в РАЗНЫХ колонках (не сливаются).
+ * Готовое изделие после «Отгружено подрядчиком» не идёт на производство напрямую — сначала
+ * обязательная приёмка складом (задача создаётся автоматически, см. subcontractingSlice).
  */
 
 const STATUS_CHIP = {
@@ -25,7 +28,6 @@ const STATUS_CHIP = {
   returned: 'chipReady',
   delayed: 'chipBlocked',
   cancelled: 'chipSkipped',
-  // готовое изделие от подрядчика (волна 4.2)
   awaiting_payment: 'chipNeutral',
   awaiting_materials: 'chipNeutral',
   started: 'chipProgress',
@@ -33,6 +35,26 @@ const STATUS_CHIP = {
   shipped_by_contractor: 'chipProgress',
   received_at_pinhead: 'chipReady',
 };
+
+/** Верхний Stepper-легенда маршрута готового изделия (с обязательной приёмкой складом) */
+const FINISHED_STEPPER = [
+  'Оплата', 'Материалы', 'В работе', 'Готово к отгрузке',
+  'Отгружено', 'Приёмка складом', 'На производстве',
+];
+
+function FlowStepper() {
+  return (
+    <div className={styles.flowStepper}>
+      <span className={styles.subText}>Готовое изделие:</span>
+      {FINISHED_STEPPER.map((s, i) => (
+        <span key={s} className={styles.flowStep}>
+          <span className={`${styles.chip} ${styles.chipNeutral}`}>{s}</span>
+          {i < FINISHED_STEPPER.length - 1 && <span className={styles.flowArrow}>›</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 const EMPTY_OP = {
   order_id: '', operation: '', op_type: 'operation', material_source: 'pinhead',
@@ -52,7 +74,7 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       operation: form.operation.trim(),
       op_type: form.op_type,
       material_source: form.material_source,
-      // Возврат на цех — только для отдельной операции; готовое изделие идёт на внутренние этапы
+      // Следующий участок — только для отдельной операции; готовое изделие идёт на внутренние этапы
       return_dept: form.op_type === 'operation' ? (form.return_dept || null) : null,
       contractor: form.contractor.trim() || null,
       qty: form.qty ? Number(form.qty) : null,
@@ -66,50 +88,22 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
 
   return (
     <div className={styles.addMatRow}>
-      <select
-        className={styles.select}
-        value={form.order_id}
-        onChange={(e) => setForm({ ...form, order_id: e.target.value })}
-        aria-label="Заказ"
-      >
+      <select className={styles.select} value={form.order_id} onChange={(e) => setForm({ ...form, order_id: e.target.value })} aria-label="Заказ">
         <option value="">Заказ…</option>
         {orders.map((o) => (
-          <option key={o.id} value={o.id}>
-            №{o.bitrix_id || '—'} · {o.title}
-          </option>
+          <option key={o.id} value={o.id}>№{o.bitrix_id || '—'} · {o.title}</option>
         ))}
       </select>
-      <select
-        className={styles.select}
-        value={form.op_type}
-        onChange={(e) => setForm({ ...form, op_type: e.target.value })}
-        aria-label="Тип операции"
-      >
-        {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, l]) => (
-          <option key={v} value={v}>{l}</option>
-        ))}
+      <select className={styles.select} value={form.op_type} onChange={(e) => setForm({ ...form, op_type: e.target.value })} aria-label="Тип операции">
+        {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-      <select
-        className={styles.select}
-        value={form.material_source}
-        onChange={(e) => setForm({ ...form, material_source: e.target.value })}
-        aria-label="Источник материалов"
-      >
-        {Object.entries(SUBCONTRACT_MATERIAL_SOURCE_LABELS).map(([v, l]) => (
-          <option key={v} value={v}>{l}</option>
-        ))}
+      <select className={styles.select} value={form.material_source} onChange={(e) => setForm({ ...form, material_source: e.target.value })} aria-label="Источник материалов">
+        {Object.entries(SUBCONTRACT_MATERIAL_SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
       {form.op_type === 'operation' && (
-        <select
-          className={styles.select}
-          value={form.return_dept}
-          onChange={(e) => setForm({ ...form, return_dept: e.target.value })}
-          aria-label="Возврат на цех"
-        >
-          <option value="">Возврат на цех…</option>
-          {queueDepts.map((d) => (
-            <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
-          ))}
+        <select className={styles.select} value={form.return_dept} onChange={(e) => setForm({ ...form, return_dept: e.target.value })} aria-label="Следующий участок">
+          <option value="">Следующий участок…</option>
+          {queueDepts.map((d) => <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>)}
         </select>
       )}
       <input className={styles.input} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" />
@@ -119,6 +113,46 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       <label className={styles.subText}>готов<input type="date" className={styles.input} value={form.planned_date} onChange={(e) => setForm({ ...form, planned_date: e.target.value })} aria-label="Плановая готовность" /></label>
       <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
     </div>
+  );
+}
+
+/** Колонка «Следующее действие»: разнесена с текущим статусом (правка 4.2.4) */
+function NextAction({ op, onUpdate }) {
+  if (op.op_type === 'finished_product') {
+    // Готовое изделие: кнопочная стейт-машина, но после «Отгружено» — обязательная приёмка складом
+    if (op.status === 'shipped_by_contractor') {
+      return <span className={styles.subText}>Ожидает приёмки складом</span>;
+    }
+    if (op.status === 'received_at_pinhead') {
+      return <span className={styles.subText}>На упаковку/отгрузку</span>;
+    }
+    const idx = SUBCONTRACT_FINISHED_FLOW.indexOf(op.status);
+    const next = idx === -1 ? SUBCONTRACT_FINISHED_FLOW[0] : SUBCONTRACT_FINISHED_FLOW[idx + 1];
+    return next ? (
+      <button type="button" className="btn btn-secondary" onClick={() => onUpdate(op.id, { status: next })}>
+        → {SUBCONTRACT_STATUS_LABELS[next]}
+      </button>
+    ) : <span className={styles.subText}>—</span>;
+  }
+  // Отдельная операция: выбор статуса (returned запускает маршрут дальше в сторе)
+  if (op.status === 'returned') {
+    return (
+      <span className={styles.subText}>
+        {op.return_dept ? `→ ${deptShortName(op.return_dept, op.return_dept)}` : '→ упаковка/отгрузка'}
+      </span>
+    );
+  }
+  return (
+    <select
+      className={styles.select}
+      value={op.status}
+      onChange={(e) => onUpdate(op.id, { status: e.target.value })}
+      aria-label={`Изменить статус ${op.operation}`}
+    >
+      {Object.entries(SUBCONTRACT_STATUS_LABELS)
+        .filter(([v]) => !SUBCONTRACT_FINISHED_FLOW.includes(v))
+        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
   );
 }
 
@@ -167,17 +201,16 @@ export default function Subcontracting() {
     <>
       <PageHead
         title="Подряд"
-        sub="Операции у внешних подрядчиков: передача, готовность, возврат, задержки."
+        sub="Рабочая очередь операций у подрядчиков: где заказ сейчас и что дальше."
       />
 
+      <FlowStepper />
+
       <div className={styles.toolbar}>
-        <input
-          type="search"
-          className={`${styles.input} ${styles.searchInput}`}
+        <SearchInput
+          value={query} onChange={setQuery}
           placeholder="Поиск: заказ, № сделки, контрагент, операция"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Поиск операций подряда"
+          ariaLabel="Поиск операций подряда"
         />
         <div className={styles.spacer} />
         <span className={styles.subText}>{rows.length} из {subcontracting.length}</span>
@@ -200,17 +233,18 @@ export default function Subcontracting() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>№ / Заказ</th><th>Тип</th><th>Материалы</th><th>Операция</th><th>Кол-во</th><th>Контрагент</th>
-                <th>Передан</th><th>План готов.</th><th>Возврат</th><th>Статус</th><th>Задержка</th>
+                <th>Заказ</th><th>Тип</th><th>Операция</th><th>Кол-во</th><th>Подрядчик</th>
+                <th>Сроки</th><th>Текущий статус</th><th>Следующее действие</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((op) => {
                 const overdue = subcontractOverdue(op.planned_date, op.returned_date, op.status, today);
+                const delayed = overdue && op.status !== 'returned';
                 return (
                   <tr key={op.id}>
                     <td>
-                      №{op.order?.bitrix_id || '—'}
+                      <strong>№{op.order?.bitrix_id || '—'}</strong>
                       <div className={styles.subText}>{op.order?.title || '—'}</div>
                     </td>
                     <td>
@@ -220,7 +254,6 @@ export default function Subcontracting() {
                         onChange={(e) => {
                           const nextType = e.target.value;
                           const inFinished = SUBCONTRACT_FINISHED_FLOW.includes(op.status);
-                          // Смена типа согласует статус со стейт-машиной нового типа
                           const patch = { op_type: nextType };
                           if (nextType === 'finished_product') {
                             patch.return_dept = null;
@@ -236,78 +269,44 @@ export default function Subcontracting() {
                           <option key={v} value={v}>{l}</option>
                         ))}
                       </select>
-                      {op.op_type === 'operation' && op.return_dept && (
-                        <div className={styles.subText}>↩ {deptShortName(op.return_dept, op.return_dept)}</div>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`${styles.chip} ${op.material_source === 'contractor' ? styles.chipNeutral : styles.chipProgress}`}>
+                      <div className={styles.subText}>
                         {SUBCONTRACT_MATERIAL_SOURCE_LABELS[op.material_source]}
-                      </span>
+                        {op.op_type === 'operation' && op.return_dept
+                          ? ` · ↩ ${deptShortName(op.return_dept, op.return_dept)}` : ''}
+                      </div>
                     </td>
                     <td>{op.operation}</td>
                     <td>{op.qty ?? '—'}</td>
                     <td>{op.contractor || '—'}</td>
-                    <td>{formatDateShort(op.sent_date) || '—'}</td>
-                    <td className={overdue ? styles.overdue : undefined}>
-                      {formatDateShort(op.planned_date) || '—'}
-                      {overdue && <div className={styles.subText}>просрочено</div>}
-                    </td>
                     <td>
-                      {op.op_type === 'operation' ? (
-                        <input
-                          type="date"
-                          className={styles.input}
-                          value={op.returned_date || ''}
-                          onChange={(e) => updateSubcontractOp(op.id, {
-                            returned_date: e.target.value || null,
-                            status: e.target.value ? 'returned' : op.status,
-                          })}
-                          aria-label={`Дата возврата ${op.operation}`}
-                        />
-                      ) : (
-                        // Готовое изделие ведётся кнопочной стейт-машиной, «Возврат» не применим
-                        <span className={styles.subText}>—</span>
+                      <div className={styles.subText}>передан: {formatDateShort(op.sent_date) || '—'}</div>
+                      <div className={overdue ? styles.overdue : styles.subText}>
+                        план: {formatDateShort(op.planned_date) || '—'}
+                      </div>
+                      {op.op_type === 'operation' && (
+                        <label className={styles.subText}>
+                          возврат:{' '}
+                          <input
+                            type="date"
+                            className={styles.input}
+                            value={op.returned_date || ''}
+                            onChange={(e) => updateSubcontractOp(op.id, {
+                              returned_date: e.target.value || null,
+                              status: e.target.value ? 'returned' : op.status,
+                            })}
+                            aria-label={`Дата возврата ${op.operation}`}
+                            style={{ maxWidth: 130 }}
+                          />
+                        </label>
                       )}
                     </td>
                     <td>
-                      <span className={`${styles.chip} ${styles[overdue && op.status !== 'returned' ? 'chipBlocked' : STATUS_CHIP[op.status]]}`}>
-                        {overdue && op.status !== 'returned' ? 'Задержка' : SUBCONTRACT_STATUS_LABELS[op.status]}
+                      <span className={`${styles.chip} ${styles[delayed ? 'chipBlocked' : STATUS_CHIP[op.status]]}`}>
+                        {delayed ? 'Задержка' : SUBCONTRACT_STATUS_LABELS[op.status]}
                       </span>
-                      {op.op_type === 'finished_product' ? (
-                        (() => {
-                          // Готовое изделие: кнопочная стейт-машина (оплата→…→поступило)
-                          const idx = SUBCONTRACT_FINISHED_FLOW.indexOf(op.status);
-                          const next = idx === -1 ? SUBCONTRACT_FINISHED_FLOW[0] : SUBCONTRACT_FINISHED_FLOW[idx + 1];
-                          return next ? (
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => updateSubcontractOp(op.id, { status: next })}
-                            >
-                              → {SUBCONTRACT_STATUS_LABELS[next]}
-                            </button>
-                          ) : null;
-                        })()
-                      ) : (
-                        <select
-                          className={styles.select}
-                          value={op.status}
-                          onChange={(e) => updateSubcontractOp(op.id, { status: e.target.value })}
-                          aria-label={`Статус операции ${op.operation}`}
-                        >
-                          {Object.entries(SUBCONTRACT_STATUS_LABELS)
-                            .filter(([v]) => !SUBCONTRACT_FINISHED_FLOW.includes(v))
-                            .map(([v, l]) => (
-                              <option key={v} value={v}>{l}</option>
-                            ))}
-                        </select>
-                      )}
-                    </td>
-                    <td>
                       <input
                         className={styles.input}
-                        placeholder="Комментарий"
+                        placeholder="Комментарий задержки"
                         defaultValue={op.delay_comment || ''}
                         onBlur={(e) => {
                           const val = e.target.value.trim() || null;
@@ -316,9 +315,10 @@ export default function Subcontracting() {
                           }
                         }}
                         aria-label={`Комментарий задержки ${op.operation}`}
-                        style={{ maxWidth: 160 }}
+                        style={{ maxWidth: 170, marginTop: 4 }}
                       />
                     </td>
+                    <td><NextAction op={op} onUpdate={updateSubcontractOp} /></td>
                   </tr>
                 );
               })}
