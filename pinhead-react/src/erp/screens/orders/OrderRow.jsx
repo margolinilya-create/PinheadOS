@@ -48,7 +48,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         <td>{order.manager || '—'}</td>
         <td>{totalQty}</td>
         <td>{formatDateShort(order.created_at) || '—'}</td>
-        <td><DueCell dueDate={order.due_date} /></td>
+        <td><DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} /></td>
         <td>
           {ready ? (
             <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>

@@ -62,7 +62,7 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
         {hasOpenProcurement(order.procurement_tasks) && (
           <span className={`${styles.chip} ${styles.chipBlocked}`}>🔔 дозакупка</span>
         )}
-        <DueCell dueDate={order.due_date} />
+        <DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} />
         {progress.total > 0 && (
           <span className={styles.progressCell} aria-label={`Этапов готово: ${progress.done} из ${progress.total}`}>
             {progress.done}/{progress.total}
