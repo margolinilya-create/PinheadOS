@@ -23,9 +23,14 @@ export const useOrderDrawer = create<OrderDrawerState>((set) => ({
  */
 export function orderLinkClick(
   id: string,
-  e: React.MouseEvent<HTMLAnchorElement>,
+  e: MouseEvent<HTMLAnchorElement>,
 ): void {
-  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  // Ctrl/Cmd/Shift-клик — отдаём браузеру (новая вкладка / диплинк), но гасим всплытие,
+  // чтобы клик по заголовку внутри строки заказа не тогглил её разворот заодно.
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+    e.stopPropagation();
+    return;
+  }
   e.preventDefault();
   e.stopPropagation();
   useOrderDrawer.getState().open(id);

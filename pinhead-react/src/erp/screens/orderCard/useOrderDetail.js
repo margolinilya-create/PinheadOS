@@ -53,9 +53,12 @@ export function useOrderDetail(orderId) {
 
   useEffect(() => {
     if (!orderId) return undefined;
-    loadOrderEvents(orderId).then((ev) => setEvents(ev ?? []));
-    loadOrderAudit(orderId).then((a) => setAudit(a ?? []));
-    loadComments(orderId).then((c) => setComments(c ?? []));
+    // alive-гард: медленный ответ по прошлому заказу не перезаписывает текущий
+    // (страница OrderCard дополнительно keyed по orderId — полный remount при A→B)
+    let alive = true;
+    loadOrderEvents(orderId).then((ev) => { if (alive) setEvents(ev ?? []); });
+    loadOrderAudit(orderId).then((a) => { if (alive) setAudit(a ?? []); });
+    loadComments(orderId).then((c) => { if (alive) setComments(c ?? []); });
     const channel = supabase
       .channel(`erp-comments-${orderId}-${crypto.randomUUID()}`)
       .on('postgres_changes',
@@ -67,7 +70,7 @@ export function useOrderDetail(orderId) {
           });
         })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { alive = false; supabase.removeChannel(channel); };
   }, [orderId, loadOrderEvents, loadOrderAudit, loadComments]);
 
   const order = orders.find((o) => o.id === orderId);
@@ -84,7 +87,7 @@ export function useOrderDetail(orderId) {
     return ok;
   };
   const onSendComment = async (text) => {
-    const row = await addComment(order.id, text);
+    const row = await addComment(orderId, text);
     if (row) setComments((prev) => (prev && !prev.some((c) => c.id === row.id) ? [...prev, row] : prev));
     return row;
   };
