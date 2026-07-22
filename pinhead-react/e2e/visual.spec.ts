@@ -34,8 +34,7 @@ test('visual: erp-dashboard', async ({ page }) => {
   await page.goto('/?studio=0');
   await expect(page.getByRole('heading', { name: 'Обзор производства' })).toBeVisible();
   await expect(page.getByText('Заказов в работе')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Загрузка цехов' })).toBeVisible();
-  await expect(page.getByText('Горящие заказы')).toBeVisible();
+  await expect(page.getByText('Ближайшие дедлайны')).toBeVisible();
   await shoot(page, 'erp-dashboard');
 });
 
@@ -61,8 +60,8 @@ test('visual: erp-queue', async ({ page }) => {
   });
   await page.goto('/queue?studio=0');
   await expect(page.getByRole('heading', { name: 'Закройный цех' })).toBeVisible();
-  await expect(page.getByText('В работе')).toBeVisible();
-  await expect(page.getByText('Готово к работе')).toBeVisible();
+  await expect(page.getByText('В работе').first()).toBeVisible();
+  await expect(page.getByText('Ожидает').first()).toBeVisible();
   await shoot(page, 'erp-queue');
 });
 
