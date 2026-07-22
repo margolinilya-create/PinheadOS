@@ -1,6 +1,7 @@
 /* ── Centralized storage utilities ── */
 
 import { supabase } from './supabase';
+import { validateImageUpload, safePathSegment } from './uploadGuard';
 
 // ── localStorage ──
 
@@ -112,13 +113,20 @@ async function ensureBucket(): Promise<void> {
 }
 
 export async function uploadSkuPhoto(code: string, file: File, index: number = 0): Promise<string | null> {
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `${code}_${index}.${ext}`;
+  // security ME-1: пускаем только растровые картинки; ext/contentType — из allowlist,
+  // не из имени файла (нет SVG/HTML и инъекции пути).
+  const check = validateImageUpload(file);
+  if (!check.ok) {
+    console.error('[uploadSkuPhoto]', check.error);
+    return null;
+  }
+  const path = `${safePathSegment(code)}_${index}.${check.ext}`;
 
   await ensureBucket();
 
   const { error } = await supabase.storage.from(SKU_BUCKET).upload(path, file, {
     cacheControl: '3600',
+    contentType: check.contentType,
     upsert: true,
   });
 

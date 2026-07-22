@@ -20,6 +20,28 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 23 (22.07.2026) — Security-аудит + исправления (RLS-авторизация)
+
+Состязательный QA/security-аудит: `TESTMAP.md` + `BUGREPORT.md` (17 дефектов; 1 Critical,
+3 High, 5 Medium, 8 Low), живое воспроизведение через REST + одноразовый тест-аккаунт (удалён).
+Главное: RLS всех `erp_*` был `using(true)` для любого authenticated → посторонний (открытая
+регистрация) читал/менял все 146 боевых заказов; `approved`/`active` не проверялись на сервере.
+- **Фикс RLS (миграции `20260722180000..180200`):** предикат `erp_is_member()` (active AND
+  approved) вместо `using(true)`/`with check(true)` на всех `erp_*` (delete admin-only и
+  manager-гейты сохранены); `erp_is_manager()` тоже требует active+approved. Триггер
+  `on_auth_user_created` → PENDING-профиль (регистрант заблокирован до одобрения, виден админу).
+  Проверено: посторонний → 0 заказов и 42501 на запись; админ → 146; advisor: 15
+  `rls_policy_always_true` исчезли.
+- **Целостность:** кламп `qty_done ∈ [0, item.qty]` (триггер); `check (total_sum >= 0)` на `orders`.
+- **Загрузки (ME-1):** `lib/uploadGuard.ts` — allowlist MIME (jpg/png/webp) + лимит + content-type
+  из allowlist в `uploadOrderPreview/Attachment`/`uploadSkuPhoto` (закрыт XSS на storage-origin).
+- **Заголовки (LO-1):** CSP `frame-ancestors 'none'` + X-Frame-Options/X-Content-Type-Options/
+  Referrer-Policy/Permissions-Policy в `vercel.json`.
+- **Гигиена БД:** пин `search_path` + `revoke execute` на триггер-функциях; revoke anon на предикатах.
+- Осталось (ручное/продуктовое): `disable_signup` + leaked-password (Dashboard), полный content-CSP,
+  per-role запись, приватные бакеты, серверный стамп актора/пересчёт цены.
+- Проверка: lint 0, **1025 тестов** (+7 uploadGuard), build ок.
+
 ### Сессия 22 (22.07.2026) — QA-баг-репорт заказчика: 16 багов ERP
 
 Разведка — 2 Explore-агента; фиксы по кластерам (ветка от main). Без изменения БД/статусов.

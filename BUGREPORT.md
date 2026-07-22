@@ -249,5 +249,31 @@ PATCH /rest/v1/erp_orders?id=eq.<oid>
 
 ---
 
+## 7. Статус исправлений (эта сессия)
+
+Применено к проду `pinhead-os-v2` (миграции в `supabase/migrations/20260722180000..180200`)
+и коду `pinhead-react/`. Все изменения — **только ужесточение**.
+
+| Находка | Что сделано | Проверка |
+|---|---|---|
+| #1/#3 тотальный доступ к ERP | RLS всех `erp_*` переведён с `using(true)` на `erp_is_member()` (active AND approved); `delete` admin-only и manager-гейты сохранены | ✅ живьём: посторонний → **0** заказов и **42501** на запись; админ → **146** |
+| #2 approved/active не enforce | `erp_is_member()`/`erp_is_manager()` требуют active AND approved | ✅ advisor: **15** `rls_policy_always_true` исчезли |
+| onboarding | триггер `on_auth_user_created` создаёт PENDING-профиль → регистрант заблокирован до одобрения, но виден админу | ✅ применено |
+| #4 qty_done | триггер-кламп `qty_done` в `[0, item.qty]` | ✅ |
+| ME-4 цена legacy | `check (total_sum >= 0)` на `orders` | ✅ |
+| ME-1 загрузки | allowlist MIME (jpg/png/webp) + лимит + канон. ext + content-type из allowlist в `uploadOrderPreview/Attachment`/`uploadSkuPhoto` (`lib/uploadGuard.ts` + 7 тестов) | ✅ 1025 тестов зелёные, build/lint ок |
+| LO-1 заголовки | CSP `frame-ancestors 'none'` + X-Frame-Options/X-Content-Type-Options/Referrer-Policy/Permissions-Policy в `vercel.json` | ✅ (применится при деплое) |
+| LO-5/LO-6 гигиена БД | пин `search_path` + `revoke execute` на триггер-функциях; revoke anon на предикатах | ✅ advisor: warn ушли |
+
+**Осталось (ручное действие / продуктовое решение):**
+- **disable_signup + leaked-password protection** — настройки Auth в Supabase Dashboard (не через SQL/MCP). RLS-фикс уже нейтрализует утечку данных даже при открытой регистрации, но инвайт-онли рекомендуется.
+- **Полный content-CSP** (`script-src`/`style-src`/`connect-src` с Supabase+Google Fonts) — нужен тест-прогон против собранного бандла; отгружены безопасные заголовки, строгий CSP — следующим шагом.
+- **#3 глубже** — вход «посторонним/неодобренным» закрыт; различение 6 ролей на запись внутри команды — продуктовое решение.
+- **ME-3** (публичные бакеты → приватные + signed URLs), **ME-2** (серверный стамп актора), **HI-4** (пересчёт цены на сервере) — архитектурные, следующей волной.
+- **LO-2** (director не пишет `profiles`) — намеренно не трогал (расширение прав = продуктовое решение).
+- Advisor-warn «is_admin/erp_is_member/erp_is_manager executable by authenticated» — **by-design**: RLS-политики вызывают эти предикаты, поэтому роль `authenticated` обязана иметь на них EXECUTE.
+
+---
+
 *Приложения: `TESTMAP.md` (карта атаки, матрица ролей, модель угроз),
 `pinhead-react/tests/security/authz-rls-probe.mjs` (+ README) — воспроизводимый прогон.*

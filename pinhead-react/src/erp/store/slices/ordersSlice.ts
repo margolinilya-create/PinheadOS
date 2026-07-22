@@ -5,6 +5,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { validateImageUpload } from '../../../lib/uploadGuard';
 import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { buildRoute } from '../../utils/routes';
@@ -286,11 +287,16 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   uploadOrderPreview: async (orderId, file) => {
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
+    // security ME-1: только растровые картинки, content-type из allowlist (не svg/html)
+    const check = validateImageUpload(file);
+    if (!check.ok) {
+      toast.error(check.error);
+      return false;
+    }
+    const path = `${orderId}/${Date.now()}.${check.ext}`;
     const { error: upErr } = await supabase.storage
       .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/png' });
+      .upload(path, file, { contentType: check.contentType });
     if (upErr) {
       toast.error('Не удалось загрузить превью');
       return false;
@@ -320,11 +326,16 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   uploadOrderAttachment: async (orderId, file, note) => {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
+    // security ME-1: только растровые картинки, content-type из allowlist (не svg/html)
+    const check = validateImageUpload(file);
+    if (!check.ok) {
+      toast.error(check.error);
+      return false;
+    }
+    const path = `${orderId}/${Date.now()}.${check.ext}`;
     const { error: upErr } = await supabase.storage
       .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/jpeg' });
+      .upload(path, file, { contentType: check.contentType });
     if (upErr) {
       toast.error('Не удалось загрузить фото');
       return false;
