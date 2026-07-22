@@ -472,7 +472,7 @@ export function CreateOrderModal({ onClose }) {
               className={styles.input}
               value={form.bitrix_id}
               onChange={(e) => setForm({ ...form, bitrix_id: e.target.value })}
-              placeholder="54766"
+              placeholder="напр. 54766"
             />
           </label>
           <label className={`${styles.field} ${styles.fieldWide}`}>
@@ -481,7 +481,7 @@ export function CreateOrderModal({ onClose }) {
               className={inputCls('title')}
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="BOX39 свитшоты"
+              placeholder="напр. BOX39 свитшоты"
               required
               maxLength={140}
               aria-invalid={err('title') ? true : undefined}
@@ -594,7 +594,7 @@ export function CreateOrderModal({ onClose }) {
                   min="1"
                   className={inputCls(`item_${i}_qty`)}
                   value={it.qty}
-                  onChange={(e) => setItem(i, { qty: e.target.value })}
+                  onChange={(e) => setItem(i, { qty: e.target.value.replace('-', '') })}
                   aria-required="true"
                   aria-invalid={err(`item_${i}_qty`) ? true : undefined}
                   aria-describedby={err(`item_${i}_qty`) ? `err-item-${i}-qty` : undefined}
