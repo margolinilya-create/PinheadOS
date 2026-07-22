@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useErpSearch } from '../store/useErpSearch';
 import { useTheme } from '../../hooks/useTheme';
 import {
   useErpStore,
@@ -18,6 +20,9 @@ import styles from '../erp.module.css';
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const search = useErpSearch((s) => s.query);
+  const setSearch = useErpSearch((s) => s.setQuery);
   const { orders, departments, myDeptId, myDeptLoaded, subcontracting, experimental } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -85,11 +90,24 @@ export default function ErpLayout({ user, children }) {
         <header className={styles.topbar}>
           <div className={styles.headerSearch}>
             <span aria-hidden="true">🔍</span>
-            <input type="search" placeholder="Поиск: заказы, изделия, задачи…" aria-label="Глобальный поиск" />
+            <input
+              type="search"
+              placeholder="Поиск: заказ, № сделки, менеджер…"
+              aria-label="Глобальный поиск"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') navigate('/orders'); }}
+            />
           </div>
           <div className={styles.spacer} />
 
-          <button type="button" className={styles.iconBtn} title="Уведомления" aria-label="Уведомления">
+          <button
+            type="button"
+            className={styles.iconBtn}
+            title="Просроченные заказы"
+            aria-label="Просроченные заказы"
+            onClick={() => navigate('/orders?filter=overdue')}
+          >
             🔔
             {overdueCount > 0 && <span className={styles.iconDot}>{overdueCount}</span>}
           </button>

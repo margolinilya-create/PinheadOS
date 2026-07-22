@@ -8,9 +8,14 @@ import {
 } from '../../types';
 import styles from '../../erp.module.css';
 
-/** Разворачиваемое полное ТЗ позиции: сетка, нанесения, упаковка, материалы */
-export function TzBlock({ order, item }) {
-  const [open, setOpen] = useState(false);
+/**
+ * Полное ТЗ позиции: сетка, нанесения, упаковка, материалы.
+ * По умолчанию — сворачиваемый блок (очередь цеха). `hideToggle` + `defaultOpen` — статичный
+ * режим для вкладки «ТЗ» боковой карточки заказа (без кнопки, всегда раскрыт).
+ */
+export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const expanded = hideToggle || open;
   const prints = useMemo(
     () => [...(item.prints ?? [])].sort((a, b) => a.seq - b.seq),
     [item.prints],
@@ -24,16 +29,18 @@ export function TzBlock({ order, item }) {
 
   return (
     <>
-      <button
-        type="button"
-        className={`btn btn-secondary ${styles.tzToggle}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        📋 ТЗ позиции {open ? '▲' : '▼'}
-      </button>
+      {!hideToggle && (
+        <button
+          type="button"
+          className={`btn btn-secondary ${styles.tzToggle}`}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          📋 ТЗ позиции {open ? '▲' : '▼'}
+        </button>
+      )}
 
-      {open && (
+      {expanded && (
         <div className={styles.tzBlock}>
           <div className={styles.checkRow}>
             {item.variant && (

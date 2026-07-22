@@ -18,22 +18,33 @@ import { OrderItemSection } from './OrderItemSection';
 import { CommentsSection } from './CommentsSection';
 import { HistorySection } from './HistorySection';
 import { NotificationsSection } from './NotificationsSection';
+import { TzBlock } from '../queue/TzBlock';
+import { supabase } from '../../../lib/supabase';
 import { useOrderDetail } from './useOrderDetail';
 
 /**
  * Боковая карточка заказа (редизайн): те же данные, что и страница /orders/:id, но в правом
  * Drawer с вкладками — открывается из канбана/таблицы/очереди без ухода с экрана. Вся логика
  * общая с OrderCard (useOrderDetail); контент разбит по вкладкам Информация/Маршрут/Материалы/
- * Комментарии/История. Ссылка «Открыть на странице» ведёт на полный маршрут (диплинк).
+ * ТЗ/Файлы/Комментарии/История. Ссылка «Открыть на странице» ведёт на полный маршрут (диплинк).
  */
 
 const TABS = [
   { key: 'info', label: 'Информация' },
   { key: 'route', label: 'Маршрут' },
   { key: 'materials', label: 'Материалы' },
+  { key: 'tz', label: 'ТЗ' },
+  { key: 'files', label: 'Файлы' },
   { key: 'comments', label: 'Комментарии' },
   { key: 'history', label: 'История' },
 ];
+
+const ATTACH_KIND_LABEL = { preview: 'Превью', attachment: 'Вложение' };
+
+/** Публичный URL файла заказа в бакете erp-attachments */
+function attachmentUrl(path) {
+  return supabase.storage.from('erp-attachments').getPublicUrl(path).data.publicUrl;
+}
 
 export function OrderDrawer({ orderId, onClose }) {
   const [tab, setTab] = useState('info');
@@ -151,6 +162,46 @@ export function OrderDrawer({ orderId, onClose }) {
             </div>
           ) : (
             <div className={styles.subText}>Материалы не ожидаются.</div>
+          )}
+        </section>
+      )}
+
+      {order && tab === 'tz' && (
+        <>
+          {order.items.map((item) => (
+            <section key={item.id} className={styles.matSection}>
+              <div className={styles.matSectionHead}>
+                <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
+                <span className={styles.queueQty}>{item.qty} шт</span>
+              </div>
+              <TzBlock order={order} item={item} defaultOpen hideToggle />
+            </section>
+          ))}
+        </>
+      )}
+
+      {order && tab === 'files' && (
+        <section className={styles.matSection}>
+          <div className={styles.matSectionHead}><strong>Файлы</strong></div>
+          {(order.attachments ?? []).length > 0 ? (
+            <div className={styles.fileGrid}>
+              {order.attachments.map((a) => {
+                const url = attachmentUrl(a.file_path);
+                return (
+                  <a key={a.id} href={url} target="_blank" rel="noreferrer" className={styles.fileCard}>
+                    <img
+                      src={url} alt={a.file_name || 'файл'} className={styles.fileThumb} loading="lazy"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <span className={styles.fileName}>
+                      {ATTACH_KIND_LABEL[a.kind] ? `${ATTACH_KIND_LABEL[a.kind]} · ` : ''}{a.file_name || 'файл'}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          ) : (
+            <div className={styles.subText}>Файлов нет.</div>
           )}
         </section>
       )}

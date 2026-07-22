@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
+import { useErpSearch } from '../store/useErpSearch';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { isUrgent, isOverdue } from '../utils/time';
 import { isOrderReadyToShip } from '../utils/stageUi';
@@ -32,15 +33,17 @@ export default function OrdersScreen({ user }) {
       loadArchive: s.loadArchive,
     })),
   );
-  const [showCreate, setShowCreate] = useState(false);
-  const [query, setQuery] = useState('');
+  // Фильтры сроков/готовности и открытие модалки создания — в URL (?filter=…, ?new=1),
+  // чтобы работали ссылки с KPI-плиток и «Новый заказ» с дашборда
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showCreate, setShowCreate] = useState(() => searchParams.get('new') === '1');
+  // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
+  const query = useErpSearch((s) => s.query);
+  const setQuery = useErpSearch((s) => s.setQuery);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [tab, setTab] = useState('active'); // active | archive
   const isMobile = useMediaQuery('(max-width: 760px)');
-  // Фильтры сроков/готовности — в URL (?filter=ready|urgent|overdue),
-  // чтобы работали ссылки с KPI-плиток дашборда
-  const [searchParams, setSearchParams] = useSearchParams();
   const filterParam = searchParams.get('filter');
   const filter = ['ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
   const toggleFilter = (name) =>
@@ -289,7 +292,20 @@ export default function OrdersScreen({ user }) {
         </div>
       )}
 
-      {showCreate && <CreateOrderModal onClose={() => setShowCreate(false)} />}
+      {showCreate && (
+        <CreateOrderModal
+          onClose={() => {
+            setShowCreate(false);
+            if (searchParams.get('new')) {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('new');
+                return next;
+              }, { replace: true });
+            }
+          }}
+        />
+      )}
     </>
   );
 }
