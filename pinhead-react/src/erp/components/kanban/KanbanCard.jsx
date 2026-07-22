@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderPreviewUrl } from '../../store/useErpStore';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { orderLinkClick, useOrderDrawer } from '../../store/useOrderDrawer';
 import { daysLeft, formatTimeIn } from '../../utils/time';
 import styles from '../../erp.module.css';
 
@@ -34,6 +34,7 @@ export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
       draggable={group !== 'blocked'}
       onDragStart={(e) => onDragStart(e, entry)}
       onDragEnd={onDragEnd}
+      onClick={() => useOrderDrawer.getState().open(order.id)}
       role="listitem"
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >

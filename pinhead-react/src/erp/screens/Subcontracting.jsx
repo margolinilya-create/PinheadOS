@@ -75,7 +75,11 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       qty: form.qty ? Number(form.qty) : null,
       sent_date: form.sent_date || null,
       planned_date: form.planned_date || null,
-      status: form.sent_date ? 'sent' : 'planned',
+      // Готовое изделие стартует с первой фазы воронки, чтобы попадать в степпер (ERP-07);
+      // отдельная операция — planned/sent как раньше.
+      status: form.op_type === 'finished_product'
+        ? 'awaiting_payment'
+        : (form.sent_date ? 'sent' : 'planned'),
     });
     setSaving(false);
     if (row) setForm(EMPTY_OP);

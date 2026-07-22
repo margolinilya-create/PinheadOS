@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
@@ -63,6 +63,15 @@ export default function ErpDashboard() {
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+
+  // Колокол в шапке ведёт на /#notifications — проскроллить к виджету «Уведомления» (ERP-16),
+  // когда данные загружены (виджет рендерится только при loaded).
+  const location = useLocation();
+  useEffect(() => {
+    if (loaded && location.hash === '#notifications') {
+      document.getElementById('notifications')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loaded, location.hash]);
 
   const data = useMemo(() => {
     const deptById = new Map(departments.map((d) => [d.id, d]));
@@ -284,7 +293,7 @@ export default function ErpDashboard() {
               </div>
             </div>
 
-            <div className={styles.widget}>
+            <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
               <div className={styles.widgetHead}><span className={styles.widgetTitle}>Уведомления</span></div>
               {data.notifications.length === 0 ? (
                 <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>

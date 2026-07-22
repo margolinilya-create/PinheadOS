@@ -30,12 +30,16 @@ const STATUS_VARIANT = {
   partial: 'waiting', received: 'ready', reserved: 'ready', not_needed: 'neutral',
 };
 
-/** Группа статуса для фильтр-вкладок */
+/**
+ * Группа статуса для KPI-плиток и фильтр-вкладок.
+ * Статус приоритетнее даты: как только материал заказан/в пути/пришёл, он выходит из «Просрочено»
+ * (иначе строка с прошедшим eta зависала в «Просрочено» после смены статуса — ERP-01/ERP-02).
+ * «Просрочено» = только ещё не заказанная закупка с истёкшим eta.
+ */
 function statusGroup(m, today) {
   if (m.status === 'received' || m.status === 'reserved') return 'arrived';
-  if (m.source === 'purchase' && m.eta_date && m.eta_date < today
-    && m.status !== 'received' && m.status !== 'reserved' && m.status !== 'not_needed') return 'overdue';
   if (m.status === 'ordered' || m.status === 'in_transit' || m.status === 'partial') return 'transit';
+  if (m.source === 'purchase' && m.eta_date && m.eta_date < today && m.status !== 'not_needed') return 'overdue';
   return 'awaiting';
 }
 

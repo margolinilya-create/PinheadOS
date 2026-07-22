@@ -11,7 +11,7 @@ import styles from '../../erp.module.css';
 
 const FLOW = ['awaiting_receipt', 'accepted', 'packing', 'packed', 'ready_to_ship', 'shipped'];
 const NEXT_LABEL = {
-  awaiting_receipt: 'Принять',
+  awaiting_receipt: 'Принять на упаковку',
   accepted: 'На упаковку',
   packing: 'Упаковано',
   packed: 'Готово к отгрузке',

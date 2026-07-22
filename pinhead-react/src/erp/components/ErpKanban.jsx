@@ -74,7 +74,8 @@ export default function ErpKanban() {
         <section key={dept.id} className={styles.kanbanCol}>
           <header className={styles.kanbanColHead}>
             {deptShortName(dept.code, dept.name)}
-            <span className={styles.deptTabCount}>{ready.length + in_progress.length}</span>
+            {/* Бейдж = все видимые карточки колонки (ready+blocked+in_progress+done), ERP-05 */}
+            <span className={styles.deptTabCount}>{ready.length + blocked.length + in_progress.length + done.length}</span>
           </header>
 
           {['ready', 'in_progress', 'done'].map((lane) => {

@@ -106,6 +106,33 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
   return n;
 }
 
+/**
+ * Сколько работ ТОЛЬКО «готово к работе» (ready, без in_progress) в цехе — для бейджа вкладки
+ * цеха и «Мой цех». Совпадает с группой «Готово к работе» в очереди, поэтому убывает при «Взять
+ * в работу» (ERP-06). readyCountFor (ready+in_progress) оставлен для уведомления о новой работе.
+ */
+export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
+  const dept = departments.find((d) => d.code === deptCode);
+  if (!dept) return 0;
+  let n = 0;
+  for (const o of orders) {
+    if (o.status !== 'active') continue;
+    for (const it of o.items) {
+      for (const st of it.stages) {
+        if (st.department_id !== dept.id) continue;
+        if (
+          st.status === 'waiting' &&
+          isStageReady(
+            st, it.stages, o.materials, deptCode,
+            isStageAwaitingProcurement(o.procurement_tasks, st.id),
+          )
+        ) n += 1;
+      }
+    }
+  }
+  return n;
+}
+
 /** Сколько в цехе необработанных просрочек (правка 8): planned_end истёк и нет ack */
 export function overdueUnackCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
   const dept = departments.find((d) => d.code === deptCode);

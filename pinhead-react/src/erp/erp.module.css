@@ -1074,6 +1074,8 @@ a.kpiTile:hover { border-color: var(--accent); }
   padding: 9px 11px;
   margin-bottom: 6px;
   cursor: grab;
+  /* без выделения текста — иначе попытка перетащить карточку выделяет текст (ERP-12) */
+  user-select: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1424,6 +1426,9 @@ a.cellTitle:hover { color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 0;
+  /* переносим на узких экранах, чтобы не обрезалась подпись последнего шага (ERP-07) */
+  flex-wrap: wrap;
+  row-gap: 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1546,7 +1551,7 @@ a.cellTitle:hover { color: var(--accent); }
 .deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
 .deadlineDay { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); line-height: 1; }
 .deadlineMon { font-size: 10px; text-transform: uppercase; color: var(--text-dim); }
-.deadlineBody { flex: 1; min-width: 0; }
+.deadlineBody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .deadlineName {
   font-size: 13px; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

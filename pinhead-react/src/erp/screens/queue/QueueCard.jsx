@@ -16,8 +16,10 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
   const needsAck = overdue && !stage.overdue_ack_at;
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
   const [startMode, setStartMode] = useState(false);
+  // План завершения по умолчанию — срок клиента (не «сегодня»): иначе этап с дальним сроком
+  // мгновенно становился «просрочен» на след. день (ERP-04).
   const [startDate, setStartDate] = useState(
-    stage.planned_end || new Date().toISOString().slice(0, 10),
+    stage.planned_end || order.due_date || new Date().toISOString().slice(0, 10),
   );
   const [blockMode, setBlockMode] = useState(false);
   const [blockText, setBlockText] = useState('');
