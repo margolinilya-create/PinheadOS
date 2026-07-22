@@ -112,9 +112,9 @@ export default function ErpLayout({ user, children }) {
           <button
             type="button"
             className={styles.iconBtn}
-            title="Просроченные заказы"
-            aria-label="Просроченные заказы"
-            onClick={() => navigate('/orders?filter=overdue')}
+            title="Уведомления"
+            aria-label="Уведомления"
+            onClick={() => navigate('/#notifications')}
           >
             🔔
             {overdueCount > 0 && <span className={styles.iconDot}>{overdueCount}</span>}
