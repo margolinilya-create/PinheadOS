@@ -1514,3 +1514,72 @@ a.cellTitle:hover { color: var(--accent); }
 @media (max-width: 1100px) {
   .dashRow3, .dashRow2 { grid-template-columns: 1fr; }
 }
+
+/* ─── Pagination (редизайн) ─── */
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-top: 14px;
+}
+.pager { display: flex; align-items: center; gap: 4px; }
+.pageBtn {
+  min-width: 32px; height: 32px; padding: 0 8px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); color: var(--text-mid);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.pageBtn:hover:not(:disabled) { background: var(--surface); }
+.pageBtn:disabled { opacity: 0.45; cursor: default; }
+.pageBtnActive, .pageBtnActive:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pageEllipsis { padding: 0 4px; color: var(--text-dim); }
+
+/* ─── FilterBar (редизайн) ─── */
+.filterBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* ─── Drawer (правая боковая панель, редизайн) ─── */
+.drawerOverlay {
+  position: fixed; inset: 0;
+  background: var(--overlay, rgba(10, 10, 10, 0.5));
+  z-index: var(--z-modal, 600);
+  display: flex; justify-content: flex-end;
+  animation: erpFade 0.18s ease;
+}
+.drawerPanel {
+  width: min(560px, 100%); height: 100%;
+  background: var(--card); border-left: 1px solid var(--border-light);
+  box-shadow: var(--shadow-modal);
+  display: flex; flex-direction: column;
+  animation: erpSlideIn 0.22s ease;
+}
+.drawerHead {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid var(--border-light);
+}
+.drawerHeadMain { flex: 1; min-width: 0; }
+.drawerTitle { font-size: 17px; font-weight: 700; color: var(--text); }
+.drawerClose {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: none; background: none; cursor: pointer;
+  border-radius: var(--radius-md); color: var(--text-mid); font-size: 16px;
+}
+.drawerClose:hover { background: var(--surface); }
+.drawerTabs {
+  display: flex; gap: 4px; padding: 0 12px;
+  border-bottom: 1px solid var(--border-light);
+  overflow-x: auto; scrollbar-width: none;
+}
+.drawerTabs::-webkit-scrollbar { display: none; }
+.drawerTab {
+  padding: 10px 12px; border: none; background: none; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--text-mid);
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.drawerTab:hover { color: var(--text); }
+.drawerTabActive { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.drawerBody { flex: 1; overflow-y: auto; padding: 16px 18px; }
+
+@keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+@media (max-width: 760px) {
+  .drawerPanel { width: 100%; border-left: none; }
+}
