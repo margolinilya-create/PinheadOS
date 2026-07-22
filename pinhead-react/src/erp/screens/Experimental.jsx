@@ -2,11 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { SearchInput } from '../components/SearchInput';
+import { Pipeline } from '../components/Pipeline';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import styles from '../erp.module.css';
 import { ExperimentalCard } from './experimental/ExperimentalCard';
+
+/** Пайплайн фаз разработки образца (счётчики) — верх экрана */
+const PIPE_PHASES = [
+  { key: 'patterns', label: 'Лекала', icon: '📐' },
+  { key: 'development', label: 'Проработка', icon: '🧵' },
+  { key: 'final_fitting', label: 'Примерка', icon: '👕' },
+  { key: 'done', label: 'Готов к серии', icon: '✅' },
+];
 
 /**
  * Экспериментальный цех (правка 6): отдельная воронка разработки.
@@ -56,6 +65,17 @@ export default function Experimental() {
     });
   }, [experimental, orders, query]);
 
+  // Воронка фаз: сколько разработок сейчас в каждой фазе (+ возврат конструктору сбоку)
+  const pipeStages = useMemo(() => {
+    const counts = {};
+    for (const e of experimental) counts[e.phase] = (counts[e.phase] || 0) + 1;
+    return PIPE_PHASES.map((p) => ({ ...p, count: counts[p.key] || 0 }));
+  }, [experimental]);
+  const returnedCount = useMemo(
+    () => experimental.filter((e) => e.phase === 'returned_to_constructor').length,
+    [experimental],
+  );
+
   // Гейт «Проработки» (волна 4.3): материал принят складом? Нет заказа/материалов — свободно;
   // иначе ждём задачу приёмки склада в статусе «accepted».
   const materialReadyFor = (orderId) => {
@@ -77,6 +97,13 @@ export default function Experimental() {
         title="Экспериментальный цех"
         sub="Разработка образцов: лекала → проработка → примерка. Возвраты и передачи с авто-возвратом."
       />
+
+      {experimentalLoaded && experimental.length > 0 && (
+        <Pipeline
+          stages={pipeStages}
+          aside={{ key: 'returned', label: 'Возврат конструктору', icon: '↩', count: returnedCount }}
+        />
+      )}
 
       <div className={styles.toolbar}>
         <SearchInput value={query} onChange={setQuery} placeholder="Поиск: заказ, № сделки, изделие" ariaLabel="Поиск в эксперим. цехе" />

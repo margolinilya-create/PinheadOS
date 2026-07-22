@@ -1403,23 +1403,84 @@ a.cellTitle:hover { color: var(--accent); }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
 }
 
-/* ─── Подряд: Stepper-легенда маршрута готового изделия (правка 4.2.4) ─── */
-.flowStepper {
+/* ─── Подряд: нумерованный степпер-воронка готового изделия (редизайн PR6) ─── */
+.numStepper {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-card);
+  padding: 12px 16px;
+  margin: 4px 0 14px;
+}
+.numStepperTitle {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.numStepperTrack {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 4px 0 12px;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.flowStep {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.numStepperTrack::-webkit-scrollbar { display: none; }
+.numStep { display: flex; align-items: center; flex-shrink: 0; }
+.numStepDot {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--card); color: var(--text-dim);
+  flex-shrink: 0;
 }
-.flowArrow {
-  color: var(--text-dim);
-  font-weight: 700;
+.numStepDotActive {
+  border-color: var(--accent); background: var(--accent); color: #fff;
 }
+.numStepText { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 8px; }
+.numStepLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.numStepCount {
+  min-width: 20px; height: 20px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; font-size: 12px; font-weight: 700;
+  background: var(--surface); color: var(--text-mid);
+}
+.numStepDotActive ~ .numStepText .numStepCount {
+  background: var(--bg-info); color: var(--accent);
+}
+.numStepBar { width: 30px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 10px; }
+
+/* ─── Эксперимент: пайплайн фаз со счётчиками (редизайн PR6) ─── */
+.pipeline {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px 4px;
+  margin: 4px 0 14px;
+}
+.pipeNodeWrap { display: inline-flex; align-items: center; }
+.pipeNode {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-card);
+}
+.pipeNodeActive { border-color: var(--accent); }
+.pipeNodeAside { border-style: dashed; border-color: var(--color-error); margin-left: 8px; }
+.pipeCount {
+  min-width: 24px; height: 24px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 12px; font-size: 13px; font-weight: 700;
+  background: var(--surface); color: var(--text-mid);
+}
+.pipeNodeActive .pipeCount { background: var(--bg-info); color: var(--accent); }
+.pipeNodeAside .pipeCount { background: var(--bg-error); color: var(--color-error); }
+.pipeLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.pipeArrow { color: var(--text-dim); font-weight: 700; margin: 0 6px; }
 
 /* ─── Dashboard (редизайн, по макету) ─── */
 .dash { display: flex; flex-direction: column; gap: 16px; }
