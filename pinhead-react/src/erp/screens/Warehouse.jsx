@@ -30,14 +30,13 @@ const TYPE_ORDER = { material_receipt: 0, marking: 1, pack_ship: 2 };
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, updateMaterial, acceptMaterial, advanceWarehouseTask,
+    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
-      updateMaterial: s.updateMaterial,
       acceptMaterial: s.acceptMaterial,
       advanceWarehouseTask: s.advanceWarehouseTask,
     })),
@@ -116,7 +115,7 @@ export default function Warehouse() {
           return (
             <MaterialReceiptCard
               key={task.id} order={order} task={task}
-              onUpdateMaterial={updateMaterial} onAccept={acceptMaterial}
+              onAccept={acceptMaterial}
             />
           );
         }

@@ -40,12 +40,16 @@ function patchTaskIn(orders: ErpOrderFull[], taskId: string, patch: Partial<ErpW
 }
 
 export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (set, get) => ({
-  acceptMaterial: async (materialId, { qty_received, accept_status, accept_comment = null }) => {
+  acceptMaterial: async (
+    materialId,
+    { qty_received, accept_status, accept_comment = null, name_actual, color_actual, article_actual },
+  ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) return false;
     // Патч материала (optimistic + rollback + авто-закрытие закупки) — через materialsSlice.
     // Приёмка складом означает, что материал ФИЗИЧЕСКИ прибыл → status='received'
     // (иначе гейт закроя по приёмке не сработает: он ждёт received + accept_status).
+    // Факт (4.1.3): вносим только переданные графы, план (name/color/article) не трогаем.
     const ok = await get().updateMaterial(materialId, {
       status: 'received',
       qty_received,
@@ -53,6 +57,9 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       accepted_at: new Date().toISOString().slice(0, 10),
       accepted_by: currentActor(),
       accept_comment,
+      ...(name_actual !== undefined ? { name_actual } : {}),
+      ...(color_actual !== undefined ? { color_actual } : {}),
+      ...(article_actual !== undefined ? { article_actual } : {}),
     });
     if (!ok) return false;
     // История склада: строка приёмки

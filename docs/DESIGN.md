@@ -32,6 +32,7 @@
 | Канбан | `kanbanBoard/kanbanCol` (290px, flex-shrink:0 у лейнов!) `kanbanLane` (ready/in_progress/done) `kanbanCard` | drag только внутри колонки; дедлайн-точка `kanbanDot`; время-в-этапе |
 | Очередь цеха | `queueCard` + полоса слева (Ready зел./Progress жёлт./Blocked красн.), просрочка — красная рамка | кнопки min-height 46px (планшет); разворачиваемый блок «📋 ТЗ позиции» (сетка/нанесения/упаковка/материалы); превью 48px + лайтбокс; прогресс-бар qty_done N/M; фото брака/блока |
 | Карточка заказа | `matSection` секции; `stepper*` (точки этапов); `printBlock` (нанесение, синяя полоса слева) | InlineEdit: клик→input→Enter |
+| Приёмка План/Факт (4.1.3) | `receiptRow` · `planFactGrid` (План `planBlock` surface read-only \| Факт `factBlock` accent-light) · `kvList` (dt/dd) · `factFields` (2-кол) · `cmpTable`+`cmpMismatch` (подсветка расхождений `--bg-warning`) | план из закупки не редактируется; факт вводит кладовщик; сверка план/факт с дельтой кол-ва |
 | Формы | `tile/tileActive` (плитки-radio) · `accSection/accHeader` (аккордеон) · `inputError/fieldError` (инлайн-ошибки) · `draftBanner` (черновик) · `dropZone` (превью, Ctrl+V) · `sizeGrid` + чипсы-пресеты | noValidate + инлайн-валидация с автоскроллом; автосейв черновика; focus-trap + Escape |
 | Таблицы | `tableWrap/table` | th: Inter 10px uppercase, фон surface |
 

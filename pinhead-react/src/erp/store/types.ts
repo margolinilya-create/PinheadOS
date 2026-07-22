@@ -232,13 +232,21 @@ export interface MaterialsSlice {
 
 /** Склад: числовая приёмка материалов + история складских операций (правки 2, 3) */
 export interface WarehouseSlice {
-  /** Приёмка материала складом: сверка план/факт + статус + запись в историю склада */
+  /**
+   * Приёмка материала складом (4.1.3): кладовщик вносит ТОЛЬКО факт (материал/цвет/
+   * артикул/кол-во/комментарий), план приходит из закупки read-only. Сверка план/факт
+   * + статус + запись в историю склада.
+   */
   acceptMaterial: (
     materialId: string,
     opts: {
       qty_received: number | null;
       accept_status: MaterialAcceptStatus;
       accept_comment?: string | null;
+      /** Факт: фактически поступивший материал/цвет/артикул (по умолчанию = план) */
+      name_actual?: string | null;
+      color_actual?: string | null;
+      article_actual?: string | null;
     },
   ) => Promise<boolean>;
   /** Прочая складская операция (упаковка/отгрузка/маркировка) → строка erp_warehouse_ops */

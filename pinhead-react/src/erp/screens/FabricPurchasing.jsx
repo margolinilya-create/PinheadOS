@@ -43,7 +43,10 @@ const STATUS_CHIP = {
   not_needed: 'chipSkipped',
 };
 
-const EMPTY_MAT = { kind: 'fabric', name: '', source: 'purchase', supplier: '', qty: '', eta_date: '' };
+const EMPTY_MAT = {
+  kind: 'fabric', name: '', color: '', article: '', source: 'purchase',
+  supplier: '', qty_expected: '', eta_date: '',
+};
 
 function AddMaterialRow({ orderId, onAdd }) {
   const [form, setForm] = useState(EMPTY_MAT);
@@ -51,15 +54,25 @@ function AddMaterialRow({ orderId, onAdd }) {
 
   const submit = async () => {
     if (!form.name.trim()) { toast.error('Укажите название материала'); return; }
-    // План прихода обязателен для закупаемых материалов
-    if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
+    // 4.1.3: плановое кол-во (кг) и план прихода обязательны для закупаемых материалов —
+    // без плана склад не сможет свериться на приёмке («сделка не пойдёт дальше»).
+    const plannedQty = form.qty_expected === '' ? null : Number(form.qty_expected);
+    if (form.source === 'purchase') {
+      if (plannedQty == null || !(plannedQty > 0)) {
+        toast.error('Укажите плановое кол-во (кг) — обязательно для закупки');
+        return;
+      }
+      if (!form.eta_date) { toast.error('Укажите план прихода'); return; }
+    }
     setSaving(true);
     const row = await onAdd(orderId, {
       kind: form.kind,
       name: form.name.trim(),
+      color: form.color.trim() || null,
+      article: form.article.trim() || null,
       source: form.source,
       supplier: form.supplier.trim() || null,
-      qty: form.qty.trim() || null,
+      qty_expected: plannedQty,
       eta_date: form.eta_date || null,
       // purchase/stock ждут действия (закупка / подтверждение наличия), остальное — сразу готово
       status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
@@ -73,12 +86,14 @@ function AddMaterialRow({ orderId, onAdd }) {
       <select className={styles.select} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} aria-label="Тип материала">
         {Object.entries(KIND_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-      <input className={styles.input} placeholder="Кулирка 230гр чёрная" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Название материала" />
+      <input className={styles.input} placeholder="Кулирка 230гр" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Название материала" />
+      <input className={styles.input} placeholder="Цвет" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} aria-label="Цвет" style={{ maxWidth: 110 }} />
+      <input className={styles.input} placeholder="Артикул" value={form.article} onChange={(e) => setForm({ ...form, article: e.target.value })} aria-label="Артикул" style={{ maxWidth: 120 }} />
       <select className={styles.select} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} aria-label="Источник">
         {Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
       <input className={styles.input} placeholder="Поставщик" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} aria-label="Поставщик" style={{ maxWidth: 140 }} />
-      <input className={styles.input} placeholder="120 м / 40 кг" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 110 }} />
+      <input type="number" min="0" step="0.01" className={styles.input} placeholder="План, кг" value={form.qty_expected} onChange={(e) => setForm({ ...form, qty_expected: e.target.value })} aria-label="Плановое кол-во, кг" style={{ maxWidth: 100 }} />
       <input type="date" className={styles.input} value={form.eta_date} onChange={(e) => setForm({ ...form, eta_date: e.target.value })} aria-label="План прихода" />
       <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
     </div>
@@ -271,7 +286,7 @@ export default function FabricPurchasing() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Тип</th><th>Материал</th><th>Источник</th><th>Поставщик</th><th>Кол-во</th>
+                      <th>Тип</th><th>Материал</th><th>Источник</th><th>Поставщик</th><th>План, кг</th>
                       <th>План прихода</th><th>Статус</th><th>Действие</th>
                     </tr>
                   </thead>
@@ -279,10 +294,18 @@ export default function FabricPurchasing() {
                     {order.materials.map((m) => (
                       <tr key={m.id}>
                         <td>{KIND_LABELS[m.kind]}</td>
-                        <td>{m.name}{m.notes && <div className={styles.subText}>{m.notes}</div>}</td>
+                        <td>
+                          {m.name}
+                          {(m.color || m.article) && (
+                            <div className={styles.subText}>
+                              {[m.color, m.article].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                          {m.notes && <div className={styles.subText}>{m.notes}</div>}
+                        </td>
                         <td>{SOURCE_LABELS[m.source]}</td>
                         <td>{m.supplier || '—'}</td>
-                        <td>{m.qty || '—'}</td>
+                        <td>{m.qty_expected != null ? `${m.qty_expected} кг` : (m.qty || '—')}</td>
                         <td>
                           {formatDateShort(m.eta_date) || '—'}
                           {m.received_at && (

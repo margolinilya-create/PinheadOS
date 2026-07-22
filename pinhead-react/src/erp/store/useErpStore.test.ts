@@ -559,6 +559,39 @@ describe('useErpStore — материал со склада / авто-закр
     const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
     expect(task?.status).toBe('accepted');
   });
+
+  it('maybeCloseSupply: закупаемый материал без планового кол-ва НЕ закрывает закупку (4.1.3)', async () => {
+    seedSupply([mat({ source: 'purchase', status: 'received', qty_expected: null })]);
+    await useErpStore.getState().maybeCloseSupply('o1');
+    expect(supplyStage().status).toBe('in_progress'); // «сделка не пойдёт дальше»
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('maybeCloseSupply: закупаемый материал с плановым кол-вом закрывает закупку (4.1.3)', async () => {
+    seedSupply([mat({ source: 'purchase', status: 'received', qty_expected: 40 })]);
+    await useErpStore.getState().maybeCloseSupply('o1');
+    expect(supplyStage().status).toBe('done');
+  });
+
+  it('acceptMaterial: сохраняет ФАКТ (материал/цвет/артикул), план не трогает (4.1.3)', async () => {
+    seedSupply([mat({
+      status: 'received', accept_status: null,
+      name: 'Футер 3Н 320', color: 'Чёрный', article: 'FT-320-01', qty_expected: 128,
+    })]);
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 126, accept_status: 'shortage',
+      name_actual: 'Футер 3Н 320', color_actual: 'Чёрный', article_actual: 'FT-320-02',
+    });
+    const m = useErpStore.getState().orders[0].materials[0];
+    expect(m.name_actual).toBe('Футер 3Н 320');
+    expect(m.color_actual).toBe('Чёрный');
+    expect(m.article_actual).toBe('FT-320-02');
+    expect(m.qty_received).toBe(126);
+    // план (закупка) остаётся неизменным
+    expect(m.name).toBe('Футер 3Н 320');
+    expect(m.article).toBe('FT-320-01');
+    expect(m.qty_expected).toBe(128);
+  });
 });
 
 describe('useErpStore — задачи склада (волна 4): advanceWarehouseTask', () => {

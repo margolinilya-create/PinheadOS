@@ -161,9 +161,16 @@ export interface ErpMaterial {
   eta_date: string | null;
   received_at: string | null;
   notes: string | null;
+  // План закупки (4.1.3): цвет/артикул для сверки на приёмке (name/qty_expected — план кол-ва)
+  color?: string | null;
+  article?: string | null;
   // Приёмка складом (правка 3)
   qty_expected: number | null;
   qty_received: number | null;
+  // Факт приёмки складом (4.1.3): что реально поступило (кладовщик вносит вручную)
+  name_actual?: string | null;
+  color_actual?: string | null;
+  article_actual?: string | null;
   accept_status: MaterialAcceptStatus | null;
   accepted_at: string | null;
   accepted_by: string | null;

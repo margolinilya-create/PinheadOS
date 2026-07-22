@@ -71,9 +71,19 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       it.stages.filter(
         (st) => st.department_id === supplyDept.id &&
           st.status !== 'done' && st.status !== 'skipped'));
+    if (openSupply.length === 0) return;
+    // 4.1.3: плановое кол-во (кг) обязательно для закупаемых материалов — без него
+    // закупку нельзя закрыть (склад должен получить план для приёмки). «Сделка не
+    // пойдёт дальше»: этап «Закупка» остаётся открытым, задача приёмки не создаётся.
+    const missingPlan = order.materials.some(
+      (m) => m.source === 'purchase' && m.qty_expected == null);
+    if (missingPlan) {
+      toast.error('Укажите плановое кол-во (кг) для всех закупаемых материалов — иначе закупку нельзя закрыть');
+      return;
+    }
     for (const st of openSupply) {
       await get().setStageStatus(st.id, 'done', { comment: 'Материалы готовы — закупка закрыта автоматически' });
     }
-    if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
+    toast.success('Материалы готовы — закупка по заказу закрыта');
   },
 });
