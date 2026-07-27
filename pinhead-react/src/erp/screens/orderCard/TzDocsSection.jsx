@@ -68,7 +68,7 @@ export function TzDocsSection({ order, item, deptById }) {
   const options = itemTzDocuments(order, item.id);
   // ТЗ требуют только производственные цеха — закупку и склады не гейтим
   const stages = (item.stages ?? []).filter(
-    (st) => st.status !== 'skipped' && deptNeedsTz(deptById.get(st.department_id)?.code));
+    (st) => st.status !== 'skipped' && deptNeedsTz(deptById.get(st.department_id)));
 
   const upload = async (file, itemId) => {
     setBusy(true);
@@ -192,9 +192,9 @@ export function TzDocsSection({ order, item, deptById }) {
 export function TzMissingBanner({ order, departments }) {
   const setTzRequired = useErpStore((s) => s.setTzRequired);
   const access = useErpAccess();
-  const codeById = new Map(departments.map((d) => [d.id, d.code]));
+  const deptById = new Map(departments.map((d) => [d.id, d]));
   const nameById = new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)]));
-  const missing = missingTzStages(order, codeById);
+  const missing = missingTzStages(order, deptById);
   const message = missingTzMessage(missing, nameById, 'Заказ не запустится');
 
   if (order.tz_required === false) {

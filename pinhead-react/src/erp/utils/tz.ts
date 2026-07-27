@@ -13,7 +13,8 @@
  *     (страховка для заказов, заведённых раньше, и для этапов, добавленных переносом).
  */
 
-import { isQueueDept } from '../data/departments';
+import { isProductionDept } from '../data/departments';
+import type { ProductionDeptLike } from '../data/departments';
 import type { ErpTzAssignment, ErpTzDocument } from '../types';
 
 /** Минимальная форма заказа для резолюции ТЗ (чтобы не тянуть весь ErpOrderFull) */
@@ -103,11 +104,14 @@ export function tzRequired(order: TzSource): boolean {
 
 /**
  * Нужен ли этому участку PDF-ТЗ. Требуем только у производственных цехов
- * (закрой, нанесения, швейка, ВТО) — закупка, логистика и склады работают
+ * (закрой, нанесения, швейка, ВТО, ОТК) — закупка, логистика и склады работают
  * по материалам и заявкам, документ по образцу заказчика им не адресуется.
+ *
+ * Принимает строку цеха, а не код: признак живёт в `erp_departments.is_production`
+ * и правится в админке, поэтому новый участок сразу попадает под гейт.
  */
-export function deptNeedsTz(departmentCode: string | null | undefined): boolean {
-  return Boolean(departmentCode) && isQueueDept(departmentCode as string);
+export function deptNeedsTz(dept: ProductionDeptLike | null | undefined): boolean {
+  return isProductionDept(dept);
 }
 
 /**
@@ -119,10 +123,10 @@ export function stageMissingTz(
   order: TzSource,
   itemId: string,
   departmentId: string,
-  departmentCode?: string | null,
+  dept?: ProductionDeptLike | null,
 ): boolean {
   if (!tzRequired(order)) return false;
-  if (!deptNeedsTz(departmentCode)) return false;
+  if (!deptNeedsTz(dept)) return false;
   return !stageHasTz(order, itemId, departmentId);
 }
 
@@ -153,15 +157,15 @@ export interface MissingTz {
  */
 export function missingTzStages(
   order: TzSource & { items?: GateItem[] },
-  /** id цеха → код (`erp_departments.code`): ТЗ требуют только производственные цеха */
-  departmentCodeById: Map<string, string>,
+  /** id цеха → строка цеха: ТЗ требуют только производственные участки */
+  departmentById: Map<string, ProductionDeptLike>,
 ): MissingTz[] {
   if (!tzRequired(order)) return [];
   const out: MissingTz[] = [];
   for (const item of order.items ?? []) {
     for (const stage of item.stages ?? []) {
       if (stage.status === 'skipped') continue;
-      if (!deptNeedsTz(departmentCodeById.get(stage.department_id))) continue;
+      if (!deptNeedsTz(departmentById.get(stage.department_id))) continue;
       if (stageHasTz(order, item.id, stage.department_id)) continue;
       out.push({
         itemId: item.id,

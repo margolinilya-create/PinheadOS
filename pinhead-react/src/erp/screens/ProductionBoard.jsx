@@ -11,7 +11,7 @@ import { isStageReady, waitingReason } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { filtersFromParams, filtersToParams } from '../utils/filterStages';
 import { matchesOrderQuery } from '../utils/orderSearch';
-import { isQueueDept, deptShortName } from '../data/departments';
+import { isProductionDept, deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
 import { itemProgress } from '../utils/progress';
@@ -35,7 +35,7 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
   const allStages = item.stages;
 
   // waiting в БД, но зависимости выполнены → показываем как «готов к работе»
-  const noTz = stageMissingTz(order, item.id, stage.department_id, dept?.code);
+  const noTz = stageMissingTz(order, item.id, stage.department_id, dept);
   const effectiveReady =
     stage.status === 'waiting' &&
     isStageReady(stage, allStages, order.materials, dept?.code, false, noTz);
@@ -119,7 +119,7 @@ export default function ProductionBoard() {
   );
   /** Цеха с очередью — колонки канбана и значения фильтра «Цех» */
   const queueDepartments = useMemo(
-    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    () => departments.filter((d) => d.active && isProductionDept(d)),
     [departments],
   );
   const assignees = useMemo(

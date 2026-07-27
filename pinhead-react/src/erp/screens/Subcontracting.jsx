@@ -6,7 +6,7 @@ import { Stepper } from '../components/Stepper';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
-import { deptShortName, isQueueDept } from '../data/departments';
+import { deptShortName, isProductionDept } from '../data/departments';
 import {
   SUBCONTRACT_STATUS_LABELS,
   SUBCONTRACT_OP_TYPE_LABELS,
@@ -182,7 +182,7 @@ export default function Subcontracting() {
 
   const activeOrders = useMemo(() => orders.filter((o) => o.status === 'active'), [orders]);
   const queueDepts = useMemo(
-    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    () => departments.filter((d) => d.active && isProductionDept(d)),
     [departments],
   );
 

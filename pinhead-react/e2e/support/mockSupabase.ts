@@ -27,6 +27,9 @@ const departmentsFx = DEPARTMENTS.map((d) => ({
   type: d.type,
   sort_order: d.order,
   is_branding: Boolean(d.is_branding),
+  // Признак производственного участка приходит из БД (правится в админке);
+  // в фикстуре зеркалим сид-набор кодов
+  is_production: isQueueDept(d.code),
   active: true,
   created_at: CREATED,
   updated_at: CREATED,

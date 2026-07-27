@@ -9,7 +9,7 @@ import { isStageReady, hasOpenProcurement } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
-import { isQueueDept } from '../data/departments';
+import { isProductionDept } from '../data/departments';
 import styles from '../erp.module.css';
 
 /**
@@ -110,7 +110,7 @@ export default function ErpDashboard() {
           else if (stage.status === 'blocked') slot.blocked += 1;
           else if (stage.status === 'waiting' && isStageReady(
             stage, item.stages, order.materials, slot.dept.code, false,
-            stageMissingTz(order, item.id, stage.department_id, slot.dept.code))) {
+            stageMissingTz(order, item.id, stage.department_id, slot.dept))) {
             slot.ready += 1;
           }
         }
@@ -120,7 +120,7 @@ export default function ErpDashboard() {
 
     const loadRows = [...deptLoad.values()]
       .map((s) => ({ dept: s.dept, load: s.ready + s.inProgress + s.blocked }))
-      .filter((s) => isQueueDept(s.dept.code) && s.load > 0)
+      .filter((s) => isProductionDept(s.dept) && s.load > 0)
       .sort((a, b) => b.load - a.load);
     const maxLoad = Math.max(1, ...loadRows.map((r) => r.load));
 

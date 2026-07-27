@@ -40,7 +40,7 @@ export function RouteProgress({ item, order, deptById, currentStageId = null, co
           const effectiveReady =
             stage.status === 'waiting' &&
             isStageReady(stage, item.stages, order.materials, dept?.code, awaitProc,
-              stageMissingTz(order, item.id, stage.department_id, dept?.code));
+              stageMissingTz(order, item.id, stage.department_id, dept));
           const display = effectiveReady ? 'ready' : stage.status;
           const p = stageQtyProgress(stage, item.qty);
           return (

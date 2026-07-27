@@ -22,10 +22,12 @@ test.describe('Навигация ERP (правки 1 и 13)', () => {
   test('в сайдбаре есть группа «Цеха» со всеми участками', async ({ page }) => {
     await page.goto('/?studio=0');
     const sidebar = page.getByRole('complementary');
-    await expect(sidebar.getByText('Цеха', { exact: true })).toBeVisible();
+    // Сначала ждём сам пункт меню: заголовок группы появляется вместе с сайдбаром,
+    // и проверка его видимости первой ловила гонку монтирования под нагрузкой
     for (const name of ['Закрой', 'Шелкография', 'ДТФ', 'Вышивка', 'Швейка', 'ВТО']) {
       await expect(sidebar.getByRole('link', { name: new RegExp(name) })).toBeVisible();
     }
+    await expect(sidebar.getByText('Цеха', { exact: true })).toBeVisible();
   });
 
   test('пункт цеха открывает его рабочую очередь', async ({ page }) => {

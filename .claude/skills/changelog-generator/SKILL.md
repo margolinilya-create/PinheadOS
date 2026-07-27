@@ -58,7 +58,7 @@ git log --pretty=format:"%ad %s" --date=short -20 --no-merges
 - ACTION-PLAN.md — обновлён статус задач
 
 ---
-Тестов: 722 ✅ | Коммитов: X
+Тестов: N ✅ | Коммитов: X
 ```
 
 ## Шаг 4 — Обнови файл

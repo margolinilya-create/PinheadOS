@@ -23,7 +23,7 @@ export function StageStepper({ item, order, deptById, events }) {
         const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
         const effReady = st.status === 'waiting' &&
           isStageReady(st, item.stages, order.materials, dept?.code, awaitProc,
-            stageMissingTz(order, item.id, st.department_id, dept?.code));
+            stageMissingTz(order, item.id, st.department_id, dept));
         const display = effReady ? 'ready' : st.status;
         const ev = lastEventByStage.get(st.id);
         const tooltip = [

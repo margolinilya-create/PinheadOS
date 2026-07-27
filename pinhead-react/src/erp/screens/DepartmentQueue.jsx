@@ -12,7 +12,7 @@ import { useScrollHints } from '../../hooks/useScrollHints';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { buildQueueEntries } from '../utils/queueEntries';
 import { applyStageFilters, filtersFromParams, filtersToParams } from '../utils/filterStages';
-import { deptShortName, isQueueDept } from '../data/departments';
+import { deptShortName, isProductionDept } from '../data/departments';
 import styles from '../erp.module.css';
 import { QueueCard } from './queue/QueueCard';
 import { QueueRow } from './queue/QueueRow';
@@ -268,7 +268,7 @@ export default function DepartmentQueue() {
 
       <div className={styles.deptTabsWrap}>
         <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef}>
-          {departments.filter((dd) => dd.active && isQueueDept(dd.code)).map((dd) => {
+          {departments.filter((dd) => dd.active && isProductionDept(dd)).map((dd) => {
             const count = readyByDept.get(dd.code) || 0;
             const overdueCount = overdueByDept.get(dd.code) || 0;
             const isMine = boundDept?.code === dd.code;

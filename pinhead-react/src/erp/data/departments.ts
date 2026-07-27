@@ -91,12 +91,34 @@ export function deptIcon(code: string): string {
  * Цеха с рабочей очередью («Мой цех», загрузка на дашборде).
  * Закупка управляется своим экраном (материалы), логистика и склады
  * пока без операций — в очередях не показываем.
+ *
+ * ВАЖНО: это только сид. Рабочий признак живёт в `erp_departments.is_production`
+ * и правится в админке — иначе участок, заведённый директором, не появился бы
+ * ни в меню, ни в канбане, ни в маршруте, ни в требованиях ТЗ.
  */
 // experimental вынесен в отдельную вкладку «Эксперим. цех» (правка 6) — не в общей очереди
 export const QUEUE_DEPT_CODES = new Set([
   'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto',
 ]);
 
+/** @deprecated Признак по коду — только для сида. В коде: `isProductionDept(dept)` */
 export function isQueueDept(code: string): boolean {
   return QUEUE_DEPT_CODES.has(code);
+}
+
+/** Минимум строки цеха для проверки признака */
+export interface ProductionDeptLike {
+  code?: string | null;
+  is_production?: boolean | null;
+}
+
+/**
+ * Производственный ли участок: есть рабочая очередь, показывается в канбане,
+ * требует ТЗ. Источник — колонка `is_production`; на код откатываемся только
+ * если строка пришла без неё (старый кэш, урезанный select, тестовая фикстура).
+ */
+export function isProductionDept(dept: ProductionDeptLike | null | undefined): boolean {
+  if (!dept) return false;
+  if (typeof dept.is_production === 'boolean') return dept.is_production;
+  return Boolean(dept.code) && QUEUE_DEPT_CODES.has(dept.code as string);
 }

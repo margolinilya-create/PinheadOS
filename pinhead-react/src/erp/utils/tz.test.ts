@@ -131,9 +131,16 @@ describe('stageTzDocument', () => {
   });
 });
 
-/** В фикстурах id цеха совпадает с кодом — карта тождественна */
-const CODES = new Map([
-  ['cutting', 'cutting'], ['sewing', 'sewing'], ['vto', 'vto'], ['supply', 'supply'],
+/**
+ * В фикстурах id цеха совпадает с кодом. Признак производственного участка теперь
+ * приходит строкой цеха (`is_production`), а не выводится из кода.
+ */
+const dept = (code: string, isProduction: boolean) => ({ code, is_production: isProduction });
+const DEPTS = new Map([
+  ['cutting', dept('cutting', true)],
+  ['sewing', dept('sewing', true)],
+  ['vto', dept('vto', true)],
+  ['supply', dept('supply', false)],
 ]);
 
 describe('stageMissingTz — гейт запуска этапа', () => {
@@ -144,32 +151,39 @@ describe('stageMissingTz — гейт запуска этапа', () => {
   };
 
   it('производственный цех без ТЗ — этап не запускается', () => {
-    expect(stageMissingTz(order, 'i1', 'cutting', 'cutting')).toBe(true);
+    expect(stageMissingTz(order, 'i1', 'cutting', dept('cutting', true))).toBe(true);
   });
 
   it('цех с назначенным ТЗ — не блокирует', () => {
-    expect(stageMissingTz(order, 'i1', 'sewing', 'sewing')).toBe(false);
+    expect(stageMissingTz(order, 'i1', 'sewing', dept('sewing', true))).toBe(false);
   });
 
   it('закупка и склады ТЗ не требуют — гейт их не трогает', () => {
-    expect(stageMissingTz(order, 'i1', 'supply', 'supply')).toBe(false);
-    expect(stageMissingTz(order, 'i1', 'wh', 'warehouse')).toBe(false);
+    expect(stageMissingTz(order, 'i1', 'supply', dept('supply', false))).toBe(false);
+    expect(stageMissingTz(order, 'i1', 'wh', dept('warehouse', false))).toBe(false);
   });
 
-  it('неизвестный код цеха не блокирует — остановка цеха fail-open', () => {
+  it('неизвестный цех не блокирует — остановка цеха fail-open', () => {
     expect(stageMissingTz(order, 'i1', 'cutting', undefined)).toBe(false);
     expect(stageMissingTz(order, 'i1', 'cutting', null)).toBe(false);
   });
 
-  it('заказ без требования ТЗ не гейтится вовсе', () => {
-    const legacy = { ...order, tz_required: false };
-    expect(stageMissingTz(legacy, 'i1', 'cutting', 'cutting')).toBe(false);
+  it('новый участок из админки сразу под гейтом, хотя кода нет в сиде', () => {
+    // ОТК: заведён после внедрения, в QUEUE_DEPT_CODES его нет
+    expect(stageMissingTz(order, 'i1', 'qc', dept('qc', true))).toBe(true);
   });
 
-  it('deptNeedsTz — только производственные цеха', () => {
-    expect(deptNeedsTz('cutting')).toBe(true);
-    expect(deptNeedsTz('sewing')).toBe(true);
-    expect(deptNeedsTz('supply')).toBe(false);
+  it('заказ без требования ТЗ не гейтится вовсе', () => {
+    const legacy = { ...order, tz_required: false };
+    expect(stageMissingTz(legacy, 'i1', 'cutting', dept('cutting', true))).toBe(false);
+  });
+
+  it('deptNeedsTz — по признаку из БД, с откатом на код при его отсутствии', () => {
+    expect(deptNeedsTz(dept('cutting', true))).toBe(true);
+    expect(deptNeedsTz(dept('supply', false))).toBe(false);
+    // Строка без is_production (старый кэш) — падаем на сид-набор кодов
+    expect(deptNeedsTz({ code: 'sewing' })).toBe(true);
+    expect(deptNeedsTz({ code: 'supply' })).toBe(false);
     expect(deptNeedsTz(null)).toBe(false);
   });
 });
@@ -195,7 +209,7 @@ describe('missingTzStages', () => {
       tz_documents: [doc({ group_id: 'g1' })],
       tz_assignments: [asg('i1', 'cutting', 'g1')],
     };
-    expect(missingTzStages(order, CODES).map((m) => m.departmentId)).toEqual(['sewing', 'vto']);
+    expect(missingTzStages(order, DEPTS).map((m) => m.departmentId)).toEqual(['sewing', 'vto']);
   });
 
   it('пропущенные этапы ТЗ не требуют', () => {
@@ -205,22 +219,22 @@ describe('missingTzStages', () => {
       tz_documents: [],
       tz_assignments: [],
     };
-    expect(missingTzStages(order, CODES)).toEqual([]);
+    expect(missingTzStages(order, DEPTS)).toEqual([]);
   });
 
   it('к заказам, заведённым до внедрения ТЗ, гейт не применяется', () => {
     const order = { items, tz_required: false, tz_documents: [], tz_assignments: [] };
-    expect(missingTzStages(order, CODES)).toEqual([]);
+    expect(missingTzStages(order, DEPTS)).toEqual([]);
   });
 
   it('заказ с tz_required требует ТЗ на каждом этапе маршрута', () => {
     const order = { items, tz_required: true, tz_documents: [], tz_assignments: [] };
-    expect(missingTzStages(order, CODES)).toHaveLength(3);
+    expect(missingTzStages(order, DEPTS)).toHaveLength(3);
   });
 
   it('без явного tz_required гейт не срабатывает — блокировка цеха fail-open', () => {
     const order = { items, tz_documents: [], tz_assignments: [] };
-    expect(missingTzStages(order, CODES)).toEqual([]);
+    expect(missingTzStages(order, DEPTS)).toEqual([]);
   });
 });
 
@@ -235,7 +249,7 @@ describe('missingTzMessage', () => {
       tz_required: true,
       tz_documents: [],
       tz_assignments: [],
-    }, CODES);
+    }, DEPTS);
     expect(missingTzMessage(missing, names)).toBe(
       'Невозможно создать заказ: для позиции «Футболка Regular» не назначено ТЗ: Швейка и ВТО',
     );

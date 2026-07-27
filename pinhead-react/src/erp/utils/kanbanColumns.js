@@ -1,4 +1,4 @@
-import { isQueueDept } from '../data/departments';
+import { isProductionDept } from '../data/departments';
 import { EMPTY_FILTERS, applyStageFilters } from './filterStages';
 import { buildQueueEntries } from './queueEntries';
 
@@ -13,7 +13,7 @@ import { buildQueueEntries } from './queueEntries';
  * UI (ErpKanban) лишь рендерит результат.
  */
 export function buildKanbanColumns(orders, departments, filters = EMPTY_FILTERS) {
-  const deps = departments.filter((d) => d.active && isQueueDept(d.code));
+  const deps = departments.filter((d) => d.active && isProductionDept(d));
   const byDept = new Map(deps.map((d) => [
     d.id,
     { dept: d, ready: [], in_progress: [], blocked: [], done: [] },

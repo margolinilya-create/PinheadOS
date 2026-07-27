@@ -90,6 +90,9 @@ export default function DepartmentsScreen({ embedded = false }) {
       code,
       name,
       sort_order: departments.reduce((max, d) => Math.max(max, d.sort_order), 0) + 10,
+      // Новый участок заводят ради работы в цехах — сразу производственный;
+      // снять галочку можно тут же, если это склад или служба
+      is_production: true,
     });
     if (created) setDraft('');
   };
@@ -136,7 +139,7 @@ export default function DepartmentsScreen({ embedded = false }) {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Участок</th><th>Код</th><th>Порядок</th><th>Брендирование</th>
+              <th>Участок</th><th>Код</th><th>Порядок</th><th>Признаки</th>
               <th>Руководитель</th><th>Норматив, дн</th><th>Действие</th>
             </tr>
           </thead>
@@ -167,6 +170,17 @@ export default function DepartmentsScreen({ embedded = false }) {
                   />
                 </td>
                 <td>
+                  {/* Производственный участок: своя очередь, колонка в канбане, требует ТЗ.
+                      Раньше набор был захардкожен, и новый цех не появлялся нигде. */}
+                  <label className={styles.checkLabel}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(d.is_production)}
+                      aria-label={`Участок ${d.name} — производственный (своя очередь и канбан)`}
+                      onChange={(e) => updateDepartment(d.id, { is_production: e.target.checked })}
+                    />
+                    производственный
+                  </label>
                   <label className={styles.checkLabel}>
                     <input
                       type="checkbox"

@@ -197,6 +197,14 @@ admin, director, manager, rop, designer, production
 - Не добавлять npm-зависимости без обсуждения
 - Не `!important` в CSS
 - Supabase ключи строго из `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+- RLS: политика пишется НА КОМАНДУ (`for select/insert/update/delete`), а не `for all`
+  рядом с отдельной `select` — иначе Postgres проверяет обе на каждый SELECT
+  (advisor `multiple_permissive_policies`). `auth.uid()`/`auth.role()` в предикате
+  оборачивать в `(select …)` — иначе вызов идёт на каждую строку (`auth_rls_initplan`)
+- `is_admin()`, `erp_is_manager()`, `erp_is_member()` вызываемы через REST, и advisor
+  на это ругается — **так и оставляем**: выражения RLS исполняются от лица вызывающего,
+  и отзыв `EXECUTE` сломает сами политики. Утечки нет: функции без аргументов и
+  возвращают булево о самом вызывающем. Не «чинить»
 - При logout вызывать `storageClearAll()` — чистит все app-ключи
 - Удаление пользователя: soft-delete (active=false), не hard delete
 - Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)

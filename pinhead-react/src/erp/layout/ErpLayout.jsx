@@ -15,7 +15,7 @@ import {
   activeExperimentalCount,
 } from '../store/useErpStore';
 import { setFeature } from '../../config/features';
-import { deptIcon, deptShortName, isQueueDept } from '../data/departments';
+import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import styles from '../erp.module.css';
 
@@ -95,7 +95,7 @@ export default function ErpLayout({ user, children }) {
   // (готовые к запуску + уже взятые в работу).
   const deptItems = useMemo(
     () => departments
-      .filter((d) => d.active && isQueueDept(d.code))
+      .filter((d) => d.active && isProductionDept(d))
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((d) => ({
         to: `/queue/${d.code}`,

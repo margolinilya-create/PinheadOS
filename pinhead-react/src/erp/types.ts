@@ -84,6 +84,11 @@ export interface ErpDepartment {
   head_employee_id?: string | null;
   /** Нормативный срок этапа в днях (правка 12) — план завершения при «Взять в работу» */
   norm_days?: number | null;
+  /**
+   * Производственный участок: своя очередь, колонка в канбане, требует ТЗ.
+   * Правится в админке — раньше набор был захардкожен, и новый цех не появлялся нигде.
+   */
+  is_production?: boolean;
   created_at: string;
   updated_at: string;
 }

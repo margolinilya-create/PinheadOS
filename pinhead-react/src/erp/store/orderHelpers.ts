@@ -150,7 +150,7 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
           isStageReady(
             st, it.stages, o.materials, deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
-            stageMissingTz(o, it.id, st.department_id, deptCode),
+            stageMissingTz(o, it.id, st.department_id, dept),
           )
         ) n += 1;
       }
@@ -178,7 +178,7 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
           isStageReady(
             st, it.stages, o.materials, deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
-            stageMissingTz(o, it.id, st.department_id, deptCode),
+            stageMissingTz(o, it.id, st.department_id, dept),
           )
         ) n += 1;
       }

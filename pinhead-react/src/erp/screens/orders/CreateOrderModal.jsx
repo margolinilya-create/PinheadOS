@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
-import { isQueueDept, deptShortName } from '../../data/departments';
+import { isProductionDept, deptShortName } from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
@@ -239,7 +239,7 @@ export function CreateOrderModal({ onClose }) {
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const departments = useErpStore((s) => s.departments);
   const queueDepts = useMemo(
-    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    () => departments.filter((d) => d.active && isProductionDept(d)),
     [departments],
   );
   const [saving, setSaving] = useState(false);
@@ -355,7 +355,7 @@ export function CreateOrderModal({ onClose }) {
         label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
         stages: route
           .map((r) => deptByCode.get(r.departmentCode))
-          .filter((d) => d && deptNeedsTz(d.code))
+          .filter((d) => deptNeedsTz(d))
           .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
       };
     }), [items, deptByCode]);
