@@ -305,11 +305,16 @@ export function CreateOrderModal({ onClose }) {
       const itemIndex = d.itemIndex === null ? null : formToPayloadIndex.get(d.itemIndex);
       if (d.itemIndex !== null && itemIndex === undefined) continue; // позиция выпала из заказа
       const path = tzFilePath('new', d.groupId, 1, d.file.name);
+      // upsert обязателен: путь детерминированный (group_id живёт в стейте формы и
+      // при повторном сабмите тот же), поэтому после любого сбоя — оборванной сети
+      // или упавшего RPC — вторая попытка перезаписывает свой же файл. С upsert:false
+      // она получала Duplicate, и форма становилась тупиком: сколько ни жми «Создать»,
+      // ошибка та же. Чужой файл затереть нельзя — group_id генерирует клиент.
       const { error: upErr } = await supabase.storage
         .from(TZ_BUCKET)
-        .upload(path, d.file, { contentType: TZ_MIME, upsert: false });
+        .upload(path, d.file, { contentType: TZ_MIME, upsert: true });
       if (upErr) {
-        toast.error(`Не удалось загрузить ТЗ «${d.file.name}» — заказ не создан`);
+        toast.error(`Не удалось загрузить ТЗ «${d.file.name}» — заказ не создан, попробуйте ещё раз`);
         setSaving(false);
         return;
       }

@@ -6,7 +6,7 @@ import { Badge } from '../components/Badge';
 import { RouteProgress } from '../components/RouteProgress';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
-import { useErpAccess } from '../store/useErpAccess';
+import { useStagePermissions } from '../store/useStagePermissions';
 import { useOrderDrawer } from '../store/useOrderDrawer';
 import { findStage } from '../store/orderHelpers';
 import { deptShortName } from '../data/departments';
@@ -44,7 +44,6 @@ export default function ProductionTask() {
     })),
   );
   const actions = useStageActions();
-  const access = useErpAccess();
   const [resolvedOrderId, setResolvedOrderId] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -75,6 +74,9 @@ export default function ProductionTask() {
     () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
     [departments],
   );
+
+  // Хук прав — до ранних выходов (правило хуков): цех берём из найденного этапа
+  const perms = useStagePermissions(found?.stage.department_id ?? null);
 
   if (!loaded) return <ScreenSkeleton />;
   if (!found) {
@@ -108,7 +110,6 @@ export default function ProductionTask() {
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const preview = orderPreviewUrl(order);
   const entry = { order, item, stage, group, reason };
-  const canAct = access.canActIn(stage.department_id);
 
   return (
     <>
@@ -196,12 +197,12 @@ export default function ProductionTask() {
 
       <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>ТЗ и действия</strong></div>
-        {!canAct && (
+        {!perms.inDept && (
           <div className={styles.queueReason}>👁 Это не ваш цех — только просмотр.</div>
         )}
         <StageActionsPanel
           entry={entry}
-          canAct={canAct}
+          perms={perms}
           deptShortById={deptShortById}
           actions={actions}
         />

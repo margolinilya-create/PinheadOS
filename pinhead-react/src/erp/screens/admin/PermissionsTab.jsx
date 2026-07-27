@@ -24,6 +24,17 @@ const ROLES = [
   'worker', 'purchaser', 'storekeeper', 'hr',
 ];
 
+/**
+ * Колонка руководства правится только чтением.
+ *
+ * Профили `admin` и `director` приводятся к цеховой роли `director`
+ * (utils/permissions.resolveErpRole), и никакого обхода матрицы для них нет.
+ * То есть админ, снявший здесь галочку, отключал право самому себе — и вернуть
+ * его через интерфейс уже не мог. Раньше подпись вкладки обещала обратное
+ * («полный доступ независимо от галочек»), что и делало ловушку незаметной.
+ */
+const LOCKED_ROLE = 'director';
+
 export function PermissionsTab() {
   const { permissionMatrix, permissionsLoaded, loadPermissions, setRolePermission } = useErpStore(
     useShallow((s) => ({
@@ -43,7 +54,8 @@ export function PermissionsTab() {
       <div className={styles.queueReason} style={{ marginBottom: 12 }}>
         Матрица отвечает на вопрос «что этой роли вообще можно». Ограничение «только свой цех»
         проверяется отдельно — по привязке сотрудника к участку, и матрицей не отменяется.
-        Администратор и директор имеют полный доступ независимо от галочек.
+        Колонка «{EMPLOYEE_ROLE_LABELS[LOCKED_ROLE]}» 🔒 не редактируется: под неё попадают
+        и администраторы, снятая галочка отключила бы доступ им самим.
       </div>
 
       <div className={styles.tableWrap}>
@@ -51,7 +63,12 @@ export function PermissionsTab() {
           <thead>
             <tr>
               <th>Право</th>
-              {ROLES.map((r) => <th key={r}>{EMPLOYEE_ROLE_LABELS[r]}</th>)}
+              {ROLES.map((r) => (
+                <th key={r}>
+                  {EMPLOYEE_ROLE_LABELS[r]}
+                  {r === LOCKED_ROLE && <span title="Колонка руководства — не редактируется"> 🔒</span>}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -63,14 +80,16 @@ export function PermissionsTab() {
                 </td>
                 {ROLES.map((role) => {
                   const checked = isAllowed(permissionMatrix, role, permission);
+                  const locked = role === LOCKED_ROLE;
                   const label = `${ERP_PERMISSION_LABELS[permission]} — ${EMPLOYEE_ROLE_LABELS[role]}`;
                   return (
                     <td key={role}>
                       <input
                         type="checkbox"
                         checked={checked}
-                        aria-label={label}
-                        title={label}
+                        disabled={locked}
+                        aria-label={locked ? `${label} (не редактируется)` : label}
+                        title={locked ? 'Колонка руководства — не редактируется' : label}
                         onChange={(e) => setRolePermission(role, permission, e.target.checked)}
                       />
                     </td>

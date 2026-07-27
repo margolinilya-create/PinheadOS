@@ -6,6 +6,7 @@ import { QueueSkeleton } from '../components/ErpSkeletons';
 import { QueueFilters } from '../components/QueueFilters';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
+import { useStagePermissions } from '../store/useStagePermissions';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useScrollHints } from '../../hooks/useScrollHints';
@@ -141,8 +142,9 @@ export default function DepartmentQueue() {
 
   // Привязки нет и нет legacy-выбора (localStorage) → заглушка для рядовых ролей
   const showStub = !access.isPrivileged && myDeptLoaded && !boundDept && !deptCode;
-  // Действия разрешены: рук. состав всюду; при привязке — только в своём цехе
-  const canAct = access.canActIn(dept?.id);
+  // Каждое действие цеха гейтится своим правом матрицы (взять / записать / завершить /
+  // проблема / брак), а не одним «мой ли это цех» — см. useStagePermissions
+  const perms = useStagePermissions(dept?.id);
   // Приоритет меняет тот, кому это разрешено матрицей ролей, и только в своём цехе
   const canReorder = access.canDo('stage.priority', dept?.id);
 
@@ -312,7 +314,7 @@ export default function DepartmentQueue() {
       {!dept && <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>}
       {dept && loading && !loaded && <QueueSkeleton />}
 
-      {dept && !canAct && (
+      {dept && !perms.inDept && (
         <div className={styles.queueReason} style={{ marginBottom: 'var(--space-md, 14px)' }}>
           👁 Это не ваш цех — только просмотр. Ваш цех: {boundDept ? deptShortName(boundDept.code, boundDept.name) : '—'}.
         </div>
@@ -343,7 +345,7 @@ export default function DepartmentQueue() {
                   <QueueCard
                     key={entry.stage.id}
                     entry={entry}
-                    canAct={canAct}
+                    perms={perms}
                     rework={reworkByStage[entry.stage.id] || null}
                     deptShortById={deptShortById}
                     actions={actions}
@@ -361,7 +363,7 @@ export default function DepartmentQueue() {
                     key={entry.stage.id}
                     entry={entry}
                     index={i}
-                    canAct={canAct}
+                    perms={perms}
                     canReorder={canReorder && entry.group !== 'done'}
                     rework={reworkByStage[entry.stage.id] || null}
                     deptShortById={deptShortById}

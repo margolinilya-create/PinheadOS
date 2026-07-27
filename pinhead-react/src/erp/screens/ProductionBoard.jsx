@@ -6,15 +6,20 @@ import { TableSkeleton } from '../components/ErpSkeletons';
 import { QueueFilters } from '../components/QueueFilters';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
-import { filtersFromParams, filtersToParams } from '../utils/filterStages';
-import { matchesOrderQuery } from '../utils/orderSearch';
+import {
+  applyStageFilters, EMPTY_FILTERS, filtersFromParams, filtersToParams, hasActiveFilters,
+} from '../utils/filterStages';
+import { buildQueueEntries } from '../utils/queueEntries';
+import { confirmStageDone } from '../utils/stageDone';
 import { isProductionDept, deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
 import { itemProgress } from '../utils/progress';
+import { pluralize } from '../../utils/i18n';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
@@ -22,6 +27,11 @@ import styles from '../erp.module.css';
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
  * Строка = позиция заказа, колонки = этапы-светофор по цехам.
  * Клик по этапу циклит статус: ready → in_progress → done.
+ *
+ * Фильтры — те же, что в очереди цеха и на канбане (`applyStageFilters`): строка
+ * показывается, если под подбор попал хотя бы один её этап. Раньше таблица брала
+ * из фильтров только строку поиска, а «Просрочено» / «С проблемой» / цех / статус
+ * красились активными и ничего не меняли — диспетчер делал вывод, что просрочено всё.
  */
 
 /** Следующий статус по клику (простая механика MVP) */
@@ -30,7 +40,13 @@ const NEXT_STATUS = {
   in_progress: 'done',
 };
 
-function StageChip({ stage, item, order, deptById, onAdvance }) {
+/** Право, которое нужно для клика по чипу этапа */
+const NEXT_PERMISSION = {
+  ready: 'stage.take',
+  in_progress: 'stage.complete',
+};
+
+function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   const dept = deptById.get(stage.department_id);
   const allStages = item.stages;
 
@@ -50,12 +66,17 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
         )
       : null;
 
-  const clickable = displayStatus === 'ready' || displayStatus === 'in_progress';
+  // Двигать этап может только тот, кому это разрешено матрицей прав и кто работает
+  // в этом цехе. Раньше чип двигал статус любому, кто открыл экран, — доска была
+  // единственным местом действий в обход useErpAccess.
+  const advanceable = displayStatus === 'ready' || displayStatus === 'in_progress';
+  const clickable = advanceable && allowAdvance(stage.department_id, displayStatus);
   const title = [
     dept?.name,
     STAGE_STATUS_LABELS[displayStatus],
     reason,
     clickable ? `Клик: ${STAGE_STATUS_LABELS[NEXT_STATUS[displayStatus]]}` : null,
+    advanceable && !clickable ? 'Нет прав менять статус этого этапа' : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -90,6 +111,7 @@ export default function ProductionBoard() {
       loadArchive: s.loadArchive,
     })),
   );
+  const access = useErpAccess();
   const [onlyActive, setOnlyActive] = useState(true);
   const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
   const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
@@ -101,7 +123,6 @@ export default function ProductionBoard() {
     (next) => setSearchParams(filtersToParams(next), { replace: true }),
     [setSearchParams],
   );
-  const query = filters.q;
   useScrollRestore(loaded);
 
   useEffect(() => {
@@ -129,26 +150,50 @@ export default function ProductionBoard() {
     [orders],
   );
 
-  /** Плоский список позиций всех заказов, ближайший срок первым */
+  const deptNameById = useMemo(
+    () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
+    [departments],
+  );
+
+  /** Задания всех заказов — тот же источник, что у очереди и канбана */
+  const entries = useMemo(
+    () => buildQueueEntries(orders, departments, { includeInactive: !onlyActive }),
+    [orders, departments, onlyActive],
+  );
+
+  /**
+   * Строка = позиция заказа. Позиция видна, если под фильтры попал хотя бы один
+   * её этап; порядок строк — по лучшему (первому в отсортированном списке) этапу,
+   * поэтому сортировка «по приоритету / сроку / величине просрочки» работает и здесь.
+   */
   const rows = useMemo(() => {
-    const list = [];
-    for (const order of orders) {
-      if (onlyActive && order.status !== 'active') continue;
-      if (!matchesOrderQuery(order, query)) continue;
-      for (const item of order.items) {
-        list.push({ order, item });
-      }
+    const byItem = new Map();
+    for (const e of applyStageFilters(entries, filters)) {
+      if (!byItem.has(e.item.id)) byItem.set(e.item.id, { order: e.order, item: e.item });
     }
-    return list.sort((a, b) => {
-      const da = a.order.due_date || '9999';
-      const db = b.order.due_date || '9999';
-      return da.localeCompare(db);
-    });
-  }, [orders, onlyActive, query]);
+    return [...byItem.values()];
+  }, [entries, filters]);
+
+  const filtersActive = hasActiveFilters(filters);
+
+  /** Может ли текущий пользователь двинуть этап этого цеха дальше */
+  const allowAdvance = useCallback(
+    (departmentId, displayStatus) =>
+      access.canDo(NEXT_PERMISSION[displayStatus], departmentId),
+    [access],
+  );
 
   const onAdvance = async (stage, nextStatus, item) => {
-    const extra = nextStatus === 'done' ? { qty_done: item.qty } : {};
-    await setStageStatus(stage.id, nextStatus, extra);
+    if (nextStatus !== 'done') {
+      await setStageStatus(stage.id, nextStatus);
+      return;
+    }
+    // Чип пишет весь тираж — при незакрытом остатке спрашиваем, как в очереди цеха
+    const ok = await confirmStageDone({
+      stage, qty: item.qty, allStages: item.stages, deptNameById,
+    });
+    if (!ok) return;
+    await setStageStatus(stage.id, 'done', { qty_done: item.qty });
   };
 
   return (
@@ -188,7 +233,13 @@ export default function ProductionBoard() {
           </label>
         )}
         <div className={styles.spacer} />
-        <span className={styles.subText}>{rows.length} позиций</span>
+        {/* Счётчик считает строки таблицы: на канбане набор другой (только
+            производственные цеха, «Завершено» обрезано), и то же число врало бы */}
+        {view === 'table' && (
+          <span className={styles.subText}>
+            {rows.length} {pluralize(rows.length, 'позиция', 'позиции', 'позиций')}
+          </span>
+        )}
       </div>
 
       <QueueFilters
@@ -204,7 +255,20 @@ export default function ProductionBoard() {
 
       {view === 'table' && loaded && rows.length === 0 && (
         <div className={styles.emptyState}>
-          Нет позиций в работе. Создайте заказ на экране «Заказы».
+          {filtersActive ? (
+            <>
+              Под фильтры ничего не попало.{' '}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setFilters(EMPTY_FILTERS)}
+              >
+                Сбросить фильтры
+              </button>
+            </>
+          ) : (
+            'Нет позиций в работе. Создайте заказ на экране «Заказы».'
+          )}
         </div>
       )}
 
@@ -277,6 +341,7 @@ export default function ProductionBoard() {
                             order={order}
                             deptById={deptById}
                             onAdvance={onAdvance}
+                            allowAdvance={allowAdvance}
                           />
                         ))}
                       </div>

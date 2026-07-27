@@ -1,7 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { currentActor } from '../../store/shared';
+import { deptShortName } from '../../data/departments';
+import { confirmStageDone } from '../../utils/stageDone';
 import { toast } from '../../../store/useToastStore';
 
 /**
@@ -14,10 +16,11 @@ import { toast } from '../../../store/useToastStore';
  */
 export function useStageActions() {
   const {
-    setStageStatus, setStagePlan, reportProgress, reportDefect,
+    departments, setStageStatus, setStagePlan, reportProgress, reportDefect,
     uploadOrderAttachment, ackStageOverdue,
   } = useErpStore(
     useShallow((s) => ({
+      departments: s.departments,
       setStageStatus: s.setStageStatus,
       setStagePlan: s.setStagePlan,
       reportProgress: s.reportProgress,
@@ -26,6 +29,10 @@ export function useStageActions() {
       ackStageOverdue: s.ackStageOverdue,
     })),
   );
+  const deptNameById = useMemo(
+    () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
+    [departments],
+  );
 
   /** Взять в работу: план завершения + закрепление за исполнителем */
   const onStart = useCallback(async (entry, plannedEnd) => {
@@ -33,11 +40,22 @@ export function useStageActions() {
     return setStageStatus(entry.stage.id, 'in_progress', { assignee: currentActor() });
   }, [setStagePlan, setStageStatus]);
 
-  /** «Готово» без числа — закрыть этап целиком */
-  const onDone = useCallback(
-    (entry) => setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty }),
-    [setStageStatus],
-  );
+  /**
+   * «Готово» без числа — закрыть этап целиком.
+   * Пишет весь тираж, поэтому при незакрытом остатке сперва спрашиваем: иначе
+   * «сдал 40 из 100 → нажал Завершить» тихо превращалось в 100 сданных штук
+   * и открывало следующий цех на количество, которого физически нет.
+   */
+  const onDone = useCallback(async (entry) => {
+    const ok = await confirmStageDone({
+      stage: entry.stage,
+      qty: entry.item.qty,
+      allStages: entry.item.stages,
+      deptNameById,
+    });
+    if (!ok) return false;
+    return setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty });
+  }, [setStageStatus, deptNameById]);
 
   /** «Частично» — накопительный прогресс qty_done += N */
   const onProgress = useCallback(

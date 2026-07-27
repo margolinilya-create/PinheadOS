@@ -13,13 +13,20 @@ import { stageMissingTz } from './tz';
  * зависимости или материалы (с причиной); blocked — ручная блокировка цехом
  * (со своей причиной); done — завершено.
  */
-export function buildQueueEntries(orders, departments, { departmentId = null } = {}) {
+export function buildQueueEntries(
+  orders,
+  departments,
+  { departmentId = null, includeInactive = false } = {},
+) {
   const deptById = new Map(departments.map((d) => [d.id, d]));
   const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
   const list = [];
 
   for (const order of orders) {
-    if (order.status !== 'active') continue;
+    // Цеху и канбану нужны только активные; производственному плану со снятой
+    // галочкой «Только активные» — и архив тоже, иначе его фильтры молча
+    // не находили бы сданные заказы.
+    if (!includeInactive && order.status !== 'active') continue;
     for (const item of order.items ?? []) {
       for (const stage of item.stages ?? []) {
         if (departmentId && stage.department_id !== departmentId) continue;

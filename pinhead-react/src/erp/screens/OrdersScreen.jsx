@@ -5,6 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
+import { useErpAccess } from '../store/useErpAccess';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { isUrgent, isOverdue } from '../utils/time';
 import { isOrderReadyToShip } from '../utils/stageUi';
@@ -15,7 +16,7 @@ import { OrderRow } from './orders/OrderRow';
 import { OrderCardMobile } from './orders/OrderCardMobile';
 import { CreateOrderModal } from './orders/CreateOrderModal';
 
-export default function OrdersScreen({ user }) {
+export default function OrdersScreen() {
   const {
     orders, departments, loading, loaded, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
@@ -69,7 +70,12 @@ export default function OrdersScreen({ user }) {
     if (tab === 'archive' && !archiveLoaded && !archiveLoading) loadArchive();
   }, [tab, archiveLoaded, archiveLoading, loadArchive]);
 
-  const canDelete = ['admin', 'director'].includes(user?.role);
+  const access = useErpAccess();
+  // Создание/удаление заказа — право матрицы «Создавать и править заказы».
+  // Раньше удаление проверяло роль профиля прямо в компоненте (в обход useErpAccess),
+  // а кнопка «Новый заказ» не проверяла ничего — её видел и рабочий цеха.
+  const canManageOrders = access.can('order.manage');
+  const canDelete = access.isPrivileged || canManageOrders;
 
   const inTab = useMemo(
     () => orders.filter((o) => {
@@ -222,9 +228,11 @@ export default function OrdersScreen({ user }) {
         )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
-        <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          + Новый заказ
-        </button>
+        {canManageOrders && (
+          <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            + Новый заказ
+          </button>
+        )}
       </div>
 
       {loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}

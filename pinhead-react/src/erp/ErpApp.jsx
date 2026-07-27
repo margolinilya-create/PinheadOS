@@ -55,7 +55,7 @@ export default function ErpApp({ user }) {
       <Suspense fallback={<ScreenSkeleton />}>
         <Routes>
           <Route path="/" element={<ErpDashboard />} />
-          <Route path="/orders" element={<OrdersScreen user={user} />} />
+          <Route path="/orders" element={<OrdersScreen />} />
           <Route path="/orders/:orderId" element={<OrderCardRoute />} />
           <Route path="/board" element={<ProductionBoard />} />
           {/* /queue — «Мой цех» (автопривязка), /queue/:deptCode — очередь конкретного участка */}

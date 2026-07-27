@@ -51,7 +51,9 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
   ],
   worker: ['stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect'],
-  manager: ['stage.block', 'stage.priority', 'order.manage'],
+  // tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,
+  // и без него менеджер молча терял бы возможность вести ТЗ, если матрица не загрузилась
+  manager: ['stage.block', 'stage.priority', 'order.manage', 'tz.manage'],
   purchaser: ['stage.block'],
   storekeeper: ['stage.block'],
   hr: [],
@@ -74,7 +76,13 @@ export function isAllowed(
 /**
  * Может ли пользователь действовать в конкретном цехе.
  * Руководящий состав — везде; привязанный сотрудник — только в своём цехе;
- * без привязки (legacy-выбор цеха через localStorage) — как раньше, в выбранном.
+ * без привязки (legacy-выбор цеха через localStorage) — в выбранном.
+ *
+ * Отсутствие привязки намеренно не запрещает действия: в цехах, где сотрудников
+ * ещё не завели в `erp_employees`, запрет остановил бы производство. Что именно
+ * такому пользователю можно, решает матрица прав — например, роль `manager`
+ * без привязки не получит ни «Взять в работу», ни «Завершить этап», ни «Брак»,
+ * потому что этих прав нет у роли, а не потому что нет цеха.
  */
 export function canActInDept(
   profileRole: string | null | undefined,

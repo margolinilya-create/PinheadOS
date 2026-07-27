@@ -44,8 +44,12 @@ function DictionaryChips({ items, onPick, label }) {
  * Вынесено из QueueCard, чтобы одинаково работало в развёрнутой строке очереди
  * (правка 2) и на странице производственного задания (правка 5). Логику вызовов
  * держит useStageActions — сюда приходит готовый набор обработчиков.
+ *
+ * `perms` — набор из useStagePermissions: каждая кнопка гейтится своим правом
+ * матрицы, а не общим «этот ли мой цех». Снятая в админке галочка «Оформлять брак»
+ * должна убирать кнопку «Брак», а не оставаться украшением.
  */
-export function StageActionsPanel({ entry, canAct, deptShortById, actions, showTz = true }) {
+export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz = true }) {
   const { order, item, stage, group } = entry;
   const {
     onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onAckOverdue,
@@ -106,7 +110,7 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
 
   return (
     <>
-      {canAct && needsAck && (
+      {perms.any && needsAck && (
         <div className={styles.queueBlockForm}>
           <span className={styles.overdue}>⏰ Этап просрочен — требуется комментарий</span>
           <input
@@ -138,14 +142,16 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
       )}
       {showTz && <TzBlock order={order} item={item} />}
 
-      {canAct && (
+      {perms.any && (
         <div className={styles.queueActions}>
           {group === 'ready' && !startMode && (
             <>
-              <button type="button" className="btn btn-primary" onClick={() => setStartMode(true)}>
-                ▶ Взять в работу
-              </button>
-              {!blockMode && (
+              {perms.take && (
+                <button type="button" className="btn btn-primary" onClick={() => setStartMode(true)}>
+                  ▶ Взять в работу
+                </button>
+              )}
+              {perms.block && !blockMode && (
                 <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
                   🚫 Проблема
                 </button>
@@ -154,47 +160,57 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
           )}
           {group === 'in_progress' && (
             <>
-              <input
-                type="number"
-                min="1"
-                max={item.qty}
-                className={`${styles.input} ${styles.qtySmallInput}`}
-                value={doneQty}
-                onChange={(e) => setDoneQty(e.target.value)}
-                aria-label="Сколько сделано, шт"
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={!(Number(doneQty) > 0)}
-                onClick={() => {
-                  onProgress(entry, Math.max(1, Number(doneQty) || 0));
-                  setDoneQty(String(Math.max(remaining - (Number(doneQty) || 0), 1)));
-                }}
-              >
-                ＋ Записать результат
-              </button>
-              <button type="button" className="btn btn-primary" onClick={() => onDone(entry)}>
-                ✓ Завершить этап
-              </button>
+              {perms.progress && (
+                <>
+                  <input
+                    type="number"
+                    min="1"
+                    max={item.qty}
+                    className={`${styles.input} ${styles.qtySmallInput}`}
+                    value={doneQty}
+                    onChange={(e) => setDoneQty(e.target.value)}
+                    aria-label="Сколько сделано, шт"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={!(Number(doneQty) > 0)}
+                    onClick={() => {
+                      onProgress(entry, Math.max(1, Number(doneQty) || 0));
+                      setDoneQty(String(Math.max(remaining - (Number(doneQty) || 0), 1)));
+                    }}
+                  >
+                    ＋ Записать результат
+                  </button>
+                </>
+              )}
+              {perms.complete && (
+                <button type="button" className="btn btn-primary" onClick={() => onDone(entry)}>
+                  ✓ Завершить этап
+                </button>
+              )}
               {!blockMode && !defectMode && (
                 <>
-                  <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
-                    ↩ Брак
-                  </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
-                    🚫 Проблема
-                  </button>
+                  {perms.defect && (
+                    <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
+                      ↩ Брак
+                    </button>
+                  )}
+                  {perms.block && (
+                    <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
+                      🚫 Проблема
+                    </button>
+                  )}
                 </>
               )}
             </>
           )}
-          {group === 'done' && !defectMode && (
+          {group === 'done' && perms.defect && !defectMode && (
             <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
               ↩ Брак / переделка
             </button>
           )}
-          {group === 'blocked' && (
+          {group === 'blocked' && perms.block && (
             <button type="button" className="btn btn-secondary" onClick={() => onUnblock(entry)}>
               Снять блокировку
             </button>
@@ -202,7 +218,7 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
         </div>
       )}
 
-      {canAct && group === 'ready' && startMode && (
+      {perms.take && group === 'ready' && startMode && (
         <div className={styles.queueBlockForm}>
           <label className={styles.subText}>
             План завершения
@@ -230,7 +246,7 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
         </div>
       )}
 
-      {canAct && blockMode && (
+      {perms.block && blockMode && (
         <div className={styles.queueBlockForm}>
           <DictionaryChips
             items={blockReasons}
@@ -262,7 +278,7 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
         </div>
       )}
 
-      {canAct && defectMode && (
+      {perms.defect && defectMode && (
         <div className={styles.queueBlockForm}>
           <input
             type="number"

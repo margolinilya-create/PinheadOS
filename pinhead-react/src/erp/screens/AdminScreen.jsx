@@ -6,6 +6,7 @@ import EmployeesScreen from './EmployeesScreen';
 import DepartmentsScreen from './DepartmentsScreen';
 import { PermissionsTab } from './admin/PermissionsTab';
 import { DictionariesTab } from './admin/DictionariesTab';
+import { useErpAccess } from '../store/useErpAccess';
 import styles from '../erp.module.css';
 
 const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
@@ -17,17 +18,24 @@ const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
  * Справочники (правка 12) · Заказы ТЗ (админ-таблица заказов Order Studio).
  */
 
+/** `needs` — право матрицы, без которого вкладка не показывается */
 const TABS = [
   { id: 'users', label: 'Пользователи' },
   { id: 'roles', label: 'Права' },
-  { id: 'depts', label: 'Цеха' },
-  { id: 'dicts', label: 'Справочники' },
+  { id: 'depts', label: 'Цеха', needs: 'catalog.edit' },
+  { id: 'dicts', label: 'Справочники', needs: 'catalog.edit' },
   { id: 'studio', label: 'Заказы ТЗ' },
 ];
 
 export default function AdminScreen() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') || 'users';
+  const access = useErpAccess();
+  // Право «Править справочники» гейтит вкладки цехов и справочников. Сегодня в админку
+  // попадают только admin/director, у которых оно есть, — но право перестало быть
+  // декоративным: снятое у роли, оно реально закрывает вкладку.
+  const tabs = TABS.filter((t) => !t.needs || access.can(t.needs));
+  const requested = params.get('tab') || 'users';
+  const tab = tabs.some((t) => t.id === requested) ? requested : 'users';
 
   return (
     <>
@@ -36,7 +44,7 @@ export default function AdminScreen() {
         sub="Общая для обоих режимов: пользователи и права, цеха, справочники, заказы Order Studio."
       />
       <div className={styles.deptTabs} role="tablist" aria-label="Разделы админки">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"

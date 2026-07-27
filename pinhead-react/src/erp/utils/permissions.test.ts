@@ -59,6 +59,26 @@ describe('isAllowed', () => {
     expect(DEFAULT_PERMISSIONS.worker).not.toContain('stage.priority');
     expect(DEFAULT_PERMISSIONS.foreman).toContain('stage.priority');
   });
+
+  // Фолбэк обязан повторять seed миграций: иначе при неудачной загрузке матрицы
+  // роль молча теряет право и человек не понимает почему.
+  it('дефолты повторяют seed: tz.manage у руководства, диспетчера и менеджера', () => {
+    for (const role of ['director', 'dispatcher', 'manager'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).toContain('tz.manage');
+    }
+    for (const role of ['foreman', 'worker', 'purchaser', 'storekeeper', 'hr'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('tz.manage');
+    }
+  });
+
+  it('менеджер без привязки к цеху не получает действий над этапами', () => {
+    // Без записи в erp_employees canActInDept пропускает в любой цех — значит
+    // единственная защита здесь матрица: у роли нет ни взятия, ни завершения, ни брака.
+    for (const p of ['stage.take', 'stage.progress', 'stage.complete', 'stage.defect'] as const) {
+      expect(isAllowed(null, 'manager', p)).toBe(false);
+    }
+    expect(isAllowed(null, 'manager', 'stage.block')).toBe(true);
+  });
 });
 
 describe('canActInDept', () => {

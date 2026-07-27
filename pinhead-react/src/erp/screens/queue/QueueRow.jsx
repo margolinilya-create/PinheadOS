@@ -18,7 +18,7 @@ import { StageActionsPanel } from './StageActionsPanel';
  * строка — правило docs/DESIGN.md. Развёрнутая строка показывает ТЗ и действия.
  */
 export function QueueRow({
-  entry, index, canAct, canReorder, rework, deptShortById, actions,
+  entry, index, perms, canReorder, rework, deptShortById, actions,
   dragging, dropBefore, dropAfter,
   onDragStart, onDragEnd, onDragOverRow,
 }) {
@@ -138,7 +138,7 @@ export function QueueRow({
               ↩ На переделку: {rework.qty_rework} шт · {(rework.comment || '').replace(' (фото во вложениях)', '')}
             </span>
           )}
-          {needsAck && canAct && (
+          {needsAck && perms.any && (
             <span className={styles.overdue}>⏰ Этап просрочен — нужен комментарий (разверните строку)</span>
           )}
         </div>
@@ -148,7 +148,7 @@ export function QueueRow({
         <div className={styles.queueRowPanel}>
           <StageActionsPanel
             entry={entry}
-            canAct={canAct}
+            perms={perms}
             deptShortById={deptShortById}
             actions={actions}
           />

@@ -6,6 +6,8 @@ import { confirmWithInput } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { deptShortName } from '../data/departments';
 import { buildKanbanColumns } from '../utils/kanbanColumns';
+import { kanbanDropIntent, ALLOWED_LANE_DROP } from '../utils/kanbanDrop';
+import { confirmStageDone } from '../utils/stageDone';
 import { analyzeStageMove, moveConfirmMessage } from '../utils/stageMove';
 import styles from '../erp.module.css';
 import { KanbanCard } from './kanban/KanbanCard';
@@ -35,10 +37,10 @@ const LANE_TITLES = {
   done: 'Завершено',
 };
 
-/** Куда карточку можно уронить внутри своей колонки */
-const ALLOWED_DROP = {
-  ready: ['in_progress'],
-  in_progress: ['done'],
+/** Право, нужное для перехода в дорожку (см. laneDroppable) */
+const LANE_PERMISSION = {
+  in_progress: 'stage.take',
+  done: 'stage.complete',
 };
 
 /** Ширина краевой зоны автоскролла доски и шаг сдвига за событие */
@@ -84,9 +86,18 @@ export default function ErpKanban({ filters }) {
     setDrag(null); setOverLane(null); setDropAt(null);
   };
 
-  /** Дорожка своей колонки, куда разрешён переход по статусу */
-  const laneDroppable = (deptId, lane) =>
-    drag && drag.deptId === deptId && (ALLOWED_DROP[drag.group] || []).includes(lane);
+  /**
+   * Дорожка своей колонки, куда разрешён переход по статусу.
+   * Гейт прав такой же, как у соседних жестов (приоритет, перенос между цехами):
+   * запрещённая дорожка не подсвечивается и не принимает бросок — иначе работник
+   * швейки закрывал бы этап ДТФ, просто открыв доску.
+   */
+  const laneDroppable = (deptId, lane) => {
+    if (!drag || drag.deptId !== deptId) return false;
+    if (!(ALLOWED_LANE_DROP[drag.group] || []).includes(lane)) return false;
+    const permission = LANE_PERMISSION[lane];
+    return !permission || access.canDo(permission, deptId);
+  };
   /** Колонка чужого цеха — перенос между процессами (по праву) */
   const columnDroppable = (deptId) =>
     drag && drag.deptId !== deptId && access.canDo('stage.move_department', drag.deptId);
@@ -117,28 +128,42 @@ export default function ErpKanban({ filters }) {
   /** Отпустили внутри дорожки: либо приоритет (есть место вставки), либо смена статуса */
   const onLaneDrop = async (deptId, lane, list) => {
     const dragged = dragRef.current;
+    if (!dragged) return;
     const target = dropAt;
+    const intent = kanbanDropIntent({
+      draggedDeptId: dragged.stage.department_id,
+      draggedGroup: dragged.group,
+      targetDeptId: deptId,
+      targetLane: lane,
+      hasInsertPoint: Boolean(target) && list.some((e) => e.stage.id === target.id),
+    });
     const canLane = laneDroppable(deptId, lane);
     onDragEnd();
-    if (!dragged) return;
 
-    if (target && dragged.stage.department_id === deptId) {
+    if (intent === 'reorder') {
       const ids = list.map((e) => e.stage.id).filter((id) => id !== dragged.stage.id);
       const at = ids.indexOf(target.id);
-      if (at >= 0) {
-        const insertAt = target.before ? at : at + 1;
-        await reorderStageQueue(
-          dragged.stage.id,
-          insertAt > 0 ? ids[insertAt - 1] : null,
-          insertAt < ids.length ? ids[insertAt] : null,
-        );
-        return;
-      }
+      if (at < 0) return;
+      const insertAt = target.before ? at : at + 1;
+      await reorderStageQueue(
+        dragged.stage.id,
+        insertAt > 0 ? ids[insertAt - 1] : null,
+        insertAt < ids.length ? ids[insertAt] : null,
+      );
+      return;
     }
 
-    if (!canLane) return;
+    if (intent !== 'status' || !canLane) return;
     if (lane === 'in_progress') await setStageStatus(dragged.stage.id, 'in_progress');
     if (lane === 'done') {
+      // Дорожка «Завершено» пишет весь тираж — спрашиваем, если сдано не всё
+      const ok = await confirmStageDone({
+        stage: dragged.stage,
+        qty: dragged.item.qty,
+        allStages: dragged.item.stages,
+        deptNameById,
+      });
+      if (!ok) return;
       await setStageStatus(dragged.stage.id, 'done', { qty_done: dragged.item.qty });
     }
   };
@@ -232,6 +257,11 @@ export default function ErpKanban({ filters }) {
                   }}
                   onDragLeave={() => isOver && setOverLane(null)}
                   onDrop={(e) => {
+                    // Карточка из чужого цеха — это перенос между процессами: событие
+                    // не трогаем, оно всплывёт в колонку. Раньше дорожка забирала его
+                    // себе, onLaneDrop обнулял dragRef, и onColumnDrop читал уже null —
+                    // перенос молча не срабатывал везде, кроме шапки колонки.
+                    if (dragRef.current && dragRef.current.stage.department_id !== dept.id) return;
                     // Внутренний drop не должен всплыть в колонку и стать «переносом в цех»
                     if (droppable || dropAt) e.stopPropagation();
                     onLaneDrop(dept.id, lane, list);

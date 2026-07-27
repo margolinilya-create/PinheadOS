@@ -11,7 +11,7 @@ import { StageActionsPanel } from './StageActionsPanel';
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
  * Действия и формы общие со строкой и страницей задания (StageActionsPanel).
  */
-export function QueueCard({ entry, canAct, rework, deptShortById, actions }) {
+export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
   const { order, item, stage, reason, group } = entry;
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
@@ -117,7 +117,7 @@ export function QueueCard({ entry, canAct, rework, deptShortById, actions }) {
 
       <StageActionsPanel
         entry={entry}
-        canAct={canAct}
+        perms={perms}
         deptShortById={deptShortById}
         actions={actions}
       />
