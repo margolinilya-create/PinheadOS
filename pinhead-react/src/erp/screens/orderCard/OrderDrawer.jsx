@@ -90,6 +90,10 @@ export function OrderDrawer({ orderId, onClose }) {
         <>
           <div className={styles.drawerMeta}>
             <span>
+              <span className={styles.subText}>Клиент: </span>
+              <InlineEdit value={order.customer} ariaLabel="Клиент" onSave={(v) => saveOrderField({ customer: v })} />
+            </span>
+            <span>
               <span className={styles.subText}>Менеджер: </span>
               <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
             </span>

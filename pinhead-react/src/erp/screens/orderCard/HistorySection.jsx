@@ -12,6 +12,7 @@ import { fmt, fmtTs } from './format';
 
 const AUDIT_FIELD_LABELS = {
   title: 'Название',
+  customer: 'Клиент',
   manager: 'Менеджер',
   bitrix_id: '№ сделки',
   launch_date: 'Дата запуска',

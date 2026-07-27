@@ -64,6 +64,8 @@ export interface DraftItem {
 export interface DraftForm {
   bitrix_id: string;
   title: string;
+  /** Клиент — цех видит его в задании, по нему же фильтруют очередь (правки 5/9) */
+  customer: string;
   manager: string;
   launch_date: string;
   due_date: string;
@@ -112,6 +114,7 @@ export function emptyOrderForm(launchDate: string = localToday()): DraftForm {
   return {
     bitrix_id: '',
     title: '',
+    customer: '',
     manager: '',
     launch_date: launchDate,
     due_date: '',
@@ -194,6 +197,7 @@ export function isFormEmpty(
   return (
     !s(form.bitrix_id) &&
     !s(form.title) &&
+    !s(form.customer) &&
     !s(form.manager) &&
     (!form.launch_date || form.launch_date === initialLaunchDate) &&
     !form.due_date &&

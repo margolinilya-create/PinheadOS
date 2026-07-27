@@ -362,6 +362,7 @@ export function CreateOrderModal({ onClose }) {
     const created = await createOrder({
       bitrix_id: form.bitrix_id.trim() || undefined,
       title: form.title.trim(),
+      customer: form.customer.trim() || undefined,
       manager: form.manager.trim() || undefined,
       launch_date: form.launch_date || undefined,
       due_date: form.due_date || undefined,
@@ -489,6 +490,16 @@ export function CreateOrderModal({ onClose }) {
               data-invalid={err('title') ? true : undefined}
             />
             <FieldError id="err-order-title" text={err('title')} />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Клиент</span>
+            <input
+              className={styles.input}
+              value={form.customer}
+              onChange={(e) => setForm({ ...form, customer: e.target.value })}
+              placeholder="напр. BOX39"
+              maxLength={140}
+            />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Менеджер</span>

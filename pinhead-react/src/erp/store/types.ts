@@ -131,6 +131,8 @@ export interface NewOrderItemInput {
 export interface NewOrderInput {
   bitrix_id?: string;
   title: string;
+  /** Клиент — показывается цеху в задании и участвует в фильтрах (правки 5/9) */
+  customer?: string;
   manager?: string;
   launch_date?: string;
   due_date?: string;

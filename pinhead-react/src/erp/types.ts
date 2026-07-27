@@ -88,6 +88,8 @@ export interface ErpOrder {
   id: string;
   bitrix_id: string | null;
   title: string;
+  /** Клиент заказа — показывается в задании цеха и фильтруется (правки 5/9) */
+  customer?: string | null;
   manager: string | null;
   launch_date: string | null;
   due_date: string | null;
@@ -144,7 +146,14 @@ export interface ErpItemStage {
   assignee: string | null;
   block_reason: string | null;
   notes: string | null;
+  /** Порядок этапа в маршруте позиции (задаётся при создании, не меняется) */
   sort_order: number;
+  /**
+   * Приоритет задания в очереди своего цеха (волна 1, правка 3). Меньше — выше.
+   * numeric: перенос drag-and-drop пишет середину между соседями, без перенумерации.
+   * null — этап ещё не получил позицию (сортируется по сроку заказа).
+   */
+  queue_position?: number | null;
   // Обработка просрочки (правка 8): комментарий причины задержки + время подтверждения
   overdue_comment?: string | null;
   overdue_ack_at?: string | null;
@@ -561,6 +570,48 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   manager: 'Менеджер',
   director: 'Директор',
 };
+
+// --- Матрица прав (ядро правки 11) ------------------------------------------
+
+/**
+ * Что роль вправе делать. Ограничение «только свой цех» — отдельная проверка
+ * по привязке erp_employees.department_id, матрицей не отменяется.
+ */
+export type ErpPermission =
+  | 'stage.take'              // взять задание в работу (закрепить за собой)
+  | 'stage.progress'          // записать фактически выполненное количество
+  | 'stage.complete'          // завершить этап
+  | 'stage.block'             // сообщить о проблеме / снять блокировку
+  | 'stage.defect'            // оформить брак / переделку
+  | 'stage.priority'          // менять приоритет заданий в очереди
+  | 'stage.move_department'   // переносить задание между цехами на канбане
+  | 'order.manage'            // создавать и редактировать заказы
+  | 'catalog.edit';           // редактировать справочники
+
+export const ERP_PERMISSIONS: ErpPermission[] = [
+  'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
+  'stage.priority', 'stage.move_department', 'order.manage', 'catalog.edit',
+];
+
+export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
+  'stage.take': 'Брать задания в работу',
+  'stage.progress': 'Записывать результат',
+  'stage.complete': 'Завершать этап',
+  'stage.block': 'Сообщать о проблеме',
+  'stage.defect': 'Оформлять брак',
+  'stage.priority': 'Менять приоритеты',
+  'stage.move_department': 'Переносить между цехами',
+  'order.manage': 'Создавать и править заказы',
+  'catalog.edit': 'Править справочники',
+};
+
+/** Строка матрицы прав (таблица erp_role_permissions) */
+export interface ErpRolePermission {
+  role: EmployeeRole;
+  permission: ErpPermission;
+  allowed: boolean;
+  updated_at: string;
+}
 
 // --- Поля ТЗ (docs/erp/tz-format-analysis.md) --------------------------------
 
