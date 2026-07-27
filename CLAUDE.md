@@ -91,7 +91,25 @@ supabase/
 └── migrations/              # SQL-миграции (Supabase CLI)
 ```
 
-## Роутинг (App.jsx)
+## Роутинг
+
+`App.jsx` выбирает оболочку по флагу `orderStudio` (`src/config/features.ts`):
+по умолчанию **ErpApp** (Производство), с флагом — **OrderStudioApp** (ТЗ).
+Переключатель — в шапке обоих разделов (admin/director).
+
+### 🏭 Производство — `src/erp/ErpApp.jsx`
+
+| Путь | Компонент | Доступ |
+|---|---|---|
+| `/` | ErpDashboard (обзор производства) | Все |
+| `/orders`, `/orders/:orderId` | OrdersScreen, OrderCard | Все |
+| `/board` | ProductionBoard (таблица + канбан цехов) | Все |
+| `/queue`, `/queue/:deptCode` | DepartmentQueue (очередь участка) | Все |
+| `/task/:stageId` | ProductionTask (производственное задание) | Все |
+| `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
+| `/admin` | AdminScreen (пользователи, цеха, заказы ТЗ) | admin, director |
+
+### ✏️ ТЗ (Order Studio) — за флагом `orderStudio`
 
 | Путь | Компонент | Доступ |
 |---|---|---|
@@ -131,10 +149,20 @@ admin, director, manager, rop, designer, production
 | `app_config` | SKU (sku_catalog), цены (prices), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog) |
 | `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog) |
 
+**ERP (префикс `erp_*`, проект pinhead-os-v2)** — полная схема в
+`pinhead-react/src/erp/types.ts` (зеркало таблиц) и в `supabase/migrations/`.
+Ядро: `erp_departments` · `erp_orders` (+ `customer`) · `erp_order_items` ·
+`erp_item_stages` (граф `depends_on`, `queue_position` — приоритет в очереди цеха,
+`assignee` — исполнитель) · `erp_materials`. Сопровождение: `erp_item_prints`,
+`erp_stage_events` (история этапов), `erp_order_audit`/`_comments`/`_attachments`,
+`erp_procurement_tasks`, `erp_subcontracting`, `erp_warehouse_ops`/`_tasks`,
+`erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав).
+
 **Storage:**
 | Bucket | Назначение |
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
+| `erp-attachments` | Превью макетов и вложения производственных заказов, public read |
 
 Статусы заказа: draft → review → approved → production → done
 
@@ -170,6 +198,9 @@ admin, director, manager, rop, designer, production
 - Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)
 - Dev-mode created_by: фильтровать 'dev' → null (и в saveOrder, и в duplicateOrder)
 - deleteSkuPhotoByUrl: проверять результат, показывать toast.error при ошибке
+- ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
+  приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
+  с подтверждением последствий; прогресс считается в штуках (`erp/utils/progress`)
 
 ## Документация
 

@@ -7,20 +7,24 @@ URL: https://pinhead-os.vercel.app
 ## Два раздела (переключение в шапке, admin/director)
 - **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
-  FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
+  ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
-  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard;
+  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
+  StageActionsPanel + useStageActions (действия цеха, общие со страницей задания);
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
-  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons +
+  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
+  RouteProgress (маршрут в штуках), QueueFilters +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
-  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск);
-  orders/stages/materials/procurement/subcontracting/employees/realtime;
+  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
+  + useErpAccess.ts (права: can/canActIn/canDo);
+  orders/stages/materials/procurement/subcontracting/employees/permissions/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
-  utils (routes/time/stageUi/orderForm),
+  utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
+  stageMove/permissions),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -49,7 +53,7 @@ URL: https://pinhead-os.vercel.app
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js
+- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js, useScrollRestore.js
 
 ## Ключевые правила
 - Общение с пользователем: всегда на русском языке
@@ -72,14 +76,28 @@ URL: https://pinhead-os.vercel.app
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 - Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
 
+## Правила ERP (волна 1 «Ядро диспетчера»)
+- Права: только через `useErpAccess` — `can(право)` (матрица `erp_role_permissions`) И
+  `canActIn(цех)` (привязка `erp_employees`). Не проверять роли в компонентах вручную
+- Приоритет очереди: `erp_item_stages.queue_position` — numeric-середина между соседями,
+  писать через `reorderStageQueue`, не перенумеровывать вручную
+- Перенос между цехами: только `moveStageToDepartment`; правила и последствия — в
+  `utils/stageMove.analyzeStageMove`, подтверждение в UI. Молча этап не закрывать
+- Прогресс — в штуках (`utils/progress`), не в числе завершённых этапов
+- Задания: группа и причина ожидания считаются одним `buildQueueEntries`, не по месту
+- Исполнитель проставляется при «Взять в работу» (`assignee = currentActor()`)
+- Фильтры заданий — `utils/filterStages`, состояние в URL (возврат из заказа его восстанавливает)
+
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
 - store/slices/ — 796 тестов зависят от них
+- erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
+  волны 1, 88 тестов
 
 ## Тесты
 ```bash
-npm run test     # 887 unit тестов (Vitest)
-npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
+npm run test     # 1106 unit тестов (Vitest)
+npm run e2e      # E2E (Playwright, 9 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно
 ```
