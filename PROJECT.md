@@ -20,6 +20,32 @@ Supabase через CDN. Финальная версия v1.7 — полност
 
 ## Changelog
 
+### Сессия 23 (27.07.2026) — Подключение внешних скиллов из подборки заказчика
+
+Из таблицы на 52 скилла отобраны **13** по критерию «применимо к стеку Pinhead»
+(React 19 + Vite SPA, TypeScript, Supabase, Vercel). Кода приложения не касались.
+- **Процесс:** `brainstorming`, `writing-plans`, `executing-plans`,
+  `dispatching-parallel-agents`, `requesting-code-review`, `receiving-code-review`
+  (obra/superpowers). `executing-plans` добавлен как обязательная пара к `writing-plans`.
+- **Фронтенд:** `react-best-practices` (~70 правил производительности),
+  `web-design-guidelines` (a11y/вёрстка) — vercel-labs.
+- **Безопасность:** `vibesec` (XSS/SQLi/IDOR/SSRF — актуально для RLS и `sku-photos`),
+  `security-threat-model` (openai).
+- **GitHub:** `gh-fix-ci`, `gh-address-comments` (openai, нужен `gh` CLI).
+- **Мета:** `review-claudemd`.
+- **Адаптация под проект:** русские триггеры в `description` (иначе не срабатывают на
+  «упал CI», «проверь вёрстку»); пути к артефактам — `docs/plans/` и
+  `docs/superpowers/specs/` (существующая структура); ссылки между скиллами без префикса
+  `superpowers:` — ведут на реально существующие `using-git-worktrees`,
+  `subagent-driven-development`, `finishing-a-development-branch`; `name` = имя папки
+  (`vercel-react-best-practices` → `react-best-practices`, `VibeSec-Skill` → `vibesec`).
+- **Отклонено:** shadcn-ui (у нас vanilla CSS + CSS Modules), sentry (не подключён),
+  postgres-скилл (дублирует Supabase MCP), yeet (конфликт с `finishing-a-development-branch`),
+  agnix (это CLI-линтер, не скилл), весь блок контент/маркетинг/автоматизация.
+- Провенанс и правила обновления — `.claude/skills/README.md`; `.superpowers/` → `.gitignore`.
+- Проверка: frontmatter всех 13 скиллов валиден, `name` совпадает с папкой, висячих
+  ссылок на несуществующие скиллы нет.
+
 ### Сессия 22 (22.07.2026) — QA-баг-репорт заказчика: 16 багов ERP
 
 Разведка — 2 Explore-агента; фиксы по кластерам (ветка от main). Без изменения БД/статусов.

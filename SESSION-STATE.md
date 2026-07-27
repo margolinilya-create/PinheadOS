@@ -3,6 +3,38 @@
 > Живой документ: обновляется в конце КАЖДОЙ сессии (правило в CLAUDE.md).
 > Здесь — текущее состояние системы и последние решения. История — в PROJECT.md.
 
+## Состояние на 2026-07-27 (сессия 23) — Внешние скиллы из подборки
+
+**Замысел:** заказчик прислал Google-таблицу с 52 скиллами и попросил подключить нужные
+и качественные. Кода приложения не касались — только `.claude/skills/` и документация.
+
+**Отобрано 13** (критерий — применимо к React 19 + Vite SPA + Supabase + Vercel):
+процесс (`brainstorming`, `writing-plans`, `executing-plans`, `dispatching-parallel-agents`,
+`requesting-code-review`, `receiving-code-review`), фронтенд (`react-best-practices`,
+`web-design-guidelines`), безопасность (`vibesec`, `security-threat-model`),
+GitHub (`gh-fix-ci`, `gh-address-comments`), мета (`review-claudemd`).
+
+**Решения:**
+- Скиллы **vendored** в репозиторий, не через `npx skills` — их пришлось править,
+  а пакетное обновление правки затрёт. `skills-lock.json` не трогаем (он в `.gitignore`).
+- **Русские триггеры** дописаны в `description` каждого скилла — общение в проекте
+  на русском, английские описания не срабатывали бы на «упал CI», «проверь вёрстку».
+- Пути к артефактам приведены к существующей структуре: планы → `docs/plans/`,
+  спеки → `docs/superpowers/specs/`.
+- `react-best-practices` — правила Vercel под Next.js; в описании явно помечено, что
+  Pinhead это Vite SPA и `server-*`/RSC-правила применять не надо.
+- `executing-plans` добавлен сверх таблицы — на него ссылается `writing-plans`,
+  без него ссылка была бы висячей.
+
+**Не взято и почему:** shadcn-ui (vanilla CSS + CSS Modules, зависимости без обсуждения
+не тянем), sentry (не подключён), postgres-скилл (Supabase MCP уже есть), yeet (конфликт
+с `finishing-a-development-branch`), agnix (CLI-линтер, не скилл), контент/маркетинг/
+автоматизация (внутренняя ERP, не медиапроект). Подробности — `.claude/skills/README.md`.
+
+**Next step:** заказчик хотел «во все проекты». Пока сделан только PinheadOS — по
+остальным репозиториям (kontora24, PNHD-design-maker, antik, pnhd_zakup, pnhd-studio)
+нужен его выбор: набор скиллов зависит от стека каждого.
+
 ## Состояние на 2026-07-22 (сессия 22) — QA-баг-репорт заказчика: 16 багов ERP
 
 **Замысел:** заказчик прислал QA-репорт (16 багов основного ERP, Order Studio исключён). Разведка —

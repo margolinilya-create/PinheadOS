@@ -183,6 +183,21 @@ admin, director, manager, rop, designer, production
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 | `docs/2026-04-10-design-audit.md` | 5-агентный аудит UI/UX |
+| `.claude/skills/README.md` | Каталог скиллов: что подключено, откуда, что правили |
+
+## Скиллы (`.claude/skills/`)
+
+Полный список и провенанс — `.claude/skills/README.md`. Ключевое:
+
+- Внешние скиллы **vendored** (лежат в репозитории) и адаптированы под проект:
+  русские триггеры в `description`, пути `docs/plans/` и `docs/superpowers/specs/`,
+  ссылки между скиллами без префикса `superpowers:`.
+- Обновлять их через `npx skills update` нельзя — правки затрутся.
+  В `skills-lock.json` не заносятся (файл в `.gitignore`).
+- `name` в frontmatter обязан совпадать с именем папки.
+- `react-best-practices` — правила Vercel под Next.js. Pinhead — **Vite SPA**:
+  `server-*`/RSC-правила не применять.
+- Артефакты: спеки → `docs/superpowers/specs/`, планы → `docs/plans/`.
 
 ## Команды
 

@@ -17,3 +17,6 @@ test-results/
 .claude/helpers/*.db
 .hive-mind/
 memory.db
+
+# Superpowers brainstorming (визуальный компаньон) — runtime
+.superpowers/
