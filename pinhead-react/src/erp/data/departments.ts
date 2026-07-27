@@ -68,6 +68,25 @@ export function deptShortName(code: string, fallback?: string): string {
   return DEPT_SHORT_NAMES[code] || fallback || code;
 }
 
+/** Иконки участков для постоянного меню цехов в сайдбаре (правка 1) */
+export const DEPT_ICONS: Record<string, string> = {
+  supply: '🚚',
+  logistics: '🛣',
+  experimental: '🧪',
+  warehouse: '📦',
+  cutting: '✂️',
+  silkscreen: '🖨',
+  dtf: '🎞',
+  embroidery: '🧵',
+  sewing: '🪡',
+  vto: '♨️',
+  warehouse_fg: '🏷',
+};
+
+export function deptIcon(code: string): string {
+  return DEPT_ICONS[code] || '🔧';
+}
+
 /**
  * Цеха с рабочей очередью («Мой цех», загрузка на дашборде).
  * Закупка управляется своим экраном (материалы), логистика и склады

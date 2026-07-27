@@ -189,6 +189,7 @@
   transition: width 160ms ease;
 }
 .sidebarCollapsed { width: 64px; }
+/* Логотип — ссылка на главную ERP (правка 13): кликабелен весь блок, не только буква */
 .sidebarBrand {
   display: flex;
   align-items: center;
@@ -198,6 +199,15 @@
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-light);
   color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.sidebarBrand:hover { background: var(--surface); }
+.sidebarBrand:hover .sidebarLogo { background: var(--accent-hover); }
+.sidebarBrand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .sidebarLogo {
   width: 28px;
@@ -205,6 +215,7 @@
   flex-shrink: 0;
   border-radius: 8px;
   background: var(--accent);
+  transition: background 120ms ease;
   color: #fff;
   display: flex;
   align-items: center;

@@ -6,6 +6,7 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useTheme } from '../../hooks/useTheme';
 import {
   useErpStore,
+  readyCountFor,
   readyOnlyCountFor,
   overdueUnackCountFor,
   openWarehouseTaskCount,
@@ -14,6 +15,7 @@ import {
   activeExperimentalCount,
 } from '../store/useErpStore';
 import { setFeature } from '../../config/features';
+import { deptIcon, deptShortName, isQueueDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import styles from '../erp.module.css';
 
@@ -57,8 +59,11 @@ export default function ErpLayout({ user, children }) {
 
   // Бейджи «Подряд»/«Эксперим. цех» должны быть стабильны на любом экране (ERP-08):
   // грузим их данные заранее, а не лениво при первом заходе на эти разделы.
+  // Сюда же — заказы (счётчики цехов в меню, правка 1) и матрица прав (гейты действий).
   useEffect(() => {
     const s = useErpStore.getState();
+    if (!s.loaded) s.loadAll();
+    if (!s.permissionsLoaded) s.loadPermissions();
     if (!s.subcontractingLoaded) s.loadSubcontracting();
     if (!s.experimentalLoaded) s.loadExperimental();
   }, []);
@@ -85,11 +90,27 @@ export default function ErpLayout({ user, children }) {
     [orders, departments, myCode],
   );
 
+  // Постоянное меню цехов (правка 1): участок + число заданий в его очереди
+  // (готовые к запуску + уже взятые в работу).
+  const deptItems = useMemo(
+    () => departments
+      .filter((d) => d.active && isQueueDept(d.code))
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((d) => ({
+        to: `/queue/${d.code}`,
+        label: deptShortName(d.code, d.name),
+        icon: deptIcon(d.code),
+        count: readyCountFor(orders, departments, d.code),
+      })),
+    [orders, departments],
+  );
+
   return (
     <div className={styles.shell}>
       <Sidebar
         isAdmin={isAdmin}
         counts={counts}
+        deptItems={deptItems}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
       />

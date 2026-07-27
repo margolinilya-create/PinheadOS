@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
 import { SearchInput } from '../components/SearchInput';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { toast } from '../../store/useToastStore';
@@ -20,10 +22,11 @@ import { QueueCard } from './queue/QueueCard';
  * Крупные кнопки — цех работает с планшета/телефона.
  * Цех пользователя определяется по erp_employees.profile_id (автопривязка);
  * чужие цеха — только просмотр (кроме admin/director/rop).
+ *
+ * Выбранный цех живёт в маршруте (/queue/:deptCode, правка 1) — так его подсвечивает
+ * постоянное меню слева, а ссылка на очередь остаётся рабочей после возврата из заказа.
+ * /queue без кода — «Мой цех»: редирект на привязанный участок.
  */
-
-/** Роли с полным доступом ко всем цехам */
-const FULL_ACCESS_ROLES = ['admin', 'director', 'rop'];
 
 /** Заголовки групп очереди (порядок = порядок отображения) */
 const GROUP_TITLES = {
@@ -64,13 +67,9 @@ export default function DepartmentQueue() {
   const [query, setQuery] = useState('');
   const [onlyOverdue, setOnlyOverdue] = useState(false);
   const user = useAuthStore((s) => s.user);
-  // Ручной выбор вкладки: legacy localStorage — начальное значение
-  const [pickedDept, setPickedDept] = useState(() => localStorage.getItem('erp_my_dept') || '');
-  // Выбирал ли пользователь вкладку в этой сессии (иначе действует автопривязка)
-  const [sessionPick, setSessionPick] = useState(false);
-
-  // dev-режим — свободный выбор, роли рук. состава — полный доступ
-  const privileged = user?.id === 'dev' || FULL_ACCESS_ROLES.includes(user?.role);
+  const access = useErpAccess();
+  const navigate = useNavigate();
+  const { deptCode: routeDept } = useParams();
 
   // Вкладки цехов: градиенты-подсказки скрытого контента + автопрокрутка активной
   const { ref: tabsRef, hints: tabHints } = useScrollHints();
@@ -89,13 +88,17 @@ export default function DepartmentQueue() {
     [departments, myDeptId],
   );
 
-  // Автовыбор своего цеха: пока пользователь не переключил вкладку сам
-  const deptCode = !sessionPick && boundDept ? boundDept.code : pickedDept;
+  // Цех берём из маршрута; /queue без кода — привязанный цех, иначе последний выбранный
+  const deptCode = routeDept || boundDept?.code || localStorage.getItem('erp_my_dept') || '';
   const selectDept = (code) => {
-    setPickedDept(code);
-    setSessionPick(true);
     localStorage.setItem('erp_my_dept', code);
+    navigate(`/queue/${code}`);
   };
+
+  // Канонизируем адрес: на /queue подставляем код цеха, чтобы меню слева подсветило участок
+  useEffect(() => {
+    if (!routeDept && deptCode) navigate(`/queue/${deptCode}`, { replace: true });
+  }, [routeDept, deptCode, navigate]);
 
   // Активная вкладка цеха — всегда в видимой области скролла
   useEffect(() => {
@@ -115,10 +118,10 @@ export default function DepartmentQueue() {
   );
 
   // Привязки нет и нет legacy-выбора (localStorage) → заглушка для рядовых ролей
-  const showStub = !privileged && myDeptLoaded && !boundDept && !deptCode;
+  const showStub = !access.isPrivileged && myDeptLoaded && !boundDept && !deptCode;
   // Действия разрешены: рук. состав всюду; при привязке — только в своём цехе;
   // без привязки (legacy localStorage) — как раньше, в выбранном цехе
-  const canAct = privileged || !boundDept || (dept ? dept.code === boundDept.code : false);
+  const canAct = access.canActIn(dept?.id);
 
   /** Счётчик «готово к работе» (только ready) по каждому цеху — для бейджей на вкладках (ERP-06) */
   const readyByDept = useMemo(() => {

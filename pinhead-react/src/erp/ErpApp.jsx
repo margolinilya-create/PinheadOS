@@ -51,7 +51,9 @@ export default function ErpApp({ user }) {
           <Route path="/orders" element={<OrdersScreen user={user} />} />
           <Route path="/orders/:orderId" element={<OrderCardRoute />} />
           <Route path="/board" element={<ProductionBoard />} />
+          {/* /queue — «Мой цех» (автопривязка), /queue/:deptCode — очередь конкретного участка */}
           <Route path="/queue" element={<DepartmentQueue />} />
+          <Route path="/queue/:deptCode" element={<DepartmentQueue />} />
           <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
