@@ -15,7 +15,7 @@
 |---|---------|-------|-----------|-------|
 | 1 | Цеха редактируемые, но `QUEUE_DEPT_CODES` захардкожен — новый цех (ОТК) не появится нигде | software-architecture | **P0** | M |
 | 2 | Функциональные e2e не гоняются в CI и красные на mobile-проекте | playwright-skill | **P0** | S |
-| 3 | `console.log` с данными артикула уходит в прод | finishing-a-development-branch | **P0** | XS |
+| 3 | ~~`console.log` уходит в прод~~ → отладка по конкретному SKU в dev-ветке | finishing-a-development-branch | ~~P0~~ P2 | XS |
 | 4 | RLS `erp_material_suppliers`: INSERT/UPDATE/DELETE открыты всем авторизованным | supabase | **P0** | S |
 | 5 | 13 RLS-политик перевычисляют `auth.uid()` построчно | supabase-postgres | P1 | S |
 | 6 | 40 дублирующих permissive-политик (из них 20 на `orders`) | supabase-postgres | P1 | M |
@@ -86,18 +86,19 @@ fallback для сида. Заодно завести ОТК как реальн
 - добавить в CI job `e2e` (без `continue-on-error`) и `npm run build` — сейчас
   сломанный билд ловит только Vercel.
 
-### 3. Отладочный `console.log` в проде
+### 3. Отладочный `console.log` — понижен до P2 (исправлено)
 
-```
-components/editors/SkuEditor.jsx:99
-  console.log('[saveAll] T-001 photos:', t001?.photos);
-```
+**Поправка к первой редакции аудита.** Я записал этот пункт в P0 как «уходит в
+прод» — это неверно. Строка была обёрнута в `if (import.meta.env.DEV)`, и Vite
+вырезает такую ветку при сборке; проверено грепом по `dist/assets/*.js` — в
+бандле её нет.
 
-Шаг 3 скила `finishing-a-development-branch` ловит это грепом. Строка печатает
-данные конкретного артикула при каждом сохранении каталога. Удалить.
+Что действительно было не так: в `SkuEditor.jsx` жила отладка по конкретному
+артикулу (`s.code === 'T-001'`) — оставленные леса, шумящие в dev-консоли на
+каждом сохранении каталога. Блок удалён.
 
-(`useAuthStore.ts:56` — тоже `console.log`, но под `import.meta.env.DEV`; это
-нормально и трогать не нужно.)
+(`useAuthStore.ts:56` — тоже `console.log` под `import.meta.env.DEV`, но он
+осмысленный: сообщает о работе в dev-режиме без Supabase. Оставлен.)
 
 ### 4. RLS вариантов поставщиков открыта нараспашку
 
