@@ -18,7 +18,7 @@ import { CreateOrderModal } from './orders/CreateOrderModal';
 export default function OrdersScreen({ user }) {
   const {
     orders, departments, loading, loaded, loadAll, deleteOrder, shipOrder,
-    archiveLoaded, archiveLoading, loadArchive,
+    archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -30,6 +30,8 @@ export default function OrdersScreen({ user }) {
       shipOrder: s.shipOrder,
       archiveLoaded: s.archiveLoaded,
       archiveLoading: s.archiveLoading,
+      archiveHasMore: s.archiveHasMore,
+      loadMoreArchive: s.loadMoreArchive,
       loadArchive: s.loadArchive,
     })),
   );
@@ -289,6 +291,23 @@ export default function OrdersScreen({ user }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Архив грузится страницами: явная кнопка вместо тихого лимита —
+          видно, сколько уже загружено и есть ли ещё */}
+      {tab === 'archive' && archiveLoaded && archiveHasMore && (
+        <div className={styles.toolbar} style={{ justifyContent: 'center', marginTop: 12 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={archiveLoading}
+            onClick={loadMoreArchive}
+          >
+            {archiveLoading
+              ? 'Загружаем…'
+              : `Показать ещё (загружено ${inTab.length})`}
+          </button>
         </div>
       )}
 

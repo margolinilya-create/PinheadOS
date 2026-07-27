@@ -228,11 +228,6 @@ export function isStageReady(
   });
 }
 
-/** @deprecated Блокируют ли материалы закрой — используйте materialsBlockStage(materials, 'cutting') */
-export function materialsBlockCutting(materials: ErpMaterial[]): boolean {
-  return materialsBlockStage(materials, 'cutting');
-}
-
 /**
  * Причина ожидания этапа — человекочитаемая (как «Причина ожидания» в таблице).
  * null = не заблокирован.

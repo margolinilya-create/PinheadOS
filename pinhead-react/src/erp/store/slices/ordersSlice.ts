@@ -19,6 +19,9 @@ import type {
 } from '../../types';
 import { currentActor, withPending } from '../shared';
 import { ORDER_SELECT, sortOrderFull } from '../orderHelpers';
+
+/** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
+export const ARCHIVE_PAGE_SIZE = 50;
 import type {
   ErpStore,
   OrdersSlice,
@@ -36,6 +39,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   loadError: false,
   archiveLoaded: false,
   archiveLoading: false,
+  archiveHasMore: false,
 
   loadAll: async () => {
     set({ loading: true, loadError: false });
@@ -63,6 +67,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     });
   },
 
+  /**
+   * Архив постранично. Раньше первый заход на вкладку тянул ВЕСЬ архив одним
+   * запросом с полным ORDER_SELECT (9 вложенных отношений). Сегодня это 71 заказ
+   * и работает, но растёт линейно и однажды упрётся.
+   *
+   * Страница явная, не «тихий лимит»: сколько загружено и есть ли ещё — видно
+   * в интерфейсе кнопкой «Показать ещё».
+   */
   loadArchive: async () => {
     if (get().archiveLoading || get().archiveLoaded) return;
     set({ archiveLoading: true });
@@ -70,20 +82,51 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .from('erp_orders')
       .select(ORDER_SELECT)
       .neq('status', 'active')
-      .order('due_date', { ascending: true, nullsFirst: false });
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .range(0, ARCHIVE_PAGE_SIZE - 1);
     if (error) {
       toast.error('Не удалось загрузить архив');
       set({ archiveLoading: false });
       return;
     }
+    const rows = (data ?? []) as ErpOrderFull[];
     set((s) => ({
       orders: [
         ...s.orders.filter((o) => o.status === 'active'),
-        ...((data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+        ...rows.map(sortOrderFull),
       ],
       archiveLoading: false,
       archiveLoaded: true,
+      archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
     }));
+  },
+
+  loadMoreArchive: async () => {
+    if (get().archiveLoading || !get().archiveHasMore) return;
+    const loaded = get().orders.filter((o) => o.status !== 'active').length;
+    set({ archiveLoading: true });
+    const { data, error } = await supabase
+      .from('erp_orders')
+      .select(ORDER_SELECT)
+      .neq('status', 'active')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .range(loaded, loaded + ARCHIVE_PAGE_SIZE - 1);
+    if (error) {
+      toast.error('Не удалось догрузить архив');
+      set({ archiveLoading: false });
+      return;
+    }
+    const rows = (data ?? []) as ErpOrderFull[];
+    // Дедуп по id: страница могла сдвинуться, если заказ ушёл в архив между запросами
+    set((s) => {
+      const known = new Set(s.orders.map((o) => o.id));
+      const fresh = rows.filter((o) => !known.has(o.id)).map(sortOrderFull);
+      return {
+        orders: [...s.orders, ...fresh],
+        archiveLoading: false,
+        archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
+      };
+    });
   },
 
   loadOne: async (orderId) => {

@@ -8,7 +8,8 @@ URL: https://pinhead-os.vercel.app
 - **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
-  screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
+  screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal
+  (+ create/: SizeGridEditor, FormParts, ItemBlock, TzSection — форма разрезана);
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания);
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
@@ -110,16 +111,28 @@ URL: https://pinhead-os.vercel.app
 - Маршрут позиции считать `buildItemRoute` (и в сторе, и в превью формы) — правило
   вырезания `supply` при материале подрядчика живёт там
 
+## Правила ERP (аудит по скилам)
+- «Производственный цех» — признак из данных (`erp_departments.is_production`,
+  хелпер `isProductionDept`), НЕ константа. Иначе участок, заведённый в админке,
+  не появится ни в меню, ни в канбане, ни в маршруте, ни в гейте ТЗ
+- Диалоги — только через `useConfirmStore`: `confirm()` для да/нет,
+  `confirmWithInput()` когда нужна причина. `window.confirm/prompt` не использовать
+- Архив заказов грузится страницами (`ARCHIVE_PAGE_SIZE`, кнопка «Показать ещё»),
+  тихих лимитов не ставить — сколько загружено, должно быть видно
+- e2e: ERP-сценарии живут в `e2e/erp-queue.spec.ts` и гоняются проектом `desktop`;
+  mobile — другой интерфейс, ему нужны свои спеки, а не те же на 375px
+
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов
-- erp/utils/tz.ts — резолюция версий и гейт ТЗ, 37 тестов
+- erp/utils/tz.ts — резолюция версий и гейт ТЗ, 38 тестов
+- erp/utils/queueEntries.js — единый источник групп очереди, 21 тест
 
 ## Тесты
 ```bash
-npm run test     # 1172 unit теста (Vitest)
+npm run test     # 1205 unit тестов (Vitest)
 npm run e2e      # E2E (Playwright, 9 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно

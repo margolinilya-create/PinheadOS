@@ -34,6 +34,7 @@ vi.mock('../../lib/supabase', () => {
       neq: (col: string, val: unknown) => { filters.push(`neq:${col}=${val}`); return q; },
       order: () => q,
       limit: () => q,
+      range: (from: number, to: number) => { filters.push(`range:${from}-${to}`); return q; },
       maybeSingle: () => {
         h.selectCalls.push({ table, filters });
         return Promise.resolve({ data: h.singleData, error: h.selectError });
@@ -132,6 +133,7 @@ const {
   openWarehouseTaskCount, openProcurementCount, openSubcontractCount,
   activeExperimentalCount, activeOrdersCount,
 } = await import('./useErpStore');
+const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
 const { toast } = await import('../../store/useToastStore');
 const { useAuthStore } = await import('../../store/useAuthStore');
 
@@ -201,7 +203,7 @@ beforeEach(() => {
   localStorage.removeItem('erp_my_dept');
   useErpStore.setState({
     orders: [], departments: [], loaded: false,
-    archiveLoaded: false, archiveLoading: false,
+    archiveLoaded: false, archiveLoading: false, archiveHasMore: false,
     myDeptId: null, myDeptLoaded: false,
     dictionaries: [], dictionariesLoaded: false,
     permissionMatrix: null, permissionsLoaded: false,
@@ -1089,6 +1091,61 @@ describe('ленивый архив (п.26)', () => {
     expect(s.orders.map((o) => o.id)).toEqual(['o-a', 'o-z']);
     const archCall = h.selectCalls.at(-1);
     expect(archCall?.filters).toContain('neq:status=active');
+  });
+
+  it('архив грузится страницей, а не целиком', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    h.tableData = { erp_orders: [archivedRow] };
+    await useErpStore.getState().loadArchive();
+    const archCall = h.selectCalls.at(-1);
+    expect(archCall?.filters).toContain(`range:0-${ARCHIVE_PAGE_SIZE - 1}`);
+    // Пришло меньше страницы — значит это весь архив, кнопки «показать ещё» не будет
+    expect(useErpStore.getState().archiveHasMore).toBe(false);
+  });
+
+  it('полная страница означает «есть ещё», следующая догружается со смещением', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    // Ровно страница архивных заказов
+    const page = Array.from({ length: ARCHIVE_PAGE_SIZE }, (_, i) => ({
+      id: `arc-${i}`, title: `Сдан ${i}`, status: 'done_on_time', items: [], materials: [],
+    }));
+    h.tableData = { erp_orders: page };
+    await useErpStore.getState().loadArchive();
+    expect(useErpStore.getState().archiveHasMore).toBe(true);
+
+    h.tableData = { erp_orders: [archivedRow] };
+    await useErpStore.getState().loadMoreArchive();
+    const moreCall = h.selectCalls.at(-1);
+    expect(moreCall?.filters)
+      .toContain(`range:${ARCHIVE_PAGE_SIZE}-${ARCHIVE_PAGE_SIZE * 2 - 1}`);
+    const s = useErpStore.getState();
+    expect(s.archiveHasMore).toBe(false);
+    expect(s.orders.map((o) => o.id)).toContain('o-z');
+    expect(s.orders).toHaveLength(1 + ARCHIVE_PAGE_SIZE + 1);
+  });
+
+  it('повторный заказ в следующей странице не дублируется', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    const page = Array.from({ length: ARCHIVE_PAGE_SIZE }, (_, i) => ({
+      id: `arc-${i}`, title: `Сдан ${i}`, status: 'done_on_time', items: [], materials: [],
+    }));
+    h.tableData = { erp_orders: page };
+    await useErpStore.getState().loadArchive();
+    // Страница сдвинулась: тот же заказ пришёл снова
+    h.tableData = { erp_orders: [page[0], archivedRow] };
+    await useErpStore.getState().loadMoreArchive();
+    const ids = useErpStore.getState().orders.map((o) => o.id);
+    expect(ids.filter((id) => id === 'arc-0')).toHaveLength(1);
+  });
+
+  it('«показать ещё» не стреляет, когда догружать нечего', async () => {
+    useErpStore.setState({ archiveHasMore: false, archiveLoading: false } as any);
+    h.selectCalls.length = 0;
+    await useErpStore.getState().loadMoreArchive();
+    expect(h.selectCalls).toHaveLength(0);
   });
 
   it('после загрузки архива loadAll перезагружает всё (без фильтра active)', async () => {

@@ -211,11 +211,15 @@ export interface OrdersSlice {
   /** Архив (status != active) грузится лениво — при первом заходе на вкладку */
   archiveLoaded: boolean;
   archiveLoading: boolean;
+  /** В архиве осталась ещё страница — показываем кнопку «Показать ещё» */
+  archiveHasMore: boolean;
 
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
-  /** Ленивая загрузка архива (status != active) при первом заходе на вкладку */
+  /** Ленивая загрузка архива (status != active) при первом заходе на вкладку — первая страница */
   loadArchive: () => Promise<void>;
+  /** Следующая страница архива (кнопка «Показать ещё») */
+  loadMoreArchive: () => Promise<void>;
   /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
   loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
