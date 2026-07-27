@@ -112,6 +112,22 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
 }
 
 /**
+ * Маршрут позиции с учётом подряда: если материал даёт подрядчик, закупку не заводим —
+ * этап supply вырезается, и его убирают из depends_on остальных, чтобы не осиротить
+ * зависимость. Единый источник для стора (createOrder) и превью маршрута в форме
+ * создания: раньше правило жило только в ordersSlice, и превью разошлось бы с фактом.
+ */
+export function buildItemRoute(input: BuildRouteInput & {
+  materialSource?: string | null;
+}): RouteStage[] {
+  const route = buildRoute(input);
+  if (input.productionType !== 'outsource' || input.materialSource !== 'contractor') return route;
+  return route
+    .filter((r) => r.departmentCode !== 'supply')
+    .map((r) => ({ ...r, dependsOnCodes: r.dependsOnCodes.filter((c) => c !== 'supply') }));
+}
+
+/**
  * Какой тип материала нужен какому цеху — гейт запуска этапа.
  * Этап блокируется только своими материалами (а не всеми материалами заказа):
  *  - ткань нужна закрою; фурнитура и бирки — швейке.
@@ -188,7 +204,11 @@ export function hasOpenProcurement(
 
 /**
  * Готов ли этап к работе: все зависимости done/skipped.
- * (Материальный гейт и гейт закупки проверяются отдельно.)
+ * (Материальный гейт, гейт закупки и гейт ТЗ проверяются отдельно и передаются флагами.)
+ *
+ * `missingTz` — этапу не назначено ТЗ (`utils/tz.stageMissingTz`). Вторая ступень гейта
+ * заказчика: первая — блокировка кнопки создания заказа, эта — страховка для этапов,
+ * появившихся позже (перенос между цехами) и заказов, заведённых до внедрения ТЗ.
  */
 export function isStageReady(
   stage: Pick<ErpItemStage, 'depends_on' | 'status'>,
@@ -196,8 +216,10 @@ export function isStageReady(
   materials: ErpMaterial[],
   departmentCode?: string,
   blockedByProcurement = false,
+  missingTz = false,
 ): boolean {
   if (blockedByProcurement) return false;
+  if (missingTz) return false;
   if (materialsBlockStage(materials, departmentCode)) return false;
   const byId = new Map(allStages.map((s) => [s.id, s]));
   return stage.depends_on.every((depId) => {
@@ -222,9 +244,11 @@ export function waitingReason(
   departmentNameById: Map<string, string>,
   departmentCode?: string,
   blockedByProcurement = false,
+  missingTz = false,
 ): string | null {
   if (stage.status === 'blocked') return stage.block_reason || 'Заблокирован цехом';
   if (blockedByProcurement) return 'Ожидает закупку материала на замену';
+  if (missingTz) return 'Не назначено ТЗ';
   const missing = missingMaterialsForStage(materials, departmentCode);
   if (missing.length > 0) {
     // Пришли, но склад не принял → «ожидает приёмки»; иначе → «ждём приход»

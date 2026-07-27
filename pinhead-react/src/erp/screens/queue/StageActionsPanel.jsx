@@ -4,6 +4,8 @@ import { useErpStore } from '../../store/useErpStore';
 import { useDictionary } from '../../store/useDictionary';
 import { stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
+import { TzViewer } from '../../components/TzViewer';
+import { stageTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import styles from '../../erp.module.css';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
@@ -60,6 +62,9 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
   );
   const blockReasons = useDictionary('block_reason');
   const problemTypes = useDictionary('problem_type');
+
+  // Актуальная версия PDF-ТЗ этого цеха: назначение → группа → is_current (волна 4)
+  const tzDoc = stageTzDocument(order, item.id, stage.department_id);
 
   const [ackText, setAckText] = useState('');
   const [startMode, setStartMode] = useState(false);
@@ -122,6 +127,15 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
         </div>
       )}
 
+      {showTz && tzDoc && (
+        <TzViewer
+          doc={tzDoc}
+          compact
+          badge={tzUpdatedAfterStart(tzDoc, stage)
+            ? <span className={`${styles.chip} ${styles.chipBlocked}`}>ТЗ обновлено</span>
+            : null}
+        />
+      )}
       {showTz && <TzBlock order={order} item={item} />}
 
       {canAct && (

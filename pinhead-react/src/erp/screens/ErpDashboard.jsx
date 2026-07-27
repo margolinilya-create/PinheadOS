@@ -6,6 +6,7 @@ import { Badge } from '../components/Badge';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement } from '../utils/routes';
+import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
 import { isQueueDept } from '../data/departments';
@@ -107,7 +108,9 @@ export default function ErpDashboard() {
           if (!slot) continue;
           if (stage.status === 'in_progress') slot.inProgress += 1;
           else if (stage.status === 'blocked') slot.blocked += 1;
-          else if (stage.status === 'waiting' && isStageReady(stage, item.stages, order.materials, slot.dept.code)) {
+          else if (stage.status === 'waiting' && isStageReady(
+            stage, item.stages, order.materials, slot.dept.code, false,
+            stageMissingTz(order, item.id, stage.department_id, slot.dept.code))) {
             slot.ready += 1;
           }
         }

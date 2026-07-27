@@ -24,7 +24,14 @@ import {
   toggleSize,
   validateOrderForm,
 } from '../../utils/orderForm';
+import { buildItemRoute } from '../../utils/routes';
+import { deptNeedsTz, tzFilePath, validateTzAssignments } from '../../utils/tz';
+import { currentActor } from '../../store/shared';
+import { supabase } from '../../../lib/supabase';
 import {
+  TZ_BUCKET,
+  TZ_MAX_BYTES,
+  TZ_MIME,
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
   PACKAGING_LABELS,
@@ -198,6 +205,29 @@ function FormSection({ id, title, summary, open, onToggle, children }) {
   );
 }
 
+/** Кнопка выбора PDF-файла ТЗ: скрытый input + вид обычной кнопки */
+function PdfPick({ label, onPick }) {
+  const ref = useRef(null);
+  return (
+    <>
+      <button type="button" className="btn btn-secondary" onClick={() => ref.current?.click()}>
+        {label}
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          onPick(file);
+        }}
+      />
+    </>
+  );
+}
+
 /** Текст ошибки под полем (инлайн-валидация) */
 function FieldError({ id, text }) {
   if (!text) return null;
@@ -252,9 +282,88 @@ export function CreateOrderModal({ onClose }) {
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
+  /**
+   * ТЗ в PDF (волна 4). File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
+   * через JSON.stringify, и File сериализовался бы в {} молча.
+   * tzDocs: { groupId, itemIndex (null = общее ТЗ заказа), file }
+   * tzAssign: `${индекс позиции}:${id цеха}` → groupId
+   */
+  const [tzDocs, setTzDocs] = useState([]);
+  const [tzAssign, setTzAssign] = useState({});
+
+  const addTzDoc = (file, itemIndex) => {
+    if (!file) return;
+    const isPdf = file.type === TZ_MIME || /\.pdf$/i.test(file.name);
+    if (!isPdf) {
+      toast.error('ТЗ принимается только в PDF');
+      return;
+    }
+    if (file.size > TZ_MAX_BYTES) {
+      toast.error(`ТЗ: файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ`);
+      return;
+    }
+    setTzDocs((arr) => [...arr, { groupId: crypto.randomUUID(), itemIndex, file }]);
+  };
+
+  const removeTzDoc = (groupId) => {
+    setTzDocs((arr) => arr.filter((d) => d.groupId !== groupId));
+    setTzAssign((m) => Object.fromEntries(
+      Object.entries(m).filter(([, g]) => g !== groupId)));
+  };
+
+  // Удаление позиции сдвигает индексы — переклеиваем ключи ТЗ, иначе следующая
+  // позиция унаследовала бы чужие назначения
+  const removeItem = (i) => {
+    setItems((arr) => arr.filter((_, idx) => idx !== i));
+    const shift = (idx) => (idx > i ? idx - 1 : idx);
+    setTzDocs((arr) => arr
+      .filter((d) => d.itemIndex !== i)
+      .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) })));
+    setTzAssign((m) => Object.fromEntries(
+      Object.entries(m)
+        .map(([key, g]) => [key.split(':'), g])
+        .filter(([[idx]]) => Number(idx) !== i)
+        .map(([[idx, dept], g]) => [`${shift(Number(idx))}:${dept}`, g])));
+  };
+
   // Аккордеон-секции: все раскрыты по умолчанию
-  const [open, setOpen] = useState({ main: true, items: true, extra: true });
+  const [open, setOpen] = useState({ main: true, items: true, extra: true, tz: true });
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
+
+  /**
+   * Маршрут каждой заполненной позиции — считаем ДО создания заказа тем же
+   * buildItemRoute, что и стор, иначе превью разошлось бы с фактом. ТЗ требуют
+   * только производственные цеха (deptNeedsTz): закупке и складам PDF не адресуется.
+   */
+  const deptByCode = useMemo(
+    () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
+    [departments],
+  );
+  const tzItems = useMemo(() => items
+    .map((it, index) => ({ it, index }))
+    .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
+    .map(({ it, index }) => {
+      const prints = it.has_branding ? it.prints : [];
+      const route = buildItemRoute({
+        productionType: it.production_type,
+        brandingMethods: [...new Set(prints.map((p) => p.method))],
+        brandingOn: it.branding_on ?? 'cut',
+        materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+      });
+      return {
+        index,
+        label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
+        stages: route
+          .map((r) => deptByCode.get(r.departmentCode))
+          .filter((d) => d && deptNeedsTz(d.code))
+          .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
+      };
+    }), [items, deptByCode]);
+
+  const tzValidation = useMemo(
+    () => validateTzAssignments(tzItems, tzAssign),
+    [tzItems, tzAssign],
+  );
 
   // Инлайн-валидация: после первой попытки сабмита ошибки живут вместе с вводом
   const [submitted, setSubmitted] = useState(false);
@@ -359,8 +468,70 @@ export function CreateOrderModal({ onClose }) {
       toast.error('Выберите следующий участок для доработки после операции подряда');
       return;
     }
+    // Гейт ТЗ (решение заказчика): без назначенного ТЗ на каждый производственный
+    // этап заказ не создаётся. Кнопка уже заблокирована — это страховка от Enter.
+    if (tzValidation.missing.length > 0) {
+      setOpen((o) => ({ ...o, tz: true }));
+      toast.error(tzValidation.message);
+      return;
+    }
+
     setSaving(true);
+
+    /**
+     * Файлы ТЗ грузим ДО создания заказа, а сам заказ вместе с документами и
+     * назначениями создаётся одной транзакцией (RPC erp_create_order, секция tz).
+     * Иначе при сбое дозагрузки остался бы заказ без ТЗ — ровно то, что запрещено.
+     * Цена: файлы-сироты в tz/new/, если RPC упадёт; удалять из бакета клиент не может
+     * (политика delete — только admin), поэтому префикс намеренно отдельный.
+     */
+    const formToPayloadIndex = new Map(
+      items
+        .map((it, index) => ({ it, index }))
+        .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
+        .map(({ index }, payloadIndex) => [index, payloadIndex]),
+    );
+    const actor = currentActor();
+    const tzDocuments = [];
+    for (const d of tzDocs) {
+      const itemIndex = d.itemIndex === null ? null : formToPayloadIndex.get(d.itemIndex);
+      if (d.itemIndex !== null && itemIndex === undefined) continue; // позиция выпала из заказа
+      const path = tzFilePath('new', d.groupId, 1, d.file.name);
+      const { error: upErr } = await supabase.storage
+        .from(TZ_BUCKET)
+        .upload(path, d.file, { contentType: TZ_MIME, upsert: false });
+      if (upErr) {
+        toast.error(`Не удалось загрузить ТЗ «${d.file.name}» — заказ не создан`);
+        setSaving(false);
+        return;
+      }
+      tzDocuments.push({
+        group_id: d.groupId,
+        item_index: itemIndex ?? null,
+        file_path: path,
+        file_name: d.file.name,
+        mime_type: TZ_MIME,
+        size_bytes: d.file.size,
+        uploaded_by: actor,
+      });
+    }
+    const usedGroups = new Set(tzDocuments.map((d) => d.group_id));
+    const tzAssignments = Object.entries(tzAssign)
+      .map(([key, groupId]) => {
+        const [formIndex, departmentId] = key.split(':');
+        return { itemIndex: formToPayloadIndex.get(Number(formIndex)), departmentId, groupId };
+      })
+      .filter((a) => a.itemIndex !== undefined && usedGroups.has(a.groupId))
+      .map((a) => ({
+        item_index: a.itemIndex,
+        department_id: a.departmentId,
+        group_id: a.groupId,
+        assigned_by: actor,
+      }));
+
     const created = await createOrder({
+      tz_required: true,
+      tz: { documents: tzDocuments, assignments: tzAssignments },
       bitrix_id: form.bitrix_id.trim() || undefined,
       title: form.title.trim(),
       customer: form.customer.trim() || undefined,
@@ -429,6 +600,10 @@ export function CreateOrderModal({ onClose }) {
   const itemsSummary =
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
+  const generalDocs = tzDocs.filter((d) => d.itemIndex === null);
+  const tzSummary = tzValidation.missing.length > 0
+    ? `не назначено: ${tzValidation.missing.length}`
+    : `${tzDocs.length} ${pluralize(tzDocs.length, 'файл', 'файла', 'файлов')} · назначено`;
   const extraSummary = [
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
@@ -749,7 +924,7 @@ export function CreateOrderModal({ onClose }) {
               className="btn btn-ghost"
               aria-label="Убрать позицию"
               disabled={items.length === 1}
-              onClick={() => setItems((arr) => arr.filter((_, idx) => idx !== i))}
+              onClick={() => removeItem(i)}
             >
               ✕
             </button>
@@ -858,6 +1033,98 @@ export function CreateOrderModal({ onClose }) {
         </FormSection>
 
         <FormSection
+          id="order-section-tz"
+          title="ТЗ в PDF для цехов"
+          summary={tzSummary}
+          open={open.tz}
+          onToggle={() => toggleSection('tz')}
+        >
+        <p className={styles.subText}>
+          Каждому производственному цеху маршрута нужно назначить ТЗ в PDF. Один файл можно
+          назначить нескольким цехам; заменить его потом можно в карточке заказа — обновится
+          сразу у всех.
+        </p>
+
+        <div className={styles.checkRow}>
+          <PdfPick label="+ Общее ТЗ заказа (PDF)" onPick={(f) => addTzDoc(f, null)} />
+          <span className={styles.subText}>Только PDF, до 15 МБ</span>
+        </div>
+        {generalDocs.length > 0 && (
+          <ul className={styles.tzMatList}>
+            {generalDocs.map((d) => (
+              <li key={d.groupId}>
+                📄 {d.file.name}
+                {' '}
+                <button type="button" className="btn btn-ghost" onClick={() => removeTzDoc(d.groupId)}>
+                  ✕ убрать
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {tzItems.length === 0 && (
+          <div className={styles.subText}>
+            Заполните позицию (изделие и количество) — здесь появится её маршрут.
+          </div>
+        )}
+
+        {tzItems.map((ti) => {
+          const itemDocs = tzDocs.filter((d) => d.itemIndex === null || d.itemIndex === ti.index);
+          return (
+            <div key={ti.index} className={styles.tzBlock}>
+              <div className={styles.matSectionHead}>
+                <strong>Позиция: {ti.label}</strong>
+                <PdfPick label="+ ТЗ позиции (PDF)" onPick={(f) => addTzDoc(f, ti.index)} />
+              </div>
+              {tzDocs.filter((d) => d.itemIndex === ti.index).length > 0 && (
+                <ul className={styles.tzMatList}>
+                  {tzDocs.filter((d) => d.itemIndex === ti.index).map((d) => (
+                    <li key={d.groupId}>
+                      📄 {d.file.name}
+                      {' '}
+                      <button type="button" className="btn btn-ghost" onClick={() => removeTzDoc(d.groupId)}>
+                        ✕ убрать
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {ti.stages.length === 0 && (
+                <div className={styles.subText}>
+                  В маршруте позиции нет производственных цехов — ТЗ не требуется.
+                </div>
+              )}
+              {ti.stages.map((st) => {
+                const key = `${ti.index}:${st.departmentId}`;
+                const value = tzAssign[key] ?? '';
+                return (
+                  <div key={st.departmentId} className={styles.tzAssignRow}>
+                    <span className={styles.tzAssignDept}>{st.departmentName}</span>
+                    <select
+                      className={styles.select}
+                      value={value}
+                      aria-label={`ТЗ для цеха ${st.departmentName}, позиция ${ti.label}`}
+                      data-invalid={!value ? true : undefined}
+                      onChange={(e) => setTzAssign((m) => ({ ...m, [key]: e.target.value }))}
+                    >
+                      <option value="">— выбрать ТЗ —</option>
+                      {itemDocs.map((d) => (
+                        <option key={d.groupId} value={d.groupId}>
+                          {d.itemIndex === null ? 'Общее ТЗ: ' : ''}{d.file.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!value && <span className={styles.tzAssignMissing}>не назначено</span>}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+        </FormSection>
+
+        <FormSection
           id="order-section-extra"
           title="Упаковка и доп."
           summary={extraSummary}
@@ -957,11 +1224,19 @@ export function CreateOrderModal({ onClose }) {
               Осталось заполнить: {validation.missing.join(', ')}
             </span>
           )}
+          {/* Требование заказчика: без ТЗ кнопка недоступна СРАЗУ, с конкретной причиной */}
+          {tzValidation.message && (
+            <span className={`${styles.remainingHint} ${styles.tzAssignMissing}`} role="status">
+              {tzValidation.message}
+            </span>
+          )}
           <button type="button" className="btn btn-ghost" onClick={requestClose}>Отмена</button>
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={saving || (submitted && validation.missing.length > 0)}
+            disabled={saving
+              || tzValidation.missing.length > 0
+              || (submitted && validation.missing.length > 0)}
           >
             {saving ? 'Создание…' : 'Создать заказ'}
           </button>

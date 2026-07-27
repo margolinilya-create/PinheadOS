@@ -8,6 +8,7 @@ import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { stageMissingTz } from '../utils/tz';
 import { filtersFromParams, filtersToParams } from '../utils/filterStages';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import { isQueueDept, deptShortName } from '../data/departments';
@@ -34,9 +35,10 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
   const allStages = item.stages;
 
   // waiting в БД, но зависимости выполнены → показываем как «готов к работе»
+  const noTz = stageMissingTz(order, item.id, stage.department_id, dept?.code);
   const effectiveReady =
     stage.status === 'waiting' &&
-    isStageReady(stage, allStages, order.materials, dept?.code);
+    isStageReady(stage, allStages, order.materials, dept?.code, false, noTz);
   const displayStatus = effectiveReady ? 'ready' : stage.status;
 
   const reason =
@@ -44,7 +46,7 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
       ? waitingReason(
           stage, allStages, order.materials,
           new Map([...deptById].map(([id, d]) => [id, d.name])),
-          dept?.code,
+          dept?.code, false, noTz,
         )
       : null;
 

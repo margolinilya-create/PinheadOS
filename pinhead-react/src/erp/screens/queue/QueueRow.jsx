@@ -5,6 +5,7 @@ import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { stageQtyProgress } from '../../utils/progress';
 import { STAGE_STATUS_LABELS } from '../../types';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
+import { stageTzDocument } from '../../utils/tz';
 import styles from '../../erp.module.css';
 import { StageActionsPanel } from './StageActionsPanel';
 
@@ -28,6 +29,8 @@ export function QueueRow({
   const needsAck = overdue && !stage.overdue_ack_at;
   const progress = stageQtyProgress(stage, item.qty);
   const display = group === 'ready' ? 'ready' : stage.status;
+  // Индикатор ТЗ: сначала реальный PDF цеха (волна 4), иначе структурное ТЗ позиции
+  const tzDoc = stageTzDocument(order, item.id, stage.department_id);
   const hasTz = (item.prints ?? []).length > 0 || (item.size_grid ?? []).length > 0;
 
   return (
@@ -85,7 +88,16 @@ export function QueueRow({
             {STAGE_STATUS_LABELS[display]}
           </span>
           {overdue && <span className={`${styles.chip} ${styles.chipBlocked}`}>⏰ просрочен этап</span>}
-          {hasTz && <span className={styles.subText} title="Есть ТЗ позиции">📋</span>}
+          {tzDoc ? (
+            <span
+              className={styles.subText}
+              title={`ТЗ: ${tzDoc.file_name || 'файл'}${tzDoc.version > 1 ? `, версия ${tzDoc.version}` : ''}`}
+            >
+              📄
+            </span>
+          ) : hasTz && (
+            <span className={styles.subText} title="Есть ТЗ позиции">📋</span>
+          )}
         </span>
 
         <span className={styles.queueRowAssignee} title="Исполнитель">

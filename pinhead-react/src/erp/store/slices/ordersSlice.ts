@@ -7,7 +7,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { buildRoute } from '../../utils/routes';
+import { buildItemRoute } from '../../utils/routes';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { daysLeft } from '../../utils/time';
 import type {
@@ -109,7 +109,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-    const { items, ...orderFields } = input;
+    const { items, tz, ...orderFields } = input;
 
     // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
     // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
@@ -117,18 +117,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const payload = {
       order: { ...orderFields, status: 'active' },
       items: items.map((it, i) => {
-        let route = buildRoute({
+        // Правка 4.2.2 (вырезание supply при материале подрядчика) — внутри buildItemRoute,
+        // общего с превью маршрута в форме создания заказа.
+        const route = buildItemRoute({
           productionType: it.production_type,
           brandingMethods: it.branding_methods,
           brandingOn: it.branding_on ?? 'cut',
+          materialSource: it.material_source,
         });
-        // Правка 4.2.2: материал предоставляет подрядчик → закупку не заводим.
-        // Убираем этап supply и вычищаем его из depends_on остальных, чтобы не осиротить зависимость.
-        if (it.production_type === 'outsource' && it.material_source === 'contractor') {
-          route = route
-            .filter((r) => r.departmentCode !== 'supply')
-            .map((r) => ({ ...r, dependsOnCodes: r.dependsOnCodes.filter((c) => c !== 'supply') }));
-        }
         const valid = route.filter((r) => deptByCode.has(r.departmentCode));
         const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));
         return {
@@ -165,6 +161,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         };
       }),
       materials: [],
+      // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
+      tz: tz ?? { documents: [], assignments: [] },
     };
 
     const { data, error } = await supabase.rpc('erp_create_order', { payload });

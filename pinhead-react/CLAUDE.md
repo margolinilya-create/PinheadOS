@@ -12,20 +12,22 @@ URL: https://pinhead-os.vercel.app
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания);
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
-  useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн);
+  useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
+  TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
+  screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
-  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist +
+  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
   + useErpAccess.ts (права: can/canActIn/canDo) + useDictionary.js (активные значения справочника);
-  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/realtime;
+  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
-  stageMove/permissions),
+  stageMove/permissions/tz + tzFile),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -93,15 +95,31 @@ URL: https://pinhead-os.vercel.app
 - Статусы в справочник не выносить: они в CHECK-констрейнтах и стейт-машинах;
   в админке — вкладка только для чтения
 
+## Правила ERP (волны 3–4: поставщики и ТЗ в PDF)
+- Варианты поставщика — `erp_material_suppliers`; выбранный дублируется в
+  `erp_materials.supplier`, поэтому все прежние экраны показывают его без правок.
+  Снимать флаг у прежнего варианта ДО установки нового (партиальный уникальный индекс)
+- ТЗ: назначение цеху хранит `group_id`, а не версию. Замена файла = новая версия
+  + снятие `is_current` со старой (именно в таком порядке) → у всех цехов обновилось само
+- Гейт ТЗ (`utils/tz.stageMissingTz`) — только для производственных цехов (`deptNeedsTz`)
+  и только при `tz_required === true`. Отсутствие поля не блокирует: остановка цеха fail-open
+- Заказ с ТЗ создаётся одной транзакцией: файлы в бакет (`tz/new/<group_id>/`) → RPC
+  `erp_create_order` с секцией `tz`. Обратный порядок нарушил бы «заказ без ТЗ невозможен»
+- File-объекты никогда не кладутся в `form`/`items` формы создания — черновик пишется
+  через `JSON.stringify`, и File молча превратился бы в `{}`
+- Маршрут позиции считать `buildItemRoute` (и в сторе, и в превью формы) — правило
+  вырезания `supply` при материале подрядчика живёт там
+
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов
+- erp/utils/tz.ts — резолюция версий и гейт ТЗ, 37 тестов
 
 ## Тесты
 ```bash
-npm run test     # 1106 unit тестов (Vitest)
+npm run test     # 1172 unit теста (Vitest)
 npm run e2e      # E2E (Playwright, 9 файлов)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно

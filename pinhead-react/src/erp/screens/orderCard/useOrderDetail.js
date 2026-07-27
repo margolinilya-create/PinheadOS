@@ -111,6 +111,6 @@ export function useOrderDetail(orderId) {
     order, loaded, notFound: loaded && !order && lookedUp,
     events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
-    deptById, deptNameById, stageById,
+    deptById, deptNameById, stageById, departments,
   };
 }

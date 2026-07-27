@@ -949,6 +949,82 @@ a.kpiTile:hover { border-color: var(--accent); }
   gap: 3px;
 }
 
+/* Документ ТЗ в PDF (волна 4): шапка + встроенный просмотрщик браузера */
+.tzDoc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 10px);
+  padding: 10px;
+  background: var(--surface);
+}
+.tzDocHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tzDocIcon { font-size: 18px; flex-shrink: 0; }
+.tzDocName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.tzDocVersion { color: var(--accent); font-family: var(--font-mono, monospace); }
+.tzDocMeta { font-size: var(--type-body-sm, 13px); color: var(--text-muted); }
+.tzFrame {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm, 6px);
+  background: #fff;
+}
+.tzFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 600);
+  background: var(--bg, #101010);
+  display: flex;
+  flex-direction: column;
+}
+.tzFullscreenBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.tzFullscreenName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50vw;
+}
+.tzFullscreenFrame { flex: 1; width: 100%; border: 0; background: #fff; }
+
+/* Список назначений ТЗ по цехам (карточка заказа и форма создания) */
+.tzAssignRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-light);
+}
+.tzAssignRow:last-child { border-bottom: 0; }
+.tzAssignDept { font-weight: 600; }
+.tzAssignMissing { color: var(--danger, #c0392b); }
+@media (max-width: 760px) {
+  .tzAssignRow { grid-template-columns: 1fr; }
+  .tzFrame { height: 320px; }
+  .tzDocName { max-width: 200px; }
+}
+
 /* Прогресс частичной готовности «300/500» */
 .progressLine { display: flex; align-items: center; gap: 8px; }
 .progressTrack {

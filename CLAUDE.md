@@ -158,13 +158,15 @@ admin, director, manager, rop, designer, production
 `erp_procurement_tasks`, `erp_subcontracting`, `erp_warehouse_ops`/`_tasks`,
 `erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав),
 `erp_dictionaries` (справочники админки: причины блокировок, типы проблем, типы изделий,
-поставщики).
+поставщики), `erp_material_suppliers` (варианты поставщиков на позицию закупки, ровно один
+`is_selected`), `erp_tz_documents`/`erp_tz_assignments` (ТЗ в PDF: версии внутри `group_id`,
+назначение цеху ссылается на группу).
 
 **Storage:**
 | Bucket | Назначение |
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
-| `erp-attachments` | Превью макетов и вложения производственных заказов, public read |
+| `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
 
 Статусы заказа: draft → review → approved → production → done
 
@@ -205,6 +207,11 @@ admin, director, manager, rop, designer, production
   с подтверждением последствий; прогресс считается в штуках (`erp/utils/progress`)
 - Справочники ERP (`erp_dictionaries`) — подсказка, а не ограничение; значения отключаются,
   а не удаляются. Статусы в справочник не выносятся — они часть маршрутной логики
+- ТЗ в PDF: назначение цеху хранит `group_id`, а не версию — замена файла обновляет ТЗ
+  у всех связанных цехов сама. Гейт (`utils/tz`) требует ТЗ только у производственных
+  цехов и только при `tz_required === true` (fail-open: остановка цеха не должна
+  случаться из-за отсутствующего поля). Заказ с ТЗ создаётся одной транзакцией:
+  файлы в бакет → `erp_create_order` с секцией `tz`
 
 ## Документация
 

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { isStageReady, isStageAwaitingProcurement } from '../../utils/routes';
+import { stageMissingTz } from '../../utils/tz';
 import { deptShortName } from '../../data/departments';
 import { STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
@@ -21,7 +22,8 @@ export function StageStepper({ item, order, deptById, events }) {
         const dept = deptById.get(st.department_id);
         const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
         const effReady = st.status === 'waiting' &&
-          isStageReady(st, item.stages, order.materials, dept?.code, awaitProc);
+          isStageReady(st, item.stages, order.materials, dept?.code, awaitProc,
+            stageMissingTz(order, item.id, st.department_id, dept?.code));
         const display = effReady ? 'ready' : st.status;
         const ev = lastEventByStage.get(st.id);
         const tooltip = [

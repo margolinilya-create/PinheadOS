@@ -1,4 +1,5 @@
 import { isStageAwaitingProcurement, isStageReady, waitingReason } from './routes';
+import { stageMissingTz } from './tz';
 
 /**
  * Задания производства как плоский список: этап позиции + вычисленная группа
@@ -27,17 +28,19 @@ export function buildQueueEntries(orders, departments, { departmentId = null } =
         if (!dept) continue;
 
         const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
+        const noTz = stageMissingTz(order, item.id, stage.department_id, dept.code);
         let group = stage.status;
         let reason = null;
 
         if (stage.status === 'blocked') {
           reason = stage.block_reason || 'Заблокирован цехом';
         } else if (stage.status !== 'done' && stage.status !== 'in_progress') {
-          const ready = isStageReady(stage, item.stages, order.materials, dept.code, awaitProc);
+          const ready = isStageReady(
+            stage, item.stages, order.materials, dept.code, awaitProc, noTz);
           group = ready ? 'ready' : 'waiting';
           if (!ready) {
             reason = waitingReason(
-              stage, item.stages, order.materials, deptNameById, dept.code, awaitProc);
+              stage, item.stages, order.materials, deptNameById, dept.code, awaitProc, noTz);
           }
         }
 

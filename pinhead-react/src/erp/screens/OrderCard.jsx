@@ -13,6 +13,7 @@ import {
 import styles from '../erp.module.css';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
+import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
@@ -27,7 +28,7 @@ export default function OrderCard() {
   const {
     order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
-    deptById, deptNameById, stageById,
+    deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
 
   if (notFound) {
@@ -91,10 +92,24 @@ export default function OrderCard() {
       </div>
 
       <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
+      <TzMissingBanner order={order} departments={departments} />
 
       {order.items.map((item) => (
         <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
       ))}
+
+      <section className={styles.matSection}>
+        <div className={styles.matSectionHead}><strong>Технические задания (PDF)</strong></div>
+        {order.items.map((item) => (
+          <div key={item.id}>
+            <div className={styles.matSectionHead}>
+              <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
+              <span className={styles.queueQty}>{item.qty} шт</span>
+            </div>
+            <TzDocsSection order={order} item={item} deptById={deptById} />
+          </div>
+        ))}
+      </section>
 
       <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>Материалы</strong></div>

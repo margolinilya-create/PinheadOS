@@ -9,4 +9,5 @@ export { employeesSlice } from './employeesSlice';
 export { permissionsSlice } from './permissionsSlice';
 export { dictionariesSlice } from './dictionariesSlice';
 export { experimentalSlice } from './experimentalSlice';
+export { tzSlice } from './tzSlice';
 export { realtimeSlice } from './realtimeSlice';

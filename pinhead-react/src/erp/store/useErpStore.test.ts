@@ -20,6 +20,9 @@ const h = vi.hoisted(() => ({
   singleData: null as unknown,
   rpcCalls: [] as { fn: string; args: { payload?: unknown } }[],
   rpcResult: { data: null as unknown, error: null as { message: string } | null },
+  /** Загрузки в Storage (ТЗ в PDF, волна 4) */
+  uploadCalls: [] as { bucket: string; path: string; name: string }[],
+  uploadError: null as { message: string } | null,
 }));
 
 vi.mock('../../lib/supabase', () => {
@@ -48,12 +51,20 @@ vi.mock('../../lib/supabase', () => {
     supabase: {
       from: vi.fn((table: string) => ({
         select: vi.fn(() => makeQuery(table)),
-        update: vi.fn((patch: Record<string, unknown>) => ({
-          eq: vi.fn(() => {
-            h.updateCalls.push({ table, patch });
-            return Promise.resolve({ error: h.updateError });
-          }),
-        })),
+        // Цепочки .eq().neq() (снятие is_current у прошлых версий ТЗ) — звено возвращает себя
+        update: vi.fn((patch: Record<string, unknown>) => {
+          let recorded = false;
+          const q: any = {
+            eq: () => {
+              if (!recorded) { recorded = true; h.updateCalls.push({ table, patch }); }
+              return q;
+            },
+            neq: () => q,
+            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+              Promise.resolve({ error: h.updateError }).then(resolve, reject),
+          };
+          return q;
+        }),
         insert: vi.fn((row: any) => {
           h.insertCalls.push({ table, row });
           const result = {
@@ -68,19 +79,40 @@ vi.mock('../../lib/supabase', () => {
         // upsert (onConflict/ignoreDuplicates) — идемпотентные вставки задач склада/этапов
         upsert: vi.fn((row: any) => {
           h.insertCalls.push({ table, row });
-          return Promise.resolve({ error: h.insertErrors.shift() ?? null });
+          const result = {
+            data: Array.isArray(row) ? row : [row],
+            error: h.insertErrors.shift() ?? null,
+          };
+          const p: any = Promise.resolve({ error: result.error });
+          p.select = () => Promise.resolve(result);
+          return p;
         }),
-        delete: vi.fn(() => ({
-          eq: vi.fn(() => {
-            h.deleteCalls.push({ table });
-            return Promise.resolve({ error: h.deleteError });
-          }),
-        })),
+        delete: vi.fn(() => {
+          let recorded = false;
+          const q: any = {
+            eq: () => {
+              if (!recorded) { recorded = true; h.deleteCalls.push({ table }); }
+              return q;
+            },
+            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+              Promise.resolve({ error: h.deleteError }).then(resolve, reject),
+          };
+          return q;
+        }),
       })),
       rpc: vi.fn((fn: string, args: { payload?: unknown }) => {
         h.rpcCalls.push({ fn, args });
         return Promise.resolve(h.rpcResult);
       }),
+      storage: {
+        from: vi.fn((bucket: string) => ({
+          upload: vi.fn((path: string, file: { name?: string }) => {
+            h.uploadCalls.push({ bucket, path, name: file?.name ?? '' });
+            return Promise.resolve({ error: h.uploadError });
+          }),
+          getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.test/${path}` } }),
+        })),
+      },
     },
   };
 });
@@ -163,6 +195,8 @@ beforeEach(() => {
   h.singleData = null;
   h.rpcCalls.length = 0;
   h.rpcResult = { data: null, error: null };
+  h.uploadCalls.length = 0;
+  h.uploadError = null;
   _pendingMutations.clear();
   localStorage.removeItem('erp_my_dept');
   useErpStore.setState({
@@ -1906,5 +1940,159 @@ describe('useErpStore — варианты поставщиков', () => {
     h.updateError = { message: 'нет связи' };
     expect(await useErpStore.getState().updateSupplierOption('m1', 's1', { price: 999 })).toBe(false);
     expect(materialNow().suppliers[0].price).toBe(380);
+  });
+});
+
+describe('ТЗ в PDF (волна 4)', () => {
+  const pdf = (name = 'tz.pdf', size = 1024) =>
+    ({ name, size, type: 'application/pdf' }) as unknown as File;
+
+  /** Заказ с двумя цехами на позиции и опциональными документами/назначениями */
+  function seedTz(over: Record<string, unknown> = {}) {
+    useErpStore.setState({
+      departments: [
+        { id: 'd-cut', code: 'cutting', name: 'Закройный цех' },
+        { id: 'd-sew', code: 'sewing', name: 'Швейный цех' },
+      ],
+      orders: [{
+        id: 'o1', status: 'active', title: 'Заказ', due_date: '2026-08-01',
+        tz_required: true,
+        items: [{
+          id: 'it1', qty: 100, product_type: 'Футболка', sort_order: 10,
+          stages: [
+            { id: 'st-cut', item_id: 'it1', department_id: 'd-cut', status: 'waiting', sort_order: 10, depends_on: [], qty_done: 0 },
+            { id: 'st-sew', item_id: 'it1', department_id: 'd-sew', status: 'waiting', sort_order: 20, depends_on: [], qty_done: 0 },
+          ],
+        }],
+        materials: [], tz_documents: [], tz_assignments: [],
+        ...over,
+      }],
+      loaded: true,
+    } as any);
+  }
+  const orderNow = () => useErpStore.getState().orders[0] as any;
+
+  it('загрузка ТЗ кладёт файл в бакет и создаёт первую версию', async () => {
+    seedTz();
+    const doc = await useErpStore.getState().uploadTzDocument({
+      orderId: 'o1', itemId: 'it1', file: pdf('Футболка ТЗ.pdf'),
+    });
+    expect(doc).toBeTruthy();
+    expect(h.uploadCalls).toHaveLength(1);
+    expect(h.uploadCalls[0].bucket).toBe('erp-attachments');
+    expect(h.uploadCalls[0].path).toMatch(/^tz\/o1\/[0-9a-f-]+\/v1-Футболка ТЗ\.pdf$/);
+    expect(orderNow().tz_documents).toHaveLength(1);
+    expect(orderNow().tz_documents[0].version).toBe(1);
+    expect(orderNow().tz_documents[0].is_current).toBe(true);
+  });
+
+  it('не-PDF и слишком большой файл отклоняются до загрузки', async () => {
+    seedTz();
+    const jpg = { name: 'скан.jpg', size: 10, type: 'image/jpeg' } as unknown as File;
+    expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: jpg })).toBeNull();
+    const huge = pdf('огромное.pdf', 20 * 1024 * 1024);
+    expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: huge })).toBeNull();
+    expect(h.uploadCalls).toHaveLength(0);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('сбой загрузки файла не создаёт запись документа', async () => {
+    seedTz();
+    h.uploadError = { message: 'нет связи' };
+    expect(await useErpStore.getState().uploadTzDocument({
+      orderId: 'o1', file: pdf(),
+    })).toBeNull();
+    expect(orderNow().tz_documents).toHaveLength(0);
+  });
+
+  it('замена файла создаёт версию 2 и снимает is_current с прежней', async () => {
+    seedTz({
+      tz_documents: [{
+        id: 'doc1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1,
+        is_current: true, file_path: 'tz/o1/g1/v1-tz.pdf', file_name: 'tz.pdf',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+      tz_assignments: [{
+        id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+    });
+    const row = await useErpStore.getState().replaceTzDocument('g1', pdf('tz-v2.pdf'));
+    expect(row?.version).toBe(2);
+    expect(h.uploadCalls[0].path).toBe('tz/o1/g1/v2-tz-v2.pdf');
+
+    const docs = orderNow().tz_documents;
+    expect(docs.filter((d: any) => d.is_current)).toHaveLength(1);
+    expect(docs.find((d: any) => d.is_current).version).toBe(2);
+    // Снятие is_current идёт ПОСЛЕ вставки — иначе партиальный уникальный индекс не пустит
+    expect(h.updateCalls.some((c) => c.table === 'erp_tz_documents' && c.patch.is_current === false))
+      .toBe(true);
+    // Цеху с назначением пишется событие «ТЗ обновлено»
+    expect(h.insertCalls.some((c) => c.table === 'erp_stage_events'
+      && String((c.row as any).comment).includes('ТЗ обновлено до версии 2'))).toBe(true);
+  });
+
+  it('назначение ТЗ цеху заменяет прежнее назначение того же этапа', async () => {
+    seedTz({
+      tz_documents: [
+        { id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' },
+        { id: 'd2', order_id: 'o1', item_id: 'it1', group_id: 'g2', version: 1, is_current: true, file_path: 'p2', created_at: '2026-07-20T11:00:00Z' },
+      ],
+      tz_assignments: [{
+        id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+    });
+    expect(await useErpStore.getState().assignTz({
+      orderId: 'o1', itemId: 'it1', departmentId: 'd-sew', groupId: 'g2',
+    })).toBe(true);
+    const asg = orderNow().tz_assignments.filter((a: any) => a.department_id === 'd-sew');
+    expect(asg).toHaveLength(1);
+    expect(asg[0].group_id).toBe('g2');
+  });
+
+  it('снять единственное ТЗ у этапа маршрута нельзя', async () => {
+    seedTz({
+      tz_documents: [{ id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
+      tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1', created_at: '2026-07-20T10:00:00Z' }],
+    });
+    expect(await useErpStore.getState().unassignTz('it1', 'd-sew')).toBe(false);
+    expect(orderNow().tz_assignments).toHaveLength(1);
+    expect(h.deleteCalls).toHaveLength(0);
+  });
+
+  it('битое назначение (документ удалён) снять можно', async () => {
+    seedTz({
+      tz_documents: [],
+      tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'нет', created_at: '2026-07-20T10:00:00Z' }],
+    });
+    expect(await useErpStore.getState().unassignTz('it1', 'd-sew')).toBe(true);
+    expect(orderNow().tz_assignments).toHaveLength(0);
+  });
+
+  it('гейт: этап без ТЗ не попадает в «готово к работе»', async () => {
+    seedTz();
+    const { orders, departments } = useErpStore.getState();
+    expect(readyCountFor(orders, departments, 'cutting')).toBe(0);
+
+    useErpStore.setState({
+      orders: [{
+        ...orderNow(),
+        tz_documents: [{ id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
+        tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-cut', group_id: 'g1', created_at: '2026-07-20T10:00:00Z' }],
+      }],
+    } as any);
+    const s2 = useErpStore.getState();
+    expect(readyCountFor(s2.orders, s2.departments, 'cutting')).toBe(1);
+  });
+
+  it('требование ТЗ включается вручную — optimistic с откатом', async () => {
+    seedTz({ tz_required: false });
+    expect(await useErpStore.getState().setTzRequired('o1', true)).toBe(true);
+    expect(orderNow().tz_required).toBe(true);
+
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().setTzRequired('o1', false)).toBe(false);
+    expect(orderNow().tz_required).toBe(true);
   });
 });

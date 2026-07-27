@@ -8,6 +8,7 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, isStageAwaitingProcurement } from '../utils/routes';
+import { stageMissingTz } from '../utils/tz';
 import { stageOverdue } from '../utils/time';
 import type { ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
@@ -24,7 +25,9 @@ export const ORDER_SELECT = `
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
-  warehouse_tasks:erp_warehouse_tasks (*)
+  warehouse_tasks:erp_warehouse_tasks (*),
+  tz_documents:erp_tz_documents (*),
+  tz_assignments:erp_tz_assignments (*)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */
@@ -41,6 +44,8 @@ export function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
     procurement_tasks: o.procurement_tasks ?? [],
     warehouse_ops: o.warehouse_ops ?? [],
     warehouse_tasks: o.warehouse_tasks ?? [],
+    tz_documents: o.tz_documents ?? [],
+    tz_assignments: o.tz_assignments ?? [],
   };
 }
 
@@ -145,6 +150,7 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
           isStageReady(
             st, it.stages, o.materials, deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
+            stageMissingTz(o, it.id, st.department_id, deptCode),
           )
         ) n += 1;
       }
@@ -172,6 +178,7 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
           isStageReady(
             st, it.stages, o.materials, deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
+            stageMissingTz(o, it.id, st.department_id, deptCode),
           )
         ) n += 1;
       }

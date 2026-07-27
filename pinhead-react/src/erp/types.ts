@@ -111,6 +111,11 @@ export interface ErpOrder {
   stickers?: StickersType;
   stickers_note?: string | null;
   no_chestny_znak?: boolean;
+  /**
+   * Требуется ли ТЗ в PDF (волна 4). Новые заказы — true (гейт на создании и на этапе).
+   * Заказы, заведённые до внедрения ТЗ, — false, иначе гейт застопорил бы производство.
+   */
+  tz_required?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -231,6 +236,50 @@ export const SUPPLIER_OPTION_LABELS = {
   min_batch: 'Мин. партия',
   note: 'Примечание',
 } as const;
+
+// --- Технические задания в PDF (волна 4) ------------------------------------
+
+/**
+ * Документ ТЗ. «Личность» документа — `group_id`, версии живут внутри группы:
+ * замена файла добавляет строку version+1 и снимает `is_current` с прежней.
+ * Назначения ссылаются на `group_id`, поэтому все связанные цеха автоматически
+ * читают актуальную версию.
+ *
+ * `item_id === null` — общее ТЗ заказа: годится любой позиции.
+ */
+export interface ErpTzDocument {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  group_id: string;
+  version: number;
+  is_current: boolean;
+  file_path: string;
+  file_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  note: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/** Какой документ читает цех на конкретной позиции (одно ТЗ на пару позиция × цех) */
+export interface ErpTzAssignment {
+  id: string;
+  order_id: string;
+  item_id: string;
+  department_id: string;
+  group_id: string;
+  assigned_by: string | null;
+  created_at: string;
+}
+
+/** Бакет и префикс ТЗ в Supabase Storage */
+export const TZ_BUCKET = 'erp-attachments';
+export const TZ_PREFIX = 'tz';
+/** Ограничения загрузки ТЗ: только PDF, до 15 МБ */
+export const TZ_MIME = 'application/pdf';
+export const TZ_MAX_BYTES = 15 * 1024 * 1024;
 
 /** Складская операция (правка 2): строка истории сопровождения заказа складом */
 export interface ErpWarehouseOp {
@@ -625,11 +674,12 @@ export type ErpPermission =
   | 'stage.priority'          // менять приоритет заданий в очереди
   | 'stage.move_department'   // переносить задание между цехами на канбане
   | 'order.manage'            // создавать и редактировать заказы
+  | 'tz.manage'               // загружать, заменять и назначать ТЗ цехам
   | 'catalog.edit';           // редактировать справочники
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
-  'stage.priority', 'stage.move_department', 'order.manage', 'catalog.edit',
+  'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage', 'catalog.edit',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -641,6 +691,7 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'stage.priority': 'Менять приоритеты',
   'stage.move_department': 'Переносить между цехами',
   'order.manage': 'Создавать и править заказы',
+  'tz.manage': 'Вести ТЗ (загрузка и назначение)',
   'catalog.edit': 'Править справочники',
 };
 

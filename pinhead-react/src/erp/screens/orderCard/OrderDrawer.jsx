@@ -20,6 +20,7 @@ import { CommentsSection } from './CommentsSection';
 import { HistorySection } from './HistorySection';
 import { NotificationsSection } from './NotificationsSection';
 import { TzBlock } from '../queue/TzBlock';
+import { TzDocsSection, TzMissingBanner } from './TzDocsSection';
 import { supabase } from '../../../lib/supabase';
 import { useOrderDetail } from './useOrderDetail';
 
@@ -52,7 +53,7 @@ export function OrderDrawer({ orderId, onClose }) {
   const {
     order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
-    deptById, deptNameById, stageById,
+    deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
 
   const title = order
@@ -189,12 +190,16 @@ export function OrderDrawer({ orderId, onClose }) {
 
       {order && tab === 'tz' && (
         <>
+          <TzMissingBanner order={order} departments={departments} />
           {order.items.map((item) => (
             <section key={item.id} className={styles.matSection}>
               <div className={styles.matSectionHead}>
                 <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
                 <span className={styles.queueQty}>{item.qty} шт</span>
               </div>
+              {/* ТЗ в PDF (волна 4) — загрузка, назначение цехам, версии */}
+              <TzDocsSection order={order} item={item} deptById={deptById} />
+              {/* Структурное ТЗ (сетка, нанесения, упаковка) остаётся рядом */}
               <TzBlock order={order} item={item} defaultOpen hideToggle />
             </section>
           ))}
@@ -208,12 +213,21 @@ export function OrderDrawer({ orderId, onClose }) {
             <div className={styles.fileGrid}>
               {order.attachments.map((a) => {
                 const url = attachmentUrl(a.file_path);
+                // Не всякое вложение — картинка: у PDF и прочих рисуем иконку,
+                // иначе браузер показывал бы битый <img>
+                const isImage = /\.(png|jpe?g|webp|gif|avif)$/i.test(a.file_name || a.file_path);
                 return (
                   <a key={a.id} href={url} target="_blank" rel="noreferrer" className={styles.fileCard}>
-                    <img
-                      src={url} alt={a.file_name || 'файл'} className={styles.fileThumb} loading="lazy"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
+                    {isImage ? (
+                      <img
+                        src={url} alt={a.file_name || 'файл'} className={styles.fileThumb} loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className={styles.fileThumbStub} aria-hidden="true">
+                        {/\.pdf$/i.test(a.file_name || a.file_path) ? '📄' : '📎'}
+                      </span>
+                    )}
                     <span className={styles.fileName}>
                       {ATTACH_KIND_LABEL[a.kind] ? `${ATTACH_KIND_LABEL[a.kind]} · ` : ''}{a.file_name || 'файл'}
                     </span>

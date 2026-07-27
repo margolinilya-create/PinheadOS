@@ -22,6 +22,7 @@ import {
   permissionsSlice,
   dictionariesSlice,
   experimentalSlice,
+  tzSlice,
   realtimeSlice,
 } from './slices';
 import type { ErpStore } from './types';
@@ -37,6 +38,7 @@ export const useErpStore = create<ErpStore>((...a) => ({
   ...permissionsSlice(...a),
   ...dictionariesSlice(...a),
   ...experimentalSlice(...a),
+  ...tzSlice(...a),
   ...realtimeSlice(...a),
 }));
 

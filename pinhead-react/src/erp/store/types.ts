@@ -25,6 +25,8 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
+  ErpTzAssignment,
+  ErpTzDocument,
   ErpWarehouseOp,
   ErpWarehouseTask,
   MaterialAcceptStatus,
@@ -82,6 +84,10 @@ export interface ErpOrderFull extends ErpOrder {
   procurement_tasks?: ErpProcurementTask[];
   warehouse_ops?: ErpWarehouseOp[];
   warehouse_tasks?: ErpWarehouseTask[];
+  /** ТЗ в PDF (волна 4): все версии всех групп заказа */
+  tz_documents?: ErpTzDocument[];
+  /** Какому цеху какой документ читать (пара позиция × цех) */
+  tz_assignments?: ErpTzAssignment[];
 }
 
 /**
@@ -134,6 +140,26 @@ export interface NewOrderItemInput {
   return_dept?: string | null;
 }
 
+/** Документ ТЗ в payload создания заказа: файл уже лежит в бакете */
+export interface NewOrderTzDocument {
+  group_id: string;
+  /** Индекс позиции в `items`; null — общее ТЗ заказа */
+  item_index: number | null;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by?: string;
+}
+
+/** Назначение ТЗ этапу в payload создания: позиция адресуется индексом, цех — id */
+export interface NewOrderTzAssignment {
+  item_index: number;
+  department_id: string;
+  group_id: string;
+  assigned_by?: string;
+}
+
 export interface NewOrderInput {
   bitrix_id?: string;
   title: string;
@@ -149,7 +175,14 @@ export interface NewOrderInput {
   stickers?: string;
   stickers_note?: string;
   no_chestny_znak?: boolean;
+  /** Требовать ли ТЗ (волна 4). Новые заказы из формы — всегда true */
+  tz_required?: boolean;
   items: NewOrderItemInput[];
+  /**
+   * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их и назначения
+   * в одной транзакции с заказом — «создать заказ без ТЗ» невозможно даже при сбое.
+   */
+  tz?: { documents: NewOrderTzDocument[]; assignments: NewOrderTzAssignment[] };
 }
 
 /** Нормализованное realtime-событие postgres_changes (для точечного применения) */
@@ -429,6 +462,33 @@ export interface ExperimentalSlice {
   completeExperimentalOp: (opId: string) => Promise<boolean>;
 }
 
+/**
+ * Технические задания в PDF (волна 4): загрузка, версии, назначение цехам.
+ * Просмотр правом не гейтится — читают все; правит только `tz.manage`.
+ */
+export interface TzSlice {
+  /** Загрузить новый документ ТЗ. `itemId = null` — общее ТЗ заказа */
+  uploadTzDocument: (input: {
+    orderId: string;
+    itemId?: string | null;
+    file: File;
+    note?: string | null;
+  }) => Promise<ErpTzDocument | null>;
+  /**
+   * Заменить файл: новая версия в той же группе, `is_current` снимается со старой.
+   * Назначения ссылаются на группу, поэтому обновление подхватывают все цеха разом.
+   */
+  replaceTzDocument: (groupId: string, file: File, note?: string | null)
+    => Promise<ErpTzDocument | null>;
+  /** Назначить документ этапу (пара позиция × цех); повторный вызов переназначает */
+  assignTz: (input: { orderId: string; itemId: string; departmentId: string; groupId: string })
+    => Promise<boolean>;
+  /** Снять назначение. Блокируется, если этап маршрута останется без ТЗ */
+  unassignTz: (itemId: string, departmentId: string) => Promise<boolean>;
+  /** Включить/выключить требование ТЗ у заказа (для заказов, заведённых до внедрения) */
+  setTzRequired: (orderId: string, required: boolean) => Promise<boolean>;
+}
+
 /** Полный контракт ERP-стора — пересечение доменных слайсов */
 export type ErpStore = OrdersSlice &
   StagesSlice &
@@ -440,4 +500,5 @@ export type ErpStore = OrdersSlice &
   PermissionsSlice &
   DictionariesSlice &
   ExperimentalSlice &
+  TzSlice &
   RealtimeSlice;
