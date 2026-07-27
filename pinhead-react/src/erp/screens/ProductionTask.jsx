@@ -5,6 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { RouteProgress } from '../components/RouteProgress';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { useStagePermissions } from '../store/useStagePermissions';
 import { useOrderDrawer } from '../store/useOrderDrawer';
@@ -34,11 +35,12 @@ import { useOrderDetail } from './orderCard/useOrderDetail';
  */
 export default function ProductionTask() {
   const { stageId } = useParams();
-  const { orders, departments, loaded, loadAll, findOrderIdByStage } = useErpStore(
+  const { orders, departments, loaded, loadError, loadAll, findOrderIdByStage } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       findOrderIdByStage: s.findOrderIdByStage,
     })),
@@ -78,16 +80,23 @@ export default function ProductionTask() {
   // Хук прав — до ранних выходов (правило хуков): цех берём из найденного этапа
   const perms = useStagePermissions(found?.stage.department_id ?? null);
 
-  if (!loaded) return <ScreenSkeleton />;
-  if (!found) {
+  if (loadError && !loaded) {
     return (
       <>
         <PageHead title="Производственное задание" sub="Задание цеха по позиции заказа." />
-        <div className={styles.emptyState}>
-          {notFound
-            ? 'Задание не найдено или было удалено.'
-            : 'Загружаем задание…'}
-        </div>
+        <LoadFailed onRetry={loadAll} what="задание" />
+      </>
+    );
+  }
+  if (!loaded) return <ScreenSkeleton />;
+  if (!found) {
+    // Диплинк на задание архивного заказа: резолвим его отдельным запросом —
+    // до ответа показываем скелетон, а не текст «Загружаем…» (правило DESIGN.md)
+    if (!notFound) return <ScreenSkeleton />;
+    return (
+      <>
+        <PageHead title="Производственное задание" sub="Задание цеха по позиции заказа." />
+        <div className={styles.emptyState}>Задание не найдено или было удалено.</div>
       </>
     );
   }

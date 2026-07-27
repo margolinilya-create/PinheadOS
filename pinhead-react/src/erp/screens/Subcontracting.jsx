@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
 import { Stepper } from '../components/Stepper';
 import { useErpStore } from '../store/useErpStore';
@@ -227,14 +228,14 @@ export default function Subcontracting() {
 
       <AddOpRow orders={activeOrders} queueDepts={queueDepts} onAdd={createSubcontractOp} />
 
-      {loadError && !loaded && (
-        <div className={styles.emptyState}>
-          Не удалось загрузить данные.{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
-        </div>
-      )}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="операции подряда" />}
       {subcontractingLoaded && subcontracting.length === 0 && (
         <div className={styles.emptyState}>Операций подряда пока нет — добавьте первую выше.</div>
+      )}
+      {/* Операции есть, но поиск не совпал: раньше здесь не рисовалось ничего —
+          белое пятно, по которому не понять, «не нашлось» или «сломалось» */}
+      {subcontractingLoaded && subcontracting.length > 0 && rows.length === 0 && (
+        <EmptyResult query={query.trim()} onReset={() => setQuery('')} />
       )}
 
       {rows.length > 0 && (

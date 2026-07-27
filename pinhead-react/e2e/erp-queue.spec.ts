@@ -241,3 +241,58 @@ test.describe('Технические задания в PDF (волна 4)', () 
     await expect(select).toHaveValue('tz-grp-b');
   });
 });
+
+/**
+ * Волна UX-2: обрыв связи не должен выглядеть как «работы нет».
+ * Раньше при упавшем запросе очередь показывала «Выберите свой цех выше»,
+ * а список заказов — пустой тулбар без единой строки; повторить было нечем,
+ * потому что эффект `if (!loaded) loadAll()` второй раз не срабатывает.
+ */
+test.describe('Ошибка загрузки (волна UX-2)', () => {
+  /** Роняет запрос заказов; вернуть связь — снять флаг из возвращённой функции */
+  async function breakOrders(page: import('@playwright/test').Page) {
+    let broken = true;
+    await page.route('**/rest/v1/erp_orders*', async (route) => {
+      if (!broken) return route.fallback();
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'network down' }),
+      });
+    });
+    return () => { broken = false; };
+  }
+
+  test('очередь цеха предлагает повторить и восстанавливается', async ({ page }) => {
+    const restore = await breakOrders(page);
+    await page.goto('/queue?studio=0');
+    // Оболочка появляется раньше данных; ждём её, чтобы не мерить холодный старт
+    // Vite вместе с ответом сервера — под параллельными воркерами это разные величины
+    await expect(page.getByRole('complementary')).toBeVisible();
+
+    const failed = page.getByText('Не удалось загрузить задания цеха');
+    await expect(failed).toBeVisible();
+    // Самое важное: это НЕ читается как «заданий нет»
+    await expect(page.getByText('Выберите свой цех выше')).toHaveCount(0);
+
+    restore();
+    await page.getByRole('button', { name: 'Повторить' }).click();
+    await expect(failed).toHaveCount(0);
+    // Вкладки цехов рисуются только по загруженным departments — значит данные пришли
+    await expect(page.getByRole('tablist', { name: 'Выбор цеха' })).toBeVisible();
+  });
+
+  test('список заказов предлагает повторить вместо пустого экрана', async ({ page }) => {
+    const restore = await breakOrders(page);
+    await page.goto('/orders?studio=0');
+    await expect(page.getByRole('complementary')).toBeVisible();
+
+    const failed = page.getByText('Не удалось загрузить заказы');
+    await expect(failed).toBeVisible();
+
+    restore();
+    await page.getByRole('button', { name: 'Повторить' }).click();
+    await expect(failed).toHaveCount(0);
+    await expect(page.getByText('54900').first()).toBeVisible();
+  });
+});

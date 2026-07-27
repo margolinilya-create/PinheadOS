@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
 import InlineEdit from '../components/InlineEdit';
 import { formatDateShort } from '../utils/time';
 import {
@@ -26,7 +27,8 @@ import { useOrderDetail } from './orderCard/useOrderDetail';
 export default function OrderCard() {
   const { orderId } = useParams();
   const {
-    order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
+    order, notFound, loaded, loadError, loadAll,
+    events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
     deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
@@ -36,6 +38,14 @@ export default function OrderCard() {
       <>
         <PageHead title="Заказ не найден" />
         <Link to="/orders" className="btn btn-secondary">← К списку заказов</Link>
+      </>
+    );
+  }
+  if (loadError && !loaded) {
+    return (
+      <>
+        <PageHead title="Заказ" />
+        <LoadFailed onRetry={loadAll} what="заказ" />
       </>
     );
   }

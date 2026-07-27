@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
@@ -18,7 +19,7 @@ import { CreateOrderModal } from './orders/CreateOrderModal';
 
 export default function OrdersScreen() {
   const {
-    orders, departments, loading, loaded, loadAll, deleteOrder, shipOrder,
+    orders, departments, loading, loaded, loadError, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
   } = useErpStore(
     useShallow((s) => ({
@@ -26,6 +27,7 @@ export default function OrdersScreen() {
       departments: s.departments,
       loading: s.loading,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       deleteOrder: s.deleteOrder,
       shipOrder: s.shipOrder,
@@ -235,7 +237,8 @@ export default function OrdersScreen() {
         )}
       </div>
 
-      {loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="заказы" />}
+      {!loadError && loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
       {loaded && tab === 'archive' && !archiveLoaded && (
         <TableSkeleton rows={4} label="Загрузка архива" />
       )}

@@ -1,31 +1,46 @@
 import { Skeleton } from '../../components/shared/Skeleton';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import styles from '../erp.module.css';
 
 /**
  * Скелетоны загрузки ERP-экранов (п.34): форма повторяет финальный лейаут
  * (высоты плиток/строк/карточек), чтобы контент не «прыгал» после загрузки.
+ *
+ * Обещание «повторяет лейаут» приходится держать буквально, иначе смысла нет:
+ * дашборд рисовал 4 плитки старого класса, а загружался с шестью карточками
+ * нового, и очередь цеха рисовала карточки там, где на десктопе строки.
  */
 
-/** KPI-плитки + карточки цехов — обзор производства (ErpDashboard) */
+/** KPI-карточки + два ряда виджетов — обзор производства (ErpDashboard) */
 export function DashboardSkeleton() {
   return (
-    <div role="status" aria-label="Загрузка обзора производства">
-      <div className={styles.kpiGrid}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className={styles.kpiTile}>
-            <Skeleton width={64} height={34} />
-            <Skeleton width="70%" height={12} style={{ marginTop: 8 }} />
+    <div role="status" aria-label="Загрузка обзора производства" className={styles.dash}>
+      <div className={styles.dashKpis}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className={styles.kpiCard}>
+            <Skeleton width={44} height={44} radius={10} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <Skeleton width="70%" height={12} />
+              <Skeleton width={52} height={26} style={{ marginTop: 6 }} />
+            </div>
           </div>
         ))}
       </div>
-      <div className={styles.cardGrid}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className={styles.card}>
-            <Skeleton width="60%" height={17} />
-            <Skeleton width="85%" height={24} radius={999} style={{ marginTop: 12 }} />
-          </div>
-        ))}
-      </div>
+      {[3, 2].map((count, row) => (
+        <div key={row} className={`${styles.dashRow} ${row === 0 ? styles.dashRow3 : styles.dashRow2}`}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i} className={styles.widget}>
+              <div className={styles.widgetHead}>
+                <Skeleton width="45%" height={15} />
+                <Skeleton width={64} height={12} />
+              </div>
+              {Array.from({ length: 3 }).map((__, j) => (
+                <Skeleton key={j} height={18} style={{ marginTop: j === 0 ? 0 : 10 }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -59,8 +74,32 @@ export function TableSkeleton({ rows = 6, label = 'Загрузка списка
   );
 }
 
-/** Карточки очереди цеха (DepartmentQueue) */
-export function QueueSkeleton({ cards = 3 }) {
+/**
+ * Очередь цеха: на десктопе — компактные строки (QueueRow), на узком экране —
+ * карточки (QueueCard). Брейкпоинт тот же, что в DepartmentQueue.
+ */
+export function QueueSkeleton({ cards = 4 }) {
+  const isMobile = useMediaQuery('(max-width: 760px)');
+  if (!isMobile) {
+    return (
+      <div className={styles.queueList} role="status" aria-label="Загрузка очереди цеха">
+        {Array.from({ length: cards }).map((_, i) => (
+          <div key={i} className={styles.queueRow}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '4px 0' }}>
+              <Skeleton width={14} height={14} />
+              <Skeleton width={40} height={40} radius={6} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <Skeleton width="52%" height={14} />
+                <Skeleton width="34%" height={11} style={{ marginTop: 5 }} />
+              </div>
+              <Skeleton width={70} height={12} />
+              <Skeleton width={84} height={20} radius={999} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className={styles.queueGrid} role="status" aria-label="Загрузка очереди цеха">
       {Array.from({ length: cards }).map((_, i) => (
@@ -92,6 +131,25 @@ export function ScreenSkeleton() {
         <Skeleton width={340} height={13} style={{ marginTop: 8 }} />
       </div>
       <TableSkeleton rows={5} />
+    </div>
+  );
+}
+
+/** Колонки производственного канбана — в канбан-виде доски вместо таблицы */
+export function KanbanSkeleton({ columns = 4 }) {
+  return (
+    <div className={styles.kanbanBoard} role="status" aria-label="Загрузка канбана">
+      {Array.from({ length: columns }).map((_, i) => (
+        <section key={i} className={styles.kanbanCol}>
+          <header className={styles.kanbanColHead}><Skeleton width="55%" height={13} /></header>
+          {Array.from({ length: 2 }).map((__, j) => (
+            <div key={j} className={styles.kanbanLane}>
+              <div className={styles.kanbanLaneTitle}><Skeleton width={90} height={10} /></div>
+              <Skeleton height={64} radius={8} />
+            </div>
+          ))}
+        </section>
+      ))}
     </div>
   );
 }

@@ -148,11 +148,13 @@ describe('App', () => {
       logout: vi.fn(),
     });
     renderApp();
-    // integration-рендер ERP (lazy ErpApp + загрузка стора) — под полной парал. нагрузкой
-    // дефолтного 1000ms waitFor мало; даём запас
+    // integration-рендер ERP (lazy ErpApp + загрузка стора) — под полной парал.
+    // нагрузкой дефолтного 1000ms waitFor мало. 4000 тоже иногда не хватало:
+    // тест ждёт разрешения ленивого чанка, а не логики, и на загруженной машине
+    // это единицы секунд. Запас щедрый намеренно — иначе тест краснеет от соседей.
     await waitFor(
       () => expect(screen.getByText('Обзор производства')).toBeInTheDocument(),
-      { timeout: 4000 },
+      { timeout: 10000 },
     );
     // ERP nav present (пункт /board в сайдбаре)
     expect(screen.getByText('Производство')).toBeInTheDocument();

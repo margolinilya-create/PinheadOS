@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
-import { TableSkeleton } from '../components/ErpSkeletons';
+import { KanbanSkeleton, TableSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
 import { QueueFilters } from '../components/QueueFilters';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
@@ -97,7 +98,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
 
 export default function ProductionBoard() {
   const {
-    orders, departments, loading, loaded, loadAll, setStageStatus,
+    orders, departments, loading, loaded, loadError, loadAll, setStageStatus,
     archiveLoaded, loadArchive,
   } = useErpStore(
     useShallow((s) => ({
@@ -105,6 +106,7 @@ export default function ProductionBoard() {
       departments: s.departments,
       loading: s.loading,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       setStageStatus: s.setStageStatus,
       archiveLoaded: s.archiveLoaded,
@@ -251,7 +253,13 @@ export default function ProductionBoard() {
 
       {view === 'kanban' && loaded && <ErpKanban filters={filters} />}
 
-      {loading && !loaded && <TableSkeleton rows={6} label="Загрузка производственного плана" />}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="производственный план" />}
+      {/* Скелетон по виду: в канбан-виде появится доска, а не таблица */}
+      {!loadError && loading && !loaded && (
+        view === 'kanban'
+          ? <KanbanSkeleton />
+          : <TableSkeleton rows={6} label="Загрузка производственного плана" />
+      )}
 
       {view === 'table' && loaded && rows.length === 0 && (
         <div className={styles.emptyState}>

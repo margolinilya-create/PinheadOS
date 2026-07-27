@@ -20,15 +20,16 @@ URL: https://pinhead-os.vercel.app
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
+  ErpStates (LoadFailed/EmptyResult — единые состояния «не загрузилось» и «не нашлось»),
   RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
-  + useErpAccess.ts (права: can/canActIn/canDo) + useDictionary.js (активные значения справочника);
+  + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
   orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
-  stageMove/permissions/tz + tzFile),
+  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -110,6 +111,18 @@ URL: https://pinhead-os.vercel.app
   через `JSON.stringify`, и File молча превратился бы в `{}`
 - Маршрут позиции считать `buildItemRoute` (и в сторе, и в превью формы) — правило
   вырезания `supply` при материале подрядчика живёт там
+
+## Правила ERP (UX-аудит, волна UX-2)
+- Три состояния экрана в этом порядке: **ошибка** (`LoadFailed` с «Повторить») →
+  **скелетон** → **пусто**. Скелетон вешать на `!loaded && !loadError`, а НЕ на
+  `loading`: при сбое `loading` уже false, и экран замирал навсегда
+- Новый экран со своими данными обязан обрабатывать `loadError`. Эффект
+  `if (!loaded) loadAll()` второй раз не срабатывает — без кнопки повтора
+  единственный выход у человека это F5
+- Пустое состояние обязано различать «работы нет» и «под фильтры ничего не попало»
+  (`EmptyResult` с текстом запроса и кнопкой «Сбросить»)
+- Скелетон повторяет финальный лейаут буквально, теми же классами. Разошёлся —
+  это не скелетон, а мигание чужой разметкой
 
 ## Правила ERP (UX-аудит, волна UX-1)
 - Права проверяются **по действию**, а не по цеху: `useStagePermissions(deptId)` даёт

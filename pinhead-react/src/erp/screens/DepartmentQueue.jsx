@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
 import { QueueFilters } from '../components/QueueFilters';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
@@ -44,7 +45,7 @@ const GROUP_TITLES = {
 
 export default function DepartmentQueue() {
   const {
-    orders, departments, loading, loaded, loadAll,
+    orders, departments, loaded, loadError, loadAll,
     myDeptId, myDeptLoaded, loadMyDept,
     loadStageReworkEvents, reorderStageQueue,
     employees, employeesLoaded, loadEmployees,
@@ -52,8 +53,8 @@ export default function DepartmentQueue() {
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
-      loading: s.loading,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       myDeptId: s.myDeptId,
       myDeptLoaded: s.myDeptLoaded,
@@ -311,8 +312,15 @@ export default function DepartmentQueue() {
         />
       )}
 
-      {!dept && <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>}
-      {dept && loading && !loaded && <QueueSkeleton />}
+      {/* Порядок важен: пока не загрузились — скелетон, а не «выберите цех».
+          Прежнее условие `dept && loading && !loaded` было невыполнимо в принципе
+          (departments и loaded: true пишутся одним set), поэтому цех при загрузке
+          и при обрыве связи читал «Выберите свой цех» и решал, что заданий нет. */}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задания цеха" />}
+      {!loadError && !loaded && <QueueSkeleton />}
+      {loaded && !dept && (
+        <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>
+      )}
 
       {dept && !perms.inDept && (
         <div className={styles.queueReason} style={{ marginBottom: 'var(--space-md, 14px)' }}>

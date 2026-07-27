@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
@@ -52,11 +53,12 @@ function orderStatus(order) {
 }
 
 export default function ErpDashboard() {
-  const { orders, departments, loaded, loadAll } = useErpStore(
+  const { orders, departments, loaded, loadError, loadAll } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
     })),
   );
@@ -157,7 +159,8 @@ export default function ErpDashboard() {
         sub="Где какой заказ, загрузка цехов, горящие сроки — всё в одном месте."
       />
 
-      {!loaded && <DashboardSkeleton />}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="обзор производства" />}
+      {!loadError && !loaded && <DashboardSkeleton />}
 
       {loaded && (
         <div className={styles.dash}>

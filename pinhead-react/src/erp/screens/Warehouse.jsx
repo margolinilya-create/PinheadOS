@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { LoadFailed } from '../components/ErpStates';
 import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
@@ -164,12 +165,7 @@ export default function Warehouse() {
         ))}
       </FilterBar>
 
-      {loadError && !loaded && (
-        <div className={styles.emptyState}>
-          Не удалось загрузить данные.{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
-        </div>
-      )}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задачи склада" />}
       {loaded && filtered.length === 0 && (
         <div className={styles.emptyState}>{onlyOpen ? 'Открытых задач склада нет.' : 'Задач склада нет.'}</div>
       )}

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { LoadFailed } from '../components/ErpStates';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
@@ -311,13 +313,8 @@ export default function FabricPurchasing() {
         ))}
       </FilterBar>
 
-      {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
-      {loadError && !loaded && (
-        <div className={styles.emptyState}>
-          Не удалось загрузить данные.{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
-        </div>
-      )}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="закупку" />}
+      {!loadError && loading && !loaded && <TableSkeleton rows={8} label="Загрузка закупки" />}
       {loaded && filtered.length === 0 && (
         <div className={styles.emptyState}>Закупочных строк не найдено.</div>
       )}
