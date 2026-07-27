@@ -102,7 +102,15 @@ export default function ErpKanban({ filters }) {
   const columnDroppable = (deptId) =>
     drag && drag.deptId !== deptId && access.canDo('stage.move_department', drag.deptId);
 
-  /** Автоскролл самой доски у края — вместо прокрутки страницы */
+  /**
+   * Автоскролл у края — вместо прокрутки страницы.
+   * По горизонтали едет сама доска, по вертикали — колонка под курсором: она
+   * ограничена по высоте и имеет свой overflow, а на время перетаскивания доска
+   * получает touch-action: none. Без вертикального автоскролла поставить задание
+   * на приоритетное место ниже видимой части колонки было нельзя ни мышью
+   * (колесо во время HTML5-drag не приходит), ни пальцем — а 10+ карточек
+   * в швейке это норма.
+   */
   const onBoardDragOver = (e) => {
     if (!drag) return;
     const board = boardRef.current;
@@ -110,6 +118,12 @@ export default function ErpKanban({ filters }) {
     const rect = board.getBoundingClientRect();
     if (e.clientX < rect.left + EDGE_PX) board.scrollLeft -= EDGE_STEP;
     else if (e.clientX > rect.right - EDGE_PX) board.scrollLeft += EDGE_STEP;
+
+    const col = e.target?.closest?.(`.${styles.kanbanCol}`);
+    if (!col || col.scrollHeight <= col.clientHeight) return;
+    const colRect = col.getBoundingClientRect();
+    if (e.clientY < colRect.top + EDGE_PX) col.scrollTop -= EDGE_STEP;
+    else if (e.clientY > colRect.bottom - EDGE_PX) col.scrollTop += EDGE_STEP;
   };
 
   const onCardDragOver = (e, entry) => {

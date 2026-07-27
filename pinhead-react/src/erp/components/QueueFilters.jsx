@@ -34,9 +34,8 @@ export function QueueFilters({
       type="button"
       aria-pressed={filters[key]}
       title={title}
-      className={`${styles.chip} ${filters[key] ? styles.chipProgress : styles.chipNeutral}`}
-      style={{ cursor: 'pointer', font: 'inherit' }}
-      onClick={() => set({ [key]: !filters[key] })}
+      className={`${styles.chip} ${styles.chipBtn} ${filters[key] ? styles.chipProgress : styles.chipNeutral}`}
+            onClick={() => set({ [key]: !filters[key] })}
     >
       {label}
     </button>
@@ -57,9 +56,8 @@ export function QueueFilters({
         <button
           type="button"
           aria-expanded={expanded}
-          className={`${styles.chip} ${expanded ? styles.chipProgress : styles.chipNeutral}`}
-          style={{ cursor: 'pointer', font: 'inherit' }}
-          onClick={() => setExpanded((v) => !v)}
+          className={`${styles.chip} ${styles.chipBtn} ${expanded ? styles.chipProgress : styles.chipNeutral}`}
+                    onClick={() => setExpanded((v) => !v)}
         >
           Фильтры {expanded ? '▲' : '▼'}
         </button>

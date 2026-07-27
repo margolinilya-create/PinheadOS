@@ -21,6 +21,8 @@ import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
 import { itemProgress } from '../utils/progress';
 import { pluralize } from '../../utils/i18n';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { BoardCardMobile } from './board/BoardCardMobile';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
@@ -83,8 +85,8 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   return (
     <button
       type="button"
-      className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[displayStatus]]}`}
-      style={{ cursor: clickable ? 'pointer' : 'default', font: 'inherit' }}
+      className={`${styles.chip} ${styles.chipBtn} ${styles[STAGE_CHIP_CLASS[displayStatus]]}`}
+      style={{ cursor: clickable ? 'pointer' : 'default' }}
       title={title}
       aria-label={title}
       disabled={!clickable}
@@ -114,6 +116,7 @@ export default function ProductionBoard() {
     })),
   );
   const access = useErpAccess();
+  const isMobile = useMediaQuery('(max-width: 760px)');
   const [onlyActive, setOnlyActive] = useState(true);
   const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
   const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
@@ -185,6 +188,19 @@ export default function ProductionBoard() {
     [access],
   );
 
+  /** Чип этапа — общий для таблицы и мобильной карточки */
+  const renderStage = (st, order, item) => (
+    <StageChip
+      key={st.id}
+      stage={st}
+      item={item}
+      order={order}
+      deptById={deptById}
+      onAdvance={onAdvance}
+      allowAdvance={allowAdvance}
+    />
+  );
+
   const onAdvance = async (stage, nextStatus, item) => {
     if (nextStatus !== 'done') {
       await setStageStatus(stage.id, nextStatus);
@@ -209,17 +225,15 @@ export default function ProductionBoard() {
         <div role="tablist" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
           <button
             type="button" role="tab" aria-selected={view === 'table'}
-            className={`${styles.chip} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
-            onClick={() => switchView('table')}
+            className={`${styles.chip} ${styles.chipBtn} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
+                        onClick={() => switchView('table')}
           >
             ☰ Таблица
           </button>
           <button
             type="button" role="tab" aria-selected={view === 'kanban'}
-            className={`${styles.chip} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
-            onClick={() => switchView('kanban')}
+            className={`${styles.chip} ${styles.chipBtn} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
+                        onClick={() => switchView('kanban')}
           >
             ▦ Канбан
           </button>
@@ -280,7 +294,22 @@ export default function ProductionBoard() {
         </div>
       )}
 
-      {view === 'table' && rows.length > 0 && (
+      {/* На 390px таблица показывала только «№ / Заказ / Кол-во» — срок, прогресс
+          и этапы уезжали за край без подсказки прокрутки. Ниже 760px — карточки. */}
+      {view === 'table' && rows.length > 0 && isMobile && (
+        <div className={styles.queueGrid}>
+          {rows.map(({ order, item }) => (
+            <BoardCardMobile
+              key={item.id}
+              order={order}
+              item={item}
+              renderStage={(st) => renderStage(st, order, item)}
+            />
+          ))}
+        </div>
+      )}
+
+      {view === 'table' && rows.length > 0 && !isMobile && (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -341,17 +370,7 @@ export default function ProductionBoard() {
                     </td>
                     <td>
                       <div className={styles.stageChips}>
-                        {item.stages.map((st) => (
-                          <StageChip
-                            key={st.id}
-                            stage={st}
-                            item={item}
-                            order={order}
-                            deptById={deptById}
-                            onAdvance={onAdvance}
-                            allowAdvance={allowAdvance}
-                          />
-                        ))}
+                        {item.stages.map((st) => renderStage(st, order, item))}
                       </div>
                     </td>
                   </tr>

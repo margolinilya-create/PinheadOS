@@ -26,8 +26,7 @@ function DictionaryChips({ items, onPick, label }) {
         <button
           key={d.id}
           type="button"
-          className={`${styles.chip} ${styles.chipNeutral}`}
-          style={{ cursor: 'pointer', font: 'inherit' }}
+          className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
           onClick={() => onPick(d.name)}
         >
           {d.name}

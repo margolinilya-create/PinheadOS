@@ -141,9 +141,8 @@ export default function OrdersScreen() {
             type="button"
             role="tab"
             aria-selected={tab === 'active'}
-            className={`${styles.chip} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
-            onClick={() => setTab('active')}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
+                        onClick={() => setTab('active')}
           >
             Активные ({orders.filter((o) => o.status === 'active').length})
           </button>
@@ -151,9 +150,8 @@ export default function OrdersScreen() {
             type="button"
             role="tab"
             aria-selected={tab === 'archive'}
-            className={`${styles.chip} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
-            onClick={() => setTab('archive')}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
+                        onClick={() => setTab('archive')}
           >
             Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
           </button>
@@ -162,27 +160,24 @@ export default function OrdersScreen() {
               <button
                 type="button"
                 aria-pressed={filter === 'ready'}
-                className={`${styles.chip} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
-                onClick={() => toggleFilter('ready')}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
+                                onClick={() => toggleFilter('ready')}
               >
                 ✅ Готовы к отгрузке ({counts.ready})
               </button>
               <button
                 type="button"
                 aria-pressed={filter === 'urgent'}
-                className={`${styles.chip} ${filter === 'urgent' ? styles.chipProgress : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
-                onClick={() => toggleFilter('urgent')}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'urgent' ? styles.chipProgress : styles.chipNeutral}`}
+                                onClick={() => toggleFilter('urgent')}
               >
                 🔥 Срок ≤ 3 дней ({counts.urgent})
               </button>
               <button
                 type="button"
                 aria-pressed={filter === 'overdue'}
-                className={`${styles.chip} ${filter === 'overdue' ? styles.chipBlocked : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
-                onClick={() => toggleFilter('overdue')}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'overdue' ? styles.chipBlocked : styles.chipNeutral}`}
+                                onClick={() => toggleFilter('overdue')}
               >
                 ⏰ Просрочено ({counts.overdue})
               </button>

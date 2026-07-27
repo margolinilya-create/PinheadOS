@@ -44,7 +44,8 @@ function NavItem({ item, count, collapsed }) {
     <NavLink
       to={item.to}
       end={item.end}
-      title={collapsed ? item.label : undefined}
+      // В свёрнутом виде подпись видна только в подсказке — счётчик тоже туда
+      title={collapsed ? `${item.label}${count > 0 ? ` — ${count}` : ''}` : undefined}
       className={({ isActive }) =>
         isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
       }
@@ -60,9 +61,21 @@ function NavItem({ item, count, collapsed }) {
   );
 }
 
-export function Sidebar({ isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse }) {
+export function Sidebar({
+  isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse,
+  open = false, onNavigate,
+}) {
   return (
-    <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''}`}>
+    <aside
+      className={[
+        styles.sidebar,
+        collapsed ? styles.sidebarCollapsed : '',
+        open ? styles.sidebarOpen : '',
+      ].filter(Boolean).join(' ')}
+      // На узком экране сайдбар — выезжающий оверлей: любой переход его закрывает,
+      // иначе панель остаётся поверх только что открытого экрана
+      onClick={onNavigate}
+    >
       <Link to="/" className={styles.sidebarBrand} title="На главную ERP" aria-label="На главную ERP">
         <span className={styles.sidebarLogo}>P</span>
         <span className={styles.sidebarBrandText}>PINHEAD ERP</span>

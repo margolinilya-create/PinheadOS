@@ -26,7 +26,6 @@
   --text: #111827;
   --text-mid: #4B5563;
   --text-dim: #6B7280;
-  --text-muted: #9CA3AF;
   --color-success: #10A34A;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
@@ -39,6 +38,21 @@
   --bg-info: #EFF6FF;
   --bg-violet: #F5F3FF;
   --bg-cyan: #ECFEFF;
+  /* Текст статусов на своей подложке. Красить текст тем же --color-*, что и заливку,
+     нельзя: в светлой теме «ожидает» давало 2.02:1, «готов» 3.13:1, «просрочен»
+     3.76:1 при норме 4.5:1 для 11.5px. Цвет статуса — единственный быстрый сигнал
+     для цеха, и на планшете под цеховым светом он читался как серый шум.
+     --color-* остаётся для заливок, рамок и точек, --color-*-ink — для текста. */
+  --color-success-ink: #067647;
+  --color-warning-ink: #B45309;
+  --color-error-ink:   #B42318;
+  --color-info-ink:    #1D4ED8;
+  --color-violet-ink:  #6D28D9;
+  --color-cyan-ink:    #0E7490;
+  /* Был не переопределён и подтягивался чёрным (#0A0A0A) из index.css — 29 мест
+     рисовали чёрную рамку рядом с карточками редизайна на светло-серой */
+  --border: #E5E7EB;
+  --text-muted: #6B7280;
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
 }
 :global(html[data-theme='dark']) .shell {
@@ -57,7 +71,6 @@
   --text: #E8EAED;
   --text-mid: #A9B0BD;
   --text-dim: #8A93A3;
-  --text-muted: #6B7385;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #F87171;
@@ -70,11 +83,22 @@
   --bg-info: #12233F;
   --bg-violet: #211B3A;
   --bg-cyan: #0C2A30;
+  /* Тёмная тема по контрасту изначально лучше светлой (7.33:1 против 2.02:1),
+     поэтому чернила почти везде совпадают с --color-*. Исключение — синий:
+     #3B82F6 на #12233F даёт 4.27:1, чуть ниже нормы. */
+  --color-success-ink: #22C55E;
+  --color-warning-ink: #F59E0B;
+  --color-error-ink:   #F87171;
+  --color-info-ink:    #60A5FA;
+  --color-violet-ink:  #A78BFA;
+  --color-cyan-ink:    #22D3EE;
+  --border: #242B39;
+  --text-muted: #9AA3B3;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .shell {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   overflow: hidden;
   background: var(--bg);
@@ -88,7 +112,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
 }
 
 /* ─── Header ─── */
@@ -185,7 +209,7 @@
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   transition: width 160ms ease;
 }
 .sidebarCollapsed { width: 64px; }
@@ -318,11 +342,26 @@
 .sidebarCollapsed .sidebarBrandText,
 .sidebarCollapsed .navGroup,
 .sidebarCollapsed .navLabel,
-.sidebarCollapsed .navBadge,
 .sidebarCollapsed .collapseLabel { display: none; }
 .sidebarCollapsed .navLink,
 .sidebarCollapsed .collapseBtn { justify-content: center; gap: 0; padding: 0; }
 .sidebarCollapsed .sidebarBrand { justify-content: center; padding: 0; }
+/* Счётчик заданий переживает сворачивание точкой поверх иконки: меню цехов
+   существует ради ответа «сколько где работы», а на планшете сайдбар свёрнут
+   по умолчанию — раньше он превращался в столбик эмодзи без единой цифры */
+.sidebarCollapsed .navLink { position: relative; }
+.sidebarCollapsed .navBadge {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 999px;
+}
 
 .main {
   flex: 1;
@@ -438,6 +477,16 @@
 .rowClickable:hover td { background: var(--surface); }
 
 /* ─── Статус-чипы ─── */
+/* Компактное поле инлайн-правок: раньше это был инлайн-стиль minHeight: 30/32,
+   который перебивал @media (pointer: coarse) и оставлял поля 30px на планшете */
+.inputXs {
+  min-height: 30px;
+  padding: 3px 8px;
+  font: inherit;
+  max-width: 200px;
+}
+.inputXsDate { max-width: 150px; padding: 2px 6px; }
+
 .chip {
   display: inline-flex;
   align-items: center;
@@ -451,17 +500,26 @@
   line-height: 1.5;
 }
 /* Семантика статусов по макету: ожидает — амбер, в работе — синий, готово — зелёный */
-.chipWaiting  { background: var(--bg-warning); color: var(--color-warning); }
-.chipReady    { background: var(--bg-success); color: var(--color-success); }
-.chipProgress { background: var(--bg-info); color: var(--color-info); }
-.chipInfo     { background: var(--bg-info); color: var(--color-info); }
-.chipDone     { background: var(--bg-success); color: var(--color-success); }
-.chipBlocked  { background: var(--bg-error); color: var(--color-error); }
-.chipSkipped  { background: transparent; color: var(--text-muted); text-decoration: line-through; }
+/* Чип-кнопка. Раньше на каждой кнопке висел инлайн `font: inherit` — шорткат,
+   который сбрасывал font-size и font-weight самого .chip, и фильтр-чипы
+   типографически не совпадали со статус-чипами рядом. */
+.chipBtn {
+  appearance: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.chipWaiting  { background: var(--bg-warning); color: var(--color-warning-ink); }
+.chipReady    { background: var(--bg-success); color: var(--color-success-ink); }
+.chipProgress { background: var(--bg-info); color: var(--color-info-ink); }
+.chipInfo     { background: var(--bg-info); color: var(--color-info-ink); }
+.chipDone     { background: var(--bg-success); color: var(--color-success-ink); }
+.chipBlocked  { background: var(--bg-error); color: var(--color-error-ink); }
+.chipSkipped  { background: transparent; color: var(--text-dim); text-decoration: line-through; }
 .chipNeutral  { background: var(--surface); color: var(--text-mid); }
-.chipDanger   { background: var(--bg-error); color: var(--color-error); }
-.chipViolet   { background: var(--bg-violet); color: var(--color-violet); }
-.chipCyan     { background: var(--bg-cyan); color: var(--color-cyan); }
+.chipDanger   { background: var(--bg-error); color: var(--color-error-ink); }
+.chipViolet   { background: var(--bg-violet); color: var(--color-violet-ink); }
+.chipCyan     { background: var(--bg-cyan); color: var(--color-cyan-ink); }
 
 /* ─── KPI ─── */
 .kpiGrid {
@@ -655,9 +713,9 @@ a.kpiTile:hover { border-color: var(--accent); }
   flex-shrink: 0;
 }
 .deptTab:last-child { border-right: none; }
-.deptTab:hover { background: var(--accent); color: var(--white, #fff); }
+.deptTab:hover { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
 .deptTab:hover .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
-.deptTabActive { background: var(--accent); color: var(--white, #fff); }
+.deptTabActive { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
 .deptTabActive .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
 .deptTabCount {
   font-family: var(--mono);
@@ -669,6 +727,15 @@ a.kpiTile:hover { border-color: var(--accent); }
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-mid);
+}
+.deptTabOverdue {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: #fff;
+}
+.deptTab:hover .deptTabOverdue, .deptTabActive .deptTabOverdue {
+  background: var(--color-error);
+  color: #fff;
 }
 .deptTabHot {
   background: var(--signal);
@@ -684,8 +751,8 @@ a.kpiTile:hover { border-color: var(--accent); }
   text-align: center;
   color: var(--text-dim);
 }
-.dueSoon { color: var(--color-warning); font-weight: 700; }
-.overdue { color: var(--color-error); font-weight: 700; }
+.dueSoon { color: var(--color-warning-ink); font-weight: 700; }
+.overdue { color: var(--color-error-ink); font-weight: 700; }
 .stageChips { display: flex; flex-wrap: wrap; gap: 4px; }
 .subText { color: var(--text-dim); font-size: 12px; }
 .progressCell {
@@ -973,7 +1040,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   white-space: nowrap;
   max-width: 320px;
 }
-.tzDocVersion { color: var(--accent); font-family: var(--font-mono, monospace); }
+.tzDocVersion { color: var(--accent); font-family: var(--mono); }
 .tzDocMeta { font-size: var(--type-body-sm, 13px); color: var(--text-muted); }
 .tzFrame {
   width: 100%;
@@ -1018,7 +1085,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .tzAssignRow:last-child { border-bottom: 0; }
 .tzAssignDept { font-weight: 600; }
-.tzAssignMissing { color: var(--danger, #c0392b); }
+.tzAssignMissing { color: var(--color-error-ink); }
 @media (max-width: 760px) {
   .tzAssignRow { grid-template-columns: 1fr; }
   .tzFrame { height: 320px; }
@@ -1217,7 +1284,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   border-radius: var(--radius-md, 10px);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100dvh - 220px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1587,10 +1654,15 @@ a.cellTitle:hover { color: var(--accent); }
   .printRow > :global(.btn-ghost) { justify-self: end; }
 }
 
-/* ─── Тач-таргеты ≥44px на устройствах с грубым указателем ─── */
+/* ─── Тач-таргеты ≥44px на устройствах с грубым указателем ───
+   Список отстал от компонентов редизайна: Pagination, Drawer, сайдбар и FilterBar
+   появились позже и сюда не попали, поэтому на планшете цеха всё меню (38px),
+   пагинация (32px) и 14 кнопок-чипов (~25px) были меньше собственного правила
+   DESIGN.md. Держать список в актуальном виде — часть правила, а не довесок. */
 @media (pointer: coarse) {
   .input, .select { min-height: 44px; }
   .inputSm { min-height: 44px; }
+  .inputXs { min-height: 44px; }
   .tile { min-height: 44px; }
   .tileSm { min-height: 44px; }
   .deptTab { min-height: 48px; }
@@ -1598,8 +1670,23 @@ a.cellTitle:hover { color: var(--accent); }
   .planBtn { min-height: 44px; }
   .shipBtn { min-height: 44px; }
   .themeToggle { min-width: 44px; min-height: 44px; }
-  .checkLabel { min-height: 36px; }
+  .checkLabel { min-height: 44px; }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
+  /* Кнопки-чипы: быстрые фильтры цеха, переключатель вида, чипы этапов на плане.
+     Статус-чипы (не кнопки) остаются мелкими — по ним не нажимают. */
+  button.chip { min-height: 44px; padding-inline: 14px; }
+  .navLink { min-height: 44px; height: auto; }
+  .collapseBtn { min-height: 44px; height: auto; }
+  .iconBtn { min-width: 44px; min-height: 44px; }
+  .pageBtn { min-width: 44px; min-height: 44px; }
+  .drawerClose { width: 44px; height: 44px; }
+  .drawerTab { min-height: 44px; }
+  .supplierCell { min-height: 44px; }
+  .inlineEditBtn { min-height: 44px; }
+  /* Ручка приоритета: размер не был задан вовсе (~13px), а именно за неё
+     бригадир таскает задания на планшете */
+  .dragHandle { min-width: 44px; min-height: 44px; display: inline-flex;
+                align-items: center; justify-content: center; font-size: 18px; }
 }
 
 /* ─── Подряд: нумерованный степпер-воронка готового изделия (редизайн PR6) ─── */
@@ -1996,4 +2083,44 @@ a.cellTitle:hover { color: var(--accent); }
 
 @media (max-width: 760px) {
   .drawerPanel { width: 100%; border-left: none; }
+}
+
+
+/* Бургер нужен только там, где сайдбар стал оверлеем (правило ниже в медиазапросе) */
+.navToggle { display: none; }
+
+/* ─── Сайдбар на узком экране: выезжающий оверлей ───
+   Ниже 760px постоянная колонка съедала от 13% до половины ширины и убиралась
+   только сворачиванием. Здесь она уходит за край и выезжает поверх контента
+   по кнопке-бургеру в шапке. */
+@media (max-width: 760px) {
+  .sidebar {
+    position: fixed;
+    z-index: var(--z-drawer, 600);
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+    box-shadow: var(--shadow-modal, 0 24px 80px rgba(0, 0, 0, 0.3));
+  }
+  .sidebarOpen { transform: translateX(0); }
+  /* В оверлее сворачивать нечего — показываем полный сайдбар */
+  .sidebarCollapsed { width: 236px; }
+  .sidebarCollapsed .sidebarBrandText,
+  .sidebarCollapsed .navGroup,
+  .sidebarCollapsed .navLabel,
+  .sidebarCollapsed .collapseLabel { display: revert; }
+  .sidebarCollapsed .navBadge { position: static; }
+  .sidebarCollapsed .navLink,
+  .sidebarCollapsed .collapseBtn { justify-content: flex-start; gap: 11px; padding: 0 12px; }
+  .sidebarScrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer, 600) - 1);
+    background: var(--overlay, rgba(10, 10, 10, 0.55));
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .navToggle { display: inline-flex; }
 }

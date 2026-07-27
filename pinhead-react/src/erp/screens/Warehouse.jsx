@@ -156,9 +156,8 @@ export default function Warehouse() {
         {TABS.map((f) => (
           <button
             key={f.key} type="button" aria-pressed={tab === f.key}
-            className={`${styles.chip} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
-            onClick={() => { setTab(f.key); setPage(1); }}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
+                        onClick={() => { setTab(f.key); setPage(1); }}
           >
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
           </button>

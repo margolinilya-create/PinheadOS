@@ -8,6 +8,7 @@ import { QueueFilters } from '../components/QueueFilters';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { useStagePermissions } from '../store/useStagePermissions';
+import { useTouchDndPolyfill } from '../components/kanban/useTouchDndPolyfill';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useScrollHints } from '../../hooks/useScrollHints';
@@ -143,6 +144,10 @@ export default function DepartmentQueue() {
 
   // Привязки нет и нет legacy-выбора (localStorage) → заглушка для рядовых ролей
   const showStub = !access.isPrivileged && myDeptLoaded && !boundDept && !deptCode;
+  // Ручка приоритета в строке — HTML5 DnD, который на touch не срабатывает вовсе.
+  // Подсказка «Перетащите, чтобы изменить приоритет» при этом показывалась, и на
+  // планшете бригадир тянул строку впустую. Полифилл ленивый и no-op на десктопе.
+  useTouchDndPolyfill();
   // Каждое действие цеха гейтится своим правом матрицы (взять / записать / завершить /
   // проблема / брак), а не одним «мой ли это цех» — см. useStagePermissions
   const perms = useStagePermissions(dept?.id);
@@ -285,13 +290,25 @@ export default function DepartmentQueue() {
                 onClick={() => selectDept(dd.code)}
               >
                 {deptShortName(dd.code, dd.name)}
-                {isMine && <span aria-label="ваш цех" title="Ваш цех">★</span>}
+                {isMine && <span role="img" aria-label="ваш цех" title="Ваш цех">★</span>}
                 {count > 0 && (
-                  <span className={`${styles.deptTabCount} ${styles.deptTabHot}`}>{count}</span>
+                  <span
+                    className={`${styles.deptTabCount} ${styles.deptTabHot}`}
+                    aria-label={`готово к работе: ${count}`}
+                  >
+                    {count}
+                  </span>
                 )}
                 {overdueCount > 0 && (
-                  <span className={styles.deptTabCount} style={{ background: 'var(--color-error)' }} title="Необработанные просрочки">
-                    ⏰{overdueCount}
+                  // Класс, а не инлайн-фон: инлайн менял только заливку, текст
+                  // оставался серым (--text-mid на красном ≈ 2:1) — и самый срочный
+                  // сигнал экрана читался хуже всего
+                  <span
+                    className={`${styles.deptTabCount} ${styles.deptTabOverdue}`}
+                    title="Необработанные просрочки"
+                    aria-label={`просрочено: ${overdueCount}`}
+                  >
+                    <span aria-hidden="true">⏰</span>{overdueCount}
                   </span>
                 )}
               </button>

@@ -31,9 +31,9 @@ export function PlanCell({ stage, onSave }) {
   }
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-      <input type="date" className={styles.input} style={{ minHeight: 30, padding: '2px 6px' }}
+      <input type="date" className={`${styles.input} ${styles.inputXs} ${styles.inputXsDate}`}
         value={start} onChange={(e) => setStart(e.target.value)} aria-label="План: начало" />
-      <input type="date" className={styles.input} style={{ minHeight: 30, padding: '2px 6px' }}
+      <input type="date" className={`${styles.input} ${styles.inputXs} ${styles.inputXsDate}`}
         value={end} onChange={(e) => setEnd(e.target.value)} aria-label="План: конец" />
       <button type="button" className="btn btn-primary" style={{ padding: '2px 10px' }}
         onClick={async () => {

@@ -46,6 +46,10 @@ export default function ErpLayout({ user, children }) {
     localStorage.setItem('erp_sidebar_collapsed', collapsed ? '1' : '0');
   }, [collapsed]);
 
+  // Ниже 760px сайдбар — выезжающий оверлей (см. erp.module.css): постоянная
+  // колонка там занимала от 13% до половины ширины и убиралась только сворачиванием
+  const [navOpen, setNavOpen] = useState(false);
+
   // Живой ERP: изменения этапов/заказов долетают без обновления страницы
   useEffect(() => {
     const unsubscribe = useErpStore.getState().subscribeRealtime();
@@ -114,10 +118,30 @@ export default function ErpLayout({ user, children }) {
         deptItems={deptItems}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
+        open={navOpen}
+        onNavigate={() => setNavOpen(false)}
       />
+      {navOpen && (
+        <button
+          type="button"
+          className={styles.sidebarScrim}
+          aria-label="Закрыть меню"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
 
       <div className={styles.rightcol}>
         <header className={styles.topbar}>
+          <button
+            type="button"
+            className={`${styles.iconBtn} ${styles.navToggle}`}
+            aria-label="Меню"
+            aria-expanded={navOpen}
+            title="Меню"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            ☰
+          </button>
           <div className={styles.headerSearch}>
             <span aria-hidden="true">🔍</span>
             <input

@@ -122,8 +122,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     <td className={styles.subText}>{p.email}</td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={p.role}
                         aria-label={`Роль ${p.name || p.email}`}
                         onChange={(e) => updateProfile(p.id, { role: e.target.value })}
@@ -135,8 +134,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp?.department_id || ''}
                         aria-label={`Цех ${p.name || p.email}`}
                         onChange={(e) =>
@@ -152,8 +150,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp?.role || 'worker'}
                         aria-label={`Цеховая роль ${p.name || p.email}`}
                         onChange={(e) => upsertProfileDept(p, { role: e.target.value })}
@@ -214,8 +211,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     <td><strong>{emp.full_name}</strong></td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp.department_id || ''}
                         aria-label={`Цех ${emp.full_name}`}
                         onChange={(e) => updateEmployee(emp.id, { department_id: e.target.value || null })}
@@ -228,8 +224,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp.role}
                         aria-label={`Цеховая роль ${emp.full_name}`}
                         onChange={(e) => updateEmployee(emp.id, { role: e.target.value })}

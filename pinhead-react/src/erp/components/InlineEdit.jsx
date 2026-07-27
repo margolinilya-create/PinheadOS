@@ -60,8 +60,7 @@ export default function InlineEdit({
     <input
       ref={inputRef}
       type={type}
-      className={styles.input}
-      style={{ minHeight: 30, padding: '3px 8px', font: 'inherit', maxWidth: 200 }}
+      className={`${styles.input} ${styles.inputXs}`}
       value={draft}
       disabled={saving}
       aria-label={ariaLabel}
