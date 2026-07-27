@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { confirm } from '../../store/useConfirmStore';
+import { confirmWithInput } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { deptShortName } from '../data/departments';
 import { buildKanbanColumns } from '../utils/kanbanColumns';
@@ -167,24 +167,23 @@ export default function ErpKanban({ filters }) {
 
     const sourceName = deptNameById.get(dragged.stage.department_id) || 'цех';
     const targetName = deptShortName(dept.code, dept.name);
-    const ok = await confirm({
+    // Возврат назад и пропуск этапов заказчик просил сопровождать комментарием —
+    // спрашиваем его прямо в диалоге подтверждения, одним шагом
+    const { ok, value } = await confirmWithInput({
       title: `Перенести заказ в «${dept.name}»?`,
       message: moveConfirmMessage(plan, sourceName, targetName),
       confirmLabel: 'Перенести',
       variant: plan.requiresComment ? 'danger' : undefined,
+      prompt: plan.requiresComment
+        ? {
+            label: 'Причина переноса (попадёт в историю заказа)',
+            placeholder: 'напр. брак на предыдущем этапе',
+            required: true,
+          }
+        : undefined,
     });
     if (!ok) return;
-
-    // Возврат назад и пропуск этапов заказчик просил сопровождать комментарием
-    let comment = null;
-    if (plan.requiresComment) {
-      comment = window.prompt('Причина переноса (попадёт в историю заказа):', '');
-      if (!comment || !comment.trim()) {
-        toast.warning('Перенос отменён — нужна причина');
-        return;
-      }
-    }
-    await moveStageToDepartment(dragged.stage.id, dept.id, { comment });
+    await moveStageToDepartment(dragged.stage.id, dept.id, { comment: value || null });
   };
 
   return (
