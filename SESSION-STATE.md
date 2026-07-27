@@ -31,9 +31,29 @@ GitHub (`gh-fix-ci`, `gh-address-comments`), мета (`review-claudemd`).
 с `finishing-a-development-branch`), agnix (CLI-линтер, не скилл), контент/маркетинг/
 автоматизация (внутренняя ERP, не медиапроект). Подробности — `.claude/skills/README.md`.
 
-**Next step:** заказчик хотел «во все проекты». Пока сделан только PinheadOS — по
-остальным репозиториям (kontora24, PNHD-design-maker, antik, pnhd_zakup, pnhd-studio)
-нужен его выбор: набор скиллов зависит от стека каждого.
+**Остальные репозитории** (по решению заказчика — ветка `claude/add-skills-to-projects-koogjf`
+в каждом, PR не открывали). Набор подбирался под стек, база из superpowers одинаковая,
+различия — по факту стека:
+
+| Репозиторий | Стек | Скиллов | Отличия от PinheadOS |
+|---|---|---|---|
+| `kontora24` | React + Vite, Supabase, Tailwind, **Sentry**, CI | 21 | + `sentry` (есть `@sentry/react`), + `gh-*`, спеки → `specs/` |
+| `pnhd-design-maker` | **Next.js**, Konva, Supabase | 18 | `react-best-practices` со всеми `server-*`/RSC; `gh-*` нет (нет CI); свои 4 скилла не тронуты |
+| `antik` | **Next.js**, Supabase SSR, Upstash, axe-core, CI | 20 | RSC-правила применимы; `web-design-guidelines` ложится на существующий axe-core |
+| `pnhd_zakup` | монорепо: Hono + Prisma + Postgres / Vite + shadcn, CI | 20 | `supabase-postgres-best-practices` взят как общие правила Postgres под Prisma + `pg` |
+
+В этих четырёх, в отличие от PinheadOS, ставился **полный набор superpowers** (12 штук,
+включая `systematic-debugging`, `test-driven-development`, `subagent-driven-development`,
+`using-git-worktrees`, `finishing-a-development-branch`, `verification-before-completion`) —
+там своих аналогов не было. В PinheadOS эти скиллы уже написаны под проект и не трогались.
+
+**Не поставилось:** скилл под shadcn/ui для `pnhd_zakup` — репозитория
+`google-labs-code/skills` из таблицы не существует (404). Скилл `getsentry/sentry-workflow`
+из таблицы тоже отсутствует под таким именем; вместо него взят `sentry` из `openai/skills`.
+
+**Next step:** прогнать скиллы в бою (например, `writing-plans` на следующей задаче ERP)
+и убрать те, что не срабатывают. Репозитории `pnhd-studio`, `pnhd-studio-clone`
+(форк/клон) не трогали.
 
 ## Состояние на 2026-07-22 (сессия 22) — QA-баг-репорт заказчика: 16 багов ERP
 

@@ -46,6 +46,19 @@ Supabase через CDN. Финальная версия v1.7 — полност
 - Проверка: frontmatter всех 13 скиллов валиден, `name` совпадает с папкой, висячих
   ссылок на несуществующие скиллы нет.
 
+**Остальные репозитории заказчика** — ветка `claude/add-skills-to-projects-koogjf` в каждом,
+PR не открывали. Набор подбирался под стек; в отличие от PinheadOS ставился полный набор
+superpowers (12 штук) — своих аналогов там не было.
+- `kontora24` (React+Vite, Supabase, Sentry, CI) — 21 скилл, включая `sentry` и `gh-*`.
+- `pnhd-design-maker` (Next.js, Konva) — 18; `react-best-practices` со всеми `server-*`/RSC,
+  `gh-*` не ставились (нет CI), собственные 4 скилла проекта не тронуты.
+- `antik` (Next.js, Supabase SSR, Upstash, axe-core, CI) — 20.
+- `pnhd_zakup` (монорепо Hono+Prisma / Vite+shadcn, CI) — 20; `supabase-postgres-best-practices`
+  взят как общие правила Postgres под Prisma + `pg`.
+- Не поставилось: скилл под shadcn/ui — репозитория `google-labs-code/skills` из таблицы
+  не существует (404). `getsentry/sentry-workflow` под таким именем тоже нет — взят
+  `sentry` из `openai/skills`.
+
 ### Сессия 22 (22.07.2026) — QA-баг-репорт заказчика: 16 багов ERP
 
 Разведка — 2 Explore-агента; фиксы по кластерам (ветка от main). Без изменения БД/статусов.
