@@ -19,6 +19,7 @@ import {
   procurementSlice,
   subcontractingSlice,
   employeesSlice,
+  permissionsSlice,
   experimentalSlice,
   realtimeSlice,
 } from './slices';
@@ -32,6 +33,7 @@ export const useErpStore = create<ErpStore>((...a) => ({
   ...procurementSlice(...a),
   ...subcontractingSlice(...a),
   ...employeesSlice(...a),
+  ...permissionsSlice(...a),
   ...experimentalSlice(...a),
   ...realtimeSlice(...a),
 }));

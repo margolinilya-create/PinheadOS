@@ -6,5 +6,6 @@ export { warehouseSlice } from './warehouseSlice';
 export { procurementSlice } from './procurementSlice';
 export { subcontractingSlice } from './subcontractingSlice';
 export { employeesSlice } from './employeesSlice';
+export { permissionsSlice } from './permissionsSlice';
 export { experimentalSlice } from './experimentalSlice';
 export { realtimeSlice } from './realtimeSlice';

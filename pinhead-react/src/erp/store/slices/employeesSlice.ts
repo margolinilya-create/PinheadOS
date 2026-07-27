@@ -15,17 +15,18 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   profilesList: [],
   employeesLoaded: false,
   myDeptId: null,
+  myRole: null,
   myDeptLoaded: false,
 
   loadMyDept: async (profileId) => {
     // dev-режим и отсутствие логина — свободный выбор, запрос не нужен
     if (!profileId || profileId === 'dev') {
-      set({ myDeptId: null, myDeptLoaded: true });
+      set({ myDeptId: null, myRole: null, myDeptLoaded: true });
       return;
     }
     const { data, error } = await supabase
       .from('erp_employees')
-      .select('department_id')
+      .select('department_id, role')
       .eq('profile_id', profileId)
       .eq('active', true)
       .limit(1);
@@ -34,7 +35,11 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
       set({ myDeptLoaded: true });
       return;
     }
-    set({ myDeptId: data?.[0]?.department_id ?? null, myDeptLoaded: true });
+    set({
+      myDeptId: data?.[0]?.department_id ?? null,
+      myRole: (data?.[0]?.role as ErpEmployee['role'] | undefined) ?? null,
+      myDeptLoaded: true,
+    });
   },
 
   loadEmployees: async () => {

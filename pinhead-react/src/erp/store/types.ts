@@ -4,9 +4,11 @@
  * без циклического импорта через useErpStore.ts. Реэкспорт — в useErpStore.ts.
  */
 
+import type { PermissionMatrix } from '../utils/permissions';
 import type {
   BrandingMethod,
   BrandingOn,
+  EmployeeRole,
   ErpDepartment,
   ErpEmployee,
   ErpItemPrint,
@@ -297,9 +299,11 @@ export interface EmployeesSlice {
   employeesLoaded: boolean;
   /** Цех текущего пользователя (erp_employees.department_id по profile_id) */
   myDeptId: string | null;
+  /** Цеховая роль текущего пользователя — вход в матрицу прав (ядро правки 11) */
+  myRole: EmployeeRole | null;
   myDeptLoaded: boolean;
 
-  /** Автопривязка цеха: ищет erp_employees по profile_id текущего пользователя */
+  /** Автопривязка цеха и цеховой роли: ищет erp_employees по profile_id пользователя */
   loadMyDept: (profileId: string | undefined) => Promise<void>;
   loadEmployees: () => Promise<void>;
   createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
@@ -311,6 +315,14 @@ export interface EmployeesSlice {
     profile: StaffProfile,
     patch: Partial<Pick<ErpEmployee, 'department_id' | 'role' | 'notes'>>,
   ) => Promise<boolean>;
+}
+
+/** Права: матрица «роль × право» из erp_role_permissions (ядро правки 11) */
+export interface PermissionsSlice {
+  /** null — матрица ещё не загружена (действуют DEFAULT_PERMISSIONS) */
+  permissionMatrix: PermissionMatrix | null;
+  permissionsLoaded: boolean;
+  loadPermissions: () => Promise<void>;
 }
 
 /** Realtime: точечное применение postgres_changes + подписка */
@@ -344,5 +356,6 @@ export type ErpStore = OrdersSlice &
   ProcurementSlice &
   SubcontractingSlice &
   EmployeesSlice &
+  PermissionsSlice &
   ExperimentalSlice &
   RealtimeSlice;
