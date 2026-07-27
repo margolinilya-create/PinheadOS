@@ -195,7 +195,42 @@ export interface ErpMaterial {
   accept_comment: string | null;
   created_at: string;
   updated_at: string;
+  /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
+  suppliers?: ErpMaterialSupplier[];
 }
+
+/**
+ * Вариант поставщика на позицию закупки (правка 10). Вариантов может быть несколько,
+ * выбранный (`is_selected`) дублируется в erp_materials.supplier — так он виден везде,
+ * где поставщик уже показывался, без правок тех экранов.
+ */
+export interface ErpMaterialSupplier {
+  id: string;
+  material_id: string;
+  supplier: string;
+  /** Цена за единицу закупки */
+  price: number | null;
+  /** Наличие — свободный текст: «200 кг на складе», «под заказ» */
+  availability: string | null;
+  /** Срок поставки, дней */
+  lead_days: number | null;
+  /** Минимальная партия — свободный текст: «от 50 кг» */
+  min_batch: string | null;
+  note: string | null;
+  is_selected: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Подписи колонок сравнения вариантов поставщика */
+export const SUPPLIER_OPTION_LABELS = {
+  supplier: 'Поставщик',
+  price: 'Цена',
+  availability: 'Наличие',
+  lead_days: 'Срок, дн',
+  min_batch: 'Мин. партия',
+  note: 'Примечание',
+} as const;
 
 /** Складская операция (правка 2): строка истории сопровождения заказа складом */
 export interface ErpWarehouseOp {

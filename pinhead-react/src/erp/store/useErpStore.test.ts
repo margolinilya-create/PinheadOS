@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   insertCalls: [] as { table: string; row: unknown }[],
   /** Очередь ошибок insert (для ретрая logStageEvent): shift на каждый вызов */
   insertErrors: [] as ({ message: string } | null)[],
+  deleteCalls: [] as { table: string }[],
+  deleteError: null as { message: string } | null,
   selectCalls: [] as { table: string; filters: string[] }[],
   tableData: {} as Record<string, unknown[]>,
   selectError: null as { message: string } | null,
@@ -68,6 +70,12 @@ vi.mock('../../lib/supabase', () => {
           h.insertCalls.push({ table, row });
           return Promise.resolve({ error: h.insertErrors.shift() ?? null });
         }),
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => {
+            h.deleteCalls.push({ table });
+            return Promise.resolve({ error: h.deleteError });
+          }),
+        })),
       })),
       rpc: vi.fn((fn: string, args: { payload?: unknown }) => {
         h.rpcCalls.push({ fn, args });
@@ -147,6 +155,8 @@ beforeEach(() => {
   h.updateError = null;
   h.insertCalls.length = 0;
   h.insertErrors.length = 0;
+  h.deleteCalls.length = 0;
+  h.deleteError = null;
   h.selectCalls.length = 0;
   h.tableData = {};
   h.selectError = null;
@@ -1797,5 +1807,104 @@ describe('useErpStore — справочник участков', () => {
     h.updateError = { message: 'нет связи' };
     expect(await useErpStore.getState().updateDepartment('d1', { norm_days: 9 })).toBe(false);
     expect(useErpStore.getState().departments[0].norm_days).toBe(3);
+  });
+});
+
+// --- Волна 3: варианты поставщиков (правка 10) -------------------------------
+
+function seedMaterial(suppliers: Record<string, unknown>[] = [], supplier: string | null = null) {
+  useErpStore.setState({
+    orders: [{
+      id: 'o1', title: 'Заказ', status: 'active', items: [],
+      materials: [{
+        id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Кулирка',
+        source: 'purchase', status: 'pending', supplier, qty_expected: 10,
+        suppliers,
+      }],
+    }] as any,
+    departments: [{ id: 'd-sup', code: 'supply', name: 'Закупка', active: true }] as any,
+    loaded: true,
+  });
+}
+
+const materialNow = () => useErpStore.getState().orders[0].materials[0] as any;
+
+describe('useErpStore — варианты поставщиков', () => {
+  it('добавление кладёт вариант в материал', async () => {
+    seedMaterial();
+    const created = await useErpStore.getState().addSupplierOption('m1', {
+      supplier: 'Астра Текстиль', price: 420, lead_days: 5,
+    } as never);
+    expect(created).toBeTruthy();
+    expect(materialNow().suppliers).toHaveLength(1);
+    const call = h.insertCalls.find((c) => c.table === 'erp_material_suppliers');
+    expect((call?.row as any).material_id).toBe('m1');
+    expect((call?.row as any).supplier).toBe('Астра Текстиль');
+  });
+
+  it('пустое имя поставщика не создаёт вариант', async () => {
+    seedMaterial();
+    expect(await useErpStore.getState().addSupplierOption('m1', { supplier: '   ' } as never)).toBeNull();
+    expect(h.insertCalls).toHaveLength(0);
+  });
+
+  it('выбор варианта снимает флаг с прежнего и пишет поставщика в материал', async () => {
+    seedMaterial([
+      { id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true },
+      { id: 's2', material_id: 'm1', supplier: 'Юг-Текстиль', is_selected: false },
+    ], 'Астра');
+    const ok = await useErpStore.getState().selectSupplierOption('m1', 's2');
+    expect(ok).toBe(true);
+    const m = materialNow();
+    expect(m.suppliers.find((o: any) => o.id === 's1').is_selected).toBe(false);
+    expect(m.suppliers.find((o: any) => o.id === 's2').is_selected).toBe(true);
+    expect(m.supplier).toBe('Юг-Текстиль');
+    // прежний флаг снимается ДО установки нового — иначе частичный уникальный индекс упадёт
+    const stageWrites = h.updateCalls.filter((c) => c.table === 'erp_material_suppliers');
+    expect(stageWrites[0].patch).toEqual({ is_selected: false });
+    expect(stageWrites[1].patch).toEqual({ is_selected: true });
+    expect(h.updateCalls.find((c) => c.table === 'erp_materials')?.patch).toEqual({ supplier: 'Юг-Текстиль' });
+  });
+
+  it('ошибка Supabase при выборе — полный откат', async () => {
+    seedMaterial([
+      { id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true },
+      { id: 's2', material_id: 'm1', supplier: 'Юг-Текстиль', is_selected: false },
+    ], 'Астра');
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().selectSupplierOption('m1', 's2');
+    expect(ok).toBe(false);
+    const m = materialNow();
+    expect(m.supplier).toBe('Астра');
+    expect(m.suppliers.find((o: any) => o.id === 's1').is_selected).toBe(true);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('удаление выбранного варианта очищает поставщика позиции', async () => {
+    seedMaterial([{ id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true }], 'Астра');
+    const ok = await useErpStore.getState().deleteSupplierOption('m1', 's1');
+    expect(ok).toBe(true);
+    expect(materialNow().suppliers).toHaveLength(0);
+    expect(materialNow().supplier).toBeNull();
+  });
+
+  it('удаление невыбранного варианта поставщика позиции не трогает', async () => {
+    seedMaterial([
+      { id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true },
+      { id: 's2', material_id: 'm1', supplier: 'Юг-Текстиль', is_selected: false },
+    ], 'Астра');
+    await useErpStore.getState().deleteSupplierOption('m1', 's2');
+    expect(materialNow().supplier).toBe('Астра');
+    expect(materialNow().suppliers).toHaveLength(1);
+  });
+
+  it('правка варианта — optimistic с откатом', async () => {
+    seedMaterial([{ id: 's1', material_id: 'm1', supplier: 'Астра', price: 400, is_selected: true }], 'Астра');
+    expect(await useErpStore.getState().updateSupplierOption('m1', 's1', { price: 380 })).toBe(true);
+    expect(materialNow().suppliers[0].price).toBe(380);
+
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().updateSupplierOption('m1', 's1', { price: 999 })).toBe(false);
+    expect(materialNow().suppliers[0].price).toBe(380);
   });
 });

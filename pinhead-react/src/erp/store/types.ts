@@ -17,6 +17,7 @@ import type {
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
+  ErpMaterialSupplier,
   ErpOrder,
   ErpOrderItem,
   ErpExperimental,
@@ -265,6 +266,21 @@ export interface MaterialsSlice {
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
   /** Подтвердить наличие материала со склада → «Доступен со склада» (открывает закрой) */
   confirmStockMaterial: (id: string) => Promise<boolean>;
+
+  /** Варианты поставщиков на позицию закупки (правка 10) */
+  addSupplierOption: (
+    materialId: string,
+    option: Partial<ErpMaterialSupplier> & Pick<ErpMaterialSupplier, 'supplier'>,
+  ) => Promise<ErpMaterialSupplier | null>;
+  updateSupplierOption: (
+    materialId: string,
+    optionId: string,
+    patch: Partial<ErpMaterialSupplier>,
+  ) => Promise<boolean>;
+  /** Выбрать итогового поставщика: снимает флаг с прежнего и пишет имя в материал */
+  selectSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
+  /** Удалить вариант; удаление выбранного очищает поставщика у позиции */
+  deleteSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
   /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
   maybeCloseSupply: (orderId: string) => Promise<void>;
 }

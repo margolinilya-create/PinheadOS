@@ -97,6 +97,15 @@ function AcceptBlock({ material: m, onAccept }) {
                   onChange={(e) => setFactArticle(e.target.value)} aria-label={`Факт артикул ${m.name}`} />
               </td>
             </tr>
+            {/* Поставщик — только план (правка 10): выбран закупкой, склад его не меняет;
+                расхождение фиксируется комментарием приёмки */}
+            <tr>
+              <td>Поставщик</td>
+              <td>{m.supplier || '—'}</td>
+              <td className={styles.subText}>
+                расхождение — в комментарий
+              </td>
+            </tr>
             <tr>
               <td>Количество, кг</td>
               <td>{m.qty_expected ?? '—'}</td>

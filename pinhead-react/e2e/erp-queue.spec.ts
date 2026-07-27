@@ -166,3 +166,24 @@ test.describe('Админка: права и справочники (правк�
     }
   });
 });
+
+test.describe('Варианты поставщиков в закупке (правка 10)', () => {
+  test('ячейка поставщика открывает сравнение вариантов', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const cell = page.getByRole('button', { name: /не выбран|вариант/ }).first();
+    await expect(cell).toBeVisible();
+    await cell.click();
+
+    const dialog = page.getByRole('dialog', { name: /Поставщики:/ });
+    await expect(dialog).toBeVisible();
+    // Базовый набор полей сравнения, утверждённый заказчиком
+    for (const label of ['Поставщик', 'Цена', 'Наличие', 'Срок поставки, дней', 'Минимальная партия', 'Примечание']) {
+      await expect(dialog.getByLabel(label, { exact: true })).toBeVisible();
+    }
+    await expect(dialog.getByRole('button', { name: '+ Добавить вариант' })).toBeDisabled();
+    await dialog.getByLabel('Поставщик', { exact: true }).fill('Астра Текстиль');
+    await expect(dialog.getByRole('button', { name: '+ Добавить вариант' })).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Закрыть' }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+});

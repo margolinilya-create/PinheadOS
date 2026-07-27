@@ -20,7 +20,7 @@ export const ORDER_SELECT = `
     stages:erp_item_stages (*),
     prints:erp_item_prints (*)
   ),
-  materials:erp_materials (*),
+  materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),

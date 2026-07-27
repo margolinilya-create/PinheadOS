@@ -174,7 +174,9 @@ export function OrderDrawer({ orderId, onClose }) {
                 const eta = pending ? formatDateShort(m.eta_date) : '';
                 return (
                   <Badge key={m.id} variant={pending ? 'progress' : 'ready'}>
-                    {m.name} · {MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                    {m.name}
+                    {m.supplier ? ` · ${m.supplier}` : ''}
+                    {' · '}{MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
                   </Badge>
                 );
               })}

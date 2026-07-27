@@ -9,6 +9,8 @@ import { Pagination } from '../components/Pagination';
 import { useErpStore } from '../store/useErpStore';
 import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
 import { toast } from '../../store/useToastStore';
+import { pluralize } from '../../utils/i18n';
+import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
 import { formatDateShort, procurementSla } from '../utils/time';
 import {
   MATERIAL_STATUS_LABELS,
@@ -168,11 +170,16 @@ export default function FabricPurchasing() {
   const {
     orders, loading, loaded, loadError, loadAll, addMaterial, updateMaterial,
     confirmStockMaterial, updateProcurementTask,
+    addSupplierOption, updateSupplierOption, selectSupplierOption, deleteSupplierOption,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loading: s.loading, loaded: s.loaded, loadError: s.loadError,
       loadAll: s.loadAll, addMaterial: s.addMaterial, updateMaterial: s.updateMaterial,
       confirmStockMaterial: s.confirmStockMaterial, updateProcurementTask: s.updateProcurementTask,
+      addSupplierOption: s.addSupplierOption,
+      updateSupplierOption: s.updateSupplierOption,
+      selectSupplierOption: s.selectSupplierOption,
+      deleteSupplierOption: s.deleteSupplierOption,
     })),
   );
   const [query, setQuery] = useState('');
@@ -180,6 +187,8 @@ export default function FabricPurchasing() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [adding, setAdding] = useState(false);
+  /** Открытая модалка сравнения вариантов поставщика: { material, order } */
+  const [optionsFor, setOptionsFor] = useState(null);
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
@@ -342,18 +351,22 @@ export default function FabricPurchasing() {
                       <div className={styles.subText}>{KIND_LABELS[m.kind]}{m.color ? ` · ${m.color}` : ''}{m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}</div>
                     </td>
                     <td>
-                      <input
-                        className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.supplier || ''}
-                        placeholder="—"
-                        list="erp-suppliers-table"
-                        onBlur={(e) => {
-                          const v = e.target.value.trim() || null;
-                          if (v !== (m.supplier || null)) updateMaterial(m.id, { supplier: v });
-                        }}
-                        aria-label={`Поставщик ${m.name}`}
-                        style={{ maxWidth: 130 }}
-                      />
+                      {/* Правка 10: поставщик — не одно поле, а выбор из вариантов */}
+                      <button
+                        type="button"
+                        className={styles.supplierCell}
+                        onClick={() => setOptionsFor({ material: m, order })}
+                        title={`Варианты поставщиков: ${m.name}`}
+                      >
+                        <span className={m.supplier ? undefined : styles.subText}>
+                          {m.supplier || 'не выбран'}
+                        </span>
+                        <span className={styles.subText}>
+                          {(m.suppliers ?? []).length > 0
+                            ? `${(m.suppliers ?? []).length} ${pluralize((m.suppliers ?? []).length, 'вариант', 'варианта', 'вариантов')}`
+                            : 'добавить вариант'}
+                        </span>
+                      </button>
                     </td>
                     <td>
                       <input
@@ -442,6 +455,23 @@ export default function FabricPurchasing() {
       {adding && (
         <AddPurchaseModal orders={activeOrders} onAdd={addMaterial} onClose={() => setAdding(false)} />
       )}
+
+      {optionsFor && (() => {
+        // Материал берём из свежего стора: после выбора/правки варианта строка меняется,
+        // а в optionsFor лежит снимок на момент открытия
+        const fresh = orders
+          .flatMap((o) => o.materials.map((m) => ({ m, o })))
+          .find(({ m }) => m.id === optionsFor.material.id);
+        if (!fresh) return null;
+        return (
+          <SupplierOptionsModal
+            material={fresh.m}
+            order={fresh.o}
+            actions={{ addSupplierOption, updateSupplierOption, selectSupplierOption, deleteSupplierOption }}
+            onClose={() => setOptionsFor(null)}
+          />
+        );
+      })()}
     </>
   );
 }
