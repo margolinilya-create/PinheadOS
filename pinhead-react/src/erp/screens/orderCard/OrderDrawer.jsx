@@ -5,6 +5,7 @@ import { Badge } from '../../components/Badge';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import InlineEdit from '../../components/InlineEdit';
 import { formatDateShort } from '../../utils/time';
+import { orderProgress } from '../../utils/progress';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -143,6 +144,19 @@ export function OrderDrawer({ orderId, onClose }) {
       {order && tab === 'route' && (
         <>
           <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
+          {(() => {
+            const p = orderProgress(order);
+            return (
+              <div className={styles.routeTotal} style={{ marginBottom: 12 }}>
+                <span className={styles.routeTotalLabel}>Готовность заказа</span>
+                <div className={styles.progressTrack} aria-hidden="true">
+                  <div className={styles.progressFill} style={{ width: `${p.pct}%` }} />
+                </div>
+                <span className={styles.progressCell}>{p.pct}%</span>
+                <span className={styles.subText}>{p.done}/{p.total} шт по этапам</span>
+              </div>
+            );
+          })()}
           {order.items.map((item) => (
             <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
           ))}

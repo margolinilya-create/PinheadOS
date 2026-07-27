@@ -6,6 +6,7 @@ import {
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
 } from '../../types';
+import { RouteProgress } from '../../components/RouteProgress';
 import styles from '../../erp.module.css';
 import { StageStepper } from './StageStepper';
 import { PlanCell } from './PlanCell';
@@ -24,6 +25,8 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
         <span className={styles.queueQty}>{item.qty} шт</span>
       </div>
       <StageStepper item={item} order={order} deptById={deptById} events={events} />
+      {/* Маршрут в штуках: «Раскрой 100/100 — завершено» + общий процент (правка 7) */}
+      <RouteProgress item={item} order={order} deptById={deptById} />
 
       {item.size_grid && item.size_grid.length > 0 && (
         <div className={styles.tableWrap} style={{ marginBottom: 10, maxWidth: 560 }}>

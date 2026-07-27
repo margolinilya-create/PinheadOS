@@ -9,7 +9,8 @@ import { isStageReady, waitingReason } from '../utils/routes';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import { deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
-import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../utils/stageUi';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
+import { itemProgress } from '../utils/progress';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 
@@ -202,7 +203,7 @@ export default function ProductionBoard() {
                 const dueCls = d !== null && d < 0
                   ? styles.overdue
                   : d !== null && d <= 3 ? styles.dueSoon : undefined;
-                const progress = stageProgress(item.stages);
+                const progress = itemProgress(item);
                 return (
                   <tr key={item.id}>
                     <td>{order.bitrix_id || '—'}</td>
@@ -235,7 +236,12 @@ export default function ProductionBoard() {
                       )}
                     </td>
                     <td className={styles.progressCell}>
-                      {progress.done}/{progress.total}
+                      <div className={styles.progressLine} title={`Сделано ${progress.done} из ${progress.total} шт по этапам маршрута`}>
+                        <div className={styles.progressTrack} aria-hidden="true">
+                          <div className={styles.progressFill} style={{ width: `${progress.pct}%` }} />
+                        </div>
+                        <span>{progress.pct}%</span>
+                      </div>
                     </td>
                     <td>
                       <div className={styles.stageChips}>
