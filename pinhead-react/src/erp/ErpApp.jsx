@@ -12,6 +12,7 @@ import styles from './erp.module.css';
 const OrderCard = lazy(() => import('./screens/OrderCard'));
 const ProductionBoard = lazy(() => import('./screens/ProductionBoard')); // + ErpKanban в чанке
 const AdminScreen = lazy(() => import('./screens/AdminScreen')); // + Employees/Departments
+const ProductionTask = lazy(() => import('./screens/ProductionTask'));
 const FabricPurchasing = lazy(() => import('./screens/FabricPurchasing'));
 const Warehouse = lazy(() => import('./screens/Warehouse'));
 const Subcontracting = lazy(() => import('./screens/Subcontracting'));
@@ -25,6 +26,12 @@ const Experimental = lazy(() => import('./screens/Experimental'));
 function OrderCardRoute() {
   const { orderId } = useParams();
   return <OrderCard key={orderId} />;
+}
+
+/** То же для задания: переход A→B ремонтирует страницу, без мигания прошлых данных */
+function ProductionTaskRoute() {
+  const { stageId } = useParams();
+  return <ProductionTask key={stageId} />;
 }
 
 /** Инлайн-панель «нет доступа» — без redirect, чтобы избежать гонки с загрузкой роли */
@@ -54,6 +61,8 @@ export default function ErpApp({ user }) {
           {/* /queue — «Мой цех» (автопривязка), /queue/:deptCode — очередь конкретного участка */}
           <Route path="/queue" element={<DepartmentQueue />} />
           <Route path="/queue/:deptCode" element={<DepartmentQueue />} />
+          {/* Страница производственного задания (правка 5); key — свежий инстанс на задание */}
+          <Route path="/task/:stageId" element={<ProductionTaskRoute />} />
           <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
