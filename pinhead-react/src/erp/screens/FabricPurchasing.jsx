@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { useErpStore } from '../store/useErpStore';
+import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, procurementSla } from '../utils/time';
 import {
@@ -140,6 +142,19 @@ const TABS = [
   { key: 'overdue', label: 'Просрочено' },
 ];
 
+/**
+ * Верхние показатели (правка 14) — не только статистика, но и быстрый переход:
+ * клик по всей плитке фильтрует список по её статусу, а если позиция одна —
+ * сразу открывает карточку её заказа.
+ */
+const KPIS = [
+  { key: 'all', icon: '🗂️', cls: '', label: 'Всего строк', hint: 'Показать все закупки без фильтра' },
+  { key: 'awaiting', icon: '⏳', cls: 'kpiIconWarn', label: 'Ожидается', hint: 'Позиции, ожидающие заказа или обработки' },
+  { key: 'transit', icon: '🚚', cls: '', label: 'В пути', hint: 'Отправленные, но ещё не поступившие позиции' },
+  { key: 'arrived', icon: '✅', cls: 'kpiIconOk', label: 'Пришло', hint: 'Поступившие позиции' },
+  { key: 'overdue', icon: '⚠️', cls: 'kpiIconDanger', label: 'Просрочено', hint: 'Просроченные позиции' },
+];
+
 export default function FabricPurchasing() {
   const {
     orders, loading, loaded, loadError, loadAll, addMaterial, updateMaterial,
@@ -205,27 +220,57 @@ export default function FabricPurchasing() {
     await updateMaterial(m.id, patch);
   };
 
+  /**
+   * Клик по показателю: несколько позиций — список с уже применённым фильтром,
+   * одна — сразу карточка её заказа (правка 14).
+   */
+  const openKpi = (key) => {
+    const rows = key === 'all' ? allRows : allRows.filter((r) => r.group === key);
+    if (rows.length === 1) {
+      useOrderDrawer.getState().open(rows[0].order.id);
+      return;
+    }
+    setTab(key);
+    setPage(1);
+  };
+
   return (
     <>
       <PageHead title="Закупка" sub="Работа с материалами и поставщиками." />
 
       {loaded && (
         <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {[
-            { icon: '🗂️', cls: '', label: 'Всего строк', val: counts.all },
-            { icon: '⏳', cls: styles.kpiIconWarn, label: 'Ожидается', val: counts.awaiting },
-            { icon: '🚚', cls: '', label: 'В пути', val: counts.transit },
-            { icon: '✅', cls: styles.kpiIconOk, label: 'Пришло', val: counts.arrived },
-            { icon: '⚠️', cls: styles.kpiIconDanger, label: 'Просрочено', val: counts.overdue },
-          ].map((k) => (
-            <div key={k.label} className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${k.cls}`}>{k.icon}</span>
-              <span className={styles.kpiBody}>
-                <span className={styles.kpiCardLabel}>{k.label}</span>
-                <span className={styles.kpiCardValue}>{k.val}</span>
-              </span>
-            </div>
-          ))}
+          {KPIS.map((k) => {
+            const val = counts[k.key];
+            const active = tab === k.key;
+            return (
+              <button
+                key={k.key}
+                type="button"
+                aria-pressed={active}
+                title={k.hint}
+                className={`${styles.kpiCard} ${styles.kpiCardClickable} ${active ? styles.kpiCardActive : ''}`}
+                onClick={() => openKpi(k.key)}
+              >
+                <span className={`${styles.kpiIcon} ${k.cls ? styles[k.cls] : ''}`}>{k.icon}</span>
+                <span className={styles.kpiBody}>
+                  <span className={styles.kpiCardLabel}>{k.label}</span>
+                  <span className={styles.kpiCardValue}>{val}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {tab !== 'all' && (
+        <div className={styles.toolbar} style={{ marginTop: -8 }}>
+          <span className={`${styles.chip} ${styles.chipProgress}`}>
+            Фильтр: {TABS.find((t) => t.key === tab)?.label}
+          </span>
+          <button type="button" className="btn btn-ghost" onClick={() => setTab('all')}>
+            Сбросить фильтр
+          </button>
         </div>
       )}
 
@@ -272,7 +317,14 @@ export default function FabricPurchasing() {
                 {pageRows.map(({ order, m }) => (
                   <tr key={m.id}>
                     <td>
-                      №{order.bitrix_id || '—'}
+                      {/* Правка 10: номер заказа — ссылка на его карточку */}
+                      <Link
+                        to={`/orders/${order.id}`}
+                        onClick={(e) => orderLinkClick(order.id, e)}
+                        title={`Открыть заказ №${order.bitrix_id || '—'}`}
+                      >
+                        №{order.bitrix_id || '—'}
+                      </Link>
                       <div className={styles.subText}>{order.title}</div>
                     </td>
                     <td>
@@ -338,7 +390,15 @@ export default function FabricPurchasing() {
               <tbody>
                 {procurementRows.map(({ order, t }) => (
                   <tr key={t.id}>
-                    <td>№{order.bitrix_id || '—'}</td>
+                    <td>
+                      <Link
+                        to={`/orders/${order.id}`}
+                        onClick={(e) => orderLinkClick(order.id, e)}
+                        title={`Открыть заказ №${order.bitrix_id || '—'}`}
+                      >
+                        №{order.bitrix_id || '—'}
+                      </Link>
+                    </td>
                     <td>{t.material_name}</td>
                     <td>{PROCUREMENT_KIND_LABELS[t.kind]}{!t.counts_as_purchase && <div className={styles.subText}>не закупка компании</div>}</td>
                     <td>{PROCUREMENT_CAUSE_LABELS[t.cause_type]}</td>

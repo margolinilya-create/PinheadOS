@@ -1618,6 +1618,17 @@ a.cellTitle:hover { color: var(--accent); }
   text-decoration: none; color: inherit;
 }
 .kpiCard:hover { border-color: var(--border-mid); }
+/* Показатель как быстрый фильтр/переход (правка 14): кликабельна вся плитка */
+.kpiCardClickable {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.kpiCardClickable:hover { border-color: var(--accent); background: var(--accent-light); }
+.kpiCardClickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpiCardActive { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .kpiIcon {
   width: 44px; height: 44px; flex-shrink: 0;
   border-radius: 12px;
