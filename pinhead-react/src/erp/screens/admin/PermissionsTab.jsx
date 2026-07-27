@@ -59,7 +59,7 @@ export function PermissionsTab() {
       </div>
 
       <div className={styles.tableWrap}>
-        <table className={styles.table}>
+        <table className={`${styles.table} ${styles.matrixTable}`}>
           <thead>
             <tr>
               <th>Право</th>

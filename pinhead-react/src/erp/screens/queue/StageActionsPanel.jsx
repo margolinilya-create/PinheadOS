@@ -252,13 +252,16 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             label="Частые причины блокировки"
             onPick={setBlockText}
           />
-          <input
-            className={styles.input}
-            placeholder="Что мешает? (брак кроя, нет ниток…)"
-            value={blockText}
-            onChange={(e) => setBlockText(e.target.value)}
-            autoFocus
-          />
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Что мешает *</span>
+            <input
+              className={styles.input}
+              placeholder="брак кроя, нет ниток…"
+              value={blockText}
+              onChange={(e) => setBlockText(e.target.value)}
+              autoFocus
+            />
+          </label>
           <PhotoAttach file={blockPhoto} onFile={setBlockPhoto} label="Фото (необязательно)" />
           <button
             type="button"
@@ -295,12 +298,15 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             label="Типы проблем"
             onPick={setDefectText}
           />
-          <input
-            className={styles.input}
-            placeholder="Причина брака (кривая строчка, пятно…)"
-            value={defectText}
-            onChange={(e) => setDefectText(e.target.value)}
-          />
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Причина брака *</span>
+            <input
+              className={styles.input}
+              placeholder="кривая строчка, пятно…"
+              value={defectText}
+              onChange={(e) => setDefectText(e.target.value)}
+            />
+          </label>
           <select
             className={styles.select}
             value={defectTarget}
@@ -337,7 +343,9 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <label className={styles.checkLabel}>
             <input
               type="checkbox"
-              checked={defectNeedsMaterial}
+              // При «На закупку» поля материала уже показаны — чекбокс обязан
+              // это отражать, а не оставаться снятым и серым
+              checked={showProcurement}
               disabled={defectTarget === 'procurement'}
               onChange={(e) => setDefectNeedsMaterial(e.target.checked)}
             />

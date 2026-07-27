@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { orderLinkClick } from '../store/useOrderDrawer';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
@@ -95,11 +96,11 @@ export default function ErpDashboard() {
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
       if (hasOpenProcurement(order.procurement_tasks)) {
-        notifications.push({ id: `p-${order.id}`, icon: '🔔', variant: 'warn',
+        notifications.push({ id: `p-${order.id}`, orderId: order.id, icon: '🔔', variant: 'warn',
           text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
       if (isOverdue(order.due_date)) {
-        notifications.push({ id: `o-${order.id}`, icon: '⚠️', variant: 'danger',
+        notifications.push({ id: `o-${order.id}`, orderId: order.id, icon: '⚠️', variant: 'danger',
           text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title });
       }
 
@@ -305,13 +306,20 @@ export default function ErpDashboard() {
                 <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
               ) : (
                 data.notifications.map((n) => (
-                  <div key={n.id} className={styles.notifItem}>
+                  // Алерт без ссылки — тупик: пользователь читал «Просрочен заказ
+                  // №1042» и шёл искать его руками, хотя id лежит рядом
+                  <Link
+                    key={n.id}
+                    to={`/orders/${n.orderId}`}
+                    onClick={(e) => orderLinkClick(n.orderId, e)}
+                    className={styles.notifItem}
+                  >
                     <span aria-hidden="true">{n.icon}</span>
                     <span className={styles.notifText}>
                       {n.text}
                       <span className={styles.notifSub}> · {n.sub}</span>
                     </span>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>

@@ -255,7 +255,9 @@ export default function Subcontracting() {
                   <tr key={op.id}>
                     <td>
                       <strong>№{op.order?.bitrix_id || '—'}</strong>
-                      <div className={styles.subText}>{op.order?.title || '—'}</div>
+                      <div className={styles.cellSub} title={op.order?.title || undefined}>
+                        {op.order?.title || '—'}
+                      </div>
                     </td>
                     <td>
                       <select

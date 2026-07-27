@@ -105,7 +105,7 @@ test.describe('Страница производственного задани�
 test.describe('Производственный канбан (правка 4)', () => {
   test('колонки — производственные процессы', async ({ page }) => {
     await page.goto('/board?studio=0');
-    await page.getByRole('tab', { name: /Канбан/ }).click();
+    await page.getByRole('button', { name: /Канбан/ }).click();
     const board = page.getByRole('list', { name: 'Канбан по цехам' });
     await expect(board).toBeVisible();
     const heads = board.locator('section > :first-child');

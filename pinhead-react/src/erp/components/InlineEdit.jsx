@@ -67,8 +67,11 @@ export default function InlineEdit({
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') setEditing(false);
+        // Гасим события: контейнер карточки слушает Escape через useFocusTrap и
+        // закрывал бы всю панель вместо отмены правки одного поля. Enter — чтобы
+        // не всплыл до формы и не отправил её.
+        if (e.key === 'Enter') { e.stopPropagation(); commit(); }
+        if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
       }}
     />
   );

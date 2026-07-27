@@ -18,6 +18,7 @@ import { setFeature } from '../../config/features';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import styles from '../erp.module.css';
+import appStyles from '../../App.module.css';
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
@@ -90,10 +91,18 @@ export default function ErpLayout({ user, children }) {
     [orders, departments, myCode, subcontracting, experimental],
   );
 
-  const overdueCount = useMemo(
-    () => (myCode ? overdueUnackCountFor(orders, departments, myCode) : 0),
-    [orders, departments, myCode],
-  );
+  /**
+   * Колокол просрочек. У диспетчера, РОПа и директора привязки к конкретному цеху
+   * обычно нет, и бейдж всегда показывал 0 — единственный глобальный индикатор
+   * «что горит» был мёртв именно для тех, кому адресован. Без своего цеха считаем
+   * по всем производственным участкам.
+   */
+  const overdueCount = useMemo(() => {
+    if (myCode) return overdueUnackCountFor(orders, departments, myCode);
+    return departments
+      .filter((d) => d.active && isProductionDept(d))
+      .reduce((sum, d) => sum + overdueUnackCountFor(orders, departments, d.code), 0);
+  }, [orders, departments, myCode]);
 
   // Постоянное меню цехов (правка 1): участок + число заданий в его очереди
   // (готовые к запуску + уже взятые в работу).
@@ -112,6 +121,9 @@ export default function ErpLayout({ user, children }) {
 
   return (
     <div className={styles.shell}>
+      {/* Сайдбар — до 20+ ссылок, и клавиатурный пользователь проходил их заново
+          на каждой странице. Якорь #main-content был, ссылки на него — нет. */}
+      <a href="#main-content" className={appStyles.skipLink}>Перейти к содержимому</a>
       <Sidebar
         isAdmin={isAdmin}
         counts={counts}

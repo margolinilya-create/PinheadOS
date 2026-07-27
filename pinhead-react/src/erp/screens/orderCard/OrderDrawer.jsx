@@ -14,6 +14,7 @@ import {
   STICKERS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { FilesSection } from './FilesSection';
 import { fmt, fmtTs } from './format';
 import { OrderItemSection } from './OrderItemSection';
 import { CommentsSection } from './CommentsSection';
@@ -21,7 +22,6 @@ import { HistorySection } from './HistorySection';
 import { NotificationsSection } from './NotificationsSection';
 import { TzBlock } from '../queue/TzBlock';
 import { TzDocsSection, TzMissingBanner } from './TzDocsSection';
-import { supabase } from '../../../lib/supabase';
 import { useOrderDetail } from './useOrderDetail';
 
 /**
@@ -41,12 +41,6 @@ const TABS = [
   { key: 'history', label: 'История' },
 ];
 
-const ATTACH_KIND_LABEL = { preview: 'Превью', attachment: 'Вложение' };
-
-/** Публичный URL файла заказа в бакете erp-attachments */
-function attachmentUrl(path) {
-  return supabase.storage.from('erp-attachments').getPublicUrl(path).data.publicUrl;
-}
 
 export function OrderDrawer({ orderId, onClose }) {
   const [tab, setTab] = useState('info');
@@ -206,40 +200,7 @@ export function OrderDrawer({ orderId, onClose }) {
         </>
       )}
 
-      {order && tab === 'files' && (
-        <section className={styles.matSection}>
-          <div className={styles.matSectionHead}><strong>Файлы</strong></div>
-          {(order.attachments ?? []).length > 0 ? (
-            <div className={styles.fileGrid}>
-              {order.attachments.map((a) => {
-                const url = attachmentUrl(a.file_path);
-                // Не всякое вложение — картинка: у PDF и прочих рисуем иконку,
-                // иначе браузер показывал бы битый <img>
-                const isImage = /\.(png|jpe?g|webp|gif|avif)$/i.test(a.file_name || a.file_path);
-                return (
-                  <a key={a.id} href={url} target="_blank" rel="noreferrer" className={styles.fileCard}>
-                    {isImage ? (
-                      <img
-                        src={url} alt={a.file_name || 'файл'} className={styles.fileThumb} loading="lazy"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <span className={styles.fileThumbStub} aria-hidden="true">
-                        {/\.pdf$/i.test(a.file_name || a.file_path) ? '📄' : '📎'}
-                      </span>
-                    )}
-                    <span className={styles.fileName}>
-                      {ATTACH_KIND_LABEL[a.kind] ? `${ATTACH_KIND_LABEL[a.kind]} · ` : ''}{a.file_name || 'файл'}
-                    </span>
-                  </a>
-                );
-              })}
-            </div>
-          ) : (
-            <div className={styles.subText}>Файлов нет.</div>
-          )}
-        </section>
-      )}
+      {order && tab === 'files' && <FilesSection attachments={order.attachments} />}
 
       {order && tab === 'comments' && (
         <CommentsSection comments={comments} onSend={onSendComment} />

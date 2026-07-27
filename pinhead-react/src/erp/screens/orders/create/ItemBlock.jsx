@@ -21,12 +21,26 @@ import styles from '../../../erp.module.css';
  */
 export function ItemBlock({
   it, i, itemsCount, err, inputCls, queueDepts,
-  setItem, setBranding, setPrint, removeItem,
+  setItem, setBranding, setPrint, removeItem, removePrint,
 }) {
   const gTotal = gridTotal(it.size_grid);
 
   return (
     <div className={styles.itemBlock}>
+      <div className={styles.itemBlockHead}>
+        <span className={styles.itemBlockTitle} title={it.product_type || undefined}>
+          Позиция {i + 1}{it.product_type ? ` · ${it.product_type}` : ''}
+        </span>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          aria-label={`Убрать позицию ${i + 1}`}
+          disabled={itemsCount === 1}
+          onClick={() => removeItem(i)}
+        >
+          ✕
+        </button>
+      </div>
     <div className={styles.itemRow}>
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Изделие *</span>
@@ -162,19 +176,30 @@ export function ItemBlock({
                     </div>
                   </div>
                   {it.needs_further && (
-                    <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Следующий участок</span>
+                    <label
+                      className={styles.field}
+                      data-invalid={err(`item_${i}_return_dept`) ? true : undefined}
+                    >
+                      <span className={styles.fieldLabel}>Следующий участок *</span>
                       <select
-                        className={styles.select}
+                        className={err(`item_${i}_return_dept`)
+                          ? `${styles.select} ${styles.inputError}` : styles.select}
                         value={it.return_dept ?? ''}
                         onChange={(e) => setItem(i, { return_dept: e.target.value })}
                         aria-label="Следующий участок после операции подряда"
+                        aria-invalid={err(`item_${i}_return_dept`) ? true : undefined}
+                        aria-describedby={err(`item_${i}_return_dept`)
+                          ? `err-item-${i}-return-dept` : undefined}
                       >
                         <option value="">Выберите участок…</option>
                         {queueDepts.map((d) => (
                           <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
                         ))}
                       </select>
+                      <FieldError
+                        id={`err-item-${i}-return-dept`}
+                        text={err(`item_${i}_return_dept`)}
+                      />
                     </label>
                   )}
                 </>
@@ -204,15 +229,6 @@ export function ItemBlock({
               <option value="finished">на готовом</option>
             </select>
           </label>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            aria-label="Убрать позицию"
-            disabled={itemsCount === 1}
-            onClick={() => removeItem(i)}
-          >
-            ✕
-          </button>
         </div>
 
         {it.has_branding && it.prints.map((p, pi) => (
@@ -232,6 +248,7 @@ export function ItemBlock({
               <input
                 className={`${styles.input} ${styles.inputSm} ${styles.printZoneInput}`}
                 placeholder="Расположение (спина справа по втачке)"
+                aria-label="Расположение нанесения"
                 value={p.zone}
                 onChange={(e) => setPrint(i, pi, { zone: e.target.value })}
               />
@@ -249,8 +266,9 @@ export function ItemBlock({
                   value={p.width_mm}
                   onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
               </label>
-              <button type="button" className="btn btn-ghost" aria-label="Убрать нанесение"
-                onClick={() => setItem(i, { prints: it.prints.filter((_, j) => j !== pi) })}>
+              <button type="button" className="btn btn-ghost"
+                aria-label={`Убрать нанесение ${pi + 1}`}
+                onClick={() => removePrint(i, pi)}>
                 ✕
               </button>
             </div>
@@ -258,18 +276,21 @@ export function ItemBlock({
               <input
                 className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
                 placeholder="Отступ (10см от шва горловины)"
+                aria-label="Отступ нанесения"
                 value={p.offset_note}
                 onChange={(e) => setPrint(i, pi, { offset_note: e.target.value })}
               />
               <input
                 className={`${styles.input} ${styles.inputSm} ${styles.pantoneInput}`}
                 placeholder="Pantone (1163, 1181)"
+                aria-label="Pantone нанесения"
                 value={p.pantone}
                 onChange={(e) => setPrint(i, pi, { pantone: e.target.value })}
               />
               <input
                 className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
                 placeholder="Комментарий (макет как в сделке…)"
+                aria-label="Комментарий нанесения"
                 value={p.comment}
                 onChange={(e) => setPrint(i, pi, { comment: e.target.value })}
               />

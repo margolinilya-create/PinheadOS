@@ -8,6 +8,7 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isUrgent, isOverdue } from '../utils/time';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
@@ -45,14 +46,29 @@ export default function OrdersScreen() {
   // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
   const query = useErpSearch((s) => s.query);
   const setQuery = useErpSearch((s) => s.setQuery);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [tab, setTab] = useState('active'); // active | archive
   const isMobile = useMediaQuery('(max-width: 760px)');
+  /**
+   * Вкладка и даты — тоже в URL, рядом с `filter`. Раньше они жили в локальном
+   * состоянии, и возврат «← Заказы» из архивного заказа приводил на вкладку
+   * «Активные» со сброшенными датами; вместе с отсутствием useScrollRestore это
+   * означало «начни поиск заново» на каждой позиции.
+   */
+  const patchParams = (patch) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v) next.set(k, v); else next.delete(k);
+    }
+    return next;
+  }, { replace: true });
+  const dateFrom = searchParams.get('from') || '';
+  const dateTo = searchParams.get('to') || '';
+  const setDateFrom = (v) => patchParams({ from: v });
+  const setDateTo = (v) => patchParams({ to: v });
+  const tab = searchParams.get('tab') === 'archive' ? 'archive' : 'active';
+  const setTab = (v) => patchParams({ tab: v === 'archive' ? 'archive' : '' });
   const filterParam = searchParams.get('filter');
   const filter = ['ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
-  const toggleFilter = (name) =>
-    setSearchParams(filter === name ? {} : { filter: name }, { replace: true });
+  const toggleFilter = (name) => patchParams({ filter: filter === name ? '' : name });
   // Счётчики чипов — та же логика, что у KPI-плиток дашборда (активные заказы)
   const counts = useMemo(() => {
     const active = orders.filter((o) => o.status === 'active');
@@ -66,6 +82,8 @@ export default function OrdersScreen() {
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+  // Возврат из карточки восстанавливает и позицию прокрутки (правило DESIGN.md)
+  useScrollRestore(loaded);
 
   // Архив лениво: грузится при первом заходе на вкладку
   useEffect(() => {
@@ -136,7 +154,7 @@ export default function OrdersScreen() {
       <PageHead title="Заказы" sub="Производственные заказы: позиции, маршрут по цехам, сроки." />
 
       <div className={styles.toolbar}>
-        <div role="tablist" aria-label="Фильтр заказов" className={styles.filterRow}>
+        <div role="group" aria-label="Фильтр заказов" className={styles.filterRow}>
           <button
             type="button"
             role="tab"
@@ -218,7 +236,7 @@ export default function OrdersScreen() {
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={() => { setDateFrom(''); setDateTo(''); }}
+            onClick={() => patchParams({ from: '', to: '' })}
           >
             Сбросить даты
           </button>

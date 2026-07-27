@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed } from '../components/ErpStates';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
@@ -57,6 +58,8 @@ const EMPTY_MAT = {
 
 /** Модалка «Новая закупка» */
 function AddPurchaseModal({ orders, onAdd, onClose }) {
+  // Без трапа Tab уходил под оверлей, а Escape не закрывал — при объявленном aria-modal
+  const trapRef = useFocusTrap(true, onClose);
   const [form, setForm] = useState(EMPTY_MAT);
   const [saving, setSaving] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -83,7 +86,7 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
 
   return (
     <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Новая закупка" onClick={(e) => e.stopPropagation()}>
+      <div ref={trapRef} className={styles.modal} role="dialog" aria-modal="true" aria-label="Новая закупка" onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalTitle}>Новая закупка</div>
         <div className={styles.formGrid}>
           <label className={styles.field}>
@@ -340,7 +343,7 @@ export default function FabricPurchasing() {
                       >
                         №{order.bitrix_id || '—'}
                       </Link>
-                      <div className={styles.subText}>{order.title}</div>
+                      <div className={styles.cellSub} title={order.title}>{order.title}</div>
                     </td>
                     <td>
                       <strong>{m.name}</strong>

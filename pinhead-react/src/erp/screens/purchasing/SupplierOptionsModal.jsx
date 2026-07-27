@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import InlineEdit from '../../components/InlineEdit';
 import { confirm } from '../../../store/useConfirmStore';
@@ -23,6 +24,9 @@ import styles from '../../erp.module.css';
 const EMPTY = { supplier: '', price: '', availability: '', lead_days: '', min_batch: '', note: '' };
 
 export function SupplierOptionsModal({ material, order, actions, onClose }) {
+  // aria-modal обещает скринридеру, что фон скрыт, но Tab уводил фокус в таблицу
+  // под оверлеем, а Escape не закрывал. За этим ещё и удаление варианта поставщика.
+  const trapRef = useFocusTrap(true, onClose);
   const { addSupplierOption, updateSupplierOption, selectSupplierOption, deleteSupplierOption } = actions;
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -77,6 +81,7 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
   return (
     <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
       <div
+        ref={trapRef}
         className={styles.modal}
         role="dialog"
         aria-modal="true"
@@ -168,7 +173,13 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
                         Выбрать
                       </button>
                     )}
-                    <button type="button" className="btn btn-ghost" onClick={() => remove(o)}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      aria-label={`Удалить вариант ${o.supplier || 'поставщика'}`}
+                      title="Удалить вариант"
+                      onClick={() => remove(o)}
+                    >
                       ✕
                     </button>
                   </td>

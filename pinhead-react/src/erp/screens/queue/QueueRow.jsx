@@ -21,6 +21,7 @@ export function QueueRow({
   entry, index, perms, canReorder, rework, deptShortById, actions,
   dragging, dropBefore, dropAfter,
   onDragStart, onDragEnd, onDragOverRow,
+  canMoveUp, canMoveDown, onMove,
 }) {
   const { order, item, stage, reason, group } = entry;
   const [open, setOpen] = useState(false);
@@ -54,6 +55,33 @@ export function QueueRow({
         >
           {canReorder && <span className={styles.dragHandle} aria-hidden="true">⠿</span>}
           {index + 1}
+          {/* Клавиатурная и тач-альтернатива перетаскиванию. Внутри ячейки приоритета,
+              а не рядом с ней: .queueRowMain — сетка на 8 колонок, и девятый ребёнок
+              создавал неявную колонку, из-за которой строка выезжала за край. */}
+          {canReorder && (
+          <span className={styles.queueRowMoveBtns}>
+            <button
+              type="button"
+              className={styles.moveBtn}
+              disabled={!canMoveUp}
+              aria-label={`Поднять приоритет: ${order.title}`}
+              title="Поднять приоритет"
+              onClick={() => onMove?.(-1)}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className={styles.moveBtn}
+              disabled={!canMoveDown}
+              aria-label={`Опустить приоритет: ${order.title}`}
+              title="Опустить приоритет"
+              onClick={() => onMove?.(1)}
+            >
+              ↓
+            </button>
+          </span>
+          )}
         </span>
 
         <span className={styles.queueRowTitle}>

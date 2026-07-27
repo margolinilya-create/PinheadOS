@@ -12,6 +12,7 @@ import {
   STAGE_STATUS_LABELS,
   SUBCONTRACT_STATUS_LABELS,
 } from '../../types';
+import { onTabListKeyDown } from '../../utils/tabs';
 import styles from '../../erp.module.css';
 
 /**
@@ -192,13 +193,16 @@ export function DictionariesTab() {
 
   return (
     <>
-      <div className={styles.deptTabs} role="tablist" aria-label="Справочники">
+      <div className={styles.deptTabs} role="tablist" aria-label="Справочники" onKeyDown={onTabListKeyDown}>
         {KINDS.map((k) => (
           <button
             key={k}
             type="button"
             role="tab"
+            id={`dict-tab-${k}`}
+            aria-controls="dict-tabpanel"
             aria-selected={kind === k}
+            tabIndex={kind === k ? 0 : -1}
             className={`${styles.deptTab} ${kind === k ? styles.deptTabActive : ''}`}
             onClick={() => setKind(k)}
           >
@@ -208,7 +212,10 @@ export function DictionariesTab() {
         <button
           type="button"
           role="tab"
+          id="dict-tab-statuses"
+          aria-controls="dict-tabpanel"
           aria-selected={kind === 'statuses'}
+          tabIndex={kind === 'statuses' ? 0 : -1}
           className={`${styles.deptTab} ${kind === 'statuses' ? styles.deptTabActive : ''}`}
           onClick={() => setKind('statuses')}
         >
@@ -216,7 +223,9 @@ export function DictionariesTab() {
         </button>
       </div>
 
-      {kind === 'statuses' ? <StatusesList /> : <DictionaryList key={kind} kind={kind} />}
+      <div id="dict-tabpanel" role="tabpanel" aria-labelledby={`dict-tab-${kind}`} tabIndex={-1}>
+        {kind === 'statuses' ? <StatusesList /> : <DictionaryList key={kind} kind={kind} />}
+      </div>
     </>
   );
 }

@@ -16,6 +16,8 @@ import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { buildQueueEntries } from '../utils/queueEntries';
 import { applyStageFilters, filtersFromParams, filtersToParams } from '../utils/filterStages';
 import { deptShortName, isProductionDept } from '../data/departments';
+import { pluralize } from '../../utils/i18n';
+import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
 import { QueueCard } from './queue/QueueCard';
 import { QueueRow } from './queue/QueueRow';
@@ -233,6 +235,25 @@ export default function DepartmentQueue() {
     const rect = e.currentTarget.getBoundingClientRect();
     setDropAt({ id: entry.stage.id, before: e.clientY < rect.top + rect.height / 2 });
   };
+  /**
+   * Приоритет с клавиатуры — единственная альтернатива перетаскиванию (WCAG 2.1.1).
+   * До этого `reorderStageQueue` был доступен только мышью: ни `tabIndex`, ни
+   * обработчиков клавиш во всей зоне не было. Кнопки заодно решают проблему
+   * планшета — по ним можно просто нажать.
+   */
+  const moveInQueue = async (list, entry, dir) => {
+    const ids = list.map((e) => e.stage.id);
+    const from = ids.indexOf(entry.stage.id);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    const without = ids.filter((id) => id !== entry.stage.id);
+    await reorderStageQueue(
+      entry.stage.id,
+      to > 0 ? without[to - 1] : null,
+      to < without.length ? without[to] : null,
+    );
+  };
+
   const onDrop = async (list) => {
     const dragged = dragRef.current;
     const target = dropAt;
@@ -275,7 +296,7 @@ export default function DepartmentQueue() {
       />
 
       <div className={styles.deptTabsWrap}>
-        <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef}>
+        <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef} onKeyDown={onTabListKeyDown}>
           {departments.filter((dd) => dd.active && isProductionDept(dd)).map((dd) => {
             const count = readyByDept.get(dd.code) || 0;
             const overdueCount = overdueByDept.get(dd.code) || 0;
@@ -285,7 +306,10 @@ export default function DepartmentQueue() {
                 key={dd.code}
                 type="button"
                 role="tab"
+                id={`queue-tab-${dd.code}`}
+                aria-controls="queue-tabpanel"
                 aria-selected={deptCode === dd.code}
+                tabIndex={deptCode === dd.code ? 0 : -1}
                 className={`${styles.deptTab} ${deptCode === dd.code ? styles.deptTabActive : ''}`}
                 onClick={() => selectDept(dd.code)}
               >
@@ -325,7 +349,11 @@ export default function DepartmentQueue() {
           onChange={setFilters}
           assignees={assignees}
           showDept={false}
-          right={<span className={styles.subText}>{visible.length} заданий</span>}
+          right={(
+            <span className={styles.subText}>
+              {visible.length} {pluralize(visible.length, 'задание', 'задания', 'заданий')}
+            </span>
+          )}
         />
       )}
 
@@ -333,6 +361,12 @@ export default function DepartmentQueue() {
           Прежнее условие `dept && loading && !loaded` было невыполнимо в принципе
           (departments и loaded: true пишутся одним set), поэтому цех при загрузке
           и при обрыве связи читал «Выберите свой цех» и решал, что заданий нет. */}
+      <div
+        id="queue-tabpanel"
+        role="tabpanel"
+        aria-labelledby={deptCode ? `queue-tab-${deptCode}` : undefined}
+        tabIndex={-1}
+      >
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задания цеха" />}
       {!loadError && !loaded && <QueueSkeleton />}
       {loaded && !dept && (
@@ -399,6 +433,9 @@ export default function DepartmentQueue() {
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
                     onDragOverRow={onDragOverRow}
+                    canMoveUp={i > 0}
+                    canMoveDown={i < list.length - 1}
+                    onMove={(dir) => moveInQueue(list, entry, dir)}
                   />
                 ))}
               </div>
@@ -414,6 +451,7 @@ export default function DepartmentQueue() {
             : 'Под фильтры ничего не подошло — сбросьте их выше.'}
         </div>
       )}
+      </div>
     </>
   );
 }

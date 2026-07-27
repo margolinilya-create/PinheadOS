@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { KanbanSkeleton, TableSkeleton } from '../components/ErpSkeletons';
@@ -8,6 +8,7 @@ import { QueueFilters } from '../components/QueueFilters';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
+import { orderLinkClick } from '../store/useOrderDrawer';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
@@ -222,16 +223,19 @@ export default function ProductionBoard() {
       />
 
       <div className={styles.toolbar}>
-        <div role="tablist" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
+        {/* Не tablist: панели с role="tabpanel" нет, aria-controls нет, стрелочной
+            навигации нет — объявлять паттерн вкладок наполовину хуже, чем не
+            объявлять. Это переключатель, и aria-pressed описывает его честно. */}
+        <div role="group" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
           <button
-            type="button" role="tab" aria-selected={view === 'table'}
+            type="button" aria-pressed={view === 'table'}
             className={`${styles.chip} ${styles.chipBtn} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
                         onClick={() => switchView('table')}
           >
             ☰ Таблица
           </button>
           <button
-            type="button" role="tab" aria-selected={view === 'kanban'}
+            type="button" aria-pressed={view === 'kanban'}
             className={`${styles.chip} ${styles.chipBtn} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
                         onClick={() => switchView('kanban')}
           >
@@ -266,6 +270,24 @@ export default function ProductionBoard() {
       />
 
       {view === 'kanban' && loaded && <ErpKanban filters={filters} />}
+      {/* Заглушка была привязана к табличному виду: на канбане при пустом подборе
+          или без заведённых участков оставалась просто пустая область */}
+      {view === 'kanban' && loaded && rows.length === 0 && (
+        <div className={styles.emptyState}>
+          {filtersActive ? (
+            <>
+              Под фильтры ничего не попало.{' '}
+              <button type="button" className="btn btn-secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
+                Сбросить фильтры
+              </button>
+            </>
+          ) : queueDepartments.length === 0 ? (
+            <>Производственные участки не заведены — добавьте их в админке.</>
+          ) : (
+            'Нет позиций в работе. Создайте заказ на экране «Заказы».'
+          )}
+        </div>
+      )}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="производственный план" />}
       {/* Скелетон по виду: в канбан-виде появится доска, а не таблица */}
@@ -331,9 +353,26 @@ export default function ProductionBoard() {
                 const progress = itemProgress(item);
                 return (
                   <tr key={item.id}>
-                    <td>{order.bitrix_id || '—'}</td>
+                    {/* Номер и название — ссылки: раньше это был обычный текст,
+                        и увиденную на доске проблемную позицию нельзя было открыть */}
                     <td>
-                      <span className={styles.cellTitle} title={order.title}>{order.title}</span>
+                      <Link
+                        to={`/orders/${order.id}`}
+                        onClick={(e) => orderLinkClick(order.id, e)}
+                        title={`Открыть заказ №${order.bitrix_id || '—'}`}
+                      >
+                        {order.bitrix_id || '—'}
+                      </Link>
+                    </td>
+                    <td>
+                      <Link
+                        to={`/orders/${order.id}`}
+                        onClick={(e) => orderLinkClick(order.id, e)}
+                        className={styles.cellTitle}
+                        title={order.title}
+                      >
+                        {order.title}
+                      </Link>
                       {isOrderReadyToShip(order) && (
                         <span
                           className={`${styles.chip} ${styles.chipReady}`}

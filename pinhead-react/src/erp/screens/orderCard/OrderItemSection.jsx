@@ -25,9 +25,11 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
         </div>
         <span className={styles.queueQty}>{item.qty} шт</span>
       </div>
+      {/* Обзор маршрута — точками; штучный прогресс — одной строкой; подробности
+          по каждому этапу (план/факт/сделано) — в таблице ниже. Раньше одни и те же
+          цех и статус повторялись в трёх представлениях подряд на каждую позицию. */}
       <StageStepper item={item} order={order} deptById={deptById} events={events} />
-      {/* Маршрут в штуках: «Раскрой 100/100 — завершено» + общий процент (правка 7) */}
-      <RouteProgress item={item} order={order} deptById={deptById} />
+      <RouteProgress item={item} order={order} deptById={deptById} showStages={false} />
 
       {item.size_grid && item.size_grid.length > 0 && (
         <div className={styles.tableWrap} style={{ marginBottom: 10, maxWidth: 560 }}>

@@ -218,6 +218,12 @@ export interface OrderFormValidation {
   errors: Record<string, string>;
   /** Короткие названия незаполненных полей — для строки «Осталось заполнить: …» */
   missing: string[];
+  /**
+   * Поля, которые заполнены, но неверно. Раньше они попадали в `missing`, и
+   * восстановленный назавтра черновик с вчерашней датой запуска блокировал кнопку
+   * подсказкой «Осталось заполнить: Дата запуска» — при заполненном поле.
+   */
+  invalid: string[];
 }
 
 export function validateOrderForm(
@@ -227,6 +233,7 @@ export function validateOrderForm(
 ): OrderFormValidation {
   const errors: Record<string, string> = {};
   const missing: string[] = [];
+  const invalid: string[] = [];
 
   if (!form.title.trim()) {
     errors.title = 'Укажите название заказа';
@@ -234,11 +241,11 @@ export function validateOrderForm(
   }
   if (form.launch_date && form.launch_date < today) {
     errors.launch_date = 'Дата запуска в прошлом — проверьте дату';
-    missing.push('Дата запуска');
+    invalid.push('Дата запуска');
   }
   if (form.due_date && form.due_date < today) {
     errors.due_date = 'Срок клиента в прошлом — проверьте дату';
-    missing.push('Срок клиента');
+    invalid.push('Срок клиента');
   }
 
   items.forEach((it, i) => {
@@ -257,9 +264,21 @@ export function validateOrderForm(
       errors[`item_${i}_prints`] = 'Добавьте хотя бы одно нанесение';
       missing.push(`Нанесения${pos}`);
     }
+    // Следующий участок после операции подряда. Раньше это была отдельная проверка
+    // в сабмите с тостом: поле не подсвечивалось, автоскролл к нему не работал,
+    // а само оно спрятано в глубине блока за двумя условиями.
+    if (
+      it.production_type === 'outsource'
+      && (it.subcontract_kind ?? 'finished_product') === 'operation'
+      && it.needs_further
+      && !it.return_dept
+    ) {
+      errors[`item_${i}_return_dept`] = 'Выберите участок для доработки';
+      missing.push(`Следующий участок${pos}`);
+    }
   });
 
-  return { errors, missing };
+  return { errors, missing, invalid };
 }
 
 // --- Черновик в localStorage ------------------------------------------------------

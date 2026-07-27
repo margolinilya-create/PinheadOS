@@ -17,7 +17,9 @@ import styles from '../erp.module.css';
  * Общий процент — по формуле «по штукам через стадии» (utils/progress.itemProgress).
  * Завершённые, текущие и ожидающие стадии различаются чипом состояния и полосой.
  */
-export function RouteProgress({ item, order, deptById, currentStageId = null, compact = false }) {
+export function RouteProgress({
+  item, order, deptById, currentStageId = null, compact = false, showStages = true,
+}) {
   const total = useMemo(() => itemProgress(item), [item]);
 
   return (
@@ -31,6 +33,10 @@ export function RouteProgress({ item, order, deptById, currentStageId = null, co
         <span className={styles.subText}>{total.done}/{total.total} шт</span>
       </div>
 
+      {/* В карточке заказа список стадий не рисуем: ниже идёт таблица этапов
+          с теми же цехом и статусом плюс план/факт — маршрут показывался трижды
+          подряд (степпер точками → шкалы по цехам → таблица) */}
+      {showStages && (
       <ol className={styles.routeList}>
         {item.stages.map((stage) => {
           if (stage.status === 'skipped') return null;
@@ -67,6 +73,7 @@ export function RouteProgress({ item, order, deptById, currentStageId = null, co
           );
         })}
       </ol>
+      )}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
 import { toast } from '../../store/useToastStore';
 import { EMPLOYEE_ROLE_LABELS } from '../types';
+import { confirm } from '../../store/useConfirmStore';
+import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
 
 /**
@@ -35,12 +37,13 @@ function codeFromName(name) {
 
 export default function DepartmentsScreen({ embedded = false }) {
   const {
-    departments, loaded, loadAll,
+    departments, orders, loaded, loadAll,
     employees, employeesLoaded, loadEmployees,
     createDepartment, updateDepartment,
   } = useErpStore(
     useShallow((s) => ({
       departments: s.departments,
+      orders: s.orders,
       loaded: s.loaded,
       loadAll: s.loadAll,
       employees: s.employees,
@@ -52,6 +55,54 @@ export default function DepartmentsScreen({ embedded = false }) {
   );
   const [draft, setDraft] = useState('');
   const [showHidden, setShowHidden] = useState(false);
+
+  /** Сколько незакрытых заданий висит на участке — для текста подтверждения */
+  const openStagesIn = (deptId) => (orders ?? [])
+    .filter((o) => o.status === 'active')
+    .flatMap((o) => o.items ?? [])
+    .flatMap((it) => it.stages ?? [])
+    .filter((st) => st.department_id === deptId
+      && st.status !== 'done' && st.status !== 'skipped').length;
+
+  /**
+   * Отключение участка и снятие признака «производственный» применялись сразу,
+   * без единого слова. Между тем участок с активными этапами исчезает из очередей,
+   * канбана и меню, а снятие `is_production` выводит его ещё и из маршрута и гейта ТЗ:
+   * задания «повисают» без видимого места.
+   */
+  const toggleActive = async (d) => {
+    if (d.active) {
+      const open = openStagesIn(d.id);
+      const ok = await confirm({
+        title: `Отключить участок «${d.name}»?`,
+        message: open > 0
+          ? `На участке ${open} ${pluralize(open, 'незакрытое задание', 'незакрытых задания', 'незакрытых заданий')}. `
+            + 'Он исчезнет из очередей, канбана и меню — задания останутся, но открыть их будет негде.'
+          : 'Участок исчезнет из очередей, канбана и меню. Данные сохранятся, вернуть можно здесь же.',
+        confirmLabel: 'Отключить',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    await updateDepartment(d.id, { active: !d.active });
+  };
+
+  const toggleProduction = async (d, next) => {
+    if (!next) {
+      const open = openStagesIn(d.id);
+      const ok = await confirm({
+        title: `Убрать «${d.name}» из производственных?`,
+        message: [
+          open > 0 ? `На участке ${open} ${pluralize(open, 'незакрытое задание', 'незакрытых задания', 'незакрытых заданий')}.` : '',
+          'Участок пропадёт из меню цехов, канбана и маршрута новых заказов, и ему перестанет требоваться ТЗ.',
+        ].filter(Boolean).join(' '),
+        confirmLabel: 'Убрать',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    await updateDepartment(d.id, { is_production: next });
+  };
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -177,7 +228,7 @@ export default function DepartmentsScreen({ embedded = false }) {
                       type="checkbox"
                       checked={Boolean(d.is_production)}
                       aria-label={`Участок ${d.name} — производственный (своя очередь и канбан)`}
-                      onChange={(e) => updateDepartment(d.id, { is_production: e.target.checked })}
+                      onChange={(e) => toggleProduction(d, e.target.checked)}
                     />
                     производственный
                   </label>
@@ -225,7 +276,7 @@ export default function DepartmentsScreen({ embedded = false }) {
                   <button
                     type="button"
                     className="btn btn-ghost"
-                    onClick={() => updateDepartment(d.id, { active: !d.active })}
+                    onClick={() => toggleActive(d)}
                   >
                     {d.active ? '✕ Отключить' : 'Вернуть'}
                   </button>

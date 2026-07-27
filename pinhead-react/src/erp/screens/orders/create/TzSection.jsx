@@ -13,6 +13,18 @@ import styles from '../../../erp.module.css';
 export function TzSection({ tzItems, tzDocs, tzAssign, addTzDoc, removeTzDoc, setTzAssign }) {
   const generalDocs = tzDocs.filter((d) => d.itemIndex === null);
 
+  /**
+   * Назначить один документ всем цехам позиции.
+   * Типовой «Пошив + ДТФ» даёт четыре производственных этапа, с вышивкой — пять,
+   * на две позиции — до десяти одинаковых выборов подряд, и до последнего кнопка
+   * «Создать заказ» заблокирована. Это самое утомительное место формы.
+   */
+  const assignAll = (ti, groupId) => setTzAssign((m) => {
+    const next = { ...m };
+    for (const st of ti.stages) next[`${ti.index}:${st.departmentId}`] = groupId;
+    return next;
+  });
+
   return (
     <>
       <p className={styles.subText}>
@@ -69,6 +81,23 @@ export function TzSection({ tzItems, tzDocs, tzAssign, addTzDoc, removeTzDoc, se
             {ti.stages.length === 0 && (
               <div className={styles.subText}>
                 В маршруте позиции нет производственных цехов — ТЗ не требуется.
+              </div>
+            )}
+            {ti.stages.length > 1 && (
+              <div className={styles.checkRow}>
+                <span className={styles.subText}>Назначить всем цехам позиции:</span>
+                {tzDocs
+                  .filter((d) => d.itemIndex === null || d.itemIndex === ti.index)
+                  .map((d) => (
+                    <button
+                      key={d.groupId}
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => assignAll(ti, d.groupId)}
+                    >
+                      {d.itemIndex === null ? 'Общее ТЗ' : d.file.name}
+                    </button>
+                  ))}
               </div>
             )}
             {ti.stages.map((st) => {

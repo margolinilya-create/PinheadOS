@@ -7,6 +7,7 @@ import DepartmentsScreen from './DepartmentsScreen';
 import { PermissionsTab } from './admin/PermissionsTab';
 import { DictionariesTab } from './admin/DictionariesTab';
 import { useErpAccess } from '../store/useErpAccess';
+import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
 
 const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
@@ -43,13 +44,16 @@ export default function AdminScreen() {
         title="Админка"
         sub="Общая для обоих режимов: пользователи и права, цеха, справочники, заказы Order Studio."
       />
-      <div className={styles.deptTabs} role="tablist" aria-label="Разделы админки">
+      <div className={styles.deptTabs} role="tablist" aria-label="Разделы админки" onKeyDown={onTabListKeyDown}>
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
+            id={`admin-tab-${t.id}`}
+            aria-controls="admin-tabpanel"
             aria-selected={tab === t.id}
+            tabIndex={tab === t.id ? 0 : -1}
             className={`${styles.deptTab} ${tab === t.id ? styles.deptTabActive : ''}`}
             onClick={() => setParams({ tab: t.id }, { replace: true })}
           >
@@ -58,6 +62,7 @@ export default function AdminScreen() {
         ))}
       </div>
 
+      <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} tabIndex={-1}>
       {tab === 'users' && <EmployeesScreen embedded />}
       {tab === 'roles' && <PermissionsTab />}
       {tab === 'depts' && <DepartmentsScreen embedded />}
@@ -67,6 +72,7 @@ export default function AdminScreen() {
           <AdminPanel ordersOnly />
         </Suspense>
       )}
+      </div>
     </>
   );
 }

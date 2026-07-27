@@ -15,6 +15,7 @@ import styles from '../erp.module.css';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
 import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
+import { FilesSection } from './orderCard/FilesSection';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
@@ -58,6 +59,17 @@ export default function OrderCard() {
       </div>
       <PageHead title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`} />
       <div className={styles.toolbar} style={{ gap: 18, marginTop: -8 }}>
+        {/* Клиент собирается формой создания и правится в боковой карточке, но на
+            полной странице его не было вовсе — а именно её ссылку шлют коллегам */}
+        <span>
+          <span className={styles.subText}>Клиент: </span>
+          <InlineEdit
+            value={order.customer}
+            placeholder="добавить…"
+            ariaLabel="Клиент"
+            onSave={(v) => saveOrderField({ customer: v })}
+          />
+        </span>
         <span>
           <span className={styles.subText}>Менеджер: </span>
           <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
@@ -139,6 +151,8 @@ export default function OrderCard() {
           <div className={styles.subText}>Материалы не ожидаются.</div>
         )}
       </section>
+
+      <FilesSection attachments={order.attachments} />
 
       <CommentsSection comments={comments} onSend={onSendComment} />
 

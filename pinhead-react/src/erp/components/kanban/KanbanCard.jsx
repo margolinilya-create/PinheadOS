@@ -48,6 +48,16 @@ export function KanbanCard({
       onDragEnd={onDragEnd}
       onDragOver={(e) => onDragOverCard?.(e, entry)}
       onClick={() => useOrderDrawer.getState().open(order.id)}
+      // Карточку нельзя было ни открыть, ни тронуть с клавиатуры: ни tabIndex,
+      // ни onKeyDown. Канбан Order Studio это умеет — здесь был регресс.
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        // Enter/Space на вложенной ссылке отдаём ей самой
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        useOrderDrawer.getState().open(order.id);
+      }}
       role="listitem"
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >

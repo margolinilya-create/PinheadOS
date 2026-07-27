@@ -15,6 +15,7 @@ import {
   emptyOrderForm,
   gridToPayload,
   isFormEmpty,
+  isItemEmpty,
   loadOrderDraft,
   localToday,
   saveOrderDraft,
@@ -41,6 +42,35 @@ import styles from '../../erp.module.css';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { ItemBlock } from './create/ItemBlock';
+
+/**
+ * Позиции с их производственными этапами — то, чему нужно назначить ТЗ.
+ * Маршрут считается тем же `buildItemRoute`, что и в сторе, поэтому превью
+ * в форме не расходится с фактом. ТЗ требуют только производственные цеха
+ * (`deptNeedsTz`): закупке и складам PDF не адресуется.
+ */
+function buildTzItems(items, deptByCode) {
+  return items
+    .map((it, index) => ({ it, index }))
+    .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
+    .map(({ it, index }) => {
+      const prints = it.has_branding ? it.prints : [];
+      const route = buildItemRoute({
+        productionType: it.production_type,
+        brandingMethods: [...new Set(prints.map((p) => p.method))],
+        brandingOn: it.branding_on ?? 'cut',
+        materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+      });
+      return {
+        index,
+        label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
+        stages: route
+          .map((r) => deptByCode.get(r.departmentCode))
+          .filter((d) => deptNeedsTz(d))
+          .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
+      };
+    });
+}
 
 export function CreateOrderModal({ onClose }) {
   const createOrder = useErpStore((s) => s.createOrder);
@@ -90,6 +120,12 @@ export function CreateOrderModal({ onClose }) {
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
+  const deptByCode = useMemo(
+    () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
+    [departments],
+  );
+  const tzItems = useMemo(() => buildTzItems(items, deptByCode), [items, deptByCode]);
+
   /**
    * ТЗ в PDF (волна 4). File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
    * через JSON.stringify, и File сериализовался бы в {} молча.
@@ -110,7 +146,25 @@ export function CreateOrderModal({ onClose }) {
       toast.error(`ТЗ: файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ`);
       return;
     }
-    setTzDocs((arr) => [...arr, { groupId: crypto.randomUUID(), itemIndex, file }]);
+    const groupId = crypto.randomUUID();
+    setTzDocs((arr) => [...arr, { groupId, itemIndex, file }]);
+    /**
+     * Только что загруженный файл сразу проставляем во все ещё не заполненные
+     * строки своей области: для типового случая «один PDF на позицию» ручной
+     * выбор не нужен вовсе, а маршрут (tzItems) от загрузки файла не зависит.
+     * Уже сделанный выбор не трогаем — подстановка не переигрывает человека.
+     */
+    setTzAssign((m) => {
+      const next = { ...m };
+      for (const ti of buildTzItems(items, deptByCode)) {
+        if (itemIndex !== null && ti.index !== itemIndex) continue;
+        for (const st of ti.stages) {
+          const key = `${ti.index}:${st.departmentId}`;
+          if (!next[key]) next[key] = groupId;
+        }
+      }
+      return next;
+    });
   };
 
   const removeTzDoc = (groupId) => {
@@ -121,7 +175,23 @@ export function CreateOrderModal({ onClose }) {
 
   // Удаление позиции сдвигает индексы — переклеиваем ключи ТЗ, иначе следующая
   // позиция унаследовала бы чужие назначения
-  const removeItem = (i) => {
+  const removeItem = async (i) => {
+    // Позиция может содержать размерную сетку на несколько цветов × 7 размеров,
+    // нанесения и приложенные к ней ТЗ — один промах стирал полчаса ввода
+    // безвозвратно (новое состояние уезжает в черновик через 500 мс)
+    const it = items[i];
+    if (it && !isItemEmpty(it)) {
+      const ok = await confirm({
+        title: `Убрать позицию ${i + 1}?`,
+        message: [
+          it.product_type.trim() ? `«${it.product_type.trim()}»` : 'Заполненная позиция',
+          'будет удалена вместе с размерной сеткой, нанесениями и приложенными к ней ТЗ.',
+        ].join(' '),
+        confirmLabel: 'Убрать',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
     setItems((arr) => arr.filter((_, idx) => idx !== i));
     const shift = (idx) => (idx > i ? idx - 1 : idx);
     setTzDocs((arr) => arr
@@ -134,44 +204,34 @@ export function CreateOrderModal({ onClose }) {
         .map(([[idx, dept], g]) => [`${shift(Number(idx))}:${dept}`, g])));
   };
 
+  /** Кнопка ✕ нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
+  const removePrint = async (i, pi) => {
+    const print = items[i]?.prints?.[pi];
+    const filled = print && Object.entries(print)
+      .some(([k, v]) => k !== 'method' && String(v ?? '').trim() !== '');
+    if (filled) {
+      const ok = await confirm({
+        title: `Убрать нанесение ${pi + 1}?`,
+        message: 'Заполненные размеры, зона, Pantone и комментарий будут удалены.',
+        confirmLabel: 'Убрать',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    setItems((arr) => arr.map((x, idx) => (
+      idx === i ? { ...x, prints: x.prints.filter((_, j) => j !== pi) } : x)));
+  };
+
   // Аккордеон-секции: все раскрыты по умолчанию
   const [open, setOpen] = useState({ main: true, items: true, extra: true, tz: true });
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
-  /**
-   * Маршрут каждой заполненной позиции — считаем ДО создания заказа тем же
-   * buildItemRoute, что и стор, иначе превью разошлось бы с фактом. ТЗ требуют
-   * только производственные цеха (deptNeedsTz): закупке и складам PDF не адресуется.
-   */
-  const deptByCode = useMemo(
-    () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
-    [departments],
-  );
-  const tzItems = useMemo(() => items
-    .map((it, index) => ({ it, index }))
-    .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
-    .map(({ it, index }) => {
-      const prints = it.has_branding ? it.prints : [];
-      const route = buildItemRoute({
-        productionType: it.production_type,
-        brandingMethods: [...new Set(prints.map((p) => p.method))],
-        brandingOn: it.branding_on ?? 'cut',
-        materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
-      });
-      return {
-        index,
-        label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
-        stages: route
-          .map((r) => deptByCode.get(r.departmentCode))
-          .filter((d) => deptNeedsTz(d))
-          .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
-      };
-    }), [items, deptByCode]);
 
   const tzValidation = useMemo(
     () => validateTzAssignments(tzItems, tzAssign),
     [tzItems, tzAssign],
   );
+
 
   // Инлайн-валидация: после первой попытки сабмита ошибки живут вместе с вводом
   const [submitted, setSubmitted] = useState(false);
@@ -209,7 +269,8 @@ export function CreateOrderModal({ onClose }) {
     closingRef.current = true;
     const ok = await confirm({
       title: 'Закрыть форму заказа?',
-      message: 'Заполненные поля сохранены как черновик — он восстановится при следующем открытии формы.',
+      message: 'Заполненные поля сохранены как черновик — он восстановится при следующем '
+        + 'открытии формы. Файлы (ТЗ и превью) в черновик не попадают: их придётся приложить заново.',
       confirmLabel: 'Закрыть',
       cancelLabel: 'Продолжить редактирование',
     });
@@ -267,15 +328,6 @@ export function CreateOrderModal({ onClose }) {
       return;
     }
     const validItems = items.filter((it) => it.product_type.trim() && effectiveQty(it) > 0);
-    // Правка 4.2.3: если для отдельной операции нужна доработка — участок обязателен
-    const missingNextDept = validItems.some(
-      (it) => it.production_type === 'outsource'
-        && (it.subcontract_kind || 'finished_product') === 'operation'
-        && it.needs_further && !it.return_dept);
-    if (missingNextDept) {
-      toast.error('Выберите следующий участок для доработки после операции подряда');
-      return;
-    }
     // Гейт ТЗ (решение заказчика): без назначенного ТЗ на каждый производственный
     // этап заказ не создаётся. Кнопка уже заблокирована — это страховка от Enter.
     if (tzValidation.missing.length > 0) {
@@ -563,6 +615,7 @@ export function CreateOrderModal({ onClose }) {
             setBranding={setBranding}
             setPrint={setPrint}
             removeItem={removeItem}
+            removePrint={removePrint}
           />
         ))}
         <div>
@@ -693,6 +746,13 @@ export function CreateOrderModal({ onClose }) {
               Осталось заполнить: {validation.missing.join(', ')}
             </span>
           )}
+          {/* Заполнено, но неверно — отдельная формулировка: «Осталось заполнить:
+              Дата запуска» при заполненной дате сбивало с толку */}
+          {submitted && validation.invalid.length > 0 && (
+            <span className={styles.remainingHint} role="status">
+              Проверьте: {validation.invalid.join(', ')}
+            </span>
+          )}
           {/* Требование заказчика: без ТЗ кнопка недоступна СРАЗУ, с конкретной причиной */}
           {tzValidation.message && (
             <span className={`${styles.remainingHint} ${styles.tzAssignMissing}`} role="status">
@@ -705,7 +765,7 @@ export function CreateOrderModal({ onClose }) {
             className="btn btn-primary"
             disabled={saving
               || tzValidation.missing.length > 0
-              || (submitted && validation.missing.length > 0)}
+              || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}
           >
             {saving ? 'Создание…' : 'Создать заказ'}
           </button>
