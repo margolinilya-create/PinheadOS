@@ -225,6 +225,7 @@ admin, director, manager, rop, designer, production
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 | `docs/2026-04-10-design-audit.md` | 5-агентный аудит UI/UX |
+| `docs/2026-07-27-skills-audit.md` | Аудит по чек-листам скилов: 16 находок + план работ |
 
 ## Команды
 
