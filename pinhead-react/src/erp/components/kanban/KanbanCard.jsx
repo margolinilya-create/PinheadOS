@@ -19,8 +19,14 @@ function DeadlineDot({ due }) {
   );
 }
 
-/** Карточка канбана: этап позиции заказа (draggable внутри колонки цеха) */
-export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
+/**
+ * Карточка канбана: этап позиции заказа.
+ * Перетаскивается вертикально (приоритет), между дорожками (статус) и в другую
+ * колонку (перенос в другой цех) — обработку жестов держит ErpKanban.
+ */
+export function KanbanCard({
+  entry, onDragStart, onDragEnd, onDragOverCard, dragging, dropBefore, dropAfter,
+}) {
   const { order, item, stage, group } = entry;
   const [imgError, setImgError] = useState(false);
   const preview = orderPreviewUrl(order);
@@ -30,10 +36,17 @@ export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
 
   return (
     <div
-      className={`${styles.kanbanCard} ${dragging ? styles.kanbanCardDragging : ''} ${group === 'blocked' ? styles.kanbanCardBlocked : ''}`}
+      className={[
+        styles.kanbanCard,
+        dragging && styles.kanbanCardDragging,
+        group === 'blocked' && styles.kanbanCardBlocked,
+        dropBefore && styles.queueRowDropBefore,
+        dropAfter && styles.queueRowDropAfter,
+      ].filter(Boolean).join(' ')}
       draggable={group !== 'blocked'}
       onDragStart={(e) => onDragStart(e, entry)}
       onDragEnd={onDragEnd}
+      onDragOver={(e) => onDragOverCard?.(e, entry)}
       onClick={() => useOrderDrawer.getState().open(order.id)}
       role="listitem"
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}

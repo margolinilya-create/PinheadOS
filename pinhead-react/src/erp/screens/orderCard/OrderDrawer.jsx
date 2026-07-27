@@ -73,8 +73,9 @@ export function OrderDrawer({ orderId, onClose }) {
       onTab={setTab}
     >
       <div className={styles.toolbar} style={{ marginTop: -4, marginBottom: 10 }}>
+        {/* Правка 6: вместо обезличенного «Открыть на странице» — конкретный номер заказа */}
         <Link to={`/orders/${orderId}`} className="btn btn-secondary" onClick={onClose}>
-          Открыть на странице ↗
+          Открыть заказ №{order?.bitrix_id || '—'} ↗
         </Link>
       </div>
 

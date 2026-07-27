@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
-import { SearchInput } from '../components/SearchInput';
+import { QueueFilters } from '../components/QueueFilters';
 import ErpKanban from '../components/ErpKanban';
 import { useErpStore } from '../store/useErpStore';
+import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isStageReady, waitingReason } from '../utils/routes';
+import { filtersFromParams, filtersToParams } from '../utils/filterStages';
 import { matchesOrderQuery } from '../utils/orderSearch';
-import { deptShortName } from '../data/departments';
+import { isQueueDept, deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
 import { itemProgress } from '../utils/progress';
@@ -86,9 +89,18 @@ export default function ProductionBoard() {
     })),
   );
   const [onlyActive, setOnlyActive] = useState(true);
-  const [query, setQuery] = useState('');
   const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
   const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
+
+  // Поиск, фильтры и сортировка — общие с очередью цеха, состояние в URL (правки 4 и 9)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
+  const setFilters = useCallback(
+    (next) => setSearchParams(filtersToParams(next), { replace: true }),
+    [setSearchParams],
+  );
+  const query = filters.q;
+  useScrollRestore(loaded);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -102,6 +114,17 @@ export default function ProductionBoard() {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
+  );
+  /** Цеха с очередью — колонки канбана и значения фильтра «Цех» */
+  const queueDepartments = useMemo(
+    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    [departments],
+  );
+  const assignees = useMemo(
+    () => [...new Set(
+      orders.flatMap((o) => o.items).flatMap((it) => it.stages).map((s) => s.assignee).filter(Boolean),
+    )].sort(),
+    [orders],
   );
 
   /** Плоский список позиций всех заказов, ближайший срок первым */
@@ -153,28 +176,27 @@ export default function ProductionBoard() {
           </button>
         </div>
         {view === 'table' && (
-          <>
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder="Поиск: заказ, № сделки, изделие, материал"
-              ariaLabel="Поиск по производственному плану"
+          <label className={styles.checkLabel}>
+            <input
+              type="checkbox"
+              checked={onlyActive}
+              onChange={(e) => setOnlyActive(e.target.checked)}
             />
-            <label className={styles.checkLabel}>
-              <input
-                type="checkbox"
-                checked={onlyActive}
-                onChange={(e) => setOnlyActive(e.target.checked)}
-              />
-              Только активные
-            </label>
-          </>
+            Только активные
+          </label>
         )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{rows.length} позиций</span>
       </div>
 
-      {view === 'kanban' && loaded && <ErpKanban />}
+      <QueueFilters
+        filters={filters}
+        onChange={setFilters}
+        departments={queueDepartments}
+        assignees={assignees}
+      />
+
+      {view === 'kanban' && loaded && <ErpKanban filters={filters} />}
 
       {loading && !loaded && <TableSkeleton rows={6} label="Загрузка производственного плана" />}
 

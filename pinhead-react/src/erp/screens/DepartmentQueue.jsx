@@ -10,7 +10,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../utils/routes';
+import { buildQueueEntries } from '../utils/queueEntries';
 import { applyStageFilters, filtersFromParams, filtersToParams } from '../utils/filterStages';
 import { deptShortName, isQueueDept } from '../data/departments';
 import styles from '../erp.module.css';
@@ -119,10 +119,6 @@ export default function DepartmentQueue() {
   }, [deptCode, tabsRef]);
 
   const dept = departments.find((dd) => dd.code === deptCode) || null;
-  const deptNameById = useMemo(
-    () => new Map(departments.map((dd) => [dd.id, dd.name])),
-    [departments],
-  );
   const deptShortById = useMemo(
     () => new Map(departments.map((dd) => [dd.id, deptShortName(dd.code, dd.name)])),
     [departments],
@@ -153,35 +149,10 @@ export default function DepartmentQueue() {
   }, [orders, departments]);
 
   /** Все задания цеха с группой и причиной ожидания — до фильтров */
-  const entries = useMemo(() => {
-    if (!dept) return [];
-    const list = [];
-    for (const order of orders) {
-      if (order.status !== 'active') continue;
-      for (const item of order.items) {
-        for (const stage of item.stages) {
-          if (stage.department_id !== dept.id) continue;
-          if (stage.status === 'skipped') continue;
-          const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
-          let group = stage.status;
-          let reason = null;
-          if (stage.status === 'blocked') {
-            // Ручная блокировка — тоже «ожидает», но с причиной от цеха (правка 2)
-            group = 'blocked';
-          } else if (stage.status !== 'done' && stage.status !== 'in_progress') {
-            const ready = isStageReady(stage, item.stages, order.materials, dept.code, awaitProc);
-            group = ready ? 'ready' : 'waiting';
-            if (!ready) {
-              reason = waitingReason(
-                stage, item.stages, order.materials, deptNameById, dept.code, awaitProc);
-            }
-          }
-          list.push({ order, item, stage, group, reason });
-        }
-      }
-    }
-    return list;
-  }, [orders, dept, deptNameById]);
+  const entries = useMemo(
+    () => (dept ? buildQueueEntries(orders, departments, { departmentId: dept.id }) : []),
+    [orders, departments, dept],
+  );
 
   const visible = useMemo(
     () => applyStageFilters(entries, filters),

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildKanbanColumns } from './kanbanColumns';
+import { EMPTY_FILTERS } from './filterStages';
 
 // Минимальные фикстуры: только поля, которые читает buildKanbanColumns.
 const dept = (id, code, active = true) => ({ id, code, name: code, active });
@@ -67,5 +68,33 @@ describe('buildKanbanColumns — группировка канбана', () => {
     const soon = order('soon', [stage('s-soon', 'd-sew', 'in_progress')], { due_date: '2026-02-01' });
     const [col] = buildKanbanColumns([late, soon], deps);
     expect(col.in_progress.map((e) => e.stage.id)).toEqual(['s-soon', 's-late']);
+  });
+});
+
+describe('buildKanbanColumns — приоритет и фильтры (волна 1)', () => {
+  const deps = [dept('d-sew', 'sewing'), dept('d-dtf', 'dtf')];
+
+  it('порядок внутри дорожки — по приоритету очереди', () => {
+    const a = order('a', [stage('s-a', 'd-sew', 'in_progress', { queue_position: 300 })], { due_date: '2026-01-01' });
+    const b = order('b', [stage('s-b', 'd-sew', 'in_progress', { queue_position: 100 })], { due_date: '2026-12-31' });
+    const [col] = buildKanbanColumns([a, b], deps);
+    // приоритет важнее срока: 100 идёт раньше 300, хотя срок у него дальше
+    expect(col.in_progress.map((e) => e.stage.id)).toEqual(['s-b', 's-a']);
+  });
+
+  it('фильтры отсекают карточки во всех колонках', () => {
+    const a = order('a', [stage('s-a', 'd-sew', 'in_progress')]);
+    const b = order('b', [stage('s-b', 'd-dtf', 'in_progress')]);
+    const cols = buildKanbanColumns([a, b], deps, { ...EMPTY_FILTERS, dept: 'd-dtf' });
+    const sew = cols.find((c) => c.dept.id === 'd-sew');
+    const dtf = cols.find((c) => c.dept.id === 'd-dtf');
+    expect(sew.in_progress).toHaveLength(0);
+    expect(dtf.in_progress.map((e) => e.stage.id)).toEqual(['s-b']);
+  });
+
+  it('заблокированные карточки попадают в свою дорожку с причиной', () => {
+    const o = order('o1', [stage('s1', 'd-sew', 'blocked', { block_reason: 'нет ниток' })]);
+    const [col] = buildKanbanColumns([o], deps);
+    expect(col.blocked[0].reason).toBe('нет ниток');
   });
 });

@@ -1120,6 +1120,15 @@ a.kpiTile:hover { border-color: var(--accent); }
   padding-bottom: 16px;
   align-items: flex-start;
   scroll-snap-type: x proximity;
+  /* Прокрутка доски не «протекает» в страницу — иначе перетаскивание у края
+     уводило экран вместо доски (правка 4) */
+  overscroll-behavior: contain;
+}
+/* Во время перетаскивания страница не должна ездить: доска сама скроллит себя
+   у края (ErpKanban.onBoardDragOver), snap отключаем — он дёргает колонки */
+.kanbanBoardDragging {
+  scroll-snap-type: none;
+  touch-action: none;
 }
 .kanbanCol {
   flex: 0 0 290px;
@@ -1131,6 +1140,13 @@ a.kpiTile:hover { border-color: var(--accent); }
   flex-direction: column;
   max-height: calc(100vh - 220px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Колонка чужого цеха, куда можно перенести задание */
+.kanbanColDroppable {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: var(--accent-light);
 }
 .kanbanColHead {
   position: sticky;
