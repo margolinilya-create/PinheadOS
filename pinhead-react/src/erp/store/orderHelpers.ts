@@ -82,6 +82,53 @@ export function patchStageIn(
   });
 }
 
+/** Добавить этап в позицию (перенос между цехами создал недостающий этап маршрута) */
+export function addStageIn(
+  orders: ErpOrderFull[],
+  itemId: string,
+  stage: ErpItemStage,
+): ErpOrderFull[] {
+  return orders.map((order) => {
+    if (!order.items.some((it) => it.id === itemId)) return order;
+    return {
+      ...order,
+      items: order.items.map((it) =>
+        it.id === itemId
+          ? { ...it, stages: [...it.stages, stage].sort((a, b) => a.sort_order - b.sort_order) }
+          : it),
+    };
+  });
+}
+
+/**
+ * Все этапы цеха среди активных заказов в порядке очереди
+ * (ручной приоритет, затем срок клиента) — для перенумерации приоритетов.
+ */
+export function stagesInDept(
+  orders: ErpOrderFull[],
+  departmentId: string,
+): { stage: ErpItemStage; order: ErpOrderFull }[] {
+  const rows: { stage: ErpItemStage; order: ErpOrderFull }[] = [];
+  for (const order of orders) {
+    if (order.status !== 'active') continue;
+    for (const item of order.items) {
+      for (const stage of item.stages) {
+        if (stage.department_id === departmentId && stage.status !== 'skipped') {
+          rows.push({ stage, order });
+        }
+      }
+    }
+  }
+  return rows.sort((a, b) => {
+    const pa = a.stage.queue_position;
+    const pb = b.stage.queue_position;
+    if (pa != null && pb != null && pa !== pb) return pa - pb;
+    if (pa != null && pb == null) return -1;
+    if (pa == null && pb != null) return 1;
+    return (a.order.due_date || '9999-12-31').localeCompare(b.order.due_date || '9999-12-31');
+  });
+}
+
 /** Сколько работ «готово/в работе» в цехе — для уведомления и бейджа «Мой цех» */
 export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
   const dept = departments.find((d) => d.code === deptCode);

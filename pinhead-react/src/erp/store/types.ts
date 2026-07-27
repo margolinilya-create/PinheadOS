@@ -203,7 +203,13 @@ export interface StagesSlice {
   setStageStatus: (
     stageId: string,
     status: StageStatus,
-    extra?: { qty_done?: number; block_reason?: string | null; comment?: string },
+    extra?: {
+      qty_done?: number;
+      block_reason?: string | null;
+      /** Исполнитель, за которым закрепляется задание («Взять в работу», правка 8) */
+      assignee?: string | null;
+      comment?: string;
+    },
   ) => Promise<boolean>;
   /**
    * Частичная готовность: qty_done += qty; при qty_done >= qty позиции
@@ -214,12 +220,36 @@ export interface StagesSlice {
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
+  /** Заказ, которому принадлежит этап — для диплинка на страницу задания (правка 5) */
+  findOrderIdByStage: (stageId: string) => Promise<string | null>;
   /** Обработка просрочки этапа (правка 8): комментарий причины + отметка времени */
   ackStageOverdue: (stageId: string, comment: string) => Promise<boolean>;
   /** Ручные плановые даты этапа */
   setStagePlan: (
     stageId: string,
     plan: { planned_start?: string | null; planned_end?: string | null },
+  ) => Promise<boolean>;
+  /**
+   * Приоритет задания в очереди своего цеха (правка 3): задание встаёт между
+   * prevStageId и nextStageId (null — край очереди). Пишет одну строку —
+   * позицию-середину; при исчерпании точности перенумеровывает очередь цеха.
+   * Перемещение фиксируется в истории (кто, когда, куда).
+   */
+  reorderStageQueue: (
+    stageId: string,
+    prevStageId: string | null,
+    nextStageId: string | null,
+  ) => Promise<boolean>;
+  /**
+   * Перенос задания в другой цех (канбан): текущий этап закрывается, этап целевого
+   * цеха открывается; если его нет в маршруте — добавляется. Последствия и запреты
+   * считает analyzeStageMove, подтверждение показывает UI. Возврат назад и пропуск
+   * этапов требуют комментария — он уходит в историю обоих этапов.
+   */
+  moveStageToDepartment: (
+    stageId: string,
+    targetDepartmentId: string,
+    opts?: { comment?: string | null },
   ) => Promise<boolean>;
 }
 

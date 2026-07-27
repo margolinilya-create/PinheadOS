@@ -1502,3 +1502,174 @@ describe('orderHelpers — счётчики разделов (сайдбар р�
     ])).toBe(2);
   });
 });
+
+// --- Волна 1: приоритет очереди и перенос между цехами -----------------------
+
+/** Заказ с одной позицией и несколькими этапами (по одному на цех) */
+function seedRoute(
+  stages: Record<string, unknown>[],
+  { qty = 100, dueDate = '2026-08-01', orderId = 'o1' } = {},
+) {
+  const full = stages.map((s, i) => ({
+    id: `st${i + 1}`, item_id: 'it1', depends_on: [], status: 'waiting',
+    qty_done: 0, qty_rework: 0, planned_start: null, planned_end: null,
+    started_at: null, finished_at: null, assignee: null, block_reason: null,
+    notes: null, sort_order: (i + 1) * 10, queue_position: null,
+    ...s,
+  }));
+  const item = {
+    id: 'it1', order_id: orderId, product_type: 'Худи', variant: null, qty,
+    production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+    notes: null, sort_order: 10, stages: full, prints: [],
+  };
+  const order = {
+    id: orderId, title: 'Заказ', status: 'active', due_date: dueDate,
+    items: [item], materials: [],
+  };
+  useErpStore.setState({
+    orders: [order] as any,
+    departments: [
+      { id: 'd-cut', code: 'cutting', name: 'Закройный цех', active: true, sort_order: 50 },
+      { id: 'd-emb', code: 'embroidery', name: 'Цех вышивки', active: true, sort_order: 62 },
+      { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 70 },
+      { id: 'd-vto', code: 'vto', name: 'ВТО цех', active: true, sort_order: 80 },
+    ] as any,
+    loaded: true,
+  });
+  return full;
+}
+
+const stageById = (id: string) =>
+  useErpStore.getState().orders
+    .flatMap((o: any) => o.items).flatMap((it: any) => it.stages)
+    .find((s: any) => s.id === id);
+
+describe('useErpStore — reorderStageQueue (приоритет в очереди цеха)', () => {
+  it('вставка между соседями пишет середину и трогает одну строку', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 100 },
+      { department_id: 'd-emb', queue_position: 200 },
+      { department_id: 'd-cut', queue_position: 300 },
+    ]);
+    const ok = await useErpStore.getState().reorderStageQueue('st3', 'st1', 'st2');
+    expect(ok).toBe(true);
+    expect(stageById('st3').queue_position).toBe(150);
+    const writes = h.updateCalls.filter((c) => c.table === 'erp_item_stages');
+    expect(writes).toHaveLength(1);
+    expect(writes[0].patch).toEqual({ queue_position: 150 });
+  });
+
+  it('в начало очереди — на шаг выше первого', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 1000 },
+      { department_id: 'd-emb', queue_position: 2000 },
+    ]);
+    await useErpStore.getState().reorderStageQueue('st2', null, 'st1');
+    expect(stageById('st2').queue_position).toBe(1000 - 86400);
+  });
+
+  it('слипшиеся соседи — перенумеровывает очередь цеха целиком', async () => {
+    const pos = 1_800_000_000;
+    seedRoute([
+      { department_id: 'd-sew', queue_position: pos },
+      { department_id: 'd-sew', queue_position: pos + 2 ** -22 },
+      { department_id: 'd-sew', queue_position: pos + 1 },
+    ]);
+    const ok = await useErpStore.getState().reorderStageQueue('st3', 'st1', 'st2');
+    expect(ok).toBe(true);
+    expect(stageById('st1').queue_position).toBe(0);
+    expect(stageById('st3').queue_position).toBe(86400);
+    expect(stageById('st2').queue_position).toBe(86400 * 2);
+    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
+  });
+
+  it('ошибка Supabase — откат позиции и toast', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 100 },
+      { department_id: 'd-sew', queue_position: 200 },
+    ]);
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().reorderStageQueue('st2', null, 'st1');
+    expect(ok).toBe(false);
+    expect(stageById('st2').queue_position).toBe(200);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('пишет перемещение в историю этапов', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 100 },
+      { department_id: 'd-sew', queue_position: 200 },
+    ]);
+    await useErpStore.getState().reorderStageQueue('st2', 'st1', null);
+    const ev = h.insertCalls.find((c) => c.table === 'erp_stage_events');
+    expect((ev?.row as any).comment).toContain('Приоритет в очереди');
+    expect((ev?.row as any).actor).toBe('Тест');
+  });
+});
+
+describe('useErpStore — moveStageToDepartment (перенос между цехами)', () => {
+  it('закрывает текущий этап и открывает целевой', async () => {
+    seedRoute([
+      { department_id: 'd-emb', status: 'in_progress', qty_done: 100 },
+      { department_id: 'd-sew' },
+    ]);
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+    expect(ok).toBe(true);
+    expect(stageById('st1').status).toBe('done');
+    expect(stageById('st1').qty_done).toBe(100);
+    expect(stageById('st2').status).toBe('in_progress');
+    expect(stageById('st2').started_at).toBeTruthy();
+  });
+
+  it('заблокированное задание переносить нельзя — состояние не меняется', async () => {
+    seedRoute([
+      { department_id: 'd-emb', status: 'blocked', block_reason: 'нет ниток' },
+      { department_id: 'd-sew' },
+    ]);
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+    expect(ok).toBe(false);
+    expect(stageById('st1').status).toBe('blocked');
+    expect(stageById('st2').status).toBe('waiting');
+    expect(h.updateCalls).toHaveLength(0);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('цеха нет в маршруте — добавляет этап с зависимостью от текущего', async () => {
+    seedRoute([{ department_id: 'd-cut', status: 'in_progress', qty_done: 100 }]);
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-vto');
+    expect(ok).toBe(true);
+    const inserted = h.insertCalls.find((c) => c.table === 'erp_item_stages');
+    expect((inserted?.row as any).department_id).toBe('d-vto');
+    expect((inserted?.row as any).depends_on).toEqual(['st1']);
+    expect((inserted?.row as any).status).toBe('in_progress');
+    expect(useErpStore.getState().orders[0].items[0].stages).toHaveLength(2);
+  });
+
+  it('комментарий возврата уходит в историю обоих этапов', async () => {
+    seedRoute([
+      { department_id: 'd-cut', status: 'done', qty_done: 100 },
+      { department_id: 'd-sew', status: 'in_progress' },
+    ]);
+    await useErpStore.getState().moveStageToDepartment('st2', 'd-cut', { comment: 'перекроить' });
+    const events = h.insertCalls.filter((c) => c.table === 'erp_stage_events');
+    expect(events).toHaveLength(2);
+    for (const e of events) {
+      expect((e.row as any).comment).toContain('Швейка');
+      expect((e.row as any).comment).toContain('Закрой');
+      expect((e.row as any).comment).toContain('перекроить');
+    }
+  });
+
+  it('ошибка Supabase на исходном этапе — полный откат', async () => {
+    seedRoute([
+      { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
+      { department_id: 'd-sew' },
+    ]);
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+    expect(ok).toBe(false);
+    expect(stageById('st1').status).toBe('in_progress');
+    expect(stageById('st2').status).toBe('waiting');
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
