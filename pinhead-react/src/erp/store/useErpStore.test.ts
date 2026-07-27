@@ -159,6 +159,8 @@ beforeEach(() => {
     orders: [], departments: [], loaded: false,
     archiveLoaded: false, archiveLoading: false,
     myDeptId: null, myDeptLoaded: false,
+    dictionaries: [], dictionariesLoaded: false,
+    permissionMatrix: null, permissionsLoaded: false,
   });
 });
 
@@ -1671,5 +1673,129 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
     expect(stageById('st1').status).toBe('in_progress');
     expect(stageById('st2').status).toBe('waiting');
     expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+// --- Волна 2: справочники, права, участки ------------------------------------
+
+const dict = (over: Record<string, unknown> = {}) => ({
+  id: 'dic1', kind: 'block_reason', code: 'no_material', name: 'Нет материала',
+  sort_order: 10, active: true, meta: {}, created_at: '', updated_at: '', ...over,
+});
+
+describe('useErpStore — справочники админки', () => {
+  it('loadDictionaries кладёт значения в стор', async () => {
+    h.tableData.erp_dictionaries = [dict(), dict({ id: 'dic2', code: 'equipment', name: 'Сломано оборудование', sort_order: 20 })];
+    await useErpStore.getState().loadDictionaries();
+    expect(useErpStore.getState().dictionaries).toHaveLength(2);
+    expect(useErpStore.getState().dictionariesLoaded).toBe(true);
+  });
+
+  it('ошибка загрузки не блокирует работу — экраны остаются на свободном вводе', async () => {
+    h.selectError = { message: 'нет связи' };
+    await useErpStore.getState().loadDictionaries();
+    expect(useErpStore.getState().dictionaries).toEqual([]);
+    expect(useErpStore.getState().dictionariesLoaded).toBe(true);
+  });
+
+  it('создание генерирует латинский код из русского названия', async () => {
+    await useErpStore.getState().createDictionaryItem('block_reason' as never, '  Нет ниток  ');
+    const call = h.insertCalls.find((c) => c.table === 'erp_dictionaries');
+    expect((call?.row as any).code).toBe('net_nitok');
+    expect((call?.row as any).name).toBe('Нет ниток');
+    expect((call?.row as any).kind).toBe('block_reason');
+  });
+
+  it('дубликат по названию не создаётся', async () => {
+    useErpStore.setState({ dictionaries: [dict()] as any });
+    const created = await useErpStore.getState().createDictionaryItem('block_reason' as never, 'нет материала');
+    expect(created).toBeNull();
+    expect(h.insertCalls.filter((c) => c.table === 'erp_dictionaries')).toHaveLength(0);
+    expect(toast.warning).toHaveBeenCalled();
+  });
+
+  it('новое значение встаёт в конец своего вида', async () => {
+    useErpStore.setState({ dictionaries: [dict({ sort_order: 40 })] as any });
+    await useErpStore.getState().createDictionaryItem('block_reason' as never, 'Нет ниток');
+    const call = h.insertCalls.find((c) => c.table === 'erp_dictionaries');
+    expect((call?.row as any).sort_order).toBe(50);
+  });
+
+  it('отключение вместо удаления — правка через updateDictionaryItem', async () => {
+    useErpStore.setState({ dictionaries: [dict()] as any });
+    const ok = await useErpStore.getState().updateDictionaryItem('dic1', { active: false });
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().dictionaries[0].active).toBe(false);
+    expect(h.updateCalls.find((c) => c.table === 'erp_dictionaries')?.patch).toEqual({ active: false });
+  });
+
+  it('ошибка правки откатывает значение', async () => {
+    useErpStore.setState({ dictionaries: [dict()] as any });
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().updateDictionaryItem('dic1', { name: 'Другое' });
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().dictionaries[0].name).toBe('Нет материала');
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('перестановка меняет порядок только внутри своего вида', async () => {
+    useErpStore.setState({
+      dictionaries: [
+        dict({ id: 'a', sort_order: 10 }),
+        dict({ id: 'b', sort_order: 20 }),
+        dict({ id: 'x', kind: 'problem_type', code: 'p', sort_order: 5 }),
+      ] as any,
+    });
+    const ok = await useErpStore.getState().moveDictionaryItem('b', 'up');
+    expect(ok).toBe(true);
+    const byId = Object.fromEntries(useErpStore.getState().dictionaries.map((d) => [d.id, d.sort_order]));
+    expect(byId.b).toBe(10);
+    expect(byId.a).toBe(20);
+    expect(byId.x).toBe(5);
+  });
+
+  it('перестановка за границу списка ничего не делает', async () => {
+    useErpStore.setState({ dictionaries: [dict({ id: 'a' })] as any });
+    expect(await useErpStore.getState().moveDictionaryItem('a', 'up')).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+});
+
+describe('useErpStore — матрица прав', () => {
+  it('setRolePermission пишет upsert и обновляет матрицу', async () => {
+    useErpStore.setState({ permissionMatrix: { worker: { 'stage.priority': false } } as any });
+    const ok = await useErpStore.getState().setRolePermission('worker' as never, 'stage.priority' as never, true);
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().permissionMatrix?.worker['stage.priority']).toBe(true);
+    const call = h.insertCalls.find((c) => c.table === 'erp_role_permissions');
+    expect(call?.row).toMatchObject({ role: 'worker', permission: 'stage.priority', allowed: true });
+  });
+
+  it('ошибка сохранения возвращает матрицу как была', async () => {
+    useErpStore.setState({ permissionMatrix: { worker: { 'stage.priority': false } } as any });
+    h.insertErrors.push({ message: 'нет связи' });
+    const ok = await useErpStore.getState().setRolePermission('worker' as never, 'stage.priority' as never, true);
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().permissionMatrix?.worker['stage.priority']).toBe(false);
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe('useErpStore — справочник участков', () => {
+  it('создание участка добавляет его в стор по порядку', async () => {
+    useErpStore.setState({ departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', sort_order: 50 }] as any });
+    const created = await useErpStore.getState().createDepartment({ code: 'heat', name: 'Термоперенос', sort_order: 60 } as any);
+    expect(created).toBeTruthy();
+    expect(useErpStore.getState().departments.map((d) => d.code)).toEqual(['cutting', 'heat']);
+  });
+
+  it('правка участка — optimistic с откатом при ошибке', async () => {
+    useErpStore.setState({ departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', sort_order: 50, norm_days: null }] as any });
+    expect(await useErpStore.getState().updateDepartment('d1', { norm_days: 3 })).toBe(true);
+    expect(useErpStore.getState().departments[0].norm_days).toBe(3);
+
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().updateDepartment('d1', { norm_days: 9 })).toBe(false);
+    expect(useErpStore.getState().departments[0].norm_days).toBe(3);
   });
 });

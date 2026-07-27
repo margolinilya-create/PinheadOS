@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
+import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import { isQueueDept, deptShortName } from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
@@ -458,6 +459,10 @@ export function CreateOrderModal({ onClose }) {
           </div>
         )}
 
+        {/* Подсказки справочников для полей «Изделие» и «Поставщик» (правка 12) */}
+        <DictionaryDatalist kind="product_type" id="erp-product-types" />
+        <DictionaryDatalist kind="supplier" id="erp-suppliers" />
+
         <FormSection
           id="order-section-main"
           title="Основное"
@@ -565,11 +570,13 @@ export function CreateOrderModal({ onClose }) {
           <div className={styles.itemRow}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Изделие *</span>
+              {/* Подсказки из справочника типов изделий (правка 12), ввод остаётся свободным */}
               <input
                 className={inputCls(`item_${i}_product_type`)}
                 value={it.product_type}
                 onChange={(e) => setItem(i, { product_type: e.target.value })}
                 placeholder="футболка"
+                list="erp-product-types"
                 aria-required="true"
                 aria-invalid={err(`item_${i}_product_type`) ? true : undefined}
                 aria-describedby={err(`item_${i}_product_type`) ? `err-item-${i}-product` : undefined}

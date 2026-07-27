@@ -13,14 +13,15 @@ URL: https://pinhead-os.vercel.app
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания);
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн);
+  screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
-  RouteProgress (маршрут в штуках), QueueFilters +
+  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
-  + useErpAccess.ts (права: can/canActIn/canDo);
-  orders/stages/materials/procurement/subcontracting/employees/permissions/realtime;
+  + useErpAccess.ts (права: can/canActIn/canDo) + useDictionary.js (активные значения справочника);
+  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
@@ -87,6 +88,10 @@ URL: https://pinhead-os.vercel.app
 - Задания: группа и причина ожидания считаются одним `buildQueueEntries`, не по месту
 - Исполнитель проставляется при «Взять в работу» (`assignee = currentActor()`)
 - Фильтры заданий — `utils/filterStages`, состояние в URL (возврат из заказа его восстанавливает)
+- Справочники (`erp_dictionaries`) — подсказка, а не ограничение: `datalist`/чипы поверх
+  свободного ввода. Значения отключаются (`active:false`), не удаляются
+- Статусы в справочник не выносить: они в CHECK-констрейнтах и стейт-машинах;
+  в админке — вкладка только для чтения
 
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)

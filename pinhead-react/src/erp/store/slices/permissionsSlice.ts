@@ -8,11 +8,12 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { toast } from '../../../store/useToastStore';
 import type { ErpRolePermission } from '../../types';
 import type { PermissionMatrix } from '../../utils/permissions';
 import type { ErpStore, PermissionsSlice } from '../types';
 
-export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> = (set) => ({
+export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> = (set, get) => ({
   permissionMatrix: null,
   permissionsLoaded: false,
 
@@ -30,5 +31,26 @@ export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> 
       (matrix[row.role] ??= {})[row.permission] = row.allowed;
     }
     set({ permissionMatrix: matrix, permissionsLoaded: true });
+  },
+
+  setRolePermission: async (role, permission, allowed) => {
+    const prev = get().permissionMatrix;
+    // optimistic: галочка в матрице отзывается сразу, при ошибке возвращаем как было
+    set((s) => ({
+      permissionMatrix: {
+        ...(s.permissionMatrix ?? {}),
+        [role]: { ...(s.permissionMatrix?.[role] ?? {}), [permission]: allowed },
+      },
+    }));
+    // Строка могла не существовать (право добавили кодом позже сида) — upsert по паре
+    const { error } = await supabase
+      .from('erp_role_permissions')
+      .upsert({ role, permission, allowed }, { onConflict: 'role,permission' });
+    if (error) {
+      set({ permissionMatrix: prev });
+      toast.error('Не удалось сохранить право');
+      return false;
+    }
+    return true;
   },
 });

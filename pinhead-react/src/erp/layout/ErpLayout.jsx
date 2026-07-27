@@ -64,6 +64,7 @@ export default function ErpLayout({ user, children }) {
     const s = useErpStore.getState();
     if (!s.loaded) s.loadAll();
     if (!s.permissionsLoaded) s.loadPermissions();
+    if (!s.dictionariesLoaded) s.loadDictionaries();
     if (!s.subcontractingLoaded) s.loadSubcontracting();
     if (!s.experimentalLoaded) s.loadExperimental();
   }, []);

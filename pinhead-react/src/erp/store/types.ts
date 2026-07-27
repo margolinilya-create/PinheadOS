@@ -8,9 +8,12 @@ import type { PermissionMatrix } from '../utils/permissions';
 import type {
   BrandingMethod,
   BrandingOn,
+  DictionaryKind,
   EmployeeRole,
   ErpDepartment,
+  ErpDictionaryItem,
   ErpEmployee,
+  ErpPermission,
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
@@ -345,14 +348,46 @@ export interface EmployeesSlice {
     profile: StaffProfile,
     patch: Partial<Pick<ErpEmployee, 'department_id' | 'role' | 'notes'>>,
   ) => Promise<boolean>;
+
+  /** Справочник цехов (правки 11/12): создание участка и правка его атрибутов */
+  createDepartment: (
+    dept: Pick<ErpDepartment, 'code' | 'name'> & Partial<ErpDepartment>,
+  ) => Promise<ErpDepartment | null>;
+  /** Название, порядок, признак брендирования, активность, руководитель, норматив */
+  updateDepartment: (id: string, patch: Partial<ErpDepartment>) => Promise<boolean>;
 }
 
-/** Права: матрица «роль × право» из erp_role_permissions (ядро правки 11) */
+/** Права: матрица «роль × право» из erp_role_permissions (правка 11) */
 export interface PermissionsSlice {
   /** null — матрица ещё не загружена (действуют DEFAULT_PERMISSIONS) */
   permissionMatrix: PermissionMatrix | null;
   permissionsLoaded: boolean;
   loadPermissions: () => Promise<void>;
+  /** Переключить право роли из редактора матрицы в админке */
+  setRolePermission: (
+    role: EmployeeRole,
+    permission: ErpPermission,
+    allowed: boolean,
+  ) => Promise<boolean>;
+}
+
+/** Справочники админки: причины блокировок, типы проблем, изделий, поставщики (правка 12) */
+export interface DictionariesSlice {
+  dictionaries: ErpDictionaryItem[];
+  dictionariesLoaded: boolean;
+  loadDictionaries: () => Promise<void>;
+  /** Код значения генерируется из названия, порядок — в конец списка вида */
+  createDictionaryItem: (
+    kind: DictionaryKind,
+    name: string,
+  ) => Promise<ErpDictionaryItem | null>;
+  /** Переименование, деактивация (active:false вместо удаления), правка meta */
+  updateDictionaryItem: (
+    id: string,
+    patch: Partial<Pick<ErpDictionaryItem, 'name' | 'active' | 'sort_order' | 'meta'>>,
+  ) => Promise<boolean>;
+  /** Переставить значение на позицию вверх/вниз внутри своего вида */
+  moveDictionaryItem: (id: string, direction: 'up' | 'down') => Promise<boolean>;
 }
 
 /** Realtime: точечное применение postgres_changes + подписка */
@@ -387,5 +422,6 @@ export type ErpStore = OrdersSlice &
   SubcontractingSlice &
   EmployeesSlice &
   PermissionsSlice &
+  DictionariesSlice &
   ExperimentalSlice &
   RealtimeSlice;

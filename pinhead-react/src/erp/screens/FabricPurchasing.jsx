@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
+import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { useErpStore } from '../store/useErpStore';
@@ -114,7 +115,15 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Поставщик</span>
-            <input className={styles.input} value={form.supplier} onChange={(e) => set({ supplier: e.target.value })} aria-label="Поставщик" />
+            {/* Подсказки из справочника поставщиков (правка 12), ввод свободный */}
+            <DictionaryDatalist kind="supplier" id="erp-suppliers-modal" />
+            <input
+              className={styles.input}
+              value={form.supplier}
+              onChange={(e) => set({ supplier: e.target.value })}
+              list="erp-suppliers-modal"
+              aria-label="Поставщик"
+            />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>План, кг</span>
@@ -237,6 +246,7 @@ export default function FabricPurchasing() {
   return (
     <>
       <PageHead title="Закупка" sub="Работа с материалами и поставщиками." />
+      <DictionaryDatalist kind="supplier" id="erp-suppliers-table" />
 
       {loaded && (
         <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
@@ -331,7 +341,20 @@ export default function FabricPurchasing() {
                       <strong>{m.name}</strong>
                       <div className={styles.subText}>{KIND_LABELS[m.kind]}{m.color ? ` · ${m.color}` : ''}{m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}</div>
                     </td>
-                    <td>{m.supplier || '—'}</td>
+                    <td>
+                      <input
+                        className={`${styles.input} ${styles.inputSm}`}
+                        defaultValue={m.supplier || ''}
+                        placeholder="—"
+                        list="erp-suppliers-table"
+                        onBlur={(e) => {
+                          const v = e.target.value.trim() || null;
+                          if (v !== (m.supplier || null)) updateMaterial(m.id, { supplier: v });
+                        }}
+                        aria-label={`Поставщик ${m.name}`}
+                        style={{ maxWidth: 130 }}
+                      />
+                    </td>
                     <td>
                       <input
                         className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"

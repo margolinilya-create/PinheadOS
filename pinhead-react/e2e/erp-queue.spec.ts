@@ -127,3 +127,42 @@ test.describe('Показатели закупки (правки 10 и 14)', () 
     await expect(page.getByText(/Фильтр: Ожидается/)).toHaveCount(0);
   });
 });
+
+test.describe('Админка: права и справочники (правки 11 и 12)', () => {
+  test('вкладки админки включают «Права» и «Справочники»', async ({ page }) => {
+    await page.goto('/admin?studio=0');
+    const tabs = page.getByRole('tablist', { name: 'Разделы админки' });
+    for (const name of ['Пользователи', 'Права', 'Цеха', 'Справочники', 'Заказы ТЗ']) {
+      await expect(tabs.getByRole('tab', { name })).toBeVisible();
+    }
+  });
+
+  test('матрица прав — чекбокс на каждое право и роль', async ({ page }) => {
+    await page.goto('/admin?tab=roles&studio=0');
+    await expect(page.getByText('Матрица отвечает на вопрос')).toBeVisible();
+    // Рядовой сотрудник цеха завершает этап, но не меняет приоритеты (дефолт сида)
+    await expect(page.getByRole('checkbox', { name: 'Завершать этап — Сотрудник цеха' })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Менять приоритеты — Сотрудник цеха' })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Менять приоритеты — Бригадир' })).toBeChecked();
+  });
+
+  test('справочники: под-вкладки и статусы только для чтения', async ({ page }) => {
+    await page.goto('/admin?tab=dicts&studio=0');
+    const tabs = page.getByRole('tablist', { name: 'Справочники' });
+    for (const name of ['Причины блокировок', 'Типы проблем', 'Типы изделий', 'Поставщики', 'Статусы']) {
+      await expect(tabs.getByRole('tab', { name })).toBeVisible();
+    }
+    await tabs.getByRole('tab', { name: 'Статусы' }).click();
+    await expect(page.getByText(/Переименовать их из админки нельзя/)).toBeVisible();
+  });
+
+  test('цеха: редактор с руководителем и нормативом', async ({ page }) => {
+    await page.goto('/admin?tab=depts&studio=0');
+    await expect(page.getByRole('button', { name: '+ Добавить участок' })).toBeVisible();
+    const head = page.getByRole('columnheader');
+    const names = await head.allTextContents();
+    for (const col of ['Участок', 'Порядок', 'Руководитель', 'Норматив, дн']) {
+      expect(names.some((n) => n.includes(col))).toBe(true);
+    }
+  });
+});

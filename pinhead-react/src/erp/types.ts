@@ -80,6 +80,10 @@ export interface ErpDepartment {
   sort_order: number;
   is_branding: boolean;
   active: boolean;
+  /** Руководитель цеха (правка 11) — закрепляется в админке */
+  head_employee_id?: string | null;
+  /** Нормативный срок этапа в днях (правка 12) — план завершения при «Взять в работу» */
+  norm_days?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -610,6 +614,42 @@ export interface ErpRolePermission {
   role: EmployeeRole;
   permission: ErpPermission;
   allowed: boolean;
+  updated_at: string;
+}
+
+// --- Справочники админки (правка 12) ----------------------------------------
+
+/**
+ * Виды редактируемых справочников. Статусы (этапов, заказов, материалов, склада,
+ * подряда) сюда не входят: они зашиты в CHECK-констрейнты и стейт-машины —
+ * в админке показаны только для чтения.
+ */
+export type DictionaryKind = 'block_reason' | 'problem_type' | 'product_type' | 'supplier';
+
+export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
+  block_reason: 'Причины блокировок',
+  problem_type: 'Типы проблем',
+  product_type: 'Типы изделий',
+  supplier: 'Поставщики',
+};
+
+/** Подсказка под заголовком справочника — где значение всплывает в работе */
+export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
+  block_reason: 'Быстрый выбор в форме «Проблема» у задания цеха.',
+  problem_type: 'Быстрый выбор при оформлении брака и переделки.',
+  product_type: 'Подсказки в поле «Изделие» при создании заказа.',
+  supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
+};
+
+export interface ErpDictionaryItem {
+  id: string;
+  kind: DictionaryKind;
+  code: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  meta: Record<string, unknown>;
+  created_at: string;
   updated_at: string;
 }
 

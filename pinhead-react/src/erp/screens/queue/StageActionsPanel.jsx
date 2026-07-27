@@ -1,9 +1,39 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useErpStore } from '../../store/useErpStore';
+import { useDictionary } from '../../store/useDictionary';
 import { stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
+
+/** Дата через N дней от сегодня в формате YYYY-MM-DD */
+function inDays(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Быстрый выбор значения справочника: чипы над полем ввода (правка 12) */
+function DictionaryChips({ items, onPick, label }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={styles.checkRow} role="group" aria-label={label}>
+      {items.map((d) => (
+        <button
+          key={d.id}
+          type="button"
+          className={`${styles.chip} ${styles.chipNeutral}`}
+          style={{ cursor: 'pointer', font: 'inherit' }}
+          onClick={() => onPick(d.name)}
+        >
+          {d.name}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Действия цеха над заданием: «Взять в работу», «Записать результат», «Проблема»,
@@ -24,12 +54,22 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
   const qtyDone = stage.qty_done ?? 0;
   const remaining = Math.max(item.qty - qtyDone, 0);
 
+  // Норматив участка (правка 12) и справочники быстрых причин (правка 12)
+  const normDays = useErpStore(
+    useShallow((s) => s.departments.find((d) => d.id === stage.department_id)?.norm_days ?? null),
+  );
+  const blockReasons = useDictionary('block_reason');
+  const problemTypes = useDictionary('problem_type');
+
   const [ackText, setAckText] = useState('');
   const [startMode, setStartMode] = useState(false);
-  // План завершения по умолчанию — срок клиента (не «сегодня»): иначе этап с дальним
-  // сроком мгновенно становился «просрочен» на следующий день (ERP-04).
+  // План завершения по умолчанию: норматив участка, иначе срок клиента (не «сегодня» —
+  // иначе этап с дальним сроком мгновенно становился «просрочен» на следующий день, ERP-04).
   const [startDate, setStartDate] = useState(
-    stage.planned_end || order.due_date || new Date().toISOString().slice(0, 10),
+    stage.planned_end
+      || (normDays > 0 ? inDays(normDays) : null)
+      || order.due_date
+      || new Date().toISOString().slice(0, 10),
   );
   const [doneQty, setDoneQty] = useState(String(remaining || item.qty));
   const [blockMode, setBlockMode] = useState(false);
@@ -152,6 +192,7 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
         <div className={styles.queueBlockForm}>
           <label className={styles.subText}>
             План завершения
+            {normDays > 0 && <span> · норматив участка {normDays} дн.</span>}
             <input
               type="date"
               className={styles.input}
@@ -177,6 +218,11 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
 
       {canAct && blockMode && (
         <div className={styles.queueBlockForm}>
+          <DictionaryChips
+            items={blockReasons}
+            label="Частые причины блокировки"
+            onPick={setBlockText}
+          />
           <input
             className={styles.input}
             placeholder="Что мешает? (брак кроя, нет ниток…)"
@@ -214,6 +260,11 @@ export function StageActionsPanel({ entry, canAct, deptShortById, actions, showT
             onChange={(e) => setDefectQty(e.target.value)}
             aria-label="Сколько штук в брак"
             autoFocus
+          />
+          <DictionaryChips
+            items={problemTypes}
+            label="Типы проблем"
+            onPick={setDefectText}
           />
           <input
             className={styles.input}

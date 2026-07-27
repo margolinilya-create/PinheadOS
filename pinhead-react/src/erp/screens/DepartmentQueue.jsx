@@ -46,6 +46,7 @@ export default function DepartmentQueue() {
     orders, departments, loading, loaded, loadAll,
     myDeptId, myDeptLoaded, loadMyDept,
     loadStageReworkEvents, reorderStageQueue,
+    employees, employeesLoaded, loadEmployees,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -58,6 +59,9 @@ export default function DepartmentQueue() {
       loadMyDept: s.loadMyDept,
       loadStageReworkEvents: s.loadStageReworkEvents,
       reorderStageQueue: s.reorderStageQueue,
+      employees: s.employees,
+      employeesLoaded: s.employeesLoaded,
+      loadEmployees: s.loadEmployees,
     })),
   );
   const actions = useStageActions();
@@ -93,6 +97,11 @@ export default function DepartmentQueue() {
     if (!myDeptLoaded) loadMyDept(user?.id);
   }, [myDeptLoaded, loadMyDept, user?.id]);
 
+  // Имя руководителя участка (правка 11) — сотрудники грузятся лениво
+  useEffect(() => {
+    if (!employeesLoaded) loadEmployees();
+  }, [employeesLoaded, loadEmployees]);
+
   /** Цех из привязки erp_employees (автопривязка, п.10) */
   const boundDept = useMemo(
     () => departments.find((dd) => dd.id === myDeptId) || null,
@@ -119,6 +128,12 @@ export default function DepartmentQueue() {
   }, [deptCode, tabsRef]);
 
   const dept = departments.find((dd) => dd.code === deptCode) || null;
+  const deptHead = useMemo(
+    () => (dept?.head_employee_id
+      ? employees.find((e) => e.id === dept.head_employee_id)?.full_name ?? null
+      : null),
+    [dept, employees],
+  );
   const deptShortById = useMemo(
     () => new Map(departments.map((dd) => [dd.id, deptShortName(dd.code, dd.name)])),
     [departments],
@@ -244,7 +259,11 @@ export default function DepartmentQueue() {
     <>
       <PageHead
         title={dept ? dept.name : 'Мой цех'}
-        sub="Очередь работ цеха: бери в работу, вноси результат, сообщай о проблемах."
+        sub={[
+          'Очередь работ цеха: бери в работу, вноси результат, сообщай о проблемах.',
+          // Руководитель участка закрепляется в админке (правка 11)
+          deptHead ? `Руководитель: ${deptHead}.` : null,
+        ].filter(Boolean).join(' ')}
       />
 
       <div className={styles.deptTabsWrap}>

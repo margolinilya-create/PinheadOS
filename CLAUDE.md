@@ -107,7 +107,7 @@ supabase/
 | `/queue`, `/queue/:deptCode` | DepartmentQueue (очередь участка) | Все |
 | `/task/:stageId` | ProductionTask (производственное задание) | Все |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
-| `/admin` | AdminScreen (пользователи, цеха, заказы ТЗ) | admin, director |
+| `/admin` | AdminScreen (пользователи, права, цеха, справочники, заказы ТЗ) | admin, director |
 
 ### ✏️ ТЗ (Order Studio) — за флагом `orderStudio`
 
@@ -156,7 +156,9 @@ admin, director, manager, rop, designer, production
 `assignee` — исполнитель) · `erp_materials`. Сопровождение: `erp_item_prints`,
 `erp_stage_events` (история этапов), `erp_order_audit`/`_comments`/`_attachments`,
 `erp_procurement_tasks`, `erp_subcontracting`, `erp_warehouse_ops`/`_tasks`,
-`erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав).
+`erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав),
+`erp_dictionaries` (справочники админки: причины блокировок, типы проблем, типы изделий,
+поставщики).
 
 **Storage:**
 | Bucket | Назначение |
@@ -201,6 +203,8 @@ admin, director, manager, rop, designer, production
 - ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
   приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
   с подтверждением последствий; прогресс считается в штуках (`erp/utils/progress`)
+- Справочники ERP (`erp_dictionaries`) — подсказка, а не ограничение; значения отключаются,
+  а не удаляются. Статусы в справочник не выносятся — они часть маршрутной логики
 
 ## Документация
 
