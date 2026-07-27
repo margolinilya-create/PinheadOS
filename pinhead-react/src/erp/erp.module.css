@@ -732,7 +732,10 @@ a.kpiTile:hover { border-color: var(--accent); }
 .queueRowDropAfter { box-shadow: inset 0 -3px 0 0 var(--accent); }
 .queueRowMain {
   display: grid;
-  grid-template-columns: 52px minmax(180px, 2.2fr) 64px 132px minmax(120px, 1fr) 116px 108px auto;
+  /* приоритет · заказ · кол-во · срок · статус · исполнитель · готовность · действия.
+     Название заказа — самая широкая колонка: по нему цех и опознаёт работу */
+  grid-template-columns:
+    48px minmax(240px, 3fr) 60px 124px minmax(104px, 0.9fr) 104px 96px auto;
   align-items: center;
   gap: 10px;
   min-width: 0;
