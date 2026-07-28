@@ -236,14 +236,40 @@ describe('validateOrderForm', () => {
     expect(v.errors.due_date).toBe('Срок клиента в прошлом — проверьте дату');
   });
 
-  it('дата запуска в прошлом — обычная инлайн-ошибка (как у срока клиента)', () => {
+  it('дата в прошлом — это invalid, а не missing', () => {
+    // Черновик восстанавливается назавтра с вчерашней датой запуска. Раньше поле
+    // попадало в missing, и подсказка говорила «Осталось заполнить: Дата запуска»
+    // при заполненном поле — указывая не на ту проблему.
     const v = validateOrderForm(
-      { ...okForm, launch_date: '2026-07-01' },
+      { ...okForm, launch_date: '2026-07-01', due_date: '2026-07-02' },
       [item({ product_type: 'ф', qty: '1' })],
       today,
     );
     expect(v.errors.launch_date).toBe('Дата запуска в прошлом — проверьте дату');
-    expect(v.missing).toContain('Дата запуска');
+    expect(v.invalid).toContain('Дата запуска');
+    expect(v.invalid).toContain('Срок клиента');
+    expect(v.missing).not.toContain('Дата запуска');
+  });
+
+  it('подряд с доработкой требует следующего участка', () => {
+    const base = {
+      product_type: 'ф', qty: '10',
+      production_type: 'outsource', subcontract_kind: 'operation',
+    };
+    const withFurther = validateOrderForm(
+      okForm, [item({ ...base, needs_further: true, return_dept: '' })], today,
+    );
+    expect(withFurther.errors.item_0_return_dept).toBe('Выберите участок для доработки');
+    expect(withFurther.missing).toContain('Следующий участок');
+
+    // Участок выбран либо доработка не нужна — ошибки нет
+    for (const it of [
+      item({ ...base, needs_further: true, return_dept: 'sewing' }),
+      item({ ...base, needs_further: false, return_dept: '' }),
+      item({ product_type: 'ф', qty: '10' }),
+    ]) {
+      expect(validateOrderForm(okForm, [it], today).errors.item_0_return_dept).toBeUndefined();
+    }
   });
 
   it('дата запуска сегодня, в будущем или пустая — без ошибки', () => {

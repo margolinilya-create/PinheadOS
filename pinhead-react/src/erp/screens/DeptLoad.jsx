@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Button } from '../components/Button';
-import { EmptyState, ErrorState } from '../components/States';
+import { EmptyState, LoadFailed } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useErpStore } from '../store/useErpStore';
 import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
@@ -89,7 +89,7 @@ export default function DeptLoad() {
       </div>
 
       {!loaded && !loadError && <TableSkeleton />}
-      {loadError && !loaded && <ErrorState onRetry={() => loadAll()} />}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="загрузку цехов" />}
 
       {loaded && rows.length === 0 && (
         <EmptyState

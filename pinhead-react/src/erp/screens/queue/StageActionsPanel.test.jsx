@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { QueueCard } from './QueueCard';
+import { StageActionsPanel } from './StageActionsPanel';
 
 /**
- * Карточка очереди цеха — главный рабочий экран производства.
+ * Действия цеха над заданием — общий компонент строки очереди и страницы
+ * производственного задания.
  *
- * Ключевое здесь — контракт payload у onDefect: форма брака переехала из карточки
- * в пошаговый DefectWizard, и состав объекта не должен был измениться.
+ * Ключевое здесь — контракт payload у onDefect: форма брака переехала из
+ * панели в пошаговый DefectWizard, и состав объекта не должен был измениться.
  */
+
+/** Все права выданы: гейты матрицы проверяются отдельно, здесь — поведение формы */
+const ALL_PERMS = { any: true, take: true, progress: true, complete: true, block: true, defect: true };
 
 const ORDER = {
   id: 'o1',
@@ -43,30 +47,36 @@ function makeEntry(group, patch = {}) {
 
 const DEPT_SHORT = new Map([['d2', 'Закрой']]);
 
-function renderCard(entry, props = {}) {
+function renderCard(entry, { perms = ALL_PERMS } = {}) {
   const handlers = {
     onStart: vi.fn(), onDone: vi.fn(), onProgress: vi.fn(), onBlock: vi.fn(),
     onUnblock: vi.fn(), onDefect: vi.fn(), onAckOverdue: vi.fn(),
   };
   render(
     <MemoryRouter>
-      <QueueCard entry={entry} canAct deptShortById={DEPT_SHORT} {...handlers} {...props} />
+      <StageActionsPanel
+        entry={entry}
+        perms={perms}
+        deptShortById={DEPT_SHORT}
+        actions={handlers}
+        showTz={false}
+      />
     </MemoryRouter>,
   );
   return handlers;
 }
 
-describe('QueueCard — действия по группам', () => {
+describe('StageActionsPanel — действия по группам', () => {
   it('ready: «Взять в работу» и «Проблема»', () => {
     renderCard(makeEntry('ready'));
     expect(screen.getByRole('button', { name: /Взять в работу/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Проблема/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Готово$/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Завершить этап/ })).toBeNull();
   });
 
   it('in_progress: «Частично», «Готово», «Брак», «Проблема»', () => {
     renderCard(makeEntry('in_progress'));
-    for (const name of [/Частично/, /Готово/, /Брак/, /Проблема/]) {
+    for (const name of [/Записать результат/, /Завершить этап/, /Брак/, /Проблема/]) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
   });
@@ -77,39 +87,46 @@ describe('QueueCard — действия по группам', () => {
     expect(screen.queryByRole('button', { name: /Взять в работу/ })).toBeNull();
   });
 
-  it('blocked: «Снять блокировку» и причина блокировки', () => {
+  it('blocked: «Снять блокировку» вызывает onUnblock', async () => {
     const handlers = renderCard(makeEntry('blocked'));
-    expect(screen.getByText(/Нет ниток/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Снять блокировку' }));
-    expect(handlers.onUnblock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(handlers.onUnblock).toHaveBeenCalledTimes(1));
   });
 
-  it('без права действия (canAct=false) кнопок нет', () => {
-    renderCard(makeEntry('ready'), { canAct: false });
+  it('без прав матрицы кнопок нет', () => {
+    renderCard(makeEntry('ready'), {
+      perms: { any: false, take: false, progress: false, complete: false, block: false, defect: false },
+    });
     expect(screen.queryByRole('button', { name: /Взять в работу/ })).toBeNull();
   });
 
-  it('«Взять в работу» открывает план завершения и передаёт дату', () => {
-    const handlers = renderCard(makeEntry('ready'));
-    fireEvent.click(screen.getByRole('button', { name: /Взять в работу/ }));
-    const date = screen.getByLabelText('План завершения');
-    fireEvent.change(date, { target: { value: '2026-08-20' } });
-    fireEvent.click(screen.getByRole('button', { name: /^В работу$/ }));
-    expect(handlers.onStart).toHaveBeenCalledWith(expect.objectContaining({ group: 'ready' }), '2026-08-20');
+  it('снятое право «Оформлять брак» убирает кнопку, остальные остаются', () => {
+    renderCard(makeEntry('in_progress'), { perms: { ...ALL_PERMS, defect: false } });
+    expect(screen.queryByRole('button', { name: /^Брак$/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Проблема/ })).toBeInTheDocument();
   });
 
-  it('«Проблема» требует текст и передаёт его в onBlock', () => {
+  it('«Взять в работу» открывает план завершения и передаёт дату', async () => {
+    const handlers = renderCard(makeEntry('ready'));
+    fireEvent.click(screen.getByRole('button', { name: /Взять в работу/ }));
+    const date = screen.getByLabelText('Плановая дата завершения');
+    fireEvent.change(date, { target: { value: '2026-08-20' } });
+    fireEvent.click(screen.getByRole('button', { name: /^В работу$/ }));
+    await waitFor(() => expect(handlers.onStart).toHaveBeenCalledWith(expect.objectContaining({ group: 'ready' }), '2026-08-20'));
+  });
+
+  it('«Проблема» требует текст и передаёт его в onBlock', async () => {
     const handlers = renderCard(makeEntry('ready'));
     fireEvent.click(screen.getByRole('button', { name: /Проблема/ }));
     const block = screen.getByRole('button', { name: 'Заблокировать' });
     expect(block).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Что мешает?'), { target: { value: 'Порвался нож' } });
+    fireEvent.change(screen.getByPlaceholderText(/брак кроя/i), { target: { value: 'Порвался нож' } });
     fireEvent.click(screen.getByRole('button', { name: 'Заблокировать' }));
-    expect(handlers.onBlock).toHaveBeenCalledWith(expect.anything(), 'Порвался нож', null);
+    await waitFor(() => expect(handlers.onBlock).toHaveBeenCalledWith(expect.anything(), 'Порвался нож', null));
   });
 });
 
-describe('QueueCard — мастер брака', () => {
+describe('StageActionsPanel — мастер брака', () => {
   let handlers;
   beforeEach(() => {
     handlers = renderCard(makeEntry('in_progress'));
@@ -120,31 +137,31 @@ describe('QueueCard — мастер брака', () => {
 
   it('открывается боковой панелью с первым шагом', () => {
     expect(wizard()).toBeInTheDocument();
-    expect(screen.getByLabelText('Сколько штук в брак')).toBeInTheDocument();
-    expect(screen.getByLabelText('Причина брака')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Сколько штук в брак/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Причина брака/)).toBeInTheDocument();
   });
 
   it('«Далее» заблокировано, пока не заполнены количество и причина', () => {
     const next = screen.getByRole('button', { name: 'Далее' });
     expect(next).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '3' } });
     expect(next).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Пятно' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Пятно' } });
     expect(next).toBeEnabled();
   });
 
   it('количество больше, чем в позиции, показывает ошибку и не пускает дальше', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '99' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Пятно' } });
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '99' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Пятно' } });
     expect(screen.getByText('В позиции всего 10 шт')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Далее' })).toBeDisabled();
   });
 
   it('второй шаг предлагает вернуть на другой этап маршрута', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Пятно' } });
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Пятно' } });
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
 
     const select = screen.getByLabelText('Где устранять');
@@ -153,13 +170,13 @@ describe('QueueCard — мастер брака', () => {
     expect(within(select).getByText('Отправить подрядчику')).toBeInTheDocument();
   });
 
-  it('простой случай: payload сохраняет прежний состав', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Кривая строчка' } });
+  it('простой случай: payload сохраняет прежний состав', async () => {
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Кривая строчка' } });
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     fireEvent.click(screen.getByRole('button', { name: 'В переделку' }));
 
-    expect(handlers.onDefect).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(handlers.onDefect).toHaveBeenCalledTimes(1));
     const [, payload, photo] = handlers.onDefect.mock.calls[0];
     expect(payload).toEqual({
       qty: 2,
@@ -176,15 +193,16 @@ describe('QueueCard — мастер брака', () => {
     expect(photo).toBeNull();
   });
 
-  it('возврат подрядчику: операция и контрагент попадают в payload', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Перешить' } });
+  it('возврат подрядчику: операция и контрагент попадают в payload', async () => {
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Перешить' } });
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     fireEvent.change(screen.getByLabelText('Где устранять'), { target: { value: 'subcontractor' } });
     fireEvent.change(screen.getByLabelText('Операция подряда'), { target: { value: 'Перешив низа' } });
     fireEvent.change(screen.getByLabelText('Контрагент'), { target: { value: 'ООО Швейка' } });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить подрядчику' }));
 
+    await waitFor(() => expect(handlers.onDefect).toHaveBeenCalledTimes(1));
     const [, payload] = handlers.onDefect.mock.calls[0];
     expect(payload).toMatchObject({
       target: 'subcontractor',
@@ -193,15 +211,16 @@ describe('QueueCard — мастер брака', () => {
     });
   });
 
-  it('на закупку: needsMaterial форсится, материал и срок уходят в payload', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '4' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Прожгли ткань' } });
+  it('на закупку: needsMaterial форсится, материал и срок уходят в payload', async () => {
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Прожгли ткань' } });
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     fireEvent.change(screen.getByLabelText('Где устранять'), { target: { value: 'procurement' } });
     fireEvent.change(screen.getByLabelText('Материал'), { target: { value: 'Кулирка чёрная' } });
     fireEvent.change(screen.getByLabelText('Плановая дата замены'), { target: { value: '2026-08-10' } });
     fireEvent.click(screen.getByRole('button', { name: 'В переделку + заявка' }));
 
+    await waitFor(() => expect(handlers.onDefect).toHaveBeenCalledTimes(1));
     const [, payload] = handlers.onDefect.mock.calls[0];
     expect(payload).toMatchObject({
       target: 'procurement',
@@ -212,8 +231,8 @@ describe('QueueCard — мастер брака', () => {
   });
 
   it('возврат «на закупку» форсит галку «нужен новый материал»', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Прожгли' } });
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Прожгли' } });
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
 
     const check = screen.getByLabelText(/Нужен новый материал/);
@@ -226,11 +245,11 @@ describe('QueueCard — мастер брака', () => {
   });
 
   it('«Назад» возвращает на первый шаг, «Отмена» закрывает мастер', () => {
-    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Пятно' } });
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Пятно' } });
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     fireEvent.click(screen.getByRole('button', { name: /Назад/ }));
-    expect(screen.getByLabelText('Сколько штук в брак')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Сколько штук в брак/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
     expect(screen.queryByRole('dialog', { name: 'Брак / переделка' })).toBeNull();

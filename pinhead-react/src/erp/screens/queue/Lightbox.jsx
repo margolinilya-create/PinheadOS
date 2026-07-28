@@ -1,16 +1,17 @@
-import { useEffect } from 'react';
-import { Icon } from '../../components/Icon';
+import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 
-/** Полноэкранный просмотр превью: закрытие по клику и Escape */
+/**
+ * Полноэкранный просмотр превью: закрытие по клику и Escape.
+ * Фокус запирается тем же хуком, что и в TzViewer, — раньше при объявленном
+ * `aria-modal` Tab свободно уходил на фон под оверлеем.
+ */
 export function Lightbox({ src, alt, onClose }) {
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const trapRef = useFocusTrap(true, onClose);
   return (
     <div
+      ref={trapRef}
       className={styles.lightbox}
       role="dialog"
       aria-modal="true"
@@ -25,7 +26,7 @@ export function Lightbox({ src, alt, onClose }) {
         onClick={onClose}
         autoFocus
       >
-        <Icon name="x" size={20} />
+        <Icon name="x" size={18} />
       </button>
     </div>
   );

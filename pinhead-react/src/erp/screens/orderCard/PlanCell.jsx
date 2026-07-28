@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Icon } from '../../components/Icon';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { fmt } from './format';
 
 /** Ячейка плановых дат этапа: кнопка «задать план…» → два date-инпута */
@@ -32,19 +32,22 @@ export function PlanCell({ stage, onSave }) {
   }
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-      <input type="date" className={styles.input} style={{ minHeight: 30, padding: '2px 6px' }}
+      <input type="date" className={`${styles.input} ${styles.inputXs} ${styles.inputXsDate}`}
         value={start} onChange={(e) => setStart(e.target.value)} aria-label="План: начало" />
-      <input type="date" className={styles.input} style={{ minHeight: 30, padding: '2px 6px' }}
+      <input type="date" className={`${styles.input} ${styles.inputXs} ${styles.inputXsDate}`}
         value={end} onChange={(e) => setEnd(e.target.value)} aria-label="План: конец" />
       <button type="button" className="btn btn-primary" style={{ padding: '2px 10px' }}
+        aria-label="Сохранить плановые даты" title="Сохранить"
         onClick={async () => {
-          await onSave({ planned_start: start || null, planned_end: end || null });
-          setEditing(false);
-        }} aria-label="Сохранить план">
+          const ok = await onSave({ planned_start: start || null, planned_end: end || null });
+          // Закрываем только при успехе — иначе правка исчезала вместе с ошибкой
+          if (ok !== false) setEditing(false);
+        }}>
         <Icon name="check" size={14} />
       </button>
       <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px' }}
-        aria-label="Отменить" onClick={() => setEditing(false)}><Icon name="x" size={14} /></button>
+        aria-label="Отменить правку плана" title="Отмена"
+        onClick={() => setEditing(false)}><Icon name="x" size={14} /></button>
     </span>
   );
 }

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
-import { Pipeline } from '../components/Pipeline';
-import { EmptyState } from '../components/States';
+import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
@@ -26,13 +26,14 @@ const PIPE_PHASES = [
 
 export default function Experimental() {
   const {
-    orders, loaded, loadAll,
+    orders, loaded, loadError, loadAll,
     experimental, experimentalLoaded, loadExperimental,
     createExperimental, updateExperimental, createExperimentalOp, completeExperimentalOp,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       experimental: s.experimental,
       experimentalLoaded: s.experimentalLoaded,
@@ -100,8 +101,9 @@ export default function Experimental() {
       />
 
       {experimentalLoaded && experimental.length > 0 && (
-        <Pipeline
-          stages={pipeStages}
+        <StageIndicator
+          variant="pipeline"
+          nodes={pipeStages}
           aside={{ key: 'returned', label: 'Возврат конструктору', icon: 'undo', count: returnedCount }}
         />
       )}
@@ -118,12 +120,12 @@ export default function Experimental() {
         <button type="button" className="btn btn-primary" onClick={addExperimental}>+ Разработка</button>
       </div>
 
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="эксперим. разработки" />}
       {experimentalLoaded && experimental.length === 0 && (
-        <EmptyState
-          icon="flask"
-          title="Эксперим. разработок пока нет"
-          text="Добавьте заказ-образец формой выше."
-        />
+        <div className={styles.emptyState}>Эксперим. разработок пока нет — добавьте заказ-образец выше.</div>
+      )}
+      {experimentalLoaded && experimental.length > 0 && rows.length === 0 && (
+        <EmptyResult query={query.trim()} onReset={() => setQuery('')} />
       )}
 
       {rows.map((exp) => (

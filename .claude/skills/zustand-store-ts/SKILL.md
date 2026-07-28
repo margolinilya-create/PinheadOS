@@ -81,7 +81,7 @@ const store = useMyStore();
 ## Структура для нового стора портала
 
 ```js
-// usePortalStore.js — для покупательского портала
+// usePortalStore.ts — для покупательского портала
 export const usePortalStore = create((set, get) => ({
   // Шаги портала (отдельно от wizard!)
   step: 0,

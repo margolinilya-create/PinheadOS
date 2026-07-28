@@ -20,7 +20,21 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
-    { name: 'mobile',  use: { viewport: { width: 375,  height: 812 } } },
+    {
+      name: 'desktop',
+      use: { viewport: { width: 1280, height: 800 } },
+      // Мобильная разметка на 1280px не рендерится — спек проверял бы пустоту
+      testIgnore: [/erp-mobile\.spec\.ts/],
+    },
+    {
+      name: 'mobile',
+      use: { viewport: { width: 375, height: 812 } },
+      // На узком экране это другой интерфейс, а не тот же в меньшем масштабе:
+      // в ERP прячется сайдбар и очередь рисуется карточками (QueueCard) вместо строк
+      // (QueueRow), в визарде — свой мобильный поток шагов. Гонять desktop-сценарии
+      // на 375px бессмысленно: они проверяют разметку, которой там нет.
+      // Мобильная разметка ERP покрыта своим спеком — erp-mobile.spec.ts.
+      testIgnore: [/erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/],
+    },
   ],
 });

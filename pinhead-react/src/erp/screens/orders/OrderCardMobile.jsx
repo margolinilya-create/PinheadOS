@@ -2,7 +2,8 @@ import { useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
-import { STAGE_CHIP_CLASS, isOrderReadyToShip, stageProgress } from '../../utils/stageUi';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
+import { orderProgress } from '../../utils/progress';
 import { orderLinkClick } from '../../store/useOrderDrawer';
 import { hasOpenProcurement } from '../../utils/routes';
 import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
@@ -17,7 +18,7 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
     [departments],
   );
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
-  const progress = stageProgress(order.items.flatMap((it) => it.stages));
+  const progress = orderProgress(order);
   const ready = isOrderReadyToShip(order);
 
   return (
@@ -69,8 +70,8 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
         )}
         <DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} />
         {progress.total > 0 && (
-          <span className={styles.progressCell} aria-label={`Этапов готово: ${progress.done} из ${progress.total}`}>
-            {progress.done}/{progress.total}
+          <span className={styles.progressCell} aria-label={`Готовность ${progress.pct}%: ${progress.done} из ${progress.total} шт по этапам`}>
+            {progress.pct}%
           </span>
         )}
       </div>

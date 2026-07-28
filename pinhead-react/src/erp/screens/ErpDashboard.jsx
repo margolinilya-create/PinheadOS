@@ -1,15 +1,19 @@
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { orderLinkClick } from '../store/useOrderDrawer';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
-import { Icon } from '../components/Icon';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
+import { ScrollHintBox } from '../components/ScrollHintBox';
+import { LoadFailed } from '../components/ErpStates';
+import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement } from '../utils/routes';
+import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
-import { isQueueDept } from '../data/departments';
+import { isProductionDept } from '../data/departments';
 import styles from '../erp.module.css';
 
 /**
@@ -25,7 +29,7 @@ const QUICK_ACTIONS = [
   { to: '/board', icon: 'board', label: 'Канбан' },
   { to: '/queue', icon: 'queue', label: 'Очередь' },
   { to: '/purchasing', icon: 'truck', label: 'Закупки' },
-  { to: '/warehouse', icon: 'inbox', label: 'Приёмка' },
+  { to: '/warehouse', icon: 'box', label: 'Приёмка' },
   { to: '/subcontracting', icon: 'users', label: 'Подрядчики' },
   { to: '/experimental', icon: 'flask', label: 'Образцы' },
   { to: '/admin', icon: 'settings', label: 'Настройки' },
@@ -52,11 +56,12 @@ function orderStatus(order) {
 }
 
 export default function ErpDashboard() {
-  const { orders, departments, loaded, loadAll } = useErpStore(
+  const { orders, departments, loaded, loadError, loadAll } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
     })),
   );
@@ -93,13 +98,11 @@ export default function ErpDashboard() {
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
       if (hasOpenProcurement(order.procurement_tasks)) {
-        notifications.push({ id: `p-${order.id}`, to: `/orders/${order.id}`,
-          icon: 'bell', variant: 'warn',
+        notifications.push({ id: `p-${order.id}`, orderId: order.id, icon: 'bell', variant: 'warn',
           text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
       if (isOverdue(order.due_date)) {
-        notifications.push({ id: `o-${order.id}`, to: `/orders/${order.id}`,
-          icon: 'alert', variant: 'danger',
+        notifications.push({ id: `o-${order.id}`, orderId: order.id, icon: 'alert', variant: 'danger',
           text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title });
       }
 
@@ -110,7 +113,9 @@ export default function ErpDashboard() {
           if (!slot) continue;
           if (stage.status === 'in_progress') slot.inProgress += 1;
           else if (stage.status === 'blocked') slot.blocked += 1;
-          else if (stage.status === 'waiting' && isStageReady(stage, item.stages, order.materials, slot.dept.code)) {
+          else if (stage.status === 'waiting' && isStageReady(
+            stage, item.stages, order.materials, slot.dept.code, false,
+            stageMissingTz(order, item.id, stage.department_id, slot.dept))) {
             slot.ready += 1;
           }
         }
@@ -120,7 +125,7 @@ export default function ErpDashboard() {
 
     const loadRows = [...deptLoad.values()]
       .map((s) => ({ dept: s.dept, load: s.ready + s.inProgress + s.blocked }))
-      .filter((s) => isQueueDept(s.dept.code) && s.load > 0)
+      .filter((s) => isProductionDept(s.dept) && s.load > 0)
       .sort((a, b) => b.load - a.load);
     const maxLoad = Math.max(1, ...loadRows.map((r) => r.load));
 
@@ -157,57 +162,50 @@ export default function ErpDashboard() {
         sub="Где какой заказ, загрузка цехов, горящие сроки — всё в одном месте."
       />
 
-      {!loaded && <DashboardSkeleton />}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="обзор производства" />}
+      {!loadError && !loaded && <DashboardSkeleton />}
 
       {loaded && (
         <div className={styles.dash}>
           {/* KPI */}
           <div className={styles.dashKpis}>
             <Link to="/orders" className={styles.kpiCard}>
-              <span className={styles.kpiIcon}><Icon name="orders" size={22} /></span>
+              <span className={styles.kpiIcon}><Icon name="orders" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Заказов в работе</span>
                 <span className={styles.kpiCardValue}>{data.activeOrders}</span>
               </span>
             </Link>
             <Link to="/board" className={styles.kpiCard}>
-              <span className={styles.kpiIcon}><Icon name="board" size={22} /></span>
+              <span className={styles.kpiIcon}><Icon name="board" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Позиций в работе</span>
                 <span className={styles.kpiCardValue}>{data.itemsInWork}</span>
               </span>
             </Link>
             <Link to="/orders?filter=ready" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconOk}`}>
-                <Icon name="checkCircle" size={22} />
-              </span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconOk}`}><Icon name="checkCircle" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Готовы к отгрузке</span>
                 <span className={styles.kpiCardValue}>{data.readyToShip}</span>
               </span>
             </Link>
             <Link to="/orders?filter=urgent" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconWarn}`}>
-                <Icon name="clock" size={22} />
-              </span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconWarn}`}><Icon name="clock" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Срок ≤ 3 дней</span>
                 <span className={styles.kpiCardValue}>{data.dueSoon}</span>
               </span>
             </Link>
             <Link to="/orders?filter=overdue" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconDanger}`}>
-                <Icon name="alert" size={22} />
-              </span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconDanger}`}><Icon name="alert" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Просрочено</span>
                 <span className={styles.kpiCardValue}>{data.overdue}</span>
               </span>
             </Link>
             <Link to="/warehouse" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconViolet}`}>
-                <Icon name="box" size={22} />
-              </span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconViolet}`}><Icon name="box" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Задач на складе</span>
                 <span className={styles.kpiCardValue}>{data.warehouseOpen}</span>
@@ -225,7 +223,7 @@ export default function ErpDashboard() {
               {data.inWork.length === 0 ? (
                 <div className={styles.emptyState}>Активных заказов нет.</div>
               ) : (
-                <div className={styles.tableWrap}>
+                <ScrollHintBox className={styles.tableWrap} label="Заказы в работе">
                   <table className={styles.table}>
                     <thead>
                       <tr><th>№</th><th>Изделие</th><th>Цех/этап</th><th>Кол-во</th><th>Срок</th><th>Статус</th></tr>
@@ -243,7 +241,7 @@ export default function ErpDashboard() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ScrollHintBox>
               )}
             </div>
 
@@ -273,7 +271,7 @@ export default function ErpDashboard() {
                   const dt = order.due_date ? new Date(order.due_date) : null;
                   const label = days < 0 ? `просрочен ${-days} дн.` : days === 0 ? 'сегодня' : days === 1 ? 'завтра' : `через ${days} дн.`;
                   return (
-                    <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem}>
+                    <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
                       <span className={styles.deadlineDate}>
                         <span className={styles.deadlineDay}>{dt ? dt.getDate() : '—'}</span>
                         <span className={styles.deadlineMon}>{dt ? MONTHS[dt.getMonth()] : ''}</span>
@@ -297,27 +295,28 @@ export default function ErpDashboard() {
               <div className={styles.quickGrid}>
                 {QUICK_ACTIONS.map((a) => (
                   <Link key={a.to} to={a.to} className={styles.quickAction}>
-                    <span className={styles.quickIcon}><Icon name={a.icon} size={20} /></span>
+                    <span className={styles.quickIcon}><Icon name={a.icon} size={18} /></span>
                     {a.label}
                   </Link>
                 ))}
               </div>
             </div>
 
-            <div id="notifications" className={`${styles.widget} ${styles.widgetAnchor}`}>
+            <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
               <div className={styles.widgetHead}><span className={styles.widgetTitle}>Уведомления</span></div>
               {data.notifications.length === 0 ? (
                 <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
               ) : (
                 data.notifications.map((n) => (
-                  <Link key={n.id} to={n.to} className={styles.notifItem}>
-                    <span
-                      className={`${styles.notifIcon} ${
-                        n.variant === 'danger' ? styles.notifIconDanger : styles.notifIconWarn
-                      }`}
-                    >
-                      <Icon name={n.icon} />
-                    </span>
+                  // Алерт без ссылки — тупик: пользователь читал «Просрочен заказ
+                  // №1042» и шёл искать его руками, хотя id лежит рядом
+                  <Link
+                    key={n.id}
+                    to={`/orders/${n.orderId}`}
+                    onClick={(e) => orderLinkClick(n.orderId, e)}
+                    className={styles.notifItem}
+                  >
+                    <Icon name={n.icon} size={16} />
                     <span className={styles.notifText}>
                       {n.text}
                       <span className={styles.notifSub}> · {n.sub}</span>

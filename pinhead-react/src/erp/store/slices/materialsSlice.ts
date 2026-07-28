@@ -7,8 +7,24 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
-import type { ErpMaterial } from '../../types';
+import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
+
+/** Точечный патч массива вариантов поставщика у материала (не трогая остальные заказы) */
+function patchSuppliersIn(
+  orders: ErpStore['orders'],
+  materialId: string,
+  apply: (list: ErpMaterialSupplier[]) => ErpMaterialSupplier[],
+): ErpStore['orders'] {
+  return orders.map((o) => {
+    if (!o.materials.some((m) => m.id === materialId)) return o;
+    return {
+      ...o,
+      materials: o.materials.map((m) =>
+        m.id === materialId ? { ...m, suppliers: apply(m.suppliers ?? []) } : m),
+    };
+  });
+}
 
 export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (set, get) => ({
   addMaterial: async (orderId, material) => {
@@ -56,6 +72,99 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       received_at: new Date().toISOString().slice(0, 10),
     });
     return ok;
+  },
+
+  addSupplierOption: async (materialId, option) => {
+    const supplier = (option.supplier ?? '').trim();
+    if (!supplier) return null;
+    const { data, error } = await supabase
+      .from('erp_material_suppliers')
+      .insert({ ...option, supplier, material_id: materialId })
+      .select();
+    const row = data?.[0] as ErpMaterialSupplier | undefined;
+    if (error || !row) {
+      toast.error('Не удалось добавить вариант поставщика');
+      return null;
+    }
+    set((s) => ({ orders: patchSuppliersIn(s.orders, materialId, (list) => [...list, row]) }));
+    return row;
+  },
+
+  updateSupplierOption: async (materialId, optionId, patch) => {
+    const prev = get().orders;
+    set((s) => ({
+      orders: patchSuppliersIn(s.orders, materialId, (list) =>
+        list.map((o) => (o.id === optionId ? { ...o, ...patch } : o))),
+    }));
+    const { error } = await supabase
+      .from('erp_material_suppliers').update(patch).eq('id', optionId);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось сохранить вариант поставщика');
+      return false;
+    }
+    return true;
+  },
+
+  /**
+   * Выбор итогового поставщика: снимаем флаг с прежнего, ставим на новый и дублируем имя
+   * в erp_materials.supplier — оттуда его берут закупка, план приёмки и карточка заказа.
+   * Частичный уникальный индекс не даёт двум вариантам быть выбранными одновременно,
+   * поэтому сначала снимаем старый флаг и только затем ставим новый.
+   */
+  selectSupplierOption: async (materialId, optionId) => {
+    const prev = get().orders;
+    const material = prev.flatMap((o) => o.materials).find((m) => m.id === materialId);
+    const option = (material?.suppliers ?? []).find((o) => o.id === optionId);
+    if (!option) return false;
+
+    const previousSelected = (material?.suppliers ?? []).filter(
+      (o) => o.is_selected && o.id !== optionId);
+
+    set((s) => ({
+      orders: patchSuppliersIn(s.orders, materialId, (list) =>
+        list.map((o) => ({ ...o, is_selected: o.id === optionId }))),
+    }));
+
+    for (const old of previousSelected) {
+      const { error } = await supabase
+        .from('erp_material_suppliers').update({ is_selected: false }).eq('id', old.id);
+      if (error) {
+        set({ orders: prev });
+        toast.error('Не удалось сменить поставщика');
+        return false;
+      }
+    }
+    const { error } = await supabase
+      .from('erp_material_suppliers').update({ is_selected: true }).eq('id', optionId);
+    if (error) {
+      set({ orders: prev });
+      toast.error('Не удалось выбрать поставщика');
+      return false;
+    }
+    return get().updateMaterial(materialId, { supplier: option.supplier });
+  },
+
+  /**
+   * Удаление варианта. Если удаляют выбранного — поставщик у позиции очищается:
+   * лучше пустое поле, чем имя, за которым больше нет предложения.
+   */
+  deleteSupplierOption: async (materialId, optionId) => {
+    const prev = get().orders;
+    const material = prev.flatMap((o) => o.materials).find((m) => m.id === materialId);
+    const option = (material?.suppliers ?? []).find((o) => o.id === optionId);
+    // Не optimistic delete (правило репо) — ждём ответ Supabase
+    const { error } = await supabase.from('erp_material_suppliers').delete().eq('id', optionId);
+    if (error) {
+      toast.error('Не удалось удалить вариант поставщика');
+      return false;
+    }
+    set((s) => ({
+      orders: patchSuppliersIn(s.orders, materialId, (list) =>
+        list.filter((o) => o.id !== optionId)),
+    }));
+    if (option?.is_selected) await get().updateMaterial(materialId, { supplier: null });
+    return true;
   },
 
   maybeCloseSupply: async (orderId) => {

@@ -4,7 +4,6 @@ import {
   isStageReady,
   isStageAwaitingProcurement,
   hasOpenProcurement,
-  materialsBlockCutting,
   materialsBlockStage,
   missingMaterialsForStage,
   waitingReason,
@@ -21,7 +20,7 @@ function stage(route: ReturnType<typeof buildRoute>, code: string) {
 describe('buildRoute — типы производства (лист «Маршруты»)', () => {
   it('Пошив: закуп → закрой → швейка → ВТО', () => {
     const route = buildRoute({ productionType: 'sewing', brandingMethods: [], brandingOn: 'cut' });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto', 'qc']);
   });
 
   it('Готовое изделие: только закуп', () => {
@@ -31,7 +30,7 @@ describe('buildRoute — типы производства (лист «Марш�
 
   it('Крой: закуп → закрой', () => {
     const route = buildRoute({ productionType: 'cut', brandingMethods: [], brandingOn: 'cut' });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'qc']);
   });
 
   it('Без изделий: этапов производства нет', () => {
@@ -47,7 +46,7 @@ describe('buildRoute — типы производства (лист «Марш�
   it('Образцы: закуп → закрой → швейка → ВТО (эксперим. цех — отдельный модуль)', () => {
     const route = buildRoute({ productionType: 'samples', brandingMethods: [], brandingOn: 'cut' });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing', 'vto'],
+      ['supply', 'cutting', 'sewing', 'vto', 'qc'],
     );
   });
 });
@@ -58,7 +57,7 @@ describe('buildRoute — нанесения', () => {
       productionType: 'sewing', brandingMethods: ['silkscreen'], brandingOn: 'cut',
     });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'silkscreen', 'sewing', 'vto'],
+      ['supply', 'cutting', 'silkscreen', 'sewing', 'vto', 'qc'],
     );
     // печать зависит от закроя, швейка — от печати
     expect(stage(route, 'silkscreen').dependsOnCodes).toEqual(['cutting']);
@@ -87,7 +86,7 @@ describe('buildRoute — нанесения', () => {
       productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing', 'vto', 'embroidery'],
+      ['supply', 'cutting', 'sewing', 'vto', 'embroidery', 'qc'],
     );
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['vto']);
   });
@@ -96,7 +95,7 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'ready_garment', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'embroidery']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'embroidery', 'qc']);
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['supply']);
   });
 
@@ -104,7 +103,7 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'no_product', brandingMethods: ['dtf'], brandingOn: 'cut',
     });
-    expect(route.map((r) => r.departmentCode)).toEqual(['dtf']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['dtf', 'qc']);
     expect(stage(route, 'dtf').dependsOnCodes).toEqual([]);
   });
 
@@ -112,7 +111,63 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'sewing', brandingMethods: ['other'], brandingOn: 'cut',
     });
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto', 'qc']);
+  });
+});
+
+describe('buildRoute — финальный ОТК', () => {
+  it('по умолчанию ОТК есть и стоит последним', () => {
+    const route = buildRoute({ productionType: 'sewing', brandingMethods: [], brandingOn: 'cut' });
+    expect(route[route.length - 1].departmentCode).toBe('qc');
+    expect(stage(route, 'qc').dependsOnCodes).toEqual(['vto']);
+  });
+
+  it('снятая галочка убирает ОТК из маршрута', () => {
+    const route = buildRoute({
+      productionType: 'sewing', brandingMethods: [], brandingOn: 'cut', needsQc: false,
+    });
     expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto']);
+  });
+
+  it('ОТК ждёт ВСЕ параллельные ветки нанесения на готовом, а не последнюю по списку', () => {
+    const route = buildRoute({
+      productionType: 'sewing',
+      brandingMethods: ['embroidery', 'silkscreen'],
+      brandingOn: 'finished',
+    });
+    // вышивка и шелкография идут параллельно после ВТО — ОТК зависит от обеих
+    expect(stage(route, 'qc').dependsOnCodes.slice().sort()).toEqual(['embroidery', 'silkscreen']);
+    // и не от ВТО: он уже покрыт транзитивно через ветки
+    expect(stage(route, 'qc').dependsOnCodes).not.toContain('vto');
+  });
+
+  it('ОТК ждёт все ветки нанесения на крое через швейку и ВТО', () => {
+    const route = buildRoute({
+      productionType: 'sewing', brandingMethods: ['dtf'], brandingOn: 'cut',
+    });
+    expect(stage(route, 'qc').dependsOnCodes).toEqual(['vto']);
+  });
+
+  it('только закуп — ОТК не добавляется: контролировать нечего', () => {
+    for (const productionType of ['ready_garment', 'outsource'] as const) {
+      const route = buildRoute({ productionType, brandingMethods: [], brandingOn: 'finished' });
+      expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
+    }
+  });
+
+  it('пустой маршрут остаётся пустым', () => {
+    const route = buildRoute({ productionType: 'no_product', brandingMethods: [], brandingOn: 'cut' });
+    expect(route).toEqual([]);
+  });
+
+  it('sortOrder ОТК больше всех прочих этапов', () => {
+    const route = buildRoute({
+      productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'finished',
+    });
+    const qc = stage(route, 'qc').sortOrder;
+    for (const r of route) {
+      if (r.departmentCode !== 'qc') expect(r.sortOrder).toBeLessThan(qc);
+    }
   });
 });
 
@@ -165,36 +220,36 @@ const mkMat = (
   created_at: '', updated_at: '',
 });
 
-describe('materialsBlockCutting — материалы гейтят закрой', () => {
+describe('materialsBlockStage — материалы гейтят закрой', () => {
   it('не пришедшая ткань блокирует', () => {
-    expect(materialsBlockCutting([mkMat('ordered')])).toBe(true);
-    expect(materialsBlockCutting([mkMat('pending')])).toBe(true);
-    expect(materialsBlockCutting([mkMat('in_transit')])).toBe(true);
+    expect(materialsBlockStage([mkMat('ordered')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('pending')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('in_transit')], 'cutting')).toBe(true);
   });
 
   it('пришедший, но НЕ принятый складом материал блокирует (правка 3)', () => {
-    expect(materialsBlockCutting([mkMat('received')])).toBe(true);
+    expect(materialsBlockStage([mkMat('received')], 'cutting')).toBe(true);
   });
 
   it('принятый склад / зарезервированный / not_needed не блокируют', () => {
-    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')])).toBe(false);
-    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_partial')])).toBe(false);
-    expect(materialsBlockCutting([mkMat('reserved')])).toBe(false);
-    expect(materialsBlockCutting([mkMat('not_needed')])).toBe(false);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_partial')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mkMat('reserved')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mkMat('not_needed')], 'cutting')).toBe(false);
   });
 
   it('недостача/пересорт/отказ по приёмке блокируют закрой', () => {
-    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'shortage')])).toBe(true);
-    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'mismatch')])).toBe(true);
-    expect(materialsBlockCutting([mkMat('received', 'fabric', null, 'Кулирка', 'rejected')])).toBe(true);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'shortage')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'mismatch')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'rejected')], 'cutting')).toBe(true);
   });
 
   it('partial блокирует (пришло не всё)', () => {
-    expect(materialsBlockCutting([mkMat('partial')])).toBe(true);
+    expect(materialsBlockStage([mkMat('partial')], 'cutting')).toBe(true);
   });
 
   it('без материалов не блокирует', () => {
-    expect(materialsBlockCutting([])).toBe(false);
+    expect(materialsBlockStage([], 'cutting')).toBe(false);
   });
 });
 

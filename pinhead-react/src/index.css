@@ -56,6 +56,17 @@
   --bg-error:     #fff0f0;
   --bg-warning:   #fff8e1;
 
+  /* Эти шесть были объявлены только в `.shell` (erp.module.css). ERP-компоненты
+     переиспользуются вне неё — AdminScreen смонтирован и в Order Studio, — и там
+     объявление отбрасывалось как невалидное: чип «Ждёт подтверждения» терял плашку
+     и рендерился голым синим текстом. Значения — из светлой ERP-палитры. */
+  --bg-info:      #EFF6FF;
+  --bg-violet:    #F5F3FF;
+  --bg-cyan:      #ECFEFF;
+  --color-violet: #8B5CF6;
+  --color-cyan:   #06B6D4;
+  --shadow-card:  0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+
   /* ── Fonts ── */
   --font-body:    'Inter', sans-serif;
   --font-display: 'Barlow Condensed', sans-serif;
@@ -67,8 +78,10 @@
   --type-h3:      24px;
   --type-body:    14px;
   --type-body-sm: 13px;
-  --type-label:   11px;
-  --type-caption: 9px;
+  /* 12px — минимум по правилу DESIGN.md «мелкий текст ≥12px». Шкала раньше
+     санкционировала 11px и 9px, то есть противоречила собственному правилу;
+     --type-caption не использовался нигде и удалён. */
+  --type-label:   12px;
 
   /* ── Spacing scale ── */
   --space-xs:     4px;
@@ -84,7 +97,13 @@
   --z-header:     100;
   --z-nav:        200;
   --z-overlay:    500;
-  --z-modal:      600;
+  /* Четыре полноэкранных слоя ERP (Drawer, модалка, лайтбокс превью,
+     полноэкранное ТЗ) резолвились в один --z-modal, и порядок наложения держался
+     только на порядке в DOM: лайтбокс, открытый из карточки заказа, перекрывал
+     её лишь потому, что монтировался позже. */
+  --z-drawer:     600;
+  --z-modal:      700;
+  --z-lightbox:   800;
   --z-toast:      1000;
 
   /* ── Radii ── */
@@ -137,6 +156,13 @@ html[data-theme="dark"] {
   --bg-success:   #0a2e1a;
   --bg-error:     #2e0a0a;
   --bg-warning:   #2e1f0a;
+
+  --bg-info:      #12233F;
+  --bg-violet:    #211B3A;
+  --bg-cyan:      #0C2A30;
+  --color-violet: #A78BFA;
+  --color-cyan:   #22D3EE;
+  --shadow-card:  0 1px 2px rgba(0, 0, 0, 0.4);
 
   /* Тёмная тема: непрозрачнее, иначе модалка сливается с тёмным фоном */
   --overlay:      rgba(0, 0, 0, 0.72);

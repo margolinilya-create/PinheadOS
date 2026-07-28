@@ -6,6 +6,7 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useTheme } from '../../hooks/useTheme';
 import {
   useErpStore,
+  readyCountFor,
   readyOnlyCountFor,
   overdueUnackCountFor,
   openWarehouseTaskCount,
@@ -14,9 +15,11 @@ import {
   activeExperimentalCount,
 } from '../store/useErpStore';
 import { setFeature } from '../../config/features';
+import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
 import styles from '../erp.module.css';
+import appStyles from '../../App.module.css';
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
@@ -45,6 +48,10 @@ export default function ErpLayout({ user, children }) {
     localStorage.setItem('erp_sidebar_collapsed', collapsed ? '1' : '0');
   }, [collapsed]);
 
+  // Ниже 760px сайдбар — выезжающий оверлей (см. erp.module.css): постоянная
+  // колонка там занимала от 13% до половины ширины и убиралась только сворачиванием
+  const [navOpen, setNavOpen] = useState(false);
+
   // Живой ERP: изменения этапов/заказов долетают без обновления страницы
   useEffect(() => {
     const unsubscribe = useErpStore.getState().subscribeRealtime();
@@ -58,8 +65,12 @@ export default function ErpLayout({ user, children }) {
 
   // Бейджи «Подряд»/«Эксперим. цех» должны быть стабильны на любом экране (ERP-08):
   // грузим их данные заранее, а не лениво при первом заходе на эти разделы.
+  // Сюда же — заказы (счётчики цехов в меню, правка 1) и матрица прав (гейты действий).
   useEffect(() => {
     const s = useErpStore.getState();
+    if (!s.loaded) s.loadAll();
+    if (!s.permissionsLoaded) s.loadPermissions();
+    if (!s.dictionariesLoaded) s.loadDictionaries();
     if (!s.subcontractingLoaded) s.loadSubcontracting();
     if (!s.experimentalLoaded) s.loadExperimental();
   }, []);
@@ -81,22 +92,69 @@ export default function ErpLayout({ user, children }) {
     [orders, departments, myCode, subcontracting, experimental],
   );
 
-  const overdueCount = useMemo(
-    () => (myCode ? overdueUnackCountFor(orders, departments, myCode) : 0),
-    [orders, departments, myCode],
+  /**
+   * Колокол просрочек. У диспетчера, РОПа и директора привязки к конкретному цеху
+   * обычно нет, и бейдж всегда показывал 0 — единственный глобальный индикатор
+   * «что горит» был мёртв именно для тех, кому адресован. Без своего цеха считаем
+   * по всем производственным участкам.
+   */
+  const overdueCount = useMemo(() => {
+    if (myCode) return overdueUnackCountFor(orders, departments, myCode);
+    return departments
+      .filter((d) => d.active && isProductionDept(d))
+      .reduce((sum, d) => sum + overdueUnackCountFor(orders, departments, d.code), 0);
+  }, [orders, departments, myCode]);
+
+  // Постоянное меню цехов (правка 1): участок + число заданий в его очереди
+  // (готовые к запуску + уже взятые в работу).
+  const deptItems = useMemo(
+    () => departments
+      .filter((d) => d.active && isProductionDept(d))
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((d) => ({
+        to: `/queue/${d.code}`,
+        label: deptShortName(d.code, d.name),
+        icon: deptIcon(d.code),
+        count: readyCountFor(orders, departments, d.code),
+      })),
+    [orders, departments],
   );
 
   return (
     <div className={styles.shell}>
+      {/* Сайдбар — до 20+ ссылок, и клавиатурный пользователь проходил их заново
+          на каждой странице. Якорь #main-content был, ссылки на него — нет. */}
+      <a href="#main-content" className={appStyles.skipLink}>Перейти к содержимому</a>
       <Sidebar
         isAdmin={isAdmin}
         counts={counts}
+        deptItems={deptItems}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
+        open={navOpen}
+        onNavigate={() => setNavOpen(false)}
       />
+      {navOpen && (
+        <button
+          type="button"
+          className={styles.sidebarScrim}
+          aria-label="Закрыть меню"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
 
       <div className={styles.rightcol}>
         <header className={styles.topbar}>
+          <button
+            type="button"
+            className={`${styles.iconBtn} ${styles.navToggle}`}
+            aria-label="Меню"
+            aria-expanded={navOpen}
+            title="Меню"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            <Icon name="menu" size={19} />
+          </button>
           <div className={styles.headerSearch}>
             <Icon name="search" />
             <input

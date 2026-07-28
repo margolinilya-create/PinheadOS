@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import styles from '../erp.module.css';
 
@@ -6,6 +6,10 @@ import styles from '../erp.module.css';
  * Вертикальная сгруппированная навигация ERP (редизайн, по макету).
  * Пункты ведут только на существующие маршруты; счётчики активных задач — `counts` (route→N).
  * Сворачивается в узкую иконочную панель (`collapsed`).
+ *
+ * Группа «Цеха» (правка 1) — постоянное меню производственных участков со счётчиком
+ * заданий у каждого; пункт открывает рабочую очередь цеха (/queue/:code).
+ * Логотип (правка 13) — ссылка на главную ERP, кликабелен весь блок.
  */
 
 const GROUPS = [
@@ -15,8 +19,8 @@ const GROUPS = [
       { to: '/', label: 'Обзор', icon: 'overview', end: true },
       { to: '/orders', label: 'Заказы', icon: 'orders' },
       { to: '/board', label: 'Производство', icon: 'board' },
-      { to: '/queue', label: 'Мой цех', icon: 'queue' },
       { to: '/load', label: 'Загрузка цехов', icon: 'calendar' },
+      { to: '/queue', label: 'Мой цех', icon: 'queue', end: true },
     ],
   },
   {
@@ -36,13 +40,48 @@ const GROUPS = [
   },
 ];
 
-export function Sidebar({ isAdmin, counts = {}, collapsed, onToggleCollapse }) {
+/** Пункт навигации со счётчиком заданий */
+function NavItem({ item, count, collapsed }) {
   return (
-    <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''}`}>
-      <div className={styles.sidebarBrand}>
+    <NavLink
+      to={item.to}
+      end={item.end}
+      // В свёрнутом виде подпись видна только в подсказке — счётчик тоже туда
+      title={collapsed ? `${item.label}${count > 0 ? ` — ${count}` : ''}` : undefined}
+      className={({ isActive }) =>
+        isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
+      }
+    >
+      <span className={styles.navIcon}><Icon name={item.icon} size={19} /></span>
+      <span className={styles.navLabel}>{item.label}</span>
+      {count > 0 && (
+        <span className={styles.navBadge} aria-label={`Активных задач: ${count}`}>
+          {count}
+        </span>
+      )}
+    </NavLink>
+  );
+}
+
+export function Sidebar({
+  isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse,
+  open = false, onNavigate,
+}) {
+  return (
+    <aside
+      className={[
+        styles.sidebar,
+        collapsed ? styles.sidebarCollapsed : '',
+        open ? styles.sidebarOpen : '',
+      ].filter(Boolean).join(' ')}
+      // На узком экране сайдбар — выезжающий оверлей: любой переход его закрывает,
+      // иначе панель остаётся поверх только что открытого экрана
+      onClick={onNavigate}
+    >
+      <Link to="/" className={styles.sidebarBrand} title="На главную ERP" aria-label="На главную ERP">
         <span className={styles.sidebarLogo}>P</span>
         <span className={styles.sidebarBrandText}>PINHEAD ERP</span>
-      </div>
+      </Link>
 
       <nav className={styles.sidebarNav}>
         {GROUPS.map((g) => {
@@ -51,28 +90,23 @@ export function Sidebar({ isAdmin, counts = {}, collapsed, onToggleCollapse }) {
           return (
             <div key={g.title}>
               <div className={styles.navGroup}>{g.title}</div>
-              {items.map((n) => {
-                const count = counts[n.to] || 0;
-                return (
-                  <NavLink
-                    key={n.to}
-                    to={n.to}
-                    end={n.end}
-                    title={collapsed ? n.label : undefined}
-                    className={({ isActive }) =>
-                      isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
-                    }
-                  >
-                    <span className={styles.navIcon}><Icon name={n.icon} size={19} /></span>
-                    <span className={styles.navLabel}>{n.label}</span>
-                    {count > 0 && (
-                      <span className={styles.navBadge} aria-label={`Активных задач: ${count}`}>
-                        {count}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
+              {items.map((n) => (
+                <NavItem key={n.to} item={n} count={counts[n.to] || 0} collapsed={collapsed} />
+              ))}
+              {/* Цеха — сразу под «Главным»: постоянный список участков с числом заданий */}
+              {g.title === 'Главное' && deptItems.length > 0 && (
+                <>
+                  <div className={styles.navGroup}>Цеха</div>
+                  {deptItems.map((d) => (
+                    <NavItem
+                      key={d.to}
+                      item={{ to: d.to, label: d.label, icon: d.icon }}
+                      count={d.count}
+                      collapsed={collapsed}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           );
         })}

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
-import { EmptyState, ErrorState } from '../components/States';
+import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
-import { Stepper } from '../components/Stepper';
+import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
-import { deptShortName, isQueueDept } from '../data/departments';
+import { deptShortName, isProductionDept } from '../data/departments';
 import {
   SUBCONTRACT_STATUS_LABELS,
   SUBCONTRACT_OP_TYPE_LABELS,
@@ -15,6 +15,7 @@ import {
   SUBCONTRACT_FINISHED_FLOW,
 } from '../types';
 import styles from '../erp.module.css';
+import { DateField } from '../components/DateField';
 
 /**
  * Подряд (правки 4.2.1/4.2.4): рабочая очередь операций у подрядчиков.
@@ -109,8 +110,8 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       <input className={styles.input} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" />
       <input className={styles.input} placeholder="Контрагент" value={form.contractor} onChange={(e) => setForm({ ...form, contractor: e.target.value })} aria-label="Контрагент" style={{ maxWidth: 150 }} />
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 90 }} />
-      <label className={styles.subText}>передан<input type="date" className={styles.input} value={form.sent_date} onChange={(e) => setForm({ ...form, sent_date: e.target.value })} aria-label="Дата передачи" /></label>
-      <label className={styles.subText}>готов<input type="date" className={styles.input} value={form.planned_date} onChange={(e) => setForm({ ...form, planned_date: e.target.value })} aria-label="Плановая готовность" /></label>
+      <label className={styles.subText}>передан<DateField showFormatHint={false} value={form.sent_date} onChange={(v) => setForm({ ...form, sent_date: v })} aria-label="Дата передачи" /></label>
+      <label className={styles.subText}>готов<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => setForm({ ...form, planned_date: v })} aria-label="Плановая готовность" /></label>
       <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
     </div>
   );
@@ -183,7 +184,7 @@ export default function Subcontracting() {
 
   const activeOrders = useMemo(() => orders.filter((o) => o.status === 'active'), [orders]);
   const queueDepts = useMemo(
-    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    () => departments.filter((d) => d.active && isProductionDept(d)),
     [departments],
   );
 
@@ -214,7 +215,7 @@ export default function Subcontracting() {
         sub="Рабочая очередь операций у подрядчиков: где заказ сейчас и что дальше."
       />
 
-      <Stepper title="Готовое изделие от подрядчика" steps={finishedSteps} />
+      <StageIndicator variant="funnel" title="Готовое изделие от подрядчика" nodes={finishedSteps} />
 
       <div className={styles.toolbar}>
         <SearchInput
@@ -228,15 +229,14 @@ export default function Subcontracting() {
 
       <AddOpRow orders={activeOrders} queueDepts={queueDepts} onAdd={createSubcontractOp} />
 
-      {loadError && !loaded && (
-        <ErrorState onRetry={() => loadAll()} />
-      )}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="операции подряда" />}
       {subcontractingLoaded && subcontracting.length === 0 && (
-        <EmptyState
-          icon="users"
-          title="Операций подряда пока нет"
-          text="Добавьте первую операцию формой выше."
-        />
+        <div className={styles.emptyState}>Операций подряда пока нет — добавьте первую выше.</div>
+      )}
+      {/* Операции есть, но поиск не совпал: раньше здесь не рисовалось ничего —
+          белое пятно, по которому не понять, «не нашлось» или «сломалось» */}
+      {subcontractingLoaded && subcontracting.length > 0 && rows.length === 0 && (
+        <EmptyResult query={query.trim()} onReset={() => setQuery('')} />
       )}
 
       {rows.length > 0 && (
@@ -256,7 +256,9 @@ export default function Subcontracting() {
                   <tr key={op.id}>
                     <td>
                       <strong>№{op.order?.bitrix_id || '—'}</strong>
-                      <div className={styles.subText}>{op.order?.title || '—'}</div>
+                      <div className={styles.cellSub} title={op.order?.title || undefined}>
+                        {op.order?.title || '—'}
+                      </div>
                     </td>
                     <td>
                       <select
@@ -297,13 +299,12 @@ export default function Subcontracting() {
                       {op.op_type === 'operation' && (
                         <label className={styles.subText}>
                           возврат:{' '}
-                          <input
-                            type="date"
-                            className={styles.input}
+                          <DateField
+                            showFormatHint={false}
                             value={op.returned_date || ''}
-                            onChange={(e) => updateSubcontractOp(op.id, {
-                              returned_date: e.target.value || null,
-                              status: e.target.value ? 'returned' : op.status,
+                            onChange={(v) => updateSubcontractOp(op.id, {
+                              returned_date: v || null,
+                              status: v ? 'returned' : op.status,
                             })}
                             aria-label={`Дата возврата ${op.operation}`}
                             style={{ maxWidth: 130 }}

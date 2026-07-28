@@ -1,38 +1,23 @@
-import { useState, memo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
 import { orderLinkClick } from '../../store/useOrderDrawer';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
-import { Button } from '../../components/Button';
-import { Field } from '../../components/Field';
 import { Lightbox } from './Lightbox';
-import { PhotoAttach } from './PhotoAttach';
-import { TzBlock } from './TzBlock';
-import { DefectWizard } from './DefectWizard';
+import { StageActionsPanel } from './StageActionsPanel';
 
-function QueueCardBase({ entry, canAct, rework, deptShortById, onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onAckOverdue }) {
+/**
+ * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
+ * Действия и формы общие со строкой и страницей задания (StageActionsPanel).
+ */
+export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
+  const location = useLocation();
   const { order, item, stage, reason, group } = entry;
-  const [ackText, setAckText] = useState('');
   const overdue = stageOverdue(stage.planned_end, stage.status);
-  const needsAck = overdue && !stage.overdue_ack_at;
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
-  const [startMode, setStartMode] = useState(false);
-  // План завершения по умолчанию — срок клиента (не «сегодня»): иначе этап с дальним сроком
-  // мгновенно становился «просрочен» на след. день (ERP-04).
-  const [startDate, setStartDate] = useState(
-    stage.planned_end || order.due_date || new Date().toISOString().slice(0, 10),
-  );
-  const [blockMode, setBlockMode] = useState(false);
-  const [blockText, setBlockText] = useState('');
-  const [blockPhoto, setBlockPhoto] = useState(null);
-  // Брак/переделка — отдельный мастер в боковой панели (DefectWizard):
-  // до 12 полей внутри карточки превращали очередь цеха в простыню.
-  const [defectMode, setDefectMode] = useState(false);
   const qtyDone = stage.qty_done ?? 0;
-  const remaining = Math.max(item.qty - qtyDone, 0);
-  const [doneQty, setDoneQty] = useState(String(remaining || item.qty));
   const [zoom, setZoom] = useState(false);
   const [imgError, setImgError] = useState(false);
   const d = daysLeft(order.due_date);
@@ -64,20 +49,24 @@ function QueueCardBase({ entry, canAct, rework, deptShortById, onStart, onDone, 
           </button>
         )}
         {preview && imgError && (
-          <div className={styles.queueThumbStub}><Icon name="image" size={18} /></div>
+          <div className={styles.queueThumbStub} aria-hidden="true"><Icon name="image" size={20} /></div>
         )}
         <div className={styles.queueCardHeadText}>
           <Link
             to={`/orders/${order.id}`}
             onClick={(e) => orderLinkClick(order.id, e)}
             className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}
-            title={order.title}
+            title={`№${order.bitrix_id || '—'} · ${order.title}`}
           >
-            {order.title}
+            №{order.bitrix_id || '—'} · {order.title}
           </Link>
-          <div className={styles.subText}>
-            №{order.bitrix_id || '—'} · {item.product_type}
+          <div
+            className={styles.subText}
+            title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}
+          >
+            {item.product_type}
             {item.variant ? ` · ${item.variant}` : ''}
+            {order.customer ? ` · ${order.customer}` : ''}
           </div>
         </div>
         <div className={styles.queueDue}>
@@ -96,45 +85,38 @@ function QueueCardBase({ entry, canAct, rework, deptShortById, onStart, onDone, 
       )}
 
       {reason && (
-        <div className={styles.queueReason}><Icon name="clock" size={14} /> {reason}</div>
-      )}
-      {stage.status === 'blocked' && stage.block_reason && (
-        <div className={styles.queueReason}><Icon name="ban" size={14} /> {stage.block_reason}</div>
-      )}
-      {overdue && stage.overdue_ack_at && stage.overdue_comment && (
-        <div className={`${styles.subText} ${styles.cellWithIcon}`}>
-          <Icon name="clock" size={13} />Просрочка: {stage.overdue_comment}
+        <div className={styles.queueReason}>
+          <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
         </div>
       )}
-      {canAct && needsAck && (
-        <div className={styles.queueBlockForm}>
-          <span className={`${styles.overdue} ${styles.cellWithIcon}`}>
-            <Icon name="alert" size={14} />Этап просрочен — требуется комментарий
+      {stage.status === 'blocked' && stage.block_reason && (
+        <div className={styles.queueReason}>
+          <span className={styles.cellWithIcon}><Icon name="ban" size={14} />{stage.block_reason}</span>
+        </div>
+      )}
+      {overdue && stage.overdue_ack_at && stage.overdue_comment && (
+        <div className={styles.subText}>
+          <span className={styles.cellWithIcon}>
+            <Icon name="clock" size={13} />Просрочка: {stage.overdue_comment}
           </span>
-          <Field
-            label="Причина задержки"
-            value={ackText}
-            onChange={(e) => setAckText(e.target.value)}
-            fieldClassName={styles.queueFormField}
-          />
-          <Button
-            variant="secondary"
-            size="lg"
-            disabled={!ackText.trim()}
-            onClick={() => { onAckOverdue(stage.id, ackText.trim()); setAckText(''); }}
-          >
-            Сохранить
-          </Button>
+        </div>
+      )}
+      {stage.assignee && (
+        <div className={styles.subText}>
+          <span className={styles.cellWithIcon}><Icon name="user" size={13} />{stage.assignee}</span>
         </div>
       )}
       {rework && (
         <div className={styles.queueReason}>
-          <Icon name="undo" size={14} /> На переделку: {rework.qty_rework} шт · {(rework.comment || '').replace(' (фото во вложениях)', '')}
+          <span className={styles.cellWithIcon}>
+            <Icon name="undo" size={14} />
+            На переделку: {rework.qty_rework} шт · {(rework.comment || '').replace(' (фото во вложениях)', '')}
+          </span>
           {reworkPhoto && (
             <>
               {' · '}
-              <a href={reworkPhoto} target="_blank" rel="noreferrer" className={styles.cellWithIcon}>
-                <Icon name="image" size={13} />фото
+              <a href={reworkPhoto} target="_blank" rel="noreferrer">
+                <span className={styles.cellWithIcon}><Icon name="image" size={13} />фото</span>
               </a>
             </>
           )}
@@ -153,136 +135,20 @@ function QueueCardBase({ entry, canAct, rework, deptShortById, onStart, onDone, 
         </div>
       )}
 
-      <TzBlock order={order} item={item} />
+      <Link
+        to={`/task/${stage.id}`}
+        state={{ from: `${location.pathname}${location.search}` }}
+        className="btn btn-ghost"
+      >
+        Открыть задание ↗
+      </Link>
 
-      {canAct && (
-        <div className={styles.queueActions}>
-          {group === 'ready' && !startMode && (
-            <>
-              <Button variant="primary" size="lg" icon="play" onClick={() => setStartMode(true)}>
-                Взять в работу
-              </Button>
-              {!blockMode && (
-                <Button variant="ghost" size="lg" icon="ban" onClick={() => setBlockMode(true)}>
-                  Проблема
-                </Button>
-              )}
-            </>
-          )}
-          {group === 'in_progress' && (
-            <>
-              <input
-                type="number"
-                min="1"
-                max={item.qty}
-                className={`${styles.input} ${styles.qtySmallInput}`}
-                value={doneQty}
-                onChange={(e) => setDoneQty(e.target.value)}
-                aria-label="Сколько сделано, шт"
-              />
-              <Button
-                variant="secondary"
-                size="lg"
-                icon="plus"
-                disabled={!(Number(doneQty) > 0)}
-                onClick={() => {
-                  onProgress(entry, Math.max(1, Number(doneQty) || 0));
-                  setDoneQty(String(Math.max(remaining - (Number(doneQty) || 0), 1)));
-                }}
-              >
-                Частично
-              </Button>
-              <Button variant="primary" size="lg" icon="check" onClick={() => onDone(entry)}>
-                Готово
-              </Button>
-              {!blockMode && !defectMode && (
-                <>
-                  <Button variant="ghost" size="lg" icon="undo" onClick={() => setDefectMode(true)}>
-                    Брак
-                  </Button>
-                  <Button variant="ghost" size="lg" icon="ban" onClick={() => setBlockMode(true)}>
-                    Проблема
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-          {group === 'done' && !defectMode && (
-            <Button variant="ghost" size="lg" icon="undo" onClick={() => setDefectMode(true)}>
-              Брак / переделка
-            </Button>
-          )}
-          {group === 'blocked' && (
-            <Button variant="secondary" size="lg" onClick={() => onUnblock(entry)}>
-              Снять блокировку
-            </Button>
-          )}
-        </div>
-      )}
-
-      {canAct && group === 'ready' && startMode && (
-        <div className={styles.queueBlockForm}>
-          <Field
-            label="План завершения"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            fieldClassName={styles.queueFormField}
-            autoFocus
-          />
-          <Button
-            variant="primary"
-            size="lg"
-            icon="play"
-            disabled={!startDate}
-            onClick={() => { onStart(entry, startDate); setStartMode(false); }}
-          >
-            В работу
-          </Button>
-          <Button variant="ghost" size="lg" onClick={() => setStartMode(false)}>Отмена</Button>
-        </div>
-      )}
-
-      {canAct && blockMode && (
-        <div className={styles.queueBlockForm}>
-          <Field
-            label="Что мешает?"
-            placeholder="Брак кроя, нет ниток…"
-            value={blockText}
-            onChange={(e) => setBlockText(e.target.value)}
-            fieldClassName={styles.queueFormField}
-            autoFocus
-          />
-          <PhotoAttach file={blockPhoto} onFile={setBlockPhoto} label="Фото (необязательно)" />
-          <Button
-            variant="danger"
-            size="lg"
-            disabled={!blockText.trim()}
-            onClick={() => {
-              onBlock(entry, blockText.trim(), blockPhoto);
-              setBlockMode(false); setBlockText(''); setBlockPhoto(null);
-            }}
-          >
-            Заблокировать
-          </Button>
-          <Button variant="ghost" size="lg" onClick={() => { setBlockMode(false); setBlockPhoto(null); }}>
-            Отмена
-          </Button>
-        </div>
-      )}
-
-      {canAct && defectMode && (
-        <DefectWizard
-          entry={entry}
-          deptShortById={deptShortById}
-          onSubmit={(payload, photo) => onDefect(entry, payload, photo)}
-          onClose={() => setDefectMode(false)}
-        />
-      )}
+      <StageActionsPanel
+        entry={entry}
+        perms={perms}
+        deptShortById={deptShortById}
+        actions={actions}
+      />
     </div>
   );
 }
-
-/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
-    (канбан во время DnD, очередь цеха, таблица заказов). */
-export const QueueCard = memo(QueueCardBase);

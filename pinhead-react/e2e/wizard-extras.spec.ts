@@ -5,11 +5,23 @@ import { test, expect } from '@playwright/test';
 
 test.use({ actionTimeout: 15000 });
 
+/**
+ * Онбординг-тур (`OnboardingTips`) в свежем профиле накрывает страницу
+ * `.onboarding-backdrop` и перехватывает клики. В e2e профиль всегда чистый,
+ * поэтому гасим тур до загрузки страницы — иначе падает любой сценарий визарда.
+ */
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('ph_onboarding_done', '1'); } catch { /* приватный режим */ }
+  });
+});
+
+
 // Helper: select first SKU + fabric + color
 async function setupGarmentStep(page) {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
-  await page.locator('.garment-row').first().click();
+  await page.locator('.garment-row').first().dblclick();
   await page.locator('.fit-option').first().waitFor({ state: 'visible' });
   await page.locator('.fit-option').first().click();
   await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
@@ -134,7 +146,7 @@ test.describe('Wizard extras and edge cases', () => {
     await accFilter.click();
 
     // Select first accessory (e.g., Шоппер)
-    await page.locator('.garment-row').first().click();
+    await page.locator('.garment-row').first().dblclick();
 
     // Should show "Тираж" section instead of "Размеры"
     await expect(page.locator('.section-label', { hasText: 'Тираж' })).toBeVisible();

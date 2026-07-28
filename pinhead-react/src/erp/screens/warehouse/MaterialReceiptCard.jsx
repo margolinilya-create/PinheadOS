@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
+import { confirm } from '../../../store/useConfirmStore';
 import styles from '../../erp.module.css';
 
 /**
@@ -40,7 +41,31 @@ function AcceptBlock({ material: m, onAccept }) {
   const [comment, setComment] = useState(m.accept_comment ?? '');
   const [saving, setSaving] = useState(false);
 
+  /**
+   * Расхождение план↔факт. Статус по умолчанию — «Принято полностью», и недостача
+   * уезжала в систему как полная приёмка: гейт закроя открывался, а несоответствие
+   * всплывало уже в цехе. Сравнение — только когда обе величины есть.
+   */
+  const expected = Number(m.qty_expected);
+  const factQty = received === '' ? null : Number(received);
+  const shortfall = Number.isFinite(expected) && expected > 0 && factQty !== null
+    && Number.isFinite(factQty) && factQty < expected
+    ? Math.round((expected - factQty) * 100) / 100
+    : 0;
+  const claimsFull = status === 'accepted_full';
+
   const accept = async () => {
+    if (shortfall > 0 && claimsFull) {
+      const ok = await confirm({
+        title: 'Принять как полную приёмку?',
+        message: `План ${expected}, факт ${factQty} — не хватает ${shortfall}. `
+          + 'Полная приёмка откроет закрой на весь план, и расхождение всплывёт уже в цехе. '
+          + 'Обычно здесь нужен статус «Недостача» или «Принято частично».',
+        confirmLabel: 'Всё равно принять полностью',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
     setSaving(true);
     await onAccept(m.id, {
       qty_received: received === '' ? null : Number(received),
@@ -97,13 +122,29 @@ function AcceptBlock({ material: m, onAccept }) {
                   onChange={(e) => setFactArticle(e.target.value)} aria-label={`Факт артикул ${m.name}`} />
               </td>
             </tr>
+            {/* Поставщик — только план (правка 10): выбран закупкой, склад его не меняет;
+                расхождение фиксируется комментарием приёмки */}
+            <tr>
+              <td>Поставщик</td>
+              <td>{m.supplier || '—'}</td>
+              <td className={styles.subText}>
+                расхождение — в комментарий
+              </td>
+            </tr>
             <tr>
               <td>Количество, кг</td>
               <td>{m.qty_expected ?? '—'}</td>
               <td>
-                <input type="number" min="0" step="0.01" className={styles.input} value={received}
+                <input
+                  type="number" min="0" step="0.01"
+                  className={shortfall > 0 ? `${styles.input} ${styles.inputError}` : styles.input}
+                  value={received}
                   placeholder="факт" onChange={(e) => setReceived(e.target.value)}
-                  aria-label={`Факт количество ${m.name}`} style={{ maxWidth: 120 }} />
+                  aria-label={`Факт количество ${m.name}`} style={{ maxWidth: 120 }}
+                />
+                {shortfall > 0 && (
+                  <div className={styles.overdue}>не хватает {shortfall}</div>
+                )}
               </td>
             </tr>
           </tbody>

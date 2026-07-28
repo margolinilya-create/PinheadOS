@@ -16,13 +16,13 @@
 
 .control {
   width: 100%;
-  min-height: var(--control-h, 36px);
+  min-height: 36px;
   padding: 0 10px;
   border: 1px solid var(--border-mid);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   background: var(--card);
   color: var(--text);
-  font-family: var(--font-body, 'Inter', sans-serif);
+  font-family: var(--font-body);
   font-size: 13px;
 }
 /* textarea растёт по содержимому — фиксированная высота ей не нужна */
@@ -31,7 +31,7 @@ textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
 .control:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
 }
 .control:disabled { background: var(--surface); color: var(--text-dim); cursor: not-allowed; }
 
@@ -40,3 +40,8 @@ textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
 
 .hint { font-size: 11.5px; color: var(--text-dim); }
 .error { font-size: 11.5px; color: var(--color-error); font-weight: 500; }
+
+/* Правило ≥44px на тач-экранах цехов */
+@media (pointer: coarse) {
+  .control { min-height: 44px; }
+}

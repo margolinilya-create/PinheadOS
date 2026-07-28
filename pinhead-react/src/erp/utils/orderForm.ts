@@ -48,6 +48,12 @@ export interface DraftItem {
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
   has_branding?: boolean;
+  /**
+   * Нужен ли финальный ОТК. Включён по умолчанию: контроль качества — штатный
+   * последний этап производства. Живёт только в форме — маршрут материализуется
+   * в `erp_item_stages` при создании заказа, отдельной колонки позиции не нужно.
+   */
+  needs_qc?: boolean;
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: string;
   material_source?: string;
@@ -64,6 +70,8 @@ export interface DraftItem {
 export interface DraftForm {
   bitrix_id: string;
   title: string;
+  /** Клиент — цех видит его в задании, по нему же фильтруют очередь (правки 5/9) */
+  customer: string;
   manager: string;
   launch_date: string;
   due_date: string;
@@ -92,6 +100,7 @@ export const EMPTY_ITEM: DraftItem = {
   production_type: 'sewing',
   branding_on: 'cut',
   has_branding: false,
+  needs_qc: true,
   subcontract_kind: 'finished_product',
   material_source: 'pinhead',
   subcontract_operation: '',
@@ -112,6 +121,7 @@ export function emptyOrderForm(launchDate: string = localToday()): DraftForm {
   return {
     bitrix_id: '',
     title: '',
+    customer: '',
     manager: '',
     launch_date: launchDate,
     due_date: '',
@@ -194,6 +204,7 @@ export function isFormEmpty(
   return (
     !s(form.bitrix_id) &&
     !s(form.title) &&
+    !s(form.customer) &&
     !s(form.manager) &&
     (!form.launch_date || form.launch_date === initialLaunchDate) &&
     !form.due_date &&
@@ -214,6 +225,12 @@ export interface OrderFormValidation {
   errors: Record<string, string>;
   /** Короткие названия незаполненных полей — для строки «Осталось заполнить: …» */
   missing: string[];
+  /**
+   * Поля, которые заполнены, но неверно. Раньше они попадали в `missing`, и
+   * восстановленный назавтра черновик с вчерашней датой запуска блокировал кнопку
+   * подсказкой «Осталось заполнить: Дата запуска» — при заполненном поле.
+   */
+  invalid: string[];
 }
 
 export function validateOrderForm(
@@ -223,6 +240,7 @@ export function validateOrderForm(
 ): OrderFormValidation {
   const errors: Record<string, string> = {};
   const missing: string[] = [];
+  const invalid: string[] = [];
 
   if (!form.title.trim()) {
     errors.title = 'Укажите название заказа';
@@ -230,11 +248,11 @@ export function validateOrderForm(
   }
   if (form.launch_date && form.launch_date < today) {
     errors.launch_date = 'Дата запуска в прошлом — проверьте дату';
-    missing.push('Дата запуска');
+    invalid.push('Дата запуска');
   }
   if (form.due_date && form.due_date < today) {
     errors.due_date = 'Срок клиента в прошлом — проверьте дату';
-    missing.push('Срок клиента');
+    invalid.push('Срок клиента');
   }
 
   items.forEach((it, i) => {
@@ -253,9 +271,21 @@ export function validateOrderForm(
       errors[`item_${i}_prints`] = 'Добавьте хотя бы одно нанесение';
       missing.push(`Нанесения${pos}`);
     }
+    // Следующий участок после операции подряда. Раньше это была отдельная проверка
+    // в сабмите с тостом: поле не подсвечивалось, автоскролл к нему не работал,
+    // а само оно спрятано в глубине блока за двумя условиями.
+    if (
+      it.production_type === 'outsource'
+      && (it.subcontract_kind ?? 'finished_product') === 'operation'
+      && it.needs_further
+      && !it.return_dept
+    ) {
+      errors[`item_${i}_return_dept`] = 'Выберите участок для доработки';
+      missing.push(`Следующий участок${pos}`);
+    }
   });
 
-  return { errors, missing };
+  return { errors, missing, invalid };
 }
 
 // --- Черновик в localStorage ------------------------------------------------------
@@ -280,6 +310,8 @@ export function loadOrderDraft(): { form: DraftForm; items: DraftItem[] } | null
       prints: Array.isArray(it.prints) ? it.prints : [],
       // старые черновики без флага: брендирование — если есть нанесения
       has_branding: it.has_branding ?? (Array.isArray(it.prints) && it.prints.length > 0),
+      // черновик, начатый до появления ОТК, получает штатный контроль
+      needs_qc: it.needs_qc ?? true,
     })),
   };
 }

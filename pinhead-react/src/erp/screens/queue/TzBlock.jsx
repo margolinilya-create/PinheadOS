@@ -61,7 +61,7 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
               </span>
             )}
             {order.no_chestny_znak && (
-              <span className={`${styles.chip} ${styles.chipDanger}`}>Без Честного знака</span>
+              <span className={`${styles.chip} ${styles.chipWaiting}`}>Без Честного знака</span>
             )}
           </div>
 

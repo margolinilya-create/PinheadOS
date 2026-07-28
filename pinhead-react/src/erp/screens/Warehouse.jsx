@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { LoadFailed } from '../components/ErpStates';
 import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Drawer } from '../components/Drawer';
+import { SortableTh } from '../components/SortableTh';
 import { Icon } from '../components/Icon';
-import { EmptyState, ErrorState } from '../components/States';
 import { useErpStore } from '../store/useErpStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
+import { sortRows, useTableSort } from '../utils/tableSort';
 import { formatDateShort } from '../utils/time';
 import {
   WAREHOUSE_TASK_TYPE_LABELS, MARKING_STATUS_LABELS, PACK_SHIP_STATUS_LABELS,
@@ -62,6 +64,21 @@ function taskSummary(order, task) {
   return 'Упаковка и отгрузка';
 }
 
+/**
+ * Значение колонки для сортировки — то же, что видно в ячейке.
+ * Срок сортируется по ISO-строке даты: она уже лексикографически монотонна.
+ */
+function warehouseSortValue({ order, task }, key) {
+  switch (key) {
+    case 'type': return WAREHOUSE_TASK_TYPE_LABELS[task.task_type];
+    case 'order': return order.bitrix_id || order.title;
+    case 'summary': return taskSummary(order, task);
+    case 'status': return taskStatusLabel(task);
+    case 'deadline': return task.deadline;
+    default: return null;
+  }
+}
+
 export default function Warehouse() {
   const { orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask } = useErpStore(
     useShallow((s) => ({
@@ -75,6 +92,10 @@ export default function Warehouse() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [openId, setOpenId] = useState(null);
+  const { sort, toggle: toggleSort } = useTableSort();
+
+  // Смена сортировки возвращает на первую страницу
+  const sortBy = (key) => { toggleSort(key); setPage(1); };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
 
@@ -90,11 +111,20 @@ export default function Warehouse() {
     });
   }, [orders]);
 
+  /**
+   * Счётчики считаются по тому же набору, что виден в списке. Раньше они брались
+   * из allRows (со всеми закрытыми задачами), а список по умолчанию фильтрует
+   * onlyOpen — над таблицей из трёх строк висела плитка «Упаковка/отгрузка 14».
+   */
   const counts = useMemo(() => {
-    const c = { all: allRows.length, material_receipt: 0, subcontract_receipt: 0, marking: 0, pack_ship: 0 };
-    for (const { task } of allRows) c[task.task_type] += 1;
+    const c = { all: 0, material_receipt: 0, subcontract_receipt: 0, marking: 0, pack_ship: 0 };
+    for (const { task } of allRows) {
+      if (onlyOpen && task.status === TERMINAL[task.task_type]) continue;
+      c.all += 1;
+      c[task.task_type] += 1;
+    }
     return c;
-  }, [allRows]);
+  }, [allRows, onlyOpen]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -106,9 +136,12 @@ export default function Warehouse() {
     });
   }, [allRows, tab, onlyOpen, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Сортировка до пагинации: иначе переупорядочилась бы только текущая страница
+  const sorted = useMemo(() => sortRows(filtered, sort, warehouseSortValue), [filtered, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   // Открытая в Drawer задача — берём свежую из стора (после действий обновляется).
   // Дешёвый поиск, без useMemo (ранние return в memo не сохраняются React-компилятором).
@@ -125,21 +158,29 @@ export default function Warehouse() {
       <PageHead title="Склад" sub="Приёмка материалов, приёмка подряда, маркировка, упаковка и отгрузка." />
 
       {loaded && (
-        <div className={`${styles.dashKpis} ${styles.kpisGap}`}>
+        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
           {[
-            { icon: 'orders', cls: '', label: 'Все задачи', val: counts.all },
-            { icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
-            { icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
-            { icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
-            { icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
+            { key: 'all', icon: 'orders', cls: '', label: 'Все задачи', val: counts.all },
+            { key: 'material_receipt', icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
+            { key: 'subcontract_receipt', icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
+            { key: 'marking', icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
+            { key: 'pack_ship', icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
           ].map((k) => (
-            <div key={k.label} className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={22} /></span>
+            // Плитка кликабельна целиком и фильтрует список — как в закупке
+            // (правило DESIGN.md). Раньше это были неинтерактивные <div>.
+            <button
+              key={k.label}
+              type="button"
+              className={styles.kpiCard}
+              aria-pressed={tab === k.key}
+              onClick={() => { setTab(tab === k.key ? 'all' : k.key); setPage(1); }}
+            >
+              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>{k.label}</span>
                 <span className={styles.kpiCardValue}>{k.val}</span>
               </span>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -158,22 +199,16 @@ export default function Warehouse() {
           <button
             key={f.key} type="button" aria-pressed={tab === f.key}
             className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-            onClick={() => { setTab(f.key); setPage(1); }}
+                        onClick={() => { setTab(f.key); setPage(1); }}
           >
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
           </button>
         ))}
       </FilterBar>
 
-      {loadError && !loaded && (
-        <ErrorState onRetry={() => loadAll()} />
-      )}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задачи склада" />}
       {loaded && filtered.length === 0 && (
-        <EmptyState
-          icon="inbox"
-          title={onlyOpen ? 'Открытых задач склада нет' : 'Задач склада нет'}
-          text="Задачи появляются автоматически: приёмка — после закупки, упаковка — когда все этапы закрыты."
-        />
+        <div className={styles.emptyState}>{onlyOpen ? 'Открытых задач склада нет.' : 'Задач склада нет.'}</div>
       )}
 
       {loaded && filtered.length > 0 && (
@@ -181,7 +216,14 @@ export default function Warehouse() {
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
-                <tr><th>Тип задачи</th><th>Заказ</th><th>Содержимое</th><th>Статус</th><th>Срок</th><th>Действие</th></tr>
+                <tr>
+                  <SortableTh sortKey="type" sort={sort} onSort={sortBy}>Тип задачи</SortableTh>
+                  <SortableTh sortKey="order" sort={sort} onSort={sortBy}>Заказ</SortableTh>
+                  <SortableTh sortKey="summary" sort={sort} onSort={sortBy}>Содержимое</SortableTh>
+                  <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
+                  <SortableTh sortKey="deadline" sort={sort} onSort={sortBy}>Срок</SortableTh>
+                  <th>Действие</th>
+                </tr>
               </thead>
               <tbody>
                 {pageRows.map(({ order, task }) => (
@@ -192,7 +234,7 @@ export default function Warehouse() {
                         {WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}
                       </span>
                     </td>
-                    <td>№{order.bitrix_id || '—'}<div className={styles.subText}>{order.title}</div></td>
+                    <td>№{order.bitrix_id || '—'}<div className={styles.cellSub} title={order.title}>{order.title}</div></td>
                     <td>{taskSummary(order, task)}</td>
                     <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task)}</Badge></td>
                     <td>{formatDateShort(task.deadline) || '—'}</td>

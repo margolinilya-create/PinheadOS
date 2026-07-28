@@ -126,7 +126,7 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
             {Object.entries(EXPERIMENTAL_OUTCOME_LABELS).map(([v, l]) => (
               <button key={v} type="button"
                 className={`${styles.chip} ${styles.chipBtn} ${exp.final_outcome === v ? styles.chipProgress : styles.chipNeutral}`}
-                onClick={() => setOutcome(v)}>
+                                onClick={() => setOutcome(v)}>
                 {l}
               </button>
             ))}
@@ -145,7 +145,11 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
 
       {exp.phase === 'returned_to_constructor' && (
         <div className={styles.tzBlock}>
-          <div className={styles.queueReason}>↩ Конструктору: {exp.constructor_return_comment || '—'}</div>
+          <div className={styles.queueReason}>
+            <span className={styles.cellWithIcon}><Icon name="undo" size={14} /> Конструктору:</span>
+            {' '}
+            {exp.constructor_return_comment || '—'}
+          </div>
           <button type="button" className="btn btn-secondary" onClick={() => onUpdate(exp.id, { phase: 'patterns' })}>
             → К лекалам (доработка)
           </button>
@@ -154,7 +158,9 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
 
       {exp.phase === 'done' && (
         <div className={styles.subText}>
-          <Icon name="checkCircle" size={14} /> Готов к серии. Тех. название лекал: <strong>{exp.tech_name || '—'}</strong>
+          <span className={styles.cellWithIcon}><Icon name="checkCircle" size={14} /> Готов к серии.</span>
+          {' '}
+          Тех. название лекал: <strong>{exp.tech_name || '—'}</strong>
           {exp.final_outcome ? ` · ${EXPERIMENTAL_OUTCOME_LABELS[exp.final_outcome]}` : ''}
         </div>
       )}

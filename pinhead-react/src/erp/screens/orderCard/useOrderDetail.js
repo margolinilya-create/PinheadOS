@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../../store/useErpStore';
-import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
+import { isOrderReadyToShip } from '../../utils/stageUi';
 
 /**
  * Общая логика деталей заказа (загрузка события/аудит/комментарии + realtime, инлайн-правки,
@@ -11,7 +11,7 @@ import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
  */
 export function useOrderDetail(orderId) {
   const {
-    orders, departments, loaded, loadAll, loadOne, setStagePlan,
+    orders, departments, loaded, loadError, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
     profilesList, employees,
   } = useErpStore(
@@ -19,6 +19,7 @@ export function useOrderDetail(orderId) {
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       loadOne: s.loadOne,
       setStagePlan: s.setStagePlan,
@@ -92,8 +93,6 @@ export function useOrderDetail(orderId) {
     return row;
   };
   const readyToShip = order ? isOrderReadyToShip(order) : false;
-  // Причина, почему заказ ещё нельзя отгружать (упаковка/бирки не приняты и т.п.)
-  const blockReason = order && !readyToShip ? shipBlockReason(order) : null;
   const shippedByName = useMemo(() => {
     if (!order?.shipped_by) return null;
     const p = profilesList.find((x) => x.id === order.shipped_by);
@@ -110,9 +109,9 @@ export function useOrderDetail(orderId) {
   }, [order]);
 
   return {
-    order, loaded, notFound: loaded && !order && lookedUp,
+    order, loaded, loadError, loadAll, notFound: loaded && !order && lookedUp,
     events, audit, comments, preview, previewError, setPreviewErrorFor,
-    saveOrderField, onSavePlan, onSendComment, readyToShip, shipBlockReason: blockReason, shippedByName,
-    deptById, deptNameById, stageById,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    deptById, deptNameById, stageById, departments,
   };
 }

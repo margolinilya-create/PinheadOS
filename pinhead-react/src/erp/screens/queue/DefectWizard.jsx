@@ -9,14 +9,19 @@ import { PhotoAttach } from './PhotoAttach';
 /**
  * Мастер брака/переделки — два шага в боковой панели.
  *
- * Раньше все эти поля (до 12 штук) разворачивались прямо в карточке очереди:
+ * Раньше все эти поля (до 12 штук) разворачивались прямо в строке очереди:
  * на планшете цеха карточка превращалась в простыню, а соседние работы
- * уезжали с экрана. Логика и состав payload не изменились — форма один в один,
- * только разнесена на шаги: «сколько и почему» → «куда вернуть».
+ * уезжали с экрана. Разнесено на шаги: «сколько и почему» → «куда вернуть».
  *
- * onSubmit(payload, photo) — тот же контракт, что был у onDefect в QueueCard.
+ * Состав payload не менялся, подтверждение отката промежуточных этапов и
+ * защита от повторного тапа остались у вызывающего (`StageActionsPanel`):
+ * мастер только собирает данные. `onSubmit` возвращает ложное значение, если
+ * действие не состоялось (человек отказался в подтверждении) — тогда панель
+ * не закрывается и введённое не теряется.
  */
-export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
+export function DefectWizard({
+  entry, deptShortById, problemTypes = [], busy = false, onSubmit, onClose,
+}) {
   const { order, item, stage } = entry;
 
   const [step, setStep] = useState(1);
@@ -45,8 +50,8 @@ export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
       : null;
   const step1Valid = reason.trim() !== '' && qtyNum > 0 && qtyNum <= item.qty;
 
-  const submit = () => {
-    onSubmit({
+  const submit = async () => {
+    const ok = await onSubmit({
       qty: qtyNum,
       reason: reason.trim(),
       target,
@@ -58,7 +63,7 @@ export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
       subcontractOperation: operation.trim() || null,
       contractor: contractor.trim() || null,
     }, photo);
-    onClose();
+    if (ok) onClose();
   };
 
   const submitLabel = showSubcontract
@@ -90,9 +95,25 @@ export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
             onChange={(e) => setQty(e.target.value)}
             autoFocus
           />
+          {/* Чип ДОПИСЫВАЕТ причину к набранному тексту, а не затирает его */}
+          {problemTypes.length > 0 && (
+            <div className={styles.checkRow} role="group" aria-label="Типы проблем">
+              {problemTypes.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
+                  onClick={() => setReason((t) => (t.trim() ? `${t.trim()}, ${d.name}` : d.name))}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          )}
           <Field
             label="Причина брака"
             as="textarea"
+            required
             placeholder="Кривая строчка, пятно…"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -137,8 +158,8 @@ export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
           )}
 
           <label className={styles.checkLabel}>
-            {/* При возврате «на закупку» материал нужен по определению: галка
-                форсится и блокируется, чтобы не противоречить полям ниже. */}
+            {/* При «На закупку» поля материала уже показаны — чекбокс обязан
+                это отражать, а не оставаться снятым и серым */}
             <input
               type="checkbox"
               checked={showProcurement}
@@ -193,7 +214,13 @@ export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
           </>
         ) : (
           <>
-            <Button variant="danger" size="lg" disabled={!step1Valid} onClick={submit}>
+            <Button
+              variant="danger"
+              size="lg"
+              disabled={!step1Valid || busy}
+              loading={busy}
+              onClick={submit}
+            >
               {submitLabel}
             </Button>
             <Button variant="ghost" size="lg" icon="chevronLeft" onClick={() => setStep(1)}>

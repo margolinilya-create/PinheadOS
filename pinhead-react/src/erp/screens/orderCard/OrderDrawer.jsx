@@ -4,7 +4,9 @@ import { Drawer } from '../../components/Drawer';
 import { Badge } from '../../components/Badge';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import InlineEdit from '../../components/InlineEdit';
+import { Icon } from '../../components/Icon';
 import { formatDateShort } from '../../utils/time';
+import { orderProgress } from '../../utils/progress';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -13,14 +15,14 @@ import {
   STICKERS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
-import { Icon } from '../../components/Icon';
+import { FilesSection } from './FilesSection';
 import { fmt, fmtTs } from './format';
 import { OrderItemSection } from './OrderItemSection';
 import { CommentsSection } from './CommentsSection';
 import { HistorySection } from './HistorySection';
 import { NotificationsSection } from './NotificationsSection';
 import { TzBlock } from '../queue/TzBlock';
-import { supabase } from '../../../lib/supabase';
+import { TzDocsSection, TzMissingBanner } from './TzDocsSection';
 import { useOrderDetail } from './useOrderDetail';
 
 /**
@@ -40,19 +42,13 @@ const TABS = [
   { key: 'history', label: 'История' },
 ];
 
-const ATTACH_KIND_LABEL = { preview: 'Превью', attachment: 'Вложение' };
-
-/** Публичный URL файла заказа в бакете erp-attachments */
-function attachmentUrl(path) {
-  return supabase.storage.from('erp-attachments').getPublicUrl(path).data.publicUrl;
-}
 
 export function OrderDrawer({ orderId, onClose }) {
   const [tab, setTab] = useState('info');
   const {
     order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
-    saveOrderField, onSavePlan, onSendComment, readyToShip, shipBlockReason, shippedByName,
-    deptById, deptNameById, stageById,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
 
   const title = order
@@ -73,14 +69,17 @@ export function OrderDrawer({ orderId, onClose }) {
       onTab={setTab}
     >
       <div className={styles.toolbar} style={{ marginTop: -4, marginBottom: 10 }}>
+        {/* Правка 6: вместо обезличенного «Открыть на странице» — конкретный номер заказа */}
         <Link to={`/orders/${orderId}`} className="btn btn-secondary" onClick={onClose}>
-          Открыть на странице ↗
+          {/* Фолбэк на название: у заказов без сделки Bitrix ссылка называлась прочерком */}
+          Открыть {order?.bitrix_id ? `заказ №${order.bitrix_id}` : (order?.title || 'заказ')}{' '}
+          <Icon name="externalLink" size={12} />
         </Link>
       </div>
 
       {notFound && <div className={styles.subText}>Заказ не найден или был удалён.</div>}
       {!order && !notFound && (
-        <div className={styles.stack}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Skeleton width="60%" height={16} />
           <Skeleton width="100%" height={64} />
           <Skeleton width="90%" height={64} />
@@ -90,6 +89,10 @@ export function OrderDrawer({ orderId, onClose }) {
       {order && tab === 'info' && (
         <>
           <div className={styles.drawerMeta}>
+            <span>
+              <span className={styles.subText}>Клиент: </span>
+              <InlineEdit value={order.customer} ariaLabel="Клиент" onSave={(v) => saveOrderField({ customer: v })} />
+            </span>
             <span>
               <span className={styles.subText}>Менеджер: </span>
               <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
@@ -112,36 +115,27 @@ export function OrderDrawer({ orderId, onClose }) {
             <img
               src={preview} alt={`Превью заказа «${order.title}»`}
               onError={() => setPreviewErrorFor(orderId)}
-              className={`${styles.previewImg} ${styles.previewImgDrawer}`}
+              style={{ maxHeight: 160, maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border-light)', margin: '10px 0', objectFit: 'contain' }}
             />
           )}
           {preview && previewError && (
-            <div className={`${styles.queueThumbStub} ${styles.thumbStubBlock}`} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось">
-              <Icon name="image" size={18} />
-            </div>
+            <div className={styles.queueThumbStub} style={{ margin: '10px 0' }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось"><Icon name="image" size={22} /></div>
           )}
 
           <div className={styles.toolbar}>
             <Badge variant={order.status === 'active' ? 'progress' : 'neutral'}>{ORDER_STATUS_LABELS[order.status]}</Badge>
-            {readyToShip && (
-              <Badge variant="ready"><Icon name="checkCircle" size={13} /> Готов к отгрузке</Badge>
-            )}
+            {readyToShip && <Badge variant="ready"><Icon name="checkCircle" size={13} /> Готов к отгрузке</Badge>}
             <Badge variant={order.shipped_status === 'shipped' ? 'ready' : 'neutral'}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</Badge>
-            {readyToShip && order.shipped_status !== 'shipped' && <span className={`${styles.subText} ${styles.cellWithIcon}`}><Icon name="truck" size={13} />Отгрузка — во вкладке «Склад»</span>}
-            {!readyToShip && shipBlockReason && (
-              <span className={`${styles.subText} ${styles.cellWithIcon}`} title="Почему нельзя отгружать">
-                <Icon name="alert" size={13} />{shipBlockReason}
-              </span>
-            )}
+            {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}
             {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
             {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
             {order.packaging && order.packaging !== 'none' && (
-              <Badge variant="neutral"><Icon name="box" size={13} />{PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</Badge>
+              <Badge variant="neutral"><Icon name="box" size={13} /> {PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</Badge>
             )}
             {order.stickers && order.stickers !== 'none' && (
-              <Badge variant="neutral"><Icon name="tag" size={13} />Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</Badge>
+              <Badge variant="neutral"><Icon name="tag" size={13} /> Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</Badge>
             )}
-            {order.no_chestny_znak && <Badge variant="danger">Без Честного знака</Badge>}
+            {order.no_chestny_znak && <Badge>Без Честного знака</Badge>}
           </div>
         </>
       )}
@@ -149,6 +143,19 @@ export function OrderDrawer({ orderId, onClose }) {
       {order && tab === 'route' && (
         <>
           <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
+          {(() => {
+            const p = orderProgress(order);
+            return (
+              <div className={styles.routeTotal} style={{ marginBottom: 12 }}>
+                <span className={styles.routeTotalLabel}>Готовность заказа</span>
+                <div className={styles.progressTrack} aria-hidden="true">
+                  <div className={styles.progressFill} style={{ width: `${p.pct}%` }} />
+                </div>
+                <span className={styles.progressCell}>{p.pct}%</span>
+                <span className={styles.subText}>{p.done}/{p.total} шт по этапам</span>
+              </div>
+            );
+          })()}
           {order.items.map((item) => (
             <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
           ))}
@@ -165,7 +172,9 @@ export function OrderDrawer({ orderId, onClose }) {
                 const eta = pending ? formatDateShort(m.eta_date) : '';
                 return (
                   <Badge key={m.id} variant={pending ? 'progress' : 'ready'}>
-                    {m.name} · {MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                    {m.name}
+                    {m.supplier ? ` · ${m.supplier}` : ''}
+                    {' · '}{MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
                   </Badge>
                 );
               })}
@@ -178,43 +187,23 @@ export function OrderDrawer({ orderId, onClose }) {
 
       {order && tab === 'tz' && (
         <>
+          <TzMissingBanner order={order} departments={departments} />
           {order.items.map((item) => (
             <section key={item.id} className={styles.matSection}>
               <div className={styles.matSectionHead}>
                 <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
                 <span className={styles.queueQty}>{item.qty} шт</span>
               </div>
+              {/* ТЗ в PDF (волна 4) — загрузка, назначение цехам, версии */}
+              <TzDocsSection order={order} item={item} deptById={deptById} />
+              {/* Структурное ТЗ (сетка, нанесения, упаковка) остаётся рядом */}
               <TzBlock order={order} item={item} defaultOpen hideToggle />
             </section>
           ))}
         </>
       )}
 
-      {order && tab === 'files' && (
-        <section className={styles.matSection}>
-          <div className={styles.matSectionHead}><strong>Файлы</strong></div>
-          {(order.attachments ?? []).length > 0 ? (
-            <div className={styles.fileGrid}>
-              {order.attachments.map((a) => {
-                const url = attachmentUrl(a.file_path);
-                return (
-                  <a key={a.id} href={url} target="_blank" rel="noreferrer" className={styles.fileCard}>
-                    <img
-                      src={url} alt={a.file_name || 'файл'} className={styles.fileThumb} loading="lazy"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                    <span className={styles.fileName}>
-                      {ATTACH_KIND_LABEL[a.kind] ? `${ATTACH_KIND_LABEL[a.kind]} · ` : ''}{a.file_name || 'файл'}
-                    </span>
-                  </a>
-                );
-              })}
-            </div>
-          ) : (
-            <div className={styles.subText}>Файлов нет.</div>
-          )}
-        </section>
-      )}
+      {order && tab === 'files' && <FilesSection attachments={order.attachments} />}
 
       {order && tab === 'comments' && (
         <CommentsSection comments={comments} onSend={onSendComment} />

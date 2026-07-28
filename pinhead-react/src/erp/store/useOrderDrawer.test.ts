@@ -17,18 +17,48 @@ function makeEvent(overrides: Partial<FakeMouseEvent> = {}): FakeMouseEvent {
 }
 
 describe('useOrderDrawer', () => {
-  beforeEach(() => { useOrderDrawer.setState({ orderId: null }); });
+  beforeEach(() => { useOrderDrawer.setState({ orderId: null, navigate: null }); });
 
-  it('open ставит orderId, close очищает', () => {
+  it('без навигатора работает по памяти: open ставит orderId, close очищает', () => {
     useOrderDrawer.getState().open('ord-1');
     expect(useOrderDrawer.getState().orderId).toBe('ord-1');
     useOrderDrawer.getState().close();
     expect(useOrderDrawer.getState().orderId).toBeNull();
   });
+
+  it('с навигатором сам стейт не пишет — состояние приходит из адреса', () => {
+    const navigate = vi.fn();
+    useOrderDrawer.setState({ navigate });
+
+    useOrderDrawer.getState().open('ord-2');
+    expect(navigate).toHaveBeenCalledWith('ord-2');
+    // до синхронизации с адресом карточка не открыта: иначе панель мигнула бы
+    // раньше перехода и разошлась бы с историей браузера
+    expect(useOrderDrawer.getState().orderId).toBeNull();
+
+    useOrderDrawer.getState().syncFromUrl('ord-2');
+    expect(useOrderDrawer.getState().orderId).toBe('ord-2');
+
+    useOrderDrawer.getState().close();
+    expect(navigate).toHaveBeenLastCalledWith(null);
+    expect(useOrderDrawer.getState().orderId).toBe('ord-2');
+
+    useOrderDrawer.getState().syncFromUrl(null);
+    expect(useOrderDrawer.getState().orderId).toBeNull();
+  });
+
+  it('syncFromUrl не трогает стор, если значение не изменилось', () => {
+    useOrderDrawer.setState({ orderId: 'ord-3' });
+    const listener = vi.fn();
+    const unsub = useOrderDrawer.subscribe(listener);
+    useOrderDrawer.getState().syncFromUrl('ord-3');
+    expect(listener).not.toHaveBeenCalled();
+    unsub();
+  });
 });
 
 describe('orderLinkClick', () => {
-  beforeEach(() => { useOrderDrawer.setState({ orderId: null }); });
+  beforeEach(() => { useOrderDrawer.setState({ orderId: null, navigate: null }); });
 
   it('обычный ЛКМ открывает Drawer и гасит навигацию', () => {
     const e = makeEvent();

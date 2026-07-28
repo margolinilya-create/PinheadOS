@@ -1,10 +1,10 @@
-import { useState, memo } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderPreviewUrl } from '../../store/useErpStore';
 import { orderLinkClick, useOrderDrawer } from '../../store/useOrderDrawer';
 import { daysLeft, formatTimeIn } from '../../utils/time';
-import { Icon } from '../Icon';
 import styles from '../../erp.module.css';
+import { Icon } from '../Icon';
 
 /** Цветная точка дедлайна (как в kontora24 DraggableCard) */
 function DeadlineDot({ due }) {
@@ -20,8 +20,14 @@ function DeadlineDot({ due }) {
   );
 }
 
-/** Карточка канбана: этап позиции заказа (draggable внутри колонки цеха) */
-function KanbanCardBase({ entry, onDragStart, onDragEnd, dragging }) {
+/**
+ * Карточка канбана: этап позиции заказа.
+ * Перетаскивается вертикально (приоритет), между дорожками (статус) и в другую
+ * колонку (перенос в другой цех) — обработку жестов держит ErpKanban.
+ */
+export function KanbanCard({
+  entry, onDragStart, onDragEnd, onDragOverCard, dragging, dropBefore, dropAfter,
+}) {
   const { order, item, stage, group } = entry;
   const [imgError, setImgError] = useState(false);
   const preview = orderPreviewUrl(order);
@@ -31,11 +37,28 @@ function KanbanCardBase({ entry, onDragStart, onDragEnd, dragging }) {
 
   return (
     <div
-      className={`${styles.kanbanCard} ${dragging ? styles.kanbanCardDragging : ''} ${group === 'blocked' ? styles.kanbanCardBlocked : ''}`}
+      className={[
+        styles.kanbanCard,
+        dragging && styles.kanbanCardDragging,
+        group === 'blocked' && styles.kanbanCardBlocked,
+        dropBefore && styles.queueRowDropBefore,
+        dropAfter && styles.queueRowDropAfter,
+      ].filter(Boolean).join(' ')}
       draggable={group !== 'blocked'}
       onDragStart={(e) => onDragStart(e, entry)}
       onDragEnd={onDragEnd}
+      onDragOver={(e) => onDragOverCard?.(e, entry)}
       onClick={() => useOrderDrawer.getState().open(order.id)}
+      // Карточку нельзя было ни открыть, ни тронуть с клавиатуры: ни tabIndex,
+      // ни onKeyDown. Канбан Order Studio это умеет — здесь был регресс.
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        // Enter/Space на вложенной ссылке отдаём ей самой
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        useOrderDrawer.getState().open(order.id);
+      }}
       role="listitem"
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >
@@ -50,7 +73,7 @@ function KanbanCardBase({ entry, onDragStart, onDragEnd, dragging }) {
           />
         )}
         {preview && imgError && (
-          <div className={styles.orderThumbStub}><Icon name="image" size={16} /></div>
+          <div className={styles.orderThumbStub} aria-hidden="true"><Icon name="image" size={18} /></div>
         )}
         <Link
           to={`/orders/${order.id}`}
@@ -73,18 +96,16 @@ function KanbanCardBase({ entry, onDragStart, onDragEnd, dragging }) {
           <span className={styles.overdue}>брак {stage.qty_rework}</span>
         )}
         {timeIn && (
-          <span className={styles.subText}><Icon name="clock" size={13} /> {timeIn}</span>
+          <span className={`${styles.subText} ${styles.cellWithIcon}`}>
+            <Icon name="clock" size={12} />{timeIn}
+          </span>
         )}
         {group === 'blocked' && stage.block_reason && (
           <span className={styles.overdue} title={stage.block_reason}>
-            <Icon name="ban" size={14} title="Заблокировано" />
+            <Icon name="ban" size={13} />
           </span>
         )}
       </div>
     </div>
   );
 }
-
-/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
-    (канбан во время DnD, очередь цеха, таблица заказов). */
-export const KanbanCard = memo(KanbanCardBase);

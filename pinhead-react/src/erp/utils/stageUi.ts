@@ -1,6 +1,7 @@
 /**
- * Общие UI-хелперы этапов: цвет чипа по статусу и прогресс «готово/всего».
+ * Общие UI-хелперы этапов: цвет чипа по статусу и готовность заказа к отгрузке.
  * Единый источник для OrdersScreen / OrderCard / ProductionBoard и др.
+ * Прогресс считается в штуках — см. utils/progress.ts (правка 7).
  */
 
 import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
@@ -15,17 +16,6 @@ export const STAGE_CHIP_CLASS: Record<StageStatus, string> = {
   skipped: 'chipSkipped',
   blocked: 'chipBlocked',
 };
-
-/** Прогресс позиции по этапам: skipped не считаются, done — числитель */
-export function stageProgress(
-  stages: Pick<ErpItemStage, 'status'>[],
-): { done: number; total: number } {
-  const relevant = stages.filter((s) => s.status !== 'skipped');
-  return {
-    done: relevant.filter((s) => s.status === 'done').length,
-    total: relevant.length,
-  };
-}
 
 /** Минимум заказа, по которому судим о готовности к отгрузке */
 export interface OrderShipReadiness {

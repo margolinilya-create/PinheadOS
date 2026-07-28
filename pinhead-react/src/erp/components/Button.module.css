@@ -1,17 +1,18 @@
 /* Кнопка ERP. Заменяет глобальные .btn/.btn-* из Order Studio
    (styles/forms-buttons.css): те — uppercase-«швейцарские», ERP нужна
-   обычная плотная кнопка. Метрики — из токенов --control-h* на .shell,
-   поэтому на тач-экранах цехов высота растёт автоматически. */
+   обычная плотная кнопка. Высоты заданы явно, а тач-размер — своим
+   @media (pointer: coarse) внизу файла: правило ≥44px в проекте ведётся
+   списком классов, второй системы токенов высоты заводить не нужно. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: var(--control-h, 36px);
+  min-height: 36px;
   padding: 0 14px;
   border: 1px solid transparent;
-  border-radius: var(--radius-md, 8px);
-  font-family: var(--font-body, 'Inter', sans-serif);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
@@ -21,7 +22,7 @@
 }
 .btn:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
 }
 .btn:disabled {
   cursor: not-allowed;
@@ -30,11 +31,11 @@
 
 /* ─── Варианты ─── */
 .primary {
-  background: var(--btn-primary-bg, var(--accent));
-  color: var(--btn-primary-fg, #fff);
+  background: var(--btn-primary-bg));
+  color: var(--btn-primary-fg);
 }
-.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg, var(--accent-hover)); }
-.primary:active:not(:disabled) { background: var(--btn-primary-active-bg, var(--accent-hover)); }
+.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg)); }
+.primary:active:not(:disabled) { background: var(--btn-primary-active-bg)); }
 
 .secondary {
   background: var(--card);
@@ -56,13 +57,13 @@
 .danger:hover:not(:disabled) { filter: brightness(0.94); }
 
 /* ─── Размеры ─── */
-.sm { min-height: var(--control-h-sm, 30px); padding: 0 10px; font-size: 12px; }
-.lg { min-height: var(--control-h-lg, 46px); padding: 0 18px; font-size: 14px; }
+.sm { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.lg { min-height: 46px; padding: 0 18px; font-size: 14px; }
 
 /* Только иконка — квадрат по высоте размера */
-.iconOnly { padding: 0; width: var(--control-h, 36px); }
-.iconOnly.sm { width: var(--control-h-sm, 30px); }
-.iconOnly.lg { width: var(--control-h-lg, 46px); }
+.iconOnly { padding: 0; width: 36px; }
+.iconOnly.sm { width: 30px; }
+.iconOnly.lg { width: 46px; }
 
 /* Растянуть на всю ширину контейнера (ряд действий в карточке цеха) */
 .block { width: 100%; }
@@ -82,4 +83,15 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 2s; }
+}
+
+/* Правило ≥44px на тач-экранах цехов (см. общий список в erp.module.css —
+   у отдельного CSS-модуля своя область, поэтому свой медиазапрос) */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .sm { min-height: 40px; }
+  .lg { min-height: 48px; }
+  .iconOnly { width: 44px; }
+  .iconOnly.sm { width: 40px; }
+  .iconOnly.lg { width: 48px; }
 }
