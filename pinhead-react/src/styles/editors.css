@@ -1175,7 +1175,7 @@ td.pe-markup-cat,
 
   /* ── Price matrix tables ── */
   .pe-matrix-table { font-size: 11px; }
-  .pe-matrix-input { width: 48px !important; font-size: 11px; }
+  .pe-matrix-input { width: 48px; font-size: 11px; }
   .pe-matrix-title {
     position: static;
     font-size: 11px;
@@ -1184,7 +1184,7 @@ td.pe-markup-cat,
   .pe-input-label { min-width: 80px; font-size: 11px; }
   .pe-input-row input { width: 64px; height: 26px; font-size: 12px; }
   .pe-markup-table { font-size: 10px; }
-  .pe-markup-table .pe-matrix-input { width: 40px !important; }
+  .pe-markup-table .pe-matrix-input { width: 40px; }
 
   /* ── Category Rules Tab ── */
   .cat-rules-hint { font-size: 11px; padding: 6px 10px; }

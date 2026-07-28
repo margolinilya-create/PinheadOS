@@ -7,7 +7,7 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
-import type { ErpEmployee } from '../../types';
+import type { ErpDepartment, ErpEmployee } from '../../types';
 import type { ErpStore, EmployeesSlice, StaffProfile } from '../types';
 
 export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (set, get) => ({
@@ -15,17 +15,18 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   profilesList: [],
   employeesLoaded: false,
   myDeptId: null,
+  myRole: null,
   myDeptLoaded: false,
 
   loadMyDept: async (profileId) => {
     // dev-режим и отсутствие логина — свободный выбор, запрос не нужен
     if (!profileId || profileId === 'dev') {
-      set({ myDeptId: null, myDeptLoaded: true });
+      set({ myDeptId: null, myRole: null, myDeptLoaded: true });
       return;
     }
     const { data, error } = await supabase
       .from('erp_employees')
-      .select('department_id')
+      .select('department_id, role')
       .eq('profile_id', profileId)
       .eq('active', true)
       .limit(1);
@@ -34,7 +35,11 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
       set({ myDeptLoaded: true });
       return;
     }
-    set({ myDeptId: data?.[0]?.department_id ?? null, myDeptLoaded: true });
+    set({
+      myDeptId: data?.[0]?.department_id ?? null,
+      myRole: (data?.[0]?.role as ErpEmployee['role'] | undefined) ?? null,
+      myDeptLoaded: true,
+    });
   },
 
   loadEmployees: async () => {
@@ -102,6 +107,38 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     if (error) {
       set({ employees: prev });
       toast.error('Не удалось обновить сотрудника');
+      return false;
+    }
+    return true;
+  },
+
+  createDepartment: async (dept) => {
+    const { data, error } = await supabase
+      .from('erp_departments')
+      .insert({ type: 'other', ...dept })
+      .select();
+    const row = data?.[0] as ErpDepartment | undefined;
+    if (error || !row) {
+      toast.error('Не удалось добавить участок');
+      return null;
+    }
+    set((s) => ({
+      departments: [...s.departments, row].sort((a, b) => a.sort_order - b.sort_order),
+    }));
+    return row;
+  },
+
+  updateDepartment: async (id, patch) => {
+    const prev = get().departments;
+    set((s) => ({
+      departments: s.departments
+        .map((d) => (d.id === id ? { ...d, ...patch } : d))
+        .sort((a, b) => a.sort_order - b.sort_order),
+    }));
+    const { error } = await supabase.from('erp_departments').update(patch).eq('id', id);
+    if (error) {
+      set({ departments: prev });
+      toast.error('Не удалось сохранить участок');
       return false;
     }
     return true;

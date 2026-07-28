@@ -7,7 +7,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { buildRoute } from '../../utils/routes';
+import { buildItemRoute } from '../../utils/routes';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { daysLeft } from '../../utils/time';
 import type {
@@ -19,6 +19,9 @@ import type {
 } from '../../types';
 import { currentActor, withPending } from '../shared';
 import { ORDER_SELECT, sortOrderFull } from '../orderHelpers';
+
+/** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
+export const ARCHIVE_PAGE_SIZE = 50;
 import type {
   ErpStore,
   OrdersSlice,
@@ -36,6 +39,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   loadError: false,
   archiveLoaded: false,
   archiveLoading: false,
+  archiveHasMore: false,
 
   loadAll: async () => {
     set({ loading: true, loadError: false });
@@ -63,6 +67,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     });
   },
 
+  /**
+   * Архив постранично. Раньше первый заход на вкладку тянул ВЕСЬ архив одним
+   * запросом с полным ORDER_SELECT (9 вложенных отношений). Сегодня это 71 заказ
+   * и работает, но растёт линейно и однажды упрётся.
+   *
+   * Страница явная, не «тихий лимит»: сколько загружено и есть ли ещё — видно
+   * в интерфейсе кнопкой «Показать ещё».
+   */
   loadArchive: async () => {
     if (get().archiveLoading || get().archiveLoaded) return;
     set({ archiveLoading: true });
@@ -70,20 +82,51 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .from('erp_orders')
       .select(ORDER_SELECT)
       .neq('status', 'active')
-      .order('due_date', { ascending: true, nullsFirst: false });
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .range(0, ARCHIVE_PAGE_SIZE - 1);
     if (error) {
       toast.error('Не удалось загрузить архив');
       set({ archiveLoading: false });
       return;
     }
+    const rows = (data ?? []) as ErpOrderFull[];
     set((s) => ({
       orders: [
         ...s.orders.filter((o) => o.status === 'active'),
-        ...((data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+        ...rows.map(sortOrderFull),
       ],
       archiveLoading: false,
       archiveLoaded: true,
+      archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
     }));
+  },
+
+  loadMoreArchive: async () => {
+    if (get().archiveLoading || !get().archiveHasMore) return;
+    const loaded = get().orders.filter((o) => o.status !== 'active').length;
+    set({ archiveLoading: true });
+    const { data, error } = await supabase
+      .from('erp_orders')
+      .select(ORDER_SELECT)
+      .neq('status', 'active')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .range(loaded, loaded + ARCHIVE_PAGE_SIZE - 1);
+    if (error) {
+      toast.error('Не удалось догрузить архив');
+      set({ archiveLoading: false });
+      return;
+    }
+    const rows = (data ?? []) as ErpOrderFull[];
+    // Дедуп по id: страница могла сдвинуться, если заказ ушёл в архив между запросами
+    set((s) => {
+      const known = new Set(s.orders.map((o) => o.id));
+      const fresh = rows.filter((o) => !known.has(o.id)).map(sortOrderFull);
+      return {
+        orders: [...s.orders, ...fresh],
+        archiveLoading: false,
+        archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
+      };
+    });
   },
 
   loadOne: async (orderId) => {
@@ -109,7 +152,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-    const { items, ...orderFields } = input;
+    const { items, tz, ...orderFields } = input;
 
     // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
     // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
@@ -117,18 +160,17 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const payload = {
       order: { ...orderFields, status: 'active' },
       items: items.map((it, i) => {
-        let route = buildRoute({
+        // Правка 4.2.2 (вырезание supply при материале подрядчика) — внутри buildItemRoute,
+        // общего с превью маршрута в форме создания заказа.
+        const route = buildItemRoute({
           productionType: it.production_type,
           brandingMethods: it.branding_methods,
           brandingOn: it.branding_on ?? 'cut',
+          materialSource: it.material_source,
+          // ОТК управляется галочкой позиции в форме; по умолчанию контроль есть.
+          // В `erp_order_items` не пишется — маршрут уже материализован в этапах.
+          needsQc: it.needs_qc ?? true,
         });
-        // Правка 4.2.2: материал предоставляет подрядчик → закупку не заводим.
-        // Убираем этап supply и вычищаем его из depends_on остальных, чтобы не осиротить зависимость.
-        if (it.production_type === 'outsource' && it.material_source === 'contractor') {
-          route = route
-            .filter((r) => r.departmentCode !== 'supply')
-            .map((r) => ({ ...r, dependsOnCodes: r.dependsOnCodes.filter((c) => c !== 'supply') }));
-        }
         const valid = route.filter((r) => deptByCode.has(r.departmentCode));
         const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));
         return {
@@ -165,6 +207,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         };
       }),
       materials: [],
+      // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
+      tz: tz ?? { documents: [], assignments: [] },
     };
 
     const { data, error } = await supabase.rpc('erp_create_order', { payload });

@@ -53,6 +53,34 @@ export function formatDateShort(d: string | null | undefined): string {
 }
 
 /**
+ * Дата с месяцем словом: «14 авг. 2026».
+ *
+ * Нужна как эхо рядом с нативным `<input type="date">`: формат самого поля задаёт
+ * локаль браузера, и на машине с en-US оно показывает `mm/dd/yyyy`. Страницей это
+ * не переопределяется (ни `lang`, ни атрибутом), поэтому «08/14» читается двояко —
+ * а «14 авг.» нельзя понять неправильно.
+ */
+export function formatDateHuman(d: string | null | undefined): string {
+  if (!d) return '';
+  const iso = d.length === 10 ? `${d}T00:00:00` : d;
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
+ * ISO-дата (YYYY-MM-DD) со сдвигом на `days` от базы; база по умолчанию — сегодня.
+ * Считаем в UTC-полдне: сдвиг летнего времени иначе может унести результат
+ * на сутки назад в поясах с переходом.
+ */
+export function shiftIsoDate(base: string | null | undefined, days: number): string {
+  const from = base && base.length >= 10 ? base.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const [y, m, d] = from.split('-').map(Number);
+  const ms = Date.UTC(y, m - 1, d, 12) + days * 86400000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
  * SLA первичной обработки закупки (правка 6): нормативный срок 3 дня.
  * Незаказанный материал (pending) старше 3 дней → 'overdue' («Просрочено»),
  * иначе 'processing' («На обработке»). Уже обработанные статусы → null.

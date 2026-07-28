@@ -59,6 +59,8 @@ console.log('[TRACE] state after:', get().someField);
 | Симптом | Корневая причина |
 |---------|-----------------|
 | Данные пропали после перезагрузки | Поле не в DRAFT_FIELDS в useDraft.js |
+| Задание «не запускается» в цехе | Гейт в `erp/utils/routes.ts`: материалы, закупка или ТЗ |
+| Цеха нет в меню и канбане | `erp_departments.is_production` = false |
 | Зоны нанесения неправильные | SKU изменился, зоны не перефильтровались |
 | Цена неправильная | Каталог загрузился из fallback (sessionStorage устарел) |
 | Компонент не обновляется | useStore без useShallow — нет re-render |
@@ -71,7 +73,7 @@ console.log('[TRACE] state after:', get().someField);
 
 ```bash
 # Найти все вызовы функции
-grep -rn "functionName" pinhead-react/src/ --include="*.js" --include="*.jsx"
+grep -rn "functionName" pinhead-react/src/ --include="*.js" --include="*.jsx" --include="*.ts"
 
 # Найти где устанавливается значение
 grep -rn "setState\|set({" pinhead-react/src/store/ | grep "fieldName"

@@ -13,7 +13,9 @@ description: Use when a task is done and ready to commit and push. Triggers on "
 cd pinhead-react && npm test -- --run
 ```
 
-**Критерий:** все тесты зелёные, количество >= 722.
+**Критерий:** все тесты зелёные, и их не меньше, чем было до правки
+(на 27.07.2026 — 1194). Плюс `npm run build` и, если трогал ERP-экраны,
+`npx playwright test e2e/erp-queue.spec.ts --project=desktop`.
 Если тест упал — стоп, чини сначала тест.
 
 ## Шаг 2 — Линтер
@@ -36,7 +38,8 @@ git diff --name-only
 - Нет ли хардкода (`'dev'`, тестовых данных, временных значений)?
 
 ```bash
-grep -rn "console.log\|debugger\|TODO\|FIXME" pinhead-react/src --include="*.jsx" --include="*.js" | grep -v ".test."
+grep -rn "console.log\|debugger\|TODO\|FIXME" pinhead-react/src \
+  --include="*.jsx" --include="*.js" --include="*.ts" | grep -v ".test."
 ```
 
 ## Шаг 4 — Формат коммита

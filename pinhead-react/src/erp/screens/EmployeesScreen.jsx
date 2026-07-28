@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
+import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { deptShortName } from '../data/departments';
@@ -43,6 +45,7 @@ export default function EmployeesScreen({ embedded = false }) {
       upsertProfileDept: s.upsertProfileDept,
     })),
   );
+  const me = useAuthStore((s) => s.user);
   const [showInactive, setShowInactive] = useState(false);
   const [newName, setNewName] = useState('');
 
@@ -64,6 +67,26 @@ export default function EmployeesScreen({ embedded = false }) {
     () => employees.filter((e) => !e.profile_id && (showInactive || e.active)),
     [employees, showInactive],
   );
+
+  /**
+   * Админ мог одним кликом сменить себе роль на «Дизайнер» — и мгновенно потерять
+   * доступ к /admin, /purchasing, /warehouse, а вернуть роль было уже некому.
+   * Своя строка помечена и защищена; чужого админа понижаем с подтверждением.
+   */
+  const onChangeRole = async (p, role) => {
+    if (p.id === me?.id) return;
+    if (p.role === 'admin' && role !== 'admin') {
+      const ok = await confirm({
+        title: `Понизить администратора ${p.name || p.email}?`,
+        message: 'Человек потеряет доступ к админке, закупке, складу, подряду '
+          + 'и эксперим. цеху. Вернуть роль сможет только другой администратор.',
+        confirmLabel: 'Понизить',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    await updateProfile(p.id, { role });
+  };
 
   const onDisable = async (p) => {
     const ok = await confirm({
@@ -100,7 +123,12 @@ export default function EmployeesScreen({ embedded = false }) {
       </div>
 
       {employeesLoaded && profileRows.length === 0 && looseEmployees.length === 0 && (
-        <div className={styles.emptyState}>Пользователей не видно — нужны права администратора.</div>
+        <div className={styles.emptyState}>
+                  Пользователи не загрузились.{' '}
+                  <button type="button" className="btn btn-secondary" onClick={() => loadEmployees()}>
+                    Повторить
+                  </button>
+                </div>
       )}
 
       {profileRows.length > 0 && (
@@ -118,15 +146,19 @@ export default function EmployeesScreen({ embedded = false }) {
                 const st = statusChip(p);
                 return (
                   <tr key={p.id} style={p.active === false ? { opacity: 0.55 } : undefined}>
-                    <td><strong>{p.name || '—'}</strong></td>
+                    <td>
+                      <strong>{p.name || '—'}</strong>
+                      {p.id === me?.id && <span className={styles.subText}> · вы</span>}
+                    </td>
                     <td className={styles.subText}>{p.email}</td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={p.role}
                         aria-label={`Роль ${p.name || p.email}`}
-                        onChange={(e) => updateProfile(p.id, { role: e.target.value })}
+                        disabled={p.id === me?.id}
+                        title={p.id === me?.id ? 'Свою роль менять нельзя' : undefined}
+                        onChange={(e) => onChangeRole(p, e.target.value)}
                       >
                         {ALL_ROLES.map((r) => (
                           <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
@@ -135,15 +167,14 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp?.department_id || ''}
                         aria-label={`Цех ${p.name || p.email}`}
                         onChange={(e) =>
                           upsertProfileDept(p, { department_id: e.target.value || null })}
                       >
                         <option value="">—</option>
-                        {departments.map((d) => (
+                        {departments.filter((d) => d.active || d.id === emp?.department_id).map((d) => (
                           <option key={d.id} value={d.id}>
                             {deptShortName(d.code, d.name)}
                           </option>
@@ -152,8 +183,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp?.role || 'worker'}
                         aria-label={`Цеховая роль ${p.name || p.email}`}
                         onChange={(e) => upsertProfileDept(p, { role: e.target.value })}
@@ -180,12 +210,15 @@ export default function EmployeesScreen({ embedded = false }) {
                           </button>{' '}
                           <button type="button" className="btn btn-ghost"
                             aria-label={`Отключить ${p.name || p.email}`}
-                            onClick={() => onDisable(p)}>✕</button>
+                            disabled={p.id === me?.id}
+                            onClick={() => onDisable(p)}><Icon name="x" size={15} /></button>
                         </>
                       ) : (
                         <button type="button" className="btn btn-ghost"
                           aria-label={`Отключить ${p.name || p.email}`}
-                          onClick={() => onDisable(p)}>✕</button>
+                          disabled={p.id === me?.id}
+                          title={p.id === me?.id ? 'Себя отключить нельзя' : undefined}
+                          onClick={() => onDisable(p)}><Icon name="x" size={15} /></button>
                       )}
                     </td>
                   </tr>
@@ -214,8 +247,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     <td><strong>{emp.full_name}</strong></td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp.department_id || ''}
                         aria-label={`Цех ${emp.full_name}`}
                         onChange={(e) => updateEmployee(emp.id, { department_id: e.target.value || null })}
@@ -228,8 +260,7 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       <select
-                        className={styles.select}
-                        style={{ minHeight: 32, padding: '3px 6px' }}
+                        className={`${styles.select} ${styles.inputXs}`}
                         value={emp.role}
                         aria-label={`Цеховая роль ${emp.full_name}`}
                         onChange={(e) => updateEmployee(emp.id, { role: e.target.value })}
@@ -251,10 +282,12 @@ export default function EmployeesScreen({ embedded = false }) {
                       {emp.active ? (
                         <button type="button" className="btn btn-ghost"
                           aria-label={`Отключить ${emp.full_name}`}
-                          onClick={() => updateEmployee(emp.id, { active: false })}>✕</button>
+                          onClick={() => updateEmployee(emp.id, { active: false })}><Icon name="x" size={15} /></button>
                       ) : (
                         <button type="button" className="btn btn-ghost"
-                          onClick={() => updateEmployee(emp.id, { active: true })}>↩</button>
+                          aria-label={`Вернуть ${emp.full_name}`}
+                        title={`Вернуть ${emp.full_name}`}
+                        onClick={() => updateEmployee(emp.id, { active: true })}><Icon name="undo" size={15} /></button>
                       )}
                     </td>
                   </tr>

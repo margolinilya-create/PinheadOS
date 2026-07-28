@@ -8,6 +8,7 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, isStageAwaitingProcurement } from '../utils/routes';
+import { stageMissingTz } from '../utils/tz';
 import { stageOverdue } from '../utils/time';
 import type { ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
@@ -20,11 +21,13 @@ export const ORDER_SELECT = `
     stages:erp_item_stages (*),
     prints:erp_item_prints (*)
   ),
-  materials:erp_materials (*),
+  materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
-  warehouse_tasks:erp_warehouse_tasks (*)
+  warehouse_tasks:erp_warehouse_tasks (*),
+  tz_documents:erp_tz_documents (*),
+  tz_assignments:erp_tz_assignments (*)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */
@@ -41,6 +44,8 @@ export function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
     procurement_tasks: o.procurement_tasks ?? [],
     warehouse_ops: o.warehouse_ops ?? [],
     warehouse_tasks: o.warehouse_tasks ?? [],
+    tz_documents: o.tz_documents ?? [],
+    tz_assignments: o.tz_assignments ?? [],
   };
 }
 
@@ -82,6 +87,53 @@ export function patchStageIn(
   });
 }
 
+/** Добавить этап в позицию (перенос между цехами создал недостающий этап маршрута) */
+export function addStageIn(
+  orders: ErpOrderFull[],
+  itemId: string,
+  stage: ErpItemStage,
+): ErpOrderFull[] {
+  return orders.map((order) => {
+    if (!order.items.some((it) => it.id === itemId)) return order;
+    return {
+      ...order,
+      items: order.items.map((it) =>
+        it.id === itemId
+          ? { ...it, stages: [...it.stages, stage].sort((a, b) => a.sort_order - b.sort_order) }
+          : it),
+    };
+  });
+}
+
+/**
+ * Все этапы цеха среди активных заказов в порядке очереди
+ * (ручной приоритет, затем срок клиента) — для перенумерации приоритетов.
+ */
+export function stagesInDept(
+  orders: ErpOrderFull[],
+  departmentId: string,
+): { stage: ErpItemStage; order: ErpOrderFull }[] {
+  const rows: { stage: ErpItemStage; order: ErpOrderFull }[] = [];
+  for (const order of orders) {
+    if (order.status !== 'active') continue;
+    for (const item of order.items) {
+      for (const stage of item.stages) {
+        if (stage.department_id === departmentId && stage.status !== 'skipped') {
+          rows.push({ stage, order });
+        }
+      }
+    }
+  }
+  return rows.sort((a, b) => {
+    const pa = a.stage.queue_position;
+    const pb = b.stage.queue_position;
+    if (pa != null && pb != null && pa !== pb) return pa - pb;
+    if (pa != null && pb == null) return -1;
+    if (pa == null && pb != null) return 1;
+    return (a.order.due_date || '9999-12-31').localeCompare(b.order.due_date || '9999-12-31');
+  });
+}
+
 /** Сколько работ «готово/в работе» в цехе — для уведомления и бейджа «Мой цех» */
 export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
   const dept = departments.find((d) => d.code === deptCode);
@@ -98,6 +150,7 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
           isStageReady(
             st, it.stages, o.materials, deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
+            stageMissingTz(o, it.id, st.department_id, dept),
           )
         ) n += 1;
       }
@@ -125,6 +178,7 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
           isStageReady(
             st, it.stages, o.materials, deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
+            stageMissingTz(o, it.id, st.department_id, dept),
           )
         ) n += 1;
       }

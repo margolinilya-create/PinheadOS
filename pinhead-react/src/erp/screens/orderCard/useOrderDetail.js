@@ -11,7 +11,7 @@ import { isOrderReadyToShip } from '../../utils/stageUi';
  */
 export function useOrderDetail(orderId) {
   const {
-    orders, departments, loaded, loadAll, loadOne, setStagePlan,
+    orders, departments, loaded, loadError, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
     profilesList, employees,
   } = useErpStore(
@@ -19,6 +19,7 @@ export function useOrderDetail(orderId) {
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       loadOne: s.loadOne,
       setStagePlan: s.setStagePlan,
@@ -108,9 +109,9 @@ export function useOrderDetail(orderId) {
   }, [order]);
 
   return {
-    order, loaded, notFound: loaded && !order && lookedUp,
+    order, loaded, loadError, loadAll, notFound: loaded && !order && lookedUp,
     events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
-    deptById, deptNameById, stageById,
+    deptById, deptNameById, stageById, departments,
   };
 }

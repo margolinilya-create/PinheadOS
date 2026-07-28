@@ -51,6 +51,49 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('Произошла непредвиденная ошибка')).toBeInTheDocument();
   });
 
+  // Локальный фолбэк: падение одного экрана ERP не должно ронять оболочку,
+  // а полноэкранный блок по умолчанию разорвал бы layout.
+  it('рендерит переданный fallback вместо полноэкранного экрана', () => {
+    render(
+      <ErrorBoundary fallback={<div>Экран не отрисовался</div>}>
+        <ThrowingChild shouldThrow />
+      </ErrorBoundary>
+    );
+    expect(screen.getByText('Экран не отрисовался')).toBeInTheDocument();
+    expect(screen.queryByText('Что-то пошло не так')).toBeNull();
+  });
+
+  it('fallback-функция получает ошибку и сброс, сброс возвращает содержимое', () => {
+    function Wrapper() {
+      return (
+        <ErrorBoundary fallback={(error, reset) => (
+          <div>
+            <span>Упало: {error.message}</span>
+            <button type="button" onClick={reset}>Попробовать снова</button>
+          </div>
+        )}>
+          <ThrowingChild shouldThrow={false} />
+        </ErrorBoundary>
+      );
+    }
+    const { rerender } = render(
+      <ErrorBoundary fallback={(error, reset) => (
+        <div>
+          <span>Упало: {error.message}</span>
+          <button type="button" onClick={reset}>Попробовать снова</button>
+        </div>
+      )}>
+        <ThrowingChild shouldThrow />
+      </ErrorBoundary>
+    );
+    expect(screen.getByText('Упало: Test crash')).toBeInTheDocument();
+
+    // после сброса граница снова рендерит детей (уже не падающих)
+    fireEvent.click(screen.getByText('Попробовать снова'));
+    rerender(<Wrapper />);
+    expect(screen.getByText('Child content')).toBeInTheDocument();
+  });
+
   it('calls window.location.reload on button click', () => {
     const reloadMock = vi.fn();
     Object.defineProperty(window, 'location', {

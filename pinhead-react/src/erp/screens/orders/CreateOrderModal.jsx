@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
-import { isQueueDept, deptShortName } from '../../data/departments';
+import { DictionaryDatalist } from '../../components/DictionaryDatalist';
+import { isProductionDept, deptShortName } from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
@@ -8,199 +9,66 @@ import { toast } from '../../../store/useToastStore';
 import { pluralize } from '../../../utils/i18n';
 import {
   EMPTY_ITEM,
-  EMPTY_PRINT,
-  SIZE_PRESETS,
-  SIZE_PRESET_LABELS,
   clearOrderDraft,
   effectiveQty,
+  EMPTY_PRINT,
   emptyOrderForm,
   gridToPayload,
-  gridTotal,
   isFormEmpty,
+  isItemEmpty,
   loadOrderDraft,
   localToday,
   saveOrderDraft,
-  toggleSize,
   validateOrderForm,
 } from '../../utils/orderForm';
+import { buildItemRoute } from '../../utils/routes';
+import { DateField } from '../../components/DateField';
+import { Icon } from '../../components/Icon';
+import { deptNeedsTz, tzFilePath, validateTzAssignments } from '../../utils/tz';
+import { currentActor } from '../../store/shared';
+import { supabase } from '../../../lib/supabase';
 import {
-  PRODUCTION_TYPE_LABELS,
-  BRANDING_METHOD_LABELS,
+  TZ_BUCKET,
+  TZ_MAX_BYTES,
+  TZ_MIME,
   PACKAGING_LABELS,
   STICKERS_LABELS,
-  SUBCONTRACT_OP_TYPE_LABELS,
-  SUBCONTRACT_MATERIAL_SOURCE_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
 
-/** Редактор размерной сетки: пресеты-чипсы размеров, цвета строками, сумма = тираж */
-function SizeGridEditor({ grid, onChange }) {
-  const sizes = grid?.sizes ?? [];
-  const rows = grid?.rows ?? [];
-  const [preset, setPreset] = useState(() => {
-    const inKids = sizes.some((s) => SIZE_PRESETS.kids.includes(s));
-    const inAdult = sizes.some((s) => SIZE_PRESETS.adult.includes(s));
-    return inKids && !inAdult ? 'kids' : 'adult';
-  });
-  const [customSize, setCustomSize] = useState('');
-  const set = (patch) => onChange({ sizes, rows, ...patch });
-  const total = gridTotal(grid);
+// Секции и примитивы формы вынесены в ./create/ — модалка осталась композицией
+import { FormSection, FieldError } from './create/FormParts';
+import { TzSection } from './create/TzSection';
+import { ItemBlock } from './create/ItemBlock';
 
-  const onToggleSize = (sz) => {
-    const g = toggleSize(grid, sz);
-    // первая активация размера — сразу даём строку цвета для ввода количеств
-    onChange(g.sizes.length > 0 && (g.rows?.length ?? 0) === 0
-      ? { ...g, rows: [{ color: '', sizes: {} }] }
-      : g);
-  };
-
-  const addCustom = () => {
-    const v = customSize.trim();
-    if (!v) return;
-    if (!sizes.includes(v)) onToggleSize(v);
-    setCustomSize('');
-  };
-
-  const presetSizes = preset === 'custom' ? [] : SIZE_PRESETS[preset];
-  const shownSizes = [...presetSizes, ...sizes.filter((s) => !presetSizes.includes(s))];
-
-  return (
-    <div className={styles.sizeGrid}>
-      <div className={styles.checkRow}>
-        <span className={styles.fieldLabel}>Шкала</span>
-        <div className={styles.tileRow} role="radiogroup" aria-label="Шкала размеров">
-          {Object.entries(SIZE_PRESET_LABELS).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={preset === v}
-              className={`${styles.tile} ${styles.tileSm} ${preset === v ? styles.tileActive : ''}`}
-              onClick={() => setPreset(v)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className={styles.checkRow}>
-        <span className={styles.fieldLabel}>Размеры</span>
-        <div className={styles.tileRow} aria-label="Размеры сетки">
-          {shownSizes.map((sz) => (
-            <button
-              key={sz}
-              type="button"
-              aria-pressed={sizes.includes(sz)}
-              className={`${styles.tile} ${styles.tileSm} ${sizes.includes(sz) ? styles.tileActive : ''}`}
-              onClick={() => onToggleSize(sz)}
-            >
-              {sz}
-            </button>
-          ))}
-          {shownSizes.length === 0 && (
-            <span className={styles.subText}>Добавьте свой размер ниже</span>
-          )}
-        </div>
-      </div>
-      {preset === 'custom' && (
-        <div className={styles.checkRow}>
-          <input
-            className={`${styles.input} ${styles.inputSm} ${styles.customSizeInput}`}
-            placeholder="Размер (56, 4XL…)"
-            aria-label="Свой размер"
-            value={customSize}
-            onChange={(e) => setCustomSize(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
-            }}
-          />
-          <button type="button" className="btn btn-secondary" onClick={addCustom}>
-            Добавить
-          </button>
-        </div>
-      )}
-      {sizes.length > 0 && (
-        <div className={styles.checkRow}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}
-          >
-            + Цвет
-          </button>
-        </div>
-      )}
-      {sizes.length > 0 && rows.map((row, ri) => (
-        <div key={ri} className={styles.checkRow}>
-          <input
-            className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
-            placeholder="Цвет"
-            value={row.color}
-            aria-label={`Цвет ${ri + 1}`}
-            onChange={(e) =>
-              set({ rows: rows.map((r, i) => (i === ri ? { ...r, color: e.target.value } : r)) })}
-          />
-          {sizes.map((sz) => (
-            <label key={sz} className={styles.checkLabel} style={{ gap: 3 }}>
-              <span className={styles.subText}>{sz}</span>
-              <input
-                type="number"
-                min="0"
-                className={`${styles.input} ${styles.inputSm} ${styles.qtyCellInput}`}
-                value={row.sizes[sz] ?? ''}
-                aria-label={`${row.color || 'цвет'} ${sz}`}
-                onChange={(e) =>
-                  set({
-                    rows: rows.map((r, i) =>
-                      i === ri
-                        ? { ...r, sizes: { ...r.sizes, [sz]: Number(e.target.value) || 0 } }
-                        : r),
-                  })}
-              />
-            </label>
-          ))}
-          <button
-            type="button"
-            className="btn btn-ghost"
-            aria-label="Убрать цвет"
-            onClick={() => set({ rows: rows.filter((_, i) => i !== ri) })}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <div className={styles.subText} aria-live="polite">
-        Сумма по сетке: <strong>{total} шт</strong>
-        {total > 0 && ' — подставится в количество позиции'}
-      </div>
-    </div>
-  );
-}
-
-/** Сворачиваемая секция формы: заголовок с chevron + краткое резюме, когда свёрнута */
-function FormSection({ id, title, summary, open, onToggle, children }) {
-  return (
-    <section className={styles.accSection}>
-      <button
-        type="button"
-        className={styles.accHeader}
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={onToggle}
-      >
-        <span className={styles.accChevron} aria-hidden="true">{open ? '▾' : '▸'}</span>
-        <span className={styles.accTitle}>{title}</span>
-        {!open && summary && <span className={styles.accSummary}>{summary}</span>}
-      </button>
-      {open && <div id={id} className={styles.accBody}>{children}</div>}
-    </section>
-  );
-}
-
-/** Текст ошибки под полем (инлайн-валидация) */
-function FieldError({ id, text }) {
-  if (!text) return null;
-  return <span id={id} className={styles.fieldError}>{text}</span>;
+/**
+ * Позиции с их производственными этапами — то, чему нужно назначить ТЗ.
+ * Маршрут считается тем же `buildItemRoute`, что и в сторе, поэтому превью
+ * в форме не расходится с фактом. ТЗ требуют только производственные цеха
+ * (`deptNeedsTz`): закупке и складам PDF не адресуется.
+ */
+function buildTzItems(items, deptByCode) {
+  return items
+    .map((it, index) => ({ it, index }))
+    .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
+    .map(({ it, index }) => {
+      const prints = it.has_branding ? it.prints : [];
+      const route = buildItemRoute({
+        productionType: it.production_type,
+        brandingMethods: [...new Set(prints.map((p) => p.method))],
+        brandingOn: it.branding_on ?? 'cut',
+        materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+        needsQc: it.needs_qc ?? true,
+      });
+      return {
+        index,
+        label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
+        stages: route
+          .map((r) => deptByCode.get(r.departmentCode))
+          .filter((d) => deptNeedsTz(d))
+          .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
+      };
+    });
 }
 
 export function CreateOrderModal({ onClose }) {
@@ -208,7 +76,7 @@ export function CreateOrderModal({ onClose }) {
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const departments = useErpStore((s) => s.departments);
   const queueDepts = useMemo(
-    () => departments.filter((d) => d.active && isQueueDept(d.code)),
+    () => departments.filter((d) => d.active && isProductionDept(d)),
     [departments],
   );
   const [saving, setSaving] = useState(false);
@@ -251,9 +119,118 @@ export function CreateOrderModal({ onClose }) {
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
+  const deptByCode = useMemo(
+    () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
+    [departments],
+  );
+  const tzItems = useMemo(() => buildTzItems(items, deptByCode), [items, deptByCode]);
+
+  /**
+   * ТЗ в PDF (волна 4). File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
+   * через JSON.stringify, и File сериализовался бы в {} молча.
+   * tzDocs: { groupId, itemIndex (null = общее ТЗ заказа), file }
+   * tzAssign: `${индекс позиции}:${id цеха}` → groupId
+   */
+  const [tzDocs, setTzDocs] = useState([]);
+  const [tzAssign, setTzAssign] = useState({});
+
+  const addTzDoc = (file, itemIndex) => {
+    if (!file) return;
+    const isPdf = file.type === TZ_MIME || /\.pdf$/i.test(file.name);
+    if (!isPdf) {
+      toast.error('ТЗ принимается только в PDF');
+      return;
+    }
+    if (file.size > TZ_MAX_BYTES) {
+      toast.error(`ТЗ: файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ`);
+      return;
+    }
+    const groupId = crypto.randomUUID();
+    setTzDocs((arr) => [...arr, { groupId, itemIndex, file }]);
+    /**
+     * Только что загруженный файл сразу проставляем во все ещё не заполненные
+     * строки своей области: для типового случая «один PDF на позицию» ручной
+     * выбор не нужен вовсе, а маршрут (tzItems) от загрузки файла не зависит.
+     * Уже сделанный выбор не трогаем — подстановка не переигрывает человека.
+     */
+    setTzAssign((m) => {
+      const next = { ...m };
+      for (const ti of buildTzItems(items, deptByCode)) {
+        if (itemIndex !== null && ti.index !== itemIndex) continue;
+        for (const st of ti.stages) {
+          const key = `${ti.index}:${st.departmentId}`;
+          if (!next[key]) next[key] = groupId;
+        }
+      }
+      return next;
+    });
+  };
+
+  const removeTzDoc = (groupId) => {
+    setTzDocs((arr) => arr.filter((d) => d.groupId !== groupId));
+    setTzAssign((m) => Object.fromEntries(
+      Object.entries(m).filter(([, g]) => g !== groupId)));
+  };
+
+  // Удаление позиции сдвигает индексы — переклеиваем ключи ТЗ, иначе следующая
+  // позиция унаследовала бы чужие назначения
+  const removeItem = async (i) => {
+    // Позиция может содержать размерную сетку на несколько цветов × 7 размеров,
+    // нанесения и приложенные к ней ТЗ — один промах стирал полчаса ввода
+    // безвозвратно (новое состояние уезжает в черновик через 500 мс)
+    const it = items[i];
+    if (it && !isItemEmpty(it)) {
+      const ok = await confirm({
+        title: `Убрать позицию ${i + 1}?`,
+        message: [
+          it.product_type.trim() ? `«${it.product_type.trim()}»` : 'Заполненная позиция',
+          'будет удалена вместе с размерной сеткой, нанесениями и приложенными к ней ТЗ.',
+        ].join(' '),
+        confirmLabel: 'Убрать',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    setItems((arr) => arr.filter((_, idx) => idx !== i));
+    const shift = (idx) => (idx > i ? idx - 1 : idx);
+    setTzDocs((arr) => arr
+      .filter((d) => d.itemIndex !== i)
+      .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) })));
+    setTzAssign((m) => Object.fromEntries(
+      Object.entries(m)
+        .map(([key, g]) => [key.split(':'), g])
+        .filter(([[idx]]) => Number(idx) !== i)
+        .map(([[idx, dept], g]) => [`${shift(Number(idx))}:${dept}`, g])));
+  };
+
+  /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
+  const removePrint = async (i, pi) => {
+    const print = items[i]?.prints?.[pi];
+    const filled = print && Object.entries(print)
+      .some(([k, v]) => k !== 'method' && String(v ?? '').trim() !== '');
+    if (filled) {
+      const ok = await confirm({
+        title: `Убрать нанесение ${pi + 1}?`,
+        message: 'Заполненные размеры, зона, Pantone и комментарий будут удалены.',
+        confirmLabel: 'Убрать',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    setItems((arr) => arr.map((x, idx) => (
+      idx === i ? { ...x, prints: x.prints.filter((_, j) => j !== pi) } : x)));
+  };
+
   // Аккордеон-секции: все раскрыты по умолчанию
-  const [open, setOpen] = useState({ main: true, items: true, extra: true });
+  const [open, setOpen] = useState({ main: true, items: true, extra: true, tz: true });
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
+
+
+  const tzValidation = useMemo(
+    () => validateTzAssignments(tzItems, tzAssign),
+    [tzItems, tzAssign],
+  );
+
 
   // Инлайн-валидация: после первой попытки сабмита ошибки живут вместе с вводом
   const [submitted, setSubmitted] = useState(false);
@@ -291,7 +268,8 @@ export function CreateOrderModal({ onClose }) {
     closingRef.current = true;
     const ok = await confirm({
       title: 'Закрыть форму заказа?',
-      message: 'Заполненные поля сохранены как черновик — он восстановится при следующем открытии формы.',
+      message: 'Заполненные поля сохранены как черновик — он восстановится при следующем '
+        + 'открытии формы. Файлы (ТЗ и превью) в черновик не попадают: их придётся приложить заново.',
       confirmLabel: 'Закрыть',
       cancelLabel: 'Продолжить редактирование',
     });
@@ -349,19 +327,78 @@ export function CreateOrderModal({ onClose }) {
       return;
     }
     const validItems = items.filter((it) => it.product_type.trim() && effectiveQty(it) > 0);
-    // Правка 4.2.3: если для отдельной операции нужна доработка — участок обязателен
-    const missingNextDept = validItems.some(
-      (it) => it.production_type === 'outsource'
-        && (it.subcontract_kind || 'finished_product') === 'operation'
-        && it.needs_further && !it.return_dept);
-    if (missingNextDept) {
-      toast.error('Выберите следующий участок для доработки после операции подряда');
+    // Гейт ТЗ (решение заказчика): без назначенного ТЗ на каждый производственный
+    // этап заказ не создаётся. Кнопка уже заблокирована — это страховка от Enter.
+    if (tzValidation.missing.length > 0) {
+      setOpen((o) => ({ ...o, tz: true }));
+      toast.error(tzValidation.message);
       return;
     }
+
     setSaving(true);
+
+    /**
+     * Файлы ТЗ грузим ДО создания заказа, а сам заказ вместе с документами и
+     * назначениями создаётся одной транзакцией (RPC erp_create_order, секция tz).
+     * Иначе при сбое дозагрузки остался бы заказ без ТЗ — ровно то, что запрещено.
+     * Цена: файлы-сироты в tz/new/, если RPC упадёт; удалять из бакета клиент не может
+     * (политика delete — только admin), поэтому префикс намеренно отдельный.
+     */
+    const formToPayloadIndex = new Map(
+      items
+        .map((it, index) => ({ it, index }))
+        .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
+        .map(({ index }, payloadIndex) => [index, payloadIndex]),
+    );
+    const actor = currentActor();
+    const tzDocuments = [];
+    for (const d of tzDocs) {
+      const itemIndex = d.itemIndex === null ? null : formToPayloadIndex.get(d.itemIndex);
+      if (d.itemIndex !== null && itemIndex === undefined) continue; // позиция выпала из заказа
+      const path = tzFilePath('new', d.groupId, 1, d.file.name);
+      // upsert обязателен: путь детерминированный (group_id живёт в стейте формы и
+      // при повторном сабмите тот же), поэтому после любого сбоя — оборванной сети
+      // или упавшего RPC — вторая попытка перезаписывает свой же файл. С upsert:false
+      // она получала Duplicate, и форма становилась тупиком: сколько ни жми «Создать»,
+      // ошибка та же. Чужой файл затереть нельзя — group_id генерирует клиент.
+      const { error: upErr } = await supabase.storage
+        .from(TZ_BUCKET)
+        .upload(path, d.file, { contentType: TZ_MIME, upsert: true });
+      if (upErr) {
+        toast.error(`Не удалось загрузить ТЗ «${d.file.name}» — заказ не создан, попробуйте ещё раз`);
+        setSaving(false);
+        return;
+      }
+      tzDocuments.push({
+        group_id: d.groupId,
+        item_index: itemIndex ?? null,
+        file_path: path,
+        file_name: d.file.name,
+        mime_type: TZ_MIME,
+        size_bytes: d.file.size,
+        uploaded_by: actor,
+      });
+    }
+    const usedGroups = new Set(tzDocuments.map((d) => d.group_id));
+    const tzAssignments = Object.entries(tzAssign)
+      .map(([key, groupId]) => {
+        const [formIndex, departmentId] = key.split(':');
+        return { itemIndex: formToPayloadIndex.get(Number(formIndex)), departmentId, groupId };
+      })
+      .filter((a) => a.itemIndex !== undefined && usedGroups.has(a.groupId))
+      .map((a) => ({
+        item_index: a.itemIndex,
+        department_id: a.departmentId,
+        group_id: a.groupId,
+        assigned_by: actor,
+      }));
+
     const created = await createOrder({
+      tz_required: true,
+      tz: { documents: tzDocuments, assignments: tzAssignments },
       bitrix_id: form.bitrix_id.trim() || undefined,
       title: form.title.trim(),
+      customer: form.customer.trim() || undefined,
       manager: form.manager.trim() || undefined,
       launch_date: form.launch_date || undefined,
       due_date: form.due_date || undefined,
@@ -393,6 +430,8 @@ export function CreateOrderModal({ onClose }) {
           // маршрут строится по техникам из блоков «Нанесение №N»
           branding_methods: [...new Set(prints.map((p) => p.method))],
           branding_on: it.branding_on,
+          // финальный ОТК: влияет только на маршрут, в позицию не пишется
+          needs_qc: it.needs_qc ?? true,
           size_grid: gridToPayload(it.size_grid),
           prints: prints.map((p) => ({
             method: p.method,
@@ -427,11 +466,14 @@ export function CreateOrderModal({ onClose }) {
   const itemsSummary =
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
+  const tzSummary = tzValidation.missing.length > 0
+    ? `не назначено: ${tzValidation.missing.length}`
+    : `${tzDocs.length} ${pluralize(tzDocs.length, 'файл', 'файла', 'файлов')} · назначено`;
   const extraSummary = [
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
     form.no_chestny_znak ? 'без ЧЗ' : null,
-    previewFile ? 'превью ✓' : null,
+    previewFile ? 'превью добавлено' : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -456,6 +498,10 @@ export function CreateOrderModal({ onClose }) {
             </button>
           </div>
         )}
+
+        {/* Подсказки справочников для полей «Изделие» и «Поставщик» (правка 12) */}
+        <DictionaryDatalist kind="product_type" id="erp-product-types" />
+        <DictionaryDatalist kind="supplier" id="erp-suppliers" />
 
         <FormSection
           id="order-section-main"
@@ -491,6 +537,16 @@ export function CreateOrderModal({ onClose }) {
             <FieldError id="err-order-title" text={err('title')} />
           </label>
           <label className={styles.field}>
+            <span className={styles.fieldLabel}>Клиент</span>
+            <input
+              className={styles.input}
+              value={form.customer}
+              onChange={(e) => setForm({ ...form, customer: e.target.value })}
+              placeholder="напр. BOX39"
+              maxLength={140}
+            />
+          </label>
+          <label className={styles.field}>
             <span className={styles.fieldLabel}>Менеджер</span>
             <input
               className={styles.input}
@@ -500,12 +556,12 @@ export function CreateOrderModal({ onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Дата запуска</span>
-            <input
-              type="date"
+            <DateField
+              presets
               min={initialLaunch}
               className={inputCls('launch_date')}
               value={form.launch_date}
-              onChange={(e) => setForm({ ...form, launch_date: e.target.value })}
+              onChange={(v) => setForm({ ...form, launch_date: v })}
               aria-invalid={err('launch_date') ? true : undefined}
               aria-describedby={err('launch_date') ? 'err-order-launch' : undefined}
               data-invalid={err('launch_date') ? true : undefined}
@@ -514,12 +570,12 @@ export function CreateOrderModal({ onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Срок клиента</span>
-            <input
-              type="date"
+            <DateField
+              presets
               min={initialLaunch}
               className={inputCls('due_date')}
               value={form.due_date}
-              onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+              onChange={(v) => setForm({ ...form, due_date: v })}
               aria-invalid={err('due_date') ? true : undefined}
               aria-describedby={err('due_date') ? 'err-order-due' : undefined}
               data-invalid={err('due_date') ? true : undefined}
@@ -547,287 +603,22 @@ export function CreateOrderModal({ onClose }) {
           open={open.items}
           onToggle={() => toggleSection('items')}
         >
-        {items.map((it, i) => {
-          const gTotal = gridTotal(it.size_grid);
-          return (
-          <div key={i} className={styles.itemBlock}>
-          <div className={styles.itemRow}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Изделие *</span>
-              <input
-                className={inputCls(`item_${i}_product_type`)}
-                value={it.product_type}
-                onChange={(e) => setItem(i, { product_type: e.target.value })}
-                placeholder="футболка"
-                aria-required="true"
-                aria-invalid={err(`item_${i}_product_type`) ? true : undefined}
-                aria-describedby={err(`item_${i}_product_type`) ? `err-item-${i}-product` : undefined}
-                data-invalid={err(`item_${i}_product_type`) ? true : undefined}
-              />
-              <FieldError id={`err-item-${i}-product`} text={err(`item_${i}_product_type`)} />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Вариант / цвет</span>
-              <input
-                className={styles.input}
-                value={it.variant}
-                onChange={(e) => setItem(i, { variant: e.target.value })}
-                placeholder="голубые"
-              />
-            </label>
-            {gTotal > 0 ? (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Кол-во</span>
-                <input
-                  className={styles.input}
-                  value={gTotal}
-                  readOnly
-                  aria-label={`Количество позиции ${i + 1} — из размерной сетки`}
-                />
-                <span className={styles.subText}>из размерной сетки</span>
-              </label>
-            ) : (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Кол-во *</span>
-                <input
-                  type="number"
-                  min="1"
-                  className={inputCls(`item_${i}_qty`)}
-                  value={it.qty}
-                  onChange={(e) => setItem(i, { qty: e.target.value.replace('-', '') })}
-                  aria-required="true"
-                  aria-invalid={err(`item_${i}_qty`) ? true : undefined}
-                  aria-describedby={err(`item_${i}_qty`) ? `err-item-${i}-qty` : undefined}
-                  data-invalid={err(`item_${i}_qty`) ? true : undefined}
-                />
-                <FieldError id={`err-item-${i}-qty`} text={err(`item_${i}_qty`)} />
-              </label>
-            )}
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Тип производства</span>
-              <div className={styles.tileRow} role="radiogroup" aria-label="Тип производства">
-                {Object.entries(PRODUCTION_TYPE_LABELS).map(([v, label]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    role="radio"
-                    aria-checked={it.production_type === v}
-                    className={`${styles.tile} ${it.production_type === v ? styles.tileActive : ''}`}
-                    onClick={() => setItem(i, { production_type: v })}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {it.production_type === 'outsource' && (
-              <>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>Тип подряда</span>
-                  <select
-                    className={styles.select}
-                    value={it.subcontract_kind ?? 'finished_product'}
-                    onChange={(e) => setItem(i, { subcontract_kind: e.target.value })}
-                    aria-label="Тип подряда"
-                  >
-                    {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, label]) => (
-                      <option key={v} value={v}>{label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>Материалы</span>
-                  <select
-                    className={styles.select}
-                    value={it.material_source ?? 'pinhead'}
-                    onChange={(e) => setItem(i, { material_source: e.target.value })}
-                    aria-label="Источник материалов"
-                  >
-                    {Object.entries(SUBCONTRACT_MATERIAL_SOURCE_LABELS).map(([v, label]) => (
-                      <option key={v} value={v}>{label}</option>
-                    ))}
-                  </select>
-                </label>
-                {(it.subcontract_kind ?? 'finished_product') === 'operation' && (
-                  <>
-                    <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Операция подрядчика</span>
-                      <input
-                        className={styles.input}
-                        value={it.subcontract_operation ?? ''}
-                        onChange={(e) => setItem(i, { subcontract_operation: e.target.value })}
-                        placeholder="печать по полотну / варка / вышивка…"
-                        aria-label="Какая операция выполняется подрядчиком"
-                      />
-                    </label>
-                    <div className={styles.field}>
-                      <span className={styles.fieldLabel}>Требуется доработка в Pinhead?</span>
-                      <div className={styles.tileRow} role="radiogroup" aria-label="Требуется доработка в Pinhead">
-                        {[['no', 'Нет'], ['yes', 'Да']].map(([v, label]) => {
-                          const on = (v === 'yes') === Boolean(it.needs_further);
-                          return (
-                            <button
-                              key={v}
-                              type="button"
-                              role="radio"
-                              aria-checked={on}
-                              className={`${styles.tile} ${on ? styles.tileActive : ''}`}
-                              onClick={() => setItem(i, {
-                                needs_further: v === 'yes',
-                                return_dept: v === 'yes' ? it.return_dept : '',
-                              })}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {it.needs_further && (
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>Следующий участок</span>
-                        <select
-                          className={styles.select}
-                          value={it.return_dept ?? ''}
-                          onChange={(e) => setItem(i, { return_dept: e.target.value })}
-                          aria-label="Следующий участок после операции подряда"
-                        >
-                          <option value="">Выберите участок…</option>
-                          {queueDepts.map((d) => (
-                            <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Брендирование</span>
-              <label className={styles.checkLabel}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(it.has_branding)}
-                  onChange={(e) => setBranding(i, e.target.checked)}
-                />
-                С нанесением
-              </label>
-            </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Нанесение на</span>
-              <select
-                className={styles.select}
-                value={it.branding_on}
-                disabled={!it.has_branding}
-                onChange={(e) => setItem(i, { branding_on: e.target.value })}
-              >
-                <option value="cut">на крое</option>
-                <option value="finished">на готовом</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              aria-label="Убрать позицию"
-              disabled={items.length === 1}
-              onClick={() => setItems((arr) => arr.filter((_, idx) => idx !== i))}
-            >
-              ✕
-            </button>
-          </div>
-
-          {it.has_branding && it.prints.map((p, pi) => (
-            <div key={pi} className={styles.printBlock}>
-              <div className={`${styles.checkRow} ${styles.printRow}`}>
-                <strong className={styles.fieldLabel}>Нанесение №{pi + 1}</strong>
-                <select
-                  className={`${styles.select} ${styles.inputSm}`}
-                  value={p.method}
-                  aria-label="Техника нанесения"
-                  onChange={(e) => setPrint(i, pi, { method: e.target.value })}
-                >
-                  {Object.entries(BRANDING_METHOD_LABELS).map(([v, l]) => (
-                    <option key={v} value={v}>{l}</option>
-                  ))}
-                </select>
-                <input
-                  className={`${styles.input} ${styles.inputSm} ${styles.printZoneInput}`}
-                  placeholder="Расположение (спина справа по втачке)"
-                  value={p.zone}
-                  onChange={(e) => setPrint(i, pi, { zone: e.target.value })}
-                />
-                <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
-                  <span className={styles.subText}>В, мм</span>
-                  <input type="number" min="1"
-                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
-                    value={p.height_mm}
-                    onChange={(e) => setPrint(i, pi, { height_mm: e.target.value })} />
-                </label>
-                <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
-                  <span className={styles.subText}>Ш, мм</span>
-                  <input type="number" min="1"
-                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
-                    value={p.width_mm}
-                    onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
-                </label>
-                <button type="button" className="btn btn-ghost" aria-label="Убрать нанесение"
-                  onClick={() => setItem(i, { prints: it.prints.filter((_, j) => j !== pi) })}>
-                  ✕
-                </button>
-              </div>
-              <div className={`${styles.checkRow} ${styles.printRow}`}>
-                <input
-                  className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
-                  placeholder="Отступ (10см от шва горловины)"
-                  value={p.offset_note}
-                  onChange={(e) => setPrint(i, pi, { offset_note: e.target.value })}
-                />
-                <input
-                  className={`${styles.input} ${styles.inputSm} ${styles.pantoneInput}`}
-                  placeholder="Pantone (1163, 1181)"
-                  value={p.pantone}
-                  onChange={(e) => setPrint(i, pi, { pantone: e.target.value })}
-                />
-                <input
-                  className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
-                  placeholder="Комментарий (макет как в сделке…)"
-                  value={p.comment}
-                  onChange={(e) => setPrint(i, pi, { comment: e.target.value })}
-                />
-              </div>
-            </div>
-          ))}
-
-          {it.has_branding && (
-            <div
-              className={styles.checkRow}
-              data-invalid={err(`item_${i}_prints`) ? true : undefined}
-            >
-              <button
-                type="button"
-                className="btn btn-secondary"
-                aria-describedby={err(`item_${i}_prints`) ? `err-item-${i}-prints` : undefined}
-                onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}
-              >
-                + Нанесение ({it.prints.length})
-              </button>
-              <FieldError id={`err-item-${i}-prints`} text={err(`item_${i}_prints`)} />
-            </div>
-          )}
-
-          <details className={styles.gridDetails}>
-            <summary className={styles.subText}>
-              Размерная сетка (цвет × размер){gTotal > 0 ? ` — ${gTotal} шт` : ''}
-            </summary>
-            <SizeGridEditor
-              grid={it.size_grid}
-              onChange={(g) => setItem(i, { size_grid: g })}
-            />
-          </details>
-          </div>
-          );
-        })}
+        {items.map((it, i) => (
+          <ItemBlock
+            key={i}
+            it={it}
+            i={i}
+            itemsCount={items.length}
+            err={err}
+            inputCls={inputCls}
+            queueDepts={queueDepts}
+            setItem={setItem}
+            setBranding={setBranding}
+            setPrint={setPrint}
+            removeItem={removeItem}
+            removePrint={removePrint}
+          />
+        ))}
         <div>
           <button
             type="button"
@@ -837,6 +628,23 @@ export function CreateOrderModal({ onClose }) {
             + Добавить позицию
           </button>
         </div>
+        </FormSection>
+
+        <FormSection
+          id="order-section-tz"
+          title="ТЗ в PDF для цехов"
+          summary={tzSummary}
+          open={open.tz}
+          onToggle={() => toggleSection('tz')}
+        >
+        <TzSection
+          tzItems={tzItems}
+          tzDocs={tzDocs}
+          tzAssign={tzAssign}
+          addTzDoc={addTzDoc}
+          removeTzDoc={removeTzDoc}
+          setTzAssign={setTzAssign}
+        />
         </FormSection>
 
         <FormSection
@@ -897,7 +705,13 @@ export function CreateOrderModal({ onClose }) {
           tabIndex={0}
           aria-label="Превью заказа: перетащите картинку, вставьте Ctrl+V или кликните"
           onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => { if (e.key === 'Enter') fileInputRef.current?.click(); }}
+          // Space — такая же активация, как Enter, для role="button" (WCAG 2.1.1)
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.target !== e.currentTarget) return; // вложенной кнопке — её событие
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); acceptPreview(e.dataTransfer.files?.[0]); }}
         >
@@ -913,12 +727,12 @@ export function CreateOrderModal({ onClose }) {
                   setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
                 }}
               >
-                ✕ Убрать
+                <span className={styles.cellWithIcon}><Icon name="x" size={14} /> Убрать</span>
               </button>
             </>
           ) : (
             <span className={styles.subText}>
-              🖼 Превью заказа: перетащите картинку сюда, вставьте <kbd>Ctrl+V</kbd> или кликните
+              <Icon name="image" size={14} /> Превью заказа: перетащите картинку сюда, вставьте <kbd>Ctrl+V</kbd> или кликните
               (JPG/PNG/WEBP до 2 МБ)
             </span>
           )}
@@ -939,11 +753,26 @@ export function CreateOrderModal({ onClose }) {
               Осталось заполнить: {validation.missing.join(', ')}
             </span>
           )}
+          {/* Заполнено, но неверно — отдельная формулировка: «Осталось заполнить:
+              Дата запуска» при заполненной дате сбивало с толку */}
+          {submitted && validation.invalid.length > 0 && (
+            <span className={styles.remainingHint} role="status">
+              Проверьте: {validation.invalid.join(', ')}
+            </span>
+          )}
+          {/* Требование заказчика: без ТЗ кнопка недоступна СРАЗУ, с конкретной причиной */}
+          {tzValidation.message && (
+            <span className={`${styles.remainingHint} ${styles.tzAssignMissing}`} role="status">
+              {tzValidation.message}
+            </span>
+          )}
           <button type="button" className="btn btn-ghost" onClick={requestClose}>Отмена</button>
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={saving || (submitted && validation.missing.length > 0)}
+            disabled={saving
+              || tzValidation.missing.length > 0
+              || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}
           >
             {saving ? 'Создание…' : 'Создать заказ'}
           </button>

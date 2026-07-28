@@ -1,10 +1,13 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
+import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
 import ErpDashboard from './screens/ErpDashboard';
 import OrdersScreen from './screens/OrdersScreen';
 import DepartmentQueue from './screens/DepartmentQueue';
 import { ScreenSkeleton } from './components/ErpSkeletons';
+import { LoadFailed } from './components/ErpStates';
+import { Icon } from './components/Icon';
 import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import styles from './erp.module.css';
 
@@ -12,10 +15,12 @@ import styles from './erp.module.css';
 const OrderCard = lazy(() => import('./screens/OrderCard'));
 const ProductionBoard = lazy(() => import('./screens/ProductionBoard')); // + ErpKanban в чанке
 const AdminScreen = lazy(() => import('./screens/AdminScreen')); // + Employees/Departments
+const ProductionTask = lazy(() => import('./screens/ProductionTask'));
 const FabricPurchasing = lazy(() => import('./screens/FabricPurchasing'));
 const Warehouse = lazy(() => import('./screens/Warehouse'));
 const Subcontracting = lazy(() => import('./screens/Subcontracting'));
 const Experimental = lazy(() => import('./screens/Experimental'));
+const DeptLoad = lazy(() => import('./screens/DeptLoad'));
 
 /**
  * Кей по orderId → свежий инстанс карточки на каждый заказ: при переходе A→B страница
@@ -27,12 +32,18 @@ function OrderCardRoute() {
   return <OrderCard key={orderId} />;
 }
 
+/** То же для задания: переход A→B ремонтирует страницу, без мигания прошлых данных */
+function ProductionTaskRoute() {
+  const { stageId } = useParams();
+  return <ProductionTask key={stageId} />;
+}
+
 /** Инлайн-панель «нет доступа» — без redirect, чтобы избежать гонки с загрузкой роли */
 function ErpGuard({ allowed, children }) {
   if (!allowed) {
     return (
       <div className={styles.noAccess}>
-        <div className={styles.stubIcon} aria-hidden="true">🔒</div>
+        <div className={styles.stubIcon} aria-hidden="true"><Icon name="ban" size={34} /></div>
         <div>Нет доступа к этому разделу</div>
       </div>
     );
@@ -41,17 +52,31 @@ function ErpGuard({ allowed, children }) {
 }
 
 export default function ErpApp({ user }) {
+  const { pathname } = useLocation();
   const isAdmin = ['admin', 'director'].includes(user?.role);
 
   return (
     <ErpLayout user={user}>
-      <Suspense fallback={<ScreenSkeleton />}>
-        <Routes>
+      {/* key={pathname}: падение одного экрана не роняет всю оболочку, а уход
+          в другой раздел пересоздаёт границу — экран восстанавливается сам. */}
+      <ErrorBoundary
+        key={pathname}
+        fallback={(error, reset) => (
+          <LoadFailed what={`экран (${error?.message || 'непредвиденная ошибка'})`} onRetry={reset} />
+        )}
+      >
+        <Suspense fallback={<ScreenSkeleton />}>
+          <Routes>
           <Route path="/" element={<ErpDashboard />} />
-          <Route path="/orders" element={<OrdersScreen user={user} />} />
+          <Route path="/orders" element={<OrdersScreen />} />
           <Route path="/orders/:orderId" element={<OrderCardRoute />} />
+          <Route path="/load" element={<DeptLoad />} />
           <Route path="/board" element={<ProductionBoard />} />
+          {/* /queue — «Мой цех» (автопривязка), /queue/:deptCode — очередь конкретного участка */}
           <Route path="/queue" element={<DepartmentQueue />} />
+          <Route path="/queue/:deptCode" element={<DepartmentQueue />} />
+          {/* Страница производственного задания (правка 5); key — свежий инстанс на задание */}
+          <Route path="/task/:stageId" element={<ProductionTaskRoute />} />
           <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
@@ -60,8 +85,9 @@ export default function ErpApp({ user }) {
           <Route path="/subcontracting" element={<ErpGuard allowed={isAdmin}><Subcontracting /></ErpGuard>} />
           <Route path="/experimental" element={<ErpGuard allowed={isAdmin}><Experimental /></ErpGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
       <OrderDrawerHost />
     </ErpLayout>
   );

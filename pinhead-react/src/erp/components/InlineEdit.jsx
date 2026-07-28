@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import styles from '../erp.module.css';
 
 /**
@@ -47,11 +48,13 @@ export default function InlineEdit({
         className={styles.inlineEditBtn}
         onClick={start}
         title={disabled ? undefined : 'Нажмите, чтобы изменить'}
-        aria-label={ariaLabel}
+        // aria-label перекрывает содержимое кнопки: со «Менеджер» скринридер
+        // озвучивал только подпись, без самого значения
+        aria-label={`${ariaLabel}: ${value ? format(value) : 'не указано'}`}
         disabled={disabled}
       >
         {value ? format(value) : <span className={styles.subText}>{placeholder}</span>}
-        {!disabled && <span className={styles.inlineEditPen} aria-hidden="true">✎</span>}
+        {!disabled && <span className={styles.inlineEditPen}><Icon name="pencil" size={13} /></span>}
       </button>
     );
   }
@@ -60,16 +63,18 @@ export default function InlineEdit({
     <input
       ref={inputRef}
       type={type}
-      className={styles.input}
-      style={{ minHeight: 30, padding: '3px 8px', font: 'inherit', maxWidth: 200 }}
+      className={`${styles.input} ${styles.inputXs}`}
       value={draft}
       disabled={saving}
       aria-label={ariaLabel}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') setEditing(false);
+        // Гасим события: контейнер карточки слушает Escape через useFocusTrap и
+        // закрывал бы всю панель вместо отмены правки одного поля. Enter — чтобы
+        // не всплыл до формы и не отправил её.
+        if (e.key === 'Enter') { e.stopPropagation(); commit(); }
+        if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
       }}
     />
   );

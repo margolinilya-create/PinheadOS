@@ -1,11 +1,19 @@
 import { useMemo } from 'react';
 import { isStageReady, isStageAwaitingProcurement } from '../../utils/routes';
+import { stageMissingTz } from '../../utils/tz';
 import { deptShortName } from '../../data/departments';
 import { STAGE_STATUS_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import { StageIndicator } from '../../components/StageIndicator';
 import { fmtTs } from './format';
 
-/** Тонкая лента этапов позиции (паттерн kontora24 OrderStepper) */
+/**
+ * Тонкая лента этапов позиции (паттерн kontora24 OrderStepper).
+ *
+ * Здесь только предметная логика — «в каком состоянии этап на самом деле»:
+ * ожидающий этап показывается готовым, если по факту готов (материалы пришли,
+ * закупка закрыта, ТЗ назначено). Рисование отдано `StageIndicator`, общему
+ * на все три вида индикаторов ERP.
+ */
 export function StageStepper({ item, order, deptById, events }) {
   const lastEventByStage = useMemo(() => {
     const m = new Map();
@@ -15,41 +23,33 @@ export function StageStepper({ item, order, deptById, events }) {
     return m;
   }, [events]);
 
-  return (
-    <div className={styles.stepper} role="list" aria-label="Лента этапов">
-      {item.stages.map((st, i) => {
-        const dept = deptById.get(st.department_id);
-        const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
-        const effReady = st.status === 'waiting' &&
-          isStageReady(st, item.stages, order.materials, dept?.code, awaitProc);
-        const display = effReady ? 'ready' : st.status;
-        const ev = lastEventByStage.get(st.id);
-        const tooltip = [
-          dept?.name,
-          STAGE_STATUS_LABELS[display],
-          st.finished_at && `завершён ${fmtTs(st.finished_at)}`,
-          ev?.actor && `последний: ${ev.actor}`,
-        ].filter(Boolean).join(' · ');
-        const dotCls = [
-          styles.stepperDot,
-          display === 'done' && styles.stepperDotDone,
-          (display === 'in_progress' || display === 'ready') && styles.stepperDotActive,
-          display === 'blocked' && styles.stepperDotBlocked,
-        ].filter(Boolean).join(' ');
-        return (
-          <span key={st.id} className={styles.stepperItem} role="listitem">
-            {i > 0 && (
-              <span className={`${styles.stepperLine} ${st.status === 'done' ? styles.stepperLineDone : ''}`} />
-            )}
-            <span className={dotCls} title={tooltip} aria-label={tooltip}>
-              {display === 'done' ? '✓' : i + 1}
-            </span>
-            <span className={styles.stepperLabel}>
-              {dept ? deptShortName(dept.code, dept.name) : '?'}
-            </span>
-          </span>
-        );
-      })}
-    </div>
-  );
+  const nodes = item.stages.map((st) => {
+    const dept = deptById.get(st.department_id);
+    const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
+    const effReady = st.status === 'waiting'
+      && isStageReady(st, item.stages, order.materials, dept?.code, awaitProc,
+        stageMissingTz(order, item.id, st.department_id, dept));
+    const display = effReady ? 'ready' : st.status;
+    const ev = lastEventByStage.get(st.id);
+    let state;
+    if (display === 'done') state = 'done';
+    else if (display === 'in_progress' || display === 'ready') state = 'active';
+    else if (display === 'blocked') state = 'blocked';
+    return {
+      key: st.id,
+      label: dept ? deptShortName(dept.code, dept.name) : '?',
+      state,
+      // Соединитель красится по фактическому статусу этапа, а не по вычисленному:
+      // «готов» — это ещё не пройденный участок пути
+      lineDone: st.status === 'done',
+      title: [
+        dept?.name,
+        STAGE_STATUS_LABELS[display],
+        st.finished_at && `завершён ${fmtTs(st.finished_at)}`,
+        ev?.actor && `последний: ${ev.actor}`,
+      ].filter(Boolean).join(' · '),
+    };
+  });
+
+  return <StageIndicator variant="dots" nodes={nodes} label="Лента этапов" />;
 }

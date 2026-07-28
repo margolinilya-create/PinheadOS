@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Icon } from '../../components/Icon';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS, PROCUREMENT_STATUS_LABELS } from '../../types';
@@ -17,7 +18,7 @@ export function NotificationsSection({ order, stageById, deptById }) {
   return (
     <section className={`${styles.matSection} ${styles.queueCardUrgent}`}>
       <div className={styles.matSectionHead}>
-        <strong>🔔 Требуют внимания ({open.length})</strong>
+        <strong><Icon name="bell" size={15} /> Требуют внимания ({open.length})</strong>
         <Link to="/purchasing" className="btn btn-secondary">→ Закупка</Link>
       </div>
       <ul className={styles.tzMatList}>

@@ -91,7 +91,25 @@ supabase/
 └── migrations/              # SQL-миграции (Supabase CLI)
 ```
 
-## Роутинг (App.jsx)
+## Роутинг
+
+`App.jsx` выбирает оболочку по флагу `orderStudio` (`src/config/features.ts`):
+по умолчанию **ErpApp** (Производство), с флагом — **OrderStudioApp** (ТЗ).
+Переключатель — в шапке обоих разделов (admin/director).
+
+### 🏭 Производство — `src/erp/ErpApp.jsx`
+
+| Путь | Компонент | Доступ |
+|---|---|---|
+| `/` | ErpDashboard (обзор производства) | Все |
+| `/orders`, `/orders/:orderId` | OrdersScreen, OrderCard | Все |
+| `/board` | ProductionBoard (таблица + канбан цехов) | Все |
+| `/queue`, `/queue/:deptCode` | DepartmentQueue (очередь участка) | Все |
+| `/task/:stageId` | ProductionTask (производственное задание) | Все |
+| `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
+| `/admin` | AdminScreen (пользователи, права, цеха, справочники, заказы ТЗ) | admin, director |
+
+### ✏️ ТЗ (Order Studio) — за флагом `orderStudio`
 
 | Путь | Компонент | Доступ |
 |---|---|---|
@@ -131,10 +149,24 @@ admin, director, manager, rop, designer, production
 | `app_config` | SKU (sku_catalog), цены (prices), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog) |
 | `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog) |
 
+**ERP (префикс `erp_*`, проект pinhead-os-v2)** — полная схема в
+`pinhead-react/src/erp/types.ts` (зеркало таблиц) и в `supabase/migrations/`.
+Ядро: `erp_departments` · `erp_orders` (+ `customer`) · `erp_order_items` ·
+`erp_item_stages` (граф `depends_on`, `queue_position` — приоритет в очереди цеха,
+`assignee` — исполнитель) · `erp_materials`. Сопровождение: `erp_item_prints`,
+`erp_stage_events` (история этапов), `erp_order_audit`/`_comments`/`_attachments`,
+`erp_procurement_tasks`, `erp_subcontracting`, `erp_warehouse_ops`/`_tasks`,
+`erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав),
+`erp_dictionaries` (справочники админки: причины блокировок, типы проблем, типы изделий,
+поставщики), `erp_material_suppliers` (варианты поставщиков на позицию закупки, ровно один
+`is_selected`), `erp_tz_documents`/`erp_tz_assignments` (ТЗ в PDF: версии внутри `group_id`,
+назначение цеху ссылается на группу).
+
 **Storage:**
 | Bucket | Назначение |
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
+| `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
 
 Статусы заказа: draft → review → approved → production → done
 
@@ -165,11 +197,40 @@ admin, director, manager, rop, designer, production
 - Не добавлять npm-зависимости без обсуждения
 - Не `!important` в CSS
 - Supabase ключи строго из `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+- RLS: политика пишется НА КОМАНДУ (`for select/insert/update/delete`), а не `for all`
+  рядом с отдельной `select` — иначе Postgres проверяет обе на каждый SELECT
+  (advisor `multiple_permissive_policies`). `auth.uid()`/`auth.role()` в предикате
+  оборачивать в `(select …)` — иначе вызов идёт на каждую строку (`auth_rls_initplan`)
+- `is_admin()`, `erp_is_manager()`, `erp_is_member()` вызываемы через REST, и advisor
+  на это ругается — **так и оставляем**: выражения RLS исполняются от лица вызывающего,
+  и отзыв `EXECUTE` сломает сами политики. Утечки нет: функции без аргументов и
+  возвращают булево о самом вызывающем. Не «чинить»
 - При logout вызывать `storageClearAll()` — чистит все app-ключи
 - Удаление пользователя: soft-delete (active=false), не hard delete
 - Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)
 - Dev-mode created_by: фильтровать 'dev' → null (и в saveOrder, и в duplicateOrder)
 - deleteSkuPhotoByUrl: проверять результат, показывать toast.error при ошибке
+- ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
+  кнопки этапа — через `useStagePermissions` (у каждого действия своё право);
+  приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
+  с подтверждением последствий; прогресс считается в штуках (`erp/utils/progress`)
+- ERP: финальный ОТК (`qc`) — последний этап производственного маршрута, зависит от
+  ВСЕХ терминальных этапов (нанесение на готовом = параллельные ветки); маршрут без
+  производственных этапов ОТК не получает. Галочка «Финальный ОТК» живёт только
+  в форме — этапы материализуются при создании заказа
+- ERP: боковая карточка заказа ведётся в адресе (`?order=`) — открытие пушит запись
+  истории, закрытие снимает её же, «Назад» и ✕ совпадают
+- ERP, необратимое действие этапа: последствия считает чистая утилита с тестами и
+  формулирует их текстом — `utils/stageDone` (закрытие с недосдачей),
+  `utils/stageDefect` (возврат брака через промежуточные этапы). Записывать факт
+  «по умолчанию весь тираж» / молча откатывать маршрут нельзя
+- Справочники ERP (`erp_dictionaries`) — подсказка, а не ограничение; значения отключаются,
+  а не удаляются. Статусы в справочник не выносятся — они часть маршрутной логики
+- ТЗ в PDF: назначение цеху хранит `group_id`, а не версию — замена файла обновляет ТЗ
+  у всех связанных цехов сама. Гейт (`utils/tz`) требует ТЗ только у производственных
+  цехов и только при `tz_required === true` (fail-open: остановка цеха не должна
+  случаться из-за отсутствующего поля). Заказ с ТЗ создаётся одной транзакцией:
+  файлы в бакет → `erp_create_order` с секцией `tz`
 
 ## Документация
 
@@ -183,6 +244,7 @@ admin, director, manager, rop, designer, production
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 | `docs/2026-04-10-design-audit.md` | 5-агентный аудит UI/UX |
+| `docs/2026-07-27-skills-audit.md` | Аудит по чек-листам скилов: 16 находок + план работ |
 
 ## Команды
 

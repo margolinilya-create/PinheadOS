@@ -1,5 +1,6 @@
 /**
- * Слайс этапов: смена статуса, частичная готовность, брак/переделка, план дат.
+ * Слайс этапов: смена статуса, частичная готовность, брак/переделка, план дат,
+ * приоритет в очереди цеха и перенос задания между цехами (волна 1).
  * Вынесен из useErpStore.ts (рефакторинг по плану аудита).
  * reportDefect зовёт get().createProcurementTask (procurementSlice) при needsMaterial.
  */
@@ -7,9 +8,18 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
+import { deptShortName } from '../../data/departments';
 import type { ErpItemStage, ErpStageEvent } from '../../types';
+import {
+  defaultQueuePosition,
+  nextQueuePosition,
+  renumberedQueue,
+  reorderIds,
+} from '../../utils/queueOrder';
+import { analyzeStageMove } from '../../utils/stageMove';
+import { orderTzDocuments, tzAssignmentFor } from '../../utils/tz';
 import { logStageEvent, withPending } from '../shared';
-import { findStage, patchStageIn } from '../orderHelpers';
+import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
 
 export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, get) => ({
@@ -247,6 +257,19 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return true;
   },
 
+  findOrderIdByStage: async (stageId) => {
+    // Диплинк на /task/:stageId: заказа может не быть в сторе (архив, чужой цех).
+    // Одним запросом добираемся до order_id, дальше страницу дотягивает loadOne.
+    const { data, error } = await supabase
+      .from('erp_item_stages')
+      .select('item:erp_order_items (order_id)')
+      .eq('id', stageId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const item = (data as { item?: { order_id?: string } | null }).item;
+    return item?.order_id ?? null;
+  },
+
   loadStageReworkEvents: async (stageIds) => {
     if (stageIds.length === 0) return {};
     const { data, error } = await supabase
@@ -274,6 +297,201 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       toast.error('Не удалось сохранить комментарий просрочки');
       return false;
     }
+    return true;
+  },
+
+  reorderStageQueue: async (stageId, prevStageId, nextStageId) => {
+    const prevOrders = get().orders;
+    const found = findStage(prevOrders, stageId);
+    if (!found) return false;
+    const { stage, order } = found;
+    const deptName = (() => {
+      const d = get().departments.find((x) => x.id === stage.department_id);
+      return d ? deptShortName(d.code, d.name) : 'цех';
+    })();
+
+    const posOf = (id: string | null) =>
+      (id ? findStage(prevOrders, id)?.stage.queue_position ?? null : null);
+    const pos = nextQueuePosition(posOf(prevStageId), posOf(nextStageId));
+
+    // Обычный путь — переезжает одна строка: позиция вычислена серединой между соседями.
+    // Редкий путь (pos === null): соседи слиплись по точности double — перенумеровываем
+    // очередь цеха целиком, иначе вставить между ними уже нечего.
+    const writes: { id: string; queue_position: number }[] = pos !== null
+      ? [{ id: stageId, queue_position: pos }]
+      : renumberedQueue(
+          reorderIds(
+            stagesInDept(prevOrders, stage.department_id).map((r) => r.stage.id),
+            stageId,
+            prevStageId,
+            nextStageId,
+          ),
+        );
+
+    // optimistic с rollback
+    let next = prevOrders;
+    for (const w of writes) next = patchStageIn(next, w.id, { queue_position: w.queue_position });
+    set({ orders: next });
+
+    const results = await Promise.all(
+      writes.map((w) =>
+        withPending(`stage:${w.id}`, () =>
+          supabase
+            .from('erp_item_stages')
+            .update({ queue_position: w.queue_position })
+            .eq('id', w.id))),
+    );
+    if (results.some((r) => r.error)) {
+      set({ orders: prevOrders });
+      toast.error('Не удалось сохранить приоритет');
+      return false;
+    }
+
+    // История: кто, когда и куда переместил (правка 3)
+    const prevTitle = prevStageId ? findStage(prevOrders, prevStageId)?.order.title : null;
+    logStageEvent({
+      stage_id: stageId,
+      order_id: order.id,
+      from_status: stage.status,
+      to_status: stage.status,
+      qty_done: null,
+      qty_rework: null,
+      comment: `Приоритет в очереди «${deptName}»: ${
+        prevTitle ? `после «${prevTitle}»` : 'в начало очереди'}`,
+    });
+    return true;
+  },
+
+  moveStageToDepartment: async (stageId, targetDeptId, opts = {}) => {
+    const prevOrders = get().orders;
+    const found = findStage(prevOrders, stageId);
+    if (!found) return false;
+    const { stage, item, order } = found;
+
+    const departments = get().departments;
+    const targetDept = departments.find((d) => d.id === targetDeptId);
+    if (!targetDept) return false;
+    const sourceDept = departments.find((d) => d.id === stage.department_id);
+    const deptNameById = new Map(
+      departments.map((d) => [d.id, deptShortName(d.code, d.name)] as const),
+    );
+
+    const plan = analyzeStageMove({
+      stage,
+      item,
+      targetDeptId,
+      targetDeptName: targetDept.name,
+      deptNameById,
+    });
+    if (!plan.allowed) {
+      toast.error(plan.issues[0]?.text || 'Перенос невозможен');
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const sourceName = sourceDept ? deptShortName(sourceDept.code, sourceDept.name) : 'цех';
+    const targetName = deptShortName(targetDept.code, targetDept.name);
+    const comment = opts.comment?.trim() || null;
+    const moveNote = `Перенос: ${sourceName} → ${targetName}${comment ? `. ${comment}` : ''}`;
+
+    // Текущий этап закрывается — заказчик просил не помечать его завершённым молча,
+    // предупреждение показывает UI (moveConfirmMessage) до вызова.
+    const sourcePatch: Partial<ErpItemStage> = {
+      status: 'done',
+      qty_done: item.qty,
+      finished_at: now,
+    };
+    const targetPatch: Partial<ErpItemStage> = {
+      status: 'in_progress',
+      started_at: now,
+      finished_at: null,
+      queue_position: plan.targetStage?.queue_position
+        ?? defaultQueuePosition(order.due_date),
+    };
+
+    set((s) => ({ orders: patchStageIn(s.orders, stageId, sourcePatch) }));
+    const sourceRes = await withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(sourcePatch).eq('id', stageId));
+    if (sourceRes.error) {
+      set({ orders: prevOrders });
+      toast.error('Не удалось перенести задание');
+      return false;
+    }
+
+    if (plan.targetStage) {
+      const targetId = plan.targetStage.id;
+      set((s) => ({ orders: patchStageIn(s.orders, targetId, targetPatch) }));
+      const { error } = await withPending(`stage:${targetId}`, () =>
+        supabase.from('erp_item_stages').update(targetPatch).eq('id', targetId));
+      if (error) {
+        set({ orders: prevOrders });
+        toast.error('Не удалось открыть этап в новом цехе');
+        return false;
+      }
+      logStageEvent({
+        stage_id: targetId,
+        order_id: order.id,
+        from_status: plan.targetStage.status,
+        to_status: 'in_progress',
+        qty_done: null,
+        qty_rework: null,
+        comment: moveNote,
+      });
+    } else {
+      // Цеха нет в маршруте — добавляем этап (подтверждение спросили в UI).
+      // Не optimistic: id строки известен только из ответа Supabase.
+      const { data, error } = await supabase
+        .from('erp_item_stages')
+        .insert({
+          item_id: item.id,
+          department_id: targetDeptId,
+          sort_order: stage.sort_order + 5,
+          depends_on: [stage.id],
+          ...targetPatch,
+        })
+        .select();
+      const row = data?.[0] as ErpItemStage | undefined;
+      if (error || !row) {
+        set({ orders: prevOrders });
+        toast.error('Не удалось добавить этап в маршрут');
+        return false;
+      }
+      set((s) => ({ orders: addStageIn(s.orders, item.id, row) }));
+      logStageEvent({
+        stage_id: row.id,
+        order_id: order.id,
+        from_status: null,
+        to_status: 'in_progress',
+        qty_done: null,
+        qty_rework: null,
+        comment: `${moveNote} (этап добавлен в маршрут)`,
+      });
+      // Новому этапу ТЗ никто не назначал — наследуем документ исходного цеха
+      // (или общее ТЗ заказа). Иначе руководитель перетащил бы карточку и получил
+      // задание, намертво заблокированное гейтом «Не назначено ТЗ».
+      if (order.tz_required !== false) {
+        const inherited = tzAssignmentFor(order, item.id, stage.department_id)
+          ?? orderTzDocuments(order)[0];
+        if (inherited) {
+          await get().assignTz({
+            orderId: order.id,
+            itemId: item.id,
+            departmentId: targetDeptId,
+            groupId: inherited.group_id,
+          });
+        }
+      }
+    }
+
+    logStageEvent({
+      stage_id: stageId,
+      order_id: order.id,
+      from_status: stage.status,
+      to_status: 'done',
+      qty_done: item.qty,
+      qty_rework: null,
+      comment: moveNote,
+    });
     return true;
   },
 

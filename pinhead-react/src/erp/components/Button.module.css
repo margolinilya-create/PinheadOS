@@ -1,0 +1,97 @@
+/* Кнопка ERP. Заменяет глобальные .btn/.btn-* из Order Studio
+   (styles/forms-buttons.css): те — uppercase-«швейцарские», ERP нужна
+   обычная плотная кнопка. Высоты заданы явно, а тач-размер — своим
+   @media (pointer: coarse) внизу файла: правило ≥44px в проекте ведётся
+   списком классов, второй системы токенов высоты заводить не нужно. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ─── Варианты ─── */
+.primary {
+  background: var(--btn-primary-bg));
+  color: var(--btn-primary-fg);
+}
+.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg)); }
+.primary:active:not(:disabled) { background: var(--btn-primary-active-bg)); }
+
+.secondary {
+  background: var(--card);
+  border-color: var(--border-mid);
+  color: var(--text);
+}
+.secondary:hover:not(:disabled) { background: var(--surface); border-color: var(--text-muted); }
+
+.ghost {
+  background: transparent;
+  color: var(--text-mid);
+}
+.ghost:hover:not(:disabled) { background: var(--surface); color: var(--text); }
+
+.danger {
+  background: var(--color-error);
+  color: #fff;
+}
+.danger:hover:not(:disabled) { filter: brightness(0.94); }
+
+/* ─── Размеры ─── */
+.sm { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.lg { min-height: 46px; padding: 0 18px; font-size: 14px; }
+
+/* Только иконка — квадрат по высоте размера */
+.iconOnly { padding: 0; width: 36px; }
+.iconOnly.sm { width: 30px; }
+.iconOnly.lg { width: 46px; }
+
+/* Растянуть на всю ширину контейнера (ряд действий в карточке цеха) */
+.block { width: 100%; }
+
+/* ─── Загрузка ─── */
+.spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btnSpin 640ms linear infinite;
+}
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+}
+
+/* Правило ≥44px на тач-экранах цехов (см. общий список в erp.module.css —
+   у отдельного CSS-модуля своя область, поэтому свой медиазапрос) */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .sm { min-height: 40px; }
+  .lg { min-height: 48px; }
+  .iconOnly { width: 44px; }
+  .iconOnly.sm { width: 40px; }
+  .iconOnly.lg { width: 48px; }
+}

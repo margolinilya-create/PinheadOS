@@ -7,7 +7,44 @@ description: Use when designing new modules, planning large features, or making 
 
 Принципы и паттерны для принятия архитектурных решений.
 
-## Текущая архитектура
+В приложении **два раздела**, и по умолчанию открывается ERP, а не визард.
+Начинай с того, в чей раздел попадает задача.
+
+## 🏭 Производство (ERP) — раздел по умолчанию, `src/erp/`
+
+```
+ErpApp (lazy-экраны)
+  └── useErpStore — composition-root, слайсы в store/slices/
+       ├── ordersSlice        — загрузка (активные / ленивый архив), создание через RPC
+       ├── stagesSlice        — статусы этапов, приоритет очереди, перенос между цехами
+       ├── materialsSlice     — материалы и варианты поставщиков
+       ├── procurement/warehouse/subcontracting/experimental — сопровождающие циклы
+       ├── permissionsSlice   — матрица «роль × право»
+       ├── dictionariesSlice  — справочники админки
+       ├── tzSlice            — ТЗ в PDF: версии и назначения цехам
+       └── realtimeSlice      — точечное применение postgres_changes
+
+  Чистая логика (тестируется отдельно, без React) — src/erp/utils/:
+       routes (маршрут и гейты) · queueEntries (группа и причина ожидания) ·
+       tz (версии и гейт ТЗ) · progress (штуки) · filterStages · queueOrder ·
+       stageMove · permissions
+
+Supabase (erp_*)
+  erp_orders → erp_order_items → erp_item_stages (позиция × цех, граф depends_on)
+  erp_departments (is_production — есть ли у участка очередь)
+  erp_materials (+ erp_material_suppliers) · erp_tz_documents/_assignments
+  erp_role_permissions · erp_dictionaries · erp_stage_events (история)
+```
+
+**Опорные правила ERP** (подробности — в `pinhead-react/CLAUDE.md`):
+- Права — только через `useErpAccess`, руками роли в компонентах не проверять.
+- Группа задания и причина ожидания считаются **одним** `buildQueueEntries`,
+  а не по месту в каждом экране.
+- Признаки участка (`is_production`) и справочники живут **в данных**, не в
+  константах: иначе то, что заводит директор в админке, не появится в коде.
+- Прогресс — в штуках (`utils/progress`), не в числе завершённых этапов.
+
+## ✏️ ТЗ (Order Studio) — за флагом `orderStudio`, `src/` (визард и каталоги)
 
 ```
 React 19 (UI)
@@ -38,9 +75,9 @@ Supabase (Backend)
 
 ```
 Новая область — новый файл:
-- useCommentsStore.js — (уже сделано)
-- useTemplatesStore.js — (уже сделано)
-- usePortalStore.js — для покупательского портала
+- useCommentsStore.ts — (уже сделано)
+- useTemplatesStore.ts — (уже сделано)
+- usePortalStore.ts — для покупательского портала
 ```
 
 ### 2. Supabase — всегда null при ошибке

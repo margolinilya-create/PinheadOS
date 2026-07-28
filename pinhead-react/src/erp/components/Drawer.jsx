@@ -1,5 +1,7 @@
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
+import { Icon } from './Icon';
 
 /**
  * Правая боковая панель деталей (редизайн). Монтируется родителем только когда открыта
@@ -26,13 +28,22 @@ export function Drawer({ onClose, title, subtitle, badge, tabs, activeTab, onTab
             <div className={styles.drawerTitle}>{title}</div>
             {subtitle && <div className={styles.subText}>{subtitle}</div>}
           </div>
-          <button type="button" className={styles.drawerClose} onClick={onClose} aria-label="Закрыть">✕</button>
+          <button type="button" className={styles.drawerClose} onClick={onClose} aria-label="Закрыть"><Icon name="x" size={16} /></button>
         </div>
         {tabs && tabs.length > 0 && (
-          <div className={styles.drawerTabs} role="tablist">
+          <div
+            className={styles.drawerTabs}
+            role="tablist"
+            aria-label="Разделы карточки заказа"
+            onKeyDown={onTabListKeyDown}
+          >
             {tabs.map((t) => (
               <button
-                key={t.key} type="button" role="tab" aria-selected={activeTab === t.key}
+                key={t.key} type="button" role="tab"
+                id={`drawer-tab-${t.key}`}
+                aria-controls="drawer-tabpanel"
+                aria-selected={activeTab === t.key}
+                tabIndex={activeTab === t.key ? 0 : -1}
                 className={`${styles.drawerTab} ${activeTab === t.key ? styles.drawerTabActive : ''}`}
                 onClick={() => onTab(t.key)}
               >
@@ -41,7 +52,17 @@ export function Drawer({ onClose, title, subtitle, badge, tabs, activeTab, onTab
             ))}
           </div>
         )}
-        <div className={styles.drawerBody}>{children}</div>
+        <div
+          className={styles.drawerBody}
+          {...(tabs && tabs.length > 0 ? {
+            id: 'drawer-tabpanel',
+            role: 'tabpanel',
+            'aria-labelledby': `drawer-tab-${activeTab}`,
+            tabIndex: -1,
+          } : {})}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -1,10 +1,11 @@
+import { Icon } from '../../components/Icon';
 import styles from '../../erp.module.css';
 
 /** Кнопка «прикрепить фото» (камера на планшете/телефоне) */
 export function PhotoAttach({ file, onFile, label }) {
   return (
     <label className={styles.fileBtn}>
-      <span aria-hidden="true">📷</span>
+      <Icon name="image" />
       <span className={styles.fileBtnText}>{file ? file.name : label}</span>
       <input
         type="file"

@@ -34,6 +34,9 @@ export function storageRemove(key: string): void {
 
 const APP_KEYS = [
   'pinhead_draft',
+  // Выбранный цех ERP: на общем цеховом планшете он переживал выход из системы,
+  // и следующий рабочий попадал в чужой цех, не заметив этого
+  'erp_my_dept',
   'ph_prices',
   'ph_cb_rate',
   'ph_extras',

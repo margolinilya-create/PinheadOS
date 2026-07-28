@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
@@ -12,10 +12,11 @@ import {
   STAGE_STATUS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
-export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
+function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -31,7 +32,21 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        <td>{order.bitrix_id || '—'}</td>
+        <td>
+          {/* aria-expanded был объявлен, а раскрыть строку с клавиатуры нельзя:
+              у <tr> нет tabIndex и обработчика клавиш. Кнопка в первой ячейке
+              делает жест доступным, не превращая всю строку в кнопку. */}
+          <button
+            type="button"
+            className={styles.rowToggle}
+            aria-expanded={open}
+            aria-label={`${open ? 'Свернуть' : 'Развернуть'} заказ ${order.title}`}
+            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          >
+            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
+          </button>
+          {order.bitrix_id || '—'}
+        </td>
         <td>
           <Link
             to={`/orders/${order.id}`}
@@ -39,7 +54,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
             className={styles.cellTitle}
             title={order.title}
           >
-            {order.title} ↗
+            {order.title} <Icon name="externalLink" size={12} />
           </Link>
           {order.notes && order.notes !== 'imported' && (
             <div className={styles.subText}>{order.notes}</div>
@@ -51,7 +66,9 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         <td><DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} /></td>
         <td>
           {ready ? (
-            <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>
+            <span className={`${styles.chip} ${styles.chipReady}`}>
+              <Icon name="checkCircle" size={13} /> Готов к отгрузке
+            </span>
           ) : (
             <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
               {ORDER_STATUS_LABELS[order.status]}
@@ -59,7 +76,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
           )}
           {hasOpenProcurement(order.procurement_tasks) && (
             <span className={`${styles.chip} ${styles.chipBlocked}`} title="Есть открытая задача дозакупки">
-              🔔 дозакупка
+              <Icon name="bell" size={13} /> дозакупка
             </span>
           )}
           {order.shipped_at && (
@@ -75,7 +92,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
               className={`btn btn-primary ${styles.shipBtn}`}
               onClick={() => onShip(order)}
             >
-              🚚 Отгрузить
+              <Icon name="truck" size={14} /> Отгрузить
             </button>
           )}
           {canDelete && (
@@ -85,7 +102,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
               aria-label={`Удалить заказ ${order.title}`}
               onClick={() => onDelete(order)}
             >
-              ✕
+              <Icon name="x" size={15} />
             </button>
           )}
         </td>
@@ -118,7 +135,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
                     const dd = deptById.get(st.department_id);
                     return dd ? deptShortName(dd.code, dd.name) : '?';
                   })()}
-                  {st.status === 'done' && ' ✓'}
+                  {st.status === 'done' && <Icon name="check" size={12} />}
                 </span>
               ))}
             </div>
@@ -128,3 +145,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
     </>
   );
 }
+
+/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
+    (канбан во время DnD, очередь цеха, таблица заказов). */
+export const OrderRow = memo(OrderRowBase);

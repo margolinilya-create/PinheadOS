@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
 import InlineEdit from '../components/InlineEdit';
+import { Icon } from '../components/Icon';
 import { formatDateShort } from '../utils/time';
 import {
   ORDER_STATUS_LABELS,
@@ -13,6 +15,8 @@ import {
 import styles from '../erp.module.css';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
+import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
+import { FilesSection } from './orderCard/FilesSection';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
@@ -25,16 +29,27 @@ import { useOrderDetail } from './orderCard/useOrderDetail';
 export default function OrderCard() {
   const { orderId } = useParams();
   const {
-    order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
+    order, notFound, loaded, loadError, loadAll,
+    events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
-    deptById, deptNameById, stageById,
+    deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
 
   if (notFound) {
     return (
       <>
         <PageHead title="Заказ не найден" />
-        <Link to="/orders" className="btn btn-secondary">← К списку заказов</Link>
+        <Link to="/orders" className={`btn btn-secondary ${styles.cellWithIcon}`}>
+          <Icon name="chevronLeft" size={14} />К списку заказов
+        </Link>
+      </>
+    );
+  }
+  if (loadError && !loaded) {
+    return (
+      <>
+        <PageHead title="Заказ" />
+        <LoadFailed onRetry={loadAll} what="заказ" />
       </>
     );
   }
@@ -43,10 +58,23 @@ export default function OrderCard() {
   return (
     <>
       <div className={styles.toolbar} style={{ marginBottom: 4 }}>
-        <Link to="/orders" className={styles.subText}>← Заказы</Link>
+        <Link to="/orders" className={`${styles.subText} ${styles.cellWithIcon}`}>
+          <Icon name="chevronLeft" size={13} />Заказы
+        </Link>
       </div>
       <PageHead title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`} />
       <div className={styles.toolbar} style={{ gap: 18, marginTop: -8 }}>
+        {/* Клиент собирается формой создания и правится в боковой карточке, но на
+            полной странице его не было вовсе — а именно её ссылку шлют коллегам */}
+        <span>
+          <span className={styles.subText}>Клиент: </span>
+          <InlineEdit
+            value={order.customer}
+            placeholder="добавить…"
+            ariaLabel="Клиент"
+            onSave={(v) => saveOrderField({ customer: v })}
+          />
+        </span>
         <span>
           <span className={styles.subText}>Менеджер: </span>
           <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
@@ -72,29 +100,43 @@ export default function OrderCard() {
         />
       )}
       {preview && previewError && (
-        <div className={styles.queueThumbStub} style={{ marginBottom: 10 }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось">🖼</div>
+        <div className={styles.queueThumbStub} style={{ marginBottom: 10 }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось"><Icon name="image" size={22} /></div>
       )}
       <div className={styles.toolbar}>
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{ORDER_STATUS_LABELS[order.status]}</span>
-        {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>}
+        {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}><Icon name="checkCircle" size={13} /> Готов к отгрузке</span>}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
-        {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}>🚚 Отгрузка — во вкладке «Склад»</span>}
+        {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}
         {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
         {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
         {order.packaging && order.packaging !== 'none' && (
-          <span className={`${styles.chip} ${styles.chipNeutral}`}>📦 {PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</span>
+          <span className={`${styles.chip} ${styles.chipNeutral}`}><Icon name="box" size={13} /> {PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</span>
         )}
         {order.stickers && order.stickers !== 'none' && (
-          <span className={`${styles.chip} ${styles.chipNeutral}`}>🏷 Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</span>
+          <span className={`${styles.chip} ${styles.chipNeutral}`}><Icon name="tag" size={13} /> Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</span>
         )}
-        {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipDanger}`}>Без Честного знака</span>}
+        {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipWaiting}`}>Без Честного знака</span>}
       </div>
 
       <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
+      <TzMissingBanner order={order} departments={departments} />
 
       {order.items.map((item) => (
         <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
       ))}
+
+      <section className={styles.matSection}>
+        <div className={styles.matSectionHead}><strong>Технические задания (PDF)</strong></div>
+        {order.items.map((item) => (
+          <div key={item.id}>
+            <div className={styles.matSectionHead}>
+              <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
+              <span className={styles.queueQty}>{item.qty} шт</span>
+            </div>
+            <TzDocsSection order={order} item={item} deptById={deptById} />
+          </div>
+        ))}
+      </section>
 
       <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>Материалы</strong></div>
@@ -114,6 +156,8 @@ export default function OrderCard() {
           <div className={styles.subText}>Материалы не ожидаются.</div>
         )}
       </section>
+
+      <FilesSection attachments={order.attachments} />
 
       <CommentsSection comments={comments} onSend={onSendComment} />
 

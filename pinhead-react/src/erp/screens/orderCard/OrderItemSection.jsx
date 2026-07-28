@@ -1,4 +1,5 @@
 import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../../utils/routes';
+import { stageMissingTz } from '../../utils/tz';
 import { deptShortName } from '../../data/departments';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import {
@@ -6,6 +7,7 @@ import {
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
 } from '../../types';
+import { RouteProgress } from '../../components/RouteProgress';
 import styles from '../../erp.module.css';
 import { StageStepper } from './StageStepper';
 import { PlanCell } from './PlanCell';
@@ -23,7 +25,11 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
         </div>
         <span className={styles.queueQty}>{item.qty} шт</span>
       </div>
+      {/* Обзор маршрута — точками; штучный прогресс — одной строкой; подробности
+          по каждому этапу (план/факт/сделано) — в таблице ниже. Раньше одни и те же
+          цех и статус повторялись в трёх представлениях подряд на каждую позицию. */}
       <StageStepper item={item} order={order} deptById={deptById} events={events} />
+      <RouteProgress item={item} order={order} deptById={deptById} showStages={false} />
 
       {item.size_grid && item.size_grid.length > 0 && (
         <div className={styles.tableWrap} style={{ marginBottom: 10, maxWidth: 560 }}>
@@ -58,7 +64,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
       )}
 
       {(item.prints ?? []).length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+        <div className={`${styles.stackTight} ${styles.thumbStubBlock}`}>
           {[...item.prints].sort((a, b) => a.seq - b.seq).map((p) => (
             <div key={p.id} className={styles.printBlock}>
               <div className={styles.checkRow}>
@@ -93,11 +99,13 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
             {item.stages.map((st) => {
               const dept = deptById.get(st.department_id);
               const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
+              const noTz = stageMissingTz(order, item.id, st.department_id, dept);
               const effReady = st.status === 'waiting' &&
-                isStageReady(st, item.stages, order.materials, dept?.code, awaitProc);
+                isStageReady(st, item.stages, order.materials, dept?.code, awaitProc, noTz);
               const display = effReady ? 'ready' : st.status;
               const reason = display === 'waiting' || display === 'blocked'
-                ? waitingReason(st, item.stages, order.materials, deptNameById, dept?.code, awaitProc)
+                ? waitingReason(
+                    st, item.stages, order.materials, deptNameById, dept?.code, awaitProc, noTz)
                 : null;
               return (
                 <tr key={st.id}>

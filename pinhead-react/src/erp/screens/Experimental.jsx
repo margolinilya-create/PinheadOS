@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
-import { Pipeline } from '../components/Pipeline';
+import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
@@ -11,10 +12,10 @@ import { ExperimentalCard } from './experimental/ExperimentalCard';
 
 /** Пайплайн фаз разработки образца (счётчики) — верх экрана */
 const PIPE_PHASES = [
-  { key: 'patterns', label: 'Лекала', icon: '📐' },
-  { key: 'development', label: 'Проработка', icon: '🧵' },
-  { key: 'final_fitting', label: 'Примерка', icon: '👕' },
-  { key: 'done', label: 'Готов к серии', icon: '✅' },
+  { key: 'patterns', label: 'Лекала', icon: 'scissors' },
+  { key: 'development', label: 'Проработка', icon: 'flask' },
+  { key: 'final_fitting', label: 'Примерка', icon: 'shirt' },
+  { key: 'done', label: 'Готов к серии', icon: 'checkCircle' },
 ];
 
 /**
@@ -25,13 +26,14 @@ const PIPE_PHASES = [
 
 export default function Experimental() {
   const {
-    orders, loaded, loadAll,
+    orders, loaded, loadError, loadAll,
     experimental, experimentalLoaded, loadExperimental,
     createExperimental, updateExperimental, createExperimentalOp, completeExperimentalOp,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       experimental: s.experimental,
       experimentalLoaded: s.experimentalLoaded,
@@ -99,9 +101,10 @@ export default function Experimental() {
       />
 
       {experimentalLoaded && experimental.length > 0 && (
-        <Pipeline
-          stages={pipeStages}
-          aside={{ key: 'returned', label: 'Возврат конструктору', icon: '↩', count: returnedCount }}
+        <StageIndicator
+          variant="pipeline"
+          nodes={pipeStages}
+          aside={{ key: 'returned', label: 'Возврат конструктору', icon: 'undo', count: returnedCount }}
         />
       )}
 
@@ -117,8 +120,12 @@ export default function Experimental() {
         <button type="button" className="btn btn-primary" onClick={addExperimental}>+ Разработка</button>
       </div>
 
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="эксперим. разработки" />}
       {experimentalLoaded && experimental.length === 0 && (
         <div className={styles.emptyState}>Эксперим. разработок пока нет — добавьте заказ-образец выше.</div>
+      )}
+      {experimentalLoaded && experimental.length > 0 && rows.length === 0 && (
+        <EmptyResult query={query.trim()} onReset={() => setQuery('')} />
       )}
 
       {rows.map((exp) => (

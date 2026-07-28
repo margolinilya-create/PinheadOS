@@ -26,7 +26,6 @@
   --text: #111827;
   --text-mid: #4B5563;
   --text-dim: #6B7280;
-  --text-muted: #9CA3AF;
   --color-success: #10A34A;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
@@ -39,6 +38,21 @@
   --bg-info: #EFF6FF;
   --bg-violet: #F5F3FF;
   --bg-cyan: #ECFEFF;
+  /* Текст статусов на своей подложке. Красить текст тем же --color-*, что и заливку,
+     нельзя: в светлой теме «ожидает» давало 2.02:1, «готов» 3.13:1, «просрочен»
+     3.76:1 при норме 4.5:1 для 11.5px. Цвет статуса — единственный быстрый сигнал
+     для цеха, и на планшете под цеховым светом он читался как серый шум.
+     --color-* остаётся для заливок, рамок и точек, --color-*-ink — для текста. */
+  --color-success-ink: #067647;
+  --color-warning-ink: #B45309;
+  --color-error-ink:   #B42318;
+  --color-info-ink:    #1D4ED8;
+  --color-violet-ink:  #6D28D9;
+  --color-cyan-ink:    #0E7490;
+  /* Был не переопределён и подтягивался чёрным (#0A0A0A) из index.css — 29 мест
+     рисовали чёрную рамку рядом с карточками редизайна на светло-серой */
+  --border: #E5E7EB;
+  --text-muted: #6B7280;
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
 }
 :global(html[data-theme='dark']) .shell {
@@ -57,7 +71,6 @@
   --text: #E8EAED;
   --text-mid: #A9B0BD;
   --text-dim: #8A93A3;
-  --text-muted: #6B7385;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #F87171;
@@ -70,11 +83,22 @@
   --bg-info: #12233F;
   --bg-violet: #211B3A;
   --bg-cyan: #0C2A30;
+  /* Тёмная тема по контрасту изначально лучше светлой (7.33:1 против 2.02:1),
+     поэтому чернила почти везде совпадают с --color-*. Исключение — синий:
+     #3B82F6 на #12233F даёт 4.27:1, чуть ниже нормы. */
+  --color-success-ink: #22C55E;
+  --color-warning-ink: #F59E0B;
+  --color-error-ink:   #F87171;
+  --color-info-ink:    #60A5FA;
+  --color-violet-ink:  #A78BFA;
+  --color-cyan-ink:    #22D3EE;
+  --border: #242B39;
+  --text-muted: #9AA3B3;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .shell {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   overflow: hidden;
   background: var(--bg);
@@ -88,7 +112,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
 }
 
 /* ─── Header ─── */
@@ -116,9 +140,15 @@
   color: var(--text-dim);
   font-size: 13px;
 }
+.headerSearch:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 .headerSearch input {
   border: none;
   background: none;
+  /* outline снят у самого input — рамку рисует обёртка (см. :focus-within ниже),
+     иначе первый по Tab элемент шапки просто терял видимый фокус */
   outline: none;
   flex: 1;
   min-width: 0;
@@ -185,10 +215,11 @@
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   transition: width 160ms ease;
 }
 .sidebarCollapsed { width: 64px; }
+/* Логотип — ссылка на главную ERP (правка 13): кликабелен весь блок, не только буква */
 .sidebarBrand {
   display: flex;
   align-items: center;
@@ -198,6 +229,15 @@
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-light);
   color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.sidebarBrand:hover { background: var(--surface); }
+.sidebarBrand:hover .sidebarLogo { background: var(--accent-hover); }
+.sidebarBrand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .sidebarLogo {
   width: 28px;
@@ -205,6 +245,7 @@
   flex-shrink: 0;
   border-radius: 8px;
   background: var(--accent);
+  transition: background 120ms ease;
   color: #fff;
   display: flex;
   align-items: center;
@@ -228,13 +269,15 @@
   padding: 8px;
   scrollbar-width: thin;
 }
+/* Заголовки групп меню («ЦЕХА», «ОПЕРАЦИИ»): было 10px цветом --text-muted,
+   то есть 2.5:1 при кегле меньше собственного минимума */
 .navGroup {
   padding: 14px 12px 4px;
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 600;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -260,8 +303,9 @@
 .navIcon {
   width: 20px;
   flex-shrink: 0;
-  text-align: center;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .navLabel { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .navBadge {
@@ -307,11 +351,26 @@
 .sidebarCollapsed .sidebarBrandText,
 .sidebarCollapsed .navGroup,
 .sidebarCollapsed .navLabel,
-.sidebarCollapsed .navBadge,
 .sidebarCollapsed .collapseLabel { display: none; }
 .sidebarCollapsed .navLink,
 .sidebarCollapsed .collapseBtn { justify-content: center; gap: 0; padding: 0; }
 .sidebarCollapsed .sidebarBrand { justify-content: center; padding: 0; }
+/* Счётчик заданий переживает сворачивание точкой поверх иконки: меню цехов
+   существует ради ответа «сколько где работы», а на планшете сайдбар свёрнут
+   по умолчанию — раньше он превращался в столбик эмодзи без единой цифры */
+.sidebarCollapsed .navLink { position: relative; }
+.sidebarCollapsed .navBadge {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 999px;
+}
 
 .main {
   flex: 1;
@@ -330,7 +389,7 @@
   letter-spacing: 0.02em;
   margin: 0;
 }
-.pageSub { color: var(--text-dim); margin-top: 4px; font-size: var(--type-body-sm, 13px); }
+.pageSub { color: var(--text-dim); margin-top: 4px; font-size: var(--type-body-sm); }
 
 /* ─── Карточки цехов ─── */
 .cardGrid {
@@ -340,43 +399,27 @@
 }
 .card {
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px 16px;
   transition: border-color 150ms ease-out;
 }
 .card:hover { border-color: var(--border-mid); }
-.cardName {
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.cardMeta { color: var(--text-dim); font-size: 12px; }
-.cardMetric { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
-.badge {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  padding: 2px 8px;
-  background: var(--accent-light);
-  color: var(--accent);
-  border-radius: 999px;
-  text-transform: uppercase;
-}
 
 /* ─── Заглушки ─── */
-.stub, .noAccess {
+/* Пустое состояние — базовый примитив: пунктирная рамка, центр, приглушённый текст */
+.emptyState {
   border: 1px dashed var(--border);
-  border-radius: var(--radius-md, 10px);
-  padding: 48px 24px;
+  border-radius: var(--radius-md);
+  padding: 46px 20px;
   text-align: center;
   color: var(--text-dim);
+}
+
+/* Заглушка раздела — тот же примитив, что .emptyState (различались 2px паддинга) */
+.stub, .noAccess {
+  composes: emptyState;
+  padding: 48px 24px;
 }
 .stubIcon { font-size: 34px; margin-bottom: 10px; }
 .stubPhase {
@@ -396,13 +439,13 @@
 .tableWrap {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
 }
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
 }
 .table th {
   text-align: left;
@@ -422,11 +465,64 @@
   border-bottom: 1px solid var(--border-light);
   vertical-align: top;
 }
+
+/* Подпись под полем даты: однозначное эхо выбранного значения (формат самого
+   нативного поля задаёт локаль браузера и может быть mm/dd/yyyy) + пресеты сроков */
+/* inline-flex, а не flex: в колоночном .field это отдельная строка под полем,
+   а в плотных однострочных формах (подряд, эксперим. цех) — рядом с полем */
+.dateHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: var(--type-label);
+}
+.dateEcho { color: var(--text-dim); font-family: 'Roboto Mono', monospace; }
+.dateFormatHint { color: var(--text-muted); }
+.datePresets { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* Сортируемый заголовок: кнопка внутри th, чтобы работали фокус и Enter/Space.
+   Наследует типографику th целиком — иначе внутри появляется второй кегль. */
+.thSortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: left;
+}
+.thSortBtn:hover { color: var(--text); }
+.thSorted { color: var(--text); }
+/* Стрелка неактивной колонки бледная, но видимая: без неё о сортировке не догадаться */
+.thSortArrow { opacity: 0.45; font-size: 11px; }
+.thSorted .thSortArrow { opacity: 1; color: var(--accent); }
 .table tr:last-child td { border-bottom: none; }
 .rowClickable { cursor: pointer; }
 .rowClickable:hover td { background: var(--surface); }
 
-/* ─── Статус-чипы ─── */
+/* ─── Статус-чипы ───
+   11.5px — осознанное исключение из правила «мелкий текст ≥12px»: это не текст
+   для чтения, а пилюля-метка рядом со своим объектом, и она набрана 600-м весом
+   на цветной подложке с контрастом ≥4.5 (--color-*-ink). Поднимать её кегль
+   значит переверстать плотные строки очереди и таблицы плана. */
+/* Компактное поле инлайн-правок: раньше это был инлайн-стиль minHeight: 30/32,
+   который перебивал @media (pointer: coarse) и оставлял поля 30px на планшете */
+.inputXs {
+  min-height: 30px;
+  padding: 3px 8px;
+  font: inherit;
+  max-width: 200px;
+}
+.inputXsDate { max-width: 150px; padding: 2px 6px; }
+
 .chip {
   display: inline-flex;
   align-items: center;
@@ -440,57 +536,26 @@
   line-height: 1.5;
 }
 /* Семантика статусов по макету: ожидает — амбер, в работе — синий, готово — зелёный */
-.chipWaiting  { background: var(--bg-warning); color: var(--color-warning); }
-.chipReady    { background: var(--bg-success); color: var(--color-success); }
-.chipProgress { background: var(--bg-info); color: var(--color-info); }
-.chipInfo     { background: var(--bg-info); color: var(--color-info); }
-.chipDone     { background: var(--bg-success); color: var(--color-success); }
-.chipBlocked  { background: var(--bg-error); color: var(--color-error); }
-.chipSkipped  { background: transparent; color: var(--text-muted); text-decoration: line-through; }
+/* Чип-кнопка. Раньше на каждой кнопке висел инлайн `font: inherit` — шорткат,
+   который сбрасывал font-size и font-weight самого .chip, и фильтр-чипы
+   типографически не совпадали со статус-чипами рядом. */
+.chipBtn {
+  appearance: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.chipWaiting  { background: var(--bg-warning); color: var(--color-warning-ink); }
+.chipReady    { background: var(--bg-success); color: var(--color-success-ink); }
+.chipProgress { background: var(--bg-info); color: var(--color-info-ink); }
+.chipInfo     { background: var(--bg-info); color: var(--color-info-ink); }
+.chipDone     { background: var(--bg-success); color: var(--color-success-ink); }
+.chipBlocked  { background: var(--bg-error); color: var(--color-error-ink); }
+.chipSkipped  { background: transparent; color: var(--text-dim); text-decoration: line-through; }
 .chipNeutral  { background: var(--surface); color: var(--text-mid); }
-.chipDanger   { background: var(--bg-error); color: var(--color-error); }
-.chipViolet   { background: var(--bg-violet); color: var(--color-violet); }
-.chipCyan     { background: var(--bg-cyan); color: var(--color-cyan); }
-
-/* ─── KPI ─── */
-.kpiGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
-}
-.kpiTile {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
-  background: var(--card);
-  padding: 16px 18px 14px;
-  text-decoration: none;
-  color: inherit;
-  display: block;
-  transition: border-color 150ms ease-out;
-}
-a.kpiTile:hover { border-color: var(--accent); }
-.kpiValue {
-  font-family: var(--mono);
-  font-weight: 500;
-  font-size: 34px;
-  line-height: 1.05;
-}
-.kpiLabel {
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--text-dim);
-  margin-top: 4px;
-}
-.kpiWarn { border-color: var(--color-warning); }
-.kpiWarn .kpiValue { color: var(--color-warning); }
-.kpiDanger { border-color: var(--color-error); }
-.kpiDanger .kpiValue { color: var(--color-error); }
-.kpiOk { border-color: var(--color-success); }
-.kpiOk .kpiValue { color: var(--color-success); }
+.chipDanger   { background: var(--bg-error); color: var(--color-error-ink); }
+.chipViolet   { background: var(--bg-violet); color: var(--color-violet-ink); }
+.chipCyan     { background: var(--bg-cyan); color: var(--color-cyan-ink); }
 
 /* Кнопка «Отгрузить» (строка/карточка заказа) */
 .shipBtn { white-space: nowrap; align-self: flex-start; }
@@ -499,44 +564,50 @@ a.kpiTile:hover { border-color: var(--accent); }
 .formGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-sm, 10px);
+  gap: var(--space-sm);
 }
 .field { display: flex; flex-direction: column; gap: 4px; }
+/* Ярлык поля — 49 употреблений, самый частый мелкий текст формы. 10px нарушали
+   собственное правило ≥12px; letter-spacing уменьшен под больший кегль. */
 .fieldLabel {
   font-family: 'Inter', sans-serif;
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.8px;
   color: var(--text-dim);
 }
 .input, .select {
   padding: 9px 11px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text);
   font: inherit;
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
   min-width: 0;
   min-height: 40px;
 }
 .input:focus, .select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
+/* Жёсткие 7 колонок ломались на подряде: та же grid-строка получала 9-12 детей
+   (фрагменты DOM-узла не создают), и свободный ввод «Операция подрядчика» сжимался
+   до 32px — колонки кнопки ✕, которая при этом уезжала во второй ряд.
+   auto-fit переносит поля сами, как в .formGrid. */
 .itemRow {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 70px 1.1fr 1.4fr 0.9fr 32px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   align-items: end;
   padding: 12px;
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 .checkRow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .checkLabel {
   display: inline-flex; gap: 6px; align-items: center;
-  font-size: var(--type-body-sm, 13px); cursor: pointer; white-space: nowrap;
+  font-size: var(--type-body-sm); cursor: pointer; white-space: nowrap;
   min-height: 28px;
 }
 
@@ -559,18 +630,18 @@ a.kpiTile:hover { border-color: var(--accent); }
 .modalOverlay {
   position: fixed; inset: 0;
   background: var(--overlay, rgba(10, 10, 10, 0.55));
-  z-index: var(--z-modal, 1000);
+  z-index: var(--z-modal);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 4vh 16px;
   overflow-y: auto;
 }
 .modal {
   background: var(--card);
-  border-radius: var(--radius-lg, 14px);
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 900px;
   padding: 24px;
-  display: flex; flex-direction: column; gap: var(--space-md, 14px);
+  display: flex; flex-direction: column; gap: var(--space-md);
   box-shadow: var(--shadow-modal, 0 24px 80px rgba(0, 0, 0, 0.35));
 }
 .modalTitle {
@@ -580,12 +651,28 @@ a.kpiTile:hover { border-color: var(--accent); }
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-.modalActions { display: flex; gap: 10px; justify-content: flex-end; }
+/* Кнопки формы закреплены и на десктопе: форма с раскрытыми секциями, размерными
+   сетками и нанесениями — в несколько экранов, и «Создать заказ» вместе с подсказкой
+   «Осталось заполнить» жили в самом низу (на мобильном sticky был, на десктопе нет) */
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 10px 0 2px;
+  margin-top: 4px;
+  background: var(--card);
+  border-top: 1px solid var(--border-light);
+}
 
 /* ─── Тулбар / вкладки цехов ─── */
 .toolbar {
   display: flex; gap: 10px; align-items: center;
-  margin-bottom: var(--space-md, 14px); flex-wrap: wrap;
+  margin-bottom: var(--space-md); flex-wrap: wrap;
 }
 /* Ряд фильтр-чипов внутри тулбара: без переноса ряд был шире 390px
    и вылезал за вьюпорт (мобильный overflow ~20px) */
@@ -597,7 +684,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   scrollbar-width: none;
   margin: 0 0 18px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
 }
 .deptTabs::-webkit-scrollbar { display: none; }
@@ -614,12 +701,12 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .deptTabsFadeL {
   left: 1px;
-  border-radius: var(--radius-md, 10px) 0 0 var(--radius-md, 10px);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
   background: linear-gradient(90deg, var(--card) 15%, transparent);
 }
 .deptTabsFadeR {
   right: 1px;
-  border-radius: 0 var(--radius-md, 10px) var(--radius-md, 10px) 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   background: linear-gradient(270deg, var(--card) 15%, transparent);
 }
 .deptTab {
@@ -644,9 +731,9 @@ a.kpiTile:hover { border-color: var(--accent); }
   flex-shrink: 0;
 }
 .deptTab:last-child { border-right: none; }
-.deptTab:hover { background: var(--accent); color: var(--white, #fff); }
+.deptTab:hover { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
 .deptTab:hover .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
-.deptTabActive { background: var(--accent); color: var(--white, #fff); }
+.deptTabActive { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
 .deptTabActive .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
 .deptTabCount {
   font-family: var(--mono);
@@ -659,6 +746,15 @@ a.kpiTile:hover { border-color: var(--accent); }
   border: 1px solid var(--border);
   color: var(--text-mid);
 }
+.deptTabOverdue {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: #fff;
+}
+.deptTab:hover .deptTabOverdue, .deptTabActive .deptTabOverdue {
+  background: var(--color-error);
+  color: #fff;
+}
 .deptTabHot {
   background: var(--signal);
   border-color: var(--signal);
@@ -666,15 +762,8 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .deptTab:hover .deptTabHot, .deptTabActive .deptTabHot { background: var(--signal); color: #fff; }
 
-.emptyState {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md, 10px);
-  padding: 46px 20px;
-  text-align: center;
-  color: var(--text-dim);
-}
-.dueSoon { color: var(--color-warning); font-weight: 700; }
-.overdue { color: var(--color-error); font-weight: 700; }
+.dueSoon { color: var(--color-warning-ink); font-weight: 700; }
+.overdue { color: var(--color-error-ink); font-weight: 700; }
 .stageChips { display: flex; flex-wrap: wrap; gap: 4px; }
 .subText { color: var(--text-dim); font-size: 12px; }
 .progressCell {
@@ -701,10 +790,104 @@ a.kpiTile:hover { border-color: var(--accent); }
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
 }
+
+/* ─── Компактная очередь: строки вместо крупных карточек (правка 2) ─── */
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.queueRow {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 8px 10px;
+}
+.queueRow:hover { border-color: var(--border-mid); }
+.queueRowDragging { opacity: 0.45; }
+/* Метка места вставки при перетаскивании — приоритет меняется по месту, а не по цвету строки */
+.queueRowDropBefore { box-shadow: inset 0 3px 0 0 var(--accent); }
+.queueRowDropAfter { box-shadow: inset 0 -3px 0 0 var(--accent); }
+.queueRowMain {
+  display: grid;
+  /* приоритет · заказ · кол-во · срок · статус · исполнитель · готовность · действия.
+     Название заказа — самая широкая колонка: по нему цех и опознаёт работу */
+  grid-template-columns:
+    76px minmax(240px, 3fr) 60px 124px minmax(104px, 0.9fr) 104px 96px auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.queueRowPriority {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dragHandle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+.dragHandle:active { cursor: grabbing; }
+.queueRowTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.queueRowTitle > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queueRowQty {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.queueRowDue { font-size: 12px; white-space: nowrap; }
+.queueRowStatus { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.queueRowAssignee {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queueRowProgress { display: flex; align-items: center; gap: 6px; }
+.queueRowActions { display: flex; align-items: center; gap: 4px; justify-self: end; }
+.queueRowNotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.queueRowPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-light);
+}
+
+/* Узкие экраны: строка складывается в две линии, лишние колонки прячутся */
+@media (max-width: 1100px) {
+  .queueRowMain {
+    grid-template-columns: 46px minmax(160px, 2fr) 60px 120px minmax(110px, 1fr) auto;
+  }
+  .queueRowAssignee, .queueRowProgress { display: none; }
+}
 .queueCard {
   border: 1px solid var(--border);
   border-left: 4px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px;
   display: flex;
@@ -736,10 +919,10 @@ a.kpiTile:hover { border-color: var(--accent); }
 }
 .queueDue { text-align: right; font-size: 12px; white-space: nowrap; }
 .queueReason {
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
   color: var(--text-mid);
   background: var(--surface);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   padding: 7px 10px;
 }
 .queueActions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -762,14 +945,14 @@ a.kpiTile:hover { border-color: var(--accent); }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
 }
 .queueThumbBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .queueThumb {
   width: 48px;
   height: 48px;
   object-fit: cover;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-light);
 }
 .queueThumbStub {
@@ -778,7 +961,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   border: 1px dashed var(--border);
   color: var(--text-muted);
   flex-shrink: 0;
@@ -789,7 +972,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   position: fixed;
   inset: 0;
   background: rgba(10, 10, 10, 0.85);
-  z-index: var(--z-modal, 600);
+  z-index: var(--z-lightbox);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -800,7 +983,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   max-width: min(96vw, 1100px);
   max-height: 90vh;
   object-fit: contain;
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
 }
 .lightboxClose {
   position: absolute;
@@ -838,10 +1021,86 @@ a.kpiTile:hover { border-color: var(--accent); }
 .tzMatList {
   margin: 4px 0 0;
   padding-left: 18px;
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+
+/* Документ ТЗ в PDF (волна 4): шапка + встроенный просмотрщик браузера */
+.tzDoc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  background: var(--surface);
+}
+.tzDocHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tzDocIcon { font-size: 18px; flex-shrink: 0; }
+.tzDocName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.tzDocVersion { color: var(--accent); font-family: var(--mono); }
+.tzDocMeta { font-size: var(--type-body-sm); color: var(--text-muted); }
+.tzFrame {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.tzFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-lightbox);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.tzFullscreenBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.tzFullscreenName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50vw;
+}
+.tzFullscreenFrame { flex: 1; width: 100%; border: 0; background: #fff; }
+
+/* Список назначений ТЗ по цехам (карточка заказа и форма создания) */
+.tzAssignRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-light);
+}
+.tzAssignRow:last-child { border-bottom: 0; }
+.tzAssignDept { font-weight: 600; }
+.tzAssignMissing { color: var(--color-error-ink); }
+@media (max-width: 760px) {
+  .tzAssignRow { grid-template-columns: 1fr; }
+  .tzFrame { height: 320px; }
+  .tzDocName { max-width: 200px; }
 }
 
 /* Прогресс частичной готовности «300/500» */
@@ -869,10 +1128,10 @@ a.kpiTile:hover { border-color: var(--accent); }
   min-height: 44px;
   padding: 0 12px;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-mid);
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
   cursor: pointer;
   max-width: 100%;
 }
@@ -901,12 +1160,11 @@ a.kpiTile:hover { border-color: var(--accent); }
 /* ─── Закупка ─── */
 .matSection {
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px;
-  margin-bottom: var(--space-md, 14px);
+  margin-bottom: var(--space-md);
 }
-.matSectionBlocked { border-color: var(--color-error); }
 .matSectionHead {
   display: flex;
   justify-content: space-between;
@@ -922,7 +1180,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 .orderCardList { display: flex; flex-direction: column; gap: 10px; }
 .orderCardM {
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
   padding: 12px 14px;
   display: flex;
@@ -964,7 +1222,6 @@ a.kpiTile:hover { border-color: var(--accent); }
   .main { padding: 16px 14px 48px; }
   .itemRow { grid-template-columns: 1fr 1fr; }
   .queueGrid { grid-template-columns: 1fr; }
-  .kpiValue { font-size: 28px; }
   .queueDue { white-space: normal; max-width: 40%; }
   .queueDue > div { white-space: normal; }
   .searchInput { flex: 1; min-width: 0; }
@@ -975,7 +1232,7 @@ a.kpiTile:hover { border-color: var(--accent); }
     min-height: 100dvh;
     max-width: none;
     border-radius: 0;
-    padding: var(--space-lg, 20px) var(--space-md, 14px) 0;
+    padding: var(--space-lg) var(--space-md) 0;
     box-shadow: none;
   }
   .modalTitle { font-size: 22px; }
@@ -987,7 +1244,7 @@ a.kpiTile:hover { border-color: var(--accent); }
     margin-top: auto;
     background: var(--card);
     border-top: 1px solid var(--border-light);
-    padding: var(--space-sm, 10px) 0 var(--space-md, 14px);
+    padding: var(--space-sm) 0 var(--space-md);
     flex-wrap: wrap;
   }
 
@@ -1018,17 +1275,33 @@ a.kpiTile:hover { border-color: var(--accent); }
   padding-bottom: 16px;
   align-items: flex-start;
   scroll-snap-type: x proximity;
+  /* Прокрутка доски не «протекает» в страницу — иначе перетаскивание у края
+     уводило экран вместо доски (правка 4) */
+  overscroll-behavior: contain;
+}
+/* Во время перетаскивания страница не должна ездить: доска сама скроллит себя
+   у края (ErpKanban.onBoardDragOver), snap отключаем — он дёргает колонки */
+.kanbanBoardDragging {
+  scroll-snap-type: none;
+  touch-action: none;
 }
 .kanbanCol {
   flex: 0 0 290px;
   scroll-snap-align: start;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100dvh - 220px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Колонка чужого цеха, куда можно перенести задание */
+.kanbanColDroppable {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: var(--accent-light);
 }
 .kanbanColHead {
   position: sticky;
@@ -1061,7 +1334,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 .kanbanLaneDroppable {
   outline: 2px dashed var(--accent);
   outline-offset: -4px;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
 }
 .kanbanLaneOver { background: var(--accent-light); }
 .kanbanLaneDisabled { opacity: 0.45; }
@@ -1070,7 +1343,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 .kanbanCard {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   padding: 9px 11px;
   margin-bottom: 6px;
   cursor: grab;
@@ -1177,9 +1450,9 @@ a.kpiTile:hover { border-color: var(--accent); }
 .commentList { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; max-height: 320px; overflow-y: auto; }
 .commentItem {
   background: var(--surface);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   padding: 8px 11px;
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
 }
 .commentMeta { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
 .commentForm { display: flex; gap: 8px; }
@@ -1192,7 +1465,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text-mid);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   padding: 7px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -1203,19 +1476,9 @@ a.kpiTile:hover { border-color: var(--accent); }
 .tile:hover { border-color: var(--accent); color: var(--text); }
 .tileActive { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-.errorSummary {
-  border: 1px solid var(--color-error);
-  background: var(--bg-error);
-  color: var(--color-error);
-  border-radius: var(--radius-sm, 6px);
-  padding: 10px 14px;
-  font-size: var(--type-body-sm, 13px);
-}
-.errorSummary ul { margin: 6px 0 0; padding-left: 18px; }
-
 .dropZone {
   border: 2px dashed var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   padding: 14px;
   text-align: center;
   cursor: pointer;
@@ -1229,10 +1492,12 @@ a.kpiTile:hover { border-color: var(--accent); }
 .dropZone:hover { border-color: var(--accent); }
 .dropZoneImg { max-height: 110px; max-width: 220px; border-radius: 6px; object-fit: contain; }
 
+/* Миниатюра макета — 40px в строке заказа, 48px в очереди (.queueThumb).
+   Радиус из токена, а не литералом: было 5px против var(--radius-sm). */
 .orderThumb {
   width: 40px; height: 40px;
   object-fit: cover;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-light);
   flex-shrink: 0;
 }
@@ -1265,7 +1530,7 @@ a.cellTitle:hover { color: var(--accent); }
 /* ─── Поля ТЗ в форме ─── */
 .itemBlock {
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--surface);
   padding: 10px;
   display: flex;
@@ -1273,10 +1538,29 @@ a.cellTitle:hover { color: var(--accent); }
   gap: 8px;
 }
 .itemBlock .itemRow { border: none; background: none; padding: 0; }
+/* Шапка позиции: номер, изделие и удаление. Номер нужен, потому что подсказка
+   валидации говорит «(поз. 2)», а блоки на экране были неотличимы друг от друга. */
+.itemBlockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-light);
+}
+.itemBlockTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .printBlock {
   border-left: 3px solid var(--accent);
   background: var(--card);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -1288,7 +1572,7 @@ a.cellTitle:hover { color: var(--accent); }
 /* ─── Форма заказа: аккордеон, черновик, инлайн-валидация, чипсы размеров ─── */
 .accSection {
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   background: var(--card);
 }
 .accHeader {
@@ -1300,7 +1584,7 @@ a.cellTitle:hover { color: var(--accent); }
   padding: 10px 14px;
   background: none;
   border: none;
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -1330,7 +1614,7 @@ a.cellTitle:hover { color: var(--accent); }
   padding: 2px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-md, 14px);
+  gap: var(--space-md);
 }
 
 .draftBanner {
@@ -1340,9 +1624,9 @@ a.cellTitle:hover { color: var(--accent); }
   gap: 10px;
   border: 1px dashed var(--border);
   background: var(--surface);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   padding: 4px 8px 4px 12px;
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
   color: var(--text-mid);
 }
 
@@ -1353,7 +1637,7 @@ a.cellTitle:hover { color: var(--accent); }
   flex: 1;
   align-self: center;
   color: var(--color-error);
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
 }
 
 .tileSm { min-height: 30px; padding: 4px 9px; }
@@ -1363,8 +1647,6 @@ a.cellTitle:hover { color: var(--accent); }
   .main { padding: 12px 10px 40px; }
   .navLink { padding: 0 10px; gap: 6px; }
   .topbar :global(.btn) { padding: 0 12px; }
-  .kpiGrid { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .kpiValue { font-size: 24px; }
   .cardGrid { grid-template-columns: 1fr; }
   .formGrid { grid-template-columns: 1fr; }
   .fieldWide { grid-column: 1 / -1; }
@@ -1373,7 +1655,7 @@ a.cellTitle:hover { color: var(--accent); }
   .queueCardHead { flex-wrap: wrap; }
   .queueDue { max-width: none; text-align: left; }
   .matSection { padding: 10px; }
-  .modal { padding: var(--space-md, 14px) var(--space-sm, 10px) 0; }
+  .modal { padding: var(--space-md) var(--space-sm) 0; }
   .accBody { padding: 2px 10px 12px; }
   .toolbar { gap: 8px; }
 
@@ -1390,10 +1672,15 @@ a.cellTitle:hover { color: var(--accent); }
   .printRow > :global(.btn-ghost) { justify-self: end; }
 }
 
-/* ─── Тач-таргеты ≥44px на устройствах с грубым указателем ─── */
+/* ─── Тач-таргеты ≥44px на устройствах с грубым указателем ───
+   Список отстал от компонентов редизайна: Pagination, Drawer, сайдбар и FilterBar
+   появились позже и сюда не попали, поэтому на планшете цеха всё меню (38px),
+   пагинация (32px) и 14 кнопок-чипов (~25px) были меньше собственного правила
+   DESIGN.md. Держать список в актуальном виде — часть правила, а не довесок. */
 @media (pointer: coarse) {
   .input, .select { min-height: 44px; }
   .inputSm { min-height: 44px; }
+  .inputXs { min-height: 44px; }
   .tile { min-height: 44px; }
   .tileSm { min-height: 44px; }
   .deptTab { min-height: 48px; }
@@ -1401,15 +1688,31 @@ a.cellTitle:hover { color: var(--accent); }
   .planBtn { min-height: 44px; }
   .shipBtn { min-height: 44px; }
   .themeToggle { min-width: 44px; min-height: 44px; }
-  .checkLabel { min-height: 36px; }
+  .checkLabel { min-height: 44px; }
   .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
+  /* Кнопки-чипы: быстрые фильтры цеха, переключатель вида, чипы этапов на плане.
+     Статус-чипы (не кнопки) остаются мелкими — по ним не нажимают. */
+  button.chip { min-height: 44px; padding-inline: 14px; }
+  .navLink { min-height: 44px; height: auto; }
+  .collapseBtn { min-height: 44px; height: auto; }
+  .iconBtn { min-width: 44px; min-height: 44px; }
+  .pageBtn { min-width: 44px; min-height: 44px; }
+  .drawerClose { width: 44px; height: 44px; }
+  .drawerTab { min-height: 44px; }
+  .supplierCell { min-height: 44px; }
+  .inlineEditBtn { min-height: 44px; }
+  .thSortBtn { min-height: 44px; }
+  /* Ручка приоритета: размер не был задан вовсе (~13px), а именно за неё
+     бригадир таскает задания на планшете */
+  .dragHandle { min-width: 44px; min-height: 44px; display: inline-flex;
+                align-items: center; justify-content: center; font-size: 18px; }
 }
 
 /* ─── Подряд: нумерованный степпер-воронка готового изделия (редизайн PR6) ─── */
 .numStepper {
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg, 12px);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 12px 16px;
   margin: 4px 0 14px;
@@ -1471,7 +1774,7 @@ a.cellTitle:hover { color: var(--accent); }
   padding: 8px 14px;
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
 .pipeNodeActive { border-color: var(--accent); }
@@ -1484,7 +1787,10 @@ a.cellTitle:hover { color: var(--accent); }
 }
 .pipeNodeActive .pipeCount { background: var(--bg-info); color: var(--accent); }
 .pipeNodeAside .pipeCount { background: var(--bg-error); color: var(--color-error); }
-.pipeLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.pipeLabel {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text); white-space: nowrap;
+}
 .pipeArrow { color: var(--text-dim); font-weight: 700; margin: 0 6px; }
 
 /* ─── Dashboard (редизайн, по макету) ─── */
@@ -1500,6 +1806,41 @@ a.cellTitle:hover { color: var(--accent); }
   text-decoration: none; color: inherit;
 }
 .kpiCard:hover { border-color: var(--border-mid); }
+/* Плитка-кнопка (склад): сбрасываем внешний вид кнопки, выравниваем текст */
+button.kpiCard { text-align: left; font: inherit; cursor: pointer; width: 100%; }
+button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-light); }
+
+/* Ячейка поставщика в закупке: открывает сравнение вариантов (правка 10) */
+.supplierCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 4px 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.supplierCell:hover { border-color: var(--border-mid); background: var(--surface); }
+.supplierCell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Выбранный вариант в таблице сравнения */
+.supplierRowSelected { background: var(--bg-success); }
+/* Показатель как быстрый фильтр/переход (правка 14): кликабельна вся плитка */
+.kpiCardClickable {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.kpiCardClickable:hover { border-color: var(--accent); background: var(--accent-light); }
+.kpiCardClickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpiCardActive { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .kpiIcon {
   width: 44px; height: 44px; flex-shrink: 0;
   border-radius: 12px;
@@ -1550,13 +1891,13 @@ a.cellTitle:hover { color: var(--accent); }
 .deadlineItem:last-child { border-bottom: none; }
 .deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
 .deadlineDay { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); line-height: 1; }
-.deadlineMon { font-size: 10px; text-transform: uppercase; color: var(--text-dim); }
+.deadlineMon { font-size: var(--type-label); text-transform: uppercase; color: var(--text-dim); }
 .deadlineBody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .deadlineName {
   font-size: 13px; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.deadlineMeta { font-size: 11px; color: var(--text-dim); }
+.deadlineMeta { font-size: var(--type-label); color: var(--text-dim); }
 
 .quickGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
 .quickAction {
@@ -1572,10 +1913,15 @@ a.cellTitle:hover { color: var(--accent); }
   display: flex; align-items: center; justify-content: center; font-size: 18px;
 }
 
-.notifItem { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-light); }
+.notifItem {
+  display: flex; gap: 10px; padding: 9px 0;
+  border-bottom: 1px solid var(--border-light);
+  color: inherit; text-decoration: none;
+}
+.notifItem:hover { background: var(--surface); }
 .notifItem:last-child { border-bottom: none; }
 .notifText { flex: 1; font-size: 13px; color: var(--text); min-width: 0; }
-.notifSub { font-size: 11px; color: var(--text-dim); }
+.notifSub { font-size: var(--type-label); color: var(--text-dim); }
 
 @media (max-width: 1100px) {
   .dashRow3, .dashRow2 { grid-template-columns: 1fr; }
@@ -1601,11 +1947,86 @@ a.cellTitle:hover { color: var(--accent); }
 /* ─── FilterBar (редизайн) ─── */
 .filterBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 
+/* Раскрывающийся блок фильтров заданий (правка 9) */
+.filterPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  padding: 12px 14px;
+  margin: -6px 0 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.filterPanel .field { min-width: 150px; }
+
+/* ─── Маршрут заказа со стадиями и прогрессом в штуках (правка 7) ─── */
+.routeProgress { display: flex; flex-direction: column; gap: 10px; }
+.routeTotal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.routeTotalLabel {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.routeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.routeRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.routeRow:nth-child(odd) { background: var(--surface); }
+.routeRowCurrent {
+  outline: 1px solid var(--accent);
+  background: var(--accent-light);
+}
+.routeName {
+  flex: 0 0 110px;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.routeQty {
+  flex: 0 0 72px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-mid);
+}
+/* Полоса маршрута — тот же примитив, что .progressTrack/.progressFill,
+   отличается только гибкостью по ширине. Раньше правила совпадали буквально. */
+.routeBar {
+  composes: progressTrack;
+  flex: 1 1 60px;
+  min-width: 40px;
+}
+.routeBarFill { composes: progressFill; display: block; }
+
 /* ─── Drawer (правая боковая панель, редизайн) ─── */
 .drawerOverlay {
   position: fixed; inset: 0;
   background: var(--overlay, rgba(10, 10, 10, 0.5));
-  z-index: var(--z-modal, 600);
+  z-index: var(--z-modal);
   display: flex; justify-content: flex-end;
   animation: erpFade 0.18s ease;
 }
@@ -1645,10 +2066,34 @@ a.cellTitle:hover { color: var(--accent); }
 .drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 
 /* Вкладка «Файлы» карточки заказа */
+/* ─── Страница производственного задания (правка 5) ─── */
+.taskGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.taskFacts {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+.taskFacts dt {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  align-self: center;
+}
+.taskFacts dd { margin: 0; min-width: 0; }
+
 .fileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 .fileCard {
   display: flex; flex-direction: column; gap: 6px; padding: 8px;
-  border: 1px solid var(--border-light); border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
   background: var(--card); text-decoration: none; color: var(--text);
 }
 .fileCard:hover { border-color: var(--accent); }
@@ -1661,3 +2106,183 @@ a.cellTitle:hover { color: var(--accent); }
 @media (max-width: 760px) {
   .drawerPanel { width: 100%; border-left: none; }
 }
+
+/* Бургер нужен только там, где сайдбар стал оверлеем (правило ниже в медиазапросе) */
+.navToggle { display: none; }
+
+/* ─── Сайдбар на узком экране: выезжающий оверлей ───
+   Ниже 760px постоянная колонка съедала от 13% до половины ширины и убиралась
+   только сворачиванием. Здесь она уходит за край и выезжает поверх контента
+   по кнопке-бургеру в шапке. */
+@media (max-width: 760px) {
+  .sidebar {
+    position: fixed;
+    z-index: var(--z-drawer);
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+    box-shadow: var(--shadow-modal, 0 24px 80px rgba(0, 0, 0, 0.3));
+  }
+  .sidebarOpen { transform: translateX(0); }
+  /* В оверлее сворачивать нечего — показываем полный сайдбар */
+  .sidebarCollapsed { width: 236px; }
+  .sidebarCollapsed .sidebarBrandText,
+  .sidebarCollapsed .navGroup,
+  .sidebarCollapsed .navLabel,
+  .sidebarCollapsed .collapseLabel { display: revert; }
+  .sidebarCollapsed .navBadge { position: static; }
+  .sidebarCollapsed .navLink,
+  .sidebarCollapsed .collapseBtn { justify-content: flex-start; gap: 11px; padding: 0 12px; }
+  .sidebarScrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer) - 1);
+    background: var(--overlay, rgba(10, 10, 10, 0.55));
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .navToggle { display: inline-flex; }
+}
+
+/* ─── Липкая шапка таблиц ───
+   При «Показывать по: 50» заголовки уезжали за экран, и колонки приходилось
+   угадывать. Работает внутри .tableWrap, у которого есть свой скролл. */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+/* Матрица прав: 9 колонок не помещаются, и при прокрутке вправо название права
+   уезжало — галочка ставилась вслепую */
+.matrixTable th:first-child,
+.matrixTable td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--card);
+}
+.matrixTable thead th:first-child { z-index: 3; }
+
+/* Кнопки приоритета в строке очереди — клавиатурная и тач-альтернатива DnD */
+.queueRowMoveBtns { display: inline-flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.moveBtn {
+  appearance: none;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--text-mid);
+  border-radius: var(--radius-sm);
+  width: 22px;
+  height: 16px;
+  line-height: 1;
+  font-size: 11px;
+  cursor: pointer;
+}
+.moveBtn:hover:not(:disabled) { border-color: var(--border-mid); color: var(--text); }
+.moveBtn:disabled { opacity: 0.35; cursor: default; }
+@media (pointer: coarse) {
+  .queueRowMoveBtns { flex-direction: row; gap: 4px; }
+  .moveBtn { min-width: 44px; min-height: 44px; font-size: 16px; }
+}
+
+/* Длинные названия заказов распирали 8-колоночные таблицы и выталкивали их
+   в горизонтальный скролл: .subText задавал только цвет и размер */
+.cellSub {
+  color: var(--text-dim);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 220px;
+}
+
+
+/* ─── Подсказки горизонтальной прокрутки (ScrollHintBox) ─── */
+.scrollHintWrap { position: relative; min-width: 0; }
+.scrollFade {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 32px;
+  pointer-events: none;
+  z-index: 1;
+}
+.scrollFadeL {
+  left: 1px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: linear-gradient(90deg, var(--card) 15%, transparent);
+}
+.scrollFadeR {
+  right: 1px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: linear-gradient(270deg, var(--card) 15%, transparent);
+}
+
+
+/* Раскрывашка строки заказа: клавиатурная альтернатива клику по всей строке */
+.rowToggle {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 6px 0 0;
+  font-size: 11px;
+  line-height: 1;
+}
+.rowToggle:hover { color: var(--text); }
+@media (pointer: coarse) {
+  .rowToggle { min-width: 44px; min-height: 44px; }
+}
+
+/* ─── Мастер брака (боковая панель, 2 шага) ─── */
+.wizSteps {
+  display: flex;
+  gap: var(--space-sm);
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  font-size: 12px;
+}
+.wizStep, .wizStepActive {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-dim);
+  text-align: center;
+}
+.wizStepActive { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.wizActions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+.wizActions > * { flex: 1; }
+/* Вертикальная стопка полей мастера */
+.stack { display: flex; flex-direction: column; gap: 10px; }
+
+/* ─── Загрузка цехов (сетка «цех × день») ─── */
+.loadPeriod { font-weight: 600; font-size: 13px; }
+/* Ячейка дня: заливка-«тепло» под числом, доля от максимума по сетке */
+.loadCell { position: relative; text-align: center; }
+.loadCellFill {
+  position: absolute;
+  inset: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  pointer-events: none;
+}
+.loadCellValue { position: relative; font-family: var(--mono); font-size: 12px; }
+/* Сегодняшняя колонка выделена, чтобы не считать дни глазами */
+.loadToday { color: var(--accent); }
+
+/* Ячейка/строка «иконка + текст» */
+.cellWithIcon { display: inline-flex; align-items: center; gap: 6px; }
+/* Шеврон раскрытия: развёрнутое состояние — стрелка вверх */
+.chevronUp { transform: rotate(180deg); }

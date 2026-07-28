@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 import styles from '../erp.module.css';
 
 export function PageHead({ title, sub }) {
@@ -9,12 +10,12 @@ export function PageHead({ title, sub }) {
   );
 }
 
-export function Stub({ icon = '🚧', title, text, phase }) {
+export function Stub({ icon = 'settings', title, text, phase }) {
   return (
     <div className={styles.stub}>
-      <div className={styles.stubIcon} aria-hidden="true">{icon}</div>
+      <div className={styles.stubIcon}><Icon name={icon} size={34} /></div>
       <div>{title}</div>
-      {text && <div style={{ marginTop: 6 }}>{text}</div>}
+      {text && <div className={styles.stubText}>{text}</div>}
       {phase && <div className={styles.stubPhase}>{phase}</div>}
     </div>
   );

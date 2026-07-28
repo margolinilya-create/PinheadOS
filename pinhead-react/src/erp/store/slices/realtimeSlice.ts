@@ -19,12 +19,17 @@ import type { ErpOrderFull, ErpStore, RealtimeSlice } from '../types';
 let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
-type ChildKey = 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks';
+type ChildKey =
+  | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
+  | 'tz_documents' | 'tz_assignments';
 const TABLE_TO_CHILD: Record<string, ChildKey> = {
   erp_materials: 'materials',
   erp_procurement_tasks: 'procurement_tasks',
   erp_warehouse_ops: 'warehouse_ops',
   erp_warehouse_tasks: 'warehouse_tasks',
+  // ТЗ (волна 4): замена файла и назначение должны долетать до открытого задания цеха
+  erp_tz_documents: 'tz_documents',
+  erp_tz_assignments: 'tz_assignments',
 };
 
 /**
@@ -220,6 +225,16 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_experimental' },
         forward('erp_experimental'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_tz_documents' },
+        forward('erp_tz_documents'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_tz_assignments' },
+        forward('erp_tz_assignments'),
       )
       .subscribe();
     return () => {

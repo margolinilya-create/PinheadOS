@@ -17,6 +17,7 @@ export type DepartmentType =
   | 'embroidery'    // Вышивка
   | 'sewing'        // Пошив
   | 'vto'           // ВТО
+  | 'qc'            // ОТК (финальный контроль)
   | 'warehouse_fg'; // Склад готовой продукции
 
 export interface Department {
@@ -42,6 +43,7 @@ export const DEPARTMENTS: Department[] = [
   { code: 'embroidery',   name: 'Цех вышивки',             type: 'embroidery',   order: 62, is_branding: true },
   { code: 'sewing',       name: 'Швейный цех',             type: 'sewing',       order: 70 },
   { code: 'vto',          name: 'ВТО цех',                 type: 'vto',          order: 80 },
+  { code: 'qc',           name: 'ОТК',                     type: 'qc',           order: 85 },
   { code: 'warehouse_fg', name: 'Склад готовой продукции', type: 'warehouse_fg', order: 90 },
 ];
 
@@ -61,6 +63,7 @@ export const DEPT_SHORT_NAMES: Record<string, string> = {
   embroidery: 'Вышивка',
   sewing: 'Швейка',
   vto: 'ВТО',
+  qc: 'ОТК',
   warehouse_fg: 'Склад ГП',
 };
 
@@ -68,16 +71,63 @@ export function deptShortName(code: string, fallback?: string): string {
   return DEPT_SHORT_NAMES[code] || fallback || code;
 }
 
+/** Иконки участков для постоянного меню цехов в сайдбаре (правка 1) */
+/**
+ * Имена иконок участков из набора `erp/components/icons.js` (не эмодзи:
+ * те по-разному рисуются в Windows/Android и не наследуют цвет активного пункта).
+ */
+export const DEPT_ICONS: Record<string, string> = {
+  supply: 'truck',
+  logistics: 'route',
+  experimental: 'flask',
+  warehouse: 'box',
+  cutting: 'scissors',
+  silkscreen: 'printer',
+  dtf: 'printer',
+  embroidery: 'needle',
+  sewing: 'needle',
+  vto: 'iron',
+  qc: 'shield',
+  warehouse_fg: 'tag',
+};
+
+/** Имя иконки участка; неизвестный код — нейтральная «очередь» */
+export function deptIcon(code: string): string {
+  return DEPT_ICONS[code] || 'queue';
+}
+
 /**
  * Цеха с рабочей очередью («Мой цех», загрузка на дашборде).
  * Закупка управляется своим экраном (материалы), логистика и склады
  * пока без операций — в очередях не показываем.
+ *
+ * ВАЖНО: это только сид. Рабочий признак живёт в `erp_departments.is_production`
+ * и правится в админке — иначе участок, заведённый директором, не появился бы
+ * ни в меню, ни в канбане, ни в маршруте, ни в требованиях ТЗ.
  */
 // experimental вынесен в отдельную вкладку «Эксперим. цех» (правка 6) — не в общей очереди
 export const QUEUE_DEPT_CODES = new Set([
-  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto',
+  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto', 'qc',
 ]);
 
+/** @deprecated Признак по коду — только для сида. В коде: `isProductionDept(dept)` */
 export function isQueueDept(code: string): boolean {
   return QUEUE_DEPT_CODES.has(code);
+}
+
+/** Минимум строки цеха для проверки признака */
+export interface ProductionDeptLike {
+  code?: string | null;
+  is_production?: boolean | null;
+}
+
+/**
+ * Производственный ли участок: есть рабочая очередь, показывается в канбане,
+ * требует ТЗ. Источник — колонка `is_production`; на код откатываемся только
+ * если строка пришла без неё (старый кэш, урезанный select, тестовая фикстура).
+ */
+export function isProductionDept(dept: ProductionDeptLike | null | undefined): boolean {
+  if (!dept) return false;
+  if (typeof dept.is_production === 'boolean') return dept.is_production;
+  return Boolean(dept.code) && QUEUE_DEPT_CODES.has(dept.code as string);
 }

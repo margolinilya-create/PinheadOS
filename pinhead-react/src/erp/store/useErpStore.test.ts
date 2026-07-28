@@ -12,12 +12,17 @@ const h = vi.hoisted(() => ({
   insertCalls: [] as { table: string; row: unknown }[],
   /** Очередь ошибок insert (для ретрая logStageEvent): shift на каждый вызов */
   insertErrors: [] as ({ message: string } | null)[],
+  deleteCalls: [] as { table: string }[],
+  deleteError: null as { message: string } | null,
   selectCalls: [] as { table: string; filters: string[] }[],
   tableData: {} as Record<string, unknown[]>,
   selectError: null as { message: string } | null,
   singleData: null as unknown,
   rpcCalls: [] as { fn: string; args: { payload?: unknown } }[],
   rpcResult: { data: null as unknown, error: null as { message: string } | null },
+  /** Загрузки в Storage (ТЗ в PDF, волна 4) */
+  uploadCalls: [] as { bucket: string; path: string; name: string }[],
+  uploadError: null as { message: string } | null,
 }));
 
 vi.mock('../../lib/supabase', () => {
@@ -29,6 +34,7 @@ vi.mock('../../lib/supabase', () => {
       neq: (col: string, val: unknown) => { filters.push(`neq:${col}=${val}`); return q; },
       order: () => q,
       limit: () => q,
+      range: (from: number, to: number) => { filters.push(`range:${from}-${to}`); return q; },
       maybeSingle: () => {
         h.selectCalls.push({ table, filters });
         return Promise.resolve({ data: h.singleData, error: h.selectError });
@@ -46,12 +52,20 @@ vi.mock('../../lib/supabase', () => {
     supabase: {
       from: vi.fn((table: string) => ({
         select: vi.fn(() => makeQuery(table)),
-        update: vi.fn((patch: Record<string, unknown>) => ({
-          eq: vi.fn(() => {
-            h.updateCalls.push({ table, patch });
-            return Promise.resolve({ error: h.updateError });
-          }),
-        })),
+        // Цепочки .eq().neq() (снятие is_current у прошлых версий ТЗ) — звено возвращает себя
+        update: vi.fn((patch: Record<string, unknown>) => {
+          let recorded = false;
+          const q: any = {
+            eq: () => {
+              if (!recorded) { recorded = true; h.updateCalls.push({ table, patch }); }
+              return q;
+            },
+            neq: () => q,
+            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+              Promise.resolve({ error: h.updateError }).then(resolve, reject),
+          };
+          return q;
+        }),
         insert: vi.fn((row: any) => {
           h.insertCalls.push({ table, row });
           const result = {
@@ -66,13 +80,40 @@ vi.mock('../../lib/supabase', () => {
         // upsert (onConflict/ignoreDuplicates) — идемпотентные вставки задач склада/этапов
         upsert: vi.fn((row: any) => {
           h.insertCalls.push({ table, row });
-          return Promise.resolve({ error: h.insertErrors.shift() ?? null });
+          const result = {
+            data: Array.isArray(row) ? row : [row],
+            error: h.insertErrors.shift() ?? null,
+          };
+          const p: any = Promise.resolve({ error: result.error });
+          p.select = () => Promise.resolve(result);
+          return p;
+        }),
+        delete: vi.fn(() => {
+          let recorded = false;
+          const q: any = {
+            eq: () => {
+              if (!recorded) { recorded = true; h.deleteCalls.push({ table }); }
+              return q;
+            },
+            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+              Promise.resolve({ error: h.deleteError }).then(resolve, reject),
+          };
+          return q;
         }),
       })),
       rpc: vi.fn((fn: string, args: { payload?: unknown }) => {
         h.rpcCalls.push({ fn, args });
         return Promise.resolve(h.rpcResult);
       }),
+      storage: {
+        from: vi.fn((bucket: string) => ({
+          upload: vi.fn((path: string, file: { name?: string }) => {
+            h.uploadCalls.push({ bucket, path, name: file?.name ?? '' });
+            return Promise.resolve({ error: h.uploadError });
+          }),
+          getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.test/${path}` } }),
+        })),
+      },
     },
   };
 });
@@ -92,6 +133,7 @@ const {
   openWarehouseTaskCount, openProcurementCount, openSubcontractCount,
   activeExperimentalCount, activeOrdersCount,
 } = await import('./useErpStore');
+const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
 const { toast } = await import('../../store/useToastStore');
 const { useAuthStore } = await import('../../store/useAuthStore');
 
@@ -147,18 +189,24 @@ beforeEach(() => {
   h.updateError = null;
   h.insertCalls.length = 0;
   h.insertErrors.length = 0;
+  h.deleteCalls.length = 0;
+  h.deleteError = null;
   h.selectCalls.length = 0;
   h.tableData = {};
   h.selectError = null;
   h.singleData = null;
   h.rpcCalls.length = 0;
   h.rpcResult = { data: null, error: null };
+  h.uploadCalls.length = 0;
+  h.uploadError = null;
   _pendingMutations.clear();
   localStorage.removeItem('erp_my_dept');
   useErpStore.setState({
     orders: [], departments: [], loaded: false,
-    archiveLoaded: false, archiveLoading: false,
+    archiveLoaded: false, archiveLoading: false, archiveHasMore: false,
     myDeptId: null, myDeptLoaded: false,
+    dictionaries: [], dictionariesLoaded: false,
+    permissionMatrix: null, permissionsLoaded: false,
   });
 });
 
@@ -1045,6 +1093,61 @@ describe('ленивый архив (п.26)', () => {
     expect(archCall?.filters).toContain('neq:status=active');
   });
 
+  it('архив грузится страницей, а не целиком', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    h.tableData = { erp_orders: [archivedRow] };
+    await useErpStore.getState().loadArchive();
+    const archCall = h.selectCalls.at(-1);
+    expect(archCall?.filters).toContain(`range:0-${ARCHIVE_PAGE_SIZE - 1}`);
+    // Пришло меньше страницы — значит это весь архив, кнопки «показать ещё» не будет
+    expect(useErpStore.getState().archiveHasMore).toBe(false);
+  });
+
+  it('полная страница означает «есть ещё», следующая догружается со смещением', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    // Ровно страница архивных заказов
+    const page = Array.from({ length: ARCHIVE_PAGE_SIZE }, (_, i) => ({
+      id: `arc-${i}`, title: `Сдан ${i}`, status: 'done_on_time', items: [], materials: [],
+    }));
+    h.tableData = { erp_orders: page };
+    await useErpStore.getState().loadArchive();
+    expect(useErpStore.getState().archiveHasMore).toBe(true);
+
+    h.tableData = { erp_orders: [archivedRow] };
+    await useErpStore.getState().loadMoreArchive();
+    const moreCall = h.selectCalls.at(-1);
+    expect(moreCall?.filters)
+      .toContain(`range:${ARCHIVE_PAGE_SIZE}-${ARCHIVE_PAGE_SIZE * 2 - 1}`);
+    const s = useErpStore.getState();
+    expect(s.archiveHasMore).toBe(false);
+    expect(s.orders.map((o) => o.id)).toContain('o-z');
+    expect(s.orders).toHaveLength(1 + ARCHIVE_PAGE_SIZE + 1);
+  });
+
+  it('повторный заказ в следующей странице не дублируется', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    const page = Array.from({ length: ARCHIVE_PAGE_SIZE }, (_, i) => ({
+      id: `arc-${i}`, title: `Сдан ${i}`, status: 'done_on_time', items: [], materials: [],
+    }));
+    h.tableData = { erp_orders: page };
+    await useErpStore.getState().loadArchive();
+    // Страница сдвинулась: тот же заказ пришёл снова
+    h.tableData = { erp_orders: [page[0], archivedRow] };
+    await useErpStore.getState().loadMoreArchive();
+    const ids = useErpStore.getState().orders.map((o) => o.id);
+    expect(ids.filter((id) => id === 'arc-0')).toHaveLength(1);
+  });
+
+  it('«показать ещё» не стреляет, когда догружать нечего', async () => {
+    useErpStore.setState({ archiveHasMore: false, archiveLoading: false } as any);
+    h.selectCalls.length = 0;
+    await useErpStore.getState().loadMoreArchive();
+    expect(h.selectCalls).toHaveLength(0);
+  });
+
   it('после загрузки архива loadAll перезагружает всё (без фильтра active)', async () => {
     useErpStore.setState({ archiveLoaded: true });
     h.tableData = { erp_departments: [dept], erp_orders: [activeRow, archivedRow] };
@@ -1500,5 +1603,553 @@ describe('orderHelpers — счётчики разделов (сайдбар р�
     expect(activeExperimentalCount([
       { phase: 'patterns' }, { phase: 'development' }, { phase: 'done' },
     ])).toBe(2);
+  });
+});
+
+// --- Волна 1: приоритет очереди и перенос между цехами -----------------------
+
+/** Заказ с одной позицией и несколькими этапами (по одному на цех) */
+function seedRoute(
+  stages: Record<string, unknown>[],
+  { qty = 100, dueDate = '2026-08-01', orderId = 'o1' } = {},
+) {
+  const full = stages.map((s, i) => ({
+    id: `st${i + 1}`, item_id: 'it1', depends_on: [], status: 'waiting',
+    qty_done: 0, qty_rework: 0, planned_start: null, planned_end: null,
+    started_at: null, finished_at: null, assignee: null, block_reason: null,
+    notes: null, sort_order: (i + 1) * 10, queue_position: null,
+    ...s,
+  }));
+  const item = {
+    id: 'it1', order_id: orderId, product_type: 'Худи', variant: null, qty,
+    production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+    notes: null, sort_order: 10, stages: full, prints: [],
+  };
+  const order = {
+    id: orderId, title: 'Заказ', status: 'active', due_date: dueDate,
+    items: [item], materials: [],
+  };
+  useErpStore.setState({
+    orders: [order] as any,
+    departments: [
+      { id: 'd-cut', code: 'cutting', name: 'Закройный цех', active: true, sort_order: 50 },
+      { id: 'd-emb', code: 'embroidery', name: 'Цех вышивки', active: true, sort_order: 62 },
+      { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 70 },
+      { id: 'd-vto', code: 'vto', name: 'ВТО цех', active: true, sort_order: 80 },
+    ] as any,
+    loaded: true,
+  });
+  return full;
+}
+
+const stageById = (id: string) =>
+  useErpStore.getState().orders
+    .flatMap((o: any) => o.items).flatMap((it: any) => it.stages)
+    .find((s: any) => s.id === id);
+
+describe('useErpStore — reorderStageQueue (приоритет в очереди цеха)', () => {
+  it('вставка между соседями пишет середину и трогает одну строку', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 100 },
+      { department_id: 'd-emb', queue_position: 200 },
+      { department_id: 'd-cut', queue_position: 300 },
+    ]);
+    const ok = await useErpStore.getState().reorderStageQueue('st3', 'st1', 'st2');
+    expect(ok).toBe(true);
+    expect(stageById('st3').queue_position).toBe(150);
+    const writes = h.updateCalls.filter((c) => c.table === 'erp_item_stages');
+    expect(writes).toHaveLength(1);
+    expect(writes[0].patch).toEqual({ queue_position: 150 });
+  });
+
+  it('в начало очереди — на шаг выше первого', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 1000 },
+      { department_id: 'd-emb', queue_position: 2000 },
+    ]);
+    await useErpStore.getState().reorderStageQueue('st2', null, 'st1');
+    expect(stageById('st2').queue_position).toBe(1000 - 86400);
+  });
+
+  it('слипшиеся соседи — перенумеровывает очередь цеха целиком', async () => {
+    const pos = 1_800_000_000;
+    seedRoute([
+      { department_id: 'd-sew', queue_position: pos },
+      { department_id: 'd-sew', queue_position: pos + 2 ** -22 },
+      { department_id: 'd-sew', queue_position: pos + 1 },
+    ]);
+    const ok = await useErpStore.getState().reorderStageQueue('st3', 'st1', 'st2');
+    expect(ok).toBe(true);
+    expect(stageById('st1').queue_position).toBe(0);
+    expect(stageById('st3').queue_position).toBe(86400);
+    expect(stageById('st2').queue_position).toBe(86400 * 2);
+    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
+  });
+
+  it('ошибка Supabase — откат позиции и toast', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 100 },
+      { department_id: 'd-sew', queue_position: 200 },
+    ]);
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().reorderStageQueue('st2', null, 'st1');
+    expect(ok).toBe(false);
+    expect(stageById('st2').queue_position).toBe(200);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('пишет перемещение в историю этапов', async () => {
+    seedRoute([
+      { department_id: 'd-sew', queue_position: 100 },
+      { department_id: 'd-sew', queue_position: 200 },
+    ]);
+    await useErpStore.getState().reorderStageQueue('st2', 'st1', null);
+    const ev = h.insertCalls.find((c) => c.table === 'erp_stage_events');
+    expect((ev?.row as any).comment).toContain('Приоритет в очереди');
+    expect((ev?.row as any).actor).toBe('Тест');
+  });
+});
+
+describe('useErpStore — moveStageToDepartment (перенос между цехами)', () => {
+  it('закрывает текущий этап и открывает целевой', async () => {
+    seedRoute([
+      { department_id: 'd-emb', status: 'in_progress', qty_done: 100 },
+      { department_id: 'd-sew' },
+    ]);
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+    expect(ok).toBe(true);
+    expect(stageById('st1').status).toBe('done');
+    expect(stageById('st1').qty_done).toBe(100);
+    expect(stageById('st2').status).toBe('in_progress');
+    expect(stageById('st2').started_at).toBeTruthy();
+  });
+
+  it('заблокированное задание переносить нельзя — состояние не меняется', async () => {
+    seedRoute([
+      { department_id: 'd-emb', status: 'blocked', block_reason: 'нет ниток' },
+      { department_id: 'd-sew' },
+    ]);
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+    expect(ok).toBe(false);
+    expect(stageById('st1').status).toBe('blocked');
+    expect(stageById('st2').status).toBe('waiting');
+    expect(h.updateCalls).toHaveLength(0);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('цеха нет в маршруте — добавляет этап с зависимостью от текущего', async () => {
+    seedRoute([{ department_id: 'd-cut', status: 'in_progress', qty_done: 100 }]);
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-vto');
+    expect(ok).toBe(true);
+    const inserted = h.insertCalls.find((c) => c.table === 'erp_item_stages');
+    expect((inserted?.row as any).department_id).toBe('d-vto');
+    expect((inserted?.row as any).depends_on).toEqual(['st1']);
+    expect((inserted?.row as any).status).toBe('in_progress');
+    expect(useErpStore.getState().orders[0].items[0].stages).toHaveLength(2);
+  });
+
+  it('комментарий возврата уходит в историю обоих этапов', async () => {
+    seedRoute([
+      { department_id: 'd-cut', status: 'done', qty_done: 100 },
+      { department_id: 'd-sew', status: 'in_progress' },
+    ]);
+    await useErpStore.getState().moveStageToDepartment('st2', 'd-cut', { comment: 'перекроить' });
+    const events = h.insertCalls.filter((c) => c.table === 'erp_stage_events');
+    expect(events).toHaveLength(2);
+    for (const e of events) {
+      expect((e.row as any).comment).toContain('Швейка');
+      expect((e.row as any).comment).toContain('Закрой');
+      expect((e.row as any).comment).toContain('перекроить');
+    }
+  });
+
+  it('ошибка Supabase на исходном этапе — полный откат', async () => {
+    seedRoute([
+      { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
+      { department_id: 'd-sew' },
+    ]);
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+    expect(ok).toBe(false);
+    expect(stageById('st1').status).toBe('in_progress');
+    expect(stageById('st2').status).toBe('waiting');
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+// --- Волна 2: справочники, права, участки ------------------------------------
+
+const dict = (over: Record<string, unknown> = {}) => ({
+  id: 'dic1', kind: 'block_reason', code: 'no_material', name: 'Нет материала',
+  sort_order: 10, active: true, meta: {}, created_at: '', updated_at: '', ...over,
+});
+
+describe('useErpStore — справочники админки', () => {
+  it('loadDictionaries кладёт значения в стор', async () => {
+    h.tableData.erp_dictionaries = [dict(), dict({ id: 'dic2', code: 'equipment', name: 'Сломано оборудование', sort_order: 20 })];
+    await useErpStore.getState().loadDictionaries();
+    expect(useErpStore.getState().dictionaries).toHaveLength(2);
+    expect(useErpStore.getState().dictionariesLoaded).toBe(true);
+  });
+
+  it('ошибка загрузки не блокирует работу — экраны остаются на свободном вводе', async () => {
+    h.selectError = { message: 'нет связи' };
+    await useErpStore.getState().loadDictionaries();
+    expect(useErpStore.getState().dictionaries).toEqual([]);
+    expect(useErpStore.getState().dictionariesLoaded).toBe(true);
+  });
+
+  it('создание генерирует латинский код из русского названия', async () => {
+    await useErpStore.getState().createDictionaryItem('block_reason' as never, '  Нет ниток  ');
+    const call = h.insertCalls.find((c) => c.table === 'erp_dictionaries');
+    expect((call?.row as any).code).toBe('net_nitok');
+    expect((call?.row as any).name).toBe('Нет ниток');
+    expect((call?.row as any).kind).toBe('block_reason');
+  });
+
+  it('дубликат по названию не создаётся', async () => {
+    useErpStore.setState({ dictionaries: [dict()] as any });
+    const created = await useErpStore.getState().createDictionaryItem('block_reason' as never, 'нет материала');
+    expect(created).toBeNull();
+    expect(h.insertCalls.filter((c) => c.table === 'erp_dictionaries')).toHaveLength(0);
+    expect(toast.warning).toHaveBeenCalled();
+  });
+
+  it('новое значение встаёт в конец своего вида', async () => {
+    useErpStore.setState({ dictionaries: [dict({ sort_order: 40 })] as any });
+    await useErpStore.getState().createDictionaryItem('block_reason' as never, 'Нет ниток');
+    const call = h.insertCalls.find((c) => c.table === 'erp_dictionaries');
+    expect((call?.row as any).sort_order).toBe(50);
+  });
+
+  it('отключение вместо удаления — правка через updateDictionaryItem', async () => {
+    useErpStore.setState({ dictionaries: [dict()] as any });
+    const ok = await useErpStore.getState().updateDictionaryItem('dic1', { active: false });
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().dictionaries[0].active).toBe(false);
+    expect(h.updateCalls.find((c) => c.table === 'erp_dictionaries')?.patch).toEqual({ active: false });
+  });
+
+  it('ошибка правки откатывает значение', async () => {
+    useErpStore.setState({ dictionaries: [dict()] as any });
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().updateDictionaryItem('dic1', { name: 'Другое' });
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().dictionaries[0].name).toBe('Нет материала');
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('перестановка меняет порядок только внутри своего вида', async () => {
+    useErpStore.setState({
+      dictionaries: [
+        dict({ id: 'a', sort_order: 10 }),
+        dict({ id: 'b', sort_order: 20 }),
+        dict({ id: 'x', kind: 'problem_type', code: 'p', sort_order: 5 }),
+      ] as any,
+    });
+    const ok = await useErpStore.getState().moveDictionaryItem('b', 'up');
+    expect(ok).toBe(true);
+    const byId = Object.fromEntries(useErpStore.getState().dictionaries.map((d) => [d.id, d.sort_order]));
+    expect(byId.b).toBe(10);
+    expect(byId.a).toBe(20);
+    expect(byId.x).toBe(5);
+  });
+
+  it('перестановка за границу списка ничего не делает', async () => {
+    useErpStore.setState({ dictionaries: [dict({ id: 'a' })] as any });
+    expect(await useErpStore.getState().moveDictionaryItem('a', 'up')).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+});
+
+describe('useErpStore — матрица прав', () => {
+  it('setRolePermission пишет upsert и обновляет матрицу', async () => {
+    useErpStore.setState({ permissionMatrix: { worker: { 'stage.priority': false } } as any });
+    const ok = await useErpStore.getState().setRolePermission('worker' as never, 'stage.priority' as never, true);
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().permissionMatrix?.worker['stage.priority']).toBe(true);
+    const call = h.insertCalls.find((c) => c.table === 'erp_role_permissions');
+    expect(call?.row).toMatchObject({ role: 'worker', permission: 'stage.priority', allowed: true });
+  });
+
+  it('ошибка сохранения возвращает матрицу как была', async () => {
+    useErpStore.setState({ permissionMatrix: { worker: { 'stage.priority': false } } as any });
+    h.insertErrors.push({ message: 'нет связи' });
+    const ok = await useErpStore.getState().setRolePermission('worker' as never, 'stage.priority' as never, true);
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().permissionMatrix?.worker['stage.priority']).toBe(false);
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe('useErpStore — справочник участков', () => {
+  it('создание участка добавляет его в стор по порядку', async () => {
+    useErpStore.setState({ departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', sort_order: 50 }] as any });
+    const created = await useErpStore.getState().createDepartment({ code: 'heat', name: 'Термоперенос', sort_order: 60 } as any);
+    expect(created).toBeTruthy();
+    expect(useErpStore.getState().departments.map((d) => d.code)).toEqual(['cutting', 'heat']);
+  });
+
+  it('правка участка — optimistic с откатом при ошибке', async () => {
+    useErpStore.setState({ departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', sort_order: 50, norm_days: null }] as any });
+    expect(await useErpStore.getState().updateDepartment('d1', { norm_days: 3 })).toBe(true);
+    expect(useErpStore.getState().departments[0].norm_days).toBe(3);
+
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().updateDepartment('d1', { norm_days: 9 })).toBe(false);
+    expect(useErpStore.getState().departments[0].norm_days).toBe(3);
+  });
+});
+
+// --- Волна 3: варианты поставщиков (правка 10) -------------------------------
+
+function seedMaterial(suppliers: Record<string, unknown>[] = [], supplier: string | null = null) {
+  useErpStore.setState({
+    orders: [{
+      id: 'o1', title: 'Заказ', status: 'active', items: [],
+      materials: [{
+        id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Кулирка',
+        source: 'purchase', status: 'pending', supplier, qty_expected: 10,
+        suppliers,
+      }],
+    }] as any,
+    departments: [{ id: 'd-sup', code: 'supply', name: 'Закупка', active: true }] as any,
+    loaded: true,
+  });
+}
+
+const materialNow = () => useErpStore.getState().orders[0].materials[0] as any;
+
+describe('useErpStore — варианты поставщиков', () => {
+  it('добавление кладёт вариант в материал', async () => {
+    seedMaterial();
+    const created = await useErpStore.getState().addSupplierOption('m1', {
+      supplier: 'Астра Текстиль', price: 420, lead_days: 5,
+    } as never);
+    expect(created).toBeTruthy();
+    expect(materialNow().suppliers).toHaveLength(1);
+    const call = h.insertCalls.find((c) => c.table === 'erp_material_suppliers');
+    expect((call?.row as any).material_id).toBe('m1');
+    expect((call?.row as any).supplier).toBe('Астра Текстиль');
+  });
+
+  it('пустое имя поставщика не создаёт вариант', async () => {
+    seedMaterial();
+    expect(await useErpStore.getState().addSupplierOption('m1', { supplier: '   ' } as never)).toBeNull();
+    expect(h.insertCalls).toHaveLength(0);
+  });
+
+  it('выбор варианта снимает флаг с прежнего и пишет поставщика в материал', async () => {
+    seedMaterial([
+      { id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true },
+      { id: 's2', material_id: 'm1', supplier: 'Юг-Текстиль', is_selected: false },
+    ], 'Астра');
+    const ok = await useErpStore.getState().selectSupplierOption('m1', 's2');
+    expect(ok).toBe(true);
+    const m = materialNow();
+    expect(m.suppliers.find((o: any) => o.id === 's1').is_selected).toBe(false);
+    expect(m.suppliers.find((o: any) => o.id === 's2').is_selected).toBe(true);
+    expect(m.supplier).toBe('Юг-Текстиль');
+    // прежний флаг снимается ДО установки нового — иначе частичный уникальный индекс упадёт
+    const stageWrites = h.updateCalls.filter((c) => c.table === 'erp_material_suppliers');
+    expect(stageWrites[0].patch).toEqual({ is_selected: false });
+    expect(stageWrites[1].patch).toEqual({ is_selected: true });
+    expect(h.updateCalls.find((c) => c.table === 'erp_materials')?.patch).toEqual({ supplier: 'Юг-Текстиль' });
+  });
+
+  it('ошибка Supabase при выборе — полный откат', async () => {
+    seedMaterial([
+      { id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true },
+      { id: 's2', material_id: 'm1', supplier: 'Юг-Текстиль', is_selected: false },
+    ], 'Астра');
+    h.updateError = { message: 'нет связи' };
+    const ok = await useErpStore.getState().selectSupplierOption('m1', 's2');
+    expect(ok).toBe(false);
+    const m = materialNow();
+    expect(m.supplier).toBe('Астра');
+    expect(m.suppliers.find((o: any) => o.id === 's1').is_selected).toBe(true);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('удаление выбранного варианта очищает поставщика позиции', async () => {
+    seedMaterial([{ id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true }], 'Астра');
+    const ok = await useErpStore.getState().deleteSupplierOption('m1', 's1');
+    expect(ok).toBe(true);
+    expect(materialNow().suppliers).toHaveLength(0);
+    expect(materialNow().supplier).toBeNull();
+  });
+
+  it('удаление невыбранного варианта поставщика позиции не трогает', async () => {
+    seedMaterial([
+      { id: 's1', material_id: 'm1', supplier: 'Астра', is_selected: true },
+      { id: 's2', material_id: 'm1', supplier: 'Юг-Текстиль', is_selected: false },
+    ], 'Астра');
+    await useErpStore.getState().deleteSupplierOption('m1', 's2');
+    expect(materialNow().supplier).toBe('Астра');
+    expect(materialNow().suppliers).toHaveLength(1);
+  });
+
+  it('правка варианта — optimistic с откатом', async () => {
+    seedMaterial([{ id: 's1', material_id: 'm1', supplier: 'Астра', price: 400, is_selected: true }], 'Астра');
+    expect(await useErpStore.getState().updateSupplierOption('m1', 's1', { price: 380 })).toBe(true);
+    expect(materialNow().suppliers[0].price).toBe(380);
+
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().updateSupplierOption('m1', 's1', { price: 999 })).toBe(false);
+    expect(materialNow().suppliers[0].price).toBe(380);
+  });
+});
+
+describe('ТЗ в PDF (волна 4)', () => {
+  const pdf = (name = 'tz.pdf', size = 1024) =>
+    ({ name, size, type: 'application/pdf' }) as unknown as File;
+
+  /** Заказ с двумя цехами на позиции и опциональными документами/назначениями */
+  function seedTz(over: Record<string, unknown> = {}) {
+    useErpStore.setState({
+      departments: [
+        { id: 'd-cut', code: 'cutting', name: 'Закройный цех' },
+        { id: 'd-sew', code: 'sewing', name: 'Швейный цех' },
+      ],
+      orders: [{
+        id: 'o1', status: 'active', title: 'Заказ', due_date: '2026-08-01',
+        tz_required: true,
+        items: [{
+          id: 'it1', qty: 100, product_type: 'Футболка', sort_order: 10,
+          stages: [
+            { id: 'st-cut', item_id: 'it1', department_id: 'd-cut', status: 'waiting', sort_order: 10, depends_on: [], qty_done: 0 },
+            { id: 'st-sew', item_id: 'it1', department_id: 'd-sew', status: 'waiting', sort_order: 20, depends_on: [], qty_done: 0 },
+          ],
+        }],
+        materials: [], tz_documents: [], tz_assignments: [],
+        ...over,
+      }],
+      loaded: true,
+    } as any);
+  }
+  const orderNow = () => useErpStore.getState().orders[0] as any;
+
+  it('загрузка ТЗ кладёт файл в бакет и создаёт первую версию', async () => {
+    seedTz();
+    const doc = await useErpStore.getState().uploadTzDocument({
+      orderId: 'o1', itemId: 'it1', file: pdf('Футболка ТЗ.pdf'),
+    });
+    expect(doc).toBeTruthy();
+    expect(h.uploadCalls).toHaveLength(1);
+    expect(h.uploadCalls[0].bucket).toBe('erp-attachments');
+    expect(h.uploadCalls[0].path).toMatch(/^tz\/o1\/[0-9a-f-]+\/v1-Футболка ТЗ\.pdf$/);
+    expect(orderNow().tz_documents).toHaveLength(1);
+    expect(orderNow().tz_documents[0].version).toBe(1);
+    expect(orderNow().tz_documents[0].is_current).toBe(true);
+  });
+
+  it('не-PDF и слишком большой файл отклоняются до загрузки', async () => {
+    seedTz();
+    const jpg = { name: 'скан.jpg', size: 10, type: 'image/jpeg' } as unknown as File;
+    expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: jpg })).toBeNull();
+    const huge = pdf('огромное.pdf', 20 * 1024 * 1024);
+    expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: huge })).toBeNull();
+    expect(h.uploadCalls).toHaveLength(0);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('сбой загрузки файла не создаёт запись документа', async () => {
+    seedTz();
+    h.uploadError = { message: 'нет связи' };
+    expect(await useErpStore.getState().uploadTzDocument({
+      orderId: 'o1', file: pdf(),
+    })).toBeNull();
+    expect(orderNow().tz_documents).toHaveLength(0);
+  });
+
+  it('замена файла создаёт версию 2 и снимает is_current с прежней', async () => {
+    seedTz({
+      tz_documents: [{
+        id: 'doc1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1,
+        is_current: true, file_path: 'tz/o1/g1/v1-tz.pdf', file_name: 'tz.pdf',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+      tz_assignments: [{
+        id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+    });
+    const row = await useErpStore.getState().replaceTzDocument('g1', pdf('tz-v2.pdf'));
+    expect(row?.version).toBe(2);
+    expect(h.uploadCalls[0].path).toBe('tz/o1/g1/v2-tz-v2.pdf');
+
+    const docs = orderNow().tz_documents;
+    expect(docs.filter((d: any) => d.is_current)).toHaveLength(1);
+    expect(docs.find((d: any) => d.is_current).version).toBe(2);
+    // Снятие is_current идёт ПОСЛЕ вставки — иначе партиальный уникальный индекс не пустит
+    expect(h.updateCalls.some((c) => c.table === 'erp_tz_documents' && c.patch.is_current === false))
+      .toBe(true);
+    // Цеху с назначением пишется событие «ТЗ обновлено»
+    expect(h.insertCalls.some((c) => c.table === 'erp_stage_events'
+      && String((c.row as any).comment).includes('ТЗ обновлено до версии 2'))).toBe(true);
+  });
+
+  it('назначение ТЗ цеху заменяет прежнее назначение того же этапа', async () => {
+    seedTz({
+      tz_documents: [
+        { id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' },
+        { id: 'd2', order_id: 'o1', item_id: 'it1', group_id: 'g2', version: 1, is_current: true, file_path: 'p2', created_at: '2026-07-20T11:00:00Z' },
+      ],
+      tz_assignments: [{
+        id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+    });
+    expect(await useErpStore.getState().assignTz({
+      orderId: 'o1', itemId: 'it1', departmentId: 'd-sew', groupId: 'g2',
+    })).toBe(true);
+    const asg = orderNow().tz_assignments.filter((a: any) => a.department_id === 'd-sew');
+    expect(asg).toHaveLength(1);
+    expect(asg[0].group_id).toBe('g2');
+  });
+
+  it('снять единственное ТЗ у этапа маршрута нельзя', async () => {
+    seedTz({
+      tz_documents: [{ id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
+      tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1', created_at: '2026-07-20T10:00:00Z' }],
+    });
+    expect(await useErpStore.getState().unassignTz('it1', 'd-sew')).toBe(false);
+    expect(orderNow().tz_assignments).toHaveLength(1);
+    expect(h.deleteCalls).toHaveLength(0);
+  });
+
+  it('битое назначение (документ удалён) снять можно', async () => {
+    seedTz({
+      tz_documents: [],
+      tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'нет', created_at: '2026-07-20T10:00:00Z' }],
+    });
+    expect(await useErpStore.getState().unassignTz('it1', 'd-sew')).toBe(true);
+    expect(orderNow().tz_assignments).toHaveLength(0);
+  });
+
+  it('гейт: этап без ТЗ не попадает в «готово к работе»', async () => {
+    seedTz();
+    const { orders, departments } = useErpStore.getState();
+    expect(readyCountFor(orders, departments, 'cutting')).toBe(0);
+
+    useErpStore.setState({
+      orders: [{
+        ...orderNow(),
+        tz_documents: [{ id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
+        tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-cut', group_id: 'g1', created_at: '2026-07-20T10:00:00Z' }],
+      }],
+    } as any);
+    const s2 = useErpStore.getState();
+    expect(readyCountFor(s2.orders, s2.departments, 'cutting')).toBe(1);
+  });
+
+  it('требование ТЗ включается вручную — optimistic с откатом', async () => {
+    seedTz({ tz_required: false });
+    expect(await useErpStore.getState().setTzRequired('o1', true)).toBe(true);
+    expect(orderNow().tz_required).toBe(true);
+
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().setTzRequired('o1', false)).toBe(false);
+    expect(orderNow().tz_required).toBe(true);
   });
 });

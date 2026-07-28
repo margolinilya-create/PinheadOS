@@ -4,14 +4,20 @@
  * без циклического импорта через useErpStore.ts. Реэкспорт — в useErpStore.ts.
  */
 
+import type { PermissionMatrix } from '../utils/permissions';
 import type {
   BrandingMethod,
   BrandingOn,
+  DictionaryKind,
+  EmployeeRole,
   ErpDepartment,
+  ErpDictionaryItem,
   ErpEmployee,
+  ErpPermission,
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
+  ErpMaterialSupplier,
   ErpOrder,
   ErpOrderItem,
   ErpExperimental,
@@ -19,6 +25,8 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
+  ErpTzAssignment,
+  ErpTzDocument,
   ErpWarehouseOp,
   ErpWarehouseTask,
   MaterialAcceptStatus,
@@ -76,6 +84,10 @@ export interface ErpOrderFull extends ErpOrder {
   procurement_tasks?: ErpProcurementTask[];
   warehouse_ops?: ErpWarehouseOp[];
   warehouse_tasks?: ErpWarehouseTask[];
+  /** ТЗ в PDF (волна 4): все версии всех групп заказа */
+  tz_documents?: ErpTzDocument[];
+  /** Какому цеху какой документ читать (пара позиция × цех) */
+  tz_assignments?: ErpTzAssignment[];
 }
 
 /**
@@ -126,11 +138,39 @@ export interface NewOrderItemInput {
   subcontract_operation?: string;
   /** Следующий участок после отдельной операции (код цеха); null = доработка не нужна */
   return_dept?: string | null;
+  /**
+   * Нужен ли финальный ОТК (галочка позиции в форме, по умолчанию да).
+   * Влияет только на маршрут: в `erp_order_items` не пишется, потому что
+   * этапы уже материализованы и повторно по флагу не пересчитываются.
+   */
+  needs_qc?: boolean;
+}
+
+/** Документ ТЗ в payload создания заказа: файл уже лежит в бакете */
+export interface NewOrderTzDocument {
+  group_id: string;
+  /** Индекс позиции в `items`; null — общее ТЗ заказа */
+  item_index: number | null;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by?: string;
+}
+
+/** Назначение ТЗ этапу в payload создания: позиция адресуется индексом, цех — id */
+export interface NewOrderTzAssignment {
+  item_index: number;
+  department_id: string;
+  group_id: string;
+  assigned_by?: string;
 }
 
 export interface NewOrderInput {
   bitrix_id?: string;
   title: string;
+  /** Клиент — показывается цеху в задании и участвует в фильтрах (правки 5/9) */
+  customer?: string;
   manager?: string;
   launch_date?: string;
   due_date?: string;
@@ -141,7 +181,14 @@ export interface NewOrderInput {
   stickers?: string;
   stickers_note?: string;
   no_chestny_znak?: boolean;
+  /** Требовать ли ТЗ (волна 4). Новые заказы из формы — всегда true */
+  tz_required?: boolean;
   items: NewOrderItemInput[];
+  /**
+   * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их и назначения
+   * в одной транзакции с заказом — «создать заказ без ТЗ» невозможно даже при сбое.
+   */
+  tz?: { documents: NewOrderTzDocument[]; assignments: NewOrderTzAssignment[] };
 }
 
 /** Нормализованное realtime-событие postgres_changes (для точечного применения) */
@@ -170,11 +217,15 @@ export interface OrdersSlice {
   /** Архив (status != active) грузится лениво — при первом заходе на вкладку */
   archiveLoaded: boolean;
   archiveLoading: boolean;
+  /** В архиве осталась ещё страница — показываем кнопку «Показать ещё» */
+  archiveHasMore: boolean;
 
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
-  /** Ленивая загрузка архива (status != active) при первом заходе на вкладку */
+  /** Ленивая загрузка архива (status != active) при первом заходе на вкладку — первая страница */
   loadArchive: () => Promise<void>;
+  /** Следующая страница архива (кнопка «Показать ещё») */
+  loadMoreArchive: () => Promise<void>;
   /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
   loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
@@ -199,7 +250,13 @@ export interface StagesSlice {
   setStageStatus: (
     stageId: string,
     status: StageStatus,
-    extra?: { qty_done?: number; block_reason?: string | null; comment?: string },
+    extra?: {
+      qty_done?: number;
+      block_reason?: string | null;
+      /** Исполнитель, за которым закрепляется задание («Взять в работу», правка 8) */
+      assignee?: string | null;
+      comment?: string;
+    },
   ) => Promise<boolean>;
   /**
    * Частичная готовность: qty_done += qty; при qty_done >= qty позиции
@@ -210,12 +267,36 @@ export interface StagesSlice {
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
+  /** Заказ, которому принадлежит этап — для диплинка на страницу задания (правка 5) */
+  findOrderIdByStage: (stageId: string) => Promise<string | null>;
   /** Обработка просрочки этапа (правка 8): комментарий причины + отметка времени */
   ackStageOverdue: (stageId: string, comment: string) => Promise<boolean>;
   /** Ручные плановые даты этапа */
   setStagePlan: (
     stageId: string,
     plan: { planned_start?: string | null; planned_end?: string | null },
+  ) => Promise<boolean>;
+  /**
+   * Приоритет задания в очереди своего цеха (правка 3): задание встаёт между
+   * prevStageId и nextStageId (null — край очереди). Пишет одну строку —
+   * позицию-середину; при исчерпании точности перенумеровывает очередь цеха.
+   * Перемещение фиксируется в истории (кто, когда, куда).
+   */
+  reorderStageQueue: (
+    stageId: string,
+    prevStageId: string | null,
+    nextStageId: string | null,
+  ) => Promise<boolean>;
+  /**
+   * Перенос задания в другой цех (канбан): текущий этап закрывается, этап целевого
+   * цеха открывается; если его нет в маршруте — добавляется. Последствия и запреты
+   * считает analyzeStageMove, подтверждение показывает UI. Возврат назад и пропуск
+   * этапов требуют комментария — он уходит в историю обоих этапов.
+   */
+  moveStageToDepartment: (
+    stageId: string,
+    targetDepartmentId: string,
+    opts?: { comment?: string | null },
   ) => Promise<boolean>;
 }
 
@@ -228,6 +309,21 @@ export interface MaterialsSlice {
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
   /** Подтвердить наличие материала со склада → «Доступен со склада» (открывает закрой) */
   confirmStockMaterial: (id: string) => Promise<boolean>;
+
+  /** Варианты поставщиков на позицию закупки (правка 10) */
+  addSupplierOption: (
+    materialId: string,
+    option: Partial<ErpMaterialSupplier> & Pick<ErpMaterialSupplier, 'supplier'>,
+  ) => Promise<ErpMaterialSupplier | null>;
+  updateSupplierOption: (
+    materialId: string,
+    optionId: string,
+    patch: Partial<ErpMaterialSupplier>,
+  ) => Promise<boolean>;
+  /** Выбрать итогового поставщика: снимает флаг с прежнего и пишет имя в материал */
+  selectSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
+  /** Удалить вариант; удаление выбранного очищает поставщика у позиции */
+  deleteSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
   /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
   maybeCloseSupply: (orderId: string) => Promise<void>;
 }
@@ -295,9 +391,11 @@ export interface EmployeesSlice {
   employeesLoaded: boolean;
   /** Цех текущего пользователя (erp_employees.department_id по profile_id) */
   myDeptId: string | null;
+  /** Цеховая роль текущего пользователя — вход в матрицу прав (ядро правки 11) */
+  myRole: EmployeeRole | null;
   myDeptLoaded: boolean;
 
-  /** Автопривязка цеха: ищет erp_employees по profile_id текущего пользователя */
+  /** Автопривязка цеха и цеховой роли: ищет erp_employees по profile_id пользователя */
   loadMyDept: (profileId: string | undefined) => Promise<void>;
   loadEmployees: () => Promise<void>;
   createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
@@ -309,6 +407,46 @@ export interface EmployeesSlice {
     profile: StaffProfile,
     patch: Partial<Pick<ErpEmployee, 'department_id' | 'role' | 'notes'>>,
   ) => Promise<boolean>;
+
+  /** Справочник цехов (правки 11/12): создание участка и правка его атрибутов */
+  createDepartment: (
+    dept: Pick<ErpDepartment, 'code' | 'name'> & Partial<ErpDepartment>,
+  ) => Promise<ErpDepartment | null>;
+  /** Название, порядок, признак брендирования, активность, руководитель, норматив */
+  updateDepartment: (id: string, patch: Partial<ErpDepartment>) => Promise<boolean>;
+}
+
+/** Права: матрица «роль × право» из erp_role_permissions (правка 11) */
+export interface PermissionsSlice {
+  /** null — матрица ещё не загружена (действуют DEFAULT_PERMISSIONS) */
+  permissionMatrix: PermissionMatrix | null;
+  permissionsLoaded: boolean;
+  loadPermissions: () => Promise<void>;
+  /** Переключить право роли из редактора матрицы в админке */
+  setRolePermission: (
+    role: EmployeeRole,
+    permission: ErpPermission,
+    allowed: boolean,
+  ) => Promise<boolean>;
+}
+
+/** Справочники админки: причины блокировок, типы проблем, изделий, поставщики (правка 12) */
+export interface DictionariesSlice {
+  dictionaries: ErpDictionaryItem[];
+  dictionariesLoaded: boolean;
+  loadDictionaries: () => Promise<void>;
+  /** Код значения генерируется из названия, порядок — в конец списка вида */
+  createDictionaryItem: (
+    kind: DictionaryKind,
+    name: string,
+  ) => Promise<ErpDictionaryItem | null>;
+  /** Переименование, деактивация (active:false вместо удаления), правка meta */
+  updateDictionaryItem: (
+    id: string,
+    patch: Partial<Pick<ErpDictionaryItem, 'name' | 'active' | 'sort_order' | 'meta'>>,
+  ) => Promise<boolean>;
+  /** Переставить значение на позицию вверх/вниз внутри своего вида */
+  moveDictionaryItem: (id: string, direction: 'up' | 'down') => Promise<boolean>;
 }
 
 /** Realtime: точечное применение postgres_changes + подписка */
@@ -334,6 +472,33 @@ export interface ExperimentalSlice {
   completeExperimentalOp: (opId: string) => Promise<boolean>;
 }
 
+/**
+ * Технические задания в PDF (волна 4): загрузка, версии, назначение цехам.
+ * Просмотр правом не гейтится — читают все; правит только `tz.manage`.
+ */
+export interface TzSlice {
+  /** Загрузить новый документ ТЗ. `itemId = null` — общее ТЗ заказа */
+  uploadTzDocument: (input: {
+    orderId: string;
+    itemId?: string | null;
+    file: File;
+    note?: string | null;
+  }) => Promise<ErpTzDocument | null>;
+  /**
+   * Заменить файл: новая версия в той же группе, `is_current` снимается со старой.
+   * Назначения ссылаются на группу, поэтому обновление подхватывают все цеха разом.
+   */
+  replaceTzDocument: (groupId: string, file: File, note?: string | null)
+    => Promise<ErpTzDocument | null>;
+  /** Назначить документ этапу (пара позиция × цех); повторный вызов переназначает */
+  assignTz: (input: { orderId: string; itemId: string; departmentId: string; groupId: string })
+    => Promise<boolean>;
+  /** Снять назначение. Блокируется, если этап маршрута останется без ТЗ */
+  unassignTz: (itemId: string, departmentId: string) => Promise<boolean>;
+  /** Включить/выключить требование ТЗ у заказа (для заказов, заведённых до внедрения) */
+  setTzRequired: (orderId: string, required: boolean) => Promise<boolean>;
+}
+
 /** Полный контракт ERP-стора — пересечение доменных слайсов */
 export type ErpStore = OrdersSlice &
   StagesSlice &
@@ -342,5 +507,8 @@ export type ErpStore = OrdersSlice &
   ProcurementSlice &
   SubcontractingSlice &
   EmployeesSlice &
+  PermissionsSlice &
+  DictionariesSlice &
   ExperimentalSlice &
+  TzSlice &
   RealtimeSlice;

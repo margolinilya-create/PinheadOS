@@ -22,7 +22,7 @@ cd pinhead-react && npm test -- --run 2>&1 | tail -10
 ### Green — написать минимальный код
 - Пиши ровно столько кода сколько нужно чтобы тест прошёл
 - Не добавляй лишнего
-- Проверь: все 722+ тестов зелёные
+- Проверь: тестов не стало меньше, чем было до правки, и все зелёные
 
 ### Refactor — улучшить если нужно
 - Только если есть явное дублирование или проблема
@@ -34,12 +34,15 @@ cd pinhead-react && npm test -- --run 2>&1 | tail -10
 
 | Что меняешь | Куда писать тест |
 |-------------|-----------------|
-| `utils/pricing.js` | `utils/pricing.test.js` |
-| `store/useOrdersStore.js` | `store/useOrdersStore.test.js` |
-| `store/slices/*.js` | `store/useStore.test.js` |
+| `erp/utils/*.ts` (routes, tz, progress, queueEntries…) | Рядом `*.test.ts` — это чистая логика, тест обязателен |
+| `erp/store/slices/*.ts` | `erp/store/useErpStore.test.ts` |
+| `erp/screens/*`, `erp/components/*` | Сценарий в `e2e/erp-queue.spec.ts` |
+| `utils/pricing.ts` | `utils/pricing.test.js` |
+| `store/useOrdersStore.ts` | `store/useOrdersStore.test.js` |
+| `store/slices/*.ts` | `store/useStore.test.js` |
 | `components/steps/Step*.jsx` | `components/steps/Step*.test.jsx` |
 | `components/orders/KanbanBoard.jsx` | Рядом `KanbanBoard.test.jsx` если нет |
-| Новый утилит | Рядом `*.test.js` |
+| Новый утилит | Рядом `*.test.ts` |
 
 ---
 
@@ -80,4 +83,5 @@ describe('ИмяФункции', () => {
 - `saveOrder` / `updateOrder` / `deleteOrder` — должны возвращать `null` при ошибке
 - Zustand сторы — используй `useStore.getState()` для проверки состояния
 - Toast — мокай `useToastStore` и проверяй что `toast.error` вызван
-- Baseline: **722 теста** — если стало меньше, ты удалил тест, это запрещено
+- Baseline: **число тестов до твоей правки** — если стало меньше, ты удалил тест,
+  это запрещено (на 27.07.2026 их 1194)

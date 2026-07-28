@@ -20,8 +20,20 @@ export default class ErrorBoundary extends Component {
     window.location.reload();
   };
 
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
+      // Локальный фолбэк (напр. один экран внутри оболочки ERP): полноэкранный
+      // блок ниже разорвал бы layout, поэтому владелец даёт свой.
+      const { fallback } = this.props;
+      if (fallback) {
+        return typeof fallback === 'function'
+          ? fallback(this.state.error, this.handleReset)
+          : fallback;
+      }
       return (
         <div style={{
           minHeight: '100vh',

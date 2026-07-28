@@ -80,6 +80,15 @@ export interface ErpDepartment {
   sort_order: number;
   is_branding: boolean;
   active: boolean;
+  /** Руководитель цеха (правка 11) — закрепляется в админке */
+  head_employee_id?: string | null;
+  /** Нормативный срок этапа в днях (правка 12) — план завершения при «Взять в работу» */
+  norm_days?: number | null;
+  /**
+   * Производственный участок: своя очередь, колонка в канбане, требует ТЗ.
+   * Правится в админке — раньше набор был захардкожен, и новый цех не появлялся нигде.
+   */
+  is_production?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -88,6 +97,8 @@ export interface ErpOrder {
   id: string;
   bitrix_id: string | null;
   title: string;
+  /** Клиент заказа — показывается в задании цеха и фильтруется (правки 5/9) */
+  customer?: string | null;
   manager: string | null;
   launch_date: string | null;
   due_date: string | null;
@@ -105,6 +116,11 @@ export interface ErpOrder {
   stickers?: StickersType;
   stickers_note?: string | null;
   no_chestny_znak?: boolean;
+  /**
+   * Требуется ли ТЗ в PDF (волна 4). Новые заказы — true (гейт на создании и на этапе).
+   * Заказы, заведённые до внедрения ТЗ, — false, иначе гейт застопорил бы производство.
+   */
+  tz_required?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -144,7 +160,14 @@ export interface ErpItemStage {
   assignee: string | null;
   block_reason: string | null;
   notes: string | null;
+  /** Порядок этапа в маршруте позиции (задаётся при создании, не меняется) */
   sort_order: number;
+  /**
+   * Приоритет задания в очереди своего цеха (волна 1, правка 3). Меньше — выше.
+   * numeric: перенос drag-and-drop пишет середину между соседями, без перенумерации.
+   * null — этап ещё не получил позицию (сортируется по сроку заказа).
+   */
+  queue_position?: number | null;
   // Обработка просрочки (правка 8): комментарий причины задержки + время подтверждения
   overdue_comment?: string | null;
   overdue_ack_at?: string | null;
@@ -182,7 +205,86 @@ export interface ErpMaterial {
   accept_comment: string | null;
   created_at: string;
   updated_at: string;
+  /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
+  suppliers?: ErpMaterialSupplier[];
 }
+
+/**
+ * Вариант поставщика на позицию закупки (правка 10). Вариантов может быть несколько,
+ * выбранный (`is_selected`) дублируется в erp_materials.supplier — так он виден везде,
+ * где поставщик уже показывался, без правок тех экранов.
+ */
+export interface ErpMaterialSupplier {
+  id: string;
+  material_id: string;
+  supplier: string;
+  /** Цена за единицу закупки */
+  price: number | null;
+  /** Наличие — свободный текст: «200 кг на складе», «под заказ» */
+  availability: string | null;
+  /** Срок поставки, дней */
+  lead_days: number | null;
+  /** Минимальная партия — свободный текст: «от 50 кг» */
+  min_batch: string | null;
+  note: string | null;
+  is_selected: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Подписи колонок сравнения вариантов поставщика */
+export const SUPPLIER_OPTION_LABELS = {
+  supplier: 'Поставщик',
+  price: 'Цена',
+  availability: 'Наличие',
+  lead_days: 'Срок, дн',
+  min_batch: 'Мин. партия',
+  note: 'Примечание',
+} as const;
+
+// --- Технические задания в PDF (волна 4) ------------------------------------
+
+/**
+ * Документ ТЗ. «Личность» документа — `group_id`, версии живут внутри группы:
+ * замена файла добавляет строку version+1 и снимает `is_current` с прежней.
+ * Назначения ссылаются на `group_id`, поэтому все связанные цеха автоматически
+ * читают актуальную версию.
+ *
+ * `item_id === null` — общее ТЗ заказа: годится любой позиции.
+ */
+export interface ErpTzDocument {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  group_id: string;
+  version: number;
+  is_current: boolean;
+  file_path: string;
+  file_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  note: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/** Какой документ читает цех на конкретной позиции (одно ТЗ на пару позиция × цех) */
+export interface ErpTzAssignment {
+  id: string;
+  order_id: string;
+  item_id: string;
+  department_id: string;
+  group_id: string;
+  assigned_by: string | null;
+  created_at: string;
+}
+
+/** Бакет и префикс ТЗ в Supabase Storage */
+export const TZ_BUCKET = 'erp-attachments';
+export const TZ_PREFIX = 'tz';
+/** Ограничения загрузки ТЗ: только PDF, до 15 МБ */
+export const TZ_MIME = 'application/pdf';
+export const TZ_MAX_BYTES = 15 * 1024 * 1024;
 
 /** Складская операция (правка 2): строка истории сопровождения заказа складом */
 export interface ErpWarehouseOp {
@@ -561,6 +663,86 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   manager: 'Менеджер',
   director: 'Директор',
 };
+
+// --- Матрица прав (ядро правки 11) ------------------------------------------
+
+/**
+ * Что роль вправе делать. Ограничение «только свой цех» — отдельная проверка
+ * по привязке erp_employees.department_id, матрицей не отменяется.
+ */
+export type ErpPermission =
+  | 'stage.take'              // взять задание в работу (закрепить за собой)
+  | 'stage.progress'          // записать фактически выполненное количество
+  | 'stage.complete'          // завершить этап
+  | 'stage.block'             // сообщить о проблеме / снять блокировку
+  | 'stage.defect'            // оформить брак / переделку
+  | 'stage.priority'          // менять приоритет заданий в очереди
+  | 'stage.move_department'   // переносить задание между цехами на канбане
+  | 'order.manage'            // создавать и редактировать заказы
+  | 'tz.manage'               // загружать, заменять и назначать ТЗ цехам
+  | 'catalog.edit';           // редактировать справочники
+
+export const ERP_PERMISSIONS: ErpPermission[] = [
+  'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
+  'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage', 'catalog.edit',
+];
+
+export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
+  'stage.take': 'Брать задания в работу',
+  'stage.progress': 'Записывать результат',
+  'stage.complete': 'Завершать этап',
+  'stage.block': 'Сообщать о проблеме',
+  'stage.defect': 'Оформлять брак',
+  'stage.priority': 'Менять приоритеты',
+  'stage.move_department': 'Переносить между цехами',
+  'order.manage': 'Создавать и править заказы',
+  'tz.manage': 'Вести ТЗ (загрузка и назначение)',
+  'catalog.edit': 'Править справочники',
+};
+
+/** Строка матрицы прав (таблица erp_role_permissions) */
+export interface ErpRolePermission {
+  role: EmployeeRole;
+  permission: ErpPermission;
+  allowed: boolean;
+  updated_at: string;
+}
+
+// --- Справочники админки (правка 12) ----------------------------------------
+
+/**
+ * Виды редактируемых справочников. Статусы (этапов, заказов, материалов, склада,
+ * подряда) сюда не входят: они зашиты в CHECK-констрейнты и стейт-машины —
+ * в админке показаны только для чтения.
+ */
+export type DictionaryKind = 'block_reason' | 'problem_type' | 'product_type' | 'supplier';
+
+export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
+  block_reason: 'Причины блокировок',
+  problem_type: 'Типы проблем',
+  product_type: 'Типы изделий',
+  supplier: 'Поставщики',
+};
+
+/** Подсказка под заголовком справочника — где значение всплывает в работе */
+export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
+  block_reason: 'Быстрый выбор в форме «Проблема» у задания цеха.',
+  problem_type: 'Быстрый выбор при оформлении брака и переделки.',
+  product_type: 'Подсказки в поле «Изделие» при создании заказа.',
+  supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
+};
+
+export interface ErpDictionaryItem {
+  id: string;
+  kind: DictionaryKind;
+  code: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  meta: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
 
 // --- Поля ТЗ (docs/erp/tz-format-analysis.md) --------------------------------
 
