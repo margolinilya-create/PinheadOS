@@ -260,8 +260,9 @@
 .navIcon {
   width: 20px;
   flex-shrink: 0;
-  text-align: center;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .navLabel { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .navBadge {
@@ -378,7 +379,13 @@
   text-align: center;
   color: var(--text-dim);
 }
-.stubIcon { font-size: 34px; margin-bottom: 10px; }
+.stubIcon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+  color: var(--text-muted);
+}
+.stubText { margin-top: 6px; }
 .stubPhase {
   display: inline-block;
   margin-top: 14px;
@@ -439,6 +446,8 @@
   border: 1px solid transparent;
   line-height: 1.5;
 }
+/* Чип-переключатель (фильтр): выглядит как чип, ведёт себя как кнопка */
+.chipBtn { cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 600; }
 /* Семантика статусов по макету: ожидает — амбер, в работе — синий, готово — зелёный */
 .chipWaiting  { background: var(--bg-warning); color: var(--color-warning); }
 .chipReady    { background: var(--bg-success); color: var(--color-success); }
@@ -652,13 +661,18 @@ a.kpiTile:hover { border-color: var(--accent); }
   font-family: var(--mono);
   font-size: 11px;
   min-width: 20px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-mid);
 }
+/* Необработанные просрочки цеха — красный счётчик */
+.deptTabOverdue { background: var(--color-error); border-color: var(--color-error); color: #fff; }
 .deptTabHot {
   background: var(--signal);
   border-color: var(--signal);
@@ -742,6 +756,7 @@ a.kpiTile:hover { border-color: var(--accent); }
   border-radius: var(--radius-sm, 6px);
   padding: 7px 10px;
 }
+.queueReasonSpaced { margin-bottom: var(--space-md); }
 .queueActions { display: flex; gap: 8px; flex-wrap: wrap; }
 .queueActions :global(.btn) { min-height: 46px; flex: 1; }
 .queueActions :global(.btn-ghost) { flex: 0 0 auto; }
@@ -1136,7 +1151,7 @@ a.kpiTile:hover { border-color: var(--accent); }
 .inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }
 .inlineEditBtn:disabled { cursor: default; }
 .inlineEditBtn:disabled:hover { background: none; outline: none; }
-.inlineEditPen { font-size: 10px; opacity: 0; transition: opacity 120ms; }
+.inlineEditPen { display: inline-flex; opacity: 0; transition: opacity 120ms; }
 .inlineEditBtn:hover .inlineEditPen { opacity: 0.6; }
 
 /* ─── Степпер этапов ─── */
@@ -1484,12 +1499,19 @@ a.cellTitle:hover { color: var(--accent); }
 }
 .pipeNodeActive .pipeCount { background: var(--bg-info); color: var(--accent); }
 .pipeNodeAside .pipeCount { background: var(--bg-error); color: var(--color-error); }
-.pipeLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.pipeLabel {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text); white-space: nowrap;
+}
 .pipeArrow { color: var(--text-dim); font-weight: 700; margin: 0 6px; }
 
 /* ─── Dashboard (редизайн, по макету) ─── */
 .dash { display: flex; flex-direction: column; gap: 16px; }
 .dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+/* Ряд KPI над таблицей (Закупка/Склад) — отбивка до фильтров */
+.kpisGap { margin-bottom: 16px; }
+/* Ячейка таблицы «иконка + текст» */
+.cellWithIcon { display: inline-flex; align-items: center; gap: 6px; }
 .kpiCard {
   display: flex; align-items: center; gap: 14px;
   padding: 16px;
@@ -1504,12 +1526,12 @@ a.cellTitle:hover { color: var(--accent); }
   width: 44px; height: 44px; flex-shrink: 0;
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px; background: var(--bg-info);
+  background: var(--bg-info); color: var(--color-info);
 }
-.kpiIconOk { background: var(--bg-success); }
-.kpiIconWarn { background: var(--bg-warning); }
-.kpiIconDanger { background: var(--bg-error); }
-.kpiIconViolet { background: var(--bg-violet); }
+.kpiIconOk { background: var(--bg-success); color: var(--color-success); }
+.kpiIconWarn { background: var(--bg-warning); color: var(--color-warning); }
+.kpiIconDanger { background: var(--bg-error); color: var(--color-error); }
+.kpiIconViolet { background: var(--bg-violet); color: var(--color-violet); }
 .kpiBody { display: flex; flex-direction: column; min-width: 0; }
 .kpiCardLabel { font-size: 12px; color: var(--text-dim); }
 .kpiCardValue {
@@ -1527,6 +1549,8 @@ a.cellTitle:hover { color: var(--accent); }
   box-shadow: var(--shadow-card);
   padding: 16px; min-width: 0;
 }
+/* Якорь для колокола (/#notifications): заголовок не прилипает к верху при скролле */
+.widgetAnchor { scroll-margin-top: 16px; }
 .widgetHead {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 12px; gap: 8px;
@@ -1546,7 +1570,9 @@ a.cellTitle:hover { color: var(--accent); }
 .deadlineItem {
   display: flex; align-items: center; gap: 12px;
   padding: 9px 0; border-bottom: 1px solid var(--border-light);
+  color: inherit; text-decoration: none;
 }
+a.deadlineItem:hover .deadlineName { color: var(--accent); }
 .deadlineItem:last-child { border-bottom: none; }
 .deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
 .deadlineDay { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); line-height: 1; }
@@ -1569,11 +1595,20 @@ a.cellTitle:hover { color: var(--accent); }
 .quickAction:hover { background: var(--surface); color: var(--text); }
 .quickIcon {
   width: 40px; height: 40px; border-radius: 10px; background: var(--bg-info);
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  display: flex; align-items: center; justify-content: center; color: var(--color-info);
 }
 
-.notifItem { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-light); }
+.notifItem {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--border-light);
+  color: inherit; text-decoration: none;
+}
 .notifItem:last-child { border-bottom: none; }
+/* Уведомление — ссылка на заказ: подсветка всей строки при наведении */
+a.notifItem:hover .notifText { color: var(--accent); }
+.notifIcon { flex-shrink: 0; display: inline-flex; }
+.notifIconWarn { color: var(--color-warning); }
+.notifIconDanger { color: var(--color-error); }
 .notifText { flex: 1; font-size: 13px; color: var(--text); min-width: 0; }
 .notifSub { font-size: 11px; color: var(--text-dim); }
 
@@ -1661,3 +1696,13 @@ a.cellTitle:hover { color: var(--accent); }
 @media (max-width: 760px) {
   .drawerPanel { width: 100%; border-left: none; }
 }
+
+/* ─── Хелперы раскладки (вынесены из инлайн-стилей JSX) ─── */
+/* Переключатель вида «Таблица / Канбан» на производственной доске */
+.viewTabs { display: flex; gap: 6px; }
+/* Чип внутри строки текста (напр. «к отгрузке» рядом с названием) */
+.chipInline { margin-left: 6px; }
+/* Заглушка превью в карточке заказа — отдельным блоком с отбивкой */
+.thumbStubBlock { margin: 10px 0; }
+/* Шеврон раскрытия: развёрнутое состояние — стрелка вверх */
+.chevronUp { transform: rotate(180deg); }

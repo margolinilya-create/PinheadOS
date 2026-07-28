@@ -11,10 +11,10 @@ import { ExperimentalCard } from './experimental/ExperimentalCard';
 
 /** Пайплайн фаз разработки образца (счётчики) — верх экрана */
 const PIPE_PHASES = [
-  { key: 'patterns', label: 'Лекала', icon: '📐' },
-  { key: 'development', label: 'Проработка', icon: '🧵' },
-  { key: 'final_fitting', label: 'Примерка', icon: '👕' },
-  { key: 'done', label: 'Готов к серии', icon: '✅' },
+  { key: 'patterns', label: 'Лекала', icon: 'scissors' },
+  { key: 'development', label: 'Проработка', icon: 'flask' },
+  { key: 'final_fitting', label: 'Примерка', icon: 'shirt' },
+  { key: 'done', label: 'Готов к серии', icon: 'checkCircle' },
 ];
 
 /**
@@ -101,7 +101,7 @@ export default function Experimental() {
       {experimentalLoaded && experimental.length > 0 && (
         <Pipeline
           stages={pipeStages}
-          aside={{ key: 'returned', label: 'Возврат конструктору', icon: '↩', count: returnedCount }}
+          aside={{ key: 'returned', label: 'Возврат конструктору', icon: 'undo', count: returnedCount }}
         />
       )}
 

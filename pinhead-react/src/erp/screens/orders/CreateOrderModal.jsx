@@ -32,6 +32,7 @@ import {
   SUBCONTRACT_MATERIAL_SOURCE_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 
 /** Редактор размерной сетки: пресеты-чипсы размеров, цвета строками, сумма = тираж */
 function SizeGridEditor({ grid, onChange }) {
@@ -165,7 +166,7 @@ function SizeGridEditor({ grid, onChange }) {
             aria-label="Убрать цвет"
             onClick={() => set({ rows: rows.filter((_, i) => i !== ri) })}
           >
-            ✕
+            <Icon name="x" size={15} />
           </button>
         </div>
       ))}
@@ -188,7 +189,9 @@ function FormSection({ id, title, summary, open, onToggle, children }) {
         aria-controls={id}
         onClick={onToggle}
       >
-        <span className={styles.accChevron} aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span className={styles.accChevron}>
+          <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />
+        </span>
         <span className={styles.accTitle}>{title}</span>
         {!open && summary && <span className={styles.accSummary}>{summary}</span>}
       </button>
@@ -431,7 +434,7 @@ export function CreateOrderModal({ onClose }) {
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
     form.no_chestny_znak ? 'без ЧЗ' : null,
-    previewFile ? 'превью ✓' : null,
+    previewFile ? 'превью добавлено' : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -733,7 +736,7 @@ export function CreateOrderModal({ onClose }) {
               disabled={items.length === 1}
               onClick={() => setItems((arr) => arr.filter((_, idx) => idx !== i))}
             >
-              ✕
+              <Icon name="x" size={15} />
             </button>
           </div>
 
@@ -773,7 +776,7 @@ export function CreateOrderModal({ onClose }) {
                 </label>
                 <button type="button" className="btn btn-ghost" aria-label="Убрать нанесение"
                   onClick={() => setItem(i, { prints: it.prints.filter((_, j) => j !== pi) })}>
-                  ✕
+                  <Icon name="x" size={15} />
                 </button>
               </div>
               <div className={`${styles.checkRow} ${styles.printRow}`}>
@@ -913,12 +916,13 @@ export function CreateOrderModal({ onClose }) {
                   setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
                 }}
               >
-                ✕ Убрать
+                <Icon name="x" size={14} /> Убрать
               </button>
             </>
           ) : (
-            <span className={styles.subText}>
-              🖼 Превью заказа: перетащите картинку сюда, вставьте <kbd>Ctrl+V</kbd> или кликните
+            <span className={`${styles.subText} ${styles.cellWithIcon}`}>
+              <Icon name="image" size={15} />
+              Превью заказа: перетащите картинку сюда, вставьте <kbd>Ctrl+V</kbd> или кликните
               (JPG/PNG/WEBP до 2 МБ)
             </span>
           )}

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
+import { Icon } from '../components/Icon';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement } from '../utils/routes';
@@ -20,14 +21,14 @@ import styles from '../erp.module.css';
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
 const QUICK_ACTIONS = [
-  { to: '/orders?new=1', icon: '➕', label: 'Новый заказ' },
-  { to: '/board', icon: '🏭', label: 'Канбан' },
-  { to: '/queue', icon: '🔧', label: 'Очередь' },
-  { to: '/purchasing', icon: '🚚', label: 'Закупки' },
-  { to: '/warehouse', icon: '📦', label: 'Приёмка' },
-  { to: '/subcontracting', icon: '🤝', label: 'Подрядчики' },
-  { to: '/experimental', icon: '🧪', label: 'Образцы' },
-  { to: '/admin', icon: '⚙️', label: 'Настройки' },
+  { to: '/orders?new=1', icon: 'plus', label: 'Новый заказ' },
+  { to: '/board', icon: 'board', label: 'Канбан' },
+  { to: '/queue', icon: 'queue', label: 'Очередь' },
+  { to: '/purchasing', icon: 'truck', label: 'Закупки' },
+  { to: '/warehouse', icon: 'inbox', label: 'Приёмка' },
+  { to: '/subcontracting', icon: 'users', label: 'Подрядчики' },
+  { to: '/experimental', icon: 'flask', label: 'Образцы' },
+  { to: '/admin', icon: 'settings', label: 'Настройки' },
 ];
 
 /** Текущий этап заказа (для колонки «Цех/этап») */
@@ -92,11 +93,13 @@ export default function ErpDashboard() {
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
       if (hasOpenProcurement(order.procurement_tasks)) {
-        notifications.push({ id: `p-${order.id}`, icon: '🔔', variant: 'warn',
+        notifications.push({ id: `p-${order.id}`, to: `/orders/${order.id}`,
+          icon: 'bell', variant: 'warn',
           text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
       if (isOverdue(order.due_date)) {
-        notifications.push({ id: `o-${order.id}`, icon: '⚠️', variant: 'danger',
+        notifications.push({ id: `o-${order.id}`, to: `/orders/${order.id}`,
+          icon: 'alert', variant: 'danger',
           text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title });
       }
 
@@ -161,42 +164,50 @@ export default function ErpDashboard() {
           {/* KPI */}
           <div className={styles.dashKpis}>
             <Link to="/orders" className={styles.kpiCard}>
-              <span className={styles.kpiIcon}>📋</span>
+              <span className={styles.kpiIcon}><Icon name="orders" size={22} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Заказов в работе</span>
                 <span className={styles.kpiCardValue}>{data.activeOrders}</span>
               </span>
             </Link>
             <Link to="/board" className={styles.kpiCard}>
-              <span className={styles.kpiIcon}>🏭</span>
+              <span className={styles.kpiIcon}><Icon name="board" size={22} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Позиций в работе</span>
                 <span className={styles.kpiCardValue}>{data.itemsInWork}</span>
               </span>
             </Link>
             <Link to="/orders?filter=ready" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconOk}`}>✅</span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconOk}`}>
+                <Icon name="checkCircle" size={22} />
+              </span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Готовы к отгрузке</span>
                 <span className={styles.kpiCardValue}>{data.readyToShip}</span>
               </span>
             </Link>
             <Link to="/orders?filter=urgent" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconWarn}`}>⏱️</span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconWarn}`}>
+                <Icon name="clock" size={22} />
+              </span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Срок ≤ 3 дней</span>
                 <span className={styles.kpiCardValue}>{data.dueSoon}</span>
               </span>
             </Link>
             <Link to="/orders?filter=overdue" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconDanger}`}>⚠️</span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconDanger}`}>
+                <Icon name="alert" size={22} />
+              </span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Просрочено</span>
                 <span className={styles.kpiCardValue}>{data.overdue}</span>
               </span>
             </Link>
             <Link to="/warehouse" className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${styles.kpiIconViolet}`}>📦</span>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconViolet}`}>
+                <Icon name="box" size={22} />
+              </span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Задач на складе</span>
                 <span className={styles.kpiCardValue}>{data.warehouseOpen}</span>
@@ -262,7 +273,7 @@ export default function ErpDashboard() {
                   const dt = order.due_date ? new Date(order.due_date) : null;
                   const label = days < 0 ? `просрочен ${-days} дн.` : days === 0 ? 'сегодня' : days === 1 ? 'завтра' : `через ${days} дн.`;
                   return (
-                    <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
+                    <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem}>
                       <span className={styles.deadlineDate}>
                         <span className={styles.deadlineDay}>{dt ? dt.getDate() : '—'}</span>
                         <span className={styles.deadlineMon}>{dt ? MONTHS[dt.getMonth()] : ''}</span>
@@ -286,26 +297,32 @@ export default function ErpDashboard() {
               <div className={styles.quickGrid}>
                 {QUICK_ACTIONS.map((a) => (
                   <Link key={a.to} to={a.to} className={styles.quickAction}>
-                    <span className={styles.quickIcon}>{a.icon}</span>
+                    <span className={styles.quickIcon}><Icon name={a.icon} size={20} /></span>
                     {a.label}
                   </Link>
                 ))}
               </div>
             </div>
 
-            <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
+            <div id="notifications" className={`${styles.widget} ${styles.widgetAnchor}`}>
               <div className={styles.widgetHead}><span className={styles.widgetTitle}>Уведомления</span></div>
               {data.notifications.length === 0 ? (
                 <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
               ) : (
                 data.notifications.map((n) => (
-                  <div key={n.id} className={styles.notifItem}>
-                    <span aria-hidden="true">{n.icon}</span>
+                  <Link key={n.id} to={n.to} className={styles.notifItem}>
+                    <span
+                      className={`${styles.notifIcon} ${
+                        n.variant === 'danger' ? styles.notifIconDanger : styles.notifIconWarn
+                      }`}
+                    >
+                      <Icon name={n.icon} />
+                    </span>
                     <span className={styles.notifText}>
                       {n.text}
                       <span className={styles.notifSub}> · {n.sub}</span>
                     </span>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>

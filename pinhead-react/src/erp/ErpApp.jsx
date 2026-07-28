@@ -5,6 +5,7 @@ import ErpDashboard from './screens/ErpDashboard';
 import OrdersScreen from './screens/OrdersScreen';
 import DepartmentQueue from './screens/DepartmentQueue';
 import { ScreenSkeleton } from './components/ErpSkeletons';
+import { Icon } from './components/Icon';
 import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import styles from './erp.module.css';
 
@@ -32,7 +33,7 @@ function ErpGuard({ allowed, children }) {
   if (!allowed) {
     return (
       <div className={styles.noAccess}>
-        <div className={styles.stubIcon} aria-hidden="true">🔒</div>
+        <div className={styles.stubIcon}><Icon name="ban" size={34} /></div>
         <div>Нет доступа к этому разделу</div>
       </div>
     );

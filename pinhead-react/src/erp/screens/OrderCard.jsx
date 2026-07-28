@@ -11,6 +11,7 @@ import {
   STICKERS_LABELS,
 } from '../types';
 import styles from '../erp.module.css';
+import { Icon } from '../components/Icon';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
 import { CommentsSection } from './orderCard/CommentsSection';
@@ -72,20 +73,26 @@ export default function OrderCard() {
         />
       )}
       {preview && previewError && (
-        <div className={styles.queueThumbStub} style={{ marginBottom: 10 }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось">🖼</div>
+        <div className={`${styles.queueThumbStub} ${styles.thumbStubBlock}`} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось">
+          <Icon name="image" size={18} />
+        </div>
       )}
       <div className={styles.toolbar}>
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{ORDER_STATUS_LABELS[order.status]}</span>
-        {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>}
+        {readyToShip && (
+          <span className={`${styles.chip} ${styles.chipReady}`}>
+            <Icon name="checkCircle" size={13} /> Готов к отгрузке
+          </span>
+        )}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
-        {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}>🚚 Отгрузка — во вкладке «Склад»</span>}
+        {readyToShip && order.shipped_status !== 'shipped' && <span className={`${styles.subText} ${styles.cellWithIcon}`}><Icon name="truck" size={13} />Отгрузка — во вкладке «Склад»</span>}
         {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
         {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
         {order.packaging && order.packaging !== 'none' && (
-          <span className={`${styles.chip} ${styles.chipNeutral}`}>📦 {PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</span>
+          <span className={`${styles.chip} ${styles.chipNeutral}`}><Icon name="box" size={13} />{PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</span>
         )}
         {order.stickers && order.stickers !== 'none' && (
-          <span className={`${styles.chip} ${styles.chipNeutral}`}>🏷 Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</span>
+          <span className={`${styles.chip} ${styles.chipNeutral}`}><Icon name="tag" size={13} />Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</span>
         )}
         {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipDanger}`}>Без Честного знака</span>}
       </div>

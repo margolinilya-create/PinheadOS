@@ -7,6 +7,7 @@ import {
   EXPERIMENTAL_OP_STATUS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { OpForm } from './OpForm';
 
 const PHASE_CHIP = {
@@ -154,7 +155,7 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
 
       {exp.phase === 'done' && (
         <div className={styles.subText}>
-          ✅ Готов к серии. Тех. название лекал: <strong>{exp.tech_name || '—'}</strong>
+          <Icon name="checkCircle" size={14} /> Готов к серии. Тех. название лекал: <strong>{exp.tech_name || '—'}</strong>
           {exp.final_outcome ? ` · ${EXPERIMENTAL_OUTCOME_LABELS[exp.final_outcome]}` : ''}
         </div>
       )}

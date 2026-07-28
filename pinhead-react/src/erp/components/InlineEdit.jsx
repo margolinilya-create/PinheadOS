@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import styles from '../erp.module.css';
 
 /**
@@ -51,7 +52,7 @@ export default function InlineEdit({
         disabled={disabled}
       >
         {value ? format(value) : <span className={styles.subText}>{placeholder}</span>}
-        {!disabled && <span className={styles.inlineEditPen} aria-hidden="true">✎</span>}
+        {!disabled && <span className={styles.inlineEditPen}><Icon name="pencil" size={13} /></span>}
       </button>
     );
   }

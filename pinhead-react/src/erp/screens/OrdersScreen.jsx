@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
+import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -152,29 +153,26 @@ export default function OrdersScreen({ user }) {
               <button
                 type="button"
                 aria-pressed={filter === 'ready'}
-                className={`${styles.chip} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
                 onClick={() => toggleFilter('ready')}
               >
-                ✅ Готовы к отгрузке ({counts.ready})
+                <Icon name="checkCircle" size={13} /> Готовы к отгрузке ({counts.ready})
               </button>
               <button
                 type="button"
                 aria-pressed={filter === 'urgent'}
-                className={`${styles.chip} ${filter === 'urgent' ? styles.chipProgress : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'urgent' ? styles.chipProgress : styles.chipNeutral}`}
                 onClick={() => toggleFilter('urgent')}
               >
-                🔥 Срок ≤ 3 дней ({counts.urgent})
+                <Icon name="clock" size={13} /> Срок ≤ 3 дней ({counts.urgent})
               </button>
               <button
                 type="button"
                 aria-pressed={filter === 'overdue'}
-                className={`${styles.chip} ${filter === 'overdue' ? styles.chipBlocked : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'overdue' ? styles.chipBlocked : styles.chipNeutral}`}
                 onClick={() => toggleFilter('overdue')}
               >
-                ⏰ Просрочено ({counts.overdue})
+                <Icon name="alert" size={13} /> Просрочено ({counts.overdue})
               </button>
             </>
           )}

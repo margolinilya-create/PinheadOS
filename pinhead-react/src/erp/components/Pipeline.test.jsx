@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { Pipeline } from './Pipeline';
 
 const stages = [
-  { key: 'p', label: 'Лекала', icon: '📐', count: 3 },
-  { key: 'd', label: 'Проработка', icon: '🧵', count: 8 },
+  { key: 'p', label: 'Лекала', icon: 'scissors', count: 3 },
+  { key: 'd', label: 'Проработка', icon: 'flask', count: 8 },
 ];
 
 describe('Pipeline', () => {
@@ -18,10 +18,10 @@ describe('Pipeline', () => {
 
   it('боковой узел (aside) показывается только при count > 0', () => {
     const { queryByText, rerender } = render(
-      <Pipeline stages={stages} aside={{ key: 'r', label: 'Возврат', icon: '↩', count: 0 }} />,
+      <Pipeline stages={stages} aside={{ key: 'r', label: 'Возврат', icon: 'undo', count: 0 }} />,
     );
     expect(queryByText(/Возврат/)).toBeNull();
-    rerender(<Pipeline stages={stages} aside={{ key: 'r', label: 'Возврат', icon: '↩', count: 4 }} />);
+    rerender(<Pipeline stages={stages} aside={{ key: 'r', label: 'Возврат', icon: 'undo', count: 4 }} />);
     expect(screen.getByText(/Возврат/)).toBeInTheDocument();
   });
 });

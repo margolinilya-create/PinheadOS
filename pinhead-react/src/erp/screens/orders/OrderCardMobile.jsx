@@ -7,6 +7,7 @@ import { orderLinkClick } from '../../store/useOrderDrawer';
 import { hasOpenProcurement } from '../../utils/routes';
 import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
@@ -37,7 +38,7 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
             aria-label={`Удалить заказ ${order.title}`}
             onClick={() => onDelete(order)}
           >
-            ✕
+            <Icon name="x" size={15} />
           </button>
         )}
       </div>
@@ -48,7 +49,9 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
       </div>
       <div className={styles.orderCardMMeta}>
         {ready ? (
-          <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>
+          <span className={`${styles.chip} ${styles.chipReady}`}>
+            <Icon name="checkCircle" size={13} /> Готов к отгрузке
+          </span>
         ) : (
           <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
             {ORDER_STATUS_LABELS[order.status]}
@@ -60,7 +63,9 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
           </span>
         )}
         {hasOpenProcurement(order.procurement_tasks) && (
-          <span className={`${styles.chip} ${styles.chipBlocked}`}>🔔 дозакупка</span>
+          <span className={`${styles.chip} ${styles.chipBlocked}`}>
+            <Icon name="bell" size={13} /> дозакупка
+          </span>
         )}
         <DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} />
         {progress.total > 0 && (
@@ -75,7 +80,7 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
           className={`btn btn-primary ${styles.shipBtn}`}
           onClick={() => onShip(order)}
         >
-          🚚 Отгрузить
+          <Icon name="truck" size={14} /> Отгрузить
         </button>
       )}
       {order.items.map((it) => (
@@ -91,7 +96,7 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
                 const dd = deptById.get(st.department_id);
                 return dd ? deptShortName(dd.code, dd.name) : '?';
               })()}
-              {st.status === 'done' && ' ✓'}
+              {st.status === 'done' && <Icon name="check" size={12} />}
             </span>
           ))}
         </div>

@@ -5,6 +5,7 @@ import { orderLinkClick } from '../../store/useOrderDrawer';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { Lightbox } from './Lightbox';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
@@ -81,7 +82,7 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
           </button>
         )}
         {preview && imgError && (
-          <div className={styles.queueThumbStub} aria-hidden="true">🖼</div>
+          <div className={styles.queueThumbStub}><Icon name="image" size={18} /></div>
         )}
         <div className={styles.queueCardHeadText}>
           <Link
@@ -112,16 +113,22 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
         <Lightbox src={preview} alt={`Макет: ${order.title}`} onClose={() => setZoom(false)} />
       )}
 
-      {reason && <div className={styles.queueReason}>⏳ {reason}</div>}
+      {reason && (
+        <div className={styles.queueReason}><Icon name="clock" size={14} /> {reason}</div>
+      )}
       {stage.status === 'blocked' && stage.block_reason && (
-        <div className={styles.queueReason}>🚫 {stage.block_reason}</div>
+        <div className={styles.queueReason}><Icon name="ban" size={14} /> {stage.block_reason}</div>
       )}
       {overdue && stage.overdue_ack_at && stage.overdue_comment && (
-        <div className={styles.subText}>⏰ Просрочка: {stage.overdue_comment}</div>
+        <div className={`${styles.subText} ${styles.cellWithIcon}`}>
+          <Icon name="clock" size={13} />Просрочка: {stage.overdue_comment}
+        </div>
       )}
       {canAct && needsAck && (
         <div className={styles.queueBlockForm}>
-          <span className={styles.overdue}>⏰ Этап просрочен — требуется комментарий</span>
+          <span className={`${styles.overdue} ${styles.cellWithIcon}`}>
+            <Icon name="alert" size={14} />Этап просрочен — требуется комментарий
+          </span>
           <input
             className={styles.input}
             placeholder="Причина задержки"
@@ -141,11 +148,13 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
       )}
       {rework && (
         <div className={styles.queueReason}>
-          ↩ На переделку: {rework.qty_rework} шт · {(rework.comment || '').replace(' (фото во вложениях)', '')}
+          <Icon name="undo" size={14} /> На переделку: {rework.qty_rework} шт · {(rework.comment || '').replace(' (фото во вложениях)', '')}
           {reworkPhoto && (
             <>
               {' · '}
-              <a href={reworkPhoto} target="_blank" rel="noreferrer">📷 фото</a>
+              <a href={reworkPhoto} target="_blank" rel="noreferrer" className={styles.cellWithIcon}>
+                <Icon name="image" size={13} />фото
+              </a>
             </>
           )}
         </div>
@@ -170,11 +179,11 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
           {group === 'ready' && !startMode && (
             <>
               <button type="button" className="btn btn-primary" onClick={() => setStartMode(true)}>
-                ▶ Взять в работу
+                <Icon name="play" size={14} /> Взять в работу
               </button>
               {!blockMode && (
                 <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
-                  🚫 Проблема
+                  <Icon name="ban" size={14} /> Проблема
                 </button>
               )}
             </>
@@ -199,18 +208,18 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
                   setDoneQty(String(Math.max(remaining - (Number(doneQty) || 0), 1)));
                 }}
               >
-                ＋ Частично
+                <Icon name="plus" size={14} /> Частично
               </button>
               <button type="button" className="btn btn-primary" onClick={() => onDone(entry)}>
-                ✓ Готово
+                <Icon name="check" size={14} /> Готово
               </button>
               {!blockMode && !defectMode && (
                 <>
                   <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
-                    ↩ Брак
+                    <Icon name="undo" size={14} /> Брак
                   </button>
                   <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
-                    🚫 Проблема
+                    <Icon name="ban" size={14} /> Проблема
                   </button>
                 </>
               )}
@@ -218,7 +227,7 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
           )}
           {group === 'done' && !defectMode && (
             <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
-              ↩ Брак / переделка
+              <Icon name="undo" size={14} /> Брак / переделка
             </button>
           )}
           {group === 'blocked' && (
@@ -248,7 +257,7 @@ export function QueueCard({ entry, canAct, rework, deptShortById, onStart, onDon
             disabled={!startDate}
             onClick={() => { onStart(entry, startDate); setStartMode(false); }}
           >
-            ▶ В работу
+            <Icon name="play" size={14} /> В работу
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => setStartMode(false)}>
             Отмена

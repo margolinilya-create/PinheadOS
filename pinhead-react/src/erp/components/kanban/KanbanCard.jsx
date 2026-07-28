@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { orderPreviewUrl } from '../../store/useErpStore';
 import { orderLinkClick, useOrderDrawer } from '../../store/useOrderDrawer';
 import { daysLeft, formatTimeIn } from '../../utils/time';
+import { Icon } from '../Icon';
 import styles from '../../erp.module.css';
 
 /** Цветная точка дедлайна (как в kontora24 DraggableCard) */
@@ -49,7 +50,7 @@ export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
           />
         )}
         {preview && imgError && (
-          <div className={styles.orderThumbStub} aria-hidden="true">🖼</div>
+          <div className={styles.orderThumbStub}><Icon name="image" size={16} /></div>
         )}
         <Link
           to={`/orders/${order.id}`}
@@ -71,9 +72,13 @@ export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
         {stage.qty_rework > 0 && (
           <span className={styles.overdue}>брак {stage.qty_rework}</span>
         )}
-        {timeIn && <span className={styles.subText}>⏱ {timeIn}</span>}
+        {timeIn && (
+          <span className={styles.subText}><Icon name="clock" size={13} /> {timeIn}</span>
+        )}
         {group === 'blocked' && stage.block_reason && (
-          <span className={styles.overdue} title={stage.block_reason}>🚫</span>
+          <span className={styles.overdue} title={stage.block_reason}>
+            <Icon name="ban" size={14} title="Заблокировано" />
+          </span>
         )}
       </div>
     </div>

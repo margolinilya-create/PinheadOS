@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Drawer } from '../components/Drawer';
+import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import { formatDateShort } from '../utils/time';
@@ -24,7 +25,7 @@ import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
  * Бизнес-логика (acceptMaterial/advanceWarehouseTask, гейты, отгрузка) не менялась.
  */
 
-const TYPE_ICON = { material_receipt: '📥', subcontract_receipt: '🚚', marking: '🏷️', pack_ship: '📦' };
+const TYPE_ICON = { material_receipt: 'inbox', subcontract_receipt: 'truck', marking: 'tag', pack_ship: 'box' };
 const TERMINAL = { material_receipt: 'accepted', subcontract_receipt: 'accepted', marking: 'issued', pack_ship: 'shipped' };
 const TYPE_ORDER = { material_receipt: 0, subcontract_receipt: 1, marking: 2, pack_ship: 3 };
 const RECEIPT_LABELS = { awaiting: 'Ожидает приёмки', accepted: 'Принято', awaiting_receipt: 'Ожидает приёмки' };
@@ -123,16 +124,16 @@ export default function Warehouse() {
       <PageHead title="Склад" sub="Приёмка материалов, приёмка подряда, маркировка, упаковка и отгрузка." />
 
       {loaded && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
+        <div className={`${styles.dashKpis} ${styles.kpisGap}`}>
           {[
-            { icon: '🗂️', cls: '', label: 'Все задачи', val: counts.all },
-            { icon: '📥', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
-            { icon: '🚚', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
-            { icon: '🏷️', cls: '', label: 'Маркировка', val: counts.marking },
-            { icon: '📦', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
+            { icon: 'orders', cls: '', label: 'Все задачи', val: counts.all },
+            { icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
+            { icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
+            { icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
+            { icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
           ].map((k) => (
             <div key={k.label} className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${k.cls}`}>{k.icon}</span>
+              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={22} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>{k.label}</span>
                 <span className={styles.kpiCardValue}>{k.val}</span>
@@ -184,7 +185,12 @@ export default function Warehouse() {
               <tbody>
                 {pageRows.map(({ order, task }) => (
                   <tr key={task.id} className={styles.rowClickable} onClick={() => setOpenId(task.id)}>
-                    <td>{TYPE_ICON[task.task_type]} {WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}</td>
+                    <td>
+                      <span className={styles.cellWithIcon}>
+                        <Icon name={TYPE_ICON[task.task_type]} size={15} />
+                        {WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}
+                      </span>
+                    </td>
                     <td>№{order.bitrix_id || '—'}<div className={styles.subText}>{order.title}</div></td>
                     <td>{taskSummary(order, task)}</td>
                     <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task)}</Badge></td>

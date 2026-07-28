@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Icon } from '../../components/Icon';
 import styles from '../../erp.module.css';
 
 /** Полноэкранный просмотр превью: закрытие по клику и Escape */
@@ -24,7 +25,7 @@ export function Lightbox({ src, alt, onClose }) {
         onClick={onClose}
         autoFocus
       >
-        ✕
+        <Icon name="x" size={20} />
       </button>
     </div>
   );

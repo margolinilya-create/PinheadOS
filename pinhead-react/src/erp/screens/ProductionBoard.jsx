@@ -4,6 +4,7 @@ import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { SearchInput } from '../components/SearchInput';
 import ErpKanban from '../components/ErpKanban';
+import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { isStageReady, waitingReason } from '../utils/routes';
 import { matchesOrderQuery } from '../utils/orderSearch';
@@ -63,7 +64,7 @@ function StageChip({ stage, item, order, deptById, onAdvance }) {
       onClick={() => clickable && onAdvance(stage, NEXT_STATUS[displayStatus], item)}
     >
       {dept ? deptShortName(dept.code, dept.name) : '?'}
-      {displayStatus === 'done' && ' ✓'}
+      {displayStatus === 'done' && <Icon name="check" size={12} />}
     </button>
   );
 }
@@ -133,22 +134,20 @@ export default function ProductionBoard() {
       />
 
       <div className={styles.toolbar}>
-        <div role="tablist" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
+        <div role="tablist" aria-label="Вид" className={styles.viewTabs}>
           <button
             type="button" role="tab" aria-selected={view === 'table'}
-            className={`${styles.chip} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
             onClick={() => switchView('table')}
           >
-            ☰ Таблица
+            <Icon name="queue" size={13} /> Таблица
           </button>
           <button
             type="button" role="tab" aria-selected={view === 'kanban'}
-            className={`${styles.chip} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
             onClick={() => switchView('kanban')}
           >
-            ▦ Канбан
+            <Icon name="board" size={13} /> Канбан
           </button>
         </div>
         {view === 'table' && (
@@ -210,11 +209,10 @@ export default function ProductionBoard() {
                       <span className={styles.cellTitle} title={order.title}>{order.title}</span>
                       {isOrderReadyToShip(order) && (
                         <span
-                          className={`${styles.chip} ${styles.chipReady}`}
-                          style={{ marginLeft: 6 }}
+                          className={`${styles.chip} ${styles.chipReady} ${styles.chipInline}`}
                           title="Все этапы завершены — заказ готов к отгрузке"
                         >
-                          ✅ к отгрузке
+                          <Icon name="checkCircle" size={13} /> к отгрузке
                         </span>
                       )}
                       <div className={styles.subText}>

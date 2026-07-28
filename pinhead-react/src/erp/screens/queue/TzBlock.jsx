@@ -7,6 +7,7 @@ import {
   STICKERS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 
 /**
  * Полное ТЗ позиции: сетка, нанесения, упаковка, материалы.
@@ -36,7 +37,8 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          📋 ТЗ позиции {open ? '▲' : '▼'}
+          <Icon name="orders" size={15} /> ТЗ позиции
+          <Icon name="chevronDown" size={15} className={open ? styles.chevronUp : undefined} />
         </button>
       )}
 
@@ -48,13 +50,13 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
             )}
             {order.packaging && order.packaging !== 'none' && (
               <span className={`${styles.chip} ${styles.chipNeutral}`}>
-                📦 {PACKAGING_LABELS[order.packaging]}
+                <Icon name="box" size={13} />{PACKAGING_LABELS[order.packaging]}
                 {order.packaging_note ? `: ${order.packaging_note}` : ''}
               </span>
             )}
             {order.stickers && order.stickers !== 'none' && (
               <span className={`${styles.chip} ${styles.chipNeutral}`}>
-                🏷 Стикеры: {STICKERS_LABELS[order.stickers]}
+                <Icon name="tag" size={13} />Стикеры: {STICKERS_LABELS[order.stickers]}
                 {order.stickers_note ? ` — ${order.stickers_note}` : ''}
               </span>
             )}

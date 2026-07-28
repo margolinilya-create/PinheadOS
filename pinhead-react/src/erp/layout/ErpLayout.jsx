@@ -15,6 +15,7 @@ import {
 } from '../store/useErpStore';
 import { setFeature } from '../../config/features';
 import { Sidebar } from './Sidebar';
+import { Icon } from '../components/Icon';
 import styles from '../erp.module.css';
 
 export default function ErpLayout({ user, children }) {
@@ -97,7 +98,7 @@ export default function ErpLayout({ user, children }) {
       <div className={styles.rightcol}>
         <header className={styles.topbar}>
           <div className={styles.headerSearch}>
-            <span aria-hidden="true">🔍</span>
+            <Icon name="search" />
             <input
               type="search"
               placeholder="Поиск: заказ, № сделки, менеджер…"
@@ -116,7 +117,7 @@ export default function ErpLayout({ user, children }) {
             aria-label="Уведомления"
             onClick={() => navigate('/#notifications')}
           >
-            🔔
+            <Icon name="bell" size={19} />
             {overdueCount > 0 && <span className={styles.iconDot}>{overdueCount}</span>}
           </button>
 
@@ -127,7 +128,7 @@ export default function ErpLayout({ user, children }) {
             aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
             title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
           >
-            {theme === 'light' ? '🌙' : '☀️'}
+            <Icon name={theme === 'light' ? 'moon' : 'sun'} size={19} />
           </button>
 
           {isAdmin && (
@@ -141,7 +142,7 @@ export default function ErpLayout({ user, children }) {
                 window.location.href = '/';
               }}
             >
-              ✏️
+              <Icon name="pencil" size={19} />
             </button>
           )}
 
@@ -157,7 +158,7 @@ export default function ErpLayout({ user, children }) {
             aria-label="Выйти"
             onClick={() => useAuthStore.getState().logout()}
           >
-            ⏻
+            <Icon name="power" size={19} />
           </button>
         </header>
 

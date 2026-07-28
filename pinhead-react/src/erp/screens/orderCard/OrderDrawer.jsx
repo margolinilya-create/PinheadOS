@@ -13,6 +13,7 @@ import {
   STICKERS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { fmt, fmtTs } from './format';
 import { OrderItemSection } from './OrderItemSection';
 import { CommentsSection } from './CommentsSection';
@@ -115,21 +116,25 @@ export function OrderDrawer({ orderId, onClose }) {
             />
           )}
           {preview && previewError && (
-            <div className={styles.queueThumbStub} style={{ margin: '10px 0' }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось">🖼</div>
+            <div className={`${styles.queueThumbStub} ${styles.thumbStubBlock}`} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось">
+              <Icon name="image" size={18} />
+            </div>
           )}
 
           <div className={styles.toolbar}>
             <Badge variant={order.status === 'active' ? 'progress' : 'neutral'}>{ORDER_STATUS_LABELS[order.status]}</Badge>
-            {readyToShip && <Badge variant="ready">✅ Готов к отгрузке</Badge>}
+            {readyToShip && (
+              <Badge variant="ready"><Icon name="checkCircle" size={13} /> Готов к отгрузке</Badge>
+            )}
             <Badge variant={order.shipped_status === 'shipped' ? 'ready' : 'neutral'}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</Badge>
-            {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}>🚚 Отгрузка — во вкладке «Склад»</span>}
+            {readyToShip && order.shipped_status !== 'shipped' && <span className={`${styles.subText} ${styles.cellWithIcon}`}><Icon name="truck" size={13} />Отгрузка — во вкладке «Склад»</span>}
             {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
             {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
             {order.packaging && order.packaging !== 'none' && (
-              <Badge variant="neutral">📦 {PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</Badge>
+              <Badge variant="neutral"><Icon name="box" size={13} />{PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</Badge>
             )}
             {order.stickers && order.stickers !== 'none' && (
-              <Badge variant="neutral">🏷 Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</Badge>
+              <Badge variant="neutral"><Icon name="tag" size={13} />Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</Badge>
             )}
             {order.no_chestny_znak && <Badge variant="danger">Без Честного знака</Badge>}
           </div>

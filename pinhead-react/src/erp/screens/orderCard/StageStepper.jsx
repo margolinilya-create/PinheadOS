@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Icon } from '../../components/Icon';
 import { isStageReady, isStageAwaitingProcurement } from '../../utils/routes';
 import { deptShortName } from '../../data/departments';
 import { STAGE_STATUS_LABELS } from '../../types';
@@ -42,7 +43,7 @@ export function StageStepper({ item, order, deptById, events }) {
               <span className={`${styles.stepperLine} ${st.status === 'done' ? styles.stepperLineDone : ''}`} />
             )}
             <span className={dotCls} title={tooltip} aria-label={tooltip}>
-              {display === 'done' ? '✓' : i + 1}
+              {display === 'done' ? <Icon name="check" size={13} /> : i + 1}
             </span>
             <span className={styles.stepperLabel}>
               {dept ? deptShortName(dept.code, dept.name) : '?'}

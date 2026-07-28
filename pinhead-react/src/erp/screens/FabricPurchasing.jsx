@@ -4,6 +4,7 @@ import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
+import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, procurementSla } from '../utils/time';
@@ -210,16 +211,16 @@ export default function FabricPurchasing() {
       <PageHead title="Закупка" sub="Работа с материалами и поставщиками." />
 
       {loaded && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
+        <div className={`${styles.dashKpis} ${styles.kpisGap}`}>
           {[
-            { icon: '🗂️', cls: '', label: 'Всего строк', val: counts.all },
-            { icon: '⏳', cls: styles.kpiIconWarn, label: 'Ожидается', val: counts.awaiting },
-            { icon: '🚚', cls: '', label: 'В пути', val: counts.transit },
-            { icon: '✅', cls: styles.kpiIconOk, label: 'Пришло', val: counts.arrived },
-            { icon: '⚠️', cls: styles.kpiIconDanger, label: 'Просрочено', val: counts.overdue },
+            { icon: 'orders', cls: '', label: 'Всего строк', val: counts.all },
+            { icon: 'clock', cls: styles.kpiIconWarn, label: 'Ожидается', val: counts.awaiting },
+            { icon: 'truck', cls: '', label: 'В пути', val: counts.transit },
+            { icon: 'checkCircle', cls: styles.kpiIconOk, label: 'Пришло', val: counts.arrived },
+            { icon: 'alert', cls: styles.kpiIconDanger, label: 'Просрочено', val: counts.overdue },
           ].map((k) => (
             <div key={k.label} className={styles.kpiCard}>
-              <span className={`${styles.kpiIcon} ${k.cls}`}>{k.icon}</span>
+              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={22} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>{k.label}</span>
                 <span className={styles.kpiCardValue}>{k.val}</span>
@@ -303,7 +304,15 @@ export default function FabricPurchasing() {
                       {(() => {
                         const sla = m.source === 'purchase' ? procurementSla(m.created_at, m.status) : null;
                         if (!sla) return null;
-                        return <div className={styles.subText}>{sla === 'overdue' ? '⚠️ просрочено' : 'на обработке'}</div>;
+                        return (
+                          <div className={styles.subText}>
+                            {sla === 'overdue' ? (
+                              <span className={styles.cellWithIcon}>
+                                <Icon name="alert" size={13} />просрочено
+                              </span>
+                            ) : 'на обработке'}
+                          </div>
+                        );
                       })()}
                     </td>
                     <td>

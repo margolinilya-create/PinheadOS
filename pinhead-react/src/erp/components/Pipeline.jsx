@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 import styles from '../erp.module.css';
 
 /**
@@ -12,7 +13,7 @@ export function Pipeline({ stages, aside }) {
         <span key={s.key} className={styles.pipeNodeWrap}>
           <span className={`${styles.pipeNode} ${s.count > 0 ? styles.pipeNodeActive : ''}`}>
             <span className={styles.pipeCount}>{s.count}</span>
-            <span className={styles.pipeLabel}>{s.icon ? `${s.icon} ` : ''}{s.label}</span>
+            <span className={styles.pipeLabel}>{s.icon && <Icon name={s.icon} size={15} />}{s.label}</span>
           </span>
           {i < stages.length - 1 && <span className={styles.pipeArrow} aria-hidden="true">→</span>}
         </span>
@@ -20,7 +21,7 @@ export function Pipeline({ stages, aside }) {
       {aside && aside.count > 0 && (
         <span className={`${styles.pipeNode} ${styles.pipeNodeAside}`}>
           <span className={styles.pipeCount}>{aside.count}</span>
-          <span className={styles.pipeLabel}>{aside.icon ? `${aside.icon} ` : ''}{aside.label}</span>
+          <span className={styles.pipeLabel}>{aside.icon && <Icon name={aside.icon} size={15} />}{aside.label}</span>
         </span>
       )}
     </div>

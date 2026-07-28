@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { Icon } from '../components/Icon';
 import styles from '../erp.module.css';
 
 /**
@@ -11,25 +12,25 @@ const GROUPS = [
   {
     title: 'Главное',
     items: [
-      { to: '/', label: 'Обзор', icon: '📊', end: true },
-      { to: '/orders', label: 'Заказы', icon: '📋' },
-      { to: '/board', label: 'Производство', icon: '🏭' },
-      { to: '/queue', label: 'Мой цех', icon: '🔧' },
+      { to: '/', label: 'Обзор', icon: 'overview', end: true },
+      { to: '/orders', label: 'Заказы', icon: 'orders' },
+      { to: '/board', label: 'Производство', icon: 'board' },
+      { to: '/queue', label: 'Мой цех', icon: 'queue' },
     ],
   },
   {
     title: 'Операции',
     items: [
-      { to: '/purchasing', label: 'Закупка', icon: '🚚', admin: true },
-      { to: '/warehouse', label: 'Склад', icon: '📦', admin: true },
-      { to: '/subcontracting', label: 'Подряд', icon: '🤝', admin: true },
-      { to: '/experimental', label: 'Эксперим. цех', icon: '🧪', admin: true },
+      { to: '/purchasing', label: 'Закупка', icon: 'truck', admin: true },
+      { to: '/warehouse', label: 'Склад', icon: 'box', admin: true },
+      { to: '/subcontracting', label: 'Подряд', icon: 'users', admin: true },
+      { to: '/experimental', label: 'Эксперим. цех', icon: 'flask', admin: true },
     ],
   },
   {
     title: 'Настройки',
     items: [
-      { to: '/admin', label: 'Админка', icon: '⚙️', admin: true },
+      { to: '/admin', label: 'Админка', icon: 'settings', admin: true },
     ],
   },
 ];
@@ -61,7 +62,7 @@ export function Sidebar({ isAdmin, counts = {}, collapsed, onToggleCollapse }) {
                       isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
                     }
                   >
-                    <span className={styles.navIcon} aria-hidden="true">{n.icon}</span>
+                    <span className={styles.navIcon}><Icon name={n.icon} size={19} /></span>
                     <span className={styles.navLabel}>{n.label}</span>
                     {count > 0 && (
                       <span className={styles.navBadge} aria-label={`Активных задач: ${count}`}>
@@ -84,7 +85,9 @@ export function Sidebar({ isAdmin, counts = {}, collapsed, onToggleCollapse }) {
           aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
           title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
         >
-          <span className={styles.navIcon} aria-hidden="true">{collapsed ? '»' : '«'}</span>
+          <span className={styles.navIcon}>
+            <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={19} />
+          </span>
           <span className={styles.collapseLabel}>Свернуть меню</span>
         </button>
       </div>

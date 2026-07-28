@@ -12,6 +12,7 @@ import {
   STAGE_STATUS_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
@@ -51,7 +52,9 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         <td><DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} /></td>
         <td>
           {ready ? (
-            <span className={`${styles.chip} ${styles.chipReady}`}>✅ Готов к отгрузке</span>
+            <span className={`${styles.chip} ${styles.chipReady}`}>
+              <Icon name="checkCircle" size={13} /> Готов к отгрузке
+            </span>
           ) : (
             <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
               {ORDER_STATUS_LABELS[order.status]}
@@ -59,7 +62,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
           )}
           {hasOpenProcurement(order.procurement_tasks) && (
             <span className={`${styles.chip} ${styles.chipBlocked}`} title="Есть открытая задача дозакупки">
-              🔔 дозакупка
+              <Icon name="bell" size={13} /> дозакупка
             </span>
           )}
           {order.shipped_at && (
@@ -75,7 +78,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
               className={`btn btn-primary ${styles.shipBtn}`}
               onClick={() => onShip(order)}
             >
-              🚚 Отгрузить
+              <Icon name="truck" size={14} /> Отгрузить
             </button>
           )}
           {canDelete && (
@@ -85,7 +88,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
               aria-label={`Удалить заказ ${order.title}`}
               onClick={() => onDelete(order)}
             >
-              ✕
+              <Icon name="x" size={15} />
             </button>
           )}
         </td>
@@ -118,7 +121,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
                     const dd = deptById.get(st.department_id);
                     return dd ? deptShortName(dd.code, dd.name) : '?';
                   })()}
-                  {st.status === 'done' && ' ✓'}
+                  {st.status === 'done' && <Icon name="check" size={12} />}
                 </span>
               ))}
             </div>

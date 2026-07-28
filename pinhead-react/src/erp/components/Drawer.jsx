@@ -1,4 +1,5 @@
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { Icon } from './Icon';
 import styles from '../erp.module.css';
 
 /**
@@ -26,7 +27,9 @@ export function Drawer({ onClose, title, subtitle, badge, tabs, activeTab, onTab
             <div className={styles.drawerTitle}>{title}</div>
             {subtitle && <div className={styles.subText}>{subtitle}</div>}
           </div>
-          <button type="button" className={styles.drawerClose} onClick={onClose} aria-label="Закрыть">✕</button>
+          <button type="button" className={styles.drawerClose} onClick={onClose} aria-label="Закрыть">
+            <Icon name="x" size={18} />
+          </button>
         </div>
         {tabs && tabs.length > 0 && (
           <div className={styles.drawerTabs} role="tablist">

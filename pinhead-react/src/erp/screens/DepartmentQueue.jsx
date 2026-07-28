@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
 import { SearchInput } from '../components/SearchInput';
+import { Icon } from '../components/Icon';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScrollHints } from '../../hooks/useScrollHints';
@@ -27,11 +28,11 @@ const FULL_ACCESS_ROLES = ['admin', 'director', 'rop'];
 
 /** Заголовки групп очереди (порядок = порядок отображения) */
 const GROUP_TITLES = {
-  ready: '🟢 Готово к работе',
-  in_progress: '🟡 В работе',
-  waiting: '⏳ Ожидает',
-  blocked: '🚫 Заблокировано',
-  done: '✓ Завершено недавно',
+  ready: 'Готово к работе',
+  in_progress: 'В работе',
+  waiting: 'Ожидает',
+  blocked: 'Заблокировано',
+  done: 'Завершено недавно',
 };
 
 export default function DepartmentQueue() {
@@ -252,13 +253,13 @@ export default function DepartmentQueue() {
                 onClick={() => selectDept(dd.code)}
               >
                 {deptShortName(dd.code, dd.name)}
-                {isMine && <span aria-label="ваш цех" title="Ваш цех">★</span>}
+                {isMine && <Icon name="user" size={13} title="Ваш цех" />}
                 {count > 0 && (
                   <span className={`${styles.deptTabCount} ${styles.deptTabHot}`}>{count}</span>
                 )}
                 {overdueCount > 0 && (
-                  <span className={styles.deptTabCount} style={{ background: 'var(--color-error)' }} title="Необработанные просрочки">
-                    ⏰{overdueCount}
+                  <span className={`${styles.deptTabCount} ${styles.deptTabOverdue}`} title="Необработанные просрочки">
+                    <Icon name="clock" size={12} />{overdueCount}
                   </span>
                 )}
               </button>
@@ -280,11 +281,10 @@ export default function DepartmentQueue() {
           <button
             type="button"
             aria-pressed={onlyOverdue}
-            className={`${styles.chip} ${onlyOverdue ? styles.chipBlocked : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${onlyOverdue ? styles.chipBlocked : styles.chipNeutral}`}
             onClick={() => setOnlyOverdue((v) => !v)}
           >
-            ⏰ Только необработанные просрочки
+            <Icon name="clock" size={13} /> Только необработанные просрочки
           </button>
         </div>
       )}
@@ -293,8 +293,9 @@ export default function DepartmentQueue() {
       {dept && loading && !loaded && <QueueSkeleton />}
 
       {dept && !canAct && (
-        <div className={styles.queueReason} style={{ marginBottom: 'var(--space-md, 14px)' }}>
-          👁 Это не ваш цех — только просмотр. Ваш цех: {boundDept ? deptShortName(boundDept.code, boundDept.name) : '—'}.
+        <div className={`${styles.queueReason} ${styles.queueReasonSpaced}`}>
+          Это не ваш цех — только просмотр. Ваш цех:{' '}
+          {boundDept ? deptShortName(boundDept.code, boundDept.name) : '—'}.
         </div>
       )}
 

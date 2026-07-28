@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../../components/Icon';
 import styles from '../../erp.module.css';
 import { fmt } from './format';
 
@@ -39,11 +40,11 @@ export function PlanCell({ stage, onSave }) {
         onClick={async () => {
           await onSave({ planned_start: start || null, planned_end: end || null });
           setEditing(false);
-        }}>
-        ✓
+        }} aria-label="Сохранить план">
+        <Icon name="check" size={14} />
       </button>
       <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px' }}
-        onClick={() => setEditing(false)}>✕</button>
+        aria-label="Отменить" onClick={() => setEditing(false)}><Icon name="x" size={14} /></button>
     </span>
   );
 }

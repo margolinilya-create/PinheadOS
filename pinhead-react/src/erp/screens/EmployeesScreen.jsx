@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
+import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
@@ -180,12 +181,12 @@ export default function EmployeesScreen({ embedded = false }) {
                           </button>{' '}
                           <button type="button" className="btn btn-ghost"
                             aria-label={`Отключить ${p.name || p.email}`}
-                            onClick={() => onDisable(p)}>✕</button>
+                            onClick={() => onDisable(p)}><Icon name="x" size={15} /></button>
                         </>
                       ) : (
                         <button type="button" className="btn btn-ghost"
                           aria-label={`Отключить ${p.name || p.email}`}
-                          onClick={() => onDisable(p)}>✕</button>
+                          onClick={() => onDisable(p)}><Icon name="x" size={15} /></button>
                       )}
                     </td>
                   </tr>
@@ -251,10 +252,14 @@ export default function EmployeesScreen({ embedded = false }) {
                       {emp.active ? (
                         <button type="button" className="btn btn-ghost"
                           aria-label={`Отключить ${emp.full_name}`}
-                          onClick={() => updateEmployee(emp.id, { active: false })}>✕</button>
+                          onClick={() => updateEmployee(emp.id, { active: false })}>
+                          <Icon name="x" size={15} />
+                        </button>
                       ) : (
-                        <button type="button" className="btn btn-ghost"
-                          onClick={() => updateEmployee(emp.id, { active: true })}>↩</button>
+                        <button type="button" className="btn btn-ghost" aria-label={`Вернуть ${emp.full_name}`}
+                          onClick={() => updateEmployee(emp.id, { active: true })}>
+                          <Icon name="undo" size={15} />
+                        </button>
                       )}
                     </td>
                   </tr>
