@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
-import { Pipeline } from '../components/Pipeline';
+import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
@@ -101,8 +101,9 @@ export default function Experimental() {
       />
 
       {experimentalLoaded && experimental.length > 0 && (
-        <Pipeline
-          stages={pipeStages}
+        <StageIndicator
+          variant="pipeline"
+          nodes={pipeStages}
           aside={{ key: 'returned', label: 'Возврат конструктору', icon: '↩', count: returnedCount }}
         />
       )}

@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
-import { Stepper } from '../components/Stepper';
+import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
@@ -215,7 +215,7 @@ export default function Subcontracting() {
         sub="Рабочая очередь операций у подрядчиков: где заказ сейчас и что дальше."
       />
 
-      <Stepper title="Готовое изделие от подрядчика" steps={finishedSteps} />
+      <StageIndicator variant="funnel" title="Готовое изделие от подрядчика" nodes={finishedSteps} />
 
       <div className={styles.toolbar}>
         <SearchInput

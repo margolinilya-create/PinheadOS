@@ -60,7 +60,13 @@ export function DateField({
                 key={p.label}
                 type="button"
                 className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
-                onClick={() => onChange(shiftIsoDate(null, p.days))}
+                onClick={(e) => {
+                  // Поле обёрнуто в <label>, а клик по label пересылается на своё
+                  // поле — иначе пресет заодно раскрывал бы календарь
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange(shiftIsoDate(null, p.days));
+                }}
               >
                 {p.label}
               </button>

@@ -1,20 +1,51 @@
 import type { MouseEvent } from 'react';
 import { create } from 'zustand';
 
+/** Имя параметра адреса, в котором живёт открытая боковая карточка */
+export const ORDER_DRAWER_PARAM = 'order';
+
+type DrawerNavigate = (id: string | null) => void;
+
 /**
- * Крошечный стор боковой карточки заказа (редизайн): любой экран (канбан/таблица/очередь)
- * открывает детали заказа в правом Drawer по id, не уходя с текущего экрана.
+ * Боковая карточка заказа: любой экран (канбан/таблица/очередь) открывает детали
+ * заказа в правом Drawer, не уходя с текущего экрана.
+ *
+ * Состояние ведётся в адресе (`?order=<id>`), а не только в памяти: иначе
+ * перезагрузка теряла открытую карточку, ссылку «список + открытая карточка»
+ * нельзя было переслать, а кнопка «Назад» — главный жест на планшетах —
+ * уводила с экрана вместо того, чтобы закрыть панель.
+ *
+ * Сам стор про роутер не знает: функцию перехода регистрирует `OrderDrawerHost`,
+ * который смонтирован внутри роутера. Пока навигатор не зарегистрирован (юнит-тесты,
+ * рендер без роутера) `open`/`close` работают по памяти — стор остаётся
+ * самостоятельным и тестируемым.
  */
 interface OrderDrawerState {
   orderId: string | null;
+  /** Регистрируется хостом; пишет состояние карточки в адрес */
+  navigate: DrawerNavigate | null;
   open: (id: string) => void;
   close: () => void;
+  /** Хост зеркалит сюда значение `?order=` из адреса */
+  syncFromUrl: (id: string | null) => void;
 }
 
-export const useOrderDrawer = create<OrderDrawerState>((set) => ({
+export const useOrderDrawer = create<OrderDrawerState>((set, get) => ({
   orderId: null,
-  open: (id) => set({ orderId: id }),
-  close: () => set({ orderId: null }),
+  navigate: null,
+  open: (id) => {
+    const { navigate } = get();
+    if (navigate) navigate(id);
+    else set({ orderId: id });
+  },
+  close: () => {
+    const { navigate } = get();
+    if (navigate) navigate(null);
+    else set({ orderId: null });
+  },
+  syncFromUrl: (id) => {
+    if (get().orderId !== id) set({ orderId: id });
+  },
 }));
 
 /**

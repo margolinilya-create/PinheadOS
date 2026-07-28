@@ -245,6 +245,63 @@ test.describe('Технические задания в PDF (волна 4)', () 
 });
 
 /**
+ * Отложенное: боковая карточка живёт в адресе (`?order=`). Раньше её состояние
+ * было только в памяти — перезагрузка теряла открытую панель, ссылку нельзя было
+ * переслать, а «Назад» уводил с экрана вместо закрытия.
+ */
+test.describe('Диплинк боковой карточки (?order=)', () => {
+  test('клик по заказу пишет адрес, «Назад» закрывает карточку, а не уходит с экрана', async ({ page }) => {
+    await page.goto('/orders?studio=0');
+    // Ссылка строки названа заголовком заказа, номер — в отдельной колонке
+    await page.getByRole('link', { name: /Веранда/ }).first().click();
+
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(page).toHaveURL(/[?&]order=ord-/);
+
+    await page.goBack();
+    // остались на списке, карточка закрыта — параметра больше нет
+    await expect(drawer).toHaveCount(0);
+    await expect(page).not.toHaveURL(/[?&]order=/);
+    await expect(page).toHaveURL(/\/orders/);
+  });
+
+  test('перезагрузка сохраняет открытую карточку', async ({ page }) => {
+    await page.goto('/orders?studio=0');
+    await page.getByRole('link', { name: /Веранда/ }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.reload();
+    // Именно это и было потеряно раньше: F5 закрывал панель
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog').getByText(/Веранда/).first()).toBeVisible();
+  });
+
+  test('ссылка со ?order= открывает карточку сразу, ✕ не уносит со страницы', async ({ page }) => {
+    await page.goto('/orders?order=ord-b&studio=0');
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+
+    // Своей записи в истории нет — закрытие снимает параметр, оставляя нас на списке
+    await drawer.getByRole('button', { name: /Закрыть/ }).click();
+    await expect(drawer).toHaveCount(0);
+    await expect(page).toHaveURL(/\/orders/);
+    await expect(page).not.toHaveURL(/[?&]order=/);
+  });
+
+  test('фильтры списка не теряются при открытии и закрытии карточки', async ({ page }) => {
+    await page.goto('/orders?tab=active&studio=0');
+    await page.getByRole('link', { name: /Веранда/ }).first().click();
+    await expect(page).toHaveURL(/tab=active/);
+    await expect(page).toHaveURL(/order=ord-/);
+
+    await page.getByRole('dialog').getByRole('button', { name: /Закрыть/ }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).toHaveURL(/tab=active/);
+  });
+});
+
+/**
  * Волна UX-2: обрыв связи не должен выглядеть как «работы нет».
  * Раньше при упавшем запросе очередь показывала «Выберите свой цех выше»,
  * а список заказов — пустой тулбар без единой строки; повторить было нечем,
@@ -265,6 +322,24 @@ test.describe('Ошибка загрузки (волна UX-2)', () => {
     return () => { broken = false; };
   }
 
+  /**
+   * Нажать «Повторить» и дождаться, что ошибка ушла.
+   *
+   * Через toPass, потому что кнопка исчезает ровно в момент успеха: если клик
+   * дошёл, а узел уже снят с DOM, Playwright падает с «element was detached».
+   * Повторный клик безвреден — это просто ещё одна попытка загрузки.
+   */
+  async function retryUntilLoaded(
+    page: import('@playwright/test').Page,
+    failed: import('@playwright/test').Locator,
+  ) {
+    await expect(async () => {
+      const button = page.getByRole('button', { name: 'Повторить' });
+      if (await button.count() > 0) await button.first().click({ timeout: 2000 });
+      await expect(failed).toHaveCount(0);
+    }).toPass({ timeout: 15_000 });
+  }
+
   test('очередь цеха предлагает повторить и восстанавливается', async ({ page }) => {
     const restore = await breakOrders(page);
     await page.goto('/queue?studio=0');
@@ -278,8 +353,7 @@ test.describe('Ошибка загрузки (волна UX-2)', () => {
     await expect(page.getByText('Выберите свой цех выше')).toHaveCount(0);
 
     restore();
-    await page.getByRole('button', { name: 'Повторить' }).click();
-    await expect(failed).toHaveCount(0);
+    await retryUntilLoaded(page, failed);
     // Вкладки цехов рисуются только по загруженным departments — значит данные пришли
     await expect(page.getByRole('tablist', { name: 'Выбор цеха' })).toBeVisible();
   });
@@ -293,8 +367,7 @@ test.describe('Ошибка загрузки (волна UX-2)', () => {
     await expect(failed).toBeVisible();
 
     restore();
-    await page.getByRole('button', { name: 'Повторить' }).click();
-    await expect(failed).toHaveCount(0);
+    await retryUntilLoaded(page, failed);
     await expect(page.getByText('54900').first()).toBeVisible();
   });
 });
