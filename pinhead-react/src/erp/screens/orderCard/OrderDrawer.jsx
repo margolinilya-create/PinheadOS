@@ -70,7 +70,8 @@ export function OrderDrawer({ orderId, onClose }) {
       <div className={styles.toolbar} style={{ marginTop: -4, marginBottom: 10 }}>
         {/* Правка 6: вместо обезличенного «Открыть на странице» — конкретный номер заказа */}
         <Link to={`/orders/${orderId}`} className="btn btn-secondary" onClick={onClose}>
-          Открыть заказ №{order?.bitrix_id || '—'} ↗
+          {/* Фолбэк на название: у заказов без сделки Bitrix ссылка называлась прочерком */}
+          Открыть {order?.bitrix_id ? `заказ №${order.bitrix_id}` : (order?.title || 'заказ')} ↗
         </Link>
       </div>
 
@@ -132,7 +133,7 @@ export function OrderDrawer({ orderId, onClose }) {
             {order.stickers && order.stickers !== 'none' && (
               <Badge variant="neutral">🏷 Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</Badge>
             )}
-            {order.no_chestny_znak && <Badge variant="danger">Без Честного знака</Badge>}
+            {order.no_chestny_znak && <Badge>Без Честного знака</Badge>}
           </div>
         </>
       )}

@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed } from '../components/ErpStates';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement } from '../utils/routes';
@@ -221,7 +222,7 @@ export default function ErpDashboard() {
               {data.inWork.length === 0 ? (
                 <div className={styles.emptyState}>Активных заказов нет.</div>
               ) : (
-                <div className={styles.tableWrap}>
+                <ScrollHintBox className={styles.tableWrap} label="Заказы в работе">
                   <table className={styles.table}>
                     <thead>
                       <tr><th>№</th><th>Изделие</th><th>Цех/этап</th><th>Кол-во</th><th>Срок</th><th>Статус</th></tr>
@@ -239,7 +240,7 @@ export default function ErpDashboard() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ScrollHintBox>
               )}
             </div>
 

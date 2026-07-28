@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
@@ -46,6 +46,7 @@ export default function ProductionTask() {
     })),
   );
   const actions = useStageActions();
+  const location = useLocation();
   const [resolvedOrderId, setResolvedOrderId] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -140,7 +141,14 @@ export default function ProductionTask() {
         >
           Открыть заказ №{order.bitrix_id || '—'} ↗
         </Link>
-        <Link to={`/queue/${dept?.code ?? ''}`} className="btn btn-ghost">← В очередь цеха</Link>
+        {/* Возврат туда, откуда пришли: ссылка без search теряла и фильтры,
+            и позицию прокрутки (useScrollRestore ключуется по pathname+search) */}
+        <Link
+          to={location.state?.from || `/queue/${dept?.code ?? ''}`}
+          className="btn btn-ghost"
+        >
+          ← В очередь цеха
+        </Link>
         <div className={styles.spacer} />
         <span className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[display]]}`}>
           {STAGE_STATUS_LABELS[display]}

@@ -29,12 +29,8 @@ import {
   TZ_BUCKET,
   TZ_MAX_BYTES,
   TZ_MIME,
-  PRODUCTION_TYPE_LABELS,
-  BRANDING_METHOD_LABELS,
   PACKAGING_LABELS,
   STICKERS_LABELS,
-  SUBCONTRACT_OP_TYPE_LABELS,
-  SUBCONTRACT_MATERIAL_SOURCE_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
 
@@ -704,7 +700,13 @@ export function CreateOrderModal({ onClose }) {
           tabIndex={0}
           aria-label="Превью заказа: перетащите картинку, вставьте Ctrl+V или кликните"
           onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => { if (e.key === 'Enter') fileInputRef.current?.click(); }}
+          // Space — такая же активация, как Enter, для role="button" (WCAG 2.1.1)
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.target !== e.currentTarget) return; // вложенной кнопке — её событие
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); acceptPreview(e.dataTransfer.files?.[0]); }}
         >

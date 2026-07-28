@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import { deptShortName } from '../../data/departments';
 import {
@@ -50,10 +51,32 @@ function auditValue(field, v) {
 }
 
 /** Секция «История»: события этапов + правки заказа, слитые и отсортированные */
+const HISTORY_PAGE = 120;
+
 export function HistorySection({ events, audit, stageById, deptById }) {
+  const [limit, setLimit] = useState(HISTORY_PAGE);
+  const allRows = useMemo(() => [
+    ...(events ?? []).map((ev) => ({ kind: 'stage', at: ev.created_at, row: ev })),
+    ...(audit ?? []).map((a) => ({ kind: 'audit', at: a.changed_at, row: a })),
+  ].sort((x, y) => y.at.localeCompare(x.at)), [events, audit]);
+  const shown = useMemo(() => allRows.slice(0, limit), [allRows, limit]);
+
   return (
     <section className={styles.matSection}>
-      <div className={styles.matSectionHead}><strong>История</strong></div>
+      <div className={styles.matSectionHead}>
+        <strong>История</strong>
+        {/* Тихих лимитов не ставим (правило проекта): раньше список молча резался
+            до 120 событий, и понять, что показано не всё, было нельзя */}
+        {allRows.length > shown.length && (
+          <span className={styles.subText}>
+            показаны последние {shown.length} из {allRows.length}
+            {' '}
+            <button type="button" className="btn btn-ghost" onClick={() => setLimit(allRows.length)}>
+              Показать все
+            </button>
+          </span>
+        )}
+      </div>
       {events === null && <Skeleton width="45%" height={12} />}
       {events && events.length === 0 && (!audit || audit.length === 0) && (
         <div className={styles.subText}>Событий пока нет — история пишется при смене статусов и правках.</div>
@@ -65,12 +88,7 @@ export function HistorySection({ events, audit, stageById, deptById }) {
               <tr><th>Когда</th><th>Кто</th><th>Этап</th><th>Что</th></tr>
             </thead>
             <tbody>
-              {[
-                ...(events ?? []).map((ev) => ({ kind: 'stage', at: ev.created_at, row: ev })),
-                ...(audit ?? []).map((a) => ({ kind: 'audit', at: a.changed_at, row: a })),
-              ]
-                .sort((x, y) => y.at.localeCompare(x.at))
-                .slice(0, 120)
+              {shown
                 .map(({ kind, row }) => {
                   if (kind === 'audit') {
                     return (

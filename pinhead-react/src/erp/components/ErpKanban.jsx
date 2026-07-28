@@ -12,6 +12,7 @@ import { analyzeStageMove, moveConfirmMessage } from '../utils/stageMove';
 import styles from '../erp.module.css';
 import { KanbanCard } from './kanban/KanbanCard';
 import { useTouchDndPolyfill } from './kanban/useTouchDndPolyfill';
+import { useScrollHints } from '../../hooks/useScrollHints';
 
 /**
  * Производственный канбан: колонка = цех (процесс), карточка = этап позиции.
@@ -63,7 +64,8 @@ export default function ErpKanban({ filters }) {
   const [overLane, setOverLane] = useState(null); // `${deptId}:${lane}`
   const [dropAt, setDropAt] = useState(null);     // { id, before } — место вставки
   const dragRef = useRef(null);
-  const boardRef = useRef(null);
+  // Подсказки краёв: колонок до шести (~1810px), на ноутбуке видно три
+  const { ref: boardRef, hints: boardHints } = useScrollHints();
   useTouchDndPolyfill();
 
   const columns = useMemo(
@@ -226,6 +228,7 @@ export default function ErpKanban({ filters }) {
   };
 
   return (
+    <div className={styles.scrollHintWrap}>
     <div
       className={`${styles.kanbanBoard} ${drag ? styles.kanbanBoardDragging : ''}`}
       role="list"
@@ -303,6 +306,9 @@ export default function ErpKanban({ filters }) {
           </section>
         );
       })}
+    </div>
+    {boardHints.left && <div className={`${styles.scrollFade} ${styles.scrollFadeL}`} aria-hidden="true" />}
+    {boardHints.right && <div className={`${styles.scrollFade} ${styles.scrollFadeR}`} aria-hidden="true" />}
     </div>
   );
 }

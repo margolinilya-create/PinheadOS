@@ -100,16 +100,28 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
    * Значения уже использованы в заказах, поэтому удаляем не физически, а
    * деактивацией (updateDictionaryItem active:false) — история остаётся читаемой.
    */
-  moveDictionaryItem: async (id, direction) => {
+  /**
+   * `neighbourId` — сосед из ВИДИМОГО списка. Без него обмен шёл с соседом
+   * по полному набору, и при выключенном «Показывать отключённые» стрелка меняла
+   * порядок с невидимым значением: на экране ничего не двигалось, кнопка
+   * выглядела сломанной.
+   */
+  moveDictionaryItem: async (id, direction, neighbourId = null) => {
     const all = get().dictionaries;
     const item = all.find((d) => d.id === id);
     if (!item) return false;
     const list = all.filter((d) => d.kind === item.kind).sort(byOrder);
     const i = list.findIndex((d) => d.id === id);
-    const j = direction === 'up' ? i - 1 : i + 1;
-    if (j < 0 || j >= list.length) return false;
     const a = list[i];
-    const b = list[j];
+    let b;
+    if (neighbourId) {
+      b = list.find((d) => d.id === neighbourId);
+    } else {
+      const j = direction === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= list.length) return false;
+      b = list[j];
+    }
+    if (!a || !b || a.id === b.id) return false;
     const prev = get().dictionaries;
     set((s) => ({
       dictionaries: s.dictionaries

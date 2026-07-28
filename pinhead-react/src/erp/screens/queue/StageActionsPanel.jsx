@@ -6,6 +6,7 @@ import { stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
 import { stageTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
+import { confirmDefectRollback } from '../../utils/stageDefect';
 import styles from '../../erp.module.css';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
@@ -17,7 +18,11 @@ function inDays(days) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Быстрый выбор значения справочника: чипы над полем ввода (правка 12) */
+/**
+ * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
+ * Значение ДОПИСЫВАЕТСЯ к уже набранному, а не затирает его: рабочий мог
+ * напечатать половину причины, нажать чип и потерять текст.
+ */
 function DictionaryChips({ items, onPick, label }) {
   if (items.length === 0) return null;
   return (
@@ -95,6 +100,17 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const [defectMaterial, setDefectMaterial] = useState('');
   const [defectContractor, setDefectContractor] = useState('');
   const [defectOperation, setDefectOperation] = useState('');
+  /**
+   * Ни одно действие не блокировалось на время запроса: `withPending` в сторе
+   * защищает от гонки с realtime, но не от повторного тапа. На медленном цеховом
+   * Wi-Fi рабочий не получал обратной связи, что тап засчитан, и жал ещё раз.
+   */
+  const [busy, setBusy] = useState(false);
+  const run = async (fn) => {
+    if (busy) return false;
+    setBusy(true);
+    try { return await fn(); } finally { setBusy(false); }
+  };
 
   const showProcurement = defectNeedsMaterial || defectTarget === 'procurement';
   const showSubcontract = defectTarget === 'subcontractor';
@@ -173,18 +189,23 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    disabled={!(Number(doneQty) > 0)}
-                    onClick={() => {
-                      onProgress(entry, Math.max(1, Number(doneQty) || 0));
+                    disabled={busy || !(Number(doneQty) > 0)}
+                    onClick={() => run(async () => {
+                      await onProgress(entry, Math.max(1, Number(doneQty) || 0));
                       setDoneQty(String(Math.max(remaining - (Number(doneQty) || 0), 1)));
-                    }}
+                    })}
                   >
                     ＋ Записать результат
                   </button>
                 </>
               )}
               {perms.complete && (
-                <button type="button" className="btn btn-primary" onClick={() => onDone(entry)}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => run(() => onDone(entry))}
+                >
                   ✓ Завершить этап
                 </button>
               )}
@@ -210,7 +231,12 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             </button>
           )}
           {group === 'blocked' && perms.block && (
-            <button type="button" className="btn btn-secondary" onClick={() => onUnblock(entry)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => run(() => onUnblock(entry))}
+            >
               Снять блокировку
             </button>
           )}
@@ -234,8 +260,11 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <button
             type="button"
             className="btn btn-primary"
-            disabled={!startDate}
-            onClick={() => { onStart(entry, startDate); setStartMode(false); }}
+            disabled={busy || !startDate}
+            onClick={() => run(async () => {
+              await onStart(entry, startDate);
+              setStartMode(false);
+            })}
           >
             ▶ В работу
           </button>
@@ -250,7 +279,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <DictionaryChips
             items={blockReasons}
             label="Частые причины блокировки"
-            onPick={setBlockText}
+            onPick={(v) => setBlockText((t) => (t.trim() ? `${t.trim()}, ${v}` : v))}
           />
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Что мешает *</span>
@@ -266,11 +295,11 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <button
             type="button"
             className="btn btn-danger"
-            disabled={!blockText.trim()}
-            onClick={() => {
-              onBlock(entry, blockText.trim(), blockPhoto);
+            disabled={busy || !blockText.trim()}
+            onClick={() => run(async () => {
+              await onBlock(entry, blockText.trim(), blockPhoto);
               setBlockMode(false); setBlockText(''); setBlockPhoto(null);
-            }}
+            })}
           >
             Заблокировать
           </button>
@@ -296,7 +325,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <DictionaryChips
             items={problemTypes}
             label="Типы проблем"
-            onPick={setDefectText}
+            onPick={(v) => setDefectText((t) => (t.trim() ? `${t.trim()}, ${v}` : v))}
           />
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Причина брака *</span>
@@ -390,9 +419,20 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <button
             type="button"
             className="btn btn-danger"
-            disabled={!defectText.trim() || !(Number(defectQty) > 0) || Number(defectQty) > item.qty}
-            onClick={() => {
-              onDefect(entry, {
+            disabled={busy || !defectText.trim() || !(Number(defectQty) > 0)
+              || Number(defectQty) > item.qty}
+            onClick={() => run(async () => {
+              // Возврат переоткрывает и промежуточные этапы — рабочий видел только
+              // «Вернуть: Швейка» и не знал, что откатятся ещё ВТО и Печать
+              const ok = await confirmDefectRollback({
+                stage,
+                targetStage: item.stages.find((s2) => s2.id === defectTarget) ?? null,
+                allStages: item.stages,
+                deptNameById: deptShortById,
+                qty: Number(defectQty),
+              });
+              if (!ok) return;
+              await onDefect(entry, {
                 qty: Number(defectQty),
                 reason: defectText.trim(),
                 target: defectTarget,
@@ -405,7 +445,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 contractor: defectContractor.trim() || null,
               }, defectPhoto);
               resetDefect();
-            }}
+            })}
           >
             {showSubcontract ? 'Отправить подрядчику' : showProcurement ? 'В переделку + заявка' : 'В переделку'}
           </button>

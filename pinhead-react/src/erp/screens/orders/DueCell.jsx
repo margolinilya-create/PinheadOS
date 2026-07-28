@@ -12,11 +12,16 @@ export function DueCell({ dueDate, completedAt }) {
   }
   const d = daysLeft(dueDate);
   if (d === null) return <span className={styles.subText}>—</span>;
-  const cls = d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : undefined;
+  const overdue = d < 0;
+  const cls = overdue ? styles.overdue : d <= 3 ? styles.dueSoon : undefined;
   return (
     <span className={cls}>
       {formatDateShort(dueDate)}
-      <span className={styles.subText}> ({d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`})</span>
+      {/* У просрочки хвост наследует красный: .subText задаёт свой color и раньше
+          перебивал наследование — самая важная часть оставалась приглушённой */}
+      <span className={overdue ? undefined : styles.subText}>
+        {' '}({d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`})
+      </span>
     </span>
   );
 }

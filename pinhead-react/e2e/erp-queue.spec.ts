@@ -73,7 +73,9 @@ test.describe('Рабочая очередь цеха (правки 2, 3, 9)', (
     // Номер заказа кликабелен прямо из очереди (правка 6)
     const orderLink = row.getByRole('link', { name: /№\d+/ });
     await expect(orderLink).toBeVisible();
-    await expect(orderLink).toHaveAttribute('title', /Открыть заказ №/);
+    // Подсказка даёт то, что НЕ видно: обрезанное многоточием название целиком.
+    // Раньше title дублировал номер, который и так на экране (хвост долгов).
+    await expect(orderLink).toHaveAttribute('title', /№\d+ · .+/);
     await expect(row.getByRole('link', { name: 'Открыть' })).toBeVisible();
     // Количество, срок, исполнитель и процент готовности — в одной строке
     await expect(row.getByText(/\d+ шт/)).toBeVisible();

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
 import { orderLinkClick } from '../../store/useOrderDrawer';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
@@ -12,6 +12,7 @@ import { StageActionsPanel } from './StageActionsPanel';
  * Действия и формы общие со строкой и страницей задания (StageActionsPanel).
  */
 export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
+  const location = useLocation();
   const { order, item, stage, reason, group } = entry;
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
@@ -54,11 +55,14 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
             to={`/orders/${order.id}`}
             onClick={(e) => orderLinkClick(order.id, e)}
             className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}
-            title={`Открыть заказ №${order.bitrix_id || '—'}`}
+            title={`№${order.bitrix_id || '—'} · ${order.title}`}
           >
             №{order.bitrix_id || '—'} · {order.title}
           </Link>
-          <div className={styles.subText}>
+          <div
+            className={styles.subText}
+            title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}
+          >
             {item.product_type}
             {item.variant ? ` · ${item.variant}` : ''}
             {order.customer ? ` · ${order.customer}` : ''}
@@ -113,7 +117,13 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
         </div>
       )}
 
-      <Link to={`/task/${stage.id}`} className="btn btn-ghost">Открыть задание ↗</Link>
+      <Link
+        to={`/task/${stage.id}`}
+        state={{ from: `${location.pathname}${location.search}` }}
+        className="btn btn-ghost"
+      >
+        Открыть задание ↗
+      </Link>
 
       <StageActionsPanel
         entry={entry}

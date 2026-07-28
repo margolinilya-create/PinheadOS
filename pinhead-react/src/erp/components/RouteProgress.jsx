@@ -30,7 +30,14 @@ export function RouteProgress({
           <div className={styles.progressFill} style={{ width: `${total.pct}%` }} />
         </div>
         <span className={styles.progressCell}>{total.pct}%</span>
-        <span className={styles.subText}>{total.done}/{total.total} шт</span>
+        {/* Знаменатель — тираж × число этапов маршрута, а не количество изделий:
+            подпись «шт» без пояснения читалась как «250 изделий» */}
+        <span
+          className={styles.subText}
+          title={`Сумма по всем этапам маршрута: ${total.done} из ${total.total} шт·этапов`}
+        >
+          {total.done}/{total.total} шт·этапов
+        </span>
       </div>
 
       {/* В карточке заказа список стадий не рисуем: ниже идёт таблица этапов

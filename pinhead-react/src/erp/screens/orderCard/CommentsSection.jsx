@@ -10,6 +10,9 @@ import { fmtTs } from './format';
  */
 export function CommentsSection({ comments, onSend }) {
   const [draft, setDraft] = useState('');
+  // Обработчик асинхронный, а кнопка блокировалась только пустым полем: два быстрых
+  // Enter создавали два одинаковых комментария
+  const [sending, setSending] = useState(false);
 
   return (
     <section className={styles.matSection}>
@@ -31,20 +34,26 @@ export function CommentsSection({ comments, onSend }) {
         onSubmit={async (e) => {
           e.preventDefault();
           const text = draft.trim();
-          if (!text) return;
-          const row = await onSend(text);
-          if (row) setDraft('');
+          if (!text || sending) return;
+          setSending(true);
+          try {
+            const row = await onSend(text);
+            if (row) setDraft('');
+          } finally {
+            setSending(false);
+          }
         }}
       >
         <input
           className={styles.input}
           placeholder="Комментарий для производства…"
           value={draft}
+          disabled={sending}
           onChange={(e) => setDraft(e.target.value)}
           aria-label="Новый комментарий"
         />
-        <button type="submit" className="btn btn-primary" disabled={!draft.trim()}>
-          Отправить
+        <button type="submit" className="btn btn-primary" disabled={sending || !draft.trim()}>
+          {sending ? 'Отправка…' : 'Отправить'}
         </button>
       </form>
     </section>

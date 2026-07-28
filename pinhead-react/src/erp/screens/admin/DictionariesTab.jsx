@@ -59,6 +59,11 @@ function DictionaryList({ kind }) {
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
     [dictionaries, kind, showHidden],
   );
+  /** Сколько значений скрыто фильтром — чтобы «пусто» не врало про пустой справочник */
+  const hiddenCount = useMemo(
+    () => dictionaries.filter((d) => d.kind === kind && !d.active).length,
+    [dictionaries, kind],
+  );
 
   const add = async () => {
     const created = await createDictionaryItem(kind, draft);
@@ -96,7 +101,11 @@ function DictionaryList({ kind }) {
       </div>
 
       {items.length === 0 ? (
-        <div className={styles.emptyState}>Справочник пуст — добавьте первое значение.</div>
+        <div className={styles.emptyState}>
+          {hiddenCount > 0
+            ? `Все значения отключены (${hiddenCount}). Включите «Показывать отключённые», чтобы вернуть нужное — заводить дубликат не нужно.`
+            : 'Справочник пуст — добавьте первое значение.'}
+        </div>
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -121,7 +130,7 @@ function DictionaryList({ kind }) {
                       className="btn btn-ghost"
                       disabled={i === 0}
                       aria-label={`Поднять ${item.name}`}
-                      onClick={() => moveDictionaryItem(item.id, 'up')}
+                      onClick={() => moveDictionaryItem(item.id, 'up', items[i - 1]?.id)}
                     >
                       ↑
                     </button>
@@ -130,7 +139,7 @@ function DictionaryList({ kind }) {
                       className="btn btn-ghost"
                       disabled={i === items.length - 1}
                       aria-label={`Опустить ${item.name}`}
-                      onClick={() => moveDictionaryItem(item.id, 'down')}
+                      onClick={() => moveDictionaryItem(item.id, 'down', items[i + 1]?.id)}
                     >
                       ↓
                     </button>

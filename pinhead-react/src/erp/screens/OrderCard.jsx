@@ -110,7 +110,7 @@ export default function OrderCard() {
         {order.stickers && order.stickers !== 'none' && (
           <span className={`${styles.chip} ${styles.chipNeutral}`}>🏷 Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</span>
         )}
-        {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipDanger}`}>Без Честного знака</span>}
+        {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipWaiting}`}>Без Честного знака</span>}
       </div>
 
       <NotificationsSection order={order} stageById={stageById} deptById={deptById} />

@@ -31,7 +31,21 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        <td>{order.bitrix_id || '—'}</td>
+        <td>
+          {/* aria-expanded был объявлен, а раскрыть строку с клавиатуры нельзя:
+              у <tr> нет tabIndex и обработчика клавиш. Кнопка в первой ячейке
+              делает жест доступным, не превращая всю строку в кнопку. */}
+          <button
+            type="button"
+            className={styles.rowToggle}
+            aria-expanded={open}
+            aria-label={`${open ? 'Свернуть' : 'Развернуть'} заказ ${order.title}`}
+            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          >
+            {open ? '▾' : '▸'}
+          </button>
+          {order.bitrix_id || '—'}
+        </td>
         <td>
           <Link
             to={`/orders/${order.id}`}

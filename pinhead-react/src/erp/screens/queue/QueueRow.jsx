@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { orderLinkClick } from '../../store/useOrderDrawer';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { stageQtyProgress } from '../../utils/progress';
@@ -24,6 +24,7 @@ export function QueueRow({
   canMoveUp, canMoveDown, onMove,
 }) {
   const { order, item, stage, reason, group } = entry;
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const d = daysLeft(order.due_date);
   const overdue = stageOverdue(stage.planned_end, stage.status);
@@ -89,12 +90,15 @@ export function QueueRow({
             to={`/orders/${order.id}`}
             onClick={(e) => orderLinkClick(order.id, e)}
             className={styles.queueCardTitleLink}
-            title={`Открыть заказ №${order.bitrix_id || '—'}`}
+            title={`№${order.bitrix_id || '—'} · ${order.title}`}
             draggable={false}
           >
             №{order.bitrix_id || '—'} · {order.title}
           </Link>
-          <span className={styles.subText}>
+          <span
+            className={styles.subText}
+            title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}
+          >
             {item.product_type}{item.variant ? ` · ${item.variant}` : ''}
             {order.customer ? ` · ${order.customer}` : ''}
           </span>
@@ -140,7 +144,12 @@ export function QueueRow({
         </span>
 
         <span className={styles.queueRowActions}>
-          <Link to={`/task/${stage.id}`} className="btn btn-ghost" draggable={false}>
+          <Link
+            to={`/task/${stage.id}`}
+            state={{ from: `${location.pathname}${location.search}` }}
+            className="btn btn-ghost"
+            draggable={false}
+          >
             Открыть
           </Link>
           <button

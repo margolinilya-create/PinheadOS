@@ -47,7 +47,9 @@ export default function InlineEdit({
         className={styles.inlineEditBtn}
         onClick={start}
         title={disabled ? undefined : 'Нажмите, чтобы изменить'}
-        aria-label={ariaLabel}
+        // aria-label перекрывает содержимое кнопки: со «Менеджер» скринридер
+        // озвучивал только подпись, без самого значения
+        aria-label={`${ariaLabel}: ${value ? format(value) : 'не указано'}`}
         disabled={disabled}
       >
         {value ? format(value) : <span className={styles.subText}>{placeholder}</span>}
