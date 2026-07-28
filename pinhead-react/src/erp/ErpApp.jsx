@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
+import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
+import { ErrorState } from './components/States';
 import ErpDashboard from './screens/ErpDashboard';
 import OrdersScreen from './screens/OrdersScreen';
 import DepartmentQueue from './screens/DepartmentQueue';
@@ -43,10 +45,24 @@ function ErpGuard({ allowed, children }) {
 
 export default function ErpApp({ user }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
+  // key={pathname}: падение одного экрана не роняет всю оболочку, а уход на
+  // другой раздел пересоздаёт границу — экран восстанавливается сам.
+  const { pathname } = useLocation();
 
   return (
     <ErpLayout user={user}>
-      <Suspense fallback={<ScreenSkeleton />}>
+      <ErrorBoundary
+        key={pathname}
+        fallback={(error, reset) => (
+          <ErrorState
+            title="Экран не отрисовался"
+            text={error?.message || 'Непредвиденная ошибка. Попробуйте открыть раздел заново.'}
+            onRetry={reset}
+            retryLabel="Попробовать снова"
+          />
+        )}
+      >
+        <Suspense fallback={<ScreenSkeleton />}>
         <Routes>
           <Route path="/" element={<ErpDashboard />} />
           <Route path="/orders" element={<OrdersScreen user={user} />} />
@@ -62,7 +78,8 @@ export default function ErpApp({ user }) {
           <Route path="/experimental" element={<ErpGuard allowed={isAdmin}><Experimental /></ErpGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
       <OrderDrawerHost />
     </ErpLayout>
   );
