@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
@@ -11,7 +11,7 @@ import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
-export function OrderCardMobile({ order, departments, onDelete, canDelete, onShip }) {
+function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
@@ -104,3 +104,7 @@ export function OrderCardMobile({ order, departments, onDelete, canDelete, onShi
     </article>
   );
 }
+
+/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
+    (канбан во время DnD, очередь цеха, таблица заказов). */
+export const OrderCardMobile = memo(OrderCardMobileBase);

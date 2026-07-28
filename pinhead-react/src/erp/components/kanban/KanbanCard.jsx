@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { orderPreviewUrl } from '../../store/useErpStore';
 import { orderLinkClick, useOrderDrawer } from '../../store/useOrderDrawer';
@@ -21,7 +21,7 @@ function DeadlineDot({ due }) {
 }
 
 /** Карточка канбана: этап позиции заказа (draggable внутри колонки цеха) */
-export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
+function KanbanCardBase({ entry, onDragStart, onDragEnd, dragging }) {
   const { order, item, stage, group } = entry;
   const [imgError, setImgError] = useState(false);
   const preview = orderPreviewUrl(order);
@@ -84,3 +84,7 @@ export function KanbanCard({ entry, onDragStart, onDragEnd, dragging }) {
     </div>
   );
 }
+
+/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
+    (канбан во время DnD, очередь цеха, таблица заказов). */
+export const KanbanCard = memo(KanbanCardBase);

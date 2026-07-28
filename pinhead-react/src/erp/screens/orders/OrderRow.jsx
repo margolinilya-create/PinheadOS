@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
@@ -16,7 +16,7 @@ import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
-export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
+function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -131,3 +131,7 @@ export function OrderRow({ order, departments, onDelete, canDelete, onShip }) {
     </>
   );
 }
+
+/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
+    (канбан во время DnD, очередь цеха, таблица заказов). */
+export const OrderRow = memo(OrderRowBase);

@@ -96,7 +96,7 @@
 }
 
 .shell {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   overflow: hidden;
   background: var(--bg);
@@ -110,7 +110,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
 }
 
 /* ─── Header ─── */
@@ -207,7 +207,7 @@
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   transition: width 160ms ease;
 }
 .sidebarCollapsed { width: 64px; }
@@ -779,11 +779,17 @@ a.kpiTile:hover { border-color: var(--accent); }
   padding: 7px 10px;
 }
 .queueReasonSpaced { margin-bottom: var(--space-md); }
-.queueActions { display: flex; gap: 8px; flex-wrap: wrap; }
-.queueActions :global(.btn) { min-height: 46px; flex: 1; }
-.queueActions :global(.btn-ghost) { flex: 0 0 auto; }
-.queueBlockForm { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Ряд действий цеха: главные кнопки тянутся, второстепенные — по содержимому.
+   Высоту даёт size="lg" примитива Button (--control-h-lg, на тач-экранах 48px). */
+.queueActions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.queueActions > * { flex: 1; min-width: 140px; }
+.queueBlockForm {
+  display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: flex-end;
+  margin-top: var(--space-sm);
+}
 .queueBlockForm .input { flex: 1; min-width: 170px; }
+/* Поле внутри ряда формы цеха — растягивается, кнопки остаются по содержимому */
+.queueFormField { flex: 1; min-width: 170px; }
 .queueCardHeadText { flex: 1; min-width: 0; }
 
 /* Миниатюра превью макета в карточке очереди (тап → лайтбокс) */
@@ -1748,3 +1754,53 @@ a.notifItem:hover .notifText { color: var(--accent); }
 .stackTight { display: flex; flex-direction: column; gap: 6px; }
 /* Группа этапов очереди */
 .queueGroup { margin-bottom: var(--space-lg); }
+
+/* ─── Мастер брака (боковая панель, 2 шага) ─── */
+.wizSteps {
+  display: flex;
+  gap: var(--space-sm);
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  font-size: 12px;
+}
+.wizStep, .wizStepActive {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-dim);
+  text-align: center;
+}
+.wizStepActive { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.wizActions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+.wizActions > * { flex: 1; }
+
+/* ─── Видимый фокус клавиатуры на всех интерактивных элементах оболочки ───
+   Раньше состояние фокуса было только у полей: пройти ERP с клавиатуры
+   вслепую было невозможно. */
+.navLink:focus-visible,
+.collapseBtn:focus-visible,
+.iconBtn:focus-visible,
+.kpiCard:focus-visible,
+.quickAction:focus-visible,
+.chipBtn:focus-visible,
+.deptTab:focus-visible,
+.queueThumbBtn:focus-visible,
+.drawerClose:focus-visible,
+.drawerTab:focus-visible,
+.pageBtn:focus-visible,
+.notifItem:focus-visible,
+.deadlineItem:focus-visible,
+.accHeader:focus-visible,
+.tzToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-md);
+}

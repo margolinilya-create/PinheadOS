@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { deptShortName } from '../data/departments';
@@ -46,12 +46,15 @@ export default function ErpKanban() {
     [orders, departments],
   );
 
-  const onDragStart = (e, entry) => {
+  // useCallback обязателен: без него memo на KanbanCard бесполезен — каждое
+  // движение мыши при перетаскивании (setOverLane) пересоздавало обработчики
+  // и перерисовывало весь борд целиком.
+  const onDragStart = useCallback((e, entry) => {
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', entry.stage.id); } catch { /* IE */ }
     setDrag({ entry, deptId: entry.stage.department_id });
-  };
-  const onDragEnd = () => { setDrag(null); setOverLane(null); };
+  }, []);
+  const onDragEnd = useCallback(() => { setDrag(null); setOverLane(null); }, []);
 
   const laneDroppable = (deptId, lane) =>
     drag &&
