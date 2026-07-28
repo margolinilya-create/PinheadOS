@@ -69,7 +69,7 @@ export default function OrderCard() {
         <img
           src={preview} alt={`Превью заказа «${order.title}»`}
           onError={() => setPreviewErrorFor(orderId)}
-          style={{ maxHeight: 140, maxWidth: 260, borderRadius: 8, border: '1px solid var(--border-light)', marginBottom: 10, objectFit: 'contain' }}
+          className={`${styles.previewImg} ${styles.previewImgPage}`}
         />
       )}
       {preview && previewError && (

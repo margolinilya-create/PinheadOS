@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Icon } from '../components/Icon';
+import { EmptyState, ErrorState } from '../components/States';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, procurementSla } from '../utils/time';
@@ -239,8 +240,7 @@ export default function FabricPurchasing() {
         {TABS.map((f) => (
           <button
             key={f.key} type="button" aria-pressed={tab === f.key}
-            className={`${styles.chip} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
             onClick={() => { setTab(f.key); setPage(1); }}
           >
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
@@ -250,13 +250,14 @@ export default function FabricPurchasing() {
 
       {loading && !loaded && <div className={styles.emptyState}>Загрузка…</div>}
       {loadError && !loaded && (
-        <div className={styles.emptyState}>
-          Не удалось загрузить данные.{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
-        </div>
+        <ErrorState onRetry={() => loadAll()} />
       )}
       {loaded && filtered.length === 0 && (
-        <div className={styles.emptyState}>Закупочных строк не найдено.</div>
+        <EmptyState
+          icon="truck"
+          title="Закупочных строк не найдено"
+          text="Измените фильтр или добавьте закупку кнопкой «Новая закупка»."
+        />
       )}
 
       {loaded && filtered.length > 0 && (

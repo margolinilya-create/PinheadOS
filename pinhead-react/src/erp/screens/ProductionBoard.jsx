@@ -177,9 +177,11 @@ export default function ProductionBoard() {
       {loading && !loaded && <TableSkeleton rows={6} label="Загрузка производственного плана" />}
 
       {view === 'table' && loaded && rows.length === 0 && (
-        <div className={styles.emptyState}>
-          Нет позиций в работе. Создайте заказ на экране «Заказы».
-        </div>
+        <EmptyState
+          icon="board"
+          title="Нет позиций в работе"
+          text="Позиции появятся здесь, как только будет создан заказ на экране «Заказы»."
+        />
       )}
 
       {view === 'table' && rows.length > 0 && (

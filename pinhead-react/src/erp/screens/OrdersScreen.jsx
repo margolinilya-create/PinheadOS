@@ -132,8 +132,7 @@ export default function OrdersScreen({ user }) {
             type="button"
             role="tab"
             aria-selected={tab === 'active'}
-            className={`${styles.chip} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
             onClick={() => setTab('active')}
           >
             Активные ({orders.filter((o) => o.status === 'active').length})
@@ -142,8 +141,7 @@ export default function OrdersScreen({ user }) {
             type="button"
             role="tab"
             aria-selected={tab === 'archive'}
-            className={`${styles.chip} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
             onClick={() => setTab('archive')}
           >
             Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}

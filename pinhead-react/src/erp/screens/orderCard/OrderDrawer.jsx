@@ -80,7 +80,7 @@ export function OrderDrawer({ orderId, onClose }) {
 
       {notFound && <div className={styles.subText}>Заказ не найден или был удалён.</div>}
       {!order && !notFound && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className={styles.stack}>
           <Skeleton width="60%" height={16} />
           <Skeleton width="100%" height={64} />
           <Skeleton width="90%" height={64} />
@@ -112,7 +112,7 @@ export function OrderDrawer({ orderId, onClose }) {
             <img
               src={preview} alt={`Превью заказа «${order.title}»`}
               onError={() => setPreviewErrorFor(orderId)}
-              style={{ maxHeight: 160, maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border-light)', margin: '10px 0', objectFit: 'contain' }}
+              className={`${styles.previewImg} ${styles.previewImgDrawer}`}
             />
           )}
           {preview && previewError && (

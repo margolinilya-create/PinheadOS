@@ -303,7 +303,7 @@ export default function DepartmentQueue() {
         const list = groups[key];
         if (!list || list.length === 0) return null;
         return (
-          <section key={key} style={{ marginBottom: 'var(--space-lg, 20px)' }}>
+          <section key={key} className={styles.queueGroup}>
             <h2 className={styles.queueGroupTitle}>{title} <span className={styles.subText}>({list.length})</span></h2>
             <div className={styles.queueGrid}>
               {list.map((entry) => (

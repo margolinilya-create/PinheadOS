@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { SearchInput } from '../components/SearchInput';
 import { Pipeline } from '../components/Pipeline';
+import { EmptyState } from '../components/States';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
@@ -118,7 +119,11 @@ export default function Experimental() {
       </div>
 
       {experimentalLoaded && experimental.length === 0 && (
-        <div className={styles.emptyState}>Эксперим. разработок пока нет — добавьте заказ-образец выше.</div>
+        <EmptyState
+          icon="flask"
+          title="Эксперим. разработок пока нет"
+          text="Добавьте заказ-образец формой выше."
+        />
       )}
 
       {rows.map((exp) => (

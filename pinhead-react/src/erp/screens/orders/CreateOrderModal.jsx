@@ -930,7 +930,7 @@ export function CreateOrderModal({ onClose }) {
             ref={fileInputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            style={{ display: 'none' }}
+            className={styles.hiddenInput}
             onChange={(e) => acceptPreview(e.target.files?.[0])}
           />
         </div>

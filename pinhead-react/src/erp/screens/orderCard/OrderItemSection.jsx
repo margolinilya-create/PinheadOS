@@ -58,7 +58,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
       )}
 
       {(item.prints ?? []).length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+        <div className={`${styles.stackTight} ${styles.thumbStubBlock}`}>
           {[...item.prints].sort((a, b) => a.seq - b.seq).map((p) => (
             <div key={p.id} className={styles.printBlock}>
               <div className={styles.checkRow}>

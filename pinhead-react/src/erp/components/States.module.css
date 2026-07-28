@@ -1,0 +1,34 @@
+/* Пустое состояние и состояние ошибки загрузки — одинаковые во всех разделах.
+   Раньше «пусто» было просто серым текстом, а «Повторить» существовал
+   единственным экземпляром на экране Закупки. */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-3xl, 48px) var(--space-xl, 24px);
+  border: 1px dashed var(--border-mid);
+  border-radius: var(--radius-lg, 12px);
+  text-align: center;
+  color: var(--text-dim);
+}
+.icon {
+  display: flex;
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs, 4px);
+}
+.iconError { color: var(--color-error); }
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.text { font-size: 13px; max-width: 44ch; }
+.action { margin-top: var(--space-sm, 8px); }
+
+/* Ошибка — на светлом красном фоне, чтобы отличалась от «просто пусто» */
+.error {
+  border-style: solid;
+  border-color: var(--color-error);
+  background: var(--bg-error);
+}

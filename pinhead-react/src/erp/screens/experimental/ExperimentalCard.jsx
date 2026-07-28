@@ -125,8 +125,7 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
           <div className={styles.checkRow}>
             {Object.entries(EXPERIMENTAL_OUTCOME_LABELS).map(([v, l]) => (
               <button key={v} type="button"
-                className={`${styles.chip} ${exp.final_outcome === v ? styles.chipProgress : styles.chipNeutral}`}
-                style={{ cursor: 'pointer', font: 'inherit' }}
+                className={`${styles.chip} ${styles.chipBtn} ${exp.final_outcome === v ? styles.chipProgress : styles.chipNeutral}`}
                 onClick={() => setOutcome(v)}>
                 {l}
               </button>

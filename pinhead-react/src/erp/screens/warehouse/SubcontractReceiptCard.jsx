@@ -42,7 +42,7 @@ export function SubcontractReceiptCard({ order, task, onAdvance }) {
         <div className={styles.subText}>Продукция принята и передана на упаковку/отгрузку.</div>
       ) : (
         <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0' }}>
+          <div className={styles.stackTight}>
             {CHECKS.map((c) => (
               <label key={c.key} className={styles.checkRow}>
                 <input

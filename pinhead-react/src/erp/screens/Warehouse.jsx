@@ -6,6 +6,7 @@ import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Drawer } from '../components/Drawer';
 import { Icon } from '../components/Icon';
+import { EmptyState, ErrorState } from '../components/States';
 import { useErpStore } from '../store/useErpStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import { formatDateShort } from '../utils/time';
@@ -156,8 +157,7 @@ export default function Warehouse() {
         {TABS.map((f) => (
           <button
             key={f.key} type="button" aria-pressed={tab === f.key}
-            className={`${styles.chip} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-            style={{ cursor: 'pointer', font: 'inherit' }}
+            className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
             onClick={() => { setTab(f.key); setPage(1); }}
           >
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
@@ -166,13 +166,14 @@ export default function Warehouse() {
       </FilterBar>
 
       {loadError && !loaded && (
-        <div className={styles.emptyState}>
-          Не удалось загрузить данные.{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
-        </div>
+        <ErrorState onRetry={() => loadAll()} />
       )}
       {loaded && filtered.length === 0 && (
-        <div className={styles.emptyState}>{onlyOpen ? 'Открытых задач склада нет.' : 'Задач склада нет.'}</div>
+        <EmptyState
+          icon="inbox"
+          title={onlyOpen ? 'Открытых задач склада нет' : 'Задач склада нет'}
+          text="Задачи появляются автоматически: приёмка — после закупки, упаковка — когда все этапы закрыты."
+        />
       )}
 
       {loaded && filtered.length > 0 && (

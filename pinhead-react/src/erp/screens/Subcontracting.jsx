@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { EmptyState, ErrorState } from '../components/States';
 import { SearchInput } from '../components/SearchInput';
 import { Stepper } from '../components/Stepper';
 import { useErpStore } from '../store/useErpStore';
@@ -228,13 +229,14 @@ export default function Subcontracting() {
       <AddOpRow orders={activeOrders} queueDepts={queueDepts} onAdd={createSubcontractOp} />
 
       {loadError && !loaded && (
-        <div className={styles.emptyState}>
-          Не удалось загрузить данные.{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => loadAll()}>Повторить</button>
-        </div>
+        <ErrorState onRetry={() => loadAll()} />
       )}
       {subcontractingLoaded && subcontracting.length === 0 && (
-        <div className={styles.emptyState}>Операций подряда пока нет — добавьте первую выше.</div>
+        <EmptyState
+          icon="users"
+          title="Операций подряда пока нет"
+          text="Добавьте первую операцию формой выше."
+        />
       )}
 
       {rows.length > 0 && (
