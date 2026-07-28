@@ -9,18 +9,21 @@ URL: https://pinhead-os.vercel.app
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal;
-  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard;
+  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/DefectWizard (мастер брака, 2 шага в Drawer);
+  screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons +
-  редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
+  редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline +
+  дизайн-система (сессия 23): Icon/icons.js (свой SVG-набор вместо эмодзи), Button, Field,
+  States (EmptyState/ErrorState) — у каждого свой *.module.css), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск);
   orders/stages/materials/procurement/subcontracting/employees/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
-  utils (routes/time/stageUi/orderForm),
+  utils (routes/time/stageUi/orderForm/deptLoad),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -78,8 +81,10 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test     # 887 unit тестов (Vitest)
-npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
+npm run test     # 1090 unit тестов (Vitest)
+npm run e2e      # 68 E2E сценариев (Playwright, 8 спеков)
+                 # локально нужен оверрайд executablePath на /opt/pw-browsers/chromium
+                 # (@playwright/test ждёт сборку 1208, предустановлена 1194)
 npm run lint     # 0 ошибок обязательно
 npm run build    # успешный билд обязательно
 ```
@@ -88,5 +93,8 @@ npm run build    # успешный билд обязательно
 - Токены: src/index.css (:root) — --type-*, --space-*, --z-*, --radius-*, --color-*
 - Dark mode: html[data-theme="dark"] с полным набором override-токенов
 - Шрифты: Barlow Condensed (заголовки) / Inter (текст) / Roboto Mono (числа)
-- Кнопки: .btn + variants (.btn-primary, .btn-secondary, .btn-danger, .btn-ghost)
+- Кнопки: в ERP — примитив `erp/components/Button` (variant/size/icon/loading);
+  глобальные .btn + variants остаются языком Order Studio
+- Иконки ERP: `erp/components/Icon` + набор в icons.js. Эмодзи вместо иконок не использовать
+- Метрики контролов: токены --control-h-sm/--control-h/--control-h-lg (тач ≥44px автоматически)
 - Анимации: fadeSlideIn, slideInRight, scaleIn, skeleton shimmer
