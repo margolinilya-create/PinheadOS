@@ -5,6 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { Button } from '../components/Button';
 import { EmptyState, LoadFailed } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 import { useErpStore } from '../store/useErpStore';
 import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
 import { deptShortName } from '../data/departments';
@@ -101,7 +102,7 @@ export default function DeptLoad() {
       )}
 
       {loaded && rows.length > 0 && (
-        <div className={styles.tableWrap}>
+        <ScrollHintBox className={styles.tableWrap} label="Загрузка цехов по дням">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -150,7 +151,7 @@ export default function DeptLoad() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
     </>
   );
