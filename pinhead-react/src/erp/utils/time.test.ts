@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  daysLeft, formatDateShort, formatTimeIn, isUrgent, isOverdue,
-  procurementSla, subcontractOverdue, stageOverdue,
+  daysLeft, formatDateHuman, formatDateShort, formatTimeIn, isUrgent, isOverdue,
+  procurementSla, shiftIsoDate, subcontractOverdue, stageOverdue,
 } from './time';
 
 describe('stageOverdue — просрочка этапа по planned_end (правка 8)', () => {
@@ -144,5 +144,52 @@ describe('formatDateShort — короткая дата ru-RU', () => {
   it('нераспознаваемая строка → пустая строка, а не «Invalid Date»', () => {
     expect(formatDateShort('не дата')).toBe('');
     expect(formatDateShort('2026-13-99')).toBe('');
+  });
+});
+
+describe('formatDateHuman — эхо под нативным полем даты', () => {
+  it('месяц словом: «08» нельзя спутать с днём', () => {
+    // именно этой двусмысленности не видно в mm/dd/yyyy при en-US локали браузера
+    expect(formatDateHuman('2026-08-14')).toMatch(/14/);
+    expect(formatDateHuman('2026-08-14')).toMatch(/авг/);
+    expect(formatDateHuman('2026-08-14')).toMatch(/2026/);
+  });
+
+  it('пусто и мусор → пустая строка, а не «Invalid Date»', () => {
+    expect(formatDateHuman(null)).toBe('');
+    expect(formatDateHuman('')).toBe('');
+    expect(formatDateHuman('не дата')).toBe('');
+  });
+
+  it('дата без времени не съезжает на сутки', () => {
+    expect(formatDateHuman('2026-01-01')).toMatch(/^1 янв/);
+  });
+});
+
+describe('shiftIsoDate — пресеты сроков', () => {
+  it('сдвиг вперёд и назад от заданной базы', () => {
+    expect(shiftIsoDate('2026-08-14', 0)).toBe('2026-08-14');
+    expect(shiftIsoDate('2026-08-14', 3)).toBe('2026-08-17');
+    expect(shiftIsoDate('2026-08-14', -1)).toBe('2026-08-13');
+  });
+
+  it('переход через конец месяца и года', () => {
+    expect(shiftIsoDate('2026-08-30', 3)).toBe('2026-09-02');
+    expect(shiftIsoDate('2026-12-30', 7)).toBe('2027-01-06');
+  });
+
+  it('високосный февраль', () => {
+    expect(shiftIsoDate('2028-02-28', 1)).toBe('2028-02-29');
+    expect(shiftIsoDate('2028-02-28', 2)).toBe('2028-03-01');
+  });
+
+  it('база с временем усекается до даты', () => {
+    expect(shiftIsoDate('2026-08-14T23:45:00Z', 1)).toBe('2026-08-15');
+  });
+
+  it('без базы считает от сегодня', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    expect(shiftIsoDate(null, 0)).toBe(today);
+    expect(shiftIsoDate(undefined, 1)).toBe(shiftIsoDate(today, 1));
   });
 });

@@ -9,6 +9,7 @@ import {
   hasActiveFilters,
 } from '../utils/filterStages';
 import styles from '../erp.module.css';
+import { DateField } from './DateField';
 
 /**
  * Общая панель фильтров производственных заданий (правка 9) — очередь цеха,
@@ -119,21 +120,17 @@ export function QueueFilters({
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Срок с</span>
-            <input
-              type="date"
-              className={styles.input}
+            <DateField
               value={filters.dueFrom}
-              onChange={(e) => set({ dueFrom: e.target.value })}
+              onChange={(v) => set({ dueFrom: v })}
               aria-label="Срок клиента с"
             />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Срок по</span>
-            <input
-              type="date"
-              className={styles.input}
+            <DateField
               value={filters.dueTo}
-              onChange={(e) => set({ dueTo: e.target.value })}
+              onChange={(v) => set({ dueTo: v })}
               aria-label="Срок клиента по"
             />
           </label>

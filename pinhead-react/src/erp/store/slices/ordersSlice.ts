@@ -167,6 +167,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           brandingMethods: it.branding_methods,
           brandingOn: it.branding_on ?? 'cut',
           materialSource: it.material_source,
+          // ОТК управляется галочкой позиции в форме; по умолчанию контроль есть.
+          // В `erp_order_items` не пишется — маршрут уже материализован в этапах.
+          needsQc: it.needs_qc ?? true,
         });
         const valid = route.filter((r) => deptByCode.has(r.departmentCode));
         const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));

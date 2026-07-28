@@ -6,8 +6,10 @@ import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Drawer } from '../components/Drawer';
+import { SortableTh } from '../components/SortableTh';
 import { useErpStore } from '../store/useErpStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
+import { sortRows, useTableSort } from '../utils/tableSort';
 import { formatDateShort } from '../utils/time';
 import {
   WAREHOUSE_TASK_TYPE_LABELS, MARKING_STATUS_LABELS, PACK_SHIP_STATUS_LABELS,
@@ -61,6 +63,21 @@ function taskSummary(order, task) {
   return 'Упаковка и отгрузка';
 }
 
+/**
+ * Значение колонки для сортировки — то же, что видно в ячейке.
+ * Срок сортируется по ISO-строке даты: она уже лексикографически монотонна.
+ */
+function warehouseSortValue({ order, task }, key) {
+  switch (key) {
+    case 'type': return WAREHOUSE_TASK_TYPE_LABELS[task.task_type];
+    case 'order': return order.bitrix_id || order.title;
+    case 'summary': return taskSummary(order, task);
+    case 'status': return taskStatusLabel(task);
+    case 'deadline': return task.deadline;
+    default: return null;
+  }
+}
+
 export default function Warehouse() {
   const { orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask } = useErpStore(
     useShallow((s) => ({
@@ -74,6 +91,10 @@ export default function Warehouse() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [openId, setOpenId] = useState(null);
+  const { sort, toggle: toggleSort } = useTableSort();
+
+  // Смена сортировки возвращает на первую страницу
+  const sortBy = (key) => { toggleSort(key); setPage(1); };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
 
@@ -114,9 +135,12 @@ export default function Warehouse() {
     });
   }, [allRows, tab, onlyOpen, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Сортировка до пагинации: иначе переупорядочилась бы только текущая страница
+  const sorted = useMemo(() => sortRows(filtered, sort, warehouseSortValue), [filtered, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   // Открытая в Drawer задача — берём свежую из стора (после действий обновляется).
   // Дешёвый поиск, без useMemo (ранние return в memo не сохраняются React-компилятором).
@@ -191,7 +215,14 @@ export default function Warehouse() {
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
-                <tr><th>Тип задачи</th><th>Заказ</th><th>Содержимое</th><th>Статус</th><th>Срок</th><th>Действие</th></tr>
+                <tr>
+                  <SortableTh sortKey="type" sort={sort} onSort={sortBy}>Тип задачи</SortableTh>
+                  <SortableTh sortKey="order" sort={sort} onSort={sortBy}>Заказ</SortableTh>
+                  <SortableTh sortKey="summary" sort={sort} onSort={sortBy}>Содержимое</SortableTh>
+                  <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
+                  <SortableTh sortKey="deadline" sort={sort} onSort={sortBy}>Срок</SortableTh>
+                  <th>Действие</th>
+                </tr>
               </thead>
               <tbody>
                 {pageRows.map(({ order, task }) => (

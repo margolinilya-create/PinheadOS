@@ -464,6 +464,45 @@
   border-bottom: 1px solid var(--border-light);
   vertical-align: top;
 }
+
+/* Подпись под полем даты: однозначное эхо выбранного значения (формат самого
+   нативного поля задаёт локаль браузера и может быть mm/dd/yyyy) + пресеты сроков */
+/* inline-flex, а не flex: в колоночном .field это отдельная строка под полем,
+   а в плотных однострочных формах (подряд, эксперим. цех) — рядом с полем */
+.dateHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: var(--type-label);
+}
+.dateEcho { color: var(--text-dim); font-family: 'Roboto Mono', monospace; }
+.dateFormatHint { color: var(--text-muted); }
+.datePresets { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* Сортируемый заголовок: кнопка внутри th, чтобы работали фокус и Enter/Space.
+   Наследует типографику th целиком — иначе внутри появляется второй кегль. */
+.thSortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: left;
+}
+.thSortBtn:hover { color: var(--text); }
+.thSorted { color: var(--text); }
+/* Стрелка неактивной колонки бледная, но видимая: без неё о сортировке не догадаться */
+.thSortArrow { opacity: 0.45; font-size: 11px; }
+.thSorted .thSortArrow { opacity: 1; color: var(--accent); }
 .table tr:last-child td { border-bottom: none; }
 .rowClickable { cursor: pointer; }
 .rowClickable:hover td { background: var(--surface); }
@@ -1661,6 +1700,7 @@ a.cellTitle:hover { color: var(--accent); }
   .drawerTab { min-height: 44px; }
   .supplierCell { min-height: 44px; }
   .inlineEditBtn { min-height: 44px; }
+  .thSortBtn { min-height: 44px; }
   /* Ручка приоритета: размер не был задан вовсе (~13px), а именно за неё
      бригадир таскает задания на планшете */
   .dragHandle { min-width: 44px; min-height: 44px; display: inline-flex;

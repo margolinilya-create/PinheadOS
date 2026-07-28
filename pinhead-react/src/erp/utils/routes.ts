@@ -49,10 +49,34 @@ const BRANDING_DEPT: Record<BrandingMethod, string | null> = {
   other: null,          // пришив нашивок и т.п. — внутри швейки
 };
 
+/**
+ * Код цеха ОТК. Финальный контроль ставится последним этапом производственного
+ * маршрута: он должен ждать ВСЕ терминальные этапы, потому что нанесения —
+ * параллельные ветки, и «после последнего по списку» пустило бы ОТК раньше,
+ * чем закончилась соседняя ветка.
+ */
+export const QC_DEPT_CODE = 'qc';
+
 export interface BuildRouteInput {
   productionType: ProductionType;
   brandingMethods: BrandingMethod[];
   brandingOn: BrandingOn;
+  /**
+   * Нужен ли финальный ОТК. По умолчанию да — контроль качества штатный этап,
+   * но менеджер снимает галочку на заказе, где он не нужен (образцы, срочная
+   * отгрузка). Флаг живёт только в форме: маршрут материализуется в
+   * `erp_item_stages` при создании, хранить его в позиции незачем.
+   */
+  needsQc?: boolean;
+}
+
+/**
+ * Этапы, от которых никто не зависит — «хвосты» маршрута.
+ * Их может быть несколько: нанесение на готовом даёт параллельные ветки.
+ */
+function terminalCodes(stages: RouteStage[]): string[] {
+  const depended = new Set(stages.flatMap((s) => s.dependsOnCodes));
+  return stages.filter((s) => !depended.has(s.departmentCode)).map((s) => s.departmentCode);
 }
 
 /**
@@ -106,6 +130,20 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
         sortOrder: sort,
       });
     }
+    sort += 10;
+  }
+
+  // Финальный ОТК — только если в маршруте есть что контролировать: закупка
+  // сама по себе (готовое изделие без нанесений, подряд «под ключ») своего
+  // производственного этапа не даёт, и ОТК стал бы вечной пробкой на пустом месте.
+  const needsQc = input.needsQc ?? true;
+  const hasProduction = stages.some((s) => s.departmentCode !== 'supply');
+  if (needsQc && hasProduction) {
+    stages.push({
+      departmentCode: QC_DEPT_CODE,
+      dependsOnCodes: terminalCodes(stages),
+      sortOrder: sort,
+    });
   }
 
   return stages;

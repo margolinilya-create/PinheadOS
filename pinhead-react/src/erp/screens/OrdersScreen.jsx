@@ -14,6 +14,7 @@ import { isOrderReadyToShip } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import styles from '../erp.module.css';
+import { DateField } from '../components/DateField';
 import { OrderRow } from './orders/OrderRow';
 import { OrderCardMobile } from './orders/OrderCardMobile';
 import { CreateOrderModal } from './orders/CreateOrderModal';
@@ -212,23 +213,21 @@ export default function OrdersScreen() {
         />
         <label className={styles.checkLabel}>
           Создан с
-          <input
-            type="date"
-            className={styles.input}
+          <DateField
+            showFormatHint={false}
             value={dateFrom}
             max={dateTo || undefined}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={setDateFrom}
             aria-label="Дата создания: с"
           />
         </label>
         <label className={styles.checkLabel}>
           по
-          <input
-            type="date"
-            className={styles.input}
+          <DateField
+            showFormatHint={false}
             value={dateTo}
             min={dateFrom || undefined}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={setDateTo}
             aria-label="Дата создания: по"
           />
         </label>

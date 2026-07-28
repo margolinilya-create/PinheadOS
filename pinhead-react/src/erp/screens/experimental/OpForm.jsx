@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { EXPERIMENTAL_OP_KIND_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { DateField } from '../../components/DateField';
 
 /** Форма передачи из «Проработки» (в швейку или на нанесение) */
 export function OpForm({ onCreate }) {
@@ -45,7 +46,7 @@ export function OpForm({ onCreate }) {
       )}
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => set({ qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 80 }} />
       <input className={styles.input} placeholder="Ответственный" value={form.responsible} onChange={(e) => set({ responsible: e.target.value })} aria-label="Ответственный" style={{ maxWidth: 130 }} />
-      <label className={styles.subText}>план<input type="date" className={styles.input} value={form.planned_date} onChange={(e) => set({ planned_date: e.target.value })} aria-label="Плановый срок" /></label>
+      <label className={styles.subText}>план<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => set({ planned_date: v })} aria-label="Плановый срок" /></label>
       <button type="button" className="btn btn-secondary" onClick={submit}>Передать</button>
     </div>
   );

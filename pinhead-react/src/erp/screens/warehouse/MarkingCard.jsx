@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import { MARKING_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { DateField } from '../../components/DateField';
 
 /**
  * Задача склада «Выпуск маркировки»: авто-создаётся при входе заказа в швейку.
@@ -52,9 +53,9 @@ export function MarkingCard({ order, task, onAdvance }) {
             value={markingType} onChange={(e) => setMarkingType(e.target.value)}
             aria-label="Тип маркировки"
           />
-          <input
-            type="date" className={styles.input} style={{ maxWidth: 160 }}
-            value={deadline} onChange={(e) => setDeadline(e.target.value)}
+          <DateField
+            presets className={styles.input} style={{ maxWidth: 160 }}
+            value={deadline} onChange={setDeadline}
             aria-label="Срок выпуска маркировки"
           />
           <button type="button" className="btn btn-primary" disabled={saving} onClick={advance}>

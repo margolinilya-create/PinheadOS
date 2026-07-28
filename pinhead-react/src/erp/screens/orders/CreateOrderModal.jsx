@@ -22,6 +22,7 @@ import {
   validateOrderForm,
 } from '../../utils/orderForm';
 import { buildItemRoute } from '../../utils/routes';
+import { DateField } from '../../components/DateField';
 import { deptNeedsTz, tzFilePath, validateTzAssignments } from '../../utils/tz';
 import { currentActor } from '../../store/shared';
 import { supabase } from '../../../lib/supabase';
@@ -56,6 +57,7 @@ function buildTzItems(items, deptByCode) {
         brandingMethods: [...new Set(prints.map((p) => p.method))],
         brandingOn: it.branding_on ?? 'cut',
         materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+        needsQc: it.needs_qc ?? true,
       });
       return {
         index,
@@ -427,6 +429,8 @@ export function CreateOrderModal({ onClose }) {
           // маршрут строится по техникам из блоков «Нанесение №N»
           branding_methods: [...new Set(prints.map((p) => p.method))],
           branding_on: it.branding_on,
+          // финальный ОТК: влияет только на маршрут, в позицию не пишется
+          needs_qc: it.needs_qc ?? true,
           size_grid: gridToPayload(it.size_grid),
           prints: prints.map((p) => ({
             method: p.method,
@@ -551,12 +555,12 @@ export function CreateOrderModal({ onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Дата запуска</span>
-            <input
-              type="date"
+            <DateField
+              presets
               min={initialLaunch}
               className={inputCls('launch_date')}
               value={form.launch_date}
-              onChange={(e) => setForm({ ...form, launch_date: e.target.value })}
+              onChange={(v) => setForm({ ...form, launch_date: v })}
               aria-invalid={err('launch_date') ? true : undefined}
               aria-describedby={err('launch_date') ? 'err-order-launch' : undefined}
               data-invalid={err('launch_date') ? true : undefined}
@@ -565,12 +569,12 @@ export function CreateOrderModal({ onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Срок клиента</span>
-            <input
-              type="date"
+            <DateField
+              presets
               min={initialLaunch}
               className={inputCls('due_date')}
               value={form.due_date}
-              onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+              onChange={(v) => setForm({ ...form, due_date: v })}
               aria-invalid={err('due_date') ? true : undefined}
               aria-describedby={err('due_date') ? 'err-order-due' : undefined}
               data-invalid={err('due_date') ? true : undefined}

@@ -9,6 +9,9 @@ import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
+import { SortableTh } from '../components/SortableTh';
+import { DateField } from '../components/DateField';
+import { sortRows, useTableSort } from '../utils/tableSort';
 import { useErpStore } from '../store/useErpStore';
 import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
 import { toast } from '../../store/useToastStore';
@@ -37,6 +40,35 @@ const STATUS_VARIANT = {
   pending: 'waiting', ordered: 'progress', in_transit: 'progress',
   partial: 'waiting', received: 'ready', reserved: 'ready', not_needed: 'neutral',
 };
+
+/**
+ * Значение колонки для сортировки. Берём ровно то, что видно в ячейке
+ * (статус — подписью, а не кодом), иначе порядок нельзя объяснить глазами.
+ */
+function purchaseSortValue({ order, m }, key) {
+  switch (key) {
+    case 'order': return order.bitrix_id || order.title;
+    case 'material': return m.name;
+    case 'supplier': return m.supplier;
+    case 'article': return m.article;
+    case 'plan': return m.qty_expected;
+    case 'received': return m.qty_received ?? m.received_at;
+    case 'status': return MATERIAL_STATUS_LABELS[m.status];
+    default: return null;
+  }
+}
+
+function procurementSortValue({ order, t }, key) {
+  switch (key) {
+    case 'order': return order.bitrix_id || order.title;
+    case 'material': return t.material_name;
+    case 'kind': return PROCUREMENT_KIND_LABELS[t.kind];
+    case 'cause': return PROCUREMENT_CAUSE_LABELS[t.cause_type];
+    case 'supplier': return t.supplier;
+    case 'status': return PROCUREMENT_STATUS_LABELS[t.status];
+    default: return null;
+  }
+}
 
 /**
  * Группа статуса для KPI-плиток и фильтр-вкладок.
@@ -138,7 +170,7 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>План прихода</span>
-            <input type="date" className={styles.input} value={form.eta_date} onChange={(e) => set({ eta_date: e.target.value })} aria-label="План прихода" />
+            <DateField presets value={form.eta_date} onChange={(v) => set({ eta_date: v })} aria-label="План прихода" />
           </label>
         </div>
         <div className={styles.modalActions}>
@@ -194,7 +226,13 @@ export default function FabricPurchasing() {
   const [adding, setAdding] = useState(false);
   /** Открытая модалка сравнения вариантов поставщика: { material, order } */
   const [optionsFor, setOptionsFor] = useState(null);
+  const { sort, toggle: toggleSort } = useTableSort();
+  const { sort: procSort, toggle: toggleProcSort } = useTableSort();
   const today = new Date().toISOString().slice(0, 10);
+
+  // Смена сортировки возвращает на первую страницу: иначе человек нажимает
+  // «по сроку» и остаётся на пятой странице уже другого списка
+  const sortBy = (key) => { toggleSort(key); setPage(1); };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
 
@@ -228,13 +266,23 @@ export default function FabricPurchasing() {
     });
   }, [allRows, tab, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Сортировка идёт ДО пагинации: иначе отсортировалась бы только текущая страница
+  const sorted = useMemo(
+    () => sortRows(filtered, sort, purchaseSortValue),
+    [filtered, sort],
+  );
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const procurementRows = useMemo(
     () => activeOrders.flatMap((o) => (o.procurement_tasks ?? []).map((t) => ({ order: o, t }))),
     [activeOrders],
+  );
+  const sortedProcurement = useMemo(
+    () => sortRows(procurementRows, procSort, procurementSortValue),
+    [procurementRows, procSort],
   );
 
   const setStatus = async (m, status) => {
@@ -327,8 +375,14 @@ export default function FabricPurchasing() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>№ заказа</th><th>Материал</th><th>Поставщик</th><th>Артикул</th>
-                  <th>План, кг</th><th>Приход</th><th>Статус</th><th>Действие</th>
+                  <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
+                  <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
+                  <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
+                  <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
+                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">План, кг</SortableTh>
+                  <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
+                  <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
+                  <th>Действие</th>
                 </tr>
               </thead>
               <tbody>
@@ -420,10 +474,17 @@ export default function FabricPurchasing() {
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
-                <tr><th>№</th><th>Материал</th><th>Тип</th><th>Причина</th><th>Поставщик</th><th>Статус</th></tr>
+                <tr>
+                  <SortableTh sortKey="order" sort={procSort} onSort={toggleProcSort} label="№ заказа">№</SortableTh>
+                  <SortableTh sortKey="material" sort={procSort} onSort={toggleProcSort}>Материал</SortableTh>
+                  <SortableTh sortKey="kind" sort={procSort} onSort={toggleProcSort}>Тип</SortableTh>
+                  <SortableTh sortKey="cause" sort={procSort} onSort={toggleProcSort}>Причина</SortableTh>
+                  <SortableTh sortKey="supplier" sort={procSort} onSort={toggleProcSort}>Поставщик</SortableTh>
+                  <SortableTh sortKey="status" sort={procSort} onSort={toggleProcSort}>Статус</SortableTh>
+                </tr>
               </thead>
               <tbody>
-                {procurementRows.map(({ order, t }) => (
+                {sortedProcurement.map(({ order, t }) => (
                   <tr key={t.id}>
                     <td>
                       <Link

@@ -15,6 +15,7 @@ import {
   SUBCONTRACT_FINISHED_FLOW,
 } from '../types';
 import styles from '../erp.module.css';
+import { DateField } from '../components/DateField';
 
 /**
  * Подряд (правки 4.2.1/4.2.4): рабочая очередь операций у подрядчиков.
@@ -109,8 +110,8 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       <input className={styles.input} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" />
       <input className={styles.input} placeholder="Контрагент" value={form.contractor} onChange={(e) => setForm({ ...form, contractor: e.target.value })} aria-label="Контрагент" style={{ maxWidth: 150 }} />
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 90 }} />
-      <label className={styles.subText}>передан<input type="date" className={styles.input} value={form.sent_date} onChange={(e) => setForm({ ...form, sent_date: e.target.value })} aria-label="Дата передачи" /></label>
-      <label className={styles.subText}>готов<input type="date" className={styles.input} value={form.planned_date} onChange={(e) => setForm({ ...form, planned_date: e.target.value })} aria-label="Плановая готовность" /></label>
+      <label className={styles.subText}>передан<DateField showFormatHint={false} value={form.sent_date} onChange={(v) => setForm({ ...form, sent_date: v })} aria-label="Дата передачи" /></label>
+      <label className={styles.subText}>готов<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => setForm({ ...form, planned_date: v })} aria-label="Плановая готовность" /></label>
       <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
     </div>
   );
@@ -298,13 +299,12 @@ export default function Subcontracting() {
                       {op.op_type === 'operation' && (
                         <label className={styles.subText}>
                           возврат:{' '}
-                          <input
-                            type="date"
-                            className={styles.input}
+                          <DateField
+                            showFormatHint={false}
                             value={op.returned_date || ''}
-                            onChange={(e) => updateSubcontractOp(op.id, {
-                              returned_date: e.target.value || null,
-                              status: e.target.value ? 'returned' : op.status,
+                            onChange={(v) => updateSubcontractOp(op.id, {
+                              returned_date: v || null,
+                              status: v ? 'returned' : op.status,
                             })}
                             aria-label={`Дата возврата ${op.operation}`}
                             style={{ maxWidth: 130 }}

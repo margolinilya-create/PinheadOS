@@ -229,6 +229,17 @@ export function ItemBlock({
               <option value="finished">на готовом</option>
             </select>
           </label>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Контроль качества</span>
+            <label className={styles.checkLabel}>
+              <input
+                type="checkbox"
+                checked={it.needs_qc ?? true}
+                onChange={(e) => setItem(i, { needs_qc: e.target.checked })}
+              />
+              Финальный ОТК
+            </label>
+          </div>
         </div>
 
         {it.has_branding && it.prints.map((p, pi) => (

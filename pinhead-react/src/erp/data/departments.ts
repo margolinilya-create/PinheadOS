@@ -17,6 +17,7 @@ export type DepartmentType =
   | 'embroidery'    // Вышивка
   | 'sewing'        // Пошив
   | 'vto'           // ВТО
+  | 'qc'            // ОТК (финальный контроль)
   | 'warehouse_fg'; // Склад готовой продукции
 
 export interface Department {
@@ -42,6 +43,7 @@ export const DEPARTMENTS: Department[] = [
   { code: 'embroidery',   name: 'Цех вышивки',             type: 'embroidery',   order: 62, is_branding: true },
   { code: 'sewing',       name: 'Швейный цех',             type: 'sewing',       order: 70 },
   { code: 'vto',          name: 'ВТО цех',                 type: 'vto',          order: 80 },
+  { code: 'qc',           name: 'ОТК',                     type: 'qc',           order: 85 },
   { code: 'warehouse_fg', name: 'Склад готовой продукции', type: 'warehouse_fg', order: 90 },
 ];
 
@@ -61,6 +63,7 @@ export const DEPT_SHORT_NAMES: Record<string, string> = {
   embroidery: 'Вышивка',
   sewing: 'Швейка',
   vto: 'ВТО',
+  qc: 'ОТК',
   warehouse_fg: 'Склад ГП',
 };
 
@@ -80,6 +83,7 @@ export const DEPT_ICONS: Record<string, string> = {
   embroidery: '🧵',
   sewing: '🪡',
   vto: '♨️',
+  qc: '🔍',
   warehouse_fg: '🏷',
 };
 
@@ -98,7 +102,7 @@ export function deptIcon(code: string): string {
  */
 // experimental вынесен в отдельную вкладку «Эксперим. цех» (правка 6) — не в общей очереди
 export const QUEUE_DEPT_CODES = new Set([
-  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto',
+  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto', 'qc',
 ]);
 
 /** @deprecated Признак по коду — только для сида. В коде: `isProductionDept(dept)` */

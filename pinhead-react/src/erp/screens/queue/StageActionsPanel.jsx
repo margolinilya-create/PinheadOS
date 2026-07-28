@@ -2,21 +2,15 @@ import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useDictionary } from '../../store/useDictionary';
-import { stageOverdue } from '../../utils/time';
+import { shiftIsoDate, stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
 import { stageTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import { confirmDefectRollback } from '../../utils/stageDefect';
 import styles from '../../erp.module.css';
+import { DateField } from '../../components/DateField';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
-
-/** Дата через N дней от сегодня в формате YYYY-MM-DD */
-function inDays(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
@@ -80,7 +74,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   // иначе этап с дальним сроком мгновенно становился «просрочен» на следующий день, ERP-04).
   const [startDate, setStartDate] = useState(
     stage.planned_end
-      || (normDays > 0 ? inDays(normDays) : null)
+      || (normDays > 0 ? shiftIsoDate(null, normDays) : null)
       || order.due_date
       || new Date().toISOString().slice(0, 10),
   );
@@ -248,11 +242,10 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <label className={styles.subText}>
             План завершения
             {normDays > 0 && <span> · норматив участка {normDays} дн.</span>}
-            <input
-              type="date"
-              className={styles.input}
+            <DateField
+              presets
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={setStartDate}
               aria-label="Плановая дата завершения"
               autoFocus
             />
