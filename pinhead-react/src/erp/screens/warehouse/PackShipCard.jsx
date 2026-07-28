@@ -1,5 +1,5 @@
 import { formatDateShort } from '../../utils/time';
-import { isOrderReadyToShip } from '../../utils/stageUi';
+import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
 import { PACK_SHIP_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 
@@ -23,6 +23,7 @@ export function PackShipCard({ order, task, onAdvance }) {
   const next = FLOW[idx + 1];
   const isShipStep = task.status === 'ready_to_ship';
   const shipReady = isOrderReadyToShip(order);
+  const blockReason = shipBlockReason(order);
   const ops = [...(order.warehouse_ops ?? [])]
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
@@ -44,13 +45,14 @@ export function PackShipCard({ order, task, onAdvance }) {
             type="button"
             className={isShipStep ? 'btn btn-primary' : 'btn btn-secondary'}
             disabled={isShipStep && !shipReady}
-            title={isShipStep && !shipReady ? 'Заказ ещё не готов к отгрузке' : undefined}
+            title={isShipStep && !shipReady ? (blockReason ?? 'Заказ ещё не готов к отгрузке') : undefined}
             onClick={() => onAdvance(task.id, next)}
           >
             {NEXT_LABEL[task.status]}
           </button>
+          {/* Кладовщику видна конкретная причина, а не просто отсутствие кнопки */}
           {isShipStep && !shipReady && (
-            <span className={styles.subText}>Не все этапы/материалы готовы</span>
+            <span className={styles.subText}>{blockReason ?? 'Не все этапы/материалы готовы'}</span>
           )}
         </div>
       )}

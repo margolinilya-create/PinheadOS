@@ -19,6 +19,7 @@ const FabricPurchasing = lazy(() => import('./screens/FabricPurchasing'));
 const Warehouse = lazy(() => import('./screens/Warehouse'));
 const Subcontracting = lazy(() => import('./screens/Subcontracting'));
 const Experimental = lazy(() => import('./screens/Experimental'));
+const DeptLoad = lazy(() => import('./screens/DeptLoad'));
 
 /**
  * Кей по orderId → свежий инстанс карточки на каждый заказ: при переходе A→B страница
@@ -69,6 +70,7 @@ export default function ErpApp({ user }) {
           <Route path="/orders/:orderId" element={<OrderCardRoute />} />
           <Route path="/board" element={<ProductionBoard />} />
           <Route path="/queue" element={<DepartmentQueue />} />
+          <Route path="/load" element={<DeptLoad />} />
           <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />

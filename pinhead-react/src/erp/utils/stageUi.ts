@@ -3,7 +3,8 @@
  * Единый источник для OrdersScreen / OrderCard / ProductionBoard и др.
  */
 
-import type { ErpItemStage, StageStatus } from '../types';
+import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
+import { isMaterialPending } from './routes';
 
 /** Статус этапа → класс чипа из erp.module.css */
 export const STAGE_CHIP_CLASS: Record<StageStatus, string> = {
@@ -30,20 +31,56 @@ export function stageProgress(
 export interface OrderShipReadiness {
   status: string;
   items: { stages: Pick<ErpItemStage, 'status'>[] }[];
-  materials?: { status: string }[];
+  materials?: ErpMaterial[];
+}
+
+/**
+ * Материалы, из-за которых заказ нельзя отгружать.
+ *
+ * Правило то же, что и у гейта этапа (`isMaterialPending`): упаковка, бирки и
+ * «сиротские» материалы (цех вне маршрута) не блокируют ни один этап, но
+ * отгружать без них нельзя. Пришедший закупочный материал годен только после
+ * приёмки складом — раньше отгрузка считала годным любой `received`, поэтому
+ * заказ с недостачей/пересортом/отказом склада доходил до «готов к отгрузке».
+ */
+export function shipBlockingMaterials(order: OrderShipReadiness): ErpMaterial[] {
+  return (order.materials ?? []).filter(isMaterialPending);
 }
 
 /**
  * Стадия «Готов к отгрузке»: заказ активен, есть хотя бы один этап, ВСЕ этапы
- * завершены (done/skipped) И все материалы получены. Материальная проверка (аудит #5)
- * страхует «сиротские» материалы (packaging/other или цех вне маршрута), которые
- * не гейтят ни один этап, но не должны позволять отгрузку с непришедшим материалом.
+ * завершены (done/skipped) И все материалы приняты.
  */
 export function isOrderReadyToShip(order: OrderShipReadiness): boolean {
   if (order.status !== 'active') return false;
   const stages = order.items.flatMap((it) => it.stages);
   if (stages.length === 0) return false;
   if (!stages.every((s) => s.status === 'done' || s.status === 'skipped')) return false;
-  return (order.materials ?? []).every(
-    (m) => m.status === 'received' || m.status === 'reserved' || m.status === 'not_needed');
+  return shipBlockingMaterials(order).length === 0;
+}
+
+/**
+ * Человекочитаемая причина, почему заказ ещё нельзя отгрузить (null — можно).
+ * Показывается в карточке заказа и в задаче склада «Упаковка/отгрузка», чтобы
+ * кладовщик видел не просто отсутствие кнопки, а конкретную причину.
+ */
+export function shipBlockReason(order: OrderShipReadiness): string | null {
+  if (order.status !== 'active') return null;
+  const stages = order.items.flatMap((it) => it.stages);
+  if (stages.length === 0) return 'У заказа нет этапов маршрута';
+
+  const open = stages.filter((s) => s.status !== 'done' && s.status !== 'skipped');
+  if (open.length > 0) {
+    return `Не завершены этапы: ${open.length}`;
+  }
+
+  const blocking = shipBlockingMaterials(order);
+  if (blocking.length > 0) {
+    const names = blocking.map((m) => m.name).join(', ');
+    const awaitingAcceptance = blocking.every((m) => m.status === 'received');
+    return awaitingAcceptance
+      ? `Склад не принял материалы: ${names}`
+      : `Не получены материалы: ${names}`;
+  }
+  return null;
 }

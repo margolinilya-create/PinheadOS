@@ -51,7 +51,7 @@ export function OrderDrawer({ orderId, onClose }) {
   const [tab, setTab] = useState('info');
   const {
     order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
-    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shipBlockReason, shippedByName,
     deptById, deptNameById, stageById,
   } = useOrderDetail(orderId);
 
@@ -128,6 +128,11 @@ export function OrderDrawer({ orderId, onClose }) {
             )}
             <Badge variant={order.shipped_status === 'shipped' ? 'ready' : 'neutral'}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</Badge>
             {readyToShip && order.shipped_status !== 'shipped' && <span className={`${styles.subText} ${styles.cellWithIcon}`}><Icon name="truck" size={13} />Отгрузка — во вкладке «Склад»</span>}
+            {!readyToShip && shipBlockReason && (
+              <span className={`${styles.subText} ${styles.cellWithIcon}`} title="Почему нельзя отгружать">
+                <Icon name="alert" size={13} />{shipBlockReason}
+              </span>
+            )}
             {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
             {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
             {order.packaging && order.packaging !== 'none' && (

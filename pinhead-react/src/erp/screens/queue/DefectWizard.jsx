@@ -137,9 +137,11 @@ export function DefectWizard({ entry, deptShortById, onSubmit, onClose }) {
           )}
 
           <label className={styles.checkLabel}>
+            {/* При возврате «на закупку» материал нужен по определению: галка
+                форсится и блокируется, чтобы не противоречить полям ниже. */}
             <input
               type="checkbox"
-              checked={needsMaterial}
+              checked={showProcurement}
               disabled={target === 'procurement'}
               onChange={(e) => setNeedsMaterial(e.target.checked)}
             />

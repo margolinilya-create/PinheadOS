@@ -136,7 +136,15 @@ function materialAccepted(m: ErpMaterial): boolean {
  * «Не требуется» и «Доступен со склада» (reserved) — годны без приёмки.
  * Пришедший закупочный материал (received) годен ТОЛЬКО после приёмки складом
  * (правка 3): недостача/пересорт/отказ/непринятое — блокируют закрой.
+ *
+ * Экспортируется, чтобы гейт отгрузки (`isOrderReadyToShip`) судил о материалах
+ * ровно по тому же правилу, что и запуск этапа: раньше отгрузка считала любой
+ * `received` годным и пропускала заказ с непринятым/отказанным материалом.
  */
+export function isMaterialPending(m: ErpMaterial): boolean {
+  return materialPending(m);
+}
+
 function materialPending(m: ErpMaterial): boolean {
   if (m.status === 'not_needed' || m.status === 'reserved') return false;
   if (m.status === 'received') return !materialAccepted(m);

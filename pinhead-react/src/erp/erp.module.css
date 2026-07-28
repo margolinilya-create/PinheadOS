@@ -1804,3 +1804,20 @@ a.notifItem:hover .notifText { color: var(--accent); }
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-md);
 }
+
+/* ─── Загрузка цехов (сетка «цех × день») ─── */
+.loadPeriod { font-weight: 600; font-size: 13px; }
+/* Ячейка дня: заливка-«тепло» под числом, доля от максимума по сетке */
+.loadCell { position: relative; text-align: center; }
+.loadCellFill {
+  position: absolute;
+  inset: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  pointer-events: none;
+}
+.loadCellValue { position: relative; font-family: var(--mono); font-size: 12px; }
+/* Сегодняшняя колонка выделена, чтобы не считать дни глазами */
+.loadToday { color: var(--accent); }
+/* Секция дозакупок/замен под основной таблицей закупки */
+.procurementSection { margin-top: var(--space-xl); }

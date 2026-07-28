@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Icon } from '../components/Icon';
+import InlineEdit from '../components/InlineEdit';
 import { EmptyState, ErrorState } from '../components/States';
 import { useErpStore } from '../store/useErpStore';
 import { toast } from '../../store/useToastStore';
@@ -338,12 +339,15 @@ export default function FabricPurchasing() {
       )}
 
       {procurementRows.length > 0 && (
-        <div style={{ marginTop: 20 }}>
+        <div className={styles.procurementSection}>
           <div className={styles.fieldLabel}>Дозакупки / замены ({procurementRows.length})</div>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
-                <tr><th>№</th><th>Материал</th><th>Тип</th><th>Причина</th><th>Поставщик</th><th>Статус</th></tr>
+                <tr>
+                  <th>№</th><th>Материал</th><th>Тип</th><th>Причина</th>
+                  <th>Поставщик</th><th>Ответственный</th><th>Статус</th>
+                </tr>
               </thead>
               <tbody>
                 {procurementRows.map(({ order, t }) => (
@@ -353,6 +357,16 @@ export default function FabricPurchasing() {
                     <td>{PROCUREMENT_KIND_LABELS[t.kind]}{!t.counts_as_purchase && <div className={styles.subText}>не закупка компании</div>}</td>
                     <td>{PROCUREMENT_CAUSE_LABELS[t.cause_type]}</td>
                     <td>{t.supplier || '—'}</td>
+                    <td>
+                      {/* Исполнитель задачи закупки: колонка responsible была в БД,
+                          но назначить его из UI было нельзя (бэклог аудита) */}
+                      <InlineEdit
+                        value={t.responsible || ''}
+                        placeholder="Назначить…"
+                        ariaLabel={`Ответственный за ${t.material_name}`}
+                        onSave={(v) => updateProcurementTask(t.id, { responsible: v.trim() || null })}
+                      />
+                    </td>
                     <td>
                       <select className={styles.select} value={t.status} onChange={(e) => updateProcurementTask(t.id, { status: e.target.value })} aria-label={`Статус задачи ${t.material_name}`}>
                         {Object.entries(PROCUREMENT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}

@@ -211,6 +211,20 @@ describe('QueueCard — мастер брака', () => {
     });
   });
 
+  it('возврат «на закупку» форсит галку «нужен новый материал»', () => {
+    fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Прожгли' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
+
+    const check = screen.getByLabelText(/Нужен новый материал/);
+    expect(check).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText('Где устранять'), { target: { value: 'procurement' } });
+    // галка отражает факт: закупка нужна по определению, менять её нельзя
+    expect(check).toBeChecked();
+    expect(check).toBeDisabled();
+  });
+
   it('«Назад» возвращает на первый шаг, «Отмена» закрывает мастер', () => {
     fireEvent.change(screen.getByLabelText('Сколько штук в брак'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('Причина брака'), { target: { value: 'Пятно' } });

@@ -27,7 +27,7 @@ export default function OrderCard() {
   const { orderId } = useParams();
   const {
     order, notFound, events, audit, comments, preview, previewError, setPreviewErrorFor,
-    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shipBlockReason, shippedByName,
     deptById, deptNameById, stageById,
   } = useOrderDetail(orderId);
 
@@ -86,6 +86,11 @@ export default function OrderCard() {
         )}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
         {readyToShip && order.shipped_status !== 'shipped' && <span className={`${styles.subText} ${styles.cellWithIcon}`}><Icon name="truck" size={13} />Отгрузка — во вкладке «Склад»</span>}
+        {!readyToShip && shipBlockReason && (
+          <span className={`${styles.subText} ${styles.cellWithIcon}`} title="Почему нельзя отгружать">
+            <Icon name="alert" size={13} />{shipBlockReason}
+          </span>
+        )}
         {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
         {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
         {order.packaging && order.packaging !== 'none' && (

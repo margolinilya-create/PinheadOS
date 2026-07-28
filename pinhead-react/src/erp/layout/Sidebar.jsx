@@ -16,6 +16,7 @@ const GROUPS = [
       { to: '/orders', label: 'Заказы', icon: 'orders' },
       { to: '/board', label: 'Производство', icon: 'board' },
       { to: '/queue', label: 'Мой цех', icon: 'queue' },
+      { to: '/load', label: 'Загрузка цехов', icon: 'calendar' },
     ],
   },
   {

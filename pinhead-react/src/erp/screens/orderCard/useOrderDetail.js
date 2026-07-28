@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../../lib/supabase';
 import { useErpStore, orderPreviewUrl } from '../../store/useErpStore';
-import { isOrderReadyToShip } from '../../utils/stageUi';
+import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
 
 /**
  * Общая логика деталей заказа (загрузка события/аудит/комментарии + realtime, инлайн-правки,
@@ -92,6 +92,8 @@ export function useOrderDetail(orderId) {
     return row;
   };
   const readyToShip = order ? isOrderReadyToShip(order) : false;
+  // Причина, почему заказ ещё нельзя отгружать (упаковка/бирки не приняты и т.п.)
+  const blockReason = order && !readyToShip ? shipBlockReason(order) : null;
   const shippedByName = useMemo(() => {
     if (!order?.shipped_by) return null;
     const p = profilesList.find((x) => x.id === order.shipped_by);
@@ -110,7 +112,7 @@ export function useOrderDetail(orderId) {
   return {
     order, loaded, notFound: loaded && !order && lookedUp,
     events, audit, comments, preview, previewError, setPreviewErrorFor,
-    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shipBlockReason: blockReason, shippedByName,
     deptById, deptNameById, stageById,
   };
 }
