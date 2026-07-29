@@ -18,7 +18,7 @@ import {
 } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
 import { orderTzDocuments, tzAssignmentFor } from '../../utils/tz';
-import { logStageEvent, withPending } from '../shared';
+import { logStageEvent, withPending, erpError } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
 
@@ -39,7 +39,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       supabase.from('erp_item_stages').update(patch).eq('id', stageId));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось обновить этап');
+      erpError('Этап не обновлён', error);
       return false;
     }
     if (found) {
@@ -80,7 +80,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       supabase.from('erp_item_stages').update(patch).eq('id', stageId));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось записать прогресс');
+      erpError('Результат не записан', error);
       return false;
     }
     logStageEvent({
@@ -204,7 +204,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     );
     if (results.some((r) => r.error)) {
       set({ orders: prev });
-      toast.error('Не удалось записать брак');
+      erpError('Брак не записан', results.find((r) => r.error)?.error);
       return false;
     }
 
@@ -294,7 +294,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       supabase.from('erp_item_stages').update(patch).eq('id', stageId));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось сохранить комментарий просрочки');
+      erpError('Комментарий не сохранён', error);
       return false;
     }
     return true;
@@ -343,7 +343,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     );
     if (results.some((r) => r.error)) {
       set({ orders: prevOrders });
-      toast.error('Не удалось сохранить приоритет');
+      erpError('Приоритет не сохранён', results.find((r) => r.error)?.error);
       return false;
     }
 
@@ -414,7 +414,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       supabase.from('erp_item_stages').update(sourcePatch).eq('id', stageId));
     if (sourceRes.error) {
       set({ orders: prevOrders });
-      toast.error('Не удалось перенести задание');
+      erpError('Задание не перенесено', sourceRes.error);
       return false;
     }
 
@@ -502,7 +502,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       supabase.from('erp_item_stages').update(plan).eq('id', stageId));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось сохранить план этапа');
+      erpError('План этапа не сохранён', error);
       return false;
     }
     return true;

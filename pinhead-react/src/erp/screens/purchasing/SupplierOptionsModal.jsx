@@ -6,6 +6,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { SUPPLIER_OPTION_LABELS } from '../../types';
 import { Icon } from '../../components/Icon';
 import styles from '../../erp.module.css';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /**
  * Сравнение вариантов поставщиков на одну позицию закупки (правка 10).
@@ -103,7 +104,7 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
       {options.length === 0 ? (
         <div className={styles.emptyState}>Вариантов пока нет — добавьте первое предложение.</div>
       ) : (
-        <div className={styles.tableWrap}>
+        <ScrollHintBox className={styles.tableWrap} label="Варианты поставщиков">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -188,7 +189,7 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
 
       <section className={styles.matSection} style={{ marginTop: 14 }}>

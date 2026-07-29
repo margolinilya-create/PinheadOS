@@ -39,7 +39,8 @@ textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
 .invalid:focus-visible { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--color-error); }
 
 .hint { font-size: 11.5px; color: var(--text-dim); }
-.error { font-size: 11.5px; color: var(--color-error); font-weight: 500; }
+/* ink, а не заливочный --color-error: 11.5px давали 3.76:1 при норме 4.5 */
+.error { font-size: 11.5px; color: var(--color-error-ink); font-weight: 500; }
 
 /* Правило ≥44px на тач-экранах цехов */
 @media (pointer: coarse) {

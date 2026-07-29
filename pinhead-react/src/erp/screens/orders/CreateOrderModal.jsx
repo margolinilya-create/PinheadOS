@@ -689,7 +689,7 @@ export function CreateOrderModal({ onClose }) {
                 onChange={(e) => setForm({ ...form, stickers_note: e.target.value })} />
             )}
           </div>
-          <label className={styles.checkLabel} style={{ alignSelf: 'end', minHeight: 40 }}>
+          <label className={`${styles.checkLabel} ${styles.checkLabelEnd}`}>
             <input
               type="checkbox"
               checked={form.no_chestny_znak}

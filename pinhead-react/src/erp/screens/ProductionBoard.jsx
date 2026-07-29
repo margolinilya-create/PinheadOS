@@ -23,10 +23,11 @@ import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
 import { itemProgress } from '../utils/progress';
 import { pluralize } from '../../utils/i18n';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { BoardCardMobile } from './board/BoardCardMobile';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 /**
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
@@ -118,7 +119,7 @@ export default function ProductionBoard() {
     })),
   );
   const access = useErpAccess();
-  const isMobile = useMediaQuery('(max-width: 760px)');
+  const isCompact = useCompactLayout();
   const [onlyActive, setOnlyActive] = useState(true);
   const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
   const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
@@ -319,7 +320,7 @@ export default function ProductionBoard() {
 
       {/* На 390px таблица показывала только «№ / Заказ / Кол-во» — срок, прогресс
           и этапы уезжали за край без подсказки прокрутки. Ниже 760px — карточки. */}
-      {view === 'table' && rows.length > 0 && isMobile && (
+      {view === 'table' && rows.length > 0 && isCompact && (
         <div className={styles.queueGrid}>
           {rows.map(({ order, item }) => (
             <BoardCardMobile
@@ -332,8 +333,8 @@ export default function ProductionBoard() {
         </div>
       )}
 
-      {view === 'table' && rows.length > 0 && !isMobile && (
-        <div className={styles.tableWrap}>
+      {view === 'table' && rows.length > 0 && !isCompact && (
+        <ScrollHintBox className={styles.tableWrap} label="Производственный план">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -418,7 +419,7 @@ export default function ProductionBoard() {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
     </>
   );

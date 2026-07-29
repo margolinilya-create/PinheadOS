@@ -12,6 +12,7 @@ import styles from '../../erp.module.css';
 import { StageStepper } from './StageStepper';
 import { PlanCell } from './PlanCell';
 import { fmtTs } from './format';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /** Блок одной позиции заказа: лента этапов, размерная сетка, нанесения, таблица этапов */
 export function OrderItemSection({ item, order, deptById, deptNameById, events, onSavePlan }) {
@@ -88,7 +89,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
           ))}
         </div>
       )}
-      <div className={styles.tableWrap}>
+      <ScrollHintBox className={styles.tableWrap} label="Размерная сетка">
         <table className={styles.table}>
           <thead>
             <tr>
@@ -137,7 +138,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollHintBox>
     </section>
   );
 }

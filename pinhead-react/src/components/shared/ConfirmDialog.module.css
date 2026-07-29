@@ -5,14 +5,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  /* Слой из токена: --z-drawer < --z-modal < --z-lightbox. Голая 9999
+     означала, что порядок наложения держится на порядке монтирования. */
+  z-index: var(--z-modal);
   padding: 16px;
   animation: fadeIn 150ms ease-out;
 }
 
 .dialog {
-  background: var(--bg, #fff);
-  border: 1px solid var(--border, #ddd);
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 24px;
   max-width: 400px;
@@ -22,7 +24,7 @@
 }
 
 .title {
-  font-family: var(--font-display, 'Barlow Condensed', sans-serif);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
   margin-bottom: 8px;
@@ -31,7 +33,7 @@
 }
 
 .message {
-  color: var(--text-mid, #555);
+  color: var(--text-mid);
   font-size: 14px;
   line-height: 1.5;
   margin-bottom: 20px;
@@ -49,30 +51,32 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
-  border: 1.5px solid var(--border, #ddd);
-  background: var(--bg, #fff);
+  border: 1.5px solid var(--border);
+  background: var(--bg);
   cursor: pointer;
   transition: all 150ms ease-out;
   min-height: 44px;
 }
 
 .cancel:hover {
-  background: var(--border-light, #f5f5f5);
+  background: var(--border-light);
 }
 
 .confirm {
-  background: var(--black, #000);
-  color: var(--white, #fff);
-  border-color: var(--black, #000);
+  background: var(--black);
+  color: var(--white);
+  border-color: var(--black);
 }
 
 .confirm:hover {
   opacity: 0.85;
 }
 
+/* ink, а не заливочный токен: белый текст 13px/600 на --color-error давал
+   4.17:1 при норме 4.5 — и это кнопка необратимого действия. */
 .confirm.danger {
-  background: var(--color-error, #e53e3e);
-  border-color: var(--color-error, #e53e3e);
+  background: var(--color-error-ink);
+  border-color: var(--color-error-ink);
 }
 
 @keyframes fadeIn {
@@ -93,18 +97,27 @@
   margin-bottom: 16px;
 }
 .promptLabel {
-  font-size: var(--type-body-sm, 13px);
+  font-size: var(--type-body-sm);
   color: var(--text-muted);
 }
 .promptInput {
   width: 100%;
   min-height: 40px;
+  /* Сюда цех вписывает причину переноса и возврата брака — обязательное поле.
+     40px пальцем в перчатке не попасть. */
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
+}
+
+/* Диалог необратимых действий цех видит на планшете: «Завершить этап не
+   полностью?», «Перенести заказ в …», возврат брака. Поле причины и кнопки
+   обязаны попадать под палец в перчатке. */
+@media (pointer: coarse) {
+  .promptInput { min-height: 44px; }
 }
 .promptInput:focus {
   outline: none;

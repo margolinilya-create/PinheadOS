@@ -15,6 +15,7 @@ import {
 } from '../../types';
 import { onTabListKeyDown } from '../../utils/tabs';
 import styles from '../../erp.module.css';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /**
  * Справочники производства (правка 12) — редактируются руководством, без правки кода:
@@ -108,7 +109,7 @@ function DictionaryList({ kind }) {
             : 'Справочник пуст — добавьте первое значение.'}
         </div>
       ) : (
-        <div className={styles.tableWrap}>
+        <ScrollHintBox className={styles.tableWrap} label="Справочник">
           <table className={styles.table}>
             <thead>
               <tr><th>Значение</th><th>Код</th><th>Порядок</th><th>Действие</th></tr>
@@ -164,7 +165,7 @@ function DictionaryList({ kind }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
     </>
   );

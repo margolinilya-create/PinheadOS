@@ -29,6 +29,10 @@ export function useScrollHints() {
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(update);
       ro.observe(el);
+      // Наблюдаем и за содержимым: у контейнера ширина фиксирована лейаутом, а
+      // меняется scrollWidth. Скрыли колонку фильтром или подгрузили строки —
+      // размер el прежний, наблюдатель молчит, и подсказка остаётся неверной.
+      if (el.firstElementChild) ro.observe(el.firstElementChild);
     } else {
       window.addEventListener('resize', update);
     }

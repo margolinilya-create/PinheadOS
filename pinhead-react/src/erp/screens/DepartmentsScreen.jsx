@@ -9,6 +9,7 @@ import { EMPLOYEE_ROLE_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 /**
  * Справочник производственных участков (правки 11 и 12): создание, переименование,
@@ -187,7 +188,7 @@ export default function DepartmentsScreen({ embedded = false }) {
         </label>
       </div>
 
-      <div className={styles.tableWrap}>
+      <ScrollHintBox className={styles.tableWrap} label="Участки производства">
         <table className={styles.table}>
           <thead>
             <tr>
@@ -288,7 +289,7 @@ export default function DepartmentsScreen({ embedded = false }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollHintBox>
     </>
   );
 }

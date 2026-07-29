@@ -24,7 +24,17 @@ export default defineConfig({
       name: 'desktop',
       use: { viewport: { width: 1280, height: 800 } },
       // Мобильная разметка на 1280px не рендерится — спек проверял бы пустоту
-      testIgnore: [/erp-mobile\.spec\.ts/],
+      testIgnore: [/erp-mobile\.spec\.ts/, /erp-tablet\.spec\.ts/],
+    },
+    {
+      // Планшет цеха — основное рабочее устройство, и до 29.07.2026 он не был
+      // покрыт ничем: гонялись только 1280 и 375. Именно в этой дыре жил баг,
+      // из-за которого при брейкпоинте 760px планшет в портрете (768–800px)
+      // получал десктопную строку очереди с колонкой действий за краем экрана.
+      // hasTouch обязателен: без него `pointer: coarse` не срабатывает.
+      name: 'tablet',
+      use: { viewport: { width: 768, height: 1024 }, hasTouch: true, isMobile: false },
+      testMatch: [/erp-tablet\.spec\.ts/],
     },
     {
       name: 'mobile',
@@ -34,7 +44,7 @@ export default defineConfig({
       // (QueueRow), в визарде — свой мобильный поток шагов. Гонять desktop-сценарии
       // на 375px бессмысленно: они проверяют разметку, которой там нет.
       // Мобильная разметка ERP покрыта своим спеком — erp-mobile.spec.ts.
-      testIgnore: [/erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/],
+      testIgnore: [/erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/, /erp-tablet\.spec\.ts/],
     },
   ],
 });

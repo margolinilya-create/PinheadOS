@@ -13,7 +13,22 @@ import { toast } from '../../../store/useToastStore';
  *
  * «Взять в работу» закрепляет задание за исполнителем (erp_item_stages.assignee) —
  * колонка была в схеме с первой фазы, но никогда не заполнялась.
+ *
+ * Каждое действие подтверждается тостом успеха. Раньше цех работал вслепую:
+ * `toast.success` во всём ERP вызывался 6 раз и ни разу — на действии этапа.
+ * При этом задание после «Завершить» ИСЧЕЗАЕТ из списка (блок «Завершено
+ * недавно» по умолчанию свёрнут), а при сбое оптимистичное состояние
+ * откатывается — и строка тоже пропадает. Обе ветки выглядели одинаково,
+ * и отличить «сохранилось» от «не сохранилось» было нельзя.
  */
+
+/** Цеха, которые откроются после закрытия этапа — для текста подтверждения */
+function dependentDeptNamesFactory(deptNameById) {
+  return (entry) => entry.item.stages
+    .filter((st) => st.depends_on.includes(entry.stage.id))
+    .map((st) => deptNameById.get(st.department_id) || 'следующий этап');
+}
+
 export function useStageActions() {
   const {
     departments, setStageStatus, setStagePlan, reportProgress, reportDefect,
@@ -33,11 +48,14 @@ export function useStageActions() {
     () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
     [departments],
   );
+  const dependentDeptNames = useMemo(() => dependentDeptNamesFactory(deptNameById), [deptNameById]);
 
   /** Взять в работу: план завершения + закрепление за исполнителем */
   const onStart = useCallback(async (entry, plannedEnd) => {
     if (plannedEnd) await setStagePlan(entry.stage.id, { planned_end: plannedEnd });
-    return setStageStatus(entry.stage.id, 'in_progress', { assignee: currentActor() });
+    const ok = await setStageStatus(entry.stage.id, 'in_progress', { assignee: currentActor() });
+    if (ok) toast.success(`Взято в работу: ${entry.item.product_type || 'позиция'} · ${entry.item.qty} шт`);
+    return ok;
   }, [setStagePlan, setStageStatus]);
 
   /**
@@ -54,14 +72,32 @@ export function useStageActions() {
       deptNameById,
     });
     if (!ok) return false;
-    return setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty });
-  }, [setStageStatus, deptNameById]);
+    const saved = await setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty });
+    // Называем количество и следующий цех: задание уходит из списка, и это
+    // единственный след того, что именно записано
+    if (saved) {
+      const next = dependentDeptNames(entry);
+      toast.success(next.length > 0
+        ? `Этап завершён: ${entry.item.qty} шт · открыт ${next.join(', ')}`
+        : `Этап завершён: ${entry.item.qty} шт`);
+    }
+    return saved;
+  }, [setStageStatus, deptNameById, dependentDeptNames]);
 
   /** «Частично» — накопительный прогресс qty_done += N */
-  const onProgress = useCallback(
-    (entry, qty) => reportProgress(entry.stage.id, qty),
-    [reportProgress],
-  );
+  const onProgress = useCallback(async (entry, qty) => {
+    const ok = await reportProgress(entry.stage.id, qty);
+    if (ok) {
+      const done = (entry.stage.qty_done ?? 0) + qty;
+      const left = Math.max(entry.item.qty - done, 0);
+      // Остаток в тексте: рабочий вводит числа подряд и должен видеть,
+      // сколько ещё числится за ним, не пересчитывая в уме
+      toast.success(left > 0
+        ? `Записано ${qty} шт · осталось ${left}`
+        : `Записано ${qty} шт · этап закрыт`);
+    }
+    return ok;
+  }, [reportProgress]);
 
   const onBlock = useCallback(async (entry, reason, photo) => {
     let photoOk = false;
@@ -70,13 +106,15 @@ export function useStageActions() {
       block_reason: photoOk ? `${reason} (фото во вложениях)` : reason,
     });
     if (photo && !photoOk) toast.warning('Блокировка записана, но фото не загрузилось');
+    else if (ok) toast.success('Проблема записана — задание остановлено');
     return ok;
   }, [setStageStatus, uploadOrderAttachment]);
 
-  const onUnblock = useCallback(
-    (entry) => setStageStatus(entry.stage.id, 'waiting', { block_reason: null }),
-    [setStageStatus],
-  );
+  const onUnblock = useCallback(async (entry) => {
+    const ok = await setStageStatus(entry.stage.id, 'waiting', { block_reason: null });
+    if (ok) toast.success('Блокировка снята');
+    return ok;
+  }, [setStageStatus]);
 
   const onDefect = useCallback(async (entry, opts, photo) => {
     let photoOk = false;
