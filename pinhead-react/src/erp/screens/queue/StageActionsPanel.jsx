@@ -80,7 +80,19 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
       || order.due_date
       || new Date().toISOString().slice(0, 10),
   );
-  const [doneQty, setDoneQty] = useState(String(remaining || item.qty));
+  /**
+   * Пустое поле, а НЕ преднабранный остаток. Раньше здесь стоял
+   * `String(remaining || item.qty)`: в поле уже лежал весь остаток, и один тап по
+   * «Записать результат» уводил `qty_done` в полный тираж — `reportProgress`
+   * при `newDone >= total` закрывает этап и открывает следующий цех. То есть
+   * кнопка молча делала то же, что «Завершить этап» делает через `confirmStageDone`.
+   * На планшете в перчатках это соседняя кнопка.
+   *
+   * Диалога здесь намеренно нет: когда цех САМ вписал число, ничего не
+   * приписывается — подтверждение по `stageDone` нужно ровно для обратного случая,
+   * когда система дописывает несданное за цех.
+   */
+  const [doneQty, setDoneQty] = useState('');
   const [blockMode, setBlockMode] = useState(false);
   const [blockText, setBlockText] = useState('');
   const [blockPhoto, setBlockPhoto] = useState(null);
@@ -179,11 +191,12 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   <input
                     type="number"
                     min="1"
-                    max={item.qty}
+                    max={remaining}
                     className={`${styles.input} ${styles.qtySmallInput}`}
                     value={doneQty}
                     onChange={(e) => setDoneQty(e.target.value)}
-                    aria-label="Сколько сделано, шт"
+                    placeholder={`из ${remaining}`}
+                    aria-label={`Сколько сделано, шт (осталось ${remaining} из ${item.qty})`}
                   />
                   <button
                     type="button"
@@ -191,7 +204,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     disabled={busy || !(Number(doneQty) > 0)}
                     onClick={() => run(async () => {
                       await onProgress(entry, Math.max(1, Number(doneQty) || 0));
-                      setDoneQty(String(Math.max(remaining - (Number(doneQty) || 0), 1)));
+                      setDoneQty('');
                     })}
                   >
                     <Icon name="plus" size={14} /> Записать результат

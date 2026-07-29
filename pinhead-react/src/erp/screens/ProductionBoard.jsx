@@ -11,7 +11,7 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { orderLinkClick } from '../store/useOrderDrawer';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { isStageReady, waitingReason } from '../utils/routes';
+import { isStageReady, waitingReason, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import {
   applyStageFilters, EMPTY_FILTERS, filtersFromParams, filtersToParams, hasActiveFilters,
@@ -59,13 +59,13 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   const noTz = stageMissingTz(order, item.id, stage.department_id, dept);
   const effectiveReady =
     stage.status === 'waiting' &&
-    isStageReady(stage, allStages, order.materials, dept?.code, false, noTz);
+    isStageReady(stage, allStages, materialsForItem(order.materials, item.id), dept?.code, false, noTz);
   const displayStatus = effectiveReady ? 'ready' : stage.status;
 
   const reason =
     displayStatus === 'waiting' || displayStatus === 'blocked'
       ? waitingReason(
-          stage, allStages, order.materials,
+          stage, allStages, materialsForItem(order.materials, item.id),
           new Map([...deptById].map(([id, d]) => [id, d.name])),
           dept?.code, false, noTz,
         )

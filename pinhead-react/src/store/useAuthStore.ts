@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
+import { resetErpStore } from '../erp/store/useErpStore';
+import { useOrdersStore } from './useOrdersStore';
 import { translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus } from '../types/auth';
 
@@ -127,8 +129,21 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   logout: async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) toast.error(translateSupabaseError(error.message));
     storageClearAll();
+    /**
+     * Сторы данных чистятся вместе с localStorage. Раньше чистился только он,
+     * а данные оставались в памяти вкладки: у ERP-стора флаги `loaded`/`myDeptLoaded`
+     * оставались `true`, и `ErpLayout` при следующем входе не делал ни одного запроса —
+     * на общем цеховом планшете следующий работник видел заказы предыдущего
+     * (выборку RLS уже от чужого имени), его цех и его бейджи.
+     */
+    resetErpStore();
+    useOrdersStore.setState({
+      orders: [], loading: false, hasMore: true, loadingMore: false,
+      lastCreatedAt: null, filter: 'all', search: '',
+    });
     set({ user: null, profileStatus: 'no_profile' as ProfileStatus, error: null });
   },
 

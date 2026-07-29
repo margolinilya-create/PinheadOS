@@ -10,11 +10,25 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Крупные вендоры — в отдельные чанки: меньше главный бандл, лучше кеширование
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+        // Крупные вендоры — в отдельные чанки: меньше главный бандл, лучше кеширование.
+        //
+        // Форма именно функциональная, а не объектная. Объектная перечисляет ТОЧКИ ВХОДА
+        // пакетов, а не всё их дерево: `react/jsx-runtime` — отдельный вход, в списке
+        // 'vendor-react' его не было, и Rollup отдал его первой группе, которая его
+        // затребовала, — vendor-charts. В результате КАЖДЫЙ чанк с JSX статически тянул
+        // chart.js (180 кБ / 63 кБ gzip) и Vite ставил его в modulepreload — на дефолтной
+        // ERP-оболочке, где нет ни одного графика. Дописать 'react/jsx-runtime' в массив
+        // не помогает: хеши чанков не меняются. Регрессию сторожит e2e bundle-budget.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom)\//.test(id)) {
+            return 'vendor-react';
+          }
+          if (id.includes('@supabase')) return 'vendor-supabase';
+          if (id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('@kurkle')) {
+            return 'vendor-charts';
+          }
+          return undefined;
         },
       },
     },

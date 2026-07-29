@@ -107,6 +107,31 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
     const path = await uploadFile(tzFilePath(order.id, groupId, version, file.name), file);
     if (!path) return null;
 
+    /**
+     * Снять is_current со старых версий НАДО ДО вставки новой.
+     *
+     * В проде висит `create unique index erp_tz_documents_current_idx
+     * on erp_tz_documents (group_id) where is_current` — ровно одна актуальная версия
+     * в группе. Пока старая строка держит флаг, вставка второй с `is_current: true`
+     * нарушает индекс и падает с 23505. Здесь стоял обратный порядок с комментарием,
+     * утверждавшим ровно противоположное, и то же самое было записано правилом
+     * в CLAUDE.md — то есть заменить файл ТЗ через интерфейс было нельзя ни разу.
+     * Не проявлялось только потому, что таблица в проде ещё пуста.
+     *
+     * Обратный порядок (снять → вставить) оставляет группу без актуальной версии,
+     * если вставка не удалась, поэтому флаг возвращаем прежней версии — иначе цех
+     * увидит «ТЗ не назначено» на ровном месте.
+     */
+    const { error: clearError } = await supabase
+      .from('erp_tz_documents')
+      .update({ is_current: false })
+      .eq('group_id', groupId)
+      .eq('is_current', true);
+    if (clearError) {
+      toast.error('Не удалось подготовить замену ТЗ — версия не создана');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('erp_tz_documents')
       .insert({
@@ -125,18 +150,15 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
       .select();
     const row = data?.[0] as ErpTzDocument | undefined;
     if (error || !row) {
+      // Компенсация: флаг уже снят, а новой версии нет — группа осталась бы без
+      // актуального ТЗ, и гейт остановил бы цеха на документе, который никуда не делся.
+      await supabase
+        .from('erp_tz_documents')
+        .update({ is_current: true })
+        .eq('id', prev.id);
       toast.error('Файл загружен, но новая версия ТЗ не создана');
       return null;
     }
-
-    // Снимаем is_current со старых версий ПОСЛЕ вставки: партиальный уникальный индекс
-    // допускает ровно одну актуальную строку, а вставка её уже заняла бы.
-    const { error: clearError } = await supabase
-      .from('erp_tz_documents')
-      .update({ is_current: false })
-      .eq('group_id', groupId)
-      .neq('id', row.id);
-    if (clearError) toast.error('Старые версии ТЗ не отмечены как устаревшие');
 
     set((s) => ({
       orders: patchOrder(s.orders, order.id, (o) => ({

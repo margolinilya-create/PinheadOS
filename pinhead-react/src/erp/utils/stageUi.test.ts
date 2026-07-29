@@ -105,12 +105,74 @@ describe('shipBlockReason — почему нельзя отгружать', () 
       .toBe('Склад не принял материалы: Бирки');
   });
 
-  it('заказ без этапов отгружать нечем', () => {
+  it('заказ без позиций отгружать нечем', () => {
     expect(shipBlockReason({ ...order('active', []), materials: [] }))
-      .toBe('У заказа нет этапов маршрута');
+      .toBe('В заказе нет позиций');
+  });
+
+  it('производственная позиция без этапов — сбой маршрута, причина ведёт к диспетчеру', () => {
+    expect(shipBlockReason({ ...order('active', [[]]), materials: [] }))
+      .toBe('У позиций нет этапов маршрута — обратитесь к диспетчеру');
   });
 
   it('архивный заказ причин не показывает', () => {
     expect(shipBlockReason({ ...order('done_on_time', [['done']]), materials: [] })).toBeNull();
+  });
+});
+
+/**
+ * Заказ, у которого производственных этапов нет по правилу, а не по ошибке.
+ *
+ * `BASE_CHAIN.outsource` = ['supply'], и `buildItemRoute` вырезает `supply`, когда
+ * материал даёт подрядчик → маршрут пуст. Работа при этом реально идёт — у подрядчика,
+ * в `erp_subcontracting`. Прежний гейт отвечал `false` на любой заказ без этапов, а склад
+ * отгружает ТОЛЬКО через `isOrderReadyToShip`: такой заказ нельзя было закрыть никогда,
+ * он вечно висел активным и портил счётчики, а кладовщик видел отказ без причины.
+ */
+describe('Отгрузка заказа, который целиком производится вне цехов', () => {
+  /** Позиция без этапов с заданным типом производства */
+  function extItem(production_type: string, material_source: string | null = null) {
+    return { stages: [], production_type, material_source };
+  }
+
+  it('подряд с материалом подрядчика: пустой маршрут не мешает отгрузке', () => {
+    const o = { status: 'active', items: [extItem('outsource', 'contractor')], materials: [] };
+    expect(isOrderReadyToShip(o)).toBe(true);
+    expect(shipBlockReason(o)).toBeNull();
+  });
+
+  it('позиция «только нанесение» без своего цеха тоже отгружается', () => {
+    const o = { status: 'active', items: [extItem('no_product')], materials: [] };
+    expect(isOrderReadyToShip(o)).toBe(true);
+  });
+
+  it('непринятый материал держит такой заказ так же, как обычный', () => {
+    const o = {
+      status: 'active',
+      items: [extItem('outsource', 'contractor')],
+      materials: [mat('received', 'shortage', 'Бирки')],
+    };
+    expect(isOrderReadyToShip(o)).toBe(false);
+    expect(shipBlockReason(o)).toBe('Склад не принял материалы: Бирки');
+  });
+
+  it('смешанный заказ: швейная позиция без этапов остаётся сбоем маршрута', () => {
+    const o = {
+      status: 'active',
+      items: [extItem('outsource', 'contractor'), extItem('sewing')],
+      materials: [],
+    };
+    expect(isOrderReadyToShip(o)).toBe(false);
+    expect(shipBlockReason(o)).toBe('У позиций нет этапов маршрута — обратитесь к диспетчеру');
+  });
+
+  it('если у внешней позиции этапы всё же есть, они судятся как обычно', () => {
+    const withStage = {
+      status: 'active',
+      items: [{ stages: [{ status: 'in_progress' as const }], production_type: 'outsource' }],
+      materials: [],
+    };
+    expect(isOrderReadyToShip(withStage)).toBe(false);
+    expect(shipBlockReason(withStage)).toBe('Не завершены этапы: 1');
   });
 });

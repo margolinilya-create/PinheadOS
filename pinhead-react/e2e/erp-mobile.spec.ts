@@ -38,7 +38,11 @@ test.describe('Мобильная навигация ERP', () => {
   test('затемнение закрывает меню', async ({ page }) => {
     await page.goto('/?studio=0');
     await page.getByRole('button', { name: 'Меню', exact: true }).click();
-    await page.getByRole('button', { name: 'Закрыть меню' }).click();
+    // Клик со смещением вправо: затемнение — inset:0 (375px), а выехавший сайдбар
+    // занимает левые 236px и лежит НАД ним. Клик в центр (x≈187) попадал в сайдбар
+    // и проходил только пока панель ещё ехала (180 мс анимации) — на загруженном
+    // раннере тест падал по таймауту. Полоса x = 236…375 свободна всегда.
+    await page.getByRole('button', { name: 'Закрыть меню' }).click({ position: { x: 320, y: 400 } });
     await expect(page.getByRole('button', { name: 'Меню', exact: true })).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByRole('button', { name: 'Закрыть меню' })).toHaveCount(0);
   });

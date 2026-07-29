@@ -1,3 +1,18 @@
+/**
+ * ⚠️ СКРИПТ УСТАРЕЛ И НЕ ЗАПУСКАЕТСЯ. Не чинить импорты «до зелёного» не разобравшись.
+ *
+ * Две независимые причины:
+ * 1. Ссылается на экспорты, которых больше нет: EXTRAS_ICONS (удалён вместе с
+ *    эмодзи-иконками при переходе на SVG-набор), FABRICS_LAYER1/FABRICS_LAYER2
+ *    (удалены при перестройке каталога тканей). Падает на импорте модуля.
+ * 2. Пишет в catalog_config ключи `prices`/`sku`/`fabrics`/`extras`/`labels`,
+ *    а lib/catalogs.ts читает `skuCatalog`/`fabricsCatalog`/`trimCatalog` и
+ *    `sku_catalog` из app_config. Даже починив импорты, получим скрипт, который
+ *    успешно пишет то, что приложение не читает, — хуже, чем сломанный.
+ *
+ * Решение «починить под текущую схему или удалить» продуктовое: команда `npm run seed`
+ * упомянута в CLAUDE.md. Опасный дефолт SUPABASE_URL из него уже убран (см. ниже).
+ */
 import { createClient } from '@supabase/supabase-js'
 
 import { PRICES } from '../src/data/prices.js'
@@ -8,13 +23,27 @@ import {
   FABRICS_LAYER1, FABRICS_LAYER2
 } from '../src/data/fabricsCatalog.js'
 import {
-  EXTRAS_CATALOG_DEFAULT, EXTRAS_ICONS, EXTRAS_DESCS,
+  EXTRAS_CATALOG_DEFAULT, EXTRAS_DESCS,
   LABELS_CATALOG_DEFAULT, LABEL_CONFIG,
   HARDWARE_GROUPS, HARDWARE_CATALOG_DEFAULT
 } from '../src/data/extras.js'
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pulzirakjqehsulmjhdj.supabase.co'
+// Дефолта здесь быть не должно. Раньше стояло `|| 'https://pulzirakjqehsulmjhdj…'` —
+// это kontora24-prod, БОЕВОЙ проект другого продукта в той же организации. Скрипт
+// работает с service-role ключом и делает upsert в catalog_config: забыл экспортировать
+// SUPABASE_URL — молча перезаписал каталоги чужого прода, и скрипт отчитался успехом.
+const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+if (!SUPABASE_URL) {
+  console.error(
+    'Не задан SUPABASE_URL.\n\n' +
+    'Укажите проект явно — дефолта у скрипта нет намеренно:\n' +
+    '  SUPABASE_URL=https://<ref>.supabase.co SUPABASE_SERVICE_KEY=ey... npm run seed\n\n' +
+    'Ref проекта: Supabase Dashboard → Settings → General → Reference ID'
+  )
+  process.exit(1)
+}
 
 if (!SUPABASE_SERVICE_KEY) {
   console.error(
@@ -30,6 +59,10 @@ if (!SUPABASE_SERVICE_KEY) {
   process.exit(1)
 }
 
+// Целевой проект печатаем перед записью: ключ и URL приходят из окружения,
+// а перезапись каталогов необратима — видеть, куда пишем, нужно до, а не после.
+console.log(`Пишу каталоги в ${SUPABASE_URL}`)
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 const { error } = await supabase.from('catalog_config').upsert([
@@ -44,9 +77,11 @@ const { error } = await supabase.from('catalog_config').upsert([
       layer2: FABRICS_LAYER2
     }
   },
+  // icons: EXTRAS_ICONS убрано — экспорта больше нет. Эмодзи-иконки обработок
+  // удалены вместе с переходом ERP на SVG-набор, и скрипт с тех пор падал
+  // на импорте, то есть seed не запускался ни разу после той правки.
   { key: 'extras',    value: {
       catalog: EXTRAS_CATALOG_DEFAULT,
-      icons: EXTRAS_ICONS,
       descriptions: EXTRAS_DESCS
     }
   },

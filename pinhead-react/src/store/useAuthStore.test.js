@@ -20,6 +20,8 @@ vi.mock('../lib/supabase', () => ({
 
 // Must import after mock
 const { useAuthStore } = await import('./useAuthStore');
+const { useErpStore } = await import('../erp/store/useErpStore');
+const { useOrdersStore } = await import('./useOrdersStore');
 
 beforeEach(() => {
   useAuthStore.setState({ user: null, profileStatus: 'no_profile', loading: false, error: null, previewRole: null });
@@ -151,6 +153,40 @@ describe('useAuthStore — logout', () => {
     useAuthStore.setState({ user: { id: '1', role: 'admin' }, profileStatus: 'active' });
     await useAuthStore.getState().logout();
     expect(useAuthStore.getState().profileStatus).toBe('no_profile');
+  });
+
+  /**
+   * Общий цеховой планшет: работник A вышел, зашёл B. Раньше logout чистил только
+   * localStorage, а сторы оставались в памяти вкладки — и, что хуже, с флагами
+   * loaded/myDeptLoaded = true, из-за чего ErpLayout не делал ни одного запроса.
+   * B видел заказы A (выборку RLS от чужого имени), его цех и его бейджи, и это
+   * состояние не восстанавливалось само — только F5.
+   */
+  it('logout сбрасывает данные ERP-стора и снимает флаги загрузки', async () => {
+    useErpStore.setState({
+      orders: [{ id: 'o1', title: 'Заказ работника A' }],
+      loaded: true,
+      myDeptId: 'd-sew',
+      myDeptLoaded: true,
+    });
+
+    await useAuthStore.getState().logout();
+
+    const erp = useErpStore.getState();
+    expect(erp.orders).toEqual([]);
+    expect(erp.loaded).toBe(false);
+    expect(erp.myDeptId).toBeNull();
+    expect(erp.myDeptLoaded).toBe(false);
+    // Действия слайсов пережили сброс — иначе стор стал бы нерабочим
+    expect(typeof erp.loadAll).toBe('function');
+  });
+
+  it('logout очищает список заказов Order Studio', async () => {
+    useOrdersStore.setState({ orders: [{ id: 1 }], search: 'Ромашка', filter: 'draft' });
+    await useAuthStore.getState().logout();
+    expect(useOrdersStore.getState().orders).toEqual([]);
+    expect(useOrdersStore.getState().search).toBe('');
+    expect(useOrdersStore.getState().filter).toBe('all');
   });
 });
 

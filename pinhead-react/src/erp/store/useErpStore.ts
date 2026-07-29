@@ -42,6 +42,34 @@ export const useErpStore = create<ErpStore>((...a) => ({
   ...realtimeSlice(...a),
 }));
 
+/**
+ * Данные стора на момент создания — снимок без действий.
+ *
+ * Нужен для `resetErpStore()` при смене пользователя. Массивы копируем при снятии
+ * снимка И при каждом сбросе: иначе все последующие сбросы вернули бы один и тот же
+ * инстанс массива, и случайная мутация протекла бы между сессиями.
+ */
+const INITIAL_DATA = Object.entries(useErpStore.getState())
+  .filter(([, v]) => typeof v !== 'function');
+
+/**
+ * Сброс ERP-стора к исходному состоянию — вызывается при выходе из системы.
+ *
+ * На общем цеховом планшете `logout()` чистил localStorage, но стор оставался в
+ * памяти вкладки: флаги `loaded`/`myDeptLoaded` были `true`, поэтому `ErpLayout`
+ * не делал НИ ОДНОГО запроса, и следующий работник видел заказы предыдущего
+ * (выборка RLS уже от чужого имени), его цех, его бейджи и колокол. Само это
+ * состояние не восстанавливалось — только F5.
+ *
+ * `setState(..., false)` — слияние, а не замена: действия слайсов должны остаться.
+ */
+export function resetErpStore(): void {
+  const fresh = Object.fromEntries(
+    INITIAL_DATA.map(([k, v]) => [k, Array.isArray(v) ? [...v] : v]),
+  );
+  useErpStore.setState(fresh as Partial<ErpStore>, false);
+}
+
 // Инфраструктура (currentActor/logStageEvent/withPending/тайминги) — в ./shared.
 // Реэкспорт _pendingMutations — для тестов, импортирующих его отсюда.
 export { _pendingMutations } from './shared';

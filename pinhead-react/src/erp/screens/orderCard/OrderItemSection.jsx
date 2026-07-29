@@ -1,4 +1,4 @@
-import { isStageReady, waitingReason, isStageAwaitingProcurement } from '../../utils/routes';
+import { isStageReady, waitingReason, isStageAwaitingProcurement, materialsForItem } from '../../utils/routes';
 import { stageMissingTz } from '../../utils/tz';
 import { deptShortName } from '../../data/departments';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
@@ -101,11 +101,13 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
               const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
               const noTz = stageMissingTz(order, item.id, st.department_id, dept);
               const effReady = st.status === 'waiting' &&
-                isStageReady(st, item.stages, order.materials, dept?.code, awaitProc, noTz);
+                isStageReady(st, item.stages, materialsForItem(order.materials, item.id),
+                  dept?.code, awaitProc, noTz);
               const display = effReady ? 'ready' : st.status;
               const reason = display === 'waiting' || display === 'blocked'
                 ? waitingReason(
-                    st, item.stages, order.materials, deptNameById, dept?.code, awaitProc, noTz)
+                    st, item.stages, materialsForItem(order.materials, item.id),
+                    deptNameById, dept?.code, awaitProc, noTz)
                 : null;
               return (
                 <tr key={st.id}>
