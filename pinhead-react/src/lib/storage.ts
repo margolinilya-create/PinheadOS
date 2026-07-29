@@ -32,12 +32,23 @@ export function storageRemove(key: string): void {
 
 // ── Clear all app data (on logout) ──
 
-const APP_KEYS = [
+/**
+ * Ключи, которые чистятся при выходе. Список ведётся руками, поэтому его
+ * полноту сторожит тест (`storage.test.ts`): он собирает ключи из исходников и
+ * падает, если появился новый, не попавший ни сюда, ни в KEEP_ON_LOGOUT.
+ * Так `erp_order_draft` и был найден — черновик заказа с заказчиком и тиражом
+ * переживал смену пользователя на общем цеховом планшете.
+ */
+export const APP_KEYS = [
+  // Черновики: содержат данные клиента (заказчик, тираж, параметры нанесения)
   'pinhead_draft',
+  'erp_order_draft',
   // Выбранный цех ERP: на общем цеховом планшете он переживал выход из системы,
   // и следующий рабочий попадал в чужой цех, не заметив этого
   'erp_my_dept',
+  // Кэш каталогов и цен — данные организации, а не устройства
   'ph_prices',
+  'ph_price_history',
   'ph_cb_rate',
   'ph_extras',
   'ph_hardware',
@@ -45,12 +56,29 @@ const APP_KEYS = [
   'ph_fabrics',
   'ph_trims',
   'ph_usd_rate',
+  'ph_category_rules',
+  'ph_zones',
+  // Подсказки новичку — состояние конкретного человека, не устройства
+  'ph_onboarding_done',
+];
+
+/**
+ * Ключи, которые выход НЕ трогает — настройки устройства, а не пользователя.
+ * Тема и раскладка планшета не должны сбрасываться от того, что сменилась смена.
+ */
+export const KEEP_ON_LOGOUT = [
+  'ph_theme',
+  'erp_board_view',
+  'erp_sidebar_collapsed',
 ];
 
 export function storageClearAll(): void {
   for (const key of APP_KEYS) {
     storageRemove(key);
   }
+  // sessionStorage: кэш каталогов живёт до конца вкладки, а вкладка на общем
+  // планшете переживает смену пользователя
+  sessionRemove('pinhead_catalogs_v1');
 }
 
 // ── sessionStorage ──

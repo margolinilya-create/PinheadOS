@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { deptShortName } from '../data/departments';
 import { STAGE_STATUS_LABELS } from '../types';
-import { isStageAwaitingProcurement, isStageReady } from '../utils/routes';
+import { isStageAwaitingProcurement, isStageReady, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { itemProgress, stageQtyProgress } from '../utils/progress';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
@@ -52,7 +52,7 @@ export function RouteProgress({
           // waiting в БД, но зависимости и материалы закрыты → цех уже может начинать
           const effectiveReady =
             stage.status === 'waiting' &&
-            isStageReady(stage, item.stages, order.materials, dept?.code, awaitProc,
+            isStageReady(stage, item.stages, materialsForItem(order.materials, item.id), dept?.code, awaitProc,
               stageMissingTz(order, item.id, stage.department_id, dept));
           const display = effectiveReady ? 'ready' : stage.status;
           const p = stageQtyProgress(stage, item.qty);

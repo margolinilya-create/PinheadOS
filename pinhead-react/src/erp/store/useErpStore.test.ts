@@ -7,6 +7,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  */
 
 const h = vi.hoisted(() => ({
+  /**
+   * Журнал операций в порядке выполнения. updateCalls/insertCalls лежат в разных
+   * массивах, поэтому «что раньше — снятие флага или вставка» по ним не проверить,
+   * а для замены ТЗ порядок и есть суть инварианта (партиальный уникальный индекс).
+   */
+  opLog: [] as { op: 'update' | 'insert' | 'upsert' | 'delete'; table: string }[],
   updateCalls: [] as { table: string; patch: Record<string, unknown> }[],
   updateError: null as { message: string } | null,
   insertCalls: [] as { table: string; row: unknown }[],
@@ -57,7 +63,7 @@ vi.mock('../../lib/supabase', () => {
           let recorded = false;
           const q: any = {
             eq: () => {
-              if (!recorded) { recorded = true; h.updateCalls.push({ table, patch }); }
+              if (!recorded) { recorded = true; h.updateCalls.push({ table, patch }); h.opLog.push({ op: 'update', table }); }
               return q;
             },
             neq: () => q,
@@ -68,6 +74,7 @@ vi.mock('../../lib/supabase', () => {
         }),
         insert: vi.fn((row: any) => {
           h.insertCalls.push({ table, row });
+          h.opLog.push({ op: 'insert', table });
           const result = {
             data: Array.isArray(row) ? row : [row],
             error: h.insertErrors.shift() ?? null,
@@ -185,6 +192,7 @@ function getStage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.opLog.length = 0;
   h.updateCalls.length = 0;
   h.updateError = null;
   h.insertCalls.length = 0;
@@ -2081,12 +2089,44 @@ describe('ТЗ в PDF (волна 4)', () => {
     const docs = orderNow().tz_documents;
     expect(docs.filter((d: any) => d.is_current)).toHaveLength(1);
     expect(docs.find((d: any) => d.is_current).version).toBe(2);
-    // Снятие is_current идёт ПОСЛЕ вставки — иначе партиальный уникальный индекс не пустит
     expect(h.updateCalls.some((c) => c.table === 'erp_tz_documents' && c.patch.is_current === false))
       .toBe(true);
+    /**
+     * Снятие is_current идёт ДО вставки. В проде висит
+     * `unique index (group_id) where is_current` — пока прежняя версия держит флаг,
+     * вставка второй с is_current=true падает с 23505. Здесь был обратный порядок
+     * и комментарий, утверждавший обратное: тест закреплял неработающую замену ТЗ.
+     */
+    const tzOps = h.opLog.filter((c) => c.table === 'erp_tz_documents');
+    expect(tzOps[0]).toEqual({ op: 'update', table: 'erp_tz_documents' });
+    expect(tzOps[1]).toEqual({ op: 'insert', table: 'erp_tz_documents' });
     // Цеху с назначением пишется событие «ТЗ обновлено»
     expect(h.insertCalls.some((c) => c.table === 'erp_stage_events'
       && String((c.row as any).comment).includes('ТЗ обновлено до версии 2'))).toBe(true);
+  });
+
+  it('сбой вставки версии возвращает is_current прежней — группа не остаётся без ТЗ', async () => {
+    // Порядок «снять флаг → вставить» означает окно, в котором актуальной версии нет.
+    // Если вставка упала и флаг не вернуть, гейт ТЗ остановит цеха на документе,
+    // который никуда не делся, — то есть авария на ровном месте.
+    seedTz({
+      tz_documents: [{
+        id: 'doc1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1,
+        is_current: true, file_path: 'tz/o1/g1/v1-tz.pdf', file_name: 'tz.pdf',
+        created_at: '2026-07-20T10:00:00Z',
+      }],
+    });
+    h.insertErrors.push({ message: 'duplicate key value violates unique constraint' });
+
+    expect(await useErpStore.getState().replaceTzDocument('g1', pdf('tz-v2.pdf'))).toBeNull();
+
+    const restore = h.updateCalls.filter(
+      (c) => c.table === 'erp_tz_documents' && c.patch.is_current === true,
+    );
+    expect(restore).toHaveLength(1);
+    // Версия в сторе осталась прежней
+    expect(orderNow().tz_documents).toHaveLength(1);
+    expect(orderNow().tz_documents[0].version).toBe(1);
   });
 
   it('назначение ТЗ цеху заменяет прежнее назначение того же этапа', async () => {

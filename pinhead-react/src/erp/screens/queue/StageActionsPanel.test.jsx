@@ -126,6 +126,47 @@ describe('StageActionsPanel — действия по группам', () => {
   });
 });
 
+/**
+ * Поле «сколько сдано» было предзаполнено всем остатком, и один тап по «Записать
+ * результат» уводил qty_done в полный тираж: reportProgress при newDone >= total
+ * закрывает этап и открывает следующий цех. То есть кнопка молча делала то, что
+ * соседняя «Завершить этап» делает через confirmStageDone. Цена ошибки — тираж,
+ * которого физически нет, у следующего цеха.
+ */
+describe('StageActionsPanel — запись частичной готовности', () => {
+  it('поле пустое, кнопка выключена, пока число не введено', () => {
+    renderCard(makeEntry('in_progress'));
+    const input = screen.getByRole('spinbutton', { name: /Сколько сделано/ });
+    expect(input).toHaveValue(null);
+    expect(screen.getByRole('button', { name: /Записать результат/ })).toBeDisabled();
+  });
+
+  it('в подсказке и метке — остаток, а не весь тираж', () => {
+    renderCard(makeEntry('in_progress', { qty_done: 4 }));
+    const input = screen.getByRole('spinbutton', { name: /осталось 6 из 10/ });
+    expect(input).toHaveAttribute('placeholder', 'из 6');
+    expect(input).toHaveAttribute('max', '6');
+  });
+
+  it('передаёт в onProgress введённое число, а не остаток', async () => {
+    const handlers = renderCard(makeEntry('in_progress'));
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Сколько сделано/ }), {
+      target: { value: '4' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Записать результат/ }));
+    await waitFor(() => expect(handlers.onProgress).toHaveBeenCalledWith(expect.anything(), 4));
+  });
+
+  it('после записи поле снова пустое — следующее число вводится осознанно', async () => {
+    const handlers = renderCard(makeEntry('in_progress'));
+    const input = screen.getByRole('spinbutton', { name: /Сколько сделано/ });
+    fireEvent.change(input, { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: /Записать результат/ }));
+    await waitFor(() => expect(handlers.onProgress).toHaveBeenCalled());
+    await waitFor(() => expect(input).toHaveValue(null));
+  });
+});
+
 describe('StageActionsPanel — мастер брака', () => {
   let handlers;
   beforeEach(() => {

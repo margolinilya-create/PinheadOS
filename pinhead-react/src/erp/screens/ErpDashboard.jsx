@@ -9,7 +9,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed } from '../components/ErpStates';
 import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
-import { isStageReady, hasOpenProcurement } from '../utils/routes';
+import { isStageReady, hasOpenProcurement, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip } from '../utils/stageUi';
 import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
@@ -114,7 +114,7 @@ export default function ErpDashboard() {
           if (stage.status === 'in_progress') slot.inProgress += 1;
           else if (stage.status === 'blocked') slot.blocked += 1;
           else if (stage.status === 'waiting' && isStageReady(
-            stage, item.stages, order.materials, slot.dept.code, false,
+            stage, item.stages, materialsForItem(order.materials, item.id), slot.dept.code, false,
             stageMissingTz(order, item.id, stage.department_id, slot.dept))) {
             slot.ready += 1;
           }

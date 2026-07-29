@@ -7,7 +7,7 @@
 
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
-import { isStageReady, isStageAwaitingProcurement } from '../utils/routes';
+import { isStageReady, isStageAwaitingProcurement, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { stageOverdue } from '../utils/time';
 import type { ErpDepartment, ErpItemStage } from '../types';
@@ -148,7 +148,7 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
         else if (
           st.status === 'waiting' &&
           isStageReady(
-            st, it.stages, o.materials, deptCode,
+            st, it.stages, materialsForItem(o.materials, it.id), deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
             stageMissingTz(o, it.id, st.department_id, dept),
           )
@@ -176,7 +176,7 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
         if (
           st.status === 'waiting' &&
           isStageReady(
-            st, it.stages, o.materials, deptCode,
+            st, it.stages, materialsForItem(o.materials, it.id), deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
             stageMissingTz(o, it.id, st.department_id, dept),
           )

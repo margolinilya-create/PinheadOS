@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildRoute,
+  buildItemRoute,
   isStageReady,
   isStageAwaitingProcurement,
   hasOpenProcurement,
   materialsBlockStage,
+  materialsForItem,
   missingMaterialsForStage,
   waitingReason,
 } from './routes';
@@ -367,5 +369,107 @@ describe('hasOpenProcurement — открытая задача дозакупк�
     expect(hasOpenProcurement([{ source_stage_id: null, status: 'cancelled' }])).toBe(false);
     expect(hasOpenProcurement([])).toBe(false);
     expect(hasOpenProcurement(null)).toBe(false);
+  });
+});
+
+/**
+ * `buildItemRoute` объявлен в CLAUDE.md единым источником маршрута (его зовут и
+ * `createOrder`, и превью формы), но тестов у него не было ни одного — а именно он
+ * решает, будут ли у позиции этапы вообще.
+ */
+describe('buildItemRoute — вырезание закупки при материале подрядчика', () => {
+  it('материал Pinhead: маршрут не меняется', () => {
+    const base = { productionType: 'outsource' as const, brandingMethods: [], brandingOn: 'cut' as const };
+    expect(buildItemRoute({ ...base, materialSource: 'pinhead' }).map((s) => s.departmentCode))
+      .toEqual(['supply']);
+  });
+
+  it('материал подрядчика у подряда: закупки нет, и маршрут становится ПУСТЫМ', () => {
+    // Это верно по смыслу: всю работу ведёт подрядчик, она живёт в erp_subcontracting.
+    // Гейт отгрузки обязан это учитывать — см. stageUi.test.ts, иначе заказ
+    // невозможно закрыть никогда.
+    const route = buildItemRoute({
+      productionType: 'outsource',
+      brandingMethods: [],
+      brandingOn: 'cut',
+      materialSource: 'contractor',
+    });
+    expect(route).toEqual([]);
+  });
+
+  it('подряд с нанесением на готовом: остаётся цех нанесения и ОТК', () => {
+    const route = buildItemRoute({
+      productionType: 'outsource',
+      brandingMethods: ['silkscreen'],
+      brandingOn: 'finished',
+      materialSource: 'contractor',
+    });
+    expect(route.map((s) => s.departmentCode)).toEqual(['silkscreen', 'qc']);
+    // supply вырезан и не остался висеть в зависимостях
+    expect(route.flatMap((s) => s.dependsOnCodes)).not.toContain('supply');
+  });
+
+  it('правило применяется только к подряду: у швейки закупка остаётся', () => {
+    const route = buildItemRoute({
+      productionType: 'sewing',
+      brandingMethods: [],
+      brandingOn: 'cut',
+      materialSource: 'contractor',
+    });
+    expect(route.map((s) => s.departmentCode)).toContain('supply');
+  });
+
+  it('«только нанесение» методом без своего цеха тоже даёт пустой маршрут', () => {
+    // BRANDING_DEPT.other = null — пришив нашивок делают внутри швейки
+    const route = buildItemRoute({
+      productionType: 'no_product',
+      brandingMethods: ['other'],
+      brandingOn: 'finished',
+    });
+    expect(route).toEqual([]);
+  });
+});
+
+/**
+ * Материальный гейт различает позиции.
+ *
+ * `MATERIAL_GATE_DEPT` отвечает только на «какой вид материала нужен какому цеху»,
+ * а принадлежность позиции раньше не проверялась вовсе: в гейт уходил весь
+ * `order.materials`, поэтому задержка ткани на четвёртой позиции держала закрой
+ * первых трёх — цех видел «Ждём материалы» по ткани, которой не касается.
+ */
+describe('materialsForItem — материалы позиции против материалов заказа', () => {
+  const fabricFor = (itemId: string | null, name = 'Кулирка') =>
+    ({ id: `m-${itemId ?? 'all'}`, item_id: itemId, kind: 'fabric', status: 'pending',
+       accept_status: null, name }) as unknown as ErpMaterial;
+
+  it('материал без item_id общий — виден всем позициям', () => {
+    const shared = fabricFor(null, 'Общая ткань');
+    expect(materialsForItem([shared], 'i1')).toEqual([shared]);
+    expect(materialsForItem([shared], 'i2')).toEqual([shared]);
+  });
+
+  it('материал с item_id виден только своей позиции', () => {
+    const mine = fabricFor('i1');
+    const other = fabricFor('i2');
+    expect(materialsForItem([mine, other], 'i1')).toEqual([mine]);
+    expect(materialsForItem([mine, other], 'i2')).toEqual([other]);
+  });
+
+  it('без itemId возвращает всё — совместимость со старыми вызовами', () => {
+    const all = [fabricFor('i1'), fabricFor('i2')];
+    expect(materialsForItem(all)).toEqual(all);
+    expect(materialsForItem(null, 'i1')).toEqual([]);
+  });
+
+  it('чужая непришедшая ткань больше не блокирует закрой этой позиции', () => {
+    const mine = { ...fabricFor('i1'), status: 'received', accept_status: 'accepted_full' } as ErpMaterial;
+    const foreign = fabricFor('i2', 'Ткань 4-й позиции');
+    // до фильтра: гейт видел обе и блокировал
+    expect(materialsBlockStage([mine, foreign], 'cutting')).toBe(true);
+    // после фильтра по позиции — только свою, принятую
+    expect(materialsBlockStage(materialsForItem([mine, foreign], 'i1'), 'cutting')).toBe(false);
+    // а своя непришедшая по-прежнему блокирует
+    expect(materialsBlockStage(materialsForItem([mine, foreign], 'i2'), 'cutting')).toBe(true);
   });
 });

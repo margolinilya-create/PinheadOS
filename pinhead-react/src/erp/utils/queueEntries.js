@@ -1,4 +1,4 @@
-import { isStageAwaitingProcurement, isStageReady, waitingReason } from './routes';
+import { isStageAwaitingProcurement, isStageReady, materialsForItem, waitingReason } from './routes';
 import { stageMissingTz } from './tz';
 
 /**
@@ -43,11 +43,12 @@ export function buildQueueEntries(
           reason = stage.block_reason || 'Заблокирован цехом';
         } else if (stage.status !== 'done' && stage.status !== 'in_progress') {
           const ready = isStageReady(
-            stage, item.stages, order.materials, dept.code, awaitProc, noTz);
+            stage, item.stages, materialsForItem(order.materials, item.id), dept.code, awaitProc, noTz);
           group = ready ? 'ready' : 'waiting';
           if (!ready) {
             reason = waitingReason(
-              stage, item.stages, order.materials, deptNameById, dept.code, awaitProc, noTz);
+              stage, item.stages, materialsForItem(order.materials, item.id),
+              deptNameById, dept.code, awaitProc, noTz);
           }
         }
 

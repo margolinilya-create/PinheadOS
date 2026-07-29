@@ -11,7 +11,7 @@ import { useStagePermissions } from '../store/useStagePermissions';
 import { useOrderDrawer } from '../store/useOrderDrawer';
 import { findStage } from '../store/orderHelpers';
 import { deptShortName } from '../data/departments';
-import { isStageAwaitingProcurement, isStageReady, waitingReason } from '../utils/routes';
+import { isStageAwaitingProcurement, isStageReady, waitingReason, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { stageQtyProgress } from '../utils/progress';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
@@ -109,12 +109,14 @@ export default function ProductionTask() {
   const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
   const noTz = stageMissingTz(order, item.id, stage.department_id, dept);
   const ready = stage.status === 'waiting'
-    && isStageReady(stage, item.stages, order.materials, dept?.code, awaitProc, noTz);
+    && isStageReady(stage, item.stages, materialsForItem(order.materials, item.id),
+      dept?.code, awaitProc, noTz);
   const group = stage.status === 'waiting' && ready ? 'ready' : stage.status;
   const display = group === 'ready' ? 'ready' : stage.status;
   const reason = (display === 'waiting' || display === 'blocked')
     ? waitingReason(
-        stage, item.stages, order.materials, deptNameById, dept?.code, awaitProc, noTz)
+        stage, item.stages, materialsForItem(order.materials, item.id),
+        deptNameById, dept?.code, awaitProc, noTz)
     : null;
   const progress = stageQtyProgress(stage, item.qty);
   const d = daysLeft(order.due_date);
