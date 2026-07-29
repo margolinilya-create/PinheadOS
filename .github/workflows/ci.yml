@@ -22,10 +22,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
+
+      # Гейт по critical. Не по high — сознательно: из оставшихся high один это
+      # advisory react-router про RSC-режим (GHSA-qwww-vcr4-c8h2), которого в этом
+      # SPA нет, а предлагаемый «фикс» — откат 7.18 → 7.11, то есть потеря семи
+      # минорных версий ради неприменимой дыры; второй — eslint, где уязвимым
+      # помечен весь 9.x и починка это мажорный прыжок на 10. Ставить сюда
+      # --audit-level=high значит получить вечно красный шаг, который все научатся
+      # игнорировать. Critical выполним и не бутафория: он поймал бы ту critical
+      # в vitest UI, что висела в дереве до 29.07.
+      - run: npm audit --audit-level=critical
+
       - run: npm run lint
       - run: npm run test
       # Билд в гейте: раньше сломанную сборку ловил только Vercel уже после мержа
@@ -71,7 +82,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
@@ -84,9 +95,21 @@ jobs:
           path: pinhead-react/test-results/
           retention-days: 7
 
+  # Визуальная регрессия — ГЕЙТ, а не уведомление.
+  #
+  # Раньше здесь складывались три свойства, которые вместе давали дыру:
+  #   1) continue-on-error: true — расхождение эталонов не красило ни PR, ни main;
+  #   2) «эталонов нет ⇒ --update-snapshots» — то есть УДАЛЕНИЕ png было командой
+  #      «прими текущий рендер за норму», и такой прогон всегда зелёный;
+  #   3) коммит бота с [skip ci] уходил прямо в main, а Vercel деплоит на push
+  #      независимо от CI — то есть новая «норма» ехала в прод без единой проверки.
+  # Любой визуальный регресс (сломанная очередь цеха, невидимый чип статуса)
+  # узаконивался одним удалением файлов, и дальше всё было зелёным.
+  #
+  # Теперь: эталоны обновляются ТОЛЬКО явным workflow_dispatch с update_snapshots=true,
+  # и коммит идёт в ТЕКУЩУЮ ветку, а не в main. Обновление проходит ревью в своём PR.
   visual:
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: write
     defaults:
@@ -104,37 +127,42 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       # Dev-сервер поднимает сам Playwright (webServer в playwright.config.ts,
       # команда `VITE_FEATURE_ORDER_STUDIO=1 npm run dev`).
-      - name: Decide snapshot mode
-        id: snap
-        # update-режим: явный запрос через workflow_dispatch ЛИБО эталонов нет
-        # вовсе (self-heal — свежие эталоны сгенерятся и закоммитятся на main)
+      # Пустая папка эталонов больше НЕ включает обновление: это была команда
+      # «узаконить текущий рендер», доступная любому, кто удалил png.
+      # Отсутствие эталонов теперь честно роняет job — их надо сгенерировать
+      # осознанным диспатчем, а не молчаливым self-heal.
+      - name: Проверить наличие эталонов
+        if: ${{ inputs.update_snapshots != true }}
         run: |
-          if [ "${{ inputs.update_snapshots }}" = "true" ] || [ -z "$(ls e2e/visual.spec.ts-snapshots/*.png 2>/dev/null)" ]; then
-            echo "update=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "update=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$(ls e2e/visual.spec.ts-snapshots/*.png 2>/dev/null)" ]; then
+            echo "::error::Эталонов нет. Запустите workflow_dispatch с update_snapshots=true на своей ветке — снимки закоммитятся туда и пройдут ревью в PR."
+            exit 1
           fi
       - run: |
-          if [ "${{ steps.snap.outputs.update }}" = "true" ]; then
+          if [ "${{ inputs.update_snapshots }}" = "true" ]; then
             npx playwright test e2e/visual.spec.ts --update-snapshots
           else
             npx playwright test e2e/visual.spec.ts
           fi
+      # Коммит в ТЕКУЩУЮ ветку, а не в main: новая «норма» обязана пройти ревью
+      # в своём PR. Раньше эталоны уезжали прямо в main с [skip ci], и Vercel
+      # выкатывал их в прод, потому что деплоит на push независимо от CI.
       - name: Commit updated snapshots
-        if: ${{ steps.snap.outputs.update == 'true' && github.ref == 'refs/heads/main' }}
+        if: ${{ inputs.update_snapshots == true }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add e2e/visual.spec.ts-snapshots
-          git diff --cached --quiet || git commit -m "test(visual): обновление эталонных скриншотов [skip ci]"
-          git push
+          git diff --cached --quiet && echo "Эталоны не изменились" && exit 0
+          git commit -m "test(visual): обновление эталонных скриншотов"
+          git push origin HEAD:${{ github.ref_name }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
