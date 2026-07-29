@@ -371,3 +371,28 @@ test.describe('Ошибка загрузки (волна UX-2)', () => {
     await expect(page.getByText('54900').first()).toBeVisible();
   });
 });
+
+test.describe('Загрузка цехов (/load)', () => {
+  test('сетка «цех × день»: неделя, хвостовые колонки и переключение недель', async ({ page }) => {
+    await page.goto('/load?studio=0');
+    await expect(page.getByRole('heading', { name: 'Загрузка цехов' })).toBeVisible();
+
+    // Семь дней недели + две хвостовые колонки: без них экран не отвечает
+    // на «что просрочено» и «что вообще без плана»
+    const head = page.locator('thead tr').first();
+    await expect(head.locator('th')).toHaveCount(10);
+    await expect(head.getByText('Просрочено')).toBeVisible();
+    await expect(head.getByText('Без плана')).toBeVisible();
+
+    // Фикстуры без плановых дат: вся работа обязана быть видна в «Без плана»,
+    // иначе экран молча теряет задания
+    await expect(page.getByRole('row', { name: /Закрой/ }).getByText(/шт/)).toBeVisible();
+
+    const period = page.getByText(/·\s*текущая/);
+    await expect(period).toBeVisible();
+    await page.getByRole('button', { name: 'Неделя вперёд' }).click();
+    await expect(period).toBeHidden();
+    await page.getByRole('button', { name: 'Сегодня' }).click();
+    await expect(period).toBeVisible();
+  });
+});
