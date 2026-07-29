@@ -103,6 +103,9 @@ beforeEach(() => {
   clearFeature('orderStudio');
   useAuthStore.setState({
     user: null,
+    // Без сброса статус протекал между кейсами: 'disabled' из одного теста
+    // отправлял все следующие на экран «Доступ отключён»
+    profileStatus: 'no_profile',
     loading: false,
     error: null,
     init: vi.fn(),
@@ -137,9 +140,27 @@ describe('App', () => {
   it('shows pending screen for unapproved user', async () => {
     useAuthStore.setState({
       user: { id: '1', role: 'manager', email: 'test@test.com', approved: false },
+      profileStatus: 'pending_approval',
     });
     renderApp();
     await waitFor(() => expect(screen.getByText(/Ожидание подтверждения/)).toBeInTheDocument());
+  });
+
+  /**
+   * Soft-delete (`active=false`) — документированный способ увольнения. Раньше App
+   * смотрел только на `approved`, и отключённому рендерилась полная оболочка:
+   * человек продолжал работать, а отключение выглядело выполненным.
+   */
+  it('отключённый аккаунт упирается в стену, а не в рабочий интерфейс', async () => {
+    useAuthStore.setState({
+      user: { id: '1', role: 'admin', email: 'fired@test.com', approved: true, active: false },
+      profileStatus: 'disabled',
+    });
+    renderApp();
+    await waitFor(() => expect(screen.getByText(/Доступ отключён/)).toBeInTheDocument());
+    // и это именно стена: рабочей оболочки нет
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Выйти' })).toBeInTheDocument();
   });
 
   it('shows ERP dashboard by default for authenticated user', async () => {

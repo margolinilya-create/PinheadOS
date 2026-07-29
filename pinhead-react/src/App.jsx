@@ -33,10 +33,11 @@ function GlobalHosts() {
 }
 
 function App() {
-  const { user, authLoading, init } = useAuthStore(useShallow(s => ({
+  const { user, authLoading, init, profileStatus } = useAuthStore(useShallow(s => ({
     user: s.user,
     authLoading: s.loading,
     init: s.init,
+    profileStatus: s.profileStatus,
   })));
 
   useEffect(() => {
@@ -51,6 +52,33 @@ function App() {
     return (
       <>
         <AuthScreen />
+        <GlobalHosts />
+      </>
+    );
+  }
+
+  /**
+   * Отключённый аккаунт (soft-delete `active=false`) обязан упираться в стену.
+   * `fetchProfile` вычислял `profileStatus: 'disabled'` с самого начала, но здесь
+   * проверялся только `approved`, и отключённому рендерилась полная оболочка.
+   * Клиент — вторая линия: первая это RLS, где `is_admin()` теперь тоже смотрит
+   * на `active`/`approved`. Но пока живой refresh-токен не отозван, стена в
+   * интерфейсе — то, что человек видит первым.
+   */
+  if (profileStatus === 'disabled') {
+    return (
+      <>
+        <div id="pendingScreen" className="show">
+          <div className="pending-box">
+            <div className="pending-icon">🔒</div>
+            <div className="pending-title">Доступ отключён</div>
+            <p className="pending-desc">
+              Ваш аккаунт отключён администратором. Если это ошибка — обратитесь к руководителю.
+            </p>
+            <p className="pending-email">{user.email}</p>
+            <button className="pending-logout" onClick={() => useAuthStore.getState().logout()}>Выйти</button>
+          </div>
+        </div>
         <GlobalHosts />
       </>
     );
