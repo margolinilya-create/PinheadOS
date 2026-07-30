@@ -16,6 +16,7 @@ import {
 } from '../types';
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 /**
  * Подряд (правки 4.2.1/4.2.4): рабочая очередь операций у подрядчиков.
@@ -240,7 +241,7 @@ export default function Subcontracting() {
       )}
 
       {rows.length > 0 && (
-        <div className={styles.tableWrap} style={{ marginTop: 8 }}>
+        <ScrollHintBox className={styles.tableWrap} wrapClassName={styles.scrollHintGapTop} label="Операции подряда">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -336,7 +337,7 @@ export default function Subcontracting() {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
     </>
   );

@@ -26,6 +26,7 @@ import {
   PROCUREMENT_STATUS_LABELS,
 } from '../types';
 import styles from '../erp.module.css';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 /**
  * Закупка (редизайн): плоская таблица закупочных строк по всем активным заказам
@@ -372,7 +373,7 @@ export default function FabricPurchasing() {
 
       {loaded && filtered.length > 0 && (
         <>
-          <div className={styles.tableWrap}>
+          <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -467,7 +468,7 @@ export default function FabricPurchasing() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollHintBox>
           <Pagination
             page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
             onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
@@ -478,7 +479,7 @@ export default function FabricPurchasing() {
       {procurementRows.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div className={styles.fieldLabel}>Дозакупки / замены ({procurementRows.length})</div>
-          <div className={styles.tableWrap}>
+          <ScrollHintBox className={styles.tableWrap} label="Дозакупки и замены">
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -515,7 +516,7 @@ export default function FabricPurchasing() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollHintBox>
         </div>
       )}
 

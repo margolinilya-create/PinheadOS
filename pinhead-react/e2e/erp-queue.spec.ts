@@ -87,7 +87,10 @@ test.describe('Рабочая очередь цеха (правки 2, 3, 9)', (
     await page.goto('/queue/cutting?studio=0');
     await page.getByRole('button', { name: /Просрочено/ }).click();
     await expect(page).toHaveURL(/overdue=1/);
-    await page.getByRole('button', { name: 'Сбросить' }).click();
+    // exact: имя ищется подстрокой, а в пустом состоянии очереди есть своя
+    // кнопка «Сбросить фильтры» — без exact локатор находит обе и падает
+    // на strict mode. Здесь проверяется именно сброс из панели фильтров.
+    await page.getByRole('button', { name: 'Сбросить', exact: true }).click();
     await expect(page).not.toHaveURL(/overdue=1/);
   });
 });

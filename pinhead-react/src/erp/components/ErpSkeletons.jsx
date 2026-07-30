@@ -1,5 +1,5 @@
 import { Skeleton } from '../../components/shared/Skeleton';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import styles from '../erp.module.css';
 
 /**
@@ -79,8 +79,8 @@ export function TableSkeleton({ rows = 6, label = 'Загрузка списка
  * карточки (QueueCard). Брейкпоинт тот же, что в DepartmentQueue.
  */
 export function QueueSkeleton({ cards = 4 }) {
-  const isMobile = useMediaQuery('(max-width: 760px)');
-  if (!isMobile) {
+  const isCompact = useCompactLayout();
+  if (!isCompact) {
     return (
       <div className={styles.queueList} role="status" aria-label="Загрузка очереди цеха">
         {Array.from({ length: cards }).map((_, i) => (

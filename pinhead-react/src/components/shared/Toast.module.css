@@ -6,9 +6,14 @@
   font-family: var(--font-body); font-size: 13px; font-weight: 600;
   letter-spacing: .5px; cursor: pointer; animation: toast-in 250ms ease-out;
 }
-.toast-success { background: var(--color-success); color: var(--card); }
-.toast-error   { background: var(--color-error); color: var(--card); }
-.toast-warning { background: var(--color-warning); color: var(--card); }
+/* Заливка — ink-варианты, а не --color-*: на светлых заливках белый текст
+   13px/600 давал 3.07 / 4.17 / 3.58 при норме 4.5. Через warning идут
+   сообщения, которые обязаны быть прочитаны дословно («Введено больше
+   остатка — засчитано 60 шт»), а читаются они на цеховом планшете при
+   цеховом освещении. Ink даёт 5.69 / 6.57 / 5.02. */
+.toast-success { background: var(--color-success-ink); color: #fff; }
+.toast-error   { background: var(--color-error-ink); color: #fff; }
+.toast-warning { background: var(--color-warning-ink); color: #fff; }
 .toast-icon    { font-size: 13px; font-weight: 700; flex-shrink: 0; }
 .toast-msg     { flex: 1; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }

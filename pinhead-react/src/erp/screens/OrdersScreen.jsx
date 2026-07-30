@@ -7,7 +7,7 @@ import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isUrgent, isOverdue } from '../utils/time';
 import { isOrderReadyToShip } from '../utils/stageUi';
@@ -19,6 +19,7 @@ import { Icon } from '../components/Icon';
 import { OrderRow } from './orders/OrderRow';
 import { OrderCardMobile } from './orders/OrderCardMobile';
 import { CreateOrderModal } from './orders/CreateOrderModal';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 export default function OrdersScreen() {
   const {
@@ -48,7 +49,7 @@ export default function OrdersScreen() {
   // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
   const query = useErpSearch((s) => s.query);
   const setQuery = useErpSearch((s) => s.setQuery);
-  const isMobile = useMediaQuery('(max-width: 760px)');
+  const isCompact = useCompactLayout();
   /**
    * Вкладка и даты — тоже в URL, рядом с `filter`. Раньше они жили в локальном
    * состоянии, и возврат «← Заказы» из архивного заказа приводил на вкладку
@@ -272,7 +273,7 @@ export default function OrdersScreen() {
         </div>
       )}
 
-      {filtered.length > 0 && isMobile && (
+      {filtered.length > 0 && isCompact && (
         <div className={styles.orderCardList}>
           {filtered.map((o) => (
             <OrderCardMobile
@@ -287,8 +288,8 @@ export default function OrdersScreen() {
         </div>
       )}
 
-      {filtered.length > 0 && !isMobile && (
-        <div className={styles.tableWrap}>
+      {filtered.length > 0 && !isCompact && (
+        <ScrollHintBox className={styles.tableWrap} label="Список заказов">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -315,7 +316,7 @@ export default function OrdersScreen() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
 
       {/* Архив грузится страницами: явная кнопка вместо тихого лимита —

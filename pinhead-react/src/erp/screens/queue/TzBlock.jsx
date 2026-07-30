@@ -8,6 +8,7 @@ import {
 } from '../../types';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /**
  * Полное ТЗ позиции: сетка, нанесения, упаковка, материалы.
@@ -66,7 +67,7 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
           </div>
 
           {item.size_grid && item.size_grid.length > 0 && (
-            <div className={styles.tableWrap}>
+            <ScrollHintBox className={styles.tableWrap} label="Документы ТЗ">
               <table className={styles.table}>
                 <thead>
                   <tr>
@@ -89,7 +90,7 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollHintBox>
           )}
 
           {prints.map((p) => (

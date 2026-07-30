@@ -7,12 +7,36 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { translateSupabaseError } from '../../utils/i18n';
 import type { ErpStageEvent } from '../types';
 
 /** Имя действующего пользователя для аудита */
 export function currentActor(): string {
   const u = useAuthStore.getState().user;
   return u?.name || u?.email || 'неизвестно';
+}
+
+/**
+ * Ошибка действия цеха: что не вышло + ПОЧЕМУ.
+ *
+ * Раньше все ошибки сводились к «Не удалось обновить этап»: отказ RLS, обрыв
+ * сети и конфликт версий выглядели одинаково, а `translateSupabaseError`
+ * во всём ERP не использовался ни разу (только в авторизации). Рабочий видел
+ * три секунды серого шума, введённые числа откатывались, и он не знал ни
+ * причины, ни что делать дальше.
+ *
+ * Отдельно ловим офлайн: на цеховом Wi-Fi это самая частая причина, и она
+ * единственная, где полезен совет «повторите, когда появится сеть».
+ */
+export function erpError(what: string, error?: { message?: string } | null): false {
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (offline) {
+    toast.error(`${what}: нет сети. Действие не сохранено — повторите, когда связь появится`);
+    return false;
+  }
+  const reason = error?.message ? translateSupabaseError(error.message) : null;
+  toast.error(reason ? `${what}: ${reason}` : what);
+  return false;
 }
 
 /** Пауза перед повторной попыткой записи аудита */

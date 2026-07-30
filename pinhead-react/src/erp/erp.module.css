@@ -629,7 +629,7 @@
 /* ─── Модалка ─── */
 .modalOverlay {
   position: fixed; inset: 0;
-  background: var(--overlay, rgba(10, 10, 10, 0.55));
+  background: var(--overlay);
   z-index: var(--z-modal);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 4vh 16px;
@@ -642,7 +642,7 @@
   max-width: 900px;
   padding: 24px;
   display: flex; flex-direction: column; gap: var(--space-md);
-  box-shadow: var(--shadow-modal, 0 24px 80px rgba(0, 0, 0, 0.35));
+  box-shadow: var(--shadow-modal);
 }
 .modalTitle {
   font-family: var(--font-display);
@@ -1435,8 +1435,10 @@
   cursor: default;
 }
 .stepperDotDone { background: var(--color-success); border-color: var(--color-success); color: #fff; }
-.stepperDotActive { border-color: var(--color-warning); color: var(--color-warning); box-shadow: 0 0 0 4px var(--bg-warning); }
-.stepperDotBlocked { border-color: var(--color-error); color: var(--color-error); }
+/* Рамка и подсветка — заливочным токеном, ЦИФРА внутри — ink: номером текущей
+   стадии маршрута нельзя жертвовать, а --color-warning на белом это 2.15:1. */
+.stepperDotActive { border-color: var(--color-warning); color: var(--color-warning-ink); box-shadow: 0 0 0 4px var(--bg-warning); }
+.stepperDotBlocked { border-color: var(--color-error); color: var(--color-error-ink); }
 .stepperLabel {
   margin: 0 8px 0 6px;
   font-size: 11px;
@@ -1632,11 +1634,11 @@ a.cellTitle:hover { color: var(--accent); }
 
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
-.fieldError { color: var(--color-error); font-size: 12px; }
+.fieldError { color: var(--color-error-ink); font-size: 12px; }
 .remainingHint {
   flex: 1;
   align-self: center;
-  color: var(--color-error);
+  color: var(--color-error-ink);
   font-size: var(--type-body-sm);
 }
 
@@ -1677,6 +1679,12 @@ a.cellTitle:hover { color: var(--accent); }
    появились позже и сюда не попали, поэтому на планшете цеха всё меню (38px),
    пагинация (32px) и 14 кнопок-чипов (~25px) были меньше собственного правила
    DESIGN.md. Держать список в актуальном виде — часть правила, а не довесок. */
+
+/* Выравнивание чекбокса по низу строки формы. Раньше это был инлайновый
+   style={{ alignSelf: 'end', minHeight: 40 }} — и minHeight перебивал
+   @media (pointer: coarse), оставляя на планшете 40px вместо 44. */
+.checkLabelEnd { align-self: end; }
+
 @media (pointer: coarse) {
   .input, .select { min-height: 44px; }
   .inputSm { min-height: 44px; }
@@ -1696,6 +1704,14 @@ a.cellTitle:hover { color: var(--accent); }
   .navLink { min-height: 44px; height: auto; }
   .collapseBtn { min-height: 44px; height: auto; }
   .iconBtn { min-width: 44px; min-height: 44px; }
+  /* Дописано по аудиту: интерактивные элементы редизайна, не попавшие в список.
+     Правило одно — добавили интерактивный класс, впишите его сюда же. */
+  .dropZone { min-height: 44px; }
+  .kpiCardClickable { min-height: 44px; }
+  .sidebarBrand { min-height: 44px; }
+  .fileBtn { min-height: 44px; }
+  .lightboxClose { min-width: 44px; min-height: 44px; }
+  .gridDetails summary { min-height: 44px; }
   .pageBtn { min-width: 44px; min-height: 44px; }
   .drawerClose { width: 44px; height: 44px; }
   .drawerTab { min-height: 44px; }
@@ -1786,7 +1802,7 @@ a.cellTitle:hover { color: var(--accent); }
   background: var(--surface); color: var(--text-mid);
 }
 .pipeNodeActive .pipeCount { background: var(--bg-info); color: var(--accent); }
-.pipeNodeAside .pipeCount { background: var(--bg-error); color: var(--color-error); }
+.pipeNodeAside .pipeCount { background: var(--bg-error); color: var(--color-error-ink); }
 .pipeLabel {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 13px; color: var(--text); white-space: nowrap;
@@ -2025,7 +2041,7 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 /* ─── Drawer (правая боковая панель, редизайн) ─── */
 .drawerOverlay {
   position: fixed; inset: 0;
-  background: var(--overlay, rgba(10, 10, 10, 0.5));
+  background: var(--overlay);
   z-index: var(--z-modal);
   display: flex; justify-content: flex-end;
   animation: erpFade 0.18s ease;
@@ -2111,10 +2127,16 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .navToggle { display: none; }
 
 /* ─── Сайдбар на узком экране: выезжающий оверлей ───
-   Ниже 760px постоянная колонка съедала от 13% до половины ширины и убиралась
-   только сворачиванием. Здесь она уходит за край и выезжает поверх контента
-   по кнопке-бургеру в шапке. */
-@media (max-width: 760px) {
+   Постоянная колонка съедала от 13% до половины ширины и убиралась только
+   сворачиванием. Здесь она уходит за край и выезжает поверх контента
+   по кнопке-бургеру в шапке.
+
+   Порог 1024, а не 760: основное устройство цеха — Android-планшет, в портрете
+   768–800px. На нём колонка 236px оставляла под сетку строки очереди ~456px
+   при нужных ~710px, и рабочая область уезжала вбок вместе с колонкой действий.
+   Совпадает с COMPACT_LAYOUT_QUERY в layout/useCompactLayout.js — раскладка
+   и вёрстка обязаны переключаться на одной границе. */
+@media (max-width: 1024px), (pointer: coarse) {
   .sidebar {
     position: fixed;
     z-index: var(--z-drawer);
@@ -2122,7 +2144,7 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
     left: 0;
     transform: translateX(-100%);
     transition: transform 180ms ease;
-    box-shadow: var(--shadow-modal, 0 24px 80px rgba(0, 0, 0, 0.3));
+    box-shadow: var(--shadow-modal);
   }
   .sidebarOpen { transform: translateX(0); }
   /* В оверлее сворачивать нечего — показываем полный сайдбар */
@@ -2138,7 +2160,7 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
     position: fixed;
     inset: 0;
     z-index: calc(var(--z-drawer) - 1);
-    background: var(--overlay, rgba(10, 10, 10, 0.55));
+    background: var(--overlay);
     border: none;
     padding: 0;
     cursor: pointer;
@@ -2202,6 +2224,11 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 
 /* ─── Подсказки горизонтальной прокрутки (ScrollHintBox) ─── */
 .scrollHintWrap { position: relative; min-width: 0; }
+/* Внешние отступы прокручиваемых блоков: заменяют инлайновые style={{ margin* }},
+   которые стояли на обёртках таблиц. Инлайн в этом проекте запрещён — он бьёт
+   @media (pointer: coarse) и становится вторым источником правды по размерам. */
+.scrollHintGapTop { margin-top: var(--space-sm); }
+.scrollHintGapBottom { margin-bottom: var(--space-md); }
 .scrollFade {
   position: absolute;
   top: 1px;

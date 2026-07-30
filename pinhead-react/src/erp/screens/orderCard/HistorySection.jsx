@@ -10,6 +10,7 @@ import {
 } from '../../types';
 import styles from '../../erp.module.css';
 import { fmt, fmtTs } from './format';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 const AUDIT_FIELD_LABELS = {
   title: 'Название',
@@ -82,7 +83,7 @@ export function HistorySection({ events, audit, stageById, deptById }) {
         <div className={styles.subText}>Событий пока нет — история пишется при смене статусов и правках.</div>
       )}
       {events && (events.length > 0 || (audit && audit.length > 0)) && (
-        <div className={styles.tableWrap}>
+        <ScrollHintBox className={styles.tableWrap} label="История изменений">
           <table className={styles.table}>
             <thead>
               <tr><th>Когда</th><th>Кто</th><th>Этап</th><th>Что</th></tr>
@@ -126,7 +127,7 @@ export function HistorySection({ events, audit, stageById, deptById }) {
                 })}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
     </section>
   );

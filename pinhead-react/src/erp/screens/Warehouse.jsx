@@ -21,6 +21,7 @@ import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
 import { MarkingCard } from './warehouse/MarkingCard';
 import { PackShipCard } from './warehouse/PackShipCard';
 import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 /**
  * Склад (редизайн): таблица задач (KPI + вкладки по типу + пагинация); детали и действия
@@ -213,7 +214,7 @@ export default function Warehouse() {
 
       {loaded && filtered.length > 0 && (
         <>
-          <div className={styles.tableWrap}>
+          <ScrollHintBox className={styles.tableWrap} label="Задачи склада">
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -247,7 +248,7 @@ export default function Warehouse() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollHintBox>
           <Pagination
             page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
             onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}

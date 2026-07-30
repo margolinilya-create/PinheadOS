@@ -3,6 +3,7 @@ import { formatDateShort } from '../../utils/time';
 import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import { confirm } from '../../../store/useConfirmStore';
 import styles from '../../erp.module.css';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /**
  * Задача склада «Приёмка материалов» (правка 4.1.3): сравнение План↔Факт по каждому материалу.
@@ -92,7 +93,7 @@ function AcceptBlock({ material: m, onAccept }) {
           </span>
         )}
       </div>
-      <div className={styles.tableWrap}>
+      <ScrollHintBox className={styles.tableWrap} label="Приёмка материалов">
         <table className={styles.table}>
           <thead>
             <tr><th>Поле</th><th>План (закупка)</th><th>Факт (склад)</th></tr>
@@ -149,7 +150,7 @@ function AcceptBlock({ material: m, onAccept }) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollHintBox>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
         <select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value)}
           aria-label={`Статус приёмки ${m.name}`}>

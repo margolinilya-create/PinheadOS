@@ -11,6 +11,7 @@ import { deptShortName } from '../data/departments';
 import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { EMPLOYEE_ROLE_LABELS } from '../types';
 import styles from '../erp.module.css';
+import { ScrollHintBox } from '../components/ScrollHintBox';
 
 /**
  * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
@@ -132,7 +133,7 @@ export default function EmployeesScreen({ embedded = false }) {
       )}
 
       {profileRows.length > 0 && (
-        <div className={styles.tableWrap} style={{ marginBottom: 16 }}>
+        <ScrollHintBox className={styles.tableWrap} wrapClassName={styles.scrollHintGapBottom} label="Сотрудники">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -226,7 +227,7 @@ export default function EmployeesScreen({ embedded = false }) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
 
       <h2 className={styles.queueGroupTitle}>Без логина (цеховые)</h2>
@@ -235,7 +236,7 @@ export default function EmployeesScreen({ embedded = false }) {
       </p>
 
       {looseEmployees.length > 0 && (
-        <div className={styles.tableWrap} style={{ marginBottom: 12 }}>
+        <ScrollHintBox className={styles.tableWrap} wrapClassName={styles.scrollHintGapBottom} label="Права ролей">
           <table className={styles.table}>
             <thead>
               <tr><th>Имя</th><th>Цех</th><th>Цеховая роль</th><th>Заметка</th><th aria-label="Действия" /></tr>
@@ -295,7 +296,7 @@ export default function EmployeesScreen({ embedded = false }) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
 
       <form

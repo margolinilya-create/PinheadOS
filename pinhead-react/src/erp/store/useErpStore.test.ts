@@ -737,7 +737,9 @@ describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => 
     expect(stages().find((s) => s.id === 'st-cut')?.status).toBe('done');
     expect(stages().find((s) => s.id === 'st-cut')?.qty_rework).toBe(0);
     expect(stages().find((s) => s.id === 'st-sew')?.status).toBe('done');
-    expect(toast.error).toHaveBeenCalledWith('Не удалось записать брак');
+    // Текст обязан называть ПРИЧИНУ: раньше отказ прав, обрыв сети и конфликт
+    // выглядели одинаково («Не удалось записать брак»), и рабочий не знал, что делать
+    expect(toast.error).toHaveBeenCalledWith('Брак не записан: boom');
   });
 
   it('guard: qty<=0 / несуществующий этап → false, без запросов', async () => {
@@ -2191,5 +2193,41 @@ describe('ТЗ в PDF (волна 4)', () => {
     h.updateError = { message: 'нет связи' };
     expect(await useErpStore.getState().setTzRequired('o1', false)).toBe(false);
     expect(orderNow().tz_required).toBe(true);
+  });
+});
+
+/**
+ * Ошибка действия цеха обязана называть причину.
+ *
+ * Раньше все сбои сводились к «Не удалось обновить этап»: отказ RLS, обрыв сети
+ * и конфликт версий выглядели одинаково, `translateSupabaseError` во всём ERP
+ * не использовался ни разу, а оптимистичное состояние откатывалось — введённые
+ * числа исчезали. Рабочий видел три секунды серого шума и не знал, что делать.
+ */
+describe('erpError — причина сбоя, а не «не удалось»', () => {
+  const setOnline = (value: boolean) => {
+    Object.defineProperty(globalThis.navigator, 'onLine', {
+      value, configurable: true, writable: true,
+    });
+  };
+  afterEach(() => setOnline(true));
+
+  it('к сообщению добавляется переведённая причина', async () => {
+    seed();
+    h.updateError = { message: 'Failed to fetch' };
+    await useErpStore.getState().setStageStatus('st1', 'done');
+    expect(toast.error).toHaveBeenCalledWith('Этап не обновлён: Ошибка соединения');
+  });
+
+  it('офлайн распознаётся отдельно и советует повторить', async () => {
+    seed();
+    setOnline(false);
+    h.updateError = { message: 'Failed to fetch' };
+    await useErpStore.getState().setStageStatus('st1', 'done');
+    // Именно офлайн — самая частая причина на цеховом Wi-Fi, и единственная,
+    // где совет «повторите» осмыслен: данные не потеряны, сеть вернётся
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('нет сети'),
+    );
   });
 });

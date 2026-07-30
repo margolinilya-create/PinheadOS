@@ -9,6 +9,7 @@ import {
   ERP_PERMISSION_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /**
  * Матрица прав «право × роль» (правка 11) — редактируется руководством,
@@ -59,7 +60,7 @@ export function PermissionsTab() {
         и администраторы, снятая галочка отключила бы доступ им самим.
       </div>
 
-      <div className={styles.tableWrap}>
+      <ScrollHintBox className={styles.tableWrap} label="Матрица прав по ролям">
         <table className={`${styles.table} ${styles.matrixTable}`}>
           <thead>
             <tr>
@@ -102,7 +103,7 @@ export function PermissionsTab() {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollHintBox>
     </>
   );
 }

@@ -3,14 +3,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
-import { LoadFailed } from '../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { QueueFilters } from '../components/QueueFilters';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { useStagePermissions } from '../store/useStagePermissions';
 import { useTouchDndPolyfill } from '../components/kanban/useTouchDndPolyfill';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollHints } from '../../hooks/useScrollHints';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { buildQueueEntries } from '../utils/queueEntries';
@@ -79,7 +79,7 @@ export default function DepartmentQueue() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const { deptCode: routeDept } = useParams();
-  const isMobile = useMediaQuery('(max-width: 760px)');
+  const isCompact = useCompactLayout();
 
   // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
   const [reworkByStage, setReworkByStage] = useState({});
@@ -405,7 +405,7 @@ export default function DepartmentQueue() {
                 </button>
               )}
             </h2>
-            {!collapsed && (isMobile ? (
+            {!collapsed && (isCompact ? (
               <div className={styles.queueGrid}>
                 {list.map((entry) => (
                   <QueueCard
@@ -452,11 +452,21 @@ export default function DepartmentQueue() {
       })}
 
       {dept && loaded && visible.length === 0 && (
-        <div className={styles.emptyState}>
-          {entries.length === 0
-            ? 'В этом цехе пока нет работ.'
-            : 'Под фильтры ничего не подошло — сбросьте их выше.'}
-        </div>
+        entries.length === 0 ? (
+          <EmptyState
+            icon="check"
+            title="В этом цехе пока нет работ"
+            text="Новые задания появятся здесь, как только предыдущий этап будет сдан."
+          />
+        ) : (
+          /* Кнопка «Сбросить» обязательна: фильтры живут в URL и переживают
+             перезагрузку. Рабочий, случайно оставивший «просрочено», видел
+             «под фильтры ничего не подошло», читал это как «работы нет» и уходил —
+             а сбросить их предлагалось «выше», где он их уже не искал. */
+          <EmptyResult onReset={() => setFilters({})} resetLabel="Сбросить фильтры">
+            Под фильтры ничего не подошло. В цехе есть работы: {entries.length}.
+          </EmptyResult>
+        )
       )}
       </div>
     </>
