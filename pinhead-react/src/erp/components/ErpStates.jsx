@@ -44,7 +44,12 @@ export function LoadFailed({ onRetry, what = 'данные' }) {
  * Данные есть, но под подбор ничего не попало.
  * `query` показывается в кавычках, если искали текстом, — так виднее, что искали.
  */
-export function EmptyResult({ query = '', onReset, children, icon = 'search' }) {
+/**
+ * `resetLabel` — потому что на одном экране может быть две кнопки сброса:
+ * своя в панели фильтров и эта. Одинаковые подписи путают и человека, и тесты
+ * (Playwright в strict mode падает на двух совпадениях по имени).
+ */
+export function EmptyResult({ query = '', onReset, children, icon = 'search', resetLabel = 'Сбросить' }) {
   return (
     <div className={styles.state}>
       <span className={styles.icon}><Icon name={icon} size={30} /></span>
@@ -55,7 +60,7 @@ export function EmptyResult({ query = '', onReset, children, icon = 'search' }) 
       </span>
       {onReset && (
         <span className={styles.action}>
-          <Button variant="secondary" onClick={onReset}>Сбросить</Button>
+          <Button variant="secondary" onClick={onReset}>{resetLabel}</Button>
         </span>
       )}
     </div>

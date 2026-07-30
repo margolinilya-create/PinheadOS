@@ -463,7 +463,7 @@ export default function DepartmentQueue() {
              перезагрузку. Рабочий, случайно оставивший «просрочено», видел
              «под фильтры ничего не подошло», читал это как «работы нет» и уходил —
              а сбросить их предлагалось «выше», где он их уже не искал. */
-          <EmptyResult onReset={() => setFilters({})}>
+          <EmptyResult onReset={() => setFilters({})} resetLabel="Сбросить фильтры">
             Под фильтры ничего не подошло. В цехе есть работы: {entries.length}.
           </EmptyResult>
         )
