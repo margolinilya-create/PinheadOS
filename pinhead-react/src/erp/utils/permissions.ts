@@ -46,11 +46,17 @@ export function resolveErpRole(
  */
 export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   director: [...ERP_PERMISSIONS],
-  dispatcher: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit'),
+  // Руководитель производства ведёт план и всю диспетчеризацию, кроме справочников
+  production_head: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit'),
+  // Диспетчер план НЕ ставит — за это отвечает руководитель производства
+  dispatcher: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit' && p !== 'plan.manage'),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
+    'plan.fact',
   ],
-  worker: ['stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect'],
+  worker: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
+  ],
   // tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,
   // и без него менеджер молча терял бы возможность вести ТЗ, если матрица не загрузилась
   manager: ['stage.block', 'stage.priority', 'order.manage', 'tz.manage'],

@@ -408,6 +408,36 @@ const TZ_DOC = {
   orderB.tz_documents = [TZ_DOC];
 }
 
+/**
+ * Производственный план (правка менеджера 2026-08-03): неделя фиксированного
+ * времени фикстур — понедельник 20.07.2026. Раскладываем закрой заказа B
+ * на два дня, чтобы экран показал и полный день, и недовыполнение.
+ */
+const PLAN_SLOTS = [
+  {
+    id: 'plan-1', department_id: 'dep-cutting', stage_id: 'ord-b-i1-st2',
+    work_date: '2026-07-20', qty_planned: 30, qty_done: 20, qty_defect: 0,
+    assignee: null, status: 'confirmed', comment: 'сначала белые',
+    fact_comment: null, deviation_reason: 'не хватило ткани',
+    fact_by: 'Мастер', fact_at: '2026-07-20T15:00:00Z', created_by: 'Пётр',
+    sort_order: 1000, priority: 1,
+    problem_type: null, problem_note: null,
+    problem_affects_due: false, problem_needs_help: false, problem_can_continue: true,
+    created_at: CREATED, updated_at: CREATED,
+  },
+  {
+    id: 'plan-2', department_id: 'dep-cutting', stage_id: 'ord-b-i2-st2',
+    work_date: '2026-07-21', qty_planned: 20, qty_done: 0, qty_defect: 0,
+    assignee: null, status: 'planned', comment: null,
+    fact_comment: null, deviation_reason: null,
+    fact_by: null, fact_at: null, created_by: 'Пётр',
+    sort_order: 1000, priority: 0,
+    problem_type: null, problem_note: null,
+    problem_affects_due: false, problem_needs_help: false, problem_can_continue: true,
+    created_at: CREATED, updated_at: CREATED,
+  },
+];
+
 /** Данные по таблице REST-запроса с учётом простых фильтров id/status. */
 function dataForTable(table: string, params: URLSearchParams): unknown[] {
   switch (table) {
@@ -424,6 +454,8 @@ function dataForTable(table: string, params: URLSearchParams): unknown[] {
       if (statusFilter?.startsWith('neq.')) return ORDERS.filter((o) => o.status !== 'active');
       return ORDERS;
     }
+    case 'erp_calendar_slots':
+      return PLAN_SLOTS;
     // Order Studio и прочие таблицы: пустой набор → компоненты берут дефолты/пустые списки.
     default:
       return [];

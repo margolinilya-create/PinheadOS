@@ -69,6 +69,9 @@ export const APP_KEYS = [
 export const KEEP_ON_LOGOUT = [
   'ph_theme',
   'erp_board_view',
+  // Вид «Мой цех»: очередь или план. Настройка устройства, а не человека —
+  // цех обычно работает в одном и том же виде смену за сменой
+  'erp_queue_view',
   'erp_sidebar_collapsed',
 ];
 

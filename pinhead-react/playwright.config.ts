@@ -44,7 +44,12 @@ export default defineConfig({
       // (QueueRow), в визарде — свой мобильный поток шагов. Гонять desktop-сценарии
       // на 375px бессмысленно: они проверяют разметку, которой там нет.
       // Мобильная разметка ERP покрыта своим спеком — erp-mobile.spec.ts.
-      testIgnore: [/erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/, /erp-tablet\.spec\.ts/],
+      // erp-plan: сайдбар ниже 760px — выезжающий оверлей, и недельная доска
+      // из пяти колонок на 375px не разметка «в меньшем масштабе», а другой экран
+      testIgnore: [
+        /erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/,
+        /erp-tablet\.spec\.ts/, /erp-plan\.spec\.ts/,
+      ],
     },
   ],
 });

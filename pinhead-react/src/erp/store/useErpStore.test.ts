@@ -38,6 +38,8 @@ vi.mock('../../lib/supabase', () => {
     const q: any = {
       eq: (col: string, val: unknown) => { filters.push(`eq:${col}=${val}`); return q; },
       neq: (col: string, val: unknown) => { filters.push(`neq:${col}=${val}`); return q; },
+      gte: (col: string, val: unknown) => { filters.push(`gte:${col}=${val}`); return q; },
+      lte: (col: string, val: unknown) => { filters.push(`lte:${col}=${val}`); return q; },
       order: () => q,
       limit: () => q,
       range: (from: number, to: number) => { filters.push(`range:${from}-${to}`); return q; },
@@ -2207,5 +2209,128 @@ describe('erpError — причина сбоя, а не «не удалось»'
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining('нет сети'),
     );
+  });
+});
+
+/**
+ * Производственный план (правка менеджера 2026-08-03).
+ *
+ * Ключевое, что здесь закрепляется: система НИЧЕГО не переносит сама. Недовыполнение
+ * остаётся отклонением на своей дате, а новую дату ставит руководитель — иначе
+ * инструмент планирования превратился бы в автопланировщик, чего заказчик
+ * прямо не просил.
+ */
+describe('Производственный план', () => {
+  const slot = (over: Record<string, unknown> = {}) => ({
+    id: 'sl1', department_id: 'd-sew', stage_id: 'st1', work_date: '2026-08-05',
+    qty_planned: 100, qty_done: 0, qty_defect: 0, status: 'planned',
+    comment: null, fact_comment: null, deviation_reason: null,
+    fact_by: null, fact_at: null, created_by: null, assignee: null,
+    sort_order: 1000, priority: 0,
+    problem_type: null, problem_note: null,
+    problem_affects_due: false, problem_needs_help: false, problem_can_continue: true,
+    created_at: '2026-08-01T10:00:00Z', updated_at: '2026-08-01T10:00:00Z',
+    ...over,
+  });
+
+  it('загрузка спрашивает именно диапазон недели', async () => {
+    h.tableData.erp_calendar_slots = [slot()];
+    await useErpStore.getState().loadPlan('2026-08-03', '2026-08-09');
+    const call = h.selectCalls.find((c) => c.table === 'erp_calendar_slots');
+    expect(call?.filters).toContain('gte:work_date=2026-08-03');
+    expect(call?.filters).toContain('lte:work_date=2026-08-09');
+    expect(useErpStore.getState().planSlots).toHaveLength(1);
+  });
+
+  it('постановка в план идёт upsert-ом: повтор на ту же дату не падает, а правит', async () => {
+    useErpStore.setState({ planSlots: [] } as any);
+    const row = await useErpStore.getState().planStage({
+      stageId: 'st1', departmentId: 'd-sew', workDate: '2026-08-05', qty: 100,
+    });
+    expect(row).toBeTruthy();
+    const call = h.insertCalls.find((c) => c.table === 'erp_calendar_slots');
+    expect(call?.row).toMatchObject({ stage_id: 'st1', work_date: '2026-08-05', qty_planned: 100 });
+  });
+
+  it('количество на день обязано быть положительным', async () => {
+    expect(await useErpStore.getState().planStage({
+      stageId: 'st1', departmentId: 'd-sew', workDate: '2026-08-05', qty: 0,
+    })).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith('Укажите количество на день');
+  });
+
+  it('новая задача встаёт в КОНЕЦ дня, а не перед утверждённой очерёдностью', async () => {
+    useErpStore.setState({
+      planSlots: [slot({ id: 'a', sort_order: 1000 }), slot({ id: 'b', sort_order: 2000 })],
+    } as any);
+    await useErpStore.getState().planStage({
+      stageId: 'st2', departmentId: 'd-sew', workDate: '2026-08-05', qty: 10,
+    });
+    const call = h.insertCalls.filter((c) => c.table === 'erp_calendar_slots').at(-1);
+    expect((call?.row as any).sort_order).toBe(3000);
+  });
+
+  it('полный факт закрывает задачу, неполный оставляет её открытой с остатком', async () => {
+    useErpStore.setState({ planSlots: [slot()] } as any);
+    await useErpStore.getState().reportPlanFact('sl1', { qty: 70, deviationReason: 'не пришла ткань' });
+    const partial = useErpStore.getState().planSlots[0];
+    expect(partial.status).toBe('confirmed');
+    expect(partial.qty_done).toBe(70);
+    expect(partial.deviation_reason).toBe('не пришла ткань');
+    // Дата НЕ изменилась: остаток не переносится сам
+    expect(partial.work_date).toBe('2026-08-05');
+
+    await useErpStore.getState().reportPlanFact('sl1', { qty: 100 });
+    expect(useErpStore.getState().planSlots[0].status).toBe('done');
+  });
+
+  it('повторный ввод факта исправляет, а не удваивает', async () => {
+    useErpStore.setState({ planSlots: [slot({ qty_done: 70 })] } as any);
+    await useErpStore.getState().reportPlanFact('sl1', { qty: 80 });
+    expect(useErpStore.getState().planSlots[0].qty_done).toBe(80);
+  });
+
+  it('сбой записи факта откатывает optimistic-состояние', async () => {
+    useErpStore.setState({ planSlots: [slot()] } as any);
+    h.updateError = { message: 'нет связи' };
+    expect(await useErpStore.getState().reportPlanFact('sl1', { qty: 50, deviationReason: 'x' })).toBe(false);
+    expect(useErpStore.getState().planSlots[0].qty_done).toBe(0);
+  });
+
+  it('снятие задачи — статусом, а не удалением: факт и история остаются', async () => {
+    useErpStore.setState({ planSlots: [slot({ qty_done: 40 })] } as any);
+    expect(await useErpStore.getState().cancelPlanSlot('sl1')).toBe(true);
+    expect(h.deleteCalls.filter((c) => c.table === 'erp_calendar_slots')).toHaveLength(0);
+    expect(useErpStore.getState().planSlots[0].status).toBe('cancelled');
+    expect(useErpStore.getState().planSlots[0].qty_done).toBe(40);
+  });
+
+  it('перенос на другой день ставит задачу в конец нового дня', async () => {
+    useErpStore.setState({
+      planSlots: [slot(), slot({ id: 'other', work_date: '2026-08-06', sort_order: 5000 })],
+    } as any);
+    await useErpStore.getState().movePlanSlot('sl1', '2026-08-06');
+    const moved = useErpStore.getState().planSlots.find((s) => s.id === 'sl1');
+    expect(moved?.work_date).toBe('2026-08-06');
+    expect(Number(moved?.sort_order)).toBe(6000);
+  });
+
+  it('проблема пишется на задачу дня и снимается целиком', async () => {
+    useErpStore.setState({ planSlots: [slot()] } as any);
+    await useErpStore.getState().reportPlanProblem('sl1', {
+      type: 'Нет материалов', note: 'ждём кулирку', affectsDue: true, canContinue: false,
+    });
+    const s1 = useErpStore.getState().planSlots[0];
+    expect(s1.problem_type).toBe('Нет материалов');
+    expect(s1.problem_affects_due).toBe(true);
+    expect(s1.problem_can_continue).toBe(false);
+
+    await useErpStore.getState().clearPlanProblem('sl1');
+    expect(useErpStore.getState().planSlots[0].problem_type).toBeNull();
+  });
+
+  it('пустой комментарий не сохраняется', async () => {
+    expect(await useErpStore.getState().addPlanComment('sl1', '   ', 'shop')).toBeNull();
+    expect(h.insertCalls.filter((c) => c.table === 'erp_plan_comments')).toHaveLength(0);
   });
 });

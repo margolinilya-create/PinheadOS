@@ -446,6 +446,11 @@ export interface ErpExperimental {
   order?: { title: string; bitrix_id: string | null } | null;
 }
 
+/**
+ * Задача производственного плана: этап × день (таблица `erp_calendar_slots`).
+ * Руководитель производства раскладывает этапы по цехам и дням вручную, цех
+ * ежедневно вносит факт. Система план не составляет — только показывает отклонения.
+ */
 export interface ErpCalendarSlot {
   id: string;
   department_id: string;
@@ -455,9 +460,39 @@ export interface ErpCalendarSlot {
   qty_done: number | null;
   assignee: string | null;
   status: SlotStatus;
+  /** Комментарий руководителя производства при постановке задачи */
   comment: string | null;
   created_at: string;
   updated_at: string;
+  /** Брак, зафиксированный цехом в этот день */
+  qty_defect: number;
+  /** Комментарий ответственного за цех при внесении факта */
+  fact_comment: string | null;
+  /** Почему сделали меньше плана — обязателен при недовыполнении */
+  deviation_reason: string | null;
+  fact_by: string | null;
+  fact_at: string | null;
+  created_by: string | null;
+  /** Очерёдность внутри дня (numeric-середина, как queue_position) */
+  sort_order: number;
+  priority: number;
+  /** Проблема по задаче дня. Блокировка самого этапа — в erp_item_stages.status */
+  problem_type: string | null;
+  problem_note: string | null;
+  problem_affects_due: boolean;
+  problem_needs_help: boolean;
+  problem_can_continue: boolean;
+}
+
+/** Сообщение в переписке по задаче плана */
+export interface ErpPlanComment {
+  id: string;
+  slot_id: string;
+  author: string;
+  /** Кто пишет: постановщик или цех — на карточке это разные значки */
+  side: 'manager' | 'shop';
+  text: string;
+  created_at: string;
 }
 
 // --- Подписи для UI (язык интерфейса — русский) ------------------------------
@@ -644,7 +679,9 @@ export const SHIPPED_STATUS_LABELS: Record<ErpShippedStatus, string> = {
 
 export type EmployeeRole =
   | 'worker' | 'foreman' | 'dispatcher' | 'purchaser'
-  | 'storekeeper' | 'hr' | 'manager' | 'director';
+  | 'storekeeper' | 'hr' | 'manager' | 'director'
+  /** Ведёт недельный и ежедневный план производства (правка менеджера 2026-08-03) */
+  | 'production_head';
 
 export interface ErpEmployee {
   id: string;
@@ -681,6 +718,7 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   hr: 'HR',
   manager: 'Менеджер',
   director: 'Директор',
+  production_head: 'Руководитель производства',
 };
 
 // --- Матрица прав (ядро правки 11) ------------------------------------------
@@ -700,12 +738,14 @@ export type ErpPermission =
   | 'order.manage'            // создавать и редактировать заказы
   | 'tz.manage'               // загружать и заменять ТЗ позиции
   | 'material.receive'        // отмечать поступление материала (приёмка)
+  | 'plan.manage'             // ставить и менять производственный план
+  | 'plan.fact'               // вносить факт, брак и проблему по задаче плана
   | 'catalog.edit';           // редактировать справочники
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
   'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
-  'material.receive', 'catalog.edit',
+  'material.receive', 'plan.manage', 'plan.fact', 'catalog.edit',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -719,6 +759,8 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'order.manage': 'Создавать и править заказы',
   'tz.manage': 'Вести ТЗ (загрузка и замена)',
   'material.receive': 'Отмечать поступление материалов',
+  'plan.manage': 'Вести производственный план',
+  'plan.fact': 'Вносить факт по плану',
   'catalog.edit': 'Править справочники',
 };
 

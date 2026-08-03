@@ -14,6 +14,10 @@ URL: https://pinhead-os.vercel.app
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
   DefectWizard (мастер брака: 2 шага в Drawer);
   screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
+  screens/PlanScreen.jsx — «План производства» (/plan): недельная доска по дням,
+  вкладки цехов, сводка «Все цеха», отклонения; screens/plan/ — PlanTaskCard/
+  PlanSlotDrawer (план+факт+проблема+переписка)/PlanAddModal (постановка из общего плана);
+  screens/queue/DeptPlanPanel.jsx — вкладка «План» в кабинете цеха;
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
   TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
@@ -28,11 +32,11 @@ URL: https://pinhead-os.vercel.app
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
   + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
-  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/realtime;
+  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
-  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad),
+  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -238,6 +242,31 @@ URL: https://pinhead-os.vercel.app
   раньше, чем сработает колонка, и перенос между цехами потеряется
 - Производственный план фильтруется тем же `applyStageFilters`, что очередь и канбан:
   строка видна, если под подбор попал хотя бы один её этап
+
+## Правила ERP (правки менеджера, волны 2–3)
+- Материальный гейт — из данных: `erp_departments.gate_material_kinds`, правится
+  в админке. Пусто = участок не гейтится (fail-open). Гейтовые функции
+  (`isStageReady`, `waitingReason`, `missingMaterialsForStage`) принимают СТРОКУ
+  цеха, а не код: константа «ткань → закрой» не давала новому участку попасть под гейт
+- Группа `awaiting_materials` отделена от `waiting`: «ждём ткань» и «швейка ещё
+  не сдала» — разные решения руководителя. Дорожка на канбане идёт перед «Готово
+  к работе», `blocked` тоже получил свою вместо подмешивания в «Готово»
+- Отметка поступления материала ведёт в существующий путь приёмки
+  (`acceptMaterial`/`confirmStockMaterial`): `status='received'` без `accept_status`
+  гейт не снимает, и кнопка была бы декоративной. Право — `material.receive`
+- План производства РУЧНОЙ: система ничего не переносит и не планирует за человека.
+  Недовыполнение остаётся отклонением на своей дате (`utils/planDay.deviations`),
+  новую дату ставит руководитель
+- «Убрать из плана» — `status='cancelled'`, не DELETE: факт и переписка остаются,
+  а повторная постановка на ту же дату проходит upsert-ом по
+  `unique (stage_id, work_date)`. Обратный порядок падал бы на 23505
+- Факт за день (`qty_done`) — НАКОПИТЕЛЬНЫЙ за этот день, а не приращение:
+  повторный ввод исправляет ошибку, а не удваивает результат. Поле факта пустое,
+  а не предзаполнено планом — то же правило, что у «сколько сдано» в задании цеха
+- Цвет карточки плана — дополнительный сигнал: текстовый статус
+  (`PLAN_STATE_LABELS`) стоит рядом всегда. «Ожидает материалы» перебивает цвет
+  просрочки (отвечает на вопрос «почему»), но сама просрочка отдаётся отдельно
+  `planOverdue` и на карточке видны обе
 
 ## Правила ERP (аудит по скилам)
 - «Производственный цех» — признак из данных (`erp_departments.is_production`,

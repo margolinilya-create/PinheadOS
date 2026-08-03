@@ -5,6 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { QueueSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { QueueFilters } from '../components/QueueFilters';
+import { DeptPlanPanel } from './queue/DeptPlanPanel';
 import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { useStagePermissions } from '../store/useStagePermissions';
@@ -92,6 +93,9 @@ export default function DepartmentQueue() {
   // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
   const [reworkByStage, setReworkByStage] = useState({});
   const [showDone, setShowDone] = useState(false);
+  // Вид запоминается на устройстве: цех обычно работает в одном и том же
+  const [view, setView] = useState(() => localStorage.getItem('erp_queue_view') || 'queue');
+  const switchView = (v) => { setView(v); localStorage.setItem('erp_queue_view', v); };
   const [drag, setDrag] = useState(null);   // перетаскиваемая строка
   const [dropAt, setDropAt] = useState(null); // { id, before } — куда встанет
 
@@ -359,7 +363,33 @@ export default function DepartmentQueue() {
         {tabHints.right && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeR}`} aria-hidden="true" />}
       </div>
 
+      {/* Второй вид того же экрана, а не отдельный адрес: цех и так живёт здесь,
+          а два экрана про одну работу разошлись бы фильтрами и привычками.
+          aria-pressed, а не role=tab: панель одна, вкладочного паттерна нет */}
       {dept && loaded && (
+        <div className={styles.toolbar}>
+          <div role="group" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button" aria-pressed={view === 'queue'}
+              className={`${styles.chip} ${styles.chipBtn} ${view === 'queue' ? styles.chipProgress : styles.chipNeutral}`}
+              onClick={() => switchView('queue')}
+            >
+              <Icon name="queue" size={13} /> Очередь
+            </button>
+            <button
+              type="button" aria-pressed={view === 'plan'}
+              className={`${styles.chip} ${styles.chipBtn} ${view === 'plan' ? styles.chipProgress : styles.chipNeutral}`}
+              onClick={() => switchView('plan')}
+            >
+              <Icon name="calendar" size={13} /> План
+            </button>
+          </div>
+        </div>
+      )}
+
+      {dept && loaded && view === 'plan' && <DeptPlanPanel dept={dept} />}
+
+      {dept && loaded && view === 'queue' && (
         <QueueFilters
           filters={filters}
           onChange={setFilters}
@@ -395,7 +425,7 @@ export default function DepartmentQueue() {
         </div>
       )}
 
-      {dept && loaded && Object.entries(GROUP_TITLES).map(([key, title]) => {
+      {dept && loaded && view === 'queue' && Object.entries(GROUP_TITLES).map(([key, title]) => {
         const list = groups[key];
         if (!list || list.length === 0) return null;
         const collapsed = key === 'done' && !showDone;

@@ -25,6 +25,8 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
+  ErpCalendarSlot,
+  ErpPlanComment,
   ErpTzDocument,
   ErpWarehouseOp,
   ErpWarehouseTask,
@@ -496,6 +498,54 @@ export interface TzSlice {
   setTzRequired: (orderId: string, required: boolean) => Promise<boolean>;
 }
 
+/**
+ * Производственный план (правка менеджера 2026-08-03): раскладка этапов по цехам
+ * и дням + ежедневный факт от цеха. Система план не составляет и остаток сама
+ * не переносит — только показывает отклонение.
+ */
+export interface PlanSlice {
+  planSlots: ErpCalendarSlot[];
+  planComments: ErpPlanComment[];
+  planLoaded: boolean;
+  planLoading: boolean;
+  planLoadError: boolean;
+
+  /** Задачи за период (обычно неделя) */
+  loadPlan: (fromDate: string, toDate: string) => Promise<void>;
+  /** Поставить этап в план на дату; повторная постановка на ту же дату — правка */
+  planStage: (input: {
+    stageId: string;
+    departmentId: string;
+    workDate: string;
+    qty: number;
+    comment?: string | null;
+    priority?: number;
+  }) => Promise<ErpCalendarSlot | null>;
+  updatePlanSlot: (id: string, patch: Partial<ErpCalendarSlot>) => Promise<boolean>;
+  /** Перенести задачу на другой день (встаёт в конец того дня) */
+  movePlanSlot: (id: string, workDate: string) => Promise<boolean>;
+  /** Снять задачу из плана — статусом, не удалением */
+  cancelPlanSlot: (id: string) => Promise<boolean>;
+  /** Факт за день: qty_done накопительный, повторный ввод исправляет */
+  reportPlanFact: (id: string, input: {
+    qty: number;
+    defect?: number;
+    comment?: string | null;
+    deviationReason?: string | null;
+  }) => Promise<boolean>;
+  reportPlanProblem: (id: string, problem: {
+    type: string;
+    note?: string | null;
+    affectsDue?: boolean;
+    needsHelp?: boolean;
+    canContinue?: boolean;
+  }) => Promise<boolean>;
+  clearPlanProblem: (id: string) => Promise<boolean>;
+  loadPlanComments: (slotId: string) => Promise<void>;
+  addPlanComment: (slotId: string, text: string, side: 'manager' | 'shop')
+    => Promise<ErpPlanComment | null>;
+}
+
 /** Полный контракт ERP-стора — пересечение доменных слайсов */
 export type ErpStore = OrdersSlice &
   StagesSlice &
@@ -508,4 +558,5 @@ export type ErpStore = OrdersSlice &
   DictionariesSlice &
   ExperimentalSlice &
   TzSlice &
+  PlanSlice &
   RealtimeSlice;

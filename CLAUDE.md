@@ -106,6 +106,7 @@ supabase/
 | `/board` | ProductionBoard (таблица + канбан цехов) | Все |
 | `/queue`, `/queue/:deptCode` | DepartmentQueue (очередь участка) | Все |
 | `/task/:stageId` | ProductionTask (производственное задание) | Все |
+| `/plan` | PlanScreen (недельный план производства) | Все (правка — `plan.manage`) |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
 | `/admin` | AdminScreen (пользователи, права, цеха, справочники, заказы ТЗ) | admin, director |
 
@@ -158,7 +159,8 @@ admin, director, manager, rop, designer, production
 `erp_procurement_tasks`, `erp_subcontracting`, `erp_warehouse_ops`/`_tasks`,
 `erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав),
 `erp_dictionaries` (справочники админки: причины блокировок, типы проблем, типы изделий,
-поставщики), `erp_material_suppliers` (варианты поставщиков на позицию закупки, ровно один
+поставщики), `erp_calendar_slots` (производственный план: этап × день, план/факт/брак,
+проблема) + `erp_plan_comments` (переписка по задаче дня), `erp_material_suppliers` (варианты поставщиков на позицию закупки, ровно один
 `is_selected`), `erp_tz_documents` (ТЗ в PDF: версии внутри `group_id`, документ
 принадлежит позиции — `item_id`, либо всему заказу при `item_id = null`).
 `erp_tz_assignments` **устарела с 2026-08-03** и осталась пустой: поцеховое назначение
@@ -234,6 +236,15 @@ admin, director, manager, rop, designer, production
 - Группы очереди: `awaiting_materials` (нет материалов) отделена от `waiting`
   (ждёт предыдущий этап, ТЗ или закупку) — это разные решения руководителя.
   На канбане у обеих и у `blocked` свои дорожки, «Ожидают материалы» — перед «Готово»
+- Производственный план (`/plan`) — РУЧНОЙ инструмент: система план не составляет
+  и остаток сама не переносит, она показывает отклонение, а новую дату ставит
+  человек. Раскладка живёт в `erp_calendar_slots`; «убрать из плана» —
+  `status='cancelled'`, не DELETE (факт и переписка остаются, повтор идёт upsert-ом)
+- План ставит роль `production_head` (право `plan.manage`), факт вносит цех
+  (`plan.fact` + принадлежность цеху). Диспетчеру `plan.manage` НЕ даётся —
+  иначе снятая у одного галочка отключает работу другого
+- Мощности цехов (`capacity_per_day`) не возвращать: удалены осознанно миграцией
+  20260716170000, загрузка выражается в штуках
 - ТЗ в PDF принадлежит ПОЗИЦИИ и автоматически видно всем цехам её маршрута
   (`itemTzDocument`: своё ТЗ позиции → общее ТЗ заказа). Назначать документ каждому
   цеху не нужно — этот шаг отменён 2026-08-03. Гейт (`utils/tz`) требует ТЗ только

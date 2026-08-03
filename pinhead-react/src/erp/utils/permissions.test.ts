@@ -82,6 +82,22 @@ describe('isAllowed', () => {
     }
   });
 
+  /**
+   * План ставит руководитель производства — отдельная роль, а не диспетчер:
+   * снятая у одного галочка не должна отключать работу другого.
+   */
+  it('дефолты повторяют seed: план ставит только руководство производства', () => {
+    expect(DEFAULT_PERMISSIONS.production_head).toContain('plan.manage');
+    expect(DEFAULT_PERMISSIONS.director).toContain('plan.manage');
+    for (const role of ['dispatcher', 'manager', 'foreman', 'worker', 'hr'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('plan.manage');
+    }
+    // Факт вносит цех, поэтому plan.fact есть и у мастера, и у рабочего
+    for (const role of ['production_head', 'dispatcher', 'foreman', 'worker'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).toContain('plan.fact');
+    }
+  });
+
   it('менеджер без привязки к цеху не получает действий над этапами', () => {
     // Без записи в erp_employees canActInDept пропускает в любой цех — значит
     // единственная защита здесь матрица: у роли нет ни взятия, ни завершения, ни брака.

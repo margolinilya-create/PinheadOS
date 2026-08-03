@@ -22,7 +22,7 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /** Порядок ролей — от руководства к исполнителям */
 const ROLES = [
-  'director', 'dispatcher', 'manager', 'foreman',
+  'director', 'production_head', 'dispatcher', 'manager', 'foreman',
   'worker', 'purchaser', 'storekeeper', 'hr',
 ];
 
