@@ -69,8 +69,15 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
 
   /**
    * Поставить этап в план на дату. Повторная постановка на ту же дату — не ошибка,
-   * а правка: `upsert` по частичному уникальному индексу (stage_id, work_date)
-   * возвращает снятую задачу в работу вместо падения на 23505.
+   * а правка: `upsert` по уникальному индексу (stage_id, work_date) возвращает
+   * снятую задачу в работу вместо падения на 23505.
+   *
+   * Индекс обязан быть НЕ частичным. PostgREST шлёт `ON CONFLICT (stage_id, work_date)`,
+   * а частичный индекс из голого списка колонок Postgres не выводит — нужен ещё и
+   * предикат, которого PostgREST не отправляет. Индекс тут заводился с
+   * `where stage_id is not null`, и `planStage` падал на 42P10 при КАЖДОМ вызове
+   * (спецификация ON CONFLICT проверяется при планировании, до поиска конфликта).
+   * Исправлено миграцией 20260803200000; сторожит `upsertConflict.test.ts`.
    */
   planStage: async ({ stageId, departmentId, workDate, qty, comment = null, priority = 0 }) => {
     if (!(qty > 0)) {
