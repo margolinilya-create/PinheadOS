@@ -109,12 +109,17 @@ describe('роли согласованы между собой', () => {
  */
 describe('стражи покрывают колонки, которые пишет стор', () => {
   const stageSlice = readFileSync(join(SRC, 'erp/store/slices/stagesSlice.ts'), 'utf8');
+  // Действующая версия стража — последняя миграция, которая его пересоздаёт.
+  // Читать первую значило бы сторожить текст, который БД уже не исполняет.
   const stageGuard = readFileSync(
-    join(MIGRATIONS, '20260803180000_erp_stage_guard.sql'), 'utf8',
+    join(MIGRATIONS, '20260803230000_erp_stage_guard_planned_dates.sql'), 'utf8',
   );
 
   /** Колонки этапа, которые страж намеренно НЕ охраняет (с объяснением в миграции) */
-  const UNGUARDED = ['planned_start', 'planned_end', 'updated_at', 'created_at', 'id'];
+  const UNGUARDED = ['updated_at', 'created_at', 'id'];
+
+  /** Плановые даты: своё право (`order.manage`) и своя проверка вне `v_guarded` */
+  const PLANNED = ['planned_start', 'planned_end'];
 
   /**
    * Проверять «колонка упомянута где-то в файле» недостаточно: страж выходит
@@ -143,10 +148,27 @@ describe('стражи покрывают колонки, которые пиш�
       if (!written.has(col)) continue;
       if (UNGUARDED.includes(col)) {
         expect(GUARDED_BLOCK, `колонка ${col} не должна охраняться`).not.toContain(`new.${col}`);
+      } else if (PLANNED.includes(col)) {
+        // Плановые даты проверяются ОТДЕЛЬНО и ДО `v_guarded`: изменение одних
+        // только дат в этот список не входит и вернулось бы из стража раньше.
+        expect(GUARDED_BLOCK, `${col} не должна быть в v_guarded`).not.toContain(`new.${col}`);
+        expect(stageGuard, `${col} не охраняется вовсе`).toContain(`new.${col} is distinct`);
       } else {
         expect(GUARDED_BLOCK, `колонка ${col} не входит в v_guarded`).toContain(`new.${col}`);
       }
     }
+  });
+
+  it('плановые даты этапа гейтятся order.manage — и на сервере, и в интерфейсе', () => {
+    // Разошедшиеся стороны дают худший отказ: «поле правится, а сервер 42501».
+    // Гейт в PlanCell появился вместе с этой проверкой, поэтому сверяем обе.
+    const planCell = readFileSync(
+      join(SRC, 'erp/screens/orderCard/PlanCell.jsx'), 'utf8',
+    );
+    expect(planCell).toContain("can('order.manage')");
+    expect(stageGuard).toMatch(
+      /planned_start[\s\S]{0,200}erp_has_permission\('order\.manage'\)/,
+    );
   });
 
   it('страж плана охраняет плановые колонки и не трогает колонки факта', () => {
@@ -158,6 +180,53 @@ describe('стражи покрывают колонки, которые пиш�
     }
     for (const col of ['qty_done', 'qty_defect', 'fact_comment', 'problem_type']) {
       expect(planGuard).not.toContain(`new.${col} `);
+    }
+  });
+
+  /**
+   * Страж материалов проводит границу «приёмка склада ↔ работа снабжения».
+   * Приёмка снимает материальный гейт цеха, поэтому требует `material.receive`;
+   * закупочные поля правит снабжение и правом не гейтятся ни в интерфейсе,
+   * ни здесь — иначе страж стал бы строже кнопки.
+   */
+  it('страж материалов охраняет приёмку и не трогает закупочные поля', () => {
+    const matGuard = readFileSync(
+      join(MIGRATIONS, '20260803220000_erp_material_guard.sql'), 'utf8',
+    );
+    expect(matGuard).toContain("erp_has_permission('material.receive')");
+
+    // Всё, что записывает приёмку или снимает гейт
+    for (const col of [
+      'accept_status', 'accepted_at', 'accepted_by', 'accept_comment',
+      'qty_received', 'fact_name', 'fact_color', 'fact_article',
+    ]) {
+      expect(matGuard, `колонка ${col} не охраняется`).toContain(`new.${col}`);
+    }
+    // «Доступен со склада» снимает гейт минуя приёмку — тоже под правом
+    expect(matGuard).toMatch(/new\.status\s*=\s*'reserved'/);
+
+    // Работа снабжения остаётся свободной
+    for (const col of ['eta_date', 'supplier', 'article', 'qty_expected', 'responsible', 'notes']) {
+      expect(matGuard, `закупочная колонка ${col} не должна охраняться`)
+        .not.toContain(`new.${col} is distinct`);
+    }
+  });
+
+  /**
+   * Страж, запертый для service_role, превращает починку через SQL в тупик:
+   * RLS он и так минует, а триггер — нет. Правило записано в CLAUDE.md,
+   * и все три стража обязаны его соблюдать.
+   */
+  it('каждый страж пропускает service_role (пустой auth.uid)', () => {
+    const guards = [
+      '20260803160000_erp_permissions_server_side.sql',
+      '20260803180000_erp_stage_guard.sql',
+      '20260803220000_erp_material_guard.sql',
+    ];
+    for (const file of guards) {
+      const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+      expect(sql, `${file}: нет обхода для service_role`)
+        .toMatch(/\(select auth\.uid\(\)\) is null then\s+return new/);
     }
   });
 });
