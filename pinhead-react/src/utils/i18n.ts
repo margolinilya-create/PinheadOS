@@ -32,7 +32,15 @@ const ERROR_MAP: Record<string, string> = {
   'Failed to fetch':                 'Ошибка соединения',
 };
 
+/**
+ * Отказы серверных стражей приходят с техническим префиксом функции
+ * («erp_calendar_guard: …»). Показывать его человеку незачем — суть сообщения
+ * уже на русском, снимаем только префикс.
+ */
+const GUARD_PREFIX = /^erp_[a-z_]+:\s*/;
+
 export function translateSupabaseError(msg: string | null | undefined): string {
   if (!msg) return 'Неизвестная ошибка';
-  return ERROR_MAP[msg] || msg;
+  if (ERROR_MAP[msg]) return ERROR_MAP[msg];
+  return msg.replace(GUARD_PREFIX, '');
 }
