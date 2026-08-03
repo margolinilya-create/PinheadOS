@@ -25,7 +25,6 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
-  ErpTzAssignment,
   ErpTzDocument,
   ErpWarehouseOp,
   ErpWarehouseTask,
@@ -84,10 +83,8 @@ export interface ErpOrderFull extends ErpOrder {
   procurement_tasks?: ErpProcurementTask[];
   warehouse_ops?: ErpWarehouseOp[];
   warehouse_tasks?: ErpWarehouseTask[];
-  /** ТЗ в PDF (волна 4): все версии всех групп заказа */
+  /** ТЗ в PDF: все версии всех групп заказа. Документ принадлежит позиции */
   tz_documents?: ErpTzDocument[];
-  /** Какому цеху какой документ читать (пара позиция × цех) */
-  tz_assignments?: ErpTzAssignment[];
 }
 
 /**
@@ -158,7 +155,11 @@ export interface NewOrderTzDocument {
   uploaded_by?: string;
 }
 
-/** Назначение ТЗ этапу в payload создания: позиция адресуется индексом, цех — id */
+/**
+ * @deprecated Поцеховое назначение ТЗ отменено 2026-08-03: документ принадлежит
+ * позиции и виден всему её маршруту. Тип оставлен, потому что RPC `erp_create_order`
+ * по-прежнему принимает секцию `tz.assignments`; клиент шлёт пустой массив.
+ */
 export interface NewOrderTzAssignment {
   item_index: number;
   department_id: string;
@@ -185,10 +186,11 @@ export interface NewOrderInput {
   tz_required?: boolean;
   items: NewOrderItemInput[];
   /**
-   * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их и назначения
-   * в одной транзакции с заказом — «создать заказ без ТЗ» невозможно даже при сбое.
+   * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их одной транзакцией
+   * с заказом — «создать заказ без ТЗ» невозможно даже при сбое.
+   * `assignments` больше не заполняется (см. NewOrderTzAssignment).
    */
-  tz?: { documents: NewOrderTzDocument[]; assignments: NewOrderTzAssignment[] };
+  tz?: { documents: NewOrderTzDocument[]; assignments?: NewOrderTzAssignment[] };
 }
 
 /** Нормализованное realtime-событие postgres_changes (для точечного применения) */
@@ -486,15 +488,10 @@ export interface TzSlice {
   }) => Promise<ErpTzDocument | null>;
   /**
    * Заменить файл: новая версия в той же группе, `is_current` снимается со старой.
-   * Назначения ссылаются на группу, поэтому обновление подхватывают все цеха разом.
+   * ТЗ принадлежит позиции, поэтому обновление подхватывают все цеха её маршрута.
    */
   replaceTzDocument: (groupId: string, file: File, note?: string | null)
     => Promise<ErpTzDocument | null>;
-  /** Назначить документ этапу (пара позиция × цех); повторный вызов переназначает */
-  assignTz: (input: { orderId: string; itemId: string; departmentId: string; groupId: string })
-    => Promise<boolean>;
-  /** Снять назначение. Блокируется, если этап маршрута останется без ТЗ */
-  unassignTz: (itemId: string, departmentId: string) => Promise<boolean>;
   /** Включить/выключить требование ТЗ у заказа (для заказов, заведённых до внедрения) */
   setTzRequired: (orderId: string, required: boolean) => Promise<boolean>;
 }

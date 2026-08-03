@@ -57,7 +57,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   const allStages = item.stages;
 
   // waiting в БД, но зависимости выполнены → показываем как «готов к работе»
-  const noTz = stageMissingTz(order, item.id, stage.department_id, dept);
+  const noTz = stageMissingTz(order, item.id, dept);
   const effectiveReady =
     stage.status === 'waiting' &&
     isStageReady(stage, allStages, materialsForItem(order.materials, item.id), dept?.code, false, noTz);
@@ -391,13 +391,16 @@ export default function ProductionBoard() {
                       </div>
                     </td>
                     <td>{item.qty}</td>
-                    <td className={dueCls}>
-                      {order.due_date
-                        ? formatDateShort(order.due_date)
-                        : '—'}
+                    <td>
+                      {/* Класс висел на <td>, а число дней лежит в .subText со своим
+                          color — дата краснела, «просрочен 5» оставался серым.
+                          Красим сам текст, как в строке очереди */}
+                      <div className={dueCls}>
+                        {order.due_date ? formatDateShort(order.due_date) : '—'}
+                      </div>
                       {d !== null && (
-                        <div className={styles.subText}>
-                          {d >= 0 ? `${d} дн.` : `просрочен ${-d}`}
+                        <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
+                          {d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`}
                         </div>
                       )}
                     </td>

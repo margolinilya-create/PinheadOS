@@ -35,7 +35,7 @@ export function buildQueueEntries(
         if (!dept) continue;
 
         const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
-        const noTz = stageMissingTz(order, item.id, stage.department_id, dept);
+        const noTz = stageMissingTz(order, item.id, dept);
         let group = stage.status;
         let reason = null;
 

@@ -100,7 +100,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
             {item.stages.map((st) => {
               const dept = deptById.get(st.department_id);
               const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
-              const noTz = stageMissingTz(order, item.id, st.department_id, dept);
+              const noTz = stageMissingTz(order, item.id, dept);
               const effReady = st.status === 'waiting' &&
                 isStageReady(st, item.stages, materialsForItem(order.materials, item.id),
                   dept?.code, awaitProc, noTz);

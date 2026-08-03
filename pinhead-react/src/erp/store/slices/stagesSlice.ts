@@ -17,7 +17,6 @@ import {
   reorderIds,
 } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
-import { orderTzDocuments, tzAssignmentFor } from '../../utils/tz';
 import { logStageEvent, withPending, erpError } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
@@ -466,21 +465,9 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
         qty_rework: null,
         comment: `${moveNote} (этап добавлен в маршрут)`,
       });
-      // Новому этапу ТЗ никто не назначал — наследуем документ исходного цеха
-      // (или общее ТЗ заказа). Иначе руководитель перетащил бы карточку и получил
-      // задание, намертво заблокированное гейтом «Не назначено ТЗ».
-      if (order.tz_required !== false) {
-        const inherited = tzAssignmentFor(order, item.id, stage.department_id)
-          ?? orderTzDocuments(order)[0];
-        if (inherited) {
-          await get().assignTz({
-            orderId: order.id,
-            itemId: item.id,
-            departmentId: targetDeptId,
-            groupId: inherited.group_id,
-          });
-        }
-      }
+      // ТЗ новому этапу наследовать не нужно: документ принадлежит позиции и виден
+      // всему её маршруту. Раньше здесь копировалось назначение исходного цеха —
+      // иначе перетащенная карточка упиралась в гейт «Не назначено ТЗ».
     }
 
     logStageEvent({

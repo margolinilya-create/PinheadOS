@@ -6,24 +6,24 @@ import { TzViewer } from '../../components/TzViewer';
 import { Icon } from '../../components/Icon';
 import { deptShortName } from '../../data/departments';
 import {
-  currentVersion,
   deptNeedsTz,
   documentHistory,
+  itemTzDocument,
   itemTzDocuments,
   missingTzMessage,
-  missingTzStages,
-  tzAssignmentFor,
+  missingTzItems,
 } from '../../utils/tz';
 import styles from '../../erp.module.css';
 
 /**
- * Управление PDF-ТЗ позиции (волна 4): загрузка общего ТЗ и файлов позиции,
- * назначение документа каждому производственному цеху маршрута, замена файла новой
+ * Управление PDF-ТЗ позиции: загрузка общего ТЗ и файла позиции, замена файла новой
  * версией и просмотр внутри ERP.
  *
- * Ключевое: назначение хранит `group_id`, поэтому замена файла обновляет ТЗ сразу
- * у всех цехов, которым он назначен, — переназначать ничего не нужно.
- * Загрузка и назначение — по праву `tz.manage`; смотреть и скачивать может каждый.
+ * Ключевое: ТЗ принадлежит ПОЗИЦИИ и автоматически доступно всем цехам её маршрута.
+ * Поцеховое назначение отменено правкой менеджера 2026-08-03 — оно требовало выбрать
+ * один и тот же файл в N выпадающих списках и блокировало заказ, если хоть один
+ * пропущен. Замена файла обновляет ТЗ у всех цехов сразу, как и раньше.
+ * Загрузка и замена — по праву `tz.manage`; смотреть и скачивать может каждый.
  */
 
 /** Кнопка выбора PDF: скрытый input + внешний вид обычной кнопки */
@@ -55,11 +55,10 @@ function PdfButton({ label, onPick, disabled, variant = 'btn-secondary' }) {
 }
 
 export function TzDocsSection({ order, item, deptById }) {
-  const { uploadTzDocument, replaceTzDocument, assignTz } = useErpStore(
+  const { uploadTzDocument, replaceTzDocument } = useErpStore(
     useShallow((s) => ({
       uploadTzDocument: s.uploadTzDocument,
       replaceTzDocument: s.replaceTzDocument,
-      assignTz: s.assignTz,
     })),
   );
   const access = useErpAccess();
@@ -83,12 +82,8 @@ export function TzDocsSection({ order, item, deptById }) {
     setBusy(false);
   };
 
-  const assign = async (departmentId, groupId) => {
-    if (!groupId) return;
-    setBusy(true);
-    await assignTz({ orderId: order.id, itemId: item.id, departmentId, groupId });
-    setBusy(false);
-  };
+  // Тот самый файл, который увидит каждый цех маршрута этой позиции
+  const effective = itemTzDocument(order, item.id);
 
   return (
     <div className={styles.tzBlock}>
@@ -110,7 +105,8 @@ export function TzDocsSection({ order, item, deptById }) {
 
       {options.length === 0 ? (
         <div className={styles.subText}>
-          ТЗ в PDF не загружено. {canManage ? 'Загрузите файл и назначьте его цехам.' : ''}
+          ТЗ в PDF не загружено.
+          {canManage ? ' Загрузите файл — он сразу станет доступен всем цехам маршрута позиции.' : ''}
         </div>
       ) : (
         options.map((doc) => {
@@ -120,9 +116,18 @@ export function TzDocsSection({ order, item, deptById }) {
               key={doc.group_id}
               doc={doc}
               compact
-              badge={doc.item_id === null
-                ? <span className={`${styles.chip} ${styles.chipNeutral}`}>общее ТЗ заказа</span>
-                : null}
+              /* Если у позиции есть и своё ТЗ, и общее на заказ, цеха работают
+                 по своему — без пометки было бы не понять, по какому именно */
+              badge={(
+                <>
+                  {doc.item_id === null && (
+                    <span className={`${styles.chip} ${styles.chipNeutral}`}>общее ТЗ заказа</span>
+                  )}
+                  {effective?.group_id === doc.group_id && (
+                    <span className={`${styles.chip} ${styles.chipReady}`}>цеха работают по нему</span>
+                  )}
+                </>
+              )}
               actions={canManage ? (
                 <PdfButton
                   label="Заменить файл"
@@ -140,63 +145,40 @@ export function TzDocsSection({ order, item, deptById }) {
         })
       )}
 
-      <div>
-        <div className={styles.matSectionHead}><strong>Кто по какому ТЗ работает</strong></div>
-        {stages.length === 0 && (
-          <div className={styles.subText}>В маршруте позиции нет производственных цехов.</div>
+      {/* Не выбор, а справка: цеха ТЗ не выбирают — оно у позиции одно на всех */}
+      <div className={styles.tzAssignRow}>
+        <span className={styles.tzAssignDept}>По этому ТЗ работают</span>
+        {stages.length === 0 ? (
+          <span className={styles.subText}>в маршруте позиции нет производственных цехов</span>
+        ) : effective ? (
+          <span>
+            {stages
+              .map((st) => {
+                const dept = deptById.get(st.department_id);
+                return dept ? deptShortName(dept.code, dept.name) : '—';
+              })
+              .join(' · ')}
+          </span>
+        ) : (
+          <span className={styles.tzAssignMissing}>
+            ТЗ не загружено — цеха не смогут начать работу
+          </span>
         )}
-        {stages.map((st) => {
-          const dept = deptById.get(st.department_id);
-          const assignment = tzAssignmentFor(order, item.id, st.department_id);
-          const doc = assignment ? currentVersion(order.tz_documents, assignment.group_id) : null;
-          return (
-            <div key={st.id} className={styles.tzAssignRow}>
-              <span className={styles.tzAssignDept}>
-                {dept ? deptShortName(dept.code, dept.name) : '—'}
-              </span>
-              {canManage ? (
-                <select
-                  className={styles.select}
-                  value={assignment?.group_id ?? ''}
-                  disabled={busy || options.length === 0}
-                  aria-label={`ТЗ для цеха ${dept?.name || ''}`}
-                  onChange={(e) => assign(st.department_id, e.target.value)}
-                >
-                  <option value="">— не назначено —</option>
-                  {options.map((o) => (
-                    <option key={o.group_id} value={o.group_id}>
-                      {o.item_id === null ? 'Общее ТЗ: ' : ''}{o.file_name || 'ТЗ.pdf'}
-                      {o.version > 1 ? ` (v${o.version})` : ''}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className={doc ? undefined : styles.tzAssignMissing}>
-                  {doc ? (doc.file_name || 'ТЗ.pdf') : 'не назначено'}
-                </span>
-              )}
-              <span className={styles.subText}>
-                {doc ? `версия ${doc.version}` : ''}
-              </span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
 }
 
 /**
- * Красный баннер «не назначено ТЗ» по всему заказу — для заказов, заведённых до
- * внедрения ТЗ, и для этапов, добавленных переносом между цехами.
+ * Красный баннер «не загружено ТЗ» по всему заказу — для заказов, заведённых до
+ * внедрения ТЗ, и для позиций, оставшихся без документа.
  */
 export function TzMissingBanner({ order, departments }) {
   const setTzRequired = useErpStore((s) => s.setTzRequired);
   const access = useErpAccess();
   const deptById = new Map(departments.map((d) => [d.id, d]));
-  const nameById = new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)]));
-  const missing = missingTzStages(order, deptById);
-  const message = missingTzMessage(missing, nameById, 'Заказ не запустится');
+  const missing = missingTzItems(order, deptById);
+  const message = missingTzMessage(missing, 'Заказ не запустится');
 
   if (order.tz_required === false) {
     return (

@@ -195,8 +195,8 @@ test.describe('Варианты поставщиков в закупке (пра
   });
 });
 
-test.describe('Технические задания в PDF (волна 4)', () => {
-  test('форма создания не даёт сабмит без ТЗ и называет позицию и цеха', async ({ page }) => {
+test.describe('Технические задания в PDF', () => {
+  test('форма создания не даёт сабмит без ТЗ и называет позицию', async ({ page }) => {
     await page.goto('/orders?studio=0');
     await page.getByRole('button', { name: '+ Новый заказ' }).click();
 
@@ -210,20 +210,25 @@ test.describe('Технические задания в PDF (волна 4)', () 
     await form.getByLabel('Изделие *').first().fill('Футболка Regular');
     await form.getByLabel('Кол-во *').first().fill('50');
 
-    // Маршрут сшивного изделия: закрой → швейка → ВТО, ТЗ не назначено ни одному
+    // Гейт считает ОДИН файл на позицию, а не комплект назначений по цехам
     await expect(form.getByText('Позиция: Футболка Regular')).toBeVisible();
     const msg = form.getByText(/Невозможно создать заказ/);
     await expect(msg).toBeVisible();
+    await expect(msg).toContainText('не загружено ТЗ');
     await expect(msg).toContainText('«Футболка Regular»');
-    await expect(msg).toContainText('Закрой');
-    await expect(msg).toContainText('Швейка');
     await expect(form.getByRole('button', { name: 'Создать заказ' })).toBeDisabled();
 
-    // Закупка ТЗ не требует — её в списке назначений нет
-    await expect(form.getByRole('combobox', { name: /ТЗ для цеха Закупка/ })).toHaveCount(0);
+    // Маршрут показан справкой «кто увидит файл», а не списком выборов по цехам
+    const hint = form.locator('[class*="tzAssignRow"]').filter({ hasText: 'ТЗ увидят' }).first();
+    await expect(hint).toContainText('Закрой');
+    await expect(hint).toContainText('Швейка');
+    // Закупка ТЗ не требует — её в справке нет
+    await expect(hint).not.toContainText('Закупка');
+    // Выпадающих списков назначения не осталось ни одного
+    await expect(form.getByRole('combobox', { name: /ТЗ для цеха/ })).toHaveCount(0);
   });
 
-  test('задание цеха показывает назначенное ТЗ с кнопкой «Открыть ТЗ»', async ({ page }) => {
+  test('задание цеха показывает ТЗ позиции с кнопкой «Открыть ТЗ»', async ({ page }) => {
     await page.goto('/queue/cutting?studio=0');
     // Заказ B: закрой в работе, общий PDF назначен цеху
     const row = page.locator('[class*="queueRow"]').filter({ hasText: '54900' }).first();
@@ -236,14 +241,17 @@ test.describe('Технические задания в PDF (волна 4)', () 
     await expect(page.getByRole('link', { name: 'Скачать' }).first()).toBeVisible();
   });
 
-  test('карточка заказа даёт назначить ТЗ по цехам', async ({ page }) => {
+  test('карточка заказа показывает одно ТЗ на весь маршрут позиции', async ({ page }) => {
     await page.goto('/orders/ord-b?studio=0');
     await expect(page.getByText('Технические задания (PDF)')).toBeVisible();
-    await expect(page.getByText('Кто по какому ТЗ работает').first()).toBeVisible();
-    // Назначение видно как выбранный документ у производственного цеха
-    const select = page.getByRole('combobox', { name: /ТЗ для цеха Закройный цех/ }).first();
-    await expect(select).toBeVisible();
-    await expect(select).toHaveValue('tz-grp-b');
+
+    // Общее ТЗ заказа — и по нему работают все производственные цеха позиции
+    await expect(page.getByText('Форма официантов.pdf').first()).toBeVisible();
+    await expect(page.getByText('цеха работают по нему').first()).toBeVisible();
+    const row = page.locator('[class*="tzAssignRow"]').filter({ hasText: 'По этому ТЗ работают' }).first();
+    await expect(row).toContainText('Закрой');
+    // Назначать документ цехам больше не нужно — выборов не осталось
+    await expect(page.getByRole('combobox', { name: /ТЗ для цеха/ })).toHaveCount(0);
   });
 });
 

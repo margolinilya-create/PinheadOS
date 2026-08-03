@@ -107,7 +107,7 @@ export default function ProductionTask() {
   const dept = deptById.get(stage.department_id);
   const deptName = dept ? deptShortName(dept.code, dept.name) : 'Цех';
   const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
-  const noTz = stageMissingTz(order, item.id, stage.department_id, dept);
+  const noTz = stageMissingTz(order, item.id, dept);
   const ready = stage.status === 'waiting'
     && isStageReady(stage, item.stages, materialsForItem(order.materials, item.id),
       dept?.code, awaitProc, noTz);

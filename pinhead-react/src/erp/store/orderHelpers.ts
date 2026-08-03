@@ -26,8 +26,7 @@ export const ORDER_SELECT = `
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
-  tz_documents:erp_tz_documents (*),
-  tz_assignments:erp_tz_assignments (*)
+  tz_documents:erp_tz_documents (*)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */
@@ -45,7 +44,6 @@ export function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
     warehouse_ops: o.warehouse_ops ?? [],
     warehouse_tasks: o.warehouse_tasks ?? [],
     tz_documents: o.tz_documents ?? [],
-    tz_assignments: o.tz_assignments ?? [],
   };
 }
 
@@ -150,7 +148,7 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
           isStageReady(
             st, it.stages, materialsForItem(o.materials, it.id), deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
-            stageMissingTz(o, it.id, st.department_id, dept),
+            stageMissingTz(o, it.id, dept),
           )
         ) n += 1;
       }
@@ -178,7 +176,7 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
           isStageReady(
             st, it.stages, materialsForItem(o.materials, it.id), deptCode,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
-            stageMissingTz(o, it.id, st.department_id, dept),
+            stageMissingTz(o, it.id, dept),
           )
         ) n += 1;
       }

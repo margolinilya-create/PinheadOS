@@ -1,9 +1,9 @@
 /**
- * Слайс технических заданий в PDF (волна 4).
+ * Слайс технических заданий в PDF.
  *
  * Документ живёт группой версий: замена файла добавляет строку version+1 и снимает
- * `is_current` со старой. Назначение цеху ссылается на группу, поэтому «заменил файл —
- * обновилось у всех цехов» получается само, без обхода назначений.
+ * `is_current` со старой. ТЗ принадлежит позиции (а с `item_id = null` — всему заказу),
+ * поэтому «заменил файл — обновилось у всех цехов маршрута» получается само.
  *
  * Правила Pinhead: toast.error на каждую ошибку, null при ошибке, без optimistic delete.
  */
@@ -12,8 +12,8 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { TZ_BUCKET, TZ_MAX_BYTES, TZ_MIME } from '../../types';
-import type { ErpTzAssignment, ErpTzDocument } from '../../types';
-import { documentHistory, stageHasTz, tzFilePath } from '../../utils/tz';
+import type { ErpTzDocument } from '../../types';
+import { documentHistory, tzFilePath } from '../../utils/tz';
 import { currentActor, logStageEvent } from '../shared';
 import type { ErpOrderFull, ErpStore, TzSlice } from '../types';
 
@@ -171,88 +171,28 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
       })),
     }));
 
-    // История задания: цех должен увидеть, что ТЗ поменялось уже в работе.
-    for (const asg of (order.tz_assignments ?? []).filter((a) => a.group_id === groupId)) {
-      const item = order.items.find((i) => i.id === asg.item_id);
-      const stage = item?.stages.find((st) => st.department_id === asg.department_id);
-      if (!stage) continue;
-      logStageEvent({
-        stage_id: stage.id,
-        order_id: order.id,
-        from_status: stage.status,
-        to_status: stage.status,
-        qty_done: null,
-        qty_rework: null,
-        comment: `ТЗ обновлено до версии ${version}: ${file.name}`,
-      });
+    /**
+     * История задания: цех должен увидеть, что ТЗ поменялось уже в работе.
+     * ТЗ принадлежит позиции, поэтому событие пишется всем её незакрытым
+     * производственным этапам — раньше адресатов давал список назначений.
+     */
+    const docItemId = (order.tz_documents ?? []).find((d) => d.group_id === groupId)?.item_id ?? null;
+    const touched = order.items.filter((i) => docItemId === null || i.id === docItemId);
+    for (const item of touched) {
+      for (const stage of item.stages) {
+        if (stage.status === 'done' || stage.status === 'skipped') continue;
+        logStageEvent({
+          stage_id: stage.id,
+          order_id: order.id,
+          from_status: stage.status,
+          to_status: stage.status,
+          qty_done: null,
+          qty_rework: null,
+          comment: `ТЗ обновлено до версии ${version}: ${file.name}`,
+        });
+      }
     }
     return row;
-  },
-
-  assignTz: async ({ orderId, itemId, departmentId, groupId }) => {
-    const { data, error } = await supabase
-      .from('erp_tz_assignments')
-      .upsert(
-        {
-          order_id: orderId,
-          item_id: itemId,
-          department_id: departmentId,
-          group_id: groupId,
-          assigned_by: currentActor(),
-        },
-        { onConflict: 'item_id,department_id' },
-      )
-      .select();
-    const row = data?.[0] as ErpTzAssignment | undefined;
-    if (error || !row) {
-      toast.error('Не удалось назначить ТЗ цеху');
-      return false;
-    }
-    set((s) => ({
-      orders: patchOrder(s.orders, orderId, (o) => {
-        const rest = (o.tz_assignments ?? []).filter(
-          (a) => !(a.item_id === itemId && a.department_id === departmentId));
-        return { ...o, tz_assignments: [...rest, row] };
-      }),
-    }));
-    return true;
-  },
-
-  unassignTz: async (itemId, departmentId) => {
-    const order = get().orders.find((o) =>
-      (o.tz_assignments ?? []).some(
-        (a) => a.item_id === itemId && a.department_id === departmentId));
-    if (!order) {
-      toast.error('Назначение ТЗ не найдено');
-      return false;
-    }
-    // Требование заказчика: единственное назначенное ТЗ у этапа маршрута снять нельзя —
-    // иначе цех останется без документа, а этап намертво упрётся в гейт.
-    const item = order.items.find((i) => i.id === itemId);
-    const isRouteStage = (item?.stages ?? []).some(
-      (st) => st.department_id === departmentId && st.status !== 'skipped');
-    if (isRouteStage && order.tz_required !== false && stageHasTz(order, itemId, departmentId)) {
-      toast.error('У этапа маршрута должно остаться ТЗ — назначьте другое вместо снятия');
-      return false;
-    }
-
-    const { error } = await supabase
-      .from('erp_tz_assignments')
-      .delete()
-      .eq('item_id', itemId)
-      .eq('department_id', departmentId);
-    if (error) {
-      toast.error('Не удалось снять назначение ТЗ');
-      return false;
-    }
-    set((s) => ({
-      orders: patchOrder(s.orders, order.id, (o) => ({
-        ...o,
-        tz_assignments: (o.tz_assignments ?? []).filter(
-          (a) => !(a.item_id === itemId && a.department_id === departmentId)),
-      })),
-    }));
-    return true;
   },
 
   setTzRequired: async (orderId, required) => {

@@ -5,19 +5,19 @@ import {
   orderTzDocuments,
   itemTzDocuments,
   documentHistory,
-  stageTzDocument,
-  stageHasTz,
+  itemTzDocument,
+  itemHasTz,
   stageMissingTz,
   deptNeedsTz,
-  missingTzStages,
+  missingTzItems,
   missingTzMessage,
   listRu,
-  validateTzAssignments,
+  validateTzDocs,
   tzUpdatedAfterStart,
   tzFilePath,
   itemLabel,
 } from './tz';
-import type { ErpTzAssignment, ErpTzDocument } from '../types';
+import type { ErpTzDocument } from '../types';
 
 const doc = (over: Partial<ErpTzDocument> & Pick<ErpTzDocument, 'group_id'>): ErpTzDocument => ({
   id: `d-${over.group_id}-${over.version ?? 1}`,
@@ -33,20 +33,6 @@ const doc = (over: Partial<ErpTzDocument> & Pick<ErpTzDocument, 'group_id'>): Er
   uploaded_by: 'Менеджер',
   created_at: '2026-07-20T10:00:00Z',
   ...over,
-});
-
-const asg = (
-  itemId: string,
-  departmentId: string,
-  groupId: string,
-): ErpTzAssignment => ({
-  id: `a-${itemId}-${departmentId}`,
-  order_id: 'o1',
-  item_id: itemId,
-  department_id: departmentId,
-  group_id: groupId,
-  assigned_by: 'Менеджер',
-  created_at: '2026-07-20T10:00:00Z',
 });
 
 describe('currentVersion', () => {
@@ -106,28 +92,44 @@ describe('currentDocuments / orderTzDocuments / itemTzDocuments', () => {
   });
 });
 
-describe('stageTzDocument', () => {
-  const order = {
-    tz_documents: [
-      doc({ group_id: 'g1', version: 1, is_current: false }),
-      doc({ group_id: 'g1', version: 2 }),
-    ],
-    tz_assignments: [asg('i1', 'sewing', 'g1'), asg('i1', 'vto', 'g1')],
-  };
-
-  it('замена файла подхватывается всеми связанными цехами разом', () => {
-    expect(stageTzDocument(order, 'i1', 'sewing')?.version).toBe(2);
-    expect(stageTzDocument(order, 'i1', 'vto')?.version).toBe(2);
+describe('itemTzDocument — одно ТЗ на весь маршрут позиции', () => {
+  it('замена файла подхватывается сразу: резолюция берёт актуальную версию', () => {
+    const order = {
+      tz_documents: [
+        doc({ group_id: 'g1', item_id: 'i1', version: 1, is_current: false }),
+        doc({ group_id: 'g1', item_id: 'i1', version: 2 }),
+      ],
+    };
+    expect(itemTzDocument(order, 'i1')?.version).toBe(2);
   });
 
-  it('этап без назначения остаётся без ТЗ', () => {
-    expect(stageTzDocument(order, 'i1', 'cutting')).toBeNull();
-    expect(stageHasTz(order, 'i1', 'cutting')).toBe(false);
+  it('позиция без своего ТЗ работает по общему ТЗ заказа', () => {
+    const order = { tz_documents: [doc({ group_id: 'general', item_id: null })] };
+    expect(itemTzDocument(order, 'i1')?.group_id).toBe('general');
+    expect(itemHasTz(order, 'i1')).toBe(true);
   });
 
-  it('назначение на несуществующую группу не считается наличием ТЗ', () => {
-    const broken = { tz_documents: [], tz_assignments: [asg('i1', 'sewing', 'g1')] };
-    expect(stageHasTz(broken, 'i1', 'sewing')).toBe(false);
+  it('своё ТЗ позиции важнее общего', () => {
+    const order = {
+      tz_documents: [
+        doc({ group_id: 'general', item_id: null, created_at: '2026-07-20T09:00:00Z' }),
+        doc({ group_id: 'own', item_id: 'i1', created_at: '2026-07-20T10:00:00Z' }),
+      ],
+    };
+    expect(itemTzDocument(order, 'i1')?.group_id).toBe('own');
+    // ...а у соседней позиции своего нет — она читает общее
+    expect(itemTzDocument(order, 'i2')?.group_id).toBe('general');
+  });
+
+  it('ТЗ чужой позиции своей не считается', () => {
+    const order = { tz_documents: [doc({ group_id: 'own', item_id: 'i2' })] };
+    expect(itemTzDocument(order, 'i1')).toBeNull();
+    expect(itemHasTz(order, 'i1')).toBe(false);
+  });
+
+  it('заказ без документов — ТЗ нет', () => {
+    expect(itemHasTz({ tz_documents: [] }, 'i1')).toBe(false);
+    expect(itemHasTz({}, 'i1')).toBe(false);
   });
 });
 
@@ -144,38 +146,41 @@ const DEPTS = new Map([
 ]);
 
 describe('stageMissingTz — гейт запуска этапа', () => {
+  /** ТЗ загружено на позицию i1; у позиции i2 своего нет и общего тоже */
   const order = {
     tz_required: true,
-    tz_documents: [doc({ group_id: 'g1' })],
-    tz_assignments: [asg('i1', 'sewing', 'g1')],
+    tz_documents: [doc({ group_id: 'g1', item_id: 'i1' })],
   };
 
-  it('производственный цех без ТЗ — этап не запускается', () => {
-    expect(stageMissingTz(order, 'i1', 'cutting', dept('cutting', true))).toBe(true);
+  it('позиция без ТЗ — этап производственного цеха не запускается', () => {
+    expect(stageMissingTz(order, 'i2', dept('cutting', true))).toBe(true);
   });
 
-  it('цех с назначенным ТЗ — не блокирует', () => {
-    expect(stageMissingTz(order, 'i1', 'sewing', dept('sewing', true))).toBe(false);
+  it('одно ТЗ позиции открывает ВСЕ цеха её маршрута', () => {
+    expect(stageMissingTz(order, 'i1', dept('cutting', true))).toBe(false);
+    expect(stageMissingTz(order, 'i1', dept('sewing', true))).toBe(false);
+    expect(stageMissingTz(order, 'i1', dept('vto', true))).toBe(false);
+    expect(stageMissingTz(order, 'i1', dept('qc', true))).toBe(false);
   });
 
   it('закупка и склады ТЗ не требуют — гейт их не трогает', () => {
-    expect(stageMissingTz(order, 'i1', 'supply', dept('supply', false))).toBe(false);
-    expect(stageMissingTz(order, 'i1', 'wh', dept('warehouse', false))).toBe(false);
+    expect(stageMissingTz(order, 'i2', dept('supply', false))).toBe(false);
+    expect(stageMissingTz(order, 'i2', dept('warehouse', false))).toBe(false);
   });
 
   it('неизвестный цех не блокирует — остановка цеха fail-open', () => {
-    expect(stageMissingTz(order, 'i1', 'cutting', undefined)).toBe(false);
-    expect(stageMissingTz(order, 'i1', 'cutting', null)).toBe(false);
+    expect(stageMissingTz(order, 'i2', undefined)).toBe(false);
+    expect(stageMissingTz(order, 'i2', null)).toBe(false);
   });
 
   it('новый участок из админки сразу под гейтом, хотя кода нет в сиде', () => {
     // ОТК: заведён после внедрения, в QUEUE_DEPT_CODES его нет
-    expect(stageMissingTz(order, 'i1', 'qc', dept('qc', true))).toBe(true);
+    expect(stageMissingTz(order, 'i2', dept('qc', true))).toBe(true);
   });
 
   it('заказ без требования ТЗ не гейтится вовсе', () => {
     const legacy = { ...order, tz_required: false };
-    expect(stageMissingTz(legacy, 'i1', 'cutting', dept('cutting', true))).toBe(false);
+    expect(stageMissingTz(legacy, 'i2', dept('cutting', true))).toBe(false);
   });
 
   it('deptNeedsTz — по признаку из БД, с откатом на код при его отсутствии', () => {
@@ -188,7 +193,7 @@ describe('stageMissingTz — гейт запуска этапа', () => {
   });
 });
 
-describe('missingTzStages', () => {
+describe('missingTzItems', () => {
   const items = [
     {
       id: 'i1',
@@ -202,14 +207,29 @@ describe('missingTzStages', () => {
     },
   ];
 
-  it('перечисляет этапы без ТЗ', () => {
+  it('одного файла на позицию хватает всему маршруту', () => {
     const order = {
       items,
       tz_required: true,
-      tz_documents: [doc({ group_id: 'g1' })],
-      tz_assignments: [asg('i1', 'cutting', 'g1')],
+      tz_documents: [doc({ group_id: 'g1', item_id: 'i1' })],
     };
-    expect(missingTzStages(order, DEPTS).map((m) => m.departmentId)).toEqual(['sewing', 'vto']);
+    expect(missingTzItems(order, DEPTS)).toEqual([]);
+  });
+
+  it('называет позицию, у которой ТЗ нет', () => {
+    const order = { items, tz_required: true, tz_documents: [] };
+    expect(missingTzItems(order, DEPTS)).toEqual([
+      { itemId: 'i1', itemLabel: 'Футболка Regular' },
+    ]);
+  });
+
+  it('общее ТЗ заказа закрывает позицию без своего файла', () => {
+    const order = {
+      items,
+      tz_required: true,
+      tz_documents: [doc({ group_id: 'general', item_id: null })],
+    };
+    expect(missingTzItems(order, DEPTS)).toEqual([]);
   });
 
   it('пропущенные этапы ТЗ не требуют', () => {
@@ -217,52 +237,57 @@ describe('missingTzStages', () => {
       items: [{ ...items[0], stages: [{ department_id: 'cutting', status: 'skipped' }] }],
       tz_required: true,
       tz_documents: [],
-      tz_assignments: [],
     };
-    expect(missingTzStages(order, DEPTS)).toEqual([]);
+    expect(missingTzItems(order, DEPTS)).toEqual([]);
+  });
+
+  it('позиция без производственных цехов (подряд) в гейт не попадает', () => {
+    const order = {
+      items: [{ ...items[0], stages: [{ department_id: 'supply' }] }],
+      tz_required: true,
+      tz_documents: [],
+    };
+    expect(missingTzItems(order, DEPTS)).toEqual([]);
   });
 
   it('к заказам, заведённым до внедрения ТЗ, гейт не применяется', () => {
-    const order = { items, tz_required: false, tz_documents: [], tz_assignments: [] };
-    expect(missingTzStages(order, DEPTS)).toEqual([]);
-  });
-
-  it('заказ с tz_required требует ТЗ на каждом этапе маршрута', () => {
-    const order = { items, tz_required: true, tz_documents: [], tz_assignments: [] };
-    expect(missingTzStages(order, DEPTS)).toHaveLength(3);
+    const order = { items, tz_required: false, tz_documents: [] };
+    expect(missingTzItems(order, DEPTS)).toEqual([]);
   });
 
   it('без явного tz_required гейт не срабатывает — блокировка цеха fail-open', () => {
-    const order = { items, tz_documents: [], tz_assignments: [] };
-    expect(missingTzStages(order, DEPTS)).toEqual([]);
+    expect(missingTzItems({ items, tz_documents: [] }, DEPTS)).toEqual([]);
   });
 });
 
 describe('missingTzMessage', () => {
-  const names = new Map([['sewing', 'Швейка'], ['vto', 'ВТО']]);
-
-  it('группирует по позиции и называет цеха', () => {
-    const missing = missingTzStages({
-      items: [{ id: 'i1', product_type: 'Футболка', variant: 'Regular', stages: [
-        { department_id: 'sewing' }, { department_id: 'vto' },
-      ] }],
+  it('называет позиции без ТЗ', () => {
+    const missing = missingTzItems({
+      items: [
+        { id: 'i1', product_type: 'Футболка', variant: 'Regular', stages: [{ department_id: 'sewing' }] },
+        { id: 'i2', product_type: 'Худи', stages: [{ department_id: 'vto' }] },
+      ],
       tz_required: true,
       tz_documents: [],
-      tz_assignments: [],
     }, DEPTS);
-    expect(missingTzMessage(missing, names)).toBe(
-      'Невозможно создать заказ: для позиции «Футболка Regular» не назначено ТЗ: Швейка и ВТО',
+    expect(missingTzMessage(missing)).toBe(
+      'Невозможно создать заказ: не загружено ТЗ для позиций «Футболка Regular» и «Худи»',
+    );
+  });
+
+  it('одна позиция — единственное число', () => {
+    expect(missingTzMessage([{ itemId: 'i1', itemLabel: 'Худи' }])).toBe(
+      'Невозможно создать заказ: не загружено ТЗ для позиции «Худи»',
     );
   });
 
   it('без недостающих — null', () => {
-    expect(missingTzMessage([], names)).toBeNull();
+    expect(missingTzMessage([])).toBeNull();
   });
 
   it('умеет другой префикс — для гейта уже созданного заказа', () => {
-    const missing = [{ itemId: 'i1', itemLabel: 'Худи', departmentId: 'vto' }];
-    expect(missingTzMessage(missing, names, 'Заказ не запустится')).toBe(
-      'Заказ не запустится: для позиции «Худи» не назначено ТЗ: ВТО',
+    expect(missingTzMessage([{ itemId: 'i1', itemLabel: 'Худи' }], 'Заказ не запустится')).toBe(
+      'Заказ не запустится: не загружено ТЗ для позиции «Худи»',
     );
   });
 });
@@ -276,7 +301,7 @@ describe('listRu', () => {
   });
 });
 
-describe('validateTzAssignments (форма создания)', () => {
+describe('validateTzDocs (форма создания)', () => {
   const items = [
     {
       index: 0,
@@ -293,31 +318,43 @@ describe('validateTzAssignments (форма создания)', () => {
     },
   ];
 
-  it('полный комплект назначений проходит', () => {
-    const res = validateTzAssignments(items, {
-      '0:d-cut': 'g1', '0:d-sew': 'g1', '1:d-cut': 'g2',
-    });
+  it('по файлу на позицию — комплект собран', () => {
+    const res = validateTzDocs(items, [
+      { itemIndex: 0, uploaded: true },
+      { itemIndex: 1, uploaded: true },
+    ]);
     expect(res.missing).toEqual([]);
     expect(res.message).toBeNull();
   });
 
-  it('одно ТЗ можно назначить нескольким цехам', () => {
-    const res = validateTzAssignments([items[0]], { '0:d-cut': 'g1', '0:d-sew': 'g1' });
+  it('одно общее ТЗ заказа закрывает все позиции', () => {
+    const res = validateTzDocs(items, [{ itemIndex: null, uploaded: true }]);
     expect(res.message).toBeNull();
   });
 
-  it('называет конкретную позицию и конкретные цеха', () => {
-    const res = validateTzAssignments(items, { '0:d-cut': 'g1' });
-    expect(res.missing).toHaveLength(2);
+  it('называет позиции без ТЗ', () => {
+    const res = validateTzDocs(items, [{ itemIndex: 0, uploaded: true }]);
+    expect(res.missing).toEqual([{ index: 1, label: 'Худи' }]);
     expect(res.message).toBe(
-      'Невозможно создать заказ: для позиции «Футболка Regular» не назначено ТЗ: Швейка; '
-      + 'для позиции «Худи» не назначено ТЗ: Закрой',
+      'Невозможно создать заказ: не загружено ТЗ для позиции «Худи»',
     );
   });
 
-  it('пустая строка в назначении считается отсутствием', () => {
-    const res = validateTzAssignments([items[1]], { '1:d-cut': '' });
-    expect(res.missing).toHaveLength(1);
+  /**
+   * Незагруженный файл ТЗ не считается: раньше загрузка шла в сабмите, и форма
+   * пускала «Создать заказ» с файлом, которого в бакете не было, — заказ падал
+   * на первой же ошибке Storage.
+   */
+  it('файл, который ещё грузится или упал, комплект не закрывает', () => {
+    expect(validateTzDocs([items[1]], [{ itemIndex: 1, uploaded: false }]).missing)
+      .toHaveLength(1);
+    expect(validateTzDocs([items[1]], [{ itemIndex: null, uploaded: false }]).missing)
+      .toHaveLength(1);
+  });
+
+  it('позиция без производственных цехов ТЗ не требует', () => {
+    const res = validateTzDocs([{ index: 0, label: 'Подряд', stages: [] }], []);
+    expect(res.missing).toEqual([]);
   });
 });
 
@@ -347,9 +384,31 @@ describe('tzUpdatedAfterStart', () => {
 });
 
 describe('tzFilePath', () => {
-  it('складывает путь версии внутри группы', () => {
+  /**
+   * Ключ обязан быть строго ASCII. Supabase Storage проверяет его регуляркой
+   * S3-safe символов, где `\w` объявлен без флага `u`, и на кириллицу отвечает
+   * `InvalidKey`. Прежняя версия функции кириллицу СОХРАНЯЛА, и ни одно ТЗ
+   * не загрузилось ни разу — в бакете не было ни одного объекта `tz/`.
+   */
+  const ASCII_KEY = /^[\w/.-]+$/;
+
+  it('складывает путь версии внутри группы, транслитерируя имя', () => {
     expect(tzFilePath('o1', 'g1', 2, 'ТЗ футболка.pdf'))
-      .toBe('tz/o1/g1/v2-ТЗ футболка.pdf');
+      .toBe('tz/o1/g1/v2-TZ_futbolka.pdf');
+  });
+
+  it('имя из отчёта менеджера даёт валидный ключ', () => {
+    const path = tzFilePath('new', 'g1', 1, 'ТЗ[59746] Футболки Regular для склада_норм.pdf');
+    expect(path).toBe('tz/new/g1/v1-TZ_59746_Futbolki_Regular_dlya_sklada_norm.pdf');
+    expect(path).toMatch(ASCII_KEY);
+  });
+
+  it('имя целиком из кириллицы не теряет расширение', () => {
+    expect(tzFilePath('o1', 'g1', 1, 'Задание.pdf')).toBe('tz/o1/g1/v1-Zadanie.pdf');
+  });
+
+  it('имя из непереводимых символов не съедает расширение', () => {
+    expect(tzFilePath('o1', 'g1', 1, '文件.pdf')).toBe('tz/o1/g1/v1-tz.pdf');
   });
 
   it('чистит опасные символы имени — путь не уезжает из группы', () => {
@@ -359,6 +418,16 @@ describe('tzFilePath', () => {
 
   it('подставляет имя по умолчанию', () => {
     expect(tzFilePath('new', 'g1', 1, '')).toBe('tz/new/g1/v1-tz.pdf');
+  });
+
+  it('любое имя даёт ASCII-ключ', () => {
+    const names = [
+      'ТЗ.pdf', 'Ёлка №5 (2).pdf', 'футболка — чёрная.pdf', 'ЩУКА_ЪЫЬ.pdf',
+      'a'.repeat(300) + '.pdf', 'без расширения', '.pdf', '文件.pdf',
+    ];
+    for (const name of names) {
+      expect(tzFilePath('o1', 'g1', 1, name)).toMatch(ASCII_KEY);
+    }
   });
 });
 

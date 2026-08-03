@@ -380,9 +380,10 @@ const ORDERS = [
 ];
 
 /**
- * ТЗ в PDF (волна 4): у заказа B один общий PDF, назначенный всем производственным
- * цехам обеих позиций. Так задание цеха показывает документ, а гейт «не назначено ТЗ»
- * не стопорит фикстуру. Остальные заказы — «до внедрения ТЗ» (tz_required не задан).
+ * ТЗ в PDF: у заказа B один общий PDF на весь заказ (`item_id = null`) — его видят
+ * все производственные цеха обеих позиций без каких-либо назначений. Так задание цеха
+ * показывает документ, а гейт «не загружено ТЗ» не стопорит фикстуру.
+ * Остальные заказы — «до внедрения ТЗ» (tz_required не задан).
  */
 const TZ_DOC = {
   id: 'tz-b-1',
@@ -405,18 +406,6 @@ const TZ_DOC = {
   const orderB = ORDERS.find((o) => o.id === 'ord-b') as any;
   orderB.tz_required = true;
   orderB.tz_documents = [TZ_DOC];
-  orderB.tz_assignments = orderB.items.flatMap((it: any) =>
-    it.stages
-      .filter((st: any) => isQueueDept(String(st.department_id).replace('dep-', '')))
-      .map((st: any) => ({
-        id: `tz-asg-${st.id}`,
-        order_id: 'ord-b',
-        item_id: it.id,
-        department_id: st.department_id,
-        group_id: TZ_DOC.group_id,
-        assigned_by: 'Пётр',
-        created_at: CREATED,
-      })));
 }
 
 /** Данные по таблице REST-запроса с учётом простых фильтров id/status. */

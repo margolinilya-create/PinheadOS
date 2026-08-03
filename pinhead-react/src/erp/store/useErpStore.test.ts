@@ -2031,7 +2031,7 @@ describe('ТЗ в PDF (волна 4)', () => {
             { id: 'st-sew', item_id: 'it1', department_id: 'd-sew', status: 'waiting', sort_order: 20, depends_on: [], qty_done: 0 },
           ],
         }],
-        materials: [], tz_documents: [], tz_assignments: [],
+        materials: [], tz_documents: [],
         ...over,
       }],
       loaded: true,
@@ -2047,7 +2047,9 @@ describe('ТЗ в PDF (волна 4)', () => {
     expect(doc).toBeTruthy();
     expect(h.uploadCalls).toHaveLength(1);
     expect(h.uploadCalls[0].bucket).toBe('erp-attachments');
-    expect(h.uploadCalls[0].path).toMatch(/^tz\/o1\/[0-9a-f-]+\/v1-Футболка ТЗ\.pdf$/);
+    // Ключ строго ASCII: Storage отвечает InvalidKey на кириллицу, и на этом
+    // ломалась загрузка любого ТЗ с русским именем файла
+    expect(h.uploadCalls[0].path).toMatch(/^tz\/o1\/[0-9a-f-]+\/v1-Futbolka_TZ\.pdf$/);
     expect(orderNow().tz_documents).toHaveLength(1);
     expect(orderNow().tz_documents[0].version).toBe(1);
     expect(orderNow().tz_documents[0].is_current).toBe(true);
@@ -2131,58 +2133,34 @@ describe('ТЗ в PDF (волна 4)', () => {
     expect(orderNow().tz_documents[0].version).toBe(1);
   });
 
-  it('назначение ТЗ цеху заменяет прежнее назначение того же этапа', async () => {
-    seedTz({
-      tz_documents: [
-        { id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' },
-        { id: 'd2', order_id: 'o1', item_id: 'it1', group_id: 'g2', version: 1, is_current: true, file_path: 'p2', created_at: '2026-07-20T11:00:00Z' },
-      ],
-      tz_assignments: [{
-        id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1',
-        created_at: '2026-07-20T10:00:00Z',
-      }],
-    });
-    expect(await useErpStore.getState().assignTz({
-      orderId: 'o1', itemId: 'it1', departmentId: 'd-sew', groupId: 'g2',
-    })).toBe(true);
-    const asg = orderNow().tz_assignments.filter((a: any) => a.department_id === 'd-sew');
-    expect(asg).toHaveLength(1);
-    expect(asg[0].group_id).toBe('g2');
-  });
-
-  it('снять единственное ТЗ у этапа маршрута нельзя', async () => {
-    seedTz({
-      tz_documents: [{ id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
-      tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'g1', created_at: '2026-07-20T10:00:00Z' }],
-    });
-    expect(await useErpStore.getState().unassignTz('it1', 'd-sew')).toBe(false);
-    expect(orderNow().tz_assignments).toHaveLength(1);
-    expect(h.deleteCalls).toHaveLength(0);
-  });
-
-  it('битое назначение (документ удалён) снять можно', async () => {
-    seedTz({
-      tz_documents: [],
-      tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-sew', group_id: 'нет', created_at: '2026-07-20T10:00:00Z' }],
-    });
-    expect(await useErpStore.getState().unassignTz('it1', 'd-sew')).toBe(true);
-    expect(orderNow().tz_assignments).toHaveLength(0);
-  });
-
-  it('гейт: этап без ТЗ не попадает в «готово к работе»', async () => {
+  /**
+   * Правка менеджера 2026-08-03: поцехового назначения ТЗ больше нет.
+   * Один файл на позицию открывает ВСЕ цеха её маршрута — раньше на это уходил
+   * отдельный выбор в каждом выпадающем списке, и пропуск любого блокировал заказ.
+   */
+  it('гейт: одно ТЗ позиции открывает все цеха её маршрута', async () => {
     seedTz();
     const { orders, departments } = useErpStore.getState();
     expect(readyCountFor(orders, departments, 'cutting')).toBe(0);
+    expect(readyCountFor(orders, departments, 'sewing')).toBe(0);
 
     useErpStore.setState({
       orders: [{
         ...orderNow(),
         tz_documents: [{ id: 'd1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
-        tz_assignments: [{ id: 'a1', order_id: 'o1', item_id: 'it1', department_id: 'd-cut', group_id: 'g1', created_at: '2026-07-20T10:00:00Z' }],
       }],
     } as any);
     const s2 = useErpStore.getState();
     expect(readyCountFor(s2.orders, s2.departments, 'cutting')).toBe(1);
+    expect(readyCountFor(s2.orders, s2.departments, 'sewing')).toBe(1);
+  });
+
+  it('гейт: общее ТЗ заказа (item_id = null) тоже снимает блокировку', async () => {
+    seedTz({
+      tz_documents: [{ id: 'd1', order_id: 'o1', item_id: null, group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
+    });
+    const { orders, departments } = useErpStore.getState();
+    expect(readyCountFor(orders, departments, 'cutting')).toBe(1);
   });
 
   it('требование ТЗ включается вручную — optimistic с откатом', async () => {

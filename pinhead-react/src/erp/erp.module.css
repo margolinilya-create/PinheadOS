@@ -813,11 +813,18 @@
   /* приоритет · заказ · кол-во · срок · статус · исполнитель · готовность · действия.
      Название заказа — самая широкая колонка: по нему цех и опознаёт работу */
   grid-template-columns:
-    76px minmax(240px, 3fr) 60px 124px minmax(104px, 0.9fr) 104px 96px auto;
-  align-items: center;
-  gap: 10px;
+    76px minmax(220px, 3fr) 56px 108px minmax(150px, 1.2fr) 96px 92px auto;
+  /* start, а не center: строка со срочной датой и двумя чипами растёт по высоте,
+     и при center содержимое разъезжалось по вертикали относительно соседей */
+  align-items: start;
+  gap: 10px 12px;
   min-width: 0;
 }
+/* Grid НЕ обрезает содержимое ячейки: всё, что не влезло в трек, рисуется поверх
+   соседней колонки. Именно так «31 июл · просрочен 31 дн.» (nowrap в колонке 124px)
+   наезжало на статусы, а чип «просрочен этап» — на исполнителя. Поэтому min-width: 0
+   обязателен КАЖДОЙ ячейке, а не только тем, где есть многоточие. */
+.queueRowMain > * { min-width: 0; }
 .queueRowPriority {
   display: inline-flex;
   align-items: center;
@@ -851,8 +858,22 @@
   font-weight: 600;
   white-space: nowrap;
 }
-.queueRowDue { font-size: 12px; white-space: nowrap; }
-.queueRowStatus { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+/* Дата и просрочка — двумя строками: вместе они шире любой разумной колонки,
+   а nowrap в одну строку выносил текст поверх соседней ячейки со статусами */
+.queueRowDue {
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.queueRowDue > * { white-space: nowrap; }
+.queueRowStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
 .queueRowAssignee {
   font-size: 12px;
   overflow: hidden;
@@ -880,7 +901,7 @@
 /* Узкие экраны: строка складывается в две линии, лишние колонки прячутся */
 @media (max-width: 1100px) {
   .queueRowMain {
-    grid-template-columns: 46px minmax(160px, 2fr) 60px 120px minmax(110px, 1fr) auto;
+    grid-template-columns: 46px minmax(150px, 2fr) 52px 96px minmax(140px, 1fr) auto;
   }
   .queueRowAssignee, .queueRowProgress { display: none; }
 }
@@ -1085,15 +1106,18 @@
 }
 .tzFullscreenFrame { flex: 1; width: 100%; border: 0; background: #fff; }
 
-/* Список назначений ТЗ по цехам (карточка заказа и форма создания) */
+/* Строка «кто увидит ТЗ» (карточка заказа и форма создания).
+   Раньше это был список выпадающих выборов по цехам, теперь — справка:
+   документ принадлежит позиции и назначать его цехам не нужно. */
 .tzAssignRow {
   display: grid;
-  grid-template-columns: minmax(120px, 180px) 1fr auto;
-  align-items: center;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  align-items: start;
   gap: 8px;
   padding: 6px 0;
   border-bottom: 1px dashed var(--border-light);
 }
+.tzAssignRow > * { min-width: 0; overflow-wrap: anywhere; }
 .tzAssignRow:last-child { border-bottom: 0; }
 .tzAssignDept { font-weight: 600; }
 .tzAssignMissing { color: var(--color-error-ink); }
@@ -1106,7 +1130,10 @@
 /* Прогресс частичной готовности «300/500» */
 .progressLine { display: flex; align-items: center; gap: 8px; }
 .progressTrack {
-  flex: 1;
+  /* min-width обязателен: flex-basis 0 внутри <td> схлопывал полосу в ноль,
+     и в таблице плана от прогресса оставались только цифры «NN%» */
+  flex: 1 1 auto;
+  min-width: 56px;
   height: 6px;
   border-radius: 999px;
   background: var(--surface);
@@ -1356,7 +1383,16 @@
 .kanbanCard:active { cursor: grabbing; }
 .kanbanCardDragging { opacity: 0.4; border-style: dashed; }
 .kanbanCardBlocked { border-left: 3px solid var(--color-error); cursor: default; }
-.kanbanCardHead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+/* flex-wrap обязателен: колонка канбана жёстко 290px, и строка «500 шт · брак 12 ·
+   3 ч · 🚫» без переноса вылезала за границы карточки */
+.kanbanCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  min-width: 0;
+}
 .kanbanCardTitle {
   font-family: var(--font-display);
   font-weight: 700;
@@ -1376,7 +1412,9 @@
 .kanbanCardTitle:hover { color: var(--accent); }
 .kanbanCardFoot {
   display: flex;
-  gap: 10px;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   font-size: 11.5px;
 }
@@ -2229,23 +2267,26 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
    @media (pointer: coarse) и становится вторым источником правды по размерам. */
 .scrollHintGapTop { margin-top: var(--space-sm); }
 .scrollHintGapBottom { margin-bottom: var(--space-md); }
+/* Подсказка, а не занавес: 32px непрозрачного --card на краю закрывали первую
+   и последнюю колонку таблицы плана, а z-index 1 совпадал с липкой шапкой
+   (.table thead th) и перекрывал её. Уже 16px, полупрозрачный старт, слой ниже. */
 .scrollFade {
   position: absolute;
   top: 1px;
   bottom: 1px;
-  width: 32px;
+  width: 16px;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
 }
 .scrollFadeL {
   left: 1px;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
-  background: linear-gradient(90deg, var(--card) 15%, transparent);
+  background: linear-gradient(90deg, var(--card), transparent);
 }
 .scrollFadeR {
   right: 1px;
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  background: linear-gradient(270deg, var(--card) 15%, transparent);
+  background: linear-gradient(270deg, var(--card), transparent);
 }
 
 

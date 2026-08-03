@@ -5,7 +5,7 @@ import { useDictionary } from '../../store/useDictionary';
 import { shiftIsoDate, stageOverdue } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
-import { stageTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
+import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import { confirmDefectRollback } from '../../utils/stageDefect';
 import styles from '../../erp.module.css';
 import { DateField } from '../../components/DateField';
@@ -68,7 +68,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const problemTypes = useDictionary('problem_type');
 
   // Актуальная версия PDF-ТЗ этого цеха: назначение → группа → is_current (волна 4)
-  const tzDoc = stageTzDocument(order, item.id, stage.department_id);
+  const tzDoc = itemTzDocument(order, item.id);
 
   const [ackText, setAckText] = useState('');
   const [startMode, setStartMode] = useState(false);

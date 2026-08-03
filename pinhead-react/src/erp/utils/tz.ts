@@ -1,26 +1,33 @@
 /**
- * Технические задания в PDF (волна 4) — резолюция «этап → актуальный документ»
- * и проверка полноты назначений.
+ * Технические задания в PDF — резолюция «позиция → актуальный документ»
+ * и проверка, что ТЗ вообще есть.
  *
- * Модель: документ живёт группой версий (`group_id`), назначение цеху ссылается на
- * группу, а не на версию. Поэтому «заменил файл — у всех цехов обновилось» получается
- * само: резолюция всегда берёт `is_current` версию группы.
+ * Модель: документ живёт группой версий (`group_id`), резолюция всегда берёт
+ * `is_current` версию группы. Поэтому «заменил файл — у всех цехов обновилось»
+ * получается само.
+ *
+ * ТЗ принадлежит ПОЗИЦИИ, а не паре «позиция × цех» (правка менеджера от 2026-08-03).
+ * Внутри одной позиции техническое задание единое для всего производственного
+ * маршрута: загрузил один файл — его видят и закрой, и швейка, и ВТО, и ОТК.
+ * Прежнее поцеховое назначение (`erp_tz_assignments`) требовало выбрать один и тот же
+ * файл в N выпадающих списках и блокировало создание заказа, если хоть один пропущен.
+ *
+ * Приоритет резолюции: собственное ТЗ позиции → общее ТЗ заказа (`item_id = null`).
  *
  * Гейт заказчика двухступенчатый:
- *  1) заказ нельзя создать, пока каждому этапу маршрута не назначено ТЗ —
- *     `validateTzAssignments` (форма создания);
- *  2) этап без ТЗ не становится «Готов к запуску» — `missingTzStages`/`stageHasTz`
+ *  1) заказ нельзя создать, пока у позиции с производственным маршрутом нет ТЗ —
+ *     `validateTzDocs` (форма создания);
+ *  2) этап без ТЗ не становится «Готов к запуску» — `stageMissingTz`/`missingTzItems`
  *     (страховка для заказов, заведённых раньше, и для этапов, добавленных переносом).
  */
 
 import { isProductionDept } from '../data/departments';
 import type { ProductionDeptLike } from '../data/departments';
-import type { ErpTzAssignment, ErpTzDocument } from '../types';
+import type { ErpTzDocument } from '../types';
 
 /** Минимальная форма заказа для резолюции ТЗ (чтобы не тянуть весь ErpOrderFull) */
 export interface TzSource {
   tz_documents?: ErpTzDocument[] | null;
-  tz_assignments?: ErpTzAssignment[] | null;
   tz_required?: boolean;
 }
 
@@ -54,7 +61,7 @@ export function orderTzDocuments(order: TzSource): ErpTzDocument[] {
   return currentDocuments(order).filter((d) => d.item_id === null);
 }
 
-/** Документы конкретной позиции + общие ТЗ заказа: всё, что можно назначить её этапу */
+/** Документы конкретной позиции + общие ТЗ заказа: всё, что относится к позиции */
 export function itemTzDocuments(order: TzSource, itemId: string): ErpTzDocument[] {
   return currentDocuments(order).filter((d) => d.item_id === null || d.item_id === itemId);
 }
@@ -66,31 +73,22 @@ export function documentHistory(order: TzSource, groupId: string): ErpTzDocument
     .sort((a, b) => b.version - a.version);
 }
 
-/** Назначение на пару «позиция × цех» */
-export function tzAssignmentFor(
-  order: TzSource,
-  itemId: string,
-  departmentId: string,
-): ErpTzAssignment | null {
-  return (order.tz_assignments ?? []).find(
-    (a) => a.item_id === itemId && a.department_id === departmentId,
-  ) ?? null;
+/**
+ * Актуальное ТЗ позиции — один документ на весь её производственный маршрут.
+ * Своё ТЗ позиции имеет приоритет над общим ТЗ заказа; если своих несколько
+ * (загрузили два файла до правки), берётся последний по времени.
+ */
+export function itemTzDocument(order: TzSource, itemId: string): ErpTzDocument | null {
+  const docs = currentDocuments(order);
+  const own = docs.filter((d) => d.item_id === itemId);
+  if (own.length > 0) return own[own.length - 1];
+  const general = docs.filter((d) => d.item_id === null);
+  return general.length > 0 ? general[general.length - 1] : null;
 }
 
-/** Актуальный документ, который читает цех на этой позиции */
-export function stageTzDocument(
-  order: TzSource,
-  itemId: string,
-  departmentId: string,
-): ErpTzDocument | null {
-  const assignment = tzAssignmentFor(order, itemId, departmentId);
-  if (!assignment) return null;
-  return currentVersion(order.tz_documents, assignment.group_id);
-}
-
-/** Есть ли у этапа назначенное и реально существующее ТЗ */
-export function stageHasTz(order: TzSource, itemId: string, departmentId: string): boolean {
-  return stageTzDocument(order, itemId, departmentId) !== null;
+/** Есть ли у позиции ТЗ, которое увидит цех */
+export function itemHasTz(order: TzSource, itemId: string): boolean {
+  return itemTzDocument(order, itemId) !== null;
 }
 
 /**
@@ -122,12 +120,11 @@ export function deptNeedsTz(dept: ProductionDeptLike | null | undefined): boolea
 export function stageMissingTz(
   order: TzSource,
   itemId: string,
-  departmentId: string,
   dept?: ProductionDeptLike | null,
 ): boolean {
   if (!tzRequired(order)) return false;
   if (!deptNeedsTz(dept)) return false;
-  return !stageHasTz(order, itemId, departmentId);
+  return !itemHasTz(order, itemId);
 }
 
 /** Минимум этапа для проверки гейта */
@@ -145,17 +142,20 @@ interface GateItem {
 export interface MissingTz {
   itemId: string;
   itemLabel: string;
-  departmentId: string;
 }
 
 /**
- * Этапы маршрута без назначенного ТЗ. Пропущенные этапы (skipped) не считаются —
- * работы там не будет, требовать на них ТЗ бессмысленно.
+ * Позиции с производственным маршрутом, у которых нет ТЗ. Пропущенные этапы
+ * (skipped) не считаются — работы там не будет, требовать ТЗ бессмысленно;
+ * позиция вообще без производственных этапов (чистый подряд) в гейт не попадает.
+ *
+ * Считается по позициям, а не по парам «позиция × цех»: ТЗ у позиции одно на весь
+ * маршрут, и «швейке назначено, ОТК нет» больше не бывает по построению.
  *
  * Если у заказа `tz_required === false` (заведён до внедрения ТЗ), возвращается пусто:
  * гейт к нему не применяется.
  */
-export function missingTzStages(
+export function missingTzItems(
   order: TzSource & { items?: GateItem[] },
   /** id цеха → строка цеха: ТЗ требуют только производственные участки */
   departmentById: Map<string, ProductionDeptLike>,
@@ -163,16 +163,12 @@ export function missingTzStages(
   if (!tzRequired(order)) return [];
   const out: MissingTz[] = [];
   for (const item of order.items ?? []) {
-    for (const stage of item.stages ?? []) {
-      if (stage.status === 'skipped') continue;
-      if (!deptNeedsTz(departmentById.get(stage.department_id))) continue;
-      if (stageHasTz(order, item.id, stage.department_id)) continue;
-      out.push({
-        itemId: item.id,
-        itemLabel: itemLabel(item),
-        departmentId: stage.department_id,
-      });
-    }
+    const needsTz = (item.stages ?? []).some(
+      (stage) => stage.status !== 'skipped' && deptNeedsTz(departmentById.get(stage.department_id)),
+    );
+    if (!needsTz) continue;
+    if (itemHasTz(order, item.id)) continue;
+    out.push({ itemId: item.id, itemLabel: itemLabel(item) });
   }
   return out;
 }
@@ -183,27 +179,20 @@ export function itemLabel(item: { product_type?: string; variant?: string | null
 }
 
 /**
- * Человекочитаемое сообщение по недостающим ТЗ, сгруппированное по позициям:
- * «Невозможно создать заказ: для позиции «Футболка Regular» не назначено ТЗ
- *  швейному цеху и ОТК».
+ * Человекочитаемое сообщение по недостающим ТЗ:
+ * «Невозможно создать заказ: не загружено ТЗ для позиций «Футболка Regular» и «Худи».
  */
 export function missingTzMessage(
   missing: MissingTz[],
-  departmentNameById: Map<string, string>,
   prefix = 'Невозможно создать заказ',
 ): string | null {
   if (missing.length === 0) return null;
-  const byItem = new Map<string, { label: string; depts: string[] }>();
+  const labels: string[] = [];
   for (const m of missing) {
-    const entry = byItem.get(m.itemId) ?? { label: m.itemLabel, depts: [] };
-    const name = departmentNameById.get(m.departmentId) || 'цех';
-    if (!entry.depts.includes(name)) entry.depts.push(name);
-    byItem.set(m.itemId, entry);
+    if (!labels.includes(m.itemLabel)) labels.push(`«${m.itemLabel}»`);
   }
-  const parts = [...byItem.values()].map(
-    (e) => `для позиции «${e.label}» не назначено ТЗ: ${listRu(e.depts)}`,
-  );
-  return `${prefix}: ${parts.join('; ')}`;
+  const noun = labels.length === 1 ? 'позиции' : 'позиций';
+  return `${prefix}: не загружено ТЗ для ${noun} ${listRu(labels)}`;
 }
 
 /** «Швейка, ОТК и Закрой» — перечисление через запятую с «и» перед последним */
@@ -214,51 +203,51 @@ export function listRu(values: string[]): string {
 }
 
 /**
- * Валидация назначений в форме создания заказа: маршрут ещё не в БД, поэтому
- * позиции и этапы приходят как черновик формы, а назначения — как карта
- * «индекс позиции + код цеха → group_id».
+ * Валидация ТЗ в форме создания заказа: маршрут ещё не в БД, поэтому позиции
+ * и этапы приходят как черновик формы, а файлы — как список «индекс позиции → файл»
+ * (`itemIndex === null` — общее ТЗ заказа).
+ *
+ * Проверяется одно: у каждой позиции с производственным маршрутом есть ТЗ — своё
+ * или общее на заказ. Поцехового комплекта назначений больше нет.
  */
 export interface DraftTzItem {
-  /** Индекс позиции в форме — им же адресуются назначения в payload RPC */
+  /** Индекс позиции в форме — им же адресуются документы в payload RPC */
   index: number;
   label: string;
   /** Цеха маршрута позиции: id + отображаемое имя */
   stages: { departmentId: string; departmentName: string }[];
 }
 
+/** Файл ТЗ в черновике формы: `itemIndex === null` — общее ТЗ заказа */
+export interface DraftTzDoc {
+  itemIndex: number | null;
+  /** Загруженный в бакет файл. Незагруженный ТЗ не считается — заказ бы упал на RPC */
+  uploaded?: boolean;
+}
+
 export interface DraftTzValidation {
-  missing: { index: number; label: string; departmentId: string; departmentName: string }[];
+  missing: { index: number; label: string }[];
   message: string | null;
 }
 
-export function validateTzAssignments(
+export function validateTzDocs(
   items: DraftTzItem[],
-  /** Ключ — `${index}:${departmentId}`, значение — group_id назначенного документа */
-  assignments: Record<string, string | undefined>,
+  docs: DraftTzDoc[],
 ): DraftTzValidation {
+  const ready = docs.filter((d) => d.uploaded !== false);
+  const hasGeneral = ready.some((d) => d.itemIndex === null);
   const missing: DraftTzValidation['missing'] = [];
   for (const item of items) {
-    for (const stage of item.stages) {
-      if (assignments[`${item.index}:${stage.departmentId}`]) continue;
-      missing.push({
-        index: item.index,
-        label: item.label,
-        departmentId: stage.departmentId,
-        departmentName: stage.departmentName,
-      });
-    }
+    if (item.stages.length === 0) continue; // маршрут без производственных цехов
+    if (hasGeneral || ready.some((d) => d.itemIndex === item.index)) continue;
+    missing.push({ index: item.index, label: item.label });
   }
-  if (missing.length === 0) return { missing, message: null };
-  const byItem = new Map<number, { label: string; depts: string[] }>();
-  for (const m of missing) {
-    const entry = byItem.get(m.index) ?? { label: m.label, depts: [] };
-    if (!entry.depts.includes(m.departmentName)) entry.depts.push(m.departmentName);
-    byItem.set(m.index, entry);
-  }
-  const parts = [...byItem.values()].map(
-    (e) => `для позиции «${e.label}» не назначено ТЗ: ${listRu(e.depts)}`,
-  );
-  return { missing, message: `Невозможно создать заказ: ${parts.join('; ')}` };
+  return {
+    missing,
+    message: missingTzMessage(
+      missing.map((m) => ({ itemId: String(m.index), itemLabel: m.label })),
+    ),
+  };
 }
 
 /**
@@ -276,15 +265,60 @@ export function tzUpdatedAfterStart(
 }
 
 /**
+ * Кириллица → латиница. Нужна не для красоты: Supabase Storage проверяет ключ
+ * объекта регуляркой из S3-safe символов, где `\w` объявлен БЕЗ флага `u`, то есть
+ * только ASCII. Любая русская буква в ключе — ответ `InvalidKey`, и файл не
+ * загружается вообще. Имя для человека живёт в `erp_tz_documents.file_name`,
+ * в ключе оно нужно только чтобы объект можно было опознать глазами.
+ */
+const TRANSLIT: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z',
+  и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
+  с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch',
+  ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+};
+
+/** Транслитерация с сохранением регистра: «ТЗ» → «TZ», «Швейка» → «Shveyka» */
+export function translitAscii(value: string): string {
+  let out = '';
+  for (const ch of value) {
+    const lower = ch.toLowerCase();
+    const mapped = TRANSLIT[lower];
+    if (mapped === undefined) {
+      out += ch;
+    } else if (ch === lower) {
+      out += mapped;
+    } else {
+      out += mapped.charAt(0).toUpperCase() + mapped.slice(1);
+    }
+  }
+  return out;
+}
+
+/** Всё, что не ASCII-буква, цифра, `_`, `-` или точка, схлопывается в один «_» */
+function sanitizeKeyPart(value: string): string {
+  return value
+    .replace(/[^\w.-]+/g, '_')
+    .replace(/\.{2,}/g, '.')
+    .replace(/_{2,}/g, '_')
+    .replace(/^[._\-\s]+/, '')
+    .replace(/[._\-\s]+$/, '');
+}
+
+/**
  * Ключ хранения файла: tz/<scope>/<group_id>/v<N>-<имя>.
- * Имя обеззараживается: слэши и прочее уходят в «_», серии точек схлопываются —
- * иначе «../../» из имени файла уехало бы в ключ объекта.
+ *
+ * Имя транслитерируется и обеззараживается: результат строго ASCII (иначе Storage
+ * отвечает `InvalidKey`), слэши и скобки уходят в «_», серии точек схлопываются —
+ * иначе «../../» из имени файла уехало бы в ключ объекта. Расширение отделяется
+ * заранее: иначе имя целиком из непереводимых символов съело бы и его.
  */
 export function tzFilePath(scope: string, groupId: string, version: number, fileName: string): string {
-  const safe = (fileName || '')
-    .replace(/[^\w.\-А-Яа-яЁё ]+/g, '_')
-    .replace(/\.{2,}/g, '.')
-    .replace(/^[._\-\s]+/, '')
-    .slice(-120) || 'tz.pdf';
-  return `tz/${scope}/${groupId}/v${version}-${safe}`;
+  const raw = fileName || '';
+  const dot = raw.lastIndexOf('.');
+  const ext = dot > 0 ? sanitizeKeyPart(translitAscii(raw.slice(dot + 1))).slice(0, 8) : '';
+  // Голова, а не хвост: расширение уже отделено, а опознают файл по началу имени
+  const base = sanitizeKeyPart(sanitizeKeyPart(translitAscii(dot > 0 ? raw.slice(0, dot) : raw)).slice(0, 100));
+  const name = base || 'tz';
+  return `tz/${scope}/${groupId}/v${version}-${name}.${ext || 'pdf'}`;
 }

@@ -268,7 +268,11 @@ export interface ErpTzDocument {
   created_at: string;
 }
 
-/** Какой документ читает цех на конкретной позиции (одно ТЗ на пару позиция × цех) */
+/**
+ * @deprecated 2026-08-03. Поцеховое назначение ТЗ отменено: документ принадлежит
+ * позиции и виден всему её производственному маршруту (`itemTzDocument`).
+ * Таблица `erp_tz_assignments` осталась в схеме пустой — код её не читает и не пишет.
+ */
 export interface ErpTzAssignment {
   id: string;
   order_id: string;

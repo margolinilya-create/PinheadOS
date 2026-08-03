@@ -5,7 +5,7 @@ import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { stageQtyProgress } from '../../utils/progress';
 import { STAGE_STATUS_LABELS } from '../../types';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
-import { stageTzDocument } from '../../utils/tz';
+import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
@@ -33,7 +33,10 @@ export function QueueRow({
   const progress = stageQtyProgress(stage, item.qty);
   const display = group === 'ready' ? 'ready' : stage.status;
   // Индикатор ТЗ: сначала реальный PDF цеха (волна 4), иначе структурное ТЗ позиции
-  const tzDoc = stageTzDocument(order, item.id, stage.department_id);
+  const tzDoc = itemTzDocument(order, item.id);
+  // ТЗ заменили уже после того, как цех взял задание: без бейджа исполнитель
+  // доделает по старому файлу. В панели действий он был, в строке очереди — нет
+  const tzUpdated = tzUpdatedAfterStart(tzDoc, stage);
   const hasTz = (item.prints ?? []).length > 0 || (item.size_grid ?? []).length > 0;
 
   return (
@@ -107,11 +110,13 @@ export function QueueRow({
 
         <span className={styles.queueRowQty}>{item.qty} шт</span>
 
+        {/* Дата и просрочка — отдельными строками: вместе они не помещались в колонку
+            и рисовались поверх статусов (grid содержимое ячейки не обрезает) */}
         <span className={styles.queueRowDue}>
-          {order.due_date ? formatDateShort(order.due_date) : '—'}
+          <span>{order.due_date ? formatDateShort(order.due_date) : '—'}</span>
           {d !== null && (
             <span className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
-              {d >= 0 ? ` · ${d} дн.` : ` · просрочен ${-d} дн.`}
+              {d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`}
             </span>
           )}
         </span>
@@ -123,6 +128,11 @@ export function QueueRow({
           {overdue && (
             <span className={`${styles.chip} ${styles.chipBlocked}`}>
               <Icon name="clock" size={13} /> просрочен этап
+            </span>
+          )}
+          {tzUpdated && (
+            <span className={`${styles.chip} ${styles.chipWaiting}`} title="ТЗ заменили после начала работы — сверьтесь с актуальной версией">
+              <Icon name="file" size={13} /> ТЗ обновлено
             </span>
           )}
           {tzDoc ? (

@@ -24,7 +24,8 @@ import {
 import { buildItemRoute } from '../../utils/routes';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
-import { deptNeedsTz, tzFilePath, validateTzAssignments } from '../../utils/tz';
+import { deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
+import { translateSupabaseError } from '../../../utils/i18n';
 import { currentActor } from '../../store/shared';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -42,9 +43,9 @@ import { TzSection } from './create/TzSection';
 import { ItemBlock } from './create/ItemBlock';
 
 /**
- * Позиции с их производственными этапами — то, чему нужно назначить ТЗ.
- * Маршрут считается тем же `buildItemRoute`, что и в сторе, поэтому превью
- * в форме не расходится с фактом. ТЗ требуют только производственные цеха
+ * Позиции с их производственными этапами — те, кому нужно ТЗ, и цеха, которые
+ * его увидят. Маршрут считается тем же `buildItemRoute`, что и в сторе, поэтому
+ * превью в форме не расходится с фактом. ТЗ требуют только производственные цеха
  * (`deptNeedsTz`): закупке и складам PDF не адресуется.
  */
 function buildTzItems(items, deptByCode) {
@@ -126,13 +127,44 @@ export function CreateOrderModal({ onClose }) {
   const tzItems = useMemo(() => buildTzItems(items, deptByCode), [items, deptByCode]);
 
   /**
-   * ТЗ в PDF (волна 4). File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
+   * ТЗ в PDF. File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
    * через JSON.stringify, и File сериализовался бы в {} молча.
-   * tzDocs: { groupId, itemIndex (null = общее ТЗ заказа), file }
-   * tzAssign: `${индекс позиции}:${id цеха}` → groupId
+   * tzDocs: { groupId, itemIndex (null = общее ТЗ заказа), file, state, error, path }
+   *
+   * ТЗ принадлежит позиции: назначать документ каждому цеху больше не нужно —
+   * файл виден всему производственному маршруту позиции (правка 2026-08-03).
+   *
+   * Файл уходит в бакет СРАЗУ при выборе, а не в сабмите. Раньше загрузка шла
+   * только по «Создать заказ»: интерфейс показывал приложенный файл, которого
+   * в Storage ещё не было, и первую же ошибку человек видел вместо созданного заказа.
    */
   const [tzDocs, setTzDocs] = useState([]);
-  const [tzAssign, setTzAssign] = useState({});
+  const tzUploading = tzDocs.some((d) => d.state === 'uploading');
+  const tzFailed = tzDocs.some((d) => d.state === 'error');
+
+  /**
+   * Путь детерминированный (`group_id` живёт в стейте формы), поэтому `upsert: true`:
+   * повторная попытка перезаписывает свой же файл. Чужой затереть нельзя — group_id
+   * генерирует клиент. Ключ строго ASCII (`tzFilePath`): Storage отвечает InvalidKey
+   * на кириллицу, и именно на этом ломалось создание любого заказа с русским ТЗ.
+   */
+  const uploadTzFile = async (groupId, file) => {
+    const path = tzFilePath('new', groupId, 1, file.name);
+    const { error } = await supabase.storage
+      .from(TZ_BUCKET)
+      .upload(path, file, { contentType: TZ_MIME, upsert: true });
+    setTzDocs((arr) => arr.map((d) => {
+      if (d.groupId !== groupId) return d;
+      if (!error) return { ...d, state: 'uploaded', error: null, path };
+      return {
+        ...d,
+        state: 'error',
+        error: navigator.onLine === false
+          ? 'нет сети'
+          : translateSupabaseError(error.message),
+      };
+    }));
+  };
 
   const addTzDoc = (file, itemIndex) => {
     if (!file) return;
@@ -146,34 +178,25 @@ export function CreateOrderModal({ onClose }) {
       return;
     }
     const groupId = crypto.randomUUID();
-    setTzDocs((arr) => [...arr, { groupId, itemIndex, file }]);
-    /**
-     * Только что загруженный файл сразу проставляем во все ещё не заполненные
-     * строки своей области: для типового случая «один PDF на позицию» ручной
-     * выбор не нужен вовсе, а маршрут (tzItems) от загрузки файла не зависит.
-     * Уже сделанный выбор не трогаем — подстановка не переигрывает человека.
-     */
-    setTzAssign((m) => {
-      const next = { ...m };
-      for (const ti of buildTzItems(items, deptByCode)) {
-        if (itemIndex !== null && ti.index !== itemIndex) continue;
-        for (const st of ti.stages) {
-          const key = `${ti.index}:${st.departmentId}`;
-          if (!next[key]) next[key] = groupId;
-        }
-      }
-      return next;
-    });
+    setTzDocs((arr) => [...arr, { groupId, itemIndex, file, state: 'uploading', error: null, path: null }]);
+    uploadTzFile(groupId, file);
+  };
+
+  /** Повторная загрузка после сбоя: перезаливается только файл, форма не трогается */
+  const retryTzDoc = (groupId) => {
+    const doc = tzDocs.find((d) => d.groupId === groupId);
+    if (!doc) return;
+    setTzDocs((arr) => arr.map((d) => (
+      d.groupId === groupId ? { ...d, state: 'uploading', error: null } : d)));
+    uploadTzFile(groupId, doc.file);
   };
 
   const removeTzDoc = (groupId) => {
     setTzDocs((arr) => arr.filter((d) => d.groupId !== groupId));
-    setTzAssign((m) => Object.fromEntries(
-      Object.entries(m).filter(([, g]) => g !== groupId)));
   };
 
-  // Удаление позиции сдвигает индексы — переклеиваем ключи ТЗ, иначе следующая
-  // позиция унаследовала бы чужие назначения
+  // Удаление позиции сдвигает индексы — пересобираем привязку файлов ТЗ,
+  // иначе следующая позиция унаследовала бы чужой документ
   const removeItem = async (i) => {
     // Позиция может содержать размерную сетку на несколько цветов × 7 размеров,
     // нанесения и приложенные к ней ТЗ — один промах стирал полчаса ввода
@@ -196,11 +219,6 @@ export function CreateOrderModal({ onClose }) {
     setTzDocs((arr) => arr
       .filter((d) => d.itemIndex !== i)
       .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) })));
-    setTzAssign((m) => Object.fromEntries(
-      Object.entries(m)
-        .map(([key, g]) => [key.split(':'), g])
-        .filter(([[idx]]) => Number(idx) !== i)
-        .map(([[idx, dept], g]) => [`${shift(Number(idx))}:${dept}`, g])));
   };
 
   /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
@@ -227,8 +245,11 @@ export function CreateOrderModal({ onClose }) {
 
 
   const tzValidation = useMemo(
-    () => validateTzAssignments(tzItems, tzAssign),
-    [tzItems, tzAssign],
+    () => validateTzDocs(
+      tzItems,
+      tzDocs.map((d) => ({ itemIndex: d.itemIndex, uploaded: d.state === 'uploaded' })),
+    ),
+    [tzItems, tzDocs],
   );
 
 
@@ -327,22 +348,30 @@ export function CreateOrderModal({ onClose }) {
       return;
     }
     const validItems = items.filter((it) => it.product_type.trim() && effectiveQty(it) > 0);
-    // Гейт ТЗ (решение заказчика): без назначенного ТЗ на каждый производственный
-    // этап заказ не создаётся. Кнопка уже заблокирована — это страховка от Enter.
+    // Гейт ТЗ (решение заказчика): у позиции с производственным маршрутом должно быть
+    // ТЗ — своё или общее на заказ. Кнопка уже заблокирована, это страховка от Enter.
     if (tzValidation.missing.length > 0) {
       setOpen((o) => ({ ...o, tz: true }));
       toast.error(tzValidation.message);
+      return;
+    }
+    if (tzUploading || tzFailed) {
+      setOpen((o) => ({ ...o, tz: true }));
+      toast.error(tzUploading
+        ? 'ТЗ ещё загружается — дождитесь окончания'
+        : 'ТЗ не загрузилось — повторите загрузку файла или уберите его');
       return;
     }
 
     setSaving(true);
 
     /**
-     * Файлы ТЗ грузим ДО создания заказа, а сам заказ вместе с документами и
-     * назначениями создаётся одной транзакцией (RPC erp_create_order, секция tz).
-     * Иначе при сбое дозагрузки остался бы заказ без ТЗ — ровно то, что запрещено.
-     * Цена: файлы-сироты в tz/new/, если RPC упадёт; удалять из бакета клиент не может
-     * (политика delete — только admin), поэтому префикс намеренно отдельный.
+     * Файлы ТЗ уже лежат в бакете (грузятся при выборе), заказ вместе с документами
+     * создаётся одной транзакцией (RPC erp_create_order, секция tz). Иначе при сбое
+     * дозагрузки остался бы заказ без ТЗ — ровно то, что запрещено.
+     * Цена: файлы-сироты в tz/new/, если RPC упадёт или форму закроют; удалять из
+     * бакета клиент не может (политика delete — только admin), поэтому префикс
+     * намеренно отдельный.
      */
     const formToPayloadIndex = new Map(
       items
@@ -353,49 +382,23 @@ export function CreateOrderModal({ onClose }) {
     const actor = currentActor();
     const tzDocuments = [];
     for (const d of tzDocs) {
+      if (d.state !== 'uploaded' || !d.path) continue;
       const itemIndex = d.itemIndex === null ? null : formToPayloadIndex.get(d.itemIndex);
       if (d.itemIndex !== null && itemIndex === undefined) continue; // позиция выпала из заказа
-      const path = tzFilePath('new', d.groupId, 1, d.file.name);
-      // upsert обязателен: путь детерминированный (group_id живёт в стейте формы и
-      // при повторном сабмите тот же), поэтому после любого сбоя — оборванной сети
-      // или упавшего RPC — вторая попытка перезаписывает свой же файл. С upsert:false
-      // она получала Duplicate, и форма становилась тупиком: сколько ни жми «Создать»,
-      // ошибка та же. Чужой файл затереть нельзя — group_id генерирует клиент.
-      const { error: upErr } = await supabase.storage
-        .from(TZ_BUCKET)
-        .upload(path, d.file, { contentType: TZ_MIME, upsert: true });
-      if (upErr) {
-        toast.error(`Не удалось загрузить ТЗ «${d.file.name}» — заказ не создан, попробуйте ещё раз`);
-        setSaving(false);
-        return;
-      }
       tzDocuments.push({
         group_id: d.groupId,
         item_index: itemIndex ?? null,
-        file_path: path,
+        file_path: d.path,
         file_name: d.file.name,
         mime_type: TZ_MIME,
         size_bytes: d.file.size,
         uploaded_by: actor,
       });
     }
-    const usedGroups = new Set(tzDocuments.map((d) => d.group_id));
-    const tzAssignments = Object.entries(tzAssign)
-      .map(([key, groupId]) => {
-        const [formIndex, departmentId] = key.split(':');
-        return { itemIndex: formToPayloadIndex.get(Number(formIndex)), departmentId, groupId };
-      })
-      .filter((a) => a.itemIndex !== undefined && usedGroups.has(a.groupId))
-      .map((a) => ({
-        item_index: a.itemIndex,
-        department_id: a.departmentId,
-        group_id: a.groupId,
-        assigned_by: actor,
-      }));
-
     const created = await createOrder({
       tz_required: true,
-      tz: { documents: tzDocuments, assignments: tzAssignments },
+      // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
+      tz: { documents: tzDocuments, assignments: [] },
       bitrix_id: form.bitrix_id.trim() || undefined,
       title: form.title.trim(),
       customer: form.customer.trim() || undefined,
@@ -466,9 +469,14 @@ export function CreateOrderModal({ onClose }) {
   const itemsSummary =
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
-  const tzSummary = tzValidation.missing.length > 0
-    ? `не назначено: ${tzValidation.missing.length}`
-    : `${tzDocs.length} ${pluralize(tzDocs.length, 'файл', 'файла', 'файлов')} · назначено`;
+  const tzUploaded = tzDocs.filter((d) => d.state === 'uploaded').length;
+  const tzSummary = tzUploading
+    ? 'загружается…'
+    : tzFailed
+      ? 'ошибка загрузки'
+      : tzValidation.missing.length > 0
+        ? `нет ТЗ у позиций: ${tzValidation.missing.length}`
+        : `${tzUploaded} ${pluralize(tzUploaded, 'файл', 'файла', 'файлов')} · загружено`;
   const extraSummary = [
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
@@ -640,10 +648,9 @@ export function CreateOrderModal({ onClose }) {
         <TzSection
           tzItems={tzItems}
           tzDocs={tzDocs}
-          tzAssign={tzAssign}
           addTzDoc={addTzDoc}
           removeTzDoc={removeTzDoc}
-          setTzAssign={setTzAssign}
+          retryTzDoc={retryTzDoc}
         />
         </FormSection>
 
@@ -760,10 +767,16 @@ export function CreateOrderModal({ onClose }) {
               Проверьте: {validation.invalid.join(', ')}
             </span>
           )}
-          {/* Требование заказчика: без ТЗ кнопка недоступна СРАЗУ, с конкретной причиной */}
-          {tzValidation.message && (
+          {/* Требование заказчика: без ТЗ кнопка недоступна СРАЗУ, с конкретной причиной.
+              Незавершённая загрузка — та же история: пока файла нет в бакете, заказ
+              создавать нельзя, и человек должен видеть, чего ждёт */}
+          {(tzUploading || tzFailed || tzValidation.message) && (
             <span className={`${styles.remainingHint} ${styles.tzAssignMissing}`} role="status">
-              {tzValidation.message}
+              {tzUploading
+                ? 'ТЗ загружается — дождитесь окончания'
+                : tzFailed
+                  ? 'ТЗ не загрузилось — повторите загрузку файла или уберите его'
+                  : tzValidation.message}
             </span>
           )}
           <button type="button" className="btn btn-ghost" onClick={requestClose}>Отмена</button>
@@ -771,6 +784,8 @@ export function CreateOrderModal({ onClose }) {
             type="submit"
             className="btn btn-primary"
             disabled={saving
+              || tzUploading
+              || tzFailed
               || tzValidation.missing.length > 0
               || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}
           >

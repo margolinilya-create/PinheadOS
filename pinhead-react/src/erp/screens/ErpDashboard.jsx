@@ -115,7 +115,7 @@ export default function ErpDashboard() {
           else if (stage.status === 'blocked') slot.blocked += 1;
           else if (stage.status === 'waiting' && isStageReady(
             stage, item.stages, materialsForItem(order.materials, item.id), slot.dept.code, false,
-            stageMissingTz(order, item.id, stage.department_id, slot.dept))) {
+            stageMissingTz(order, item.id, slot.dept))) {
             slot.ready += 1;
           }
         }
