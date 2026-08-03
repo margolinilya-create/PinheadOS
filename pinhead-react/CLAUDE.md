@@ -404,7 +404,7 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test      # 1754 unit теста (Vitest)
+npm run test      # 1765 unit тестов (Vitest)
 npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
 npm run e2e       # E2E (Playwright, 11 файлов, 96 сценариев desktop + 13 mobile).
                   # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
