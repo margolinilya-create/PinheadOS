@@ -32,16 +32,59 @@ const AUDIT_FIELD_LABELS = {
   no_chestny_znak: 'Без Честного знака',
   planned_start: 'План этапа: начало',
   planned_end: 'План этапа: конец',
+
+  // Поля из общего триггера аудита (B5). Префикс обязателен: `status` есть
+  // и у заказа, и у этапа, и у материала, а `field_name` в аудите один на всех —
+  // без него смена статуса материала подписывалась бы «Статус заказа».
+  'stage.status': 'Этап: статус',
+  'stage.qty_done': 'Этап: сделано',
+  'stage.qty_rework': 'Этап: в переделку',
+  'stage.assignee': 'Этап: исполнитель',
+  'stage.department_id': 'Этап: цех',
+  'stage.block_reason': 'Этап: причина блокировки',
+
+  'material.status': 'Материал: статус',
+  'material.accept_status': 'Материал: приёмка',
+  'material.qty_expected': 'Материал: ожидается',
+  'material.qty_received': 'Материал: принято',
+  'material.eta_date': 'Материал: ожидаемая дата',
+  'material.supplier': 'Материал: поставщик',
+  'material.responsible': 'Материал: ответственный',
+  'material.name': 'Материал: название',
+  'material.kind': 'Материал: вид',
+
+  'item.qty': 'Позиция: тираж',
+  'item.product_type': 'Позиция: изделие',
+  'item.variant': 'Позиция: вариант',
+  'item.notes': 'Позиция: заметка',
+
+  'procurement.status': 'Закупка: статус',
+  'procurement.required_qty': 'Закупка: нужно',
+  'procurement.supplier': 'Закупка: поставщик',
+  'procurement.planned_date': 'Закупка: плановая дата',
+  'procurement.responsible': 'Закупка: ответственный',
+
+  'subcontract.status': 'Подряд: статус',
+  'subcontract.contractor': 'Подряд: подрядчик',
+  'subcontract.qty': 'Подряд: количество',
+  'subcontract.planned_date': 'Подряд: плановая дата',
+  'subcontract.returned_date': 'Подряд: возвращено',
+  'subcontract.delay_comment': 'Подряд: причина задержки',
 };
 
 /** Поля-даты аудита — показываем в русском формате */
 const AUDIT_DATE_FIELDS = new Set([
   'launch_date', 'due_date', 'delivered_at', 'planned_start', 'planned_end',
+  'material.eta_date', 'procurement.planned_date',
+  'subcontract.planned_date', 'subcontract.returned_date',
 ]);
 
 /** Читабельные значения аудита: статусы, даты и флаги — на русском */
 function auditValue(field, v) {
   if (v == null || v === '') return '—';
+  // Статус этапа — своя машина состояний, а не статус заказа. Раньше поле
+  // называлось одинаково у обоих, и подмена лейбла была бы незаметной.
+  if (field === 'stage.status') return STAGE_STATUS_LABELS[v] || v;
   if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
   if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
   if (field === 'packaging') return PACKAGING_LABELS[v] || v;
