@@ -2756,3 +2756,8 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   opacity: 0.6;
 }
 .kanbanLaneEmpty .kanbanLaneTitle { margin-bottom: 0; }
+
+/* Отключённая строка таблицы (soft-delete): приглушена, но читаема.
+   Был инлайновый opacity — он бьёт медиазапросы и становится вторым
+   источником правды по виду строки. */
+.rowDisabled { opacity: 0.55; }

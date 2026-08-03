@@ -100,6 +100,23 @@ export default function EmployeesScreen({ embedded = false }) {
     if (ok) await updateProfile(p.id, { active: false, approved: false });
   };
 
+  /**
+   * Отключение сотрудника БЕЗ профиля шло без подтверждения, хотя соседняя
+   * кнопка «Отключить» у пользователя с профилем его спрашивает. Действие
+   * одинаково видимое (человек пропадает из очередей и назначений), значит
+   * и спрашивать надо одинаково — иначе правило «деструктивное подтверждаем»
+   * держится на том, какую из двух кнопок нажали.
+   */
+  const onDisableEmployee = async (emp) => {
+    const ok = await confirm({
+      title: `Отключить сотрудника «${emp.full_name}»?`,
+      message: 'Он пропадёт из списков исполнителей и назначений. Запись не удаляется — сотрудника можно вернуть.',
+      confirmLabel: 'Отключить',
+      variant: 'danger',
+    });
+    if (ok) await updateEmployee(emp.id, { active: false });
+  };
+
   return (
     <>
       {!embedded && (
@@ -147,7 +164,7 @@ export default function EmployeesScreen({ embedded = false }) {
                 const emp = empByProfile.get(p.id);
                 const st = statusChip(p);
                 return (
-                  <tr key={p.id} style={p.active === false ? { opacity: 0.55 } : undefined}>
+                  <tr key={p.id} className={p.active === false ? styles.rowDisabled : undefined}>
                     <td>
                       <strong>{p.name || '—'}</strong>
                       {p.id === me?.id && <span className={styles.subText}> · вы</span>}
@@ -245,7 +262,7 @@ export default function EmployeesScreen({ embedded = false }) {
             <tbody>
               {looseEmployees.map((emp) => {
                 return (
-                  <tr key={emp.id} style={emp.active ? undefined : { opacity: 0.55 }}>
+                  <tr key={emp.id} className={emp.active ? undefined : styles.rowDisabled}>
                     <td><strong>{emp.full_name}</strong></td>
                     <td>
                       <select
@@ -285,7 +302,10 @@ export default function EmployeesScreen({ embedded = false }) {
                         <Button
                           variant="ghost"
                           aria-label={`Отключить ${emp.full_name}`}
-                          onClick={() => updateEmployee(emp.id, { active: false })}><Icon name="x" size={15} /></Button>
+                          onClick={() => onDisableEmployee(emp)}
+                        >
+                          <Icon name="x" size={15} />
+                        </Button>
                       ) : (
                         <Button
                           variant="ghost"

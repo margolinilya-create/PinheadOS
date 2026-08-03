@@ -17,6 +17,7 @@ import { onTabListKeyDown } from '../../utils/tabs';
 import styles from '../../erp.module.css';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
+import { confirm } from '../../../store/useConfirmStore';
 
 /**
  * Справочники производства (правка 12) — редактируются руководством, без правки кода:
@@ -55,6 +56,25 @@ function DictionaryList({ kind }) {
     );
   const [draft, setDraft] = useState('');
   const [showHidden, setShowHidden] = useState(false);
+
+  /**
+   * Отключение значения справочника — через подтверждение, как и остальные
+   * видимые действия админки. Значения тут именно ОТКЛЮЧАЮТСЯ, а не удаляются
+   * (правило проекта), и текст обязан это говорить: иначе кнопка выглядит
+   * удалением, и её боятся нажимать.
+   */
+  const onToggleActive = async (item) => {
+    if (!item.active) {
+      await updateDictionaryItem(item.id, { active: true });
+      return;
+    }
+    const ok = await confirm({
+      title: `Отключить «${item.name}»?`,
+      message: 'Значение перестанет предлагаться в подсказках. Уже проставленные записи не меняются, вернуть его можно здесь же.',
+      confirmLabel: 'Отключить',
+    });
+    if (ok) await updateDictionaryItem(item.id, { active: false });
+  };
 
   const items = useMemo(
     () => dictionaries
@@ -146,7 +166,7 @@ function DictionaryList({ kind }) {
                   <td>
                     <Button
                       variant="ghost"
-                      onClick={() => updateDictionaryItem(item.id, { active: !item.active })}>
+                      onClick={() => onToggleActive(item)}>
                       {item.active
                         ? (
                           <span className={styles.cellWithIcon}>
