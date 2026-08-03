@@ -15,10 +15,11 @@ import { ERP_PERMISSIONS } from '../types';
  * который так же читает исходники.
  */
 
-const SQL = readFileSync(
-  join(process.cwd(), '../supabase/migrations/20260803160000_erp_permissions_server_side.sql'),
-  'utf8',
-);
+const migration = (name: string) =>
+  readFileSync(join(process.cwd(), '../supabase/migrations', name), 'utf8');
+
+const SQL = migration('20260803160000_erp_permissions_server_side.sql');
+const STAGE_SQL = migration('20260803180000_erp_stage_guard.sql');
 
 describe('серверная резолюция роли повторяет клиентскую', () => {
   it('admin и director профиля приводятся к цеховой роли director', () => {
@@ -86,5 +87,64 @@ describe('серверный гейт плана', () => {
     expect(ERP_PERMISSIONS).toContain('plan.manage');
     expect(ERP_PERMISSIONS).toContain('plan.fact');
     expect(DEFAULT_PERMISSIONS.production_head).toContain('plan.manage');
+  });
+});
+
+/**
+ * Страж этапов (`erp_stage_guard`) — самое опасное место серверных прав: ошибка
+ * здесь останавливает цех. Правило одно: страж разрешает ровно то, что разрешает
+ * интерфейс. Сервер строже клиента — это «кнопка есть, а действие падает», и
+ * виноватым выглядит цех; сервер мягче — дыра.
+ *
+ * Тест закрепляет соответствие «действие интерфейса → право», чтобы правка
+ * стража не разошлась с `useStagePermissions`.
+ */
+describe('страж этапов повторяет гейты интерфейса', () => {
+  it('однозначные действия требуют своего права', () => {
+    expect(STAGE_SQL).toMatch(/queue_position is distinct from old\.queue_position and not v_priority/);
+    expect(STAGE_SQL).toMatch(/department_id is distinct from old\.department_id and not v_move/);
+    expect(STAGE_SQL).toMatch(/qty_rework[\s\S]{0,120}not v_defect/);
+  });
+
+  /**
+   * `reportProgress` закрывает этап сам, когда факт добрал тираж, — значит права
+   * `stage.progress` для перехода в done достаточно, ровно как в интерфейсе.
+   * Перенос закрывает исходный этап, отсюда же `move`.
+   */
+  it('завершение этапа принимает progress и move, а не только complete', () => {
+    expect(STAGE_SQL).toMatch(/not \(v_complete or v_progress or v_move\)/);
+  });
+
+  it('возврат брака переоткрывает этапы, поэтому defect пускает в in_progress и waiting', () => {
+    expect(STAGE_SQL).toMatch(/not \(v_take or v_move or v_defect\)/);
+    expect(STAGE_SQL).toMatch(/not \(v_defect or v_move\)/);
+  });
+
+  it('блокировка и её снятие — одно право', () => {
+    expect(STAGE_SQL).toMatch(/new\.status = 'blocked'[\s\S]{0,160}not v_block/);
+    expect(STAGE_SQL).toMatch(/old\.status = 'blocked'[\s\S]{0,160}not v_block/);
+  });
+
+  it('без единого права на этапы задание не трогается вовсе', () => {
+    expect(STAGE_SQL).toMatch(/if not v_any then/);
+  });
+
+  /**
+   * Колонка «План» в карточке заказа (`PlanCell` → `setStagePlan`) правами
+   * не гейтится вовсе. Повесить проверку на плановые даты значило бы отобрать
+   * у менеджера то, что он делает сегодня, — это поломка, а не ужесточение.
+   */
+  it('плановые даты этапа НЕ охраняются — иначе ломается колонка «План»', () => {
+    expect(STAGE_SQL).not.toMatch(/new\.planned_start\s+is distinct from old\.planned_start/);
+    expect(STAGE_SQL).not.toMatch(/new\.planned_end\s+is distinct from old\.planned_end/);
+  });
+
+  it('появление этапов открыто создателю заказа и переносящему задание', () => {
+    // erp_create_order — security invoker, то есть исполняется от лица создающего
+    expect(STAGE_SQL).toMatch(/erp_item_stages_insert[\s\S]*order\.manage[\s\S]*stage\.move_department/);
+  });
+
+  it('service_role страж пропускает — иначе не починить данные через SQL', () => {
+    expect(STAGE_SQL).toMatch(/auth\.uid\(\)\) is null/);
   });
 });
