@@ -132,3 +132,61 @@ test.describe('Модалка на телефоне', () => {
     await expect(submit).toBeInViewport();
   });
 });
+
+/**
+ * Производственный план на телефоне.
+ *
+ * Экран исключён из mobile-проекта в конфиге, и правильно: недельная доска
+ * из пяти колонок на 375px — не desktop-разметка в меньшем масштабе. Но и без
+ * покрытия он оставаться не должен: ниже 760px колонка дня занимает 88vw
+ * и доска листается вбок — это осознанный мобильный вид, а не побочный эффект.
+ * Поэтому проверяем его здесь, своим сценарием.
+ */
+test.describe('План производства на телефоне', () => {
+  // Слоты фикстур стоят на неделе 20 июля — время у этого блока своё
+  test.beforeEach(async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-07-20T09:00:00'));
+  });
+
+  test('колонка дня занимает почти всю ширину, доска листается вбок', async ({ page }) => {
+    await page.goto('/plan?dept=cutting&studio=0');
+    await expect(page.getByRole('heading', { name: 'План производства' })).toBeVisible();
+
+    const day = page.getByText('Понедельник').locator('..').locator('..');
+    const box = await day.boundingBox();
+    expect(box).not.toBeNull();
+    // 88vw от 375px — колонка шире половины экрана, но в него влезает
+    expect(box!.width).toBeGreaterThan(280);
+    expect(box!.width).toBeLessThanOrEqual(375);
+  });
+
+  test('страница не уезжает вбок — прокрутка только внутри доски', async ({ page }) => {
+    await page.goto('/plan?dept=cutting&studio=0');
+    await expect(page.getByRole('heading', { name: 'План производства' })).toBeVisible();
+
+    // Горизонтально прокручивается доска, а не документ: иначе уезжает вся страница
+    const docOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(docOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test('сводка «Все цеха» читается без горизонтальной прокрутки страницы', async ({ page }) => {
+    await page.goto('/plan?studio=0');
+    await expect(page.getByRole('tab', { name: 'Все цеха' })).toHaveAttribute('aria-selected', 'true');
+    const docOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(docOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test('в план можно попасть из выезжающего меню', async ({ page }) => {
+    await page.goto('/?studio=0');
+    await page.getByRole('button', { name: 'Меню', exact: true }).click();
+    await page.getByRole('complementary').getByRole('link', { name: 'План производства' }).click();
+    await expect(page).toHaveURL(/\/plan/);
+    // Меню обязано закрыться, иначе план остаётся под оверлеем
+    await expect(page.getByRole('button', { name: 'Меню', exact: true }))
+      .toHaveAttribute('aria-expanded', 'false');
+  });
+});

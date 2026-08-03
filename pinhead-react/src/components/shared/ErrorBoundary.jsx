@@ -1,6 +1,7 @@
 import { Component } from 'react';
 // eslint-disable-next-line no-unused-vars
 import styles from './ErrorBoundary.module.css';
+import { reportError } from '../../lib/errorReport';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -14,6 +15,9 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary]', error, info?.componentStack);
+    // Консоль остаётся для разработки, но о белом экране в цеху по ней
+    // не узнать: отчёт уходит наружу, если приёмник настроен (C7 аудита).
+    reportError(error, 'render', info?.componentStack);
   }
 
   handleReload = () => {

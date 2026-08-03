@@ -7,11 +7,17 @@ import { useStore } from './store/useStore'
 import { useAuthStore } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
 import { FEATURES } from './config/features'
+import { installGlobalErrorReporting, reportError } from './lib/errorReport'
+
+// Ошибки вне React (события, таймеры, промисы) до ErrorBoundary не доходят.
+// Тост остаётся пользователю, отчёт уходит наружу — если приёмник настроен.
+installGlobalErrorReporting();
 
 // Catch unhandled promise rejections globally
 window.addEventListener('unhandledrejection', (event) => {
   const msg = event.reason?.message || String(event.reason || 'Неизвестная ошибка');
   console.error('[unhandledrejection]', event.reason);
+  reportError(event.reason, 'promise');
   toast.error(msg);
 });
 
