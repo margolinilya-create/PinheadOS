@@ -291,7 +291,7 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test     # 1369 unit тестов (Vitest)
+npm run test     # 1550 unit тестов (Vitest)
 npm run e2e      # E2E (Playwright, 9 файлов). Локально нужен временный конфиг с
                  # executablePath: '/opt/pw-browsers/chromium' — @playwright/test
                  # ждёт сборку 1208, а предустановлена 1194

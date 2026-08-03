@@ -107,6 +107,7 @@ supabase/
 | `/queue`, `/queue/:deptCode` | DepartmentQueue (очередь участка) | Все |
 | `/task/:stageId` | ProductionTask (производственное задание) | Все |
 | `/plan` | PlanScreen (недельный план производства) | Все (правка — `plan.manage`) |
+| `/load` | DeptLoad (загрузка цехов из плановых дат этапов) | Все |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
 | `/admin` | AdminScreen (пользователи, права, цеха, справочники, заказы ТЗ) | admin, director |
 
