@@ -25,6 +25,11 @@ const mockChain = {
 vi.mock('./lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => mockChain),
+    // Пакетные запросы (`erp_bootstrap`, `erp_order_detail`, `erp_create_order`)
+    // ходят через rpc, а не through from(). Без заглушки это не «нет данных»,
+    // а TypeError: supabase.rpc is not a function — то есть слайс падал бы
+    // в тестах по причине, которой в проде нет.
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     channel: vi.fn(() => {
       const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
       return ch;

@@ -416,7 +416,9 @@ export function CreateOrderModal({ onClose }) {
         uploaded_by: actor,
       });
     }
-    const created = await createOrder({
+    let created = null;
+    try {
+    created = await createOrder({
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
@@ -472,7 +474,13 @@ export function CreateOrderModal({ onClose }) {
     if (created && previewFile) {
       await uploadOrderPreview(created.id, previewFile);
     }
-    setSaving(false);
+    } finally {
+      // `setSaving(false)` обязан быть в finally. Внутри два сетевых вызова,
+      // и брошенное исключение (нет сети, CORS) оставило бы кнопку в
+      // «Создание…» навсегда — вместе со всем заполненным заказом, который
+      // человек набирал минутами. Сообщение об ошибке показывает стор.
+      setSaving(false);
+    }
     if (created) {
       clearOrderDraft();
       toast.success(`Заказ «${created.title}» создан, маршрут построен`);

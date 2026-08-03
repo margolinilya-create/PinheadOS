@@ -208,12 +208,22 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
      * данные сразу и обновляет фоном.
      */
     const fetcher = async () => {
-      const { data, error } = await supabase.rpc('erp_order_detail', { p_order_id: orderId });
-      if (error) {
+      // try/catch наравне с проверкой `error`: supabase-js возвращает `error`
+      // на ответ сервера и БРОСАЕТ, когда ответа не было (нет сети, CORS).
+      // Без второй ветки карточка остаётся на скелетоне навсегда — экран
+      // ждёт данных, которых уже не будет, и ошибку никто не показал.
+      try {
+        const { data, error } = await supabase.rpc('erp_order_detail', { p_order_id: orderId });
+        if (error) {
+          toast.error('Не удалось загрузить историю заказа');
+          return null;
+        }
+        return data as ErpOrderBundle;
+      } catch (e) {
+        console.error('[loadDetail]', e);
         toast.error('Не удалось загрузить историю заказа');
         return null;
       }
-      return data as ErpOrderBundle;
     };
     if (force) invalidate(orderBundleKey(orderId));
     return cachedQuery(orderBundleKey(orderId), fetcher);
@@ -321,13 +331,24 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       tz: tz ?? { documents: [], assignments: [] },
     };
 
-    const { data, error } = await supabase.rpc('erp_create_order', { payload });
-    if (error || !data) {
-      toast.error('Не удалось создать заказ');
+    let newId: string;
+    try {
+      const { data, error } = await supabase.rpc('erp_create_order', { payload });
+      if (error || !data) {
+        toast.error('Не удалось создать заказ');
+        return null;
+      }
+      newId = data as string;
+    } catch (e) {
+      // Сбой ДО ответа сервера (нет сети, CORS). Заказ не создан — транзакция
+      // либо не начиналась, либо откатилась, — поэтому просто сообщаем и
+      // возвращаем null: форма остаётся заполненной, повтор безопасен.
+      console.error('[createOrder]', e);
+      toast.error('Не удалось создать заказ: нет связи с сервером');
       return null;
     }
     // Созданный заказ забираем тем же вложенным select
-    const created = await get().loadOne(data as string);
+    const created = await get().loadOne(newId);
     // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
     // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
     if (created) {

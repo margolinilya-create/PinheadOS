@@ -56,15 +56,25 @@ export const bootstrapSlice: StateCreator<ErpStore, [], [], BootstrapSlice> = (s
   loadBootstrap: async () => {
     if (get().bootstrapLoaded) return;
     const payload = await cachedQuery<BootstrapPayload | null>(BOOTSTRAP_CACHE_ID, async () => {
-      const { data, error } = await supabase.rpc('erp_bootstrap');
-      if (error) {
-        // Оболочка обязана подняться даже без справочников: права упадут
-        // на DEFAULT_PERMISSIONS, справочники — на свободный ввод. Тост
-        // только про цеха, потому что без них меню действительно пустое.
+      // try/catch, а не только проверка `error`: supabase-js возвращает `error`
+      // на ответ сервера, но БРОСАЕТ на сбое до ответа (нет сети, CORS, клиент
+      // не настроен). Обещание «оболочка поднимется даже без справочников»
+      // держится только если оба случая ведут в одну ветку — иначе вместо
+      // оболочки без меню получаем unhandled rejection и пустой экран.
+      try {
+        const { data, error } = await supabase.rpc('erp_bootstrap');
+        if (error) {
+          // Права упадут на DEFAULT_PERMISSIONS, справочники — на свободный
+          // ввод. Тост только про цеха: без них меню действительно пустое.
+          toast.error('Не удалось загрузить справочники ERP');
+          return null;
+        }
+        return data as BootstrapPayload;
+      } catch (e) {
+        console.error('[loadBootstrap]', e);
         toast.error('Не удалось загрузить справочники ERP');
         return null;
       }
-      return data as BootstrapPayload;
     });
     if (!payload) {
       // Помечаем загруженным, чтобы эффект не крутился по кругу; повтор —
