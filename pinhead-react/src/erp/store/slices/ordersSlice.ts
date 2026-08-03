@@ -22,14 +22,28 @@ import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers'
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
 export const ARCHIVE_PAGE_SIZE = 50;
+
 import type {
   ErpStore,
   OrdersSlice,
+  ErpOrderBrief,
   ErpOrderAttachment,
   ErpOrderAuditRow,
   ErpOrderComment,
   ErpOrderFull,
 } from '../types';
+
+/** Ключ localStorage для переключателя показа тестовых заказов */
+export const SHOW_DEMO_KEY = 'erp_show_demo';
+
+/** Читаем настройку показа демо; отсутствие ключа = не показывать */
+function readShowDemo(): boolean {
+  try {
+    return localStorage.getItem(SHOW_DEMO_KEY) === '1';
+  } catch {
+    return false; // приватный режим — ведём себя как по умолчанию
+  }
+}
 
 export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, get) => ({
   departments: [],
@@ -41,6 +55,32 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   archiveLoading: false,
   archiveHasMore: false,
   detailIds: [],
+  showDemoOrders: readShowDemo(),
+
+  setShowDemoOrders: async (value) => {
+    try {
+      localStorage.setItem(SHOW_DEMO_KEY, value ? '1' : '0');
+    } catch { /* приватный режим: настройка живёт до перезагрузки */ }
+    // Демо отсекается запросом, поэтому переключатель обязан перечитать данные:
+    // фильтровать уже загруженный массив нельзя — скрытых строк в нём просто нет.
+    set({ showDemoOrders: value, archiveLoaded: false, archiveHasMore: false });
+    await get().loadAll();
+  },
+
+  setOrderDemo: async (id, value) => {
+    const ok = await get().updateOrder(id, { is_demo: value });
+    if (!ok) return false;
+    // Заказ, помеченный тестовым при выключенном показе, должен исчезнуть
+    // из списков сразу — иначе он останется висеть до F5 и разметка
+    // будет выглядеть неработающей.
+    if (value && !get().showDemoOrders) {
+      set((s) => ({
+        orders: s.orders.filter((o) => o.id !== id),
+        detailIds: s.detailIds.filter((x) => x !== id),
+      }));
+    }
+    return true;
+  },
 
   loadAll: async () => {
     set({ loading: true, loadError: false });
@@ -51,6 +91,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select(ORDER_LIST_SELECT)
       .order('due_date', { ascending: true, nullsFirst: false });
     if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
+    if (!get().showDemoOrders) ordersQuery = ordersQuery.eq('is_demo', false);
     const [deps, orders] = await Promise.all([
       supabase.from('erp_departments').select('*').order('sort_order'),
       ordersQuery,
@@ -79,10 +120,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   loadArchive: async () => {
     if (get().archiveLoading || get().archiveLoaded) return;
     set({ archiveLoading: true });
-    const { data, error } = await supabase
+    let q = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
-      .neq('status', 'active')
+      .neq('status', 'active');
+    if (!get().showDemoOrders) q = q.eq('is_demo', false);
+    const { data, error } = await q
       .order('due_date', { ascending: true, nullsFirst: false })
       .range(0, ARCHIVE_PAGE_SIZE - 1);
     if (error) {
@@ -106,10 +149,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     if (get().archiveLoading || !get().archiveHasMore) return;
     const loaded = get().orders.filter((o) => o.status !== 'active').length;
     set({ archiveLoading: true });
-    const { data, error } = await supabase
+    let q = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
-      .neq('status', 'active')
+      .neq('status', 'active');
+    if (!get().showDemoOrders) q = q.eq('is_demo', false);
+    const { data, error } = await q
       .order('due_date', { ascending: true, nullsFirst: false })
       .range(loaded, loaded + ARCHIVE_PAGE_SIZE - 1);
     if (error) {
@@ -128,6 +173,24 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
       };
     });
+  },
+
+  findOrdersByBitrixId: async (bitrixId) => {
+    const value = bitrixId.trim();
+    if (!value) return [];
+    // Запрос, а не поиск по стору: дубль может лежать в архиве (он грузится
+    // лениво) или быть помечен тестовым (его в сторе нет вовсе). Проверка
+    // по памяти нашла бы не всё и была бы хуже отсутствия проверки —
+    // «мы посмотрели, дублей нет».
+    const { data, error } = await supabase
+      .from('erp_orders')
+      .select('id, title, status, created_at, is_demo')
+      .eq('bitrix_id', value)
+      .limit(5);
+    // Молча: это подсказка, а не действие пользователя. Тост об упавшей
+    // фоновой проверке во время заполнения формы только мешает.
+    if (error) return [];
+    return (data ?? []) as ErpOrderBrief[];
   },
 
   loadOne: async (orderId) => {

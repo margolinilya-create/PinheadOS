@@ -13,7 +13,7 @@ import { DueCell } from './DueCell';
 import { formatDateCell } from '../../utils/format';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
-function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }) {
+function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
@@ -69,6 +69,13 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
             <Icon name="bell" size={13} /> дозакупка
           </span>
         )}
+        {/* Тот же признак, что в десктопной строке: при включённом показе
+            демо обязано быть отличимо от боевой работы. */}
+        {order.is_demo && (
+          <span className={`${styles.chip} ${styles.chipNeutral}`} title="Тестовый заказ — скрыт в обычном режиме">
+            тест
+          </span>
+        )}
         <DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} />
         {progress.total > 0 && (
           <span className={styles.progressCell} aria-label={`Готовность ${progress.pct}%: ${progress.done} из ${progress.total} шт по этапам`}>
@@ -83,6 +90,16 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
           onClick={() => onShip(order)}
         >
           <Icon name="truck" size={14} /> Отгрузить
+        </button>
+      )}
+      {onToggleDemo && (
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => onToggleDemo(order)}
+        >
+          <Icon name={order.is_demo ? 'eye' : 'flask'} size={14} />
+          {order.is_demo ? ' Вернуть в рабочие' : ' Пометить тестовым'}
         </button>
       )}
       {order.items.map((it) => (

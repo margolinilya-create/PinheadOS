@@ -1673,6 +1673,16 @@ a.cellTitle:hover { color: var(--accent); }
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
 .fieldError { color: var(--color-error-ink); font-size: 12px; }
+/* Предупреждение под полем: не ошибка (заполнено верно), но требует внимания —
+   поэтому цвет предупреждения, а не ошибки, и поле НЕ помечается aria-invalid. */
+.fieldHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  color: var(--color-warning-ink);
+  font-size: 12px;
+  line-height: 1.35;
+}
 .remainingHint {
   flex: 1;
   align-self: center;

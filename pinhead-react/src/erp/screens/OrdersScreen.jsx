@@ -25,9 +25,13 @@ export default function OrdersScreen() {
   const {
     orders, departments, loading, loaded, loadError, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
+    showDemoOrders, setShowDemoOrders, setOrderDemo,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
+      showDemoOrders: s.showDemoOrders,
+      setShowDemoOrders: s.setShowDemoOrders,
+      setOrderDemo: s.setOrderDemo,
       departments: s.departments,
       loading: s.loading,
       loaded: s.loaded,
@@ -143,6 +147,28 @@ export default function OrdersScreen() {
     }
   };
 
+  /**
+   * Пометка «тестовый». Через подтверждение: при выключенном показе заказ
+   * тут же исчезает из списка, и без предупреждения это читается как удаление.
+   */
+  const onToggleDemo = async (order) => {
+    if (order.is_demo) {
+      const done = await setOrderDemo(order.id, false);
+      if (done) toast.success('Заказ снова в рабочем списке');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Пометить заказ тестовым?',
+      message: `«${order.title}» пропадёт из списков, счётчиков цехов и уведомлений. `
+        + 'Заказ НЕ удаляется — его видно при включённом показе тестовых.',
+      confirmLabel: 'Пометить',
+    });
+    if (ok) {
+      const done = await setOrderDemo(order.id, true);
+      if (done) toast.success('Заказ помечен тестовым и скрыт из рабочих списков');
+    }
+  };
+
   const onShip = async (order) => {
     const ok = await confirm({
       title: `Отгрузить заказ «${order.title}»?`,
@@ -242,6 +268,18 @@ export default function OrdersScreen() {
             Сбросить даты
           </button>
         )}
+        {/* Показ тестовых — только у admin/director: это отладочный режим,
+            и цеху он показал бы работу, которой нет. */}
+        {access.isPrivileged && (
+          <label className={styles.checkLabel} title="Тестовые заказы скрыты из всех списков и счётчиков">
+            <input
+              type="checkbox"
+              checked={showDemoOrders}
+              onChange={(e) => setShowDemoOrders(e.target.checked)}
+            />
+            Показывать тестовые
+          </label>
+        )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         {canManageOrders && (
@@ -283,6 +321,7 @@ export default function OrdersScreen() {
               onDelete={onDelete}
               canDelete={canDelete}
               onShip={onShip}
+              onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
             />
           ))}
         </div>
@@ -312,6 +351,7 @@ export default function OrdersScreen() {
                   onDelete={onDelete}
                   canDelete={canDelete}
                   onShip={onShip}
+                  onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
                 />
               ))}
             </tbody>

@@ -211,6 +211,15 @@ export interface ErpRealtimeEvent {
  */
 
 /** Заказы: загрузка (активные/архив/один), CRUD, отгрузка, вложения, история, комментарии */
+/** Заказ в одну строку — для проверки дублей по № сделки */
+export interface ErpOrderBrief {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  is_demo?: boolean;
+}
+
 export interface OrdersSlice {
   departments: ErpDepartment[];
   orders: ErpOrderFull[];
@@ -233,12 +242,39 @@ export interface OrdersSlice {
    */
   detailIds: string[];
 
+  /**
+   * Показывать ли тестовые заказы (`is_demo`). По умолчанию нет.
+   *
+   * Фильтр применяется в САМОМ запросе, а не в экранах: на 03.08.2026 демо —
+   * это 26 активных заказов из 76, и они одинаково попадали и в списки,
+   * и в счётчики цехов, и в уведомления о просрочке. Отфильтровать их
+   * в пятнадцати местах значит однажды забыть одно.
+   *
+   * `loadOne` фильтру НЕ подчиняется: прямая ссылка на демо-заказ обязана
+   * открываться, иначе спрятанное становится недоступным.
+   */
+  showDemoOrders: boolean;
+  /** Переключить показ демо и перезагрузить списки (доступно admin/director) */
+  setShowDemoOrders: (value: boolean) => Promise<void>;
+  /** Пометить заказ тестовым / снять пометку */
+  setOrderDemo: (id: string, value: boolean) => Promise<boolean>;
+
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
   /** Ленивая загрузка архива (status != active) при первом заходе на вкладку — первая страница */
   loadArchive: () => Promise<void>;
   /** Следующая страница архива (кнопка «Показать ещё») */
   loadMoreArchive: () => Promise<void>;
+  /**
+   * Заказы с тем же № сделки — подсказка форме создания.
+   *
+   * На 03.08.2026 в базе пять групп дублей: один и тот же № сделки заведён
+   * дважды-четырежды с интервалом 25–80 секунд. Двойной клик исключён (кнопка
+   * блокируется на время запроса) — заказ создавал человек, не увидевший
+   * результата первой попытки. Ничто ему об этом не говорило.
+   */
+  findOrdersByBitrixId: (bitrixId: string) => Promise<ErpOrderBrief[]>;
+
   /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
   loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
