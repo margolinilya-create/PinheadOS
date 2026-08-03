@@ -211,6 +211,22 @@ export interface ErpRealtimeEvent {
  */
 
 /** Заказы: загрузка (активные/архив/один), CRUD, отгрузка, вложения, история, комментарии */
+/**
+ * Бутстрап оболочки: цеха, права, справочники, подряд, эксперим. цех и цех
+ * вызывающего одним RPC вместо шести запросов при монтировании ErpLayout.
+ */
+export interface BootstrapSlice {
+  bootstrapLoaded: boolean;
+  loadBootstrap: () => Promise<void>;
+}
+
+/** Пакет спутников заказа: история этапов, лог правок, комментарии — одним RPC */
+export interface ErpOrderBundle {
+  events: ErpStageEvent[];
+  audit: ErpOrderAuditRow[];
+  comments: ErpOrderComment[];
+}
+
 /** Заказ в одну строку — для проверки дублей по № сделки */
 export interface ErpOrderBrief {
   id: string;
@@ -274,6 +290,15 @@ export interface OrdersSlice {
    * результата первой попытки. Ничто ему об этом не говорило.
    */
   findOrdersByBitrixId: (bitrixId: string) => Promise<ErpOrderBrief[]>;
+
+  /**
+   * История этапов + лог правок + комментарии одним RPC вместо трёх запросов.
+   * `force` сбрасывает кэш — нужен после действия, изменившего ленту.
+   */
+  loadOrderBundle: (
+    orderId: string,
+    options?: { force?: boolean },
+  ) => Promise<ErpOrderBundle | null>;
 
   /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
   loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
@@ -592,7 +617,8 @@ export interface PlanSlice {
 }
 
 /** Полный контракт ERP-стора — пересечение доменных слайсов */
-export type ErpStore = OrdersSlice &
+export type ErpStore = BootstrapSlice &
+  OrdersSlice &
   StagesSlice &
   MaterialsSlice &
   WarehouseSlice &

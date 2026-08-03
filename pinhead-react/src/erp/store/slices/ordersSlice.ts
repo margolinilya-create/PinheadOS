@@ -18,6 +18,7 @@ import type {
   ErpStageEvent,
 } from '../../types';
 import { currentActor, withPending } from '../shared';
+import { cachedQuery, invalidate } from '../queryCache';
 import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
@@ -27,11 +28,15 @@ import type {
   ErpStore,
   OrdersSlice,
   ErpOrderBrief,
+  ErpOrderBundle,
   ErpOrderAttachment,
   ErpOrderAuditRow,
   ErpOrderComment,
   ErpOrderFull,
 } from '../types';
+
+/** Кэш-ключ пакета спутников заказа (история, аудит, комментарии) */
+export const orderBundleKey = (orderId: string) => `erp:order-detail:${orderId}`;
 
 /** Ключ localStorage для переключателя показа тестовых заказов */
 export const SHOW_DEMO_KEY = 'erp_show_demo';
@@ -92,8 +97,21 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .order('due_date', { ascending: true, nullsFirst: false });
     if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
     if (!get().showDemoOrders) ordersQuery = ordersQuery.eq('is_demo', false);
+    /**
+     * Цеха запрашиваются, только если их ещё нет.
+     *
+     * Обычный путь — `loadBootstrap()` в оболочке, он приносит цеха вместе
+     * с правами и справочниками одним RPC. Но `loadAll` зовут и экраны
+     * («если не загружено — загрузи»), и в тестах он вызывается сам по себе,
+     * поэтому остаётся самодостаточным: без этого запаса экран, открытый
+     * до бутстрапа, остался бы с пустым списком цехов и нарисовал бы
+     * «?» вместо названий участков.
+     */
+    const needDepartments = get().departments.length === 0;
     const [deps, orders] = await Promise.all([
-      supabase.from('erp_departments').select('*').order('sort_order'),
+      needDepartments
+        ? supabase.from('erp_departments').select('*').order('sort_order')
+        : Promise.resolve({ data: null, error: null }),
       ordersQuery,
     ]);
     if (deps.error || orders.error) {
@@ -102,7 +120,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       return;
     }
     set({
-      departments: (deps.data ?? []) as ErpDepartment[],
+      ...(deps.data ? { departments: deps.data as ErpDepartment[] } : {}),
       orders: ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull),
       loading: false,
       loaded: true,
@@ -173,6 +191,32 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
       };
     });
+  },
+
+  loadOrderBundle: async (orderId, { force = false } = {}) => {
+    /**
+     * История этапов, лог правок и комментарии — одним RPC вместо трёх запросов.
+     *
+     * Карточка заказа открывалась одиннадцатым–тринадцатым запросом сессии;
+     * три из них были эти. Лимиты (100/100/200) перенесены в функцию БД
+     * дословно — менять их заодно с числом запросов значило бы тихо
+     * поменять поведение экрана.
+     *
+     * Через кэш: страница и боковой Drawer подключены к одному хуку, а в dev
+     * StrictMode вызывает эффекты парой — без дедупликации это два-четыре
+     * одинаковых запроса подряд. Возврат на недавно открытый заказ отдаёт
+     * данные сразу и обновляет фоном.
+     */
+    const fetcher = async () => {
+      const { data, error } = await supabase.rpc('erp_order_detail', { p_order_id: orderId });
+      if (error) {
+        toast.error('Не удалось загрузить историю заказа');
+        return null;
+      }
+      return data as ErpOrderBundle;
+    };
+    if (force) invalidate(orderBundleKey(orderId));
+    return cachedQuery(orderBundleKey(orderId), fetcher);
   },
 
   findOrdersByBitrixId: async (bitrixId) => {
@@ -501,6 +545,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       toast.error('Не удалось отправить комментарий');
       return null;
     }
+    // Пакет заказа теперь устарел: без сброса возврат на карточку в течение
+    // TTL показал бы ленту без только что отправленного комментария.
+    invalidate(orderBundleKey(orderId));
     return row;
   },
 });

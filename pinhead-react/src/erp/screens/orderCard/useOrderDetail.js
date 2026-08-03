@@ -12,7 +12,7 @@ import { isOrderReadyToShip } from '../../utils/stageUi';
 export function useOrderDetail(orderId) {
   const {
     orders, detailIds, departments, loaded, loadError, loadAll, loadOne, setStagePlan,
-    loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
+    loadOrderBundle, updateOrder, addComment,
     profilesList, employees,
   } = useErpStore(
     useShallow((s) => ({
@@ -24,10 +24,8 @@ export function useOrderDetail(orderId) {
       loadAll: s.loadAll,
       loadOne: s.loadOne,
       setStagePlan: s.setStagePlan,
-      loadOrderEvents: s.loadOrderEvents,
-      loadOrderAudit: s.loadOrderAudit,
+      loadOrderBundle: s.loadOrderBundle,
       updateOrder: s.updateOrder,
-      loadComments: s.loadComments,
       addComment: s.addComment,
       profilesList: s.profilesList,
       employees: s.employees,
@@ -64,11 +62,19 @@ export function useOrderDetail(orderId) {
   useEffect(() => {
     if (!orderId) return undefined;
     // alive-гард: медленный ответ по прошлому заказу не перезаписывает текущий
-    // (страница OrderCard дополнительно keyed по orderId — полный remount при A→B)
+    // (страница OrderCard дополнительно keyed по orderId — полный remount при A→B).
+    // Отменить сам запрос нельзя — supabase-js не принимает AbortSignal, — поэтому
+    // гард на применении результата остаётся единственной защитой и после
+    // перехода на пакетный RPC.
     let alive = true;
-    loadOrderEvents(orderId).then((ev) => { if (alive) setEvents(ev ?? []); });
-    loadOrderAudit(orderId).then((a) => { if (alive) setAudit(a ?? []); });
-    loadComments(orderId).then((c) => { if (alive) setComments(c ?? []); });
+    // Один RPC вместо трёх запросов: история этапов, лог правок, комментарии.
+    // Кэш дедуплицирует — страница и боковой Drawer используют этот же хук.
+    loadOrderBundle(orderId).then((bundle) => {
+      if (!alive) return;
+      setEvents(bundle?.events ?? []);
+      setAudit(bundle?.audit ?? []);
+      setComments(bundle?.comments ?? []);
+    });
     const channel = supabase
       .channel(`erp-comments-${orderId}-${crypto.randomUUID()}`)
       .on('postgres_changes',
@@ -81,11 +87,20 @@ export function useOrderDetail(orderId) {
         })
       .subscribe();
     return () => { alive = false; supabase.removeChannel(channel); };
-  }, [orderId, loadOrderEvents, loadOrderAudit, loadComments]);
+  }, [orderId, loadOrderBundle]);
 
   const order = orders.find((o) => o.id === orderId);
   const preview = order ? orderPreviewUrl(order) : null;
-  const refreshAudit = () => loadOrderAudit(orderId).then((a) => setAudit(a ?? []));
+  /**
+   * Перечитать ленту правок после собственной мутации.
+   *
+   * `force` обязателен: пакет заказа лежит в кэше со сроком свежести, и без
+   * сброса человек сохранил бы дату, а история осталась бы прежней — то есть
+   * выглядело бы, что правка не прошла. Аудит пишет ТРИГГЕР на стороне БД,
+   * поэтому его результат виден только новым запросом.
+   */
+  const refreshAudit = () => loadOrderBundle(orderId, { force: true })
+    .then((bundle) => setAudit(bundle?.audit ?? []));
   const saveOrderField = async (patch) => {
     const ok = await updateOrder(orderId, patch);
     if (ok) refreshAudit();
