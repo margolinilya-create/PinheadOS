@@ -13,12 +13,61 @@ import { stageOverdue } from '../utils/time';
 import type { ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
 
-/** Вложенный select заказа: позиции+этапы+принты, материалы, вложения, задачи закупки */
+/**
+ * ПОЛНЫЙ заказ: позиции+этапы+принты, материалы, вложения, задачи закупки.
+ * Используется только `loadOne` — карточкой заказа и страницей задания.
+ */
 export const ORDER_SELECT = `
   *,
   items:erp_order_items (
     *,
     stages:erp_item_stages (*),
+    prints:erp_item_prints (*)
+  ),
+  materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
+  attachments:erp_order_attachments (*),
+  procurement_tasks:erp_procurement_tasks (*),
+  warehouse_ops:erp_warehouse_ops (*),
+  warehouse_tasks:erp_warehouse_tasks (*),
+  tz_documents:erp_tz_documents (*)
+`;
+
+/**
+ * СПИСОЧНЫЙ заказ — то же дерево, но без колонок, которые нужны только карточке.
+ *
+ * `select *` в PostgREST отдаёт и NULL-колонки: имя ключа едет по проводу всегда.
+ * На 405 этапах это заметно, а растёт линейно с числом заказов. Замерено на проде:
+ * полный ответ активных заказов — 391 кБ, этот — 351 кБ (−10%), при 300 заказах
+ * 1.5 МБ против 1.39 МБ.
+ *
+ * Убрано ровно то, что не читает НИ ОДИН списочный экран:
+ *   · `stages.notes` — не отображается нигде вообще;
+ *   · `stages.created_at`, `items.created_at/updated_at` — тоже никем не читаются
+ *     (`stages.updated_at` ЧИТАЕТСЯ карточкой канбана и остаётся);
+ *   · `items.size_grid` — размерная сетка, её рисует только карточка заказа.
+ *
+ * Что осталось и почему: `overdue_comment` показывает карточка очереди,
+ * `procurement_tasks` нужны причине ожидания, `tz_documents` — гейту ТЗ,
+ * `materials` — материальному гейту. Отношения `attachments`/`warehouse_*`/
+ * `suppliers` перебирают экраны склада, подряда и закупки по ВСЕМ заказам,
+ * поэтому из списка они не выброшены: это дало бы ещё 14%, но сломало бы
+ * три экрана — переносить их на свои запросы надо отдельной работой.
+ *
+ * Карточка заказа обязана дозагрузить полный заказ (`loadOne`) — иначе размерная
+ * сетка не отрисуется. За этим следит `detailIds` в сторе.
+ */
+export const ORDER_LIST_SELECT = `
+  *,
+  items:erp_order_items (
+    id, order_id, product_type, variant, qty, production_type,
+    branding_methods, branding_on, notes, sort_order,
+    subcontract_kind, material_source,
+    stages:erp_item_stages (
+      id, item_id, department_id, depends_on, status, qty_done, qty_rework,
+      planned_start, planned_end, started_at, finished_at, assignee,
+      block_reason, sort_order, updated_at, overdue_comment, overdue_ack_at,
+      queue_position
+    ),
     prints:erp_item_prints (*)
   ),
   materials:erp_materials (*, suppliers:erp_material_suppliers (*)),

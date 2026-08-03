@@ -11,12 +11,13 @@ import { isOrderReadyToShip } from '../../utils/stageUi';
  */
 export function useOrderDetail(orderId) {
   const {
-    orders, departments, loaded, loadError, loadAll, loadOne, setStagePlan,
+    orders, detailIds, departments, loaded, loadError, loadAll, loadOne, setStagePlan,
     loadOrderEvents, loadOrderAudit, updateOrder, loadComments, addComment,
     profilesList, employees,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
+      detailIds: s.detailIds,
       departments: s.departments,
       loaded: s.loaded,
       loadError: s.loadError,
@@ -44,13 +45,21 @@ export function useOrderDetail(orderId) {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
 
-  const inStore = orders.some((o) => o.id === orderId);
+  /**
+   * Полные данные заказа, а не «заказ вообще есть в сторе».
+   *
+   * Списочный запрос (`ORDER_LIST_SELECT`) не тянет колонки, нужные только
+   * карточке — размерную сетку позиции. Раньше здесь стояла проверка «есть
+   * в сторе», и после облегчения списка карточка молча рисовала бы позицию
+   * без сетки: данные вроде есть, а поля нет.
+   */
+  const hasDetail = detailIds.includes(orderId);
   useEffect(() => {
-    if (!loaded || inStore || lookedUp || !orderId) return undefined;
+    if (!loaded || hasDetail || lookedUp || !orderId) return undefined;
     let alive = true;
     loadOne(orderId).finally(() => { if (alive) setLookedUpFor(orderId); });
     return () => { alive = false; };
-  }, [loaded, inStore, lookedUp, loadOne, orderId]);
+  }, [loaded, hasDetail, lookedUp, loadOne, orderId]);
 
   useEffect(() => {
     if (!orderId) return undefined;

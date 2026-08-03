@@ -18,7 +18,7 @@ import type {
   ErpStageEvent,
 } from '../../types';
 import { currentActor, withPending } from '../shared';
-import { ORDER_SELECT, sortOrderFull } from '../orderHelpers';
+import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
 export const ARCHIVE_PAGE_SIZE = 50;
@@ -40,6 +40,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   archiveLoaded: false,
   archiveLoading: false,
   archiveHasMore: false,
+  detailIds: [],
 
   loadAll: async () => {
     set({ loading: true, loadError: false });
@@ -47,7 +48,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     // Если архив уже загружен, полная перезагрузка обновляет и его.
     let ordersQuery = supabase
       .from('erp_orders')
-      .select(ORDER_SELECT)
+      .select(ORDER_LIST_SELECT)
       .order('due_date', { ascending: true, nullsFirst: false });
     if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
     const [deps, orders] = await Promise.all([
@@ -80,7 +81,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     set({ archiveLoading: true });
     const { data, error } = await supabase
       .from('erp_orders')
-      .select(ORDER_SELECT)
+      .select(ORDER_LIST_SELECT)
       .neq('status', 'active')
       .order('due_date', { ascending: true, nullsFirst: false })
       .range(0, ARCHIVE_PAGE_SIZE - 1);
@@ -107,7 +108,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     set({ archiveLoading: true });
     const { data, error } = await supabase
       .from('erp_orders')
-      .select(ORDER_SELECT)
+      .select(ORDER_LIST_SELECT)
       .neq('status', 'active')
       .order('due_date', { ascending: true, nullsFirst: false })
       .range(loaded, loaded + ARCHIVE_PAGE_SIZE - 1);
@@ -145,6 +146,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       orders: s.orders.some((o) => o.id === full.id)
         ? s.orders.map((o) => (o.id === full.id ? full : o))
         : [full, ...s.orders],
+      // Отмечаем, что у этого заказа есть колонки, которых нет в списочном запросе
+      detailIds: s.detailIds.includes(full.id) ? s.detailIds : [...s.detailIds, full.id],
     }));
     return full;
   },

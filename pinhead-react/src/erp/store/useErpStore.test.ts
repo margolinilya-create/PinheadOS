@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   updateError: null as { message: string } | null,
   /** Ошибки на каждый update по порядку; пусто — используется updateError */
   updateErrors: [] as ({ message: string } | null)[],
+  /** Аргумент .select(...) по каждому запросу — списочный запрос обязан быть лёгким */
+  selectCols: [] as { table: string; cols: string }[],
   insertCalls: [] as { table: string; row: unknown }[],
   /** Очередь ошибок insert (для ретрая logStageEvent): shift на каждый вызов */
   insertErrors: [] as ({ message: string } | null)[],
@@ -61,7 +63,7 @@ vi.mock('../../lib/supabase', () => {
   return {
     supabase: {
       from: vi.fn((table: string) => ({
-        select: vi.fn(() => makeQuery(table)),
+        select: vi.fn((cols?: string) => { h.selectCols.push({ table, cols: cols ?? '' }); return makeQuery(table); }),
         // Цепочки .eq().neq() (снятие is_current у прошлых версий ТЗ) — звено возвращает себя
         update: vi.fn((patch: Record<string, unknown>) => {
           let recorded = false;
@@ -205,6 +207,7 @@ beforeEach(() => {
   h.updateCalls.length = 0;
   h.updateError = null;
   h.updateErrors.length = 0;
+  h.selectCols.length = 0;
   h.insertCalls.length = 0;
   h.insertErrors.length = 0;
   h.deleteCalls.length = 0;
@@ -220,7 +223,7 @@ beforeEach(() => {
   _pendingMutations.clear();
   localStorage.removeItem('erp_my_dept');
   useErpStore.setState({
-    orders: [], departments: [], loaded: false,
+    orders: [], departments: [], loaded: false, detailIds: [],
     archiveLoaded: false, archiveLoading: false, archiveHasMore: false,
     myDeptId: null, myDeptLoaded: false,
     dictionaries: [], dictionariesLoaded: false,
@@ -1161,6 +1164,50 @@ describe('applyRealtimeEvent — защита от race (pendingMutations, п.29
     expect(_pendingMutations.has('stage:st1')).toBe(true);
     await p;
     expect(_pendingMutations.has('stage:st1')).toBe(false);
+  });
+});
+
+/**
+ * D2 аудита: список грузится облегчённым select-ом, полный — только по заказу.
+ * Без отметки `detailIds` карточка не узнала бы, что ей нужна дозагрузка, и
+ * молча нарисовала бы позицию без размерной сетки.
+ */
+describe('облегчённый списочный запрос (D2)', () => {
+  const dept = { id: 'd1', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 10 };
+  const row = { id: 'o-a', title: 'Активный', status: 'active', items: [], materials: [] };
+
+  it('loadAll просит списочный select, без размерной сетки', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+    const call = h.selectCols.find((c) => c.table === 'erp_orders');
+    expect(call).toBeTruthy();
+    expect(call!.cols).not.toContain('size_grid');
+    // Гейты и очередь без этих колонок сломались бы молча
+    expect(call!.cols).toContain('overdue_comment');
+    expect(call!.cols).toContain('queue_position');
+    expect(call!.cols).toContain('procurement_tasks');
+  });
+
+  it('loadAll НЕ помечает заказы как загруженные полностью', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+    expect(useErpStore.getState().detailIds).toEqual([]);
+  });
+
+  it('loadOne просит полный select и помечает заказ', async () => {
+    h.singleData = { ...row, items: [], materials: [] };
+    await useErpStore.getState().loadOne('o-a');
+    const call = h.selectCols.filter((c) => c.table === 'erp_orders').at(-1)!;
+    // Полный select берёт колонки звёздочкой — размерная сетка приезжает с ней
+    expect(call.cols).toContain('items:erp_order_items (\n    *');
+    expect(useErpStore.getState().detailIds).toContain('o-a');
+  });
+
+  it('повторный loadOne не дублирует отметку', async () => {
+    h.singleData = { ...row, items: [], materials: [] };
+    await useErpStore.getState().loadOne('o-a');
+    await useErpStore.getState().loadOne('o-a');
+    expect(useErpStore.getState().detailIds.filter((id) => id === 'o-a')).toHaveLength(1);
   });
 });
 
