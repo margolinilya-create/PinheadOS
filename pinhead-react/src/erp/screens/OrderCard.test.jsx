@@ -13,8 +13,18 @@ import { useErpStore } from '../store/useErpStore';
  * разделён (а не спрятан визуально) и вкладка переживает пересылку ссылки.
  */
 
+/**
+ * Права мокаются, потому что иначе их не проверить нигде: e2e идут против
+ * dev-автологина, а он по построению обходит матрицу (`isDev || isAllowed`).
+ * `canOrderManage` переключается тестом, который проверяет режим чтения.
+ */
+let canOrderManage = true;
 vi.mock('../store/useErpAccess', () => ({
-  useErpAccess: () => ({ can: () => true, canActIn: () => true, isPrivileged: true }),
+  useErpAccess: () => ({
+    can: (p) => (p === 'order.manage' ? canOrderManage : true),
+    canActIn: () => true,
+    isPrivileged: true,
+  }),
 }));
 
 const DEPTS = [{ id: 'd1', code: 'sewing', name: 'Швейный', active: true, sort_order: 10 }];
@@ -50,6 +60,7 @@ function renderCard(initialUrl = '/orders/o1') {
 
 describe('OrderCard — вкладки', () => {
   beforeEach(() => {
+    canOrderManage = true;
     useErpStore.setState({ orders: [], departments: [], loaded: false, detailIds: [] });
   });
 
@@ -110,5 +121,41 @@ describe('OrderCard — вкладки', () => {
     // «Почему заказ стоит» нельзя прятать за переключателем
     expect(screen.getByRole('heading', { name: /Худи «Ромашка»/ })).toBeInTheDocument();
     expect(screen.getByLabelText(/Менеджер:/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Право `order.manage` гейтит правку полей заказа с ОБЕИХ сторон: здесь —
+ * интерфейс, на сервере — страж `erp_order_guard` (миграция 20260803280000).
+ * Расхождение даёт худший отказ: «поле правится, а сохранение падает 42501».
+ */
+describe('OrderCard — правка полей под правом order.manage', () => {
+  beforeEach(() => {
+    canOrderManage = true;
+    useErpStore.setState({ orders: [], departments: [], loaded: false, detailIds: [] });
+  });
+
+  it('с правом поля правятся', () => {
+    renderCard();
+    expect(screen.getByRole('button', { name: /^Менеджер:/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^Срок клиента:/ })).toBeEnabled();
+  });
+
+  it('без права поля показываются НА ЧТЕНИЕ, а не пропадают', () => {
+    // Срок и менеджер нужны цеху, чтобы понимать, что он делает, —
+    // тот же приём, что у плановых дат этапа.
+    canOrderManage = false;
+    renderCard();
+    const manager = screen.getByRole('button', { name: /^Менеджер:/ });
+    expect(manager).toBeDisabled();
+    expect(manager).toHaveTextContent('Иванова Мария');
+  });
+
+  it('без права гейтятся ВСЕ пять полей, которые сторожит страж', () => {
+    canOrderManage = false;
+    renderCard();
+    for (const label of [/^Клиент:/, /^Менеджер:/, /^Дата запуска:/, /^Срок клиента:/, /^Заметка:/]) {
+      expect(screen.getByRole('button', { name: label })).toBeDisabled();
+    }
   });
 });

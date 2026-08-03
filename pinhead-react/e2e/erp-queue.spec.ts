@@ -242,8 +242,10 @@ test.describe('Технические задания в PDF', () => {
   });
 
   test('карточка заказа показывает одно ТЗ на весь маршрут позиции', async ({ page }) => {
-    await page.goto('/orders/ord-b?studio=0');
-    await expect(page.getByText('Технические задания (PDF)')).toBeVisible();
+    // Карточка разбита на вкладки (аудит 03.08.2026): ТЗ живёт в своей,
+    // и вкладка открывается прямо из адреса — ссылку шлют коллегам.
+    await page.goto('/orders/ord-b?studio=0&tab=tz');
+    await expect(page.getByRole('tab', { name: /ТЗ/ })).toHaveAttribute('aria-selected', 'true');
 
     // Общее ТЗ заказа — и по нему работают все производственные цеха позиции
     await expect(page.getByText('Форма официантов.pdf').first()).toBeVisible();

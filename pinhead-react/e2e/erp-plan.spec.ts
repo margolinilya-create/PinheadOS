@@ -18,9 +18,14 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('План производства', () => {
-  test('в меню есть пункт, экран открывается сводкой по цехам', async ({ page }) => {
+  test('открывается вкладкой раздела «Производство», сводкой по цехам', async ({ page }) => {
+    // Три соседних пункта меню («Производство», «План производства»,
+    // «Загрузка цехов») сведены в один раздел с вкладками (аудит 03.08.2026).
+    // Адрес /plan сохранён — он и стал адресом вкладки.
     await page.goto('/?studio=0');
-    await page.getByRole('link', { name: 'План производства' }).click();
+    await page.getByRole('link', { name: 'Производство' }).click();
+    await expect(page).toHaveURL(/\/board/);
+    await page.getByRole('link', { name: 'План' }).click();
 
     await expect(page).toHaveURL(/\/plan/);
     await expect(page.getByRole('heading', { name: 'План производства' })).toBeVisible();
