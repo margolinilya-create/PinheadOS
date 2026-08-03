@@ -103,7 +103,18 @@ export default function OrdersScreen() {
   // Раньше удаление проверяло роль профиля прямо в компоненте (в обход useErpAccess),
   // а кнопка «Новый заказ» не проверяла ничего — её видел и рабочий цеха.
   const canManageOrders = access.can('order.manage');
-  const canDelete = access.isPrivileged || canManageOrders;
+  /**
+   * Удаление — только admin/director, ровно как на сервере
+   * (`erp_orders_delete` = `is_admin()`).
+   *
+   * Раньше здесь стояло `isPrivileged || canManageOrders`: менеджер с правом
+   * «Создавать и править заказы» видел кнопку «Удалить», жал её и получал
+   * 42501 — тот самый отказ «кнопка есть, а действие падает», от которого
+   * виноватым выглядит не тот, кто настроил права. Удаление уносит позиции,
+   * этапы и материалы, поэтому сходимся на более узком из двух правил,
+   * а не на широком.
+   */
+  const canDelete = access.isPrivileged;
 
   const inTab = useMemo(
     () => orders.filter((o) => {

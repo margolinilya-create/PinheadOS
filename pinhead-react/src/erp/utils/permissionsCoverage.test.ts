@@ -227,12 +227,21 @@ describe('стражи покрывают колонки, которые пиш�
    * политики. Триггеры зовёт движок, и EXECUTE при срабатывании не проверяется.
    */
   it('каждая функция-триггер лишена EXECUTE у anon и authenticated', () => {
-    const revokeSql = readFileSync(
-      join(MIGRATIONS, '20260803250000_erp_revoke_trigger_functions.sql'), 'utf8',
-    );
+    /**
+     * Отзыв ищем во ВСЕХ миграциях, а не в одной.
+     *
+     * Раньше тест читал только `20260803250000_erp_revoke_trigger_functions.sql`,
+     * то есть требовал, чтобы отзыв для новой функции дописывали в УЖЕ
+     * ПРИМЕНЁННУЮ миграцию. Правка применённой миграции — это правка истории:
+     * у тех, кто её уже накатил, она не выполнится повторно. Новый страж должен
+     * отзывать EXECUTE у себя же, рядом с созданием, и тест обязан это принимать.
+     */
+    const allSql = readdirSync(MIGRATIONS)
+      .filter((n) => n.endsWith('.sql'))
+      .map((n) => readFileSync(join(MIGRATIONS, n), 'utf8'));
+    const revokeSql = allSql.join('\n');
     const triggerFns = new Set<string>();
-    for (const file of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql'))) {
-      const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+    for (const sql of allSql) {
       for (const m of sql.matchAll(/execute function public\.(\w+)\(/g)) {
         triggerFns.add(m[1]);
       }

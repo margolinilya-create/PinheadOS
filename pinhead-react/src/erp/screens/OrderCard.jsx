@@ -22,6 +22,7 @@ import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
 import { ButtonLink } from '../components/Button';
+import { useErpAccess } from '../store/useErpAccess';
 
 /**
  * Карточка заказа (страница /orders/:id) — «трекинг посылки»: маршрут по этапам с план/фактом,
@@ -35,6 +36,14 @@ export default function OrderCard() {
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
     deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
+
+  /**
+   * Правка полей заказа — право `order.manage`, ровно как на сервере
+   * (страж `erp_order_guard`, миграция 20260803280000). Без права поля
+   * показываются НА ЧТЕНИЕ, а не пропадают: срок клиента и менеджер нужны
+   * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
+   */
+  const canManageOrder = useErpAccess().can('order.manage');
 
   if (notFound) {
     return (
@@ -73,24 +82,24 @@ export default function OrderCard() {
             value={order.customer}
             placeholder="добавить…"
             ariaLabel="Клиент"
-            onSave={(v) => saveOrderField({ customer: v })}
+            onSave={(v) => saveOrderField({ customer: v })} disabled={!canManageOrder}
           />
         </span>
         <span>
           <span className={styles.subText}>Менеджер: </span>
-          <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
+          <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} disabled={!canManageOrder} />
         </span>
         <span>
           <span className={styles.subText}>Запуск: </span>
-          <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} />
+          <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} disabled={!canManageOrder} />
         </span>
         <span>
           <span className={styles.subText}>Срок клиента: </span>
-          <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} />
+          <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} disabled={!canManageOrder} />
         </span>
         <span>
           <span className={styles.subText}>Заметка: </span>
-          <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} />
+          <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} disabled={!canManageOrder} />
         </span>
       </div>
       {preview && !previewError && (

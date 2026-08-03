@@ -20,6 +20,7 @@ const migration = (name: string) =>
 
 const SQL = migration('20260803160000_erp_permissions_server_side.sql');
 const STAGE_SQL = migration('20260803180000_erp_stage_guard.sql');
+const ORDER_SQL = migration('20260803280000_erp_order_guard.sql');
 
 describe('серверная резолюция роли повторяет клиентскую', () => {
   it('admin и director профиля приводятся к цеховой роли director', () => {
@@ -146,5 +147,71 @@ describe('страж этапов повторяет гейты интерфей
 
   it('service_role страж пропускает — иначе не починить данные через SQL', () => {
     expect(STAGE_SQL).toMatch(/auth\.uid\(\)\) is null/);
+  });
+});
+
+/**
+ * Страж заказа (миграция 20260803280000) закрывает R1/R2 аудита 03.08.2026:
+ * `erp_orders` и `erp_order_items` стояли на `erp_is_member()` без разбора
+ * колонок, то есть рабочий цеха мог через REST переписать срок клиента.
+ *
+ * Тест сторожит не сам SQL, а СОВПАДЕНИЕ его с интерфейсом: страж строже
+ * клиента — это «кнопка есть, действие падает»; мягче — дыра.
+ */
+describe('страж заказа совпадает с интерфейсом', () => {
+  const ORDER_CARD = readFileSync(
+    join(process.cwd(), 'src/erp/screens/OrderCard.jsx'), 'utf8');
+  const ORDER_DRAWER = readFileSync(
+    join(process.cwd(), 'src/erp/screens/orderCard/OrderDrawer.jsx'), 'utf8');
+  const ORDERS_SCREEN = readFileSync(
+    join(process.cwd(), 'src/erp/screens/OrdersScreen.jsx'), 'utf8');
+
+  it('поля заказа требуют order.manage на сервере', () => {
+    expect(ORDER_SQL).toMatch(/erp_has_permission\('order\.manage'\)/);
+    expect(ORDER_SQL).toMatch(/правка полей заказа требует права order\.manage/);
+  });
+
+  it('те же поля гейтятся тем же правом в обеих карточках', () => {
+    for (const src of [ORDER_CARD, ORDER_DRAWER]) {
+      expect(src).toMatch(/can\('order\.manage'\)/);
+      // Каждое поле, которое сторожит SQL, обязано быть отключаемым в разметке
+      expect(src.match(/disabled=\{!canManageOrder\}/g) ?? []).toHaveLength(5);
+    }
+  });
+
+  it('колонки, которые сторожит SQL, — это те же поля, что правит карточка', () => {
+    for (const field of ['customer', 'manager', 'launch_date', 'due_date', 'notes']) {
+      expect(ORDER_SQL).toMatch(new RegExp(`new\\.${field}\\s+is distinct from old\\.${field}`));
+      expect(ORDER_CARD + ORDER_DRAWER).toContain(`saveOrderField({ ${field}:`);
+    }
+  });
+
+  it('отгрузка НЕ гейтится ни там, ни там', () => {
+    // Отдельного права на отгрузку в матрице нет, кнопка доступна любому
+    // сотруднику при готовом заказе — значит и страж молчит. Если однажды
+    // право заведут, этот тест обязан упасть и напомнить про обе стороны.
+    expect(ORDER_SQL).not.toMatch(/new\.shipped_status\s+is distinct from/);
+    expect(ORDER_SQL).not.toMatch(/new\.status\s+is distinct from old\.status/);
+    expect(ERP_PERMISSIONS).not.toContain('order.ship');
+  });
+
+  it('пометка «тестовый» — админская с обеих сторон', () => {
+    expect(ORDER_SQL).toMatch(/is_demo is distinct from old\.is_demo and not public\.is_admin\(\)/);
+    expect(ORDERS_SCREEN).toMatch(/access\.isPrivileged && \(/);
+  });
+
+  it('удаление заказа: клиент сведён к admin/director, как в политике', () => {
+    // Политика `erp_orders_delete` = is_admin(). Раньше клиент показывал кнопку
+    // и при order.manage — менеджер получал 42501.
+    expect(ORDERS_SCREEN).toMatch(/const canDelete = access\.isPrivileged;/);
+  });
+
+  it('позиции заказа: клиент туда не пишет, сервер требует order.manage', () => {
+    expect(ORDER_SQL).toMatch(/erp_order_item_guard/);
+    expect(ORDER_SQL).toMatch(/правка позиции заказа требует права order\.manage/);
+  });
+
+  it('страж пропускает service_role — починка через SQL не должна запираться', () => {
+    expect(ORDER_SQL).toMatch(/auth\.uid\(\)\) is null/);
   });
 });
