@@ -29,6 +29,7 @@ import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { dueLabelCompact } from '../utils/format';
+import { Button } from '../components/Button';
 
 /**
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
@@ -280,9 +281,9 @@ export default function ProductionBoard() {
           {filtersActive ? (
             <>
               Под фильтры ничего не попало.{' '}
-              <button type="button" className="btn btn-secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
+              <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
                 Сбросить фильтры
-              </button>
+              </Button>
             </>
           ) : queueDepartments.length === 0 ? (
             <>Производственные участки не заведены — добавьте их в админке.</>
@@ -305,13 +306,9 @@ export default function ProductionBoard() {
           {filtersActive ? (
             <>
               Под фильтры ничего не попало.{' '}
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setFilters(EMPTY_FILTERS)}
-              >
+              <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
                 Сбросить фильтры
-              </button>
+              </Button>
             </>
           ) : (
             'Нет позиций в работе. Создайте заказ на экране «Заказы».'

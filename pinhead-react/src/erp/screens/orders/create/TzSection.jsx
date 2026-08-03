@@ -1,6 +1,7 @@
 import { PdfPick } from './FormParts';
 import { Icon } from '../../../components/Icon';
 import styles from '../../../erp.module.css';
+import { Button } from '../../../components/Button';
 
 /**
  * Раздел «ТЗ в PDF для цехов» формы создания заказа.
@@ -46,20 +47,15 @@ function TzDocRow({ doc, onRemove, onRetry }) {
             <Icon name="alert" size={13} /> не загрузилось: {doc.error}
           </span>
           {' '}
-          <button type="button" className="btn btn-secondary" onClick={() => onRetry(doc.groupId)}>
+          <Button variant="secondary" onClick={() => onRetry(doc.groupId)}>
             Загрузить заново
-          </button>
+          </Button>
         </>
       )}
       {' '}
-      <button
-        type="button"
-        className="btn btn-ghost"
-        disabled={doc.state === 'uploading'}
-        onClick={() => onRemove(doc.groupId)}
-      >
+      <Button variant="ghost" disabled={doc.state === 'uploading'} onClick={() => onRemove(doc.groupId)}>
         <span className={styles.cellWithIcon}><Icon name="x" size={13} /> убрать</span>
-      </button>
+      </Button>
     </li>
   );
 }

@@ -11,6 +11,7 @@ import {
   SUBCONTRACT_MATERIAL_SOURCE_LABELS,
 } from '../../../types';
 import styles from '../../../erp.module.css';
+import { Button } from '../../../components/Button';
 
 /**
  * Одна позиция заказа в форме создания: изделие, вариант, тираж (или размерная
@@ -32,15 +33,13 @@ export function ItemBlock({
         <span className={styles.itemBlockTitle} title={it.product_type || undefined}>
           Позиция {i + 1}{it.product_type ? ` · ${it.product_type}` : ''}
         </span>
-        <button
-          type="button"
-          className="btn btn-ghost"
+        <Button
+          variant="ghost"
           aria-label={`Убрать позицию ${i + 1}`}
           disabled={itemsCount === 1}
-          onClick={() => removeItem(i)}
-        >
+          onClick={() => removeItem(i)}>
           <Icon name="x" size={14} />
-        </button>
+        </Button>
       </div>
     <div className={styles.itemRow}>
       <label className={styles.field}>
@@ -278,11 +277,12 @@ export function ItemBlock({
                   value={p.width_mm}
                   onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
               </label>
-              <button type="button" className="btn btn-ghost"
+              <Button
+                variant="ghost"
                 aria-label={`Убрать нанесение ${pi + 1}`}
                 onClick={() => removePrint(i, pi)}>
                 <Icon name="x" size={14} />
-              </button>
+              </Button>
             </div>
             <div className={`${styles.checkRow} ${styles.printRow}`}>
               <input
@@ -315,14 +315,12 @@ export function ItemBlock({
             className={styles.checkRow}
             data-invalid={err(`item_${i}_prints`) ? true : undefined}
           >
-            <button
-              type="button"
-              className="btn btn-secondary"
+            <Button
+              variant="secondary"
               aria-describedby={err(`item_${i}_prints`) ? `err-item-${i}-prints` : undefined}
-              onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}
-            >
+              onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}>
               + Нанесение ({it.prints.length})
-            </button>
+            </Button>
             <FieldError id={`err-item-${i}-prints`} text={err(`item_${i}_prints`)} />
           </div>
         )}

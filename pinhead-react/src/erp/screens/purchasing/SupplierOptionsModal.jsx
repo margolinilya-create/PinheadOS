@@ -7,6 +7,7 @@ import { SUPPLIER_OPTION_LABELS } from '../../types';
 import { Icon } from '../../components/Icon';
 import styles from '../../erp.module.css';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { Button } from '../../components/Button';
 
 /**
  * Сравнение вариантов поставщиков на одну позицию закупки (правка 10).
@@ -167,23 +168,17 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
                   </td>
                   <td>
                     {!o.is_selected && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => selectSupplierOption(material.id, o.id)}
-                      >
+                      <Button variant="secondary" onClick={() => selectSupplierOption(material.id, o.id)}>
                         Выбрать
-                      </button>
+                      </Button>
                     )}
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
+                    <Button
+                      variant="ghost"
                       aria-label={`Удалить вариант ${o.supplier || 'поставщика'}`}
                       title="Удалить вариант"
-                      onClick={() => remove(o)}
-                    >
+                      onClick={() => remove(o)}>
                       <Icon name="x" size={15} />
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -247,19 +242,14 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
           </label>
         </div>
         <div className={styles.modalActions}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={saving || !form.supplier.trim()}
-            onClick={add}
-          >
+          <Button variant="primary" disabled={saving || !form.supplier.trim()} onClick={add}>
             + Добавить вариант
-          </button>
+          </Button>
         </div>
       </section>
 
       <div className={styles.modalActions}>
-        <button type="button" className="btn btn-ghost" onClick={onClose}>Закрыть</button>
+        <Button variant="ghost" onClick={onClose}>Закрыть</Button>
       </div>
       </div>
     </div>

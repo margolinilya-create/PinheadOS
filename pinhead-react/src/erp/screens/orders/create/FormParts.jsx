@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Icon } from '../../../components/Icon';
 import styles from '../../../erp.module.css';
+import { Button } from '../../../components/Button';
 
 /**
  * Мелкие примитивы формы создания заказа: секция-аккордеон, текст ошибки поля
@@ -34,9 +35,9 @@ export function PdfPick({ label, onPick }) {
   const ref = useRef(null);
   return (
     <>
-      <button type="button" className="btn btn-secondary" onClick={() => ref.current?.click()}>
+      <Button variant="secondary" onClick={() => ref.current?.click()}>
         {label}
-      </button>
+      </Button>
       <input
         ref={ref}
         type="file"

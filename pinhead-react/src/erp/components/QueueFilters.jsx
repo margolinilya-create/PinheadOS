@@ -11,6 +11,7 @@ import {
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
 import { DateField } from './DateField';
+import { Button } from '../components/Button';
 
 /**
  * Общая панель фильтров производственных заданий (правка 9) — очередь цеха,
@@ -72,13 +73,9 @@ export function QueueFilters({
           Фильтры <Icon name="chevronDown" size={13} className={expanded ? styles.chevronUp : undefined} />
         </button>
         {active && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => onChange({ ...EMPTY_FILTERS })}
-          >
+          <Button variant="ghost" onClick={() => onChange({ ...EMPTY_FILTERS })}>
             Сбросить
-          </button>
+          </Button>
         )}
       </FilterBar>
 

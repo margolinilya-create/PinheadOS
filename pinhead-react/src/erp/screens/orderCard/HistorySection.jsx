@@ -11,6 +11,7 @@ import {
 import styles from '../../erp.module.css';
 import { fmt, fmtTs } from './format';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { Button } from '../../components/Button';
 
 const AUDIT_FIELD_LABELS = {
   title: 'Название',
@@ -115,9 +116,9 @@ export function HistorySection({ events, audit, stageById, deptById }) {
           <span className={styles.subText}>
             показаны последние {shown.length} из {allRows.length}
             {' '}
-            <button type="button" className="btn btn-ghost" onClick={() => setLimit(allRows.length)}>
+            <Button variant="ghost" onClick={() => setLimit(allRows.length)}>
               Показать все
-            </button>
+            </Button>
           </span>
         )}
       </div>

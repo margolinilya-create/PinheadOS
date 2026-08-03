@@ -9,6 +9,7 @@ import {
 } from '../../utils/planCard';
 import styles from '../../erp.module.css';
 import { dueLabelCompact } from '../../utils/format';
+import { Button, ButtonLink } from '../../components/Button';
 
 /**
  * Карточка задачи производственного плана.
@@ -143,13 +144,13 @@ export function PlanTaskCard({
 
       <div className={styles.planCardActions}>
         {stage && (
-          <Link to={`/task/${stage.id}`} className="btn btn-ghost" draggable={false}>
+          <ButtonLink to={`/task/${stage.id}`} variant="ghost" draggable={false}>
             Задание
-          </Link>
+          </ButtonLink>
         )}
-        <button type="button" className="btn btn-secondary" onClick={() => onOpen?.(slot)}>
+        <Button variant="secondary" onClick={() => onOpen?.(slot)}>
           Открыть
-        </button>
+        </Button>
       </div>
     </article>
   );

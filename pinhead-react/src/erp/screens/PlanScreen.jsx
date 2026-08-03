@@ -21,6 +21,7 @@ import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
 import styles from '../erp.module.css';
 import { percentLabel } from '../utils/format';
+import { Button } from '../components/Button';
 
 /**
  * Недельное и ежедневное планирование производства (правка менеджера 2026-08-03).
@@ -153,15 +154,15 @@ export default function PlanScreen() {
       />
 
       <div className={styles.toolbar}>
-        <button type="button" className="btn btn-secondary" onClick={() => setParam({ week: shiftWeek(monday, -1) })}>
+        <Button variant="secondary" onClick={() => setParam({ week: shiftWeek(monday, -1) })}>
           <Icon name="chevronLeft" size={15} /> Неделя
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setParam({ week: null })}>
+        </Button>
+        <Button variant="secondary" onClick={() => setParam({ week: null })}>
           Текущая неделя
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setParam({ week: shiftWeek(monday, 1) })}>
+        </Button>
+        <Button variant="secondary" onClick={() => setParam({ week: shiftWeek(monday, 1) })}>
           Неделя <Icon name="chevronRight" size={15} />
-        </button>
+        </Button>
         <span className={styles.subText}>
           {formatDateShort(dates[0])} — {formatDateShort(dates[dates.length - 1])}
         </span>
@@ -254,24 +255,22 @@ export default function PlanScreen() {
                           правило проекта и единственный путь на планшете цеха */}
                       {canManage && (
                         <div className={styles.planMoveBtns}>
-                          <button
-                            type="button" className="btn btn-ghost"
+                          <Button
+                            variant="ghost"
                             disabled={i === 0}
                             aria-label={`Перенести на ${DAY_NAMES[i - 1] || ''}`}
                             title="На день раньше"
-                            onClick={() => movePlanSlot(slot.id, dates[i - 1])}
-                          >
+                            onClick={() => movePlanSlot(slot.id, dates[i - 1])}>
                             <Icon name="chevronLeft" size={14} />
-                          </button>
-                          <button
-                            type="button" className="btn btn-ghost"
+                          </Button>
+                          <Button
+                            variant="ghost"
                             disabled={i === dates.length - 1}
                             aria-label={`Перенести на ${DAY_NAMES[i + 1] || ''}`}
                             title="На день позже"
-                            onClick={() => movePlanSlot(slot.id, dates[i + 1])}
-                          >
+                            onClick={() => movePlanSlot(slot.id, dates[i + 1])}>
                             <Icon name="chevronRight" size={14} />
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -279,16 +278,11 @@ export default function PlanScreen() {
                   {list.length === 0 && <div className={styles.kanbanEmpty}>—</div>}
 
                   {canManage && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => setAddTo({
-                        date,
-                        deptId: productionDepts.find((d) => d.code === deptCode)?.id ?? null,
-                      })}
-                    >
+                    <Button
+                      variant="ghost"
+                      onClick={() => setAddTo({ date, deptId: productionDepts.find((d) => d.code === deptCode)?.id ?? null, })}>
                       + В план на этот день
-                    </button>
+                    </Button>
                   )}
                 </section>
               );

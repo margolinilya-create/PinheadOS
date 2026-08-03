@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import styles from '../../erp.module.css';
 import { fmtTs } from './format';
+import { Button } from '../../components/Button';
 
 /**
  * Секция комментариев заказа: список + форма отправки.
@@ -52,9 +53,9 @@ export function CommentsSection({ comments, onSend }) {
           onChange={(e) => setDraft(e.target.value)}
           aria-label="Новый комментарий"
         />
-        <button type="submit" className="btn btn-primary" disabled={sending || !draft.trim()}>
+        <Button variant="primary" type="submit" disabled={sending || !draft.trim()}>
           {sending ? 'Отправка…' : 'Отправить'}
-        </button>
+        </Button>
       </form>
     </section>
   );

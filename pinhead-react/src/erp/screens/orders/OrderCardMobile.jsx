@@ -11,6 +11,7 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 import { formatDateCell } from '../../utils/format';
+import { Button } from '../../components/Button';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
 function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
@@ -34,14 +35,9 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
           {order.title} ↗
         </Link>
         {canDelete && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            aria-label={`Удалить заказ ${order.title}`}
-            onClick={() => onDelete(order)}
-          >
+          <Button variant="ghost" aria-label={`Удалить заказ ${order.title}`} onClick={() => onDelete(order)}>
             <Icon name="x" size={15} />
-          </button>
+          </Button>
         )}
       </div>
       <div className={styles.subText}>
@@ -84,23 +80,15 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
         )}
       </div>
       {ready && (
-        <button
-          type="button"
-          className={`btn btn-primary ${styles.shipBtn}`}
-          onClick={() => onShip(order)}
-        >
+        <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
           <Icon name="truck" size={14} /> Отгрузить
-        </button>
+        </Button>
       )}
       {onToggleDemo && (
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => onToggleDemo(order)}
-        >
+        <Button variant="ghost" onClick={() => onToggleDemo(order)}>
           <Icon name={order.is_demo ? 'eye' : 'flask'} size={14} />
           {order.is_demo ? ' Вернуть в рабочие' : ' Пометить тестовым'}
-        </button>
+        </Button>
       )}
       {order.items.map((it) => (
         <div key={it.id} className={styles.orderCardMItem}>

@@ -24,6 +24,7 @@ import { Icon } from '../components/Icon';
 import { QueueCard } from './queue/QueueCard';
 import { QueueRow } from './queue/QueueRow';
 import { useStageActions } from './queue/useStageActions';
+import { Button } from '../components/Button';
 
 /**
  * Экран цеха: рабочая очередь конкретного участка.
@@ -434,14 +435,9 @@ export default function DepartmentQueue() {
             <h2 className={styles.queueGroupTitle}>
               {title} <span className={styles.subText}>({list.length})</span>
               {key === 'done' && (
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  aria-expanded={showDone}
-                  onClick={() => setShowDone((v) => !v)}
-                >
+                <Button variant="ghost" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>
                   {showDone ? 'Свернуть' : 'Показать'}
-                </button>
+                </Button>
               )}
             </h2>
             {!collapsed && (isCompact ? (

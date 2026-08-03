@@ -7,6 +7,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { Button } from '../../components/Button';
 
 /**
  * Чего именно ждёт задание из группы «Ожидают материалы» (правка менеджера
@@ -101,14 +102,9 @@ export function MaterialWait({ materials, compact = false }) {
             )}
 
             {canReceive && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy === m.id}
-                onClick={() => receive(m)}
-              >
+              <Button variant="secondary" disabled={busy === m.id} onClick={() => receive(m)}>
                 {busy === m.id ? 'Отмечаем…' : 'Материал поступил'}
-              </button>
+              </Button>
             )}
           </li>
         );

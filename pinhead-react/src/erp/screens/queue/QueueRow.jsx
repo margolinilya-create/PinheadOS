@@ -11,6 +11,7 @@ import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
+import { Button, ButtonLink } from '../../components/Button';
 
 /**
  * Компактная строка рабочей очереди цеха (правка 2) — вместо крупной карточки.
@@ -161,23 +162,21 @@ export function QueueRow({
         </span>
 
         <span className={styles.queueRowActions}>
-          <Link
+          <ButtonLink
             to={`/task/${stage.id}`}
             state={{ from: `${location.pathname}${location.search}` }}
-            className="btn btn-ghost"
+            variant="ghost"
             draggable={false}
           >
             Открыть
-          </Link>
-          <button
-            type="button"
-            className="btn btn-secondary"
+          </ButtonLink>
+          <Button
+            variant="secondary"
             aria-expanded={open}
             aria-label={open ? 'Свернуть задание' : 'Развернуть задание'}
-            onClick={() => setOpen((v) => !v)}
-          >
+            onClick={() => setOpen((v) => !v)}>
             <Icon name="chevronDown" size={15} className={open ? styles.chevronUp : undefined} />
-          </button>
+          </Button>
         </span>
       </div>
 

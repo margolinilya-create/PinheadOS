@@ -14,6 +14,7 @@ import {
   missingTzItems,
 } from '../../utils/tz';
 import styles from '../../erp.module.css';
+import { Button } from '../../components/Button';
 
 /**
  * Управление PDF-ТЗ позиции: загрузка общего ТЗ и файла позиции, замена файла новой
@@ -187,13 +188,9 @@ export function TzMissingBanner({ order, departments }) {
         {access.can('tz.manage') && (
           <>
             {' '}
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setTzRequired(order.id, true)}
-            >
+            <Button variant="ghost" onClick={() => setTzRequired(order.id, true)}>
               Требовать ТЗ
-            </button>
+            </Button>
           </>
         )}
       </div>

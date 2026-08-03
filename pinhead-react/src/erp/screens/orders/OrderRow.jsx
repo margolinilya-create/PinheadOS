@@ -15,6 +15,7 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 import { formatDateCell } from '../../utils/format';
+import { Button } from '../../components/Button';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
 function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
@@ -95,38 +96,28 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
         </td>
         <td onClick={(e) => e.stopPropagation()}>
           {ready && (
-            <button
-              type="button"
-              className={`btn btn-primary ${styles.shipBtn}`}
-              onClick={() => onShip(order)}
-            >
+            <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
               <Icon name="truck" size={14} /> Отгрузить
-            </button>
+            </Button>
           )}
           {onToggleDemo && (
-            <button
-              type="button"
-              className="btn btn-ghost"
+            <Button
+              variant="ghost"
               aria-label={order.is_demo
                 ? `Снять пометку «тестовый» с заказа ${order.title}`
                 : `Пометить заказ ${order.title} тестовым`}
-              title={order.is_demo
-                ? 'Снять пометку «тестовый»'
-                : 'Пометить тестовым — заказ пропадёт из рабочих списков, но не будет удалён'}
-              onClick={() => onToggleDemo(order)}
-            >
+              title={order.is_demo ? 'Снять пометку «тестовый»' : 'Пометить тестовым — заказ пропадёт из рабочих списков, но не будет удалён'}
+              onClick={() => onToggleDemo(order)}>
               <Icon name={order.is_demo ? 'eye' : 'flask'} size={15} />
-            </button>
+            </Button>
           )}
           {canDelete && (
-            <button
-              type="button"
-              className="btn btn-ghost"
+            <Button
+              variant="ghost"
               aria-label={`Удалить заказ ${order.title}`}
-              onClick={() => onDelete(order)}
-            >
+              onClick={() => onDelete(order)}>
               <Icon name="x" size={15} />
-            </button>
+            </Button>
           )}
         </td>
       </tr>
@@ -147,7 +138,7 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
                 </span>
               ))}
             </div>
-            <div className={styles.stageChips} style={{ marginTop: 6 }}>
+            <div className={`${styles.stageChips} ${styles.stageChipsRow}`}>
               {it.stages.map((st) => (
                 <span
                   key={st.id}

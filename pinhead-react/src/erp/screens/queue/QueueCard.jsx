@@ -9,6 +9,7 @@ import { Lightbox } from './Lightbox';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
+import { ButtonLink } from '../../components/Button';
 
 /**
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
@@ -138,13 +139,13 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
         </div>
       )}
 
-      <Link
+      <ButtonLink
         to={`/task/${stage.id}`}
         state={{ from: `${location.pathname}${location.search}` }}
-        className="btn btn-ghost"
+        variant="ghost"
       >
         Открыть задание ↗
-      </Link>
+      </ButtonLink>
 
       <StageActionsPanel
         entry={entry}

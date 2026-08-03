@@ -9,21 +9,29 @@
  *   - консоль:      setFeature('orderStudio', true)  (затем перезагрузить)
  *   - localStorage: pinhead_feature_orderStudio = '1'
  *   - env (билд):   VITE_FEATURE_ORDER_STUDIO=1
+ *
+ * Витрина дизайн-системы (/styleguide) — тем же механизмом:
+ *   - URL:          ?styleguide=1
+ *   - env (билд):   VITE_FEATURE_STYLEGUIDE=1
+ * По умолчанию выключена: это инструмент разработки, а не раздел ERP.
  */
 
-export type FeatureName = 'orderStudio';
+export type FeatureName = 'orderStudio' | 'styleguide';
 
 const DEFAULTS: Record<FeatureName, boolean> = {
   orderStudio: false,
+  styleguide: false,
 };
 
 const ENV_KEYS: Record<FeatureName, string> = {
   orderStudio: 'VITE_FEATURE_ORDER_STUDIO',
+  styleguide: 'VITE_FEATURE_STYLEGUIDE',
 };
 
 /** Короткие URL-параметры для быстрого включения */
 const URL_KEYS: Record<FeatureName, string> = {
   orderStudio: 'studio',
+  styleguide: 'styleguide',
 };
 
 const LS_PREFIX = 'pinhead_feature_';
@@ -88,6 +96,9 @@ export function clearFeature(name: FeatureName): void {
 export const FEATURES = {
   get orderStudio(): boolean {
     return isFeatureEnabled('orderStudio');
+  },
+  get styleguide(): boolean {
+    return isFeatureEnabled('styleguide');
   },
 };
 

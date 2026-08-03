@@ -4,6 +4,7 @@ import { formatDateShort } from '../utils/time';
 import { tzCaption, tzFileUrl } from '../utils/tzFile';
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
+import { Button, ButtonLink } from '../components/Button';
 
 /**
  * Просмотр PDF-ТЗ внутри ERP (волна 4). Решение заказчика — встроенный просмотрщик
@@ -27,11 +28,11 @@ function TzFullscreen({ doc, url, onClose }) {
       <div className={styles.tzFullscreenBar} ref={trapRef}>
         <strong className={styles.tzFullscreenName}>{tzCaption(doc)}</strong>
         <div className={styles.spacer} />
-        <a href={url} target="_blank" rel="noreferrer" className="btn btn-ghost">В новой вкладке ↗</a>
-        <a href={url} download={doc.file_name || 'tz.pdf'} className="btn btn-secondary">Скачать</a>
-        <button type="button" className="btn btn-ghost" onClick={onClose} autoFocus>
+        <ButtonLink href={url} target="_blank" rel="noreferrer" variant="ghost">В новой вкладке ↗</ButtonLink>
+        <ButtonLink href={url} download={doc.file_name || 'tz.pdf'} variant="secondary">Скачать</ButtonLink>
+        <Button variant="ghost" onClick={onClose} autoFocus>
           <span className={styles.cellWithIcon}><Icon name="x" size={15} />Закрыть</span>
-        </button>
+        </Button>
       </div>
       <iframe src={url} title={`ТЗ: ${tzCaption(doc)}`} className={styles.tzFullscreenFrame} />
     </div>
@@ -59,19 +60,14 @@ export function TzViewer({ doc, compact = false, badge = null, actions = null })
         {badge}
         <div className={styles.spacer} />
         {compact && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            aria-expanded={inline}
-            onClick={() => setInline((v) => !v)}
-          >
+          <Button variant="secondary" aria-expanded={inline} onClick={() => setInline((v) => !v)}>
             {inline ? 'Свернуть ТЗ' : 'Открыть ТЗ'}
-          </button>
+          </Button>
         )}
-        <button type="button" className="btn btn-ghost" onClick={() => setFull(true)}>
+        <Button variant="ghost" onClick={() => setFull(true)}>
           На весь экран
-        </button>
-        <a href={url} download={doc.file_name || 'tz.pdf'} className="btn btn-ghost">Скачать</a>
+        </Button>
+        <ButtonLink href={url} download={doc.file_name || 'tz.pdf'} variant="ghost">Скачать</ButtonLink>
         {actions}
       </div>
       <div className={styles.tzDocMeta}>

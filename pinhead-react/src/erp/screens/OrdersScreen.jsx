@@ -20,6 +20,7 @@ import { OrderRow } from './orders/OrderRow';
 import { OrderCardMobile } from './orders/OrderCardMobile';
 import { CreateOrderModal } from './orders/CreateOrderModal';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Button } from '../components/Button';
 
 export default function OrdersScreen() {
   const {
@@ -260,13 +261,9 @@ export default function OrdersScreen() {
           />
         </label>
         {(dateFrom || dateTo) && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => patchParams({ from: '', to: '' })}
-          >
+          <Button variant="ghost" onClick={() => patchParams({ from: '', to: '' })}>
             Сбросить даты
-          </button>
+          </Button>
         )}
         {/* Показ тестовых — только у admin/director: это отладочный режим,
             и цеху он показал бы работу, которой нет. */}
@@ -283,9 +280,9 @@ export default function OrdersScreen() {
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         {canManageOrders && (
-          <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
             + Новый заказ
-          </button>
+          </Button>
         )}
       </div>
 
@@ -363,16 +360,11 @@ export default function OrdersScreen() {
           видно, сколько уже загружено и есть ли ещё */}
       {tab === 'archive' && archiveLoaded && archiveHasMore && (
         <div className={styles.toolbar} style={{ justifyContent: 'center', marginTop: 12 }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={archiveLoading}
-            onClick={loadMoreArchive}
-          >
+          <Button variant="secondary" disabled={archiveLoading} onClick={loadMoreArchive}>
             {archiveLoading
               ? 'Загружаем…'
               : `Показать ещё (загружено ${inTab.length})`}
-          </button>
+          </Button>
         </div>
       )}
 

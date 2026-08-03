@@ -2565,3 +2565,80 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   .planDay { flex-basis: 88vw; }
   .planDeviationList { grid-template-columns: 1fr; }
 }
+
+/* Ряд чипов этапов внутри развёрнутой строки заказа (был инлайновый marginTop) */
+.stageChipsRow { margin-top: var(--space-xs); }
+/* Ячейка, которую нельзя переносить: даты и счётчики в админских таблицах */
+.nowrap { white-space: nowrap; }
+
+/* ─── Витрина дизайн-системы (/styleguide, за флагом) ───
+   Свои классы, а не инлайновые стили: страница, показывающая, как надо,
+   не может сама быть примером того, как не надо. Единственные инлайновые
+   значения на ней — сами демонстрируемые токены (`var(--space-lg)` и т.п.),
+   и это их суть: показать величину, а не назначить её. */
+.sgRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+}
+.sgStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+}
+.sgSwatchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.sgToken {
+  min-width: 150px;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.sgSwatch {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+}
+.sgBar {
+  height: 14px;
+  min-width: 2px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+.sgRadius {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+}
+.sgCode {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text);
+}
+.sgIcon {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 92px;
+  padding: var(--space-sm) var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.sgIcon .sgToken { min-width: 0; word-break: break-word; }

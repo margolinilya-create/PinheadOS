@@ -22,6 +22,7 @@ import { MarkingCard } from './warehouse/MarkingCard';
 import { PackShipCard } from './warehouse/PackShipCard';
 import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Button } from '../components/Button';
 
 /**
  * Склад (редизайн): таблица задач (KPI + вкладки по типу + пагинация); детали и действия
@@ -240,9 +241,11 @@ export default function Warehouse() {
                     <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task)}</Badge></td>
                     <td>{formatDateShort(task.deadline) || '—'}</td>
                     <td>
-                      <button type="button" className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); setOpenId(task.id); }}>
+                      <Button
+                        variant="secondary"
+                        onClick={(e) => { e.stopPropagation(); setOpenId(task.id); }}>
                         Открыть
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}

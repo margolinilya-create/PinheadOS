@@ -9,6 +9,7 @@ import { ScreenSkeleton } from './components/ErpSkeletons';
 import { LoadFailed } from './components/ErpStates';
 import { Icon } from './components/Icon';
 import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
+import { FEATURES } from '../config/features';
 import styles from './erp.module.css';
 
 // Тяжёлые экраны — отдельные чанки (п.30): первые экраны остаются статикой
@@ -22,6 +23,10 @@ const Subcontracting = lazy(() => import('./screens/Subcontracting'));
 const Experimental = lazy(() => import('./screens/Experimental'));
 const DeptLoad = lazy(() => import('./screens/DeptLoad'));
 const PlanScreen = lazy(() => import('./screens/PlanScreen'));
+// Витрина дизайн-системы — за флагом `styleguide`, отдельным чанком.
+// Ленивый импорт обязателен: иначе список всех иконок и демо-разметка
+// уехали бы в оболочку, которую грузят все и всегда.
+const StyleGuide = lazy(() => import('./screens/StyleGuide'));
 
 /**
  * Кей по orderId → свежий инстанс карточки на каждый заказ: при переходе A→B страница
@@ -87,6 +92,8 @@ export default function ErpApp({ user }) {
           <Route path="/warehouse" element={<ErpGuard allowed={isAdmin}><Warehouse /></ErpGuard>} />
           <Route path="/subcontracting" element={<ErpGuard allowed={isAdmin}><Subcontracting /></ErpGuard>} />
           <Route path="/experimental" element={<ErpGuard allowed={isAdmin}><Experimental /></ErpGuard>} />
+          {/* Инструмент разработки, не раздел ERP: в меню нет, по умолчанию выключен */}
+          {FEATURES.styleguide && <Route path="/styleguide" element={<StyleGuide />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

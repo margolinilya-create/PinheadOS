@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Icon } from './Icon';
 import styles from './Button.module.css';
 
@@ -47,4 +48,50 @@ export function Button({
       {!iconOnly && children}
     </button>
   );
+}
+
+/**
+ * Ссылка в облике кнопки: те же варианты и размеры, но `<Link>`/`<a>`.
+ *
+ * Нужна ровно там, где действие — это ПЕРЕХОД («Открыть задание», «← В очередь
+ * цеха», «Скачать ТЗ»). Подменять её кнопкой нельзя: ломаются Ctrl+клик,
+ * «открыть в новой вкладке», средняя кнопка мыши и объявление роли для
+ * скринридера. Раньше таких мест было восемь, и все они звали глобальный
+ * `btn btn-*` из Order Studio — то есть ERP в этих точках говорила
+ * на чужом языке и получала чужую (uppercase) типографику.
+ *
+ * `href` → внешняя ссылка `<a>`, `to` → маршрут `<Link>`.
+ */
+export function ButtonLink({
+  variant = 'secondary',
+  size = 'md',
+  icon,
+  block = false,
+  className = '',
+  href,
+  to,
+  children,
+  ...rest
+}) {
+  const cls = [
+    styles.btn,
+    styles[variant],
+    styles.link,
+    size !== 'md' && styles[size],
+    block && styles.block,
+    className,
+  ].filter(Boolean).join(' ');
+
+  const iconSize = size === 'lg' ? 17 : size === 'sm' ? 14 : 15;
+  const content = (
+    <>
+      {icon && <Icon name={icon} size={iconSize} />}
+      {children}
+    </>
+  );
+
+  if (href !== undefined) {
+    return <a href={href} className={cls} {...rest}>{content}</a>;
+  }
+  return <Link to={to} className={cls} {...rest}>{content}</Link>;
 }

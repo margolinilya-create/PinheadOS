@@ -24,6 +24,7 @@ import { NotificationsSection } from './NotificationsSection';
 import { TzBlock } from '../queue/TzBlock';
 import { TzDocsSection, TzMissingBanner } from './TzDocsSection';
 import { useOrderDetail } from './useOrderDetail';
+import { ButtonLink } from '../../components/Button';
 
 /**
  * Боковая карточка заказа (редизайн): те же данные, что и страница /orders/:id, но в правом
@@ -70,11 +71,11 @@ export function OrderDrawer({ orderId, onClose }) {
     >
       <div className={styles.toolbar} style={{ marginTop: -4, marginBottom: 10 }}>
         {/* Правка 6: вместо обезличенного «Открыть на странице» — конкретный номер заказа */}
-        <Link to={`/orders/${orderId}`} className="btn btn-secondary" onClick={onClose}>
+        <ButtonLink to={`/orders/${orderId}`} variant="secondary" onClick={onClose}>
           {/* Фолбэк на название: у заказов без сделки Bitrix ссылка называлась прочерком */}
           Открыть {order?.bitrix_id ? `заказ №${order.bitrix_id}` : (order?.title || 'заказ')}{' '}
           <Icon name="externalLink" size={12} />
-        </Link>
+        </ButtonLink>
       </div>
 
       {notFound && <div className={styles.subText}>Заказ не найден или был удалён.</div>}

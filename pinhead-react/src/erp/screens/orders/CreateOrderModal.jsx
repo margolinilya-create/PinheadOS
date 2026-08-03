@@ -41,6 +41,7 @@ import styles from '../../erp.module.css';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { ItemBlock } from './create/ItemBlock';
+import { Button } from '../../components/Button';
 
 /**
  * Позиции с их производственными этапами — те, кому нужно ТЗ, и цеха, которые
@@ -521,9 +522,9 @@ export function CreateOrderModal({ onClose }) {
         {draftRestored && (
           <div className={styles.draftBanner} role="status">
             <span>Восстановлен черновик</span>
-            <button type="button" className="btn btn-ghost" onClick={resetDraft}>
+            <Button variant="ghost" onClick={resetDraft}>
               Очистить
-            </button>
+            </Button>
           </div>
         )}
 
@@ -659,13 +660,9 @@ export function CreateOrderModal({ onClose }) {
           />
         ))}
         <div>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}
-          >
+          <Button variant="secondary" onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}>
             + Добавить позицию
-          </button>
+          </Button>
         </div>
         </FormSection>
 
@@ -756,17 +753,11 @@ export function CreateOrderModal({ onClose }) {
           {previewUrl ? (
             <>
               <img src={previewUrl} alt="Превью заказа" className={styles.dropZoneImg} />
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPreviewFile(null);
-                  setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
-                }}
-              >
+              <Button
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); setPreviewFile(null); setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; }); }}>
                 <span className={styles.cellWithIcon}><Icon name="x" size={14} /> Убрать</span>
-              </button>
+              </Button>
             </>
           ) : (
             <span className={styles.subText}>
@@ -810,18 +801,14 @@ export function CreateOrderModal({ onClose }) {
                   : tzValidation.message}
             </span>
           )}
-          <button type="button" className="btn btn-ghost" onClick={requestClose}>Отмена</button>
-          <button
+          <Button variant="ghost" onClick={requestClose}>Отмена</Button>
+          <Button
+            variant="primary"
             type="submit"
-            className="btn btn-primary"
-            disabled={saving
-              || tzUploading
-              || tzFailed
-              || tzValidation.missing.length > 0
-              || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}
-          >
+            disabled={saving || tzUploading || tzFailed || tzValidation.missing.length
+          > 0 || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}>
             {saving ? 'Создание…' : 'Создать заказ'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

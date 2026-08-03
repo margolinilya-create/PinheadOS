@@ -4,6 +4,7 @@ import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS, PROCUREMENT_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { ButtonLink } from '../../components/Button';
 
 /**
  * Центр уведомлений по заказу (правка 7, лёгкий вариант): открытые задачи дозакупки —
@@ -19,7 +20,7 @@ export function NotificationsSection({ order, stageById, deptById }) {
     <section className={`${styles.matSection} ${styles.queueCardUrgent}`}>
       <div className={styles.matSectionHead}>
         <strong><Icon name="bell" size={15} /> Требуют внимания ({open.length})</strong>
-        <Link to="/purchasing" className="btn btn-secondary">→ Закупка</Link>
+        <ButtonLink to="/purchasing" variant="secondary">→ Закупка</ButtonLink>
       </div>
       <ul className={styles.tzMatList}>
         {open.map((t) => {

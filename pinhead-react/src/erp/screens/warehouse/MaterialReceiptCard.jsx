@@ -4,6 +4,7 @@ import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import { confirm } from '../../../store/useConfirmStore';
 import styles from '../../erp.module.css';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { Button } from '../../components/Button';
 
 /**
  * Задача склада «Приёмка материалов» (правка 4.1.3): сравнение План↔Факт по каждому материалу.
@@ -161,9 +162,9 @@ function AcceptBlock({ material: m, onAccept }) {
         <input className={styles.input} style={{ flex: 1, minWidth: 160 }} placeholder="Комментарий"
           value={comment} onChange={(e) => setComment(e.target.value)}
           aria-label={`Комментарий приёмки ${m.name}`} />
-        <button type="button" className="btn btn-primary" disabled={saving} onClick={accept}>
+        <Button variant="primary" disabled={saving} onClick={accept}>
           {done ? 'Обновить приёмку' : 'Принять'}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -21,6 +21,7 @@ import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
+import { ButtonLink } from '../components/Button';
 
 /**
  * Карточка заказа (страница /orders/:id) — «трекинг посылки»: маршрут по этапам с план/фактом,
@@ -39,9 +40,9 @@ export default function OrderCard() {
     return (
       <>
         <PageHead title="Заказ не найден" />
-        <Link to="/orders" className={`btn btn-secondary ${styles.cellWithIcon}`}>
+        <ButtonLink to="/orders" variant="secondary" className={styles.cellWithIcon}>
           <Icon name="chevronLeft" size={14} />К списку заказов
-        </Link>
+        </ButtonLink>
       </>
     );
   }

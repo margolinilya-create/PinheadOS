@@ -13,6 +13,7 @@ import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
 import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
+import { Button } from '../../components/Button';
 
 /**
  * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
@@ -146,14 +147,12 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             onChange={(e) => setAckText(e.target.value)}
             aria-label="Причина задержки этапа"
           />
-          <button
-            type="button"
-            className="btn btn-secondary"
+          <Button
+            variant="secondary"
             disabled={!ackText.trim()}
-            onClick={() => { onAckOverdue(stage.id, ackText.trim()); setAckText(''); }}
-          >
+            onClick={() => { onAckOverdue(stage.id, ackText.trim()); setAckText(''); }}>
             Сохранить
-          </button>
+          </Button>
         </div>
       )}
 
@@ -173,14 +172,14 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           {group === 'ready' && !startMode && (
             <>
               {perms.take && (
-                <button type="button" className="btn btn-primary" onClick={() => setStartMode(true)}>
+                <Button variant="primary" onClick={() => setStartMode(true)}>
                   <Icon name="play" size={14} /> Взять в работу
-                </button>
+                </Button>
               )}
               {perms.block && !blockMode && (
-                <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
+                <Button variant="ghost" onClick={() => setBlockMode(true)}>
                   <Icon name="ban" size={14} /> Проблема
-                </button>
+                </Button>
               )}
             </>
           )}
@@ -198,59 +197,49 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     placeholder={`из ${remaining}`}
                     aria-label={`Сколько сделано, шт (осталось ${remaining} из ${item.qty})`}
                   />
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
+                  <Button
+                    variant="secondary"
+                    icon="plus"
                     disabled={busy || !(Number(doneQty) > 0)}
                     onClick={() => run(async () => {
                       await onProgress(entry, Math.max(1, Number(doneQty) || 0));
                       setDoneQty('');
                     })}
                   >
-                    <Icon name="plus" size={14} /> Записать результат
-                  </button>
+                    Записать результат
+                  </Button>
                 </>
               )}
               {perms.complete && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy}
-                  onClick={() => run(() => onDone(entry))}
-                >
+                <Button variant="primary" disabled={busy} onClick={() => run(() => onDone(entry))}>
                   <Icon name="check" size={14} /> Завершить этап
-                </button>
+                </Button>
               )}
               {!blockMode && !defectMode && (
                 <>
                   {perms.defect && (
-                    <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
+                    <Button variant="ghost" onClick={() => setDefectMode(true)}>
                       <Icon name="undo" size={14} /> Брак
-                    </button>
+                    </Button>
                   )}
                   {perms.block && (
-                    <button type="button" className="btn btn-ghost" onClick={() => setBlockMode(true)}>
+                    <Button variant="ghost" onClick={() => setBlockMode(true)}>
                       <Icon name="ban" size={14} /> Проблема
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
             </>
           )}
           {group === 'done' && perms.defect && !defectMode && (
-            <button type="button" className="btn btn-ghost" onClick={() => setDefectMode(true)}>
+            <Button variant="ghost" onClick={() => setDefectMode(true)}>
               <Icon name="undo" size={14} /> Брак / переделка
-            </button>
+            </Button>
           )}
           {group === 'blocked' && perms.block && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => run(() => onUnblock(entry))}
-            >
+            <Button variant="secondary" disabled={busy} onClick={() => run(() => onUnblock(entry))}>
               Снять блокировку
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -268,20 +257,15 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               autoFocus
             />
           </label>
-          <button
-            type="button"
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             disabled={busy || !startDate}
-            onClick={() => run(async () => {
-              await onStart(entry, startDate);
-              setStartMode(false);
-            })}
-          >
+            onClick={() => run(async () => { await onStart(entry, startDate); setStartMode(false); })}>
             <Icon name="play" size={14} /> В работу
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setStartMode(false)}>
+          </Button>
+          <Button variant="ghost" onClick={() => setStartMode(false)}>
             Отмена
-          </button>
+          </Button>
         </div>
       )}
 
@@ -303,20 +287,21 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             />
           </label>
           <PhotoAttach file={blockPhoto} onFile={setBlockPhoto} label="Фото (необязательно)" />
-          <button
-            type="button"
-            className="btn btn-danger"
+          <Button
+            variant="danger"
             disabled={busy || !blockText.trim()}
             onClick={() => run(async () => {
               await onBlock(entry, blockText.trim(), blockPhoto);
-              setBlockMode(false); setBlockText(''); setBlockPhoto(null);
+              setBlockMode(false);
+              setBlockText('');
+              setBlockPhoto(null);
             })}
           >
             Заблокировать
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => { setBlockMode(false); setBlockPhoto(null); }}>
+          </Button>
+          <Button variant="ghost" onClick={() => { setBlockMode(false); setBlockPhoto(null); }}>
             Отмена
-          </button>
+          </Button>
         </div>
       )}
 

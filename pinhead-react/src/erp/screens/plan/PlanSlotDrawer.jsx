@@ -11,6 +11,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { formatDateShort } from '../../utils/time';
 import { needsDeviationReason, planRemaining } from '../../utils/planCard';
 import styles from '../../erp.module.css';
+import { Button } from '../../components/Button';
 
 /**
  * Карточка задачи плана целиком: план от руководителя, факт от цеха, проблема
@@ -191,9 +192,9 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                   }}
                 />
               </label>
-              <button type="button" className="btn btn-ghost" disabled={busy} onClick={remove}>
+              <Button variant="ghost" disabled={busy} onClick={remove}>
                 Убрать из плана
-              </button>
+              </Button>
             </div>
           ) : (
             <div className={styles.subText}>
@@ -245,9 +246,9 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                   />
                 </label>
               )}
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={saveFact}>
+              <Button variant="primary" disabled={busy} onClick={saveFact}>
                 Записать факт
-              </button>
+              </Button>
             </div>
             {needsDeviationReason(slot) && (
               <div className={styles.queueReason}>
@@ -276,12 +277,12 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                     slot.problem_can_continue ? 'работу можно продолжать' : 'работа остановлена',
                   ].filter(Boolean).join(' · ')}
                 </span>
-                <button
-                  type="button" className="btn btn-secondary" disabled={busy}
-                  onClick={() => run(() => clearPlanProblem(slot.id))}
-                >
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => run(() => clearPlanProblem(slot.id))}>
                   Снять проблему
-                </button>
+                </Button>
               </div>
             ) : (
               <div className={styles.planFormRow}>
@@ -325,9 +326,9 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                   />
                   работу можно продолжать
                 </label>
-                <button type="button" className="btn btn-secondary" disabled={busy} onClick={saveProblem}>
+                <Button variant="secondary" disabled={busy} onClick={saveProblem}>
                   Зафиксировать проблему
-                </button>
+                </Button>
               </div>
             )}
           </section>
@@ -354,12 +355,12 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="написать по задаче"
               />
-              <button
-                type="button" className="btn btn-secondary" disabled={busy || !message.trim()}
-                onClick={() => send(canManage ? 'manager' : 'shop')}
-              >
+              <Button
+                variant="secondary"
+                disabled={busy || !message.trim()}
+                onClick={() => send(canManage ? 'manager' : 'shop')}>
                 Отправить
-              </button>
+              </Button>
             </div>
           )}
         </section>

@@ -27,6 +27,7 @@ import {
 } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Button } from '../components/Button';
 
 /**
  * Закупка (редизайн): плоская таблица закупочных строк по всем активным заказам
@@ -176,8 +177,8 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
           </label>
         </div>
         <div className={styles.modalActions}>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button type="button" className="btn btn-primary" disabled={saving} onClick={submit}>Добавить</button>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" disabled={saving} onClick={submit}>Добавить</Button>
         </div>
       </div>
     </div>
@@ -342,9 +343,9 @@ export default function FabricPurchasing() {
           <span className={`${styles.chip} ${styles.chipProgress}`}>
             Фильтр: {TABS.find((t) => t.key === tab)?.label}
           </span>
-          <button type="button" className="btn btn-ghost" onClick={() => setTab('all')}>
+          <Button variant="ghost" onClick={() => setTab('all')}>
             Сбросить фильтр
-          </button>
+          </Button>
         </div>
       )}
 
@@ -352,7 +353,7 @@ export default function FabricPurchasing() {
         search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
         searchPlaceholder="Поиск: заказ, № сделки, материал, артикул, поставщик"
         searchLabel="Поиск по закупке"
-        right={<button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>+ Новая закупка</button>}
+        right={<Button variant="primary" onClick={() => setAdding(true)}>+ Новая закупка</Button>}
       >
         {TABS.map((f) => (
           <button
@@ -468,7 +469,9 @@ export default function FabricPurchasing() {
                     </td>
                     <td>
                       {m.source === 'stock' && m.status === 'pending' ? (
-                        <button type="button" className="btn btn-secondary" onClick={() => confirmStockMaterial(m.id)}>Наличие</button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => confirmStockMaterial(m.id)}>Наличие</Button>
                       ) : (
                         <select className={styles.select} value={m.status} onChange={(e) => setStatus(m, e.target.value)} aria-label={`Статус ${m.name}`}>
                           {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}

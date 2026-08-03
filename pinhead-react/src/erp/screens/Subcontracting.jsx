@@ -17,6 +17,7 @@ import {
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Button } from '../components/Button';
 
 /**
  * Подряд (правки 4.2.1/4.2.4): рабочая очередь операций у подрядчиков.
@@ -113,7 +114,7 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 90 }} />
       <label className={styles.subText}>передан<DateField showFormatHint={false} value={form.sent_date} onChange={(v) => setForm({ ...form, sent_date: v })} aria-label="Дата передачи" /></label>
       <label className={styles.subText}>готов<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => setForm({ ...form, planned_date: v })} aria-label="Плановая готовность" /></label>
-      <button type="button" className="btn btn-secondary" disabled={saving} onClick={submit}>+ Добавить</button>
+      <Button variant="secondary" disabled={saving} onClick={submit}>+ Добавить</Button>
     </div>
   );
 }
@@ -131,9 +132,9 @@ function NextAction({ op, onUpdate }) {
     const idx = SUBCONTRACT_FINISHED_FLOW.indexOf(op.status);
     const next = idx === -1 ? SUBCONTRACT_FINISHED_FLOW[0] : SUBCONTRACT_FINISHED_FLOW[idx + 1];
     return next ? (
-      <button type="button" className="btn btn-secondary" onClick={() => onUpdate(op.id, { status: next })}>
+      <Button variant="secondary" onClick={() => onUpdate(op.id, { status: next })}>
         → {SUBCONTRACT_STATUS_LABELS[next]}
-      </button>
+      </Button>
     ) : <span className={styles.subText}>—</span>;
   }
   // Отдельная операция: выбор статуса (returned запускает маршрут дальше в сторе)

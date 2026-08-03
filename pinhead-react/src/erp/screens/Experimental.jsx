@@ -9,6 +9,7 @@ import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import styles from '../erp.module.css';
 import { ExperimentalCard } from './experimental/ExperimentalCard';
+import { Button } from '../components/Button';
 
 /** Пайплайн фаз разработки образца (счётчики) — верх экрана */
 const PIPE_PHASES = [
@@ -117,7 +118,7 @@ export default function Experimental() {
             <option key={o.id} value={o.id}>№{o.bitrix_id || '—'} · {o.title}</option>
           ))}
         </select>
-        <button type="button" className="btn btn-primary" onClick={addExperimental}>+ Разработка</button>
+        <Button variant="primary" onClick={addExperimental}>+ Разработка</Button>
       </div>
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="эксперим. разработки" />}

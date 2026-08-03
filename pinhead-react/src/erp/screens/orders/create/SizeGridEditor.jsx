@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SIZE_PRESETS, SIZE_PRESET_LABELS, gridTotal, toggleSize } from '../../../utils/orderForm';
 import { Icon } from '../../../components/Icon';
 import styles from '../../../erp.module.css';
+import { Button } from '../../../components/Button';
 
 /**
  * Редактор размерной сетки позиции: чипсы-пресеты размеров, строки цветов,
@@ -90,20 +91,16 @@ export function SizeGridEditor({ grid, onChange }) {
               if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
             }}
           />
-          <button type="button" className="btn btn-secondary" onClick={addCustom}>
+          <Button variant="secondary" onClick={addCustom}>
             Добавить
-          </button>
+          </Button>
         </div>
       )}
       {sizes.length > 0 && (
         <div className={styles.checkRow}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}
-          >
+          <Button variant="secondary" onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}>
             + Цвет
-          </button>
+          </Button>
         </div>
       )}
       {sizes.length > 0 && rows.map((row, ri) => (
@@ -135,14 +132,12 @@ export function SizeGridEditor({ grid, onChange }) {
               />
             </label>
           ))}
-          <button
-            type="button"
-            className="btn btn-ghost"
+          <Button
+            variant="ghost"
             aria-label="Убрать цвет"
-            onClick={() => set({ rows: rows.filter((_, i) => i !== ri) })}
-          >
+            onClick={() => set({ rows: rows.filter((_, i) => i !== ri) })}>
             <Icon name="x" size={14} />
-          </button>
+          </Button>
         </div>
       ))}
       <div className={styles.subText} aria-live="polite">

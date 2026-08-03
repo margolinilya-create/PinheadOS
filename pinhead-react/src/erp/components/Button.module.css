@@ -30,12 +30,17 @@
 }
 
 /* ─── Варианты ─── */
+/* Лишняя закрывающая скобка в трёх строках ниже делала объявление невалидным,
+   и браузер его отбрасывал: главная кнопка ERP рендерилась БЕЗ заливки —
+   прозрачной со светлым текстом. Ошибка тихая (CSS не падает, а пропускает
+   правило), и примитив выглядел сломанным — им пользовались два файла
+   из сорока, остальные звали глобальный .btn из Order Studio. */
 .primary {
-  background: var(--btn-primary-bg));
+  background: var(--btn-primary-bg);
   color: var(--btn-primary-fg);
 }
-.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg)); }
-.primary:active:not(:disabled) { background: var(--btn-primary-active-bg)); }
+.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg); }
+.primary:active:not(:disabled) { background: var(--btn-primary-active-bg); }
 
 .secondary {
   background: var(--card);
@@ -95,3 +100,12 @@
   .iconOnly.sm { width: 40px; }
   .iconOnly.lg { width: 48px; }
 }
+
+/* ─── Ссылка, выглядящая кнопкой ───
+   Восемь мест звали глобальный `btn btn-*` из Order Studio именно потому, что
+   примитив умел только <button>: «Открыть задание», «← В очередь цеха»,
+   «Скачать ТЗ» — это навигация, кнопкой её делать нельзя (ломается Ctrl+клик,
+   «открыть в новой вкладке» и чтение с экрана). Класс тот же, чтобы ряд
+   действий не разъезжался по высоте. */
+.link { text-decoration: none; }
+.link:hover { text-decoration: none; }
