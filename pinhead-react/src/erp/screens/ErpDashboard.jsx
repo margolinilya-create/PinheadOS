@@ -256,7 +256,7 @@ export default function ErpDashboard() {
           <div className={`${styles.dashRow} ${styles.dashRow3}`}>
             <div className={styles.widget}>
               <div className={styles.widgetHead}>
-                <span className={styles.widgetTitle}>Заказы в работе</span>
+                <h2 className={styles.widgetTitle}>Заказы в работе</h2>
                 <Link to="/orders" className={styles.widgetLink}>Смотреть все →</Link>
               </div>
               {data.inWork.length === 0 ? (
@@ -285,7 +285,7 @@ export default function ErpDashboard() {
             </div>
 
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Загрузка цехов</span></div>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Загрузка цехов</h2></div>
               {data.loadRows.length === 0 ? (
                 <div className={styles.emptyState}>Цеха свободны.</div>
               ) : (
@@ -302,7 +302,7 @@ export default function ErpDashboard() {
             </div>
 
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Ближайшие дедлайны</span></div>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Ближайшие дедлайны</h2></div>
               {data.burning.length === 0 ? (
                 <div className={styles.emptyState}>Горящих сроков нет.</div>
               ) : (
@@ -330,7 +330,7 @@ export default function ErpDashboard() {
           {/* Быстрые действия / Уведомления */}
           <div className={`${styles.dashRow} ${styles.dashRow2}`}>
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Быстрые действия</span></div>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Быстрые действия</h2></div>
               <div className={styles.quickGrid}>
                 {QUICK_ACTIONS.map((a) => (
                   <Link key={a.to} to={a.to} className={styles.quickAction}>
@@ -343,7 +343,7 @@ export default function ErpDashboard() {
 
             <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
               <div className={styles.widgetHead}>
-                <span className={styles.widgetTitle}>Уведомления</span>
+                <h2 className={styles.widgetTitle}>Уведомления</h2>
                 {urgent > 0 && (
                   <span className={styles.subText}>требуют действия сейчас: {urgent}</span>
                 )}
