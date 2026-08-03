@@ -17,6 +17,7 @@ import {
   reorderIds,
 } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
+import { intermediateReopened } from '../../utils/stageDefect';
 import { logStageEvent, withPending, erpError } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
@@ -150,14 +151,15 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
           finished_at: null,
         },
       });
-      // Промежуточные этапы между T и S тоже переоткрыть на N — перекроенные единицы
-      // должны заново пройти их (аудит correctness #4), иначе они «застрянут» в done.
-      const lo = Math.min(targetStage.sort_order, stage.sort_order);
-      const hi = Math.max(targetStage.sort_order, stage.sort_order);
-      for (const mid of item.stages) {
-        if (mid.id === stage.id || mid.id === targetStage.id) continue;
-        if (mid.sort_order <= lo || mid.sort_order >= hi) continue;
-        if (mid.status !== 'done' && mid.status !== 'in_progress') continue;
+      // Всё, что идёт ПОСЛЕ T по маршруту и уже обработало эти единицы, тоже
+      // переоткрыть на N — перекроенные единицы должны заново пройти их
+      // (аудит correctness #4), иначе они «застрянут» в done.
+      //
+      // По графу depends_on, а не по интервалу sort_order: ветки нанесения имеют
+      // ОДИНАКОВЫЙ sort_order, и прежняя отсечка `>= hi` оставляла соседнюю ветку
+      // в done с полным тиражом — партия уходила в пошив без печати. Тот же
+      // расчёт, что показывает подтверждение (`utils/stageDefect`).
+      for (const mid of intermediateReopened({ stage, targetStage, allStages: item.stages })) {
         patches.push({
           id: mid.id,
           patch: {
@@ -412,8 +414,43 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const sourceRes = await withPending(`stage:${stageId}`, () =>
       supabase.from('erp_item_stages').update(sourcePatch).eq('id', stageId));
     if (sourceRes.error) {
+      // Ничего не закоммичено — откат интерфейса честен.
       set({ orders: prevOrders });
       erpError('Задание не перенесено', sourceRes.error);
+      return false;
+    }
+
+    /**
+     * Второй шаг не удался, а исходный этап УЖЕ закрыт в базе.
+     *
+     * Прежде здесь стоял `set({ orders: prevOrders })` — интерфейс возвращался
+     * к состоянию «до переноса», через секунду realtime приносил закоммиченный
+     * `done`, и задание исчезало из обоих цехов: позиция оставалась без единого
+     * открытого этапа, а повторить перенос было нечем.
+     *
+     * Поэтому сначала пробуем компенсирующую запись — вернуть исходный этап
+     * в прежнее состояние. Если и она не прошла, интерфейс НЕ откатываем:
+     * показываем то, что в базе на самом деле, и говорим прямым текстом, где
+     * этап и что делать. Врать про состояние хуже, чем признать половину работы.
+     */
+    async function undoClosedSource(cause: { message?: string } | null) {
+      const restore: Partial<ErpItemStage> = {
+        status: stage.status,
+        qty_done: stage.qty_done,
+        finished_at: stage.finished_at,
+      };
+      const { error: undoError } = await supabase
+        .from('erp_item_stages').update(restore).eq('id', stageId);
+      if (undoError) {
+        set((s) => ({ orders: patchStageIn(s.orders, stageId, sourcePatch) }));
+        toast.error(
+          `Этап закрыт в «${sourceName}», но не открыт в «${targetName}». `
+          + 'Откатить тоже не удалось — откройте этап вручную в карточке заказа',
+        );
+        return false;
+      }
+      set({ orders: prevOrders });
+      erpError(`Задание не перенесено в «${targetName}»`, cause);
       return false;
     }
 
@@ -423,9 +460,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       const { error } = await withPending(`stage:${targetId}`, () =>
         supabase.from('erp_item_stages').update(targetPatch).eq('id', targetId));
       if (error) {
-        set({ orders: prevOrders });
-        toast.error('Не удалось открыть этап в новом цехе');
-        return false;
+        return undoClosedSource(error);
       }
       logStageEvent({
         stage_id: targetId,
@@ -451,9 +486,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
         .select();
       const row = data?.[0] as ErpItemStage | undefined;
       if (error || !row) {
-        set({ orders: prevOrders });
-        toast.error('Не удалось добавить этап в маршрут');
-        return false;
+        // Исходный этап уже закрыт в базе — та же компенсация, что и выше.
+        return undoClosedSource(error);
       }
       set((s) => ({ orders: addStageIn(s.orders, item.id, row) }));
       logStageEvent({

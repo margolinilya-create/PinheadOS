@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   opLog: [] as { op: 'update' | 'insert' | 'upsert' | 'delete'; table: string }[],
   updateCalls: [] as { table: string; patch: Record<string, unknown> }[],
   updateError: null as { message: string } | null,
+  /** Ошибки на каждый update по порядку; пусто — используется updateError */
+  updateErrors: [] as ({ message: string } | null)[],
   insertCalls: [] as { table: string; row: unknown }[],
   /** Очередь ошибок insert (для ретрая logStageEvent): shift на каждый вызов */
   insertErrors: [] as ({ message: string } | null)[],
@@ -70,7 +72,12 @@ vi.mock('../../lib/supabase', () => {
             },
             neq: () => q,
             then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-              Promise.resolve({ error: h.updateError }).then(resolve, reject),
+              // updateErrors — очередь на КАЖДЫЙ вызов по порядку (как insertErrors).
+              // Нужна там, где важно, какой именно шаг упал: у переноса этапа первый
+              // update коммитится, а падает второй, и поведение обязано различаться.
+              Promise
+                .resolve({ error: h.updateErrors.length ? h.updateErrors.shift()! : h.updateError })
+                .then(resolve, reject),
           };
           return q;
         }),
@@ -197,6 +204,7 @@ beforeEach(() => {
   h.opLog.length = 0;
   h.updateCalls.length = 0;
   h.updateError = null;
+  h.updateErrors.length = 0;
   h.insertCalls.length = 0;
   h.insertErrors.length = 0;
   h.deleteCalls.length = 0;
@@ -397,6 +405,85 @@ describe('useErpStore — reportDefect (выбор этапа устранени
     const ok = await useErpStore.getState().reportDefect('st-sew', { qty: 999, reason: 'много', target: 'st-cut' });
     expect(ok).toBe(false);
     expect(toast.error).toHaveBeenCalledWith('Брак не может превышать тираж (500 шт)');
+  });
+});
+
+/**
+ * Регрессия A3 на уровне СЛАЙСА, а не чистой утилиты: правильный расчёт
+ * бесполезен, если слайс его не применяет. Прежняя реализация считала
+ * промежуточные по интервалу sort_order прямо здесь.
+ */
+describe('useErpStore — reportDefect с параллельными ветками нанесения (A3)', () => {
+  /**
+   *           ┌─ вышивка(30, in_progress) ─┐
+   * закрой(20)┤                            ├─ швейка(40, waiting)
+   *           └─ шелкография(30, done) ────┘
+   *
+   * Обе ветки нанесения имеют ОДИНАКОВЫЙ sort_order — так их строит buildRoute.
+   */
+  function seedParallel() {
+    const base = {
+      item_id: 'it1', qty_done: 500, qty_rework: 0,
+      planned_start: null, planned_end: null, started_at: null,
+      assignee: null, block_reason: null, notes: null,
+    };
+    const stages = [
+      { ...base, id: 'st-cut', department_id: 'd-cut', depends_on: [], status: 'done', finished_at: '2026-01-01', sort_order: 20 },
+      { ...base, id: 'st-emb', department_id: 'd-emb', depends_on: ['st-cut'], status: 'in_progress', finished_at: null, sort_order: 30 },
+      { ...base, id: 'st-silk', department_id: 'd-silk', depends_on: ['st-cut'], status: 'done', finished_at: '2026-01-02', sort_order: 30 },
+      { ...base, id: 'st-sew', department_id: 'd-sew', depends_on: ['st-emb', 'st-silk'], status: 'waiting', finished_at: null, qty_done: 0, sort_order: 40 },
+    ];
+    const item = {
+      id: 'it1', order_id: 'o1', product_type: 'Футболка', variant: null, qty: 500,
+      production_type: 'sewing', branding_methods: ['embroidery', 'silkscreen'], branding_on: 'cut',
+      notes: null, sort_order: 10, stages, prints: [],
+    };
+    useErpStore.setState({
+      orders: [{ id: 'o1', title: 'Заказ', status: 'active', items: [item], materials: [] }] as any,
+      departments: [
+        { id: 'd-cut', code: 'cutting', name: 'Закрой', active: true },
+        { id: 'd-emb', code: 'embroidery', name: 'Вышивка', active: true },
+        { id: 'd-silk', code: 'silkscreen', name: 'Шелкография', active: true },
+        { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true },
+      ] as any,
+      loaded: true,
+    });
+  }
+
+  const stagesNow = () => useErpStore.getState().orders[0].items[0].stages;
+
+  it('возврат из вышивки в закрой переоткрывает сданную шелкографию', async () => {
+    seedParallel();
+    const ok = await useErpStore.getState().reportDefect('st-emb', {
+      qty: 20, reason: 'кривая вышивка', target: 'st-cut',
+    });
+    expect(ok).toBe(true);
+
+    const silk = stagesNow().find((s) => s.id === 'st-silk');
+    // Прежняя отсечка по sort_order (`>= hi`, 30 >= 30) оставляла шелкографию
+    // в done с полным тиражом — 20 перекроенных единиц уходили в пошив без печати.
+    expect(silk?.status).toBe('waiting');
+    expect(silk?.qty_done).toBe(480);
+    expect(silk?.qty_rework).toBe(20);
+    expect(silk?.finished_at).toBeNull();
+  });
+
+  it('швейка ждёт обе ветки и не трогается — этих единиц она не видела', async () => {
+    seedParallel();
+    await useErpStore.getState().reportDefect('st-emb', { qty: 20, reason: 'брак', target: 'st-cut' });
+    const sew = stagesNow().find((s) => s.id === 'st-sew');
+    expect(sew?.status).toBe('waiting');
+    expect(sew?.qty_rework).toBe(0);
+  });
+
+  it('в БД уходят ТРИ записи — закрой, вышивка и соседняя ветка, но не швейка', async () => {
+    seedParallel();
+    await useErpStore.getState().reportDefect('st-emb', { qty: 20, reason: 'брак', target: 'st-cut' });
+    // Мок пишет только (table, patch), поэтому сверяем количество: до починки
+    // шелкография не патчилась вовсе и записей было ДВЕ. Какой именно этап
+    // изменился, проверяют два теста выше — по состоянию стора.
+    const updates = h.updateCalls.filter((c) => c.table === 'erp_item_stages');
+    expect(updates).toHaveLength(3);
   });
 });
 
@@ -1786,6 +1873,52 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
     expect(stageById('st1').status).toBe('in_progress');
     expect(stageById('st2').status).toBe('waiting');
     expect(toast.error).toHaveBeenCalled();
+  });
+
+  /**
+   * Регрессия A8 (аудит 29.07). Исходный этап закоммичен, второй шаг упал.
+   * Прежде интерфейс откатывался к состоянию «до переноса», realtime через
+   * секунду приносил закоммиченный `done`, и задание исчезало из ОБОИХ цехов:
+   * позиция оставалась без единого открытого этапа, повторить было нечем.
+   */
+  describe('второй шаг упал, исходный этап уже закрыт в базе (A8)', () => {
+    it('компенсирующая запись возвращает исходный этап в работу', async () => {
+      seedRoute([
+        { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
+        { department_id: 'd-sew' },
+      ]);
+      // 1-й update (закрытие исходного) — успех, 2-й (открытие целевого) — сбой,
+      // 3-й (компенсация) — успех.
+      h.updateErrors.push(null, { message: 'нет связи' }, null);
+      const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+      expect(ok).toBe(false);
+
+      // Три записи: закрытие, неудачное открытие, компенсация
+      expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
+      const restore = h.updateCalls.filter((c) => c.table === 'erp_item_stages').at(-1)!;
+      expect(restore.patch.status).toBe('in_progress');
+      expect(restore.patch.qty_done).toBe(50);
+
+      // Интерфейс вернулся к правде: этап снова у исходного цеха
+      expect(stageById('st1').status).toBe('in_progress');
+      expect(stageById('st2').status).toBe('waiting');
+    });
+
+    it('компенсация тоже упала — интерфейс НЕ врёт и показывает закрытый этап', async () => {
+      seedRoute([
+        { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
+        { department_id: 'd-sew' },
+      ]);
+      h.updateErrors.push(null, { message: 'нет связи' }, { message: 'нет связи' });
+      const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
+      expect(ok).toBe(false);
+
+      // Показываем то, что в базе на самом деле, а не «как было до»
+      expect(stageById('st1').status).toBe('done');
+      const msg = (toast.error as any).mock.calls.at(-1)[0] as string;
+      expect(msg).toContain('не открыт');
+      expect(msg).toContain('вручную');
+    });
   });
 });
 

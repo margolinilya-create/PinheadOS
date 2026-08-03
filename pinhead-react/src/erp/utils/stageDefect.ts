@@ -1,20 +1,32 @@
 /**
  * Возврат брака на предыдущий этап: что именно откатится.
  *
- * `reportDefect` переоткрывает не только выбранный этап, но и ВСЕ промежуточные
- * между ним и текущим — перекроенные единицы обязаны заново пройти их, иначе
- * застрянут в `done`. Логика правильная, но в интерфейсе её не было видно:
- * в выпадающем списке рабочий выбирал «Вернуть: Швейка» и не знал, что заодно
- * откатятся ВТО и Печать, а цеха внезапно получали обратно сданную работу.
+ * `reportDefect` переоткрывает не только выбранный этап, но и ВСЕ уже пройденные
+ * после него — перекроенные единицы обязаны заново пройти их, иначе застрянут
+ * в `done`. Логика правильная, но в интерфейсе её не было видно: в выпадающем
+ * списке рабочий выбирал «Вернуть: Швейка» и не знал, что заодно откатятся
+ * ВТО и Печать, а цеха внезапно получали обратно сданную работу.
  *
- * Здесь считается тот же диапазон `sort_order`, что и в слайсе, — чтобы текст
- * подтверждения не разошёлся с фактическим действием.
+ * Здесь считается ровно то же, что в слайсе, — чтобы текст подтверждения
+ * не разошёлся с фактическим действием.
+ *
+ * Считаем по ГРАФУ `depends_on`, а не по интервалу `sort_order`. Ветки нанесения
+ * получают ОДИНАКОВЫЙ `sortOrder` (в `buildRoute` счётчик не инкрементируется
+ * внутри цикла веток), и отсечка «строго меньше верхней границы» выбрасывала
+ * соседнюю ветку: в маршруте `закрой(20) → [вышивка(30), шелкография(30)] →
+ * швейка(40)` возврат брака из вышивки в закрой оставлял шелкографию в `done`
+ * с полным тиражом. Закрой перекраивал, вышивка обрабатывала, швейка ждала обе
+ * ветки — и партия уходила в пошив БЕЗ ПЕЧАТИ. Обнаружилось бы на ОТК или
+ * у клиента. Заодно исчезла зависимость от совпадения номеров.
  */
 
 import { confirm } from '../../store/useConfirmStore';
 import type { ErpItemStage } from '../types';
 
-type DefectStage = Pick<ErpItemStage, 'id' | 'department_id' | 'sort_order' | 'status'>;
+type DefectStage = Pick<
+  ErpItemStage,
+  'id' | 'department_id' | 'sort_order' | 'status' | 'depends_on'
+>;
 
 export interface DefectRollbackInput {
   /** Этап, на котором оформляют брак */
@@ -28,17 +40,44 @@ export interface DefectRollbackInput {
 }
 
 /**
- * Промежуточные этапы, которые переоткроются вместе с целевым.
- * Условия — копия слайса: строго внутри диапазона и только уже начатые.
+ * Транзитивные потомки этапа по графу `depends_on`: все, кто зависит от него
+ * прямо или через цепочку. Сам этап в результат не входит.
+ *
+ * Обход по слоям с множеством посещённых — граф маршрута ациклический
+ * по построению, но защита от петли стоит дешевле разбирательства с зависшей
+ * вкладкой, если данные окажутся кривыми.
+ */
+export function descendantStages(allStages: DefectStage[], rootId: string): DefectStage[] {
+  const out: DefectStage[] = [];
+  const seen = new Set<string>([rootId]);
+  let frontier = new Set<string>([rootId]);
+  while (frontier.size > 0) {
+    const next = new Set<string>();
+    for (const s of allStages) {
+      if (seen.has(s.id)) continue;
+      if (!(s.depends_on ?? []).some((d) => frontier.has(d))) continue;
+      seen.add(s.id);
+      out.push(s);
+      next.add(s.id);
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+/**
+ * Этапы, которые переоткроются вместе с целевым: всё, что идёт ПОСЛЕ него
+ * по маршруту и уже обработало эти единицы.
+ *
+ * Статус и делает отбор осмысленным: ещё не начатый этап (`waiting`) эти единицы
+ * не видел, откатывать в нём нечего. Поэтому «швейка ждёт обе ветки» сама собой
+ * остаётся нетронутой, а сданная соседняя ветка — переоткрывается.
  */
 export function intermediateReopened(input: DefectRollbackInput): DefectStage[] {
   const { stage, targetStage, allStages } = input;
   if (!targetStage) return [];
-  const lo = Math.min(targetStage.sort_order, stage.sort_order);
-  const hi = Math.max(targetStage.sort_order, stage.sort_order);
-  return allStages.filter((mid) => {
-    if (mid.id === stage.id || mid.id === targetStage.id) return false;
-    if (mid.sort_order <= lo || mid.sort_order >= hi) return false;
+  return descendantStages(allStages, targetStage.id).filter((mid) => {
+    if (mid.id === stage.id) return false;
     return mid.status === 'done' || mid.status === 'in_progress';
   });
 }
