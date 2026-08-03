@@ -14,6 +14,7 @@ import {
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
+import { formatDateCell } from '../../utils/format';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
 function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
@@ -81,7 +82,7 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
           )}
           {order.shipped_at && (
             <div className={styles.subText}>
-              отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
+              отгружен {formatDateCell(order.shipped_at)}
             </div>
           )}
         </td>

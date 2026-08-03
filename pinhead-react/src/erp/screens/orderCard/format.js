@@ -1,4 +1,9 @@
-/** Форматтеры дат карточки заказа (общие для под-компонентов) */
-export const fmt = (d) => (d ? new Date(d).toLocaleDateString('ru-RU') : '—');
-export const fmtTs = (d) =>
-  (d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+/**
+ * Форматтеры дат карточки заказа — тонкая обёртка над `erp/utils/format`.
+ *
+ * Здесь были свои реализации на `new Date(d)` без достройки времени. Строку вида
+ * `2026-08-14` движок разбирает как UTC-полночь, и западнее Гринвича карточка
+ * печатала предыдущий день: срок и дата отгрузки врали на сутки в зависимости
+ * от пояса машины. Имена оставлены — их ждут под-компоненты карточки.
+ */
+export { formatDateCell as fmt, formatDateTimeShort as fmtTs } from '../../utils/format';

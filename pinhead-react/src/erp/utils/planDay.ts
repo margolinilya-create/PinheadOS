@@ -10,6 +10,7 @@
  * Плановая загрузка выражается в штуках.
  */
 
+import { percentOf } from './format';
 import { planCardState, planOverdue, planRemaining } from './planCard';
 import type { PlanSlotLike } from './planCard';
 
@@ -48,8 +49,12 @@ export interface PlanSummary {
   defect: number;
   /** План − факт, не меньше нуля */
   remaining: number;
-  /** Процент выполнения плана (0..100); план 0 → 100 */
-  percent: number;
+  /**
+   * Процент выполнения плана (0..100) или `null`, когда планировать было нечего.
+   * Раньше здесь стояла 100 при нулевом плане, и пустая неделя рисовалась как
+   * «100%» — «всё сделано» там, где не запланировано ничего.
+   */
+  percent: number | null;
   active: number;
   done: number;
   problems: number;
@@ -58,7 +63,7 @@ export interface PlanSummary {
 }
 
 const EMPTY: PlanSummary = {
-  tasks: 0, planned: 0, fact: 0, defect: 0, remaining: 0, percent: 100,
+  tasks: 0, planned: 0, fact: 0, defect: 0, remaining: 0, percent: null,
   active: 0, done: 0, problems: 0, overdue: 0, awaitingMaterials: 0,
 };
 
@@ -79,7 +84,7 @@ export function summarize(slots: SummarySlot[], today: string): PlanSummary {
   const live = slots.filter((s) => s.status !== 'cancelled');
   if (live.length === 0) return { ...EMPTY };
 
-  const acc = { ...EMPTY, tasks: live.length, percent: 0 };
+  const acc: PlanSummary = { ...EMPTY, tasks: live.length };
   for (const s of live) {
     const state = planCardState(s, today, Boolean(s.awaitingMaterials));
     acc.planned += s.qty_planned || 0;
@@ -92,9 +97,7 @@ export function summarize(slots: SummarySlot[], today: string): PlanSummary {
     if (planOverdue(s, today)) acc.overdue += 1;
     if (s.awaitingMaterials) acc.awaitingMaterials += 1;
   }
-  acc.percent = acc.planned > 0
-    ? Math.min(100, Math.round((acc.fact / acc.planned) * 100))
-    : 100;
+  acc.percent = percentOf(acc.fact, acc.planned);
   return acc;
 }
 

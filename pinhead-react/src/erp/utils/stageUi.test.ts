@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { isOrderReadyToShip, shipBlockReason } from './stageUi';
+import {
+  isOrderReadyToShip,
+  shipBlockReason,
+  isOrderOverdue,
+  orderOverdueDays,
+} from './stageUi';
 import type { StageStatus } from '../types';
 
 /** Заказ-минимум для проверки готовности к отгрузке */
@@ -174,5 +179,41 @@ describe('Отгрузка заказа, который целиком прои�
     };
     expect(isOrderReadyToShip(withStage)).toBe(false);
     expect(shipBlockReason(withStage)).toBe('Не завершены этапы: 1');
+  });
+});
+
+describe('isOrderOverdue — просрочка заказа (решение заказчика 03.08.2026)', () => {
+  const late = -5;
+
+  it('срок прошёл и работа не закрыта → просрочен', () => {
+    expect(isOrderOverdue(order('active', [['done', 'in_progress']]), late)).toBe(true);
+  });
+
+  it('срок прошёл, но заказ готов к отгрузке → НЕ просрочен', () => {
+    // Ждёт логистики, а не производства. Ровно эти заказы раздували метрику
+    // до 47 из 76 и делали её бесполезной.
+    expect(isOrderOverdue(order('active', [['done', 'done']]), late)).toBe(false);
+  });
+
+  it('срок ещё не наступил → не просрочен независимо от готовности', () => {
+    expect(isOrderOverdue(order('active', [['waiting']]), 3)).toBe(false);
+    expect(isOrderOverdue(order('active', [['waiting']]), 0)).toBe(false);
+  });
+
+  it('срока нет → не просрочен (19 таких заказов в базе на 03.08.2026)', () => {
+    expect(isOrderOverdue(order('active', [['waiting']]), null)).toBe(false);
+  });
+
+  it('архивный заказ не просрочен: isOrderReadyToShip даёт false, но судить нечего', () => {
+    // Заказ вне работы не «горит» — он закрыт. Экраны фильтруют по status='active'
+    // до вызова, и здесь фиксируем, что на архив функция не рассчитана.
+    expect(isOrderOverdue(order('done_late', [['done']]), late)).toBe(true);
+  });
+
+  it('дни просрочки: положительное число, ноль когда не просрочен', () => {
+    expect(orderOverdueDays(order('active', [['waiting']]), -12)).toBe(12);
+    expect(orderOverdueDays(order('active', [['done']]), -12)).toBe(0);
+    expect(orderOverdueDays(order('active', [['waiting']]), 4)).toBe(0);
+    expect(orderOverdueDays(order('active', [['waiting']]), null)).toBe(0);
   });
 });

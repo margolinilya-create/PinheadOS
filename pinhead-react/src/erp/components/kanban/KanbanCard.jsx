@@ -5,17 +5,18 @@ import { orderLinkClick, useOrderDrawer } from '../../store/useOrderDrawer';
 import { daysLeft, formatTimeIn } from '../../utils/time';
 import styles from '../../erp.module.css';
 import { Icon } from '../Icon';
+import { dueLabelCompact, formatDayMonth } from '../../utils/format';
 
 /** Цветная точка дедлайна (как в kontora24 DraggableCard) */
 function DeadlineDot({ due }) {
   const d = daysLeft(due);
   if (d === null) return null;
   const color = d < 0 ? 'var(--color-error)' : d <= 3 ? 'var(--color-warning)' : 'var(--color-success)';
-  const label = d < 0 ? `просрочен ${-d} дн` : `${d} дн до срока`;
+  const label = dueLabelCompact(d);
   return (
     <span className={styles.kanbanDue} title={label}>
       <span className={styles.kanbanDot} style={{ background: color }} />
-      {due && new Date(due + 'T00:00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
+      {formatDayMonth(due)}
     </span>
   );
 }

@@ -10,6 +10,7 @@ import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
+import { formatDateCell } from '../../utils/format';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
 function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }) {
@@ -60,7 +61,7 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
         )}
         {order.shipped_at && (
           <span className={styles.subText}>
-            отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
+            отгружен {formatDateCell(order.shipped_at)}
           </span>
         )}
         {hasOpenProcurement(order.procurement_tasks) && (

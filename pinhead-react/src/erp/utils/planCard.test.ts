@@ -32,7 +32,9 @@ describe('planRemaining / planPercent', () => {
   it('процент выполнения ограничен сотней, нулевой план считается закрытым', () => {
     expect(planPercent(slot({ qty_done: 70 }))).toBe(70);
     expect(planPercent(slot({ qty_done: 120 }))).toBe(100);
-    expect(planPercent(slot({ qty_planned: 0 }))).toBe(100);
+    // План 0 — «планировать было нечего», а не «выполнено».
+    // Прежняя 100 рисовала пустую неделю /plan как полностью закрытую.
+    expect(planPercent(slot({ qty_planned: 0 }))).toBeNull();
   });
 });
 

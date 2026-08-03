@@ -8,6 +8,7 @@ import {
   PLAN_STATE_CHIP, PLAN_STATE_LABELS, planCardState, planOverdue, planRemaining,
 } from '../../utils/planCard';
 import styles from '../../erp.module.css';
+import { dueLabelCompact } from '../../utils/format';
 
 /**
  * Карточка задачи производственного плана.
@@ -100,7 +101,7 @@ export function PlanTaskCard({
         {due && (
           <span className={d !== null && d < 0 ? styles.overdue : styles.subText}>
             срок {formatDateShort(due)}
-            {d !== null && (d >= 0 ? ` · ${d} дн.` : ` · просрочен ${-d} дн.`)}
+            {d !== null && ` · ${dueLabelCompact(d)}`}
           </span>
         )}
         {tzDoc && (

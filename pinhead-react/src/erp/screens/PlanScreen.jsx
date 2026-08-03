@@ -20,6 +20,7 @@ import { PlanTaskCard } from './plan/PlanTaskCard';
 import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
 import styles from '../erp.module.css';
+import { percentLabel } from '../utils/format';
 
 /**
  * Недельное и ежедневное планирование производства (правка менеджера 2026-08-03).
@@ -170,7 +171,7 @@ export default function PlanScreen() {
         </label>
         <div className={styles.spacer} />
         <span className={styles.subText}>
-          план {weekSummary.planned} · факт {weekSummary.fact} · {weekSummary.percent}%
+          план {weekSummary.planned} · факт {weekSummary.fact} · {percentLabel(weekSummary.percent)}
         </span>
       </div>
 
@@ -227,7 +228,7 @@ export default function PlanScreen() {
                   <div className={styles.planDayStats}>
                     <span>план <b>{day.planned}</b></span>
                     <span>факт <b>{day.fact}</b></span>
-                    <span>{day.percent}%</span>
+                    <span>{percentLabel(day.percent)}</span>
                     {day.active > 0 && <span>в работе {day.active}</span>}
                     {day.done > 0 && <span>готово {day.done}</span>}
                     {day.problems > 0 && <span className={styles.overdue}>проблем {day.problems}</span>}
@@ -374,8 +375,8 @@ function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick }) {
           {rows.map(({ dept, week, day }) => (
             <tr key={dept.id} className={styles.rowClickable} onClick={() => onPick(dept.code)}>
               <td><b>{deptShortName(dept.code, dept.name)}</b></td>
-              <td>{day.planned}</td><td>{day.fact}</td><td>{day.percent}%</td>
-              <td>{week.planned}</td><td>{week.fact}</td><td>{week.percent}%</td>
+              <td>{day.planned}</td><td>{day.fact}</td><td>{percentLabel(day.percent)}</td>
+              <td>{week.planned}</td><td>{week.fact}</td><td>{percentLabel(week.percent)}</td>
               <td>{week.active}</td>
               <td className={week.overdue > 0 ? styles.overdue : undefined}>{week.overdue}</td>
               <td className={week.problems > 0 ? styles.overdue : undefined}>{week.problems}</td>

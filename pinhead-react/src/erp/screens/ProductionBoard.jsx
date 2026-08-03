@@ -28,6 +28,7 @@ import { BoardCardMobile } from './board/BoardCardMobile';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { dueLabelCompact } from '../utils/format';
 
 /**
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
@@ -400,7 +401,7 @@ export default function ProductionBoard() {
                       </div>
                       {d !== null && (
                         <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
-                          {d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`}
+                          {dueLabelCompact(d)}
                         </div>
                       )}
                     </td>

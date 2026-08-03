@@ -24,6 +24,7 @@ import { StageActionsPanel } from './queue/StageActionsPanel';
 import { useStageActions } from './queue/useStageActions';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
+import { dueLabelCompact } from '../utils/format';
 
 /**
  * Страница производственного задания (правка 5): всё, что нужно исполнителю, —
@@ -180,7 +181,7 @@ export default function ProductionTask() {
             <dt>Срок клиента</dt>
             <dd className={d !== null && d < 0 ? styles.overdue : undefined}>
               {order.due_date ? formatDateShort(order.due_date) : '—'}
-              {d !== null && (d >= 0 ? ` · ${d} дн.` : ` · просрочен ${-d} дн.`)}
+              {d !== null && ` · ${dueLabelCompact(d)}`}
             </dd>
             <dt>План этапа</dt>
             <dd>{stage.planned_end ? formatDateShort(stage.planned_end) : '—'}</dd>

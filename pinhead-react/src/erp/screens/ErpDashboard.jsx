@@ -11,10 +11,11 @@ import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
-import { isOrderReadyToShip } from '../utils/stageUi';
-import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
+import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/stageUi';
+import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
 import styles from '../erp.module.css';
+import { dueLabel } from '../utils/format';
 
 /**
  * Обзор производства (редизайн, по макету): KPI-плитки, заказы в работе, загрузка цехов,
@@ -49,8 +50,10 @@ function currentStageName(order, deptById) {
 
 /** Статус заказа для бейджа */
 function orderStatus(order) {
+  // Готовность проверяется первой и в `isOrderOverdue` тоже: готовый заказ
+  // ждёт логистики, а не производства, и «Просрочено» на нём вводит в заблуждение.
   if (isOrderReadyToShip(order)) return { variant: 'ready', label: 'Готово' };
-  if (isOverdue(order.due_date)) return { variant: 'blocked', label: 'Просрочено' };
+  if (isOrderOverdue(order, daysLeft(order.due_date))) return { variant: 'blocked', label: 'Просрочено' };
   if (isUrgent(order.due_date)) return { variant: 'waiting', label: 'Срочно' };
   return { variant: 'progress', label: 'В работе' };
 }
@@ -93,7 +96,8 @@ export default function ErpDashboard() {
 
     for (const order of active) {
       const d = daysLeft(order.due_date);
-      if (isOverdue(order.due_date)) overdue += 1;
+      const lateDays = orderOverdueDays(order, d);
+      if (lateDays > 0) overdue += 1;
       else if (isUrgent(order.due_date)) dueSoon += 1;
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
@@ -101,9 +105,11 @@ export default function ErpDashboard() {
         notifications.push({ id: `p-${order.id}`, orderId: order.id, icon: 'bell', variant: 'warn',
           text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
-      if (isOverdue(order.due_date)) {
+      if (lateDays > 0) {
         notifications.push({ id: `o-${order.id}`, orderId: order.id, icon: 'alert', variant: 'danger',
-          text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title });
+          text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title,
+          // Ступень нужна виджету уведомлений (группировка по критичности, Ф4)
+          overdueDays: lateDays });
       }
 
       for (const item of order.items) {
@@ -269,7 +275,7 @@ export default function ErpDashboard() {
               ) : (
                 data.burning.map(({ order, days }) => {
                   const dt = order.due_date ? new Date(order.due_date) : null;
-                  const label = days < 0 ? `просрочен ${-days} дн.` : days === 0 ? 'сегодня' : days === 1 ? 'завтра' : `через ${days} дн.`;
+                  const label = dueLabel(days);
                   return (
                     <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
                       <span className={styles.deadlineDate}>

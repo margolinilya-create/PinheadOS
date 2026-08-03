@@ -8,6 +8,7 @@ import { Icon } from '../../components/Icon';
 import { Lightbox } from './Lightbox';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
+import { dueLabelCompact } from '../../utils/format';
 
 /**
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
@@ -75,7 +76,7 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
           {order.due_date && (
             <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
               до {formatDateShort(order.due_date)}
-              {d !== null && ` · ${d >= 0 ? `${d} дн.` : `−${-d} дн.`}`}
+              {d !== null && ` · ${dueLabelCompact(d)}`}
             </div>
           )}
         </div>

@@ -10,6 +10,7 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
+import { dueLabelCompact } from '../../utils/format';
 
 /**
  * Компактная строка рабочей очереди цеха (правка 2) — вместо крупной карточки.
@@ -117,7 +118,7 @@ export function QueueRow({
           <span>{order.due_date ? formatDateShort(order.due_date) : '—'}</span>
           {d !== null && (
             <span className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
-              {d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`}
+              {dueLabelCompact(d)}
             </span>
           )}
         </span>

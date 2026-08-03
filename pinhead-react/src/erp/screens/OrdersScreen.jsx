@@ -9,8 +9,8 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { isUrgent, isOverdue } from '../utils/time';
-import { isOrderReadyToShip } from '../utils/stageUi';
+import { daysLeft, isUrgent } from '../utils/time';
+import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import styles from '../erp.module.css';
@@ -78,7 +78,7 @@ export default function OrdersScreen() {
     return {
       ready: active.filter((o) => isOrderReadyToShip(o)).length,
       urgent: active.filter((o) => isUrgent(o.due_date)).length,
-      overdue: active.filter((o) => isOverdue(o.due_date)).length,
+      overdue: active.filter((o) => isOrderOverdue(o, daysLeft(o.due_date))).length,
     };
   }, [orders]);
 
@@ -106,7 +106,7 @@ export default function OrdersScreen() {
       if (o.status !== 'active') return false;
       if (filter === 'ready') return isOrderReadyToShip(o);
       if (filter === 'urgent') return isUrgent(o.due_date);
-      if (filter === 'overdue') return isOverdue(o.due_date);
+      if (filter === 'overdue') return isOrderOverdue(o, daysLeft(o.due_date));
       return true;
     }),
     [orders, tab, filter],
