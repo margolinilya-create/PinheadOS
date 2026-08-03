@@ -1717,8 +1717,11 @@ describe('useErpStore — экспериментальный цех (правк�
     expect(ok).toBe(true);
     const e = useErpStore.getState().experimental[0];
     expect(e.phase).toBe('development'); // авто-возврат
-    expect(e.ops[0].status).toBe('returned');
-    expect(e.ops[0].returned_at).toBeTruthy();
+    // `ops` необязательное поле (приезжает вложенным select), поэтому
+    // проверяем его наличие явно — иначе падение было бы «cannot read [0]»
+    expect(e.ops).toBeDefined();
+    expect(e.ops![0].status).toBe('returned');
+    expect(e.ops![0].returned_at).toBeTruthy();
   });
 });
 

@@ -2,7 +2,7 @@ import { useStore } from '../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getEffectiveRules } from '../utils/skuRules';
 import type { ResolvedRules } from '../utils/skuRules';
-import type { SkuItem } from '../types/catalog';
+import type { SkuItem, CategoryRules } from '../types/catalog';
 
 /**
  * Returns resolved rules for the currently selected SKU in the wizard.
@@ -11,7 +11,12 @@ import type { SkuItem } from '../types/catalog';
  */
 export function useEffectiveRules(): ResolvedRules | null {
   const { sku, categoryRules } = useStore(
-    useShallow(s => ({ sku: s.sku as SkuItem | null, categoryRules: s.categoryRules }))
+    // Оба поля приводятся ЗДЕСЬ: стор типизирован широко (каталоги приходят
+    // из JSON в app_config), и без сужения tsc видит `unknown`.
+    useShallow(s => ({
+      sku: s.sku as SkuItem | null,
+      categoryRules: s.categoryRules as CategoryRules[] | null,
+    }))
   );
   if (!sku) return null;
   return getEffectiveRules(sku, categoryRules || []);

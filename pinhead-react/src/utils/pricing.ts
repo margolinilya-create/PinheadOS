@@ -145,10 +145,14 @@ export function screenLookup(format: string, colors: number, qty: number): numbe
 
 export function flexLookup(format: string, colors: number, qty: number): number {
   const P = getPrices();
-  const fmt = (P.flexMatrix || FLEX_MATRIX)[format];
+  // Матрица приходит либо из каталога (Record), либо из константы с ключами
+  // A6/A5/A4/A3 — у объединения этих типов нет общей индексной сигнатуры,
+  // и strict справедливо не даёт индексировать его строкой.
+  const matrix = (P.flexMatrix || FLEX_MATRIX) as Record<string, Record<number, number[]>>;
+  const fmt = matrix[format];
   if (!fmt) return 0;
   const c = Math.max(1, Math.min(FLEX_MAX_COLORS, colors));
-  if (qty < 20) return FLEX_SINGLE_PRICE[format] || fmt[1][0];
+  if (qty < 20) return (FLEX_SINGLE_PRICE as Record<string, number>)[format] || fmt[1][0];
   const row = fmt[c];
   if (!row) return 0;
   let tierIdx = 0;

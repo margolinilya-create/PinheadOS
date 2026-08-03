@@ -38,6 +38,10 @@ jobs:
       - run: npm audit --audit-level=critical
 
       - run: npm run lint
+      # Типы в гейте. До 03.08.2026 tsc не запускался ни разу: `strict` был
+      # выключен, и всё равно копилось 84 ошибки — то есть про несоответствие
+      # типов узнавали в рантайме. Теперь strict включён и ошибок ноль.
+      - run: npm run typecheck
       - run: npm run test
       # Билд в гейте: раньше сломанную сборку ловил только Vercel уже после мержа
       - run: npm run build

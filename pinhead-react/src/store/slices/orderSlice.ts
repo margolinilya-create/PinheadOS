@@ -30,7 +30,11 @@ export const orderSlice = (set: SetFn, get: GetFn) => ({
   saved: false,
 
   loadOrder: (order: Order) => {
-    const d = (order.data || {}) as Record<string, unknown>;
+    // `OrderData` — именованный тип без индексной сигнатуры, поэтому прямое
+    // приведение к Record строгий tsc справедливо считает подозрительным:
+    // структурно они не пересекаются. Здесь это осознанное чтение по ключам
+    // (данные заказа приходят JSON-ом), и путь через unknown это честно называет.
+    const d = (order.data || {}) as unknown as Record<string, unknown>;
     const skuCatalog = get().skuCatalog as SkuItem[];
 
     function resolveSku(skuData: unknown): SkuItem | null {

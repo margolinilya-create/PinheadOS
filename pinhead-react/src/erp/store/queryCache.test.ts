@@ -51,7 +51,9 @@ describe('свежесть и stale-while-revalidate', () => {
   });
 
   it('после TTL отдаёт СТАРОЕ сразу и обновляет фоном', async () => {
-    const fetcher = vi.fn()
+    // Явный тип: без него vi.fn() выводится как () => unknown, и колбэк
+    // ревалидации получает unknown вместо строки.
+    const fetcher = vi.fn<() => Promise<string>>()
       .mockResolvedValueOnce('старое')
       .mockResolvedValueOnce('новое');
     await cachedQuery('k', fetcher, { ttlMs: 1000 });

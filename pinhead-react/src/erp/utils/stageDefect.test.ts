@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { intermediateReopened, defectRollbackWarning, descendantStages } from './stageDefect';
+import type { ErpItemStage } from '../types';
 
 const names = new Map([
   ['d-cut', 'Закрой'],
@@ -13,13 +14,28 @@ const names = new Map([
 // Линейный маршрут. `depends_on` заполнен у всех, кроме первого этапа, —
 // ровно как в базе (проверено на проде: 443 этапа, без зависимостей только
 // 113 первых, по одному на позицию).
-const stages = [
+/**
+ * Этапы маршрута. Тип обязателен: без него `status` выводится как `string`,
+ * и фикстура могла нести статус, которого в стейт-машине нет, — а функция
+ * под тестом отбирает этапы ИМЕННО по статусу.
+ */
+type Fixture = Pick<ErpItemStage, 'id' | 'department_id' | 'sort_order' | 'status' | 'depends_on'>;
+const stages: Fixture[] = [
   { id: 's1', department_id: 'd-cut', sort_order: 10, status: 'done', depends_on: [] },
   { id: 's2', department_id: 'd-print', sort_order: 20, status: 'done', depends_on: ['s1'] },
   { id: 's3', department_id: 'd-sew', sort_order: 30, status: 'done', depends_on: ['s2'] },
   { id: 's4', department_id: 'd-vto', sort_order: 40, status: 'in_progress', depends_on: ['s3'] },
 ];
-const at = (id: string) => stages.find((s) => s.id === id);
+/**
+ * Этап по id. Бросает, если его нет: strict справедливо видит здесь
+ * `Fixture | undefined`, и молчаливый `undefined` внутри теста дал бы
+ * непонятное падение внутри проверяемой функции вместо внятного «нет s9».
+ */
+const at = (id: string): Fixture => {
+  const found = stages.find((s) => s.id === id);
+  if (!found) throw new Error(`нет этапа ${id} в фикстуре`);
+  return found;
+};
 
 describe('intermediateReopened', () => {
   it('возврат с ВТО в Закрой переоткрывает Печать и Швейку', () => {
@@ -42,7 +58,7 @@ describe('intermediateReopened', () => {
   });
 
   it('не начатые промежуточные этапы не трогаются', () => {
-    const withWaiting = stages.map((s) => (s.id === 's3' ? { ...s, status: 'waiting' } : s));
+    const withWaiting: Fixture[] = stages.map((s) => (s.id === 's3' ? { ...s, status: 'waiting' as const } : s));
     const mids = intermediateReopened({
       stage: at('s4'), targetStage: at('s1'), allStages: withWaiting,
     });
@@ -86,7 +102,7 @@ describe('параллельные ветки нанесения (A3)', () => {
   //           ┌─ вышивка(30) ─┐
   // закрой(20)┤               ├─ швейка(40) → ВТО(50)
   //           └─ шелко(30) ───┘
-  const parallel = [
+  const parallel: Fixture[] = [
     { id: 'p-cut', department_id: 'd-cut', sort_order: 20, status: 'done', depends_on: [] },
     { id: 'p-emb', department_id: 'd-emb', sort_order: 30, status: 'in_progress', depends_on: ['p-cut'] },
     { id: 'p-silk', department_id: 'd-silk', sort_order: 30, status: 'done', depends_on: ['p-cut'] },
@@ -119,7 +135,7 @@ describe('параллельные ветки нанесения (A3)', () => {
   });
 
   it('если швейка уже начата — переоткрывается тоже', () => {
-    const started = parallel.map((s) => (s.id === 'p-sew' ? { ...s, status: 'done' } : s));
+    const started: Fixture[] = parallel.map((s) => (s.id === 'p-sew' ? { ...s, status: 'done' as const } : s));
     const mids = intermediateReopened({
       stage: started[1], targetStage: started[0], allStages: started,
     });
@@ -135,7 +151,7 @@ describe('descendantStages — обход графа', () => {
   });
 
   it('этап, встречающийся на двух путях, возвращается один раз', () => {
-    const diamond = [
+    const diamond: Fixture[] = [
       { id: 'a', department_id: 'd-cut', sort_order: 10, status: 'done', depends_on: [] },
       { id: 'b', department_id: 'd-emb', sort_order: 20, status: 'done', depends_on: ['a'] },
       { id: 'c', department_id: 'd-silk', sort_order: 20, status: 'done', depends_on: ['a'] },
@@ -145,7 +161,7 @@ describe('descendantStages — обход графа', () => {
   });
 
   it('петля в данных не подвешивает обход', () => {
-    const cyclic = [
+    const cyclic: Fixture[] = [
       { id: 'x', department_id: 'd-cut', sort_order: 10, status: 'done', depends_on: ['y'] },
       { id: 'y', department_id: 'd-sew', sort_order: 20, status: 'done', depends_on: ['x'] },
     ];
