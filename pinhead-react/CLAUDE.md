@@ -379,6 +379,20 @@ URL: https://pinhead-os.vercel.app
   клавиатура и скринридер работают без строчки JS
 - Витрина дизайн-системы — `/styleguide` за флагом `styleguide`. Тест проверяет
   вычислимое, витрина — различимы ли элементы рядом друг с другом
+- Вкладки карточки заказа (`orderCard/OrderCardTabs`) — шесть, активная в адресе
+  (`?tab=`), полный таб-паттерн. Шапка «почему заказ стоит» остаётся видимой
+  на любой вкладке: она отвечает на вопрос, с которым в карточку и заходят
+- Инлайн-правки заказа гейтятся `order.manage` НА КЛИЕНТЕ ТОЖЕ — страж
+  `erp_order_guard` в БД зеркалит ровно это. Гейт и страж ставятся одним
+  коммитом, иначе получится запрещённое «кнопка есть, действие падает»
+- Активный список заказов серверной пагинации не получает (причина —
+  в корневом CLAUDE.md). Постранично грузится архив; списку даны пагинация,
+  сортировка (`utils/tableSort`) и контекст в адресе
+- `strict: true` включён, `npm run typecheck` в CI. Типы стора Order Studio
+  собираются из `ReturnType` слайсов — типизированы ДЕЙСТВИЯ, поля данных
+  остались свободными: полная типизация состояния визарда — отдельная работа
+- Live-регион тостов смонтирован всегда, даже пустой (`Toast.jsx`). Регион,
+  появляющийся в DOM вместе с первым сообщением, скринридер не отслеживает
 
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
@@ -390,18 +404,29 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test     # 1639 unit тестов (Vitest)
-npm run e2e      # E2E (Playwright, 9 файлов). @playwright/test ждёт сборку 1208,
-                 # а предустановлена 1194 — вместо временного конфига проще
-                 # разложить ожидаемые пути из имеющихся бинарников:
-                 #   mkdir -p /opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64
-                 #   ln -s .../chromium_headless_shell-1194/chrome-linux/headless_shell \
-                 #         .../chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
-                 #   ln -s .../chromium-1194/chrome-linux .../chromium-1208/chrome-linux
-                 # Тогда работает штатная команда, без своего конфига
-npm run lint     # 0 ошибок обязательно
-npm run build    # успешный билд обязательно
+npm run test      # 1754 unit теста (Vitest)
+npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
+npm run e2e       # E2E (Playwright, 11 файлов, 96 сценариев desktop + 13 mobile).
+                  # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
+                  # вместо временного конфига проще разложить ожидаемые пути
+                  # из имеющихся бинарников:
+                  #   mkdir -p /opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64
+                  #   ln -s .../chromium_headless_shell-1194/chrome-linux/headless_shell \
+                  #         .../chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
+                  #   ln -s .../chromium-1194/chrome-linux .../chromium-1208/chrome-linux
+                  # Тогда работает штатная команда, без своего конфига
+npm run lint      # 0 ошибок обязательно
+npm run build     # успешный билд обязательно
 ```
+
+**Без `.env` e2e падает ВЕСЬ, и падает молча белым экраном.** `lib/supabase.ts`
+бросает «Missing Supabase credentials» на уровне модуля — до React, поэтому
+ErrorBoundary не срабатывает, а Playwright видит пустой `<div id="root">`
+и сообщает «element(s) not found» про каждый локатор. Мок Supabase от этого
+не спасает: он перехватывает сеть, а падает импорт. `.env` в гите нет
+(`.gitignore`), значения — `VITE_SUPABASE_URL` и публичный
+`VITE_SUPABASE_ANON_KEY`, шаблон в `.env.example`. Увидели 13 падений подряд
+с пустой страницей — сначала проверьте `.env`, а не спеки.
 
 ## Design System
 - Токены: src/index.css (:root) — --type-*, --space-*, --z-*, --radius-*, --color-*
