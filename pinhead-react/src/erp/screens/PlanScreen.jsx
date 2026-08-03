@@ -22,6 +22,7 @@ import { PlanAddModal } from './plan/PlanAddModal';
 import styles from '../erp.module.css';
 import { percentLabel } from '../utils/format';
 import { Button } from '../components/Button';
+import { ProductionTabs } from '../components/ProductionTabs';
 
 /**
  * Недельное и ежедневное планирование производства (правка менеджера 2026-08-03).
@@ -152,6 +153,7 @@ export default function PlanScreen() {
         title="План производства"
         sub="Недельная раскладка по цехам и дням: план, факт, остатки и отклонения. Остаток система не переносит — новую дату ставит руководитель."
       />
+      <ProductionTabs />
 
       <div className={styles.toolbar}>
         <Button variant="secondary" onClick={() => setParam({ week: shiftWeek(monday, -1) })}>
@@ -205,6 +207,7 @@ export default function PlanScreen() {
           ctxByStage={ctxByStage}
           today={today}
           onPick={(code) => setParam({ dept: code })}
+          canManage={canManage}
         />
       )}
 
@@ -346,12 +349,33 @@ export default function PlanScreen() {
  * Детальная работа с задачами живёт внутри вкладки конкретного цеха, поэтому
  * здесь только цифры и переход.
  */
-function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick }) {
+function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage }) {
   const rows = depts.map((d) => {
     const mine = slots.filter((s) => s.department_id === d.id
       || ctxByStage.get(s.stage_id)?.dept?.id === d.id);
     return { dept: d, week: summarize(mine, today), day: summarize(mine.filter((s) => s.work_date === today), today) };
   });
+
+  /**
+   * Сводка из одних нулей — это не «данные», а «плана нет».
+   *
+   * На 03.08.2026 в `erp_calendar_slots` две строки на всю базу, и таблица
+   * рисовала двенадцать строк нулей с прочерками в процентах. Формально
+   * честно, практически — экран, по которому нельзя принять ни одного
+   * решения и из которого не видно, что делать дальше.
+   */
+  const nothingPlanned = rows.every(({ week }) => week.tasks === 0);
+  if (nothingPlanned) {
+    return (
+      <EmptyState
+        icon="calendar"
+        title="На эту неделю ничего не запланировано"
+        text={canManage
+          ? 'План производства ведётся вручную: откройте вкладку цеха и добавьте этапы кнопкой «+ В план на этот день». Пока плана нет, сводка показывала бы нули по всем участкам.'
+          : 'Руководитель производства ещё не разложил работу на эту неделю.'}
+      />
+    );
+  }
 
   return (
     <ScrollHintBox className={styles.tableWrap} label="Сводка по цехам">

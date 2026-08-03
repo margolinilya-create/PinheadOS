@@ -14,6 +14,8 @@ import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/stageUi';
 import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
+import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
+import { groupNotices, urgentCount } from '../utils/notifications';
 import styles from '../erp.module.css';
 import { dueLabel } from '../utils/format';
 
@@ -93,6 +95,8 @@ export default function ErpDashboard() {
     );
     const burning = [];
     const notifications = [];
+    // Ступени просрочки: «47» одним числом не отвечает на вопрос «что делать»
+    const overdueByBucket = { none: 0, week: 0, month: 0, stale: 0 };
 
     for (const order of active) {
       const d = daysLeft(order.due_date);
@@ -102,14 +106,19 @@ export default function ErpDashboard() {
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
       if (hasOpenProcurement(order.procurement_tasks)) {
-        notifications.push({ id: `p-${order.id}`, orderId: order.id, icon: 'bell', variant: 'warn',
+        notifications.push({ id: `p-${order.id}`, orderId: order.id, kind: 'procurement',
           text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
       if (lateDays > 0) {
-        notifications.push({ id: `o-${order.id}`, orderId: order.id, icon: 'alert', variant: 'danger',
+        notifications.push({ id: `o-${order.id}`, orderId: order.id, kind: 'overdue',
           text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title,
-          // Ступень нужна виджету уведомлений (группировка по критичности, Ф4)
           overdueDays: lateDays });
+        overdueByBucket[overdueBucket(lateDays)] += 1;
+      }
+      // Остановленный этап — единственное, что нельзя «подождать»: цех стоит
+      if (order.items.some((it) => it.stages.some((st) => st.status === 'blocked'))) {
+        notifications.push({ id: `b-${order.id}`, orderId: order.id, kind: 'blocked',
+          text: `Остановлен этап по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
 
       for (const item of order.items) {
@@ -157,9 +166,15 @@ export default function ErpDashboard() {
       maxLoad,
       burning: burning.slice(0, 5),
       inWork,
-      notifications: notifications.slice(0, 6),
+      overdueByBucket,
+      // Группы, а не срез: срез показывал шесть случайных из сорока семи
+      // и молчал о том, что их сорок семь
+      noticeGroups: groupNotices(notifications),
     };
   }, [orders, departments]);
+
+  // Число для шапки виджета: сумма срочных групп, а не всех уведомлений
+  const urgent = urgentCount(data.noticeGroups);
 
   return (
     <>
@@ -208,6 +223,24 @@ export default function ErpDashboard() {
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Просрочено</span>
                 <span className={styles.kpiCardValue}>{data.overdue}</span>
+                {/* Разбивка по ступеням прямо на плитке: «47» одним числом
+                    не отвечает на вопрос «сколько из этого горит сегодня».
+                    На боевых данных 03.08.2026 это 6 / 39 / 2. */}
+                {data.overdue > 0 && (
+                  <span className={styles.kpiBreakdown}>
+                    {data.overdueByBucket.week > 0 && (
+                      <span className={styles.kpiBreakdownHot}>
+                        {OVERDUE_BUCKET_SHORT.week}: {data.overdueByBucket.week}
+                      </span>
+                    )}
+                    {data.overdueByBucket.month > 0 && (
+                      <span>{OVERDUE_BUCKET_SHORT.month}: {data.overdueByBucket.month}</span>
+                    )}
+                    {data.overdueByBucket.stale > 0 && (
+                      <span>{OVERDUE_BUCKET_SHORT.stale}: {data.overdueByBucket.stale}</span>
+                    )}
+                  </span>
+                )}
               </span>
             </Link>
             <Link to="/warehouse" className={styles.kpiCard}>
@@ -309,25 +342,55 @@ export default function ErpDashboard() {
             </div>
 
             <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Уведомления</span></div>
-              {data.notifications.length === 0 ? (
+              <div className={styles.widgetHead}>
+                <span className={styles.widgetTitle}>Уведомления</span>
+                {urgent > 0 && (
+                  <span className={styles.subText}>требуют действия сейчас: {urgent}</span>
+                )}
+              </div>
+              {data.noticeGroups.length === 0 ? (
                 <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
               ) : (
-                data.notifications.map((n) => (
-                  // Алерт без ссылки — тупик: пользователь читал «Просрочен заказ
-                  // №1042» и шёл искать его руками, хотя id лежит рядом
-                  <Link
-                    key={n.id}
-                    to={`/orders/${n.orderId}`}
-                    onClick={(e) => orderLinkClick(n.orderId, e)}
-                    className={styles.notifItem}
-                  >
-                    <Icon name={n.icon} size={16} />
-                    <span className={styles.notifText}>
-                      {n.text}
-                      <span className={styles.notifSub}> · {n.sub}</span>
-                    </span>
-                  </Link>
+                data.noticeGroups.map((g) => (
+                  /* Группа — <details>: сворачивание нативное, значит работает
+                     с клавиатуры и читается скринридером без единой строки JS.
+                     Срочные группы открыты (`open`), давняя просрочка свёрнута
+                     со счётчиком: она важна, но это не сегодняшняя работа. */
+                  <details key={g.key} className={styles.notifGroup} open={g.open}>
+                    <summary className={styles.notifSummary}>
+                      <span className={`${styles.notifDot} ${styles[`notifDot_${g.tone}`]}`} aria-hidden="true" />
+                      <Icon name={g.icon} size={15} />
+                      <span className={styles.notifGroupTitle}>{g.title}</span>
+                      <span className={styles.notifCount}>{g.items.length}</span>
+                    </summary>
+                    <p className={styles.notifHint}>{g.hint}</p>
+                    {g.items.slice(0, 8).map((n) => (
+                      // Алерт без ссылки — тупик: пользователь читал «Просрочен
+                      // заказ №1042» и шёл искать его руками, хотя id лежит рядом
+                      <Link
+                        key={n.id}
+                        to={`/orders/${n.orderId}`}
+                        onClick={(e) => orderLinkClick(n.orderId, e)}
+                        className={styles.notifItem}
+                      >
+                        <span className={styles.notifText}>
+                          {n.text}
+                          <span className={styles.notifSub}> · {n.sub}</span>
+                        </span>
+                        {n.overdueDays > 0 && (
+                          <Badge variant={g.tone === 'danger' ? 'blocked' : 'neutral'}>
+                            {n.overdueDays} дн.
+                          </Badge>
+                        )}
+                      </Link>
+                    ))}
+                    {g.items.length > 8 && (
+                      // Никаких тихих лимитов: сколько показано и сколько всего
+                      <Link to="/orders?filter=overdue" className={styles.notifMore}>
+                        Показаны 8 из {g.items.length} → все в списке заказов
+                      </Link>
+                    )}
+                  </details>
                 ))
               )}
             </div>

@@ -30,6 +30,7 @@ import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { dueLabelCompact } from '../utils/format';
 import { Button } from '../components/Button';
+import { ProductionTabs } from '../components/ProductionTabs';
 
 /**
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
@@ -222,9 +223,10 @@ export default function ProductionBoard() {
   return (
     <>
       <PageHead
-        title="Производственный план"
+        title="Доска производства"
         sub="Все позиции в работе: этапы-светофор по цехам, сроки, узкие места."
       />
+      <ProductionTabs />
 
       <div className={styles.toolbar}>
         {/* Не tablist: панели с role="tabpanel" нет, aria-controls нет, стрелочной
