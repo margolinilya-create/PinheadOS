@@ -8,6 +8,11 @@ export default defineConfig({
   plugins: [react(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
   base: '/',
   build: {
+    // Манифест нужен бюджету критического пути (scripts/bundle-budget.mjs):
+    // из index.html виден только вход и его modulepreload, а оболочка ERP
+    // (ErpApp + общие примитивы + их CSS) — динамический импорт, и в HTML её нет.
+    // Страж, считавший один index.html, показывал 207 кБ при реальных 280.
+    manifest: true,
     rollupOptions: {
       output: {
         // Крупные вендоры — в отдельные чанки: меньше главный бандл, лучше кеширование.
