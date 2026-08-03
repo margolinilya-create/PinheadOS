@@ -217,6 +217,33 @@ describe('стражи покрывают колонки, которые пиш�
    * RLS он и так минует, а триггер — нет. Правило записано в CLAUDE.md,
    * и все три стража обязаны его соблюдать.
    */
+  /**
+   * Функция-триггер не должна быть вызываема через REST. Новая функция получает
+   * EXECUTE для public по умолчанию, и следующая такая приедет в публичный API
+   * молча — advisor утонет в предупреждениях, за которыми теряются настоящие.
+   *
+   * Это НЕ противоречит правилу «не чинить `is_admin()`/`erp_is_member()`»:
+   * те стоят в предикатах RLS и исполняются от лица вызывающего, отзыв сломал бы
+   * политики. Триггеры зовёт движок, и EXECUTE при срабатывании не проверяется.
+   */
+  it('каждая функция-триггер лишена EXECUTE у anon и authenticated', () => {
+    const revokeSql = readFileSync(
+      join(MIGRATIONS, '20260803250000_erp_revoke_trigger_functions.sql'), 'utf8',
+    );
+    const triggerFns = new Set<string>();
+    for (const file of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql'))) {
+      const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+      for (const m of sql.matchAll(/execute function public\.(\w+)\(/g)) {
+        triggerFns.add(m[1]);
+      }
+    }
+    expect(triggerFns.size).toBeGreaterThanOrEqual(4);
+    for (const fn of triggerFns) {
+      expect(revokeSql, `${fn} остаётся вызываемой через REST`)
+        .toMatch(new RegExp(`revoke execute on function public\\.${fn}\\(`));
+    }
+  });
+
   it('каждый страж пропускает service_role (пустой auth.uid)', () => {
     const guards = [
       '20260803160000_erp_permissions_server_side.sql',

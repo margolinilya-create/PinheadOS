@@ -30,7 +30,10 @@ alter table public.erp_order_audit
 alter table public.erp_stage_events
   add column if not exists actor_id uuid references public.profiles(id) on delete set null;
 
+-- Оба внешних ключа накрываем индексом: без него удаление профиля сканирует
+-- всю таблицу истории, а advisor справедливо ругается на unindexed_foreign_keys.
 create index if not exists erp_order_audit_actor_idx on public.erp_order_audit (changed_by_id);
+create index if not exists erp_stage_events_actor_idx on public.erp_stage_events (actor_id);
 
 -- ── 2. Общий журналист ──
 -- Аргументы триггера: [0] — как добраться до заказа ('order_id' | 'item_id'),
