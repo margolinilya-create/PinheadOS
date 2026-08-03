@@ -9,6 +9,7 @@ import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
+import { MaterialWait } from './MaterialWait';
 
 /**
  * Компактная строка рабочей очереди цеха (правка 2) — вместо крупной карточки.
@@ -24,7 +25,7 @@ export function QueueRow({
   onDragStart, onDragEnd, onDragOverRow,
   canMoveUp, canMoveDown, onMove,
 }) {
-  const { order, item, stage, reason, group } = entry;
+  const { order, item, stage, reason, group, missingMaterials } = entry;
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const d = daysLeft(order.due_date);
@@ -179,9 +180,12 @@ export function QueueRow({
         </span>
       </div>
 
+      {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} compact />}
+
       {(reason || (group === 'blocked' && stage.block_reason) || rework || needsAck) && (
         <div className={styles.queueRowNotes}>
-          {reason && (
+          {/* Причина уже расписана списком материалов — не дублируем её строкой */}
+          {reason && group !== 'awaiting_materials' && (
             <span className={styles.queueReason}>
               <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
             </span>

@@ -103,12 +103,12 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
               const noTz = stageMissingTz(order, item.id, dept);
               const effReady = st.status === 'waiting' &&
                 isStageReady(st, item.stages, materialsForItem(order.materials, item.id),
-                  dept?.code, awaitProc, noTz);
+                  dept, awaitProc, noTz);
               const display = effReady ? 'ready' : st.status;
               const reason = display === 'waiting' || display === 'blocked'
                 ? waitingReason(
                     st, item.stages, materialsForItem(order.materials, item.id),
-                    deptNameById, dept?.code, awaitProc, noTz)
+                    deptNameById, dept, awaitProc, noTz)
                 : null;
               return (
                 <tr key={st.id}>

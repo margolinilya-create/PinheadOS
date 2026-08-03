@@ -5,11 +5,14 @@ import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
 import { Icon } from '../components/Icon';
 import { toast } from '../../store/useToastStore';
-import { EMPLOYEE_ROLE_LABELS } from '../types';
+import { EMPLOYEE_ROLE_LABELS, MATERIAL_KIND_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+
+/** Виды материалов для настройки «участок ждёт материал» (порядок = порядок чекбоксов) */
+const GATE_KINDS = Object.entries(MATERIAL_KIND_LABELS);
 
 /**
  * Справочник производственных участков (правки 11 и 12): создание, переименование,
@@ -106,6 +109,17 @@ export default function DepartmentsScreen({ embedded = false }) {
     await updateDepartment(d.id, { is_production: next });
   };
 
+  /**
+   * Материал этого вида не пришёл → этап участка стоит в группе «Ожидают материалы».
+   * Настройка живёт в данных, а не в коде: цех, заведённый здесь, должен попадать
+   * под гейт без релиза (то же правило, что у `is_production`).
+   */
+  const toggleGateKind = async (d, kind, on) => {
+    const current = d.gate_material_kinds ?? [];
+    const next = on ? [...new Set([...current, kind])] : current.filter((k) => k !== kind);
+    await updateDepartment(d.id, { gate_material_kinds: next });
+  };
+
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
@@ -193,6 +207,7 @@ export default function DepartmentsScreen({ embedded = false }) {
           <thead>
             <tr>
               <th>Участок</th><th>Код</th><th>Порядок</th><th>Признаки</th>
+              <th>Ждёт материалы</th>
               <th>Руководитель</th><th>Норматив, дн</th><th>Действие</th>
             </tr>
           </thead>
@@ -243,6 +258,26 @@ export default function DepartmentsScreen({ embedded = false }) {
                     />
                     нанесение
                   </label>
+                </td>
+                <td>
+                  {/* Какие материалы блокируют запуск этапа этого участка.
+                      Раньше карта была константой в коде (ткань → закрой,
+                      фурнитура и бирки → швейка), и участок, заведённый здесь,
+                      под материальный гейт не попадал вовсе. Пусто = не гейтится. */}
+                  {GATE_KINDS.map(([kind, label]) => (
+                    <label key={kind} className={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={(d.gate_material_kinds ?? []).includes(kind)}
+                        aria-label={`Участок ${d.name} ждёт материал: ${label}`}
+                        onChange={(e) => toggleGateKind(d, kind, e.target.checked)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  {(d.gate_material_kinds ?? []).length === 0 && (
+                    <div className={styles.subText}>не гейтится</div>
+                  )}
                 </td>
                 <td>
                   <select

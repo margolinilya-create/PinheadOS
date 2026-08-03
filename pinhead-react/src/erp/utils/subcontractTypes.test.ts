@@ -6,6 +6,9 @@ import {
 import { materialsBlockStage } from './routes';
 import type { ErpMaterial } from '../types';
 
+/** Строка цеха для материального гейта: настройка живёт в данных, а не в коде */
+const CUT = { code: 'cutting', gate_material_kinds: ['fabric'] };
+
 const mat = (status: ErpMaterial['status']): ErpMaterial => ({
   id: 'm1', order_id: 'o1', item_id: null, kind: 'fabric', name: 'Ткань',
   source: 'purchase', supplier: null, qty: null, status,
@@ -30,8 +33,8 @@ describe('Подряд: типы операций и источник матер
 
   it('материал подрядчика (not_needed) не блокирует закрой', () => {
     // При material_source=contractor материалы помечаются not_needed → закупка Pinhead не гейтит
-    expect(materialsBlockStage([mat('not_needed')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mat('not_needed')], CUT)).toBe(false);
     // контрольный случай: непринятый закупочный материал по-прежнему блокирует
-    expect(materialsBlockStage([mat('pending')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mat('pending')], CUT)).toBe(true);
   });
 });

@@ -89,6 +89,12 @@ export interface ErpDepartment {
    * Правится в админке — раньше набор был захардкожен, и новый цех не появлялся нигде.
    */
   is_production?: boolean;
+  /**
+   * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
+   * Пустой массив — участок материалами не гейтится. Правится в админке;
+   * раньше это была константа MATERIAL_GATE_DEPT в utils/routes.ts.
+   */
+  gate_material_kinds?: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -482,6 +488,15 @@ export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
   blocked: 'Заблокирован',
 };
 
+/** Виды материалов — для настройки материального гейта участка в админке */
+export const MATERIAL_KIND_LABELS: Record<MaterialKind, string> = {
+  fabric: 'ткань',
+  hardware: 'фурнитура',
+  labels: 'бирки',
+  packaging: 'упаковка',
+  other: 'прочее',
+};
+
 export const MATERIAL_STATUS_LABELS: Record<MaterialStatus, string> = {
   pending: 'Не заказано',
   ordered: 'Заказано',
@@ -683,12 +698,14 @@ export type ErpPermission =
   | 'stage.priority'          // менять приоритет заданий в очереди
   | 'stage.move_department'   // переносить задание между цехами на канбане
   | 'order.manage'            // создавать и редактировать заказы
-  | 'tz.manage'               // загружать, заменять и назначать ТЗ цехам
+  | 'tz.manage'               // загружать и заменять ТЗ позиции
+  | 'material.receive'        // отмечать поступление материала (приёмка)
   | 'catalog.edit';           // редактировать справочники
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
-  'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage', 'catalog.edit',
+  'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
+  'material.receive', 'catalog.edit',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -700,7 +717,8 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'stage.priority': 'Менять приоритеты',
   'stage.move_department': 'Переносить между цехами',
   'order.manage': 'Создавать и править заказы',
-  'tz.manage': 'Вести ТЗ (загрузка и назначение)',
+  'tz.manage': 'Вести ТЗ (загрузка и замена)',
+  'material.receive': 'Отмечать поступление материалов',
   'catalog.edit': 'Править справочники',
 };
 

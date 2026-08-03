@@ -3,7 +3,9 @@ import { buildKanbanColumns } from './kanbanColumns';
 import { EMPTY_FILTERS } from './filterStages';
 
 // Минимальные фикстуры: только поля, которые читает buildKanbanColumns.
-const dept = (id, code, active = true) => ({ id, code, name: code, active });
+// is_production не задаём: фикстура проверяет и откат на сид-набор кодов
+const dept = (id, code, active = true, gate = undefined) =>
+  ({ id, code, name: code, active, gate_material_kinds: gate });
 
 const stage = (id, department_id, status, extra = {}) => ({
   id, item_id: 'i1', department_id, status,
@@ -96,5 +98,45 @@ describe('buildKanbanColumns — приоритет и фильтры (волн�
     const o = order('o1', [stage('s1', 'd-sew', 'blocked', { block_reason: 'нет ниток' })]);
     const [col] = buildKanbanColumns([o], deps);
     expect(col.blocked[0].reason).toBe('нет ниток');
+  });
+});
+
+/**
+ * Правка менеджера 2026-08-03: «Ожидают материалы» — своя дорожка ПЕРЕД «Готово
+ * к работе». Раньше такие задания на доску не попадали вовсе (`waiting`
+ * отбрасывался), а ручные блокировки подмешивались в «Готово к работе», и понять,
+ * что цех стоит из-за снабжения, было нельзя.
+ */
+describe('buildKanbanColumns — дорожка «Ожидают материалы»', () => {
+  const mat = (over = {}) => ({
+    id: 'm1', kind: 'fabric', name: 'Кулирка', status: 'ordered',
+    eta_date: null, accept_status: null, item_id: null, ...over,
+  });
+
+  it('этап без материала едет в свою дорожку, а не в «Готово к работе»', () => {
+    const deps = [dept('d-cut', 'cutting', true, ['fabric'])];
+    const o = order('o1', [stage('s1', 'd-cut', 'waiting')], { materials: [mat()] });
+    const [col] = buildKanbanColumns([o], deps);
+    expect(col.awaiting_materials.map((e) => e.stage.id)).toEqual(['s1']);
+    expect(col.ready).toEqual([]);
+  });
+
+  it('блокировка цехом больше не подмешивается в «Готово к работе»', () => {
+    const deps = [dept('d-cut', 'cutting', true, ['fabric'])];
+    const o = order('o1', [
+      stage('s-ready', 'd-cut', 'waiting'),
+      stage('s-block', 'd-cut', 'blocked'),
+    ]);
+    const [col] = buildKanbanColumns([o], deps);
+    expect(col.ready.map((e) => e.stage.id)).toEqual(['s-ready']);
+    expect(col.blocked.map((e) => e.stage.id)).toEqual(['s-block']);
+  });
+
+  it('участок без настройки материалов дорожку не наполняет', () => {
+    const deps = [dept('d-vto', 'vto')];
+    const o = order('o1', [stage('s1', 'd-vto', 'waiting')], { materials: [mat()] });
+    const [col] = buildKanbanColumns([o], deps);
+    expect(col.awaiting_materials).toEqual([]);
+    expect(col.ready.map((e) => e.stage.id)).toEqual(['s1']);
   });
 });

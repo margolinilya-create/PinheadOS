@@ -27,7 +27,7 @@ export function StageStepper({ item, order, deptById, events }) {
     const dept = deptById.get(st.department_id);
     const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, st.id);
     const effReady = st.status === 'waiting'
-      && isStageReady(st, item.stages, materialsForItem(order.materials, item.id), dept?.code, awaitProc,
+      && isStageReady(st, item.stages, materialsForItem(order.materials, item.id), dept, awaitProc,
         stageMissingTz(order, item.id, dept));
     const display = effReady ? 'ready' : st.status;
     const ev = lastEventByStage.get(st.id);

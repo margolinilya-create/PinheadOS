@@ -114,7 +114,7 @@ export default function ErpDashboard() {
           if (stage.status === 'in_progress') slot.inProgress += 1;
           else if (stage.status === 'blocked') slot.blocked += 1;
           else if (stage.status === 'waiting' && isStageReady(
-            stage, item.stages, materialsForItem(order.materials, item.id), slot.dept.code, false,
+            stage, item.stages, materialsForItem(order.materials, item.id), slot.dept, false,
             stageMissingTz(order, item.id, slot.dept))) {
             slot.ready += 1;
           }

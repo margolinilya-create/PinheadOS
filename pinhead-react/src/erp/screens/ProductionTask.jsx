@@ -110,13 +110,13 @@ export default function ProductionTask() {
   const noTz = stageMissingTz(order, item.id, dept);
   const ready = stage.status === 'waiting'
     && isStageReady(stage, item.stages, materialsForItem(order.materials, item.id),
-      dept?.code, awaitProc, noTz);
+      dept, awaitProc, noTz);
   const group = stage.status === 'waiting' && ready ? 'ready' : stage.status;
   const display = group === 'ready' ? 'ready' : stage.status;
   const reason = (display === 'waiting' || display === 'blocked')
     ? waitingReason(
         stage, item.stages, materialsForItem(order.materials, item.id),
-        deptNameById, dept?.code, awaitProc, noTz)
+        deptNameById, dept, awaitProc, noTz)
     : null;
   const progress = stageQtyProgress(stage, item.qty);
   const d = daysLeft(order.due_date);

@@ -54,8 +54,9 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   // tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,
   // и без него менеджер молча терял бы возможность вести ТЗ, если матрица не загрузилась
   manager: ['stage.block', 'stage.priority', 'order.manage', 'tz.manage'],
-  purchaser: ['stage.block'],
-  storekeeper: ['stage.block'],
+  // material.receive (волна 2 правок менеджера): приёмка — работа закупки и склада
+  purchaser: ['stage.block', 'material.receive'],
+  storekeeper: ['stage.block', 'material.receive'],
   hr: [],
 };
 

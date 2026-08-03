@@ -39,9 +39,17 @@ import { useStageActions } from './queue/useStageActions';
  * из карточки заказа восстанавливает и цех, и подбор, и позицию прокрутки (правка 6).
  */
 
-/** Заголовки блоков очереди (порядок = порядок отображения из требования) */
+/**
+ * Заголовки блоков очереди (порядок = порядок отображения из требования).
+ * «Ожидают материалы» отделены от общего «Ожидает» правкой менеджера 2026-08-03:
+ * «ждём ткань» и «швейка ещё не сдала» требуют разных решений, и в общей куче
+ * понять, что цех стоит из-за снабжения, было нельзя.
+ */
 const GROUP_TITLES = {
   in_progress: 'В работе',
+  awaiting_materials: (
+    <span className={styles.cellWithIcon}><Icon name="box" size={16} />Ожидают материалы</span>
+  ),
   ready: 'Готово к запуску',
   waiting: (
     <span className={styles.cellWithIcon}><Icon name="clock" size={16} />Ожидает</span>
@@ -191,10 +199,11 @@ export default function DepartmentQueue() {
 
   /** Три блока требования + свёрнутое «Завершено недавно» */
   const groups = useMemo(() => {
-    const g = { in_progress: [], ready: [], waiting: [], done: [] };
+    const g = { in_progress: [], awaiting_materials: [], ready: [], waiting: [], done: [] };
     for (const e of visible) {
       if (e.group === 'done') g.done.push(e);
       else if (e.group === 'in_progress') g.in_progress.push(e);
+      else if (e.group === 'awaiting_materials') g.awaiting_materials.push(e);
       else if (e.group === 'ready') g.ready.push(e);
       else g.waiting.push(e); // waiting + blocked: «Ожидает» с конкретной причиной
     }

@@ -12,7 +12,8 @@ import { matchesOrderQuery } from './orderSearch';
 import { daysLeft, stageOverdue } from './time';
 
 /** Группа задания в очереди — вычисляется экраном (routes.isStageReady и статус этапа) */
-export type QueueGroup = 'ready' | 'in_progress' | 'waiting' | 'blocked' | 'done';
+export type QueueGroup =
+  | 'awaiting_materials' | 'ready' | 'in_progress' | 'waiting' | 'blocked' | 'done';
 
 export interface QueueEntry {
   order: {
@@ -34,6 +35,8 @@ export interface QueueEntry {
   };
   group: QueueGroup;
   reason?: string | null;
+  /** Чего именно ждёт группа «Ожидают материалы» — для карточки задания */
+  missingMaterials?: unknown[];
 }
 
 export type StageSort = 'priority' | 'due' | 'overdue';
@@ -76,6 +79,7 @@ export const SORT_LABELS: Record<StageSort, string> = {
 };
 
 export const GROUP_FILTER_LABELS: Record<QueueGroup, string> = {
+  awaiting_materials: 'Ожидают материалы',
   ready: 'Готово к запуску',
   in_progress: 'В работе',
   waiting: 'Ожидает',

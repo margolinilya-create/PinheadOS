@@ -4,8 +4,14 @@ import { buildQueueEntries } from './queueEntries';
 
 /**
  * Группировка заданий по колонкам-цехам и дорожкам канбана.
- * Колонка = производственный процесс; дорожки: ready / in_progress / blocked / done.
- * «Завершено» показываем только последние 5 (по finished_at).
+ * Колонка = производственный процесс; дорожки: awaiting_materials / ready /
+ * in_progress / blocked / done. «Завершено» показываем только последние 5.
+ *
+ * `awaiting_materials` идёт ПЕРЕД `ready` (правка менеджера 2026-08-03): заказ,
+ * переданный на этап, но не запускаемый из-за материалов, раньше либо не попадал
+ * на доску вовсе (`waiting` отбрасывался), либо ехал в «Готово к работе» вместе
+ * с ручными блокировками — и понять, что цех стоит из-за снабжения, было нельзя.
+ * `blocked` тоже получил свою дорожку по той же причине.
  *
  * Порядок внутри дорожки задаёт сортировка фильтров: по умолчанию — приоритет
  * (queue_position, правка 3), поэтому перетаскивание карточки вверх-вниз внутри
@@ -16,14 +22,14 @@ export function buildKanbanColumns(orders, departments, filters = EMPTY_FILTERS)
   const deps = departments.filter((d) => d.active && isProductionDept(d));
   const byDept = new Map(deps.map((d) => [
     d.id,
-    { dept: d, ready: [], in_progress: [], blocked: [], done: [] },
+    { dept: d, awaiting_materials: [], ready: [], in_progress: [], blocked: [], done: [] },
   ]));
 
   const entries = applyStageFilters(buildQueueEntries(orders, departments), filters);
   for (const entry of entries) {
     const col = byDept.get(entry.stage.department_id);
     if (!col) continue;
-    // waiting (ещё не готово к запуску) на доске не показываем — это очередь цеха
+    // waiting (ждёт предыдущий этап или ТЗ) на доске не показываем — это очередь цеха
     if (col[entry.group]) col[entry.group].push(entry);
   }
 

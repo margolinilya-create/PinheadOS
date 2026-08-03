@@ -7,9 +7,14 @@ import { buildQueueEntries } from './queueEntries';
  * местом, где это считается, — и он же держит гейты материалов, закупки и ТЗ.
  */
 
+/**
+ * Какие материалы блокируют участок — настройка из данных
+ * (`erp_departments.gate_material_kinds`), а не константа в коде. Значения здесь
+ * повторяют бэкфилл миграции 20260803120000, чтобы тесты описывали прод.
+ */
 const DEPTS = [
-  { id: 'd-cut', code: 'cutting', name: 'Закройный цех' },
-  { id: 'd-sew', code: 'sewing', name: 'Швейный цех' },
+  { id: 'd-cut', code: 'cutting', name: 'Закройный цех', gate_material_kinds: ['fabric'] },
+  { id: 'd-sew', code: 'sewing', name: 'Швейный цех', gate_material_kinds: ['hardware', 'labels'] },
   { id: 'd-sup', code: 'supply', name: 'Закупка' },
 ];
 
@@ -137,11 +142,50 @@ describe('buildQueueEntries — группы', () => {
 });
 
 describe('buildQueueEntries — гейт материалов', () => {
-  it('непришедшая ткань держит закрой и называет материал', () => {
+  it('непришедшая ткань держит закрой в своей группе и называет материал', () => {
     const o = order({ materials: [material({ status: 'ordered', eta_date: '2026-07-30' })] });
     const list = buildQueueEntries([o], DEPTS, { departmentId: 'd-cut' });
-    expect(groups(list)).toEqual(['waiting']);
+    // Отдельная группа, а не общий «Ожидает»: «ждём ткань» и «швейка ещё не сдала»
+    // требуют разных решений руководителя (правка менеджера 2026-08-03)
+    expect(groups(list)).toEqual(['awaiting_materials']);
     expect(list[0].reason).toContain('Ждём материалы: Кулирка');
+    // Список нужен карточке, чтобы показать ETA и ответственного
+    expect(list[0].missingMaterials.map((m) => m.name)).toEqual(['Кулирка']);
+  });
+
+  it('ожидание предыдущего этапа остаётся в «Ожидает», а не в материалах', () => {
+    const o = order({
+      items: [{ id: 'it1', qty: 100, stages: [
+        stage({ id: 's-cut', department_id: 'd-cut', status: 'in_progress' }),
+        stage({ id: 's-sew', department_id: 'd-sew', depends_on: ['s-cut'] }),
+      ] }],
+    });
+    const list = buildQueueEntries([o], DEPTS, { departmentId: 'd-sew' });
+    expect(groups(list)).toEqual(['waiting']);
+    expect(list[0].missingMaterials).toEqual([]);
+  });
+
+  it('участок без настройки материалами не гейтится — блокировка fail-open', () => {
+    // gate_material_kinds не задан: непришедшая ткань не должна остановить ВТО,
+    // про которое производство ещё не решило, чего оно ждёт
+    const vto = [{ id: 'd-vto', code: 'vto', name: 'ВТО' }];
+    const o = order({
+      materials: [material({ status: 'ordered' })],
+      items: [{ id: 'it1', qty: 100, stages: [stage({ department_id: 'd-vto' })] }],
+    });
+    expect(groups(buildQueueEntries([o], vto))).toEqual(['ready']);
+  });
+
+  it('вид материала берётся из настройки участка, а не из кода', () => {
+    // Шелкографии заводят «прочее» (плёнка) — гейт обязан сработать без релиза
+    const silk = [{ id: 'd-silk', code: 'silkscreen', name: 'Шелкография', gate_material_kinds: ['other'] }];
+    const o = order({
+      materials: [material({ kind: 'other', name: 'Плёнка', status: 'ordered' })],
+      items: [{ id: 'it1', qty: 100, stages: [stage({ department_id: 'd-silk' })] }],
+    });
+    const list = buildQueueEntries([o], silk);
+    expect(groups(list)).toEqual(['awaiting_materials']);
+    expect(list[0].missingMaterials.map((m) => m.name)).toEqual(['Плёнка']);
   });
 
   it('пришедшая, но не принятая складом ткань — «ожидает приёмки»', () => {
@@ -166,7 +210,7 @@ describe('buildQueueEntries — гейт материалов', () => {
       ] }],
     });
     const list = buildQueueEntries([o], DEPTS);
-    expect(groups(list)).toEqual(['waiting', 'ready']);
+    expect(groups(list)).toEqual(['awaiting_materials', 'ready']);
   });
 });
 

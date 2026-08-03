@@ -60,7 +60,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   const noTz = stageMissingTz(order, item.id, dept);
   const effectiveReady =
     stage.status === 'waiting' &&
-    isStageReady(stage, allStages, materialsForItem(order.materials, item.id), dept?.code, false, noTz);
+    isStageReady(stage, allStages, materialsForItem(order.materials, item.id), dept, false, noTz);
   const displayStatus = effectiveReady ? 'ready' : stage.status;
 
   const reason =
@@ -68,7 +68,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
       ? waitingReason(
           stage, allStages, materialsForItem(order.materials, item.id),
           new Map([...deptById].map(([id, d]) => [id, d.name])),
-          dept?.code, false, noTz,
+          dept, false, noTz,
         )
       : null;
 

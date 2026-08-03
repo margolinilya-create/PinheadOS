@@ -146,7 +146,7 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
         else if (
           st.status === 'waiting' &&
           isStageReady(
-            st, it.stages, materialsForItem(o.materials, it.id), deptCode,
+            st, it.stages, materialsForItem(o.materials, it.id), dept,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
             stageMissingTz(o, it.id, dept),
           )
@@ -174,7 +174,7 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
         if (
           st.status === 'waiting' &&
           isStageReady(
-            st, it.stages, materialsForItem(o.materials, it.id), deptCode,
+            st, it.stages, materialsForItem(o.materials, it.id), dept,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
             stageMissingTz(o, it.id, dept),
           )

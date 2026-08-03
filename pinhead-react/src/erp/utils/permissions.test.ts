@@ -71,6 +71,17 @@ describe('isAllowed', () => {
     }
   });
 
+  it('дефолты повторяют seed: material.receive у склада, закупки и руководства', () => {
+    // Приёмка — сверка количества и качества, а не отметка «вроде привезли»:
+    // мастеру и рабочему её не даём даже при упавшей загрузке матрицы
+    for (const role of ['director', 'dispatcher', 'purchaser', 'storekeeper'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).toContain('material.receive');
+    }
+    for (const role of ['foreman', 'worker', 'manager', 'hr'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('material.receive');
+    }
+  });
+
   it('менеджер без привязки к цеху не получает действий над этапами', () => {
     // Без записи в erp_employees canActInDept пропускает в любой цех — значит
     // единственная защита здесь матрица: у роли нет ни взятия, ни завершения, ни брака.

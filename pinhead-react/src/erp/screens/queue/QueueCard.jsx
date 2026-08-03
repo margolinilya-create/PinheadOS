@@ -7,6 +7,7 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { Lightbox } from './Lightbox';
 import { StageActionsPanel } from './StageActionsPanel';
+import { MaterialWait } from './MaterialWait';
 
 /**
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
@@ -14,7 +15,7 @@ import { StageActionsPanel } from './StageActionsPanel';
  */
 export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
   const location = useLocation();
-  const { order, item, stage, reason, group } = entry;
+  const { order, item, stage, reason, group, missingMaterials } = entry;
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
   const qtyDone = stage.qty_done ?? 0;
@@ -84,7 +85,8 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
         <Lightbox src={preview} alt={`Макет: ${order.title}`} onClose={() => setZoom(false)} />
       )}
 
-      {reason && (
+      {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} />}
+      {reason && group !== 'awaiting_materials' && (
         <div className={styles.queueReason}>
           <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
         </div>

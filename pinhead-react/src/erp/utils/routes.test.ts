@@ -222,59 +222,86 @@ const mkMat = (
   created_at: '', updated_at: '',
 });
 
+/**
+ * Строки цехов для материального гейта. Раньше сюда передавался КОД цеха, а карта
+ * «вид материала → цех» была константой в коде; теперь настройка живёт в данных
+ * (`erp_departments.gate_material_kinds`) и правится в админке.
+ */
+const CUT = { code: 'cutting', gate_material_kinds: ['fabric'] };
+const SEW = { code: 'sewing', gate_material_kinds: ['hardware', 'labels'] };
+
 describe('materialsBlockStage — материалы гейтят закрой', () => {
   it('не пришедшая ткань блокирует', () => {
-    expect(materialsBlockStage([mkMat('ordered')], 'cutting')).toBe(true);
-    expect(materialsBlockStage([mkMat('pending')], 'cutting')).toBe(true);
-    expect(materialsBlockStage([mkMat('in_transit')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('ordered')], CUT)).toBe(true);
+    expect(materialsBlockStage([mkMat('pending')], CUT)).toBe(true);
+    expect(materialsBlockStage([mkMat('in_transit')], CUT)).toBe(true);
   });
 
   it('пришедший, но НЕ принятый складом материал блокирует (правка 3)', () => {
-    expect(materialsBlockStage([mkMat('received')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('received')], CUT)).toBe(true);
   });
 
   it('принятый склад / зарезервированный / not_needed не блокируют', () => {
-    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')], 'cutting')).toBe(false);
-    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_partial')], 'cutting')).toBe(false);
-    expect(materialsBlockStage([mkMat('reserved')], 'cutting')).toBe(false);
-    expect(materialsBlockStage([mkMat('not_needed')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')], CUT)).toBe(false);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_partial')], CUT)).toBe(false);
+    expect(materialsBlockStage([mkMat('reserved')], CUT)).toBe(false);
+    expect(materialsBlockStage([mkMat('not_needed')], CUT)).toBe(false);
   });
 
   it('недостача/пересорт/отказ по приёмке блокируют закрой', () => {
-    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'shortage')], 'cutting')).toBe(true);
-    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'mismatch')], 'cutting')).toBe(true);
-    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'rejected')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'shortage')], CUT)).toBe(true);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'mismatch')], CUT)).toBe(true);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'rejected')], CUT)).toBe(true);
   });
 
   it('partial блокирует (пришло не всё)', () => {
-    expect(materialsBlockStage([mkMat('partial')], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mkMat('partial')], CUT)).toBe(true);
   });
 
   it('без материалов не блокирует', () => {
-    expect(materialsBlockStage([], 'cutting')).toBe(false);
+    expect(materialsBlockStage([], CUT)).toBe(false);
   });
 });
 
 describe('materialsBlockStage — гейт по типу материала на нужный цех', () => {
   it('ткань блокирует закрой, но не швейку', () => {
     const mats = [mkMat('pending', 'fabric')];
-    expect(materialsBlockStage(mats, 'cutting')).toBe(true);
-    expect(materialsBlockStage(mats, 'sewing')).toBe(false);
+    expect(materialsBlockStage(mats, CUT)).toBe(true);
+    expect(materialsBlockStage(mats, SEW)).toBe(false);
   });
 
   it('фурнитура/бирки блокируют швейку, но не закрой', () => {
-    expect(materialsBlockStage([mkMat('pending', 'hardware')], 'sewing')).toBe(true);
-    expect(materialsBlockStage([mkMat('pending', 'labels')], 'sewing')).toBe(true);
-    expect(materialsBlockStage([mkMat('pending', 'hardware')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mkMat('pending', 'hardware')], SEW)).toBe(true);
+    expect(materialsBlockStage([mkMat('pending', 'labels')], SEW)).toBe(true);
+    expect(materialsBlockStage([mkMat('pending', 'hardware')], CUT)).toBe(false);
   });
 
-  it('упаковка/прочее не гейтят ни один этап', () => {
-    expect(materialsBlockStage([mkMat('pending', 'packaging')], 'sewing')).toBe(false);
-    expect(materialsBlockStage([mkMat('pending', 'other')], 'cutting')).toBe(false);
+  it('упаковка/прочее не гейтят настроенные по умолчанию участки', () => {
+    expect(materialsBlockStage([mkMat('pending', 'packaging')], SEW)).toBe(false);
+    expect(materialsBlockStage([mkMat('pending', 'other')], CUT)).toBe(false);
+  });
+
+  /**
+   * Карта «вид материала → цех» переехала из константы в данные
+   * (`erp_departments.gate_material_kinds`, миграция 20260803120000): участок,
+   * заведённый директором в админке, обязан попадать под гейт без релиза.
+   */
+  it('участок без настройки не гейтится — остановка производства fail-open', () => {
+    const vto = { code: 'vto' };
+    expect(materialsBlockStage([mkMat('pending', 'fabric')], vto)).toBe(false);
+    expect(materialsBlockStage([mkMat('pending', 'fabric')], { code: 'vto', gate_material_kinds: [] })).toBe(false);
+    expect(materialsBlockStage([mkMat('pending', 'fabric')], null)).toBe(false);
+    expect(materialsBlockStage([mkMat('pending', 'fabric')], undefined)).toBe(false);
+  });
+
+  it('новый участок гейтится по своей настройке, а не по коду', () => {
+    const silk = { code: 'silkscreen', gate_material_kinds: ['other'] };
+    expect(materialsBlockStage([mkMat('pending', 'other', null, 'Плёнка')], silk)).toBe(true);
+    expect(materialsBlockStage([mkMat('pending', 'fabric')], silk)).toBe(false);
   });
 
   it('принятые складом материалы не блокируют', () => {
-    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')], 'cutting')).toBe(false);
+    expect(materialsBlockStage([mkMat('received', 'fabric', null, 'Кулирка', 'accepted_full')], CUT)).toBe(false);
   });
 
   it('missingMaterialsForStage возвращает только неготовые материалы цеха', () => {
@@ -283,8 +310,8 @@ describe('materialsBlockStage — гейт по типу материала на
       mkMat('pending', 'hardware', null, 'Молния'),
       mkMat('pending', 'fabric', null, 'Дюспо'),
     ];
-    expect(missingMaterialsForStage(mats, 'sewing').map((m) => m.name)).toEqual(['Молния']);
-    expect(missingMaterialsForStage(mats, 'cutting').map((m) => m.name)).toEqual(['Дюспо']);
+    expect(missingMaterialsForStage(mats, SEW).map((m) => m.name)).toEqual(['Молния']);
+    expect(missingMaterialsForStage(mats, CUT).map((m) => m.name)).toEqual(['Дюспо']);
   });
 });
 
@@ -298,7 +325,7 @@ describe('waitingReason — причина ожидания с планом пр
 
   it('перечисляет недостающие материалы цеха с датой плана', () => {
     const mats = [mkMat('pending', 'hardware', '2026-07-20', 'Молния')];
-    const reason = waitingReason(mkStage(), [], mats, new Map(), 'sewing');
+    const reason = waitingReason(mkStage(), [], mats, new Map(), SEW);
     expect(reason).toContain('Ждём материалы');
     expect(reason).toContain('Молния');
     expect(reason).toContain('20.07.2026');
@@ -306,27 +333,27 @@ describe('waitingReason — причина ожидания с планом пр
 
   it('материал без даты — «план не указан»', () => {
     const mats = [mkMat('pending', 'fabric', null, 'Кулирка')];
-    const reason = waitingReason(mkStage(), [], mats, new Map(), 'cutting');
+    const reason = waitingReason(mkStage(), [], mats, new Map(), CUT);
     expect(reason).toContain('план не указан');
   });
 
   it('нет недостающих материалов и зависимостей — null', () => {
-    expect(waitingReason(mkStage(), [], [], new Map(), 'sewing')).toBeNull();
+    expect(waitingReason(mkStage(), [], [], new Map(), SEW)).toBeNull();
   });
 
   it('blocked — возвращает block_reason либо дефолт (аудит P1)', () => {
     const blocked = { depends_on: [], status: 'blocked' as StageStatus, block_reason: 'Нет ниток' };
-    expect(waitingReason(blocked, [], [], new Map(), 'sewing')).toBe('Нет ниток');
+    expect(waitingReason(blocked, [], [], new Map(), SEW)).toBe('Нет ниток');
     const blockedNoReason = { depends_on: [], status: 'blocked' as StageStatus, block_reason: null };
-    expect(waitingReason(blockedNoReason, [], [], new Map(), 'sewing')).toBe('Заблокирован цехом');
+    expect(waitingReason(blockedNoReason, [], [], new Map(), SEW)).toBe('Заблокирован цехом');
   });
 
   it('незавершённая зависимость — «<цех>: ещё не завершено» + fallback (аудит P1)', () => {
     const dep = { id: 'd1', status: 'in_progress' as StageStatus, department_id: 'dep-cut' };
     const st = mkStage(['d1']);
-    expect(waitingReason(st, [dep], [], new Map([['dep-cut', 'Закрой']]), 'sewing'))
+    expect(waitingReason(st, [dep], [], new Map([['dep-cut', 'Закрой']]), SEW))
       .toBe('Закрой: ещё не завершено');
-    expect(waitingReason(st, [dep], [], new Map(), 'sewing'))
+    expect(waitingReason(st, [dep], [], new Map(), SEW))
       .toBe('предыдущий этап: ещё не завершено');
   });
 });
@@ -350,10 +377,10 @@ describe('isStageAwaitingProcurement / гейт закупки (аудит A1)',
   it('blockedByProcurement=true делает этап неготовым и даёт причину', () => {
     const st = { depends_on: [] as string[], status: 'waiting' as StageStatus, block_reason: null };
     // без гейта — готов
-    expect(isStageReady(st, [], [], 'sewing', false)).toBe(true);
+    expect(isStageReady(st, [], [], SEW, false)).toBe(true);
     // с гейтом — не готов
-    expect(isStageReady(st, [], [], 'sewing', true)).toBe(false);
-    expect(waitingReason(st, [], [], new Map(), 'sewing', true)).toBe('Ожидает закупку материала на замену');
+    expect(isStageReady(st, [], [], SEW, true)).toBe(false);
+    expect(waitingReason(st, [], [], new Map(), SEW, true)).toBe('Ожидает закупку материала на замену');
   });
 });
 
@@ -466,10 +493,10 @@ describe('materialsForItem — материалы позиции против м
     const mine = { ...fabricFor('i1'), status: 'received', accept_status: 'accepted_full' } as ErpMaterial;
     const foreign = fabricFor('i2', 'Ткань 4-й позиции');
     // до фильтра: гейт видел обе и блокировал
-    expect(materialsBlockStage([mine, foreign], 'cutting')).toBe(true);
+    expect(materialsBlockStage([mine, foreign], CUT)).toBe(true);
     // после фильтра по позиции — только свою, принятую
-    expect(materialsBlockStage(materialsForItem([mine, foreign], 'i1'), 'cutting')).toBe(false);
+    expect(materialsBlockStage(materialsForItem([mine, foreign], 'i1'), CUT)).toBe(false);
     // а своя непришедшая по-прежнему блокирует
-    expect(materialsBlockStage(materialsForItem([mine, foreign], 'i2'), 'cutting')).toBe(true);
+    expect(materialsBlockStage(materialsForItem([mine, foreign], 'i2'), CUT)).toBe(true);
   });
 });

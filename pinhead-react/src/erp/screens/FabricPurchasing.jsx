@@ -383,6 +383,7 @@ export default function FabricPurchasing() {
                   <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
                   <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">План, кг</SortableTh>
                   <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
+                  <th>Ответственный</th>
                   <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
                   <th>Действие</th>
                 </tr>
@@ -440,6 +441,16 @@ export default function FabricPurchasing() {
                     </td>
                     <td>
                       {m.qty_received != null ? `${m.qty_received} кг` : (m.received_at ? formatDateShort(m.received_at) : '—')}
+                    </td>
+                    <td>
+                      {/* С кого спрашивать, пока материала нет. Показывается цеху
+                          в карточке «Ожидают материалы» — accepted_by для этого
+                          не годится: он заполняется уже после приёмки */}
+                      <input
+                        className={`${styles.input} ${styles.inputSm}`} defaultValue={m.responsible || ''} placeholder="—"
+                        onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.responsible || null)) updateMaterial(m.id, { responsible: v }); }}
+                        aria-label={`Ответственный за получение ${m.name}`} style={{ maxWidth: 120 }}
+                      />
                     </td>
                     <td>
                       <Badge variant={STATUS_VARIANT[m.status] || 'neutral'}>{MATERIAL_STATUS_LABELS[m.status]}</Badge>

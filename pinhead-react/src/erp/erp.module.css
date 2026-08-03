@@ -2354,3 +2354,51 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .cellWithIcon { display: inline-flex; align-items: center; gap: 6px; }
 /* Шеврон раскрытия: развёрнутое состояние — стрелка вверх */
 .chevronUp { transform: rotate(180deg); }
+
+/* ─── Ожидание материалов (группа «Ожидают материалы», правка 2026-08-03) ───
+   Что именно ждём, к какому сроку и с кого спрашивать — прямо на карточке
+   задания. Раньше вся информация умещалась в одну строку причины, и по ней
+   нельзя было понять ни ответственного, ни давности сведений. */
+.matWaitList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--bg-warning);
+  font-size: 12px;
+}
+.matWaitCompact { margin-top: 6px; }
+.matWaitRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.matWaitName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--color-warning-ink);
+  overflow-wrap: anywhere;
+}
+.matWaitFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.matWaitNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-basis: 100%;
+  color: var(--text-mid);
+  overflow-wrap: anywhere;
+}

@@ -32,9 +32,19 @@ import { useScrollHints } from '../../hooks/useScrollHints';
  * горизонтальный автоскролл самой доски, а не окна.
  */
 
+/**
+ * Дорожки колонки цеха. «Ожидают материалы» стоит ПЕРЕД «Готово к работе»
+ * (правка менеджера 2026-08-03), «С проблемой» — своя дорожка: раньше ручные
+ * блокировки подмешивались в «Готово к работе», и понять, что цех стоит,
+ * было нельзя. Порядок массива = порядок на доске.
+ */
+const LANES = ['awaiting_materials', 'ready', 'in_progress', 'blocked', 'done'];
+
 const LANE_TITLES = {
+  awaiting_materials: 'Ожидают материалы',
   ready: 'Готово к работе',
   in_progress: 'В работе',
+  blocked: 'С проблемой',
   done: 'Завершено',
 };
 
@@ -236,7 +246,8 @@ export default function ErpKanban({ filters }) {
       ref={boardRef}
       onDragOver={onBoardDragOver}
     >
-      {columns.map(({ dept, ready, in_progress: inProgress, blocked, done }) => {
+      {columns.map((col) => {
+        const { dept } = col;
         const canDropHere = columnDroppable(dept.id);
         return (
           <section
@@ -247,16 +258,14 @@ export default function ErpKanban({ filters }) {
           >
             <header className={styles.kanbanColHead}>
               {deptShortName(dept.code, dept.name)}
-              {/* Бейдж = все видимые карточки колонки (ready+blocked+in_progress+done), ERP-05 */}
+              {/* Бейдж = все видимые карточки колонки, ERP-05 */}
               <span className={styles.deptTabCount}>
-                {ready.length + blocked.length + inProgress.length + done.length}
+                {LANES.reduce((n, lane) => n + col[lane].length, 0)}
               </span>
             </header>
 
-            {['ready', 'in_progress', 'done'].map((lane) => {
-              const list = lane === 'ready'
-                ? [...ready, ...blocked]
-                : lane === 'in_progress' ? inProgress : done;
+            {LANES.map((lane) => {
+              const list = col[lane];
               const droppable = laneDroppable(dept.id, lane);
               const isOver = overLane === `${dept.id}:${lane}`;
               return (

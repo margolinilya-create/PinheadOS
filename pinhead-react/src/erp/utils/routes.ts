@@ -17,7 +17,6 @@ import type {
   BrandingOn,
   ErpItemStage,
   ErpMaterial,
-  MaterialKind,
   ProductionType,
 } from '../types';
 import { formatDateShort } from './time';
@@ -166,19 +165,21 @@ export function buildItemRoute(input: BuildRouteInput & {
 }
 
 /**
- * Какой тип материала нужен какому цеху — гейт запуска этапа.
- * Этап блокируется только своими материалами (а не всеми материалами заказа):
- *  - ткань нужна закрою; фурнитура и бирки — швейке.
- *  - упаковка и «прочее» этапы не гейтят (упаковка — на уровне заказа).
- * Карта централизована — легко расширить под новые цеха/типы.
+ * Строка цеха в объёме, нужном материальному гейту. Принимаем строку, а не код:
+ * какие материалы блокируют участок — настройка в данных
+ * (`erp_departments.gate_material_kinds`, правится в админке), а не константа.
+ * Раньше здесь была карта `MATERIAL_GATE_DEPT` с зашитыми `fabric → cutting` и
+ * `hardware|labels → sewing`, и участок, заведённый директором, под гейт не попадал.
  */
-const MATERIAL_GATE_DEPT: Record<MaterialKind, string[]> = {
-  fabric: ['cutting'],
-  hardware: ['sewing'],
-  labels: ['sewing'],
-  packaging: [],
-  other: [],
-};
+export interface MaterialGateDept {
+  code?: string;
+  gate_material_kinds?: string[] | null;
+}
+
+/** Виды материалов, блокирующие запуск этапа этого участка (пусто = не гейтится) */
+function gateKindsFor(dept: MaterialGateDept | null | undefined): string[] {
+  return dept?.gate_material_kinds ?? [];
+}
 
 /** Приёмка склада завершена приёмкой (полностью/частично) — материал годен в производство */
 function materialAccepted(m: ErpMaterial): boolean {
@@ -235,17 +236,19 @@ export function materialsForItem(
  */
 export function missingMaterialsForStage(
   materials: ErpMaterial[],
-  departmentCode?: string,
+  dept?: MaterialGateDept | null,
 ): ErpMaterial[] {
-  if (!departmentCode) return [];
-  return materials.filter(
-    (m) => materialPending(m) && (MATERIAL_GATE_DEPT[m.kind] ?? []).includes(departmentCode),
-  );
+  const kinds = gateKindsFor(dept);
+  if (kinds.length === 0) return [];
+  return materials.filter((m) => materialPending(m) && kinds.includes(m.kind));
 }
 
 /** Блокируют ли материалы запуск этапа этого цеха */
-export function materialsBlockStage(materials: ErpMaterial[], departmentCode?: string): boolean {
-  return missingMaterialsForStage(materials, departmentCode).length > 0;
+export function materialsBlockStage(
+  materials: ErpMaterial[],
+  dept?: MaterialGateDept | null,
+): boolean {
+  return missingMaterialsForStage(materials, dept).length > 0;
 }
 
 /** Минимальная форма задачи закупки для гейта (чтобы не тянуть весь тип) */
@@ -287,13 +290,13 @@ export function isStageReady(
   stage: Pick<ErpItemStage, 'depends_on' | 'status'>,
   allStages: Pick<ErpItemStage, 'id' | 'status'>[],
   materials: ErpMaterial[],
-  departmentCode?: string,
+  dept?: MaterialGateDept | null,
   blockedByProcurement = false,
   missingTz = false,
 ): boolean {
   if (blockedByProcurement) return false;
   if (missingTz) return false;
-  if (materialsBlockStage(materials, departmentCode)) return false;
+  if (materialsBlockStage(materials, dept)) return false;
   const byId = new Map(allStages.map((s) => [s.id, s]));
   return stage.depends_on.every((depId) => {
     const dep = byId.get(depId);
@@ -310,14 +313,14 @@ export function waitingReason(
   allStages: Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[],
   materials: ErpMaterial[],
   departmentNameById: Map<string, string>,
-  departmentCode?: string,
+  dept?: MaterialGateDept | null,
   blockedByProcurement = false,
   missingTz = false,
 ): string | null {
   if (stage.status === 'blocked') return stage.block_reason || 'Заблокирован цехом';
   if (blockedByProcurement) return 'Ожидает закупку материала на замену';
   if (missingTz) return 'Не назначено ТЗ';
-  const missing = missingMaterialsForStage(materials, departmentCode);
+  const missing = missingMaterialsForStage(materials, dept);
   if (missing.length > 0) {
     // Пришли, но склад не принял → «ожидает приёмки»; иначе → «ждём приход»
     const awaitingAcceptance = missing.filter((m) => m.status === 'received');

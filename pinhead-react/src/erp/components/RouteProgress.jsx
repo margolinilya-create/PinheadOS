@@ -52,7 +52,7 @@ export function RouteProgress({
           // waiting в БД, но зависимости и материалы закрыты → цех уже может начинать
           const effectiveReady =
             stage.status === 'waiting' &&
-            isStageReady(stage, item.stages, materialsForItem(order.materials, item.id), dept?.code, awaitProc,
+            isStageReady(stage, item.stages, materialsForItem(order.materials, item.id), dept, awaitProc,
               stageMissingTz(order, item.id, dept));
           const display = effectiveReady ? 'ready' : stage.status;
           const p = stageQtyProgress(stage, item.qty);
