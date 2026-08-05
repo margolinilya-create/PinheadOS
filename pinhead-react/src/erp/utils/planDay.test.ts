@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  deviations, groupByDay, mondayOf, shiftWeek, summarize, weekDates,
+  deviations, groupByDay, mondayOf, planStatusForFact, shiftWeek, summarize, weekDates,
 } from './planDay';
 
 const TODAY = '2026-08-05'; // среда
@@ -113,5 +113,43 @@ describe('deviations — что руководителю разбирать', ()
     // Отклонение остаётся на своей дате: перенос это решение руководителя
     const overdue = slot({ work_date: '2026-08-03', qty_done: 10 });
     expect(deviations([overdue], TODAY)[0].work_date).toBe('2026-08-03');
+  });
+});
+
+/**
+ * Одно правило «статус по факту» на две точки входа: внесение факта цехом
+ * и повторная постановка задачи в план на ту же дату.
+ *
+ * Вторая и была дырой: upsert писал `status: 'planned'` безусловно, но факт
+ * (`qty_done`, `fact_at`, переписку) намеренно не трогал — и день, за который
+ * цех уже отчитался, откатывался в «запланировано» с сохранённым результатом.
+ * В сводке работа переставала считаться выполненной.
+ */
+describe('planStatusForFact — статус задачи дня по факту', () => {
+  it('факта не было — «запланировано», сколько бы ни стояло в плане', () => {
+    expect(planStatusForFact(0, 100, false)).toBe('planned');
+    expect(planStatusForFact(100, 100, false)).toBe('planned');
+    expect(planStatusForFact(null, null, false)).toBe('planned');
+  });
+
+  it('факт есть, плана не добрали — «подтверждено»', () => {
+    expect(planStatusForFact(40, 100, true)).toBe('confirmed');
+    expect(planStatusForFact(0, 100, true)).toBe('confirmed');
+  });
+
+  it('факт добрал план — «выполнено» (перевыполнение тоже)', () => {
+    expect(planStatusForFact(100, 100, true)).toBe('done');
+    expect(planStatusForFact(140, 100, true)).toBe('done');
+  });
+
+  it('план ноль — «выполнено» не ставим: делить нечего', () => {
+    expect(planStatusForFact(10, 0, true)).toBe('confirmed');
+  });
+
+  it('перепланирование дня с фактом сохраняет выполненность', () => {
+    // Цех сдал 100 из 100, руководитель поднимает план на этот же день до 150
+    expect(planStatusForFact(100, 150, true)).toBe('confirmed');
+    // …и обратно: план урезали до сделанного — день снова выполнен
+    expect(planStatusForFact(100, 100, true)).toBe('done');
   });
 });

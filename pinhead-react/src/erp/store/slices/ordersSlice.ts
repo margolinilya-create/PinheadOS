@@ -17,7 +17,7 @@ import type {
   ErpOrderStatus,
   ErpStageEvent,
 } from '../../types';
-import { currentActor, withPending } from '../shared';
+import { currentActor, erpError, removeOrphanUpload, withPending } from '../shared';
 import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
@@ -40,6 +40,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   archiveLoaded: false,
   archiveLoading: false,
   archiveHasMore: false,
+  archiveOffset: 0,
   detailIds: [],
 
   loadAll: async () => {
@@ -56,7 +57,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       ordersQuery,
     ]);
     if (deps.error || orders.error) {
-      toast.error('Не удалось загрузить данные ERP');
+      erpError('Не удалось загрузить данные ERP', deps.error ?? orders.error);
       set({ loading: false, loadError: true });
       return;
     }
@@ -75,6 +76,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
    *
    * Страница явная, не «тихий лимит»: сколько загружено и есть ли ещё — видно
    * в интерфейсе кнопкой «Показать ещё».
+   *
+   * Сортировка ОБЯЗАНА иметь уникальный доводчик (`id`). `due_date` не уникален
+   * и бывает NULL: при равных значениях Postgres волен вернуть строки в любом
+   * порядке, и между двумя запросами `range` порядок мог перетасоваться — заказ
+   * приезжал дважды или не приезжал вовсе. Пропуск при этом молчаливый: дедуп
+   * по id гасит дубль, а недостачу заметить нечем.
    */
   loadArchive: async () => {
     if (get().archiveLoading || get().archiveLoaded) return;
@@ -84,47 +91,56 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select(ORDER_LIST_SELECT)
       .neq('status', 'active')
       .order('due_date', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
       .range(0, ARCHIVE_PAGE_SIZE - 1);
     if (error) {
-      toast.error('Не удалось загрузить архив');
+      erpError('Не удалось загрузить архив', error);
       set({ archiveLoading: false });
       return;
     }
     const rows = (data ?? []) as ErpOrderFull[];
-    set((s) => ({
-      orders: [
-        ...s.orders.filter((o) => o.status === 'active'),
-        ...rows.map(sortOrderFull),
-      ],
-      archiveLoading: false,
-      archiveLoaded: true,
-      archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
-    }));
+    // Архивные заказы, уже загруженные мимо пагинации (диплинк `?order=` →
+    // `loadOne`), СОХРАНЯЕМ. Прежде здесь стоял `filter(status === 'active')`:
+    // открытая по ссылке карточка архивного заказа пропадала из стора в момент
+    // захода на вкладку архива и возвращалась, только если попала в первые 50.
+    set((s) => {
+      const fresh = rows.map(sortOrderFull);
+      const paged = new Set(fresh.map((o) => o.id));
+      return {
+        orders: [...s.orders.filter((o) => !paged.has(o.id)), ...fresh],
+        archiveLoading: false,
+        archiveLoaded: true,
+        archiveOffset: rows.length,
+        archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
+      };
+    });
   },
 
   loadMoreArchive: async () => {
     if (get().archiveLoading || !get().archiveHasMore) return;
-    const loaded = get().orders.filter((o) => o.status !== 'active').length;
+    const offset = get().archiveOffset;
     set({ archiveLoading: true });
     const { data, error } = await supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
       .neq('status', 'active')
       .order('due_date', { ascending: true, nullsFirst: false })
-      .range(loaded, loaded + ARCHIVE_PAGE_SIZE - 1);
+      .order('id', { ascending: true })
+      .range(offset, offset + ARCHIVE_PAGE_SIZE - 1);
     if (error) {
-      toast.error('Не удалось догрузить архив');
+      erpError('Не удалось догрузить архив', error);
       set({ archiveLoading: false });
       return;
     }
     const rows = (data ?? []) as ErpOrderFull[];
-    // Дедуп по id: страница могла сдвинуться, если заказ ушёл в архив между запросами
+    // Дедуп по id: заказ мог приехать сюда раньше по диплинку или из realtime
     set((s) => {
       const known = new Set(s.orders.map((o) => o.id));
       const fresh = rows.filter((o) => !known.has(o.id)).map(sortOrderFull);
       return {
         orders: [...s.orders, ...fresh],
         archiveLoading: false,
+        archiveOffset: offset + rows.length,
         archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
       };
     });
@@ -137,7 +153,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .eq('id', orderId)
       .maybeSingle();
     if (error) {
-      toast.error('Не удалось загрузить заказ');
+      erpError('Не удалось загрузить заказ', error);
       return null;
     }
     if (!data) return null;
@@ -157,6 +173,17 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
     const { items, tz, ...orderFields } = input;
 
+    /**
+     * Цеха маршрута, которых нет в справочнике `erp_departments`.
+     *
+     * Такой этап молча выпадал из маршрута ВМЕСТЕ со ссылками на него в `depends_on`:
+     * позиция создавалась короче задуманного, а финальный ОТК, зависевший от
+     * выпавшего этапа, оставался вообще без зависимостей и был готов к запуску
+     * с первой секунды. Ошибкой это не считается (цех могли отключить осознанно),
+     * но и молчать нельзя — иначе о дыре в маршруте узнают на сдаче.
+     */
+    const droppedDepts = new Set<string>();
+
     // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
     // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
     // depends_on в payload — индексы этапов той же позиции (всегда более ранних).
@@ -175,6 +202,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           needsQc: it.needs_qc ?? true,
         });
         const valid = route.filter((r) => deptByCode.has(r.departmentCode));
+        for (const r of route) {
+          if (!deptByCode.has(r.departmentCode)) droppedDepts.add(r.departmentCode);
+        }
         const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));
         return {
           product_type: it.product_type,
@@ -216,8 +246,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
 
     const { data, error } = await supabase.rpc('erp_create_order', { payload });
     if (error || !data) {
-      toast.error('Не удалось создать заказ');
+      erpError('Не удалось создать заказ', error);
       return null;
+    }
+    if (droppedDepts.size > 0) {
+      toast.warning(
+        `Маршрут короче расчётного: нет цехов ${[...droppedDepts].join(', ')} — `
+        + 'проверьте справочник участков',
+      );
     }
     // Созданный заказ забираем тем же вложенным select
     const created = await get().loadOne(data as string);
@@ -264,7 +300,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       supabase.from('erp_orders').update(patch).eq('id', id));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось обновить заказ');
+      erpError('Не удалось обновить заказ', error);
       return false;
     }
     return true;
@@ -300,7 +336,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       supabase.from('erp_orders').update(patch).eq('id', orderId));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось отгрузить заказ');
+      erpError('Не удалось отгрузить заказ', error);
       return false;
     }
     toast.success('Заказ отгружен и перемещён в архив');
@@ -311,7 +347,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     // НЕ optimistic — ждём Supabase
     const { error } = await supabase.from('erp_orders').delete().eq('id', id);
     if (error) {
-      toast.error('Не удалось удалить заказ');
+      erpError('Не удалось удалить заказ', error);
       return false;
     }
     set((s) => ({ orders: s.orders.filter((o) => o.id !== id) }));
@@ -326,7 +362,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {
-      toast.error('Не удалось загрузить историю');
+      erpError('Не удалось загрузить историю', error);
       return null;
     }
     return (data ?? []) as ErpStageEvent[];
@@ -339,7 +375,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .from('erp-attachments')
       .upload(path, file, { contentType: file.type || 'image/png' });
     if (upErr) {
-      toast.error('Не удалось загрузить превью');
+      erpError('Не удалось загрузить превью', upErr);
       return false;
     }
     const { data, error } = await supabase
@@ -354,7 +390,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select();
     const row = data?.[0] as ErpOrderAttachment | undefined;
     if (error || !row) {
-      toast.error('Превью загружено, но не привязано к заказу');
+      // Файл в бакете есть, строки в БД нет — убираем за собой, иначе он остаётся
+      // навсегда: платный, никем не учтённый и доступный по ссылке
+      await removeOrphanUpload('erp-attachments', path);
+      erpError('Превью загружено, но не привязано к заказу', error);
       return false;
     }
     set((s) => ({
@@ -373,7 +412,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .from('erp-attachments')
       .upload(path, file, { contentType: file.type || 'image/jpeg' });
     if (upErr) {
-      toast.error('Не удалось загрузить фото');
+      erpError('Не удалось загрузить фото', upErr);
       return false;
     }
     const { data, error } = await supabase
@@ -388,7 +427,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select();
     const row = data?.[0] as ErpOrderAttachment | undefined;
     if (error || !row) {
-      toast.error('Фото загружено, но не привязано к заказу');
+      await removeOrphanUpload('erp-attachments', path);
+      erpError('Фото загружено, но не привязано к заказу', error);
       return false;
     }
     set((s) => ({
@@ -408,7 +448,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .order('changed_at', { ascending: false })
       .limit(100);
     if (error) {
-      toast.error('Не удалось загрузить историю правок');
+      erpError('Не удалось загрузить историю правок', error);
       return null;
     }
     return (data ?? []) as ErpOrderAuditRow[];
@@ -422,7 +462,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .order('created_at', { ascending: true })
       .limit(200);
     if (error) {
-      toast.error('Не удалось загрузить комментарии');
+      erpError('Не удалось загрузить комментарии', error);
       return null;
     }
     return (data ?? []) as ErpOrderComment[];
@@ -435,7 +475,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select();
     const row = data?.[0] as ErpOrderComment | undefined;
     if (error || !row) {
-      toast.error('Не удалось отправить комментарий');
+      erpError('Не удалось отправить комментарий', error);
       return null;
     }
     return row;

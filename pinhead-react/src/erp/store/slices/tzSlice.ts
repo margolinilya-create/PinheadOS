@@ -14,7 +14,7 @@ import { toast } from '../../../store/useToastStore';
 import { TZ_BUCKET, TZ_MAX_BYTES, TZ_MIME } from '../../types';
 import type { ErpTzDocument } from '../../types';
 import { documentHistory, tzFilePath } from '../../utils/tz';
-import { currentActor, logStageEvent } from '../shared';
+import { currentActor, logStageEvent, removeOrphanUpload } from '../shared';
 import type { ErpOrderFull, ErpStore, TzSlice } from '../types';
 
 /** Точечный патч массива документов заказа (остальные заказы сохраняют идентичность) */
@@ -77,7 +77,8 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
       .select();
     const row = data?.[0] as ErpTzDocument | undefined;
     if (error || !row) {
-      // Файл остался в бакете сиротой: удалять его клиенту политика не даёт (delete — is_admin).
+      // Убираем за собой: строки в БД нет, файл никому не нужен и не найдётся
+      await removeOrphanUpload(TZ_BUCKET, path);
       toast.error('Файл загружен, но не привязан к заказу');
       return null;
     }
@@ -156,6 +157,7 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
         .from('erp_tz_documents')
         .update({ is_current: true })
         .eq('id', prev.id);
+      await removeOrphanUpload(TZ_BUCKET, path);
       toast.error('Файл загружен, но новая версия ТЗ не создана');
       return null;
     }

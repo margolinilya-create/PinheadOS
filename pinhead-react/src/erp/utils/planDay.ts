@@ -13,6 +13,30 @@
 import { planCardState, planOverdue, planRemaining } from './planCard';
 import type { PlanSlotLike } from './planCard';
 
+/**
+ * Статус задачи дня по внесённому факту — ОДНО правило на две точки входа:
+ * внесение факта цехом (`reportPlanFact`) и повторная постановка в план
+ * (`planStage` upsert-ом на ту же дату).
+ *
+ * Второй случай и был дырой: upsert писал `status: 'planned'` всегда, но факт
+ * (`qty_done`, `fact_at`, переписку) намеренно НЕ трогал — и день, за который
+ * цех уже отчитался, возвращался в «запланировано» с сохранённым результатом.
+ * В сводке он переставал считаться выполненным, хотя работа сделана.
+ *
+ * `hasFact = false` (факта ещё не было) — всегда «запланировано»: статус
+ * не должен опережать работу.
+ */
+export function planStatusForFact(
+  qtyDone: number | null | undefined,
+  qtyPlanned: number | null | undefined,
+  hasFact: boolean,
+): 'planned' | 'confirmed' | 'done' {
+  if (!hasFact) return 'planned';
+  const done = qtyDone ?? 0;
+  const planned = qtyPlanned ?? 0;
+  return planned > 0 && done >= planned ? 'done' : 'confirmed';
+}
+
 /** Неделя как список дат YYYY-MM-DD, начиная с понедельника */
 export function weekDates(mondayIso: string, days = 7): string[] {
   const out: string[] = [];

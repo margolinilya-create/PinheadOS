@@ -16,6 +16,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { ErpCalendarSlot, ErpPlanComment } from '../../types';
+import { planStatusForFact } from '../../utils/planDay';
 import { currentActor, erpError, withPending } from '../shared';
 import type { ErpStore, PlanSlice } from '../types';
 
@@ -84,6 +85,17 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
       toast.error('Укажите количество на день');
       return null;
     }
+    /**
+     * Повторная постановка на ту же дату идёт upsert-ом и НЕ трогает факт
+     * (`qty_done`, `fact_at`, переписку) — это осознанно. Но статус писался
+     * безусловным `'planned'`, и день, за который цех уже отчитался, откатывался
+     * в «запланировано» с сохранённым результатом: в сводке работа переставала
+     * считаться выполненной. Статус выводим из факта тем же правилом, что и при
+     * его внесении (`planStatusForFact`), с учётом НОВОГО планового количества.
+     */
+    const existing = get().planSlots.find(
+      (s) => s.stage_id === stageId && s.work_date === workDate,
+    );
     const row = {
       stage_id: stageId,
       department_id: departmentId,
@@ -91,7 +103,7 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
       qty_planned: qty,
       priority,
       comment,
-      status: 'planned',
+      status: planStatusForFact(existing?.qty_done, qty, Boolean(existing?.fact_at)),
       sort_order: tailSortOrder(get().planSlots, departmentId, workDate),
       created_by: currentActor(),
     };
@@ -154,7 +166,6 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
       toast.error('Количество не может быть отрицательным');
       return false;
     }
-    const done = qty >= slot.qty_planned && slot.qty_planned > 0;
     return get().updatePlanSlot(id, {
       qty_done: qty,
       qty_defect: defect,
@@ -162,7 +173,7 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
       deviation_reason: deviationReason,
       fact_by: currentActor(),
       fact_at: new Date().toISOString(),
-      status: done ? 'done' : 'confirmed',
+      status: planStatusForFact(qty, slot.qty_planned, true),
     });
   },
 
