@@ -78,11 +78,28 @@
 Перед накатом живой текст `erp_stage_guard` сверен с тем, что миграция собиралась
 записать: совпал побайтово, чужих правил не потеряно.
 
-**Осталось: 6 миграций, применённых к базе напрямую, нет ни в одной ветке** —
-`erp_calendar_guard_service_role_bypass`, `erp_revoke_trigger_functions_rest`,
-`erp_stage_events_actor_index`, `erp_order_summary`, `erp_order_summary_drop_unused`,
-`erp_revoke_anon_predicates_fix`. Слияние ветки закрыло 4 из 10 расхождений,
-эти шесть — хвост. Восстанавливать их надо ИЗ БАЗЫ (подлинный текст), а не по памяти.
+**Оставшиеся 6 расхождений оказались мнимыми — репозиторий полон.** В журнале
+миграций базы шесть записей, которых нет отдельными файлами
+(`erp_calendar_guard_service_role_bypass`, `erp_revoke_trigger_functions_rest`,
+`erp_stage_events_actor_index`, `erp_order_summary`, `_drop_unused`,
+`erp_revoke_anon_predicates_fix`). Их подлинный текст поднят из
+`supabase_migrations.schema_migrations.statements` и сверен с репозиторием: это
+промежуточные правки, чьё содержимое СВЁРНУТО в итоговые файлы —
+
+| запись в базе | где живёт в репозитории |
+|---|---|
+| `calendar_guard_service_role_bypass` | внутри `20260803160000_erp_permissions_server_side.sql` |
+| `revoke_trigger_functions_rest` | внутри `20260803250000_erp_revoke_trigger_functions.sql` |
+| `stage_events_actor_index` | внутри `20260803240000_erp_audit_by_trigger.sql` |
+| `erp_order_summary` + `_drop_unused` | взаимно гасятся: представление создали и сняли, в репозитории его нет |
+| `revoke_anon_predicates_fix` | внутри `20260803290000_erp_revoke_anon_predicates.sql` |
+
+Проверено на живой базе, а не по названиям: `erp_order_summary` отсутствует,
+`erp_stage_events_actor_idx` на месте, у `erp_has_permission` нет ни PUBLIC,
+ни `anon`, у `erp_warehouse_task_derive` не осталось `authenticated`,
+у `erp_calendar_guard` есть пропуск service_role. **База и репозиторий сошлись:
+чистая сборка из миграций даёт то же состояние.** Прежняя запись «этих миграций
+нет в git» была неверной — сверялись имена файлов, а не содержимое.
 
 Проверено на живых данных блоками с откатом через исключение: приращение
 и обрезка по тиражу (`+1 → 1`, `+огромное → 100, done`), перенос с переводом
