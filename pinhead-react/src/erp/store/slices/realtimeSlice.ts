@@ -10,6 +10,7 @@ import type { ErpItemStage, ErpOrder } from '../../types';
 import {
   _pendingMutations,
   REALTIME_DEFER_MS,
+  REALTIME_DEFER_ATTEMPTS,
   FULL_RELOAD_DEBOUNCE_MS,
 } from '../shared';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
@@ -30,6 +31,14 @@ const TABLE_TO_CHILD: Record<string, ChildKey> = {
   // ТЗ: замена файла должна долетать до открытого задания цеха
   erp_tz_documents: 'tz_documents',
 };
+
+/**
+ * Дочерние таблицы, изменение которых может СДЕЛАТЬ этап готовым к запуску
+ * (материальный гейт, гейт закупки, гейт ТЗ). Только для них имеет смысл считать
+ * «в вашем цехе появилась новая работа»: пересчёт обходит все заказы дважды,
+ * и вешать его на складские события — чистая трата на каждом переходе этапа.
+ */
+const AFFECTS_READINESS = new Set<ChildKey>(['materials', 'procurement_tasks', 'tz_documents']);
 
 /**
  * Точечный upsert/удаление дочерней строки заказа (материал/закупка/склад).
@@ -73,15 +82,20 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
     if (childKey) {
       const orderId = (row.order_id ?? null) as string | null;
       if (orderId && get().orders.some((o) => o.id === orderId)) {
-        // материалы/закупка влияют на готовность → уведомление о новой работе; склад — нет
-        void withNewWorkToast(get, () => {
+        const apply = () => {
           set((s) => ({
             orders: s.orders.map((o) =>
               o.id === orderId
                 ? upsertChildRow(o, childKey, row as Record<string, unknown>, id, ev.eventType)
                 : o),
           }));
-        });
+        };
+        // Материалы/закупка/ТЗ влияют на готовность этапов → проверяем, не появилась ли
+        // работа. Складские таблицы на готовность не влияют — комментарий говорил это
+        // и раньше, но код всё равно гонял двойной обход всех заказов на каждое их
+        // событие, а триггер складских задач шлёт события на КАЖДОМ переходе этапа.
+        if (AFFECTS_READINESS.has(childKey)) void withNewWorkToast(get, apply);
+        else apply();
       }
       return;
     }
@@ -94,13 +108,25 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
 
-    // Защита от race (п.29): по сущности идёт мутация — отложить событие на ~1с
-    // и применить, только если ключ снят (иначе состояние выправит ответ сервера).
+    /**
+     * Защита от race (п.29): по сущности идёт мутация — отложить событие и применить,
+     * когда ключ снят (иначе состояние выправит ответ сервера).
+     *
+     * Попыток несколько, а не одна. Прежде отсрочка была одноразовой: если через
+     * секунду запрос ещё не вернулся — а на цеховом Wi-Fi это обычное дело, —
+     * событие ПРОПАДАЛО навсегда. Своя мутация такое переживает (её ответ и так
+     * запишется в стор), а вот чужая правка того же этапа тихо терялась, и на
+     * экране оставалось состояние, которого в базе уже нет, до следующего события.
+     */
     const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
     if (_pendingMutations.has(key)) {
-      setTimeout(() => {
-        if (!_pendingMutations.has(key)) get().applyRealtimeEvent(ev);
-      }, REALTIME_DEFER_MS);
+      const attempt = (left: number) => {
+        setTimeout(() => {
+          if (!_pendingMutations.has(key)) get().applyRealtimeEvent(ev);
+          else if (left > 0) attempt(left - 1);
+        }, REALTIME_DEFER_MS);
+      };
+      attempt(REALTIME_DEFER_ATTEMPTS - 1);
       return;
     }
 

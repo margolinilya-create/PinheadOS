@@ -22,16 +22,40 @@ import { logStageEvent, withPending, erpError } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
 
+/**
+ * Патч этапа для `erp_stage_apply_defect`: счётчики ПРИРАЩЕНИЕМ, статус либо явный,
+ * либо вычисляемый сервером по актуальной строке (`reopen_if_done`).
+ * Какие этапы затронуты, по-прежнему решает клиент (`utils/stageDefect`) — он
+ * остаётся единственным местом, где живёт правило обхода графа `depends_on`.
+ */
+interface DefectWrite {
+  id: string;
+  qty_done_delta?: number;
+  qty_rework_delta?: number;
+  status?: ErpItemStage['status'];
+  /** Закрытый этап вернуть в очередь (решение принимается по строке в базе) */
+  reopen_if_done?: boolean;
+  clear_finished?: boolean;
+}
+
 export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, get) => ({
   setStageStatus: async (stageId, status, extra = {}) => {
     const prev = get().orders;
     const { comment, ...fields } = extra;
-    const patch: Partial<ErpItemStage> = { status, ...fields };
-    if (status === 'in_progress') patch.started_at = new Date().toISOString();
-    if (status === 'done') patch.finished_at = new Date().toISOString();
-
     // найдём заказ и прежний статус для аудита
     const found = findStage(prev, stageId);
+
+    const patch: Partial<ErpItemStage> = { status, ...fields };
+    // `started_at` ставится ОДИН раз — при первом входе в работу. Прежде его
+    // перетирал каждый переход в `in_progress`: снятие блокировки, переоткрытие
+    // после брака, открытие целевого этапа при переносе. От этой отметки зависит
+    // бейдж «ТЗ обновлено» (`tz.tzUpdatedAfterStart` сравнивает дату документа
+    // с началом работы) — сдвигая её вперёд, мы прятали от цеха ровно то
+    // предупреждение, ради которого бейдж и сделан.
+    if (status === 'in_progress' && !found?.stage.started_at) {
+      patch.started_at = new Date().toISOString();
+    }
+    if (status === 'done') patch.finished_at = new Date().toISOString();
 
     // optimistic с rollback (нетронутые заказы сохраняют идентичность)
     set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
@@ -63,34 +87,47 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { stage, item, order } = found;
 
     const total = item.qty;
-    const newDone = Math.min((stage.qty_done ?? 0) + qty, total);
-    const isDone = newDone >= total;
-    if ((stage.qty_done ?? 0) + qty > total) {
-      toast.warning(`Введено больше остатка — засчитано ${total - (stage.qty_done ?? 0)} шт (до полного тиража)`);
-    }
-    const patch: Partial<ErpItemStage> = { qty_done: newDone };
-    if (isDone) {
+    const before = stage.qty_done ?? 0;
+
+    // Оптимистичная картинка — как раньше; ИСТИНУ считает сервер.
+    // Абсолют с клиента терял результат: два планшета в одном цехе читали
+    // `qty_done` каждый из своего стора и писали итог. A записал 30, B со своим
+    // ещё нулевым состоянием записал 20 — в базе оставалось 20. Для цеха
+    // с несколькими исполнителями это обычный день, а не редкая гонка.
+    const optimistic = Math.min(before + qty, total);
+    const patch: Partial<ErpItemStage> = { qty_done: optimistic };
+    if (optimistic >= total) {
       patch.status = 'done';
       patch.finished_at = new Date().toISOString();
     }
-
-    // optimistic с rollback
     set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
-    const { error } = await withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
+
+    const { data, error } = await withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_report_progress', { p_stage_id: stageId, p_qty: qty }));
     if (error) {
       set({ orders: prev });
       erpError('Результат не записан', error);
       return false;
     }
+    // Сигнал сбоя — только `error`. Возвращённая строка нужна для СВЕРКИ: обрезку
+    // по тиражу и запись соседа по цеху видно лишь оттуда. Не пришла — остаёмся
+    // на оптимистичной картинке, её выправит realtime.
+    const row = (data ?? null) as ErpItemStage | null;
+    if (row) set((s) => ({ orders: patchStageIn(s.orders, stageId, row) }));
+
+    const after = row?.qty_done ?? optimistic;
+    const credited = Math.max(after - before, 0);
+    if (credited < qty) {
+      toast.warning(`Засчитано ${credited} шт из ${qty} — этап добрал полный тираж (${total})`);
+    }
     logStageEvent({
       stage_id: stageId,
       order_id: order.id,
       from_status: stage.status,
-      to_status: isDone ? 'done' : stage.status,
-      qty_done: qty,
+      to_status: row?.status ?? (after >= total ? 'done' : stage.status),
+      qty_done: credited,
       qty_rework: null,
-      comment: `Частичная готовность: ${newDone}/${total}`,
+      comment: `Частичная готовность: ${after}/${total}`,
     });
     return true;
   },
@@ -128,27 +165,41 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const byId = new Map(item.stages.map((s) => [s.id, s]));
     const targetStage = SPECIAL_TARGETS.has(target) ? null : byId.get(target) ?? null;
 
-    // Патчи этапов
-    const patches: { id: string; patch: Partial<ErpItemStage> }[] = [];
+    // Патчи этапов.
+    //
+    // Каждый несёт две формы: `optimistic` — абсолют для мгновенной картинки,
+    // `write` — ПРИРАЩЕНИЕ для сервера. Счётчики считаются приращением по той же
+    // причине, что и в `reportProgress`: абсолют с клиента затирает чужую запись.
+    // Статус там, где он зависит от текущего значения строки, тоже решает сервер
+    // (`reopen_if_done`) — клиентский снимок мог устареть.
+    const patches: { id: string; optimistic: Partial<ErpItemStage>; write: DefectWrite }[] = [];
     if (targetStage) {
       // Текущий S: снять N с готовых, вернуть в очередь, +брак
       patches.push({
         id: stage.id,
-        patch: {
+        optimistic: {
           qty_done: Math.max((stage.qty_done ?? 0) - qty, 0),
           qty_rework: (stage.qty_rework ?? 0) + qty,
           status: stage.status === 'done' ? 'waiting' : stage.status,
           finished_at: stage.status === 'done' ? null : stage.finished_at,
         },
+        write: { id: stage.id, qty_done_delta: -qty, qty_rework_delta: qty, reopen_if_done: true },
       });
       // Целевой этап T: переоткрыть на N штук
       patches.push({
         id: targetStage.id,
-        patch: {
+        optimistic: {
           status: 'in_progress',
           qty_done: Math.max((targetStage.qty_done ?? 0) - qty, 0),
           qty_rework: (targetStage.qty_rework ?? 0) + qty,
           finished_at: null,
+        },
+        write: {
+          id: targetStage.id,
+          qty_done_delta: -qty,
+          qty_rework_delta: qty,
+          status: 'in_progress',
+          clear_finished: true,
         },
       });
       // Всё, что идёт ПОСЛЕ T по маршруту и уже обработало эти единицы, тоже
@@ -162,11 +213,18 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       for (const mid of intermediateReopened({ stage, targetStage, allStages: item.stages })) {
         patches.push({
           id: mid.id,
-          patch: {
+          optimistic: {
             status: 'waiting',
             qty_done: Math.max((mid.qty_done ?? 0) - qty, 0),
             qty_rework: (mid.qty_rework ?? 0) + qty,
             finished_at: null,
+          },
+          write: {
+            id: mid.id,
+            qty_done_delta: -qty,
+            qty_rework_delta: qty,
+            status: 'waiting',
+            clear_finished: true,
           },
         });
       }
@@ -175,38 +233,69 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       // N единиц уходят в ожидание — этап в очередь до возврата закупки/подрядчика
       patches.push({
         id: stage.id,
-        patch: {
+        optimistic: {
           qty_done: Math.max((stage.qty_done ?? 0) - qty, 0),
           qty_rework: (stage.qty_rework ?? 0) + qty,
           status: 'waiting',
           finished_at: null,
+        },
+        write: {
+          id: stage.id,
+          qty_done_delta: -qty,
+          qty_rework_delta: qty,
+          status: 'waiting',
+          clear_finished: true,
         },
       });
     } else {
       // 'current' — переделка на месте
       patches.push({
         id: stage.id,
-        patch: {
+        optimistic: {
           qty_rework: (stage.qty_rework ?? 0) + qty,
           status: 'in_progress',
           finished_at: null,
+        },
+        write: {
+          id: stage.id,
+          qty_rework_delta: qty,
+          status: 'in_progress',
+          clear_finished: true,
         },
       });
     }
 
     // optimistic с rollback
     let next = prev;
-    for (const p of patches) next = patchStageIn(next, p.id, p.patch);
+    for (const p of patches) next = patchStageIn(next, p.id, p.optimistic);
     set({ orders: next });
-    const results = await Promise.all(
-      patches.map((p) =>
-        withPending(`stage:${p.id}`, () =>
-          supabase.from('erp_item_stages').update(p.patch).eq('id', p.id))),
-    );
-    if (results.some((r) => r.error)) {
+
+    /**
+     * Одна транзакция вместо пачки независимых UPDATE.
+     *
+     * Прежде здесь стоял `Promise.all` по 2-4 запросам, а при сбое любого из них
+     * интерфейс откатывался ЦЕЛИКОМ — поверх уже закоммиченных остальных.
+     * Проект сам сформулировал обратное правило для `moveStageToDepartment`
+     * («сначала компенсация, врать про состояние нельзя»), но на брак его
+     * не распространил: возврат оставлял позицию в состоянии, которого никто
+     * не выбирал, и через секунду realtime приносил его на экран.
+     * С RPC откатывать нечего по построению — либо все патчи, либо ни одного.
+     */
+    const { data, error } = await withPending(`stage:${stage.id}`, () =>
+      supabase.rpc('erp_stage_apply_defect', { p_patches: patches.map((p) => p.write) }));
+    if (error) {
       set({ orders: prev });
-      erpError('Брак не записан', results.find((r) => r.error)?.error);
+      erpError('Брак не записан', error);
       return false;
+    }
+    // Строки — сверка с базой, а не признак успеха (сбой сообщает `error`)
+    const rows = (data ?? null) as ErpItemStage[] | null;
+    if (rows?.length) {
+      set((s) => {
+        let orders = s.orders;
+        for (const row of rows) orders = patchStageIn(orders, row.id, row);
+        return { orders };
+      });
     }
 
     // Аудит: событие на получателе (целевой этап, если есть)
@@ -334,17 +423,13 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     for (const w of writes) next = patchStageIn(next, w.id, { queue_position: w.queue_position });
     set({ orders: next });
 
-    const results = await Promise.all(
-      writes.map((w) =>
-        withPending(`stage:${w.id}`, () =>
-          supabase
-            .from('erp_item_stages')
-            .update({ queue_position: w.queue_position })
-            .eq('id', w.id))),
-    );
-    if (results.some((r) => r.error)) {
+    // Одной транзакцией: перенумерация переписывает всю очередь цеха, и сбой
+    // на середине оставлял бы её перемешанной, а интерфейс — откаченным целиком.
+    const { error } = await withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_reorder_queue', { p_writes: writes }));
+    if (error) {
       set({ orders: prevOrders });
-      erpError('Приоритет не сохранён', results.find((r) => r.error)?.error);
+      erpError('Приоритет не сохранён', error);
       return false;
     }
 
@@ -395,109 +480,81 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const comment = opts.comment?.trim() || null;
     const moveNote = `Перенос: ${sourceName} → ${targetName}${comment ? `. ${comment}` : ''}`;
 
-    // Текущий этап закрывается — заказчик просил не помечать его завершённым молча,
-    // предупреждение показывает UI (moveConfirmMessage) до вызова.
-    const sourcePatch: Partial<ErpItemStage> = {
+    // Оптимистичная картинка. Текущий этап закрывается — заказчик просил не помечать
+    // его завершённым молча, предупреждение показывает UI (moveConfirmMessage) до вызова.
+    let next = patchStageIn(prevOrders, stageId, {
       status: 'done',
       qty_done: item.qty,
       finished_at: now,
-    };
-    const targetPatch: Partial<ErpItemStage> = {
-      status: 'in_progress',
-      started_at: now,
-      finished_at: null,
-      queue_position: plan.targetStage?.queue_position
-        ?? defaultQueuePosition(order.due_date),
-    };
-
-    set((s) => ({ orders: patchStageIn(s.orders, stageId, sourcePatch) }));
-    const sourceRes = await withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(sourcePatch).eq('id', stageId));
-    if (sourceRes.error) {
-      // Ничего не закоммичено — откат интерфейса честен.
-      set({ orders: prevOrders });
-      erpError('Задание не перенесено', sourceRes.error);
-      return false;
+    });
+    if (plan.targetStage) {
+      next = patchStageIn(next, plan.targetStage.id, {
+        status: 'in_progress',
+        started_at: now,
+        finished_at: null,
+      });
     }
+    set({ orders: next });
 
     /**
-     * Второй шаг не удался, а исходный этап УЖЕ закрыт в базе.
+     * Перенос — три записи, которые обязаны быть неделимыми: закрыть исходный этап,
+     * открыть (или создать) целевой и перевести на целевой тех, кто ждал исходный.
      *
-     * Прежде здесь стоял `set({ orders: prevOrders })` — интерфейс возвращался
-     * к состоянию «до переноса», через секунду realtime приносил закоммиченный
-     * `done`, и задание исчезало из обоих цехов: позиция оставалась без единого
-     * открытого этапа, а повторить перенос было нечем.
+     * Прежде это были два-три независимых запроса с компенсирующей записью на случай
+     * сбоя второго: комментарий на 12 строк объяснял, почему интерфейс нельзя
+     * откатывать поверх уже закрытого этапа. Транзакция снимает и вопрос, и ответ.
      *
-     * Поэтому сначала пробуем компенсирующую запись — вернуть исходный этап
-     * в прежнее состояние. Если и она не прошла, интерфейс НЕ откатываем:
-     * показываем то, что в базе на самом деле, и говорим прямым текстом, где
-     * этап и что делать. Врать про состояние хуже, чем признать половину работы.
+     * Третья запись — та, которой раньше не было вовсе. Без неё финальный ОТК
+     * открывался РАНЬШЕ перенесённой работы: в маршруте «…→ВТО→ОТК» перенос из ВТО
+     * в ДТФ закрывал ВТО, и ОТК видел свою зависимость выполненной, хотя ДТФ ещё
+     * не начинал. Партия уходила бы на контроль до того, как её напечатают.
      */
-    async function undoClosedSource(cause: { message?: string } | null) {
-      const restore: Partial<ErpItemStage> = {
-        status: stage.status,
-        qty_done: stage.qty_done,
-        finished_at: stage.finished_at,
-      };
-      const { error: undoError } = await supabase
-        .from('erp_item_stages').update(restore).eq('id', stageId);
-      if (undoError) {
-        set((s) => ({ orders: patchStageIn(s.orders, stageId, sourcePatch) }));
-        toast.error(
-          `Этап закрыт в «${sourceName}», но не открыт в «${targetName}». `
-          + 'Откатить тоже не удалось — откройте этап вручную в карточке заказа',
-        );
-        return false;
-      }
+    const { data, error } = await withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_move_department', {
+        p_stage_id: stageId,
+        p_target_dept: targetDeptId,
+        p_queue_position: plan.targetStage?.queue_position
+          ?? defaultQueuePosition(order.due_date),
+      }));
+    if (error) {
+      // Транзакция не оставила следа — откат интерфейса честен.
       set({ orders: prevOrders });
-      erpError(`Задание не перенесено в «${targetName}»`, cause);
+      erpError(`Задание не перенесено в «${targetName}»`, error);
       return false;
     }
 
-    if (plan.targetStage) {
-      const targetId = plan.targetStage.id;
-      set((s) => ({ orders: patchStageIn(s.orders, targetId, targetPatch) }));
-      const { error } = await withPending(`stage:${targetId}`, () =>
-        supabase.from('erp_item_stages').update(targetPatch).eq('id', targetId));
-      if (error) {
-        return undoClosedSource(error);
-      }
-      logStageEvent({
-        stage_id: targetId,
-        order_id: order.id,
-        from_status: plan.targetStage.status,
-        to_status: 'in_progress',
-        qty_done: null,
-        qty_rework: null,
-        comment: moveNote,
+    // Возвращённые строки: исходный этап, целевой (возможно, только что созданный)
+    // и переведённые зависимые.
+    const rows = ((data ?? []) as ErpItemStage[]);
+    if (rows.length) {
+      set((s) => {
+        let orders = s.orders;
+        for (const row of rows) {
+          orders = findStage(orders, row.id)
+            ? patchStageIn(orders, row.id, row)
+            : addStageIn(orders, item.id, row);
+        }
+        return { orders };
       });
-    } else {
-      // Цеха нет в маршруте — добавляем этап (подтверждение спросили в UI).
-      // Не optimistic: id строки известен только из ответа Supabase.
-      const { data, error } = await supabase
-        .from('erp_item_stages')
-        .insert({
-          item_id: item.id,
-          department_id: targetDeptId,
-          sort_order: stage.sort_order + 5,
-          depends_on: [stage.id],
-          ...targetPatch,
-        })
-        .select();
-      const row = data?.[0] as ErpItemStage | undefined;
-      if (error || !row) {
-        // Исходный этап уже закрыт в базе — та же компенсация, что и выше.
-        return undoClosedSource(error);
-      }
-      set((s) => ({ orders: addStageIn(s.orders, item.id, row) }));
+    }
+
+    const targetRow = rows.find((r) => r.department_id === targetDeptId) ?? null;
+    const createdTarget = !plan.targetStage;
+    if (createdTarget && !targetRow) {
+      // Этап цеха, которого не было в маршруте, создан сервером — его id знает
+      // только ответ. Пришёл пустым (старый клиент, урезанный ответ) — дотягиваем
+      // заказ целиком, иначе новый этап не появится на экране до перезагрузки.
+      await get().loadOne(order.id);
+    }
+    if (targetRow || plan.targetStage) {
       logStageEvent({
-        stage_id: row.id,
+        stage_id: targetRow?.id ?? plan.targetStage!.id,
         order_id: order.id,
-        from_status: null,
+        from_status: createdTarget ? null : plan.targetStage?.status ?? null,
         to_status: 'in_progress',
         qty_done: null,
         qty_rework: null,
-        comment: `${moveNote} (этап добавлен в маршрут)`,
+        comment: createdTarget ? `${moveNote} (этап добавлен в маршрут)` : moveNote,
       });
       // ТЗ новому этапу наследовать не нужно: документ принадлежит позиции и виден
       // всему её маршруту. Раньше здесь копировалось назначение исходного цеха —

@@ -25,14 +25,29 @@ const h = vi.hoisted(() => ({
   deleteCalls: [] as { table: string }[],
   deleteError: null as { message: string } | null,
   selectCalls: [] as { table: string; filters: string[] }[],
+  /**
+   * Колонки сортировки по каждому `.order(...)`. Постраничная выборка обязана
+   * иметь УНИКАЛЬНЫЙ доводчик, иначе `range` перетасовывает строки между
+   * страницами — проверять это можно только по фактическому запросу.
+   */
+  orderCalls: [] as { table: string; col: string }[],
   tableData: {} as Record<string, unknown[]>,
   selectError: null as { message: string } | null,
   singleData: null as unknown,
   rpcCalls: [] as { fn: string; args: { payload?: unknown } }[],
   rpcResult: { data: null as unknown, error: null as { message: string } | null },
+  /**
+   * Ответ по КОНКРЕТНОЙ функции — операции этапов уехали в свои RPC
+   * (`erp_stage_report_progress`, `erp_stage_apply_defect`, `erp_stage_reorder_queue`,
+   * `erp_stage_move_department`), и общий `rpcResult` их уже не различает:
+   * в одном сценарии `erp_create_order` обязан пройти, а перенос — упасть.
+   */
+  rpcByFn: {} as Record<string, { data: unknown; error: { message: string } | null }>,
   /** Загрузки в Storage (ТЗ в PDF, волна 4) */
   uploadCalls: [] as { bucket: string; path: string; name: string }[],
   uploadError: null as { message: string } | null,
+  /** Уборка за собой: файл загрузился, но не привязался — его надо убрать */
+  removeCalls: [] as { bucket: string; paths: string[] }[],
 }));
 
 vi.mock('../../lib/supabase', () => {
@@ -44,7 +59,7 @@ vi.mock('../../lib/supabase', () => {
       neq: (col: string, val: unknown) => { filters.push(`neq:${col}=${val}`); return q; },
       gte: (col: string, val: unknown) => { filters.push(`gte:${col}=${val}`); return q; },
       lte: (col: string, val: unknown) => { filters.push(`lte:${col}=${val}`); return q; },
-      order: () => q,
+      order: (col: string) => { h.orderCalls.push({ table, col }); return q; },
       limit: () => q,
       range: (from: number, to: number) => { filters.push(`range:${from}-${to}`); return q; },
       maybeSingle: () => {
@@ -121,13 +136,17 @@ vi.mock('../../lib/supabase', () => {
       })),
       rpc: vi.fn((fn: string, args: { payload?: unknown }) => {
         h.rpcCalls.push({ fn, args });
-        return Promise.resolve(h.rpcResult);
+        return Promise.resolve(h.rpcByFn[fn] ?? h.rpcResult);
       }),
       storage: {
         from: vi.fn((bucket: string) => ({
           upload: vi.fn((path: string, file: { name?: string }) => {
             h.uploadCalls.push({ bucket, path, name: file?.name ?? '' });
             return Promise.resolve({ error: h.uploadError });
+          }),
+          remove: vi.fn((paths: string[]) => {
+            h.removeCalls.push({ bucket, paths });
+            return Promise.resolve({ data: null, error: null });
           }),
           getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.test/${path}` } }),
         })),
@@ -152,6 +171,7 @@ const {
   activeExperimentalCount, activeOrdersCount,
 } = await import('./useErpStore');
 const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
+const { REALTIME_DEFER_ATTEMPTS } = await import('./shared');
 const { toast } = await import('../../store/useToastStore');
 const { useAuthStore } = await import('../../store/useAuthStore');
 
@@ -213,13 +233,16 @@ beforeEach(() => {
   h.deleteCalls.length = 0;
   h.deleteError = null;
   h.selectCalls.length = 0;
+  h.orderCalls.length = 0;
   h.tableData = {};
   h.selectError = null;
   h.singleData = null;
   h.rpcCalls.length = 0;
   h.rpcResult = { data: null, error: null };
+  h.rpcByFn = {};
   h.uploadCalls.length = 0;
   h.uploadError = null;
+  h.removeCalls.length = 0;
   _pendingMutations.clear();
   localStorage.removeItem('erp_my_dept');
   useErpStore.setState({
@@ -235,6 +258,18 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/**
+ * Патчи, ушедшие в транзакцию брака. Операции этапов больше не пачка независимых
+ * UPDATE, а один RPC: считать записи по `updateCalls` нечего — сверяем то, что
+ * реально уехало на сервер.
+ */
+const defectPatches = (): any[] =>
+  ((h.rpcCalls.find((c) => c.fn === 'erp_stage_apply_defect')?.args as any)?.p_patches ?? []);
+
+/** Позиции, ушедшие в транзакцию перенумерации очереди */
+const queueWrites = (): any[] =>
+  ((h.rpcCalls.find((c) => c.fn === 'erp_stage_reorder_queue')?.args as any)?.p_writes ?? []);
+
 describe('useErpStore — reportProgress (частичная готовность)', () => {
   it('накапливает qty_done, этап остаётся in_progress', async () => {
     seed();
@@ -244,8 +279,10 @@ describe('useErpStore — reportProgress (частичная готовност�
     expect(st.qty_done).toBe(300);
     expect(st.status).toBe('in_progress');
     expect(st.finished_at).toBeNull();
-    const call = h.updateCalls.find((c) => c.table === 'erp_item_stages');
-    expect(call?.patch).toEqual({ qty_done: 300 });
+    // Приращение считает сервер: уходит «сделано ещё N», а не итог. Абсолют
+    // с клиента затирал результат второго исполнителя того же цеха.
+    const call = h.rpcCalls.find((c) => c.fn === 'erp_stage_report_progress');
+    expect(call?.args).toEqual({ p_stage_id: 'st1', p_qty: 300 });
   });
 
   it('при достижении qty позиции закрывает этап (done + finished_at)', async () => {
@@ -277,12 +314,12 @@ describe('useErpStore — reportProgress (частичная готовност�
     expect(await useErpStore.getState().reportProgress('st1', 0)).toBe(false);
     expect(await useErpStore.getState().reportProgress('st1', -5)).toBe(false);
     expect(getStage().qty_done).toBe(0);
-    expect(h.updateCalls).toHaveLength(0);
+    expect(h.rpcCalls).toHaveLength(0);
   });
 
   it('rollback при ошибке Supabase', async () => {
     seed({ qty_done: 100 });
-    h.updateError = { message: 'boom' };
+    h.rpcByFn.erp_stage_report_progress = { data: null, error: { message: 'boom' } };
     const ok = await useErpStore.getState().reportProgress('st1', 200);
     expect(ok).toBe(false);
     const st = getStage();
@@ -305,6 +342,28 @@ describe('useErpStore — setStageStatus (полное закрытие)', () =>
     expect(st.status).toBe('done');
     expect(st.qty_done).toBe(500);
     expect(st.finished_at).toBeTruthy();
+  });
+
+  /**
+   * `started_at` — отметка «когда цех действительно взялся». Прежде её перетирал
+   * КАЖДЫЙ переход в `in_progress`: снятие блокировки, переоткрытие после брака,
+   * открытие целевого этапа при переносе. От неё зависит бейдж «ТЗ обновлено»
+   * (`tzUpdatedAfterStart` сравнивает дату документа с началом работы) — сдвигая
+   * отметку вперёд, мы прятали от цеха ровно то предупреждение, ради которого
+   * бейдж и сделан: ТЗ поменяли, а исполнитель дошивает по старому файлу.
+   */
+  it('started_at ставится один раз — повторный вход в работу его не сдвигает', async () => {
+    seed({ status: 'blocked', started_at: '2026-08-01T08:00:00.000Z' });
+    await useErpStore.getState().setStageStatus('st1', 'in_progress');
+    expect(getStage().started_at).toBe('2026-08-01T08:00:00.000Z');
+    const patch = h.updateCalls.find((c) => c.table === 'erp_item_stages')?.patch as any;
+    expect(patch).not.toHaveProperty('started_at');
+  });
+
+  it('первый вход в работу отметку проставляет', async () => {
+    seed({ status: 'waiting', started_at: null });
+    await useErpStore.getState().setStageStatus('st1', 'in_progress');
+    expect(getStage().started_at).toBeTruthy();
   });
 });
 
@@ -330,8 +389,8 @@ describe('useErpStore — reportDefect (переделка на текущем �
     expect(st.qty_rework).toBe(5);
     expect(Number.isNaN(st.qty_rework)).toBe(false);
     expect(st.status).toBe('in_progress');
-    // только текущий этап — одно обновление
-    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(1);
+    // только текущий этап — один патч в транзакции
+    expect(defectPatches()).toHaveLength(1);
   });
 
   it('накапливает qty_rework', async () => {
@@ -382,7 +441,11 @@ describe('useErpStore — reportDefect (выбор этапа устранени
     expect(sew?.status).toBe('waiting');
     expect(sew?.qty_done).toBe(480);
     expect(sew?.qty_rework).toBe(20);
-    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(2);
+    expect(defectPatches()).toHaveLength(2);
+    // счётчики уходят ПРИРАЩЕНИЕМ, а не итогом
+    expect(defectPatches().find((w: any) => w.id === 'st-cut')).toMatchObject({
+      qty_done_delta: -20, qty_rework_delta: 20, status: 'in_progress',
+    });
   });
 
   it('аудит-событие пишется на выбранный этап-получатель', async () => {
@@ -400,7 +463,8 @@ describe('useErpStore — reportDefect (выбор этапа устранени
     await useErpStore.getState().reportDefect('st-sew', { qty: 10, reason: 'брак', target: 'current' });
     const cut = stages().find((s) => s.id === 'st-cut');
     expect(cut?.status).toBe('done'); // предыдущий этап не тронут
-    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(1);
+    expect(defectPatches()).toHaveLength(1);
+    expect(defectPatches()[0].id).toBe('st-sew');
   });
 
   it('брак больше тиража отклоняется', async () => {
@@ -485,8 +549,7 @@ describe('useErpStore — reportDefect с параллельными ветка�
     // Мок пишет только (table, patch), поэтому сверяем количество: до починки
     // шелкография не патчилась вовсе и записей было ДВЕ. Какой именно этап
     // изменился, проверяют два теста выше — по состоянию стора.
-    const updates = h.updateCalls.filter((c) => c.table === 'erp_item_stages');
-    expect(updates).toHaveLength(3);
+    expect(defectPatches()).toHaveLength(3);
   });
 });
 
@@ -823,7 +886,7 @@ describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => 
 
   it('rollback при ошибке Supabase — оба этапа возвращаются к исходному', async () => {
     seedChainLocal();
-    h.updateError = { message: 'boom' };
+    h.rpcByFn.erp_stage_apply_defect = { data: null, error: { message: 'boom' } };
     const ok = await useErpStore.getState().reportDefect('st-sew', { qty: 20, reason: 'x', target: 'st-cut' });
     expect(ok).toBe(false);
     expect(stages().find((s) => s.id === 'st-cut')?.status).toBe('done');
@@ -903,8 +966,8 @@ describe('useErpStore — reportDefect бэклог-фиксы (qty vs сдел�
     expect(st('s-sew')?.qty_done).toBe(480);
     expect(st('s-sew')?.qty_rework).toBe(20);
     expect(st('s-vto')?.status).toBe('waiting');           // текущий
-    // 3 обновления этапов (cut, vto, sew)
-    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
+    // 3 патча этапов (cut, vto, sew) — одной транзакцией
+    expect(defectPatches()).toHaveLength(3);
   });
 });
 
@@ -1022,7 +1085,8 @@ describe('shipOrder — отгрузка готового заказа в арх
     const o = getOrder();
     expect(o.status).toBe('active');
     expect(o.shipped_at).toBeUndefined();
-    expect(toast.error).toHaveBeenCalledWith('Не удалось отгрузить заказ');
+    // Причина в тексте: отказ прав, обрыв сети и конфликт больше не выглядят одинаково
+    expect(toast.error).toHaveBeenCalledWith('Не удалось отгрузить заказ: boom');
   });
 
   it('не готовый заказ (этап in_progress) → false, запрос не уходит', async () => {
@@ -1145,17 +1209,36 @@ describe('applyRealtimeEvent — защита от race (pendingMutations, п.29
     expect(getStage().status).toBe('done'); // отложенное событие применилось
   });
 
-  it('если мутация всё ещё pending спустя буфер — событие отбрасывается', async () => {
+  /**
+   * Прежде отсрочка была ОДНОРАЗОВОЙ: не успела мутация за секунду — событие
+   * пропадало навсегда. На цеховом Wi-Fi запрос дольше секунды это норма, и так
+   * терялась чужая правка того же этапа: на экране оставалось состояние, которого
+   * в базе уже нет, до следующего события по этой строке.
+   */
+  it('мутация дольше буфера — событие ждёт, а не пропадает', async () => {
     vi.useFakeTimers();
     seed();
     _pendingMutations.add('stage:st1');
     useErpStore.getState().applyRealtimeEvent(stageUpdateEvent());
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(getStage().status).toBe('in_progress'); // пока мутация идёт — не применяем
+
+    _pendingMutations.delete('stage:st1');
     await vi.advanceTimersByTimeAsync(1000);
-    expect(getStage().status).toBe('in_progress'); // событие пропало
+    expect(getStage().status).toBe('done'); // ключ снят — событие доехало
+  });
+
+  it('попытки не бесконечны — зависший запрос не оставляет вечный таймер', async () => {
+    vi.useFakeTimers();
+    seed();
+    _pendingMutations.add('stage:st1');
+    useErpStore.getState().applyRealtimeEvent(stageUpdateEvent());
+    // Потолок REALTIME_DEFER_ATTEMPTS попыток по секунде — ждём заведомо дольше
+    await vi.advanceTimersByTimeAsync(1000 * (REALTIME_DEFER_ATTEMPTS + 2));
 
     _pendingMutations.delete('stage:st1');
     await vi.advanceTimersByTimeAsync(5000);
-    expect(getStage().status).toBe('in_progress'); // и не «воскресает»
+    expect(getStage().status).toBe('in_progress'); // попытки исчерпаны
   });
 
   it('мутация ставит и снимает pending-ключ вокруг await', async () => {
@@ -1308,6 +1391,66 @@ describe('ленивый архив (п.26)', () => {
     await useErpStore.getState().loadArchive();
     expect(h.selectCalls).toHaveLength(0);
   });
+
+  /**
+   * `due_date` не уникален и бывает NULL: при равных значениях порядок строк
+   * между двумя запросами `range` мог перетасоваться, и заказ приезжал дважды
+   * либо не приезжал вовсе. Дубль гасит дедуп по id — пропуск не видно ничем.
+   */
+  it('страницы упорядочены уникальным доводчиком, иначе строки теряются', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    h.orderCalls.length = 0;
+    h.tableData = { erp_orders: [archivedRow] };
+    await useErpStore.getState().loadArchive();
+    const cols = h.orderCalls.filter((c) => c.table === 'erp_orders').map((c) => c.col);
+    expect(cols).toEqual(['due_date', 'id']);
+  });
+
+  /**
+   * Смещение следующей страницы считалось из стора
+   * (`orders.filter(status !== 'active').length`), а туда попадают архивные заказы,
+   * пришедшие мимо пагинации: по диплинку (`loadOne`) или из realtime, когда
+   * активный заказ уехал в архив. Каждый такой сдвигал смещение вперёд, и ровно
+   * столько строк следующая страница ПЕРЕПРЫГИВАЛА.
+   */
+  it('смещение считается по загруженным страницам, а не по содержимому стора', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    const page = Array.from({ length: ARCHIVE_PAGE_SIZE }, (_, i) => ({
+      id: `arc-${i}`, title: `Сдан ${i}`, status: 'done_on_time', items: [], materials: [],
+    }));
+    h.tableData = { erp_orders: page };
+    await useErpStore.getState().loadArchive();
+
+    // Диплинк принёс архивный заказ мимо пагинации
+    h.singleData = archivedRow;
+    await useErpStore.getState().loadOne('o-z');
+    expect(useErpStore.getState().orders.filter((o) => o.status !== 'active')).toHaveLength(
+      ARCHIVE_PAGE_SIZE + 1);
+
+    h.tableData = { erp_orders: [] };
+    await useErpStore.getState().loadMoreArchive();
+    // Смещение прежнее — заказ с диплинка страницу не сдвинул
+    expect(h.selectCalls.at(-1)?.filters)
+      .toContain(`range:${ARCHIVE_PAGE_SIZE}-${ARCHIVE_PAGE_SIZE * 2 - 1}`);
+  });
+
+  it('архивный заказ, открытый по ссылке, не пропадает при заходе в архив', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
+    await useErpStore.getState().loadAll();
+    // Пришли по ссылке `?order=o-z` — заказ в сторе, карточка открыта
+    h.singleData = archivedRow;
+    await useErpStore.getState().loadOne('o-z');
+    expect(useErpStore.getState().orders.map((o) => o.id)).toContain('o-z');
+
+    // Открываем вкладку архива, а он в первую страницу не попал
+    h.tableData = { erp_orders: [] };
+    await useErpStore.getState().loadArchive();
+    // Прежде здесь стоял filter(status === 'active') и заказ исчезал вместе
+    // с открытой карточкой
+    expect(useErpStore.getState().orders.map((o) => o.id)).toContain('o-z');
+  });
 });
 
 describe('createOrder через RPC erp_create_order (п.28)', () => {
@@ -1361,7 +1504,33 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
       items: [{ product_type: 'футболка', qty: 1, production_type: 'sewing', branding_methods: [], branding_on: 'cut' }],
     });
     expect(created).toBeNull();
-    expect(toast.error).toHaveBeenCalledWith('Не удалось создать заказ');
+    expect(toast.error).toHaveBeenCalledWith('Не удалось создать заказ: boom');
+  });
+
+  /**
+   * Этап цеха, которого нет в справочнике, выпадал из маршрута молча — вместе
+   * со ссылками на него в `depends_on`. Заказ создавался короче задуманного,
+   * а финальный ОТК, зависевший от выпавшего этапа, оставался вообще без
+   * зависимостей и был готов к запуску с первой секунды. Ошибкой это не считаем
+   * (цех могли отключить осознанно), но молчать нельзя.
+   */
+  it('нет цеха в справочнике — этап выпадает из маршрута, но об этом говорят', async () => {
+    // Швейного цеха в справочнике нет: маршрут sewing требует supply→cutting→sewing→vto
+    useErpStore.setState({
+      departments: DEPS.filter((d: any) => d.code !== 'sewing') as any,
+    });
+    h.rpcResult = { data: 'o-short', error: null };
+    await useErpStore.getState().createOrder({
+      title: 'X',
+      items: [{
+        product_type: 'футболка', qty: 1, production_type: 'sewing',
+        branding_methods: [], branding_on: 'cut',
+      }],
+    });
+    const codes = ((h.rpcCalls[0].args as any).payload.items[0].stages as any[])
+      .map((st) => st.department_id);
+    expect(codes).not.toContain('dep-sewing');
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('sewing'));
   });
 
   it('подряд (волна 4.2): несёт поля подряда и авто-создаёт операцию подряда', async () => {
@@ -1803,9 +1972,9 @@ describe('useErpStore — reorderStageQueue (приоритет в очеред�
     const ok = await useErpStore.getState().reorderStageQueue('st3', 'st1', 'st2');
     expect(ok).toBe(true);
     expect(stageById('st3').queue_position).toBe(150);
-    const writes = h.updateCalls.filter((c) => c.table === 'erp_item_stages');
+    const writes = queueWrites();
     expect(writes).toHaveLength(1);
-    expect(writes[0].patch).toEqual({ queue_position: 150 });
+    expect(writes[0]).toEqual({ id: 'st3', queue_position: 150 });
   });
 
   it('в начало очереди — на шаг выше первого', async () => {
@@ -1829,7 +1998,10 @@ describe('useErpStore — reorderStageQueue (приоритет в очеред�
     expect(stageById('st1').queue_position).toBe(0);
     expect(stageById('st3').queue_position).toBe(86400);
     expect(stageById('st2').queue_position).toBe(86400 * 2);
-    expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
+    // Вся очередь цеха переписывается ОДНОЙ транзакцией: сбой на середине
+    // оставлял бы её перемешанной, а интерфейс — откаченным целиком
+    expect(queueWrites()).toHaveLength(3);
+    expect(h.rpcCalls.filter((c) => c.fn === 'erp_stage_reorder_queue')).toHaveLength(1);
   });
 
   it('ошибка Supabase — откат позиции и toast', async () => {
@@ -1837,7 +2009,7 @@ describe('useErpStore — reorderStageQueue (приоритет в очеред�
       { department_id: 'd-sew', queue_position: 100 },
       { department_id: 'd-sew', queue_position: 200 },
     ]);
-    h.updateError = { message: 'нет связи' };
+    h.rpcByFn.erp_stage_reorder_queue = { data: null, error: { message: 'нет связи' } };
     const ok = await useErpStore.getState().reorderStageQueue('st2', null, 'st1');
     expect(ok).toBe(false);
     expect(stageById('st2').queue_position).toBe(200);
@@ -1883,15 +2055,30 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
     expect(toast.error).toHaveBeenCalled();
   });
 
-  it('цеха нет в маршруте — добавляет этап с зависимостью от текущего', async () => {
+  it('цеха нет в маршруте — этап создаёт транзакция, клиент кладёт его в стор', async () => {
     seedRoute([{ department_id: 'd-cut', status: 'in_progress', qty_done: 100 }]);
+    // id новой строки знает только ответ сервера — вставка живёт внутри RPC
+    h.rpcByFn.erp_stage_move_department = {
+      data: [
+        {
+          id: 'st1', item_id: 'it1', department_id: 'd-cut', depends_on: [],
+          status: 'done', qty_done: 100, qty_rework: 0, sort_order: 10,
+        },
+        {
+          id: 'st-new', item_id: 'it1', department_id: 'd-vto', depends_on: ['st1'],
+          status: 'in_progress', qty_done: 0, qty_rework: 0, sort_order: 15,
+        },
+      ],
+      error: null,
+    };
     const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-vto');
     expect(ok).toBe(true);
-    const inserted = h.insertCalls.find((c) => c.table === 'erp_item_stages');
-    expect((inserted?.row as any).department_id).toBe('d-vto');
-    expect((inserted?.row as any).depends_on).toEqual(['st1']);
-    expect((inserted?.row as any).status).toBe('in_progress');
+    const call = h.rpcCalls.find((c) => c.fn === 'erp_stage_move_department');
+    expect((call?.args as any).p_stage_id).toBe('st1');
+    expect((call?.args as any).p_target_dept).toBe('d-vto');
     expect(useErpStore.getState().orders[0].items[0].stages).toHaveLength(2);
+    expect(stageById('st-new').status).toBe('in_progress');
+    expect(stageById('st-new').depends_on).toEqual(['st1']);
   });
 
   it('комментарий возврата уходит в историю обоих этапов', async () => {
@@ -1914,7 +2101,7 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
       { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
       { department_id: 'd-sew' },
     ]);
-    h.updateError = { message: 'нет связи' };
+    h.rpcByFn.erp_stage_move_department = { data: null, error: { message: 'нет связи' } };
     const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
     expect(ok).toBe(false);
     expect(stageById('st1').status).toBe('in_progress');
@@ -1923,48 +2110,70 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
   });
 
   /**
-   * Регрессия A8 (аудит 29.07). Исходный этап закоммичен, второй шаг упал.
-   * Прежде интерфейс откатывался к состоянию «до переноса», realtime через
-   * секунду приносил закоммиченный `done`, и задание исчезало из ОБОИХ цехов:
-   * позиция оставалась без единого открытого этапа, повторить было нечем.
+   * Регрессия A8 (аудит 29.07) и её закрытие ревью 05.08.
+   *
+   * Прежде перенос был двумя-тремя независимыми запросами: первый коммитил
+   * закрытие исходного этапа, второй мог упасть — и появлялось состояние,
+   * которого никто не выбирал. Лечили компенсирующей записью, а если падала
+   * и она — честно показывали половину работы и просили починить руками.
+   *
+   * Теперь перенос — одна транзакция, и промежуточного состояния не бывает
+   * по построению: сбой не оставляет следа, откат интерфейса снова честен.
+   * Тесты закрепляют именно это — чтобы перенос не разъехали обратно на пачку
+   * запросов «так проще».
    */
-  describe('второй шаг упал, исходный этап уже закрыт в базе (A8)', () => {
-    it('компенсирующая запись возвращает исходный этап в работу', async () => {
+  describe('перенос атомарен — половины работы не бывает (A8)', () => {
+    it('сбой транзакции откатывает интерфейс целиком, ОДНИМ запросом', async () => {
       seedRoute([
         { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
         { department_id: 'd-sew' },
       ]);
-      // 1-й update (закрытие исходного) — успех, 2-й (открытие целевого) — сбой,
-      // 3-й (компенсация) — успех.
-      h.updateErrors.push(null, { message: 'нет связи' }, null);
+      h.rpcByFn.erp_stage_move_department = { data: null, error: { message: 'нет связи' } };
       const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
       expect(ok).toBe(false);
 
-      // Три записи: закрытие, неудачное открытие, компенсация
-      expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(3);
-      const restore = h.updateCalls.filter((c) => c.table === 'erp_item_stages').at(-1)!;
-      expect(restore.patch.status).toBe('in_progress');
-      expect(restore.patch.qty_done).toBe(50);
+      // Ни одного отдельного UPDATE по этапам: закрытие, открытие и перевод
+      // зависимых уехали внутрь транзакции
+      expect(h.updateCalls.filter((c) => c.table === 'erp_item_stages')).toHaveLength(0);
+      expect(h.rpcCalls.filter((c) => c.fn === 'erp_stage_move_department')).toHaveLength(1);
 
       // Интерфейс вернулся к правде: этап снова у исходного цеха
       expect(stageById('st1').status).toBe('in_progress');
+      expect(stageById('st1').qty_done).toBe(50);
       expect(stageById('st2').status).toBe('waiting');
+      const msg = (toast.error as any).mock.calls.at(-1)[0] as string;
+      expect(msg).toContain('не перенесено');
+      expect(msg).toContain('нет связи');
     });
 
-    it('компенсация тоже упала — интерфейс НЕ врёт и показывает закрытый этап', async () => {
+    it('зависимые этапы переводит та же транзакция — ОТК не открывается раньше', async () => {
+      // Маршрут: ВТО(в работе) → ОТК(ждёт ВТО). Работу уносим в ДТФ.
       seedRoute([
         { department_id: 'd-emb', status: 'in_progress', qty_done: 50 },
-        { department_id: 'd-sew' },
+        { department_id: 'd-cut', status: 'waiting', depends_on: ['st1'] },
       ]);
-      h.updateErrors.push(null, { message: 'нет связи' }, { message: 'нет связи' });
-      const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-sew');
-      expect(ok).toBe(false);
-
-      // Показываем то, что в базе на самом деле, а не «как было до»
-      expect(stageById('st1').status).toBe('done');
-      const msg = (toast.error as any).mock.calls.at(-1)[0] as string;
-      expect(msg).toContain('не открыт');
-      expect(msg).toContain('вручную');
+      h.rpcByFn.erp_stage_move_department = {
+        data: [
+          {
+            id: 'st1', item_id: 'it1', department_id: 'd-emb', depends_on: [],
+            status: 'done', qty_done: 100, qty_rework: 0, sort_order: 10,
+          },
+          {
+            id: 'st-new', item_id: 'it1', department_id: 'd-vto', depends_on: ['st1'],
+            status: 'in_progress', qty_done: 0, qty_rework: 0, sort_order: 15,
+          },
+          // ОТК теперь ждёт и перенесённый этап
+          {
+            id: 'st2', item_id: 'it1', department_id: 'd-cut',
+            depends_on: ['st1', 'st-new'], status: 'waiting',
+            qty_done: 0, qty_rework: 0, sort_order: 20,
+          },
+        ],
+        error: null,
+      };
+      const ok = await useErpStore.getState().moveStageToDepartment('st1', 'd-vto');
+      expect(ok).toBe(true);
+      expect(stageById('st2').depends_on).toEqual(['st1', 'st-new']);
     });
   });
 });
@@ -2312,6 +2521,8 @@ describe('ТЗ в PDF (волна 4)', () => {
     expect(restore).toHaveLength(1);
     // Версия в сторе осталась прежней
     expect(orderNow().tz_documents).toHaveLength(1);
+    // …а загруженный файл убран: строки в БД нет, найти его будет нечем
+    expect(h.removeCalls.at(-1)?.paths).toEqual(['tz/o1/g1/v2-tz-v2.pdf']);
     expect(orderNow().tz_documents[0].version).toBe(1);
   });
 

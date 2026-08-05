@@ -39,6 +39,23 @@ export function erpError(what: string, error?: { message?: string } | null): fal
   return false;
 }
 
+/**
+ * Убрать за собой файл, который загрузился, но не привязался к заказу.
+ *
+ * Загрузка вложения — два шага, и второй мог не пройти. Раньше в трёх местах
+ * стоял комментарий «удалять его клиенту политика не даёт», и файл оставался
+ * в бакете навсегда: платный, никем не учтённый и, пока бакет публичный, ещё
+ * и доступный по ссылке. Политика `erp_att_delete_own` (миграция 20260805130000)
+ * разрешает автору убрать СВОЙ объект — этого достаточно.
+ *
+ * Сама уборка не должна ронять сценарий: человеку уже сказали, что привязать
+ * не вышло, и «не удалилось то, о чём он не знает» ему ничего не объясняет.
+ */
+export async function removeOrphanUpload(bucket: string, path: string): Promise<void> {
+  const { error } = await supabase.storage.from(bucket).remove([path]);
+  if (error) console.warn('orphan upload not removed:', path, error.message);
+}
+
 /** Пауза перед повторной попыткой записи аудита */
 export const STAGE_EVENT_RETRY_MS = 1500;
 
@@ -82,5 +99,11 @@ export async function withPending<T>(key: string, fn: () => PromiseLike<T>): Pro
 
 /** Отсрочка применения realtime-события по сущности с pending-мутацией */
 export const REALTIME_DEFER_MS = 1000;
+/**
+ * Сколько раз пробовать применить отложенное событие. Одной попытки мало:
+ * на медленной сети мутация живёт дольше секунды, и событие терялось насовсем.
+ * Потолок нужен, чтобы зависший запрос не оставил вечный таймер.
+ */
+export const REALTIME_DEFER_ATTEMPTS = 10;
 /** Debounce последнего fallback — полной перезагрузки loadAll */
 export const FULL_RELOAD_DEBOUNCE_MS = 500;
