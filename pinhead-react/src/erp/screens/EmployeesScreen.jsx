@@ -12,6 +12,7 @@ import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { EMPLOYEE_ROLE_LABELS } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Button } from '../components/Button';
 
 /**
  * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
@@ -99,6 +100,23 @@ export default function EmployeesScreen({ embedded = false }) {
     if (ok) await updateProfile(p.id, { active: false, approved: false });
   };
 
+  /**
+   * Отключение сотрудника БЕЗ профиля шло без подтверждения, хотя соседняя
+   * кнопка «Отключить» у пользователя с профилем его спрашивает. Действие
+   * одинаково видимое (человек пропадает из очередей и назначений), значит
+   * и спрашивать надо одинаково — иначе правило «деструктивное подтверждаем»
+   * держится на том, какую из двух кнопок нажали.
+   */
+  const onDisableEmployee = async (emp) => {
+    const ok = await confirm({
+      title: `Отключить сотрудника «${emp.full_name}»?`,
+      message: 'Он пропадёт из списков исполнителей и назначений. Запись не удаляется — сотрудника можно вернуть.',
+      confirmLabel: 'Отключить',
+      variant: 'danger',
+    });
+    if (ok) await updateEmployee(emp.id, { active: false });
+  };
+
   return (
     <>
       {!embedded && (
@@ -126,9 +144,9 @@ export default function EmployeesScreen({ embedded = false }) {
       {employeesLoaded && profileRows.length === 0 && looseEmployees.length === 0 && (
         <div className={styles.emptyState}>
                   Пользователи не загрузились.{' '}
-                  <button type="button" className="btn btn-secondary" onClick={() => loadEmployees()}>
+                  <Button variant="secondary" onClick={() => loadEmployees()}>
                     Повторить
-                  </button>
+                  </Button>
                 </div>
       )}
 
@@ -146,7 +164,7 @@ export default function EmployeesScreen({ embedded = false }) {
                 const emp = empByProfile.get(p.id);
                 const st = statusChip(p);
                 return (
-                  <tr key={p.id} style={p.active === false ? { opacity: 0.55 } : undefined}>
+                  <tr key={p.id} className={p.active === false ? styles.rowDisabled : undefined}>
                     <td>
                       <strong>{p.name || '—'}</strong>
                       {p.id === me?.id && <span className={styles.subText}> · вы</span>}
@@ -197,29 +215,29 @@ export default function EmployeesScreen({ embedded = false }) {
                     <td>
                       <span className={`${styles.chip} ${styles[st.cls]}`}>{st.label}</span>
                     </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
+                    <td className={styles.nowrap}>
                       {p.active === false ? (
-                        <button type="button" className="btn btn-secondary"
-                          onClick={() => updateProfile(p.id, { active: true })}>
+                        <Button variant="secondary" onClick={() => updateProfile(p.id, { active: true })}>
                           Вернуть
-                        </button>
+                        </Button>
                       ) : !p.approved ? (
                         <>
-                          <button type="button" className="btn btn-primary"
-                            onClick={() => updateProfile(p.id, { approved: true })}>
+                          <Button variant="primary" onClick={() => updateProfile(p.id, { approved: true })}>
                             Подтвердить
-                          </button>{' '}
-                          <button type="button" className="btn btn-ghost"
+                          </Button>{' '}
+                          <Button
+                            variant="ghost"
                             aria-label={`Отключить ${p.name || p.email}`}
                             disabled={p.id === me?.id}
-                            onClick={() => onDisable(p)}><Icon name="x" size={15} /></button>
+                            onClick={() => onDisable(p)}><Icon name="x" size={15} /></Button>
                         </>
                       ) : (
-                        <button type="button" className="btn btn-ghost"
+                        <Button
+                          variant="ghost"
                           aria-label={`Отключить ${p.name || p.email}`}
                           disabled={p.id === me?.id}
                           title={p.id === me?.id ? 'Себя отключить нельзя' : undefined}
-                          onClick={() => onDisable(p)}><Icon name="x" size={15} /></button>
+                          onClick={() => onDisable(p)}><Icon name="x" size={15} /></Button>
                       )}
                     </td>
                   </tr>
@@ -244,7 +262,7 @@ export default function EmployeesScreen({ embedded = false }) {
             <tbody>
               {looseEmployees.map((emp) => {
                 return (
-                  <tr key={emp.id} style={emp.active ? undefined : { opacity: 0.55 }}>
+                  <tr key={emp.id} className={emp.active ? undefined : styles.rowDisabled}>
                     <td><strong>{emp.full_name}</strong></td>
                     <td>
                       <select
@@ -281,14 +299,19 @@ export default function EmployeesScreen({ embedded = false }) {
                     </td>
                     <td>
                       {emp.active ? (
-                        <button type="button" className="btn btn-ghost"
+                        <Button
+                          variant="ghost"
                           aria-label={`Отключить ${emp.full_name}`}
-                          onClick={() => updateEmployee(emp.id, { active: false })}><Icon name="x" size={15} /></button>
+                          onClick={() => onDisableEmployee(emp)}
+                        >
+                          <Icon name="x" size={15} />
+                        </Button>
                       ) : (
-                        <button type="button" className="btn btn-ghost"
+                        <Button
+                          variant="ghost"
                           aria-label={`Вернуть ${emp.full_name}`}
-                        title={`Вернуть ${emp.full_name}`}
-                        onClick={() => updateEmployee(emp.id, { active: true })}><Icon name="undo" size={15} /></button>
+                          title={`Вернуть ${emp.full_name}`}
+                          onClick={() => updateEmployee(emp.id, { active: true })}><Icon name="undo" size={15} /></Button>
                       )}
                     </td>
                   </tr>
@@ -317,7 +340,7 @@ export default function EmployeesScreen({ embedded = false }) {
           aria-label="Имя нового работника"
           style={{ minWidth: 240 }}
         />
-        <button type="submit" className="btn btn-secondary">+ Добавить без логина</button>
+        <Button variant="secondary" type="submit">+ Добавить без логина</Button>
       </form>
     </>
   );

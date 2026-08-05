@@ -12,6 +12,7 @@
 
 import { create } from 'zustand';
 import {
+  bootstrapSlice,
   ordersSlice,
   stagesSlice,
   materialsSlice,
@@ -27,8 +28,10 @@ import {
   realtimeSlice,
 } from './slices';
 import type { ErpStore } from './types';
+import { clearQueryCache } from './queryCache';
 
 export const useErpStore = create<ErpStore>((...a) => ({
+  ...bootstrapSlice(...a),
   ...ordersSlice(...a),
   ...stagesSlice(...a),
   ...materialsSlice(...a),
@@ -70,6 +73,13 @@ export function resetErpStore(): void {
     INITIAL_DATA.map(([k, v]) => [k, Array.isArray(v) ? [...v] : v]),
   );
   useErpStore.setState(fresh as Partial<ErpStore>, false);
+  /**
+   * Кэш запросов — ТО ЖЕ САМОЕ место, что и стор, только вторая память.
+   * Сбросить стор и оставить кэш значило бы вернуть ровно тот баг, ради
+   * которого написан resetErpStore: следующий работник на общем планшете
+   * получил бы пакет заказа, собранный от имени предыдущего.
+   */
+  clearQueryCache();
 }
 
 // Инфраструктура (currentActor/logStageEvent/withPending/тайминги) — в ./shared.

@@ -3,6 +3,7 @@ import { formatDateShort } from '../../utils/time';
 import { MARKING_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { DateField } from '../../components/DateField';
+import { Button } from '../../components/Button';
 
 /**
  * Задача склада «Выпуск маркировки»: авто-создаётся при входе заказа в швейку.
@@ -58,9 +59,9 @@ export function MarkingCard({ order, task, onAdvance }) {
             value={deadline} onChange={setDeadline}
             aria-label="Срок выпуска маркировки"
           />
-          <button type="button" className="btn btn-primary" disabled={saving} onClick={advance}>
+          <Button variant="primary" disabled={saving} onClick={advance}>
             {NEXT_LABEL[task.status]}
-          </button>
+          </Button>
         </div>
       )}
       {task.status === 'issued' && (task.marking_type || task.deadline) && (

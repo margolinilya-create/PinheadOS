@@ -8,9 +8,17 @@ beforeEach(() => {
 });
 
 describe('ToastContainer', () => {
-  it('renders nothing when no toasts', () => {
-    const { container } = render(<ToastContainer />);
-    expect(container.innerHTML).toBe('');
+  it('live-регион существует ДО первого тоста и пуст', () => {
+    /**
+     * Раньше тест требовал пустого DOM, и контейнер честно возвращал `null`.
+     * Но `aria-live` так не работает: скринридер следит за изменениями внутри
+     * УЖЕ существующего региона, а регион, появившийся вместе с текстом,
+     * он не отслеживает. Разметка выглядела правильной, озвучивания не было.
+     */
+    render(<ToastContainer />);
+    const live = screen.getByRole('status');
+    expect(live).toHaveAttribute('aria-live', 'polite');
+    expect(live).toBeEmptyDOMElement();
   });
 
   it('renders success toast', () => {

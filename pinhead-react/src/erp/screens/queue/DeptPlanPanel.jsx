@@ -10,6 +10,7 @@ import { mondayOf, summarize, weekDates } from '../../utils/planDay';
 import { PlanTaskCard } from '../plan/PlanTaskCard';
 import { PlanSlotDrawer } from '../plan/PlanSlotDrawer';
 import styles from '../../erp.module.css';
+import { percentLabel } from '../../utils/format';
 
 /**
  * Кабинет ответственного за цех: что цех должен сделать сегодня, завтра и на этой
@@ -118,7 +119,7 @@ export function DeptPlanPanel({ dept }) {
       <div className={styles.planDayStats}>
         <span>сегодня план <b>{daySummary.planned}</b></span>
         <span>факт <b>{daySummary.fact}</b></span>
-        <span>{daySummary.percent}%</span>
+        <span>{percentLabel(daySummary.percent)}</span>
         <span>остаток <b>{daySummary.remaining}</b></span>
         {daySummary.problems > 0 && <span className={styles.overdue}>проблем {daySummary.problems}</span>}
         {daySummary.awaitingMaterials > 0 && (

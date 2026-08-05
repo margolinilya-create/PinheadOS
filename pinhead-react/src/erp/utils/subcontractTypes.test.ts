@@ -15,6 +15,9 @@ const mat = (status: ErpMaterial['status']): ErpMaterial => ({
   eta_date: null, received_at: null, notes: null,
   qty_expected: null, qty_received: null, accept_status: null,
   accepted_at: null, accepted_by: null, accept_comment: null,
+  // Поля появились позже фикстуры и молчали, пока tsc не подключили полностью
+  role: null, color: null, article: null,
+  fact_name: null, fact_color: null, fact_article: null,
   created_at: '', updated_at: '',
 });
 

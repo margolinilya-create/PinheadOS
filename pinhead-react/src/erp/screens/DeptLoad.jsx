@@ -10,6 +10,7 @@ import { useErpStore } from '../store/useErpStore';
 import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
 import { deptShortName } from '../data/departments';
 import styles from '../erp.module.css';
+import { ProductionTabs } from '../components/ProductionTabs';
 
 /**
  * Загрузка цехов по дням — сетка «цех × день» из плановых дат этапов.
@@ -72,6 +73,7 @@ export default function DeptLoad() {
         title="Загрузка цехов"
         sub="Сколько штук каждый цех обязался сдать по дням — по плановым датам этапов."
       />
+      <ProductionTabs />
 
       <div className={styles.toolbar}>
         <Button variant="ghost" icon="chevronLeft" onClick={() => setStart((s) => shiftWeek(s, -1))}>

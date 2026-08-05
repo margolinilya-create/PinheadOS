@@ -24,6 +24,8 @@ import { NotificationsSection } from './NotificationsSection';
 import { TzBlock } from '../queue/TzBlock';
 import { TzDocsSection, TzMissingBanner } from './TzDocsSection';
 import { useOrderDetail } from './useOrderDetail';
+import { ButtonLink } from '../../components/Button';
+import { useErpAccess } from '../../store/useErpAccess';
 
 /**
  * Боковая карточка заказа (редизайн): те же данные, что и страница /orders/:id, но в правом
@@ -51,6 +53,14 @@ export function OrderDrawer({ orderId, onClose }) {
     deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
 
+  /**
+   * Правка полей заказа — право `order.manage`, ровно как на сервере
+   * (страж `erp_order_guard`, миграция 20260803280000). Без права поля
+   * показываются НА ЧТЕНИЕ, а не пропадают: срок клиента и менеджер нужны
+   * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
+   */
+  const canManageOrder = useErpAccess().can('order.manage');
+
   const title = order
     ? `${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`
     : (notFound ? 'Заказ не найден' : 'Загрузка…');
@@ -70,11 +80,11 @@ export function OrderDrawer({ orderId, onClose }) {
     >
       <div className={styles.toolbar} style={{ marginTop: -4, marginBottom: 10 }}>
         {/* Правка 6: вместо обезличенного «Открыть на странице» — конкретный номер заказа */}
-        <Link to={`/orders/${orderId}`} className="btn btn-secondary" onClick={onClose}>
+        <ButtonLink to={`/orders/${orderId}`} variant="secondary" onClick={onClose}>
           {/* Фолбэк на название: у заказов без сделки Bitrix ссылка называлась прочерком */}
           Открыть {order?.bitrix_id ? `заказ №${order.bitrix_id}` : (order?.title || 'заказ')}{' '}
           <Icon name="externalLink" size={12} />
-        </Link>
+        </ButtonLink>
       </div>
 
       {notFound && <div className={styles.subText}>Заказ не найден или был удалён.</div>}
@@ -91,23 +101,23 @@ export function OrderDrawer({ orderId, onClose }) {
           <div className={styles.drawerMeta}>
             <span>
               <span className={styles.subText}>Клиент: </span>
-              <InlineEdit value={order.customer} ariaLabel="Клиент" onSave={(v) => saveOrderField({ customer: v })} />
+              <InlineEdit value={order.customer} ariaLabel="Клиент" onSave={(v) => saveOrderField({ customer: v })} disabled={!canManageOrder} />
             </span>
             <span>
               <span className={styles.subText}>Менеджер: </span>
-              <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
+              <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} disabled={!canManageOrder} />
             </span>
             <span>
               <span className={styles.subText}>Запуск: </span>
-              <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} />
+              <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} disabled={!canManageOrder} />
             </span>
             <span>
               <span className={styles.subText}>Срок клиента: </span>
-              <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} />
+              <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} disabled={!canManageOrder} />
             </span>
             <span>
               <span className={styles.subText}>Заметка: </span>
-              <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} />
+              <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} disabled={!canManageOrder} />
             </span>
           </div>
 

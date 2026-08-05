@@ -450,15 +450,54 @@ function dataForTable(table: string, params: URLSearchParams): unknown[] {
         const id = idFilter.slice(3);
         return ORDERS.filter((o) => o.id === id);
       }
-      if (statusFilter === 'eq.active') return ORDERS.filter((o) => o.status === 'active');
-      if (statusFilter?.startsWith('neq.')) return ORDERS.filter((o) => o.status !== 'active');
-      return ORDERS;
+      const bitrixFilter = params.get('bitrix_id');
+      if (bitrixFilter?.startsWith('eq.')) {
+        const value = bitrixFilter.slice(3);
+        return ORDERS.filter((o) => o.bitrix_id === value);
+      }
+      // Демо отсекается В ЗАПРОСЕ (аудит 03.08.2026) — мок обязан это повторять,
+      // иначе e2e проверяет путь, которого в приложении больше нет.
+      const demoFilter = params.get('is_demo');
+      let rows = ORDERS;
+      if (demoFilter === 'eq.false') rows = rows.filter((o) => !(o as { is_demo?: boolean }).is_demo);
+      if (statusFilter === 'eq.active') return rows.filter((o) => o.status === 'active');
+      if (statusFilter?.startsWith('neq.')) return rows.filter((o) => o.status !== 'active');
+      return rows;
     }
     case 'erp_calendar_slots':
       return PLAN_SLOTS;
     // Order Studio и прочие таблицы: пустой набор → компоненты берут дефолты/пустые списки.
     default:
       return [];
+  }
+}
+
+/**
+ * Ответы на RPC-пакеты страницы (аудит 03.08.2026): `erp_bootstrap` собирает
+ * данные оболочки одним запросом вместо шести, `erp_order_detail` — спутники
+ * карточки вместо трёх.
+ *
+ * Без них мок отдавал на RPC пустой массив, приложение получало `undefined`
+ * вместо цехов и держалось только на запасном пути в `loadAll`. То есть e2e
+ * проверял НЕ ТОТ путь, по которому ходит прод.
+ */
+function dataForRpc(fn: string, body: Record<string, unknown>): unknown {
+  switch (fn) {
+    case 'erp_bootstrap':
+      return {
+        departments: departmentsFx,
+        permissions: [],       // пусто → клиент падает на DEFAULT_PERMISSIONS
+        dictionaries: [],
+        subcontracting: [],
+        experimental: [],
+        my_employee: null,     // без привязки к цеху, как у диспетчера
+      };
+    case 'erp_order_detail': {
+      void body;
+      return { events: [], audit: [], comments: [] };
+    }
+    default:
+      return null;
   }
 }
 
@@ -480,6 +519,17 @@ export async function installSupabaseMock(page: Page): Promise<void> {
     route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
 
   // REST (PostgREST) — фикстуры по таблице.
+  await page.route('**/rest/v1/rpc/**', (route: Route) => {
+    const fn = new URL(route.request().url()).pathname.split('/rpc/')[1] ?? '';
+    let payload: Record<string, unknown> = {};
+    try { payload = JSON.parse(route.request().postData() ?? '{}'); } catch { /* без тела */ }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(dataForRpc(fn, payload)),
+    });
+  });
+
   await page.route('**/rest/v1/**', (route: Route) => {
     const url = new URL(route.request().url());
     const table = url.pathname.split('/rest/v1/')[1]?.split('?')[0] ?? '';

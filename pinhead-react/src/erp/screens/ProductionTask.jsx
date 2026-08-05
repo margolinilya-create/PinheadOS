@@ -24,6 +24,8 @@ import { StageActionsPanel } from './queue/StageActionsPanel';
 import { useStageActions } from './queue/useStageActions';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
+import { dueLabelCompact } from '../utils/format';
+import { ButtonLink } from '../components/Button';
 
 /**
  * Страница производственного задания (правка 5): всё, что нужно исполнителю, —
@@ -133,9 +135,9 @@ export default function ProductionTask() {
 
       <div className={styles.toolbar}>
         {/* Номер заказа кликабелен: боковая карточка, Ctrl/Cmd — полная страница */}
-        <Link
+        <ButtonLink
           to={`/orders/${order.id}`}
-          className="btn btn-secondary"
+          variant="secondary"
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey) return;
             e.preventDefault();
@@ -143,15 +145,15 @@ export default function ProductionTask() {
           }}
         >
           Открыть заказ №{order.bitrix_id || '—'} ↗
-        </Link>
+        </ButtonLink>
         {/* Возврат туда, откуда пришли: ссылка без search теряла и фильтры,
             и позицию прокрутки (useScrollRestore ключуется по pathname+search) */}
-        <Link
+        <ButtonLink
           to={location.state?.from || `/queue/${dept?.code ?? ''}`}
-          className="btn btn-ghost"
+          variant="ghost"
         >
           ← В очередь цеха
-        </Link>
+        </ButtonLink>
         <div className={styles.spacer} />
         <span className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[display]]}`}>
           {STAGE_STATUS_LABELS[display]}
@@ -180,7 +182,7 @@ export default function ProductionTask() {
             <dt>Срок клиента</dt>
             <dd className={d !== null && d < 0 ? styles.overdue : undefined}>
               {order.due_date ? formatDateShort(order.due_date) : '—'}
-              {d !== null && (d >= 0 ? ` · ${d} дн.` : ` · просрочен ${-d} дн.`)}
+              {d !== null && ` · ${dueLabelCompact(d)}`}
             </dd>
             <dt>План этапа</dt>
             <dd>{stage.planned_end ? formatDateShort(stage.planned_end) : '—'}</dd>

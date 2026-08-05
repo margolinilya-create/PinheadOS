@@ -9,6 +9,7 @@ import {
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { OpForm } from './OpForm';
+import { Button } from '../../components/Button';
 
 const PHASE_CHIP = {
   patterns: 'chipNeutral',
@@ -67,11 +68,12 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
               3D-модель
             </label>
           </div>
-          <button type="button" className="btn btn-primary" disabled={!canAdvancePatterns}
-            onClick={() => onUpdate(exp.id, { phase: 'development' })}
-            title={canAdvancePatterns ? '' : 'Нужны лекала (тех. название + табель мер) и приёмка материала складом'}>
+          <Button
+            variant="primary"
+            disabled={!canAdvancePatterns}
+            onClick={() => onUpdate(exp.id, { phase: 'development' })} title={canAdvancePatterns ? '' : 'Нужны лекала (тех. название + табель мер) и приёмка материала складом'}>
             → Проработка
-          </button>
+          </Button>
           {!canAdvancePatterns && (
             <span className={styles.subText}>
               {' '}
@@ -104,17 +106,18 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
                     {' · '}{EXPERIMENTAL_OP_STATUS_LABELS[o.status]}
                   </span>
                   {o.status !== 'returned' && o.status !== 'cancelled' && (
-                    <button type="button" className="btn btn-ghost" onClick={() => onCompleteOp(o.id)}>Вернулось</button>
+                    <Button variant="ghost" onClick={() => onCompleteOp(o.id)}>Вернулось</Button>
                   )}
                 </li>
               ))}
             </ul>
           )}
-          <button type="button" className="btn btn-primary" disabled={openOps.length > 0}
-            onClick={() => onUpdate(exp.id, { phase: 'final_fitting' })}
-            title={openOps.length > 0 ? 'Дождитесь возврата всех передач' : ''}>
+          <Button
+            variant="primary"
+            disabled={openOps.length
+          > 0} onClick={() => onUpdate(exp.id, { phase: 'final_fitting' })} title={openOps.length > 0 ? 'Дождитесь возврата всех передач' : ''}>
             → Финальная примерка
-          </button>
+          </Button>
           {openOps.length > 0 && <span className={styles.subText}> Есть незавершённые передачи</span>}
         </div>
       )}
@@ -134,10 +137,12 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
           {exp.final_outcome === 'needs_pattern_change' && (
             <div className={styles.checkRow}>
               <input className={styles.input} placeholder="Комментарий конструктору (что изменить)" value={ret} onChange={(e) => setRet(e.target.value)} aria-label="Комментарий конструктору" />
-              <button type="button" className="btn btn-danger" disabled={!ret.trim()}
+              <Button
+                variant="danger"
+                disabled={!ret.trim()}
                 onClick={() => { onUpdate(exp.id, { phase: 'returned_to_constructor', constructor_return_comment: ret.trim() }); setRet(''); }}>
                 Вернуть конструктору
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -150,9 +155,9 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
             {' '}
             {exp.constructor_return_comment || '—'}
           </div>
-          <button type="button" className="btn btn-secondary" onClick={() => onUpdate(exp.id, { phase: 'patterns' })}>
+          <Button variant="secondary" onClick={() => onUpdate(exp.id, { phase: 'patterns' })}>
             → К лекалам (доработка)
-          </button>
+          </Button>
         </div>
       )}
 

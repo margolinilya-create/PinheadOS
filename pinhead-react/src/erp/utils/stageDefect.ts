@@ -23,10 +23,18 @@
 import { confirm } from '../../store/useConfirmStore';
 import type { ErpItemStage } from '../types';
 
+/**
+ * Минимум полей этапа, нужный расчёту возврата брака.
+ *
+ * `qty_done`/`qty_rework` входят сюда, потому что слайс берёт их прямо
+ * с результата `intermediateReopened` (уменьшает сделанное, увеличивает
+ * переделку). Без них tsc ругался в `stagesSlice`, а страховала только
+ * выключенная строгость: тип обещал меньше, чем от него уже требовали.
+ */
 type DefectStage = Pick<
   ErpItemStage,
   'id' | 'department_id' | 'sort_order' | 'status' | 'depends_on'
->;
+> & Partial<Pick<ErpItemStage, 'qty_done' | 'qty_rework'>>;
 
 export interface DefectRollbackInput {
   /** Этап, на котором оформляют брак */

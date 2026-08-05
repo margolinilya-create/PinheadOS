@@ -1,4 +1,5 @@
 /** Баррель слайсов ERP-стора (композиция — в ../useErpStore.ts) */
+export { bootstrapSlice } from './bootstrapSlice';
 export { ordersSlice } from './ordersSlice';
 export { stagesSlice } from './stagesSlice';
 export { materialsSlice } from './materialsSlice';

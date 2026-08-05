@@ -166,10 +166,13 @@ vi.mock('../../store/useToastStore', () => ({
 }));
 
 const {
-  useErpStore, readyCountFor, _pendingMutations,
+  useErpStore, readyCountFor, _pendingMutations, resetErpStore,
   openWarehouseTaskCount, openProcurementCount, openSubcontractCount,
   activeExperimentalCount, activeOrdersCount,
 } = await import('./useErpStore');
+// Кэш запросов — своя память рядом со стором; тесты числа запросов должны
+// стартовать с чистой, иначе соседний тест «оплатит» их запрос.
+const { clearQueryCache } = await import('./queryCache');
 const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
 const { REALTIME_DEFER_ATTEMPTS } = await import('./shared');
 const { toast } = await import('../../store/useToastStore');
@@ -1294,6 +1297,205 @@ describe('облегчённый списочный запрос (D2)', () => {
   });
 });
 
+describe('число запросов: оболочка и карточка заказа (Ф1′)', () => {
+  const dept = { id: 'd1', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 10 };
+  const row = { id: 'o-a', title: 'Активный', status: 'active', items: [], materials: [] };
+
+  /** Сколько сетевых операций сделано: REST-выборки + RPC */
+  const netCalls = () => h.selectCalls.length + h.rpcCalls.length;
+
+  beforeEach(() => {
+    clearQueryCache();
+    useErpStore.setState({
+      bootstrapLoaded: false, loaded: false, departments: [], orders: [], detailIds: [],
+    });
+  });
+
+  it('загрузка оболочки — 2 запроса вместо 7', async () => {
+    // Было: departments, role_permissions, dictionaries, subcontracting,
+    // experimental, employees(мой цех) + заказы. Стало: erp_bootstrap + заказы.
+    h.rpcResult = {
+      data: {
+        departments: [dept], permissions: [], dictionaries: [],
+        subcontracting: [], experimental: [], my_employee: null,
+      },
+      error: null,
+    };
+    h.tableData = { erp_orders: [row] };
+
+    await useErpStore.getState().loadBootstrap();
+    await useErpStore.getState().loadAll();
+
+    expect(netCalls()).toBe(2);
+    expect(h.rpcCalls.map((c) => c.fn)).toEqual(['erp_bootstrap']);
+  });
+
+  it('бутстрап приносит всё, ради чего слали шесть запросов', async () => {
+    h.rpcResult = {
+      data: {
+        departments: [dept],
+        permissions: [{ role: 'production_head', permission: 'plan.manage', allowed: true }],
+        dictionaries: [{ id: 'x', kind: 'block_reason', name: 'Нет ткани', active: true, sort_order: 1 }],
+        subcontracting: [{ id: 's1', status: 'planned' }],
+        experimental: [{ id: 'e1', phase: 'patterns' }],
+        my_employee: { department_id: 'd1', role: 'worker' },
+      },
+      error: null,
+    };
+    await useErpStore.getState().loadBootstrap();
+    const st = useErpStore.getState();
+    expect(st.departments).toHaveLength(1);
+    expect(st.permissionMatrix?.production_head?.['plan.manage']).toBe(true);
+    expect(st.dictionaries).toHaveLength(1);
+    expect(st.subcontracting).toHaveLength(1);
+    expect(st.experimental).toHaveLength(1);
+    expect(st.myDeptId).toBe('d1');
+    // Все флаги «загружено» подняты — иначе экраны дозапросят то же самое
+    expect(st.permissionsLoaded && st.dictionariesLoaded
+      && st.subcontractingLoaded && st.experimentalLoaded && st.myDeptLoaded).toBe(true);
+  });
+
+  it('loadAll после бутстрапа НЕ перезапрашивает цеха', async () => {
+    useErpStore.setState({ departments: [dept] as never });
+    h.tableData = { erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+    expect(h.selectCalls.filter((c) => c.table === 'erp_departments')).toHaveLength(0);
+  });
+
+  it('loadAll без бутстрапа цеха всё же берёт — экран не должен остаться без них', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+    expect(h.selectCalls.filter((c) => c.table === 'erp_departments')).toHaveLength(1);
+    expect(useErpStore.getState().departments).toHaveLength(1);
+  });
+
+  it('открытие карточки — 2 запроса вместо 4', async () => {
+    // Было: loadOne + stage_events + order_audit + order_comments.
+    // Стало: loadOne + erp_order_detail.
+    h.singleData = { ...row, items: [], materials: [] };
+    h.rpcResult = { data: { events: [], audit: [], comments: [] }, error: null };
+
+    await useErpStore.getState().loadOne('o-a');
+    await useErpStore.getState().loadOrderBundle('o-a');
+
+    expect(netCalls()).toBe(2);
+    expect(h.rpcCalls.map((c) => c.fn)).toEqual(['erp_order_detail']);
+  });
+
+  it('повторное открытие того же заказа в сеть не идёт', async () => {
+    h.rpcResult = { data: { events: [], audit: [], comments: [] }, error: null };
+    await useErpStore.getState().loadOrderBundle('o-a');
+    await useErpStore.getState().loadOrderBundle('o-a');
+    // Страница и боковой Drawer используют один хук; в dev StrictMode
+    // эффекты вызываются парой — без дедупликации это удвоение запросов
+    expect(h.rpcCalls).toHaveLength(1);
+  });
+
+  it('после своей правки лента перечитывается принудительно', async () => {
+    h.rpcResult = { data: { events: [], audit: [], comments: [] }, error: null };
+    await useErpStore.getState().loadOrderBundle('o-a');
+    await useErpStore.getState().loadOrderBundle('o-a', { force: true });
+    // Аудит пишет триггер БД — без сброса кэша правка выглядела бы непрошедшей
+    expect(h.rpcCalls).toHaveLength(2);
+  });
+
+  it('отправленный комментарий сбрасывает пакет заказа', async () => {
+    h.rpcResult = { data: { events: [], audit: [], comments: [] }, error: null };
+    await useErpStore.getState().loadOrderBundle('o-a');
+    await useErpStore.getState().addComment('o-a', 'текст');
+    await useErpStore.getState().loadOrderBundle('o-a');
+    expect(h.rpcCalls).toHaveLength(2);
+  });
+
+  it('выход из системы чистит кэш: планшет в цеху общий', async () => {
+    h.rpcResult = { data: { events: [], audit: [], comments: [] }, error: null };
+    await useErpStore.getState().loadOrderBundle('o-a');
+    resetErpStore();
+    await useErpStore.getState().loadOrderBundle('o-a');
+    expect(h.rpcCalls).toHaveLength(2);
+  });
+});
+
+describe('тестовые заказы (is_demo) — фильтр в запросе, не в экранах', () => {
+  const dept = { id: 'd1', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 10 };
+  const row = { id: 'o-a', title: 'Активный', status: 'active', items: [], materials: [] };
+
+  beforeEach(() => {
+    localStorage.removeItem('erp_show_demo');
+    useErpStore.setState({ showDemoOrders: false, archiveLoaded: false, archiveHasMore: false });
+  });
+
+  it('по умолчанию списочный запрос отсекает демо', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
+    expect(call.filters).toContain('eq:is_demo=false');
+  });
+
+  it('архив фильтруется тем же условием — иначе демо всплывёт во вкладке «Архив»', async () => {
+    h.tableData = { erp_orders: [] };
+    await useErpStore.getState().loadArchive();
+    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
+    expect(call.filters).toContain('eq:is_demo=false');
+  });
+
+  it('включённый показ снимает условие и перечитывает данные', async () => {
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().setShowDemoOrders(true);
+    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
+    expect(call.filters).not.toContain('eq:is_demo=false');
+    expect(localStorage.getItem('erp_show_demo')).toBe('1');
+  });
+
+  it('loadOne фильтру НЕ подчиняется: прямая ссылка на демо обязана открываться', async () => {
+    h.singleData = { ...row, is_demo: true, items: [], materials: [] };
+    const loaded = await useErpStore.getState().loadOne('o-a');
+    expect(loaded).toBeTruthy();
+    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
+    expect(call.filters).not.toContain('eq:is_demo=false');
+  });
+
+  it('пометка тестовым убирает заказ из списка сразу, без F5', async () => {
+    useErpStore.setState({ orders: [row] as never, detailIds: ['o-a'] });
+    const ok = await useErpStore.getState().setOrderDemo('o-a', true);
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().orders).toHaveLength(0);
+    expect(useErpStore.getState().detailIds).toEqual([]);
+  });
+
+  it('снятие пометки заказ не выбрасывает', async () => {
+    useErpStore.setState({ orders: [{ ...row, is_demo: true }] as never });
+    await useErpStore.getState().setOrderDemo('o-a', false);
+    expect(useErpStore.getState().orders).toHaveLength(1);
+  });
+
+  it('realtime не втягивает демо обратно при выключенном показе', () => {
+    useErpStore.setState({ orders: [] as never });
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_orders',
+      eventType: 'INSERT',
+      new: { id: 'o-demo', status: 'active', is_demo: true },
+      old: null,
+    });
+    expect(h.selectCalls.filter((c) => c.table === 'erp_orders')).toHaveLength(0);
+  });
+
+  it('проверка дубля № сделки идёт запросом, а не поиском по стору', async () => {
+    // Дубль может лежать в архиве или быть помечен тестовым — в сторе его нет
+    h.tableData = { erp_orders: [{ id: 'o-x', title: 'Тест новый', status: 'active' }] };
+    const found = await useErpStore.getState().findOrdersByBitrixId(' 213231 ');
+    expect(found).toHaveLength(1);
+    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
+    expect(call.filters).toContain('eq:bitrix_id=213231');
+  });
+
+  it('пустой № сделки запроса не шлёт', async () => {
+    const found = await useErpStore.getState().findOrdersByBitrixId('   ');
+    expect(found).toEqual([]);
+    expect(h.selectCalls.filter((c) => c.table === 'erp_orders')).toHaveLength(0);
+  });
+});
+
 describe('ленивый архив (п.26)', () => {
   const dept = { id: 'd1', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 10 };
   const activeRow = { id: 'o-a', title: 'Активный', status: 'active', items: [], materials: [] };
@@ -1684,8 +1886,11 @@ describe('useErpStore — экспериментальный цех (правк�
     expect(ok).toBe(true);
     const e = useErpStore.getState().experimental[0];
     expect(e.phase).toBe('development'); // авто-возврат
-    expect(e.ops[0].status).toBe('returned');
-    expect(e.ops[0].returned_at).toBeTruthy();
+    // `ops` необязательное поле (приезжает вложенным select), поэтому
+    // проверяем его наличие явно — иначе падение было бы «cannot read [0]»
+    expect(e.ops).toBeDefined();
+    expect(e.ops![0].status).toBe('returned');
+    expect(e.ops![0].returned_at).toBeTruthy();
   });
 });
 

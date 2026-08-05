@@ -14,9 +14,11 @@ import {
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
+import { formatDateCell } from '../../utils/format';
+import { Button } from '../../components/Button';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
-function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
+function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -56,6 +58,13 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
           >
             {order.title} <Icon name="externalLink" size={12} />
           </Link>
+          {/* Когда показ демо включён, тестовый заказ обязан быть отличим:
+              иначе список выглядит боевым и человек снова считает по нему сроки. */}
+          {order.is_demo && (
+            <span className={`${styles.chip} ${styles.chipNeutral}`} title="Тестовый заказ — скрыт в обычном режиме">
+              тест
+            </span>
+          )}
           {order.notes && order.notes !== 'imported' && (
             <div className={styles.subText}>{order.notes}</div>
           )}
@@ -81,29 +90,34 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
           )}
           {order.shipped_at && (
             <div className={styles.subText}>
-              отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
+              отгружен {formatDateCell(order.shipped_at)}
             </div>
           )}
         </td>
         <td onClick={(e) => e.stopPropagation()}>
           {ready && (
-            <button
-              type="button"
-              className={`btn btn-primary ${styles.shipBtn}`}
-              onClick={() => onShip(order)}
-            >
+            <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
               <Icon name="truck" size={14} /> Отгрузить
-            </button>
+            </Button>
+          )}
+          {onToggleDemo && (
+            <Button
+              variant="ghost"
+              aria-label={order.is_demo
+                ? `Снять пометку «тестовый» с заказа ${order.title}`
+                : `Пометить заказ ${order.title} тестовым`}
+              title={order.is_demo ? 'Снять пометку «тестовый»' : 'Пометить тестовым — заказ пропадёт из рабочих списков, но не будет удалён'}
+              onClick={() => onToggleDemo(order)}>
+              <Icon name={order.is_demo ? 'eye' : 'flask'} size={15} />
+            </Button>
           )}
           {canDelete && (
-            <button
-              type="button"
-              className="btn btn-ghost"
+            <Button
+              variant="ghost"
               aria-label={`Удалить заказ ${order.title}`}
-              onClick={() => onDelete(order)}
-            >
+              onClick={() => onDelete(order)}>
               <Icon name="x" size={15} />
-            </button>
+            </Button>
           )}
         </td>
       </tr>
@@ -124,7 +138,7 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip }) {
                 </span>
               ))}
             </div>
-            <div className={styles.stageChips} style={{ marginTop: 6 }}>
+            <div className={`${styles.stageChips} ${styles.stageChipsRow}`}>
               {it.stages.map((st) => (
                 <span
                   key={st.id}

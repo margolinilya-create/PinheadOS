@@ -27,12 +27,11 @@ export default function ErpLayout({ user, children }) {
   const navigate = useNavigate();
   const search = useErpSearch((s) => s.query);
   const setSearch = useErpSearch((s) => s.setQuery);
-  const { orders, departments, myDeptId, myDeptLoaded, subcontracting, experimental } = useErpStore(
+  const { orders, departments, myDeptId, subcontracting, experimental } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       myDeptId: s.myDeptId,
-      myDeptLoaded: s.myDeptLoaded,
       subcontracting: s.subcontracting,
       experimental: s.experimental,
     })),
@@ -58,21 +57,22 @@ export default function ErpLayout({ user, children }) {
     return unsubscribe;
   }, []);
 
-  // Цех пользователя для бейджей «Мой цех» / уведомлений
-  useEffect(() => {
-    if (!myDeptLoaded) useErpStore.getState().loadMyDept(user?.id);
-  }, [myDeptLoaded, user?.id]);
-
-  // Бейджи «Подряд»/«Эксперим. цех» должны быть стабильны на любом экране (ERP-08):
-  // грузим их данные заранее, а не лениво при первом заходе на эти разделы.
-  // Сюда же — заказы (счётчики цехов в меню, правка 1) и матрица прав (гейты действий).
+  /**
+   * Данные оболочки — ОДИН RPC вместо шести запросов.
+   *
+   * Здесь стояли: loadMyDept, loadPermissions, loadDictionaries,
+   * loadSubcontracting, loadExperimental и цеха внутри loadAll — шесть
+   * round-trip ради 28 кБ справочных данных. Бейджи «Подряд»/«Эксперим. цех»
+   * и счётчики цехов обязаны быть верны на ЛЮБОМ экране (ERP-08), поэтому
+   * грузятся заранее, — но заранее не значит по одному.
+   *
+   * Заказы остаются отдельным запросом: у них свои фильтры (архив, демо)
+   * и вложенные эмбеды, ради которых PostgREST и нужен.
+   */
   useEffect(() => {
     const s = useErpStore.getState();
+    s.loadBootstrap();
     if (!s.loaded) s.loadAll();
-    if (!s.permissionsLoaded) s.loadPermissions();
-    if (!s.dictionariesLoaded) s.loadDictionaries();
-    if (!s.subcontractingLoaded) s.loadSubcontracting();
-    if (!s.experimentalLoaded) s.loadExperimental();
   }, []);
 
   const myCode = useMemo(() => {

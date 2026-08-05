@@ -5,6 +5,7 @@ import { isOrderReadyToShip } from '../../utils/stageUi';
 import { orderLinkClick } from '../../store/useOrderDrawer';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
+import { dueLabelCompact } from '../../utils/format';
 
 /**
  * Позиция производственного плана карточкой — мобильный вид (<760px).
@@ -47,7 +48,7 @@ export function BoardCardMobile({ order, item, renderStage }) {
       <div className={styles.orderCardMMeta}>
         <span className={dueCls}>
           {order.due_date ? formatDateShort(order.due_date) : 'без срока'}
-          {d !== null && (d >= 0 ? ` · ${d} дн.` : ` · просрочен ${-d}`)}
+          {d !== null && ` · ${dueLabelCompact(d)}`}
         </span>
         {isOrderReadyToShip(order) && (
           <span className={`${styles.chip} ${styles.chipReady}`}>

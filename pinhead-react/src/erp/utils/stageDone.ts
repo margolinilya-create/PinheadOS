@@ -17,7 +17,12 @@ import type { ErpItemStage } from '../types';
 
 export interface StageDoneInput {
   /** Закрываемый этап */
-  stage: Pick<ErpItemStage, 'id' | 'qty_done'>;
+  /**
+   * `qty_done` объявлен `number`, но в базе он nullable и код ниже честно
+   * читает его через `?? 0`. Тип обязан это признавать, иначе тест «не
+   * проставлен — считается за ноль» невозможно даже написать.
+   */
+  stage: Pick<ErpItemStage, 'id'> & { qty_done: number | null };
   /** Тираж позиции */
   qty: number;
   /** Все этапы позиции — чтобы назвать те, что разблокируются */

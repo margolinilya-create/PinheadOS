@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import styles from '../erp.module.css';
 
@@ -18,9 +18,19 @@ const GROUPS = [
     items: [
       { to: '/', label: 'Обзор', icon: 'overview', end: true },
       { to: '/orders', label: 'Заказы', icon: 'orders' },
-      { to: '/board', label: 'Производство', icon: 'board' },
-      { to: '/plan', label: 'План производства', icon: 'calendar' },
-      { to: '/load', label: 'Загрузка цехов', icon: 'route' },
+      /**
+       * Один пункт вместо трёх (решение заказчика 03.08.2026). Раньше рядом
+       * стояли «Производство» → /board, «План производства» → /plan и
+       * «Загрузка цехов» → /load, причём заголовок /board гласил
+       * «Производственный план» — то есть пункт меню и страница назывались
+       * по-разному, а два соседних пункта отвечали на близкие вопросы.
+       * Вкладки внутри раздела — ProductionTabs; адреса не менялись,
+       * поэтому закладки и ссылки в переписке живы.
+       *
+       * `match` — маршруты, на которых пункт считается активным: без него
+       * человек, стоящий на вкладке «План», видел бы меню без подсветки.
+       */
+      { to: '/board', label: 'Производство', icon: 'board', match: ['/plan', '/load'] },
       { to: '/queue', label: 'Мой цех', icon: 'queue', end: true },
     ],
   },
@@ -43,6 +53,9 @@ const GROUPS = [
 
 /** Пункт навигации со счётчиком заданий */
 function NavItem({ item, count, collapsed }) {
+  const { pathname } = useLocation();
+  // Пункт-раздел подсвечивается и на своих вкладках (см. `match` в GROUPS)
+  const matched = item.match?.some((m) => pathname === m || pathname.startsWith(`${m}/`));
   return (
     <NavLink
       to={item.to}
@@ -50,7 +63,7 @@ function NavItem({ item, count, collapsed }) {
       // В свёрнутом виде подпись видна только в подсказке — счётчик тоже туда
       title={collapsed ? `${item.label}${count > 0 ? ` — ${count}` : ''}` : undefined}
       className={({ isActive }) =>
-        isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
+        (isActive || matched) ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
       }
     >
       <span className={styles.navIcon}><Icon name={item.icon} size={19} /></span>

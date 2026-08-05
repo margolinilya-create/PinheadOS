@@ -107,3 +107,31 @@ export function shipBlockReason(order: OrderShipReadiness): string | null {
   }
   return null;
 }
+
+/**
+ * Просрочен ли ЗАКАЗ (решение заказчика 03.08.2026).
+ *
+ * Не просто «срок клиента в прошлом»: заказ, у которого всё сделано и который
+ * ждёт только логистики, производству больше не адресован — он не «горит»,
+ * а лежит на складе. Считать его просроченным значит держать в списке
+ * «что горит» работы, которой нет: на 03.08.2026 так набиралось 47 позиций
+ * из 76, и метрика перестала на что-либо отвечать.
+ *
+ * `daysLeft` приходит параметром, а не считается здесь: у вызывающих он уже
+ * есть, а модуль не должен зависеть от «сегодня».
+ */
+export function isOrderOverdue(
+  order: OrderShipReadiness,
+  daysLeftValue: number | null,
+): boolean {
+  if (daysLeftValue === null || daysLeftValue >= 0) return false;
+  return !isOrderReadyToShip(order);
+}
+
+/** На сколько дней просрочен заказ; 0 — не просрочен (в т.ч. если готов к отгрузке) */
+export function orderOverdueDays(
+  order: OrderShipReadiness,
+  daysLeftValue: number | null,
+): number {
+  return isOrderOverdue(order, daysLeftValue) ? -(daysLeftValue as number) : 0;
+}

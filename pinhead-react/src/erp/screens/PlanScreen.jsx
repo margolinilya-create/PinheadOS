@@ -20,6 +20,9 @@ import { PlanTaskCard } from './plan/PlanTaskCard';
 import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
 import styles from '../erp.module.css';
+import { percentLabel } from '../utils/format';
+import { Button } from '../components/Button';
+import { ProductionTabs } from '../components/ProductionTabs';
 
 /**
  * Недельное и ежедневное планирование производства (правка менеджера 2026-08-03).
@@ -150,17 +153,18 @@ export default function PlanScreen() {
         title="План производства"
         sub="Недельная раскладка по цехам и дням: план, факт, остатки и отклонения. Остаток система не переносит — новую дату ставит руководитель."
       />
+      <ProductionTabs />
 
       <div className={styles.toolbar}>
-        <button type="button" className="btn btn-secondary" onClick={() => setParam({ week: shiftWeek(monday, -1) })}>
+        <Button variant="secondary" onClick={() => setParam({ week: shiftWeek(monday, -1) })}>
           <Icon name="chevronLeft" size={15} /> Неделя
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setParam({ week: null })}>
+        </Button>
+        <Button variant="secondary" onClick={() => setParam({ week: null })}>
           Текущая неделя
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setParam({ week: shiftWeek(monday, 1) })}>
+        </Button>
+        <Button variant="secondary" onClick={() => setParam({ week: shiftWeek(monday, 1) })}>
           Неделя <Icon name="chevronRight" size={15} />
-        </button>
+        </Button>
         <span className={styles.subText}>
           {formatDateShort(dates[0])} — {formatDateShort(dates[dates.length - 1])}
         </span>
@@ -170,7 +174,7 @@ export default function PlanScreen() {
         </label>
         <div className={styles.spacer} />
         <span className={styles.subText}>
-          план {weekSummary.planned} · факт {weekSummary.fact} · {weekSummary.percent}%
+          план {weekSummary.planned} · факт {weekSummary.fact} · {percentLabel(weekSummary.percent)}
         </span>
       </div>
 
@@ -203,6 +207,7 @@ export default function PlanScreen() {
           ctxByStage={ctxByStage}
           today={today}
           onPick={(code) => setParam({ dept: code })}
+          canManage={canManage}
         />
       )}
 
@@ -227,7 +232,7 @@ export default function PlanScreen() {
                   <div className={styles.planDayStats}>
                     <span>план <b>{day.planned}</b></span>
                     <span>факт <b>{day.fact}</b></span>
-                    <span>{day.percent}%</span>
+                    <span>{percentLabel(day.percent)}</span>
                     {day.active > 0 && <span>в работе {day.active}</span>}
                     {day.done > 0 && <span>готово {day.done}</span>}
                     {day.problems > 0 && <span className={styles.overdue}>проблем {day.problems}</span>}
@@ -253,24 +258,22 @@ export default function PlanScreen() {
                           правило проекта и единственный путь на планшете цеха */}
                       {canManage && (
                         <div className={styles.planMoveBtns}>
-                          <button
-                            type="button" className="btn btn-ghost"
+                          <Button
+                            variant="ghost"
                             disabled={i === 0}
                             aria-label={`Перенести на ${DAY_NAMES[i - 1] || ''}`}
                             title="На день раньше"
-                            onClick={() => movePlanSlot(slot.id, dates[i - 1])}
-                          >
+                            onClick={() => movePlanSlot(slot.id, dates[i - 1])}>
                             <Icon name="chevronLeft" size={14} />
-                          </button>
-                          <button
-                            type="button" className="btn btn-ghost"
+                          </Button>
+                          <Button
+                            variant="ghost"
                             disabled={i === dates.length - 1}
                             aria-label={`Перенести на ${DAY_NAMES[i + 1] || ''}`}
                             title="На день позже"
-                            onClick={() => movePlanSlot(slot.id, dates[i + 1])}
-                          >
+                            onClick={() => movePlanSlot(slot.id, dates[i + 1])}>
                             <Icon name="chevronRight" size={14} />
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -278,16 +281,11 @@ export default function PlanScreen() {
                   {list.length === 0 && <div className={styles.kanbanEmpty}>—</div>}
 
                   {canManage && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => setAddTo({
-                        date,
-                        deptId: productionDepts.find((d) => d.code === deptCode)?.id ?? null,
-                      })}
-                    >
+                    <Button
+                      variant="ghost"
+                      onClick={() => setAddTo({ date, deptId: productionDepts.find((d) => d.code === deptCode)?.id ?? null, })}>
                       + В план на этот день
-                    </button>
+                    </Button>
                   )}
                 </section>
               );
@@ -351,12 +349,33 @@ export default function PlanScreen() {
  * Детальная работа с задачами живёт внутри вкладки конкретного цеха, поэтому
  * здесь только цифры и переход.
  */
-function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick }) {
+function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage }) {
   const rows = depts.map((d) => {
     const mine = slots.filter((s) => s.department_id === d.id
       || ctxByStage.get(s.stage_id)?.dept?.id === d.id);
     return { dept: d, week: summarize(mine, today), day: summarize(mine.filter((s) => s.work_date === today), today) };
   });
+
+  /**
+   * Сводка из одних нулей — это не «данные», а «плана нет».
+   *
+   * На 03.08.2026 в `erp_calendar_slots` две строки на всю базу, и таблица
+   * рисовала двенадцать строк нулей с прочерками в процентах. Формально
+   * честно, практически — экран, по которому нельзя принять ни одного
+   * решения и из которого не видно, что делать дальше.
+   */
+  const nothingPlanned = rows.every(({ week }) => week.tasks === 0);
+  if (nothingPlanned) {
+    return (
+      <EmptyState
+        icon="calendar"
+        title="На эту неделю ничего не запланировано"
+        text={canManage
+          ? 'План производства ведётся вручную: откройте вкладку цеха и добавьте этапы кнопкой «+ В план на этот день». Пока плана нет, сводка показывала бы нули по всем участкам.'
+          : 'Руководитель производства ещё не разложил работу на эту неделю.'}
+      />
+    );
+  }
 
   return (
     <ScrollHintBox className={styles.tableWrap} label="Сводка по цехам">
@@ -374,8 +393,8 @@ function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick }) {
           {rows.map(({ dept, week, day }) => (
             <tr key={dept.id} className={styles.rowClickable} onClick={() => onPick(dept.code)}>
               <td><b>{deptShortName(dept.code, dept.name)}</b></td>
-              <td>{day.planned}</td><td>{day.fact}</td><td>{day.percent}%</td>
-              <td>{week.planned}</td><td>{week.fact}</td><td>{week.percent}%</td>
+              <td>{day.planned}</td><td>{day.fact}</td><td>{percentLabel(day.percent)}</td>
+              <td>{week.planned}</td><td>{week.fact}</td><td>{percentLabel(week.percent)}</td>
               <td>{week.active}</td>
               <td className={week.overdue > 0 ? styles.overdue : undefined}>{week.overdue}</td>
               <td className={week.problems > 0 ? styles.overdue : undefined}>{week.problems}</td>

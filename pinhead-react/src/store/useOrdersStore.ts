@@ -219,7 +219,11 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
 
     // Optimistic update
     set((s) => ({
-      orders: s.orders.map((o) => (o.id === id ? ({ ...o, ...payload } as Order) : o)),
+      // `payload` — набор колонок таблицы, а `Order` несёт ещё и разобранный
+      // `data`. Слияние даёт валидный Order в рантайме, но структурно типы
+      // не пересекаются, поэтому приведение идёт через unknown — иначе tsc
+      // прав: он не может это проверить, и молчаливое `as` тут врало бы.
+      orders: s.orders.map((o) => (o.id === id ? ({ ...o, ...payload } as unknown as Order) : o)),
     }));
 
     const { data, error } = await supabase.from('orders').update(payload).eq('id', id).select();

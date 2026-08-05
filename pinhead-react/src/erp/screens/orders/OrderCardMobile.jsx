@@ -10,9 +10,11 @@ import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
+import { formatDateCell } from '../../utils/format';
+import { Button } from '../../components/Button';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
-function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }) {
+function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
@@ -33,14 +35,9 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
           {order.title} ↗
         </Link>
         {canDelete && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            aria-label={`Удалить заказ ${order.title}`}
-            onClick={() => onDelete(order)}
-          >
+          <Button variant="ghost" aria-label={`Удалить заказ ${order.title}`} onClick={() => onDelete(order)}>
             <Icon name="x" size={15} />
-          </button>
+          </Button>
         )}
       </div>
       <div className={styles.subText}>
@@ -60,12 +57,19 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
         )}
         {order.shipped_at && (
           <span className={styles.subText}>
-            отгружен {new Date(order.shipped_at).toLocaleDateString('ru-RU')}
+            отгружен {formatDateCell(order.shipped_at)}
           </span>
         )}
         {hasOpenProcurement(order.procurement_tasks) && (
           <span className={`${styles.chip} ${styles.chipBlocked}`}>
             <Icon name="bell" size={13} /> дозакупка
+          </span>
+        )}
+        {/* Тот же признак, что в десктопной строке: при включённом показе
+            демо обязано быть отличимо от боевой работы. */}
+        {order.is_demo && (
+          <span className={`${styles.chip} ${styles.chipNeutral}`} title="Тестовый заказ — скрыт в обычном режиме">
+            тест
           </span>
         )}
         <DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} />
@@ -76,13 +80,15 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip }
         )}
       </div>
       {ready && (
-        <button
-          type="button"
-          className={`btn btn-primary ${styles.shipBtn}`}
-          onClick={() => onShip(order)}
-        >
+        <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
           <Icon name="truck" size={14} /> Отгрузить
-        </button>
+        </Button>
+      )}
+      {onToggleDemo && (
+        <Button variant="ghost" onClick={() => onToggleDemo(order)}>
+          <Icon name={order.is_demo ? 'eye' : 'flask'} size={14} />
+          {order.is_demo ? ' Вернуть в рабочие' : ' Пометить тестовым'}
+        </Button>
       )}
       {order.items.map((it) => (
         <div key={it.id} className={styles.orderCardMItem}>

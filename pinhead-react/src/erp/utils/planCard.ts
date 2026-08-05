@@ -8,6 +8,7 @@
  * Чистая логика: экран лишь рисует результат.
  */
 
+import { percentOf } from './format';
 import type { ErpCalendarSlot } from '../types';
 
 export type PlanCardState =
@@ -57,11 +58,15 @@ export function planRemaining(slot: PlanSlotLike): number {
   return Math.max(0, (slot.qty_planned || 0) - (slot.qty_done ?? 0));
 }
 
-/** Процент выполнения дневного плана (0..100). План 0 — считаем выполненным */
-export function planPercent(slot: PlanSlotLike): number {
-  const plan = slot.qty_planned || 0;
-  if (plan <= 0) return 100;
-  return Math.min(100, Math.round(((slot.qty_done ?? 0) / plan) * 100));
+/**
+ * Процент выполнения дневного плана (0..100) или `null`, когда плана нет.
+ *
+ * Раньше при нулевом плане возвращалось 100 («считаем выполненным») — то же
+ * правило, из-за которого пустая неделя на /plan рисовалась как «100%».
+ * Ноль в знаменателе означает «нечего было делать», а не «сделано».
+ */
+export function planPercent(slot: PlanSlotLike): number | null {
+  return percentOf(slot.qty_done ?? 0, slot.qty_planned || 0);
 }
 
 /** День задачи прошёл, а план не закрыт. Показывается отдельным индикатором */

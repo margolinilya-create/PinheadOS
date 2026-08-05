@@ -10,6 +10,7 @@ import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Button } from '../components/Button';
 
 /** Виды материалов для настройки «участок ждёт материал» (порядок = порядок чекбоксов) */
 const GATE_KINDS = Object.entries(MATERIAL_KIND_LABELS);
@@ -188,9 +189,9 @@ export default function DepartmentsScreen({ embedded = false }) {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
         />
-        <button type="button" className="btn btn-primary" disabled={!draft.trim()} onClick={add}>
+        <Button variant="primary" disabled={!draft.trim()} onClick={add}>
           + Добавить участок
-        </button>
+        </Button>
         <div className={styles.spacer} />
         <label className={styles.checkLabel}>
           <input
@@ -310,15 +311,11 @@ export default function DepartmentsScreen({ embedded = false }) {
                   />
                 </td>
                 <td>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => toggleActive(d)}
-                  >
+                  <Button variant="ghost" onClick={() => toggleActive(d)}>
                     {d.active ? (
                       <span className={styles.cellWithIcon}><Icon name="x" size={14} /> Отключить</span>
                     ) : 'Вернуть'}
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}

@@ -11,6 +11,7 @@ import { matchesOrderQuery } from '../../utils/orderSearch';
 import { stageQtyProgress } from '../../utils/progress';
 import { deptShortName } from '../../data/departments';
 import styles from '../../erp.module.css';
+import { Button } from '../../components/Button';
 
 /**
  * Постановка задачи в план: выбрать этап из общего производственного плана
@@ -99,9 +100,9 @@ export function PlanAddModal({ date, departmentId, onClose }) {
       >
         <div className={styles.matSectionHead}>
           <b>В план на {formatDateShort(date)}{dept ? ` · ${deptShortName(dept.code, dept.name)}` : ''}</b>
-          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Закрыть">
+          <Button variant="ghost" onClick={onClose} aria-label="Закрыть">
             <Icon name="x" size={16} />
-          </button>
+          </Button>
         </div>
 
         <SearchInput value={q} onChange={setQ} placeholder="заказ, клиент, изделие" />
@@ -159,14 +160,10 @@ export function PlanAddModal({ date, departmentId, onClose }) {
         )}
 
         <div className={styles.modalActions}>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button
-            type="button" className="btn btn-primary"
-            disabled={busy || !picked || !(Number(qty) > 0)}
-            onClick={submit}
-          >
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" disabled={busy || !picked || !(Number(qty) > 0)} onClick={submit}>
             {busy ? 'Добавляем…' : 'В план'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

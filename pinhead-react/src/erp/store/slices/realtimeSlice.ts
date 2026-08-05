@@ -185,6 +185,10 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       // INSERT нового заказа (или UPDATE незагруженного) → перезагрузка одного по id.
       // Незагруженный неактивный заказ при незагруженном архиве не тянем — не нужен.
       const status = (ev.new?.status ?? 'active') as string;
+      // Тестовый заказ при выключенном показе не втягиваем: списочные запросы
+      // его отсекают, и realtime вернул бы через заднюю дверь ровно то,
+      // что человек попросил спрятать.
+      if (ev.new?.is_demo === true && !get().showDemoOrders) return;
       if (status === 'active' || get().archiveLoaded) {
         void withNewWorkToast(get, () => get().loadOne(id));
       }

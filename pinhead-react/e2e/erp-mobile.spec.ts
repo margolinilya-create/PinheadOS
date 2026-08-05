@@ -181,12 +181,22 @@ test.describe('План производства на телефоне', () => {
   });
 
   test('в план можно попасть из выезжающего меню', async ({ page }) => {
+    // Путь изменился: отдельного пункта «План производства» в меню больше нет,
+    // три соседних пункта сведены в раздел «Производство» с вкладками
+    // (Доска · План · Загрузка). Проверяем НОВЫЙ путь целиком, потому что на
+    // телефоне он длиннее десктопного: меню → раздел → вкладка.
     await page.goto('/?studio=0');
     await page.getByRole('button', { name: 'Меню', exact: true }).click();
-    await page.getByRole('complementary').getByRole('link', { name: 'План производства' }).click();
-    await expect(page).toHaveURL(/\/plan/);
-    // Меню обязано закрыться, иначе план остаётся под оверлеем
+    await page.getByRole('complementary').getByRole('link', { name: 'Производство' }).click();
+    await expect(page).toHaveURL(/\/board/);
+    // Меню обязано закрыться, иначе страница остаётся под оверлеем
     await expect(page.getByRole('button', { name: 'Меню', exact: true }))
       .toHaveAttribute('aria-expanded', 'false');
+
+    // Вкладки раздела доступны на телефоне — иначе план с него недостижим
+    await page.getByRole('link', { name: 'План', exact: true }).click();
+    await expect(page).toHaveURL(/\/plan/);
+    await expect(page.getByRole('link', { name: 'План', exact: true }))
+      .toHaveAttribute('aria-current', 'page');
   });
 });

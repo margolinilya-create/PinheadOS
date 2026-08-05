@@ -1,4 +1,5 @@
-import { useParams, Link } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed } from '../components/ErpStates';
@@ -21,6 +22,9 @@ import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
+import { ButtonLink } from '../components/Button';
+import { useErpAccess } from '../store/useErpAccess';
+import { OrderCardTabs } from './orderCard/OrderCardTabs';
 
 /**
  * Карточка заказа (страница /orders/:id) — «трекинг посылки»: маршрут по этапам с план/фактом,
@@ -35,13 +39,39 @@ export default function OrderCard() {
     deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
 
+  /**
+   * Правка полей заказа — право `order.manage`, ровно как на сервере
+   * (страж `erp_order_guard`, миграция 20260803280000). Без права поля
+   * показываются НА ЧТЕНИЕ, а не пропадают: срок клиента и менеджер нужны
+   * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
+   */
+  const canManageOrder = useErpAccess().can('order.manage');
+
+  /**
+   * Активная вкладка — в адресе: ссылку на карточку шлют коллегам, и «смотри
+   * историю по этому заказу» должно открываться сразу нужной панелью.
+   * `replace`, чтобы переключение вкладок не забивало историю браузера:
+   * «Назад» обязан вернуть к списку заказов, а не пройти шесть вкладок.
+   */
+  const [params, setParams] = useSearchParams();
+  const tabs = useMemo(() => [
+    { id: 'items', label: 'Позиции', count: order?.items.length ?? 0 },
+    { id: 'tz', label: 'ТЗ', count: order?.tz_documents?.filter((d) => d.is_current).length ?? 0 },
+    { id: 'materials', label: 'Материалы', count: order?.materials.length ?? 0 },
+    { id: 'files', label: 'Файлы', count: order?.attachments?.length ?? 0 },
+    { id: 'comments', label: 'Комментарии', count: comments?.length ?? 0 },
+    { id: 'history', label: 'История', count: (events?.length ?? 0) + (audit?.length ?? 0) },
+  ], [order, comments, events, audit]);
+  const requested = params.get('tab');
+  const tab = tabs.some((t) => t.id === requested) ? requested : 'items';
+
   if (notFound) {
     return (
       <>
         <PageHead title="Заказ не найден" />
-        <Link to="/orders" className={`btn btn-secondary ${styles.cellWithIcon}`}>
+        <ButtonLink to="/orders" variant="secondary" className={styles.cellWithIcon}>
           <Icon name="chevronLeft" size={14} />К списку заказов
-        </Link>
+        </ButtonLink>
       </>
     );
   }
@@ -72,24 +102,24 @@ export default function OrderCard() {
             value={order.customer}
             placeholder="добавить…"
             ariaLabel="Клиент"
-            onSave={(v) => saveOrderField({ customer: v })}
+            onSave={(v) => saveOrderField({ customer: v })} disabled={!canManageOrder}
           />
         </span>
         <span>
           <span className={styles.subText}>Менеджер: </span>
-          <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} />
+          <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} disabled={!canManageOrder} />
         </span>
         <span>
           <span className={styles.subText}>Запуск: </span>
-          <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} />
+          <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} disabled={!canManageOrder} />
         </span>
         <span>
           <span className={styles.subText}>Срок клиента: </span>
-          <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} />
+          <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} disabled={!canManageOrder} />
         </span>
         <span>
           <span className={styles.subText}>Заметка: </span>
-          <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} />
+          <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} disabled={!canManageOrder} />
         </span>
       </div>
       {preview && !previewError && (
@@ -118,50 +148,69 @@ export default function OrderCard() {
         {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipWaiting}`}>Без Честного знака</span>}
       </div>
 
+      {/* Уведомления и баннер ТЗ — ВНЕ вкладок: это «почему заказ стоит»,
+          и прятать его за переключателем значит показывать проблему только
+          тому, кто угадал вкладку. */}
       <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
       <TzMissingBanner order={order} departments={departments} />
 
-      {order.items.map((item) => (
-        <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
-      ))}
+      <OrderCardTabs
+        tabs={tabs}
+        active={tab}
+        onSelect={(id) => setParams((prev) => {
+          const next = new URLSearchParams(prev);
+          if (id === 'items') next.delete('tab'); else next.set('tab', id);
+          return next;
+        }, { replace: true })}
+      />
 
-      <section className={styles.matSection}>
-        <div className={styles.matSectionHead}><strong>Технические задания (PDF)</strong></div>
-        {order.items.map((item) => (
-          <div key={item.id}>
-            <div className={styles.matSectionHead}>
-              <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
-              <span className={styles.queueQty}>{item.qty} шт</span>
-            </div>
-            <TzDocsSection order={order} item={item} deptById={deptById} />
-          </div>
+      <div id="order-tabpanel" role="tabpanel" aria-labelledby={`order-tab-${tab}`} tabIndex={-1}>
+        {tab === 'items' && order.items.map((item) => (
+          <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
         ))}
-      </section>
 
-      <section className={styles.matSection}>
-        <div className={styles.matSectionHead}><strong>Материалы</strong></div>
-        {order.materials.length > 0 ? (
-          <div className={styles.stageChips}>
-            {order.materials.map((m) => {
-              const pending = m.status !== 'received' && m.status !== 'not_needed';
-              const eta = pending ? formatDateShort(m.eta_date) : '';
-              return (
-                <span key={m.id} className={`${styles.chip} ${pending ? styles.chipProgress : styles.chipReady}`}>
-                  {m.name} · {MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
-                </span>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={styles.subText}>Материалы не ожидаются.</div>
+        {tab === 'tz' && (
+          <section className={styles.matSection}>
+            {order.items.map((item) => (
+              <div key={item.id}>
+                <div className={styles.matSectionHead}>
+                  <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
+                  <span className={styles.queueQty}>{item.qty} шт</span>
+                </div>
+                <TzDocsSection order={order} item={item} deptById={deptById} />
+              </div>
+            ))}
+          </section>
         )}
-      </section>
 
-      <FilesSection attachments={order.attachments} />
+        {tab === 'materials' && (
+          <section className={styles.matSection}>
+            {order.materials.length > 0 ? (
+              <div className={styles.stageChips}>
+                {order.materials.map((m) => {
+                  const pending = m.status !== 'received' && m.status !== 'not_needed';
+                  const eta = pending ? formatDateShort(m.eta_date) : '';
+                  return (
+                    <span key={m.id} className={`${styles.chip} ${pending ? styles.chipProgress : styles.chipReady}`}>
+                      {m.name} · {MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={styles.subText}>Материалы по этому заказу не закупаются.</div>
+            )}
+          </section>
+        )}
 
-      <CommentsSection comments={comments} onSend={onSendComment} />
+        {tab === 'files' && <FilesSection attachments={order.attachments} />}
 
-      <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />
+        {tab === 'comments' && <CommentsSection comments={comments} onSend={onSendComment} />}
+
+        {tab === 'history' && (
+          <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />
+        )}
+      </div>
     </>
   );
 }

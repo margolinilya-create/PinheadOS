@@ -38,6 +38,10 @@ jobs:
       - run: npm audit --audit-level=critical
 
       - run: npm run lint
+      # Типы в гейте. До 03.08.2026 tsc не запускался ни разу: `strict` был
+      # выключен, и всё равно копилось 84 ошибки — то есть про несоответствие
+      # типов узнавали в рантайме. Теперь strict включён и ошибок ноль.
+      - run: npm run typecheck
       - run: npm run test
       # Билд в гейте: раньше сломанную сборку ловил только Vercel уже после мержа
       - run: npm run build
@@ -47,24 +51,14 @@ jobs:
       # и Rollup приклеил его к vendor-charts) — 63 кБ gzip на каждой загрузке
       # у всех, при том что в ERP нет ни одного графика. Симптом невидим глазами,
       # поэтому проверяется машиной.
+      #
+      # Считает scripts/bundle-budget.mjs по манифесту сборки, а не по index.html.
+      # Прежняя версия жила прямо здесь и брала только файлы из HTML — то есть вход
+      # и его modulepreload. Оболочка ERP грузится динамическим импортом, в HTML её
+      # нет, и 60 кБ gzip (ErpApp + примитивы + их CSS) проходили мимо счётчика:
+      # страж рапортовал 207 кБ там, где человек скачивал 280.
       - name: Бюджет критического пути
-        run: |
-          if grep -q 'vendor-charts' dist/index.html; then
-            echo "::error::vendor-charts попал в критический путь — проверьте manualChunks в vite.config.js"
-            grep -o 'assets/[a-zA-Z0-9._-]*\.js' dist/index.html
-            exit 1
-          fi
-          total=0
-          for f in $(grep -o 'assets/[a-zA-Z0-9._-]*\.\(js\|css\)' dist/index.html | sort -u); do
-            size=$(gzip -c "dist/$f" | wc -c)
-            printf '%-44s %8s Б gzip\n' "$f" "$size"
-            total=$((total + size))
-          done
-          echo "Критический путь: $total Б gzip (бюджет 210000)"
-          if [ "$total" -gt 210000 ]; then
-            echo "::error::Критический путь превысил бюджет: $total Б gzip при лимите 210000"
-            exit 1
-          fi
+        run: npm run bundle:budget
 
   # Функциональные e2e. До этого из Playwright гонялся только visual.spec.ts,
   # и то с continue-on-error, — остальные 8 спеков не запускались никогда,

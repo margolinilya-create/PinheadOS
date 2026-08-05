@@ -52,6 +52,11 @@ export default defineConfig({
       testIgnore: [
         /erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/,
         /erp-tablet\.spec\.ts/, /erp-plan\.spec\.ts/,
+        // erp-audit проверяет десктопную таблицу заказов, сортируемые
+        // заголовки и вкладки карточки — на 375px этой разметки нет
+        /erp-audit\.spec\.ts/,
+        // erp-a11y проверяет десктопные ориентиры и таб-паттерн карточки
+        /erp-a11y\.spec\.ts/,
       ],
     },
   ],

@@ -28,6 +28,9 @@ import { BoardCardMobile } from './board/BoardCardMobile';
 import { STAGE_STATUS_LABELS } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { dueLabelCompact } from '../utils/format';
+import { Button } from '../components/Button';
+import { ProductionTabs } from '../components/ProductionTabs';
 
 /**
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
@@ -220,9 +223,10 @@ export default function ProductionBoard() {
   return (
     <>
       <PageHead
-        title="Производственный план"
+        title="Доска производства"
         sub="Все позиции в работе: этапы-светофор по цехам, сроки, узкие места."
       />
+      <ProductionTabs />
 
       <div className={styles.toolbar}>
         {/* Не tablist: панели с role="tabpanel" нет, aria-controls нет, стрелочной
@@ -279,9 +283,9 @@ export default function ProductionBoard() {
           {filtersActive ? (
             <>
               Под фильтры ничего не попало.{' '}
-              <button type="button" className="btn btn-secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
+              <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
                 Сбросить фильтры
-              </button>
+              </Button>
             </>
           ) : queueDepartments.length === 0 ? (
             <>Производственные участки не заведены — добавьте их в админке.</>
@@ -304,13 +308,9 @@ export default function ProductionBoard() {
           {filtersActive ? (
             <>
               Под фильтры ничего не попало.{' '}
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setFilters(EMPTY_FILTERS)}
-              >
+              <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
                 Сбросить фильтры
-              </button>
+              </Button>
             </>
           ) : (
             'Нет позиций в работе. Создайте заказ на экране «Заказы».'
@@ -400,7 +400,7 @@ export default function ProductionBoard() {
                       </div>
                       {d !== null && (
                         <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
-                          {d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`}
+                          {dueLabelCompact(d)}
                         </div>
                       )}
                     </td>

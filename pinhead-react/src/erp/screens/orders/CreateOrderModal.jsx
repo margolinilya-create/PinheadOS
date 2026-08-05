@@ -41,6 +41,7 @@ import styles from '../../erp.module.css';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { ItemBlock } from './create/ItemBlock';
+import { Button } from '../../components/Button';
 
 /**
  * Позиции с их производственными этапами — те, кому нужно ТЗ, и цеха, которые
@@ -74,6 +75,7 @@ function buildTzItems(items, deptByCode) {
 
 export function CreateOrderModal({ onClose }) {
   const createOrder = useErpStore((s) => s.createOrder);
+  const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const departments = useErpStore((s) => s.departments);
   const queueDepts = useMemo(
@@ -119,6 +121,25 @@ export function CreateOrderModal({ onClose }) {
   const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
+
+  /**
+   * Заказы с тем же № сделки. Предупреждение, а не запрет: две партии по одной
+   * сделке — законный случай, и блокировать его нельзя. Но и молчать нельзя:
+   * в базе на 03.08.2026 пять групп дублей, созданных с интервалом
+   * 25–80 секунд, — человек не увидел результата первой попытки и повторил.
+   */
+  const [dupes, setDupes] = useState([]);
+  useEffect(() => {
+    // Debounce: поле заполняют посимвольно, запрос на каждый символ не нужен.
+    // Пустое значение тоже идёт через таймер, а не сбрасывается тут же: сам
+    // запрос на пустую строку не уходит (findOrdersByBitrixId отвечает []),
+    // а setState синхронно в теле эффекта — то, что ловит react-hooks.
+    let alive = true;
+    const t = setTimeout(() => {
+      findOrdersByBitrixId(form.bitrix_id).then((rows) => { if (alive) setDupes(rows); });
+    }, 400);
+    return () => { alive = false; clearTimeout(t); };
+  }, [form.bitrix_id, findOrdersByBitrixId]);
 
   const deptByCode = useMemo(
     () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
@@ -395,7 +416,9 @@ export function CreateOrderModal({ onClose }) {
         uploaded_by: actor,
       });
     }
-    const created = await createOrder({
+    let created = null;
+    try {
+    created = await createOrder({
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
@@ -451,7 +474,13 @@ export function CreateOrderModal({ onClose }) {
     if (created && previewFile) {
       await uploadOrderPreview(created.id, previewFile);
     }
-    setSaving(false);
+    } finally {
+      // `setSaving(false)` обязан быть в finally. Внутри два сетевых вызова,
+      // и брошенное исключение (нет сети, CORS) оставило бы кнопку в
+      // «Создание…» навсегда — вместе со всем заполненным заказом, который
+      // человек набирал минутами. Сообщение об ошибке показывает стор.
+      setSaving(false);
+    }
     if (created) {
       clearOrderDraft();
       toast.success(`Заказ «${created.title}» создан, маршрут построен`);
@@ -501,9 +530,9 @@ export function CreateOrderModal({ onClose }) {
         {draftRestored && (
           <div className={styles.draftBanner} role="status">
             <span>Восстановлен черновик</span>
-            <button type="button" className="btn btn-ghost" onClick={resetDraft}>
+            <Button variant="ghost" onClick={resetDraft}>
               Очистить
-            </button>
+            </Button>
           </div>
         )}
 
@@ -527,7 +556,18 @@ export function CreateOrderModal({ onClose }) {
               value={form.bitrix_id}
               onChange={(e) => setForm({ ...form, bitrix_id: e.target.value })}
               placeholder="напр. 54766"
+              aria-describedby={dupes.length > 0 ? 'bitrix-dupes' : undefined}
             />
+            {dupes.length > 0 && (
+              <span id="bitrix-dupes" className={styles.fieldHint} role="status">
+                <Icon name="alert" size={13} />
+                {' '}
+                {dupes.length === 1
+                  ? `Заказ с этим № сделки уже есть: «${dupes[0].title}»`
+                  : `Заказов с этим № сделки уже ${dupes.length}: ${dupes.map((d) => `«${d.title}»`).join(', ')}`}
+                {'. Создать ещё один можно — проверьте, что это не повтор.'}
+              </span>
+            )}
           </label>
           <label className={`${styles.field} ${styles.fieldWide}`}>
             <span className={styles.fieldLabel}>Название *</span>
@@ -628,13 +668,9 @@ export function CreateOrderModal({ onClose }) {
           />
         ))}
         <div>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}
-          >
+          <Button variant="secondary" onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}>
             + Добавить позицию
-          </button>
+          </Button>
         </div>
         </FormSection>
 
@@ -725,17 +761,11 @@ export function CreateOrderModal({ onClose }) {
           {previewUrl ? (
             <>
               <img src={previewUrl} alt="Превью заказа" className={styles.dropZoneImg} />
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPreviewFile(null);
-                  setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
-                }}
-              >
+              <Button
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); setPreviewFile(null); setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; }); }}>
                 <span className={styles.cellWithIcon}><Icon name="x" size={14} /> Убрать</span>
-              </button>
+              </Button>
             </>
           ) : (
             <span className={styles.subText}>
@@ -779,18 +809,14 @@ export function CreateOrderModal({ onClose }) {
                   : tzValidation.message}
             </span>
           )}
-          <button type="button" className="btn btn-ghost" onClick={requestClose}>Отмена</button>
-          <button
+          <Button variant="ghost" onClick={requestClose}>Отмена</Button>
+          <Button
+            variant="primary"
             type="submit"
-            className="btn btn-primary"
-            disabled={saving
-              || tzUploading
-              || tzFailed
-              || tzValidation.missing.length > 0
-              || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}
-          >
+            disabled={saving || tzUploading || tzFailed || tzValidation.missing.length
+          > 0 || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}>
             {saving ? 'Создание…' : 'Создать заказ'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

@@ -94,3 +94,75 @@ describe('ErpDashboard', () => {
     expect(screen.getByText('Приёмка').closest('a')).toHaveAttribute('href', '/warehouse');
   });
 });
+
+/**
+ * Ф4: плоский список «Просрочен заказ №…» заменён группами по критичности.
+ * На боевых данных 03.08.2026 просрочено 47 из 76 активных, и виджет
+ * показывал шесть случайных, молча обрезая остальные сорок один.
+ */
+describe('ErpDashboard — уведомления сгруппированы по критичности', () => {
+  beforeEach(() => {
+    useErpStore.setState({ orders: [], departments: [], loaded: false });
+  });
+
+  /** Просроченный на N дней заказ (этап не закрыт — иначе это не просрочка) */
+  const late = (id, days, extra = {}) => {
+    const due = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    return {
+      id, status: 'active', title: `Заказ ${id}`, bitrix_id: id, due_date: due,
+      items: [{ id: `i-${id}`, product_type: 'Худи', qty: 1, stages: [
+        { id: `s-${id}`, department_id: 'd1', status: 'in_progress', depends_on: [] },
+      ] }],
+      materials: [], attachments: [], procurement_tasks: [], warehouse_tasks: [],
+      ...extra,
+    };
+  };
+
+  it('срочная группа развёрнута, давняя — свёрнута со счётчиком', () => {
+    renderDashboard([late('a', 3), late('b', 20), late('c', 90)]);
+    const week = screen.getByText('Горит: просрочка до недели').closest('details');
+    const month = screen.getByText('Просрочены 8–30 дней').closest('details');
+    const stale = screen.getByText('Просрочены больше месяца').closest('details');
+    expect(week.open).toBe(true);
+    expect(month.open).toBe(false);
+    expect(stale.open).toBe(false);
+  });
+
+  it('у каждой группы видна подсказка, что с ней делать', () => {
+    renderDashboard([late('a', 3)]);
+    expect(screen.getByText(/Ещё можно вытянуть/)).toBeInTheDocument();
+  });
+
+  it('строка уведомления остаётся ссылкой на заказ', () => {
+    renderDashboard([late('a', 3)]);
+    const link = screen.getByRole('link', { name: /Просрочен заказ №a/ });
+    expect(link).toHaveAttribute('href', '/orders/a');
+  });
+
+  it('готовый к отгрузке просроченный заказ в уведомления НЕ попадает', () => {
+    // Ждёт логистики, а не производства (решение заказчика 03.08.2026)
+    const ready = late('r', 10);
+    ready.items[0].stages[0].status = 'done';
+    renderDashboard([ready]);
+    expect(screen.queryByText(/Просрочен заказ №r/)).not.toBeInTheDocument();
+  });
+
+  it('остановленный этап показывается отдельной срочной группой', () => {
+    const blocked = late('b', 1);
+    blocked.items[0].stages[0].status = 'blocked';
+    renderDashboard([blocked]);
+    expect(screen.getByText('Остановлено')).toBeInTheDocument();
+  });
+
+  it('плитка «Просрочено» показывает разбивку по ступеням', () => {
+    renderDashboard([late('a', 3), late('b', 20), late('c', 20)]);
+    const tile = screen.getByRole('link', { name: /^Просрочено/ });
+    expect(within(tile).getByText(/1–7 дн.: 1/)).toBeInTheDocument();
+    expect(within(tile).getByText(/8–30 дн.: 2/)).toBeInTheDocument();
+  });
+
+  it('нет уведомлений — честное пустое состояние, а не пустой блок', () => {
+    renderDashboard([READY]);
+    expect(screen.getByText(/Всё спокойно/)).toBeInTheDocument();
+  });
+});

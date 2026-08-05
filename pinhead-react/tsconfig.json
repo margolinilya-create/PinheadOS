@@ -1,8 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // ES2022 ради `Array.prototype.at` — он уже используется в тестах стора,
+    // и без него tsc давал 11 ошибок «Property 'at' does not exist».
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Типы Vite: без них `import.meta.env` и импорты `?raw` не существуют
+    // для tsc — 12 ошибок в supabase.ts, useAuthStore, features и mockup,
+    // то есть в самом ядре, а не на периферии.
+    // Явный список ОТКЛЮЧАЕТ автоподхват всех @types/* — поэтому здесь же
+    // и `node`: тесты-стражи читают исходники через node:fs и process.cwd(),
+    // и без него отвалились бы одиннадцать файлов, которые до этого
+    // компилировались только за счёт неявного подхвата.
+    "types": ["vite/client", "node"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -11,7 +21,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": false,
+    "strict": true,
     "allowJs": true,
     "checkJs": false,
     "noUnusedLocals": false,

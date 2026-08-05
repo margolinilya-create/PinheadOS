@@ -188,7 +188,7 @@
 }
 .garment-expand-select:hover { background: var(--accent-hover); }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .garment-expand-inner { grid-template-columns: 1fr; }
 }
 /* ── Fabric Grid ── */
@@ -598,7 +598,7 @@ input[type="text"].qty-input {
   font-size: 12px;
   font-weight: 600;
 }
-@media (max-width: 600px) {
+@media (max-width: 480px) {
   .photo-lightbox-prev { left: 8px; }
   .photo-lightbox-next { right: 8px; }
   .photo-lightbox-close { top: 8px; right: 8px; }

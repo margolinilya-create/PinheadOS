@@ -1,5 +1,6 @@
 import { daysLeft, formatDateShort } from '../../utils/time';
 import styles from '../../erp.module.css';
+import { dueLabelCompact } from '../../utils/format';
 
 /**
  * Срок сдачи с подсветкой (просрочен/скоро) и остатком дней.
@@ -20,7 +21,7 @@ export function DueCell({ dueDate, completedAt }) {
       {/* У просрочки хвост наследует красный: .subText задаёт свой color и раньше
           перебивал наследование — самая важная часть оставалась приглушённой */}
       <span className={overdue ? undefined : styles.subText}>
-        {' '}({d >= 0 ? `${d} дн.` : `просрочен ${-d} дн.`})
+        {' '}({dueLabelCompact(d)})
       </span>
     </span>
   );

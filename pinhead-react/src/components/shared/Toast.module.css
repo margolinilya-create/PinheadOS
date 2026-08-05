@@ -23,3 +23,11 @@
   .toast-container    { left: 16px; right: 16px; bottom: 16px; }
   .toast              { min-width: auto; }
 }
+
+/* Пустой контейнер живёт в DOM всегда — иначе aria-live не объявляет
+   (регион должен существовать ДО вставки сообщения). Но пустой он не должен
+   ни занимать место, ни ловить клики поверх интерфейса. */
+.toast-container-empty {
+  pointer-events: none;
+  height: 0;
+}

@@ -16,6 +16,8 @@ import {
 import { onTabListKeyDown } from '../../utils/tabs';
 import styles from '../../erp.module.css';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { Button } from '../../components/Button';
+import { confirm } from '../../../store/useConfirmStore';
 
 /**
  * Справочники производства (правка 12) — редактируются руководством, без правки кода:
@@ -55,6 +57,25 @@ function DictionaryList({ kind }) {
   const [draft, setDraft] = useState('');
   const [showHidden, setShowHidden] = useState(false);
 
+  /**
+   * Отключение значения справочника — через подтверждение, как и остальные
+   * видимые действия админки. Значения тут именно ОТКЛЮЧАЮТСЯ, а не удаляются
+   * (правило проекта), и текст обязан это говорить: иначе кнопка выглядит
+   * удалением, и её боятся нажимать.
+   */
+  const onToggleActive = async (item) => {
+    if (!item.active) {
+      await updateDictionaryItem(item.id, { active: true });
+      return;
+    }
+    const ok = await confirm({
+      title: `Отключить «${item.name}»?`,
+      message: 'Значение перестанет предлагаться в подсказках. Уже проставленные записи не меняются, вернуть его можно здесь же.',
+      confirmLabel: 'Отключить',
+    });
+    if (ok) await updateDictionaryItem(item.id, { active: false });
+  };
+
   const items = useMemo(
     () => dictionaries
       .filter((d) => d.kind === kind && (showHidden || d.active))
@@ -88,9 +109,9 @@ function DictionaryList({ kind }) {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
         />
-        <button type="button" className="btn btn-primary" disabled={!draft.trim()} onClick={add}>
+        <Button variant="primary" disabled={!draft.trim()} onClick={add}>
           + Добавить
-        </button>
+        </Button>
         <div className={styles.spacer} />
         <label className={styles.checkLabel}>
           <input
@@ -127,31 +148,25 @@ function DictionaryList({ kind }) {
                   </td>
                   <td className={styles.subText}>{item.code}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
+                    <Button
+                      variant="ghost"
                       disabled={i === 0}
                       aria-label={`Поднять ${item.name}`}
-                      onClick={() => moveDictionaryItem(item.id, 'up', items[i - 1]?.id)}
-                    >
+                      onClick={() => moveDictionaryItem(item.id, 'up', items[i - 1]?.id)}>
                       <Icon name="arrowUp" size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
+                    </Button>
+                    <Button
+                      variant="ghost"
                       disabled={i === items.length - 1}
                       aria-label={`Опустить ${item.name}`}
-                      onClick={() => moveDictionaryItem(item.id, 'down', items[i + 1]?.id)}
-                    >
+                      onClick={() => moveDictionaryItem(item.id, 'down', items[i + 1]?.id)}>
                       <Icon name="arrowDown" size={14} />
-                    </button>
+                    </Button>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => updateDictionaryItem(item.id, { active: !item.active })}
-                    >
+                    <Button
+                      variant="ghost"
+                      onClick={() => onToggleActive(item)}>
                       {item.active
                         ? (
                           <span className={styles.cellWithIcon}>
@@ -159,7 +174,7 @@ function DictionaryList({ kind }) {
                           </span>
                         )
                         : 'Вернуть'}
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}

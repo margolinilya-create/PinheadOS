@@ -3,6 +3,7 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { useErpAccess } from '../../store/useErpAccess';
 import { fmt } from './format';
+import { Button } from '../../components/Button';
 
 /**
  * Ячейка плановых дат этапа: кнопка «задать план…» → два date-инпута.
@@ -59,18 +60,28 @@ export function PlanCell({ stage, onSave }) {
         value={start} onChange={(e) => setStart(e.target.value)} aria-label="План: начало" />
       <input type="date" className={`${styles.input} ${styles.inputXs} ${styles.inputXsDate}`}
         value={end} onChange={(e) => setEnd(e.target.value)} aria-label="План: конец" />
-      <button type="button" className="btn btn-primary" style={{ padding: '2px 10px' }}
-        aria-label="Сохранить плановые даты" title="Сохранить"
+      <Button
+        variant="primary"
+        size="sm"
+        iconOnly
+        icon="check"
+        aria-label="Сохранить плановые даты"
+        title="Сохранить"
         onClick={async () => {
           const ok = await onSave({ planned_start: start || null, planned_end: end || null });
           // Закрываем только при успехе — иначе правка исчезала вместе с ошибкой
           if (ok !== false) setEditing(false);
-        }}>
-        <Icon name="check" size={14} />
-      </button>
-      <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px' }}
-        aria-label="Отменить правку плана" title="Отмена"
-        onClick={() => setEditing(false)}><Icon name="x" size={14} /></button>
+        }}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        iconOnly
+        icon="x"
+        aria-label="Отменить правку плана"
+        title="Отмена"
+        onClick={() => setEditing(false)}
+      />
     </span>
   );
 }

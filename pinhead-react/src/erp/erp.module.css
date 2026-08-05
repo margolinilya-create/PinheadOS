@@ -899,7 +899,7 @@
 }
 
 /* Узкие экраны: строка складывается в две линии, лишние колонки прячутся */
-@media (max-width: 1100px) {
+@media (max-width: 1024px) {
   .queueRowMain {
     grid-template-columns: 46px minmax(150px, 2fr) 52px 96px minmax(140px, 1fr) auto;
   }
@@ -1121,7 +1121,7 @@
 .tzAssignRow:last-child { border-bottom: 0; }
 .tzAssignDept { font-weight: 600; }
 .tzAssignMissing { color: var(--color-error-ink); }
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .tzAssignRow { grid-template-columns: 1fr; }
   .tzFrame { height: 320px; }
   .tzDocName { max-width: 200px; }
@@ -1242,7 +1242,7 @@
 }
 
 /* ─── Мобильный ─── */
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .userChip { display: none; }
   .headerSearch { max-width: none; }
   .topbar { padding: 0 14px; gap: 8px; }
@@ -1673,6 +1673,16 @@ a.cellTitle:hover { color: var(--accent); }
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
 .fieldError { color: var(--color-error-ink); font-size: 12px; }
+/* Предупреждение под полем: не ошибка (заполнено верно), но требует внимания —
+   поэтому цвет предупреждения, а не ошибки, и поле НЕ помечается aria-invalid. */
+.fieldHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  color: var(--color-warning-ink);
+  font-size: 12px;
+  line-height: 1.35;
+}
 .remainingHint {
   flex: 1;
   align-self: center;
@@ -1913,8 +1923,14 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 }
 
 .dashRow { display: grid; gap: 16px; align-items: start; }
-.dashRow3 { grid-template-columns: minmax(0, 1.9fr) minmax(0, 0.9fr) minmax(0, 1.15fr); }
-.dashRow2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+/* auto-fit вместо фиксированных долей (1.9fr / 0.9fr / 1.15fr).
+   Доли задавали ширину независимо от содержимого: «Загрузка цехов» получала
+   узкую колонку и оставляла пустоту, а число колонок переключалось разом
+   на 1100px — то есть между 1024 и 1100 три виджета жались, а ниже сразу
+   разворачивались в один столбец. auto-fit подстраивается сам: сколько
+   помещается по 280px, столько и колонок, и отдельный медиазапрос не нужен. */
+.dashRow3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.dashRow2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .widget {
   background: var(--card);
   border: 1px solid var(--border-light);
@@ -1926,7 +1942,9 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 12px; gap: 8px;
 }
-.widgetTitle { font-size: 15px; font-weight: 700; color: var(--text); }
+/* Заголовок виджета — это <h2>, а не span: страница должна читаться навигацией
+   по заголовкам. Сброс полей нужен, потому что браузерный h2 несёт свои. */
+.widgetTitle { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
 .widgetLink { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
 
 .loadRow { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
@@ -1976,10 +1994,6 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .notifItem:last-child { border-bottom: none; }
 .notifText { flex: 1; font-size: 13px; color: var(--text); min-width: 0; }
 .notifSub { font-size: var(--type-label); color: var(--text-dim); }
-
-@media (max-width: 1100px) {
-  .dashRow3, .dashRow2 { grid-template-columns: 1fr; }
-}
 
 /* ─── Pagination (редизайн) ─── */
 .pagination {
@@ -2157,7 +2171,7 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .drawerPanel { width: 100%; border-left: none; }
 }
 
@@ -2551,7 +2565,199 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .planPickRow:disabled { opacity: 0.5; cursor: default; }
 .planPickRowActive { border-color: var(--accent); background: var(--surface); }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .planDay { flex-basis: 88vw; }
   .planDeviationList { grid-template-columns: 1fr; }
 }
+
+/* Ряд чипов этапов внутри развёрнутой строки заказа (был инлайновый marginTop) */
+.stageChipsRow { margin-top: var(--space-xs); }
+/* Ячейка, которую нельзя переносить: даты и счётчики в админских таблицах */
+.nowrap { white-space: nowrap; }
+
+/* ─── Витрина дизайн-системы (/styleguide, за флагом) ───
+   Свои классы, а не инлайновые стили: страница, показывающая, как надо,
+   не может сама быть примером того, как не надо. Единственные инлайновые
+   значения на ней — сами демонстрируемые токены (`var(--space-lg)` и т.п.),
+   и это их суть: показать величину, а не назначить её. */
+.sgRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+}
+.sgStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+}
+.sgSwatchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.sgToken {
+  min-width: 150px;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.sgSwatch {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+}
+.sgBar {
+  height: 14px;
+  min-width: 2px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+.sgRadius {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+}
+.sgCode {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text);
+}
+.sgIcon {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 92px;
+  padding: var(--space-sm) var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.sgIcon .sgToken { min-width: 0; word-break: break-word; }
+
+/* ─── Вкладки раздела «Производство» (Доска · План · Загрузка) ───
+   Кнопки-ссылки с aria-current от NavLink, а не role="tab": полноценный
+   таб-паттерн требует aria-controls, tabpanel и roving tabindex (utils/tabs),
+   а здесь это НАВИГАЦИЯ по трём адресам — каждая вкладка своя страница
+   со своим URL. Половина таб-паттерна хуже обычных ссылок (правило проекта). */
+.prodTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+}
+.prodTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-mid);
+  font-size: var(--type-body);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.prodTab:hover { color: var(--text); background: var(--surface); }
+.prodTab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.prodTabActive {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+@media (pointer: coarse) {
+  .prodTab { min-height: 44px; }
+}
+
+/* ─── Уведомления обзора: группы по критичности ─── */
+.notifGroup {
+  border-top: 1px solid var(--border-light);
+  padding: var(--space-xs) 0;
+}
+.notifGroup:first-of-type { border-top: none; }
+.notifSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  font-size: var(--type-body);
+}
+.notifSummary::-webkit-details-marker { display: none; }
+.notifSummary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.notifGroupTitle { flex: 1; }
+.notifCount {
+  min-width: 22px;
+  padding: 1px var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-mid);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  text-align: center;
+}
+/* Точка-тон: цвет ДОПОЛНЯЕТ заголовок и подсказку, а не заменяет их */
+.notifDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.notifDot_danger { background: var(--color-error); }
+.notifDot_warn { background: var(--color-warning); }
+.notifDot_neutral { background: var(--text-dim); }
+.notifHint {
+  margin: 0 0 var(--space-xs) 20px;
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+.notifMore {
+  display: block;
+  padding: var(--space-xs) 0 var(--space-xs) 20px;
+  color: var(--accent);
+  font-size: var(--type-label);
+}
+/* Разбивка просрочки на KPI-плитке */
+.kpiBreakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+.kpiBreakdownHot { color: var(--color-error-ink); font-weight: 600; }
+
+/* Свёрнутая пустая дорожка канбана: остаётся заголовок со счётчиком «0».
+   Разворачивается сама во время перетаскивания (см. ErpKanban) — иначе
+   у переноса не остаётся видимой цели. */
+.kanbanLaneEmpty {
+  min-height: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  opacity: 0.6;
+}
+.kanbanLaneEmpty .kanbanLaneTitle { margin-bottom: 0; }
+
+/* Отключённая строка таблицы (soft-delete): приглушена, но читаема.
+   Был инлайновый opacity — он бьёт медиазапросы и становится вторым
+   источником правды по виду строки. */
+.rowDisabled { opacity: 0.55; }

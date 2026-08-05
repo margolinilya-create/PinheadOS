@@ -17,6 +17,7 @@ import {
   validateOrderForm,
   type DraftItem,
 } from './orderForm';
+import type { DraftGrid } from './orderForm';
 
 function item(patch: Partial<DraftItem> = {}): DraftItem {
   return { ...EMPTY_ITEM, prints: [], size_grid: null, ...patch };
@@ -93,7 +94,12 @@ describe('черновик заказа (localStorage)', () => {
 // ─── Размерная сетка: сумма и авторасчёт qty ─────────────────────────────────
 
 describe('gridTotal / effectiveQty', () => {
-  const grid = {
+  /**
+   * Тип обязателен: без него строки выводятся как союз двух РАЗНЫХ форм
+   * (у второй нет ключа L), и `sizes` перестаёт быть `Record<string, number>`.
+   * Ровно это и проверяет тест — что пропущенный размер считается за ноль.
+   */
+  const grid: DraftGrid = {
     sizes: ['S', 'M', 'L'],
     rows: [
       { color: 'чёрный', sizes: { S: 5, M: 10, L: 0 } },

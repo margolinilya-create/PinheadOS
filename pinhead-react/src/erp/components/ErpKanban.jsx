@@ -273,6 +273,12 @@ export default function ErpKanban({ filters }) {
                   key={lane}
                   className={[
                     styles.kanbanLane,
+                    // Пустая дорожка схлопывается до заголовка: у семи цехов
+                    // по пять дорожек это тридцать пять прочерков на экране,
+                    // и они вытесняли карточки, ради которых доска открыта.
+                    // Во время перетаскивания дорожки разворачиваются обратно —
+                    // иначе некуда целиться (правило «у DnD должна быть цель»).
+                    list.length === 0 && !drag && styles.kanbanLaneEmpty,
                     droppable && styles.kanbanLaneDroppable,
                     droppable && isOver && styles.kanbanLaneOver,
                     drag && !droppable && !canDropHere && styles.kanbanLaneDisabled,
@@ -294,7 +300,7 @@ export default function ErpKanban({ filters }) {
                   }}
                 >
                   <div className={styles.kanbanLaneTitle}>
-                    {LANE_TITLES[lane]} {list.length > 0 && <span className={styles.subText}>({list.length})</span>}
+                    {LANE_TITLES[lane]} <span className={styles.subText}>({list.length})</span>
                   </div>
                   {list.map((entry) => (
                     <KanbanCard
@@ -308,7 +314,9 @@ export default function ErpKanban({ filters }) {
                       dropAfter={dropAt?.id === entry.stage.id && !dropAt.before}
                     />
                   ))}
-                  {list.length === 0 && <div className={styles.kanbanEmpty}>—</div>}
+                  {/* Прочерк только когда дорожка развёрнута (идёт перетаскивание):
+                      в свёрнутом виде роль «здесь пусто» играет сам счётчик «0». */}
+                  {list.length === 0 && drag && <div className={styles.kanbanEmpty}>перетащите сюда</div>}
                 </div>
               );
             })}

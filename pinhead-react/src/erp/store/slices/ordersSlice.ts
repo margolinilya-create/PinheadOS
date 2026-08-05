@@ -18,18 +18,37 @@ import type {
   ErpStageEvent,
 } from '../../types';
 import { currentActor, erpError, removeOrphanUpload, withPending } from '../shared';
+import { cachedQuery, invalidate } from '../queryCache';
 import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
 export const ARCHIVE_PAGE_SIZE = 50;
+
 import type {
   ErpStore,
   OrdersSlice,
+  ErpOrderBrief,
+  ErpOrderBundle,
   ErpOrderAttachment,
   ErpOrderAuditRow,
   ErpOrderComment,
   ErpOrderFull,
 } from '../types';
+
+/** Кэш-ключ пакета спутников заказа (история, аудит, комментарии) */
+export const orderBundleKey = (orderId: string) => `erp:order-detail:${orderId}`;
+
+/** Ключ localStorage для переключателя показа тестовых заказов */
+export const SHOW_DEMO_KEY = 'erp_show_demo';
+
+/** Читаем настройку показа демо; отсутствие ключа = не показывать */
+function readShowDemo(): boolean {
+  try {
+    return localStorage.getItem(SHOW_DEMO_KEY) === '1';
+  } catch {
+    return false; // приватный режим — ведём себя как по умолчанию
+  }
+}
 
 export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, get) => ({
   departments: [],
@@ -42,6 +61,32 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   archiveHasMore: false,
   archiveOffset: 0,
   detailIds: [],
+  showDemoOrders: readShowDemo(),
+
+  setShowDemoOrders: async (value) => {
+    try {
+      localStorage.setItem(SHOW_DEMO_KEY, value ? '1' : '0');
+    } catch { /* приватный режим: настройка живёт до перезагрузки */ }
+    // Демо отсекается запросом, поэтому переключатель обязан перечитать данные:
+    // фильтровать уже загруженный массив нельзя — скрытых строк в нём просто нет.
+    set({ showDemoOrders: value, archiveLoaded: false, archiveHasMore: false });
+    await get().loadAll();
+  },
+
+  setOrderDemo: async (id, value) => {
+    const ok = await get().updateOrder(id, { is_demo: value });
+    if (!ok) return false;
+    // Заказ, помеченный тестовым при выключенном показе, должен исчезнуть
+    // из списков сразу — иначе он останется висеть до F5 и разметка
+    // будет выглядеть неработающей.
+    if (value && !get().showDemoOrders) {
+      set((s) => ({
+        orders: s.orders.filter((o) => o.id !== id),
+        detailIds: s.detailIds.filter((x) => x !== id),
+      }));
+    }
+    return true;
+  },
 
   loadAll: async () => {
     set({ loading: true, loadError: false });
@@ -52,8 +97,22 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select(ORDER_LIST_SELECT)
       .order('due_date', { ascending: true, nullsFirst: false });
     if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
+    if (!get().showDemoOrders) ordersQuery = ordersQuery.eq('is_demo', false);
+    /**
+     * Цеха запрашиваются, только если их ещё нет.
+     *
+     * Обычный путь — `loadBootstrap()` в оболочке, он приносит цеха вместе
+     * с правами и справочниками одним RPC. Но `loadAll` зовут и экраны
+     * («если не загружено — загрузи»), и в тестах он вызывается сам по себе,
+     * поэтому остаётся самодостаточным: без этого запаса экран, открытый
+     * до бутстрапа, остался бы с пустым списком цехов и нарисовал бы
+     * «?» вместо названий участков.
+     */
+    const needDepartments = get().departments.length === 0;
     const [deps, orders] = await Promise.all([
-      supabase.from('erp_departments').select('*').order('sort_order'),
+      needDepartments
+        ? supabase.from('erp_departments').select('*').order('sort_order')
+        : Promise.resolve({ data: null, error: null }),
       ordersQuery,
     ]);
     if (deps.error || orders.error) {
@@ -62,7 +121,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       return;
     }
     set({
-      departments: (deps.data ?? []) as ErpDepartment[],
+      ...(deps.data ? { departments: deps.data as ErpDepartment[] } : {}),
       orders: ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull),
       loading: false,
       loaded: true,
@@ -86,10 +145,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   loadArchive: async () => {
     if (get().archiveLoading || get().archiveLoaded) return;
     set({ archiveLoading: true });
-    const { data, error } = await supabase
+    let q = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
-      .neq('status', 'active')
+      .neq('status', 'active');
+    if (!get().showDemoOrders) q = q.eq('is_demo', false);
+    const { data, error } = await q
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
       .range(0, ARCHIVE_PAGE_SIZE - 1);
@@ -120,10 +181,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     if (get().archiveLoading || !get().archiveHasMore) return;
     const offset = get().archiveOffset;
     set({ archiveLoading: true });
-    const { data, error } = await supabase
+    let q = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
-      .neq('status', 'active')
+      .neq('status', 'active');
+    if (!get().showDemoOrders) q = q.eq('is_demo', false);
+    const { data, error } = await q
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
       .range(offset, offset + ARCHIVE_PAGE_SIZE - 1);
@@ -144,6 +207,60 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         archiveHasMore: rows.length === ARCHIVE_PAGE_SIZE,
       };
     });
+  },
+
+  loadOrderBundle: async (orderId, { force = false } = {}) => {
+    /**
+     * История этапов, лог правок и комментарии — одним RPC вместо трёх запросов.
+     *
+     * Карточка заказа открывалась одиннадцатым–тринадцатым запросом сессии;
+     * три из них были эти. Лимиты (100/100/200) перенесены в функцию БД
+     * дословно — менять их заодно с числом запросов значило бы тихо
+     * поменять поведение экрана.
+     *
+     * Через кэш: страница и боковой Drawer подключены к одному хуку, а в dev
+     * StrictMode вызывает эффекты парой — без дедупликации это два-четыре
+     * одинаковых запроса подряд. Возврат на недавно открытый заказ отдаёт
+     * данные сразу и обновляет фоном.
+     */
+    const fetcher = async () => {
+      // try/catch наравне с проверкой `error`: supabase-js возвращает `error`
+      // на ответ сервера и БРОСАЕТ, когда ответа не было (нет сети, CORS).
+      // Без второй ветки карточка остаётся на скелетоне навсегда — экран
+      // ждёт данных, которых уже не будет, и ошибку никто не показал.
+      try {
+        const { data, error } = await supabase.rpc('erp_order_detail', { p_order_id: orderId });
+        if (error) {
+          toast.error('Не удалось загрузить историю заказа');
+          return null;
+        }
+        return data as ErpOrderBundle;
+      } catch (e) {
+        console.error('[loadDetail]', e);
+        toast.error('Не удалось загрузить историю заказа');
+        return null;
+      }
+    };
+    if (force) invalidate(orderBundleKey(orderId));
+    return cachedQuery(orderBundleKey(orderId), fetcher);
+  },
+
+  findOrdersByBitrixId: async (bitrixId) => {
+    const value = bitrixId.trim();
+    if (!value) return [];
+    // Запрос, а не поиск по стору: дубль может лежать в архиве (он грузится
+    // лениво) или быть помечен тестовым (его в сторе нет вовсе). Проверка
+    // по памяти нашла бы не всё и была бы хуже отсутствия проверки —
+    // «мы посмотрели, дублей нет».
+    const { data, error } = await supabase
+      .from('erp_orders')
+      .select('id, title, status, created_at, is_demo')
+      .eq('bitrix_id', value)
+      .limit(5);
+    // Молча: это подсказка, а не действие пользователя. Тост об упавшей
+    // фоновой проверке во время заполнения формы только мешает.
+    if (error) return [];
+    return (data ?? []) as ErpOrderBrief[];
   },
 
   loadOne: async (orderId) => {
@@ -244,9 +361,22 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       tz: tz ?? { documents: [], assignments: [] },
     };
 
-    const { data, error } = await supabase.rpc('erp_create_order', { payload });
-    if (error || !data) {
-      erpError('Не удалось создать заказ', error);
+    // Два разных исхода supabase-js: на ОТВЕТ сервера он возвращает `error`,
+    // а при отсутствии ответа (нет сети, CORS) — БРОСАЕТ. Первый называет причину
+    // через `erpError` (отказ прав и конфликт не должны выглядеть как обрыв),
+    // второй ловится catch: заказ не создан, транзакция либо не начиналась,
+    // либо откатилась, форма остаётся заполненной и повтор безопасен.
+    let newId: string;
+    try {
+      const { data, error } = await supabase.rpc('erp_create_order', { payload });
+      if (error || !data) {
+        erpError('Не удалось создать заказ', error);
+        return null;
+      }
+      newId = data as string;
+    } catch (e) {
+      console.error('[createOrder]', e);
+      toast.error('Не удалось создать заказ: нет связи с сервером');
       return null;
     }
     if (droppedDepts.size > 0) {
@@ -256,7 +386,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       );
     }
     // Созданный заказ забираем тем же вложенным select
-    const created = await get().loadOne(data as string);
+    const created = await get().loadOne(newId);
     // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
     // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
     if (created) {
@@ -478,6 +608,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       erpError('Не удалось отправить комментарий', error);
       return null;
     }
+    // Пакет заказа теперь устарел: без сброса возврат на карточку в течение
+    // TTL показал бы ленту без только что отправленного комментария.
+    invalidate(orderBundleKey(orderId));
     return row;
   },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
@@ -9,8 +9,9 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { isUrgent, isOverdue } from '../utils/time';
-import { isOrderReadyToShip } from '../utils/stageUi';
+import { daysLeft, isUrgent } from '../utils/time';
+import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
+import { ORDER_STATUS_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import styles from '../erp.module.css';
@@ -18,16 +19,33 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { OrderRow } from './orders/OrderRow';
 import { OrderCardMobile } from './orders/OrderCardMobile';
-import { CreateOrderModal } from './orders/CreateOrderModal';
+/**
+ * Форма создания заказа — 1495 строк вместе с под-компонентами (позиции,
+ * размерная сетка, ТЗ, превью маршрута), и всё это лежало в оболочке ERP,
+ * которую скачивают все и всегда. Открывает её меньшинство и по требованию.
+ *
+ * Ленивый импорт именованного экспорта: `default` у модуля нет, поэтому
+ * промис переупаковывается — иначе React.lazy не примет модуль.
+ */
+const CreateOrderModal = lazy(() => import('./orders/CreateOrderModal')
+  .then((m) => ({ default: m.CreateOrderModal })));
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { Pagination } from '../components/Pagination';
+import { SortableTh } from '../components/SortableTh';
+import { sortRows } from '../utils/tableSort';
+import { Button } from '../components/Button';
 
 export default function OrdersScreen() {
   const {
     orders, departments, loading, loaded, loadError, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
+    showDemoOrders, setShowDemoOrders, setOrderDemo,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
+      showDemoOrders: s.showDemoOrders,
+      setShowDemoOrders: s.setShowDemoOrders,
+      setOrderDemo: s.setOrderDemo,
       departments: s.departments,
       loading: s.loading,
       loaded: s.loaded,
@@ -56,13 +74,23 @@ export default function OrdersScreen() {
    * «Активные» со сброшенными датами; вместе с отсутствием useScrollRestore это
    * означало «начни поиск заново» на каждой позиции.
    */
-  const patchParams = (patch) => setSearchParams((prev) => {
-    const next = new URLSearchParams(prev);
-    for (const [k, v] of Object.entries(patch)) {
-      if (v) next.set(k, v); else next.delete(k);
-    }
-    return next;
-  }, { replace: true });
+  /**
+   * Любая правка подбора возвращает на первую страницу. Сброс живёт ЗДЕСЬ,
+   * а не в эффекте: человек, стоявший на третьей странице, после ввода
+   * в поиск видел пустоту и решал, что ничего не найдено. Эффект для этого
+   * не годится — `setState` в теле эффекта ловит react-hooks, и он прав:
+   * это следствие ДЕЙСТВИЯ, а не следствие рендера.
+   */
+  const patchParams = (patch) => {
+    setPage(1);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v) next.set(k, v); else next.delete(k);
+      }
+      return next;
+    }, { replace: true });
+  };
   const dateFrom = searchParams.get('from') || '';
   const dateTo = searchParams.get('to') || '';
   const setDateFrom = (v) => patchParams({ from: v });
@@ -78,7 +106,7 @@ export default function OrdersScreen() {
     return {
       ready: active.filter((o) => isOrderReadyToShip(o)).length,
       urgent: active.filter((o) => isUrgent(o.due_date)).length,
-      overdue: active.filter((o) => isOverdue(o.due_date)).length,
+      overdue: active.filter((o) => isOrderOverdue(o, daysLeft(o.due_date))).length,
     };
   }, [orders]);
 
@@ -98,7 +126,18 @@ export default function OrdersScreen() {
   // Раньше удаление проверяло роль профиля прямо в компоненте (в обход useErpAccess),
   // а кнопка «Новый заказ» не проверяла ничего — её видел и рабочий цеха.
   const canManageOrders = access.can('order.manage');
-  const canDelete = access.isPrivileged || canManageOrders;
+  /**
+   * Удаление — только admin/director, ровно как на сервере
+   * (`erp_orders_delete` = `is_admin()`).
+   *
+   * Раньше здесь стояло `isPrivileged || canManageOrders`: менеджер с правом
+   * «Создавать и править заказы» видел кнопку «Удалить», жал её и получал
+   * 42501 — тот самый отказ «кнопка есть, а действие падает», от которого
+   * виноватым выглядит не тот, кто настроил права. Удаление уносит позиции,
+   * этапы и материалы, поэтому сходимся на более узком из двух правил,
+   * а не на широком.
+   */
+  const canDelete = access.isPrivileged;
 
   const inTab = useMemo(
     () => orders.filter((o) => {
@@ -106,7 +145,7 @@ export default function OrdersScreen() {
       if (o.status !== 'active') return false;
       if (filter === 'ready') return isOrderReadyToShip(o);
       if (filter === 'urgent') return isUrgent(o.due_date);
-      if (filter === 'overdue') return isOverdue(o.due_date);
+      if (filter === 'overdue') return isOrderOverdue(o, daysLeft(o.due_date));
       return true;
     }),
     [orders, tab, filter],
@@ -130,6 +169,56 @@ export default function OrdersScreen() {
     });
   }, [inTab, query, dateFrom, dateTo]);
 
+  /**
+   * Сортировка и страница — тот же паттерн, что на складе и в закупке.
+   * До этого заказы были единственным длинным списком без обоих: 39 активных
+   * рисовались одним куском и сортировались только тем порядком, в котором
+   * приехали из запроса (по сроку клиента).
+   *
+   * Страница НЕ уходит в адрес намеренно: ссылку на заказ шлют по `/orders/:id`,
+   * а «страница 3 списка» смысла не несёт и при смене фильтра сразу протухает.
+   * Фильтры, вкладка, даты, поиск и сортировка — в адресе, они контекст.
+   */
+  const sortKey = searchParams.get('sort') || null;
+  const sortDir = searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
+  // useMemo: объект-литерал пересоздавался каждый рендер и обнулял мемоизацию
+  // сортировки — 39 заказов сортировались заново на любое движение состояния
+  const sort = useMemo(() => ({ key: sortKey, dir: sortDir }), [sortKey, sortDir]);
+  const sortBy = (key) => {
+    const next = key !== sortKey ? { key, dir: 'asc' }
+      : sortDir === 'asc' ? { key, dir: 'desc' }
+        : { key: null, dir: 'asc' };
+    patchParams({ sort: next.key || '', dir: next.key && next.dir === 'desc' ? 'desc' : '' });
+  };
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  /**
+   * Значение колонки берётся ТО ЖЕ, что видно в ячейке (правило utils/tableSort):
+   * иначе сортировка «по статусу» упорядочивала бы по внутреннему коду,
+   * а человек видел бы подпись и не понимал порядка.
+   */
+  const sortValue = (o, key) => {
+    switch (key) {
+      case 'bitrix': return o.bitrix_id || null;
+      case 'title': return o.title;
+      case 'manager': return o.manager || null;
+      case 'qty': return o.items.reduce((n, it) => n + (it.qty || 0), 0);
+      case 'created': return o.created_at || null;
+      case 'due': return o.due_date || null;
+      // Готовность — то же вычисление, что рисует чип: сортировка «по статусу»
+      // должна собирать вместе строки с одинаковой подписью
+      case 'status': return isOrderReadyToShip(o) ? 'Готов к отгрузке' : ORDER_STATUS_LABELS[o.status];
+      default: return null;
+    }
+  };
+
+  // Сортировка ДО пагинации: иначе сортируется только текущая страница
+  const sorted = useMemo(() => sortRows(filtered, sort, sortValue), [filtered, sort]);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   const onDelete = async (order) => {
     const ok = await confirm({
       title: 'Удалить заказ?',
@@ -140,6 +229,28 @@ export default function OrdersScreen() {
     if (ok) {
       const done = await deleteOrder(order.id);
       if (done) toast.success('Заказ удалён');
+    }
+  };
+
+  /**
+   * Пометка «тестовый». Через подтверждение: при выключенном показе заказ
+   * тут же исчезает из списка, и без предупреждения это читается как удаление.
+   */
+  const onToggleDemo = async (order) => {
+    if (order.is_demo) {
+      const done = await setOrderDemo(order.id, false);
+      if (done) toast.success('Заказ снова в рабочем списке');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Пометить заказ тестовым?',
+      message: `«${order.title}» пропадёт из списков, счётчиков цехов и уведомлений. `
+        + 'Заказ НЕ удаляется — его видно при включённом показе тестовых.',
+      confirmLabel: 'Пометить',
+    });
+    if (ok) {
+      const done = await setOrderDemo(order.id, true);
+      if (done) toast.success('Заказ помечен тестовым и скрыт из рабочих списков');
     }
   };
 
@@ -210,7 +321,7 @@ export default function OrdersScreen() {
           className={`${styles.input} ${styles.searchInput}`}
           placeholder="Поиск: название, № сделки, менеджер"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); setPage(1); }}
           aria-label="Поиск заказов"
         />
         <label className={styles.checkLabel}>
@@ -234,20 +345,28 @@ export default function OrdersScreen() {
           />
         </label>
         {(dateFrom || dateTo) && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => patchParams({ from: '', to: '' })}
-          >
+          <Button variant="ghost" onClick={() => patchParams({ from: '', to: '' })}>
             Сбросить даты
-          </button>
+          </Button>
+        )}
+        {/* Показ тестовых — только у admin/director: это отладочный режим,
+            и цеху он показал бы работу, которой нет. */}
+        {access.isPrivileged && (
+          <label className={styles.checkLabel} title="Тестовые заказы скрыты из всех списков и счётчиков">
+            <input
+              type="checkbox"
+              checked={showDemoOrders}
+              onChange={(e) => setShowDemoOrders(e.target.checked)}
+            />
+            Показывать тестовые
+          </label>
         )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         {canManageOrders && (
-          <button type="button" className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
             + Новый заказ
-          </button>
+          </Button>
         )}
       </div>
 
@@ -273,9 +392,9 @@ export default function OrdersScreen() {
         </div>
       )}
 
-      {filtered.length > 0 && isCompact && (
+      {pageRows.length > 0 && isCompact && (
         <div className={styles.orderCardList}>
-          {filtered.map((o) => (
+          {pageRows.map((o) => (
             <OrderCardMobile
               key={o.id}
               order={o}
@@ -283,28 +402,29 @@ export default function OrdersScreen() {
               onDelete={onDelete}
               canDelete={canDelete}
               onShip={onShip}
+              onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
             />
           ))}
         </div>
       )}
 
-      {filtered.length > 0 && !isCompact && (
+      {pageRows.length > 0 && !isCompact && (
         <ScrollHintBox className={styles.tableWrap} label="Список заказов">
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>№ сделки</th>
-                <th>Заказ</th>
-                <th>Менеджер</th>
-                <th>Кол-во</th>
-                <th>Создан</th>
-                <th>Срок клиента</th>
-                <th>Статус</th>
+                <SortableTh sortKey="bitrix" sort={sort} onSort={sortBy}>№ сделки</SortableTh>
+                <SortableTh sortKey="title" sort={sort} onSort={sortBy}>Заказ</SortableTh>
+                <SortableTh sortKey="manager" sort={sort} onSort={sortBy}>Менеджер</SortableTh>
+                <SortableTh sortKey="qty" sort={sort} onSort={sortBy}>Кол-во</SortableTh>
+                <SortableTh sortKey="created" sort={sort} onSort={sortBy}>Создан</SortableTh>
+                <SortableTh sortKey="due" sort={sort} onSort={sortBy}>Срок клиента</SortableTh>
+                <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
                 <th aria-label="Действия" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((o) => (
+              {pageRows.map((o) => (
                 <OrderRow
                   key={o.id}
                   order={o}
@@ -312,6 +432,7 @@ export default function OrdersScreen() {
                   onDelete={onDelete}
                   canDelete={canDelete}
                   onShip={onShip}
+                  onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
                 />
               ))}
             </tbody>
@@ -319,24 +440,33 @@ export default function OrdersScreen() {
         </ScrollHintBox>
       )}
 
+      {pageRows.length > 0 && (
+        <Pagination
+          page={safePage}
+          pageCount={pageCount}
+          total={sorted.length}
+          pageSize={pageSize}
+          onPage={setPage}
+          onPageSize={(n) => { setPageSize(n); setPage(1); }}
+        />
+      )}
+
       {/* Архив грузится страницами: явная кнопка вместо тихого лимита —
           видно, сколько уже загружено и есть ли ещё */}
       {tab === 'archive' && archiveLoaded && archiveHasMore && (
         <div className={styles.toolbar} style={{ justifyContent: 'center', marginTop: 12 }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={archiveLoading}
-            onClick={loadMoreArchive}
-          >
+          <Button variant="secondary" disabled={archiveLoading} onClick={loadMoreArchive}>
             {archiveLoading
               ? 'Загружаем…'
               : `Показать ещё (загружено ${inTab.length})`}
-          </button>
+          </Button>
         </div>
       )}
 
+      {/* Без fallback: модалка появляется по клику, и скелетон поверх экрана
+          мигал бы сильнее, чем задержка загрузки чанка на цеховом Wi-Fi. */}
       {showCreate && (
+        <Suspense fallback={null}>
         <CreateOrderModal
           onClose={() => {
             setShowCreate(false);
@@ -349,6 +479,7 @@ export default function OrdersScreen() {
             }
           }}
         />
+        </Suspense>
       )}
     </>
   );

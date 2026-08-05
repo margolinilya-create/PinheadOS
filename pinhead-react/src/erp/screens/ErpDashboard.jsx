@@ -11,10 +11,13 @@ import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { isStageReady, hasOpenProcurement, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
-import { isOrderReadyToShip } from '../utils/stageUi';
-import { daysLeft, isUrgent, isOverdue, formatDateShort } from '../utils/time';
+import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/stageUi';
+import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
+import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
+import { groupNotices, urgentCount } from '../utils/notifications';
 import styles from '../erp.module.css';
+import { dueLabel } from '../utils/format';
 
 /**
  * Обзор производства (редизайн, по макету): KPI-плитки, заказы в работе, загрузка цехов,
@@ -49,8 +52,10 @@ function currentStageName(order, deptById) {
 
 /** Статус заказа для бейджа */
 function orderStatus(order) {
+  // Готовность проверяется первой и в `isOrderOverdue` тоже: готовый заказ
+  // ждёт логистики, а не производства, и «Просрочено» на нём вводит в заблуждение.
   if (isOrderReadyToShip(order)) return { variant: 'ready', label: 'Готово' };
-  if (isOverdue(order.due_date)) return { variant: 'blocked', label: 'Просрочено' };
+  if (isOrderOverdue(order, daysLeft(order.due_date))) return { variant: 'blocked', label: 'Просрочено' };
   if (isUrgent(order.due_date)) return { variant: 'waiting', label: 'Срочно' };
   return { variant: 'progress', label: 'В работе' };
 }
@@ -90,20 +95,30 @@ export default function ErpDashboard() {
     );
     const burning = [];
     const notifications = [];
+    // Ступени просрочки: «47» одним числом не отвечает на вопрос «что делать»
+    const overdueByBucket = { none: 0, week: 0, month: 0, stale: 0 };
 
     for (const order of active) {
       const d = daysLeft(order.due_date);
-      if (isOverdue(order.due_date)) overdue += 1;
+      const lateDays = orderOverdueDays(order, d);
+      if (lateDays > 0) overdue += 1;
       else if (isUrgent(order.due_date)) dueSoon += 1;
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
       if (hasOpenProcurement(order.procurement_tasks)) {
-        notifications.push({ id: `p-${order.id}`, orderId: order.id, icon: 'bell', variant: 'warn',
+        notifications.push({ id: `p-${order.id}`, orderId: order.id, kind: 'procurement',
           text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
-      if (isOverdue(order.due_date)) {
-        notifications.push({ id: `o-${order.id}`, orderId: order.id, icon: 'alert', variant: 'danger',
-          text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title });
+      if (lateDays > 0) {
+        notifications.push({ id: `o-${order.id}`, orderId: order.id, kind: 'overdue',
+          text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title,
+          overdueDays: lateDays });
+        overdueByBucket[overdueBucket(lateDays)] += 1;
+      }
+      // Остановленный этап — единственное, что нельзя «подождать»: цех стоит
+      if (order.items.some((it) => it.stages.some((st) => st.status === 'blocked'))) {
+        notifications.push({ id: `b-${order.id}`, orderId: order.id, kind: 'blocked',
+          text: `Остановлен этап по заказу №${order.bitrix_id || '—'}`, sub: order.title });
       }
 
       for (const item of order.items) {
@@ -151,9 +166,15 @@ export default function ErpDashboard() {
       maxLoad,
       burning: burning.slice(0, 5),
       inWork,
-      notifications: notifications.slice(0, 6),
+      overdueByBucket,
+      // Группы, а не срез: срез показывал шесть случайных из сорока семи
+      // и молчал о том, что их сорок семь
+      noticeGroups: groupNotices(notifications),
     };
   }, [orders, departments]);
+
+  // Число для шапки виджета: сумма срочных групп, а не всех уведомлений
+  const urgent = urgentCount(data.noticeGroups);
 
   return (
     <>
@@ -202,6 +223,24 @@ export default function ErpDashboard() {
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Просрочено</span>
                 <span className={styles.kpiCardValue}>{data.overdue}</span>
+                {/* Разбивка по ступеням прямо на плитке: «47» одним числом
+                    не отвечает на вопрос «сколько из этого горит сегодня».
+                    На боевых данных 03.08.2026 это 6 / 39 / 2. */}
+                {data.overdue > 0 && (
+                  <span className={styles.kpiBreakdown}>
+                    {data.overdueByBucket.week > 0 && (
+                      <span className={styles.kpiBreakdownHot}>
+                        {OVERDUE_BUCKET_SHORT.week}: {data.overdueByBucket.week}
+                      </span>
+                    )}
+                    {data.overdueByBucket.month > 0 && (
+                      <span>{OVERDUE_BUCKET_SHORT.month}: {data.overdueByBucket.month}</span>
+                    )}
+                    {data.overdueByBucket.stale > 0 && (
+                      <span>{OVERDUE_BUCKET_SHORT.stale}: {data.overdueByBucket.stale}</span>
+                    )}
+                  </span>
+                )}
               </span>
             </Link>
             <Link to="/warehouse" className={styles.kpiCard}>
@@ -217,7 +256,7 @@ export default function ErpDashboard() {
           <div className={`${styles.dashRow} ${styles.dashRow3}`}>
             <div className={styles.widget}>
               <div className={styles.widgetHead}>
-                <span className={styles.widgetTitle}>Заказы в работе</span>
+                <h2 className={styles.widgetTitle}>Заказы в работе</h2>
                 <Link to="/orders" className={styles.widgetLink}>Смотреть все →</Link>
               </div>
               {data.inWork.length === 0 ? (
@@ -246,7 +285,7 @@ export default function ErpDashboard() {
             </div>
 
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Загрузка цехов</span></div>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Загрузка цехов</h2></div>
               {data.loadRows.length === 0 ? (
                 <div className={styles.emptyState}>Цеха свободны.</div>
               ) : (
@@ -263,13 +302,13 @@ export default function ErpDashboard() {
             </div>
 
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Ближайшие дедлайны</span></div>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Ближайшие дедлайны</h2></div>
               {data.burning.length === 0 ? (
                 <div className={styles.emptyState}>Горящих сроков нет.</div>
               ) : (
                 data.burning.map(({ order, days }) => {
                   const dt = order.due_date ? new Date(order.due_date) : null;
-                  const label = days < 0 ? `просрочен ${-days} дн.` : days === 0 ? 'сегодня' : days === 1 ? 'завтра' : `через ${days} дн.`;
+                  const label = dueLabel(days);
                   return (
                     <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
                       <span className={styles.deadlineDate}>
@@ -291,7 +330,7 @@ export default function ErpDashboard() {
           {/* Быстрые действия / Уведомления */}
           <div className={`${styles.dashRow} ${styles.dashRow2}`}>
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Быстрые действия</span></div>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Быстрые действия</h2></div>
               <div className={styles.quickGrid}>
                 {QUICK_ACTIONS.map((a) => (
                   <Link key={a.to} to={a.to} className={styles.quickAction}>
@@ -303,25 +342,55 @@ export default function ErpDashboard() {
             </div>
 
             <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
-              <div className={styles.widgetHead}><span className={styles.widgetTitle}>Уведомления</span></div>
-              {data.notifications.length === 0 ? (
+              <div className={styles.widgetHead}>
+                <h2 className={styles.widgetTitle}>Уведомления</h2>
+                {urgent > 0 && (
+                  <span className={styles.subText}>требуют действия сейчас: {urgent}</span>
+                )}
+              </div>
+              {data.noticeGroups.length === 0 ? (
                 <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
               ) : (
-                data.notifications.map((n) => (
-                  // Алерт без ссылки — тупик: пользователь читал «Просрочен заказ
-                  // №1042» и шёл искать его руками, хотя id лежит рядом
-                  <Link
-                    key={n.id}
-                    to={`/orders/${n.orderId}`}
-                    onClick={(e) => orderLinkClick(n.orderId, e)}
-                    className={styles.notifItem}
-                  >
-                    <Icon name={n.icon} size={16} />
-                    <span className={styles.notifText}>
-                      {n.text}
-                      <span className={styles.notifSub}> · {n.sub}</span>
-                    </span>
-                  </Link>
+                data.noticeGroups.map((g) => (
+                  /* Группа — <details>: сворачивание нативное, значит работает
+                     с клавиатуры и читается скринридером без единой строки JS.
+                     Срочные группы открыты (`open`), давняя просрочка свёрнута
+                     со счётчиком: она важна, но это не сегодняшняя работа. */
+                  <details key={g.key} className={styles.notifGroup} open={g.open}>
+                    <summary className={styles.notifSummary}>
+                      <span className={`${styles.notifDot} ${styles[`notifDot_${g.tone}`]}`} aria-hidden="true" />
+                      <Icon name={g.icon} size={15} />
+                      <span className={styles.notifGroupTitle}>{g.title}</span>
+                      <span className={styles.notifCount}>{g.items.length}</span>
+                    </summary>
+                    <p className={styles.notifHint}>{g.hint}</p>
+                    {g.items.slice(0, 8).map((n) => (
+                      // Алерт без ссылки — тупик: пользователь читал «Просрочен
+                      // заказ №1042» и шёл искать его руками, хотя id лежит рядом
+                      <Link
+                        key={n.id}
+                        to={`/orders/${n.orderId}`}
+                        onClick={(e) => orderLinkClick(n.orderId, e)}
+                        className={styles.notifItem}
+                      >
+                        <span className={styles.notifText}>
+                          {n.text}
+                          <span className={styles.notifSub}> · {n.sub}</span>
+                        </span>
+                        {n.overdueDays > 0 && (
+                          <Badge variant={g.tone === 'danger' ? 'blocked' : 'neutral'}>
+                            {n.overdueDays} дн.
+                          </Badge>
+                        )}
+                      </Link>
+                    ))}
+                    {g.items.length > 8 && (
+                      // Никаких тихих лимитов: сколько показано и сколько всего
+                      <Link to="/orders?filter=overdue" className={styles.notifMore}>
+                        Показаны 8 из {g.items.length} → все в списке заказов
+                      </Link>
+                    )}
+                  </details>
                 ))
               )}
             </div>

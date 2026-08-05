@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SUBCONTRACT_RECEIPT_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { Button } from '../../components/Button';
 
 /**
  * Задача склада «Приёмка продукции от подрядчика» (правка 4.2.1). Обязательная приёмка готового
@@ -53,9 +54,9 @@ export function SubcontractReceiptCard({ order, task, onAdvance }) {
               </label>
             ))}
           </div>
-          <button type="button" className="btn btn-primary" disabled={saving || !allChecked} onClick={confirm}>
+          <Button variant="primary" disabled={saving || !allChecked} onClick={confirm}>
             Подтвердить приёмку
-          </button>
+          </Button>
           {!allChecked && (
             <div className={styles.subText} style={{ marginTop: 4 }}>Отметьте все пункты проверки</div>
           )}

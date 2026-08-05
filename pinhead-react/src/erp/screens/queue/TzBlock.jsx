@@ -9,6 +9,7 @@ import {
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { Button } from '../../components/Button';
 
 /**
  * Полное ТЗ позиции: сетка, нанесения, упаковка, материалы.
@@ -32,15 +33,14 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
   return (
     <>
       {!hideToggle && (
-        <button
-          type="button"
-          className={`btn btn-secondary ${styles.tzToggle}`}
+        <Button
+          variant="secondary"
+          className={styles.tzToggle}
           aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
+          onClick={() => setOpen((v) => !v)}>
           <Icon name="orders" size={15} /> ТЗ позиции
           <Icon name="chevronDown" size={15} className={open ? styles.chevronUp : undefined} />
-        </button>
+        </Button>
       )}
 
       {expanded && (

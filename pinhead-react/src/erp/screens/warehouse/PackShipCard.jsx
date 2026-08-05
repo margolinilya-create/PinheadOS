@@ -2,6 +2,7 @@ import { formatDateShort } from '../../utils/time';
 import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
 import { PACK_SHIP_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
 import styles from '../../erp.module.css';
+import { Button } from '../../components/Button';
 
 /**
  * Задача склада «Упаковка и отгрузка»: авто-создаётся, когда все этапы заказа завершены.
@@ -41,15 +42,14 @@ export function PackShipCard({ order, task, onAdvance }) {
 
       {task.status !== 'shipped' && next && (
         <div className={styles.checkRow}>
-          <button
-            type="button"
-            className={isShipStep ? 'btn btn-primary' : 'btn btn-secondary'}
+          <Button
+            variant={isShipStep ? 'primary' : 'secondary'}
             disabled={isShipStep && !shipReady}
             title={isShipStep && !shipReady ? (blockReason ?? 'Заказ ещё не готов к отгрузке') : undefined}
             onClick={() => onAdvance(task.id, next)}
           >
             {NEXT_LABEL[task.status]}
-          </button>
+          </Button>
           {/* Кладовщику видна конкретная причина, а не просто отсутствие кнопки */}
           {isShipStep && !shipReady && (
             <span className={styles.subText}>{blockReason ?? 'Не все этапы/материалы готовы'}</span>
