@@ -61,6 +61,12 @@ returns boolean language sql stable security definer set search_path = public as
     else p_dept is not null and (select my_dept from me) = p_dept
   end;
 $$;
+-- Гранты по конвенции раздела: `CREATE FUNCTION` по умолчанию даёт EXECUTE роли
+-- PUBLIC, то есть и `anon`. Предикатные функции ERP от этого уже отвязаны
+-- (`erp_is_member`, `erp_has_permission`, `erp_role_of_caller`), новая идёт так же.
+-- Отзыв у самого `authenticated` невозможен: выражения RLS исполняются от лица
+-- вызывающего, и без EXECUTE сломался бы сам страж.
+revoke execute on function public.erp_can_act_in_dept(uuid) from public, anon;
 grant execute on function public.erp_can_act_in_dept(uuid) to authenticated;
 
 comment on function public.erp_can_act_in_dept(uuid) is
@@ -258,6 +264,7 @@ returns int language sql stable security definer set search_path = public as $$
     join public.erp_order_items i on i.id = s.item_id
    where s.id = p_stage_id;
 $$;
+revoke execute on function public.erp_stage_item_qty(uuid) from public, anon;
 grant execute on function public.erp_stage_item_qty(uuid) to authenticated;
 
 -- ── Частичная готовность: приращение считает сервер ──
@@ -303,6 +310,7 @@ begin
 
   return v_row;
 end $$;
+revoke execute on function public.erp_stage_report_progress(uuid, int) from public, anon;
 grant execute on function public.erp_stage_report_progress(uuid, int) to authenticated;
 
 comment on function public.erp_stage_report_progress(uuid, int) is
@@ -366,6 +374,7 @@ begin
     return next v_row;
   end loop;
 end $$;
+revoke execute on function public.erp_stage_apply_defect(jsonb) from public, anon;
 grant execute on function public.erp_stage_apply_defect(jsonb) to authenticated;
 
 comment on function public.erp_stage_apply_defect(jsonb) is
@@ -392,6 +401,7 @@ begin
      where s.id = (w->>'id')::uuid
     returning s.*;
 end $$;
+revoke execute on function public.erp_stage_reorder_queue(jsonb) from public, anon;
 grant execute on function public.erp_stage_reorder_queue(jsonb) to authenticated;
 
 comment on function public.erp_stage_reorder_queue(jsonb) is
@@ -476,6 +486,7 @@ begin
        and not (v_target.id = any (s.depends_on))
     returning s.*;
 end $$;
+revoke execute on function public.erp_stage_move_department(uuid, uuid, numeric) from public, anon;
 grant execute on function public.erp_stage_move_department(uuid, uuid, numeric) to authenticated;
 
 comment on function public.erp_stage_move_department(uuid, uuid, numeric) is

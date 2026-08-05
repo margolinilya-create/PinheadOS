@@ -9,20 +9,28 @@
 -- Даём ровно то, чего не хватало: удалить СВОЙ объект. `owner` заполняется
 -- Storage автоматически из JWT загружавшего, поэтому предикат не расширяет
 -- доступ ни на чьи чужие файлы — это уборка за собой, а не право удаления
--- вложений. Право удалять чужое остаётся у `is_admin()`, как и было.
+-- вложений. Удаление чужого остаётся у `is_admin()`.
 --
 -- Почему не «удалять только сирот»: строки в БД ещё нет, отличить сироту от
 -- привязанного файла политика не может. Владение — самая узкая граница,
 -- которую здесь вообще можно провести.
+--
+-- Обе ветви — в ОДНОЙ политике, а не двумя рядом. Правило раздела: политика
+-- пишется на команду. Две permissive-политики на один DELETE Postgres проверяет
+-- обе на каждую строку (advisor `multiple_permissive_policies`), а читателю
+-- приходится держать в голове их объединение.
 
+drop policy if exists "erp_att_delete" on storage.objects;
 drop policy if exists "erp_att_delete_own" on storage.objects;
-create policy "erp_att_delete_own" on storage.objects
+create policy "erp_att_delete" on storage.objects
   for delete to authenticated
   using (
     bucket_id = 'erp-attachments'
-    and owner = (select auth.uid())
-    and public.erp_is_member()
+    and (
+      public.is_admin()
+      or (owner = (select auth.uid()) and public.erp_is_member())
+    )
   );
 
-comment on policy "erp_att_delete_own" on storage.objects is
-  'Уборка за собой: автор загрузки может удалить свой объект. Нужна, чтобы неудачная привязка файла к заказу не оставляла сироту в бакете навсегда.';
+comment on policy "erp_att_delete" on storage.objects is
+  'Удаление вложений: администратор — любые, автор — свои. Вторая ветвь нужна, чтобы неудачная привязка файла к заказу не оставляла сироту в бакете навсегда.';
