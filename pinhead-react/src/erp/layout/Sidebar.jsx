@@ -1,6 +1,8 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import styles from '../erp.module.css';
+import { useErpAccess } from '../store/useErpAccess';
+import { canOpenScreen } from '../utils/screenAccess';
 
 /**
  * Вертикальная сгруппированная навигация ERP (редизайн, по макету).
@@ -37,10 +39,13 @@ const GROUPS = [
   {
     title: 'Операции',
     items: [
-      { to: '/purchasing', label: 'Закупка', icon: 'truck', admin: true },
-      { to: '/warehouse', label: 'Склад', icon: 'box', admin: true },
-      { to: '/subcontracting', label: 'Подряд', icon: 'users', admin: true },
-      { to: '/experimental', label: 'Эксперим. цех', icon: 'flask', admin: true },
+      // Видимость — по ПРАВУ (`utils/screenAccess`), общий список с маршрутами.
+      // `admin: true` здесь стоял до 10.08 и делал выданные права недостижимыми:
+      // кладовщик с `warehouse.manage` не видел «Склад» и не мог открыть адрес.
+      { to: '/purchasing', label: 'Закупка', icon: 'truck' },
+      { to: '/warehouse', label: 'Склад', icon: 'box' },
+      { to: '/subcontracting', label: 'Подряд', icon: 'users' },
+      { to: '/experimental', label: 'Эксперим. цех', icon: 'flask' },
     ],
   },
   {
@@ -81,6 +86,8 @@ export function Sidebar({
   isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse,
   open = false, onNavigate,
 }) {
+  // Тот же источник, что у маршрутов: пункт, ведущий в отказ, — хуже отсутствия
+  const { can } = useErpAccess();
   return (
     <aside
       className={[
@@ -99,7 +106,9 @@ export function Sidebar({
 
       <nav className={styles.sidebarNav}>
         {GROUPS.map((g) => {
-          const items = g.items.filter((n) => !n.admin || isAdmin);
+          const items = g.items.filter(
+            (n) => (!n.admin || isAdmin) && canOpenScreen(can, n.to),
+          );
           if (items.length === 0) return null;
           return (
             <div key={g.title}>

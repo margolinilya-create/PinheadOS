@@ -10,6 +10,8 @@ import { LoadFailed } from './components/ErpStates';
 import { Icon } from './components/Icon';
 import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import { FEATURES } from '../config/features';
+import { useErpAccess } from './store/useErpAccess';
+import { canOpenScreen } from './utils/screenAccess';
 import styles from './erp.module.css';
 
 // Тяжёлые экраны — отдельные чанки (п.30): первые экраны остаются статикой
@@ -59,7 +61,16 @@ function ErpGuard({ allowed, children }) {
 
 export default function ErpApp({ user }) {
   const { pathname } = useLocation();
+  // Админка остаётся за учётной записью: это настройка системы, а не работа
   const isAdmin = ['admin', 'director'].includes(user?.role);
+  /**
+   * Разделы «Операции» открываются ПРАВОМ, а не типом учётной записи.
+   * Иначе выданное право недостижимо: кладовщик с `warehouse.manage`
+   * не видел пункта «Склад» и не мог открыть адрес. Список — в screenAccess,
+   * один и тот же для маршрута и для меню.
+   */
+  const { can } = useErpAccess();
+  const canOpen = (path) => canOpenScreen(can, path);
 
   return (
     <ErpLayout user={user}>
@@ -88,10 +99,10 @@ export default function ErpApp({ user }) {
           <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
-          <Route path="/purchasing" element={<ErpGuard allowed={isAdmin}><FabricPurchasing /></ErpGuard>} />
-          <Route path="/warehouse" element={<ErpGuard allowed={isAdmin}><Warehouse /></ErpGuard>} />
-          <Route path="/subcontracting" element={<ErpGuard allowed={isAdmin}><Subcontracting /></ErpGuard>} />
-          <Route path="/experimental" element={<ErpGuard allowed={isAdmin}><Experimental /></ErpGuard>} />
+          <Route path="/purchasing" element={<ErpGuard allowed={canOpen('/purchasing')}><FabricPurchasing /></ErpGuard>} />
+          <Route path="/warehouse" element={<ErpGuard allowed={canOpen('/warehouse')}><Warehouse /></ErpGuard>} />
+          <Route path="/subcontracting" element={<ErpGuard allowed={canOpen('/subcontracting')}><Subcontracting /></ErpGuard>} />
+          <Route path="/experimental" element={<ErpGuard allowed={canOpen('/experimental')}><Experimental /></ErpGuard>} />
           {/* Инструмент разработки, не раздел ERP: в меню нет, по умолчанию выключен */}
           {FEATURES.styleguide && <Route path="/styleguide" element={<StyleGuide />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
