@@ -11,6 +11,10 @@ import { isStageReady, isStageAwaitingProcurement, materialsForItem } from '../u
 import { isBypassed, materialsAfterBypass } from '../utils/bypass';
 import { stageMissingTz } from '../utils/tz';
 import { stageOverdue } from '../utils/time';
+// Маленький чистый маппинг фаз. Правило «утилиты волны 3 не тянуть в оболочку»
+// касается тяжёлых модулей: копия этого switch здесь была бы вторым источником
+// правды ровно того рода, из-за которого фаза и разъехалась со статусом.
+import { isSubcontractTerminal, subcontractPhase } from '../utils/subcontractPhase';
 import type { ErpBypass, ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
 
@@ -305,10 +309,18 @@ export function openProcurementCount(orders: ErpOrderFull[]): number {
   return n;
 }
 
-/** Незакрытых операций подряда (у подрядчика: не возвращено/принято/отменено) — бейдж «Подряд» */
-export function openSubcontractCount(subcontracting: { status: string }[]): number {
-  const terminal = new Set(['received_at_pinhead', 'cancelled', 'returned']);
-  return subcontracting.filter((o) => !terminal.has(o.status)).length;
+/**
+ * Незакрытых операций подряда (вещь ещё у подрядчика) — бейдж «Подряд».
+ *
+ * Считается по ФАЗЕ: прежде здесь стоял устаревший `status`, который после
+ * волны 3.5 перестал быть тем, чем двигают операцию. Набор терминальных
+ * значений сохранён один в один (вернулось / принято / закрыто), поэтому
+ * число на бейдже не меняется — меняется колонка, из которой оно берётся.
+ */
+export function openSubcontractCount(
+  subcontracting: { phase?: string | null; status?: string | null }[],
+): number {
+  return subcontracting.filter((o) => !isSubcontractTerminal(subcontractPhase(o))).length;
 }
 
 /** Активных разработок в эксперим. цехе (фаза ≠ done) — бейдж «Эксперим. цех» */

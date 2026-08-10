@@ -13,6 +13,7 @@ import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
 import { currentActor, erpError, erpQuery } from '../shared';
+import { subcontractPhasePatch } from '../../utils/subcontractPhase';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 
 /** Тип складской операции для приёмки по статусу приёмки */
@@ -188,15 +189,22 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     const opType = OP_FOR_STATUS[status];
     if (opType) await get().logWarehouseOp(order.id, { op_type: opType });
 
-    // Приёмка готовой продукции от подрядчика принята (правка 4.2.1): переводим подрядную
-    // операцию в «Поступило на производство» — это заведёт задачу упаковки/отгрузки.
+    /**
+     * Приёмка готовой продукции от подрядчика принята (правка 4.2.1): переводим
+     * подрядную операцию в «Принято складом» — это заведёт задачу упаковки.
+     *
+     * Отбор идёт по ФАЗЕ. Прежде здесь стояло `.eq('status','shipped_by_contractor')`,
+     * и после переезда волны 3.5 на `phase` этот запрос находил бы строки по
+     * колонке, которую больше никто не двигает: приёмка склада молча переставала
+     * бы закрывать подряд.
+     */
     if (task.task_type === 'subcontract_receipt' && status === 'accepted') {
       const { data } = await erpQuery(() => supabase
         .from('erp_subcontracting')
         .select('*, order:erp_orders (title, bitrix_id)')
         .eq('order_id', order.id)
         .eq('op_type', 'finished_product')
-        .eq('status', 'shipped_by_contractor')
+        .eq('phase', 'returned')
         .limit(1));
       const op = data?.[0] as ErpSubcontractOp | undefined;
       if (op) {
@@ -206,7 +214,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
             ? s.subcontracting
             : [op, ...s.subcontracting],
         }));
-        await get().updateSubcontractOp(op.id, { status: 'received_at_pinhead' });
+        await get().updateSubcontractOp(op.id, subcontractPhasePatch('accepted'));
       }
     }
     return true;

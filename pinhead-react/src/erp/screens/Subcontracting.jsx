@@ -9,51 +9,53 @@ import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
 import { deptShortName, isProductionDept } from '../data/departments';
 import {
-  SUBCONTRACT_STATUS_LABELS,
+  SUBCONTRACT_PHASE_LABELS,
+  SUBCONTRACT_PAYMENT_LABELS,
   SUBCONTRACT_OP_TYPE_LABELS,
   SUBCONTRACT_MATERIAL_SOURCE_LABELS,
-  SUBCONTRACT_FINISHED_FLOW,
 } from '../types';
+import {
+  SUBCONTRACT_PHASE_FLOW,
+  nextSubcontractPhase,
+  subcontractPhase,
+  subcontractPhasePatch,
+} from '../utils/subcontractPhase';
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 
 /**
- * Подряд (правки 4.2.1/4.2.4): рабочая очередь операций у подрядчиков.
- * Компактная таблица; текущий статус и следующее действие — в РАЗНЫХ колонках (не сливаются).
- * Готовое изделие после «Отгружено подрядчиком» не идёт на производство напрямую — сначала
+ * Подряд (правки 4.2.1/4.2.4, волна 3.5): рабочая очередь операций у подрядчиков.
+ * Компактная таблица; текущая фаза и следующее действие — в РАЗНЫХ колонках (не сливаются).
+ * Готовое изделие после возврата не идёт на производство напрямую — сначала
  * обязательная приёмка складом (задача создаётся автоматически, см. subcontractingSlice).
+ *
+ * Операцию двигает ФАЗА (`utils/subcontractPhase`), а не устаревший `status`:
+ * до этой правки экран писал `awaiting_payment` — статус, который волна 3.5
+ * убрала из производственного потока, — а складской гейт читал `phase`,
+ * которую никто не продвигал. Оплата теперь отдельный признак и в переходах
+ * не участвует: неоплаченный подряд не должен останавливать цех.
  */
 
-const STATUS_CHIP = {
+const PHASE_CHIP = {
   planned: 'chipNeutral',
+  materials_ready: 'chipNeutral',
   sent: 'chipProgress',
-  in_progress: 'chipProgress',
+  at_contractor: 'chipProgress',
   returned: 'chipReady',
-  delayed: 'chipBlocked',
-  cancelled: 'chipSkipped',
-  awaiting_payment: 'chipNeutral',
-  awaiting_materials: 'chipNeutral',
-  started: 'chipProgress',
-  ready_to_ship: 'chipProgress',
-  shipped_by_contractor: 'chipProgress',
-  received_at_pinhead: 'chipReady',
+  accepted: 'chipReady',
+  closed: 'chipSkipped',
 };
 
 /**
- * Верхний нумерованный степпер-воронка готового изделия от подрядчика (редизайн PR6).
- * Шаги = 6 статусов SUBCONTRACT_FINISHED_FLOW; счётчик — сколько операций сейчас в этой фазе.
- * Приёмка складом (правка 4.2.1) — обязательный гейт между «Отгружено» и «На производстве».
+ * Верхняя воронка: сколько операций «готовое изделие» сейчас в каждой фазе.
+ * Шаги — те же семь фаз документа, что и в переходах: отдельный список шагов
+ * рядом с потоком означал бы восьмую фазу, которой нет в данных.
  */
-const FINISHED_STEPS = [
-  { key: 'awaiting_payment', label: 'Оплата' },
-  { key: 'awaiting_materials', label: 'Материалы' },
-  { key: 'started', label: 'В работе' },
-  { key: 'ready_to_ship', label: 'Готово' },
-  { key: 'shipped_by_contractor', label: 'Отгружено' },
-  { key: 'received_at_pinhead', label: 'На производстве' },
-];
+const FINISHED_STEPS = SUBCONTRACT_PHASE_FLOW.map((key) => ({
+  key, label: SUBCONTRACT_PHASE_LABELS[key],
+}));
 
 const EMPTY_OP = {
   order_id: '', operation: '', op_type: 'operation', material_source: 'pinhead',
@@ -79,11 +81,13 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       qty: form.qty ? Number(form.qty) : null,
       sent_date: form.sent_date || null,
       planned_date: form.planned_date || null,
-      // Готовое изделие стартует с первой фазы воронки, чтобы попадать в степпер (ERP-07);
-      // отдельная операция — planned/sent как раньше.
-      status: form.op_type === 'finished_product'
-        ? 'awaiting_payment'
-        : (form.sent_date ? 'sent' : 'planned'),
+      /**
+       * Стартовая фаза одна для обоих типов. Прежде готовое изделие стартовало
+       * с `awaiting_payment` — то есть первым производственным шагом была
+       * оплата, ровно то, что документ запретил. Указана дата передачи —
+       * значит уже передали.
+       */
+      ...subcontractPhasePatch(form.sent_date ? 'sent' : 'planned'),
     });
     setSaving(false);
     if (row) setForm(EMPTY_OP);
@@ -119,26 +123,28 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
   );
 }
 
-/** Колонка «Следующее действие»: разнесена с текущим статусом (правка 4.2.4) */
+/** Колонка «Следующее действие»: разнесена с текущей фазой (правка 4.2.4) */
 function NextAction({ op, onUpdate }) {
+  const phase = subcontractPhase(op);
+
   if (op.op_type === 'finished_product') {
-    // Готовое изделие: кнопочная стейт-машина, но после «Отгружено» — обязательная приёмка складом
-    if (op.status === 'shipped_by_contractor') {
+    // После возврата дальше двигает не подряд, а склад — своей приёмкой
+    if (phase === 'returned') {
       return <span className={styles.subText}>Ожидает приёмки складом</span>;
     }
-    if (op.status === 'received_at_pinhead') {
+    if (phase === 'accepted' || phase === 'closed') {
       return <span className={styles.subText}>На упаковку/отгрузку</span>;
     }
-    const idx = SUBCONTRACT_FINISHED_FLOW.indexOf(op.status);
-    const next = idx === -1 ? SUBCONTRACT_FINISHED_FLOW[0] : SUBCONTRACT_FINISHED_FLOW[idx + 1];
+    const next = nextSubcontractPhase(phase);
     return next ? (
-      <Button variant="secondary" onClick={() => onUpdate(op.id, { status: next })}>
-        → {SUBCONTRACT_STATUS_LABELS[next]}
+      <Button variant="secondary" onClick={() => onUpdate(op.id, subcontractPhasePatch(next))}>
+        → {SUBCONTRACT_PHASE_LABELS[next]}
       </Button>
     ) : <span className={styles.subText}>—</span>;
   }
-  // Отдельная операция: выбор статуса (returned запускает маршрут дальше в сторе)
-  if (op.status === 'returned') {
+
+  // Отдельная операция: возврат запускает маршрут дальше в сторе
+  if (phase === 'returned' || phase === 'accepted' || phase === 'closed') {
     return (
       <span className={styles.subText}>
         {op.return_dept ? `→ ${deptShortName(op.return_dept, op.return_dept)}` : '→ упаковка/отгрузка'}
@@ -148,13 +154,35 @@ function NextAction({ op, onUpdate }) {
   return (
     <select
       className={styles.select}
-      value={op.status}
-      onChange={(e) => onUpdate(op.id, { status: e.target.value })}
-      aria-label={`Изменить статус ${op.operation}`}
+      value={phase}
+      onChange={(e) => onUpdate(op.id, subcontractPhasePatch(e.target.value))}
+      aria-label={`Изменить фазу ${op.operation}`}
     >
-      {Object.entries(SUBCONTRACT_STATUS_LABELS)
-        .filter(([v]) => !SUBCONTRACT_FINISHED_FLOW.includes(v))
-        .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      {SUBCONTRACT_PHASE_FLOW.map((v) => (
+        <option key={v} value={v}>{SUBCONTRACT_PHASE_LABELS[v]}</option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Оплата — отдельный признак рядом с фазой, а НЕ шаг потока. Документ прямо
+ * требует, чтобы оплата не была первым производственным этапом: неоплаченный
+ * подряд не должен останавливать цех, поэтому переключатель ничего не блокирует
+ * и ни в один переход не входит.
+ */
+function PaymentPicker({ op, onUpdate }) {
+  return (
+    <select
+      className={`${styles.select} ${styles.inputXs}`}
+      value={op.payment_status || 'unpaid'}
+      onChange={(e) => onUpdate(op.id, { payment_status: e.target.value })}
+      aria-label={`Оплата ${op.operation}`}
+      style={{ marginTop: 4 }}
+    >
+      {Object.entries(SUBCONTRACT_PAYMENT_LABELS).map(([v, l]) => (
+        <option key={v} value={v}>{l}</option>
+      ))}
     </select>
   );
 }
@@ -205,7 +233,8 @@ export default function Subcontracting() {
     const counts = {};
     for (const op of subcontracting) {
       if (op.op_type !== 'finished_product') continue;
-      counts[op.status] = (counts[op.status] || 0) + 1;
+      const phase = subcontractPhase(op);
+      counts[phase] = (counts[phase] || 0) + 1;
     }
     return FINISHED_STEPS.map((s) => ({ ...s, count: counts[s.key] || 0 }));
   }, [subcontracting]);
@@ -247,13 +276,14 @@ export default function Subcontracting() {
             <thead>
               <tr>
                 <th>Заказ</th><th>Тип</th><th>Операция</th><th>Кол-во</th><th>Подрядчик</th>
-                <th>Сроки</th><th>Текущий статус</th><th>Следующее действие</th>
+                <th>Сроки</th><th>Фаза и оплата</th><th>Следующее действие</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((op) => {
-                const overdue = subcontractOverdue(op.planned_date, op.returned_date, op.status, today);
-                const delayed = overdue && op.status !== 'returned';
+                const phase = subcontractPhase(op);
+                const overdue = subcontractOverdue(op.planned_date, op.returned_date, phase, today);
+                const delayed = overdue && phase !== 'returned';
                 return (
                   <tr key={op.id}>
                     <td>
@@ -268,14 +298,15 @@ export default function Subcontracting() {
                         value={op.op_type}
                         onChange={(e) => {
                           const nextType = e.target.value;
-                          const inFinished = SUBCONTRACT_FINISHED_FLOW.includes(op.status);
+                          /**
+                           * Смена типа фазу НЕ сбрасывает: поток теперь один
+                           * на оба типа, и переставлять операцию в начало было
+                           * бы потерей факта. Прежде здесь стояло «готовое
+                           * изделие → awaiting_payment» — переключение типа
+                           * отправляло работу у подрядчика обратно на оплату.
+                           */
                           const patch = { op_type: nextType };
-                          if (nextType === 'finished_product') {
-                            patch.return_dept = null;
-                            if (!inFinished) patch.status = 'awaiting_payment';
-                          } else if (inFinished) {
-                            patch.status = 'planned';
-                          }
+                          if (nextType === 'finished_product') patch.return_dept = null;
                           updateSubcontractOp(op.id, patch);
                         }}
                         aria-label={`Тип операции ${op.operation}`}
@@ -306,7 +337,7 @@ export default function Subcontracting() {
                             value={op.returned_date || ''}
                             onChange={(v) => updateSubcontractOp(op.id, {
                               returned_date: v || null,
-                              status: v ? 'returned' : op.status,
+                              ...(v ? subcontractPhasePatch('returned') : {}),
                             })}
                             aria-label={`Дата возврата ${op.operation}`}
                             style={{ maxWidth: 130 }}
@@ -315,9 +346,10 @@ export default function Subcontracting() {
                       )}
                     </td>
                     <td>
-                      <span className={`${styles.chip} ${styles[delayed ? 'chipBlocked' : STATUS_CHIP[op.status]]}`}>
-                        {delayed ? 'Задержка' : SUBCONTRACT_STATUS_LABELS[op.status]}
+                      <span className={`${styles.chip} ${styles[delayed ? 'chipBlocked' : PHASE_CHIP[phase]]}`}>
+                        {delayed ? 'Задержка' : SUBCONTRACT_PHASE_LABELS[phase]}
                       </span>
+                      <PaymentPicker op={op} onUpdate={updateSubcontractOp} />
                       <input
                         className={styles.input}
                         placeholder="Комментарий задержки"

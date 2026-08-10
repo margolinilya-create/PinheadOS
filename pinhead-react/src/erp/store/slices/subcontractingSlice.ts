@@ -1,9 +1,19 @@
 /**
  * Слайс подряда: операции у внешних подрядчиков (ленивая загрузка по вкладке).
- * Правки 4.2.1/4.2.3 — переходы статусов оркестрируют склад и маршрут:
- *  - готовое изделие → «Отгружено подрядчиком»    ⇒ задача склада «Приёмка от подрядчика»;
- *  - готовое изделие → «Поступило на производство» ⇒ задача упаковки/отгрузки;
- *  - отдельная операция → «Возвращено»             ⇒ следующий участок (этап) либо упаковка/отгрузка.
+ *
+ * Переходы ведёт ФАЗА (`phase`), а не устаревший `status` — см.
+ * `utils/subcontractPhase`. До этой правки клиент двигал `status`, а складской
+ * гейт с волны 3.5 читал `phase`: колонка стояла с бэкфилла, и гейт проверял
+ * величину, которую никто не продвигает.
+ *
+ * Эффекты перехода:
+ *  - готовое изделие → «Вернулось»  ⇒ задача склада «Приёмка от подрядчика»;
+ *  - готовое изделие → «Принято»    ⇒ упаковка/отгрузка, но ТОЛЬКО у заказа
+ *    без производственных этапов (подряд «под ключ»): у остальных задачу
+ *    заводит триггер, и у него три предусловия, включая приёмку готовой
+ *    продукции складом. Создавать её отсюда во всех случаях значило бы
+ *    обходить собственный гейт;
+ *  - отдельная операция → «Вернулось» ⇒ следующий участок либо упаковка.
  * Кросс-сущностные эффекты держим в сторе (не в триггерах) — они покрыты юнит-тестами.
  */
 
@@ -12,6 +22,7 @@ import { supabase } from '../../../lib/supabase';
 import { currentActor, erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
+import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontractPhase';
 import type { ErpStore, SubcontractingSlice } from '../types';
 
 /** Создать/обеспечить задачу склада (идемпотентно по (order_id, task_type)) */
@@ -31,24 +42,42 @@ async function upsertWarehouseTask(
   return true;
 }
 
-/** Эффекты перехода статуса подрядной операции (правки 4.2.1/4.2.3) */
+/**
+ * Есть ли у заказа собственные производственные этапы.
+ *
+ * Подряд «под ключ» (материалы подрядчика) этапов не получает вовсе —
+ * `buildItemRoute` вырезает даже закупку. У такого заказа триггер склада
+ * не сработает никогда: он висит на движении этапов, а их нет. Значит
+ * упаковку заводит клиент. У остальных — наоборот: заводит триггер, потому
+ * что только он видит все три предусловия сразу.
+ */
+function hasProductionStages(get: () => ErpStore, orderId: string): boolean {
+  const order = get().orders.find((o) => o.id === orderId);
+  return (order?.items ?? []).some((it) => (it.stages ?? []).length > 0);
+}
+
+/** Эффекты перехода ФАЗЫ подрядной операции (правки 4.2.1/4.2.3, волна 3.5) */
 async function applySubcontractTransition(get: () => ErpStore, op: ErpSubcontractOp): Promise<void> {
-  // Готовое изделие: отгружено подрядчиком → обязательная приёмка складом (правка 4.2.1)
-  if (op.op_type === 'finished_product' && op.status === 'shipped_by_contractor') {
+  const phase = subcontractPhase(op);
+  // Готовое изделие вернулось от подрядчика → обязательная приёмка складом (правка 4.2.1)
+  if (op.op_type === 'finished_product' && phase === 'returned') {
     if (await upsertWarehouseTask(op.order_id, 'subcontract_receipt', 'awaiting_receipt')) {
       await get().loadOne(op.order_id);
     }
     return;
   }
-  // Готовое изделие принято складом → упаковка и отгрузка
-  if (op.op_type === 'finished_product' && op.status === 'received_at_pinhead') {
+  // Готовое изделие принято складом → упаковка и отгрузка.
+  // Только у заказа без своих этапов: иначе задачу заведёт триггер, у которого
+  // есть ещё два предусловия (все этапы закрыты, приёмка ГП принята).
+  if (op.op_type === 'finished_product' && phase === 'accepted') {
+    if (hasProductionStages(get, op.order_id)) return;
     if (await upsertWarehouseTask(op.order_id, 'pack_ship', 'awaiting_receipt')) {
       await get().loadOne(op.order_id);
     }
     return;
   }
   // Отдельная операция возвращена подрядчиком → дальнейший маршрут (правка 4.2.3)
-  if (op.op_type === 'operation' && op.status === 'returned') {
+  if (op.op_type === 'operation' && phase === 'returned') {
     if (op.return_dept) {
       // доработка внутри Pinhead → готовый к работе этап на выбранном участке
       const dept = get().departments.find((d) => d.code === op.return_dept);
@@ -105,7 +134,9 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   createSubcontractOp: async (op) => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_subcontracting')
-      .insert({ status: 'planned', ...op })
+      // Фаза — авторитетная колонка, `status` идёт зеркалом из неё же.
+      // Новая строка без явной фазы получила бы дефолт и осталась в нём навсегда.
+      .insert({ ...subcontractPhasePatch('planned'), ...op })
       .select('*, order:erp_orders (title, bitrix_id)'));
     const row = data?.[0] as ErpSubcontractOp | undefined;
     if (error || !row) {
@@ -161,8 +192,14 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
       toast.error('Не удалось обновить операцию подряда');
       return false;
     }
-    // Эффекты перехода статуса (правки 4.2.1/4.2.3) — только при реальной смене статуса
-    if (before && patch.status && patch.status !== before.status) {
+    /**
+     * Эффекты перехода — только при реальной смене ФАЗЫ. Прежде условие стояло
+     * на `patch.status`, и после переезда на `phase` не сработало бы ни разу:
+     * экран перестал бы двигать статус, а вместе с ним пропали бы и приёмка
+     * складом, и маршрут после возврата операции. Зеркало `status` в патче есть
+     * всегда, поэтому сравнивать надо именно фазы.
+     */
+    if (before && patch.phase && patch.phase !== before.phase) {
       await applySubcontractTransition(get, { ...before, ...patch } as ErpSubcontractOp);
     }
     return true;

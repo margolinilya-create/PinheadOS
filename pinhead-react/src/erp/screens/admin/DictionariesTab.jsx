@@ -11,7 +11,8 @@ import {
   PACK_SHIP_STATUS_LABELS,
   PROCUREMENT_STATUS_LABELS,
   STAGE_STATUS_LABELS,
-  SUBCONTRACT_STATUS_LABELS,
+  SUBCONTRACT_PHASE_LABELS,
+  SUBCONTRACT_PAYMENT_LABELS,
 } from '../../types';
 import { onTabListKeyDown } from '../../utils/tabs';
 import styles from '../../erp.module.css';
@@ -41,7 +42,10 @@ const STATUS_GROUPS = [
   { title: 'Материал', labels: MATERIAL_STATUS_LABELS },
   { title: 'Упаковка и отгрузка', labels: PACK_SHIP_STATUS_LABELS },
   { title: 'Задача закупки', labels: PROCUREMENT_STATUS_LABELS },
-  { title: 'Подряд', labels: SUBCONTRACT_STATUS_LABELS },
+  // Подряд ведётся ФАЗОЙ (волна 3.5). Устаревший список статусов показывать
+  // нельзя: админ читал бы значения, которые давно ничем не управляют.
+  { title: 'Подряд: фаза', labels: SUBCONTRACT_PHASE_LABELS },
+  { title: 'Подряд: оплата', labels: SUBCONTRACT_PAYMENT_LABELS },
 ];
 
 function DictionaryList({ kind }) {

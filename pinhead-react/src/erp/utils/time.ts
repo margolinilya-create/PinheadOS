@@ -105,12 +105,18 @@ export function procurementSla(
 export function subcontractOverdue(
   plannedDate: string | null | undefined,
   returnedDate: string | null | undefined,
-  status: string,
+  phase: string,
   today: string,
 ): boolean {
   if (!plannedDate || returnedDate) return false;
-  // Терминальные статусы (в т.ч. «Поступило на производство» для готового изделия) — не просрочка
-  if (status === 'returned' || status === 'cancelled' || status === 'received_at_pinhead') return false;
+  /**
+   * Терминальные фазы — не просрочка: вернувшаяся вещь подрядчика уже не
+   * задерживает, дальше вопрос к складу. Раньше здесь перечислялись значения
+   * устаревшего `status`; после волны 3.5 операцию двигает `phase`, и старый
+   * список молча перестал бы совпадать хоть с чем-нибудь — просрочка загорелась
+   * бы у всего принятого.
+   */
+  if (phase === 'returned' || phase === 'accepted' || phase === 'closed') return false;
   return plannedDate < today;
 }
 

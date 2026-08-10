@@ -122,10 +122,20 @@ describe('subcontractOverdue — просрочка операции подря�
     expect(subcontractOverdue('2026-07-15', null, 'sent', today)).toBe(true);
   });
 
-  it('возвращено или отменено → не просрочено', () => {
+  /**
+   * Терминальные ФАЗЫ (волна 3.5). Прежде здесь перечислялись значения
+   * устаревшего `status` — в том числе `cancelled`, которого в фазах нет:
+   * отменённая операция закрывается фазой `closed`.
+   */
+  it('вернулось, принято или закрыто → не просрочено', () => {
     expect(subcontractOverdue('2026-07-15', '2026-07-18', 'returned', today)).toBe(false);
     expect(subcontractOverdue('2026-07-15', null, 'returned', today)).toBe(false);
-    expect(subcontractOverdue('2026-07-15', null, 'cancelled', today)).toBe(false);
+    expect(subcontractOverdue('2026-07-15', null, 'accepted', today)).toBe(false);
+    expect(subcontractOverdue('2026-07-15', null, 'closed', today)).toBe(false);
+  });
+
+  it('у подрядчика и срок прошёл → просрочено', () => {
+    expect(subcontractOverdue('2026-07-15', null, 'at_contractor', today)).toBe(true);
   });
 
   it('план в будущем или пустой → не просрочено', () => {

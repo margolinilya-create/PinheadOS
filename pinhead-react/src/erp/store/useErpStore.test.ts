@@ -1946,12 +1946,14 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       orders: [{ id: 'o1', title: 'З', status: 'active', items: [], materials: [] }] as any,
       subcontracting: [{
         id: 's1', order_id: 'o1', operation: 'Худи', op_type: 'finished_product',
-        status: 'ready_to_ship', material_source: 'contractor', return_dept: null,
+        phase: 'at_contractor', material_source: 'contractor', return_dept: null,
       }] as any,
       subcontractingLoaded: true, departments: depts as any, loaded: true,
     });
     h.singleData = { id: 'o1', title: 'З', status: 'active', items: [], materials: [] };
-    await useErpStore.getState().updateSubcontractOp('s1', { status: 'shipped_by_contractor' });
+    // Переход ведёт ФАЗА: до волны 3.5 здесь стоял `status: 'shipped_by_contractor'`,
+    // и после переезда гейта на `phase` эффект не сработал бы ни разу.
+    await useErpStore.getState().updateSubcontractOp('s1', { phase: 'returned' });
     const wt = h.insertCalls.find((c) => c.table === 'erp_warehouse_tasks');
     expect((wt?.row as any)?.task_type).toBe('subcontract_receipt');
     expect((wt?.row as any)?.status).toBe('awaiting_receipt');
@@ -1971,16 +1973,52 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
     h.tableData = {
       erp_subcontracting: [{
         id: 's1', order_id: 'o1', operation: 'Худи', op_type: 'finished_product',
-        status: 'shipped_by_contractor', material_source: 'contractor', return_dept: null,
+        phase: 'returned', material_source: 'contractor', return_dept: null,
       }],
     };
     h.singleData = { id: 'o1', title: 'З', status: 'active', items: [], materials: [] };
     await useErpStore.getState().advanceWarehouseTask('wt1', 'accepted');
     const scUpd = h.updateCalls.find((c) => c.table === 'erp_subcontracting');
+    expect(scUpd?.patch.phase).toBe('accepted');
+    // Зеркало устаревшей колонки едет тем же патчем — ровно один писатель
     expect(scUpd?.patch.status).toBe('received_at_pinhead');
     const packShip = h.insertCalls.find(
       (c) => c.table === 'erp_warehouse_tasks' && (c.row as any).task_type === 'pack_ship');
     expect(packShip).toBeTruthy();
+  });
+
+  /**
+   * У заказа СО СВОИМИ этапами упаковку заводит триггер, а не клиент: у него
+   * три предусловия (все этапы закрыты, подряд принят, склад принял готовую
+   * продукцию). Создание задачи отсюда обходило бы собственный гейт приёмки ГП —
+   * упаковали бы то, чего никто не пересчитал.
+   *
+   * Подряд «под ключ» — обратный случай: этапов нет вовсе, триггер висит на их
+   * движении и не сработает никогда, поэтому там задачу заводит клиент (тест выше).
+   */
+  it('приёмка подряда у заказа с этапами НЕ создаёт упаковку — её заведёт триггер', async () => {
+    const task = {
+      id: 'wt1', order_id: 'o1', item_id: null, task_type: 'subcontract_receipt', status: 'awaiting_receipt',
+    };
+    const withStages = {
+      id: 'o1', title: 'З', status: 'active', materials: [],
+      items: [{ id: 'it1', order_id: 'o1', stages: [{ id: 'st1', status: 'done' }] }],
+    };
+    useErpStore.setState({
+      orders: [{ ...withStages, warehouse_ops: [], warehouse_tasks: [task] }] as any,
+      subcontracting: [], subcontractingLoaded: true, departments: depts as any, loaded: true,
+    });
+    h.tableData = {
+      erp_subcontracting: [{
+        id: 's1', order_id: 'o1', operation: 'Худи', op_type: 'finished_product',
+        phase: 'returned', material_source: 'contractor', return_dept: null,
+      }],
+    };
+    h.singleData = withStages;
+    await useErpStore.getState().advanceWarehouseTask('wt1', 'accepted');
+    const packShip = h.insertCalls.find(
+      (c) => c.table === 'erp_warehouse_tasks' && (c.row as any).task_type === 'pack_ship');
+    expect(packShip).toBeUndefined();
   });
 
   // 4.2.3 — маршрут после отдельной операции
@@ -1992,7 +2030,7 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       }] as any,
       subcontracting: [{
         id: 's1', order_id: 'o1', item_id: 'it1', operation: 'Печать', op_type: 'operation',
-        status: 'in_progress', material_source: 'pinhead', return_dept: 'sewing',
+        phase: 'at_contractor', material_source: 'pinhead', return_dept: 'sewing',
       }] as any,
       subcontractingLoaded: true, departments: depts as any, loaded: true,
     });
@@ -2000,7 +2038,7 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       id: 'o1', title: 'З', status: 'active',
       items: [{ id: 'it1', order_id: 'o1', stages: [] }], materials: [],
     };
-    await useErpStore.getState().updateSubcontractOp('s1', { status: 'returned' });
+    await useErpStore.getState().updateSubcontractOp('s1', { phase: 'returned' });
     const stage = h.insertCalls.find((c) => c.table === 'erp_item_stages');
     expect((stage?.row as any)?.department_id).toBe('d-sew');
     expect((stage?.row as any)?.status).toBe('ready');
@@ -2014,7 +2052,7 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       }] as any,
       subcontracting: [{
         id: 's1', order_id: 'o1', item_id: 'it1', operation: 'Стирка', op_type: 'operation',
-        status: 'in_progress', material_source: 'pinhead', return_dept: null,
+        phase: 'at_contractor', material_source: 'pinhead', return_dept: null,
       }] as any,
       subcontractingLoaded: true, departments: depts as any, loaded: true,
     });
@@ -2022,7 +2060,7 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       id: 'o1', title: 'З', status: 'active',
       items: [{ id: 'it1', order_id: 'o1', stages: [] }], materials: [],
     };
-    await useErpStore.getState().updateSubcontractOp('s1', { status: 'returned' });
+    await useErpStore.getState().updateSubcontractOp('s1', { phase: 'returned' });
     const packShip = h.insertCalls.find(
       (c) => c.table === 'erp_warehouse_tasks' && (c.row as any).task_type === 'pack_ship');
     expect(packShip).toBeTruthy();

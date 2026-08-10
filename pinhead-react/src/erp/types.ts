@@ -478,18 +478,22 @@ export interface ErpProcurementTask {
 
 // --- Подряд (операции, переданные внешним подрядчикам) -----------------------
 
+/**
+ * @deprecated Операцию подряда двигает `SubcontractPhase`, а не этот статус.
+ *
+ * Колонка `erp_subcontracting.status` осталась в схеме (`not null`) и пишется
+ * ЗЕРКАЛОМ из фазы — `utils/subcontractPhase.legacyStatusFromPhase`. Читать её
+ * не нужно нигде: значения вроде `awaiting_payment` волна 3.5 убрала из
+ * производственного потока, а `ready_to_ship`/`shipped_by_contractor` больше
+ * не выставляются как самостоятельные шаги. Тип держится ради типизации
+ * зеркала и снимется вместе с колонкой отдельной миграцией.
+ */
 export type SubcontractStatus =
   // отдельная операция
   | 'planned' | 'sent' | 'in_progress' | 'returned' | 'delayed' | 'cancelled'
   // готовое изделие от подрядчика (волна 4.2)
   | 'awaiting_payment' | 'awaiting_materials' | 'started'
   | 'ready_to_ship' | 'shipped_by_contractor' | 'received_at_pinhead';
-
-/** Жизненный цикл статусов «готового изделия» от подрядчика (для стейт-машины) */
-export const SUBCONTRACT_FINISHED_FLOW: SubcontractStatus[] = [
-  'awaiting_payment', 'awaiting_materials', 'started',
-  'ready_to_ship', 'shipped_by_contractor', 'received_at_pinhead',
-];
 
 /** Тип операции подряда: готовое изделие целиком или отдельная тех. операция */
 export type SubcontractOpType = 'finished_product' | 'operation';
@@ -753,6 +757,7 @@ export const PROCUREMENT_KIND_LABELS: Record<ProcurementTaskKind, string> = {
   restock: 'Дозакупка',
 };
 
+/** @deprecated Подписи устаревшего статуса — интерфейс показывает фазы (SUBCONTRACT_PHASE_LABELS) */
 export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
   planned: 'Запланировано',
   sent: 'Передано',
