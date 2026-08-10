@@ -17,6 +17,9 @@ import { functionBody, latestDefining, withoutComments } from './migrations.test
 const DERIVE = withoutComments(
   functionBody(latestDefining('erp_warehouse_task_derive'), 'erp_warehouse_task_derive'),
 );
+const FG_ACCEPTED = withoutComments(
+  functionBody(latestDefining('erp_warehouse_fg_accepted'), 'erp_warehouse_fg_accepted'),
+);
 
 describe('гейт складской упаковки', () => {
   it('смотрит на фазу подряда', () => {
@@ -36,5 +39,39 @@ describe('гейт складской упаковки', () => {
   it('приёмка материалов и маркировка остались на своих триггерах', () => {
     expect(DERIVE).toMatch(/v_code = 'supply' and new\.status = 'done'/);
     expect(DERIVE).toMatch(/v_code = 'sewing' and new\.status = 'in_progress'/);
+  });
+
+  /**
+   * Третье предусловие упаковки: склад ПРИНЯЛ готовую продукцию. Без него
+   * упаковывают то, чего никто не пересчитал, и недостача всплывает у клиента.
+   */
+  it('требует принятой приёмки готовой продукции', () => {
+    expect(DERIVE).toMatch(/t\.task_type = 'fg_receipt'[\s\S]{0,80}t\.status = 'accepted'/);
+  });
+});
+
+/**
+ * Закрытие приёмки ГП — СОБЫТИЕ, без которого упаковка не появилась бы никогда.
+ *
+ * Триггер `erp_warehouse_task_derive` срабатывает на смене статуса ЭТАПА.
+ * Но к моменту, когда склад принимает продукцию, все этапы уже закрыты —
+ * нового события от них не будет. Поэтому приёмка открывает упаковку сама,
+ * своим триггером на складских задачах. Убери его — и заказы будут копиться
+ * в «принято на склад» без единой задачи упаковки, и ничего не упадёт.
+ */
+describe('приёмка ГП открывает упаковку', () => {
+  it('срабатывает только на переходе fg_receipt в accepted', () => {
+    expect(FG_ACCEPTED).toMatch(/new\.task_type <> 'fg_receipt' or new\.status <> 'accepted'/);
+    // Повторное сохранение уже принятой задачи не должно ничего делать заново
+    expect(FG_ACCEPTED).toMatch(/old\.status = 'accepted'/);
+  });
+
+  it('повторяет те же предусловия, что и основной триггер', () => {
+    expect(FG_ACCEPTED).toMatch(/s\.status not in \('done','skipped'\)/);
+    expect(FG_ACCEPTED).toMatch(/sc\.phase not in \('accepted', 'closed'\)/);
+  });
+
+  it('создаёт упаковку идемпотентно', () => {
+    expect(FG_ACCEPTED).toMatch(/on conflict \(order_id, task_type\) do nothing/);
   });
 });
