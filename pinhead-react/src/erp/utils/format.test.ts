@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import {
+  weekdayName,
+  weekdayShort,
   percentLabel,
   dueLabel,
   dueLabelCompact,
@@ -137,5 +139,45 @@ describe('форматирование дат — короткая дата не
     expect(formatDateCell('')).toBe('—');
     expect(formatDateTimeShort('не дата')).toBe('—');
     expect(formatDayMonth(undefined)).toBe('');
+  });
+});
+
+/**
+ * День недели считается ИЗ ДАТЫ. На доске плана он брался по индексу колонки,
+ * поэтому первая колонка называлась «Понедельник» при любом числе — и когда
+ * расчёт недели уехал на двое суток, подписи уехали вместе с ним, а не выдали
+ * ошибку. Пояс — московский: в UTC разницы не видно (см. utils/date.test.ts).
+ */
+describe('день недели из даты', () => {
+  const REAL_TZ = process.env.TZ;
+  beforeAll(() => { process.env.TZ = 'Europe/Moscow'; });
+  afterAll(() => {
+    if (REAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = REAL_TZ;
+  });
+
+  it.each([
+    ['2026-08-10', 'Понедельник', 'пн'],
+    ['2026-08-11', 'Вторник', 'вт'],
+    ['2026-08-12', 'Среда', 'ср'],
+    ['2026-08-15', 'Суббота', 'сб'],
+    ['2026-08-16', 'Воскресенье', 'вс'],
+  ])('%s → %s / %s', (iso, full, short) => {
+    expect(weekdayName(iso)).toBe(full);
+    expect(weekdayShort(iso)).toBe(short);
+  });
+
+  it('08.08.2026 — суббота, а не понедельник', () => {
+    // Именно так была подписана первая колонка на скриншоте заказчика
+    expect(weekdayName('2026-08-08')).toBe('Суббота');
+  });
+
+  it('полный ISO с временем тоже разбирается', () => {
+    expect(weekdayName('2026-08-10T09:30:00')).toBe('Понедельник');
+  });
+
+  it('пусто → пустая строка, а не «undefined»', () => {
+    expect(weekdayName(null)).toBe('');
+    expect(weekdayShort(undefined)).toBe('');
   });
 });

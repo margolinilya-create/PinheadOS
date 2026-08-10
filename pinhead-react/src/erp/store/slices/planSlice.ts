@@ -17,7 +17,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { ErpCalendarSlot, ErpPlanComment } from '../../types';
 import { planStatusForFact } from '../../utils/planDay';
-import { localToday } from '../../utils/orderForm';
+import { localToday } from '../../../utils/date';
 import { currentActor, erpError, erpQuery, erpRead, withPending } from '../shared';
 import type { ErpStore, PlanSlice } from '../types';
 

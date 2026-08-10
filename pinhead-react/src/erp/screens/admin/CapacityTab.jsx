@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { Button } from '../../components/Button';
-import { localToday } from '../../utils/orderForm';
+import { localToday } from '../../../utils/date';
 import {
   dailyCapacity, monthCapacityReport, monthDates, monthLabel, workingDays,
 } from '../../utils/capacity';

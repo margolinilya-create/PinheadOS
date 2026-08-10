@@ -119,3 +119,39 @@ test.describe('План производства', () => {
     await expect(dialog.getByPlaceholder('заказ, клиент, изделие')).toHaveCount(0);
   });
 });
+
+/**
+ * Регресс со скриншота заказчика (10.08.2026): доска показывала неделю
+ * «08.08 — 12.08» и подписывала колонки «Понедельник 08.08 … Среда 10.08»,
+ * хотя 10 августа — понедельник.
+ *
+ * Прогон идёт В ПОЯСЕ ЗАКАЗЧИКА (UTC+3). В UTC ошибка не воспроизводится
+ * ВООБЩЕ — сдвиг равен нулю, — поэтому и на прод она приехала при зелёном CI.
+ * Проверяем через браузер, а не только утилитой: подпись дня раньше бралась
+ * по номеру колонки и с датой не спорила.
+ */
+test.describe('дата и день недели в поясе UTC+3', () => {
+  test.use({ timezoneId: 'Europe/Moscow' });
+
+  test('текущая неделя начинается с понедельника 10.08, а не с субботы', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-10T09:00:00+03:00'));
+    await page.goto('/plan?dept=cutting&studio=0');
+
+    // Заголовок периода: неделя 10.08 — 14.08, а не 08.08 — 12.08
+    await expect(page.getByText('10.08.2026 — 14.08.2026').first()).toBeVisible();
+
+    const first = page.locator('[class*="planDay"]').first();
+    await expect(first).toContainText('Понедельник');
+    await expect(first).toContainText('10.08.2026');
+  });
+
+  test('подпись дня следует за датой, а не за номером колонки', async ({ page }) => {
+    // Ссылка с чужой неделей: подпись обязана называть настоящий день
+    await page.clock.setFixedTime(new Date('2026-08-10T09:00:00+03:00'));
+    await page.goto('/plan?dept=cutting&week=2026-08-17&studio=0');
+
+    const first = page.locator('[class*="planDay"]').first();
+    await expect(first).toContainText('Понедельник');
+    await expect(first).toContainText('17.08.2026');
+  });
+});

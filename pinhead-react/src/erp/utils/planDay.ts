@@ -10,6 +10,7 @@
  * Плановая загрузка выражается в штуках.
  */
 
+import { addDays, mondayOfWeek } from '../../utils/date';
 import { percentOf } from './format';
 import { planCardState, planOverdue, planRemaining } from './planCard';
 import type { PlanSlotLike } from './planCard';
@@ -38,31 +39,28 @@ export function planStatusForFact(
   return planned > 0 && done >= planned ? 'done' : 'confirmed';
 }
 
-/** Неделя как список дат YYYY-MM-DD, начиная с понедельника */
+/**
+ * Неделя как список дат YYYY-MM-DD, начиная с понедельника.
+ *
+ * Даты складываются через `utils/date` — здесь стоял `toISOString().slice(0,10)`,
+ * и восточнее Гринвича он сдвигал КАЖДУЮ дату на сутки назад. Вместе с таким же
+ * сдвигом в `mondayOf` доска показывала неделю с субботы, а подписи дней
+ * («Понедельник», «Вторник»…) расставлялись по индексу и лгали заодно с датами.
+ */
 export function weekDates(mondayIso: string, days = 7): string[] {
   const out: string[] = [];
-  const base = new Date(`${mondayIso}T00:00:00`);
-  for (let i = 0; i < days; i += 1) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    out.push(d.toISOString().slice(0, 10));
-  }
+  for (let i = 0; i < days; i += 1) out.push(addDays(mondayIso, i));
   return out;
 }
 
 /** Понедельник недели, в которую попадает дата (локально, без UTC-сдвига) */
 export function mondayOf(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  const shift = (d.getDay() + 6) % 7; // вс=0 → 6
-  d.setDate(d.getDate() - shift);
-  return d.toISOString().slice(0, 10);
+  return mondayOfWeek(iso);
 }
 
 /** Сдвиг недели на N недель вперёд/назад */
 export function shiftWeek(mondayIso: string, weeks: number): string {
-  const d = new Date(`${mondayIso}T00:00:00`);
-  d.setDate(d.getDate() + weeks * 7);
-  return d.toISOString().slice(0, 10);
+  return addDays(mondayIso, weeks * 7);
 }
 
 export interface PlanSummary {

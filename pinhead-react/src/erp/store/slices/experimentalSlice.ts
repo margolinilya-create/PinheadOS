@@ -11,6 +11,7 @@ import { erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpExperimental, ErpExperimentalOp } from '../../types';
 import type { ErpStore, ExperimentalSlice } from '../types';
+import { localToday } from '../../../utils/date';
 
 const EXP_SELECT = '*, ops:erp_experimental_ops (*), order:erp_orders (title, bitrix_id)';
 
@@ -108,7 +109,7 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     const prev = get().experimental;
     const exp = prev.find((e) => (e.ops ?? []).some((o) => o.id === opId));
     if (!exp) return false;
-    const returned_at = new Date().toISOString().slice(0, 10);
+    const returned_at = localToday();
     // Операция возвращена + заказ авто-возвращается на «Проработку»
     set((s) => ({
       experimental: s.experimental.map((e) =>

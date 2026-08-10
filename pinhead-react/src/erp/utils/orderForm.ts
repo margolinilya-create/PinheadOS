@@ -7,6 +7,7 @@
  */
 
 import { storageGet, storageRemove, storageSet } from '../../lib/storage';
+import { localToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
@@ -102,13 +103,6 @@ export const EMPTY_ITEM: DraftItem = {
   prints: [],
   size_grid: null,
 };
-
-/** Сегодня в локальной таймзоне (YYYY-MM-DD) — дефолт даты запуска */
-export function localToday(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 
 export function emptyOrderForm(launchDate: string = localToday()): DraftForm {
   return {

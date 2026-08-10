@@ -28,6 +28,7 @@ import {
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
+import { localToday } from '../../utils/date';
 
 /**
  * Закупка (редизайн): плоская таблица закупочных строк по всем активным заказам
@@ -257,7 +258,7 @@ export default function FabricPurchasing() {
   const [optionsFor, setOptionsFor] = useState(null);
   const { sort, toggle: toggleSort } = useTableSort();
   const { sort: procSort, toggle: toggleProcSort } = useTableSort();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
 
   // Смена сортировки возвращает на первую страницу: иначе человек нажимает
   // «по сроку» и остаётся на пятой странице уже другого списка

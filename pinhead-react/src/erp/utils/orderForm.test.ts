@@ -11,13 +11,13 @@ import {
   isFormEmpty,
   isItemEmpty,
   loadOrderDraft,
-  localToday,
   saveOrderDraft,
   toggleSize,
   validateOrderForm,
   type DraftItem,
 } from './orderForm';
 import type { DraftGrid } from './orderForm';
+import { localToday } from '../../utils/date';
 
 function item(patch: Partial<DraftItem> = {}): DraftItem {
   return { ...EMPTY_ITEM, prints: [], size_grid: null, ...patch };

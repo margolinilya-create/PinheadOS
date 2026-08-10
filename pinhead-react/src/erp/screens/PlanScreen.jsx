@@ -11,7 +11,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { isProductionDept, deptShortName } from '../data/departments';
 import { onTabListKeyDown } from '../utils/tabs';
 import { formatDateShort } from '../utils/time';
-import { localToday } from '../utils/orderForm';
+import { localToday } from '../../utils/date';
 import { buildQueueEntries } from '../utils/queueEntries';
 import { remainingQty, unplannedEntries } from '../utils/planQueue';
 import {
@@ -23,7 +23,7 @@ import { PlanTaskCard } from './plan/PlanTaskCard';
 import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
 import styles from '../erp.module.css';
-import { percentLabel } from '../utils/format';
+import { percentLabel, weekdayName } from '../utils/format';
 import { Button } from '../components/Button';
 import { ProductionTabs } from '../components/ProductionTabs';
 
@@ -38,8 +38,6 @@ import { ProductionTabs } from '../components/ProductionTabs';
  * Неделя и цех живут в адресе: ссылкой на «швейка, неделя с 10-го» можно
  * поделиться, а возврат из карточки заказа восстанавливает подбор.
  */
-
-const DAY_NAMES = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
 export default function PlanScreen() {
   const {
@@ -287,7 +285,7 @@ export default function PlanScreen() {
                   onDrop={(e) => { e.preventDefault(); onDrop(date); }}
                 >
                   <header className={styles.planDayHead}>
-                    <b>{DAY_NAMES[i]}</b>
+                    <b>{weekdayName(date)}</b>
                     <span className={styles.subText}>{formatDateShort(date)}</span>
                   </header>
                   {/* Сводка дня до открытия карточек — требование 5.5 */}
@@ -326,7 +324,7 @@ export default function PlanScreen() {
                           <Button
                             variant="ghost"
                             disabled={i === 0}
-                            aria-label={`Перенести на ${DAY_NAMES[i - 1] || ''}`}
+                            aria-label={`Перенести на ${weekdayName(dates[i - 1])}`}
                             title="На день раньше"
                             onClick={() => movePlanSlot(slot.id, dates[i - 1])}>
                             <Icon name="chevronLeft" size={14} />
@@ -334,7 +332,7 @@ export default function PlanScreen() {
                           <Button
                             variant="ghost"
                             disabled={i === dates.length - 1}
-                            aria-label={`Перенести на ${DAY_NAMES[i + 1] || ''}`}
+                            aria-label={`Перенести на ${weekdayName(dates[i + 1])}`}
                             title="На день позже"
                             onClick={() => movePlanSlot(slot.id, dates[i + 1])}>
                             <Icon name="chevronRight" size={14} />

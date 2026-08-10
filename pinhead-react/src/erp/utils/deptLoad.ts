@@ -11,6 +11,7 @@
  * этапа: это день, к которому цех обязался закрыть работу.
  */
 
+import { addDays, mondayOfWeek } from '../../utils/date';
 import type { ErpDepartment } from '../types';
 import type { ErpOrderFull } from '../store/types';
 
@@ -45,24 +46,20 @@ export interface DeptLoad {
   maxCell: number;
 }
 
-/** N подряд идущих дат от startISO включительно */
+/**
+ * N подряд идущих дат от startISO включительно.
+ * Сложение дат — `utils/date`: `toISOString().slice(0,10)` считает дату в UTC
+ * и восточнее Гринвича отдавал вчерашнюю (та же поломка, что на доске плана).
+ */
 export function loadDays(startISO: string, count = 7): string[] {
   const out: string[] = [];
-  const start = new Date(`${startISO}T00:00:00`);
-  for (let i = 0; i < count; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    out.push(d.toISOString().slice(0, 10));
-  }
+  for (let i = 0; i < count; i++) out.push(addDays(startISO, i));
   return out;
 }
 
 /** Понедельник недели, в которую попадает дата */
 export function weekStart(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  const shift = (d.getDay() + 6) % 7; // 0=понедельник
-  d.setDate(d.getDate() - shift);
-  return d.toISOString().slice(0, 10);
+  return mondayOfWeek(iso);
 }
 
 const OPEN_STATUSES = new Set(['waiting', 'ready', 'in_progress', 'blocked']);

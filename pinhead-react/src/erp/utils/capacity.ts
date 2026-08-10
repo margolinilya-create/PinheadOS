@@ -17,6 +17,7 @@
  * «сколько работы мы набрали на этот месяц», а не «сколько выпустили».
  */
 
+import { isoDate, parseIsoDate, weekdayIndex } from '../../utils/date';
 import { percentUncapped } from './format';
 import type { ErpOrderFull } from '../store/types';
 
@@ -58,28 +59,24 @@ export function parseCapacitySettings(value: unknown): CapacitySettings {
 
 /** Рабочий ли день: понедельник = 1-й, воскресенье = 7-й */
 export function isWorkingDay(iso: string, perWeek: number): boolean {
-  const d = new Date(`${iso}T00:00:00`);
-  const index = (d.getDay() + 6) % 7; // пн=0 … вс=6
-  return index < perWeek;
+  return weekdayIndex(iso) < perWeek;
 }
 
 /** Границы месяца, в который попадает дата: [первое, последнее] */
 export function monthRange(iso: string): { from: string; to: string } {
-  const d = new Date(`${iso}T00:00:00`);
+  const d = parseIsoDate(iso);
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
   const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return { from: localIso(first), to: localIso(last) };
+  return { from: isoDate(first), to: isoDate(last) };
 }
 
 /** Даты месяца списком (локально, без UTC-сдвига) */
 export function monthDates(iso: string): string[] {
   const { from, to } = monthRange(iso);
   const out: string[] = [];
-  const cur = new Date(`${from}T00:00:00`);
-  const end = new Date(`${to}T00:00:00`);
-  while (cur <= end) {
-    out.push(localIso(cur));
-    cur.setDate(cur.getDate() + 1);
+  const end = parseIsoDate(to);
+  for (const cur = parseIsoDate(from); cur <= end; cur.setDate(cur.getDate() + 1)) {
+    out.push(isoDate(cur));
   }
   return out;
 }
@@ -197,8 +194,3 @@ export function monthLabel(iso: string): string {
   return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
 
-function localIso(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-}

@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import styles from './Dashboard.module.css';
 import { SkeletonTable } from '../shared/Skeleton';
+import { localToday } from '../../utils/date';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend);
 
@@ -101,7 +102,7 @@ function exportCSV(orders) {
   const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `pinhead-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.href = url; a.download = `pinhead-orders-${localToday()}.csv`;
   a.click(); URL.revokeObjectURL(url);
 }
 

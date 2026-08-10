@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import { buildDeptLoad, loadDays, weekStart } from './deptLoad';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -116,5 +116,23 @@ describe('buildDeptLoad', () => {
 
   it('пустые данные не роняют расчёт', () => {
     expect(buildDeptLoad([], DEPTS, DAYS, TODAY)).toEqual({ rows: [], maxCell: 0 });
+  });
+});
+
+/** Тот же регресс, что на доске плана: сетка загрузки начиналась с субботы */
+describe('неделя загрузки в поясе UTC+3', () => {
+  const REAL_TZ = process.env.TZ;
+  beforeAll(() => { process.env.TZ = 'Europe/Moscow'; });
+  afterAll(() => {
+    if (REAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = REAL_TZ;
+  });
+
+  it('weekStart понедельника — он сам', () => {
+    expect(weekStart('2026-08-10')).toBe('2026-08-10');
+  });
+
+  it('loadDays не сдвигает даты на сутки назад', () => {
+    expect(loadDays('2026-08-10', 3)).toEqual(['2026-08-10', '2026-08-11', '2026-08-12']);
   });
 });

@@ -16,6 +16,8 @@
  * в плотных строках и карточках. Оба обязаны пережить `null`.
  */
 
+import { weekdayIndex } from '../../utils/date';
+
 /** Порог «горящего» срока (дней) — тот же, что у `isUrgent` в time.ts */
 export const URGENT_DAYS = 3;
 
@@ -156,6 +158,32 @@ export function formatDayMonth(d: string | null | undefined): string {
   const dt = parseLocal(d);
   if (!dt) return '';
   return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+}
+
+const WEEKDAY_FULL = [
+  'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье',
+];
+const WEEKDAY_SHORT = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+
+/**
+ * День недели ПО САМОЙ ДАТЕ.
+ *
+ * На доске плана подписи расставлялись по индексу в неделе (`DAY_NAMES[i]`),
+ * то есть первая колонка называлась «Понедельник» независимо от того, какое
+ * там число. Когда расчёт понедельника уехал на двое суток, подписи уехали
+ * вместе с ним и спорить с датами не могли: 10 августа, настоящий понедельник,
+ * был подписан «Средой». Считать день недели из даты дешевле, чем сторожить
+ * это тестом, и заодно защищает от ссылки с произвольным `?week=`.
+ */
+export function weekdayName(d: string | null | undefined): string {
+  if (!d) return '';
+  return WEEKDAY_FULL[weekdayIndex(d.slice(0, 10))];
+}
+
+/** Он же коротко: «пн» — для плотной сетки загрузки цехов */
+export function weekdayShort(d: string | null | undefined): string {
+  if (!d) return '';
+  return WEEKDAY_SHORT[weekdayIndex(d.slice(0, 10))];
 }
 
 /** `YYYY-MM-DD` → локальная полночь; полный ISO — как есть; мусор → null */

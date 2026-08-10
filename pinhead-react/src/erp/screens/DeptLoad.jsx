@@ -10,6 +10,8 @@ import { useErpStore } from '../store/useErpStore';
 import { CapacityBar } from '../components/CapacityBar';
 import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
 import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
+import { weekdayShort } from '../utils/format';
+import { addDays, localToday, parseIsoDate } from '../../utils/date';
 import { deptShortName } from '../data/departments';
 import styles from '../erp.module.css';
 import { ProductionTabs } from '../components/ProductionTabs';
@@ -25,22 +27,8 @@ import { ProductionTabs } from '../components/ProductionTabs';
  * Только чтение: планы правятся в карточке заказа.
  */
 
-const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function dayLabel(iso) {
-  const d = new Date(`${iso}T00:00:00`);
-  return { dow: WEEKDAYS[(d.getDay() + 6) % 7], day: d.getDate() };
-}
-
-/** Сдвиг недели в днях от текущей */
-function shiftWeek(iso, weeks) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + weeks * 7);
-  return d.toISOString().slice(0, 10);
+  return { dow: weekdayShort(iso), day: parseIsoDate(iso).getDate() };
 }
 
 export default function DeptLoad() {
@@ -59,8 +47,8 @@ export default function DeptLoad() {
     })),
   );
 
-  const today = todayISO();
-  const [start, setStart] = useState(() => weekStart(todayISO()));
+  const today = localToday();
+  const [start, setStart] = useState(() => weekStart(localToday()));
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
@@ -90,7 +78,7 @@ export default function DeptLoad() {
 
   const isCurrentWeek = start === weekStart(today);
   const periodLabel = `${dayLabel(days[0]).day} — ${dayLabel(days[6]).day} ${
-    new Date(`${days[6]}T00:00:00`).toLocaleDateString('ru-RU', { month: 'long' })}`;
+    parseIsoDate(days[6]).toLocaleDateString('ru-RU', { month: 'long' })}`;
 
   return (
     <>
@@ -107,14 +95,14 @@ export default function DeptLoad() {
       />
 
       <div className={styles.toolbar}>
-        <Button variant="ghost" icon="chevronLeft" onClick={() => setStart((s) => shiftWeek(s, -1))}>
+        <Button variant="ghost" icon="chevronLeft" onClick={() => setStart((s) => addDays(s, -7))}>
           Неделя назад
         </Button>
         <span className={styles.loadPeriod}>
           {periodLabel}
           {isCurrentWeek && <span className={styles.subText}> · текущая</span>}
         </span>
-        <Button variant="ghost" onClick={() => setStart((s) => shiftWeek(s, 1))}>
+        <Button variant="ghost" onClick={() => setStart((s) => addDays(s, 7))}>
           Неделя вперёд
         </Button>
         {!isCurrentWeek && (

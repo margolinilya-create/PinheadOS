@@ -17,10 +17,10 @@ import {
   isFormEmpty,
   isItemEmpty,
   loadOrderDraft,
-  localToday,
   saveOrderDraft,
   validateOrderForm,
 } from '../../utils/orderForm';
+import { localToday } from '../../../utils/date';
 import { buildItemRoute } from '../../utils/routes';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';

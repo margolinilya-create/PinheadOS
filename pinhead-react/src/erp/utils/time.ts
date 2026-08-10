@@ -1,3 +1,5 @@
+import { addDays, localToday } from '../../utils/date';
+
 /** Дней до срока клиента: 0 = сегодня, отрицательное = просрочен, null = срока нет */
 export function daysLeft(dueDate: string | null | undefined, now: Date = new Date()): number | null {
   if (!dueDate) return null;
@@ -70,14 +72,18 @@ export function formatDateHuman(d: string | null | undefined): string {
 
 /**
  * ISO-дата (YYYY-MM-DD) со сдвигом на `days` от базы; база по умолчанию — сегодня.
- * Считаем в UTC-полдне: сдвиг летнего времени иначе может унести результат
- * на сутки назад в поясах с переходом.
+ *
+ * Раньше здесь считали в UTC-полдне, чтобы переход на летнее время не унёс
+ * результат на сутки. Приём был верный, но давал в проекте вторую арифметику
+ * дат и последний повод писать `toISOString().slice(0, 10)` — тот самый оборот,
+ * который сдвинул доску плана. `addDays` двигает КАЛЕНДАРНЫЕ поля, поэтому
+ * перевод часов ему безразличен: сверка по 10 800 парам «дата × сдвиг» в восьми
+ * поясах (включая переход в полночь — Сантьяго, Гавана, Чатем) даёт ноль
+ * расхождений со старой реализацией.
  */
 export function shiftIsoDate(base: string | null | undefined, days: number): string {
-  const from = base && base.length >= 10 ? base.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const [y, m, d] = from.split('-').map(Number);
-  const ms = Date.UTC(y, m - 1, d, 12) + days * 86400000;
-  return new Date(ms).toISOString().slice(0, 10);
+  const from = base && base.length >= 10 ? base.slice(0, 10) : localToday();
+  return addDays(from, days);
 }
 
 /**

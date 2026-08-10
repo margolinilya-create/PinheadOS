@@ -14,6 +14,7 @@ import type {
 } from '../../types';
 import { currentActor, erpError, erpQuery } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
+import { localToday } from '../../../utils/date';
 
 /** Тип складской операции для приёмки по статусу приёмки */
 function receiptOpType(acceptStatus: string): ErpWarehouseOp['op_type'] {
@@ -68,7 +69,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     const ok = await get().updateMaterial(materialId, {
       status: 'received',
       accept_status,
-      accepted_at: new Date().toISOString().slice(0, 10),
+      accepted_at: localToday(),
       accepted_by: currentActor(),
       accept_comment,
       fact_name,

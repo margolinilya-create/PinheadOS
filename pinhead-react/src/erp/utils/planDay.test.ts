@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import {
   deviations, groupByDay, mondayOf, planStatusForFact, shiftWeek, summarize, weekDates,
 } from './planDay';
@@ -154,5 +154,38 @@ describe('planStatusForFact — статус задачи дня по факту
     expect(planStatusForFact(100, 150, true)).toBe('confirmed');
     // …и обратно: план урезали до сделанного — день снова выполнен
     expect(planStatusForFact(100, 100, true)).toBe('done');
+  });
+});
+
+/**
+ * Регресс со скриншота заказчика (10.08.2026).
+ *
+ * Доска показывала «неделя 08.08 — 12.08», а колонки подписывала
+ * «Понедельник 08.08 … Среда 10.08» — притом что 10 августа и есть понедельник.
+ * Причина: `mondayOf` и `weekDates` брали дату через `toISOString()`, то есть
+ * в UTC, и каждая сдвигала результат на сутки назад. В UTC-контейнере CI сдвиг
+ * равен нулю и тесты были зелёными — поэтому проверяем В ПОЯСЕ ЗАКАЗЧИКА.
+ */
+describe('неделя в поясе UTC+3 (регресс 10.08.2026)', () => {
+  const REAL_TZ = process.env.TZ;
+  beforeAll(() => { process.env.TZ = 'Europe/Moscow'; });
+  afterAll(() => {
+    if (REAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = REAL_TZ;
+  });
+
+  it('понедельник не уезжает на субботу', () => {
+    expect(mondayOf('2026-08-10')).toBe('2026-08-10');
+  });
+
+  it('рабочая неделя начинается с понедельника, а не с 08.08', () => {
+    expect(weekDates('2026-08-10', 5)).toEqual([
+      '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14',
+    ]);
+  });
+
+  it('соседние недели считаются от той же даты', () => {
+    expect(shiftWeek('2026-08-10', 1)).toBe('2026-08-17');
+    expect(shiftWeek('2026-08-10', -1)).toBe('2026-08-03');
   });
 });

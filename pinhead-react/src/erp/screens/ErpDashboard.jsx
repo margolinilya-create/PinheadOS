@@ -18,7 +18,7 @@ import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
 import { groupNotices, urgentCount } from '../utils/notifications';
 import { CapacityBar } from '../components/CapacityBar';
 import { monthCapacityReport, monthLabel } from '../utils/capacity';
-import { localToday } from '../utils/orderForm';
+import { localToday } from '../../utils/date';
 import styles from '../erp.module.css';
 import { dueLabel } from '../utils/format';
 

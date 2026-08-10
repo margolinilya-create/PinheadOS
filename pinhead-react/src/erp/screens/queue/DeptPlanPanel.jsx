@@ -4,7 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { EmptyState, LoadFailed } from '../../components/ErpStates';
 import { KanbanSkeleton } from '../../components/ErpSkeletons';
 import { formatDateShort } from '../../utils/time';
-import { localToday } from '../../utils/orderForm';
+import { localToday } from '../../../utils/date';
 import { buildQueueEntries } from '../../utils/queueEntries';
 import { mondayOf, summarize, weekDates } from '../../utils/planDay';
 import { PlanTaskCard } from '../plan/PlanTaskCard';
