@@ -4,7 +4,7 @@ import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
 import { runAppResets } from './appReset';
 import { useOrdersStore } from './useOrdersStore';
-import { translateSupabaseError } from '../utils/i18n';
+import { networkFailureMessage, translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus } from '../types/auth';
 
 /**
@@ -184,26 +184,53 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     toast.error('Сессия истекла — войдите заново');
   },
 
+  /**
+   * Выход обязан завершить сессию ДАЖЕ когда сервер не ответил.
+   *
+   * `supabase.auth.signOut()` при сетевом сбое возвращает ошибку ДО того, как
+   * удалит сессию: токен остаётся в localStorage. Мы показывали тост, чистили
+   * свои сторы и рисовали форму входа — человек уверен, что вышел, а сессия
+   * жива. На общем цеховом планшете следующий работник жмёт F5, `init()`
+   * находит живой refresh-токен и получает полный доступ ПРЕДЫДУЩЕГО
+   * пользователя без пароля. Переживает и закрытие вкладки.
+   *
+   * `scope: 'local'` в сеть не ходит и удаляет сессию сразу — это и есть
+   * настоящий выход, когда до сервера не достучаться.
+   *
+   * Чистка и снятие флага — в `finally`. Если `signOut()` БРОСИТ, прежний код
+   * не чистил ничего и оставлял `signingOut = true` навсегда, а вместе с ним
+   * навсегда отключал `sessionLost()`: настоящая потеря сессии переставала
+   * сбрасывать сторы и предупреждать человека.
+   */
   logout: async () => {
     set({ signingOut: true });
-    const { error } = await supabase.auth.signOut();
-    if (error) toast.error(translateSupabaseError(error.message));
-    storageClearAll();
-    /**
-     * Сторы данных чистятся вместе с localStorage. Раньше чистился только он,
-     * а данные оставались в памяти вкладки: у ERP-стора флаги `loaded`/`myDeptLoaded`
-     * оставались `true`, и `ErpLayout` при следующем входе не делал ни одного запроса —
-     * на общем цеховом планшете следующий работник видел заказы предыдущего
-     * (выборку RLS уже от чужого имени), его цех и его бейджи.
-     */
-    runAppResets();
-    useOrdersStore.setState({
-      orders: [], loading: false, hasMore: true, loadingMore: false,
-      lastCreatedAt: null, filter: 'all', search: '',
-    });
-    set({
-      user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
-    });
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        await supabase.auth.signOut({ scope: 'local' });
+        toast.error(translateSupabaseError(error.message));
+      }
+    } catch (e) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      toast.error(networkFailureMessage(e));
+    } finally {
+      storageClearAll();
+      /**
+       * Сторы данных чистятся вместе с localStorage. Раньше чистился только он,
+       * а данные оставались в памяти вкладки: у ERP-стора флаги `loaded`/`myDeptLoaded`
+       * оставались `true`, и `ErpLayout` при следующем входе не делал ни одного запроса —
+       * на общем цеховом планшете следующий работник видел заказы предыдущего
+       * (выборку RLS уже от чужого имени), его цех и его бейджи.
+       */
+      runAppResets();
+      useOrdersStore.setState({
+        orders: [], loading: false, hasMore: true, loadingMore: false,
+        lastCreatedAt: null, filter: 'all', search: '',
+      });
+      set({
+        user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
+      });
+    }
   },
 
   clearError: () => set({ error: null }),

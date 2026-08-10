@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { supabase } from '../lib/supabase';
 
 // Mock supabase before importing the store
 vi.mock('../lib/supabase', () => ({
@@ -343,5 +344,55 @@ describe('useAuthStore — profileStatus', () => {
     await useAuthStore.getState().fetchProfile('uid-4', 'test@test.com');
     expect(useAuthStore.getState().profileStatus).toBe('no_profile');
     expect(useAuthStore.getState().user).toBeNull();
+  });
+});
+
+/**
+ * Выход при обрыве связи.
+ *
+ * `signOut()` на сетевом сбое возвращает ошибку ДО удаления сессии — токен
+ * остаётся в localStorage. Экран показывал форму входа, а сессия была жива:
+ * на общем цеховом планшете следующий работник жал F5 и получал полный доступ
+ * предыдущего пользователя без пароля.
+ */
+describe('logout завершает сессию даже без сети', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ user: { id: 'u1', email: 'a@b.c', role: 'admin' }, signingOut: false });
+  });
+
+  it('при ошибке сервера рвёт сессию локально', async () => {
+    const calls = [];
+    supabase.auth.signOut = vi.fn(async (opts) => {
+      calls.push(opts?.scope ?? 'global');
+      return calls.length === 1 ? { error: { message: 'Failed to fetch' } } : { error: null };
+    });
+    await useAuthStore.getState().logout();
+    expect(calls).toEqual(['global', 'local']);
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it('при БРОСКЕ тоже рвёт сессию и снимает флаг', async () => {
+    const calls = [];
+    supabase.auth.signOut = vi.fn(async (opts) => {
+      if (!opts) throw new Error('Failed to fetch');
+      calls.push(opts.scope);
+      return { error: null };
+    });
+    await useAuthStore.getState().logout();
+    expect(calls).toEqual(['local']);
+    expect(useAuthStore.getState().user).toBeNull();
+    // Флаг обязан сняться: иначе sessionLost() навсегда становится no-op
+    expect(useAuthStore.getState().signingOut).toBe(false);
+  });
+
+  it('успешный выход второй раз не зовёт', async () => {
+    const calls = [];
+    supabase.auth.signOut = vi.fn(async (opts) => {
+      calls.push(opts?.scope ?? 'global');
+      return { error: null };
+    });
+    await useAuthStore.getState().logout();
+    expect(calls).toEqual(['global']);
+    expect(useAuthStore.getState().signingOut).toBe(false);
   });
 });

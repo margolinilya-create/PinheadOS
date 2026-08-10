@@ -149,12 +149,12 @@ describe('страж этапов повторяет гейты интерфей
    * Перенос закрывает исходный этап, отсюда же `move`.
    */
   it('завершение этапа принимает progress и move, а не только complete', () => {
-    expect(STAGE_SQL).toMatch(/not \(v_complete or v_progress or v_move\)/);
+    expect(STAGE_SQL).toMatch(/not \(v_complete or v_progress or v_moving\)/);
   });
 
   it('возврат брака переоткрывает этапы, поэтому defect пускает в in_progress и waiting', () => {
-    expect(STAGE_SQL).toMatch(/not \(v_take or v_move or v_defect\)/);
-    expect(STAGE_SQL).toMatch(/not \(v_defect or v_move\)/);
+    expect(STAGE_SQL).toMatch(/not \(v_take or v_moving or v_defect\)/);
+    expect(STAGE_SQL).toMatch(/not \(v_defect or v_moving\)/);
   });
 
   it('блокировка и её снятие — одно право', () => {
@@ -198,7 +198,14 @@ describe('страж этапов повторяет гейты интерфей
    * закрывал этап чужого цеха через REST.
    */
   it('чужой цех трогать нельзя — кроме права переноса', () => {
-    expect(STAGE_SQL).toMatch(/not v_move and not public\.erp_can_act_in_dept\(old\.department_id\)/);
+    /**
+     * Пропуск теперь `v_moving` = право переноса И метка `erp.moving`, которую
+     * ставит только сам перенос. Раньше стояло голое `v_move`, и право работало
+     * сквозным пропуском: менеджер (ему перенос выдали 10.08, а take/progress/
+     * complete/defect — нет) закрывал прямым запросом любой этап любого цеха.
+     */
+    expect(STAGE_SQL).toMatch(/not v_moving and not public\.erp_can_act_in_dept\(old\.department_id\)/);
+    expect(STAGE_SQL).toMatch(/v_moving :=[\s\S]{0,80}erp\.moving[\s\S]{0,40}and v_move/);
     expect(STAGE_SQL).toMatch(/задание другого цеха изменить нельзя/);
   });
 
@@ -418,7 +425,7 @@ describe('пропуск этапа: клиент и сервер требуют
     // интерфейса — тот самый отказ, который страж обязан не порождать
     const body = functionBody(SKIP_SQL, 'erp_stage_guard');
     const branch = body.slice(body.indexOf("elsif new.status = 'skipped'"));
-    expect(branch).toMatch(/erp_has_permission\('order\.manage'\) or v_move/);
+    expect(branch).toMatch(/erp_has_permission\('order\.manage'\) or v_moving/);
   });
 
   it('кнопка в интерфейсе гейтится тем же правом', () => {
@@ -510,7 +517,7 @@ describe('порядок веток статуса в erp_stage_guard', () => {
   });
 
   it('пропуск этапа требует order.manage', () => {
-    expect(GUARD).toMatch(/erp_has_permission\('order\.manage'\) or v_move[\s\S]{0,120}пропуск этапа/);
+    expect(GUARD).toMatch(/erp_has_permission\('order\.manage'\) or v_moving[\s\S]{0,120}пропуск этапа/);
   });
 });
 
