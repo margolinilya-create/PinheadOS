@@ -63,6 +63,7 @@ const PAIRS: [string, string][] = [
   ['ErpCalendarSlot', 'erp_calendar_slots'],
   ['ErpTzDocument', 'erp_tz_documents'],
   ['ErpBypass', 'erp_bypasses'],
+  ['ErpStageReport', 'erp_stage_reports'],
 ];
 
 describe('ручные типы ERP не разошлись со схемой БД', () => {

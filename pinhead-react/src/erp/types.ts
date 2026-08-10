@@ -72,6 +72,48 @@ export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled
 
 // --- Строки таблиц ----------------------------------------------------------
 
+/** Куда попадает число поля: в колонку журнала или в свободный `extra` */
+export type ResultFieldTarget =
+  | 'qty_good' | 'qty_defect' | 'qty_rework' | 'qty_extra' | 'extra';
+
+/** Одно поле отчёта участка (схема живёт в `erp_departments.result_fields`) */
+export interface ResultField {
+  code: string;
+  label: string;
+  unit?: string | null;
+  required?: boolean;
+  target: ResultFieldTarget;
+}
+
+export const RESULT_FIELD_TARGET_LABELS: Record<ResultFieldTarget, string> = {
+  qty_good: 'Сделано (идёт в прогресс этапа)',
+  qty_defect: 'Брак',
+  qty_rework: 'В переделку',
+  qty_extra: 'Сверх тиража',
+  extra: 'Только в журнал',
+};
+
+/**
+ * Строка журнала результатов (`erp_stage_reports`). Append-only: цех сдаёт
+ * работу частями, и каждая сдача — своя строка. Итог живёт в счётчиках этапа.
+ */
+export interface ErpStageReport {
+  id: string;
+  stage_id: string | null;
+  warehouse_task_id: string | null;
+  /** Снимок входа: сколько цех видел принятым (считает `utils/stageInput`) */
+  qty_in: number | null;
+  qty_good: number;
+  qty_defect: number;
+  qty_rework: number;
+  qty_extra: number;
+  comment: string | null;
+  extra: Record<string, unknown>;
+  author: string | null;
+  author_id: string | null;
+  created_at: string;
+}
+
 export interface ErpDepartment {
   id: string;
   code: string;
@@ -89,6 +131,15 @@ export interface ErpDepartment {
    * Правится в админке — раньше набор был захардкожен, и новый цех не появлялся нигде.
    */
   is_production?: boolean;
+  /**
+   * Какие числа участок вносит по завершении работы (правки 10.08, P2).
+   *
+   * Набор полей у цехов РАЗНЫЙ, поэтому он берётся из данных, а не из кода:
+   * константа «у закроя такие-то поля» не дала бы участку, заведённому
+   * директором, никакого отчёта — ровно та же ошибка, что уже случилась
+   * с материальным гейтом. Пусто = отчёт не требуется (fail-open).
+   */
+  result_fields?: ResultField[] | null;
   /**
    * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
    * Пустой массив — участок материалами не гейтится. Правится в админке;

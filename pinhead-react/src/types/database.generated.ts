@@ -225,6 +225,7 @@ export type Database = {
           is_production: boolean
           name: string
           norm_days: number | null
+          result_fields: Json
           sort_order: number
           type: string
           updated_at: string
@@ -240,6 +241,7 @@ export type Database = {
           is_production?: boolean
           name: string
           norm_days?: number | null
+          result_fields?: Json
           sort_order?: number
           type: string
           updated_at?: string
@@ -255,6 +257,7 @@ export type Database = {
           is_production?: boolean
           name?: string
           norm_days?: number | null
+          result_fields?: Json
           sort_order?: number
           type?: string
           updated_at?: string
@@ -1276,6 +1279,69 @@ export type Database = {
           },
         ]
       }
+      erp_stage_reports: {
+        Row: {
+          author: string | null
+          author_id: string | null
+          comment: string | null
+          created_at: string
+          extra: Json
+          id: string
+          qty_defect: number
+          qty_extra: number
+          qty_good: number
+          qty_in: number | null
+          qty_rework: number
+          stage_id: string | null
+          warehouse_task_id: string | null
+        }
+        Insert: {
+          author?: string | null
+          author_id?: string | null
+          comment?: string | null
+          created_at?: string
+          extra?: Json
+          id?: string
+          qty_defect?: number
+          qty_extra?: number
+          qty_good?: number
+          qty_in?: number | null
+          qty_rework?: number
+          stage_id?: string | null
+          warehouse_task_id?: string | null
+        }
+        Update: {
+          author?: string | null
+          author_id?: string | null
+          comment?: string | null
+          created_at?: string
+          extra?: Json
+          id?: string
+          qty_defect?: number
+          qty_extra?: number
+          qty_good?: number
+          qty_in?: number | null
+          qty_rework?: number
+          stage_id?: string | null
+          warehouse_task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_stage_reports_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_reports_warehouse_task_id_fkey"
+            columns: ["warehouse_task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_warehouse_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_subcontracting: {
         Row: {
           contractor: string | null
@@ -1880,6 +1946,47 @@ export type Database = {
       }
       erp_stage_report_progress: {
         Args: { p_qty: number; p_stage_id: string }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          created_at: string
+          cycle: number
+          department_id: string
+          depends_on: string[]
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_stage_submit_report: {
+        Args: {
+          p_comment?: string
+          p_extra?: Json
+          p_qty_defect?: number
+          p_qty_extra?: number
+          p_qty_good: number
+          p_qty_in: number
+          p_qty_rework?: number
+          p_stage_id: string
+        }
         Returns: {
           assignee: string | null
           block_reason: string | null

@@ -14,6 +14,7 @@ import { TzBlock } from './TzBlock';
 import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
+import { StageReportForm } from '../../components/StageReportForm';
 
 /**
  * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
@@ -65,6 +66,20 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const normDays = useErpStore(
     useShallow((s) => s.departments.find((d) => d.id === stage.department_id)?.norm_days ?? null),
   );
+  /**
+   * Схема отчёта участка. Пусто — участок отчёта не требует, и остаётся прежнее
+   * поле «сколько сделано»: fail-open, потому что цех не должен остаться без
+   * способа сдать работу из-за незаполненной настройки.
+   */
+  const resultFields = useErpStore(
+    (s2) => s2.departments.find((d) => d.id === stage.department_id)?.result_fields ?? null,
+  );
+  const reportDept = useErpStore(
+    (s2) => s2.departments.find((d) => d.id === stage.department_id) ?? null,
+  );
+  const hasReportSchema = Array.isArray(resultFields) && resultFields.length > 0;
+  const submitStageReport = useErpStore((s2) => s2.submitStageReport);
+
   const blockReasons = useDictionary('block_reason');
   const problemTypes = useDictionary('problem_type');
 
@@ -94,6 +109,12 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
    * когда система дописывает несданное за цех.
    */
   const [doneQty, setDoneQty] = useState('');
+  /**
+   * Отчёт по схеме участка (правки 10.08, P2). Открывается вместо простого
+   * поля «сколько сделано», КОГДА у цеха задана схема полей: одно и то же
+   * действие «записать результат» — два вида подробности, а не две кнопки.
+   */
+  const [reportMode, setReportMode] = useState(false);
   const [blockMode, setBlockMode] = useState(false);
   const [blockText, setBlockText] = useState('');
   const [blockPhoto, setBlockPhoto] = useState(null);
@@ -185,7 +206,13 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           )}
           {group === 'in_progress' && (
             <>
-              {perms.progress && (
+              {perms.progress && (hasReportSchema ? (
+                !reportMode && (
+                  <Button variant="secondary" icon="plus" onClick={() => setReportMode(true)}>
+                    Записать результат
+                  </Button>
+                )
+              ) : (
                 <>
                   <input
                     type="number"
@@ -209,7 +236,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     Записать результат
                   </Button>
                 </>
-              )}
+              ))}
               {perms.complete && (
                 <Button variant="primary" disabled={busy} onClick={() => run(() => onDone(entry))}>
                   <Icon name="check" size={14} /> Завершить этап
@@ -277,6 +304,20 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             Отмена
           </Button>
         </div>
+      )}
+
+      {perms.progress && reportMode && (
+        <StageReportForm
+          entry={entry}
+          dept={reportDept}
+          busy={busy}
+          onCancel={() => setReportMode(false)}
+          onSubmit={(payload) => run(async () => {
+            const ok = await submitStageReport(stage.id, payload);
+            if (ok) setReportMode(false);
+            return ok;
+          })}
+        />
       )}
 
       {perms.block && blockMode && (

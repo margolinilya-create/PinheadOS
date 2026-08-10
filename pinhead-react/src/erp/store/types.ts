@@ -345,6 +345,20 @@ export interface StagesSlice {
    */
   reportProgress: (stageId: string, qty: number) => Promise<boolean>;
   /** Брак: пользователь выбирает этап устранения; при необходимости — задача закупки */
+  /**
+   * Отчёт цеха по схеме участка (правки 10.08, P2): журнал + приращение
+   * счётчиков одной транзакцией. `qtyIn` — снимок входа, считает
+   * `utils/stageInput` на клиенте (обход `depends_on` живёт там).
+   */
+  submitStageReport: (stageId: string, input: {
+    qtyIn?: number | null;
+    qtyGood?: number;
+    qtyDefect?: number;
+    qtyRework?: number;
+    qtyExtra?: number;
+    comment?: string | null;
+    extra?: Record<string, unknown>;
+  }) => Promise<boolean>;
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;

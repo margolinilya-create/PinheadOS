@@ -5,7 +5,9 @@ import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
 import { Icon } from '../components/Icon';
 import { toast } from '../../store/useToastStore';
-import { EMPLOYEE_ROLE_LABELS, MATERIAL_KIND_LABELS } from '../types';
+import {
+  EMPLOYEE_ROLE_LABELS, MATERIAL_KIND_LABELS, RESULT_FIELD_TARGET_LABELS,
+} from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
@@ -209,6 +211,7 @@ export default function DepartmentsScreen({ embedded = false }) {
             <tr>
               <th>Участок</th><th>Код</th><th>Порядок</th><th>Признаки</th>
               <th>Ждёт материалы</th>
+              <th>Отчёт участка</th>
               <th>Руководитель</th><th>Норматив, дн</th><th>Действие</th>
             </tr>
           </thead>
@@ -281,6 +284,16 @@ export default function DepartmentsScreen({ embedded = false }) {
                   )}
                 </td>
                 <td>
+                  {/*
+                    Какие числа участок вносит по завершении работы (правки 10.08).
+                    Схема живёт в данных ровно по той же причине, что материальный
+                    гейт слева: константа в коде не дала бы отчёта участку,
+                    заведённому здесь. Пусто — отчёт не требуется, и цех сдаёт
+                    работу прежним полем «сколько сделано».
+                  */}
+                  <ResultFieldsCell dept={d} onSave={(fields) => updateDepartment(d.id, { result_fields: fields })} />
+                </td>
+                <td>
                   <select
                     className={styles.select}
                     value={d.head_employee_id || ''}
@@ -323,5 +336,86 @@ export default function DepartmentsScreen({ embedded = false }) {
         </table>
       </ScrollHintBox>
     </>
+  );
+}
+
+/**
+ * Схема отчёта участка (правки заказчика 10.08, P2).
+ *
+ * Правится текстом, по строке на поле: `код | подпись | единица | назначение | *`.
+ * Формы с восемью инпутами на строку таблицы здесь быть не может — колонок и так
+ * восемь, — а JSON руками в проде набирают с опечатками, которые тихо ломают
+ * форму цеха. Текстовый формат читается глазами и проверяется при сохранении.
+ */
+function ResultFieldsCell({ dept, onSave }) {
+  const fields = Array.isArray(dept.result_fields) ? dept.result_fields : [];
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const [error, setError] = useState('');
+
+  const toText = (list) => list
+    .map((f) => [f.code, f.label, f.unit || '', f.target, f.required ? '*' : ''].join(' | '))
+    .join('\n');
+
+  const open = () => { setText(toText(fields)); setError(''); setEditing(true); };
+
+  const save = () => {
+    const parsed = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      const [code, label, unit, target, req] = line.split('|').map((p) => p.trim());
+      if (!code || !label || !target) {
+        setError(`Строка «${line}»: нужны код, подпись и назначение`);
+        return;
+      }
+      if (!RESULT_FIELD_TARGET_LABELS[target]) {
+        setError(`Назначение «${target}» неизвестно. Допустимые: ${Object.keys(RESULT_FIELD_TARGET_LABELS).join(', ')}`);
+        return;
+      }
+      parsed.push({ code, label, unit: unit || null, target, required: req === '*' });
+    }
+    onSave(parsed);
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <>
+        {fields.length === 0
+          ? <div className={styles.subText}>отчёт не требуется</div>
+          : (
+            <div className={styles.subText}>
+              {fields.map((f) => f.label + (f.required ? ' *' : '')).join(', ')}
+            </div>
+          )}
+        <Button variant="ghost" onClick={open} aria-label={`Настроить отчёт участка ${dept.name}`}>
+          Настроить
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <div className={styles.stack}>
+      <textarea
+        className={styles.input}
+        rows={Math.max(3, fields.length + 1)}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        aria-label={`Поля отчёта участка ${dept.name}`}
+        placeholder="cut | Скроено | шт | qty_good | *"
+      />
+      <span className={styles.queueReason}>
+        Формат строки: код | подпись | единица | назначение | * (обязательное).
+        Назначения: {Object.entries(RESULT_FIELD_TARGET_LABELS)
+          .map(([k, v]) => `${k} — ${v}`).join('; ')}.
+      </span>
+      {error && <span className={styles.overdue}>{error}</span>}
+      <div className={styles.queueActions}>
+        <Button variant="primary" onClick={save}>Сохранить</Button>
+        <Button variant="ghost" onClick={() => setEditing(false)}>Отмена</Button>
+      </div>
+    </div>
   );
 }

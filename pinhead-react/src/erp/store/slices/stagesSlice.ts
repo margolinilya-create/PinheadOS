@@ -132,6 +132,75 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return true;
   },
 
+  /**
+   * Отчёт цеха по схеме участка (правки заказчика 10.08, P2).
+   *
+   * Отличается от `reportProgress` не «богаче полями», а СМЫСЛОМ: там цех
+   * говорит «сделал ещё N», здесь — сдаёт результат целиком (сделано, брак,
+   * переделка, сверх тиража) одной записью, и она попадает в журнал
+   * `erp_stage_reports` вместе с приращением счётчиков. Одна транзакция:
+   * журнал без счётчика — цифры, которых не видит производство; счётчик без
+   * журнала — число без объяснения.
+   *
+   * Не optimistic: у отчёта есть серверные проверки, которых нет на клиенте
+   * (обязательный комментарий при отклонении — CHECK), и показать записанным
+   * то, что сервер отклонил, значит соврать цеху о сданной работе.
+   */
+  submitStageReport: async (stageId, input) => {
+    const prev = get().orders;
+    const found = findStage(prev, stageId);
+    if (!found) return false;
+    const { stage, item, order } = found;
+
+    const good = Math.max(input.qtyGood ?? 0, 0);
+    const defect = Math.max(input.qtyDefect ?? 0, 0);
+    const rework = Math.max(input.qtyRework ?? 0, 0);
+    const extraQty = Math.max(input.qtyExtra ?? 0, 0);
+    if (good + defect + rework + extraQty <= 0) {
+      toast.error('Внесите хотя бы одно число');
+      return false;
+    }
+    const comment = (input.comment ?? '').trim();
+    if ((defect > 0 || rework > 0) && !comment) {
+      toast.error('Отклонение нужно объяснить — заполните комментарий');
+      return false;
+    }
+
+    const { data, error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_submit_report', {
+        p_stage_id: stageId,
+        p_qty_in: input.qtyIn ?? null,
+        p_qty_good: good,
+        p_qty_defect: defect,
+        p_qty_rework: rework,
+        p_qty_extra: extraQty,
+        p_comment: comment || null,
+        p_extra: input.extra ?? {},
+      })));
+    if (error) {
+      erpError('Результат не записан', error);
+      return false;
+    }
+    const row = (data ?? null) as ErpItemStage | null;
+    if (row) set((s) => ({ orders: patchStageIn(s.orders, stageId, row) }));
+
+    const after = row?.qty_done ?? (stage.qty_done ?? 0) + good;
+    const credited = Math.max(after - (stage.qty_done ?? 0), 0);
+    if (credited < good) {
+      toast.warning(`Засчитано ${credited} шт из ${good} — этап добрал полный тираж (${item.qty})`);
+    }
+    logStageEvent({
+      stage_id: stageId,
+      order_id: order.id,
+      from_status: stage.status,
+      to_status: row?.status ?? stage.status,
+      qty_done: credited,
+      qty_rework: rework || null,
+      comment: comment || `Результат: ${after}/${item.qty}`,
+    });
+    return true;
+  },
+
   reportDefect: async (stageId, opts) => {
     const {
       qty, reason, target = 'current', needsMaterial = false,
