@@ -46,6 +46,15 @@ const latestDefining = (fn: string) =>
  * ОТСУТСТВИЕ чего-либо: комментарий, объясняющий, почему правила нет, содержит
  * те же слова, что и правило, и утверждение «этого в функции нет» ловило бы его.
  */
+/**
+ * SQL без строк-комментариев. Нужен там же, где `functionBody`, но для политик:
+ * у них нет тела в `$$`, а объяснение «почему ушли от прежнего предиката»
+ * содержит его имя и ловилось бы проверкой «этого правила здесь нет».
+ */
+function withoutComments(sql: string): string {
+  return sql.split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
+}
+
 function functionBody(sql: string, fn: string): string {
   const start = sql.indexOf(`create or replace function public.${fn}(`);
   if (start < 0) throw new Error(`нет тела ${fn}()`);
@@ -319,5 +328,69 @@ describe('принадлежность цеху: клиент и сервер о
     // `user.id === 'dev'` — локальный автологин, а не роль: на сервере его нет
     expect(canActInDept('production', 'd-sew', 'd-emb', true)).toBe(true);
     expect(functionBody(DEPT_SQL, 'erp_can_act_in_dept')).not.toMatch(/'dev'/);
+  });
+});
+
+/**
+ * ТЗ в PDF: гейт интерфейса и гейт сервера — про одно и то же право.
+ *
+ * До 10.08.2026 они расходились. Кнопка загрузки гейтилась правом `tz.manage`
+ * из матрицы, а политика на `erp_tz_documents` — отдельной функцией
+ * `erp_can_manage_tz()`, которая смотрела только `profiles.role` и про цеховые
+ * роли не знала. Диспетчер видел кнопку, файл улетал в бакет, строка падала
+ * с 42501, код убирал файл за собой и писал «Файл загружен, но не привязан
+ * к заказу» — то самое «кнопка есть, действие падает», которое правила проекта
+ * запрещают. Сторожим совпадение, а не текст сообщения.
+ */
+describe('ТЗ: сервер гейтит тем же правом, что интерфейс', () => {
+  const TZ_INSERT_SQL = latestMatching(
+    /create policy "erp_tz_documents_insert"/, 'политику erp_tz_documents_insert');
+  const TZ_UPDATE_SQL = latestMatching(
+    /create policy "erp_tz_documents_update"/, 'политику erp_tz_documents_update');
+
+  it('загрузка документа требует tz.manage', () => {
+    expect(TZ_INSERT_SQL).toMatch(/erp_has_permission\('tz\.manage'\)/);
+  });
+
+  it('замена версии требует того же права', () => {
+    expect(TZ_UPDATE_SQL).toMatch(/erp_has_permission\('tz\.manage'\)/);
+  });
+
+  it('право живёт в матрице, а не в отдельной функции по profiles.role', () => {
+    // Прежний предикат `erp_can_manage_tz()` перечислял роли профиля списком —
+    // второй источник правды рядом с матрицей.
+    //
+    // Сверяем ИСПОЛНЯЕМЫЙ SQL, а не файл целиком: комментарий миграции объясняет,
+    // от чего ушли, и содержит то же имя — по всему тексту утверждение
+    // «этого здесь нет» ловило бы объяснение вместо правила. Тот же урок, ради
+    // которого в этом файле живёт `functionBody`.
+    expect(withoutComments(TZ_INSERT_SQL)).not.toMatch(/erp_can_manage_tz\(\)/);
+    expect(withoutComments(TZ_UPDATE_SQL)).not.toMatch(/erp_can_manage_tz\(\)/);
+    expect(ERP_PERMISSIONS).toContain('tz.manage');
+  });
+
+  it('те, кто мог грузить ТЗ раньше, могут и теперь', () => {
+    // admin/director → director, rop → dispatcher, manager → manager
+    for (const role of ['director', 'dispatcher', 'manager'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).toContain('tz.manage');
+    }
+  });
+});
+
+/**
+ * Чтение бакета `erp-attachments` клиентом.
+ *
+ * SELECT-политики на `storage.objects` не было ни одной: публичная раздача идёт
+ * мимо RLS, поэтому отсутствие никто не замечал, а клиентские `upsert`, `remove`
+ * и `list` тихо вели себя не так, как ожидает код. Отсюда старый комментарий
+ * «удалять его клиенту политика не даёт» и сироты в бакете.
+ */
+describe('бакет вложений: клиент видит объекты', () => {
+  const ATT_READ_SQL = latestMatching(
+    /create policy "erp_att_read"/, 'политику erp_att_read');
+
+  it('чтение открыто участникам ERP', () => {
+    expect(ATT_READ_SQL).toMatch(/for select to authenticated/);
+    expect(ATT_READ_SQL).toMatch(/bucket_id = 'erp-attachments' and public\.erp_is_member\(\)/);
   });
 });

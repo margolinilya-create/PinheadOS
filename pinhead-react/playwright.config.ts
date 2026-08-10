@@ -7,7 +7,11 @@ export default defineConfig({
   snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}-{projectName}{ext}',
   webServer: {
     // Order Studio заархивирован за флагом; e2e-спеки визарда гоняем с включённым флагом.
-    command: 'VITE_FEATURE_ORDER_STUDIO=1 npm run dev',
+    // VITE_DEV_AUTOLOGIN=1 — прогон идёт против замоканного Supabase, настоящей сессии
+    // нет и быть не может. Автологин с 10.08.2026 включается только явно: раньше он
+    // срабатывал у любого, кто запустил `npm run dev`, и молча маскировал отсутствие
+    // сессии на боевой базе (см. комментарий в src/store/useAuthStore.ts).
+    command: 'VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
   },

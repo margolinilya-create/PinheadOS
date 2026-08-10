@@ -8,6 +8,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpRolePermission } from '../../types';
 import type { PermissionMatrix } from '../../utils/permissions';
@@ -18,9 +19,9 @@ export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> 
   permissionsLoaded: false,
 
   loadPermissions: async () => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_role_permissions')
-      .select('role, permission, allowed');
+      .select('role, permission, allowed'));
     if (error) {
       // Работаем на дефолтах — молча, чтобы не пугать цех на каждом заходе
       set({ permissionsLoaded: true });
@@ -43,9 +44,9 @@ export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> 
       },
     }));
     // Строка могла не существовать (право добавили кодом позже сида) — upsert по паре
-    const { error } = await supabase
+    const { error } = await erpQuery(() => supabase
       .from('erp_role_permissions')
-      .upsert({ role, permission, allowed }, { onConflict: 'role,permission' });
+      .upsert({ role, permission, allowed }, { onConflict: 'role,permission' }));
     if (error) {
       set({ permissionMatrix: prev });
       toast.error('Не удалось сохранить право');

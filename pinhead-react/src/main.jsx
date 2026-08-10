@@ -4,25 +4,37 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import { useStore } from './store/useStore'
-import { useAuthStore } from './store/useAuthStore'
+import { useAuthStore, watchAuthState } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
 import { FEATURES } from './config/features'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
+import { isNetworkFailure } from './utils/i18n'
 
 // Ошибки вне React (события, таймеры, промисы) до ErrorBoundary не доходят.
 // Тост остаётся пользователю, отчёт уходит наружу — если приёмник настроен.
 installGlobalErrorReporting();
 
-// Catch unhandled promise rejections globally
+/**
+ * Необработанные отклонения промисов.
+ *
+ * Сюда долетает всё, что не поймали на месте, — и человеку доставалось сырое
+ * `Load failed` (так WebKit называет несостоявшийся fetch) или `Failed to fetch`
+ * из Chromium. Это не сообщение, а внутренний текст браузера: он не говорит ни
+ * что случилось, ни что делать. Переводим причину словами; сам стек уходит
+ * в консоль и в отчёт, как и раньше.
+ */
 window.addEventListener('unhandledrejection', (event) => {
-  const msg = event.reason?.message || String(event.reason || 'Неизвестная ошибка');
   console.error('[unhandledrejection]', event.reason);
   reportError(event.reason, 'promise');
-  toast.error(msg);
+  toast.error(isNetworkFailure(event.reason)
+    ? 'Нет связи с сервером — часть данных не загрузилась'
+    : (event.reason?.message || 'Неизвестная ошибка'));
 });
 
-// Загружаем авторизацию сразу
+// Загружаем авторизацию сразу и следим за ней дальше: сессия может кончиться
+// в любой момент, и до этой подписки приложение узнавало об этом только отказами RLS.
 useAuthStore.getState().init().catch(() => {});
+watchAuthState();
 
 // Order Studio-специфичное: черновик и каталоги грузим только при включённом флаге
 if (FEATURES.orderStudio) {

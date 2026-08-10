@@ -12,7 +12,7 @@ import { toast } from '../../../store/useToastStore';
 import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
-import { currentActor } from '../shared';
+import { currentActor, erpQuery } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 
 /** Тип складской операции для приёмки по статусу приёмки */
@@ -85,7 +85,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
   },
 
   logWarehouseOp: async (orderId, op) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_warehouse_ops')
       .insert({
         order_id: orderId,
@@ -95,7 +95,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
         note: op.note ?? null,
         actor: currentActor(),
       })
-      .select();
+      .select());
     const row = data?.[0] as ErpWarehouseOp | undefined;
     if (error || !row) {
       toast.error('Не удалось записать складскую операцию');
@@ -130,7 +130,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       ...(extra?.note !== undefined ? { note: extra.note } : {}),
     };
     set((s) => ({ orders: patchTaskIn(s.orders, taskId, patch) }));
-    const { error } = await supabase.from('erp_warehouse_tasks').update(patch).eq('id', taskId);
+    const { error } = await erpQuery(() => supabase.from('erp_warehouse_tasks').update(patch).eq('id', taskId));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить задачу склада');
@@ -143,13 +143,13 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     // Приёмка готовой продукции от подрядчика принята (правка 4.2.1): переводим подрядную
     // операцию в «Поступило на производство» — это заведёт задачу упаковки/отгрузки.
     if (task.task_type === 'subcontract_receipt' && status === 'accepted') {
-      const { data } = await supabase
+      const { data } = await erpQuery(() => supabase
         .from('erp_subcontracting')
         .select('*, order:erp_orders (title, bitrix_id)')
         .eq('order_id', order.id)
         .eq('op_type', 'finished_product')
         .eq('status', 'shipped_by_contractor')
-        .limit(1);
+        .limit(1));
       const op = data?.[0] as ErpSubcontractOp | undefined;
       if (op) {
         // операция могла быть не загружена (вкладка подряда лениво) — вносим в стейт для optimistic

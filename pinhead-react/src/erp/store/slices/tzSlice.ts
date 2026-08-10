@@ -14,7 +14,7 @@ import { toast } from '../../../store/useToastStore';
 import { TZ_BUCKET, TZ_MAX_BYTES, TZ_MIME } from '../../types';
 import type { ErpTzDocument } from '../../types';
 import { documentHistory, tzFilePath } from '../../utils/tz';
-import { currentActor, logStageEvent, removeOrphanUpload } from '../shared';
+import { currentActor, erpError, erpQuery, logStageEvent, removeOrphanUpload } from '../shared';
 import type { ErpOrderFull, ErpStore, TzSlice } from '../types';
 
 /** Точечный патч массива документов заказа (остальные заказы сохраняют идентичность) */
@@ -38,11 +38,14 @@ function checkFile(file: File): string | null {
 
 /** Загрузка файла в бакет; возвращает путь или null (toast уже показан) */
 async function uploadFile(path: string, file: File): Promise<string | null> {
-  const { error } = await supabase.storage
+  const { error } = await erpQuery(() => supabase.storage
     .from(TZ_BUCKET)
-    .upload(path, file, { contentType: TZ_MIME, upsert: false });
+    .upload(path, file, { contentType: TZ_MIME, upsert: false }));
   if (error) {
-    toast.error('Не удалось загрузить файл ТЗ');
+    // Причина обязана быть названа: отказ прав, обрыв связи и слетевшая сессия
+    // требуют разных действий, а «Не удалось загрузить файл ТЗ» одинаково молчит
+    // про все три. Заказчик видел именно это — и рядом сырое «Load failed».
+    erpError('Не удалось загрузить файл ТЗ', error);
     return null;
   }
   return path;
@@ -59,7 +62,7 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
     const path = await uploadFile(tzFilePath(orderId, groupId, 1, file.name), file);
     if (!path) return null;
 
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_tz_documents')
       .insert({
         order_id: orderId,
@@ -74,12 +77,12 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
         note,
         uploaded_by: currentActor(),
       })
-      .select();
+      .select());
     const row = data?.[0] as ErpTzDocument | undefined;
     if (error || !row) {
       // Убираем за собой: строки в БД нет, файл никому не нужен и не найдётся
       await removeOrphanUpload(TZ_BUCKET, path);
-      toast.error('Файл загружен, но не привязан к заказу');
+      erpError('Файл загружен, но не привязан к заказу', error);
       return null;
     }
     set((s) => ({
@@ -123,17 +126,17 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
      * если вставка не удалась, поэтому флаг возвращаем прежней версии — иначе цех
      * увидит «ТЗ не назначено» на ровном месте.
      */
-    const { error: clearError } = await supabase
+    const { error: clearError } = await erpQuery(() => supabase
       .from('erp_tz_documents')
       .update({ is_current: false })
       .eq('group_id', groupId)
-      .eq('is_current', true);
+      .eq('is_current', true));
     if (clearError) {
-      toast.error('Не удалось подготовить замену ТЗ — версия не создана');
+      erpError('Не удалось подготовить замену ТЗ — версия не создана', clearError);
       return null;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_tz_documents')
       .insert({
         order_id: order.id,
@@ -148,17 +151,17 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
         note,
         uploaded_by: currentActor(),
       })
-      .select();
+      .select());
     const row = data?.[0] as ErpTzDocument | undefined;
     if (error || !row) {
       // Компенсация: флаг уже снят, а новой версии нет — группа осталась бы без
       // актуального ТЗ, и гейт остановил бы цеха на документе, который никуда не делся.
-      await supabase
+      await erpQuery(() => supabase
         .from('erp_tz_documents')
         .update({ is_current: true })
-        .eq('id', prev.id);
+        .eq('id', prev.id));
       await removeOrphanUpload(TZ_BUCKET, path);
-      toast.error('Файл загружен, но новая версия ТЗ не создана');
+      erpError('Файл загружен, но новая версия ТЗ не создана', error);
       return null;
     }
 
@@ -202,13 +205,13 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
     set((s) => ({
       orders: patchOrder(s.orders, orderId, (o) => ({ ...o, tz_required: required })),
     }));
-    const { error } = await supabase
+    const { error } = await erpQuery(() => supabase
       .from('erp_orders')
       .update({ tz_required: required })
-      .eq('id', orderId);
+      .eq('id', orderId));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось изменить требование ТЗ');
+      erpError('Не удалось изменить требование ТЗ', error);
       return false;
     }
     return true;

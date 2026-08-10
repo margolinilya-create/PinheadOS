@@ -7,7 +7,7 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { translateSupabaseError } from '../../utils/i18n';
+import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
 import type { ErpStageEvent } from '../types';
 
 /** Имя действующего пользователя для аудита */
@@ -15,6 +15,65 @@ export function currentActor(): string {
   const u = useAuthStore.getState().user;
   return u?.name || u?.email || 'неизвестно';
 }
+
+/** Ответ, который вернёт `erpQuery` — тот же вид, что у supabase-js */
+type ErpResult<T> = { data: T | null; error: { message: string } | null };
+
+/**
+ * Сбой ДО ответа сервера читается как обычная ошибка ответа.
+ *
+ * `supabase-js` возвращает `error`, когда сервер ответил, и БРОСАЕТ, когда ответа
+ * не было: нет сети, оборвалось соединение, CORS, клиент не настроен. Проверять
+ * только `error` недостаточно, и в сторе это было соблюдено ровно в трёх функциях
+ * из шестидесяти. Последствия у каждого экрана свои и одинаково тупиковые:
+ * `loadAll` оставляет `loading = true` и `loadError = false` навсегда — а эти
+ * флаги общие для десяти экранов, и все они показывают вечный скелетон без
+ * кнопки «Повторить»; действие цеха теряет и сообщение, и снятие busy-флага;
+ * необработанное отклонение промиса всплывает глобальным обработчиком сырым
+ * «Load failed» из WebKit.
+ *
+ * Обёртка ничего не решает за вызывающего: она превращает бросок в такой же
+ * `{ data: null, error }`, какой пришёл бы от сервера, и дальше работает уже
+ * написанная ветка `if (error) …` — с `erpError`, откатом и снятием флагов.
+ */
+export async function erpQuery<T>(
+  run: () => PromiseLike<{ data: T; error: { message: string } | null }>,
+): Promise<ErpResult<T>> {
+  try {
+    return await run();
+  } catch (e) {
+    return { data: null, error: { message: networkFailureMessage(e) } };
+  }
+}
+
+/** Пауза перед повтором чтения, оборвавшегося на сети */
+export const READ_RETRY_MS = 800;
+
+/**
+ * То же, что `erpQuery`, но с ОДНИМ повтором — и только для ЧТЕНИЯ.
+ *
+ * Заказчик просил «корректный retry для временных сбоев»: цеховой Wi-Fi роняет
+ * запрос на секунду, и человек получает пустой экран там, где данные есть.
+ *
+ * Два ограничения, без которых повтор вреден:
+ *   · повторяется только сбой СЕТИ. Ответ сервера (отказ прав, конфликт) — это
+ *     решение, а не помеха: повторять его значит скрывать причину и тратить время;
+ *   · повторяется только чтение. Повторить запись — это второй заказ, вторая
+ *     приёмка, второе списание брака. Мутации остаются на `erpQuery`.
+ */
+export async function erpRead<T>(
+  run: () => PromiseLike<{ data: T; error: { message: string } | null }>,
+): Promise<ErpResult<T>> {
+  const first = await erpQuery(run);
+  const networkFailure = first.error && first.error.message === 'нет связи с сервером';
+  if (!networkFailure) return first;
+  await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
+  return erpQuery(run);
+}
+
+// Текст сбоя без ответа сервера живёт в `utils/i18n` — рядом с остальным переводом
+// технических сообщений на человеческий, и доступен вне ERP (глобальный обработчик).
+export { networkFailureMessage } from '../../utils/i18n';
 
 /**
  * Ошибка действия цеха: что не вышло + ПОЧЕМУ.

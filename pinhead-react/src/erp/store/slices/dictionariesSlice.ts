@@ -8,6 +8,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDictionaryItem } from '../../types';
 import type { DictionariesSlice, ErpStore } from '../types';
@@ -38,11 +39,11 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
   dictionariesLoaded: false,
 
   loadDictionaries: async () => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_dictionaries')
       .select('*')
       .order('kind')
-      .order('sort_order');
+      .order('sort_order'));
     if (error) {
       // Справочники — подсказки, а не гейт: без них экраны работают на свободном вводе
       set({ dictionariesLoaded: true });
@@ -71,7 +72,7 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
       name: clean,
       sort_order: existing.reduce((max, d) => Math.max(max, d.sort_order), 0) + 10,
     };
-    const { data, error } = await supabase.from('erp_dictionaries').insert(row).select();
+    const { data, error } = await erpQuery(() => supabase.from('erp_dictionaries').insert(row).select());
     const created = data?.[0] as ErpDictionaryItem | undefined;
     if (error || !created) {
       toast.error('Не удалось добавить значение справочника');
@@ -86,7 +87,7 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
     set((s) => ({
       dictionaries: s.dictionaries.map((d) => (d.id === id ? { ...d, ...patch } : d)).sort(byOrder),
     }));
-    const { error } = await supabase.from('erp_dictionaries').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_dictionaries').update(patch).eq('id', id));
     if (error) {
       set({ dictionaries: prev });
       toast.error('Не удалось сохранить значение справочника');

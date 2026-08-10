@@ -6,6 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
@@ -28,10 +29,10 @@ function patchSuppliersIn(
 
 export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (set, get) => ({
   addMaterial: async (orderId, material) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_materials')
       .insert({ ...material, order_id: orderId })
-      .select();
+      .select());
     const row = data?.[0] as ErpMaterial | undefined;
     if (error || !row) {
       toast.error('Не удалось добавить материал');
@@ -54,7 +55,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
         materials: o.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
       })),
     }));
-    const { error } = await supabase.from('erp_materials').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_materials').update(patch).eq('id', id));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить материал');
@@ -77,10 +78,10 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
   addSupplierOption: async (materialId, option) => {
     const supplier = (option.supplier ?? '').trim();
     if (!supplier) return null;
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_material_suppliers')
       .insert({ ...option, supplier, material_id: materialId })
-      .select();
+      .select());
     const row = data?.[0] as ErpMaterialSupplier | undefined;
     if (error || !row) {
       toast.error('Не удалось добавить вариант поставщика');
@@ -96,8 +97,8 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       orders: patchSuppliersIn(s.orders, materialId, (list) =>
         list.map((o) => (o.id === optionId ? { ...o, ...patch } : o))),
     }));
-    const { error } = await supabase
-      .from('erp_material_suppliers').update(patch).eq('id', optionId);
+    const { error } = await erpQuery(() => supabase
+      .from('erp_material_suppliers').update(patch).eq('id', optionId));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось сохранить вариант поставщика');
@@ -127,16 +128,16 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     }));
 
     for (const old of previousSelected) {
-      const { error } = await supabase
-        .from('erp_material_suppliers').update({ is_selected: false }).eq('id', old.id);
+      const { error } = await erpQuery(() => supabase
+        .from('erp_material_suppliers').update({ is_selected: false }).eq('id', old.id));
       if (error) {
         set({ orders: prev });
         toast.error('Не удалось сменить поставщика');
         return false;
       }
     }
-    const { error } = await supabase
-      .from('erp_material_suppliers').update({ is_selected: true }).eq('id', optionId);
+    const { error } = await erpQuery(() => supabase
+      .from('erp_material_suppliers').update({ is_selected: true }).eq('id', optionId));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось выбрать поставщика');
@@ -154,7 +155,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     const material = prev.flatMap((o) => o.materials).find((m) => m.id === materialId);
     const option = (material?.suppliers ?? []).find((o) => o.id === optionId);
     // Не optimistic delete (правило репо) — ждём ответ Supabase
-    const { error } = await supabase.from('erp_material_suppliers').delete().eq('id', optionId);
+    const { error } = await erpQuery(() => supabase.from('erp_material_suppliers').delete().eq('id', optionId));
     if (error) {
       toast.error('Не удалось удалить вариант поставщика');
       return false;

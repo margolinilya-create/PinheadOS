@@ -5,6 +5,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpProcurementTask } from '../../types';
 import type { ErpStore, ProcurementSlice } from '../types';
@@ -23,10 +24,10 @@ export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> 
       counts_as_purchase: !isSupplier,
       order_id: orderId,
     };
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_procurement_tasks')
       .insert(row0)
-      .select();
+      .select());
     const row = data?.[0] as ErpProcurementTask | undefined;
     if (error || !row) {
       toast.error('Не удалось создать задачу закупки');
@@ -50,7 +51,7 @@ export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> 
           t.id === id ? { ...t, ...patch } : t),
       })),
     }));
-    const { error } = await supabase.from('erp_procurement_tasks').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_procurement_tasks').update(patch).eq('id', id));
     if (error) {
       set({ orders: prev });
       toast.error('Не удалось обновить задачу закупки');

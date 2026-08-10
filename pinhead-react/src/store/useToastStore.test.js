@@ -80,6 +80,57 @@ describe('useToastStore', () => {
   });
 });
 
+/**
+ * Один системный сбой — одно сообщение.
+ *
+ * Флаги загрузки в ERP общие для десяти экранов, и обрыв связи доходил до человека
+ * десятью одинаковыми красными полосами сразу. Заказчик просил это прекратить.
+ */
+describe('useToastStore — повторы не копятся', () => {
+  it('одинаковое сообщение не плодит вторую полосу, а считается', () => {
+    useToastStore.getState().add('Не удалось загрузить заказ', 'error');
+    useToastStore.getState().add('Не удалось загрузить заказ', 'error');
+    useToastStore.getState().add('Не удалось загрузить заказ', 'error');
+
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].count).toBe(3);
+  });
+
+  it('повтор продлевает жизнь сообщению, а не оставляет старый таймер', () => {
+    useToastStore.getState().add('Нет связи с сервером', 'error');
+    vi.advanceTimersByTime(2500);
+    useToastStore.getState().add('Нет связи с сервером', 'error');
+
+    // По старому таймеру полоса ушла бы через 500 мс — но сообщение только что повторилось
+    vi.advanceTimersByTime(1000);
+    expect(useToastStore.getState().toasts).toHaveLength(1);
+
+    vi.advanceTimersByTime(2000);
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it('разные сообщения и разные типы остаются раздельными', () => {
+    useToastStore.getState().add('Одно', 'error');
+    useToastStore.getState().add('Другое', 'error');
+    useToastStore.getState().add('Одно', 'success');
+    expect(useToastStore.getState().toasts).toHaveLength(3);
+  });
+
+  it('новый тост получает свой id даже в ту же миллисекунду', () => {
+    // Раньше id брался из Date.now(): два сообщения подряд получали одинаковый,
+    // и закрытие одного гасило оба
+    useToastStore.getState().add('Первое');
+    useToastStore.getState().add('Второе');
+    const [a, b] = useToastStore.getState().toasts;
+    expect(a.id).not.toBe(b.id);
+
+    useToastStore.getState().remove(a.id);
+    expect(useToastStore.getState().toasts).toHaveLength(1);
+    expect(useToastStore.getState().toasts[0].message).toBe('Второе');
+  });
+});
+
 describe('toast helper', () => {
   it('toast.success() creates success toast', () => {
     toast.success('OK');

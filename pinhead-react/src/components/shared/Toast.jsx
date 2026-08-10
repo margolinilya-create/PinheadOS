@@ -29,6 +29,8 @@ export default function ToastContainer() {
         <div key={t.id} className={`${styles.toast} ${styles[`toast-${t.type}`]}`} onClick={() => remove(t.id)}>
           <span className={styles['toast-icon']}>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : '!'}</span>
           <span className={styles['toast-msg']}>{t.message}</span>
+          {/* Повторы одного сообщения считаются, а не копятся отдельными полосами */}
+          {t.count > 1 && <span className={styles['toast-count']}>×{t.count}</span>}
         </div>
       ))}
     </div>

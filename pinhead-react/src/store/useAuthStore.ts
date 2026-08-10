@@ -7,8 +7,29 @@ import { useOrdersStore } from './useOrdersStore';
 import { translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus } from '../types/auth';
 
-// ─── DEV MODE: bypass авторизации ───
-const DEV_MODE = import.meta.env.DEV;
+/**
+ * Dev-автологин: фиктивный администратор ВМЕСТО отсутствующей сессии.
+ *
+ * Раньше он включался от `import.meta.env.DEV`, то есть у любого, кто запустил
+ * `npm run dev` — в том числе против боевой базы. Интерфейс показывал полный
+ * доступ администратора и не показывал формы входа, а запросы уходили в Supabase
+ * ролью `anon`: чтение возвращало пусто («Не удалось загрузить производственный
+ * план», «…историю заказа», «…заказ»), запись отвечала `new row violates
+ * row-level security policy`. Человек не мог понять, что он просто не вошёл.
+ *
+ * Проверено на проде 10.08.2026: под `authenticated` вставка в `storage.objects`
+ * проходит, под `anon` — 42501 с этим самым текстом, который Storage отдаёт как
+ * HTTP 400. На этом не загружалось ни одно ТЗ.
+ *
+ * Теперь режим включается ЯВНО (`VITE_DEV_AUTOLOGIN=1`) и только когда настоящей
+ * сессии нет: сессия всегда важнее подделки.
+ */
+const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === '1';
+
+const DEV_USER: User = {
+  id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode',
+  role: 'admin', approved: true, active: true,
+};
 
 interface AuthStore {
   user: User | null;
@@ -17,8 +38,13 @@ interface AuthStore {
   error: string | null;
   previewRole: UserRole | null;
 
+  /** true, пока идёт наш собственный выход — чтобы не путать его с потерей сессии */
+  signingOut: boolean;
+
   init: () => Promise<void>;
   fetchProfile: (id: string, email: string) => Promise<void>;
+  /** Сессия кончилась не по воле человека: сбросить данные и объяснить, что делать */
+  sessionLost: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -39,39 +65,39 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   loading: true,
   error: null,
   previewRole: null,
+  signingOut: false,
 
-  // Инициализация — проверка сессии
+  // Инициализация — сначала настоящая сессия, и только потом всё остальное
   init: async () => {
-    if (DEV_MODE) {
-      set({
-        user: { id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode', role: 'admin', approved: true, active: true },
-        profileStatus: 'active' as ProfileStatus,
-        loading: false,
-        error: null,
-      });
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await get().fetchProfile(session.user.id, session.user.email!);
-        }
-      } catch {
-        if (import.meta.env.DEV) console.log('Supabase offline, running in dev mode');
+    let session = null;
+    try {
+      const { data } = await supabase.auth.getSession();
+      session = data.session;
+    } catch (err) {
+      // getSession БРОСАЕТ, когда ответа не было (нет сети, клиент не настроен)
+      console.error('[auth.init]', err);
+      if (!DEV_AUTOLOGIN) {
+        toast.error('Ошибка авторизации');
+        set({ loading: false });
+        return;
       }
+    }
+
+    if (session?.user) {
+      await get().fetchProfile(session.user.id, session.user.email!);
       return;
     }
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await get().fetchProfile(session.user.id, session.user.email!);
-      } else {
-        set({ loading: false });
-      }
-    } catch (err) {
-      console.error('[auth.init]', err);
-      toast.error('Ошибка авторизации');
-      set({ loading: false });
+    if (DEV_AUTOLOGIN) {
+      console.warn(
+        '[auth] dev-автологин: настоящей сессии нет. Запросы уходят ролью anon — '
+        + 'чтение вернёт пусто, запись откажет по RLS. Войдите, чтобы работать с данными.',
+      );
+      set({ user: DEV_USER, profileStatus: 'active' as ProfileStatus, loading: false, error: null });
+      return;
     }
+
+    set({ loading: false });
   },
 
   fetchProfile: async (id, email) => {
@@ -128,7 +154,38 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     return true;
   },
 
+  /**
+   * Сессия кончилась сама: истёк refresh-токен, доступ отозвали, вышли в соседней
+   * вкладке. Раньше приложение об этом не узнавало вовсе — оно продолжало
+   * показывать заказы из памяти и слать запросы ролью `anon`, а человек получал
+   * «нарушение политики безопасности» на каждое действие и не понимал, почему.
+   */
+  sessionLost: () => {
+    if (get().signingOut || !get().user) return;
+    /**
+     * Dev-автологин сессии и не имел, терять ему нечего. Без этой строки
+     * `SIGNED_OUT`, который клиент присылает при старте без действующей сессии,
+     * выкидывал бы разработчика (и весь e2e-прогон) на форму входа с сообщением
+     * «сессия истекла» — про сессию, которой никогда не было.
+     */
+    if (get().user?.id === 'dev') return;
+    storageClearAll();
+    resetErpStore();
+    useOrdersStore.setState({
+      orders: [], loading: false, hasMore: true, loadingMore: false,
+      lastCreatedAt: null, filter: 'all', search: '',
+    });
+    set({
+      user: null,
+      profileStatus: 'no_profile' as ProfileStatus,
+      error: 'Сессия истекла — войдите заново',
+      loading: false,
+    });
+    toast.error('Сессия истекла — войдите заново');
+  },
+
   logout: async () => {
+    set({ signingOut: true });
     const { error } = await supabase.auth.signOut();
     if (error) toast.error(translateSupabaseError(error.message));
     storageClearAll();
@@ -144,7 +201,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       orders: [], loading: false, hasMore: true, loadingMore: false,
       lastCreatedAt: null, filter: 'all', search: '',
     });
-    set({ user: null, profileStatus: 'no_profile' as ProfileStatus, error: null });
+    set({
+      user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
+    });
   },
 
   clearError: () => set({ error: null }),
@@ -160,3 +219,33 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isProduction: () => get().effectiveRole() === 'production',
   isDesigner: () => get().effectiveRole() === 'designer',
 }));
+
+/**
+ * Следим за сессией всё время работы, а не только на старте.
+ *
+ * `init()` проверял её ровно один раз при загрузке страницы, и дальше приложение
+ * жило с предположением «раз вошли — значит вошли». Смена вкладки, отозванный
+ * доступ, истёкший refresh-токен (`Invalid Refresh Token: Refresh Token Not Found`
+ * в auth-логах прода) — всё это проходило мимо: интерфейс оставался прежним,
+ * запросы уходили ролью `anon`, а человеку доставались отказы RLS вперемешку
+ * с сетевыми ошибками.
+ *
+ * Возвращает функцию отписки — она нужна тестам, приложение живёт до закрытия вкладки.
+ */
+export function watchAuthState(): () => void {
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    const store = useAuthStore.getState();
+
+    if (event === 'SIGNED_OUT') {
+      store.sessionLost();
+      return;
+    }
+
+    // Вошли в соседней вкладке или токен обновился, а профиля в памяти нет —
+    // подтягиваем, иначе экран останется формой входа при живой сессии.
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !store.user) {
+      void store.fetchProfile(session.user.id, session.user.email ?? '');
+    }
+  });
+  return () => data.subscription.unsubscribe();
+}

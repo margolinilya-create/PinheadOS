@@ -22,4 +22,19 @@ if (!SUPA_URL || !SUPA_KEY) {
   );
 }
 
-export const supabase: SupabaseClient = createClient(SUPA_URL, SUPA_KEY);
+/**
+ * Опции auth заданы явно, хотя совпадают с текущими значениями по умолчанию.
+ *
+ * От них зависит, увидит ли цех свои данные: без `persistSession` человек теряет
+ * вход при каждом обновлении страницы, без `autoRefreshToken` — примерно через час
+ * работы, и в обоих случаях запросы продолжают уходить ролью `anon`, отвечая
+ * «нарушение политики» вместо «войдите заново». Полагаться на умолчание библиотеки
+ * в таком месте нельзя: оно меняется между версиями молча.
+ */
+export const supabase: SupabaseClient = createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});

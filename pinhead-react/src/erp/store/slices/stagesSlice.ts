@@ -18,7 +18,7 @@ import {
 } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
-import { logStageEvent, withPending, erpError } from '../shared';
+import { erpError, erpQuery, logStageEvent, withPending } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
 
@@ -350,11 +350,11 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
   findOrderIdByStage: async (stageId) => {
     // Диплинк на /task/:stageId: заказа может не быть в сторе (архив, чужой цех).
     // Одним запросом добираемся до order_id, дальше страницу дотягивает loadOne.
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_item_stages')
       .select('item:erp_order_items (order_id)')
       .eq('id', stageId)
-      .maybeSingle();
+      .maybeSingle());
     if (error || !data) return null;
     const item = (data as { item?: { order_id?: string } | null }).item;
     return item?.order_id ?? null;
@@ -362,12 +362,12 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
 
   loadStageReworkEvents: async (stageIds) => {
     if (stageIds.length === 0) return {};
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_stage_events')
       .select('*')
       .in('stage_id', stageIds)
       .not('qty_rework', 'is', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }));
     if (error) return {};
     const map: Record<string, ErpStageEvent> = {};
     for (const ev of (data ?? []) as ErpStageEvent[]) {

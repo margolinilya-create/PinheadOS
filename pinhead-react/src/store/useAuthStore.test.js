@@ -8,6 +8,7 @@ vi.mock('../lib/supabase', () => ({
       signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
       signUp: vi.fn().mockResolvedValue({ data: { user: { id: 'new-id' } }, error: null }),
       signOut: vi.fn().mockResolvedValue({}),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
@@ -19,12 +20,113 @@ vi.mock('../lib/supabase', () => ({
 }));
 
 // Must import after mock
-const { useAuthStore } = await import('./useAuthStore');
+const { useAuthStore, watchAuthState } = await import('./useAuthStore');
 const { useErpStore } = await import('../erp/store/useErpStore');
 const { useOrdersStore } = await import('./useOrdersStore');
 
 beforeEach(() => {
-  useAuthStore.setState({ user: null, profileStatus: 'no_profile', loading: false, error: null, previewRole: null });
+  useAuthStore.setState({
+    user: null, profileStatus: 'no_profile', loading: false, error: null,
+    previewRole: null, signingOut: false,
+  });
+});
+
+/**
+ * Сессия и dev-автологин.
+ *
+ * До 10.08.2026 `init()` в dev-сборке подставлял фиктивного администратора, НЕ проверив
+ * сессию, и приложение выглядело рабочим, пока запросы уходили ролью `anon`: чтение
+ * возвращало пусто, запись отвечала «new row violates row-level security policy».
+ * Тесты закрепляют обратный порядок: сначала настоящая сессия, автологин — только
+ * вместо её отсутствия и только когда его включили явно.
+ */
+describe('useAuthStore — init и сессия', () => {
+  it('без сессии и без автологина показывает форму входа, а не фиктивного админа', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
+    useAuthStore.setState({ loading: true });
+
+    await useAuthStore.getState().init();
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().loading).toBe(false);
+  });
+
+  it('настоящая сессия важнее: профиль берётся из базы', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.getSession.mockResolvedValueOnce({
+      data: { session: { user: { id: 'uid-real', email: 'real@pinhead.ru' } } },
+    });
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { name: 'Настоящий', role: 'manager', approved: true, active: true },
+      }),
+    });
+
+    await useAuthStore.getState().init();
+
+    expect(useAuthStore.getState().user?.id).toBe('uid-real');
+    expect(useAuthStore.getState().user?.name).toBe('Настоящий');
+  });
+
+  it('getSession БРОСАЕТ (нет сети) — не виснем в загрузке', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.getSession.mockRejectedValueOnce(new TypeError('Load failed'));
+    useAuthStore.setState({ loading: true });
+
+    await useAuthStore.getState().init();
+
+    expect(useAuthStore.getState().loading).toBe(false);
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+});
+
+describe('useAuthStore — потеря сессии', () => {
+  it('sessionLost сбрасывает пользователя и объясняет причину', () => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'a@b.c', name: 'A', role: 'admin', approved: true, active: true },
+      profileStatus: 'active',
+    });
+
+    useAuthStore.getState().sessionLost();
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().profileStatus).toBe('no_profile');
+    expect(useAuthStore.getState().error).toMatch(/Сессия истекла/);
+  });
+
+  it('собственный выход потерей сессии не считается', () => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'a@b.c', name: 'A', role: 'admin', approved: true, active: true },
+      signingOut: true,
+    });
+
+    useAuthStore.getState().sessionLost();
+
+    // Стор чистит сам logout; sessionLost не должен показывать «сессия истекла»
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('watchAuthState на SIGNED_OUT сбрасывает данные', async () => {
+    const { supabase } = await import('../lib/supabase');
+    let handler = null;
+    supabase.auth.onAuthStateChange.mockImplementationOnce((cb) => {
+      handler = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'a@b.c', name: 'A', role: 'admin', approved: true, active: true },
+      profileStatus: 'active',
+    });
+
+    const unsubscribe = watchAuthState();
+    handler('SIGNED_OUT', null);
+
+    expect(useAuthStore.getState().user).toBeNull();
+    unsubscribe();
+  });
 });
 
 describe('useAuthStore — state', () => {

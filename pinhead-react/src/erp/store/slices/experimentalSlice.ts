@@ -7,6 +7,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpExperimental, ErpExperimentalOp } from '../../types';
 import type { ErpStore, ExperimentalSlice } from '../types';
@@ -18,10 +19,10 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   experimentalLoaded: false,
 
   loadExperimental: async () => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_experimental')
       .select(EXP_SELECT)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }));
     if (error) {
       toast.error('Не удалось загрузить экспериментальный цех');
       return;
@@ -30,10 +31,10 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   },
 
   createExperimental: async (orderId) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_experimental')
       .insert({ order_id: orderId, phase: 'patterns' })
-      .select(EXP_SELECT);
+      .select(EXP_SELECT));
     const row = data?.[0] as ErpExperimental | undefined;
     if (error || !row) {
       toast.error('Не удалось создать эксперим. разработку');
@@ -46,7 +47,7 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   updateExperimental: async (id, patch) => {
     const prev = get().experimental;
     set((s) => ({ experimental: s.experimental.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
-    const { error } = await supabase.from('erp_experimental').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_experimental').update(patch).eq('id', id));
     if (error) {
       set({ experimental: prev });
       toast.error('Не удалось обновить эксперим. разработку');
@@ -56,10 +57,10 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   },
 
   createExperimentalOp: async (experimentalId, op) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_experimental_ops')
       .insert({ status: 'sent', ...op, experimental_id: experimentalId })
-      .select();
+      .select());
     const row = data?.[0] as ErpExperimentalOp | undefined;
     if (error || !row) {
       toast.error('Не удалось создать передачу');

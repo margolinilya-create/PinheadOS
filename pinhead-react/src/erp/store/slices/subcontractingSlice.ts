@@ -9,6 +9,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import type { ErpStore, SubcontractingSlice } from '../types';
@@ -17,12 +18,12 @@ import type { ErpStore, SubcontractingSlice } from '../types';
 async function upsertWarehouseTask(
   orderId: string, taskType: string, status: string, itemId: string | null = null,
 ): Promise<boolean> {
-  const { error } = await supabase
+  const { error } = await erpQuery(() => supabase
     .from('erp_warehouse_tasks')
     .upsert(
       { order_id: orderId, item_id: itemId, task_type: taskType, status },
       { onConflict: 'order_id,task_type', ignoreDuplicates: true },
-    );
+    ));
   if (error) {
     toast.error('Не удалось создать задачу склада');
     return false;
@@ -57,12 +58,12 @@ async function applySubcontractTransition(get: () => ErpStore, op: ErpSubcontrac
         toast.error('Не удалось направить заказ на следующий участок');
         return;
       }
-      const { error } = await supabase
+      const { error } = await erpQuery(() => supabase
         .from('erp_item_stages')
         .upsert(
           { item_id: itemId, department_id: dept.id, status: 'ready', sort_order: 900, depends_on: [] },
           { onConflict: 'item_id,department_id', ignoreDuplicates: true },
-        );
+        ));
       if (error) {
         toast.error(`Не удалось создать этап: ${dept.name}`);
         return;
@@ -80,10 +81,10 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   subcontractingLoaded: false,
 
   loadSubcontracting: async () => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_subcontracting')
       .select('*, order:erp_orders (title, bitrix_id)')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }));
     if (error) {
       toast.error('Не удалось загрузить операции подряда');
       return;
@@ -92,10 +93,10 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   },
 
   createSubcontractOp: async (op) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_subcontracting')
       .insert({ status: 'planned', ...op })
-      .select('*, order:erp_orders (title, bitrix_id)');
+      .select('*, order:erp_orders (title, bitrix_id)'));
     const row = data?.[0] as ErpSubcontractOp | undefined;
     if (error || !row) {
       toast.error('Не удалось добавить операцию подряда');
@@ -111,7 +112,7 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
     set((s) => ({
       subcontracting: s.subcontracting.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }));
-    const { error } = await supabase.from('erp_subcontracting').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_subcontracting').update(patch).eq('id', id));
     if (error) {
       set({ subcontracting: prev });
       toast.error('Не удалось обновить операцию подряда');

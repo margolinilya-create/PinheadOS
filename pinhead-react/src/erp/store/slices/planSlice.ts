@@ -17,7 +17,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { ErpCalendarSlot, ErpPlanComment } from '../../types';
 import { planStatusForFact } from '../../utils/planDay';
-import { currentActor, erpError, withPending } from '../shared';
+import { currentActor, erpError, erpQuery, erpRead, withPending } from '../shared';
 import type { ErpStore, PlanSlice } from '../types';
 
 /** Точечный патч задачи в списке (остальные сохраняют идентичность) */
@@ -49,13 +49,13 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
 
   loadPlan: async (fromDate, toDate) => {
     set({ planLoading: true, planLoadError: false });
-    const { data, error } = await supabase
+    const { data, error } = await erpRead(() => supabase
       .from('erp_calendar_slots')
       .select('*')
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
       .order('work_date')
-      .order('sort_order');
+      .order('sort_order'));
     if (error) {
       set({ planLoading: false, planLoadError: true });
       erpError('Не удалось загрузить производственный план', error);
@@ -107,10 +107,10 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
       sort_order: tailSortOrder(get().planSlots, departmentId, workDate),
       created_by: currentActor(),
     };
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_calendar_slots')
       .upsert(row, { onConflict: 'stage_id,work_date' })
-      .select();
+      .select());
     const saved = data?.[0] as ErpCalendarSlot | undefined;
     if (error || !saved) {
       erpError('Задача не поставлена в план', error);
@@ -199,11 +199,11 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
   }),
 
   loadPlanComments: async (slotId) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_plan_comments')
       .select('*')
       .eq('slot_id', slotId)
-      .order('created_at');
+      .order('created_at'));
     if (error) {
       erpError('Комментарии не загружены', error);
       return;
@@ -219,10 +219,10 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
   addPlanComment: async (slotId, text, side) => {
     const clean = text.trim();
     if (!clean) return null;
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_plan_comments')
       .insert({ slot_id: slotId, author: currentActor(), side, text: clean })
-      .select();
+      .select());
     const row = data?.[0] as ErpPlanComment | undefined;
     if (error || !row) {
       erpError('Комментарий не сохранён', error);

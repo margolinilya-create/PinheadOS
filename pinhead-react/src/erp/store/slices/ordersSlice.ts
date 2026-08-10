@@ -17,7 +17,7 @@ import type {
   ErpOrderStatus,
   ErpStageEvent,
 } from '../../types';
-import { currentActor, erpError, removeOrphanUpload, withPending } from '../shared';
+import { currentActor, erpError, erpQuery, erpRead, removeOrphanUpload, withPending } from '../shared';
 import { cachedQuery, invalidate } from '../queryCache';
 import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
 
@@ -89,6 +89,20 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   loadAll: async () => {
+    /**
+     * Guard'а «уже грузим — выходим» здесь НЕТ, и это проверено, а не забыто.
+     *
+     * `ErpLayout` зовёт `loadAll()` при монтировании оболочки, каждый экран
+     * делает то же самое, и на первом открытии запрос уходит дважды — экономия
+     * напрашивается. Но обе её формы ломают очередь цеха (10 e2e-сценариев из 24):
+     * и ранний выход, и дедупликация общим промисом. Экраны вызывают `loadAll()`
+     * не «на всякий случай», а как загрузку СВОИХ данных и читают стор сразу
+     * после — им нужен свой заход, а не чужой результат.
+     *
+     * Лишний запрос стоит дешевле пустого экрана «Выберите свой цех выше»,
+     * который рабочий читает как «заданий нет». Если экономить — то сводить
+     * вызывающих к одному месту, а не отбирать у них загрузку на полпути.
+     */
     set({ loading: true, loadError: false });
     // Архив лениво (п.26): пока архив не открывали — грузим только активные.
     // Если архив уже загружен, полная перезагрузка обновляет и его.
@@ -111,9 +125,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const needDepartments = get().departments.length === 0;
     const [deps, orders] = await Promise.all([
       needDepartments
-        ? supabase.from('erp_departments').select('*').order('sort_order')
+        ? erpRead(() => supabase.from('erp_departments').select('*').order('sort_order'))
         : Promise.resolve({ data: null, error: null }),
-      ordersQuery,
+      erpRead(() => ordersQuery),
     ]);
     if (deps.error || orders.error) {
       erpError('Не удалось загрузить данные ERP', deps.error ?? orders.error);
@@ -150,10 +164,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select(ORDER_LIST_SELECT)
       .neq('status', 'active');
     if (!get().showDemoOrders) q = q.eq('is_demo', false);
-    const { data, error } = await q
+    const { data, error } = await erpQuery(() => q
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
-      .range(0, ARCHIVE_PAGE_SIZE - 1);
+      .range(0, ARCHIVE_PAGE_SIZE - 1));
     if (error) {
       erpError('Не удалось загрузить архив', error);
       set({ archiveLoading: false });
@@ -186,10 +200,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select(ORDER_LIST_SELECT)
       .neq('status', 'active');
     if (!get().showDemoOrders) q = q.eq('is_demo', false);
-    const { data, error } = await q
+    const { data, error } = await erpQuery(() => q
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
-      .range(offset, offset + ARCHIVE_PAGE_SIZE - 1);
+      .range(offset, offset + ARCHIVE_PAGE_SIZE - 1));
     if (error) {
       erpError('Не удалось догрузить архив', error);
       set({ archiveLoading: false });
@@ -252,11 +266,11 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     // лениво) или быть помечен тестовым (его в сторе нет вовсе). Проверка
     // по памяти нашла бы не всё и была бы хуже отсутствия проверки —
     // «мы посмотрели, дублей нет».
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_orders')
       .select('id, title, status, created_at, is_demo')
       .eq('bitrix_id', value)
-      .limit(5);
+      .limit(5));
     // Молча: это подсказка, а не действие пользователя. Тост об упавшей
     // фоновой проверке во время заполнения формы только мешает.
     if (error) return [];
@@ -264,11 +278,11 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   loadOne: async (orderId) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_orders')
       .select(ORDER_SELECT)
       .eq('id', orderId)
-      .maybeSingle();
+      .maybeSingle());
     if (error) {
       erpError('Не удалось загрузить заказ', error);
       return null;
@@ -426,8 +440,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     set((s) => ({
       orders: s.orders.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }));
-    const { error } = await withPending(`order:${id}`, () =>
-      supabase.from('erp_orders').update(patch).eq('id', id));
+    const { error } = await erpQuery(() => withPending(`order:${id}`, () =>
+      supabase.from('erp_orders').update(patch).eq('id', id)));
     if (error) {
       set({ orders: prev });
       erpError('Не удалось обновить заказ', error);
@@ -462,8 +476,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     set((s) => ({
       orders: s.orders.map((o) => (o.id === orderId ? { ...o, ...patch } : o)),
     }));
-    const { error } = await withPending(`order:${orderId}`, () =>
-      supabase.from('erp_orders').update(patch).eq('id', orderId));
+    const { error } = await erpQuery(() => withPending(`order:${orderId}`, () =>
+      supabase.from('erp_orders').update(patch).eq('id', orderId)));
     if (error) {
       set({ orders: prev });
       erpError('Не удалось отгрузить заказ', error);
@@ -475,7 +489,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
 
   deleteOrder: async (id) => {
     // НЕ optimistic — ждём Supabase
-    const { error } = await supabase.from('erp_orders').delete().eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_orders').delete().eq('id', id));
     if (error) {
       erpError('Не удалось удалить заказ', error);
       return false;
@@ -485,12 +499,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   loadOrderEvents: async (orderId) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_stage_events')
       .select('*')
       .eq('order_id', orderId)
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(100));
     if (error) {
       erpError('Не удалось загрузить историю', error);
       return null;
@@ -501,14 +515,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   uploadOrderPreview: async (orderId, file) => {
     const ext = (file.name.split('.').pop() || 'png').toLowerCase();
     const path = `${orderId}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
+    const { error: upErr } = await erpQuery(() => supabase.storage
       .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/png' });
+      .upload(path, file, { contentType: file.type || 'image/png' }));
     if (upErr) {
       erpError('Не удалось загрузить превью', upErr);
       return false;
     }
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_order_attachments')
       .insert({
         order_id: orderId,
@@ -517,7 +531,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         kind: 'preview',
         uploaded_by: currentActor(),
       })
-      .select();
+      .select());
     const row = data?.[0] as ErpOrderAttachment | undefined;
     if (error || !row) {
       // Файл в бакете есть, строки в БД нет — убираем за собой, иначе он остаётся
@@ -538,14 +552,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   uploadOrderAttachment: async (orderId, file, note) => {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `${orderId}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
+    const { error: upErr } = await erpQuery(() => supabase.storage
       .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/jpeg' });
+      .upload(path, file, { contentType: file.type || 'image/jpeg' }));
     if (upErr) {
       erpError('Не удалось загрузить фото', upErr);
       return false;
     }
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_order_attachments')
       .insert({
         order_id: orderId,
@@ -554,7 +568,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         kind: 'attachment',
         uploaded_by: currentActor(),
       })
-      .select();
+      .select());
     const row = data?.[0] as ErpOrderAttachment | undefined;
     if (error || !row) {
       await removeOrphanUpload('erp-attachments', path);
@@ -571,12 +585,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   loadOrderAudit: async (orderId) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_order_audit')
       .select('*')
       .eq('order_id', orderId)
       .order('changed_at', { ascending: false })
-      .limit(100);
+      .limit(100));
     if (error) {
       erpError('Не удалось загрузить историю правок', error);
       return null;
@@ -585,12 +599,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   loadComments: async (orderId) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_order_comments')
       .select('*')
       .eq('order_id', orderId)
       .order('created_at', { ascending: true })
-      .limit(200);
+      .limit(200));
     if (error) {
       erpError('Не удалось загрузить комментарии', error);
       return null;
@@ -599,10 +613,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   addComment: async (orderId, text) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_order_comments')
       .insert({ order_id: orderId, author: currentActor(), text })
-      .select();
+      .select());
     const row = data?.[0] as ErpOrderComment | undefined;
     if (error || !row) {
       erpError('Не удалось отправить комментарий', error);

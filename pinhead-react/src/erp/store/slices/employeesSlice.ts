@@ -6,6 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDepartment, ErpEmployee } from '../../types';
 import type { ErpStore, EmployeesSlice, StaffProfile } from '../types';
@@ -24,12 +25,12 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
       set({ myDeptId: null, myRole: null, myDeptLoaded: true });
       return;
     }
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_employees')
       .select('department_id, role')
       .eq('profile_id', profileId)
       .eq('active', true)
-      .limit(1);
+      .limit(1));
     if (error) {
       toast.error('Не удалось определить ваш цех');
       set({ myDeptLoaded: true });
@@ -66,7 +67,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     set((s) => ({
       profilesList: s.profilesList.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     }));
-    const { error } = await supabase.from('profiles').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('profiles').update(patch).eq('id', id));
     if (error) {
       set({ profilesList: prev });
       toast.error('Не удалось обновить пользователя');
@@ -88,7 +89,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   },
 
   createEmployee: async (emp) => {
-    const { data, error } = await supabase.from('erp_employees').insert(emp).select();
+    const { data, error } = await erpQuery(() => supabase.from('erp_employees').insert(emp).select());
     const row = data?.[0] as ErpEmployee | undefined;
     if (error || !row) {
       toast.error('Не удалось добавить сотрудника');
@@ -103,7 +104,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     set((s) => ({
       employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)),
     }));
-    const { error } = await supabase.from('erp_employees').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_employees').update(patch).eq('id', id));
     if (error) {
       set({ employees: prev });
       toast.error('Не удалось обновить сотрудника');
@@ -113,10 +114,10 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   },
 
   createDepartment: async (dept) => {
-    const { data, error } = await supabase
+    const { data, error } = await erpQuery(() => supabase
       .from('erp_departments')
       .insert({ type: 'other', ...dept })
-      .select();
+      .select());
     const row = data?.[0] as ErpDepartment | undefined;
     if (error || !row) {
       toast.error('Не удалось добавить участок');
@@ -135,7 +136,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
         .map((d) => (d.id === id ? { ...d, ...patch } : d))
         .sort((a, b) => a.sort_order - b.sort_order),
     }));
-    const { error } = await supabase.from('erp_departments').update(patch).eq('id', id);
+    const { error } = await erpQuery(() => supabase.from('erp_departments').update(patch).eq('id', id));
     if (error) {
       set({ departments: prev });
       toast.error('Не удалось сохранить участок');

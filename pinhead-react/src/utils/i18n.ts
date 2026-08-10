@@ -44,3 +44,26 @@ export function translateSupabaseError(msg: string | null | undefined): string {
   if (ERROR_MAP[msg]) return ERROR_MAP[msg];
   return msg.replace(GUARD_PREFIX, '');
 }
+
+/**
+ * Сбой, при котором ответа сервера НЕ БЫЛО: нет сети, оборвалось соединение, CORS.
+ *
+ * Браузеры называют это по-своему — `Load failed` в WebKit, `Failed to fetch`
+ * в Chromium, — и оба текста внутренние: они не говорят человеку ни что случилось,
+ * ни что делать. Именно `Load failed` заказчик и видел россыпью на нескольких
+ * экранах сразу, потому что `supabase-js` в этом случае БРОСАЕТ, а не возвращает
+ * `error`, и отклонение промиса всплывало глобальным обработчиком как есть.
+ */
+export function networkFailureMessage(e: unknown): string {
+  // Именно так: `String(null)` даёт «null», и это уехало бы человеку в тост
+  const raw = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
+  if (/load failed|failed to fetch|networkerror|network request failed/i.test(raw)) {
+    return 'нет связи с сервером';
+  }
+  return raw.trim() || 'нет связи с сервером';
+}
+
+/** Тот же сбой, но целой фразой — для сообщения не про конкретное действие */
+export function isNetworkFailure(e: unknown): boolean {
+  return networkFailureMessage(e) === 'нет связи с сервером';
+}

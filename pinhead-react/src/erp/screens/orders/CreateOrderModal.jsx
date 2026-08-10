@@ -26,7 +26,7 @@ import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
 import { deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
 import { translateSupabaseError } from '../../../utils/i18n';
-import { currentActor } from '../../store/shared';
+import { currentActor, erpQuery } from '../../store/shared';
 import { supabase } from '../../../lib/supabase';
 import {
   TZ_BUCKET,
@@ -171,9 +171,16 @@ export function CreateOrderModal({ onClose }) {
    */
   const uploadTzFile = async (groupId, file) => {
     const path = tzFilePath('new', groupId, 1, file.name);
-    const { error } = await supabase.storage
+    /**
+     * `erpQuery`, а не голый `await`: без ответа сервера supabase-js БРОСАЕТ, и тогда
+     * `setTzDocs` ниже не выполнялся вовсе — файл оставался в состоянии «загружается»
+     * навсегда, а «Создать заказ» блокировалась незавершённой загрузкой, которая
+     * никогда не завершится. Кнопки «Загрузить заново» человек при этом не видел:
+     * она показывается только в состоянии ошибки.
+     */
+    const { error } = await erpQuery(() => supabase.storage
       .from(TZ_BUCKET)
-      .upload(path, file, { contentType: TZ_MIME, upsert: true });
+      .upload(path, file, { contentType: TZ_MIME, upsert: true }));
     setTzDocs((arr) => arr.map((d) => {
       if (d.groupId !== groupId) return d;
       if (!error) return { ...d, state: 'uploaded', error: null, path };
