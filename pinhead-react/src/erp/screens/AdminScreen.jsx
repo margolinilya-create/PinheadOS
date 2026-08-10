@@ -6,6 +6,7 @@ import EmployeesScreen from './EmployeesScreen';
 import DepartmentsScreen from './DepartmentsScreen';
 import { PermissionsTab } from './admin/PermissionsTab';
 import { DictionariesTab } from './admin/DictionariesTab';
+import { BypassTab } from './admin/BypassTab';
 import { useErpAccess } from '../store/useErpAccess';
 import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
@@ -25,6 +26,9 @@ const TABS = [
   { id: 'roles', label: 'Права' },
   { id: 'depts', label: 'Цеха', needs: 'catalog.edit' },
   { id: 'dicts', label: 'Справочники', needs: 'catalog.edit' },
+  // Аварийный режим (правки 10.08): снять блокирующую проверку, когда она
+  // останавливает работу из-за ошибки в системе
+  { id: 'bypass', label: 'Аварийный режим', needs: 'bypass.manage' },
   { id: 'studio', label: 'Заказы ТЗ' },
 ];
 
@@ -67,6 +71,7 @@ export default function AdminScreen() {
       {tab === 'roles' && <PermissionsTab />}
       {tab === 'depts' && <DepartmentsScreen embedded />}
       {tab === 'dicts' && <DictionariesTab />}
+      {tab === 'bypass' && <BypassTab />}
       {tab === 'studio' && (
         <Suspense fallback={<TableSkeleton rows={5} label="Загрузка админки" />}>
           <AdminPanel ordersOnly />

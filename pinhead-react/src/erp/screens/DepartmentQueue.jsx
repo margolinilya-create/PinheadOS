@@ -66,7 +66,7 @@ export default function DepartmentQueue() {
     orders, departments, loaded, loadError, loadAll,
     myDeptId, myDeptLoaded, loadMyDept,
     loadStageReworkEvents, reorderStageQueue,
-    employees, employeesLoaded, loadEmployees,
+    employees, employeesLoaded, loadEmployees, bypasses,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -82,6 +82,7 @@ export default function DepartmentQueue() {
       employees: s.employees,
       employeesLoaded: s.employeesLoaded,
       loadEmployees: s.loadEmployees,
+      bypasses: s.bypasses,
     })),
   );
   const actions = useStageActions();
@@ -178,10 +179,10 @@ export default function DepartmentQueue() {
   const readyByDept = useMemo(() => {
     const counts = new Map();
     for (const dd of departments) {
-      counts.set(dd.code, readyOnlyCountFor(orders, departments, dd.code));
+      counts.set(dd.code, readyOnlyCountFor(orders, departments, dd.code, bypasses));
     }
     return counts;
-  }, [orders, departments]);
+  }, [orders, departments, bypasses]);
 
   const overdueByDept = useMemo(() => {
     const counts = new Map();
@@ -193,8 +194,8 @@ export default function DepartmentQueue() {
 
   /** Все задания цеха с группой и причиной ожидания — до фильтров */
   const entries = useMemo(
-    () => (dept ? buildQueueEntries(orders, departments, { departmentId: dept.id }) : []),
-    [orders, departments, dept],
+    () => (dept ? buildQueueEntries(orders, departments, { departmentId: dept.id, bypasses }) : []),
+    [orders, departments, dept, bypasses],
   );
 
   const visible = useMemo(

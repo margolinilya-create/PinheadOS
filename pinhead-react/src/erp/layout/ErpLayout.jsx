@@ -27,13 +27,14 @@ export default function ErpLayout({ user, children }) {
   const navigate = useNavigate();
   const search = useErpSearch((s) => s.query);
   const setSearch = useErpSearch((s) => s.setQuery);
-  const { orders, departments, myDeptId, subcontracting, experimental } = useErpStore(
+  const { orders, departments, myDeptId, subcontracting, experimental, bypasses } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       myDeptId: s.myDeptId,
       subcontracting: s.subcontracting,
       experimental: s.experimental,
+      bypasses: s.bypasses,
     })),
   );
 
@@ -73,6 +74,14 @@ export default function ErpLayout({ user, children }) {
     const s = useErpStore.getState();
     s.loadBootstrap();
     if (!s.loaded) s.loadAll();
+    /**
+     * Аварийно снятые блокировки (правки 10.08) — отдельным запросом, а не в
+     * `erp_bootstrap()`: пакет оболочки едет КАЖДОМУ при каждой загрузке, и
+     * добавлять в него список, который обычно пуст, значит платить за него всегда.
+     * Таблица крошечная, запрос идёт один раз за сессию, дальше её обновляет
+     * realtime.
+     */
+    if (!s.bypassesLoaded) s.loadBypasses();
   }, []);
 
   const myCode = useMemo(() => {
@@ -83,13 +92,13 @@ export default function ErpLayout({ user, children }) {
   // Счётчики активных задач по разделам (из уже загруженных данных стора)
   const counts = useMemo(
     () => ({
-      '/queue': myCode ? readyOnlyCountFor(orders, departments, myCode) : 0,
+      '/queue': myCode ? readyOnlyCountFor(orders, departments, myCode, bypasses) : 0,
       '/warehouse': openWarehouseTaskCount(orders),
       '/purchasing': openProcurementCount(orders),
       '/subcontracting': openSubcontractCount(subcontracting ?? []),
       '/experimental': activeExperimentalCount(experimental ?? []),
     }),
-    [orders, departments, myCode, subcontracting, experimental],
+    [orders, departments, myCode, subcontracting, experimental, bypasses],
   );
 
   /**
@@ -115,9 +124,9 @@ export default function ErpLayout({ user, children }) {
         to: `/queue/${d.code}`,
         label: deptShortName(d.code, d.name),
         icon: deptIcon(d.code),
-        count: readyCountFor(orders, departments, d.code),
+        count: readyCountFor(orders, departments, d.code, bypasses),
       })),
-    [orders, departments],
+    [orders, departments, bypasses],
   );
 
   return (

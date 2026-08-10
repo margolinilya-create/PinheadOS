@@ -394,3 +394,79 @@ describe('бакет вложений: клиент видит объекты', 
     expect(ATT_READ_SQL).toMatch(/bucket_id = 'erp-attachments' and public\.erp_is_member\(\)/);
   });
 });
+
+/**
+ * Пропуск этапа — аварийный выход для застрявшего маршрута (правки 10.08).
+ *
+ * До этой правки переход в `skipped` не подпадал ни под одну ветку стража и
+ * проходил БЕЗ проверки прав: любой участник ERP с любым правом на этапы мог
+ * объявить чужое задание пройденным. Тест сторожит и наличие правила, и его
+ * совпадение с клиентским гейтом кнопки.
+ */
+describe('пропуск этапа: клиент и сервер требуют одного права', () => {
+  const SKIP_SQL = latestDefining('erp_stage_guard');
+
+  it('страж требует order.manage на переход в skipped', () => {
+    const body = functionBody(SKIP_SQL, 'erp_stage_guard');
+    expect(body).toMatch(/elsif new\.status = 'skipped' then/);
+    expect(body).toMatch(/пропуск этапа требует права order\.manage/);
+  });
+
+  it('перенос между цехами пропуск не ломает', () => {
+    // Перенос закрывает исходный этап, и запрет здесь сделал бы сервер строже
+    // интерфейса — тот самый отказ, который страж обязан не порождать
+    const body = functionBody(SKIP_SQL, 'erp_stage_guard');
+    const branch = body.slice(body.indexOf("elsif new.status = 'skipped'"));
+    expect(branch).toMatch(/erp_has_permission\('order\.manage'\) or v_move/);
+  });
+
+  it('кнопка в интерфейсе гейтится тем же правом', () => {
+    const hook = readFileSync(
+      join(process.cwd(), 'src/erp/store/useStagePermissions.ts'), 'utf8',
+    );
+    expect(hook).toMatch(/skip = access\.can\('order\.manage'\)/);
+  });
+});
+
+/**
+ * Аварийное снятие блокировок (правки 10.08).
+ *
+ * Механика опасная по определению — она отключает проверки, — поэтому её
+ * серверная сторона сторожится наравне с правами: читать может любой участник
+ * (цех обязан видеть, что проверка снята), а снимать и возвращать — только
+ * с правом `bypass.manage`. Удаления нет ни у кого: журнал снятий и есть то,
+ * по чему завтра будут разбирать, почему заказ прошёл мимо проверки.
+ */
+describe('аварийные отключения: сервер гейтит тем же правом, что интерфейс', () => {
+  const BYPASS_SQL = latestMatching(
+    /create table if not exists public\.erp_bypasses/, 'таблицу erp_bypasses');
+
+  it('снятие и возврат требуют bypass.manage', () => {
+    const sql = withoutComments(BYPASS_SQL);
+    expect(sql).toMatch(/erp_bypasses_insert[\s\S]*erp_has_permission\('bypass\.manage'\)/);
+    expect(sql).toMatch(/erp_bypasses_update[\s\S]*erp_has_permission\('bypass\.manage'\)/);
+  });
+
+  it('читают все участники ERP — цех должен видеть снятую проверку', () => {
+    expect(withoutComments(BYPASS_SQL))
+      .toMatch(/erp_bypasses_read[\s\S]*for select to authenticated using \(public\.erp_is_member\(\)\)/);
+  });
+
+  it('удаления нет ни у кого: журнал не переписывается', () => {
+    expect(withoutComments(BYPASS_SQL)).not.toMatch(/create policy[^\n]*erp_bypasses[^\n]*for delete/);
+  });
+
+  it('клиент гейтит экран тем же правом', () => {
+    const admin = readFileSync(join(process.cwd(), 'src/erp/screens/AdminScreen.jsx'), 'utf8');
+    expect(admin).toMatch(/needs: 'bypass\.manage'/);
+  });
+
+  it('право есть в матрице и по умолчанию только у директора', () => {
+    expect(ERP_PERMISSIONS).toContain('bypass.manage');
+    expect(DEFAULT_PERMISSIONS.director).toContain('bypass.manage');
+    for (const role of ['production_head', 'dispatcher', 'manager', 'foreman', 'worker'] as const) {
+      expect(DEFAULT_PERMISSIONS[role], `${role} не должен снимать блокировки`)
+        .not.toContain('bypass.manage');
+    }
+  });
+});

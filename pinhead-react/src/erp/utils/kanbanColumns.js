@@ -18,14 +18,14 @@ import { buildQueueEntries } from './queueEntries';
  * колонки меняет её место и здесь. Чистая функция — покрыта юнит-тестами;
  * UI (ErpKanban) лишь рендерит результат.
  */
-export function buildKanbanColumns(orders, departments, filters = EMPTY_FILTERS) {
+export function buildKanbanColumns(orders, departments, filters = EMPTY_FILTERS, bypasses = []) {
   const deps = departments.filter((d) => d.active && isProductionDept(d));
   const byDept = new Map(deps.map((d) => [
     d.id,
     { dept: d, awaiting_materials: [], ready: [], in_progress: [], blocked: [], done: [] },
   ]));
 
-  const entries = applyStageFilters(buildQueueEntries(orders, departments), filters);
+  const entries = applyStageFilters(buildQueueEntries(orders, departments, { bypasses }), filters);
   for (const entry of entries) {
     const col = byDept.get(entry.stage.department_id);
     if (!col) continue;

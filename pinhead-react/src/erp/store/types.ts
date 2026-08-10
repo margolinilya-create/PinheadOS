@@ -11,6 +11,8 @@ import type {
   DictionaryKind,
   EmployeeRole,
   ErpDepartment,
+  ErpBypass,
+  BypassKind,
   ErpDictionaryItem,
   ErpEmployee,
   ErpPermission,
@@ -137,12 +139,6 @@ export interface NewOrderItemInput {
   subcontract_operation?: string;
   /** Следующий участок после отдельной операции (код цеха); null = доработка не нужна */
   return_dept?: string | null;
-  /**
-   * Нужен ли финальный ОТК (галочка позиции в форме, по умолчанию да).
-   * Влияет только на маршрут: в `erp_order_items` не пишется, потому что
-   * этапы уже материализованы и повторно по флагу не пересчитываются.
-   */
-  needs_qc?: boolean;
 }
 
 /** Документ ТЗ в payload создания заказа: файл уже лежит в бакете */
@@ -533,6 +529,26 @@ export interface DictionariesSlice {
   moveDictionaryItem: (id: string, direction: 'up' | 'down') => Promise<boolean>;
 }
 
+/**
+ * Аварийно снятые блокировки (правки заказчика 10.08).
+ *
+ * Список маленький и меняется редко, поэтому живёт целиком в сторе: гейты
+ * спрашивают его синхронно, а `utils/bypass` решает, действует ли снятие.
+ */
+export interface BypassSlice {
+  bypasses: ErpBypass[];
+  bypassesLoaded: boolean;
+  loadBypasses: () => Promise<void>;
+  /** Снять проверку: причина обязательна, `orderId = null` — для всей системы */
+  createBypass: (
+    kind: BypassKind,
+    orderId: string | null,
+    reason: string,
+  ) => Promise<ErpBypass | null>;
+  /** Вернуть проверку. Запись остаётся в журнале — это не удаление */
+  restoreBypass: (id: string) => Promise<boolean>;
+}
+
 /** Realtime: точечное применение postgres_changes + подписка */
 export interface RealtimeSlice {
   /** Точечное применение realtime-события (экспорт действия — для тестов) */
@@ -640,4 +656,5 @@ export type ErpStore = BootstrapSlice &
   ExperimentalSlice &
   TzSlice &
   PlanSlice &
+  BypassSlice &
   RealtimeSlice;

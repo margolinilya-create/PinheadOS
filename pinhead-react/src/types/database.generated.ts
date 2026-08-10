@@ -70,6 +70,53 @@ export type Database = {
         }
         Relationships: []
       }
+      erp_bypasses: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_id: string | null
+          id: string
+          kind: string
+          order_id: string | null
+          reason: string
+          restored_at: string | null
+          restored_by: string | null
+          restored_by_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_id?: string | null
+          id?: string
+          kind: string
+          order_id?: string | null
+          reason: string
+          restored_at?: string | null
+          restored_by?: string | null
+          restored_by_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_id?: string | null
+          id?: string
+          kind?: string
+          order_id?: string | null
+          reason?: string
+          restored_at?: string | null
+          restored_by?: string | null
+          restored_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_bypasses_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_calendar_slots: {
         Row: {
           assignee: string | null
@@ -1686,6 +1733,7 @@ export type Database = {
     }
     Functions: {
       erp_bootstrap: { Args: never; Returns: Json }
+      erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_manage_tz: { Args: never; Returns: boolean }
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
@@ -1694,6 +1742,135 @@ export type Database = {
       erp_is_member: { Args: never; Returns: boolean }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
       erp_role_of_caller: { Args: never; Returns: string }
+      erp_stage_apply_defect: {
+        Args: { p_patches: Json }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          created_at: string
+          department_id: string
+          depends_on: string[]
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      erp_stage_item_qty: { Args: { p_stage_id: string }; Returns: number }
+      erp_stage_move_department: {
+        Args: {
+          p_queue_position?: number
+          p_stage_id: string
+          p_target_dept: string
+        }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          created_at: string
+          department_id: string
+          depends_on: string[]
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      erp_stage_reorder_queue: {
+        Args: { p_writes: Json }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          created_at: string
+          department_id: string
+          depends_on: string[]
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      erp_stage_report_progress: {
+        Args: { p_qty: number; p_stage_id: string }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          created_at: string
+          department_id: string
+          depends_on: string[]
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {

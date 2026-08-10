@@ -46,15 +46,44 @@ export function resolveErpRole(
  */
 export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   director: [...ERP_PERMISSIONS],
-  // Руководитель производства ведёт план и всю диспетчеризацию, кроме справочников
-  production_head: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit'),
+  /**
+   * Руководитель производства ведёт план и всю диспетчеризацию, кроме справочников.
+   * Аварийное снятие блокировок (`bypass.manage`) сюда НЕ входит: оно затрагивает
+   * всё производство разом, поэтому по умолчанию остаётся у директора. Раздать
+   * шире — галочкой в матрице, на то она и есть.
+   */
+  production_head: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit' && p !== 'bypass.manage'),
   // Диспетчер план НЕ ставит — за это отвечает руководитель производства
-  dispatcher: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit' && p !== 'plan.manage'),
+  dispatcher: ERP_PERMISSIONS.filter(
+    (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage',
+  ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
     'plan.fact',
   ],
   worker: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
+  ],
+  /**
+   * Технолог ведёт экспериментальный цех и образцы: работа мастера плюс ТЗ —
+   * по образцу он и есть тот, кто задаёт техническое задание.
+   */
+  technologist: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
+    'stage.priority', 'plan.fact', 'tz.manage',
+  ],
+  /**
+   * Участки нанесения: права ровно как у сотрудника цеха. Различает их не право,
+   * а привязка к цеху — поэтому три одинаковых строки здесь не дублирование,
+   * а честное «по правам они равны».
+   */
+  dtf: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
+  ],
+  silkscreen: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
+  ],
+  embroidery: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
   ],
   // tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,

@@ -3,6 +3,7 @@ import {
   missingMaterialsForStage, waitingReason,
 } from './routes';
 import { stageMissingTz } from './tz';
+import { bypassFor, isBypassed, materialsAfterBypass } from './bypass';
 
 /**
  * Задания производства как плоский список: этап позиции + вычисленная группа
@@ -23,7 +24,7 @@ import { stageMissingTz } from './tz';
 export function buildQueueEntries(
   orders,
   departments,
-  { departmentId = null, includeInactive = false } = {},
+  { departmentId = null, includeInactive = false, bypasses = [] } = {},
 ) {
   const deptById = new Map(departments.map((d) => [d.id, d]));
   const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
@@ -42,8 +43,17 @@ export function buildQueueEntries(
         if (!dept) continue;
 
         const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
-        const noTz = stageMissingTz(order, item.id, dept);
-        const itemMaterials = materialsForItem(order.materials, item.id);
+        /**
+         * Аварийно снятые проверки (правки 10.08) применяются ЗДЕСЬ, а не внутри
+         * гейтов: обе величины гейты принимают параметрами, поэтому снятие
+         * выражается «нет ТЗ → нет» и «материалов, которые держат → пустой список».
+         * Ни одной новой ветки в `isStageReady`/`waitingReason` и ни одного
+         * седьмого позиционного аргумента у них.
+         */
+        const noTz = stageMissingTz(order, item.id, dept)
+          && !isBypassed('tz_gate', order.id, bypasses);
+        const itemMaterials = materialsAfterBypass(
+          materialsForItem(order.materials, item.id), order.id, bypasses);
         let group = stage.status;
         let reason = null;
         let missingMaterials = [];
@@ -63,7 +73,27 @@ export function buildQueueEntries(
           }
         }
 
-        list.push({ order, item, stage, group, reason, missingMaterials });
+        /**
+         * Пометка «проверка снята вручную».
+         *
+         * Снятая блокировка, о которой цех не знает, — тот же баг, только
+         * молчаливый: задание вдруг запускается без материала, и объяснить это
+         * нечем. Пометку ставим ТОЛЬКО там, где снятие реально повлияло: считаем
+         * готовность ещё раз, по настоящим данным, и сравниваем.
+         */
+        let bypass = null;
+        if (group === 'ready' && (isBypassed('material_gate', order.id, bypasses)
+          || isBypassed('tz_gate', order.id, bypasses))) {
+          const realTz = stageMissingTz(order, item.id, dept);
+          const realMaterials = materialsForItem(order.materials, item.id);
+          const readyWithout = isStageReady(
+            stage, item.stages, realMaterials, dept, awaitProc, realTz);
+          if (!readyWithout) {
+            bypass = bypassFor(realTz ? 'tz_gate' : 'material_gate', order.id, bypasses);
+          }
+        }
+
+        list.push({ order, item, stage, group, reason, missingMaterials, bypass });
       }
     }
   }

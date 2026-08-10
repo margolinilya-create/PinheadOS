@@ -8,9 +8,10 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { isStageReady, isStageAwaitingProcurement, materialsForItem } from '../utils/routes';
+import { isBypassed, materialsAfterBypass } from '../utils/bypass';
 import { stageMissingTz } from '../utils/tz';
 import { stageOverdue } from '../utils/time';
-import type { ErpDepartment, ErpItemStage } from '../types';
+import type { ErpBypass, ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
 
 /**
@@ -182,7 +183,12 @@ export function stagesInDept(
 }
 
 /** Сколько работ «готово/в работе» в цехе — для уведомления и бейджа «Мой цех» */
-export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
+export function readyCountFor(
+  orders: ErpOrderFull[],
+  departments: ErpDepartment[],
+  deptCode: string,
+  bypasses: ErpBypass[] = [],
+): number {
   const dept = departments.find((d) => d.code === deptCode);
   if (!dept) return 0;
   let n = 0;
@@ -195,9 +201,12 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
         else if (
           st.status === 'waiting' &&
           isStageReady(
-            st, it.stages, materialsForItem(o.materials, it.id), dept,
+            st, it.stages,
+            // Снятая проверка (правки 10.08) обязана считаться ТАК ЖЕ, как в очереди:
+            // иначе бейдж цеха разойдётся со списком заданий под ним
+            materialsAfterBypass(materialsForItem(o.materials, it.id), o.id, bypasses), dept,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
-            stageMissingTz(o, it.id, dept),
+            stageMissingTz(o, it.id, dept) && !isBypassed('tz_gate', o.id, bypasses),
           )
         ) n += 1;
       }
@@ -211,7 +220,12 @@ export function readyCountFor(orders: ErpOrderFull[], departments: ErpDepartment
  * цеха и «Мой цех». Совпадает с группой «Готово к работе» в очереди, поэтому убывает при «Взять
  * в работу» (ERP-06). readyCountFor (ready+in_progress) оставлен для уведомления о новой работе.
  */
-export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepartment[], deptCode: string): number {
+export function readyOnlyCountFor(
+  orders: ErpOrderFull[],
+  departments: ErpDepartment[],
+  deptCode: string,
+  bypasses: ErpBypass[] = [],
+): number {
   const dept = departments.find((d) => d.code === deptCode);
   if (!dept) return 0;
   let n = 0;
@@ -223,9 +237,12 @@ export function readyOnlyCountFor(orders: ErpOrderFull[], departments: ErpDepart
         if (
           st.status === 'waiting' &&
           isStageReady(
-            st, it.stages, materialsForItem(o.materials, it.id), dept,
+            st, it.stages,
+            // Снятая проверка (правки 10.08) обязана считаться ТАК ЖЕ, как в очереди:
+            // иначе бейдж цеха разойдётся со списком заданий под ним
+            materialsAfterBypass(materialsForItem(o.materials, it.id), o.id, bypasses), dept,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
-            stageMissingTz(o, it.id, dept),
+            stageMissingTz(o, it.id, dept) && !isBypassed('tz_gate', o.id, bypasses),
           )
         ) n += 1;
       }
@@ -304,17 +321,17 @@ export function activeExperimentalCount(experimental: { phase: string }[]): numb
  * прибавилось работ «готово/в работе» — уведомляем (как раньше при loadAll).
  */
 export function withNewWorkToast(
-  get: () => { orders: ErpOrderFull[]; departments: ErpDepartment[] },
+  get: () => { orders: ErpOrderFull[]; departments: ErpDepartment[]; bypasses?: ErpBypass[] },
   apply: () => void | Promise<unknown>,
 ): Promise<void> {
   const myDept =
     typeof localStorage !== 'undefined' ? localStorage.getItem('erp_my_dept') : null;
   const before = myDept
-    ? readyCountFor(get().orders, get().departments, myDept)
+    ? readyCountFor(get().orders, get().departments, myDept, get().bypasses ?? [])
     : 0;
   return Promise.resolve(apply()).then(() => {
     if (!myDept) return;
-    const after = readyCountFor(get().orders, get().departments, myDept);
+    const after = readyCountFor(get().orders, get().departments, myDept, get().bypasses ?? []);
     if (after > before) toast.success('В вашем цехе появилась новая работа');
   });
 }

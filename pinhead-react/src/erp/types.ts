@@ -684,11 +684,27 @@ export const SHIPPED_STATUS_LABELS: Record<ErpShippedStatus, string> = {
 
 // --- Сотрудники и аудит (блок улучшений) -------------------------------------
 
+/**
+ * Цеховая роль сотрудника.
+ *
+ * Коды НЕ переименовываются под новые названия из документа заказчика (10.08):
+ * код роли зашит в CHECK-констрейнт, в матрицу `erp_role_permissions`, в серверное
+ * зеркало `erp_role_of_caller()` и в сторожевые тесты. Меняются подписи
+ * (`EMPLOYEE_ROLE_LABELS`) — их и видит человек.
+ */
 export type EmployeeRole =
   | 'worker' | 'foreman' | 'dispatcher' | 'purchaser'
   | 'storekeeper' | 'hr' | 'manager' | 'director'
   /** Ведёт недельный и ежедневный план производства (правка менеджера 2026-08-03) */
-  | 'production_head';
+  | 'production_head'
+  /** Отвечает за экспериментальный цех и разработку образцов (правки 10.08) */
+  | 'technologist'
+  /**
+   * Роли участков нанесения (правки 10.08). По правам они не различаются между
+   * собой — различает их привязка `erp_employees.department_id`. Заведены отдельно,
+   * потому что заказчик перечислил их как самостоятельные роли команды.
+   */
+  | 'dtf' | 'silkscreen' | 'embroidery';
 
 export interface ErpEmployee {
   id: string;
@@ -716,16 +732,25 @@ export interface ErpStageEvent {
   created_at: string;
 }
 
+/**
+ * Подписи ролей — по фактической структуре команды (документ заказчика 10.08).
+ * Мастер цеха отвечает сразу за закрой и швейку, менеджер сопровождения ведёт
+ * заказ и связывает производство с заказчиком.
+ */
 export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   worker: 'Сотрудник цеха',
-  foreman: 'Бригадир',
+  foreman: 'Мастер цеха',
   dispatcher: 'Диспетчер',
   purchaser: 'Закупщик',
   storekeeper: 'Кладовщик',
   hr: 'HR',
-  manager: 'Менеджер',
+  manager: 'МС — менеджер сопровождения',
   director: 'Директор',
   production_head: 'Руководитель производства',
+  technologist: 'Технолог',
+  dtf: 'ДТФ',
+  silkscreen: 'Шелкография',
+  embroidery: 'Вышивка',
 };
 
 // --- Матрица прав (ядро правки 11) ------------------------------------------
@@ -747,12 +772,13 @@ export type ErpPermission =
   | 'material.receive'        // отмечать поступление материала (приёмка)
   | 'plan.manage'             // ставить и менять производственный план
   | 'plan.fact'               // вносить факт, брак и проблему по задаче плана
-  | 'catalog.edit';           // редактировать справочники
+  | 'catalog.edit'            // редактировать справочники
+  | 'bypass.manage';          // аварийно снимать блокировки и возвращать их
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
   'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
-  'material.receive', 'plan.manage', 'plan.fact', 'catalog.edit',
+  'material.receive', 'plan.manage', 'plan.fact', 'catalog.edit', 'bypass.manage',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -769,7 +795,46 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'plan.manage': 'Вести производственный план',
   'plan.fact': 'Вносить факт по плану',
   'catalog.edit': 'Править справочники',
+  'bypass.manage': 'Аварийно снимать блокировки',
 };
+
+// --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------
+
+/**
+ * Что именно снято. Зависимости этапов сюда не входят: «этап ждёт предыдущий» —
+ * это маршрут, а не проверка; для застрявшего маршрута есть пропуск этапа.
+ */
+export type BypassKind = 'material_gate' | 'tz_gate' | 'ship_gate';
+
+export const BYPASS_KINDS: BypassKind[] = ['material_gate', 'tz_gate', 'ship_gate'];
+
+export const BYPASS_KIND_LABELS: Record<BypassKind, string> = {
+  material_gate: 'Запуск без материалов',
+  tz_gate: 'Запуск без ТЗ',
+  ship_gate: 'Отгрузка без готовности',
+};
+
+/** Что человек увидит рядом с галочкой — последствие, а не название механики */
+export const BYPASS_KIND_HINTS: Record<BypassKind, string> = {
+  material_gate: 'Цех сможет взять задание, пока склад не принял материал',
+  tz_gate: 'Этап запустится, даже если у позиции нет ТЗ',
+  ship_gate: 'Заказ можно будет отгрузить с незакрытыми этапами',
+};
+
+export interface ErpBypass {
+  id: string;
+  kind: BypassKind;
+  /** null — снято для всей системы; иначе только для этого заказа */
+  order_id: string | null;
+  reason: string;
+  created_by: string | null;
+  created_by_id: string | null;
+  created_at: string;
+  restored_by: string | null;
+  restored_by_id: string | null;
+  /** null — снятие действует */
+  restored_at: string | null;
+}
 
 /** Строка матрицы прав (таблица erp_role_permissions) */
 export interface ErpRolePermission {

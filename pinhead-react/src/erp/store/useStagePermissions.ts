@@ -23,6 +23,12 @@ export interface StagePermissions {
   complete: boolean;
   block: boolean;
   defect: boolean;
+  /**
+   * Пропустить этап (правки 10.08). Это решение по МАРШРУТУ заказа, а не работа
+   * цеха, поэтому право `order.manage`, а не одно из цеховых, и цех вызывающего
+   * здесь не проверяется: пропускает тот, кто ведёт заказ, а он не в цехе.
+   */
+  skip: boolean;
   /** Хоть одно действие доступно — рисовать ли блок действий вообще */
   any: boolean;
 }
@@ -35,6 +41,7 @@ export function useStagePermissions(departmentId: string | null | undefined): St
     const complete = access.canDo('stage.complete', departmentId);
     const block = access.canDo('stage.block', departmentId);
     const defect = access.canDo('stage.defect', departmentId);
+    const skip = access.can('order.manage');
     return {
       inDept: access.canActIn(departmentId),
       take,
@@ -42,7 +49,8 @@ export function useStagePermissions(departmentId: string | null | undefined): St
       complete,
       block,
       defect,
-      any: take || progress || complete || block || defect,
+      skip,
+      any: take || progress || complete || block || defect || skip,
     };
   }, [access, departmentId]);
 }

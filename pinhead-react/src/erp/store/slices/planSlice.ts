@@ -125,8 +125,8 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
   updatePlanSlot: async (id, patch) => {
     const prev = get().planSlots;
     set({ planSlots: patchSlot(prev, id, patch) });
-    const { error } = await withPending(`plan:${id}`, () =>
-      supabase.from('erp_calendar_slots').update(patch).eq('id', id));
+    const { error } = await erpQuery(() => withPending(`plan:${id}`, () =>
+      supabase.from('erp_calendar_slots').update(patch).eq('id', id)));
     if (error) {
       set({ planSlots: prev });
       return erpError('План не изменён', error);

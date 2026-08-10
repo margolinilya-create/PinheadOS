@@ -53,7 +53,7 @@ function DictionaryChips({ items, onPick, label }) {
 export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz = true }) {
   const { order, item, stage, group } = entry;
   const {
-    onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onAckOverdue,
+    onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip, onAckOverdue,
   } = actions;
 
   const overdue = stageOverdue(stage.planned_end, stage.status);
@@ -225,6 +225,16 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   {perms.block && (
                     <Button variant="ghost" onClick={() => setBlockMode(true)}>
                       <Icon name="ban" size={14} /> Проблема
+                    </Button>
+                  )}
+                  {/*
+                    Пропуск — аварийный выход для застрявшего маршрута, поэтому
+                    стоит последним и требует причины. Право `order.manage`:
+                    решение принимает тот, кто ведёт заказ, а не цех.
+                  */}
+                  {perms.skip && (
+                    <Button variant="ghost" disabled={busy} onClick={() => run(() => onSkip(entry))}>
+                      <Icon name="chevronRight" size={14} /> Пропустить этап
                     </Button>
                   )}
                 </>

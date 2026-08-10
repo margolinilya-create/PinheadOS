@@ -20,10 +20,10 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
  * не приходится вести дважды.
  */
 
-/** Порядок ролей — от руководства к исполнителям */
+/** Порядок ролей — от руководства к исполнителям, участки нанесения рядом */
 const ROLES = [
-  'director', 'production_head', 'dispatcher', 'manager', 'foreman',
-  'worker', 'purchaser', 'storekeeper', 'hr',
+  'director', 'production_head', 'dispatcher', 'manager', 'technologist', 'foreman',
+  'worker', 'dtf', 'silkscreen', 'embroidery', 'purchaser', 'storekeeper', 'hr',
 ];
 
 /**

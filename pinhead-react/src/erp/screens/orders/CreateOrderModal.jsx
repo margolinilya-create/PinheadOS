@@ -60,7 +60,6 @@ function buildTzItems(items, deptByCode) {
         brandingMethods: [...new Set(prints.map((p) => p.method))],
         brandingOn: it.branding_on ?? 'cut',
         materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
-        needsQc: it.needs_qc ?? true,
       });
       return {
         index,
@@ -463,8 +462,6 @@ export function CreateOrderModal({ onClose }) {
           // маршрут строится по техникам из блоков «Нанесение №N»
           branding_methods: [...new Set(prints.map((p) => p.method))],
           branding_on: it.branding_on,
-          // финальный ОТК: влияет только на маршрут, в позицию не пишется
-          needs_qc: it.needs_qc ?? true,
           size_grid: gridToPayload(it.size_grid),
           prints: prints.map((p) => ({
             method: p.method,

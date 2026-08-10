@@ -129,3 +129,50 @@ describe('canActInDept', () => {
     expect(canActInDept('production', null, 'd2')).toBe(true);
   });
 });
+
+/**
+ * Роли по фактической структуре команды (правки заказчика 10.08).
+ *
+ * Документ перечислил роли производства поимённо, и три из них — участки нанесения.
+ * По правам они не различаются: различает их привязка сотрудника к цеху. Тест
+ * закрепляет именно это, чтобы будущая правка одной строки не развела их молча.
+ */
+describe('новые роли: технолог и участки нанесения', () => {
+  const AREA_ROLES = ['dtf', 'silkscreen', 'embroidery'] as const;
+
+  it('участки нанесения имеют ровно права сотрудника цеха', () => {
+    for (const role of AREA_ROLES) {
+      expect([...DEFAULT_PERMISSIONS[role]].sort())
+        .toEqual([...DEFAULT_PERMISSIONS.worker].sort());
+    }
+  });
+
+  it('участок не получает лишнего: ни приоритетов, ни переноса между цехами', () => {
+    for (const role of AREA_ROLES) {
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('stage.priority');
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('stage.move_department');
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('order.manage');
+    }
+  });
+
+  it('технолог работает как мастер цеха и ведёт ТЗ', () => {
+    for (const p of DEFAULT_PERMISSIONS.foreman) {
+      expect(DEFAULT_PERMISSIONS.technologist, `технолог без ${p}`).toContain(p);
+    }
+    // По образцу именно технолог задаёт техническое задание
+    expect(DEFAULT_PERMISSIONS.technologist).toContain('tz.manage');
+  });
+
+  it('новые роли не получают администрирования', () => {
+    for (const role of [...AREA_ROLES, 'technologist'] as const) {
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('catalog.edit');
+      expect(DEFAULT_PERMISSIONS[role]).not.toContain('plan.manage');
+    }
+  });
+
+  it('роль участка — это не цех: привязку она не заменяет', () => {
+    // Роль `dtf` у человека, привязанного к вышивке, не пускает его в чужой цех:
+    // цех решает `canActInDept`, а не название роли
+    expect(canActInDept('production', 'd-embroidery', 'd-dtf')).toBe(false);
+  });
+});

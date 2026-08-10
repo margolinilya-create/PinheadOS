@@ -195,6 +195,19 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
 
+    /**
+     * Аварийно снятые блокировки (правки 10.08).
+     *
+     * Снятие и возврат проверки обязаны доходить до цеха немедленно: человек
+     * в цехе смотрит на очередь и должен увидеть, что задание запустилось —
+     * или что проверку вернули и работать по обходному сценарию больше нельзя.
+     * Список маленький, поэтому перечитываем его целиком, а не патчим точечно.
+     */
+    if (ev.table === 'erp_bypasses') {
+      void get().loadBypasses();
+      return;
+    }
+
     // Неизвестная таблица — старый путь
     scheduleFullReload();
   },
@@ -259,6 +272,11 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_tz_documents' },
         forward('erp_tz_documents'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_bypasses' },
+        forward('erp_bypasses'),
       )
       .subscribe();
     return () => {

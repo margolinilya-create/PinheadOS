@@ -12,4 +12,5 @@ export { dictionariesSlice } from './dictionariesSlice';
 export { experimentalSlice } from './experimentalSlice';
 export { tzSlice } from './tzSlice';
 export { planSlice } from './planSlice';
+export { bypassSlice } from './bypassSlice';
 export { realtimeSlice } from './realtimeSlice';

@@ -9,6 +9,7 @@ import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { buildItemRoute } from '../../utils/routes';
 import { isOrderReadyToShip } from '../../utils/stageUi';
+import { isBypassed } from '../../utils/bypass';
 import { daysLeft } from '../../utils/time';
 import type {
   ErpDepartment,
@@ -328,9 +329,6 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           brandingMethods: it.branding_methods,
           brandingOn: it.branding_on ?? 'cut',
           materialSource: it.material_source,
-          // ОТК управляется галочкой позиции в форме; по умолчанию контроль есть.
-          // В `erp_order_items` не пишется — маршрут уже материализован в этапах.
-          needsQc: it.needs_qc ?? true,
         });
         const valid = route.filter((r) => deptByCode.has(r.departmentCode));
         for (const r of route) {
@@ -454,8 +452,16 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const prev = get().orders;
     const order = prev.find((o) => o.id === orderId);
     if (!order) return false;
-    // отгружать можно только готовый заказ (все этапы done/skipped)
-    if (!isOrderReadyToShip(order)) {
+    /**
+     * Отгружать можно только готовый заказ (все этапы done/skipped, материалы
+     * приняты) — либо когда проверку сняли аварийно (правки 10.08).
+     *
+     * Снятие применяется ТОЛЬКО здесь и в кнопке, но НЕ в расчёте просрочки:
+     * `isOrderOverdue` тоже спрашивает `isOrderReadyToShip`, и если подставить
+     * снятие туда, заказ задним числом перестал бы считаться просроченным.
+     * Аварийный выход не должен переписывать отчётность.
+     */
+    if (!isOrderReadyToShip(order) && !isBypassed('ship_gate', orderId, get().bypasses)) {
       toast.error('Заказ ещё не готов к отгрузке');
       return false;
     }

@@ -139,9 +139,28 @@ test.describe('Админка: права и справочники (правк�
   test('вкладки админки включают «Права» и «Справочники»', async ({ page }) => {
     await page.goto('/admin?studio=0');
     const tabs = page.getByRole('tablist', { name: 'Разделы админки' });
-    for (const name of ['Пользователи', 'Права', 'Цеха', 'Справочники', 'Заказы ТЗ']) {
+    for (const name of [
+      'Пользователи', 'Права', 'Цеха', 'Справочники', 'Аварийный режим', 'Заказы ТЗ',
+    ]) {
       await expect(tabs.getByRole('tab', { name })).toBeVisible();
     }
+  });
+
+  /**
+   * Аварийный режим (правки 10.08): вкладка есть, форма просит причину и не даёт
+   * снять проверку без неё. Кнопка без причины — это снятие «просто так»,
+   * а разбираться в нём завтра будет некому.
+   */
+  test('аварийный режим: вкладка открывается и требует причину', async ({ page }) => {
+    await page.goto('/admin?tab=bypass&studio=0');
+    await expect(page.getByRole('heading', { name: 'Снять проверку' })).toBeVisible();
+    await expect(page.getByText('Все проверки действуют.')).toBeVisible();
+
+    const submit = page.getByRole('button', { name: 'Снять проверку' });
+    await expect(submit).toBeDisabled();
+    await page.getByPlaceholder('напр. склад не может провести приёмку из-за ошибки')
+      .fill('склад не проводит приёмку');
+    await expect(submit).toBeEnabled();
   });
 
   test('матрица прав — чекбокс на каждое право и роль', async ({ page }) => {
@@ -150,7 +169,9 @@ test.describe('Админка: права и справочники (правк�
     // Рядовой сотрудник цеха завершает этап, но не меняет приоритеты (дефолт сида)
     await expect(page.getByRole('checkbox', { name: 'Завершать этап — Сотрудник цеха' })).toBeChecked();
     await expect(page.getByRole('checkbox', { name: 'Менять приоритеты — Сотрудник цеха' })).not.toBeChecked();
-    await expect(page.getByRole('checkbox', { name: 'Менять приоритеты — Бригадир' })).toBeChecked();
+    // Роль переименована под фактическую структуру команды (правки 10.08):
+    // «Бригадир» → «Мастер цеха», он отвечает сразу за закрой и швейку
+    await expect(page.getByRole('checkbox', { name: 'Менять приоритеты — Мастер цеха' })).toBeChecked();
   });
 
   test('справочники: под-вкладки и статусы только для чтения', async ({ page }) => {

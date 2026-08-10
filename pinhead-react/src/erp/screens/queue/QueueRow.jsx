@@ -27,7 +27,7 @@ export function QueueRow({
   onDragStart, onDragEnd, onDragOverRow,
   canMoveUp, canMoveDown, onMove,
 }) {
-  const { order, item, stage, reason, group, missingMaterials } = entry;
+  const { order, item, stage, reason, group, missingMaterials, bypass } = entry;
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const d = daysLeft(order.due_date);
@@ -182,12 +182,24 @@ export function QueueRow({
 
       {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} compact />}
 
-      {(reason || (group === 'blocked' && stage.block_reason) || rework || needsAck) && (
+      {(reason || bypass || (group === 'blocked' && stage.block_reason) || rework || needsAck) && (
         <div className={styles.queueRowNotes}>
           {/* Причина уже расписана списком материалов — не дублируем её строкой */}
           {reason && group !== 'awaiting_materials' && (
             <span className={styles.queueReason}>
               <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
+            </span>
+          )}
+          {/*
+            Задание запустилось со снятой проверкой — цех должен понимать, почему
+            оно вообще в работе, и кто это решил
+          */}
+          {bypass && (
+            <span className={`${styles.queueReason} ${styles.overdue}`}>
+              <span className={styles.cellWithIcon}>
+                <Icon name="shield" size={14} />
+                Проверка снята вручную: {bypass.reason}
+              </span>
             </span>
           )}
           {group === 'blocked' && stage.block_reason && (

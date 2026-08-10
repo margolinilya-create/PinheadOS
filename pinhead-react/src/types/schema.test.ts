@@ -62,6 +62,7 @@ const PAIRS: [string, string][] = [
   ['ErpMaterial', 'erp_materials'],
   ['ErpCalendarSlot', 'erp_calendar_slots'],
   ['ErpTzDocument', 'erp_tz_documents'],
+  ['ErpBypass', 'erp_bypasses'],
 ];
 
 describe('ручные типы ERP не разошлись со схемой БД', () => {
@@ -85,7 +86,9 @@ describe('ручные типы ERP не разошлись со схемой Б
   it('снимок схемы не протух: в нём есть таблицы последних волн', () => {
     // Если файл сгенерирован до миграции, эти таблицы в нём не появятся,
     // и вся сверка выше станет проверкой прошлого.
-    for (const t of ['erp_calendar_slots', 'erp_tz_documents', 'erp_material_suppliers']) {
+    for (const t of [
+      'erp_calendar_slots', 'erp_tz_documents', 'erp_material_suppliers', 'erp_bypasses',
+    ]) {
       expect(generated).toContain(`      ${t}: {`);
     }
   });

@@ -48,12 +48,6 @@ export interface DraftItem {
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
   has_branding?: boolean;
-  /**
-   * Нужен ли финальный ОТК. Включён по умолчанию: контроль качества — штатный
-   * последний этап производства. Живёт только в форме — маршрут материализуется
-   * в `erp_item_stages` при создании заказа, отдельной колонки позиции не нужно.
-   */
-  needs_qc?: boolean;
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: string;
   material_source?: string;
@@ -100,7 +94,6 @@ export const EMPTY_ITEM: DraftItem = {
   production_type: 'sewing',
   branding_on: 'cut',
   has_branding: false,
-  needs_qc: true,
   subcontract_kind: 'finished_product',
   material_source: 'pinhead',
   subcontract_operation: '',
@@ -310,8 +303,6 @@ export function loadOrderDraft(): { form: DraftForm; items: DraftItem[] } | null
       prints: Array.isArray(it.prints) ? it.prints : [],
       // старые черновики без флага: брендирование — если есть нанесения
       has_branding: it.has_branding ?? (Array.isArray(it.prints) && it.prints.length > 0),
-      // черновик, начатый до появления ОТК, получает штатный контроль
-      needs_qc: it.needs_qc ?? true,
     })),
   };
 }

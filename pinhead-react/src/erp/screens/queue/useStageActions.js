@@ -4,6 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { currentActor } from '../../store/shared';
 import { deptShortName } from '../../data/departments';
 import { confirmStageDone } from '../../utils/stageDone';
+import { confirmWithInput } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 
 /**
@@ -127,5 +128,43 @@ export function useStageActions() {
     return ok;
   }, [reportDefect, uploadOrderAttachment]);
 
-  return { onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onAckOverdue: ackStageOverdue };
+  /**
+   * «Пропустить этап» — точечный ответ на застрявший маршрут (правки 10.08).
+   *
+   * Заказчик просил аварийно снимать блокирующие механики. Для гейтов (материалы,
+   * ТЗ, отгрузка) это отдельный режим в админке, а вот «этап ждёт предыдущий» —
+   * не проверка, а сам маршрут: глобально отключать его нельзя, иначе запустится
+   * всё сразу. Правильный масштаб здесь — один этап.
+   *
+   * Статус `skipped` в схеме был с самого начала и везде трактуется как пройденный
+   * (готовность к отгрузке, зависимости, прогресс), но поставить его человеку было
+   * НЕЧЕМ. Причина обязательна: пропуск — это решение, за которым завтра придут
+   * с вопросом «почему цех не работал».
+   */
+  const onSkip = useCallback(async (entry) => {
+    const deptName = deptNameById.get(entry.stage.department_id) || 'этап';
+    const next = dependentDeptNames(entry);
+    const { ok: confirmed, value: reason } = await confirmWithInput({
+      title: `Пропустить «${deptName}»?`,
+      message: next.length > 0
+        ? `Этап станет пройденным, и откроется ${next.join(', ')}. Работа по нему записана не будет.`
+        : 'Этап станет пройденным. Работа по нему записана не будет.',
+      confirmLabel: 'Пропустить',
+      variant: 'danger',
+      prompt: {
+        label: 'Причина пропуска (попадёт в историю заказа)',
+        placeholder: 'напр. операция не нужна на этом заказе',
+        required: true,
+      },
+    });
+    if (!confirmed) return false;
+    const ok = await setStageStatus(entry.stage.id, 'skipped', { comment: `Пропуск: ${reason}` });
+    if (ok) toast.success('Этап отмечен пропущенным');
+    return ok;
+  }, [setStageStatus, deptNameById, dependentDeptNames]);
+
+  return {
+    onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip,
+    onAckOverdue: ackStageOverdue,
+  };
 }

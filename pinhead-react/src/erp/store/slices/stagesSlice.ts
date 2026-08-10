@@ -59,8 +59,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
 
     // optimistic с rollback (нетронутые заказы сохраняют идентичность)
     set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
-    const { error } = await withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
+    const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId)));
     if (error) {
       set({ orders: prev });
       erpError('Этап не обновлён', error);
@@ -102,8 +102,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     }
     set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
 
-    const { data, error } = await withPending(`stage:${stageId}`, () =>
-      supabase.rpc('erp_stage_report_progress', { p_stage_id: stageId, p_qty: qty }));
+    const { data, error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_report_progress', { p_stage_id: stageId, p_qty: qty })));
     if (error) {
       set({ orders: prev });
       erpError('Результат не записан', error);
@@ -281,8 +281,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      * не выбирал, и через секунду realtime приносил его на экран.
      * С RPC откатывать нечего по построению — либо все патчи, либо ни одного.
      */
-    const { data, error } = await withPending(`stage:${stage.id}`, () =>
-      supabase.rpc('erp_stage_apply_defect', { p_patches: patches.map((p) => p.write) }));
+    const { data, error } = await erpQuery(() => withPending(`stage:${stage.id}`, () =>
+      supabase.rpc('erp_stage_apply_defect', { p_patches: patches.map((p) => p.write) })));
     if (error) {
       set({ orders: prev });
       erpError('Брак не записан', error);
@@ -380,8 +380,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const prev = get().orders;
     const patch = { overdue_comment: comment, overdue_ack_at: new Date().toISOString() };
     set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
-    const { error } = await withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(patch).eq('id', stageId));
+    const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId)));
     if (error) {
       set({ orders: prev });
       erpError('Комментарий не сохранён', error);
@@ -425,8 +425,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
 
     // Одной транзакцией: перенумерация переписывает всю очередь цеха, и сбой
     // на середине оставлял бы её перемешанной, а интерфейс — откаченным целиком.
-    const { error } = await withPending(`stage:${stageId}`, () =>
-      supabase.rpc('erp_stage_reorder_queue', { p_writes: writes }));
+    const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_reorder_queue', { p_writes: writes })));
     if (error) {
       set({ orders: prevOrders });
       erpError('Приоритет не сохранён', error);
@@ -509,13 +509,13 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      * в ДТФ закрывал ВТО, и ОТК видел свою зависимость выполненной, хотя ДТФ ещё
      * не начинал. Партия уходила бы на контроль до того, как её напечатают.
      */
-    const { data, error } = await withPending(`stage:${stageId}`, () =>
+    const { data, error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
       supabase.rpc('erp_stage_move_department', {
         p_stage_id: stageId,
         p_target_dept: targetDeptId,
         p_queue_position: plan.targetStage?.queue_position
           ?? defaultQueuePosition(order.due_date),
-      }));
+      })));
     if (error) {
       // Транзакция не оставила следа — откат интерфейса честен.
       set({ orders: prevOrders });
@@ -576,8 +576,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
   setStagePlan: async (stageId, plan) => {
     const prev = get().orders;
     set((s) => ({ orders: patchStageIn(s.orders, stageId, plan) }));
-    const { error } = await withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(plan).eq('id', stageId));
+    const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(plan).eq('id', stageId)));
     if (error) {
       set({ orders: prev });
       erpError('План этапа не сохранён', error);

@@ -22,7 +22,7 @@ function stage(route: ReturnType<typeof buildRoute>, code: string) {
 describe('buildRoute — типы производства (лист «Маршруты»)', () => {
   it('Пошив: закуп → закрой → швейка → ВТО', () => {
     const route = buildRoute({ productionType: 'sewing', brandingMethods: [], brandingOn: 'cut' });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto', 'qc']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto']);
   });
 
   it('Готовое изделие: только закуп', () => {
@@ -32,7 +32,7 @@ describe('buildRoute — типы производства (лист «Марш�
 
   it('Крой: закуп → закрой', () => {
     const route = buildRoute({ productionType: 'cut', brandingMethods: [], brandingOn: 'cut' });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'qc']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting']);
   });
 
   it('Без изделий: этапов производства нет', () => {
@@ -48,7 +48,7 @@ describe('buildRoute — типы производства (лист «Марш�
   it('Образцы: закуп → закрой → швейка → ВТО (эксперим. цех — отдельный модуль)', () => {
     const route = buildRoute({ productionType: 'samples', brandingMethods: [], brandingOn: 'cut' });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing', 'vto', 'qc'],
+      ['supply', 'cutting', 'sewing', 'vto'],
     );
   });
 });
@@ -59,7 +59,7 @@ describe('buildRoute — нанесения', () => {
       productionType: 'sewing', brandingMethods: ['silkscreen'], brandingOn: 'cut',
     });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'silkscreen', 'sewing', 'vto', 'qc'],
+      ['supply', 'cutting', 'silkscreen', 'sewing', 'vto'],
     );
     // печать зависит от закроя, швейка — от печати
     expect(stage(route, 'silkscreen').dependsOnCodes).toEqual(['cutting']);
@@ -88,7 +88,7 @@ describe('buildRoute — нанесения', () => {
       productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing', 'vto', 'embroidery', 'qc'],
+      ['supply', 'cutting', 'sewing', 'vto', 'embroidery'],
     );
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['vto']);
   });
@@ -97,7 +97,7 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'ready_garment', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'embroidery', 'qc']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'embroidery']);
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['supply']);
   });
 
@@ -105,7 +105,7 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'no_product', brandingMethods: ['dtf'], brandingOn: 'cut',
     });
-    expect(route.map((r) => r.departmentCode)).toEqual(['dtf', 'qc']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['dtf']);
     expect(stage(route, 'dtf').dependsOnCodes).toEqual([]);
   });
 
@@ -113,44 +113,49 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'sewing', brandingMethods: ['other'], brandingOn: 'cut',
     });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto', 'qc']);
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto']);
   });
 });
 
-describe('buildRoute — финальный ОТК', () => {
-  it('по умолчанию ОТК есть и стоит последним', () => {
+/**
+ * ОТК убран из маршрута (правки заказчика 10.08).
+ *
+ * Отдельного участка контроля в структуре производства нет: качество отвечает тот
+ * цех, который сдаёт работу. Раньше ОТК добавлялся последним этапом и ждал все
+ * терминальные ветки — теперь маршрут заканчивается настоящей работой. Тесты
+ * закрепляют отсутствие, потому что вернуть его «заодно» проще всего.
+ */
+describe('buildRoute — ОТК больше не отдельный этап', () => {
+  it('обычный пошив заканчивается ВТО, а не контролем', () => {
     const route = buildRoute({ productionType: 'sewing', brandingMethods: [], brandingOn: 'cut' });
-    expect(route[route.length - 1].departmentCode).toBe('qc');
-    expect(stage(route, 'qc').dependsOnCodes).toEqual(['vto']);
-  });
-
-  it('снятая галочка убирает ОТК из маршрута', () => {
-    const route = buildRoute({
-      productionType: 'sewing', brandingMethods: [], brandingOn: 'cut', needsQc: false,
-    });
     expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto']);
   });
 
-  it('ОТК ждёт ВСЕ параллельные ветки нанесения на готовом, а не последнюю по списку', () => {
+  it('ОТК не появляется ни при каких нанесениях', () => {
+    for (const brandingOn of ['cut', 'finished'] as const) {
+      const route = buildRoute({
+        productionType: 'sewing',
+        brandingMethods: ['embroidery', 'silkscreen'],
+        brandingOn,
+      });
+      expect(route.map((r) => r.departmentCode)).not.toContain('qc');
+    }
+  });
+
+  it('параллельные ветки нанесения на готовом остаются терминальными', () => {
     const route = buildRoute({
       productionType: 'sewing',
       brandingMethods: ['embroidery', 'silkscreen'],
       brandingOn: 'finished',
     });
-    // вышивка и шелкография идут параллельно после ВТО — ОТК зависит от обеих
-    expect(stage(route, 'qc').dependsOnCodes.slice().sort()).toEqual(['embroidery', 'silkscreen']);
-    // и не от ВТО: он уже покрыт транзитивно через ветки
-    expect(stage(route, 'qc').dependsOnCodes).not.toContain('vto');
+    // Раньше обе ветки сходились на ОТК. Теперь у позиции просто два хвоста —
+    // и готовность к отгрузке считается по «все этапы done», а не по одному ОТК
+    const depended = new Set(route.flatMap((r) => r.dependsOnCodes));
+    const terminal = route.filter((r) => !depended.has(r.departmentCode)).map((r) => r.departmentCode);
+    expect(terminal.slice().sort()).toEqual(['embroidery', 'silkscreen']);
   });
 
-  it('ОТК ждёт все ветки нанесения на крое через швейку и ВТО', () => {
-    const route = buildRoute({
-      productionType: 'sewing', brandingMethods: ['dtf'], brandingOn: 'cut',
-    });
-    expect(stage(route, 'qc').dependsOnCodes).toEqual(['vto']);
-  });
-
-  it('только закуп — ОТК не добавляется: контролировать нечего', () => {
+  it('только закуп остаётся только закупом', () => {
     for (const productionType of ['ready_garment', 'outsource'] as const) {
       const route = buildRoute({ productionType, brandingMethods: [], brandingOn: 'finished' });
       expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
@@ -160,16 +165,6 @@ describe('buildRoute — финальный ОТК', () => {
   it('пустой маршрут остаётся пустым', () => {
     const route = buildRoute({ productionType: 'no_product', brandingMethods: [], brandingOn: 'cut' });
     expect(route).toEqual([]);
-  });
-
-  it('sortOrder ОТК больше всех прочих этапов', () => {
-    const route = buildRoute({
-      productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'finished',
-    });
-    const qc = stage(route, 'qc').sortOrder;
-    for (const r of route) {
-      if (r.departmentCode !== 'qc') expect(r.sortOrder).toBeLessThan(qc);
-    }
   });
 });
 
@@ -427,14 +422,14 @@ describe('buildItemRoute — вырезание закупки при матер
     expect(route).toEqual([]);
   });
 
-  it('подряд с нанесением на готовом: остаётся цех нанесения и ОТК', () => {
+  it('подряд с нанесением на готовом: остаётся только цех нанесения', () => {
     const route = buildItemRoute({
       productionType: 'outsource',
       brandingMethods: ['silkscreen'],
       brandingOn: 'finished',
       materialSource: 'contractor',
     });
-    expect(route.map((s) => s.departmentCode)).toEqual(['silkscreen', 'qc']);
+    expect(route.map((s) => s.departmentCode)).toEqual(['silkscreen']);
     // supply вырезан и не остался висеть в зависимостях
     expect(route.flatMap((s) => s.dependsOnCodes)).not.toContain('supply');
   });

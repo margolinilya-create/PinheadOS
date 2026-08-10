@@ -107,7 +107,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
 export default function ProductionBoard() {
   const {
     orders, departments, loading, loaded, loadError, loadAll, setStageStatus,
-    archiveLoaded, loadArchive,
+    archiveLoaded, loadArchive, bypasses,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -119,6 +119,7 @@ export default function ProductionBoard() {
       setStageStatus: s.setStageStatus,
       archiveLoaded: s.archiveLoaded,
       loadArchive: s.loadArchive,
+      bypasses: s.bypasses,
     })),
   );
   const access = useErpAccess();
@@ -168,8 +169,8 @@ export default function ProductionBoard() {
 
   /** Задания всех заказов — тот же источник, что у очереди и канбана */
   const entries = useMemo(
-    () => buildQueueEntries(orders, departments, { includeInactive: !onlyActive }),
-    [orders, departments, onlyActive],
+    () => buildQueueEntries(orders, departments, { includeInactive: !onlyActive, bypasses }),
+    [orders, departments, onlyActive, bypasses],
   );
 
   /**
