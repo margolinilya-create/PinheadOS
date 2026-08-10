@@ -22,7 +22,9 @@ const PHASE_CHIP = {
 /** Куда сейчас передан образец (открытая передача) — для бейджа локации */
 const OP_LOCATION = { to_sewing: 'в швейном цехе', to_branding: 'на нанесениях' };
 
-export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, materialReady = true }) {
+export function ExperimentalCard({
+  exp, onUpdate, onCreateOp, onCompleteOp, materialReady = true, itemId = null,
+}) {
   const [ret, setRet] = useState('');
   const ops = exp.ops ?? [];
   // Гейт «Проработки»: лекала (тех. название + табель мер) И материал принят складом (волна 4.3)
@@ -93,7 +95,9 @@ export function ExperimentalCard({ exp, onUpdate, onCreateOp, onCompleteOp, mate
               aria-label="Технолог" style={{ maxWidth: 140 }} />
           </div>
           <div className={styles.fieldLabel}>Передачи (авто-возврат на «Проработку»)</div>
-          <OpForm onCreate={(op) => onCreateOp(exp.id, op)} />
+          {/* Позиция образца: этап заводится на неё, поэтому без неё передать
+              в цех нельзя — кнопка останется выключенной */}
+          <OpForm itemId={itemId} onCreate={(op) => onCreateOp(exp.id, op)} />
           {ops.length > 0 && (
             <ul className={styles.tzMatList}>
               {ops.map((o) => (

@@ -52,10 +52,14 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    * всё производство разом, поэтому по умолчанию остаётся у директора. Раздать
    * шире — галочкой в матрице, на то она и есть.
    */
-  production_head: ERP_PERMISSIONS.filter((p) => p !== 'catalog.edit' && p !== 'bypass.manage'),
+  production_head: ERP_PERMISSIONS.filter(
+    // Образцы ведёт технолог: разработка — не производственный поток
+    (p) => p !== 'catalog.edit' && p !== 'bypass.manage' && p !== 'experimental.manage',
+  ),
   // Диспетчер план НЕ ставит — за это отвечает руководитель производства
   dispatcher: ERP_PERMISSIONS.filter(
-    (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage',
+    (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage'
+      && p !== 'experimental.manage',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
@@ -71,6 +75,13 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   technologist: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
     'stage.priority', 'plan.fact', 'tz.manage',
+    /**
+     * Разработка образцов — его основная работа, и без этого права она
+     * недоступна: этап образца заводится под ним. Нашлось живой проверкой —
+     * `erp_experimental_send_to_dept` падала на 42501 у того самого человека,
+     * ради которого раздел и существует.
+     */
+    'experimental.manage',
   ],
   /**
    * Участки нанесения: права ровно как у сотрудника цеха. Различает их не право,

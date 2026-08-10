@@ -41,9 +41,19 @@ const LIST_CONSUMERS = [
 ];
 
 describe('списочный запрос заказов', () => {
-  it('полный и списочный select — разные, и списочный меньше', () => {
+  it('полный и списочный select — разные, и списочный берёт колонки поимённо', () => {
     expect(ORDER_LIST_SELECT).not.toBe(ORDER_SELECT);
-    expect(ORDER_LIST_SELECT.length).toBeLessThan(ORDER_SELECT.length + 400);
+    /**
+     * Смысл списочного запроса — брать у этапов НЕ ВСЁ, а перечисленное:
+     * `select *` в PostgREST тянет и NULL-колонки, а этапов в списке сотни.
+     *
+     * Здесь стояло сравнение ДЛИН строк — прокси, меряющий не то: списочный
+     * запрос длиннее ПОТОМУ ЧТО перечисляет колонки, и каждая новая колонка
+     * приближала его к произвольному порогу «+400». Проверяем то, что важно:
+     * этапы берутся поимённо в списке и звёздочкой в полном.
+     */
+    expect(ORDER_LIST_SELECT).not.toMatch(/stages:erp_item_stages \(\*\)/);
+    expect(ORDER_SELECT).toMatch(/stages:erp_item_stages \(\*\)/);
     // Оба остаются одним деревом: списочный не должен потерять отношения
     for (const rel of [
       'items:erp_order_items', 'stages:erp_item_stages', 'prints:erp_item_prints',
@@ -63,6 +73,9 @@ describe('списочный запрос заказов', () => {
       'planned_start', 'planned_end', 'started_at', 'finished_at',
       'assignee', 'block_reason', 'queue_position', 'sort_order',
       'overdue_comment', 'overdue_ack_at', 'updated_at',
+      // Волна 3: цикл прохода и происхождение (образец/серия) — оба
+      // показываются в очереди, и без них бейдж «Образец» молча не рисуется
+      'cycle', 'origin',
     ]) {
       expect(ORDER_LIST_SELECT, `колонка ${col} нужна списочным экранам`).toContain(col);
     }

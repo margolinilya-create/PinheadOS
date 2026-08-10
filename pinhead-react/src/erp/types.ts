@@ -245,6 +245,13 @@ export interface ErpItemStage {
    */
   cycle?: number;
   /**
+   * Откуда работа (волна 3.6): `production` — серия, `experimental` — образец
+   * из экспериментального цеха. Даёт бейдж «Образец» и фильтр; в маршрутную
+   * логику НЕ входит — иначе цех работал бы с образцом по особым правилам,
+   * а он проходит те же гейты и те же переходы.
+   */
+  origin?: 'production' | 'experimental';
+  /**
    * Приоритет задания в очереди своего цеха (волна 1, правка 3). Меньше — выше.
    * numeric: перенос drag-and-drop пишет середину между соседями, без перенумерации.
    * null — этап ещё не получил позицию (сортируется по сроку заказа).
@@ -545,6 +552,12 @@ export interface ErpExperimentalOp {
   planned_date: string | null;
   comment: string | null;
   status: ExperimentalOpStatus;
+  /**
+   * Этап, которым эта передача СТАЛА (волна 3.6). Задача нанесения образца —
+   * одна строка `erp_item_stages`, её видит очередь цеха: двух независимых
+   * задач нет физически, а не по соглашению.
+   */
+  stage_id?: string | null;
   returned_at: string | null;
   branding_method: string | null;
   mockup: string | null;
@@ -953,12 +966,14 @@ export type ErpPermission =
   | 'plan.manage'             // ставить и менять производственный план
   | 'plan.fact'               // вносить факт, брак и проблему по задаче плана
   | 'catalog.edit'            // редактировать справочники
-  | 'bypass.manage';          // аварийно снимать блокировки и возвращать их
+  | 'bypass.manage'           // аварийно снимать блокировки и возвращать их
+  | 'experimental.manage';   // вести разработку образцов и отправлять их в цеха
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
   'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
   'material.receive', 'plan.manage', 'plan.fact', 'catalog.edit', 'bypass.manage',
+  'experimental.manage',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -975,6 +990,7 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'plan.manage': 'Вести производственный план',
   'plan.fact': 'Вносить факт по плану',
   'catalog.edit': 'Править справочники',
+  'experimental.manage': 'Вести экспериментальный цех',
   'bypass.manage': 'Аварийно снимать блокировки',
 };
 

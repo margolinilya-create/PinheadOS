@@ -143,6 +143,20 @@ export function QueueRow({
               <Icon name="clock" size={13} /> сорван план этапа
             </span>
           )}
+          {/*
+            Образец из экспериментального цеха (волна 3.6). Это НАСТОЯЩИЙ этап
+            в очереди — те же права, тот же страж, тот же план, — и бейдж нужен
+            только чтобы цех понимал: тираж один-два, а не сто, и спрос другой.
+            В маршрутную логику признак не входит.
+          */}
+          {stage.origin === 'experimental' && (
+            <span
+              className={`${styles.chip} ${styles.chipWaiting}`}
+              title="Образец из экспериментального цеха — разработка, а не серия"
+            >
+              <Icon name="flask" size={13} /> образец
+            </span>
+          )}
           {!overdue && unplanned && (
             <span
               className={`${styles.chip} ${styles.chipNeutral}`}

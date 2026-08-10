@@ -1,15 +1,35 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { EXPERIMENTAL_OP_KIND_LABELS } from '../../types';
+import { useErpStore } from '../../store/useErpStore';
+import { useErpAccess } from '../../store/useErpAccess';
+import { deptShortName, isProductionDept } from '../../data/departments';
 import styles from '../../erp.module.css';
 import { DateField } from '../../components/DateField';
 import { Button } from '../../components/Button';
 
-/** Форма передачи из «Проработки» (в швейку или на нанесение) */
-export function OpForm({ onCreate }) {
+/**
+ * Форма передачи из «Проработки» (в швейку или на нанесение).
+ *
+ * С волны 3.6 передача заводит НАСТОЯЩИЙ этап в очереди выбранного цеха —
+ * поэтому цех здесь обязателен, а не подразумевается. Раньше передача жила
+ * только в разработке, цех её не видел, и «передал» означало «сказал вслух».
+ */
+export function OpForm({ onCreate, itemId }) {
   const [kind, setKind] = useState('to_sewing');
+  const [deptId, setDeptId] = useState('');
   const [form, setForm] = useState({ operation: '', qty: '', responsible: '', planned_date: '', comment: '',
     branding_method: '', mockup: '', zone: '', size_mm: '', colors: '' });
   const set = (patch) => setForm({ ...form, ...patch });
+
+  const access = useErpAccess();
+  const canSend = access.can('experimental.manage');
+  const { departments } = useErpStore(useShallow((s) => ({ departments: s.departments })));
+  const depts = useMemo(
+    () => departments.filter((d) => d.active && isProductionDept(d))
+      .sort((a, b) => a.sort_order - b.sort_order),
+    [departments],
+  );
 
   const submit = async () => {
     const base = {
@@ -24,7 +44,7 @@ export function OpForm({ onCreate }) {
       : { ...base,
           branding_method: form.branding_method.trim() || null, mockup: form.mockup.trim() || null,
           zone: form.zone.trim() || null, size_mm: form.size_mm.trim() || null, colors: form.colors.trim() || null };
-    const row = await onCreate(payload);
+    const row = await onCreate({ ...payload, department_id: deptId || null, item_id: itemId ?? null });
     if (row) setForm({ operation: '', qty: '', responsible: '', planned_date: '', comment: '',
       branding_method: '', mockup: '', zone: '', size_mm: '', colors: '' });
   };
@@ -47,8 +67,27 @@ export function OpForm({ onCreate }) {
       )}
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => set({ qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 80 }} />
       <input className={styles.input} placeholder="Ответственный" value={form.responsible} onChange={(e) => set({ responsible: e.target.value })} aria-label="Ответственный" style={{ maxWidth: 130 }} />
+      {/* Цех обязателен: передача заводит этап в его очереди (волна 3.6) */}
+      <select
+        className={styles.select}
+        value={deptId}
+        onChange={(e) => setDeptId(e.target.value)}
+        aria-label="Цех, в который уходит образец"
+      >
+        <option value="">Цех…</option>
+        {depts.map((d) => (
+          <option key={d.id} value={d.id}>{deptShortName(d.code, d.name)}</option>
+        ))}
+      </select>
       <label className={styles.subText}>план<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => set({ planned_date: v })} aria-label="Плановый срок" /></label>
-      <Button variant="secondary" onClick={submit}>Передать</Button>
+      <Button
+        variant="secondary"
+        disabled={!canSend || !deptId || !itemId}
+        title={canSend ? '' : 'Нужно право «Вести экспериментальный цех»'}
+        onClick={submit}
+      >
+        Передать в цех
+      </Button>
     </div>
   );
 }

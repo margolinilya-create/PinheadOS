@@ -28,6 +28,8 @@ export interface QueueEntry {
   };
   item: Pick<ErpOrderItem, 'id' | 'product_type' | 'variant' | 'qty'>;
   stage: Pick<ErpItemStage, 'id' | 'department_id' | 'status'> & {
+    /** Образец или серия (волна 3.6) — для бейджа и фильтра */
+    origin?: 'production' | 'experimental';
     assignee?: string | null;
     planned_end?: string | null;
     qty_rework?: number | null;

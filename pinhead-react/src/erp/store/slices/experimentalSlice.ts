@@ -7,7 +7,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpExperimental, ErpExperimentalOp } from '../../types';
 import type { ErpStore, ExperimentalSlice } from '../types';
@@ -56,14 +56,45 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     return true;
   },
 
+  /**
+   * Передача образца в цех (волна 3.6).
+   *
+   * Кроме записи в разработке создаёт НАСТОЯЩИЙ ЭТАП — и это главное здесь.
+   * Раньше передача жила только в `erp_experimental_ops`, и цех её не видел:
+   * в очередь попадают `erp_item_stages`. Технолог отмечал «передал», цех
+   * узнавал голосом, а в плане этой работы не существовало.
+   *
+   * Этап заводится в следующем свободном `cycle` — образец ходит в один и тот же
+   * цех многократно, и до волны 3.0 это запрещал `unique (item_id, department_id)`.
+   * Именно он и был причиной, по которой эксп. цех моделировали отдельно.
+   *
+   * Если цех не указан (фаза без цеха — лекала, подбор материалов, примерка),
+   * этап не создаётся: не всякая работа разработки проходит через участок.
+   */
   createExperimentalOp: async (experimentalId, op) => {
+    let stageId: string | null = null;
+    if (op.department_id && op.item_id) {
+      const { data: stage, error: stageError } = await erpQuery(() => supabase
+        .rpc('erp_experimental_send_to_dept', {
+          p_item_id: op.item_id,
+          p_department_id: op.department_id,
+          p_planned_end: op.planned_date ?? null,
+        }));
+      if (stageError || !stage) {
+        erpError('Образец не поставлен в очередь цеха', stageError);
+        return null;
+      }
+      stageId = (stage as { id: string }).id;
+    }
+
+    const { department_id: _dept, item_id: _item, ...opFields } = op;
     const { data, error } = await erpQuery(() => supabase
       .from('erp_experimental_ops')
-      .insert({ status: 'sent', ...op, experimental_id: experimentalId })
+      .insert({ status: 'sent', ...opFields, stage_id: stageId, experimental_id: experimentalId })
       .select());
     const row = data?.[0] as ErpExperimentalOp | undefined;
     if (error || !row) {
-      toast.error('Не удалось создать передачу');
+      erpError('Не удалось создать передачу', error);
       return null;
     }
     set((s) => ({

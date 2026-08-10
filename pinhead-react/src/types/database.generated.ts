@@ -431,6 +431,7 @@ export type Database = {
           responsible: string | null
           returned_at: string | null
           size_mm: string | null
+          stage_id: string | null
           status: string
           zone: string | null
         }
@@ -449,6 +450,7 @@ export type Database = {
           responsible?: string | null
           returned_at?: string | null
           size_mm?: string | null
+          stage_id?: string | null
           status?: string
           zone?: string | null
         }
@@ -467,6 +469,7 @@ export type Database = {
           responsible?: string | null
           returned_at?: string | null
           size_mm?: string | null
+          stage_id?: string | null
           status?: string
           zone?: string | null
         }
@@ -476,6 +479,13 @@ export type Database = {
             columns: ["experimental_id"]
             isOneToOne: false
             referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_experimental_ops_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
             referencedColumns: ["id"]
           },
         ]
@@ -548,6 +558,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
           planned_end: string | null
@@ -571,6 +582,7 @@ export type Database = {
           id?: string
           item_id: string
           notes?: string | null
+          origin?: string
           overdue_ack_at?: string | null
           overdue_comment?: string | null
           planned_end?: string | null
@@ -594,6 +606,7 @@ export type Database = {
           id?: string
           item_id?: string
           notes?: string | null
+          origin?: string
           overdue_ack_at?: string | null
           overdue_comment?: string | null
           planned_end?: string | null
@@ -1966,6 +1979,43 @@ export type Database = {
       }
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
+      erp_experimental_send_to_dept: {
+        Args: {
+          p_department_id: string
+          p_item_id: string
+          p_planned_end?: string
+        }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          created_at: string
+          cycle: number
+          department_id: string
+          depends_on: string[]
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          origin: string
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       erp_has_permission: { Args: { perm: string }; Returns: boolean }
       erp_is_manager: { Args: never; Returns: boolean }
       erp_is_member: { Args: never; Returns: boolean }
@@ -1984,6 +2034,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
           planned_end: string | null
@@ -2021,6 +2072,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
           planned_end: string | null
@@ -2053,6 +2105,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
           planned_end: string | null
@@ -2085,6 +2138,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
           planned_end: string | null
@@ -2126,6 +2180,7 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
           planned_end: string | null

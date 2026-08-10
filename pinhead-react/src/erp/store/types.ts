@@ -630,9 +630,16 @@ export interface ExperimentalSlice {
   loadExperimental: () => Promise<void>;
   createExperimental: (orderId: string) => Promise<ErpExperimental | null>;
   updateExperimental: (id: string, patch: Partial<ErpExperimental>) => Promise<boolean>;
+  /**
+   * Передача образца (волна 3.6). При указанных `department_id` и `item_id`
+   * заводит НАСТОЯЩИЙ этап в следующем свободном цикле — цех видит образец
+   * в своей очереди, как любую другую работу. Оба поля в саму запись передачи
+   * не пишутся: они адресуют этап, а не операцию.
+   */
   createExperimentalOp: (
     experimentalId: string,
-    op: Partial<ErpExperimentalOp> & Pick<ErpExperimentalOp, 'kind'>,
+    op: Partial<ErpExperimentalOp> & Pick<ErpExperimentalOp, 'kind'>
+      & { department_id?: string | null; item_id?: string | null },
   ) => Promise<ErpExperimentalOp | null>;
   /** Завершить передачу (returned) → заказ авто-возвращается на фазу «Проработка» */
   completeExperimentalOp: (opId: string) => Promise<boolean>;

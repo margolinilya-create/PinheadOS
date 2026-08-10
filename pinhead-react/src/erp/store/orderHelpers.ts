@@ -67,7 +67,7 @@ export const ORDER_LIST_SELECT = `
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
       planned_start, planned_end, started_at, finished_at, assignee,
       block_reason, sort_order, updated_at, overdue_comment, overdue_ack_at,
-      queue_position
+      queue_position, cycle, origin
     ),
     prints:erp_item_prints (*)
   ),

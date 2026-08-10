@@ -45,6 +45,14 @@ export default function Experimental() {
       completeExperimentalOp: s.completeExperimentalOp,
     })),
   );
+  /**
+   * Позиция, на которую заводится этап образца (волна 3.6). Разработка
+   * привязана к заказу, а этап — к позиции; у образца позиция, как правило,
+   * одна, и брать первую честнее, чем спрашивать в форме то, чего нет выбора.
+   */
+  const itemIdFor = (orderId) =>
+    orders.find((o) => o.id === orderId)?.items?.[0]?.id ?? null;
+
   const [query, setQuery] = useState('');
   const [newOrderId, setNewOrderId] = useState('');
 
@@ -134,6 +142,7 @@ export default function Experimental() {
           key={exp.id}
           exp={exp}
           materialReady={materialReadyFor(exp.order_id)}
+          itemId={itemIdFor(exp.order_id)}
           onUpdate={updateExperimental}
           onCreateOp={createExperimentalOp}
           onCompleteOp={completeExperimentalOp}
