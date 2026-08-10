@@ -310,6 +310,13 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           entry={entry}
           dept={reportDept}
           busy={busy}
+          /**
+           * Брак и переделка — своё право: страж этапов проверяет `qty_rework`
+           * отдельно от `qty_done`. Без этого поле «В переделку» показывалось
+           * и роли без `stage.defect`, а сохранение падало 42501 целиком —
+           * вместе с уже введённым «сшито».
+           */
+          canDefect={perms.defect}
           onCancel={() => setReportMode(false)}
           onSubmit={(payload) => run(async () => {
             const ok = await submitStageReport(stage.id, payload);

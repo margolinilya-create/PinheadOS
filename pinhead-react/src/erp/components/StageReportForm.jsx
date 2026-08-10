@@ -20,12 +20,30 @@ import styles from '../erp.module.css';
  * (`utils/stageInput`, минимум по параллельным веткам). Показываем его сверху
  * и уносим снимком в журнал: цех должен видеть, из какого числа он исходит.
  */
-export function StageReportForm({ entry, dept, busy, onSubmit, onCancel }) {
+export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefect = true }) {
   const { item, stage } = entry;
 
+  /**
+   * Поля, пишущие в БРАК и ПЕРЕДЕЛКУ, требуют своего права.
+   *
+   * Форма целиком гейтилась одним `stage.progress`, а страж этапов разбирает
+   * изменение по колонкам: `qty_rework` он проверяет отдельно, под
+   * `stage.defect`. Матрица прав редактируема — стоит снять у роли «Оформлять
+   * брак», и человек по-прежнему видел поле «В переделку», заполнял его
+   * и получал 42501 на сохранении. Ни одно число при этом не записывалось,
+   * а тост говорил про права вообще — запрещённое «кнопка есть, действие
+   * падает», причём в самой частой форме цеха.
+   *
+   * Поля не прячем совсем, а убираем из НАБОРА: у участка их может быть два
+   * в одну колонку, и «сшито» без «в переделку» — рабочий отчёт, а не урезанный.
+   */
   const fields = useMemo(
-    () => (Array.isArray(dept?.result_fields) ? dept.result_fields : []),
-    [dept],
+    () => {
+      const all = Array.isArray(dept?.result_fields) ? dept.result_fields : [];
+      if (canDefect) return all;
+      return all.filter((f) => f.target !== 'qty_rework' && f.target !== 'qty_defect');
+    },
+    [dept, canDefect],
   );
   const qtyIn = useMemo(
     () => stageInputQty(stage, item.stages ?? [], item.qty),

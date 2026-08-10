@@ -143,9 +143,16 @@ describe('решения заказчика по матрице (10.08)', () => 
     expect(DEFAULT_PERMISSIONS.production_head).toContain('catalog.edit');
   });
 
-  it('складское право засеяно миграцией', () => {
-    expect(latestMatching(/'warehouse\.manage'/, 'сид warehouse.manage'))
-      .toMatch(/insert into public\.erp_role_permissions/);
+  it('складское право засеяно в матрице', () => {
+    /**
+     * Ищем ФАКТ засева по всем миграциям, а не «в последней, где право
+     * упомянуто»: последней стала политика журнала склада, и такой тест
+     * сломался бы от каждого нового использования права — он сторожил бы
+     * порядок файлов вместо смысла.
+     */
+    expect(ALL_SQL).toMatch(
+      /insert into public\.erp_role_permissions[\s\S]{0,400}'warehouse\.manage'/,
+    );
   });
 });
 
@@ -314,5 +321,41 @@ describe('стражи покрывают колонки, которые пиш�
       expect(sql, `${file}: нет обхода для service_role`)
         .toMatch(/\(select auth\.uid\(\)\) is null then\s+return new/);
     }
+  });
+});
+
+/**
+ * Запись, ставшая переходом, обязана спрашивать право.
+ *
+ * Заказчик подтвердил, что журналы открыты любому участнику, и для ЭТАПОВ это
+ * так и осталось: строка с якорем `stage_id` ничего не решает, а счётчики этапа
+ * проверяет `erp_stage_guard`. Но складская строка с 10.08 закрывает приёмку
+ * готовой продукции по накопленной сумме, а закрытая приёмка открывает
+ * упаковку — то есть запись в журнал стала производственным переходом
+ * и обходила `warehouse.manage`, введённое тем же днём.
+ */
+describe('складская строка журнала гейтится, этапная — нет', () => {
+  const POLICY = latestMatching(
+    /create policy "erp_stage_reports_insert"/,
+    'политика вставки в erp_stage_reports',
+  );
+
+  it('разделение проведено по ЯКОРЮ строки', () => {
+    expect(POLICY).toMatch(/warehouse_task_id is not null/);
+  });
+
+  it('складская строка требует warehouse.manage', () => {
+    expect(POLICY).toMatch(/warehouse_task_id is not null then[\s\S]{0,80}'warehouse\.manage'/);
+  });
+
+  it('этапная строка остаётся открытой участнику', () => {
+    expect(POLICY).toMatch(/else[\s\S]{0,40}erp_is_member\(\)/);
+  });
+
+  it('RPC склада называет отказ своим именем', () => {
+    // Иначе 42501 придёт из политики соседней таблицы, и цех не поймёт, чего не хватает
+    const rpc = latestDefining('erp_warehouse_submit_report');
+    expect(rpc).toMatch(/erp_has_permission\('warehouse\.manage'\)/);
+    expect(rpc).toMatch(/требует права warehouse\.manage/);
   });
 });
