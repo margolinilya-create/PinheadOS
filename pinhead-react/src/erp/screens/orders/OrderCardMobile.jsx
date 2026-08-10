@@ -22,6 +22,13 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
   const progress = orderProgress(order);
   const ready = isOrderReadyToShip(order);
+  /**
+   * Готовность и ПРАВО отгрузить — разное. Признак «готов к отгрузке»
+   * видят все: цеху полезно знать, что заказ дособран. Кнопку показываем
+   * только тем, кому отгрузка разрешена (`onShip` приходит null без права),
+   * иначе она отвечала бы отказом стража заказа.
+   */
+  const canShip = ready && Boolean(onShip);
 
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
@@ -79,7 +86,7 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
           </span>
         )}
       </div>
-      {ready && (
+      {canShip && (
         <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
           <Icon name="truck" size={14} /> Отгрузить
         </Button>

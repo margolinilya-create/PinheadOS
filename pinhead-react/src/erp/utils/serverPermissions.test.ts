@@ -26,6 +26,15 @@ const ADMIN_SCREEN = readFileSync(
   join(process.cwd(), 'src/erp/screens/AdminScreen.jsx'), 'utf8');
 const STAGE_SQL = latestDefining('erp_stage_guard');
 const ORDER_SQL = latestDefining('erp_order_guard');
+/**
+ * Страж ПОЗИЦИИ читается отдельно.
+ *
+ * Раньше оба стража жили в одной миграции, и тест брал их из `ORDER_SQL`.
+ * Стоило пересоздать один из них отдельным файлом — и проверка второго стала
+ * искать его текст не там, где он есть. Каждый страж читается из СВОЕЙ
+ * последней миграции, это то же правило, что и в `migrations.testutil`.
+ */
+const ORDER_ITEM_SQL = latestDefining('erp_order_item_guard');
 /** Политика INSERT живёт своей жизнью — её тоже берём из последней миграции */
 const STAGE_INSERT_SQL = latestMatching(
   /create policy erp_item_stages_insert/, 'политику erp_item_stages_insert');
@@ -239,12 +248,25 @@ describe('страж заказа совпадает с интерфейсом',
     }
   });
 
-  it('отгрузка НЕ гейтится ни там, ни там', () => {
-    // Отдельного права на отгрузку в матрице нет, кнопка доступна любому
-    // сотруднику при готовом заказе — значит и страж молчит. Если однажды
-    // право заведут, этот тест обязан упасть и напомнить про обе стороны.
-    expect(ORDER_SQL).not.toMatch(/new\.shipped_status\s+is distinct from/);
-    expect(ORDER_SQL).not.toMatch(/new\.status\s+is distinct from old\.status/);
+  /**
+   * Здесь стоял тест «отгрузка НЕ гейтится ни там, ни там» с оговоркой:
+   * «отдельного права на отгрузку в матрице нет… если однажды право заведут,
+   * этот тест обязан упасть и напомнить про обе стороны». Он сработал ровно
+   * так, как был задуман: 10.08 появилось `warehouse.manage`, и договорённость
+   * перестала быть верной.
+   *
+   * Отдельного права `order.ship` по-прежнему нет и не нужно: отгрузку делает
+   * склад с карточки упаковки, закрывает заказ менеджер — обоим уже есть чем
+   * гейтить, а третье право ничего бы не выключило.
+   */
+  it('отгрузка гейтится С ОБЕИХ сторон', () => {
+    expect(ORDER_SQL).toMatch(/new\.shipped_status\s+is distinct from/);
+    expect(ORDER_SQL).toMatch(/new\.status\s+is distinct from old\.status/);
+    expect(ORDER_SQL).toMatch(/warehouse\.manage/);
+    // Кнопка «Отгрузить» в списке заказов — под тем же правом
+    expect(ORDERS_SCREEN).toMatch(/canShip/);
+    expect(ORDERS_SCREEN).toMatch(/can\('warehouse\.manage'\)/);
+    // Третьего права не заводили: см. комментарий выше
     expect(ERP_PERMISSIONS).not.toContain('order.ship');
   });
 
@@ -260,8 +282,8 @@ describe('страж заказа совпадает с интерфейсом',
   });
 
   it('позиции заказа: клиент туда не пишет, сервер требует order.manage', () => {
-    expect(ORDER_SQL).toMatch(/erp_order_item_guard/);
-    expect(ORDER_SQL).toMatch(/правка позиции заказа требует права order\.manage/);
+    expect(ORDER_ITEM_SQL).toMatch(/erp_order_item_guard/);
+    expect(ORDER_ITEM_SQL).toMatch(/правка позиции заказа требует права order\.manage/);
   });
 
   it('страж пропускает service_role — починка через SQL не должна запираться', () => {
@@ -489,5 +511,40 @@ describe('порядок веток статуса в erp_stage_guard', () => {
 
   it('пропуск этапа требует order.manage', () => {
     expect(GUARD).toMatch(/erp_has_permission\('order\.manage'\) or v_move[\s\S]{0,120}пропуск этапа/);
+  });
+});
+
+/**
+ * Отгрузка заказа — самое дорогое необратимое действие: заказ закрывается
+ * и уходит в архив. Колонки `status`/`shipped_*` не охранялись стражем ВООБЩЕ,
+ * а политика UPDATE открыта любому участнику ERP.
+ *
+ * Хуже обычной дыры тем, что проверка готовности живёт только в клиенте:
+ * прямой запрос обходил и её, и всю машинерию аварийного снятия (право
+ * `bypass.manage`, обязательная причина, запись в `erp_bypasses`). То есть
+ * существовал бесшумный путь вокруг механизма, заведённого ровно для этого.
+ */
+describe('страж заказа охраняет отгрузку', () => {
+  const GUARD = withoutComments(
+    functionBody(latestDefining('erp_order_guard'), 'erp_order_guard'),
+  );
+
+  it.each(['status', 'shipped_status', 'shipped_at', 'shipped_by'])(
+    'колонка %s входит в проверку',
+    (col) => {
+      expect(GUARD).toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+    },
+  );
+
+  it('отгрузка требует права склада ИЛИ права на заказ', () => {
+    expect(GUARD).toMatch(/warehouse\.manage/);
+    expect(GUARD).toMatch(/order\.manage/);
+  });
+
+  it('прежние правила стража не потеряны', () => {
+    // Пересоздание функции целиком уже теряло колонки — сторожим и это
+    expect(GUARD).toMatch(/new\.due_date/);
+    expect(GUARD).toMatch(/new\.manager/);
+    expect(GUARD).toMatch(/is_demo/);
   });
 });

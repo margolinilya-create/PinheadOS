@@ -127,6 +127,14 @@ export default function OrdersScreen() {
   // а кнопка «Новый заказ» не проверяла ничего — её видел и рабочий цеха.
   const canManageOrders = access.can('order.manage');
   /**
+   * Отгрузка закрывает заказ и уводит его в архив, поэтому она под правом,
+   * а не под одной лишь готовностью. Кнопка показывалась всем, у кого заказ
+   * выглядел готовым, — включая рабочего цеха, а страж заказа колонки
+   * отгрузки не проверял вовсе. Право то же, что на сервере: склад делает
+   * отгрузку с карточки упаковки, менеджер — из списка заказов.
+   */
+  const canShip = access.can('warehouse.manage') || canManageOrders;
+  /**
    * Удаление — только admin/director, ровно как на сервере
    * (`erp_orders_delete` = `is_admin()`).
    *
@@ -401,7 +409,7 @@ export default function OrdersScreen() {
               departments={departments}
               onDelete={onDelete}
               canDelete={canDelete}
-              onShip={onShip}
+              onShip={canShip ? onShip : null}
               onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
             />
           ))}
@@ -431,7 +439,7 @@ export default function OrdersScreen() {
                   departments={departments}
                   onDelete={onDelete}
                   canDelete={canDelete}
-                  onShip={onShip}
+                  onShip={canShip ? onShip : null}
                   onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
                 />
               ))}
