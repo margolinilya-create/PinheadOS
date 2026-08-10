@@ -1,10 +1,7 @@
-import { lazy, Suspense } from 'react';
+import { lazy, useEffect, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
-import ErpDashboard from './screens/ErpDashboard';
-import OrdersScreen from './screens/OrdersScreen';
-import DepartmentQueue from './screens/DepartmentQueue';
 import { ScreenSkeleton } from './components/ErpSkeletons';
 import { LoadFailed } from './components/ErpStates';
 import { Icon } from './components/Icon';
@@ -14,7 +11,19 @@ import { useErpAccess } from './store/useErpAccess';
 import { canOpenScreen } from './utils/screenAccess';
 import styles from './erp.module.css';
 
-// Тяжёлые экраны — отдельные чанки (п.30): первые экраны остаются статикой
+/**
+ * ВСЕ экраны — отдельные чанки, включая три первых.
+ *
+ * Обзор, заказы и очередь цеха оставались статикой ради «без мигания на первом
+ * экране», и это стоило оболочке 125 кБ (37 кБ gzip): их код ехал каждому и
+ * всегда — в том числе рабочему, который открывает только свой цех, и с
+ * планшета по цеховому Wi-Fi. Скелетоны у экранов есть, а `prefetchScreens`
+ * ниже подтягивает соседние сразу после первой отрисовки: к моменту, когда
+ * человек нажмёт на пункт меню, чанк уже в кэше.
+ */
+const ErpDashboard = lazy(() => import('./screens/ErpDashboard'));
+const OrdersScreen = lazy(() => import('./screens/OrdersScreen'));
+const DepartmentQueue = lazy(() => import('./screens/DepartmentQueue'));
 const OrderCard = lazy(() => import('./screens/OrderCard'));
 const ProductionBoard = lazy(() => import('./screens/ProductionBoard')); // + ErpKanban в чанке
 const AdminScreen = lazy(() => import('./screens/AdminScreen')); // + Employees/Departments
@@ -29,6 +38,36 @@ const PlanScreen = lazy(() => import('./screens/PlanScreen'));
 // Ленивый импорт обязателен: иначе список всех иконок и демо-разметка
 // уехали бы в оболочку, которую грузят все и всегда.
 const StyleGuide = lazy(() => import('./screens/StyleGuide'));
+
+/**
+ * Предзагрузка соседних экранов в простое.
+ *
+ * Ленивый экран экономит критический путь, но переносит ожидание на первый
+ * переход — на цеховом планшете это заметно. Поэтому после первой отрисовки,
+ * когда браузер свободен, тянем то, куда человек пойдёт почти наверняка:
+ * обзор, заказы и свой цех. Это НЕ критический путь — оболочка к этому моменту
+ * уже интерактивна, а промахи глушим: неудачная предзагрузка не должна
+ * всплывать ошибкой, обычный переход просто подождёт чанк.
+ */
+const PREFETCH = [
+  () => import('./screens/ErpDashboard'),
+  () => import('./screens/OrdersScreen'),
+  () => import('./screens/DepartmentQueue'),
+];
+
+function usePrefetchScreens() {
+  useEffect(() => {
+    const run = () => PREFETCH.forEach((load) => { load().catch(() => {}); });
+    // requestIdleCallback есть не везде (Safari) — там просто небольшая пауза
+    const idle = window.requestIdleCallback;
+    if (typeof idle === 'function') {
+      const id = idle(run, { timeout: 2000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(run, 1200);
+    return () => clearTimeout(t);
+  }, []);
+}
 
 /**
  * Кей по orderId → свежий инстанс карточки на каждый заказ: при переходе A→B страница
@@ -69,6 +108,7 @@ export default function ErpApp({ user }) {
    * не видел пункта «Склад» и не мог открыть адрес. Список — в screenAccess,
    * один и тот же для маршрута и для меню.
    */
+  usePrefetchScreens();
   const { can } = useErpAccess();
   const canOpen = (path) => canOpenScreen(can, path);
 
