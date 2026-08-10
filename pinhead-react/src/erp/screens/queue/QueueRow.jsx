@@ -25,7 +25,7 @@ export function QueueRow({
   entry, index, perms, canReorder, rework, deptShortById, actions,
   dragging, dropBefore, dropAfter,
   onDragStart, onDragEnd, onDragOverRow,
-  canMoveUp, canMoveDown, onMove,
+  canMoveUp, canMoveDown, onMove, onPlan,
 }) {
   const { order, item, stage, reason, group, missingMaterials, bypass } = entry;
   const location = useLocation();
@@ -33,6 +33,16 @@ export function QueueRow({
   const d = daysLeft(order.due_date);
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const needsAck = overdue && !stage.overdue_ack_at;
+  /**
+   * «Не запланирован» — у открытого этапа нет своей плановой даты (правки 10.08).
+   *
+   * Это НЕ просрочка: сорвать несуществующий план нельзя, и чип нейтральный.
+   * Но и не пустое место: такой этап не попадёт ни в загрузку цехов, ни в отбор
+   * «сорван план этапа» — он выпадает из контроля сроков молча. На проде так
+   * живут 305 открытых этапов из 311, поэтому чип и заведён: до него понять,
+   * почему у задания «всё хорошо со сроками», было нечем.
+   */
+  const unplanned = !stage.planned_end && group !== 'done' && stage.status !== 'skipped';
   const progress = stageQtyProgress(stage, item.qty);
   const display = group === 'ready' ? 'ready' : stage.status;
   // Индикатор ТЗ: сначала реальный PDF цеха (волна 4), иначе структурное ТЗ позиции
@@ -130,7 +140,15 @@ export function QueueRow({
           </span>
           {overdue && (
             <span className={`${styles.chip} ${styles.chipBlocked}`}>
-              <Icon name="clock" size={13} /> просрочен этап
+              <Icon name="clock" size={13} /> сорван план этапа
+            </span>
+          )}
+          {!overdue && unplanned && (
+            <span
+              className={`${styles.chip} ${styles.chipNeutral}`}
+              title="У этапа нет плановой даты завершения: он не виден в загрузке цехов и не может быть просрочен"
+            >
+              <Icon name="calendar" size={13} /> не запланирован
             </span>
           )}
           {tzUpdated && (
@@ -162,6 +180,23 @@ export function QueueRow({
         </span>
 
         <span className={styles.queueRowActions}>
+          {/*
+            Локальная постановка в план (правки 10.08). Раньше единственный путь
+            вёл на общий экран плана, в нужный цех и нужный день, — то есть
+            руководитель уходил со списка, где он и видит, что запускать.
+            Кнопка только у готовых к запуску: планировать «ждёт материалы»
+            можно, но это решение с оговоркой, и оно живёт на общем экране.
+          */}
+          {perms.plan && group === 'ready' && onPlan && (
+            <Button
+              variant="ghost"
+              aria-label="Поставить в план"
+              title="Поставить задание в план на день"
+              onClick={() => onPlan(entry)}
+            >
+              <Icon name="calendar" size={15} />
+            </Button>
+          )}
           <ButtonLink
             to={`/task/${stage.id}`}
             state={{ from: `${location.pathname}${location.search}` }}

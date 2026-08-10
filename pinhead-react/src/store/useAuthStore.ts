@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
-import { resetErpStore } from '../erp/store/useErpStore';
+import { runAppResets } from './appReset';
 import { useOrdersStore } from './useOrdersStore';
 import { translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus } from '../types/auth';
@@ -170,7 +170,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
      */
     if (get().user?.id === 'dev') return;
     storageClearAll();
-    resetErpStore();
+    runAppResets();
     useOrdersStore.setState({
       orders: [], loading: false, hasMore: true, loadingMore: false,
       lastCreatedAt: null, filter: 'all', search: '',
@@ -196,7 +196,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
      * на общем цеховом планшете следующий работник видел заказы предыдущего
      * (выборку RLS уже от чужого имени), его цех и его бейджи.
      */
-    resetErpStore();
+    runAppResets();
     useOrdersStore.setState({
       orders: [], loading: false, hasMore: true, loadingMore: false,
       lastCreatedAt: null, filter: 'all', search: '',

@@ -71,8 +71,46 @@ describe('filterEntries', () => {
     expect(filterEntries(list, f({ dueTo: '2026-07-20' }), NOW).map((e) => e.stage.id)).toEqual(['d']);
   });
 
-  it('только просроченные', () => {
-    expect(filterEntries(list, f({ overdue: true }), NOW).map((e) => e.stage.id)).toEqual(['d']);
+  it('только просроченные — любым способом', () => {
+    expect(filterEntries(list, f({ overdue: 'any' }), NOW).map((e) => e.stage.id)).toEqual(['d']);
+  });
+
+  /**
+   * Просрочка заказа и просрочка этапа разведены (правки 10.08): у заказа
+   * прошёл срок клиента, у этапа сорвана СВОЯ плановая дата. Это разные
+   * решения — отвечать перед заказчиком или разбираться внутри цеха.
+   */
+  it('срок заказа и план этапа отбираются по отдельности', () => {
+    const mix = [
+      // срок клиента прошёл, плана у этапа нет вовсе
+      entry({ id: 'late-order', due: '2026-07-20' }),
+      // срок клиента далеко, но этап должен был закрыться позавчера
+      entry({ id: 'late-stage', due: '2026-09-01', plannedEnd: '2026-07-25' }),
+      // всё по плану
+      entry({ id: 'ok', due: '2026-09-01', plannedEnd: '2026-08-20' }),
+    ];
+    expect(filterEntries(mix, f({ overdue: 'order' }), NOW).map((e) => e.stage.id))
+      .toEqual(['late-order']);
+    expect(filterEntries(mix, f({ overdue: 'stage' }), NOW).map((e) => e.stage.id))
+      .toEqual(['late-stage']);
+    expect(filterEntries(mix, f({ overdue: 'any' }), NOW).map((e) => e.stage.id))
+      .toEqual(['late-order', 'late-stage']);
+  });
+
+  /**
+   * «Не запланирован» — не просрочка, а её невозможность: сорвать несуществующую
+   * дату нельзя. На проде так живут 305 открытых этапов из 311, и без отбора
+   * эта дыра ничем не видна.
+   */
+  it('этапы без плановой даты отбираются отдельно и просроченными не считаются', () => {
+    const mix = [
+      entry({ id: 'no-plan', due: '2026-09-01' }),
+      entry({ id: 'planned', due: '2026-09-01', plannedEnd: '2026-08-20' }),
+      entry({ id: 'closed', due: '2026-09-01', group: 'done' }),
+    ];
+    expect(filterEntries(mix, f({ overdue: 'unplanned' }), NOW).map((e) => e.stage.id))
+      .toEqual(['no-plan']);
+    expect(filterEntries(mix, f({ overdue: 'stage' }), NOW)).toHaveLength(0);
   });
 
   it('только готовые к запуску', () => {
@@ -168,13 +206,30 @@ describe('URL-синхронизация', () => {
   });
 
   it('туда-обратно без потерь', () => {
-    const src = f({ q: 'дзен', dept: 'd1', status: 'ready', assignee: 'Пётр', dueFrom: '2026-07-01', overdue: true, sort: 'overdue' });
+    const src = f({ q: 'дзен', dept: 'd1', status: 'ready', assignee: 'Пётр', dueFrom: '2026-07-01', overdue: 'any', sort: 'overdue' });
     const params = new URLSearchParams(filtersToParams(src));
     expect(filtersFromParams(params)).toEqual(src);
   });
 
   it('мусор в адресе не ломает фильтры', () => {
     expect(filtersFromParams(new URLSearchParams('sort=abc&overdue=maybe'))).toEqual(EMPTY_FILTERS);
+  });
+
+  /**
+   * Ссылки на отфильтрованную очередь живут в переписке и закладках. Прежний
+   * булев фильтр писался как `overdue=1`, и после разделения он обязан читаться
+   * как «любая просрочка», а не молча теряться.
+   */
+  it('старое `overdue=1` читается как «любая просрочка»', () => {
+    expect(filtersFromParams(new URLSearchParams('overdue=1')).overdue).toBe('any');
+    expect(filtersToParams(f({ overdue: 'any' }))).toEqual({ overdue: '1' });
+  });
+
+  it('уточнённые виды просрочки ездят в адресе как есть', () => {
+    for (const v of ['order', 'stage', 'unplanned'] as const) {
+      expect(filtersToParams(f({ overdue: v }))).toEqual({ overdue: v });
+      expect(filtersFromParams(new URLSearchParams(`overdue=${v}`)).overdue).toBe(v);
+    }
   });
 });
 

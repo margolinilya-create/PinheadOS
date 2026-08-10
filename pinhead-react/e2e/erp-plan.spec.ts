@@ -73,9 +73,49 @@ test.describe('План производства', () => {
 
   test('кабинет цеха получил вкладку «План» рядом с очередью', async ({ page }) => {
     await page.goto('/queue/cutting?studio=0');
-    await page.getByRole('button', { name: 'План' }).click();
+    // exact: рядом появилась кнопка «Поставить в план» у строки задания
+    // (правки 10.08), и подстрочное совпадение по слову «план» ловит обе
+    await page.getByRole('button', { name: 'План', exact: true }).click();
     // План цеха только читается: постановки задач здесь нет
     await expect(page.getByText(/сегодня план/)).toBeVisible();
     await expect(page.getByRole('button', { name: /В план на этот день/ })).toHaveCount(0);
+  });
+
+  /**
+   * Очередь «Не запланировано» (правки заказчика 10.08).
+   *
+   * Главное здесь — ГОРИЗОНТ, а не видимая неделя: задача на 21 июля уже стоит
+   * в плане, поэтому в очереди её быть не должно, хотя открыт август.
+   */
+  test('очередь «Не запланировано» учитывает весь горизонт, а не неделю', async ({ page }) => {
+    await page.goto('/plan?dept=cutting&studio=0');
+    // Закрой: единственное готовое к запуску задание (Фартук) стоит в плане на 21.07
+    await expect(page.getByRole('heading', { name: 'Не запланировано (0)' })).toBeVisible();
+    await expect(page.getByText('Вся работа, готовая к запуску, разложена по дням.')).toBeVisible();
+  });
+
+  test('снятая с плана задача возвращается в очередь «Не запланировано»', async ({ page }) => {
+    // Август: июльские задачи в прошлом, «что стоит в плане с сегодня» — пусто
+    await page.clock.setFixedTime(new Date('2026-08-10T09:00:00'));
+    await page.goto('/plan?dept=cutting&studio=0');
+
+    const queue = page.getByRole('region', { name: 'Не запланировано' });
+    await expect(queue.getByRole('heading', { name: /Не запланировано \(1\)/ })).toBeVisible();
+    await expect(queue).toContainText('Готово к запуску, но ни на один день не поставлено.');
+    // Постановка доступна и без перетаскивания — на планшете цеха его нет вовсе
+    await queue.getByRole('button', { name: 'В план' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Поставить задачу в план' })).toBeVisible();
+    // День спрашивается: ячейку не выбирали
+    await expect(page.getByLabel('День, на который ставится задача')).toBeVisible();
+  });
+
+  test('очередь цеха ставит задание в план, не уходя со списка', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await page.getByRole('button', { name: 'Поставить в план' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Поставить задачу в план' });
+    await expect(dialog).toBeVisible();
+    // Задание уже выбрано — список пятидесяти строк не показывается
+    await expect(dialog).toContainText('54900');
+    await expect(dialog.getByPlaceholder('заказ, клиент, изделие')).toHaveCount(0);
   });
 });

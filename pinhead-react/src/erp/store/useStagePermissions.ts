@@ -29,6 +29,14 @@ export interface StagePermissions {
    * здесь не проверяется: пропускает тот, кто ведёт заказ, а он не в цехе.
    */
   skip: boolean;
+  /**
+   * Поставить задание в план на день (правки 10.08). Право `plan.manage` —
+   * то же, что у общего экрана плана: раскладывает работу руководитель
+   * производства, и локальная кнопка в цехе не должна давать больше, чем
+   * даёт общий экран. Цех вызывающего не проверяется по той же причине —
+   * планирует не цех.
+   */
+  plan: boolean;
   /** Хоть одно действие доступно — рисовать ли блок действий вообще */
   any: boolean;
 }
@@ -42,6 +50,7 @@ export function useStagePermissions(departmentId: string | null | undefined): St
     const block = access.canDo('stage.block', departmentId);
     const defect = access.canDo('stage.defect', departmentId);
     const skip = access.can('order.manage');
+    const plan = access.can('plan.manage');
     return {
       inDept: access.canActIn(departmentId),
       take,
@@ -50,7 +59,8 @@ export function useStagePermissions(departmentId: string | null | undefined): St
       block,
       defect,
       skip,
-      any: take || progress || complete || block || defect || skip,
+      plan,
+      any: take || progress || complete || block || defect || skip || plan,
     };
   }, [access, departmentId]);
 }

@@ -24,6 +24,7 @@ import { Icon } from '../components/Icon';
 import { QueueCard } from './queue/QueueCard';
 import { QueueRow } from './queue/QueueRow';
 import { useStageActions } from './queue/useStageActions';
+import { PlanAddModal } from './plan/PlanAddModal';
 import { Button } from '../components/Button';
 
 /**
@@ -172,6 +173,12 @@ export default function DepartmentQueue() {
   // Каждое действие цеха гейтится своим правом матрицы (взять / записать / завершить /
   // проблема / брак), а не одним «мой ли это цех» — см. useStagePermissions
   const perms = useStagePermissions(dept?.id);
+  /**
+   * Локальная постановка в план (правки 10.08): задание, для которого открыто
+   * окно выбора дня. Дата не задана — её выбирают в окне; цех известен
+   * из самого задания.
+   */
+  const [planFor, setPlanFor] = useState(null);
   // Приоритет меняет тот, кому это разрешено матрицей ролей, и только в своём цехе
   const canReorder = access.canDo('stage.priority', dept?.id);
 
@@ -479,6 +486,7 @@ export default function DepartmentQueue() {
                     canMoveUp={i > 0}
                     canMoveDown={i < list.length - 1}
                     onMove={(dir) => moveInQueue(list, entry, dir)}
+                    onPlan={setPlanFor}
                   />
                 ))}
               </div>
@@ -505,6 +513,14 @@ export default function DepartmentQueue() {
         )
       )}
       </div>
+
+      {planFor && (
+        <PlanAddModal
+          departmentId={planFor.stage.department_id}
+          preselect={planFor}
+          onClose={() => setPlanFor(null)}
+        />
+      )}
     </>
   );
 }

@@ -5,6 +5,7 @@ import {
   EMPTY_FILTERS,
   GROUP_FILTER_LABELS,
   NO_ASSIGNEE,
+  OVERDUE_FILTER_LABELS,
   SORT_LABELS,
   hasActiveFilters,
 } from '../utils/filterStages';
@@ -54,11 +55,25 @@ export function QueueFilters({
         right={right}
       >
         {toggleChip('readyOnly', 'Готово к запуску', 'Только задания, которые можно запускать')}
-        {toggleChip(
-          'overdue',
-          <><Icon name="clock" size={13} /> Просрочено</>,
-          'Только просроченные по сроку клиента или плану этапа',
-        )}
+        {/*
+          Быстрый чип отвечает на самый частый вопрос — «что горит вообще».
+          Какая именно просрочка (срок заказа, план этапа или его отсутствие)
+          выбирается ниже, в раскрытых фильтрах: это уже разбор, а не сигнал.
+          Одно поле, два уровня подробности — как «Готово к запуску» и «Статус».
+        */}
+        <button
+          type="button"
+          aria-pressed={Boolean(filters.overdue)}
+          title="Просроченные по сроку клиента или по плану этапа. Уточнить вид — в фильтрах ниже"
+          className={`${styles.chip} ${styles.chipBtn} ${filters.overdue ? styles.chipProgress : styles.chipNeutral}`}
+          onClick={() => set({ overdue: filters.overdue ? '' : 'any' })}
+        >
+          <Icon name="clock" size={13} />
+          {' '}
+          {filters.overdue && filters.overdue !== 'any'
+            ? OVERDUE_FILTER_LABELS[filters.overdue]
+            : 'Просрочено'}
+        </button>
         {toggleChip(
           'problem',
           <><Icon name="ban" size={13} /> С проблемой</>,
@@ -107,6 +122,20 @@ export function QueueFilters({
             >
               <option value="">Любой</option>
               {Object.entries(GROUP_FILTER_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Просрочка</span>
+            <select
+              className={styles.select}
+              value={filters.overdue}
+              onChange={(e) => set({ overdue: e.target.value })}
+              aria-label="Вид просрочки"
+            >
+              <option value="">Неважно</option>
+              {Object.entries(OVERDUE_FILTER_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
             </select>

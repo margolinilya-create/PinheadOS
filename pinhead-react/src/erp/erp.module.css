@@ -2795,3 +2795,18 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   background: var(--accent);
 }
 .capacityFillOver { background: var(--color-error); }
+
+/* ─── Очередь «Не запланировано» на экране плана (правки заказчика 10.08) ─── */
+.planUnplannedList { display: flex; flex-direction: column; gap: 6px; }
+.planUnplannedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: 13px;
+}
+.planUnplannedBody { min-width: 0; }

@@ -11,6 +11,7 @@
  */
 
 import { create } from 'zustand';
+import { registerAppReset } from '../../store/appReset';
 import {
   bootstrapSlice,
   ordersSlice,
@@ -85,6 +86,15 @@ export function resetErpStore(): void {
    */
   clearQueryCache();
 }
+
+/**
+ * Регистрируем сброс в общем реестре, а не даём `useAuthStore` импортировать
+ * этот модуль напрямую: прямой импорт тянул весь ERP-стор во входной чанк,
+ * который грузит и тот, кто открыл только Order Studio (см. store/appReset).
+ * Строка выполняется при первой загрузке ERP — то есть ровно тогда, когда
+ * состоянию есть откуда взяться.
+ */
+registerAppReset(resetErpStore);
 
 // Инфраструктура (currentActor/logStageEvent/withPending/тайминги) — в ./shared.
 // Реэкспорт _pendingMutations — для тестов, импортирующих его отсюда.

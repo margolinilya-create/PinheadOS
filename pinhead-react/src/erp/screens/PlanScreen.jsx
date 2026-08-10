@@ -13,6 +13,7 @@ import { onTabListKeyDown } from '../utils/tabs';
 import { formatDateShort } from '../utils/time';
 import { localToday } from '../utils/orderForm';
 import { buildQueueEntries } from '../utils/queueEntries';
+import { remainingQty, unplannedEntries } from '../utils/planQueue';
 import {
   deviations, groupByDay, mondayOf, shiftWeek, summarize, weekDates,
 } from '../utils/planDay';
@@ -45,6 +46,7 @@ export default function PlanScreen() {
     orders, departments, loaded, loadError, loadAll,
     planSlots, planLoaded, planLoading, planLoadError, loadPlan, movePlanSlot, planComments,
     capacity, capacityLoaded, loadSettings,
+    plannedStageIds, plannedAheadLoaded, loadPlannedAhead, bypasses,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     departments: s.departments,
@@ -61,6 +63,10 @@ export default function PlanScreen() {
     capacity: s.capacity,
     capacityLoaded: s.capacityLoaded,
     loadSettings: s.loadSettings,
+    plannedStageIds: s.plannedStageIds,
+    plannedAheadLoaded: s.plannedAheadLoaded,
+    loadPlannedAhead: s.loadPlannedAhead,
+    bypasses: s.bypasses,
   })));
   const access = useErpAccess();
   const today = localToday();
@@ -86,12 +92,17 @@ export default function PlanScreen() {
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
+  useEffect(() => { if (!plannedAheadLoaded) loadPlannedAhead(); }, [plannedAheadLoaded, loadPlannedAhead]);
   useEffect(() => {
     loadPlan(dates[0], dates[dates.length - 1]);
   }, [loadPlan, dates]);
 
   const productionDepts = useMemo(
     () => departments.filter((d) => d.active && isProductionDept(d)),
+    [departments],
+  );
+  const deptNameById = useMemo(
+    () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
     [departments],
   );
 
@@ -102,7 +113,7 @@ export default function PlanScreen() {
    */
   const ctxByStage = useMemo(() => {
     const map = new Map();
-    for (const e of buildQueueEntries(orders, departments, { includeInactive: true })) {
+    for (const e of buildQueueEntries(orders, departments, { includeInactive: true, bypasses })) {
       map.set(e.stage.id, {
         order: e.order,
         item: e.item,
@@ -112,7 +123,7 @@ export default function PlanScreen() {
       });
     }
     return map;
-  }, [orders, departments]);
+  }, [orders, departments, bypasses]);
 
   /** Задачи с подмешанным признаком материалов — для сводок */
   const enriched = useMemo(
@@ -153,11 +164,38 @@ export default function PlanScreen() {
 
   const canManage = access.can('plan.manage');
 
+  /**
+   * Очередь «Не запланировано» — то, ради чего экран и открывают: что готово
+   * к запуску и до сих пор не разложено по дням. Считается из тех же
+   * `buildQueueEntries`, что очередь цеха, — иначе план предлагал бы ставить
+   * работу, которую цех запустить не может.
+   */
+  const unplanned = useMemo(() => unplannedEntries(
+    buildQueueEntries(orders, departments, { bypasses }),
+    {
+      plannedStageIds,
+      departmentId: deptCode === 'all'
+        ? null
+        : productionDepts.find((d) => d.code === deptCode)?.id ?? null,
+    },
+  ), [orders, departments, bypasses, plannedStageIds, deptCode, productionDepts]);
+
+  /**
+   * Одна зона сброса, два источника: карточка дня переезжает на другой день,
+   * а задание из очереди «Не запланировано» открывает окно постановки с уже
+   * подставленными днём и заданием — количество на день человек подтверждает
+   * сам. Молча ставить весь остаток значило бы решать за руководителя главное.
+   */
   const onDrop = async (date) => {
     if (!drag) return;
+    const dragged = drag;
     setDrag(null);
-    if (drag.work_date === date) return;
-    await movePlanSlot(drag.id, date);
+    if (dragged.kind === 'entry') {
+      setAddTo({ date, deptId: dragged.entry.stage.department_id, entry: dragged.entry });
+      return;
+    }
+    if (dragged.slot.work_date === date) return;
+    await movePlanSlot(dragged.slot.id, date);
   };
 
   if (loadError && !loaded) return <LoadFailed onRetry={loadAll} what="производственный план" />;
@@ -274,7 +312,10 @@ export default function PlanScreen() {
                         today={today}
                         commentsCount={commentCount(slot.id)}
                         draggable={canManage}
-                        onDragStart={(e, s) => { setDrag(s); e.dataTransfer.effectAllowed = 'move'; }}
+                        onDragStart={(e, s) => {
+                          setDrag({ kind: 'slot', slot: s });
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
                         onDragEnd={() => setDrag(null)}
                         onOpen={setOpenSlot}
                       />
@@ -327,6 +368,25 @@ export default function PlanScreen() {
         />
       )}
 
+      {/* Очередь «Не запланировано» — прямое требование документа. Стоит НАД
+          отклонениями: сначала разложить работу, потом разбирать сорванное. */}
+      {planLoaded && (
+        <UnplannedQueue
+          entries={unplanned}
+          deptNameById={deptNameById}
+          canManage={canManage}
+          dragging={drag?.kind === 'entry' ? drag.entry.stage.id : null}
+          onDragStart={(e, entry) => {
+            setDrag({ kind: 'entry', entry });
+            e.dataTransfer.effectAllowed = 'copy';
+          }}
+          onDragEnd={() => setDrag(null)}
+          onPlan={(entry) => setAddTo({
+            date: null, deptId: entry.stage.department_id, entry,
+          })}
+        />
+      )}
+
       {/* Отклонения: то, что руководителю разбирать вручную */}
       {planLoaded && weekDeviations.length > 0 && (
         <section className={styles.planDeviations}>
@@ -361,6 +421,7 @@ export default function PlanScreen() {
         <PlanAddModal
           date={addTo.date}
           departmentId={addTo.deptId}
+          preselect={addTo.entry ?? null}
           onClose={() => setAddTo(null)}
         />
       )}
@@ -431,5 +492,71 @@ function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage })
         </tbody>
       </table>
     </ScrollHintBox>
+  );
+}
+
+/**
+ * Очередь «Не запланировано» (правки заказчика 10.08).
+ *
+ * Отвечает на один вопрос: что можно запускать сегодня и до сих пор не
+ * разложено по дням. Постановка — двумя путями: перетащить в день недели или
+ * нажать «В план» и выбрать дату. Клавиатурный путь обязателен и здесь: на
+ * планшете цеха перетаскивания нет вовсе, а этот экран открывают и с него.
+ */
+function UnplannedQueue({
+  entries, deptNameById, canManage, dragging, onDragStart, onDragEnd, onPlan,
+}) {
+  if (entries.length === 0) {
+    return (
+      <section className={styles.planDeviations} aria-label="Не запланировано">
+        <h3 className={styles.queueGroupTitle}>Не запланировано (0)</h3>
+        <p className={styles.subText}>
+          Вся работа, готовая к запуску, разложена по дням.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    // Именованный регион: на экране плана уже есть кнопка «+ В план на этот день»
+    // у каждого дня, и без имени секции обе постановки неразличимы — ни для
+    // скринридера, ни для теста
+    <section className={styles.planDeviations} aria-label="Не запланировано">
+      <h3 className={styles.queueGroupTitle}>
+        Не запланировано ({entries.length})
+      </h3>
+      <p className={styles.queueReason}>
+        Готово к запуску, но ни на один день не поставлено.
+        {canManage
+          ? ' Перетащите в день недели или нажмите «В план».'
+          : ' Разложить работу может руководитель производства.'}
+      </p>
+      <div className={styles.planUnplannedList}>
+        {entries.map((e) => (
+          <div
+            key={e.stage.id}
+            className={`${styles.planUnplannedRow} ${dragging === e.stage.id ? styles.queueRowDragging : ''}`}
+            draggable={canManage}
+            onDragStart={(ev) => canManage && onDragStart(ev, e)}
+            onDragEnd={onDragEnd}
+          >
+            <span className={styles.planUnplannedBody}>
+              <b>№{e.order.bitrix_id || '—'}</b> {e.order.title}
+              <span className={styles.subText}>
+                {' '}· {[e.item.product_type, e.item.variant].filter(Boolean).join(' ')}
+                {' '}· {deptNameById.get(e.stage.department_id) || '—'}
+                {' '}· остаток {remainingQty(e)} шт
+                {e.order.due_date ? ` · срок ${formatDateShort(e.order.due_date)}` : ''}
+              </span>
+            </span>
+            {canManage && (
+              <Button variant="secondary" onClick={() => onPlan(e)}>
+                <Icon name="calendar" size={14} /> В план
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -468,8 +468,26 @@ function dataForTable(table: string, params: URLSearchParams): unknown[] {
       if (statusFilter?.startsWith('neq.')) return rows.filter((o) => o.status !== 'active');
       return rows;
     }
-    case 'erp_calendar_slots':
-      return PLAN_SLOTS;
+    /**
+     * Задачи плана. Фильтры по дате и статусу мок ОБЯЗАН повторять: очередь
+     * «Не запланировано» (правки 10.08) спрашивает «что стоит в плане с сегодня
+     * и дальше», и мок, отдающий всё подряд, показывал бы запланированным то,
+     * что было в прошлом месяце, — то есть проверял бы не тот путь, по которому
+     * ходит прод.
+     */
+    case 'erp_calendar_slots': {
+      let rows = PLAN_SLOTS;
+      const from = params.get('work_date');
+      // PostgREST шлёт повторяющийся ключ: work_date=gte.X&work_date=lte.Y
+      for (const raw of params.getAll('work_date')) {
+        if (raw.startsWith('gte.')) rows = rows.filter((s) => s.work_date >= raw.slice(4));
+        if (raw.startsWith('lte.')) rows = rows.filter((s) => s.work_date <= raw.slice(4));
+      }
+      void from;
+      const status = params.get('status');
+      if (status?.startsWith('neq.')) rows = rows.filter((s) => s.status !== status.slice(4));
+      return rows;
+    }
     /**
      * Мощность производства (правки 10.08). Без строки полоса загрузки честно
      * писала бы «мощность не задана» — путь тоже рабочий, но e2e должен гонять

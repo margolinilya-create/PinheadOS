@@ -17,6 +17,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { ErpCalendarSlot, ErpPlanComment } from '../../types';
 import { planStatusForFact } from '../../utils/planDay';
+import { localToday } from '../../utils/orderForm';
 import { currentActor, erpError, erpQuery, erpRead, withPending } from '../shared';
 import type { ErpStore, PlanSlice } from '../types';
 
@@ -46,6 +47,37 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
   planLoaded: false,
   planLoading: false,
   planLoadError: false,
+  plannedStageIds: [],
+  plannedAheadLoaded: false,
+
+  /**
+   * Что уже стоит в плане на сегодня и дальше — только идентификаторы этапов.
+   *
+   * Запрос отдельный и нарочно узкий: очередь «Не запланировано» обязана
+   * учитывать ВЕСЬ горизонт, а не видимую неделю, иначе разложенное на
+   * следующую неделю задание предлагается запланировать ещё раз. Строк мало,
+   * колонка одна, вызывается при открытии плана и после каждой постановки.
+   *
+   * Fail-open: не загрузилось — считаем, что не знаем ни об одной постановке.
+   * Худшее следствие — лишняя строка в очереди, а не пропавшая работа.
+   */
+  loadPlannedAhead: async () => {
+    const { data, error } = await erpRead(() => supabase
+      .from('erp_calendar_slots')
+      .select('stage_id')
+      .gte('work_date', localToday())
+      .neq('status', 'cancelled')
+      .not('stage_id', 'is', null));
+    if (error) {
+      set({ plannedAheadLoaded: true });
+      erpError('Не удалось узнать, что уже в плане', error);
+      return;
+    }
+    const ids = (data ?? [])
+      .map((r) => (r as { stage_id: string | null }).stage_id)
+      .filter((id): id is string => Boolean(id));
+    set({ plannedStageIds: [...new Set(ids)], plannedAheadLoaded: true });
+  },
 
   loadPlan: async (fromDate, toDate) => {
     set({ planLoading: true, planLoadError: false });
@@ -118,6 +150,11 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
     }
     set((s) => ({
       planSlots: [...s.planSlots.filter((x) => x.id !== saved.id), saved],
+      // Этап ушёл из очереди «Не запланировано» немедленно: ждать повторного
+      // запроса значило бы оставить строку, которую только что убрали
+      plannedStageIds: saved.stage_id && !s.plannedStageIds.includes(saved.stage_id)
+        ? [...s.plannedStageIds, saved.stage_id]
+        : s.plannedStageIds,
     }));
     return saved;
   },
@@ -152,7 +189,16 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
    * и переписка остаются в истории, а повторная постановка на ту же дату проходит
    * upsert-ом. DELETE на таблице и так только у админа.
    */
-  cancelPlanSlot: async (id) => get().updatePlanSlot(id, { status: 'cancelled' }),
+  cancelPlanSlot: async (id) => {
+    const ok = await get().updatePlanSlot(id, { status: 'cancelled' });
+    /**
+     * Пересчитываем горизонт запросом, а не вычёркиванием: у этапа могут быть
+     * задачи и на другие дни, и «сняли одну» не значит «не запланирован».
+     * Локально этого не видно — загружена только видимая неделя.
+     */
+    if (ok) await get().loadPlannedAhead();
+    return ok;
+  },
 
   /**
    * Факт за день от цеха. `qty_done` — накопительное значение за этот день,
