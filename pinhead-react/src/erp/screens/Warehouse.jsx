@@ -82,10 +82,13 @@ function warehouseSortValue({ order, task }, key) {
 }
 
 export default function Warehouse() {
-  const { orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask } = useErpStore(
+  const {
+    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask, addMaterialReceipt,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, advanceWarehouseTask: s.advanceWarehouseTask,
+      addMaterialReceipt: s.addMaterialReceipt,
     })),
   );
   const [query, setQuery] = useState('');
@@ -267,7 +270,12 @@ export default function Warehouse() {
           badge={<Badge variant={taskVariant(open.task)}>{taskStatusLabel(open.task)}</Badge>}
         >
           {open.task.task_type === 'material_receipt' && (
-            <MaterialReceiptCard order={open.order} task={open.task} onAccept={acceptMaterial} />
+            <MaterialReceiptCard
+              order={open.order}
+              task={open.task}
+              onAccept={acceptMaterial}
+              onAddReceipt={addMaterialReceipt}
+            />
           )}
           {open.task.task_type === 'subcontract_receipt' && (
             <SubcontractReceiptCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />

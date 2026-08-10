@@ -623,6 +623,56 @@ export type Database = {
           },
         ]
       }
+      erp_material_receipts: {
+        Row: {
+          accept_status: string
+          author: string | null
+          author_id: string | null
+          comment: string | null
+          created_at: string
+          id: string
+          invoice: string | null
+          material_id: string
+          qty: number
+          received_on: string
+          unit: string | null
+        }
+        Insert: {
+          accept_status?: string
+          author?: string | null
+          author_id?: string | null
+          comment?: string | null
+          created_at?: string
+          id?: string
+          invoice?: string | null
+          material_id: string
+          qty: number
+          received_on?: string
+          unit?: string | null
+        }
+        Update: {
+          accept_status?: string
+          author?: string | null
+          author_id?: string | null
+          comment?: string | null
+          created_at?: string
+          id?: string
+          invoice?: string | null
+          material_id?: string
+          qty?: number
+          received_on?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_material_receipts_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_material_suppliers: {
         Row: {
           availability: string | null
@@ -692,6 +742,7 @@ export type Database = {
           name: string
           notes: string | null
           order_id: string
+          price_per_unit: number | null
           qty: string | null
           qty_expected: number | null
           qty_received: number | null
@@ -701,6 +752,7 @@ export type Database = {
           source: string
           status: string
           supplier: string | null
+          unit: string | null
           updated_at: string
         }
         Insert: {
@@ -721,6 +773,7 @@ export type Database = {
           name: string
           notes?: string | null
           order_id: string
+          price_per_unit?: number | null
           qty?: string | null
           qty_expected?: number | null
           qty_received?: number | null
@@ -730,6 +783,7 @@ export type Database = {
           source?: string
           status?: string
           supplier?: string | null
+          unit?: string | null
           updated_at?: string
         }
         Update: {
@@ -750,6 +804,7 @@ export type Database = {
           name?: string
           notes?: string | null
           order_id?: string
+          price_per_unit?: number | null
           qty?: string | null
           qty_expected?: number | null
           qty_received?: number | null
@@ -759,6 +814,7 @@ export type Database = {
           source?: string
           status?: string
           supplier?: string | null
+          unit?: string | null
           updated_at?: string
         }
         Relationships: [

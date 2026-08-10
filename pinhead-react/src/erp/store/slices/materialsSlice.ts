@@ -6,7 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
@@ -165,6 +165,52 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
         list.filter((o) => o.id !== optionId)),
     }));
     if (option?.is_selected) await get().updateMaterial(materialId, { supplier: null });
+    return true;
+  },
+
+  /**
+   * Приход материала частями (правки заказчика 10.08, волна 3.3).
+   *
+   * Документ: «пришло 60 из 100, потом ещё 35 — видно, что осталось 5».
+   * Пишем СТРОКУ ЖУРНАЛА, а не поле: сумму по журналу ведёт триггер и кладёт
+   * её в `erp_materials.qty_received`, которую читают материальный гейт, гейт
+   * отгрузки и автозакрытие закупки. Прямая запись в колонку из карточки
+   * убрана — иначе у одного значения два писателя, и приход затирал бы приход.
+   *
+   * Не optimistic: сумму считает сервер, и показать её раньше ответа значит
+   * нарисовать число, которого может не получиться (права, CHECK на отклонении).
+   */
+  addMaterialReceipt: async (materialId, input) => {
+    const qty = Number(input.qty);
+    if (!(qty > 0)) {
+      toast.error('Количество прихода должно быть больше нуля');
+      return false;
+    }
+    const status = input.acceptStatus ?? 'accepted_full';
+    const comment = (input.comment ?? '').trim();
+    if (status !== 'accepted_full' && status !== 'accepted_partial' && !comment) {
+      toast.error('Отклонение нужно объяснить — заполните комментарий');
+      return false;
+    }
+    const { error } = await erpQuery(() => supabase
+      .from('erp_material_receipts')
+      .insert({
+        material_id: materialId,
+        qty,
+        unit: input.unit ?? null,
+        accept_status: status,
+        invoice: input.invoice?.trim() || null,
+        comment: comment || null,
+        received_on: input.receivedOn || new Date().toISOString().slice(0, 10),
+        author: currentActor(),
+      }));
+    if (error) {
+      erpError('Приход не записан', error);
+      return false;
+    }
+    // Сумму пересчитал триггер — перечитываем заказ, чтобы гейты увидели новое
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
+    if (order) await get().loadOne(order.id);
     return true;
   },
 

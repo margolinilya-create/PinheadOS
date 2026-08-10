@@ -420,6 +420,19 @@ export interface MaterialsSlice {
   /** Удалить вариант; удаление выбранного очищает поставщика у позиции */
   deleteSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
   /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
+  /**
+   * Приход материала частями (волна 3.3): строка журнала `erp_material_receipts`.
+   * Сумму по журналу в `qty_received` кладёт триггер — прямой записи в колонку
+   * из карточки больше нет, иначе у значения два писателя.
+   */
+  addMaterialReceipt: (materialId: string, input: {
+    qty: number;
+    unit?: string | null;
+    acceptStatus?: MaterialAcceptStatus;
+    invoice?: string | null;
+    comment?: string | null;
+    receivedOn?: string | null;
+  }) => Promise<boolean>;
   maybeCloseSupply: (orderId: string) => Promise<void>;
 }
 

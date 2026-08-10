@@ -88,7 +88,7 @@ function statusGroup(m, today) {
 
 const EMPTY_MAT = {
   order_id: '', kind: 'fabric', name: '', source: 'purchase', supplier: '',
-  color: '', article: '', qty: '', qty_expected: '', eta_date: '',
+  color: '', article: '', qty: '', qty_expected: '', unit: '', price_per_unit: '', eta_date: '',
 };
 
 /** Модалка «Новая закупка» */
@@ -104,7 +104,7 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
     if (!form.name.trim()) { toast.error('Укажите материал'); return; }
     if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
     if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
-      toast.error('Укажите плановое кол-во (кг)'); return;
+      toast.error('Укажите плановое количество'); return;
     }
     setSaving(true);
     const row = await onAdd(form.order_id, {
@@ -112,6 +112,8 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
       supplier: form.supplier.trim() || null, color: form.color.trim() || null,
       article: form.article.trim() || null, qty: form.qty.trim() || null,
       qty_expected: form.qty_expected === '' ? null : Number(form.qty_expected),
+      unit: form.unit.trim() || null,
+      price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
       eta_date: form.eta_date || null,
       status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
     });
@@ -167,9 +169,33 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
               aria-label="Поставщик"
             />
           </label>
+          {/* Единица — метка, а не коэффициент: «кг» стояло в подписи жёстко,
+              и ткань в метрах, бирки в штуках и упаковка в пачках подписывались
+              килограммами. Пересчёта между единицами система не делает */}
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>План, кг</span>
+            <span className={styles.fieldLabel}>План, кол-во</span>
             <input type="number" min="0" step="0.01" className={styles.input} value={form.qty_expected} onChange={(e) => set({ qty_expected: e.target.value })} aria-label="Плановое количество" />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Единица</span>
+            <input
+              className={styles.input}
+              value={form.unit}
+              onChange={(e) => set({ unit: e.target.value })}
+              list="erp-units"
+              placeholder="кг, м, шт"
+              aria-label="Единица измерения"
+            />
+            <DictionaryDatalist id="erp-units" kind="unit" />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Цена за единицу</span>
+            <input
+              type="number" min="0" step="0.01" className={styles.input}
+              value={form.price_per_unit}
+              onChange={(e) => set({ price_per_unit: e.target.value })}
+              aria-label="Цена за единицу"
+            />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>План прихода</span>
@@ -382,7 +408,7 @@ export default function FabricPurchasing() {
                   <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
                   <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
                   <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
-                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">План, кг</SortableTh>
+                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">План, кол-во</SortableTh>
                   <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
                   <th>Ответственный</th>
                   <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
@@ -441,7 +467,9 @@ export default function FabricPurchasing() {
                       />
                     </td>
                     <td>
-                      {m.qty_received != null ? `${m.qty_received} кг` : (m.received_at ? formatDateShort(m.received_at) : '—')}
+                      {m.qty_received != null
+                        ? `${m.qty_received}${m.unit ? ` ${m.unit}` : ''}`
+                        : (m.received_at ? formatDateShort(m.received_at) : '—')}
                     </td>
                     <td>
                       {/* С кого спрашивать, пока материала нет. Показывается цеху

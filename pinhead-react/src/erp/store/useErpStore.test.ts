@@ -750,7 +750,14 @@ describe('useErpStore — материал со склада / авто-закр
     const m = useErpStore.getState().orders[0].materials[0];
     expect(m.status).toBe('received'); // приёмка помечает прибытие
     expect(m.accept_status).toBe('accepted_full');
-    expect(m.qty_received).toBe(100);
+    /**
+     * Количество приёмка БОЛЬШЕ НЕ ПИШЕТ (волна 3.3): `qty_received` стала
+     * суммой журнала `erp_material_receipts` и ведётся триггером. Прямая запись
+     * из карточки означала бы двух писателей одной колонки — первый же приход
+     * пересчитал бы сумму и затёр набранное. Число по-прежнему уходит
+     * в историю склада (проверяется ниже) и в проверку расхождения на экране.
+     */
+    expect(m.qty_received).toBeUndefined();
     expect(m.accepted_at).toBeTruthy();
     expect(m.accepted_by).toBe('Тест');
     const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];

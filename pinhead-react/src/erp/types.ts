@@ -250,6 +250,24 @@ export interface ErpItemStage {
   updated_at: string;
 }
 
+/**
+ * Строка журнала приходов материала (`erp_material_receipts`, волна 3.3).
+ * Сумма по журналу лежит в `ErpMaterial.qty_received` — её ведёт триггер.
+ */
+export interface ErpMaterialReceipt {
+  id: string;
+  material_id: string;
+  qty: number;
+  unit: string | null;
+  accept_status: MaterialAcceptStatus;
+  invoice: string | null;
+  comment: string | null;
+  received_on: string;
+  author: string | null;
+  author_id: string | null;
+  created_at: string;
+}
+
 export interface ErpMaterial {
   id: string;
   order_id: string;
@@ -269,7 +287,24 @@ export interface ErpMaterial {
   notes: string | null;
   // Приёмка складом (правка 3 + 4.1.3): числовая сверка план/факт + фактические атрибуты
   qty_expected: number | null;
+  /**
+   * Принято всего — СУММА журнала `erp_material_receipts`, её ведёт триггер
+   * (волна 3.3). Клиент эту колонку только читает: прямая запись означала бы
+   * двух писателей, и первый же следующий приход затёр бы набранное вручную.
+   */
   qty_received: number | null;
+  /**
+   * Единица измерения — МЕТКА для человека (кг, м, шт, уп), не коэффициент:
+   * пересчёта между единицами система не делает и делать не должна —
+   * плотность ткани у каждого артикула своя.
+   */
+  unit?: string | null;
+  /**
+   * Цена за единицу — снимок на момент выбора поставщика. Цена в справочнике
+   * меняется, а история закупки меняться не должна. Итоговая сумма НЕ хранится:
+   * хранить производную значит завести расхождение.
+   */
+  price_per_unit?: number | null;
   // Факт приёмки (правка 4.1.3): что фактически поступило (пересорт/расхождение с планом)
   fact_name: string | null;
   fact_color: string | null;
@@ -913,13 +948,15 @@ export interface ErpRolePermission {
  * подряда) сюда не входят: они зашиты в CHECK-констрейнты и стейт-машины —
  * в админке показаны только для чтения.
  */
-export type DictionaryKind = 'block_reason' | 'problem_type' | 'product_type' | 'supplier';
+export type DictionaryKind =
+  'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
   problem_type: 'Типы проблем',
   product_type: 'Типы изделий',
   supplier: 'Поставщики',
+  unit: 'Единицы измерения',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -927,6 +964,7 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
   block_reason: 'Быстрый выбор в форме «Проблема» у задания цеха.',
   problem_type: 'Быстрый выбор при оформлении брака и переделки.',
   product_type: 'Подсказки в поле «Изделие» при создании заказа.',
+  unit: 'Подсказки в поле единицы измерения материала (кг, м, шт).',
   supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
 };
 
