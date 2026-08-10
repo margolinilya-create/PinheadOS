@@ -64,6 +64,11 @@ function functionBody(sql: string, fn: string): string {
 }
 
 const SQL = migration('20260803160000_erp_permissions_server_side.sql');
+/** Настройки производства: таблица заводится один раз, политики — вместе с ней */
+const SETTINGS_SQL = latestMatching(
+  /create table if not exists public\.erp_settings/, 'таблицу erp_settings');
+const ADMIN_SCREEN = readFileSync(
+  join(process.cwd(), 'src/erp/screens/AdminScreen.jsx'), 'utf8');
 const STAGE_SQL = latestDefining('erp_stage_guard');
 const ORDER_SQL = latestDefining('erp_order_guard');
 /** Политика INSERT живёт своей жизнью — её тоже берём из последней миграции */
@@ -136,6 +141,25 @@ describe('серверный гейт плана', () => {
     expect(ERP_PERMISSIONS).toContain('plan.manage');
     expect(ERP_PERMISSIONS).toContain('plan.fact');
     expect(DEFAULT_PERMISSIONS.production_head).toContain('plan.manage');
+  });
+
+  /**
+   * Мощность производства (правки 10.08) — часть планирования, а не отдельная
+   * сущность: своего права ей не завели, чтобы оно ничего не выключало сверх
+   * `plan.manage`. Раз право одно, оно обязано совпасть в трёх местах —
+   * политика записи, вкладка админки и матрица; иначе получится ровно то
+   * «кнопка есть, действие падает», от которого сторожит весь этот файл.
+   */
+  it('мощность производства правится тем же правом, что и план', () => {
+    const sql = withoutComments(SETTINGS_SQL);
+    expect(sql).toMatch(/erp_settings_insert[\s\S]*erp_has_permission\('plan\.manage'\)/);
+    expect(sql).toMatch(/erp_settings_update[\s\S]*erp_has_permission\('plan\.manage'\)/);
+    // Читают ВСЕ участники: загрузку видит цех, а не только тот, кто её правит
+    expect(sql).toMatch(/erp_settings_read[\s\S]*erp_is_member\(\)/);
+    // DELETE не открыт никому — настройка перезаписывается, а не удаляется
+    expect(sql).not.toMatch(/erp_settings.*for delete/);
+    // И та же проверка в интерфейсе
+    expect(ADMIN_SCREEN).toMatch(/id: 'capacity'[\s\S]{0,80}needs: 'plan\.manage'/);
   });
 });
 

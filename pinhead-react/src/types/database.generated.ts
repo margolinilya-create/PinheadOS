@@ -1185,6 +1185,30 @@ export type Database = {
         }
         Relationships: []
       }
+      erp_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          updated_by_id: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_id?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_id?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       erp_stage_events: {
         Row: {
           actor: string | null

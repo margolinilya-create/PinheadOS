@@ -16,6 +16,8 @@ import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
 import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
 import { groupNotices, urgentCount } from '../utils/notifications';
+import { CapacityBar } from '../components/CapacityBar';
+import { monthCapacityReport, monthLabel } from '../utils/capacity';
 import styles from '../erp.module.css';
 import { dueLabel } from '../utils/format';
 
@@ -61,19 +63,26 @@ function orderStatus(order) {
 }
 
 export default function ErpDashboard() {
-  const { orders, departments, loaded, loadError, loadAll } = useErpStore(
+  const {
+    orders, departments, loaded, loadError, loadAll, capacity, capacityLoaded, loadSettings,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
+      capacity: s.capacity,
+      capacityLoaded: s.capacityLoaded,
+      loadSettings: s.loadSettings,
     })),
   );
+  const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+  useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
 
   // Колокол в шапке ведёт на /#notifications — проскроллить к виджету «Уведомления» (ERP-16),
   // когда данные загружены (виджет рендерится только при loaded).
@@ -170,8 +179,9 @@ export default function ErpDashboard() {
       // Группы, а не срез: срез показывал шесть случайных из сорока семи
       // и молчал о том, что их сорок семь
       noticeGroups: groupNotices(notifications),
+      capacity: monthCapacityReport(orders, today, capacity),
     };
-  }, [orders, departments]);
+  }, [orders, departments, capacity, today]);
 
   // Число для шапки виджета: сумма срочных групп, а не всех уведомлений
   const urgent = urgentCount(data.noticeGroups);
@@ -252,7 +262,12 @@ export default function ErpDashboard() {
             </Link>
           </div>
 
-          {/* Заказы в работе / Загрузка цехов / Дедлайны */}
+          {/* Загрузка производства против общей мощности (правки заказчика 10.08).
+              Стоит над блоками цехов сознательно: «влезаем ли мы в месяц» —
+              вопрос раньше, чем «какой цех занят сильнее». */}
+          <CapacityBar report={data.capacity} periodLabel={monthLabel(today)} />
+
+          {/* Заказы в работе / Задачи по цехам / Дедлайны */}
           <div className={`${styles.dashRow} ${styles.dashRow3}`}>
             <div className={styles.widget}>
               <div className={styles.widgetHead}>
@@ -285,7 +300,10 @@ export default function ErpDashboard() {
             </div>
 
             <div className={styles.widget}>
-              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Загрузка цехов</h2></div>
+              {/* «Задачи по цехам», а не «Загрузка цехов» (решение заказчика 10.08):
+                  блок считает ЭТАПЫ, а экран /load — штуки. Одно слово на две разные
+                  величины заставляло сверять цифры, которые сойтись не могут. */}
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Задачи по цехам</h2></div>
               {data.loadRows.length === 0 ? (
                 <div className={styles.emptyState}>Цеха свободны.</div>
               ) : (

@@ -140,10 +140,28 @@ test.describe('Админка: права и справочники (правк�
     await page.goto('/admin?studio=0');
     const tabs = page.getByRole('tablist', { name: 'Разделы админки' });
     for (const name of [
-      'Пользователи', 'Права', 'Цеха', 'Справочники', 'Аварийный режим', 'Заказы ТЗ',
+      'Пользователи', 'Права', 'Цеха', 'Мощность', 'Справочники', 'Аварийный режим', 'Заказы ТЗ',
     ]) {
       await expect(tabs.getByRole('tab', { name })).toBeVisible();
     }
+  });
+
+  /**
+   * Мощность производства (правки 10.08): 10 000 единиц в месяц задаются одним
+   * числом, а дневная и месячная доступность СЧИТАЮТСЯ из рабочих дней —
+   * фиксированного значения на день документ запрещает прямо.
+   */
+  test('мощность: одно число, остальное считается из рабочих дней', async ({ page }) => {
+    await page.goto('/admin?tab=capacity&studio=0');
+    await expect(page.getByRole('spinbutton')).toHaveValue('10000');
+    // Июль 2026: 23 рабочих дня при пятидневке → 10000/23 ≈ 435 в день
+    await expect(page.getByText('рабочих дней в месяце:')).toContainText('23');
+    await expect(page.getByText('доступно в день:')).toContainText('435');
+    // Кнопка гаснет, пока ничего не изменили: сохранять нечего
+    await expect(page.getByRole('button', { name: 'Сохранить мощность' })).toBeDisabled();
+    await page.getByRole('spinbutton').fill('12000');
+    await expect(page.getByRole('button', { name: 'Сохранить мощность' })).toBeEnabled();
+    await expect(page.getByText('доступно в день:')).toContainText('522');
   });
 
   /**

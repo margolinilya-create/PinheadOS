@@ -470,6 +470,17 @@ function dataForTable(table: string, params: URLSearchParams): unknown[] {
     }
     case 'erp_calendar_slots':
       return PLAN_SLOTS;
+    /**
+     * Мощность производства (правки 10.08). Без строки полоса загрузки честно
+     * писала бы «мощность не задана» — путь тоже рабочий, но e2e должен гонять
+     * основной: 10 000 единиц из документа заказчика.
+     */
+    case 'erp_settings':
+      return [{
+        key: 'production_capacity',
+        value: { monthly_units: 10000, work_days_per_week: 5 },
+        updated_by: null, updated_by_id: null, updated_at: CREATED,
+      }];
     // Order Studio и прочие таблицы: пустой набор → компоненты берут дефолты/пустые списки.
     default:
       return [];

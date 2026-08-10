@@ -5,6 +5,7 @@
  */
 
 import type { PermissionMatrix } from '../utils/permissions';
+import type { CapacitySettings } from '../utils/capacity';
 import type {
   BrandingMethod,
   BrandingOn,
@@ -549,6 +550,21 @@ export interface BypassSlice {
   restoreBypass: (id: string) => Promise<boolean>;
 }
 
+/**
+ * Настройки производства (правки заказчика 10.08, волна 2).
+ *
+ * Пока это одна запись — общая мощность в единицах за месяц. В `erp_bootstrap()`
+ * она не едет: пакет оболочки приезжает КАЖДОМУ на каждом экране, а мощность
+ * нужна трём — обзору, плану и загрузке. Они её и просят, один раз за сессию.
+ */
+export interface SettingsSlice {
+  capacity: CapacitySettings;
+  capacityLoaded: boolean;
+  loadSettings: () => Promise<void>;
+  /** Сохранить мощность; право — `plan.manage`, как у самого плана */
+  saveCapacity: (next: CapacitySettings) => Promise<boolean>;
+}
+
 /** Realtime: точечное применение postgres_changes + подписка */
 export interface RealtimeSlice {
   /** Точечное применение realtime-события (экспорт действия — для тестов) */
@@ -657,4 +673,5 @@ export type ErpStore = BootstrapSlice &
   TzSlice &
   PlanSlice &
   BypassSlice &
+  SettingsSlice &
   RealtimeSlice;

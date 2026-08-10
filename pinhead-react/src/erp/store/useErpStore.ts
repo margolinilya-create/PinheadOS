@@ -26,6 +26,7 @@ import {
   tzSlice,
   planSlice,
   bypassSlice,
+  settingsSlice,
   realtimeSlice,
 } from './slices';
 import type { ErpStore } from './types';
@@ -46,6 +47,7 @@ export const useErpStore = create<ErpStore>((...a) => ({
   ...tzSlice(...a),
   ...planSlice(...a),
   ...bypassSlice(...a),
+  ...settingsSlice(...a),
   ...realtimeSlice(...a),
 }));
 

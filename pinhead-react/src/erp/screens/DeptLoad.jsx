@@ -7,6 +7,8 @@ import { EmptyState, LoadFailed } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { useErpStore } from '../store/useErpStore';
+import { CapacityBar } from '../components/CapacityBar';
+import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
 import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
 import { deptShortName } from '../data/departments';
 import styles from '../erp.module.css';
@@ -42,13 +44,18 @@ function shiftWeek(iso, weeks) {
 }
 
 export default function DeptLoad() {
-  const { orders, departments, loaded, loadError, loadAll } = useErpStore(
+  const {
+    orders, departments, loaded, loadError, loadAll, capacity, capacityLoaded, loadSettings,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
+      capacity: s.capacity,
+      capacityLoaded: s.capacityLoaded,
+      loadSettings: s.loadSettings,
     })),
   );
 
@@ -56,11 +63,29 @@ export default function DeptLoad() {
   const [start, setStart] = useState(() => weekStart(todayISO()));
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
 
   const days = useMemo(() => loadDays(start, 7), [start]);
   const { rows, maxCell } = useMemo(
     () => buildDeptLoad(orders, departments, days, today),
     [orders, departments, days, today],
+  );
+
+  /**
+   * Две РАЗНЫЕ величины на одном экране, и их нельзя складывать.
+   *
+   * Полоса сверху — изделия против общей мощности фабрики. Сетка ниже — сколько
+   * штук каждый цех обязался сдать по дням: одно изделие проходит закрой,
+   * нанесение, швейку и ВТО, поэтому сумма по цехам в разы больше выпуска.
+   * Подписи у обеих сказаны прямым текстом, иначе их неизбежно сложат.
+   */
+  const monthReport = useMemo(
+    () => monthCapacityReport(orders, today, capacity),
+    [orders, today, capacity],
+  );
+  const weekReport = useMemo(
+    () => capacityReport(orders, days, capacity),
+    [orders, days, capacity],
   );
 
   const isCurrentWeek = start === weekStart(today);
@@ -74,6 +99,12 @@ export default function DeptLoad() {
         sub="Сколько штук каждый цех обязался сдать по дням — по плановым датам этапов."
       />
       <ProductionTabs />
+
+      <CapacityBar
+        report={isCurrentWeek ? monthReport : weekReport}
+        periodLabel={isCurrentWeek ? monthLabel(today) : periodLabel}
+        hint="Изделия активных заказов со сроком сдачи в периоде против общей мощности. Сетка ниже считает другое — обязательства цехов по дням, где одно изделие попадает в несколько строк."
+      />
 
       <div className={styles.toolbar}>
         <Button variant="ghost" icon="chevronLeft" onClick={() => setStart((s) => shiftWeek(s, -1))}>

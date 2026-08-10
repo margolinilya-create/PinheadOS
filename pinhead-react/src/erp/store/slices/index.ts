@@ -13,4 +13,5 @@ export { experimentalSlice } from './experimentalSlice';
 export { tzSlice } from './tzSlice';
 export { planSlice } from './planSlice';
 export { bypassSlice } from './bypassSlice';
+export { settingsSlice } from './settingsSlice';
 export { realtimeSlice } from './realtimeSlice';

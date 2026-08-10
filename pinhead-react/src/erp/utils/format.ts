@@ -93,8 +93,22 @@ export const OVERDUE_BUCKET_SHORT: Record<OverdueBucket, string> = {
  * поэтому здесь `null`, а не число.
  */
 export function percentOf(part: number, whole: number): number | null {
+  const raw = percentUncapped(part, whole);
+  return raw === null ? null : Math.min(100, raw);
+}
+
+/**
+ * Тот же процент, но БЕЗ потолка в 100.
+ *
+ * Нужен там, где превышение — это и есть сигнал: загрузка производства против
+ * доступной мощности (правки 10.08) отвечает на вопрос «влезаем ли», и
+ * заклампленные 100 % вместо 130 % прячут ровно тот случай, ради которого
+ * показатель заводили. Правило про ноль в знаменателе — общее с `percentOf`,
+ * поэтому оно живёт здесь, а не в двух копиях.
+ */
+export function percentUncapped(part: number, whole: number): number | null {
   if (!Number.isFinite(whole) || whole <= 0) return null;
-  return Math.min(100, Math.max(0, Math.round((part / whole) * 100)));
+  return Math.max(0, Math.round((part / whole) * 100));
 }
 
 /** Процент строкой: `null` → «—», иначе «73%» */

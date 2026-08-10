@@ -186,11 +186,27 @@ describe('storageClearAll — полнота списка ключей', () => {
   function keysUsedInSources() {
     const found = new Set();
     const HELPER_LITERAL = /(?:storageGet|storageSet|storageRemove|sessionGet|sessionSet|sessionRemove)\s*(?:<[^>]*>)?\(\s*'([^']+)'/g;
-    const KEY_CONST = /\b[A-Z][A-Z0-9_]*_KEY\s*(?::\s*string)?\s*=\s*'([^']+)'/g;
+    const KEY_CONST = /\b([A-Z][A-Z0-9_]*_KEY)\s*(?::\s*string)?\s*=\s*'([^']+)'/g;
     // Прямые обращения мимо хелперов: так пишутся ph_sku, ph_cb_rate, erp_my_dept,
     // ph_onboarding_done — половина ключей приложения. Без этой строки страж
     // охранял бы только те ключи, что идут через lib/storage.
     const DIRECT = /(?:localStorage|sessionStorage)\.(?:getItem|setItem|removeItem)\(\s*'([^']+)'/g;
+    /**
+     * Константа считается ключом ХРАНИЛИЩА, только если её этому хранилищу и
+     * передают. Прежде страж брал любую `*_KEY` — и поймал `CAPACITY_SETTINGS_KEY`,
+     * которым адресуется строка в `erp_settings`, а вовсе не localStorage.
+     * Требовать вписать её в APP_KEYS значило бы «почистить при выходе» то,
+     * что лежит в базе; отправить в KEEP_ON_LOGOUT — соврать, что это настройка
+     * устройства. Правильный ответ — что это не ключ хранилища вообще.
+     *
+     * Охват при этом не падает: константа, которую действительно пишут в
+     * хранилище, попадает сюда по имени из вызова.
+     */
+    const USED_AS_KEY = /(?:storageGet|storageSet|storageRemove|sessionGet|sessionSet|sessionRemove|localStorage\.\w+|sessionStorage\.\w+)\s*(?:<[^>]*>)?\(\s*([A-Z][A-Z0-9_]*)\b/g;
+
+    /** имя константы → её значение (по всем файлам, объявление и вызов часто врозь) */
+    const constValues = new Map();
+    const constUsedAsKey = new Set();
 
     const walk = (dir) => {
       for (const name of readdirSync(dir)) {
@@ -198,16 +214,25 @@ describe('storageClearAll — полнота списка ключей', () => {
         if (statSync(full).isDirectory()) { walk(full); continue; }
         if (!/\.(ts|tsx|js|jsx)$/.test(name) || /\.test\./.test(name)) continue;
         const src = readFileSync(full, 'utf8');
-        for (const re of [HELPER_LITERAL, KEY_CONST, DIRECT]) {
+        for (const re of [HELPER_LITERAL, DIRECT]) {
           re.lastIndex = 0;
           let m;
           while ((m = re.exec(src)) !== null) found.add(m[1]);
         }
+        KEY_CONST.lastIndex = 0;
+        let c;
+        while ((c = KEY_CONST.exec(src)) !== null) constValues.set(c[1], c[2]);
+        USED_AS_KEY.lastIndex = 0;
+        let u;
+        while ((u = USED_AS_KEY.exec(src)) !== null) constUsedAsKey.add(u[1]);
       }
     };
     // globalThis.process, а не голый process: конфиг ESLint здесь браузерный.
     // import.meta.url не годится — Vite переписывает его, и это не file:-URL.
     walk(join(globalThis.process.cwd(), 'src'));
+    for (const [name, value] of constValues) {
+      if (constUsedAsKey.has(name)) found.add(value);
+    }
     return [...found];
   }
 

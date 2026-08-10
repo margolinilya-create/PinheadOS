@@ -2761,3 +2761,37 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
    Был инлайновый opacity — он бьёт медиазапросы и становится вторым
    источником правды по виду строки. */
 .rowDisabled { opacity: 0.55; }
+
+/* ─── Загрузка производства против общей мощности (правки заказчика 10.08) ───
+   Одна полоса на трёх экранах: обзор, план, загрузка цехов. Заливка упирается
+   в 100 %, подпись — нет: перебор это ответ, а не ошибка отображения. */
+.capacityBar {
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  margin-bottom: var(--space-md);
+}
+.capacityHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+.capacityTrack {
+  position: relative;
+  height: 8px;
+  margin: 8px 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.capacityFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.capacityFillOver { background: var(--color-error); }

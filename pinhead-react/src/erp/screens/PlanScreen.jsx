@@ -16,6 +16,8 @@ import { buildQueueEntries } from '../utils/queueEntries';
 import {
   deviations, groupByDay, mondayOf, shiftWeek, summarize, weekDates,
 } from '../utils/planDay';
+import { CapacityBar } from '../components/CapacityBar';
+import { capacityReport } from '../utils/capacity';
 import { PlanTaskCard } from './plan/PlanTaskCard';
 import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
@@ -42,6 +44,7 @@ export default function PlanScreen() {
   const {
     orders, departments, loaded, loadError, loadAll,
     planSlots, planLoaded, planLoading, planLoadError, loadPlan, movePlanSlot, planComments,
+    capacity, capacityLoaded, loadSettings,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     departments: s.departments,
@@ -55,6 +58,9 @@ export default function PlanScreen() {
     loadPlan: s.loadPlan,
     movePlanSlot: s.movePlanSlot,
     planComments: s.planComments,
+    capacity: s.capacity,
+    capacityLoaded: s.capacityLoaded,
+    loadSettings: s.loadSettings,
   })));
   const access = useErpAccess();
   const today = localToday();
@@ -79,6 +85,7 @@ export default function PlanScreen() {
   const [drag, setDrag] = useState(null);
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
   useEffect(() => {
     loadPlan(dates[0], dates[dates.length - 1]);
   }, [loadPlan, dates]);
@@ -133,6 +140,17 @@ export default function PlanScreen() {
     [planComments],
   );
 
+  /**
+   * Мощность считается по ЗАКАЗАМ недели, а не по разложенным задачам: слоты
+   * плана — это работа цехов (одно изделие попадает в несколько), а мощность
+   * фабрики выражена в изделиях. Складывать их нельзя, поэтому полоса стоит
+   * отдельно и подписана отдельно.
+   */
+  const weekCapacity = useMemo(
+    () => capacityReport(orders, dates, capacity),
+    [orders, dates, capacity],
+  );
+
   const canManage = access.can('plan.manage');
 
   const onDrop = async (date) => {
@@ -154,6 +172,12 @@ export default function PlanScreen() {
         sub="Недельная раскладка по цехам и дням: план, факт, остатки и отклонения. Остаток система не переносит — новую дату ставит руководитель."
       />
       <ProductionTabs />
+
+      <CapacityBar
+        report={weekCapacity}
+        periodLabel={`неделя ${formatDateShort(dates[0])} — ${formatDateShort(dates[dates.length - 1])}`}
+        hint="Изделия активных заказов со сроком сдачи на этой неделе против доступной мощности. Раскладка ниже — работа цехов, её штуки с этим числом не складываются."
+      />
 
       <div className={styles.toolbar}>
         <Button variant="secondary" onClick={() => setParam({ week: shiftWeek(monday, -1) })}>

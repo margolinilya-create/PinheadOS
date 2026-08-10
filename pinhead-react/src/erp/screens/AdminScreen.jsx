@@ -7,6 +7,7 @@ import DepartmentsScreen from './DepartmentsScreen';
 import { PermissionsTab } from './admin/PermissionsTab';
 import { DictionariesTab } from './admin/DictionariesTab';
 import { BypassTab } from './admin/BypassTab';
+import { CapacityTab } from './admin/CapacityTab';
 import { useErpAccess } from '../store/useErpAccess';
 import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
@@ -17,7 +18,8 @@ const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
  * Единая админка обоих приложений (ERP + Order Studio).
  * Табы: Пользователи (общие profiles + цеховая привязка) · Права (матрица ролей,
  * правка 11) · Цеха (справочник участков с руководителем и нормативом) ·
- * Справочники (правка 12) · Заказы ТЗ (админ-таблица заказов Order Studio).
+ * Мощность (общая мощность производства, правки 10.08) · Справочники (правка 12) ·
+ * Аварийный режим (снятые проверки) · Заказы ТЗ (админ-таблица заказов Order Studio).
  */
 
 /** `needs` — право матрицы, без которого вкладка не показывается */
@@ -25,6 +27,9 @@ const TABS = [
   { id: 'users', label: 'Пользователи' },
   { id: 'roles', label: 'Права' },
   { id: 'depts', label: 'Цеха', needs: 'catalog.edit' },
+  // Мощность производства (правки 10.08): право то же, что у самого плана —
+  // мощность это часть планирования, а не отдельная сущность со своим правом
+  { id: 'capacity', label: 'Мощность', needs: 'plan.manage' },
   { id: 'dicts', label: 'Справочники', needs: 'catalog.edit' },
   // Аварийный режим (правки 10.08): снять блокирующую проверку, когда она
   // останавливает работу из-за ошибки в системе
@@ -71,6 +76,7 @@ export default function AdminScreen() {
       {tab === 'roles' && <PermissionsTab />}
       {tab === 'depts' && <DepartmentsScreen embedded />}
       {tab === 'dicts' && <DictionariesTab />}
+      {tab === 'capacity' && <CapacityTab />}
       {tab === 'bypass' && <BypassTab />}
       {tab === 'studio' && (
         <Suspense fallback={<TableSkeleton rows={5} label="Загрузка админки" />}>
