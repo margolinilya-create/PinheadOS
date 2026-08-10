@@ -8,28 +8,28 @@
   border-bottom: 1px solid var(--border-light);
 }
 .step-header-label {
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500;
+  font-family: var(--font-body); font-size: 11px; font-weight: 500;
   letter-spacing: 3px; text-transform: uppercase;
   color: var(--accent); margin-bottom: var(--space-sm);
 }
 .step-header-title {
-  font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 700;
+  font-family: var(--font-body); font-size: 56px; font-weight: 700;
   text-transform: uppercase; letter-spacing: -1.5px; line-height: 1; padding-top: var(--space-xs); color: var(--black);
 }
 .step-header-desc {
-  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400;
+  font-family: var(--font-body); font-size: 14px; font-weight: 400;
   color: var(--text-mid); margin-top: 12px;
   max-width: 520px; line-height: 1.6;
 }
 /* ── Section Labels ── */
 .section-label {
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
   letter-spacing: 2px; text-transform: uppercase;
   color: var(--text-dim); margin-bottom: 12px; margin-top: var(--space-xl);
   display: flex; align-items: center; gap: 12px;
 }
 .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
-.section-badge { font-family: 'Space Grotesk', sans-serif; font-weight: 700; color: var(--accent); font-size: 12px; letter-spacing: 0; }
+.section-badge { font-family: var(--font-body); font-weight: 700; color: var(--accent); font-size: 12px; letter-spacing: 0; }
 /* ── Step Panel ── */
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -49,14 +49,14 @@
 .page-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-top: var(--space-sm); }
 .page-back-btn {
   background: none; border: none; color: var(--text-dim); cursor: pointer;
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase; padding: 0; margin-bottom: var(--space-sm);
   transition: color 150ms ease-out;
 }
 .page-back-btn:hover { color: var(--text); }
 .page-search {
   border: 1px solid var(--border-light); padding: var(--space-sm) var(--space-lg);
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400;
+  font-family: var(--font-body); font-size: 13px; font-weight: 400;
   background: var(--card); outline: none; min-width: 200px; transition: border-color 150ms ease-out;
 }
 .page-search:focus { border-color: var(--accent); }
@@ -66,7 +66,7 @@
 .page-tab {
   background: none; border: none; border-bottom: 2px solid transparent;
   padding: 12px var(--space-xl); cursor: pointer;
-  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim);
   transition: color 150ms ease-out, border-color 150ms ease-out;
 }
@@ -74,7 +74,7 @@
 .page-tab.active       { color: var(--accent); border-bottom-color: var(--accent); }
 .page-body { padding-bottom: 40px; }
 .pe-changed-badge {
-  background: var(--accent); color: var(--white); font-family: 'Inter', sans-serif;
+  background: var(--accent); color: var(--white); font-family: var(--font-body);
   font-size: 11px; font-weight: 600; padding: 3px 12px; letter-spacing: .5px;
 }
 

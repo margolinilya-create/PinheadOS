@@ -218,7 +218,7 @@
 }
 .confirm-overlay.show { opacity: 1; pointer-events: all; }
 .confirm-box { background: var(--card); padding: 32px; max-width: 380px; width: 90%; font-family: var(--font-body); box-shadow: 0 8px 32px rgba(0,0,0,.15); }
-.confirm-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.confirm-title { font-family: var(--font-body); font-size: 16px; font-weight: 700; margin-bottom: 8px; }
 .confirm-text  { font-family: var(--font-body); font-size: 13px; color: var(--text-mid); margin-bottom: 24px; line-height: 1.6; }
 .confirm-btns  { display: flex; gap: 12px; justify-content: flex-end; }
 .confirm-btn   { padding: 8px 24px; border: none; cursor: pointer; font-family: var(--font-body); font-size: 13px; font-weight: 600; transition: background 150ms ease-out; }

@@ -19,15 +19,15 @@
 .extra-icon { width: 48px; height: 48px; min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; opacity: .7; transition: opacity 150ms ease-out; }
 .extra-card.selected .extra-icon     { opacity: 1; }
 .extra-card.selected .extra-icon svg { stroke: var(--accent); }
-.extra-name  { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.extra-name  { font-family: var(--font-body); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
 .extra-price {
-  font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700;
+  font-family: var(--font-body); font-size: 13px; font-weight: 700;
   color: var(--accent); white-space: nowrap;
   padding: 3px 10px; border: 1px solid var(--accent); background: rgba(43,43,240,.06);
 }
 .extra-price-free { color: var(--text-dim); border-color: var(--border-light); background: var(--bg2); }
 .extra-desc  {
-  font-family: 'Inter', sans-serif; font-size: 11px; color: var(--text-dim); line-height: 1.3;
+  font-family: var(--font-body); font-size: 11px; color: var(--text-dim); line-height: 1.3;
   max-height: 0; overflow: hidden; transition: max-height 250ms ease-out, opacity 250ms ease-out; opacity: 0;
 }
 .extra-card:hover .extra-desc,
@@ -37,12 +37,12 @@
 .extras-summary {
   display: flex; justify-content: space-between; align-items: center;
   margin-top: 16px; padding: 12px 16px; border: 1px solid var(--border-light); background: var(--bg2);
-  font-family: 'Inter', sans-serif; font-size: 13px; letter-spacing: .5px;
+  font-family: var(--font-body); font-size: 13px; letter-spacing: .5px;
 }
 .extras-summary-left  { font-size: 13px; font-weight: 500; }
-.extras-summary-right { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0; }
+.extras-summary-right { font-family: var(--font-body); font-size: 16px; font-weight: 700; letter-spacing: 0; }
 .extras-total-live {
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
   color: var(--text-mid); padding: 12px 0; letter-spacing: .3px;
 }
 .extras-total-live b { color: var(--accent); font-weight: 700; }
@@ -81,11 +81,11 @@
 }
 .extras-list-item.selected .extra-check { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 .extras-list-name {
-  flex: 1; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  flex: 1; font-family: var(--font-body); font-size: 13px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .5px;
 }
 .extras-list-item .extra-price { font-size: 12px; }
-.empty-state { padding: 40px; text-align: center; color: var(--text-dim); font-family: 'Inter', sans-serif; font-size: 13px; }
+.empty-state { padding: 40px; text-align: center; color: var(--text-dim); font-family: var(--font-body); font-size: 13px; }
 /* ── Zones Grid ── */
 .zones-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 32px; }
 .zone-card {
@@ -102,19 +102,19 @@
 .zone-card.selected .zone-bar { background: var(--accent); }
 .zone-card-inner { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 12px; gap: 2px; }
 .zone-label {
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 1px; color: var(--text); transition: color 150ms ease-out;
 }
 .zone-card.selected .zone-label { color: var(--accent); }
 .zone-check { position: absolute; top: 7px; right: 8px; font-size: 9px; font-weight: 700; color: var(--accent); opacity: 0; transition: opacity 150ms ease-out; }
 .zone-card.selected .zone-check { opacity: 1; }
 .zone-mini-summary {
-  font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
+  font-family: var(--font-body); font-size: 10px; font-weight: 500;
   color: var(--accent); letter-spacing: .3px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
 .zone-tech-summary {
-  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
   color: var(--accent); padding: 8px 16px;
   border: 1px solid var(--border-light); border-top: none;
   background: var(--accent-light); letter-spacing: .3px;
@@ -133,16 +133,16 @@
 .zone-tech-header {
   display: flex; align-items: center; gap: 16px; padding: 12px 16px;
   background: var(--accent); color: var(--white);
-  font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700;
+  font-family: var(--font-body); font-size: 16px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px;
 }
-.zone-tech-header .zone-surcharge { margin-left: auto; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--white); }
-.zone-surcharge { font-family: 'Space Grotesk', sans-serif; font-weight: 700; color: var(--accent); font-size: 13px; }
+.zone-tech-header .zone-surcharge { margin-left: auto; font-family: var(--font-body); font-size: 20px; font-weight: 700; color: var(--white); }
+.zone-surcharge { font-family: var(--font-body); font-weight: 700; color: var(--accent); font-size: 13px; }
 .zone-tech-tabs { display: flex; border-bottom: 1px solid var(--border-light); }
 .zone-tech-tab {
   flex: 1; height: 42px; border: none; border-right: 1px solid var(--border-light);
   background: var(--bg2); color: var(--text-dim);
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 150ms ease-out;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
@@ -154,15 +154,15 @@
 .zone-tech-tab.disabled                { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
 .zone-tech-tab.disabled:hover          { background: none; color: var(--text-dim); }
 .zone-tech-params { padding: 16px 16px; background: var(--card); border-top: 1px solid var(--border-light); }
-.zone-tech-warn   { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--color-warning); background: var(--bg-warning); padding: 8px 12px; margin-top: 8px; }
+.zone-tech-warn   { font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--color-warning); background: var(--bg-warning); padding: 8px 12px; margin-top: 8px; }
 .zone-param-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
 .zone-param-row:last-child { margin-bottom: 0; }
-.zone-param-label { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); min-width: 100px; }
+.zone-param-label { font-family: var(--font-body); font-size: 9px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); min-width: 100px; }
 .zone-param-btns { display: flex; border: 1px solid var(--border-light); overflow: hidden; }
 .zone-param-btn {
   height: 30px; padding: 0 14px; border: none; border-right: 1px solid var(--border-light);
   background: var(--card); color: var(--text-dim);
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 150ms ease-out;
 }
 .zone-param-btn:last-child       { border-right: none; }
@@ -171,14 +171,14 @@
 .zone-colors-wrap  { display: flex; align-items: center; gap: 12px; }
 .zone-colors-input {
   width: 52px; height: 30px; border: 1px solid var(--border-light);
-  text-align: center; font-family: 'Space Grotesk', sans-serif;
+  text-align: center; font-family: var(--font-body);
   font-size: 13px; font-weight: 700; outline: none;
 }
 .zone-colors-input:focus { border-color: var(--accent); }
 .zone-fx-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .zone-fx-btn {
   height: 30px; padding: 0 12px; border: 1px solid var(--border-light); background: var(--card);
-  font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600;
+  font-family: var(--font-body); font-size: 9px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 150ms ease-out;
   color: var(--text-dim); display: flex; align-items: center; gap: 5px;
 }
@@ -200,20 +200,20 @@
 }
 .zone-upload:hover .zone-upload-icon { border-color: var(--accent); border-style: solid; color: var(--accent); }
 .zone-upload-info  { flex: 1; min-width: 0; }
-.zone-upload-label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); }
-.zone-upload-hint  { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--border-light); margin-top: 1px; }
+.zone-upload-label { font-family: var(--font-body); font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); }
+.zone-upload-hint  { font-family: var(--font-body); font-size: 11px; color: var(--border-light); margin-top: 1px; }
 /* Zone multipliers */
 .zone-mults {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   padding: 12px 16px; border-top: 1px solid var(--border-light); background: var(--bg2);
 }
 .zone-mult-chip {
-  font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  font-family: var(--font-body); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
   padding: 3px 8px; border: 1px solid var(--border-light); background: var(--card); color: var(--text-dim);
 }
 .zone-mult-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 .zone-mult-eq     { font-size: 9px; font-weight: 700; color: var(--text-dim); }
-.zone-mult-result { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; color: var(--accent); margin-left: auto; }
+.zone-mult-result { font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--accent); margin-left: auto; }
 
 /* ═══════════════════════════════════════════ */
 /* ZONE MOCKUP                                */
@@ -236,7 +236,7 @@
   background: rgba(43,43,240,0.18); border-color: var(--accent); border-style: solid;
 }
 .zm-zone-label {
-  font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700;
+  font-family: var(--font-body); font-size: 9px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px; color: transparent;
   pointer-events: none; transition: color 150ms ease-out; user-select: none;
 }
@@ -246,7 +246,7 @@
   display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 0 8px;
 }
 .zm-chip {
-  font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
   letter-spacing: .5px; padding: 3px 8px; border: 1px solid var(--border-light);
   background: var(--bg2); color: var(--text-mid); white-space: nowrap;
 }

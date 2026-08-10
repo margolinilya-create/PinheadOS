@@ -103,7 +103,7 @@
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
 }
 
 /* ─── Правая колонка: header + прокручиваемый main ─── */
@@ -250,12 +250,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 16px;
 }
 .sidebarBrandText {
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 15px;
   letter-spacing: 0.5px;
@@ -450,7 +450,7 @@
 .table th {
   text-align: left;
   padding: 10px 12px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -478,7 +478,7 @@
   margin-top: 4px;
   font-size: var(--type-label);
 }
-.dateEcho { color: var(--text-dim); font-family: 'Roboto Mono', monospace; }
+.dateEcho { color: var(--text-dim); font-family: var(--mono); }
 .dateFormatHint { color: var(--text-muted); }
 .datePresets { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 
@@ -570,7 +570,7 @@
 /* Ярлык поля — 49 употреблений, самый частый мелкий текст формы. 10px нарушали
    собственное правило ≥12px; letter-spacing уменьшен под больший кегль. */
 .fieldLabel {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: var(--type-label);
   font-weight: 600;
   text-transform: uppercase;
@@ -716,7 +716,7 @@
   border-right: 1px solid var(--border-light);
   padding: 0 16px;
   min-height: 46px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1.2px;
@@ -1341,7 +1341,7 @@
   padding: 10px 12px;
   background: var(--card);
   border-bottom: 2px solid var(--accent);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -1635,7 +1635,7 @@ a.cellTitle:hover { color: var(--accent); }
 .accHeader:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .accChevron { color: var(--text-dim); font-size: 11px; width: 12px; flex-shrink: 0; }
 .accTitle {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;

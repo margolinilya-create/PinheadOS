@@ -609,7 +609,6 @@ export function CreateOrderModal({ onClose }) {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Дата запуска</span>
             <DateField
-              presets
               min={initialLaunch}
               className={inputCls('launch_date')}
               value={form.launch_date}
@@ -623,7 +622,6 @@ export function CreateOrderModal({ onClose }) {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Срок клиента</span>
             <DateField
-              presets
               min={initialLaunch}
               className={inputCls('due_date')}
               value={form.due_date}

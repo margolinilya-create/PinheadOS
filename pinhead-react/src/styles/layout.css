@@ -13,11 +13,11 @@ html, body { overflow-x: hidden; }
 .logo { display: flex; align-items: center; gap: 12px; padding: 0 24px; flex-shrink: 0; cursor: pointer; }
 .logo-mark { width: 24px; height: 24px; flex-shrink: 0; }
 .logo-text {
-  font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700;
+  font-family: var(--font-body); font-size: 18px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase; color: var(--black); line-height: 1;
 }
 .logo-sub {
-  font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 500;
+  font-family: var(--font-body); font-size: 9px; font-weight: 500;
   letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-top: 2px;
 }
 /* Navigation tabs, header-right, draft, total, logout — moved to Header.module.css */
@@ -28,7 +28,7 @@ html, body { overflow-x: hidden; }
 .header-action-btn {
   background: none; border: none; border-left: 1px solid var(--border-light);
   color: var(--text-mid); height: 52px; padding: 0 24px;
-  cursor: pointer; font-family: 'Inter', sans-serif;
+  cursor: pointer; font-family: var(--font-body);
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
   display: flex; align-items: center; gap: 8px;
   transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;

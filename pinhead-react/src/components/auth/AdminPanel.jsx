@@ -116,7 +116,7 @@ export default function AdminPanel({ ordersOnly = false }) {
                 onChange={e => setStatusFilter(e.target.value)}
                 style={{
                   border: '1.5px solid #ccc', padding: '6px 12px',
-                  fontFamily: "'Roboto Condensed', sans-serif", fontSize: 12,
+                  fontFamily: 'var(--font-display)', fontSize: 12,
                 }}
               >
                 <option value="all">Все статусы</option>
@@ -214,7 +214,7 @@ export default function AdminPanel({ ordersOnly = false }) {
                       onChange={e => changeRole(u.id, e.target.value)}
                       style={{
                         border: '1.5px solid #ccc', padding: '2px 8px',
-                        fontFamily: "'Roboto Condensed', sans-serif", fontSize: 11, fontWeight: 600,
+                        fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600,
                         background: u.role === 'admin' ? '#1D19EA' : 'transparent',
                         color: u.role === 'admin' ? '#fff' : '#000',
                       }}

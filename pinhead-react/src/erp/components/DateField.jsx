@@ -1,16 +1,5 @@
-import { formatDateHuman, shiftIsoDate } from '../utils/time';
+import { formatDateHuman } from '../utils/time';
 import styles from '../erp.module.css';
-
-/**
- * Пресеты сроков. Кнопки, а не «+N» руками: план завершения этапа и срок клиента
- * почти всегда «сегодня» либо «через несколько дней», и на планшете это одно касание
- * вместо трёх полей календаря.
- */
-const PRESETS = [
-  { label: 'Сегодня', days: 0 },
-  { label: '+3 дня', days: 3 },
-  { label: '+7 дней', days: 7 },
-];
 
 /**
  * Поле даты: нативный `<input type="date">` плюс подпись под ним.
@@ -21,15 +10,24 @@ const PRESETS = [
  * и «08/14» читается двояко. Поэтому под полем всегда есть однозначное эхо
  * («14 авг. 2026»), а у пустого — ожидаемый порядок («дд.мм.гггг»).
  *
+ * ПРЕСЕТЫ «Сегодня / +3 дня / +7 дней» УБРАНЫ (правки заказчика 10.08, P3):
+ * блок дат просили упростить, а три кнопки под каждым полем занимали больше
+ * места, чем само поле.
+ *
+ * ЭХО ОСТАВЛЕНО СОЗНАТЕЛЬНО, хотя документ называл его дублирующим. Оно и
+ * появилось для того, чтобы снять неоднозначность нативного формата: без него
+ * «08/14» в браузере с en-US читается и как 8 августа, и как 14 августа.
+ * На сроках заказа это дороже одной строки под полем.
+ *
  * Рендерит фрагмент: подпись поля даёт родительский `<label>`, как у остальных полей.
  */
 export function DateField({
-  value, onChange, presets = false, showFormatHint = true, className, ...rest
+  value, onChange, showFormatHint = true, className, ...rest
 }) {
   const echo = formatDateHuman(value);
   // В компактных строках фильтров подсказку пустого поля не показываем: там она
   // растянула бы строку вдвое, а цена ошибки — не производственная, а «не нашлось»
-  if (!echo && !showFormatHint && !presets) {
+  if (!echo && !showFormatHint) {
     return (
       <input
         type="date"
@@ -53,26 +51,6 @@ export function DateField({
         {echo
           ? <span className={styles.dateEcho}>{echo}</span>
           : showFormatHint && <span className={styles.dateFormatHint}>дд.мм.гггг</span>}
-        {presets && (
-          <span className={styles.datePresets}>
-            {PRESETS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
-                onClick={(e) => {
-                  // Поле обёрнуто в <label>, а клик по label пересылается на своё
-                  // поле — иначе пресет заодно раскрывал бы календарь
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onChange(shiftIsoDate(null, p.days));
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </span>
-        )}
       </span>
     </>
   );

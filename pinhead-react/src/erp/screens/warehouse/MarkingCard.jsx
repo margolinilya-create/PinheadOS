@@ -55,7 +55,7 @@ export function MarkingCard({ order, task, onAdvance }) {
             aria-label="Тип маркировки"
           />
           <DateField
-            presets className={styles.input} style={{ maxWidth: 160 }}
+            className={styles.input} style={{ maxWidth: 160 }}
             value={deadline} onChange={setDeadline}
             aria-label="Срок выпуска маркировки"
           />

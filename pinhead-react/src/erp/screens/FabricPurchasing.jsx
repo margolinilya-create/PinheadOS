@@ -199,7 +199,7 @@ function AddPurchaseModal({ orders, onAdd, onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>План прихода</span>
-            <DateField presets value={form.eta_date} onChange={(v) => set({ eta_date: v })} aria-label="План прихода" />
+            <DateField value={form.eta_date} onChange={(v) => set({ eta_date: v })} aria-label="План прихода" />
           </label>
         </div>
         <div className={styles.modalActions}>

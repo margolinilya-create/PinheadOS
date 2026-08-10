@@ -3,7 +3,7 @@
 /* ═══════════════════════════════════════════ */
 .kanban-page {
   background: var(--bg);
-  display: flex; flex-direction: column; font-family: 'Roboto Condensed', sans-serif;
+  display: flex; flex-direction: column; font-family: var(--font-display);
   height: calc(100vh - 52px); overflow: hidden;
 }
 
@@ -40,7 +40,7 @@
 .kanban-stats-bar .ks-separator { width: 1px; height: 18px; background: var(--border-light); flex-shrink: 0; }
 /* Filter bar */
 .kanban-filter-bar { display: flex; align-items: center; gap: 8px; padding: var(--space-sm) var(--space-2xl); background: var(--bg2); border-bottom: 1px solid var(--border-light); flex-shrink: 0; flex-wrap: wrap; }
-.kanban-filter-btn { height: 28px; padding: 0 12px; border: 1.5px solid var(--border-light); background: var(--card); font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; transition: all 150ms ease-out; display: flex; align-items: center; gap: 4px; }
+.kanban-filter-btn { height: 28px; padding: 0 12px; border: 1.5px solid var(--border-light); background: var(--card); font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; transition: all 150ms ease-out; display: flex; align-items: center; gap: 4px; }
 .kanban-filter-btn:hover      { border-color: var(--black); }
 .kanban-filter-btn.active     { border-color: var(--black); background: var(--black); color: var(--white); }
 .kanban-filter-btn .kf-dot    { width: 6px; height: 6px; border-radius: 50%; }
@@ -107,7 +107,7 @@
 .kb-card-menu-btn:hover { color: var(--black); }
 .kb-card-menu-backdrop  { display: none; }
 .kb-card-menu { position: absolute; top: 26px; right: 8px; background: var(--card); border: 1.5px solid var(--border); z-index: 10; min-width: 150px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
-.kb-card-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: var(--space-sm) 12px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 600; text-align: left; font-family: 'Roboto Condensed', sans-serif; transition: background 150ms ease-out; }
+.kb-card-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: var(--space-sm) 12px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 600; text-align: left; font-family: var(--font-display); transition: background 150ms ease-out; }
 .kb-card-menu button:hover { background: var(--bg2); }
 /* Deadline badge */
 .kb-deadline-badge { font-family: var(--font-display); font-size: 9px; font-weight: 900; padding: 1px 6px; letter-spacing: .5px; text-transform: uppercase; }
@@ -128,7 +128,7 @@
 .kb-search:focus { border-color: var(--accent); }
 .kb-type-filter {
   border: 1.5px solid var(--border-light); padding: 6px 10px; height: 32px;
-  font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: var(--font-display); font-size: 11px; font-weight: 600;
   background: var(--card); cursor: pointer; transition: border-color 150ms ease-out;
   box-sizing: border-box;
 }
@@ -139,7 +139,7 @@
   .mobile-status-select {
     display: block; width: 100%; margin-top: 6px; padding: 6px 8px;
     border: 1.5px solid var(--border-light); background: var(--bg);
-    font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: 700;
+    font-family: var(--font-display); font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: .5px; cursor: pointer;
   }
   .mobile-status-select:focus { border-color: var(--black); outline: none; }

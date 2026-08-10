@@ -287,7 +287,6 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             План завершения
             {normDays > 0 && <span> · норматив участка {normDays} дн.</span>}
             <DateField
-              presets
               value={startDate}
               onChange={setStartDate}
               aria-label="Плановая дата завершения"

@@ -98,6 +98,12 @@
   --shadow-card:  0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
 
   /* ── Fonts ── */
+  /*
+   * Шрифты объявляются ЗДЕСЬ и только здесь; в правилах — через var().
+   * До волны 4 в проекте жили 40+ литералов `'Inter', sans-serif` и семь
+   * объявлений `Space Grotesk` — шрифта, которого нет в index.html: он
+   * молча падал на Inter, то есть был мёртвым CSS, выглядевшим решением.
+   */
   --font-body:    'Inter', sans-serif;
   --font-display: 'Barlow Condensed', sans-serif;
   --mono:         'Roboto Mono', monospace;
@@ -226,7 +232,7 @@ body.has-preview-bar { --preview-bar-h: 36px; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
