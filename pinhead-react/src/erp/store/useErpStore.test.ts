@@ -1978,13 +1978,20 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
     };
     h.singleData = { id: 'o1', title: 'З', status: 'active', items: [], materials: [] };
     await useErpStore.getState().advanceWarehouseTask('wt1', 'accepted');
-    const scUpd = h.updateCalls.find((c) => c.table === 'erp_subcontracting');
-    expect(scUpd?.patch.phase).toBe('accepted');
-    // Зеркало устаревшей колонки едет тем же патчем — ровно один писатель
-    expect(scUpd?.patch.status).toBe('received_at_pinhead');
-    const packShip = h.insertCalls.find(
-      (c) => c.table === 'erp_warehouse_tasks' && (c.row as any).task_type === 'pack_ship');
-    expect(packShip).toBeTruthy();
+    /**
+     * Подрядную операцию и упаковку закрывает СЕРВЕР (триггер
+     * `erp_warehouse_fg_accepted`), а не стор. Клиентская цепочка ломалась
+     * ровно у того, кто эту задачу делает: складскую задачу кладовщик двигать
+     * вправе, а `erp_subcontracting` стоит под `order.manage`, которого у него
+     * нет. Стор теперь только перечитывает данные.
+     */
+    expect(h.updateCalls.find((c) => c.table === 'erp_subcontracting')).toBeUndefined();
+    expect(h.insertCalls.find(
+      (c) => c.table === 'erp_warehouse_tasks' && (c.row as any).task_type === 'pack_ship',
+    )).toBeUndefined();
+    // Задача склада при этом переведена — это и есть действие кладовщика
+    const taskUpd = h.updateCalls.find((c) => c.table === 'erp_warehouse_tasks');
+    expect(taskUpd?.patch.status).toBe('accepted');
   });
 
   /**

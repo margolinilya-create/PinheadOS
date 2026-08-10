@@ -54,16 +54,29 @@ export function translateSupabaseError(msg: string | null | undefined): string {
  * экранах сразу, потому что `supabase-js` в этом случае БРОСАЕТ, а не возвращает
  * `error`, и отклонение промиса всплывало глобальным обработчиком как есть.
  */
+/** Подписи, по которым браузеры сообщают об обрыве связи */
+const NETWORK_SIGNS = /load failed|failed to fetch|networkerror|network request failed/i;
+
+/** Текст самой причины (`String(null)` дал бы «null», поэтому разбираем по типам) */
+function rawReason(e: unknown): string {
+  return e instanceof Error ? e.message : typeof e === 'string' ? e : '';
+}
+
 export function networkFailureMessage(e: unknown): string {
-  // Именно так: `String(null)` даёт «null», и это уехало бы человеку в тост
-  const raw = e instanceof Error ? e.message : typeof e === 'string' ? e : '';
-  if (/load failed|failed to fetch|networkerror|network request failed/i.test(raw)) {
-    return 'нет связи с сервером';
-  }
+  const raw = rawReason(e);
+  if (NETWORK_SIGNS.test(raw)) return 'нет связи с сервером';
   return raw.trim() || 'нет связи с сервером';
 }
 
-/** Тот же сбой, но целой фразой — для сообщения не про конкретное действие */
+/**
+ * Именно СЕТЕВОЙ сбой, а не «сообщения не нашлось».
+ *
+ * Здесь стояло сравнение с результатом `networkFailureMessage`, а тот отдаёт
+ * ту же фразу и как ФОЛБЭК — для причины без текста. Отклонение обычным
+ * объектом (`Promise.reject({ code: 'PGRST301' })`) или `Error('')` объявлялось
+ * потерей связи, и человек видел «Нет связи с сервером» там, где связь была,
+ * а настоящая причина пропадала.
+ */
 export function isNetworkFailure(e: unknown): boolean {
-  return networkFailureMessage(e) === 'нет связи с сервером';
+  return NETWORK_SIGNS.test(rawReason(e));
 }

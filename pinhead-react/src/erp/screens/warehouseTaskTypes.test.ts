@@ -14,28 +14,38 @@ import { latestMatching, withoutComments } from '../utils/migrations.testutil';
  * не падает — просто у склада всегда что-то «горит», и понять что именно
  * нельзя, потому что задача на вид закрыта.
  *
- * Тест читает исходник экрана: перечисления в нём — обычные объектные литералы,
+ * Тест читает исходники: перечисления в них — обычные объектные литералы,
  * и других способов заметить пропуск ключа нет.
+ *
+ * Файлов ДВА, и это не педантизм. Таблиц терминальных статусов тоже две:
+ * своя у экрана и своя у бейджа меню (`store/orderHelpers.ts`). Тест читал
+ * только экран — и `fg_receipt`, не вписанный во вторую, дал ровно тот вечный
+ * бейдж, о котором написано выше. Сторож, проверяющий одну копию из двух,
+ * не сторожит ничего.
  */
 
-const SCREEN = readFileSync(
-  join(process.cwd(), 'src/erp/screens/Warehouse.jsx'), 'utf8',
-);
+const SOURCES: Record<string, string> = {
+  screen: readFileSync(join(process.cwd(), 'src/erp/screens/Warehouse.jsx'), 'utf8'),
+  helpers: readFileSync(join(process.cwd(), 'src/erp/store/orderHelpers.ts'), 'utf8'),
+};
 
-/** Ключи объектного литерала `const NAME = { … }` из исходника экрана */
-function keysOf(constName: string): string[] {
-  const start = SCREEN.indexOf(`const ${constName} = {`);
-  if (start < 0) throw new Error(`в экране склада нет ${constName}`);
-  const end = SCREEN.indexOf('};', start);
+/** Ключи объектного литерала `const NAME = { … }` из исходника */
+function keysOf(constName: string, where: keyof typeof SOURCES = 'screen'): string[] {
+  const src = SOURCES[where];
+  // `const X = {` и `const X: Record<string, string> = {` — оба вида объявления
+  const decl = new RegExp(`const ${constName}(?::[^=]+)? = \\{`);
+  const start = src.search(decl);
+  if (start < 0) throw new Error(`в ${where} нет ${constName}`);
+  const end = src.indexOf('};', start);
   // Ключи бывают по несколько в строке — якорь на начало строки их терял
-  return [...SCREEN.slice(start, end).matchAll(/[{,]\s*(\w+):/g)].map((m) => m[1]);
+  return [...src.slice(start, end).matchAll(/[{,]\s*(\w+):/g)].map((m) => m[1]);
 }
 
 const TYPES = Object.keys(WAREHOUSE_TASK_TYPE_LABELS);
 
 describe('типы складских задач заведены целиком', () => {
   it.each(['TYPE_ICON', 'TERMINAL', 'TYPE_ORDER'])(
-    'каждый тип есть в %s',
+    'каждый тип есть в %s (экран склада)',
     (constName) => {
       const keys = new Set(keysOf(constName));
       const missing = TYPES.filter((t) => !keys.has(t));
@@ -43,14 +53,30 @@ describe('типы складских задач заведены целиком
     },
   );
 
+  /**
+   * Вторая таблица терминальных статусов — у бейджа меню. Пропуск здесь
+   * не виден на экране склада вовсе: задача там выглядит закрытой, а счётчик
+   * в меню горит вечно, и связать одно с другим невозможно.
+   */
+  it('каждый тип есть в WAREHOUSE_TERMINAL (бейдж меню)', () => {
+    const keys = new Set(keysOf('WAREHOUSE_TERMINAL', 'helpers'));
+    const missing = TYPES.filter((t) => !keys.has(t));
+    expect(missing, `WAREHOUSE_TERMINAL: не заведены ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('обе таблицы терминальных статусов согласованы между собой', () => {
+    expect([...keysOf('TERMINAL')].sort())
+      .toEqual([...keysOf('WAREHOUSE_TERMINAL', 'helpers')].sort());
+  });
+
   it('у каждого типа есть своя вкладка', () => {
-    const tabs = SCREEN.slice(SCREEN.indexOf('const TABS = ['), SCREEN.indexOf('];', SCREEN.indexOf('const TABS = [')));
+    const tabs = SOURCES.screen.slice(SOURCES.screen.indexOf('const TABS = ['), SOURCES.screen.indexOf('];', SOURCES.screen.indexOf('const TABS = [')));
     const missing = TYPES.filter((t) => !tabs.includes(`'${t}'`));
     expect(missing, `нет вкладки: ${missing.join(', ')}`).toEqual([]);
   });
 
   it('у каждого типа есть ветка в Drawer — иначе карточка откроется пустой', () => {
-    const missing = TYPES.filter((t) => !SCREEN.includes(`open.task.task_type === '${t}'`));
+    const missing = TYPES.filter((t) => !SOURCES.screen.includes(`open.task.task_type === '${t}'`));
     expect(missing, `нет ветки Drawer: ${missing.join(', ')}`).toEqual([]);
   });
 

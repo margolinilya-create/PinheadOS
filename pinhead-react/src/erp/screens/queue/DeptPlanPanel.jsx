@@ -26,10 +26,14 @@ import { percentLabel } from '../../utils/format';
  */
 export function DeptPlanPanel({ dept }) {
   const {
-    orders, departments, planSlots, planLoaded, planLoading, planLoadError, loadPlan, planComments,
+    orders, departments, bypasses, planSlots, planLoaded, planLoading, planLoadError, loadPlan,
+    planComments,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     departments: s.departments,
+    // Тот же набор, что у очереди цеха: иначе флаг «ждёт материалы»
+    // на карточке плана противоречит строке очереди рядом
+    bypasses: s.bypasses,
     planSlots: s.planSlots,
     planLoaded: s.planLoaded,
     planLoading: s.planLoading,
@@ -48,7 +52,7 @@ export function DeptPlanPanel({ dept }) {
 
   const ctxByStage = useMemo(() => {
     const map = new Map();
-    for (const e of buildQueueEntries(orders, departments, { includeInactive: true })) {
+    for (const e of buildQueueEntries(orders, departments, { includeInactive: true, bypasses })) {
       map.set(e.stage.id, {
         order: e.order,
         item: e.item,
@@ -58,7 +62,7 @@ export function DeptPlanPanel({ dept }) {
       });
     }
     return map;
-  }, [orders, departments]);
+  }, [orders, departments, bypasses]);
 
   const mine = useMemo(() => planSlots
     .filter((s) => s.department_id === dept?.id && s.status !== 'cancelled')

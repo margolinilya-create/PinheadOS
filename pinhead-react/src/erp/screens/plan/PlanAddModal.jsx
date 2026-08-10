@@ -36,9 +36,12 @@ import { Button } from '../../components/Button';
  * Отсюда `date` и `preselect` независимы: любое из двух может прийти извне.
  */
 export function PlanAddModal({ date = null, departmentId, preselect = null, onClose }) {
-  const { orders, departments, planSlots, planStage } = useErpStore(useShallow((s) => ({
+  const { orders, departments, bypasses, planSlots, planStage } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     departments: s.departments,
+    // Без снятий окно предлагало заново запланировать этап, который очередь
+    // и общий план уже считают готовым: два экрана про один этап говорили разное
+    bypasses: s.bypasses,
     planSlots: s.planSlots,
     planStage: s.planStage,
   })));
@@ -58,14 +61,14 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
   const dept = departments.find((d) => d.id === effectiveDeptId) ?? null;
 
   const candidates = useMemo(() => {
-    const all = buildQueueEntries(orders, departments)
+    const all = buildQueueEntries(orders, departments, { bypasses })
       .filter((e) => e.stage.status !== 'done' && e.stage.status !== 'skipped')
       .filter((e) => !departmentId || e.stage.department_id === departmentId);
     const filtered = q.trim()
       ? all.filter((e) => matchesOrderQuery(e.order, q))
       : all;
     return filtered.slice(0, 50);
-  }, [orders, departments, departmentId, q]);
+  }, [orders, departments, bypasses, departmentId, q]);
 
   /** Уже стоит в плане на этот день — чтобы не ставить одно и то же дважды */
   const plannedStageIds = useMemo(

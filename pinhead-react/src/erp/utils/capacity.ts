@@ -101,15 +101,30 @@ export function dailyCapacity(s: CapacitySettings, monthIso: string): number | n
   return s.monthly_units / days;
 }
 
-/** Мощность на произвольный период: дневная × рабочих дней периода */
+/**
+ * Мощность на произвольный период: сумма дневных по КАЖДОМУ дню.
+ *
+ * Дневная мощность зависит от месяца (рабочих дней в феврале и марте разное
+ * число при одной месячной норме), а неделя может лежать в двух месяцах.
+ * Здесь стояло `dailyCapacity(s, dates[0])` — весь период мерился месяцем
+ * ПЕРВОГО дня: неделя 31 августа — 6 сентября считалась по августу целиком,
+ * и «Загрузка производства» врала каждую неделю на стыке месяцев.
+ */
 export function capacityForDates(
   s: CapacitySettings,
   dates: string[],
 ): number | null {
   if (dates.length === 0) return null;
-  const perDay = dailyCapacity(s, dates[0]);
-  if (perDay === null) return null;
-  return Math.round(perDay * workingDays(dates, s.work_days_per_week));
+  if (s.monthly_units === null) return null;
+  let total = 0;
+  for (const day of dates) {
+    // Нерабочий день мощности не даёт — считаем по одному дню за раз
+    if (workingDays([day], s.work_days_per_week) === 0) continue;
+    const perDay = dailyCapacity(s, day);
+    if (perDay === null) return null;
+    total += perDay;
+  }
+  return Math.round(total);
 }
 
 export interface CapacityReport {

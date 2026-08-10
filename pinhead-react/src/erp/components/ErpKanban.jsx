@@ -59,11 +59,12 @@ const EDGE_PX = 72;
 const EDGE_STEP = 24;
 
 export default function ErpKanban({ filters }) {
-  const { orders, departments, setStageStatus, reorderStageQueue, moveStageToDepartment } =
+  const { orders, departments, bypasses, setStageStatus, reorderStageQueue, moveStageToDepartment } =
     useErpStore(
       useShallow((s) => ({
         orders: s.orders,
         departments: s.departments,
+        bypasses: s.bypasses,
         setStageStatus: s.setStageStatus,
         reorderStageQueue: s.reorderStageQueue,
         moveStageToDepartment: s.moveStageToDepartment,
@@ -78,9 +79,16 @@ export default function ErpKanban({ filters }) {
   const { ref: boardRef, hints: boardHints } = useScrollHints();
   useTouchDndPolyfill();
 
+  /**
+   * `bypasses` обязателен: без него канбан — единственный экран, который
+   * не знает об аварийно снятых блокировках. Очередь, доска, план и бейджи
+   * показывали бы этап готовым к запуску, а дорожка канбана держала бы его
+   * в «Ожидают материалы» без пометки и без возможности перетащить —
+   * ровно то расхождение, ради которого `utils/bypass` и написан.
+   */
   const columns = useMemo(
-    () => buildKanbanColumns(orders, departments, filters),
-    [orders, departments, filters],
+    () => buildKanbanColumns(orders, departments, filters, bypasses),
+    [orders, departments, filters, bypasses],
   );
   const deptNameById = useMemo(
     () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),

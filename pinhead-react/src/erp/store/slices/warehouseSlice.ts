@@ -13,7 +13,6 @@ import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
 import { currentActor, erpError, erpQuery } from '../shared';
-import { subcontractPhasePatch } from '../../utils/subcontractPhase';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 
 /** Тип складской операции для приёмки по статусу приёмки */
@@ -190,32 +189,22 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     if (opType) await get().logWarehouseOp(order.id, { op_type: opType });
 
     /**
-     * Приёмка готовой продукции от подрядчика принята (правка 4.2.1): переводим
-     * подрядную операцию в «Принято складом» — это заведёт задачу упаковки.
+     * Приёмку подряда закрывает СЕРВЕР — триггер `erp_warehouse_fg_accepted`.
      *
-     * Отбор идёт по ФАЗЕ. Прежде здесь стояло `.eq('status','shipped_by_contractor')`,
-     * и после переезда волны 3.5 на `phase` этот запрос находил бы строки по
-     * колонке, которую больше никто не двигает: приёмка склада молча переставала
-     * бы закрывать подряд.
+     * Здесь стояла клиентская цепочка: найти подрядную операцию, перевести её
+     * в «принято», а следом завести упаковку. После ввода `warehouse.manage`
+     * она ломалась ровно у того, кто эту задачу и делает: складскую задачу
+     * кладовщик двигать вправе, а `erp_subcontracting` стоит под `order.manage`,
+     * которого у него нет. Выходило «задача принята, подряд не принят, упаковки
+     * нет», причём молча: оптимистичная правка откатывалась, а тост говорил
+     * лишь «не удалось обновить операцию подряда».
+     *
+     * Триггер SECURITY DEFINER прав не требует и видит все три предусловия
+     * упаковки сразу (`erp_can_pack_ship`). Стор только перечитывает данные.
      */
     if (task.task_type === 'subcontract_receipt' && status === 'accepted') {
-      const { data } = await erpQuery(() => supabase
-        .from('erp_subcontracting')
-        .select('*, order:erp_orders (title, bitrix_id)')
-        .eq('order_id', order.id)
-        .eq('op_type', 'finished_product')
-        .eq('phase', 'returned')
-        .limit(1));
-      const op = data?.[0] as ErpSubcontractOp | undefined;
-      if (op) {
-        // операция могла быть не загружена (вкладка подряда лениво) — вносим в стейт для optimistic
-        set((s) => ({
-          subcontracting: s.subcontracting.some((o) => o.id === op.id)
-            ? s.subcontracting
-            : [op, ...s.subcontracting],
-        }));
-        await get().updateSubcontractOp(op.id, subcontractPhasePatch('accepted'));
-      }
+      await get().loadOne(order.id);
+      if (get().subcontractingLoaded) await get().loadSubcontracting();
     }
     return true;
   },

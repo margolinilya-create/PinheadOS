@@ -325,7 +325,6 @@ export default function Warehouse() {
                 order={open.order}
                 task={open.task}
                 onSubmit={submitWarehouseReport}
-                onAdvance={advanceWarehouseTask}
               />
             )}
             {open.task.task_type === 'marking' && (

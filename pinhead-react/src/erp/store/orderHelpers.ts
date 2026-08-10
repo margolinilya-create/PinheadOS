@@ -278,9 +278,19 @@ export function activeOrdersCount(orders: ErpOrderFull[]): number {
 }
 
 /** Терминальный статус задачи склада по типу (не считается «открытой») */
+/**
+ * Терминальные статусы складских задач для бейджа меню.
+ *
+ * Это ВТОРАЯ такая таблица (первая — в `Warehouse.jsx`), и `fg_receipt` в неё
+ * не вписали при вводе приёмки готовой продукции: сравнение с `undefined`
+ * считало принятую приёмку вечно открытой, и бейдж «Склад» не гас никогда —
+ * ровно то последствие, о котором предупреждает миграция 20260810220000.
+ * Сторожит `warehouseTaskTypes.test.ts`, читающий ОБА файла.
+ */
 const WAREHOUSE_TERMINAL: Record<string, string> = {
   material_receipt: 'accepted',
   subcontract_receipt: 'accepted',
+  fg_receipt: 'accepted',
   marking: 'issued',
   pack_ship: 'shipped',
 };

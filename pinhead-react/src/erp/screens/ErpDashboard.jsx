@@ -18,6 +18,7 @@ import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
 import { groupNotices, urgentCount } from '../utils/notifications';
 import { CapacityBar } from '../components/CapacityBar';
 import { monthCapacityReport, monthLabel } from '../utils/capacity';
+import { localToday } from '../utils/orderForm';
 import styles from '../erp.module.css';
 import { dueLabel } from '../utils/format';
 
@@ -77,7 +78,13 @@ export default function ErpDashboard() {
       loadSettings: s.loadSettings,
     })),
   );
-  const today = new Date().toISOString().slice(0, 10);
+  /**
+   * ЛОКАЛЬНАЯ дата, а не UTC. `toISOString()` в UTC+3 в 01:00 первого сентября
+   * отдаёт «31 августа»: обзор показывал бы августовскую мощность и подпись
+   * «август» на первой смене сентября, тогда как вкладка мощности в админке
+   * (она считает через `localToday`) в тот же момент показывает сентябрь.
+   */
+  const today = localToday();
 
   useEffect(() => {
     if (!loaded) loadAll();

@@ -15,7 +15,7 @@ import styles from '../../erp.module.css';
  * «складу вообще». Иначе «сколько изделий приняли» пришлось бы собирать
  * из двух мест с разными правилами.
  */
-export function FgReceiptCard({ order, task, onSubmit, onAdvance }) {
+export function FgReceiptCard({ order, task, onSubmit }) {
   const expected = useMemo(
     () => order.items.reduce((sum, it) => sum + (it.qty || 0), 0),
     [order],
@@ -31,6 +31,15 @@ export function FgReceiptCard({ order, task, onSubmit, onAdvance }) {
   const needsComment = defectN > 0 || (goodN > 0 && shortfall > 0);
   const done = task.status === 'accepted';
 
+  /**
+   * Задачу закрывает СЕРВЕР по накопленной сумме журнала, а не эта форма.
+   *
+   * Здесь стояло `if (shortfall === 0 && defectN === 0) onAdvance(…)`, где
+   * недостача считалась по ОДНОМУ вводу: приняли 60 из 100 — задача осталась
+   * открытой (верно), назавтра приняли ещё 40 — недостача снова считалась
+   * как 100 − 40, и задача не закрывалась никогда. Клиент журнал не читает,
+   * а упаковка требует принятой приёмки — заказ становилось не упаковать.
+   */
   const submit = async () => {
     setBusy(true);
     const ok = await onSubmit(task.id, {
@@ -39,12 +48,7 @@ export function FgReceiptCard({ order, task, onSubmit, onAdvance }) {
       qtyDefect: defectN,
       comment,
     });
-    if (ok) {
-      setGood(''); setDefect(''); setComment('');
-      // Приёмка закрывается, когда принято всё: недостача оставляет задачу
-      // открытой — иначе расхождение исчезло бы вместе с задачей
-      if (shortfall === 0 && defectN === 0) await onAdvance(task.id, 'accepted');
-    }
+    if (ok) { setGood(''); setDefect(''); setComment(''); }
     setBusy(false);
   };
 
@@ -96,7 +100,10 @@ export function FgReceiptCard({ order, task, onSubmit, onAdvance }) {
       </div>
 
       {goodN + defectN > 0 && shortfall > 0 && (
-        <span className={styles.overdue}>не хватает {shortfall} шт — задача останется открытой</span>
+        <span className={styles.overdue}>
+          в этом вводе не хватает {shortfall} шт — задача закроется,
+          когда приёмки в сумме доберут тираж
+        </span>
       )}
 
       <Button

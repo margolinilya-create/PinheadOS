@@ -20,10 +20,13 @@ const DERIVE = withoutComments(
 const FG_ACCEPTED = withoutComments(
   functionBody(latestDefining('erp_warehouse_fg_accepted'), 'erp_warehouse_fg_accepted'),
 );
+const CAN_PACK = withoutComments(
+  latestDefining('erp_can_pack_ship'),
+);
 
 describe('гейт складской упаковки', () => {
-  it('смотрит на фазу подряда', () => {
-    expect(DERIVE).toMatch(/sc\.phase not in \('accepted', 'closed'\)/);
+  it('смотрит на фазу подряда (через общее условие)', () => {
+    expect(CAN_PACK).toMatch(/sc\.phase not in \('accepted', 'closed'\)/);
   });
 
   it('не сравнивается с уехавшим статусом подряда', () => {
@@ -46,7 +49,7 @@ describe('гейт складской упаковки', () => {
    * упаковывают то, чего никто не пересчитал, и недостача всплывает у клиента.
    */
   it('требует принятой приёмки готовой продукции', () => {
-    expect(DERIVE).toMatch(/t\.task_type = 'fg_receipt'[\s\S]{0,80}t\.status = 'accepted'/);
+    expect(CAN_PACK).toMatch(/t\.task_type = 'fg_receipt'[\s\S]{0,80}t\.status = 'accepted'/);
   });
 });
 
@@ -60,18 +63,59 @@ describe('гейт складской упаковки', () => {
  * в «принято на склад» без единой задачи упаковки, и ничего не упадёт.
  */
 describe('приёмка ГП открывает упаковку', () => {
-  it('срабатывает только на переходе fg_receipt в accepted', () => {
-    expect(FG_ACCEPTED).toMatch(/new\.task_type <> 'fg_receipt' or new\.status <> 'accepted'/);
+  it('срабатывает только на переходе приёмки в accepted', () => {
+    expect(FG_ACCEPTED).toMatch(/new\.status <> 'accepted'/);
     // Повторное сохранение уже принятой задачи не должно ничего делать заново
     expect(FG_ACCEPTED).toMatch(/old\.status = 'accepted'/);
+    // Обе приёмки: готовой продукции и подряда
+    expect(FG_ACCEPTED).toMatch(/'fg_receipt', 'subcontract_receipt'/);
   });
 
-  it('повторяет те же предусловия, что и основной триггер', () => {
-    expect(FG_ACCEPTED).toMatch(/s\.status not in \('done','skipped'\)/);
-    expect(FG_ACCEPTED).toMatch(/sc\.phase not in \('accepted', 'closed'\)/);
+  it('спрашивает те же предусловия, что и основной триггер', () => {
+    // Не «повторяет» — именно спрашивает: повтор и был причиной расхождения
+    expect(FG_ACCEPTED).toMatch(/erp_can_pack_ship\(/);
+    expect(DERIVE).toMatch(/erp_can_pack_ship\(/);
   });
 
   it('создаёт упаковку идемпотентно', () => {
     expect(FG_ACCEPTED).toMatch(/on conflict \(order_id, task_type\) do nothing/);
+  });
+});
+
+/**
+ * Предусловия упаковки живут в ОДНОЙ функции.
+ *
+ * Копий было три — в двух триггерах и в клиенте, — и они разошлись ровно так,
+ * как расходятся копии: у заказа С производственными этапами И подрядом
+ * «готовое изделие» упаковка не создавалась ВООБЩЕ. Цепочка обрывалась трижды:
+ * derive пропускал (подряд не принят), fg_accepted пропускал (подряд всё ещё
+ * не принят), а на самом подряде триггера не было. Заказ оставался без задачи
+ * упаковки навсегда, и ничего при этом не падало.
+ */
+describe('предусловия упаковки — одно выражение на всех', () => {
+  it('оба триггера спрашивают общую функцию, а не свою копию', () => {
+    expect(DERIVE).toMatch(/erp_can_pack_ship\(/);
+    expect(FG_ACCEPTED).toMatch(/erp_can_pack_ship\(/);
+  });
+
+  it('общая функция проверяет все три условия', () => {
+    expect(CAN_PACK).toMatch(/s\.status not in \('done','skipped'\)/);
+    expect(CAN_PACK).toMatch(/sc\.phase not in \('accepted', 'closed'\)/);
+    expect(CAN_PACK).toMatch(/t\.task_type = 'fg_receipt'[\s\S]{0,80}t\.status = 'accepted'/);
+  });
+
+  /**
+   * У подряда «под ключ» этапов нет вовсе, приёмке готовой продукции взяться
+   * неоткуда, и требование «склад принял ГП» заперло бы такой заказ навсегда.
+   */
+  it('заказ без производственных этапов не требует приёмки ГП', () => {
+    expect(CAN_PACK).toMatch(/or not exists \([\s\S]{0,200}erp_item_stages/);
+  });
+
+  it('приёмка подряда закрывает саму подрядную операцию', () => {
+    // Раньше это делал клиент и получал 42501 у кладовщика: складскую задачу
+    // он двигать вправе, а erp_subcontracting стоит под order.manage
+    expect(FG_ACCEPTED).toMatch(/update erp_subcontracting/);
+    expect(FG_ACCEPTED).toMatch(/subcontract_receipt/);
   });
 });

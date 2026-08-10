@@ -449,3 +449,45 @@ describe('аварийные отключения: сервер гейтит т�
     }
   });
 });
+
+/**
+ * Порядок веток статуса в страже — не стиль, а правило доступа.
+ *
+ * Цепочка if/elsif проверяет условия ПО ПОРЯДКУ, и ветка `old.status = 'blocked'`
+ * («снятие блокировки», право `stage.block`) стояла ВЫШЕ ветки `skipped`
+ * (право `order.manage`). Пропуск ЗАБЛОКИРОВАННОГО этапа попадал в первую
+ * и проходил по `stage.block`: рабочий блокировал собственное задание, объявлял
+ * его пройденным — и все зависимые этапы открывались.
+ *
+ * Ошибка не видна ни в одном тесте на права: каждая ветка по отдельности
+ * написана верно. Видна только их ОЧЕРЁДНОСТЬ, её и сторожим.
+ */
+describe('порядок веток статуса в erp_stage_guard', () => {
+  const GUARD = withoutComments(
+    functionBody(latestDefining('erp_stage_guard'), 'erp_stage_guard'),
+  );
+  const order = [...GUARD.matchAll(/(?:if|elsif) (new\.status = '\w+'|old\.status = 'blocked')/g)]
+    .map((m) => m[1]);
+
+  const at = (branch: string) => order.indexOf(branch);
+
+  it('ветки разбираются', () => {
+    expect(order.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('skipped проверяется РАНЬШЕ «был заблокирован»', () => {
+    // Иначе пропуск заблокированного этапа проходит по stage.block
+    expect(at("new.status = 'skipped'")).toBeGreaterThanOrEqual(0);
+    expect(at("new.status = 'skipped'")).toBeLessThan(at("old.status = 'blocked'"));
+  });
+
+  it('waiting проверяется ПОЗЖЕ «был заблокирован»', () => {
+    // Иначе снятие блокировки (blocked → waiting) потребует stage.defect,
+    // и цех перестанет разблокировать собственные задания
+    expect(at("new.status = 'waiting'")).toBeGreaterThan(at("old.status = 'blocked'"));
+  });
+
+  it('пропуск этапа требует order.manage', () => {
+    expect(GUARD).toMatch(/erp_has_permission\('order\.manage'\) or v_move[\s\S]{0,120}пропуск этапа/);
+  });
+});
