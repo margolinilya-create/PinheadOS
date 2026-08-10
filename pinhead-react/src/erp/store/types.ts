@@ -455,6 +455,17 @@ export interface WarehouseSlice {
     },
   ) => Promise<boolean>;
   /** Прочая складская операция (упаковка/отгрузка/маркировка) → строка erp_warehouse_ops */
+  /**
+   * Отчёт склада по задаче (волна 3.4): журнал `erp_stage_reports` с якорем
+   * складской задачи. Приёмка ГП считается в штуках — там же, где отчёты цехов.
+   */
+  submitWarehouseReport: (taskId: string, input: {
+    qtyIn?: number | null;
+    qtyGood?: number;
+    qtyDefect?: number;
+    comment?: string | null;
+    extra?: Record<string, unknown>;
+  }) => Promise<boolean>;
   logWarehouseOp: (
     orderId: string,
     op: { op_type: WarehouseOpType; material_id?: string | null; qty?: number | null; note?: string | null },

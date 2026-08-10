@@ -12,7 +12,7 @@ import { toast } from '../../../store/useToastStore';
 import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
-import { currentActor, erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 
 /** Тип складской операции для приёмки по статусу приёмки */
@@ -92,6 +92,43 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     if (task && fresh && !fresh.materials.some(awaitsAcceptance)) {
       await get().advanceWarehouseTask(task.id, 'accepted');
     }
+    return true;
+  },
+
+  /**
+   * Отчёт склада по задаче (волна 3.4): строка в `erp_stage_reports` с якорем
+   * `warehouse_task_id`. Тот же журнал, что у цехов — приёмка готовой продукции
+   * считается в штуках и отвечает на те же вопросы. Отдельной таблицы для неё
+   * нет намеренно: иначе «сколько изделий приняли» собиралось бы из двух мест
+   * с разными правилами.
+   */
+  submitWarehouseReport: async (taskId, input) => {
+    const good = Math.max(input.qtyGood ?? 0, 0);
+    const defect = Math.max(input.qtyDefect ?? 0, 0);
+    if (good + defect <= 0) {
+      toast.error('Внесите количество');
+      return false;
+    }
+    const comment = (input.comment ?? '').trim();
+    if (defect > 0 && !comment) {
+      toast.error('Брак нужно объяснить — заполните комментарий');
+      return false;
+    }
+    const { error } = await erpQuery(() => supabase.rpc('erp_warehouse_submit_report', {
+      p_task_id: taskId,
+      p_qty_in: input.qtyIn ?? null,
+      p_qty_good: good,
+      p_qty_defect: defect,
+      p_comment: comment || null,
+      p_extra: input.extra ?? {},
+    }));
+    if (error) {
+      erpError('Приёмка не записана', error);
+      return false;
+    }
+    const order = get().orders.find(
+      (o) => (o.warehouse_tasks ?? []).some((t) => t.id === taskId));
+    if (order) await get().loadOne(order.id);
     return true;
   },
 

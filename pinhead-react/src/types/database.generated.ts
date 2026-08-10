@@ -2145,6 +2145,34 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_warehouse_submit_report: {
+        Args: {
+          p_comment?: string
+          p_extra?: Json
+          p_qty_defect?: number
+          p_qty_good: number
+          p_qty_in: number
+          p_task_id: string
+        }
+        Returns: {
+          created_at: string
+          deadline: string | null
+          id: string
+          item_id: string | null
+          marking_type: string | null
+          note: string | null
+          order_id: string
+          status: string
+          task_type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_warehouse_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {

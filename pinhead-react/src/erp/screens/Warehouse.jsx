@@ -14,10 +14,12 @@ import { sortRows, useTableSort } from '../utils/tableSort';
 import { formatDateShort } from '../utils/time';
 import {
   WAREHOUSE_TASK_TYPE_LABELS, MARKING_STATUS_LABELS, PACK_SHIP_STATUS_LABELS,
+  FG_RECEIPT_STATUS_LABELS,
   SUBCONTRACT_RECEIPT_STATUS_LABELS,
 } from '../types';
 import styles from '../erp.module.css';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
+import { FgReceiptCard } from './warehouse/FgReceiptCard';
 import { MarkingCard } from './warehouse/MarkingCard';
 import { PackShipCard } from './warehouse/PackShipCard';
 import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
@@ -30,9 +32,25 @@ import { Button } from '../components/Button';
  * Бизнес-логика (acceptMaterial/advanceWarehouseTask, гейты, отгрузка) не менялась.
  */
 
-const TYPE_ICON = { material_receipt: 'inbox', subcontract_receipt: 'truck', marking: 'tag', pack_ship: 'box' };
-const TERMINAL = { material_receipt: 'accepted', subcontract_receipt: 'accepted', marking: 'issued', pack_ship: 'shipped' };
-const TYPE_ORDER = { material_receipt: 0, subcontract_receipt: 1, marking: 2, pack_ship: 3 };
+const TYPE_ICON = {
+  material_receipt: 'inbox', subcontract_receipt: 'truck', marking: 'tag',
+  fg_receipt: 'checkCircle', pack_ship: 'box',
+};
+/**
+ * Терминальный статус каждого типа задачи. ПРОПУЩЕННЫЙ здесь тип даёт вечный
+ * бейдж на пункте меню: задача закрыта, `taskVariant` не считает её готовой,
+ * счётчик «только открытые» продолжает её считать — и никто не понимает,
+ * что именно горит. Соответствие сторожит `warehouseTaskTypes.test.ts`.
+ */
+const TERMINAL = {
+  material_receipt: 'accepted', subcontract_receipt: 'accepted', marking: 'issued',
+  fg_receipt: 'accepted', pack_ship: 'shipped',
+};
+// Порядок в списке повторяет ход заказа: материалы → подряд → маркировка →
+// приёмка готовой продукции → упаковка
+const TYPE_ORDER = {
+  material_receipt: 0, subcontract_receipt: 1, marking: 2, fg_receipt: 3, pack_ship: 4,
+};
 const RECEIPT_LABELS = { awaiting: 'Ожидает приёмки', accepted: 'Принято', awaiting_receipt: 'Ожидает приёмки' };
 
 const TABS = [
@@ -40,6 +58,7 @@ const TABS = [
   { key: 'material_receipt', label: 'Приёмка материалов' },
   { key: 'subcontract_receipt', label: 'Приёмка подряда' },
   { key: 'marking', label: 'Маркировка' },
+  { key: 'fg_receipt', label: 'Приёмка ГП' },
   { key: 'pack_ship', label: 'Упаковка/отгрузка' },
 ];
 
@@ -48,6 +67,7 @@ function taskStatusLabel(task) {
     case 'marking': return MARKING_STATUS_LABELS[task.status] ?? task.status;
     case 'pack_ship': return PACK_SHIP_STATUS_LABELS[task.status] ?? task.status;
     case 'subcontract_receipt': return SUBCONTRACT_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
+    case 'fg_receipt': return FG_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
     default: return RECEIPT_LABELS[task.status] ?? task.status;
   }
 }
@@ -63,6 +83,10 @@ function taskSummary(order, task) {
     return task.task_type === 'subcontract_receipt' ? 'Готовое изделие' : `${n} ${n === 1 ? 'материал' : 'материалов'}`;
   }
   if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
+  if (task.task_type === 'fg_receipt') {
+    const qty = order.items.reduce((sum, it) => sum + (it.qty || 0), 0);
+    return `${qty} шт с производства`;
+  }
   return 'Упаковка и отгрузка';
 }
 
@@ -84,11 +108,13 @@ function warehouseSortValue({ order, task }, key) {
 export default function Warehouse() {
   const {
     orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask, addMaterialReceipt,
+    submitWarehouseReport,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, advanceWarehouseTask: s.advanceWarehouseTask,
       addMaterialReceipt: s.addMaterialReceipt,
+      submitWarehouseReport: s.submitWarehouseReport,
     })),
   );
   const [query, setQuery] = useState('');
@@ -279,6 +305,14 @@ export default function Warehouse() {
           )}
           {open.task.task_type === 'subcontract_receipt' && (
             <SubcontractReceiptCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
+          )}
+          {open.task.task_type === 'fg_receipt' && (
+            <FgReceiptCard
+              order={open.order}
+              task={open.task}
+              onSubmit={submitWarehouseReport}
+              onAdvance={advanceWarehouseTask}
+            />
           )}
           {open.task.task_type === 'marking' && (
             <MarkingCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />

@@ -57,7 +57,7 @@ export type WarehouseOpType =
 
 /** Тип задачи склада (волна 4 + правка 4.2.1): заказ проходит склад несколько раз */
 export type WarehouseTaskType =
-  | 'material_receipt' | 'marking' | 'pack_ship' | 'subcontract_receipt';
+  | 'material_receipt' | 'marking' | 'fg_receipt' | 'pack_ship' | 'subcontract_receipt';
 /** Статусы задач склада по типам */
 export type MaterialReceiptStatus = 'awaiting' | 'accepted';
 export type MarkingStatus = 'new' | 'in_progress' | 'issued';
@@ -65,8 +65,15 @@ export type PackShipStatus =
   | 'awaiting_receipt' | 'accepted' | 'packing' | 'packed' | 'ready_to_ship' | 'shipped';
 /** Приёмка готовой продукции от подрядчика (правка 4.2.1) */
 export type SubcontractReceiptStatus = 'awaiting_receipt' | 'accepted';
+/**
+ * Приёмка готовой продукции С ПРОИЗВОДСТВА (волна 3.4). Считается в ШТУКАХ
+ * и пишет отчёты в тот же `erp_stage_reports`, что и цеха: «сколько изделий
+ * приняли» не должно собираться из двух мест с разными правилами.
+ */
+export type FgReceiptStatus = 'awaiting' | 'accepted';
 export type WarehouseTaskStatus =
-  | MaterialReceiptStatus | MarkingStatus | PackShipStatus | SubcontractReceiptStatus;
+  | MaterialReceiptStatus | MarkingStatus | PackShipStatus
+  | SubcontractReceiptStatus | FgReceiptStatus;
 
 export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled';
 
@@ -681,8 +688,15 @@ export const WAREHOUSE_OP_LABELS: Record<WarehouseOpType, string> = {
 export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
   material_receipt: 'Приёмка материалов',
   marking: 'Выпуск маркировки',
+  fg_receipt: 'Приёмка готовой продукции',
   pack_ship: 'Упаковка и отгрузка',
   subcontract_receipt: 'Приёмка продукции от подрядчика',
+};
+
+/** Статусы приёмки готовой продукции с производства (волна 3.4) */
+export const FG_RECEIPT_STATUS_LABELS: Record<FgReceiptStatus, string> = {
+  awaiting: 'Ожидает приёмки',
+  accepted: 'Принято на склад',
 };
 
 export const SUBCONTRACT_RECEIPT_STATUS_LABELS: Record<SubcontractReceiptStatus, string> = {
