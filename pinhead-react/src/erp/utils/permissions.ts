@@ -47,19 +47,27 @@ export function resolveErpRole(
 export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   director: [...ERP_PERMISSIONS],
   /**
-   * Руководитель производства ведёт план и всю диспетчеризацию, кроме справочников.
+   * Руководитель производства ведёт план и всю диспетчеризацию, включая
+   * справочники: `catalog.edit` подтверждён заказчиком 10.08 как осознанная
+   * правка — на боевой базе он был включён, и запасные значения приведены
+   * к базе, а не наоборот.
+   *
    * Аварийное снятие блокировок (`bypass.manage`) сюда НЕ входит: оно затрагивает
    * всё производство разом, поэтому по умолчанию остаётся у директора. Раздать
    * шире — галочкой в матрице, на то она и есть.
    */
   production_head: ERP_PERMISSIONS.filter(
     // Образцы ведёт технолог: разработка — не производственный поток
-    (p) => p !== 'catalog.edit' && p !== 'bypass.manage' && p !== 'experimental.manage',
+    (p) => p !== 'bypass.manage' && p !== 'experimental.manage',
   ),
-  // Диспетчер план НЕ ставит — за это отвечает руководитель производства
+  /**
+   * Диспетчер план НЕ ставит — за это отвечает руководитель производства.
+   * Склад тоже не его: он распоряжается очередью цехов, а не физическим
+   * движением товара.
+   */
   dispatcher: ERP_PERMISSIONS.filter(
     (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage'
-      && p !== 'experimental.manage',
+      && p !== 'experimental.manage' && p !== 'warehouse.manage',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
@@ -97,12 +105,24 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   embroidery: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
   ],
-  // tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,
-  // и без него менеджер молча терял бы возможность вести ТЗ, если матрица не загрузилась
-  manager: ['stage.block', 'stage.priority', 'order.manage', 'tz.manage'],
-  // material.receive (волна 2 правок менеджера): приёмка — работа закупки и склада
-  purchaser: ['stage.block', 'material.receive'],
-  storekeeper: ['stage.block', 'material.receive'],
+  /**
+   * tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,
+   * и без него менеджер молча терял бы возможность вести ТЗ, если матрица не загрузилась.
+   *
+   * `stage.move_department` добавлен решением заказчика 10.08: заказ ведёт менеджер,
+   * и перекидывать задание между участками он должен уметь сам. Замечание, ради
+   * которого это записано: перенос меняет загрузку производства, то есть менеджер
+   * теперь влияет на неё без ведома диспетчера.
+   */
+  manager: ['stage.block', 'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage'],
+  /**
+   * material.receive (волна 2 правок менеджера): приёмка — работа закупки и склада.
+   * warehouse.manage (10.08): движение складских задач — маркировка, приёмка
+   * готовой продукции, упаковка и отгрузка. Приёмкой материалов оно не
+   * покрывается, поэтому права два, а не одно.
+   */
+  purchaser: ['stage.block', 'material.receive', 'warehouse.manage'],
+  storekeeper: ['stage.block', 'material.receive', 'warehouse.manage'],
   hr: [],
 };
 

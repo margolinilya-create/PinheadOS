@@ -10,6 +10,7 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { OpForm } from './OpForm';
 import { Button } from '../../components/Button';
+import { ReadOnlyFieldset } from '../../components/ReadOnlyFieldset';
 
 const PHASE_CHIP = {
   patterns: 'chipNeutral',
@@ -21,24 +22,6 @@ const PHASE_CHIP = {
 
 /** Куда сейчас передан образец (открытая передача) — для бейджа локации */
 const OP_LOCATION = { to_sewing: 'в швейном цехе', to_branding: 'на нанесениях' };
-
-/**
- * Без права `experimental.manage` карточка остаётся на чтение.
- *
- * Нативный `fieldset[disabled]` гасит ВСЕ вложенные поля и кнопки разом —
- * в отличие от `pointer-events: none` он честен для клавиатуры и скринридера,
- * а в отличие от `disabled` на двух десятках элементов не забудет ни одного.
- * Рамку и отступы у него снимает `.readonlyFieldset`.
- */
-function ReadOnlyIfNeeded({ canManage, children }) {
-  if (canManage) return children;
-  return (
-    <fieldset disabled className={styles.readonlyFieldset}>
-      <p className={styles.subText}>Только просмотр: разработку образцов ведёт технолог.</p>
-      {children}
-    </fieldset>
-  );
-}
 
 export function ExperimentalCard({
   exp, onUpdate, onCreateOp, onCompleteOp, materialReady = true, itemId = null,
@@ -71,7 +54,7 @@ export function ExperimentalCard({
           <span className={`${styles.chip} ${styles[PHASE_CHIP[exp.phase]]}`}>{EXPERIMENTAL_PHASE_LABELS[exp.phase]}</span>
         </div>
       </div>
-      <ReadOnlyIfNeeded canManage={canManage}>
+      <ReadOnlyFieldset canManage={canManage} note="Только просмотр: разработку образцов ведёт технолог.">
 
       {exp.phase === 'patterns' && (
         <div className={styles.tzBlock}>
@@ -193,7 +176,7 @@ export function ExperimentalCard({
           {exp.final_outcome ? ` · ${EXPERIMENTAL_OUTCOME_LABELS[exp.final_outcome]}` : ''}
         </div>
       )}
-      </ReadOnlyIfNeeded>
+      </ReadOnlyFieldset>
     </section>
   );
 }

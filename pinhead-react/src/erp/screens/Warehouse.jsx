@@ -25,6 +25,8 @@ import { PackShipCard } from './warehouse/PackShipCard';
 import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
+import { ReadOnlyFieldset } from '../components/ReadOnlyFieldset';
+import { useErpAccess } from '../store/useErpAccess';
 
 /**
  * Склад (редизайн): таблица задач (KPI + вкладки по типу + пагинация); детали и действия
@@ -117,6 +119,14 @@ export default function Warehouse() {
       submitWarehouseReport: s.submitWarehouseReport,
     })),
   );
+  /**
+   * Движение складских задач — под `warehouse.manage` (решение заказчика 10.08).
+   * Прежде задачи склада принимали запись от любого участника ERP: швея могла
+   * отметить продукцию принятой — а это открывает упаковку — и отгрузить её.
+   * Гейт стоит и на сервере (RLS `erp_warehouse_tasks`), и здесь: одно без
+   * другого даёт либо дыру, либо «кнопка есть, действие падает».
+   */
+  const canManageWarehouse = useErpAccess().can('warehouse.manage');
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('all');
   const [onlyOpen, setOnlyOpen] = useState(true);
@@ -295,31 +305,36 @@ export default function Warehouse() {
           subtitle={`№${open.order.bitrix_id || '—'} · ${open.order.title}`}
           badge={<Badge variant={taskVariant(open.task)}>{taskStatusLabel(open.task)}</Badge>}
         >
-          {open.task.task_type === 'material_receipt' && (
-            <MaterialReceiptCard
-              order={open.order}
-              task={open.task}
-              onAccept={acceptMaterial}
-              onAddReceipt={addMaterialReceipt}
-            />
-          )}
-          {open.task.task_type === 'subcontract_receipt' && (
-            <SubcontractReceiptCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
-          )}
-          {open.task.task_type === 'fg_receipt' && (
-            <FgReceiptCard
-              order={open.order}
-              task={open.task}
-              onSubmit={submitWarehouseReport}
-              onAdvance={advanceWarehouseTask}
-            />
-          )}
-          {open.task.task_type === 'marking' && (
-            <MarkingCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
-          )}
-          {open.task.task_type === 'pack_ship' && (
-            <PackShipCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
-          )}
+          <ReadOnlyFieldset
+            canManage={canManageWarehouse}
+            note="Только просмотр: движение складских задач ведёт кладовщик."
+          >
+            {open.task.task_type === 'material_receipt' && (
+              <MaterialReceiptCard
+                order={open.order}
+                task={open.task}
+                onAccept={acceptMaterial}
+                onAddReceipt={addMaterialReceipt}
+              />
+            )}
+            {open.task.task_type === 'subcontract_receipt' && (
+              <SubcontractReceiptCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
+            )}
+            {open.task.task_type === 'fg_receipt' && (
+              <FgReceiptCard
+                order={open.order}
+                task={open.task}
+                onSubmit={submitWarehouseReport}
+                onAdvance={advanceWarehouseTask}
+              />
+            )}
+            {open.task.task_type === 'marking' && (
+              <MarkingCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
+            )}
+            {open.task.task_type === 'pack_ship' && (
+              <PackShipCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
+            )}
+          </ReadOnlyFieldset>
         </Drawer>
       )}
     </>

@@ -408,6 +408,16 @@ URL: https://pinhead-os.vercel.app
 - Пропуск этапа (`skipped`) — под `order.manage`, с обязательной причиной;
   в `erp_stage_guard` у него своя ветка (раньше переход не проверялся вовсе)
 
+## Правила ERP (решения заказчика по матрице, сессия 29)
+
+- Прав стало 16: добавлено `warehouse.manage` (движение складских задач).
+  Гейт экрана склада — `useErpAccess().can('warehouse.manage')`, без права
+  Drawer оборачивается в `ReadOnlyFieldset`. Тот же примитив у карточки
+  разработки образцов — копий быть не должно
+- `manager` получил `stage.move_department`; `production_head` — `catalog.edit`
+  (подтверждённая правка заказчика). Все четыре решения закреплены поимённо
+  в `permissionsCoverage.test.ts`, блок «решения заказчика по матрице»
+
 ## Правила ERP (хвосты документа 10.08, сессия 29)
 
 - Подрядную операцию двигает `phase`, НЕ `status`. Маппинг — `utils/subcontractPhase`

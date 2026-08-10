@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { latestDefining } from './migrations.testutil';
+import { latestDefining, latestMatching } from './migrations.testutil';
 import { ERP_PERMISSIONS, ERP_PERMISSION_LABELS, EMPLOYEE_ROLE_LABELS } from '../types';
 import { DEFAULT_PERMISSIONS } from './permissions';
 import type { EmployeeRole } from '../types';
@@ -100,6 +100,52 @@ describe('роли согласованы между собой', () => {
   it('дефолты не выдают прав роли, которой их не даёт seed миграции', () => {
     // Кадры не занимаются производством ни при каком стечении обстоятельств
     expect(DEFAULT_PERMISSIONS.hr).toEqual([]);
+  });
+});
+
+/**
+ * Решения заказчика 10.08 по матрице — закреплены поимённо.
+ *
+ * Прежний сторож назывался «дефолты не выдают прав, которых не даёт seed», но
+ * проверял ровно одну строку (`hr` пуст). Правку `catalog.edit` у руководителя
+ * производства он бы не заметил — а именно такие тихие расхождения между
+ * запасными значениями и базой дают отказ прав ровно тогда, когда матрица
+ * не загрузилась, то есть в худший момент.
+ *
+ * Здесь перечислено то, что заказчик решил явно. Менять — вместе с ответом
+ * заказчика, а не потому, что «выглядит логичнее».
+ */
+describe('решения заказчика по матрице (10.08)', () => {
+  const WAREHOUSE_ROLES: EmployeeRole[] = [
+    'director', 'production_head', 'storekeeper', 'purchaser',
+  ];
+
+  it('«Вести склад» — ровно у четырёх ролей', () => {
+    const holders = (Object.keys(DEFAULT_PERMISSIONS) as EmployeeRole[])
+      .filter((r) => DEFAULT_PERMISSIONS[r].includes('warehouse.manage'));
+    expect([...holders].sort()).toEqual([...WAREHOUSE_ROLES].sort());
+  });
+
+  it('диспетчеру склад НЕ даётся', () => {
+    // Он распоряжается очередью цехов, а не физическим движением товара
+    expect(DEFAULT_PERMISSIONS.dispatcher).not.toContain('warehouse.manage');
+  });
+
+  it('менеджер переносит задания между цехами', () => {
+    // Решение заказчика: заказ ведёт менеджер, перенос он делает сам.
+    // Побочный эффект назван вслух: он влияет на загрузку без ведома диспетчера.
+    expect(DEFAULT_PERMISSIONS.manager).toContain('stage.move_department');
+  });
+
+  it('руководитель производства правит справочники', () => {
+    // На боевой базе было включено; заказчик подтвердил, что это его правка,
+    // и запасные значения приведены К БАЗЕ, а не наоборот.
+    expect(DEFAULT_PERMISSIONS.production_head).toContain('catalog.edit');
+  });
+
+  it('складское право засеяно миграцией', () => {
+    expect(latestMatching(/'warehouse\.manage'/, 'сид warehouse.manage'))
+      .toMatch(/insert into public\.erp_role_permissions/);
   });
 });
 

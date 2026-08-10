@@ -972,13 +972,21 @@ export type ErpPermission =
   | 'plan.fact'               // вносить факт, брак и проблему по задаче плана
   | 'catalog.edit'            // редактировать справочники
   | 'bypass.manage'           // аварийно снимать блокировки и возвращать их
-  | 'experimental.manage';   // вести разработку образцов и отправлять их в цеха
+  | 'experimental.manage'     // вести разработку образцов и отправлять их в цеха
+  /**
+   * Двигать складские задачи: приёмка материалов, маркировка, приёмка готовой
+   * продукции, упаковка и отгрузка. Заведено решением заказчика 10.08 — прежде
+   * задачи склада принимали запись от любого участника, и швея могла отметить
+   * продукцию принятой (а это открывает упаковку) и отгрузить её.
+   * `material.receive` для этого не годился: маркировка и упаковка — не приёмка.
+   */
+  | 'warehouse.manage';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
   'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
-  'material.receive', 'plan.manage', 'plan.fact', 'catalog.edit', 'bypass.manage',
-  'experimental.manage',
+  'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
+  'bypass.manage', 'experimental.manage',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -992,6 +1000,7 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'order.manage': 'Создавать и править заказы',
   'tz.manage': 'Вести ТЗ (загрузка и замена)',
   'material.receive': 'Отмечать поступление материалов',
+  'warehouse.manage': 'Вести склад (приёмка, маркировка, упаковка)',
   'plan.manage': 'Вести производственный план',
   'plan.fact': 'Вносить факт по плану',
   'catalog.edit': 'Править справочники',
