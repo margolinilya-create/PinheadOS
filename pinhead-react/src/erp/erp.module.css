@@ -2810,3 +2810,16 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   font-size: 13px;
 }
 .planUnplannedBody { min-width: 0; }
+
+/**
+ * Блок «только просмотр»: нативный fieldset[disabled] гасит все вложенные
+ * поля и кнопки разом — честно для клавиатуры и скринридера, в отличие от
+ * pointer-events. Собственное оформление у fieldset снимаем: он служит
+ * механизмом, а не рамкой.
+ */
+.readonlyFieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}

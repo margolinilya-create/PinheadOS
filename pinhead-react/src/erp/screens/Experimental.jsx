@@ -12,6 +12,7 @@ import { SortableTh } from '../components/SortableTh';
 import { sortRows, useTableSort } from '../utils/tableSort';
 import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { toast } from '../../store/useToastStore';
 import { matchesOrderQuery } from '../utils/orderSearch';
 import { formatDateShort, daysLeft } from '../utils/time';
@@ -88,6 +89,14 @@ export default function Experimental() {
     })),
   );
 
+  /**
+   * Разработку образцов ведёт технолог — под своим правом `experimental.manage`
+   * (заведено волной 3.6). Гейт стоит и на сервере: без него таблицы
+   * разработки были открыты любому участнику ERP, а без гейта ЗДЕСЬ страж дал
+   * бы «кнопка есть, действие падает». Без права экран остаётся на чтение:
+   * видеть, что делается с образцом, полезно и цеху, и менеджеру.
+   */
+  const canManage = useErpAccess().can('experimental.manage');
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('all');
   const [onlyOpen, setOnlyOpen] = useState(true);
@@ -249,7 +258,7 @@ export default function Experimental() {
         onSearch={(v) => { setQuery(v); setPage(1); }}
         searchPlaceholder="Поиск: заказ, № сделки, тех. название"
         searchLabel="Поиск в эксперим. цехе"
-        right={(
+        right={canManage && (
           <>
             <select
               className={styles.select}
@@ -396,6 +405,7 @@ export default function Experimental() {
             exp={open.exp}
             materialReady={materialReadyFor(open.exp.order_id)}
             itemId={itemIdFor(open.exp.order_id)}
+            canManage={canManage}
             onUpdate={updateExperimental}
             onCreateOp={createExperimentalOp}
             onCompleteOp={completeExperimentalOp}
