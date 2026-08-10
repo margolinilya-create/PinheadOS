@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  functionBody, latestDefining, latestMatching, migration, withoutComments,
+} from './migrations.testutil';
 import { DEFAULT_PERMISSIONS, canActInDept, resolveErpRole } from './permissions';
 import { ERP_PERMISSIONS } from '../types';
 
@@ -14,54 +17,6 @@ import { ERP_PERMISSIONS } from '../types';
  * резолюции роли записаны одинаково, можно — как сторожевой тест APP_KEYS,
  * который так же читает исходники.
  */
-
-const MIGRATIONS_DIR = join(process.cwd(), '../supabase/migrations');
-
-const migration = (name: string) => readFileSync(join(MIGRATIONS_DIR, name), 'utf8');
-
-/**
- * Текст ПОСЛЕДНЕЙ миграции, пересоздающей функцию, — то есть той, что реально
- * работает в базе. Читать конкретный файл по имени нельзя: функцию пересоздают
- * целиком, и прежняя миграция остаётся в репозитории со СТАРЫМИ правилами.
- *
- * Так тест и разошёлся с базой. Он читал 20260803180000 и утверждал «плановые
- * даты стражем не охраняются» — верно для того файла и неверно для функции:
- * 20260803230000 уже поставила их под `order.manage`. Сторож молча сторожил
- * не то, что исполняется.
- */
-function latestMatching(pattern: RegExp, what: string): string {
-  const hit = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()
-    .filter((f) => pattern.test(migration(f)));
-  if (hit.length === 0) throw new Error(`нет миграции, определяющей ${what}`);
-  return migration(hit[hit.length - 1]);
-}
-
-const latestDefining = (fn: string) =>
-  latestMatching(new RegExp(`create or replace function public\\.${fn}\\(`), `${fn}()`);
-
-/**
- * Тело функции без окружающих комментариев миграции. Нужно там, где проверяется
- * ОТСУТСТВИЕ чего-либо: комментарий, объясняющий, почему правила нет, содержит
- * те же слова, что и правило, и утверждение «этого в функции нет» ловило бы его.
- */
-/**
- * SQL без строк-комментариев. Нужен там же, где `functionBody`, но для политик:
- * у них нет тела в `$$`, а объяснение «почему ушли от прежнего предиката»
- * содержит его имя и ловилось бы проверкой «этого правила здесь нет».
- */
-function withoutComments(sql: string): string {
-  return sql.split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
-}
-
-function functionBody(sql: string, fn: string): string {
-  const start = sql.indexOf(`create or replace function public.${fn}(`);
-  if (start < 0) throw new Error(`нет тела ${fn}()`);
-  const open = sql.indexOf('$$', start);
-  const close = sql.indexOf('$$', open + 2);
-  return sql.slice(open, close);
-}
 
 const SQL = migration('20260803160000_erp_permissions_server_side.sql');
 /** Настройки производства: таблица заводится один раз, политики — вместе с ней */

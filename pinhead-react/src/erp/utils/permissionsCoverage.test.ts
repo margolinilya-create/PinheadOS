@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { latestDefining } from './migrations.testutil';
 import { ERP_PERMISSIONS, ERP_PERMISSION_LABELS, EMPLOYEE_ROLE_LABELS } from '../types';
 import { DEFAULT_PERMISSIONS } from './permissions';
 import type { EmployeeRole } from '../types';
@@ -109,11 +110,16 @@ describe('роли согласованы между собой', () => {
  */
 describe('стражи покрывают колонки, которые пишет стор', () => {
   const stageSlice = readFileSync(join(SRC, 'erp/store/slices/stagesSlice.ts'), 'utf8');
-  // Действующая версия стража — последняя миграция, которая его пересоздаёт.
-  // Читать первую значило бы сторожить текст, который БД уже не исполняет.
-  const stageGuard = readFileSync(
-    join(MIGRATIONS, '20260803230000_erp_stage_guard_planned_dates.sql'), 'utf8',
-  );
+  /**
+   * Действующая версия стража — ПОСЛЕДНЯЯ миграция, которая его пересоздаёт.
+   *
+   * Здесь стояло имя файла, и сторож разошёлся с базой ровно тем способом,
+   * от которого сам же и защищает: страж пересоздан в 20260805120000 и дополнен
+   * в 20260810150000, а тест читал 20260803230000 — то есть сторожил текст,
+   * которого БД не исполняет. `serverPermissions` эту ошибку уже пережил,
+   * поэтому правило теперь общее (см. migrations.testutil).
+   */
+  const stageGuard = latestDefining('erp_stage_guard');
 
   /** Колонки этапа, которые страж намеренно НЕ охраняет (с объяснением в миграции) */
   const UNGUARDED = ['updated_at', 'created_at', 'id'];
@@ -172,9 +178,7 @@ describe('стражи покрывают колонки, которые пиш�
   });
 
   it('страж плана охраняет плановые колонки и не трогает колонки факта', () => {
-    const planGuard = readFileSync(
-      join(MIGRATIONS, '20260803160000_erp_permissions_server_side.sql'), 'utf8',
-    );
+    const planGuard = latestDefining('erp_calendar_guard');
     for (const col of ['qty_planned', 'work_date', 'priority', 'sort_order', 'comment']) {
       expect(planGuard).toContain(`new.${col}`);
     }
@@ -190,9 +194,9 @@ describe('стражи покрывают колонки, которые пиш�
    * ни здесь — иначе страж стал бы строже кнопки.
    */
   it('страж материалов охраняет приёмку и не трогает закупочные поля', () => {
-    const matGuard = readFileSync(
-      join(MIGRATIONS, '20260803220000_erp_material_guard.sql'), 'utf8',
-    );
+    // По имени функции, а не по имени файла: сегодня страж материалов
+    // пересоздавался один раз, но правило общее — файл может устареть завтра
+    const matGuard = latestDefining('erp_material_guard');
     expect(matGuard).toContain("erp_has_permission('material.receive')");
 
     // Всё, что записывает приёмку или снимает гейт
