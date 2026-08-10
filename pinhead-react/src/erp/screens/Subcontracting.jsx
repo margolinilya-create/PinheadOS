@@ -5,6 +5,7 @@ import { LoadFailed, EmptyResult } from '../components/ErpStates';
 import { SearchInput } from '../components/SearchInput';
 import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
 import { deptShortName, isProductionDept } from '../data/departments';
@@ -124,8 +125,12 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
 }
 
 /** Колонка «Следующее действие»: разнесена с текущей фазой (правка 4.2.4) */
-function NextAction({ op, onUpdate }) {
+function NextAction({ op, onUpdate, canManage }) {
   const phase = subcontractPhase(op);
+
+  // Без права двигать операцию колонка показывает только текущее положение:
+  // кнопка, отвечающая 42501, хуже её отсутствия
+  if (!canManage) return <span className={styles.subText}>{SUBCONTRACT_PHASE_LABELS[phase]}</span>;
 
   if (op.op_type === 'finished_product') {
     // После возврата дальше двигает не подряд, а склад — своей приёмкой
@@ -171,11 +176,12 @@ function NextAction({ op, onUpdate }) {
  * подряд не должен останавливать цех, поэтому переключатель ничего не блокирует
  * и ни в один переход не входит.
  */
-function PaymentPicker({ op, onUpdate }) {
+function PaymentPicker({ op, onUpdate, disabled }) {
   return (
     <select
       className={`${styles.select} ${styles.inputXs}`}
       value={op.payment_status || 'unpaid'}
+      disabled={disabled}
       onChange={(e) => onUpdate(op.id, { payment_status: e.target.value })}
       aria-label={`Оплата ${op.operation}`}
       style={{ marginTop: 4 }}
@@ -206,6 +212,14 @@ export default function Subcontracting() {
       updateSubcontractOp: s.updateSubcontractOp,
     })),
   );
+  /**
+   * Подряд — решение по маршруту заказа, поэтому право то же, что у остальных
+   * таких решений: `order.manage`. Гейт стоит и на сервере (RLS таблицы
+   * `erp_subcontracting` и журнала `erp_subcontract_moves`), и здесь — иначе
+   * получилось бы запрещённое «кнопка есть, действие падает»: до этой правки
+   * экран не гейтился вовсе, а сервер пускал только профили admin/director.
+   */
+  const canManage = useErpAccess().can('order.manage');
   const [query, setQuery] = useState('');
   const today = new Date().toISOString().slice(0, 10);
 
@@ -258,7 +272,13 @@ export default function Subcontracting() {
         <span className={styles.subText}>{rows.length} из {subcontracting.length}</span>
       </div>
 
-      <AddOpRow orders={activeOrders} queueDepts={queueDepts} onAdd={createSubcontractOp} />
+      {canManage
+        ? <AddOpRow orders={activeOrders} queueDepts={queueDepts} onAdd={createSubcontractOp} />
+        : (
+          <p className={styles.subText}>
+            Только просмотр: заводить и вести операции подряда может менеджер заказа.
+          </p>
+        )}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="операции подряда" />}
       {subcontractingLoaded && subcontracting.length === 0 && (
@@ -296,6 +316,7 @@ export default function Subcontracting() {
                       <select
                         className={styles.select}
                         value={op.op_type}
+                        disabled={!canManage}
                         onChange={(e) => {
                           const nextType = e.target.value;
                           /**
@@ -334,6 +355,7 @@ export default function Subcontracting() {
                           возврат:{' '}
                           <DateField
                             showFormatHint={false}
+                            disabled={!canManage}
                             value={op.returned_date || ''}
                             onChange={(v) => updateSubcontractOp(op.id, {
                               returned_date: v || null,
@@ -349,11 +371,12 @@ export default function Subcontracting() {
                       <span className={`${styles.chip} ${styles[delayed ? 'chipBlocked' : PHASE_CHIP[phase]]}`}>
                         {delayed ? 'Задержка' : SUBCONTRACT_PHASE_LABELS[phase]}
                       </span>
-                      <PaymentPicker op={op} onUpdate={updateSubcontractOp} />
+                      <PaymentPicker op={op} onUpdate={updateSubcontractOp} disabled={!canManage} />
                       <input
                         className={styles.input}
                         placeholder="Комментарий задержки"
                         defaultValue={op.delay_comment || ''}
+                        disabled={!canManage}
                         onBlur={(e) => {
                           const val = e.target.value.trim() || null;
                           if (val !== (op.delay_comment || null)) {
@@ -364,7 +387,7 @@ export default function Subcontracting() {
                         style={{ maxWidth: 170, marginTop: 4 }}
                       />
                     </td>
-                    <td><NextAction op={op} onUpdate={updateSubcontractOp} /></td>
+                    <td><NextAction op={op} onUpdate={updateSubcontractOp} canManage={canManage} /></td>
                   </tr>
                 );
               })}
