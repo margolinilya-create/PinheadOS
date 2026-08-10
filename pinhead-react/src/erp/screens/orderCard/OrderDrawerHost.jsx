@@ -1,6 +1,7 @@
-import { Suspense, lazy, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ORDER_DRAWER_PARAM, useOrderDrawer } from '../../store/useOrderDrawer';
+import { lazyScreen } from '../../lazyScreen';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import styles from '../../erp.module.css';
 
@@ -18,7 +19,7 @@ import styles from '../../erp.module.css';
  * только ленивые экраны. Чанк общий с полной страницей `/orders/:id`: открыли
  * одно — второе уже в кэше.
  */
-const OrderDrawer = lazy(() => import('./OrderDrawer').then((m) => ({ default: m.OrderDrawer })));
+const OrderDrawer = lazyScreen(() => import('./OrderDrawer').then((m) => ({ default: m.OrderDrawer })));
 
 /**
  * Заглушка на время загрузки чанка. Повторяет геометрию панели своими классами

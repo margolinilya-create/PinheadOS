@@ -1,10 +1,11 @@
 /**
  * ERP store: цеха, производственные заказы, позиции, этапы, материалы.
  *
- * Composition-root: собирает 7 доменных слайсов (store/slices/*) в единый Zustand-стор.
+ * Composition-root: собирает слайсы ЯДРА (store/slices/*) в единый Zustand-стор;
+ * доменные приезжают отдельным чанком (./domainSlices) вместе с первым экраном.
  * Контракт (ErpStore) и DTO — в ./types; инфраструктура (аудит/pending/тайминги) — в
- * ./shared; общие чистые хелперы — в ./orderHelpers. Действия разнесены по слайсам
- * (рефакторинг по плану аудита, docs/erp-audit.md); публичный API и пути импорта не менялись.
+ * ./shared; общие чистые хелперы — в ./orderHelpers. Публичный API стора и пути
+ * импорта не менялись: экраны по-прежнему берут всё из `useErpStore`.
  *
  * Правила Pinhead: toast.error на каждую ошибку Supabase, null при ошибке,
  * без optimistic delete, optimistic update только с rollback.
@@ -12,45 +13,42 @@
 
 import { create } from 'zustand';
 import { registerAppReset } from '../../store/appReset';
-import {
-  bootstrapSlice,
-  ordersSlice,
-  stagesSlice,
-  materialsSlice,
-  warehouseSlice,
-  procurementSlice,
-  subcontractingSlice,
-  employeesSlice,
-  permissionsSlice,
-  dictionariesSlice,
-  experimentalSlice,
-  tzSlice,
-  planSlice,
-  bypassSlice,
-  settingsSlice,
-  realtimeSlice,
-} from './slices';
+import { bootstrapSlice } from './slices/bootstrapSlice';
+import { ordersSlice } from './slices/ordersSlice';
+import { permissionsSlice } from './slices/permissionsSlice';
+import { bypassSlice } from './slices/bypassSlice';
+import { realtimeSlice } from './slices/realtimeSlice';
+import { DOMAIN_INITIAL_STATE } from './domainState';
 import type { ErpStore } from './types';
 import { clearQueryCache } from './queryCache';
 
+/**
+ * ЯДРО стора — ровно то, чем пользуется сама оболочка: цеха и привязка
+ * (`bootstrap`), список заказов и бейджи (`orders`), права (`permissions`,
+ * через `useErpAccess`), пометки снятых блокировок (`bypass`) и живые
+ * обновления (`realtime` — подписка стоит в `ErpLayout`).
+ *
+ * Остальные одиннадцать слайсов приезжают вместе с первым экраном
+ * (`domainSlices.ts`): оболочку грузят все и всегда, и склад, подряд, образцы,
+ * справочники и план не должны ехать рабочему, который открывает только
+ * очередь своего цеха.
+ *
+ * Импорты ЯВНЫЕ, а не через баррель `./slices`: баррель тянет все шестнадцать,
+ * и невывезенные пропадают только благодаря tree-shaking — то есть по
+ * умолчанию, а не по решению. Здесь список ядра виден глазами.
+ *
+ * ПРИВЕДЕНИЕ ТИПА. Объект честно неполон: доменные ДЕЙСТВИЯ появятся при
+ * подключении. Что ни одно из них не потеряно навсегда, проверяет
+ * `domainSlices.test.ts` — он сверяет ключи `ErpStore` с суммой слайсов.
+ */
 export const useErpStore = create<ErpStore>((...a) => ({
   ...bootstrapSlice(...a),
   ...ordersSlice(...a),
-  ...stagesSlice(...a),
-  ...materialsSlice(...a),
-  ...warehouseSlice(...a),
-  ...procurementSlice(...a),
-  ...subcontractingSlice(...a),
-  ...employeesSlice(...a),
   ...permissionsSlice(...a),
-  ...dictionariesSlice(...a),
-  ...experimentalSlice(...a),
-  ...tzSlice(...a),
-  ...planSlice(...a),
   ...bypassSlice(...a),
-  ...settingsSlice(...a),
   ...realtimeSlice(...a),
-}));
+  ...DOMAIN_INITIAL_STATE,
+} as unknown as ErpStore));
 
 /**
  * Данные стора на момент создания — снимок без действий.

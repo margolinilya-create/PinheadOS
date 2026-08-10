@@ -3,6 +3,10 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ErpDashboard from './ErpDashboard';
 import { useErpStore } from '../store/useErpStore';
+import { attachDomainSlices } from '../store/domainSlices';
+
+// Экран рендерится напрямую, минуя lazyScreen, — значит подключить стор должен тест
+attachDomainSlices();
 
 /**
  * Обзор производства: KPI-плитки ведут на отфильтрованные списки, уведомления —

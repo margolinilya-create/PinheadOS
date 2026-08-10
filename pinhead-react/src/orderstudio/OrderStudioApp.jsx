@@ -9,6 +9,7 @@ import ProgressBar from '../components/layout/ProgressBar'
 import StepGarment from '../components/steps/StepGarment'
 
 // Lazy-load wizard steps 2-5 (rendered only when user advances)
+import { lazyScreen } from '../erp/lazyScreen';
 const StepDesign = lazy(() => import('../components/steps/StepDesign'));
 const StepItems = lazy(() => import('../components/steps/StepItems'));
 const StepDetails = lazy(() => import('../components/steps/StepDetails'));
@@ -21,7 +22,13 @@ const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'))
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc'));
-const AdminScreen = React.lazy(() => import('../erp/screens/AdminScreen'));
+/**
+ * Единая админка ERP смонтирована и здесь — значит и здесь она обязана
+ * приехать вместе с доменными действиями стора (`lazyScreen`). Голый `lazy`
+ * давал `/admin` в этом разделе экран со стором без половины действий:
+ * «loadEmployees is not a function» вместо списка сотрудников.
+ */
+const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
 const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));

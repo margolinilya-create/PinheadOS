@@ -170,6 +170,19 @@ const {
   openWarehouseTaskCount, openProcurementCount, openSubcontractCount,
   activeExperimentalCount, activeOrdersCount,
 } = await import('./useErpStore');
+/**
+ * Доменные действия стора приезжают отдельным чанком (`erp/lazyScreen`), и в
+ * работающем приложении экран никогда не видит стор без них. Тест обязан
+ * работать в тех же условиях — иначе он проверяет не стор, а состояние
+ * загрузки, которого у пользователя не бывает.
+ *
+ * Подключение стоит ЗДЕСЬ, а не в общем `setupTests`: моки Supabase объявлены
+ * в этом файле, и слайсы, поднятые раньше него, захватили бы другой инстанс
+ * клиента — действия работали бы, но мимо шпионов.
+ */
+const { attachDomainSlices } = await import('./domainSlices');
+attachDomainSlices();
+
 // Кэш запросов — своя память рядом со стором; тесты числа запросов должны
 // стартовать с чистой, иначе соседний тест «оплатит» их запрос.
 const { clearQueryCache } = await import('./queryCache');

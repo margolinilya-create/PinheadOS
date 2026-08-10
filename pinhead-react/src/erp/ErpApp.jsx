@@ -1,4 +1,4 @@
-import { lazy, useEffect, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
@@ -9,10 +9,14 @@ import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import { FEATURES } from '../config/features';
 import { useErpAccess } from './store/useErpAccess';
 import { canOpenScreen } from './utils/screenAccess';
+import { ensureDomainSlices, lazyScreen } from './lazyScreen';
 import styles from './erp.module.css';
 
 /**
- * ВСЕ экраны — отдельные чанки, включая три первых.
+ * ВСЕ экраны — отдельные чанки, включая три первых. Заводятся `lazyScreen`,
+ * а не голым `lazy`: вместе с экраном приезжают доменные действия стора
+ * (см. store/domainSlices) — иначе первый же экран получил бы стор без
+ * половины действий.
  *
  * Обзор, заказы и очередь цеха оставались статикой ради «без мигания на первом
  * экране», и это стоило оболочке 125 кБ (37 кБ gzip): их код ехал каждому и
@@ -21,23 +25,23 @@ import styles from './erp.module.css';
  * ниже подтягивает соседние сразу после первой отрисовки: к моменту, когда
  * человек нажмёт на пункт меню, чанк уже в кэше.
  */
-const ErpDashboard = lazy(() => import('./screens/ErpDashboard'));
-const OrdersScreen = lazy(() => import('./screens/OrdersScreen'));
-const DepartmentQueue = lazy(() => import('./screens/DepartmentQueue'));
-const OrderCard = lazy(() => import('./screens/OrderCard'));
-const ProductionBoard = lazy(() => import('./screens/ProductionBoard')); // + ErpKanban в чанке
-const AdminScreen = lazy(() => import('./screens/AdminScreen')); // + Employees/Departments
-const ProductionTask = lazy(() => import('./screens/ProductionTask'));
-const FabricPurchasing = lazy(() => import('./screens/FabricPurchasing'));
-const Warehouse = lazy(() => import('./screens/Warehouse'));
-const Subcontracting = lazy(() => import('./screens/Subcontracting'));
-const Experimental = lazy(() => import('./screens/Experimental'));
-const DeptLoad = lazy(() => import('./screens/DeptLoad'));
-const PlanScreen = lazy(() => import('./screens/PlanScreen'));
+const ErpDashboard = lazyScreen(() => import('./screens/ErpDashboard'));
+const OrdersScreen = lazyScreen(() => import('./screens/OrdersScreen'));
+const DepartmentQueue = lazyScreen(() => import('./screens/DepartmentQueue'));
+const OrderCard = lazyScreen(() => import('./screens/OrderCard'));
+const ProductionBoard = lazyScreen(() => import('./screens/ProductionBoard')); // + ErpKanban в чанке
+const AdminScreen = lazyScreen(() => import('./screens/AdminScreen')); // + Employees/Departments
+const ProductionTask = lazyScreen(() => import('./screens/ProductionTask'));
+const FabricPurchasing = lazyScreen(() => import('./screens/FabricPurchasing'));
+const Warehouse = lazyScreen(() => import('./screens/Warehouse'));
+const Subcontracting = lazyScreen(() => import('./screens/Subcontracting'));
+const Experimental = lazyScreen(() => import('./screens/Experimental'));
+const DeptLoad = lazyScreen(() => import('./screens/DeptLoad'));
+const PlanScreen = lazyScreen(() => import('./screens/PlanScreen'));
 // Витрина дизайн-системы — за флагом `styleguide`, отдельным чанком.
 // Ленивый импорт обязателен: иначе список всех иконок и демо-разметка
 // уехали бы в оболочку, которую грузят все и всегда.
-const StyleGuide = lazy(() => import('./screens/StyleGuide'));
+const StyleGuide = lazyScreen(() => import('./screens/StyleGuide'));
 
 /**
  * Предзагрузка соседних экранов в простое.
@@ -50,6 +54,8 @@ const StyleGuide = lazy(() => import('./screens/StyleGuide'));
  * всплывать ошибкой, обычный переход просто подождёт чанк.
  */
 const PREFETCH = [
+  // Доменные действия стора — общий чанк всех экранов, поэтому первым
+  ensureDomainSlices,
   () => import('./screens/ErpDashboard'),
   () => import('./screens/OrdersScreen'),
   () => import('./screens/DepartmentQueue'),
