@@ -48,7 +48,9 @@ test('visual: erp-orders', async ({ page }) => {
 
 test('visual: erp-board', async ({ page }) => {
   await page.goto('/board?studio=0');
-  await expect(page.getByRole('heading', { name: 'Производственный план' })).toBeVisible();
+  // Заголовок и вкладки раздела «Производство» (Доска · План · Загрузка) — итог
+  // волны аудита Ф5; прежнее «Производственный план» осталось у экрана /plan.
+  await expect(page.getByRole('heading', { name: 'Доска производства' })).toBeVisible();
   await expect(page.getByText('BOX39 худи чёрные').first()).toBeVisible();
   await shoot(page, 'erp-board');
 });
@@ -61,7 +63,10 @@ test('visual: erp-queue', async ({ page }) => {
   await page.goto('/queue?studio=0');
   await expect(page.getByRole('heading', { name: 'Закройный цех' })).toBeVisible();
   await expect(page.getByText('В работе').first()).toBeVisible();
-  await expect(page.getByText('Ожидает').first()).toBeVisible();
+  // Группы очереди после разделения «ждёт материалы» и «ждёт предыдущий этап»
+  // (правка менеджера 03.08): у закроя в фикстуре есть готовое к запуску задание,
+  // а группы «Ожидает» нет — все предшественники сданы.
+  await expect(page.getByText('Готово к запуску').first()).toBeVisible();
   await shoot(page, 'erp-queue');
 });
 
