@@ -538,6 +538,7 @@ export type Database = {
           assignee: string | null
           block_reason: string | null
           created_at: string
+          cycle: number
           department_id: string
           depends_on: string[]
           finished_at: string | null
@@ -560,6 +561,7 @@ export type Database = {
           assignee?: string | null
           block_reason?: string | null
           created_at?: string
+          cycle?: number
           department_id: string
           depends_on?: string[]
           finished_at?: string | null
@@ -582,6 +584,7 @@ export type Database = {
           assignee?: string | null
           block_reason?: string | null
           created_at?: string
+          cycle?: number
           department_id?: string
           depends_on?: string[]
           finished_at?: string | null
@@ -1759,6 +1762,14 @@ export type Database = {
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_manage_tz: { Args: never; Returns: boolean }
+      erp_clamp_done: {
+        Args: { p_current: number; p_delta: number; p_total: number }
+        Returns: number
+      }
+      erp_clamp_rework: {
+        Args: { p_current: number; p_delta: number }
+        Returns: number
+      }
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
       erp_has_permission: { Args: { perm: string }; Returns: boolean }
@@ -1772,6 +1783,7 @@ export type Database = {
           assignee: string | null
           block_reason: string | null
           created_at: string
+          cycle: number
           department_id: string
           depends_on: string[]
           finished_at: string | null
@@ -1808,6 +1820,7 @@ export type Database = {
           assignee: string | null
           block_reason: string | null
           created_at: string
+          cycle: number
           department_id: string
           depends_on: string[]
           finished_at: string | null
@@ -1839,6 +1852,7 @@ export type Database = {
           assignee: string | null
           block_reason: string | null
           created_at: string
+          cycle: number
           department_id: string
           depends_on: string[]
           finished_at: string | null
@@ -1870,6 +1884,7 @@ export type Database = {
           assignee: string | null
           block_reason: string | null
           created_at: string
+          cycle: number
           department_id: string
           depends_on: string[]
           finished_at: string | null

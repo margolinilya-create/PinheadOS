@@ -61,8 +61,18 @@ async function applySubcontractTransition(get: () => ErpStore, op: ErpSubcontrac
       const { error } = await erpQuery(() => supabase
         .from('erp_item_stages')
         .upsert(
-          { item_id: itemId, department_id: dept.id, status: 'ready', sort_order: 900, depends_on: [] },
-          { onConflict: 'item_id,department_id', ignoreDuplicates: true },
+          {
+            item_id: itemId, department_id: dept.id, cycle: 0,
+            status: 'ready', sort_order: 900, depends_on: [],
+          },
+          /**
+           * `cycle` в ключе конфликта обязателен с волны 3: уникальность этапа
+           * стала `(item_id, department_id, cycle)`, и прежний двухколоночный
+           * `onConflict` не нашёл бы индекса — PostgREST ответил бы 42P10
+           * на КАЖДОМ возврате подряда. Возврат всегда идёт в основной проход,
+           * поэтому `cycle: 0` здесь не «пока так», а точное значение.
+           */
+          { onConflict: 'item_id,department_id,cycle', ignoreDuplicates: true },
         ));
       if (error) {
         toast.error(`Не удалось создать этап: ${dept.name}`);
