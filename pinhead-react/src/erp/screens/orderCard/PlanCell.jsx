@@ -4,7 +4,7 @@ import { Icon } from '../../components/Icon';
 import { useErpAccess } from '../../store/useErpAccess';
 import { fmt } from './format';
 import { Button } from '../../components/Button';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 
 /**
  * Ячейка плановых дат этапа: кнопка «задать план…» → два date-инпута.
@@ -37,7 +37,7 @@ export function PlanCell({ stage, onSave }) {
   if (!editing) {
     const overdueEnd =
       stage.planned_end && stage.status !== 'done' &&
-      stage.planned_end < localToday();
+      stage.planned_end < factoryToday();
     return (
       <button
         type="button"

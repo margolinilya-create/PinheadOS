@@ -15,7 +15,7 @@ import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
 import { StageReportForm } from '../../components/StageReportForm';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 
 /**
  * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
@@ -95,7 +95,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
     stage.planned_end
       || (normDays > 0 ? shiftIsoDate(null, normDays) : null)
       || order.due_date
-      || localToday(),
+      || factoryToday(),
   );
   /**
    * Пустое поле, а НЕ преднабранный остаток. Раньше здесь стоял

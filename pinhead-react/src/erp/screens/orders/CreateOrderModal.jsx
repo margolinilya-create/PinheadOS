@@ -20,7 +20,7 @@ import {
   saveOrderDraft,
   validateOrderForm,
 } from '../../utils/orderForm';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 import { buildItemRoute } from '../../utils/routes';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
@@ -115,7 +115,7 @@ export function CreateOrderModal({ onClose }) {
     return () => window.removeEventListener('paste', onPaste);
   }, []);
   // Дата запуска по умолчанию — сегодня; черновик восстанавливается из localStorage
-  const initialLaunch = useMemo(() => localToday(), []);
+  const initialLaunch = useMemo(() => factoryToday(), []);
   const [restoredDraft] = useState(() => loadOrderDraft());
   const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);

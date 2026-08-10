@@ -25,7 +25,7 @@ import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
-import { localToday } from '../../utils/date';
+import { factoryToday } from '../../utils/date';
 
 /**
  * Подряд (правки 4.2.1/4.2.4, волна 3.5): рабочая очередь операций у подрядчиков.
@@ -222,7 +222,7 @@ export default function Subcontracting() {
    */
   const canManage = useErpAccess().can('order.manage');
   const [query, setQuery] = useState('');
-  const today = localToday();
+  const today = factoryToday();
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!subcontractingLoaded) loadSubcontracting(); }, [subcontractingLoaded, loadSubcontracting]);

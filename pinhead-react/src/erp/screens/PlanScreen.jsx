@@ -11,7 +11,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { isProductionDept, deptShortName } from '../data/departments';
 import { onTabListKeyDown } from '../utils/tabs';
 import { formatDateShort } from '../utils/time';
-import { localToday } from '../../utils/date';
+import { factoryToday } from '../../utils/date';
 import { buildQueueEntries } from '../utils/queueEntries';
 import { remainingQty, unplannedEntries } from '../utils/planQueue';
 import {
@@ -67,7 +67,7 @@ export default function PlanScreen() {
     bypasses: s.bypasses,
   })));
   const access = useErpAccess();
-  const today = localToday();
+  const today = factoryToday();
 
   const [params, setParams] = useSearchParams();
   const monday = params.get('week') || mondayOf(today);

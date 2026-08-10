@@ -17,7 +17,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { ErpCalendarSlot, ErpPlanComment } from '../../types';
 import { planStatusForFact } from '../../utils/planDay';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 import { currentActor, erpError, erpQuery, erpRead, withPending } from '../shared';
 import type { ErpStore, PlanSlice } from '../types';
 
@@ -65,7 +65,7 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
     const { data, error } = await erpRead(() => supabase
       .from('erp_calendar_slots')
       .select('stage_id')
-      .gte('work_date', localToday())
+      .gte('work_date', factoryToday())
       .neq('status', 'cancelled')
       .not('stage_id', 'is', null));
     if (error) {

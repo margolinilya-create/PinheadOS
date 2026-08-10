@@ -10,7 +10,7 @@ import { currentActor, erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 
 /** Точечный патч массива вариантов поставщика у материала (не трогая остальные заказы) */
 function patchSuppliersIn(
@@ -71,7 +71,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)
     const ok = await get().updateMaterial(id, {
       status: 'reserved',
-      received_at: localToday(),
+      received_at: factoryToday(),
     });
     return ok;
   },
@@ -202,7 +202,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
         accept_status: status,
         invoice: input.invoice?.trim() || null,
         comment: comment || null,
-        received_on: input.receivedOn || localToday(),
+        received_on: input.receivedOn || factoryToday(),
         author: currentActor(),
       }));
     if (error) {

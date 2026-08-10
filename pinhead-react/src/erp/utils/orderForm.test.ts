@@ -17,7 +17,7 @@ import {
   type DraftItem,
 } from './orderForm';
 import type { DraftGrid } from './orderForm';
-import { localToday } from '../../utils/date';
+import { factoryToday } from '../../utils/date';
 
 function item(patch: Partial<DraftItem> = {}): DraftItem {
   return { ...EMPTY_ITEM, prints: [], size_grid: null, ...patch };
@@ -293,7 +293,7 @@ describe('validateOrderForm', () => {
 // ─── Пустота формы ────────────────────────────────────────────────────────────
 
 describe('isFormEmpty / isItemEmpty', () => {
-  const launch = localToday();
+  const launch = factoryToday();
 
   it('свежая форма с дефолтной датой запуска — пустая', () => {
     expect(isFormEmpty(emptyOrderForm(launch), [item()], launch)).toBe(true);

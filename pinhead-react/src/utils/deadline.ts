@@ -2,6 +2,8 @@
 // Deadline helpers — unified across Kanban + Dashboard
 // ═══════════════════════════════════════════
 
+import { diffDays, factoryDate, factoryToday } from './date';
+
 export const MS_PER_DAY = 86400000;
 
 export interface DeadlineInfo {
@@ -10,12 +12,15 @@ export interface DeadlineInfo {
   urgent: boolean;
 }
 
+/**
+ * Дней до срока — от дня ПРОИЗВОДСТВА, как и `erp/utils/time.daysLeft`.
+ * Здесь считалась разность местных полуночей: у человека в другом поясе
+ * «сегодня» было своим, и один и тот же заказ подписывался по-разному
+ * в Order Studio и в ERP.
+ */
 function daysUntil(deadline: string | Date): number {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const dl = new Date(deadline);
-  dl.setHours(0, 0, 0, 0);
-  return Math.ceil((dl.getTime() - now.getTime()) / MS_PER_DAY);
+  const dl = typeof deadline === 'string' ? deadline.slice(0, 10) : factoryDate(deadline);
+  return diffDays(factoryToday(), dl);
 }
 
 /**

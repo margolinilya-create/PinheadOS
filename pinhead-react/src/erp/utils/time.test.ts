@@ -3,6 +3,7 @@ import {
   daysLeft, formatDateHuman, formatDateShort, formatTimeIn, isUrgent, isOverdue,
   procurementSla, shiftIsoDate, subcontractOverdue, stageOverdue,
 } from './time';
+import { factoryToday } from '../../utils/date';
 
 describe('stageOverdue — просрочка этапа по planned_end (правка 8)', () => {
   const now = new Date('2026-07-20T12:00:00');
@@ -197,8 +198,14 @@ describe('shiftIsoDate — пресеты сроков', () => {
     expect(shiftIsoDate('2026-08-14T23:45:00Z', 1)).toBe('2026-08-15');
   });
 
-  it('без базы считает от сегодня', () => {
-    const today = new Date().toISOString().slice(0, 10);
+  it('без базы считает от сегодняшнего дня ПРОИЗВОДСТВА', () => {
+    /**
+     * Посылка теста была `new Date().toISOString().slice(0, 10)` — то есть
+     * сегодня по Гринвичу. Он и упал в тот момент, ради которого правка
+     * делалась: в 21:07 UTC в Москве уже следующее число, и «сегодня»
+     * у фабрики одно, а у Гринвича другое.
+     */
+    const today = factoryToday();
     expect(shiftIsoDate(null, 0)).toBe(today);
     expect(shiftIsoDate(undefined, 1)).toBe(shiftIsoDate(today, 1));
   });

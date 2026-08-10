@@ -1,12 +1,16 @@
-import { addDays, localToday } from '../../utils/date';
+import { addDays, diffDays, factoryDate, factoryToday } from '../../utils/date';
 
-/** Дней до срока клиента: 0 = сегодня, отрицательное = просрочен, null = срока нет */
+/**
+ * Дней до срока клиента: 0 = сегодня, отрицательное = просрочен, null = срока нет.
+ *
+ * Считается от дня ПРОИЗВОДСТВА, а не от дня браузера. Здесь стояла разность
+ * местных полуночей: у менеджера, открывшего ERP из другого пояса, «сегодня»
+ * было своим, и один и тот же заказ показывался ему «завтра», а цеху —
+ * «сегодня». Срок заказа — обязательство фабрики, и меряется он её днями.
+ */
 export function daysLeft(dueDate: string | null | undefined, now: Date = new Date()): number | null {
   if (!dueDate) return null;
-  const due = new Date(dueDate + 'T00:00:00');
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((due.getTime() - today.getTime()) / 86400000);
+  return diffDays(factoryDate(now), dueDate.slice(0, 10));
 }
 
 /**
@@ -82,7 +86,7 @@ export function formatDateHuman(d: string | null | undefined): string {
  * расхождений со старой реализацией.
  */
 export function shiftIsoDate(base: string | null | undefined, days: number): string {
-  const from = base && base.length >= 10 ? base.slice(0, 10) : localToday();
+  const from = base && base.length >= 10 ? base.slice(0, 10) : factoryToday();
   return addDays(from, days);
 }
 

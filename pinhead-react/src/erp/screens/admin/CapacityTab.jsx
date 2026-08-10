@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { Button } from '../../components/Button';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 import {
   dailyCapacity, monthCapacityReport, monthDates, monthLabel, workingDays,
 } from '../../utils/capacity';
@@ -34,7 +34,7 @@ export function CapacityTab() {
   );
   const access = useErpAccess();
   const canManage = access.can('plan.manage');
-  const today = localToday();
+  const today = factoryToday();
 
   /**
    * Правки, а не копия настройки. Поле показывает сохранённое значение, пока

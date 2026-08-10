@@ -4,7 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { EmptyState, LoadFailed } from '../../components/ErpStates';
 import { KanbanSkeleton } from '../../components/ErpSkeletons';
 import { formatDateShort } from '../../utils/time';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 import { buildQueueEntries } from '../../utils/queueEntries';
 import { mondayOf, summarize, weekDates } from '../../utils/planDay';
 import { PlanTaskCard } from '../plan/PlanTaskCard';
@@ -42,7 +42,7 @@ export function DeptPlanPanel({ dept }) {
     planComments: s.planComments,
   })));
 
-  const today = localToday();
+  const today = factoryToday();
   const dates = useMemo(() => weekDates(mondayOf(today), 7), [today]);
   const [open, setOpen] = useState(null);
 

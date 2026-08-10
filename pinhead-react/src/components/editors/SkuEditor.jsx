@@ -19,7 +19,7 @@ import CategoryRulesTab from './sku/CategoryRulesTab';
 import ZonesCatalogTab from './sku/ZonesCatalogTab';
 import AddSkuModal from './sku/AddSkuModal';
 import ZonesModal from './sku/ZonesModal';
-import { localToday } from '../../utils/date';
+import { factoryToday } from '../../utils/date';
 
 const TABS = [
   { id: 'items', name: 'Изделия' },
@@ -246,7 +246,7 @@ export default function SkuEditor() {
       const usd = data?.Valute?.USD?.Value;
       if (usd) {
         const rate = Math.round(usd * 100) / 100;
-        const date = localToday();
+        const date = factoryToday();
         setCbRate(rate);
         setCbDate(date);
         localStorage.setItem('ph_cb_rate', JSON.stringify({ rate, date }));

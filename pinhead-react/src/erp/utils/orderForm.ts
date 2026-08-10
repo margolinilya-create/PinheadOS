@@ -7,7 +7,7 @@
  */
 
 import { storageGet, storageRemove, storageSet } from '../../lib/storage';
-import { localToday } from '../../utils/date';
+import { factoryToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
@@ -104,7 +104,7 @@ export const EMPTY_ITEM: DraftItem = {
   size_grid: null,
 };
 
-export function emptyOrderForm(launchDate: string = localToday()): DraftForm {
+export function emptyOrderForm(launchDate: string = factoryToday()): DraftForm {
   return {
     bitrix_id: '',
     title: '',
@@ -223,7 +223,7 @@ export interface OrderFormValidation {
 export function validateOrderForm(
   form: DraftForm,
   items: DraftItem[],
-  today: string = localToday(),
+  today: string = factoryToday(),
 ): OrderFormValidation {
   const errors: Record<string, string> = {};
   const missing: string[] = [];

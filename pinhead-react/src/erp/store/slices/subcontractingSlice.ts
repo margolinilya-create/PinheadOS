@@ -24,7 +24,7 @@ import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontractPhase';
 import type { ErpStore, SubcontractingSlice } from '../types';
-import { localToday } from '../../../utils/date';
+import { factoryToday } from '../../../utils/date';
 
 /** Создать/обеспечить задачу склада (идемпотентно по (order_id, task_type)) */
 async function upsertWarehouseTask(
@@ -163,7 +163,7 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
         subcontract_id: subcontractId,
         kind: input.kind,
         qty,
-        moved_on: input.movedOn || localToday(),
+        moved_on: input.movedOn || factoryToday(),
         comment: input.comment?.trim() || null,
         author: currentActor(),
       }));

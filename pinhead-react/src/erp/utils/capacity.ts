@@ -17,7 +17,7 @@
  * «сколько работы мы набрали на этот месяц», а не «сколько выпустили».
  */
 
-import { isoDate, parseIsoDate, weekdayIndex } from '../../utils/date';
+import { monthBounds, monthDates, parseIsoDate, weekdayIndex } from '../../utils/date';
 import { percentUncapped } from './format';
 import type { ErpOrderFull } from '../store/types';
 
@@ -62,24 +62,14 @@ export function isWorkingDay(iso: string, perWeek: number): boolean {
   return weekdayIndex(iso) < perWeek;
 }
 
-/** Границы месяца, в который попадает дата: [первое, последнее] */
-export function monthRange(iso: string): { from: string; to: string } {
-  const d = parseIsoDate(iso);
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return { from: isoDate(first), to: isoDate(last) };
-}
-
-/** Даты месяца списком (локально, без UTC-сдвига) */
-export function monthDates(iso: string): string[] {
-  const { from, to } = monthRange(iso);
-  const out: string[] = [];
-  const end = parseIsoDate(to);
-  for (const cur = parseIsoDate(from); cur <= end; cur.setDate(cur.getDate() + 1)) {
-    out.push(isoDate(cur));
-  }
-  return out;
-}
+/**
+ * Границы месяца и его даты — чистая календарная арифметика из `utils/date`.
+ * Здесь строились `Date` из местных полей и переводились обратно в дату: это
+ * операция «момент → день», а нужна «день → день». Пояс в границах месяца
+ * не участвует вообще — первое августа первое в любом поясе.
+ */
+export const monthRange = monthBounds;
+export { monthDates };
 
 /** Сколько рабочих дней в этих датах */
 export function workingDays(dates: string[], perWeek: number): number {
@@ -190,7 +180,7 @@ export function monthCapacityReport(
 
 /** Название месяца в родительном падеже для подписи: «август 2026» */
 export function monthLabel(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  // parseIsoDate — местная полночь, она же и печатается: показ, не арифметика
+  return parseIsoDate(iso).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
 

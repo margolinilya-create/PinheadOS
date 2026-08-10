@@ -11,7 +11,7 @@ import { CapacityBar } from '../components/CapacityBar';
 import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
 import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
 import { weekdayShort } from '../utils/format';
-import { addDays, localToday, parseIsoDate } from '../../utils/date';
+import { addDays, factoryToday, parseIsoDate } from '../../utils/date';
 import { deptShortName } from '../data/departments';
 import styles from '../erp.module.css';
 import { ProductionTabs } from '../components/ProductionTabs';
@@ -47,8 +47,8 @@ export default function DeptLoad() {
     })),
   );
 
-  const today = localToday();
-  const [start, setStart] = useState(() => weekStart(localToday()));
+  const today = factoryToday();
+  const [start, setStart] = useState(() => weekStart(factoryToday()));
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);

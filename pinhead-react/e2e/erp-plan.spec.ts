@@ -155,3 +155,26 @@ test.describe('дата и день недели в поясе UTC+3', () => {
     await expect(first).toContainText('17.08.2026');
   });
 });
+
+/**
+ * Пояс ПРОИЗВОДСТВА — московский, независимо от того, откуда открыли (решение
+ * заказчика). Браузер здесь стоит в Лос-Анджелесе, и момент выбран так, что
+ * у него на календаре ещё 9 августа, а на фабрике уже 10-е: доска обязана
+ * показать неделю ЦЕХА. Прежняя реализация читала местные поля браузера
+ * и показала бы менеджеру его собственную неделю.
+ */
+test.describe('день фабрики виден из чужого пояса', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+
+  test('неделя считается по Москве, а не по браузеру', async ({ page }) => {
+    // 10.08 09:00 МСК = 06:00 UTC = 09.08 23:00 в Лос-Анджелесе
+    await page.clock.setFixedTime(new Date('2026-08-10T09:00:00+03:00'));
+    await page.goto('/plan?dept=cutting&studio=0');
+
+    await expect(page.getByText('10.08.2026 — 14.08.2026').first()).toBeVisible();
+
+    const first = page.locator('[class*="planDay"]').first();
+    await expect(first).toContainText('Понедельник');
+    await expect(first).toContainText('10.08.2026');
+  });
+});
