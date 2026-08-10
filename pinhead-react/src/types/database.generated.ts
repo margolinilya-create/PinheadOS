@@ -1398,6 +1398,50 @@ export type Database = {
           },
         ]
       }
+      erp_subcontract_moves: {
+        Row: {
+          author: string | null
+          author_id: string | null
+          comment: string | null
+          created_at: string
+          id: string
+          kind: string
+          moved_on: string
+          qty: number
+          subcontract_id: string
+        }
+        Insert: {
+          author?: string | null
+          author_id?: string | null
+          comment?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          moved_on?: string
+          qty: number
+          subcontract_id: string
+        }
+        Update: {
+          author?: string | null
+          author_id?: string | null
+          comment?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          moved_on?: string
+          qty?: number
+          subcontract_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_subcontract_moves_subcontract_id_fkey"
+            columns: ["subcontract_id"]
+            isOneToOne: false
+            referencedRelation: "erp_subcontracting"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_subcontracting: {
         Row: {
           contractor: string | null
@@ -1409,11 +1453,18 @@ export type Database = {
           op_type: string
           operation: string
           order_id: string
+          paid_amount: number | null
+          payment_status: string
+          phase: string
           planned_date: string | null
           qty: number | null
+          qty_accepted: number
+          qty_returned: number
+          qty_sent: number
           return_dept: string | null
           returned_date: string | null
           sent_date: string | null
+          stage_id: string | null
           status: string
           updated_at: string
         }
@@ -1427,11 +1478,18 @@ export type Database = {
           op_type?: string
           operation: string
           order_id: string
+          paid_amount?: number | null
+          payment_status?: string
+          phase?: string
           planned_date?: string | null
           qty?: number | null
+          qty_accepted?: number
+          qty_returned?: number
+          qty_sent?: number
           return_dept?: string | null
           returned_date?: string | null
           sent_date?: string | null
+          stage_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1445,11 +1503,18 @@ export type Database = {
           op_type?: string
           operation?: string
           order_id?: string
+          paid_amount?: number | null
+          payment_status?: string
+          phase?: string
           planned_date?: string | null
           qty?: number | null
+          qty_accepted?: number
+          qty_returned?: number
+          qty_sent?: number
           return_dept?: string | null
           returned_date?: string | null
           sent_date?: string | null
+          stage_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1466,6 +1531,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_subcontracting_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
             referencedColumns: ["id"]
           },
         ]

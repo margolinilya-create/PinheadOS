@@ -9,7 +9,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import type { ErpStore, SubcontractingSlice } from '../types';
@@ -114,6 +114,39 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
     }
     set((s) => ({ subcontracting: [row, ...s.subcontracting] }));
     return row;
+  },
+
+  /**
+   * Перемещение по подряду (волна 3.5): передали / вернулось / приняли.
+   *
+   * Пишем строку журнала — количества на карточке ведёт триггер, а приёмка
+   * вдобавок приращает `qty_done` привязанного этапа тем же серверным
+   * правилом, что и все остальные счётчики. Благодаря этому «следующий этап
+   * получает доступное количество» работает без единой дополнительной строки
+   * логики: подряд — такой же этап маршрута, а не параллельная сущность.
+   */
+  addSubcontractMove: async (subcontractId, input) => {
+    const qty = Number(input.qty);
+    if (!(qty > 0)) {
+      toast.error('Количество должно быть больше нуля');
+      return false;
+    }
+    const { error } = await erpQuery(() => supabase
+      .from('erp_subcontract_moves')
+      .insert({
+        subcontract_id: subcontractId,
+        kind: input.kind,
+        qty,
+        moved_on: input.movedOn || new Date().toISOString().slice(0, 10),
+        comment: input.comment?.trim() || null,
+        author: currentActor(),
+      }));
+    if (error) {
+      erpError('Перемещение не записано', error);
+      return false;
+    }
+    await get().loadSubcontracting();
+    return true;
   },
 
   updateSubcontractOp: async (id, patch) => {

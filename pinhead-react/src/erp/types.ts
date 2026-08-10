@@ -497,6 +497,21 @@ export interface ErpSubcontractOp {
   planned_date: string | null;
   returned_date: string | null;
   status: SubcontractStatus;
+  /**
+   * Этап маршрута, которым этот подряд является (волна 3.5). NULL — подряд
+   * «под ключ»: у него этапа нет вовсе, `buildItemRoute` вырезает даже закупку
+   * при материалах подрядчика. Одна таблица, две роли.
+   */
+  stage_id?: string | null;
+  /** Фаза внутри этапа. Единый статус — у этапа, см. SubcontractPhase */
+  phase?: SubcontractPhase;
+  /** Оплата: в производственных переходах НЕ участвует */
+  payment_status?: SubcontractPaymentStatus;
+  paid_amount?: number | null;
+  /** Суммы журнала перемещений — их ведёт триггер, клиент только читает */
+  qty_sent?: number;
+  qty_returned?: number;
+  qty_accepted?: number;
   delay_comment: string | null;
   created_at: string;
   updated_at: string;
@@ -726,6 +741,60 @@ export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
   shipped_by_contractor: 'Отгружено подрядчиком',
   received_at_pinhead: 'Поступило на производство',
 };
+
+/**
+ * Фаза подряда (волна 3.5) — детализация ВНУТРИ `in_progress` этапа, а не
+ * второй статус. Единый статус — `erp_item_stages.status`: его читают канбан,
+ * очередь, план и гейты, и вторая машина состояний рядом с ними была ровно
+ * тем, из-за чего подряд жил отдельной жизнью.
+ */
+export type SubcontractPhase =
+  | 'planned' | 'materials_ready' | 'sent' | 'at_contractor'
+  | 'returned' | 'accepted' | 'closed';
+
+export const SUBCONTRACT_PHASE_LABELS: Record<SubcontractPhase, string> = {
+  planned: 'Запланировано',
+  materials_ready: 'Материалы собраны',
+  sent: 'Передано подрядчику',
+  at_contractor: 'У подрядчика',
+  returned: 'Вернулось',
+  accepted: 'Принято складом',
+  closed: 'Закрыто',
+};
+
+/**
+ * Оплата подряда. Финансовый признак НЕ участвует ни в одном производственном
+ * переходе: неоплаченный подряд не должен останавливать цех — прямое требование
+ * документа («оплата не должна быть первым производственным этапом»).
+ */
+export type SubcontractPaymentStatus = 'unpaid' | 'prepaid' | 'paid';
+
+export const SUBCONTRACT_PAYMENT_LABELS: Record<SubcontractPaymentStatus, string> = {
+  unpaid: 'Не оплачено',
+  prepaid: 'Аванс',
+  paid: 'Оплачено',
+};
+
+/** Перемещение по подряду: передали / вернулось / приняли */
+export type SubcontractMoveKind = 'send' | 'return' | 'accept';
+
+export const SUBCONTRACT_MOVE_LABELS: Record<SubcontractMoveKind, string> = {
+  send: 'Передано подрядчику',
+  return: 'Вернулось от подрядчика',
+  accept: 'Принято складом',
+};
+
+export interface ErpSubcontractMove {
+  id: string;
+  subcontract_id: string;
+  kind: SubcontractMoveKind;
+  qty: number;
+  moved_on: string;
+  comment: string | null;
+  author: string | null;
+  author_id: string | null;
+  created_at: string;
+}
 
 export const SUBCONTRACT_OP_TYPE_LABELS: Record<SubcontractOpType, string> = {
   finished_product: 'Готовое изделие',

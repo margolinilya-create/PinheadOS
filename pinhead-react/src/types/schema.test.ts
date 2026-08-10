@@ -52,6 +52,9 @@ function fieldsOf(iface: string): string[] {
  */
 const EMBEDS: Record<string, string[]> = {
   ErpMaterial: ['suppliers'],
+  // Заголовок заказа подмешивается вложенным select-ом при загрузке подряда —
+  // таблица подряда показывает «№ и название», а не uuid заказа
+  ErpSubcontractOp: ['order'],
 };
 
 const PAIRS: [string, string][] = [
@@ -65,6 +68,8 @@ const PAIRS: [string, string][] = [
   ['ErpBypass', 'erp_bypasses'],
   ['ErpStageReport', 'erp_stage_reports'],
   ['ErpMaterialReceipt', 'erp_material_receipts'],
+  ['ErpSubcontractMove', 'erp_subcontract_moves'],
+  ['ErpSubcontractOp', 'erp_subcontracting'],
 ];
 
 describe('ручные типы ERP не разошлись со схемой БД', () => {
@@ -78,7 +83,7 @@ describe('ручные типы ERP не разошлись со схемой Б
   it('список отношений не разросся: каждое должно быть осознанным', () => {
     // Если поле добавили в ручной тип и вписали сюда «чтобы тест прошёл» —
     // сверка перестаёт работать. Пусть их пересчёт будет заметным действием.
-    expect(Object.values(EMBEDS).flat()).toHaveLength(1);
+    expect(Object.values(EMBEDS).flat()).toHaveLength(2);
   });
 
   it('схема содержит is_demo — колонку, на которой держится фильтр демо', () => {

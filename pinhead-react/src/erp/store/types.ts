@@ -28,6 +28,7 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
+  SubcontractMoveKind,
   ErpCalendarSlot,
   ErpPlanComment,
   ErpTzDocument,
@@ -489,6 +490,17 @@ export interface SubcontractingSlice {
   createSubcontractOp: (
     op: Partial<ErpSubcontractOp> & Pick<ErpSubcontractOp, 'order_id' | 'operation'>,
   ) => Promise<ErpSubcontractOp | null>;
+  /**
+   * Перемещение по подряду (волна 3.5): строка журнала `erp_subcontract_moves`.
+   * Количества на карточке ведёт триггер; приёмка приращает `qty_done`
+   * привязанного этапа — подряд ведёт себя как этап маршрута.
+   */
+  addSubcontractMove: (subcontractId: string, input: {
+    kind: SubcontractMoveKind;
+    qty: number;
+    movedOn?: string | null;
+    comment?: string | null;
+  }) => Promise<boolean>;
   updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
 }
 
