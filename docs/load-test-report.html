@@ -1,0 +1,625 @@
+<title>Нагрузочный тест ERP — 500 заказов</title>
+<style>
+  /* ─── Токены ─────────────────────────────────────────────────────────────
+     Палитра взята из мира предмета: цех трафаретной печати. Основа — холодная
+     бумага с синим уклоном (не тёплый крем), акцент — process cyan, плашечная
+     краска. Семантика (держит / следить / чинить) отдельна от акцента.        */
+  :root {
+    --ground: #EDF1F4;
+    --surface: #FFFFFF;
+    --surface-2: #F5F8FA;
+    --text: #172129;
+    --text-dim: #55646F;
+    --line: #D3DCE3;
+    --line-soft: #E4EBF0;
+    --accent: #0F6E9E;
+    --accent-soft: #DFEEF6;
+    --ok: #1C7A51;
+    --watch: #9E5A00;
+    --act: #AE3226;
+    --ok-soft: #DFF0E7;
+    --watch-soft: #F8ECD8;
+    --act-soft: #F7E2DF;
+
+    --font-ui: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    --t-xs: 0.6875rem;
+    --t-sm: 0.8125rem;
+    --t-md: 0.9375rem;
+    --t-base: 1.0625rem;
+    --t-lg: 1.375rem;
+    --t-xl: 1.875rem;
+    --t-2xl: 2.625rem;
+
+    --sp-1: 0.375rem;
+    --sp-2: 0.75rem;
+    --sp-3: 1.25rem;
+    --sp-4: 2rem;
+    --sp-5: 3rem;
+    --sp-6: 4.5rem;
+    --radius: 3px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0D1216;
+      --surface: #151C22;
+      --surface-2: #1B242B;
+      --text: #DCE5EB;
+      --text-dim: #8496A2;
+      --line: #27323A;
+      --line-soft: #1F282F;
+      --accent: #52B2DF;
+      --accent-soft: #12303F;
+      --ok: #52BE8C;
+      --watch: #DDA050;
+      --act: #E4796D;
+      --ok-soft: #13291F;
+      --watch-soft: #2B2213;
+      --act-soft: #2C1917;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0D1216;
+    --surface: #151C22;
+    --surface-2: #1B242B;
+    --text: #DCE5EB;
+    --text-dim: #8496A2;
+    --line: #27323A;
+    --line-soft: #1F282F;
+    --accent: #52B2DF;
+    --accent-soft: #12303F;
+    --ok: #52BE8C;
+    --watch: #DDA050;
+    --act: #E4796D;
+    --ok-soft: #13291F;
+    --watch-soft: #2B2213;
+    --act-soft: #2C1917;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--t-base);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: var(--sp-5) var(--sp-3) var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+  }
+
+  /* ─── Шапка: паспорт прогона, а не герой ──────────────────────────────── */
+  .head { display: flex; flex-direction: column; gap: var(--sp-3); }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--t-xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    align-items: baseline;
+  }
+  .eyebrow .sep { color: var(--line); }
+
+  h1 {
+    margin: 0;
+    font-size: var(--t-2xl);
+    line-height: 1.08;
+    letter-spacing: -0.028em;
+    font-weight: 700;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: 46ch;
+    color: var(--text-dim);
+    font-size: var(--t-lg);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  /* ─── Полоса вердикта ─────────────────────────────────────────────────── */
+  .verdict {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--surface);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    border-top: 3px solid var(--tone, var(--line));
+  }
+  .stat .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--t-xl);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--tone, var(--text));
+  }
+  .stat .lbl {
+    font-size: var(--t-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .stat .sub { font-size: var(--t-sm); color: var(--text-dim); line-height: 1.35; }
+  .t-ok { --tone: var(--ok); }
+  .t-watch { --tone: var(--watch); }
+  .t-act { --tone: var(--act); }
+  .t-accent { --tone: var(--accent); }
+
+  /* ─── Разделы ─────────────────────────────────────────────────────────── */
+  section { display: flex; flex-direction: column; gap: var(--sp-3); }
+
+  h2 {
+    margin: 0;
+    font-size: var(--t-xl);
+    line-height: 1.15;
+    letter-spacing: -0.022em;
+    font-weight: 700;
+    text-wrap: balance;
+    padding-bottom: var(--sp-2);
+    border-bottom: 2px solid var(--text);
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--t-lg);
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    font-weight: 650;
+  }
+  p { margin: 0; max-width: 68ch; text-wrap: pretty; }
+  .lede { font-size: var(--t-lg); line-height: 1.45; }
+
+  strong { font-weight: 650; }
+  code, .num-inline {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    font-variant-numeric: tabular-nums;
+  }
+  code {
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 2px;
+    padding: 0.05em 0.35em;
+  }
+
+  /* ─── Таблицы ─────────────────────────────────────────────────────────── */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--t-md); }
+  th, td { padding: 0.625rem var(--sp-2); text-align: left; border-bottom: 1px solid var(--line-soft); }
+  th {
+    font-size: var(--t-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 600;
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n, th.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th.n { font-family: var(--font-ui); }
+  .unit { color: var(--text-dim); font-size: 0.85em; }
+
+  /* Строка «сегодня» и строка порога читаются формой, а не только числом */
+  tr.now td { background: var(--accent-soft); }
+  tr.now td:first-child::after {
+    content: "сегодня";
+    font-family: var(--font-ui);
+    font-size: var(--t-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-left: 0.5rem;
+  }
+  tr.over td.n:nth-child(3) { color: var(--act); font-weight: 600; }
+
+  /* ─── Полоса объёма: единственный график, и он о главном ─────────────── */
+  .bar { display: block; height: 6px; border-radius: 999px; background: var(--accent); opacity: 0.85; }
+  .bar.hot { background: var(--act); }
+  td.barcell { width: 34%; min-width: 7rem; vertical-align: middle; }
+
+  /* ─── Карточки плана ──────────────────────────────────────────────────── */
+  .plan { display: flex; flex-direction: column; gap: var(--sp-2); counter-reset: step; }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--tone, var(--accent));
+    border-radius: var(--radius);
+    padding: var(--sp-3);
+    display: grid;
+    grid-template-columns: 2.25rem 1fr;
+    gap: var(--sp-1) var(--sp-2);
+  }
+  .step::before {
+    counter-increment: step;
+    content: counter(step);
+    font-family: var(--font-mono);
+    font-size: var(--t-lg);
+    font-weight: 600;
+    color: var(--tone, var(--accent));
+    line-height: 1.2;
+    grid-row: span 2;
+  }
+  .step h3 { grid-column: 2; }
+  .step .body { grid-column: 2; display: flex; flex-direction: column; gap: var(--sp-2); }
+  .step .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    font-size: var(--t-sm);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-family: var(--font-ui);
+    font-size: var(--t-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    background: var(--chip-bg, var(--surface-2));
+    color: var(--chip-fg, var(--text-dim));
+    border: 1px solid var(--line);
+  }
+  .chip.act { --chip-bg: var(--act-soft); --chip-fg: var(--act); border-color: transparent; }
+  .chip.watch { --chip-bg: var(--watch-soft); --chip-fg: var(--watch); border-color: transparent; }
+  .chip.ok { --chip-bg: var(--ok-soft); --chip-fg: var(--ok); border-color: transparent; }
+
+  /* ─── Списки ──────────────────────────────────────────────────────────── */
+  ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: var(--sp-1); max-width: 68ch; }
+  li { text-wrap: pretty; }
+  li::marker { color: var(--accent); }
+
+  .note {
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .note .cap {
+    font-size: var(--t-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: var(--sp-3);
+    font-size: var(--t-sm);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 40rem) {
+    :root { --t-2xl: 2rem; --t-xl: 1.5rem; --t-lg: 1.175rem; }
+    .step { grid-template-columns: 1.75rem 1fr; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="head">
+    <div class="eyebrow">
+      <span>PinheadOS · Производство</span><span class="sep">/</span>
+      <span>Нагрузочный прогон</span><span class="sep">/</span>
+      <span>11 августа 2026</span>
+    </div>
+    <h1>500 заказов, 1014 операций, ноль ошибок системы</h1>
+    <p class="standfirst">
+      Прогон шёл на боевой базе от лица настоящего пользователя — с правами,
+      политиками и сторожевыми триггерами. Данные удалены полностью.
+    </p>
+  </header>
+
+  <div class="verdict">
+    <div class="stat t-accent">
+      <span class="num">500</span>
+      <span class="lbl">заказов создано</span>
+      <span class="sub">1016 позиций · 5080 этапов · 1000 материалов</span>
+    </div>
+    <div class="stat t-accent">
+      <span class="num">1014</span>
+      <span class="lbl">операций цикла</span>
+      <span class="sub">30 заказов прошли сквозь маршрут до отгрузки</span>
+    </div>
+    <div class="stat t-ok">
+      <span class="num">0</span>
+      <span class="lbl">ошибок системы</span>
+      <span class="sub">2 отказа за прогон — обе ошибки в генераторе теста</span>
+    </div>
+    <div class="stat t-act">
+      <span class="num">5,1 <span class="unit">МБ</span></span>
+      <span class="lbl">ответ на 546 заказах</span>
+      <span class="sub">список заказов при каждой загрузке — узкое место</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>Ошибок в системе не найдено</h2>
+    <p class="lede">
+      За прогон отказали две операции, и обе — по моей вине: генератор подставлял
+      значения, которых нет в справочниках. Оба раза защита базы сработала.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Отказ</th><th class="n">Раз</th><th>Причина</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>erp_orders_packaging_check</code></td>
+            <td class="n">16</td>
+            <td>подставлял <code>polybag</code>, которого нет среди <code>none / bopp / zip / other</code></td>
+          </tr>
+          <tr>
+            <td><code>erp_orders_status_check</code></td>
+            <td class="n">2</td>
+            <td>ставил <code>shipped</code>, а статусы заказа — <code>active / done_on_time / done_late / done_early / cancelled</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Что проверено и держится</h3>
+    <ul>
+      <li><strong>Арифметика счётчиков.</strong> 210 этапов закрыты приращениями:
+        сданное количество совпало с тиражом ровно, перебора нет ни у одного,
+        время завершения проставлено везде.</li>
+      <li><strong>Возврат брака.</strong> 30 возвратов — количество нигде не ушло
+        в минус, предыдущие этапы переоткрылись, время завершения снялось.</li>
+      <li><strong>Перенос между цехами.</strong> 30 переносов, ни одной битой
+        зависимости в маршруте.</li>
+      <li><strong>Гейт упаковки — безупречно.</strong> Из 20 заказов упаковка
+        открылась ровно у двух, где все этапы закрыты; у 18 с переоткрытыми — нет.
+        Промахов в обе стороны ноль.</li>
+      <li><strong>Целостность после 1014 операций.</strong> Одиннадцать проверок:
+        сирот нет, дублей заданий нет, отгруженных с незакрытыми этапами нет.</li>
+    </ul>
+
+    <div class="note">
+      <span class="cap">Ложная тревога, названная вслух</span>
+      <p>Сначала выглядело так, будто приёмка готовой продукции не открывает
+        упаковку у 18 заказов из 20. Проверка показала обратное: я сам за минуту
+        до этого вернул тем заказам брак и перенёс этапы — гейт отказал правильно.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Запись: запас есть</h2>
+    <p>Скорость записи <strong>не падает</strong> с ростом базы — создание заказа
+      стоило те же 15 мс на 150-м и на 500-м. Здесь работать не над чем.</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Операция</th><th class="n">Среднее</th><th class="n">95-я доля</th><th class="n">Максимум</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Создание заказа целиком</td><td class="n">15</td><td class="n">23</td><td class="n">58</td></tr>
+          <tr><td>Перенос между цехами</td><td class="n">11,4</td><td class="n">13,3</td><td class="n">14,1</td></tr>
+          <tr><td>Возврат брака</td><td class="n">9,8</td><td class="n">10,7</td><td class="n">23,6</td></tr>
+          <tr><td>Сдача количества</td><td class="n">6,6</td><td class="n">7,6</td><td class="n">13,5</td></tr>
+          <tr><td>Взятие задания в работу</td><td class="n">6,4</td><td class="n">7,7</td><td class="n">14,2</td></tr>
+          <tr><td>Приёмка материала</td><td class="n">2,2</td><td class="n">3,7</td><td class="n">18,0</td></tr>
+          <tr><td>Отгрузка заказа</td><td class="n">2,0</td><td class="n">4,0</td><td class="n">7,8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="unit" style="font-family: var(--font-mono); font-size: var(--t-sm);">
+      Все значения в миллисекундах, на стороне базы.
+    </p>
+  </section>
+
+  <section>
+    <h2>Чтение: здесь всё и упирается</h2>
+    <p class="lede">
+      Приложение держит <strong>весь</strong> активный список заказов в памяти —
+      его читают канбан, очередь цеха, обзор и план. Пока заказов десятки,
+      это дёшево. Дальше рост линейный: <strong>около 9 кБ на заказ</strong>.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Активных заказов</th>
+            <th class="n">Ответ, МБ</th>
+            <th class="n">Сервер, мс</th>
+            <th class="barcell">Объём</th>
+            <th class="n">Разбор на планшете, мс</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="now">
+            <td class="n">38</td><td class="n">0,3</td><td class="n">11</td>
+            <td class="barcell"><span class="bar" style="width:6%"></span></td>
+            <td class="n">6</td>
+          </tr>
+          <tr>
+            <td class="n">150</td><td class="n">1,3</td><td class="n">190</td>
+            <td class="barcell"><span class="bar" style="width:25%"></span></td>
+            <td class="n">24</td>
+          </tr>
+          <tr class="over">
+            <td class="n">300</td><td class="n">2,3</td><td class="n">—</td>
+            <td class="barcell"><span class="bar hot" style="width:45%"></span></td>
+            <td class="n">46</td>
+          </tr>
+          <tr class="over">
+            <td class="n">546</td><td class="n">5,1</td><td class="n">641</td>
+            <td class="barcell"><span class="bar hot" style="width:100%"></span></td>
+            <td class="n">75</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Вычисления клиента при этом дешёвые: пересчёт всех очередей и канбана
+      на 500 заказах занимает 4,5 мс, весь набор пересчётов одного экрана — 11 мс.
+      <strong>Лаг не в вычислениях, а в том, что пять мегабайт надо построить,
+      передать и разобрать при каждой загрузке.</strong>
+    </p>
+    <div class="note">
+      <span class="cap">Где порог</span>
+      <p>Заметным это станет примерно на <strong>250–300 активных заказах</strong> —
+        около секунды до первой отрисовки на цеховом Wi-Fi. Сегодня их 38:
+        запас десятикратный, но при хорошем сезоне он проходится за раз.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Находка в боевых данных</h2>
+    <p class="lede">
+      <strong>42 из 72 закрытых этапов не имеют времени завершения.</strong>
+      У всех 42 пусто и время начала, ни у одного нет записи в истории,
+      и все датированы двумя днями — 27 июля и 3 августа, днями миграций.
+    </p>
+    <p>
+      Это не действие человека в интерфейсе: мои 5110 тестовых этапов, прошедшие
+      через настоящие кнопки, дали ноль таких строк. Это наследие заливки данными.
+      Следствие, однако, настоящее: время цикла, факт в плане и любой ответ
+      на вопрос «сколько это заняло» считаются по данным, которых у большей
+      половины закрытых этапов нет.
+    </p>
+  </section>
+
+  <section>
+    <h2>План устранения</h2>
+    <p>Пункты пронумерованы по очерёдности: первый снимает то, что упрётся раньше всего.</p>
+
+    <div class="plan">
+      <article class="step t-act">
+        <h3>Разгрузить список активных заказов</h3>
+        <div class="body">
+          <p>Список тянет все поля заказа и восемь вложенных наборов, включая
+            четыре почти всегда пустых: вложения, задачи закупки, складские
+            операции и документы ТЗ. Экранам, читающим весь список, нужна лишь
+            часть полей.</p>
+          <p><strong>Замерено на тех же 546 заказах:</strong> вариант «только нужные
+            поля» — <span class="num-inline">641 → 344 мс</span> (−46 %) и
+            <span class="num-inline">5175 → 2380 кБ</span> (−54 %). Полный набор
+            остаётся за карточкой заказа, которая уже стоит 2 мс.</p>
+          <p>Правило «активный список не разбивается на страницы» при этом
+            не нарушается: список остаётся целым, худеет строка.</p>
+          <div class="meta">
+            <span class="chip act">Делать первым</span>
+            <span>полдня</span><span>риск средний</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="step t-act">
+        <h3>Починить время завершения у 42 этапов</h3>
+        <div class="body">
+          <p>Проставить время там, где этап закрыт, а времени нет: взять из истории,
+            где она есть, иначе — время последнего изменения строки, честно пометив
+            значение как восстановленное.</p>
+          <p>И запретить впредь: «закрыт — значит есть время завершения» — это
+            инвариант, и его место в стороже этапов, а не в договорённости
+            между людьми.</p>
+          <div class="meta">
+            <span class="chip act">Делать первым</span>
+            <span>2 часа</span><span>риск низкий</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="step t-watch">
+        <h3>Решить вопрос живых обновлений плана</h3>
+        <div class="body">
+          <p>В рассылку изменений входят 19 таблиц, приложение слушает 10.
+            Девять лишних декодируются и уходят в никуда — это лишняя работа сервера.</p>
+          <p>Но прежде чем их убирать, стоит проверить обратное: <strong>доска плана
+            и комментарии живыми не приходят</strong>. Цех вносит факт — у диспетчера
+            доска не обновляется. Возможно, часть из этих девяти надо не убрать,
+            а наоборот подключить.</p>
+          <div class="meta">
+            <span class="chip watch">Нужно решение</span>
+            <span>1 час на разбор</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="step t-watch">
+        <h3>Вернуться к решению «грузим всё»</h3>
+        <div class="body">
+          <p>Когда активных станет больше трёхсот, облегчения строки уже не хватит.
+            Заранее выбрать: грузить окно по сроку сдачи с догрузкой или считать
+            канбан и очередь на сервере.</p>
+          <p>Сегодня «грузим всё» записано в правилах как осознанное решение —
+            к нему стоит вернуться с этими числами, но не раньше порога.</p>
+          <div class="meta">
+            <span class="chip watch">По порогу</span>
+            <span>2–3 дня</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="step t-ok">
+        <h3>Убрать недостижимую ветку обновлений</h3>
+        <div class="body">
+          <p>Обработчик умеет разбирать операции экспериментального цеха,
+            но подписки на них нет — ветка недостижима. Либо подписать, либо убрать.</p>
+          <div class="meta">
+            <span class="chip ok">Мелочь</span>
+            <span>15 минут</span>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Чего прогон не проверил</h2>
+    <p>Названо прямо, чтобы это не считалось проверенным.</p>
+    <ul>
+      <li><strong>Одновременную работу.</strong> Всё шло в один поток. Гонки двух
+        планшетов в одном цехе — ради чего счётчики и пишутся приращениями —
+        не воспроизводились.</li>
+      <li><strong>Реальный браузер и сеть.</strong> Время сервера и разбора
+        измерено, но сквозного «открыл ERP на планшете при 500 заказах» не было:
+        нет цеховой учётной записи для боевого входа.</li>
+      <li><strong>Отказы по правам.</strong> Прогон шёл от директора; поведение
+        рабочего, кладовщика и закупщика при нехватке прав здесь не проверялось.</li>
+      <li><strong>Подряд и экспериментальный цех.</strong> Такие маршруты
+        не строились — эти таблицы тест не трогал.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Прогон 11.08.2026 · боевая база, роль authenticated · все тестовые данные удалены,
+    13 таблиц сверены с состоянием до теста — совпало точно.
+  </footer>
+
+</div>
