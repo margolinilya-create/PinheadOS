@@ -268,6 +268,18 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         { event: '*', schema: 'public', table: 'erp_experimental' },
         forward('erp_experimental'),
       )
+      /**
+       * Операции экспериментального цеха — подписка была ПРОПУЩЕНА, хотя
+       * обработчик для них написан (см. ветку `erp_experimental_ops` выше).
+       * Ветка была недостижима: возврат образца из швейки или с нанесения
+       * не обновлял экран разработки, пока его не перезагрузят руками.
+       * Нашлось сверкой подписок с обработчиками при разборе 11.08.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_experimental_ops' },
+        forward('erp_experimental_ops'),
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_tz_documents' },
