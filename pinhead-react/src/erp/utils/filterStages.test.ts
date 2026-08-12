@@ -3,6 +3,7 @@ import {
   EMPTY_FILTERS,
   NO_ASSIGNEE,
   applyStageFilters,
+  entryOrigin,
   filterEntries,
   filtersFromParams,
   filtersToParams,
@@ -20,11 +21,12 @@ function entry(over: Partial<{
   id: string; title: string; customer: string; due: string | null; dept: string;
   group: QueueEntry['group']; assignee: string | null; plannedEnd: string | null;
   rework: number; pos: number | null; product: string;
+  origin: 'production' | 'experimental';
 }> = {}): QueueEntry {
   const {
     id = 's1', title = 'BOX39 свитшоты', customer = 'BOX39', due = '2026-08-01',
     dept = 'd-sewing', group = 'ready', assignee = null, plannedEnd = null,
-    rework = 0, pos = null, product = 'Свитшот',
+    rework = 0, pos = null, product = 'Свитшот', origin = undefined,
   } = over;
   return {
     order: { id: `o-${id}`, title, customer, bitrix_id: '5' + id, due_date: due, items: [], materials: [] },
@@ -32,6 +34,9 @@ function entry(over: Partial<{
     stage: {
       id, department_id: dept, status: 'waiting',
       assignee, planned_end: plannedEnd, qty_rework: rework, queue_position: pos,
+      // Умышленно НЕ подставляем 'production' по умолчанию: настоящие фикстуры
+      // старых экранов поля не имеют, и отбор обязан их переживать
+      ...(origin ? { origin } : {}),
     },
     group,
   };
@@ -247,5 +252,69 @@ describe('hasProblem', () => {
     expect(hasProblem(entry({ group: 'blocked' }))).toBe(true);
     expect(hasProblem(entry({ rework: 3 }))).toBe(true);
     expect(hasProblem(entry())).toBe(false);
+  });
+});
+
+/**
+ * Фильтр «Только образцы» (документ заказчика 12.08, п.7).
+ *
+ * Цеха нанесения обслуживают и серию, и разработки ЭКС; отдельного
+ * «экс-цеха нанесений» заводить не нужно — нужен отбор. Данные для него
+ * лежали с волны 3.6 (`origin` в `QueueEntry` объявлен «для бейджа и фильтра»),
+ * а самого фильтра не было.
+ */
+describe('фильтр по происхождению задания', () => {
+  const mix = [
+    entry({ id: 'a', origin: 'experimental' }),
+    entry({ id: 'b', origin: 'production' }),
+    // Поля нет вовсе — так выглядят этапы, созданные до волны 3.6
+    entry({ id: 'c' }),
+  ];
+
+  it('этап без поля считается серией, а не «неизвестно»', () => {
+    // Колонка `not null default 'production'`; без умолчания отбор «только серия»
+    // молча терял бы каждую такую строку
+    expect(entryOrigin(mix[2])).toBe('production');
+  });
+
+  it('«только образцы» отбирает разработки', () => {
+    expect(filterEntries(mix, f({ origin: 'experimental' })).map((e) => e.stage.id))
+      .toEqual(['a']);
+  });
+
+  it('«только серия» отбирает и строки без поля', () => {
+    expect(filterEntries(mix, f({ origin: 'production' })).map((e) => e.stage.id))
+      .toEqual(['b', 'c']);
+  });
+
+  it('пустое значение ничего не отбрасывает', () => {
+    expect(filterEntries(mix, f({ origin: '' }))).toHaveLength(3);
+  });
+
+  it('считается активным фильтром — иначе «Сбросить» не появится', () => {
+    expect(hasActiveFilters(f({ origin: 'experimental' }))).toBe(true);
+    expect(hasActiveFilters(f())).toBe(false);
+  });
+
+  it('переживает круг через адрес', () => {
+    for (const v of ['experimental', 'production'] as const) {
+      expect(filtersToParams(f({ origin: v }))).toEqual({ origin: v });
+      expect(filtersFromParams(new URLSearchParams(`origin=${v}`)).origin).toBe(v);
+    }
+  });
+
+  it('мусор в адресе игнорируется, а не даёт пустую очередь', () => {
+    // `?origin=abc` при слепом чтении отобрал бы ноль строк, и человек увидел бы
+    // «работы нет» там, где она есть
+    expect(filtersFromParams(new URLSearchParams('origin=abc')).origin).toBe('');
+    expect(filtersFromParams(new URLSearchParams('origin=1')).origin).toBe('');
+  });
+
+  it('старая ссылка без origin читается как «неважно»', () => {
+    expect(filtersFromParams(new URLSearchParams('status=ready')).origin).toBe('');
+  });
+
+  it('умолчание не попадает в адрес', () => {
+    expect(filtersToParams(f())).toEqual({});
   });
 });

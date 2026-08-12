@@ -5,6 +5,7 @@ import {
   EMPTY_FILTERS,
   GROUP_FILTER_LABELS,
   NO_ASSIGNEE,
+  ORIGIN_FILTER_LABELS,
   OVERDUE_FILTER_LABELS,
   SORT_LABELS,
   hasActiveFilters,
@@ -79,6 +80,25 @@ export function QueueFilters({
           <><Icon name="ban" size={13} /> С проблемой</>,
           'Заблокированные и с возвратом брака',
         )}
+        {/*
+          «Только образцы» (документ заказчика 12.08, п.7): цеха нанесения
+          обслуживают и серию, и разработку ЭКС — отдельного «экс-цеха
+          нанесений» заводить не нужно, нужен фильтр. Иконка та же, что
+          у бейджа «образец» в строке очереди: одно понятие — один знак.
+          Второй вариант отбора («Только серия») живёт в раскрытых фильтрах —
+          чип отвечает на частый вопрос, селект на редкий.
+        */}
+        <button
+          type="button"
+          aria-pressed={filters.origin === 'experimental'}
+          title="Только нанесения и работы по разработкам экспериментального цеха"
+          className={`${styles.chip} ${styles.chipBtn} ${filters.origin === 'experimental' ? styles.chipProgress : styles.chipNeutral}`}
+          onClick={() => set({ origin: filters.origin === 'experimental' ? '' : 'experimental' })}
+        >
+          <Icon name="flask" size={13} />
+          {' '}
+          Только образцы
+        </button>
         <button
           type="button"
           aria-expanded={expanded}
@@ -136,6 +156,20 @@ export function QueueFilters({
             >
               <option value="">Неважно</option>
               {Object.entries(OVERDUE_FILTER_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Происхождение</span>
+            <select
+              className={styles.select}
+              value={filters.origin}
+              onChange={(e) => set({ origin: e.target.value })}
+              aria-label="Происхождение задания"
+            >
+              <option value="">Неважно</option>
+              {Object.entries(ORIGIN_FILTER_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
             </select>

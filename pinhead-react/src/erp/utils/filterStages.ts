@@ -66,6 +66,27 @@ export const OVERDUE_FILTER_LABELS: Record<Exclude<OverdueFilter, ''>, string> =
   unplanned: 'Этап без плановой даты',
 };
 
+/**
+ * Происхождение задания: образец экспериментального цеха или серия.
+ *
+ * Документ заказчика 12.08, п.7: «не нужно создавать отдельный параллельный
+ * экс-цех нанесений — использовать существующие цеха, но дать им фильтр
+ * "Только ЭКС"». Данные для этого есть с волны 3.6 (`erp_item_stages.origin`,
+ * бейдж «Образец» в строке очереди), а самого фильтра не было: тип `QueueEntry`
+ * объявлял поле «для бейджа и фильтра», а ветки отбора не существовало.
+ *
+ * Перечисление, а не булев флаг: булев `expOnly` пришлось бы переписывать
+ * на первой же просьбе «покажи только серию», а ссылки на отфильтрованную
+ * очередь живут в переписке. Ровно тот же приём, что у `overdue`, который
+ * этот путь уже прошёл.
+ */
+export type OriginFilter = '' | 'experimental' | 'production';
+
+export const ORIGIN_FILTER_LABELS: Record<Exclude<OriginFilter, ''>, string> = {
+  experimental: 'Только образцы (ЭКС)',
+  production: 'Только серия',
+};
+
 export interface StageFilters {
   /** Поиск: номер/название заказа, клиент, менеджер, изделие, материал */
   q: string;
@@ -83,6 +104,8 @@ export interface StageFilters {
    * 'stage' — сорван план этапа, 'unplanned' — плановой даты нет вовсе
    */
   overdue: OverdueFilter;
+  /** происхождение этапа: '' — любое, 'experimental' — образцы, 'production' — серия */
+  origin: OriginFilter;
   /** только готовые к запуску */
   readyOnly: boolean;
   /** только с проблемой: блокировка или возвращённый брак */
@@ -96,9 +119,20 @@ export const NO_ASSIGNEE = '__none__';
 export const EMPTY_FILTERS: StageFilters = {
   q: '', dept: '', status: '', assignee: '',
   dueFrom: '', dueTo: '',
-  overdue: '', readyOnly: false, problem: false,
+  overdue: '', origin: '', readyOnly: false, problem: false,
   sort: 'priority',
 };
+
+/**
+ * Происхождение этапа с умолчанием.
+ *
+ * `?? 'production'` обязателен: колонка `not null default 'production'`, но
+ * в типе поле опционально, и в фикстурах старых тестов его нет. Без умолчания
+ * отбор «только серия» молча терял бы каждый такой этап.
+ */
+export function entryOrigin(entry: QueueEntry): Exclude<OriginFilter, ''> {
+  return entry.stage.origin ?? 'production';
+}
 
 export const SORT_LABELS: Record<StageSort, string> = {
   priority: 'По приоритету',
@@ -194,6 +228,7 @@ export function filterEntries(
     if (f.dueFrom && (!due || due < f.dueFrom)) return false;
     if (f.dueTo && (!due || due > f.dueTo)) return false;
     if (!matchesOverdueFilter(e, f.overdue, now)) return false;
+    if (f.origin && entryOrigin(e) !== f.origin) return false;
     if (f.readyOnly && e.group !== 'ready') return false;
     if (f.problem && !hasProblem(e)) return false;
     return true;
@@ -237,7 +272,7 @@ export function applyStageFilters(
 export function hasActiveFilters(filters: StageFilters): boolean {
   return (
     Boolean(filters.q || filters.dept || filters.status || filters.assignee
-      || filters.dueFrom || filters.dueTo || filters.overdue)
+      || filters.dueFrom || filters.dueTo || filters.overdue || filters.origin)
     || filters.readyOnly || filters.problem
     || filters.sort !== EMPTY_FILTERS.sort
   );
@@ -249,6 +284,12 @@ const FLAGS = ['readyOnly', 'problem'] as const;
 const TEXTS = ['q', 'dept', 'status', 'assignee', 'dueFrom', 'dueTo'] as const;
 
 const OVERDUE_VALUES: OverdueFilter[] = ['any', 'order', 'stage', 'unplanned'];
+
+/**
+ * Белый список значений `origin` в адресе. Без него `?origin=мусор` дал бы
+ * молча пустую очередь — человек видит «работы нет» там, где она есть.
+ */
+const ORIGIN_VALUES: OriginFilter[] = ['experimental', 'production'];
 
 export function filtersFromParams(params: URLSearchParams): StageFilters {
   const out = { ...EMPTY_FILTERS };
@@ -266,6 +307,10 @@ export function filtersFromParams(params: URLSearchParams): StageFilters {
   if (overdue === '1') out.overdue = 'any';
   else if (overdue && OVERDUE_VALUES.includes(overdue as OverdueFilter)) {
     out.overdue = overdue as OverdueFilter;
+  }
+  const origin = params.get('origin');
+  if (origin && ORIGIN_VALUES.includes(origin as OriginFilter)) {
+    out.origin = origin as OriginFilter;
   }
   const sort = params.get('sort');
   if (sort === 'due' || sort === 'overdue' || sort === 'priority') out.sort = sort;
@@ -286,6 +331,7 @@ export function filtersToParams(filters: StageFilters): Record<string, string> {
   // 'any' пишется как '1' — тем же видом, что понимают старые ссылки
   if (filters.overdue === 'any') out.overdue = '1';
   else if (filters.overdue) out.overdue = filters.overdue;
+  if (filters.origin) out.origin = filters.origin;
   if (filters.sort !== EMPTY_FILTERS.sort) out.sort = filters.sort;
   return out;
 }
