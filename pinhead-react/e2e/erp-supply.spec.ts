@@ -1,0 +1,194 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, buildStages, FX_CREATED } from './support/mockSupabase';
+
+/**
+ * Закупка видит РАБОТУ, а не только материалы (правки заказчика 12.08).
+ *
+ * ЧТО ЭТО СТОРОЖИТ. Раздел «Закупка» был реестром строк `erp_materials`
+ * и об этапах маршрута не знал вовсе. Заказ, у которого закупка стоит первым
+ * этапом, а материалы ещё не заведены, не показывался НИГДЕ: в разделе
+ * закупки — потому что показывать было нечего, в очереди и на канбане —
+ * потому что участок непроизводственный и вырезан у всех потребителей.
+ * На боевой базе так стояли 33 этапа.
+ *
+ * Unit-стороже (`routeReachable`, `supply`) проверяют правило; здесь проверяется
+ * то, чего они по построению не видят: доходит ли заказ до ЭКРАНА и говорит ли
+ * строка вслух, что материалов нет. Дефект был именно такой — правило можно
+ * было прочитать в миграции, а экран его не исполнял.
+ *
+ * Заказы свои: базовые четыре держат visual-снапшоты и счётчики соседних спек.
+ */
+
+const FIXED_TIME = new Date('2026-07-20T09:00:00');
+
+/** Главный случай дефекта: закупка открыта, материалов НЕТ вовсе */
+const ORDER_NO_MATERIALS = {
+  id: 'ord-e',
+  bitrix_id: '55301',
+  title: 'Платки тест закупка',
+  customer: 'ООО «Ромашка»',
+  manager: 'Анна',
+  launch_date: '2026-07-18',
+  due_date: '2026-07-28',
+  buffer_days: 1,
+  priority: 0,
+  status: 'active',
+  shipped_status: 'not_shipped',
+  delivered_at: null,
+  shipped_at: null,
+  shipped_by: null,
+  notes: null,
+  packaging: 'none',
+  packaging_note: null,
+  stickers: 'none',
+  stickers_note: null,
+  no_chestny_znak: false,
+  created_by: null,
+  created_at: FX_CREATED,
+  updated_at: FX_CREATED,
+  items: [
+    {
+      id: 'ord-e-i1',
+      order_id: 'ord-e',
+      product_type: 'Платок',
+      variant: 'шёлк',
+      qty: 100,
+      production_type: 'cut',
+      branding_methods: [],
+      branding_on: 'cut',
+      notes: null,
+      size_grid: null,
+      sort_order: 10,
+      created_at: FX_CREATED,
+      updated_at: FX_CREATED,
+      stages: buildStages('ord-e-i1', [
+        { code: 'supply', status: 'ready' },
+        { code: 'cutting', status: 'waiting', deps: [0] },
+      ]),
+      prints: [],
+    },
+  ],
+  materials: [],
+  attachments: [],
+};
+
+/** Закупка взята в работу, материалы заведены частично */
+const ORDER_PARTIAL = {
+  ...ORDER_NO_MATERIALS,
+  id: 'ord-f',
+  bitrix_id: '55302',
+  title: 'Худи корпоратив «Вектор»',
+  due_date: '2026-07-31',
+  items: [
+    {
+      ...ORDER_NO_MATERIALS.items[0],
+      id: 'ord-f-i1',
+      order_id: 'ord-f',
+      product_type: 'Худи',
+      qty: 60,
+      stages: buildStages('ord-f-i1', [
+        { code: 'supply', status: 'in_progress' },
+        { code: 'cutting', status: 'waiting', deps: [0] },
+      ]),
+    },
+  ],
+  materials: [
+    {
+      id: 'ord-f-m1', order_id: 'ord-f', item_id: null, kind: 'fabric',
+      name: 'Футер петля, серый', source: 'purchase', qty: '90 кг',
+      qty_expected: 90, status: 'received', eta_date: null, received_at: FX_CREATED,
+      notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+    },
+    {
+      id: 'ord-f-m2', order_id: 'ord-f', item_id: null, kind: 'labels',
+      name: 'Бирки картонные', source: 'purchase', qty: '60 шт',
+      qty_expected: 60, status: 'pending', eta_date: '2026-07-25', received_at: null,
+      notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+    },
+  ],
+};
+
+const EXTRA = { orders: [ORDER_NO_MATERIALS, ORDER_PARTIAL] };
+
+test.beforeEach(async ({ page }) => {
+  await installSupabaseMock(page, EXTRA);
+  await page.clock.setFixedTime(FIXED_TIME);
+});
+
+/**
+ * Строка ИМЕННО очереди закупки.
+ *
+ * Область обязательна: ниже на том же экране стоит таблица закупочных строк,
+ * и в ней у того же заказа своя строка на каждый материал. Проверка без области
+ * находила три элемента и падала на strict mode — но хуже другое: она могла бы
+ * пройти на строке ТАБЛИЦЫ МАТЕРИАЛОВ, то есть на том самом реестре, из-за
+ * которого заказ без материалов и был невидим.
+ */
+const supplyRow = (page: import('@playwright/test').Page, title: string) =>
+  page.getByRole('region', { name: 'Заказы в закупке' })
+    .getByRole('row')
+    .filter({ hasText: title });
+
+test.describe('Очередь закупки (правка 12.08)', () => {
+  test('заказ БЕЗ материалов виден и говорит об этом прямо', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+
+    const block = page.getByRole('heading', { name: /В работе у закупки/ });
+    await expect(block).toBeVisible();
+
+    // Это и есть дефект: раньше такого заказа не было ни на одном экране
+    const row = supplyRow(page, 'Платки тест закупка');
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('материалы не заведены');
+  });
+
+  test('строка списка — ЗАКАЗ, а не этап и не материал', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+
+    // У заказа одна позиция → один этап закупки. Строка обязана быть одна,
+    // а число этапов — отдельной колонкой: заказ из трёх позиций дал бы
+    // три одинаковые строки с одним и тем же списком материалов
+    const rows = supplyRow(page, 'Платки тест закупка');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('1 позиция');
+  });
+
+  test('состояние закупки различает «ожидает» и «в работе»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+
+    await expect(supplyRow(page, 'Платки тест закупка')).toContainText('Ожидает');
+    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('В работе');
+  });
+
+  test('материалы показаны счётом «на месте из всего»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('1 из 2 на месте');
+  });
+
+  test('досрочное закрытие требует причины — иначе этап закрыт молча', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const row = supplyRow(page, 'Платки тест закупка');
+    await row.getByRole('button', { name: 'Закупка завершена' }).click();
+
+    // У заказа нет ни одного материала → закрытие досрочное и с объяснением
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('не заведено ни одного материала');
+    const input = dialog.getByLabel('Почему закупка завершена');
+    await expect(input).toBeVisible();
+
+    // Подтвердить без причины нельзя: через неделю «почему» должно отвечать
+    // не расследование, а история этапа
+    await expect(dialog.getByRole('button', { name: 'Завершить' })).toBeDisabled();
+    await input.fill('Материалы давальческие');
+    await expect(dialog.getByRole('button', { name: 'Завершить' })).toBeEnabled();
+  });
+
+  test('бейдж «Закупка» в меню считает заказы, ждущие закупки', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const link = page.getByRole('complementary').getByRole('link', { name: /Закупка/ });
+    await expect(link).toBeVisible();
+    // Два заказа с открытым этапом supply; дозакупок из брака в фикстуре нет.
+    // Раньше счётчик считал ТОЛЬКО дозакупки — и в разделе никто не появлялся
+    await expect(link).toContainText('2');
+  });
+});

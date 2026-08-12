@@ -39,7 +39,11 @@ const departmentsFx = DEPARTMENTS.map((d) => ({
   updated_at: CREATED,
 }));
 
-const deptId = (code: string) => `dep-${code}`;
+/** Идентификатор цеха в фикстурах — им же пользуются добавки спек */
+export const deptId = (code: string) => `dep-${code}`;
+
+/** Фиксированное «когда» для добавок: даты в фикстурах не дрейфуют */
+export const FX_CREATED = CREATED;
 
 type StageSpec = {
   code: string;
@@ -50,7 +54,7 @@ type StageSpec = {
 };
 
 /** Собирает этапы позиции, проставляя depends_on реальными id зависимостей. */
-function buildStages(itemId: string, specs: StageSpec[]) {
+export function buildStages(itemId: string, specs: StageSpec[]) {
   const ids = specs.map((_, i) => `${itemId}-st${i + 1}`);
   return specs.map((s, i) => ({
     id: ids[i],
@@ -442,28 +446,52 @@ const PLAN_SLOTS = [
   },
 ];
 
+/**
+ * Добавки к фикстурам — ТОЛЬКО для своей спеки.
+ *
+ * Базовый набор из четырёх заказов держит visual-снапшоты и счётчики
+ * в `erp-queue`/`erp-plan`: дописать туда пятый заказ ради одной проверки
+ * значит перекрасить эталоны половины прогона. Поэтому спека, которой нужны
+ * СВОИ данные, передаёт их сюда, а всем остальным мир остаётся прежним.
+ */
+export type MockExtras = {
+  /** Заказы, добавляемые к базовым четырём */
+  orders?: unknown[];
+  /** Разработки ЭКС (с эмбедом `tasks` и `order`) */
+  experimental?: unknown[];
+  /** Значения справочников — приезжают пакетом оболочки */
+  dictionaries?: unknown[];
+};
+
+type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
+
 /** Данные по таблице REST-запроса с учётом простых фильтров id/status. */
-function dataForTable(table: string, params: URLSearchParams): unknown[] {
+function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
   switch (table) {
     case 'erp_departments':
       return departmentsFx;
+    case 'erp_experimental':
+      // Разработки приезжают и пакетом оболочки, и этим запросом — на проде
+      // это один и тот же набор, и мок обязан повторять именно так
+      return extra.experimental ?? [];
     case 'erp_orders': {
+      const all = [...ORDERS, ...((extra.orders ?? []) as typeof ORDERS)] as unknown as OrderFx[];
       const idFilter = params.get('id');
       const statusFilter = params.get('status');
       if (idFilter?.startsWith('eq.')) {
         const id = idFilter.slice(3);
-        return ORDERS.filter((o) => o.id === id);
+        return all.filter((o) => o.id === id);
       }
       const bitrixFilter = params.get('bitrix_id');
       if (bitrixFilter?.startsWith('eq.')) {
         const value = bitrixFilter.slice(3);
-        return ORDERS.filter((o) => o.bitrix_id === value);
+        return all.filter((o) => o.bitrix_id === value);
       }
       // Демо отсекается В ЗАПРОСЕ (аудит 03.08.2026) — мок обязан это повторять,
       // иначе e2e проверяет путь, которого в приложении больше нет.
       const demoFilter = params.get('is_demo');
-      let rows = ORDERS;
-      if (demoFilter === 'eq.false') rows = rows.filter((o) => !(o as { is_demo?: boolean }).is_demo);
+      let rows = all;
+      if (demoFilter === 'eq.false') rows = rows.filter((o) => !o.is_demo);
       if (statusFilter === 'eq.active') return rows.filter((o) => o.status === 'active');
       if (statusFilter?.startsWith('neq.')) return rows.filter((o) => o.status !== 'active');
       return rows;
@@ -514,15 +542,19 @@ function dataForTable(table: string, params: URLSearchParams): unknown[] {
  * вместо цехов и держалось только на запасном пути в `loadAll`. То есть e2e
  * проверял НЕ ТОТ путь, по которому ходит прод.
  */
-function dataForRpc(fn: string, body: Record<string, unknown>): unknown {
+function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
   switch (fn) {
     case 'erp_bootstrap':
       return {
         departments: departmentsFx,
         permissions: [],       // пусто → клиент падает на DEFAULT_PERMISSIONS
-        dictionaries: [],
+        dictionaries: extra.dictionaries ?? [],
         subcontracting: [],
-        experimental: [],
+        // Пакет оболочки ставит `experimentalLoaded: true`, поэтому экран
+        // разработки берёт данные ОТСЮДА и второго запроса не делает.
+        // Мок, отдающий здесь пусто, показывал бы «Разработок пока нет»
+        // при заполненной таблице — то есть проверял бы не тот путь
+        experimental: extra.experimental ?? [],
         my_employee: null,     // без привязки к цеху, как у диспетчера
       };
     case 'erp_order_detail': {
@@ -537,7 +569,7 @@ function dataForRpc(fn: string, body: Record<string, unknown>): unknown {
 /**
  * Ставит все перехватчики Supabase на страницу. Вызывать в beforeEach ДО goto.
  */
-export async function installSupabaseMock(page: Page): Promise<void> {
+export async function installSupabaseMock(page: Page, extra: MockExtras = {}): Promise<void> {
   // Realtime websocket — глушим, чтобы не коннектиться к реальному серверу.
   await page.routeWebSocket(/realtime/, () => {
     /* mock-режим: к серверу не подключаемся, событий нет */
@@ -551,24 +583,40 @@ export async function installSupabaseMock(page: Page): Promise<void> {
   await page.route('**/storage/v1/**', (route: Route) =>
     route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
 
-  // REST (PostgREST) — фикстуры по таблице.
-  await page.route('**/rest/v1/rpc/**', (route: Route) => {
-    const fn = new URL(route.request().url()).pathname.split('/rpc/')[1] ?? '';
-    let payload: Record<string, unknown> = {};
-    try { payload = JSON.parse(route.request().postData() ?? '{}'); } catch { /* без тела */ }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(dataForRpc(fn, payload)),
-    });
-  });
-
+  /**
+   * REST (PostgREST) — ОДИН перехватчик на пакеты и на таблицы.
+   *
+   * Раньше их было два: `**\/rest\/v1\/rpc\/**` и общий `**\/rest\/v1\/**`.
+   * Playwright отдаёт запрос ПОСЛЕДНЕМУ подходящему обработчику, поэтому общий
+   * затенял частный, и `erp_bootstrap` отвечал `[]` — как таблица с именем
+   * `rpc/erp_bootstrap`. Пакет оболочки не срабатывал НИ РАЗУ: приложение
+   * молча уходило на запасной путь `loadAll`, то есть весь e2e проверял не тот
+   * путь, по которому ходит прод, — ровно то, что комментарий рядом обещал
+   * не допустить.
+   *
+   * Два перекрывающихся шаблона чинятся не порядком регистрации (порядок
+   * забывается при следующей правке), а отсутствием перекрытия: ветка одна,
+   * и выбирает она по пути запроса.
+   */
   await page.route('**/rest/v1/**', (route: Route) => {
     const url = new URL(route.request().url());
-    const table = url.pathname.split('/rest/v1/')[1]?.split('?')[0] ?? '';
+    const path = url.pathname.split('/rest/v1/')[1] ?? '';
+
+    if (path.startsWith('rpc/')) {
+      const fn = path.slice(4).split('?')[0];
+      let payload: Record<string, unknown> = {};
+      try { payload = JSON.parse(route.request().postData() ?? '{}'); } catch { /* без тела */ }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(dataForRpc(fn, payload, extra)),
+      });
+    }
+
+    const table = path.split('?')[0];
     const accept = route.request().headers()['accept'] ?? '';
     const single = accept.includes('vnd.pgrst.object');
-    const data = dataForTable(table, url.searchParams);
+    const data = dataForTable(table, url.searchParams, extra);
     const body = single ? JSON.stringify(data[0] ?? null) : JSON.stringify(data);
     return route.fulfill({
       status: 200,
