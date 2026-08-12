@@ -38,6 +38,9 @@ const LIST_CONSUMERS = [
   'erp/components/kanban/KanbanCard.jsx',
   'erp/screens/queue/QueueCard.jsx',
   'erp/screens/queue/QueueRow.jsx',
+  // TzBlock монтируется из StageActionsPanel — это и очередь цеха,
+  // и страница производственного задания; оба живут на ORDER_LIST_SELECT
+  'erp/screens/queue/TzBlock.jsx',
 ];
 
 describe('списочный запрос заказов', () => {
@@ -82,8 +85,7 @@ describe('списочный запрос заказов', () => {
   });
 
   it('убрана размерная сетка — её рисует только карточка', () => {
-    expect(ORDER_LIST_SELECT).not.toContain('size_grid');
-    expect(ORDER_SELECT).toContain('*'); // полный select её приносит
+    expect(ORDER_SELECT).toContain('*');
   });
 
   /**
@@ -113,6 +115,41 @@ describe('списочный запрос заказов', () => {
       expect(
         ORDER_LIST_SELECT.includes(col),
         `списочные экраны читают stage.${col}, но его нет в ORDER_LIST_SELECT — поле станет undefined молча`,
+      ).toBe(true);
+    }
+  });
+
+  /**
+   * Тот же сторож, но по полям ПОЗИЦИИ. Его не было, и через эту дыру
+   * проехал `size_grid`: колонку убрали из списочного запроса с пометкой
+   * «её рисует только карточка заказа», а её читали `QueueRow` (бейдж «ТЗ»)
+   * и `TzBlock` (таблица «Цв/Разм») — то есть очередь цеха и страница
+   * задания. Швея не видела размерную сетку вовсе, и ошибки при этом
+   * не было: отсутствующая колонка приезжает `undefined` молча.
+   *
+   * `QueueRow` при этом честно стоял в списке потребителей — сторож просто
+   * смотрел только на `stage.X`.
+   */
+  it('каждое поле позиции, читаемое списочными экранами, есть в списочном select', () => {
+    const itemFields = new Set<string>();
+    for (const rel of LIST_CONSUMERS) {
+      const file = join(SRC, rel);
+      let src: string;
+      try { src = readFileSync(file, 'utf8'); } catch { continue; }
+      for (const m of src.matchAll(/\b(?:item|it)\.([a-z_]{3,})\b/g)) itemFields.add(m[1]);
+    }
+    const ITEM_COLUMNS = new Set([
+      'id', 'order_id', 'product_type', 'variant', 'qty', 'production_type',
+      'branding_methods', 'branding_on', 'notes', 'sort_order',
+      'subcontract_kind', 'material_source', 'size_grid',
+    ]);
+    const used = [...itemFields].filter((f) => ITEM_COLUMNS.has(f));
+    expect(used.length, 'сторож не должен сторожить пустоту').toBeGreaterThan(3);
+
+    for (const col of used) {
+      expect(
+        ORDER_LIST_SELECT.includes(col),
+        `списочные экраны читают item.${col}, но его нет в ORDER_LIST_SELECT — поле станет undefined молча`,
       ).toBe(true);
     }
   });

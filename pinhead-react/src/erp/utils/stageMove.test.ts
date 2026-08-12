@@ -114,6 +114,44 @@ describe('analyzeStageMove — предупреждения', () => {
   });
 });
 
+/*
+ * Круг образца (`cycle`) — часть ключа этапа с 10.08:
+ * unique(item_id, department_id, cycle). Позиция ходит в один цех
+ * многократно, и всё, что ищет этап по паре «позиция + цех», обязано брать
+ * и круг. Здесь этого не было: `find` по одному `department_id` брал первый
+ * попавшийся круг, из-за чего расходились с сервером (`erp_stage_move_department`
+ * ищет `cycle = v_stage.cycle`) и текст подтверждения, и проверка
+ * «цель заблокирована», и признак возврата назад.
+ */
+describe('перенос учитывает круг образца (cycle)', () => {
+  it('этап другого круга в целевом цехе целью НЕ считается', () => {
+    const src = stage('cut', 10, { status: 'in_progress', qty_done: 100, cycle: 1 });
+    // В целевом цехе есть этап, но нулевого круга — он к этому переносу не относится
+    const otherCycle = stage('sew', 20, { cycle: 0, id: 'st-sew-c0' });
+    const plan = analyze(src, [src, otherCycle], 'sew');
+    expect(plan.targetStage, 'цель из чужого круга подхватывать нельзя').toBeNull();
+    expect(plan.issues.map((i) => i.kind)).toEqual(['new_stage']);
+  });
+
+  it('берётся этап СВОЕГО круга, а не первый попавшийся', () => {
+    const src = stage('cut', 10, { status: 'in_progress', qty_done: 100, cycle: 1 });
+    const wrong = stage('sew', 20, { cycle: 0, id: 'st-sew-c0', status: 'blocked' });
+    const right = stage('sew', 20, { cycle: 1, id: 'st-sew-c1' });
+    const plan = analyze(src, [src, wrong, right], 'sew');
+    expect(plan.targetStage?.id).toBe('st-sew-c1');
+    // Заблокированный этап ЧУЖОГО круга не должен запрещать перенос
+    expect(plan.allowed).toBe(true);
+    expect(plan.issues.map((i) => i.kind)).not.toContain('blocked_target');
+  });
+
+  it('серийная позиция без cycle ведёт себя как нулевой круг', () => {
+    const src = stage('cut', 10, { status: 'in_progress', qty_done: 100 });
+    const target = stage('sew', 20);
+    const plan = analyze(src, [src, target], 'sew');
+    expect(plan.targetStage?.id).toBe('st-sew');
+  });
+});
+
 describe('moveConfirmMessage', () => {
   it('главный вопрос + последствия одной строкой', () => {
     const s = stage('emb', 20, { status: 'in_progress', qty_done: 40 });

@@ -4,7 +4,8 @@
  * Прогресс считается в штуках — см. utils/progress.ts (правка 7).
  */
 
-import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
+import type { ErpBypass, ErpItemStage, ErpMaterial, StageStatus } from '../types';
+import { isBypassed } from './bypass';
 import { isMaterialPending } from './routes';
 
 /** Статус этапа → класс чипа из erp.module.css */
@@ -134,4 +135,47 @@ export function orderOverdueDays(
   daysLeftValue: number | null,
 ): number {
   return isOrderOverdue(order, daysLeftValue) ? -(daysLeftValue as number) : 0;
+}
+
+/**
+ * Гейт отгрузки С УЧЁТОМ аварийного снятия — то, что должна спрашивать кнопка.
+ *
+ * `ordersSlice.shipOrder` снятие учитывает (`isBypassed('ship_gate', …)`),
+ * а все три кнопки отгрузки — `warehouse/PackShipCard`, `orders/OrderRow`,
+ * `orders/OrderCardMobile` — звали голый `isOrderReadyToShip`. Директор снимал
+ * проверку в админке, с обязательной причиной, запись уходила в `erp_bypasses` —
+ * и не менялось ничего: кнопка оставалась `disabled`, рядом висело «Не все
+ * этапы/материалы готовы». Снятие, которое ничего не снимает, хуже отсутствия
+ * снятия: человек считает, что действие разрешил, и ждёт результата.
+ *
+ * Расчёт держим здесь, а не в компонентах: девять мест применения гейтов —
+ * ровно та причина, по которой `utils/bypass` вообще заведён отдельным модулем.
+ *
+ * ВАЖНО: это гейт ДЕЙСТВИЯ. Расчёт просрочки (`isOrderOverdue`) снятие
+ * не спрашивает намеренно — иначе снятие задним числом объявляло бы
+ * просроченный заказ непросроченным.
+ */
+export function canShipOrder(
+  order: OrderShipReadiness & { id: string },
+  bypasses: ErpBypass[] | null | undefined,
+): boolean {
+  return isOrderReadyToShip(order) || isBypassed('ship_gate', order.id, bypasses);
+}
+
+/**
+ * Причина отказа с учётом снятия: если проверка снята — причины нет.
+ * Второе значение объясняет цеху, ПОЧЕМУ кнопка активна вопреки незакрытым
+ * этапам: молча снятая блокировка — тот же баг, только необъяснимый.
+ */
+export function shipGateState(
+  order: OrderShipReadiness & { id: string },
+  bypasses: ErpBypass[] | null | undefined,
+): { canShip: boolean; blockReason: string | null; bypassed: boolean } {
+  const ready = isOrderReadyToShip(order);
+  const bypassed = !ready && isBypassed('ship_gate', order.id, bypasses);
+  return {
+    canShip: ready || bypassed,
+    blockReason: ready || bypassed ? null : shipBlockReason(order),
+    bypassed,
+  };
 }

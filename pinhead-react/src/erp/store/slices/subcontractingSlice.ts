@@ -115,10 +115,31 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   subcontractingLoaded: false,
 
   loadSubcontracting: async () => {
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_subcontracting')
-      .select('*, order:erp_orders (title, bitrix_id)')
-      .order('created_at', { ascending: false }));
+    /*
+     * Тестовые заказы отсекаются В САМОМ ЗАПРОСЕ, как и в списке заказов.
+     *
+     * Фильтр `is_demo` стоял только в `ordersSlice` и в realtime, а этот экран
+     * строит строки из СВОЕГО запроса и о заказе из стора не спрашивает.
+     * Админ помечал заказ тестовым («заказ пропадёт из рабочих списков»),
+     * тот исчезал из /orders, канбана, очередей и плана — и оставался
+     * в «Подряде» строкой, неотличимой от боевой, попадая в воронку фаз.
+     * Ровно то, о чём записано правило: их пятнадцать, и один забытый
+     * показывает демо как боевую работу.
+     *
+     * `!inner` безопасен: `order_id` в таблице NOT NULL, строк без заказа
+     * не бывает, и внутреннее соединение ничего не теряет.
+     */
+    const showDemo = get().showDemoOrders;
+    // Строки select — ЛИТЕРАЛЫ: supabase-js выводит типы ответа из текста
+    // запроса, и собранная строка обнуляет вывод (GenericStringError)
+    const { data, error } = await erpQuery(() => (showDemo
+      ? supabase.from('erp_subcontracting')
+        .select('*, order:erp_orders (title, bitrix_id)')
+        .order('created_at', { ascending: false })
+      : supabase.from('erp_subcontracting')
+        .select('*, order:erp_orders!inner (title, bitrix_id)')
+        .eq('order.is_demo', false)
+        .order('created_at', { ascending: false })));
     if (error) {
       toast.error('Не удалось загрузить операции подряда');
       return;

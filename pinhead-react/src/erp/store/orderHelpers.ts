@@ -52,7 +52,16 @@ export const ORDER_SELECT = `
  *   · `stages.notes` — не отображается нигде вообще;
  *   · `stages.created_at`, `items.created_at/updated_at` — тоже никем не читаются
  *     (`stages.updated_at` ЧИТАЕТСЯ карточкой канбана и остаётся);
- *   · `items.size_grid` — размерная сетка, её рисует только карточка заказа.
+ *
+ * `items.size_grid` ОТСЮДА УБИРАТЬ НЕЛЬЗЯ, хотя когда-то было убрано с
+ * пометкой «её рисует только карточка заказа». Это неправда: сетку читают
+ * три списочных потребителя — `queue/QueueRow.jsx` (бейдж «ТЗ» у позиции)
+ * и `queue/TzBlock.jsx` (таблица «Цв/Разм»), а `TzBlock` монтируется из
+ * `StageActionsPanel`, то есть и в очереди цеха, и на странице
+ * производственного задания. Оба экрана грузят данные ТОЛЬКО через
+ * `loadAll()`, то есть этим запросом. Швея открывала задание и не видела
+ * размерную сетку вовсе — при том, что в карточке заказа она есть,
+ * и объяснить это расхождение человеку было нечем.
  *
  * Что осталось и почему: `overdue_comment` показывает карточка очереди,
  * `procurement_tasks` нужны причине ожидания, `tz_documents` — гейту ТЗ,
@@ -69,7 +78,7 @@ export const ORDER_LIST_SELECT = `
   items:erp_order_items (
     id, order_id, product_type, variant, qty, production_type,
     branding_methods, branding_on, notes, sort_order,
-    subcontract_kind, material_source,
+    subcontract_kind, material_source, size_grid,
     stages:erp_item_stages (
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
       planned_start, planned_end, started_at, finished_at, assignee,

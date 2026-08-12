@@ -32,6 +32,17 @@ const EXP_SELECT = `
   order:erp_orders (title, bitrix_id, due_date)
 `;
 
+/**
+ * То же дерево, но с ВНУТРЕННИМ соединением заказа — чтобы отсечь тестовые
+ * заказы фильтром `order.is_demo`. `order_id` в таблице NOT NULL, поэтому
+ * внутреннее соединение не теряет ни одной строки.
+ */
+const EXP_SELECT_NO_DEMO = `
+  *,
+  tasks:erp_experimental_tasks (*),
+  order:erp_orders!inner (title, bitrix_id, due_date)
+`;
+
 /** Точечная замена задачи в списке разработок (не трогая соседние) */
 function patchTaskIn(
   list: ErpExperimental[],
@@ -49,10 +60,18 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   experimentalLoaded: false,
 
   loadExperimental: async () => {
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_experimental')
-      .select(EXP_SELECT)
-      .order('created_at', { ascending: false }));
+    // Тестовые заказы — мимо экрана, тем же правилом, что в списке заказов
+    // и в подряде (см. комментарий в subcontractingSlice.loadSubcontracting).
+    // `order_id` здесь NOT NULL, поэтому `!inner` ничего не теряет.
+    // Строки select — ЛИТЕРАЛЫ, а не собранная строка: supabase-js выводит типы
+    // ответа из самого текста запроса, и вычисленная строка даёт GenericStringError
+    const showDemo = get().showDemoOrders;
+    const { data, error } = await erpQuery(() => (showDemo
+      ? supabase.from('erp_experimental').select(EXP_SELECT)
+        .order('created_at', { ascending: false })
+      : supabase.from('erp_experimental').select(EXP_SELECT_NO_DEMO)
+        .eq('order.is_demo', false)
+        .order('created_at', { ascending: false })));
     if (error) {
       erpError('Не удалось загрузить экспериментальный цех', error);
       return;

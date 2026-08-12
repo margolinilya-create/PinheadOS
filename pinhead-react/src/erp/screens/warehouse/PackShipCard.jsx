@@ -1,5 +1,6 @@
 import { formatDateShort } from '../../utils/time';
-import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
+import { shipGateState } from '../../utils/stageUi';
+import { useErpStore } from '../../store/useErpStore';
 import { PACK_SHIP_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Button } from '../../components/Button';
@@ -23,8 +24,11 @@ export function PackShipCard({ order, task, onAdvance }) {
   const idx = FLOW.indexOf(task.status);
   const next = FLOW[idx + 1];
   const isShipStep = task.status === 'ready_to_ship';
-  const shipReady = isOrderReadyToShip(order);
-  const blockReason = shipBlockReason(order);
+  // Снятие проверки отгрузки (аварийный режим) обязано доходить до КНОПКИ,
+  // а не только до `shipOrder`: иначе директор снял блокировку, а кладовщик
+  // по-прежнему видит `disabled` и «Не все этапы/материалы готовы».
+  const bypasses = useErpStore((s) => s.bypasses);
+  const { canShip: shipReady, blockReason, bypassed } = shipGateState(order, bypasses);
   const ops = [...(order.warehouse_ops ?? [])]
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 
@@ -53,6 +57,11 @@ export function PackShipCard({ order, task, onAdvance }) {
           {/* Кладовщику видна конкретная причина, а не просто отсутствие кнопки */}
           {isShipStep && !shipReady && (
             <span className={styles.subText}>{blockReason ?? 'Не все этапы/материалы готовы'}</span>
+          )}
+          {/* Снятая блокировка объясняется прямо здесь: молча снятая проверка —
+              тот же дефект, только необъяснимый */}
+          {isShipStep && bypassed && (
+            <span className={styles.subText}>Проверка готовности снята вручную</span>
           )}
         </div>
       )}

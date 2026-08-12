@@ -1333,16 +1333,26 @@ describe('облегчённый списочный запрос (D2)', () => {
   const dept = { id: 'd1', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 10 };
   const row = { id: 'o-a', title: 'Активный', status: 'active', items: [], materials: [] };
 
-  it('loadAll просит списочный select, без размерной сетки', async () => {
+  it('loadAll просит списочный select — поимённо, со всем, что читают экраны', async () => {
     h.tableData = { erp_departments: [dept], erp_orders: [row] };
     await useErpStore.getState().loadAll();
     const call = h.selectCols.find((c) => c.table === 'erp_orders');
     expect(call).toBeTruthy();
-    expect(call!.cols).not.toContain('size_grid');
+    // Смысл списочного запроса — брать этапы ПОИМЁННО, а не звёздочкой
+    expect(call!.cols).not.toMatch(/stages:erp_item_stages \(\*\)/);
     // Гейты и очередь без этих колонок сломались бы молча
     expect(call!.cols).toContain('overdue_comment');
     expect(call!.cols).toContain('queue_position');
     expect(call!.cols).toContain('procurement_tasks');
+    /*
+     * `size_grid` обязан ехать в СПИСОЧНОМ запросе. Здесь стояло обратное
+     * утверждение — «без размерной сетки», — и оно закрепляло дефект:
+     * сетку читают `queue/QueueRow` (бейдж «ТЗ») и `queue/TzBlock`
+     * (таблица «Цв/Разм»), а TzBlock монтируется из StageActionsPanel,
+     * то есть в очереди цеха и на странице задания. Оба экрана грузятся
+     * ТОЛЬКО через loadAll — швея не видела размерную сетку вовсе.
+     */
+    expect(call!.cols).toContain('size_grid');
   });
 
   it('loadAll НЕ помечает заказы как загруженные полностью', async () => {

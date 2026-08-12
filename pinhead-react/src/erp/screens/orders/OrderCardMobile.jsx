@@ -2,7 +2,8 @@ import { useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
-import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
+import { STAGE_CHIP_CLASS, canShipOrder, isOrderReadyToShip } from '../../utils/stageUi';
+import { useErpStore } from '../../store/useErpStore';
 import { orderProgress } from '../../utils/progress';
 import { orderLinkClick } from '../../store/useOrderDrawer';
 import { hasOpenProcurement } from '../../utils/routes';
@@ -21,14 +22,19 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
   );
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
   const progress = orderProgress(order);
+  // «Готов к отгрузке» — признак для глаз, его видят все.
   const ready = isOrderReadyToShip(order);
+  // А вот РАЗРЕШЕНО ли отгружать — с учётом аварийно снятой проверки:
+  // `shipOrder` снятие спрашивает, значит и кнопка обязана.
+  const bypasses = useErpStore((s) => s.bypasses);
+  const shipAllowed = canShipOrder(order, bypasses);
   /**
    * Готовность и ПРАВО отгрузить — разное. Признак «готов к отгрузке»
    * видят все: цеху полезно знать, что заказ дособран. Кнопку показываем
    * только тем, кому отгрузка разрешена (`onShip` приходит null без права),
    * иначе она отвечала бы отказом стража заказа.
    */
-  const canShip = ready && Boolean(onShip);
+  const canShip = shipAllowed && Boolean(onShip);
 
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
