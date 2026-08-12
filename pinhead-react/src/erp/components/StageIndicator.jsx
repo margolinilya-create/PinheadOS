@@ -2,19 +2,22 @@ import styles from '../erp.module.css';
 import { Icon } from './Icon';
 
 /**
- * Индикатор стадий — единственная реализация на все три вида в ERP.
+ * Индикатор стадий — единственная реализация на оба вида в ERP.
  *
- * Раньше это были три независимых компонента (`Stepper` для подряда, `Pipeline`
- * для эксперим. цеха, лента точек в карточке заказа): один и тот же смысл —
- * «горизонтальная последовательность стадий с соединителями» — жил в трёх местах,
- * и правка индикатора требовала трёх правок.
+ * Раньше это были независимые компоненты (`Stepper` для подряда, лента точек
+ * в карточке заказа): один и тот же смысл — «горизонтальная последовательность
+ * стадий с соединителями» — жил в нескольких местах, и правка индикатора
+ * требовала нескольких правок.
  *
- * Три ВИДА при этом сохранены осознанно (`docs/DESIGN.md` описывает их как три
- * паттерна) — они отвечают на разные вопросы:
+ * Виды отвечают на разные вопросы и потому сохранены оба:
  * - `dots` — «где сейчас эта позиция»: точки этапов маршрута с галочкой у пройденных;
- * - `funnel` — «сколько операций в каждой фазе»: нумерованная воронка со счётчиками;
- * - `pipeline` — «как разработки распределены по фазам»: узлы со стрелками
- *   и боковым узлом возврата.
+ * - `funnel` — «сколько единиц на каждом шаге»: нумерованная воронка со счётчиками.
+ *
+ * Третий вид, `pipeline`, УДАЛЁН 12.08 вместе с фазовой моделью эксперим. цеха:
+ * он рисовал распределение разработок по пяти фазам и боковой узел «возврат
+ * конструктору», а фазы не хранятся вовсе — состояние вычисляется из задач
+ * (`utils/experimentalTasks.devState`). После удаления `ExperimentalCard.jsx`
+ * вид остался без единого вызова, и держал его только собственный тест.
  *
  * Узел: `{ key, label, count?, icon?, state?, title?, lineDone? }`,
  * где `state` — 'done' | 'active' | 'blocked' | undefined.
@@ -57,21 +60,7 @@ function FunnelNodes({ nodes }) {
   ));
 }
 
-function PipeNode({ node, aside = false }) {
-  const cls = [
-    styles.pipeNode,
-    !aside && node.count > 0 && styles.pipeNodeActive,
-    aside && styles.pipeNodeAside,
-  ].filter(Boolean).join(' ');
-  return (
-    <span className={cls}>
-      <span className={styles.pipeCount}>{node.count}</span>
-      <span className={styles.pipeLabel}>{node.icon && <Icon name={node.icon} size={15} />}{node.label}</span>
-    </span>
-  );
-}
-
-export function StageIndicator({ variant, nodes, title, aside, label }) {
+export function StageIndicator({ variant, nodes, title, label }) {
   if (variant === 'funnel') {
     return (
       <div className={styles.numStepper}>
@@ -79,23 +68,6 @@ export function StageIndicator({ variant, nodes, title, aside, label }) {
         <div className={styles.numStepperTrack}>
           <FunnelNodes nodes={nodes} />
         </div>
-      </div>
-    );
-  }
-
-  if (variant === 'pipeline') {
-    return (
-      <div className={styles.pipeline}>
-        {nodes.map((n, i) => (
-          <span key={n.key} className={styles.pipeNodeWrap}>
-            <PipeNode node={n} />
-            {i < nodes.length - 1 && (
-              <span className={styles.pipeArrow} aria-hidden="true">→</span>
-            )}
-          </span>
-        ))}
-        {/* Боковой узел (возврат конструктору) — вне цепочки, поэтому без стрелки */}
-        {aside && aside.count > 0 && <PipeNode node={aside} aside />}
       </div>
     );
   }
