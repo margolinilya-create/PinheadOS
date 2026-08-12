@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { latestDefining, latestMatching } from './migrations.testutil';
+import { latestDefining, latestMatching, tableColumns } from './migrations.testutil';
 import { ERP_PERMISSIONS, ERP_PERMISSION_LABELS, EMPLOYEE_ROLE_LABELS } from '../types';
 import { DEFAULT_PERMISSIONS } from './permissions';
 import type { EmployeeRole } from '../types';
@@ -210,8 +210,9 @@ describe('решения заказчика по матрице (10.08)', () => 
  * колонку, которой в страже нет, право на неё молча перестанет проверяться —
  * ровно тот способ, которым дыры и возвращаются.
  */
-describe('стражи покрывают колонки, которые пишет стор', () => {
-  const stageSlice = readFileSync(join(SRC, 'erp/store/slices/stagesSlice.ts'), 'utf8');
+// Название именно «все колонки», а не «которые пишет стор»: гейт по тому,
+// дошли ли до колонки руки клиента, убран — см. комментарий у проверки ниже.
+describe('стражи покрывают ВСЕ колонки охраняемых таблиц', () => {
   /**
    * Действующая версия стража — ПОСЛЕДНЯЯ миграция, которая его пересоздаёт.
    *
@@ -242,18 +243,47 @@ describe('стражи покрывают колонки, которые пиш�
     expect(GUARDED_BLOCK).toContain('new.status');
   });
 
-  it('каждая колонка erp_item_stages из стора либо охраняется, либо явно исключена', () => {
-    // Патчи стора — литералы вида `qty_done: …` внутри Partial<ErpItemStage>
-    const written = new Set<string>();
-    for (const m of stageSlice.matchAll(/^\s{4,}(\w+):\s/gm)) written.add(m[1]);
+  it('КАЖДАЯ колонка erp_item_stages либо охраняется, либо явно исключена', () => {
+    /*
+     * Проверяются ВСЕ колонки таблицы, а не «те, что пишет стор».
+     *
+     * Здесь было два независимых сужения, и вместе они сводили сторожа
+     * почти к нулю. Первое — захардкоженный список из 13 имён при 22 колонках
+     * (без `cycle` и `origin`, то есть без тех самых, чей незащищённый UPDATE
+     * и был дефектом). Второе, менее заметное и более вредное, — гейт
+     * `if (!written.has(col)) continue`, где `written` собирался регуляркой
+     * по литералам `имя: значение` в тексте слайса. Стор пишет колонки
+     * спредом (`{ status, ...fields }`, `extra`, готовый `patch`), поэтому
+     * регулярка находила ПЯТЬ имён из двадцати двух. Сторож с названием
+     * «каждая колонка» проверял пять и был зелёным.
+     *
+     * Гейт по «пишет ли стор» убран совсем: правило раздела — «колонка,
+     * добавленная в erp_item_stages, попадает в v_guarded ТЕМ ЖЕ коммитом».
+     * Оно про КОЛОНКУ, а не про то, дошли ли до неё руки клиента: сегодня
+     * её не пишет никто, а завтра допишут, и страж об этом не узнает.
+     * Теперь новая колонка обязана получить решение — охраняем или явно
+     * исключаем, — иначе тест красный.
+     */
 
-    const stageColumns = [
-      'status', 'qty_done', 'qty_rework', 'queue_position', 'department_id',
-      'assignee', 'block_reason', 'started_at', 'finished_at',
-      'overdue_ack_at', 'overdue_comment', 'planned_start', 'planned_end',
-    ];
+    /*
+     * Список колонок берётся ИЗ СХЕМЫ, а не перечисляется руками.
+     *
+     * Здесь стоял захардкоженный список из 13 имён при 22 колонках таблицы.
+     * В нём не было ни `cycle`, ни `origin` — то есть тест по построению
+     * не мог поймать дефект, который эти две колонки и породили: UPDATE,
+     * трогающий только их, не проверялся стражем вообще ничем, и любой
+     * участник менял цикл чужого этапа или переписывал origin с «образца»
+     * на «производство». Сторож при этом был зелёный.
+     *
+     * Колонка, добавленная в таблицу и начатая писаться стором, теперь
+     * попадает под проверку сама — без правки этого файла.
+     */
+    const stageColumns = [...tableColumns('erp_item_stages')];
+    // Сторож не должен сторожить пустоту: если разбор схемы сломается,
+    // список станет пустым и цикл ниже не проверит НИЧЕГО
+    expect(stageColumns.length, 'колонки erp_item_stages не прочитались из миграций')
+      .toBeGreaterThan(15);
     for (const col of stageColumns) {
-      if (!written.has(col)) continue;
       if (UNGUARDED.includes(col)) {
         expect(GUARDED_BLOCK, `колонка ${col} не должна охраняться`).not.toContain(`new.${col}`);
       } else if (PLANNED.includes(col)) {
