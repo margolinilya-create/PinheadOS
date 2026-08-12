@@ -143,6 +143,34 @@ describe('решения заказчика по матрице (10.08)', () => 
     expect(DEFAULT_PERMISSIONS.production_head).toContain('catalog.edit');
   });
 
+  it('закупщик закрывает свой этап, кладовщик — нет (12.08)', () => {
+    /**
+     * «Закупка» — обычный этап маршрута, и без `stage.complete` закупщик
+     * получал 42501 от стража на СВОЁМ этапе: ветка `new.status = 'done'`
+     * требует `v_complete or v_progress`, а у роли стояли только
+     * `material.receive`, `warehouse.manage` и `stage.block`.
+     *
+     * Кладовщику то же самое НЕ даётся: этапа в маршруте у склада нет,
+     * его задачи гейтятся `warehouse.manage`. Право, которое ничего
+     * не открывает, — та самая декоративность.
+     */
+    expect(DEFAULT_PERMISSIONS.purchaser).toContain('stage.complete');
+    expect(DEFAULT_PERMISSIONS.purchaser).toContain('stage.take');
+    expect(DEFAULT_PERMISSIONS.storekeeper).not.toContain('stage.complete');
+
+    // Результат в штуках закупка не выпускает, брак не оформляет
+    expect(DEFAULT_PERMISSIONS.purchaser).not.toContain('stage.progress');
+    expect(DEFAULT_PERMISSIONS.purchaser).not.toContain('stage.defect');
+  });
+
+  it('права закупщика проставлены миграцией, а не только в дефолтах', () => {
+    // Дефолты работают, лишь пока матрица не загрузилась; на сервере
+    // источник правды — таблица, и расхождение даёт «кнопка есть, 42501»
+    expect(ALL_SQL).toMatch(
+      /erp_role_permissions[\s\S]{0,400}'purchaser'[\s\S]{0,300}'stage\.complete'/,
+    );
+  });
+
   it('складское право засеяно в матрице', () => {
     /**
      * Ищем ФАКТ засева по всем миграциям, а не «в последней, где право

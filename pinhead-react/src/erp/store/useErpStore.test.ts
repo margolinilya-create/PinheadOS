@@ -2149,6 +2149,79 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       (c) => c.table === 'erp_item_stages' && c.patch.status === 'done');
     expect(stageDone).toBeTruthy();
   });
+
+  /**
+   * Явное закрытие закупки (правки заказчика 12.08).
+   *
+   * До него единственным путём был побочный эффект `maybeCloseSupply` внутри
+   * правки материала, и он требовал непустого списка. У заказа, которому
+   * закупка не нужна или ведётся вне системы, этап не закрывался НИКОГДА,
+   * и весь маршрут за ним стоял.
+   */
+  describe('закупка закрывается и явным действием', () => {
+    const supplyStage = (patch: object = {}) => ({
+      id: 'st-sup', item_id: 'it1', department_id: 'd-sup', depends_on: [],
+      status: 'waiting', qty_done: 0, qty_rework: 0, sort_order: 10, ...patch,
+    });
+    const seed = (stages: object[], materials: object[] = []) => {
+      useErpStore.setState({
+        orders: [{
+          id: 'o1', title: 'З', status: 'active',
+          items: [{ id: 'it1', order_id: 'o1', stages }],
+          materials,
+        }] as any,
+        departments: depts as any, loaded: true,
+      });
+    };
+    const doneCalls = () => h.updateCalls.filter(
+      (c) => c.table === 'erp_item_stages' && c.patch.status === 'done');
+
+    it('закрывает заказ БЕЗ материалов — тот самый застрявший случай', async () => {
+      seed([supplyStage()]);
+      const ok = await useErpStore.getState().closeSupply('o1', 'Давальческое сырьё');
+      expect(ok).toBe(true);
+      expect(doneCalls()).toHaveLength(1);
+    });
+
+    it('без комментария не закрывает', async () => {
+      // Этап закрывается досрочно — «почему» должно отвечать не расследование
+      seed([supplyStage()]);
+      const ok = await useErpStore.getState().closeSupply('o1', '   ');
+      expect(ok).toBe(false);
+      expect(doneCalls()).toHaveLength(0);
+      expect(toast.error).toHaveBeenCalled();
+    });
+
+    it('закрывает ВСЕ открытые этапы закупки заказа', async () => {
+      // Этап заводится на каждую позицию, а закупка ведётся по заказу целиком
+      seed([
+        supplyStage({ id: 'a' }),
+        supplyStage({ id: 'b', status: 'in_progress' }),
+        supplyStage({ id: 'c', status: 'done' }),
+      ]);
+      await useErpStore.getState().closeSupply('o1', 'Материалы у клиента');
+      expect(doneCalls()).toHaveLength(2);
+    });
+
+    it('takeSupply переводит незакрытые этапы в работу', async () => {
+      seed([supplyStage({ id: 'a' }), supplyStage({ id: 'b', status: 'in_progress' })]);
+      const ok = await useErpStore.getState().takeSupply('o1');
+      expect(ok).toBe(true);
+      const started = h.updateCalls.filter(
+        (c) => c.table === 'erp_item_stages' && c.patch.status === 'in_progress');
+      // Только 'a': повторный перевод уже взятого — лишний запрос
+      expect(started).toHaveLength(1);
+    });
+
+    it('takeSupply не трогает заблокированный этап', async () => {
+      // Сначала снимают блокировку — иначе «взял в работу» прячет проблему
+      seed([supplyStage({ id: 'a', status: 'blocked' })]);
+      expect(await useErpStore.getState().takeSupply('o1')).toBe(false);
+      expect(h.updateCalls.filter(
+        (c) => c.table === 'erp_item_stages' && c.patch.status === 'in_progress',
+      )).toHaveLength(0);
+    });
+  });
 });
 
 describe('orderHelpers — счётчики разделов (сайдбар редизайна)', () => {
@@ -2175,6 +2248,37 @@ describe('orderHelpers — счётчики разделов (сайдбар р�
       { status: 'new' }, { status: 'ordered' }, { status: 'done' }, { status: 'cancelled' },
     ] })];
     expect(openProcurementCount(orders as any)).toBe(2);
+  });
+
+  /**
+   * Бейдж «Закупка» считал ТОЛЬКО дозакупки, а они заводятся исключительно
+   * из брака. Заказ, у которого закупка — первый этап маршрута, счётчик
+   * не увеличивал вовсе, поэтому пункт меню молчал ровно тогда, когда работа
+   * там была: 33 заказа на боевой базе стояли при нуле на бейдже.
+   */
+  it('openProcurementCount: заказы с открытым этапом «Закупка» тоже считаются', () => {
+    const DEPTS = [{ id: 'd-supply', code: 'supply' }, { id: 'd-cut', code: 'cut' }];
+    const stage = (p: object) => ({ department_id: 'd-supply', status: 'waiting', ...p });
+    const orders = [
+      // Ждёт закупки, материалов нет вовсе — тот самый пропадавший заказ
+      active({ items: [{ stages: [stage({})] }] }),
+      // Закупка закрыта — работы нет
+      active({ items: [{ stages: [stage({ status: 'done' })] }] }),
+      // Три позиции = три этапа, но заказ один: считаем ЗАКАЗЫ
+      active({ items: [
+        { stages: [stage({})] }, { stages: [stage({})] }, { stages: [stage({})] },
+      ] }),
+    ];
+    expect(openProcurementCount(orders as any, DEPTS as any)).toBe(2);
+  });
+
+  it('openProcurementCount: без справочника цехов считает только дозакупки', () => {
+    // Справочник может не загрузиться; бейдж обязан это пережить, а не упасть
+    const orders = [active({
+      procurement_tasks: [{ status: 'new' }],
+      items: [{ stages: [{ department_id: 'd-supply', status: 'waiting' }] }],
+    })];
+    expect(openProcurementCount(orders as any)).toBe(1);
   });
 
   it('openSubcontractCount: активные операции (не returned/received/cancelled)', () => {

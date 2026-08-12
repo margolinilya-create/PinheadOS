@@ -15,6 +15,9 @@ import { stageOverdue } from '../utils/time';
 // касается тяжёлых модулей: копия этого switch здесь была бы вторым источником
 // правды ровно того рода, из-за которого фаза и разъехалась со статусом.
 import { isSubcontractTerminal, subcontractPhase } from '../utils/subcontractPhase';
+// Модуль-лист без зависимостей: закупка как этап маршрута считается ОДИН раз
+// и одинаково в бейдже меню, на экране закупки и в автозакрытии
+import { ordersAwaitingSupply } from '../utils/supply';
 import type { ErpBypass, ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
 
@@ -307,9 +310,25 @@ export function openWarehouseTaskCount(orders: ErpOrderFull[]): number {
   return n;
 }
 
-/** Открытых задач закупки (дозакупка/замена, не done/cancelled) у активных заказов — бейдж «Закупка» */
-export function openProcurementCount(orders: ErpOrderFull[]): number {
-  let n = 0;
+/**
+ * Работы у закупки — бейдж «Закупка».
+ *
+ * Считаются ДВЕ разные вещи, и обе обязаны попадать на бейдж:
+ *  · заказы с открытым этапом «Закупка» — основная работа участка;
+ *  · открытые задачи дозакупки и замены (заводятся из брака).
+ *
+ * Раньше считалось только второе. Дозакупка бывает редко, а закупка первым
+ * этапом маршрута — постоянно, поэтому пункт меню молчал ровно тогда, когда
+ * работа там была: 33 заказа на боевой базе стояли, и бейдж показывал ноль.
+ *
+ * `departments` — параметр, а не поиск по коду внутри: цех берётся из данных
+ * (`utils/supply.findSupplyDept`), и обойтись без справочника нельзя.
+ */
+export function openProcurementCount(
+  orders: ErpOrderFull[],
+  departments: ErpDepartment[] | null | undefined = null,
+): number {
+  let n = ordersAwaitingSupply(orders, departments).length;
   for (const o of orders) {
     if (o.status !== 'active') continue;
     for (const t of o.procurement_tasks ?? []) {

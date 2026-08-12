@@ -18,6 +18,8 @@ import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
 import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
+import { SupplyQueue } from './purchasing/SupplyQueue';
+import { findSupplyDept, ordersAwaitingSupply } from '../utils/supply';
 import { formatDateShort, procurementSla } from '../utils/time';
 import {
   MATERIAL_STATUS_LABELS,
@@ -92,11 +94,17 @@ const EMPTY_MAT = {
   color: '', article: '', qty: '', qty_expected: '', unit: '', price_per_unit: '', eta_date: '',
 };
 
-/** Модалка «Новая закупка» */
-function AddPurchaseModal({ orders, onAdd, onClose }) {
+/**
+ * Модалка «Новая закупка».
+ *
+ * `orderId` предвыбирает заказ: из очереди закупки материал заводят конкретному
+ * заказу, и заставлять искать его в списке из полусотни — лишний шаг ровно там,
+ * где человек уже сказал, о каком заказе речь.
+ */
+function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   // Без трапа Tab уходил под оверлей, а Escape не закрывал — при объявленном aria-modal
   const trapRef = useFocusTrap(true, onClose);
-  const [form, setForm] = useState(EMPTY_MAT);
+  const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
   const [saving, setSaving] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -235,14 +243,16 @@ const KPIS = [
 
 export default function FabricPurchasing() {
   const {
-    orders, loading, loaded, loadError, loadAll, addMaterial, updateMaterial,
-    confirmStockMaterial, updateProcurementTask,
+    orders, departments, loading, loaded, loadError, loadAll, addMaterial, updateMaterial,
+    confirmStockMaterial, updateProcurementTask, takeSupply, closeSupply,
     addSupplierOption, updateSupplierOption, selectSupplierOption, deleteSupplierOption,
   } = useErpStore(
     useShallow((s) => ({
-      orders: s.orders, loading: s.loading, loaded: s.loaded, loadError: s.loadError,
+      orders: s.orders, departments: s.departments,
+      loading: s.loading, loaded: s.loaded, loadError: s.loadError,
       loadAll: s.loadAll, addMaterial: s.addMaterial, updateMaterial: s.updateMaterial,
       confirmStockMaterial: s.confirmStockMaterial, updateProcurementTask: s.updateProcurementTask,
+      takeSupply: s.takeSupply, closeSupply: s.closeSupply,
       addSupplierOption: s.addSupplierOption,
       updateSupplierOption: s.updateSupplierOption,
       selectSupplierOption: s.selectSupplierOption,
@@ -253,6 +263,7 @@ export default function FabricPurchasing() {
   const [tab, setTab] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  /** Модалка «Новая закупка»: false | { orderId } — заказ предвыбран из очереди */
   const [adding, setAdding] = useState(false);
   /** Открытая модалка сравнения вариантов поставщика: { material, order } */
   const [optionsFor, setOptionsFor] = useState(null);
@@ -267,6 +278,15 @@ export default function FabricPurchasing() {
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
 
   const activeOrders = useMemo(() => orders.filter((o) => o.status === 'active'), [orders]);
+
+  /**
+   * Заказы, у которых этап «Закупка» ещё открыт, — собственно работа участка.
+   * Считается от ЭТАПА, а не от материалов: заказ без заведённых материалов
+   * тоже ждёт закупки, и именно он раньше не показывался нигде.
+   */
+  const supplyDept = useMemo(() => findSupplyDept(departments), [departments]);
+  const supplyOrders = useMemo(
+    () => ordersAwaitingSupply(orders, departments), [orders, departments]);
 
   /** Плоские закупочные строки {order, material, group} по активным заказам */
   const allRows = useMemo(() => {
@@ -339,6 +359,20 @@ export default function FabricPurchasing() {
     <>
       <PageHead title="Закупка" sub="Работа с материалами и поставщиками." />
       <DictionaryDatalist kind="supplier" id="erp-suppliers-table" />
+
+      {/* Очередь участка идёт ПЕРВОЙ: это ответ на вопрос «что делать сейчас».
+          Таблица закупочных строк ниже — справочник состояний, и до 12.08
+          она была единственным содержимым экрана, из-за чего заказ без
+          заведённых материалов не показывался вовсе */}
+      {loaded && (
+        <SupplyQueue
+          orders={supplyOrders}
+          supplyDept={supplyDept}
+          onTake={takeSupply}
+          onClose={closeSupply}
+          onAddMaterial={(orderId) => setAdding({ orderId })}
+        />
+      )}
 
       {loaded && (
         <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
@@ -564,7 +598,12 @@ export default function FabricPurchasing() {
       )}
 
       {adding && (
-        <AddPurchaseModal orders={activeOrders} onAdd={addMaterial} onClose={() => setAdding(false)} />
+        <AddPurchaseModal
+          orders={activeOrders}
+          orderId={adding.orderId ?? ''}
+          onAdd={addMaterial}
+          onClose={() => setAdding(false)}
+        />
       )}
 
       {optionsFor && (() => {

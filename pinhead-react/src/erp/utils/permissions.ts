@@ -120,8 +120,26 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    * warehouse.manage (10.08): движение складских задач — маркировка, приёмка
    * готовой продукции, упаковка и отгрузка. Приёмкой материалов оно не
    * покрывается, поэтому права два, а не одно.
+   *
+   * stage.take + stage.complete (12.08): «Закупка» — обычный этап маршрута,
+   * и закрывается он тем же переходом в `done`, что любой другой. Без
+   * `stage.complete` человек, ради которого раздел существует, получал 42501
+   * от стража на СВОЁМ этапе, и весь маршрут за закупкой стоял.
+   *
+   * `stage.progress` сюда НЕ входит: результат в штуках закупка не выпускает,
+   * а приход материала частями ведёт свой журнал под `material.receive`.
+   * `stage.defect` — тем более: возврат брака откатывает производственный
+   * маршрут, это решение цеха и менеджера.
    */
-  purchaser: ['stage.block', 'material.receive', 'warehouse.manage'],
+  purchaser: [
+    'stage.block', 'stage.take', 'stage.complete', 'material.receive', 'warehouse.manage',
+  ],
+  /**
+   * У кладовщика набор прежний: этапа в маршруте у склада нет вовсе, его
+   * задачи живут в `erp_warehouse_tasks` под `warehouse.manage`. Выдать ему
+   * `stage.complete` «заодно с закупщиком» значило бы завести право, которое
+   * ничего не открывает.
+   */
   storekeeper: ['stage.block', 'material.receive', 'warehouse.manage'],
   hr: [],
 };

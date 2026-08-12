@@ -94,7 +94,9 @@ export default function ErpLayout({ user, children }) {
     () => ({
       '/queue': myCode ? readyOnlyCountFor(orders, departments, myCode, bypasses) : 0,
       '/warehouse': openWarehouseTaskCount(orders),
-      '/purchasing': openProcurementCount(orders),
+      // Заказы, ждущие закупки, + дозакупки. Без справочника цехов первое
+      // не посчитать: участок берётся из данных, а не из константы
+      '/purchasing': openProcurementCount(orders, departments),
       '/subcontracting': openSubcontractCount(subcontracting ?? []),
       '/experimental': activeExperimentalCount(experimental ?? []),
     }),

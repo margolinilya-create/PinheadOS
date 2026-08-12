@@ -11,6 +11,7 @@ import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
+import { findSupplyDept, openSupplyStages, supplyMaterialSummary } from '../../utils/supply';
 
 /** Точечный патч массива вариантов поставщика у материала (не трогая остальные заказы) */
 function patchSuppliersIn(
@@ -217,28 +218,71 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
 
   maybeCloseSupply: async (orderId) => {
     const order = get().orders.find((o) => o.id === orderId);
-    const supplyDept = get().departments.find((d) => d.code === 'supply');
+    const supplyDept = findSupplyDept(get().departments);
     if (!order || !supplyDept) return;
     // «Готов» = пришло / зарезервировано со склада / не требуется.
-    // length>0 — не закрывать закупку у заказа вовсе без материалов (аудит, LOW).
-    const allIn = order.materials.length > 0 && order.materials.every(
-      (m) => m.status === 'received' || m.status === 'reserved' || m.status === 'not_needed');
-    if (!allIn) return;
+    // Пустой список готовым НЕ считается: заказ без заведённых материалов
+    // не должен закрывать закупку сам собой (аудит, LOW). Для него есть
+    // явное действие `closeSupply` — с комментарием, от человека.
+    const summary = supplyMaterialSummary(order.materials);
+    if (!summary.allSettled) return;
     // Правка 4.1.3: плановое кол-во (qty_expected) — обязательная графа закупки. Без него
     // сделка не идёт дальше (иначе на приёмке склад не увидит план). Гейтим только закупаемые.
-    const missingPlan = order.materials.filter(
-      (m) => m.source === 'purchase' && (m.qty_expected == null || m.qty_expected <= 0));
-    if (missingPlan.length > 0) {
-      toast.warning(`Укажите плановое кол-во в закупке: ${missingPlan.map((m) => m.name).join(', ')}`);
+    if (summary.missingPlan.length > 0) {
+      toast.warning(`Укажите плановое кол-во в закупке: ${summary.missingPlan.map((m) => m.name).join(', ')}`);
       return;
     }
-    const openSupply = order.items.flatMap((it) =>
-      it.stages.filter(
-        (st) => st.department_id === supplyDept.id &&
-          st.status !== 'done' && st.status !== 'skipped'));
+    const openSupply = openSupplyStages(order, supplyDept.id);
     for (const st of openSupply) {
       await get().setStageStatus(st.id, 'done', { comment: 'Материалы готовы — закупка закрыта автоматически' });
     }
     if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
+  },
+
+  takeSupply: async (orderId) => {
+    const order = get().orders.find((o) => o.id === orderId);
+    const supplyDept = findSupplyDept(get().departments);
+    if (!order || !supplyDept) return false;
+    // Берём только ещё не начатые: повторный перевод в `in_progress` — лишний
+    // запрос, а у заблокированного этапа сначала снимают блокировку
+    const toTake = openSupplyStages(order, supplyDept.id)
+      .filter((st) => st.status !== 'in_progress' && st.status !== 'blocked');
+    if (toTake.length === 0) return false;
+    for (const st of toTake) {
+      const ok = await get().setStageStatus(st.id, 'in_progress', {
+        comment: 'Закупка взята в работу',
+      });
+      // Первый же отказ (нет права, чужой цех) — дальше не идём: остальные
+      // этапы упрутся в то же самое, а серия тостов ничего не добавит
+      if (!ok) return false;
+    }
+    return true;
+  },
+
+  /**
+   * Явное закрытие закупки по заказу.
+   *
+   * Комментарий обязателен и уходит в ленту событий КАЖДОГО закрытого этапа:
+   * закупку закрывают и тогда, когда материалы не заводили вовсе (давальческое
+   * сырьё, закупка вне системы, позиция без материалов), и через неделю
+   * «почему этап закрыт пустым» должно отвечать не расследование, а история.
+   */
+  closeSupply: async (orderId, comment) => {
+    const text = (comment ?? '').trim();
+    if (!text) {
+      toast.error('Объясните, почему закупка завершена');
+      return false;
+    }
+    const order = get().orders.find((o) => o.id === orderId);
+    const supplyDept = findSupplyDept(get().departments);
+    if (!order || !supplyDept) return false;
+    const openSupply = openSupplyStages(order, supplyDept.id);
+    if (openSupply.length === 0) return false;
+    for (const st of openSupply) {
+      const ok = await get().setStageStatus(st.id, 'done', { comment: text });
+      if (!ok) return false;
+    }
+    toast.success('Закупка по заказу закрыта');
+    return true;
   },
 });
