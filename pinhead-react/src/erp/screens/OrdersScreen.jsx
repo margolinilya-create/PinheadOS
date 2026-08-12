@@ -135,17 +135,24 @@ export default function OrdersScreen() {
    */
   const canShip = access.can('warehouse.manage') || canManageOrders;
   /**
-   * Удаление — только admin/director, ровно как на сервере
-   * (`erp_orders_delete` = `is_admin()`).
+   * Удаление — ТОЛЬКО администратор, ровно как политика `erp_orders_delete`
+   * (`is_admin()`, то есть `profiles.role = 'admin'`).
    *
-   * Раньше здесь стояло `isPrivileged || canManageOrders`: менеджер с правом
-   * «Создавать и править заказы» видел кнопку «Удалить», жал её и получал
-   * 42501 — тот самый отказ «кнопка есть, а действие падает», от которого
-   * виноватым выглядит не тот, кто настроил права. Удаление уносит позиции,
-   * этапы и материалы, поэтому сходимся на более узком из двух правил,
-   * а не на широком.
+   * История правки. Сначала здесь стояло `isPrivileged || canManageOrders`:
+   * менеджер видел «Удалить» и получал отказ. Правку сузили до `isPrivileged`
+   * и подписали «ровно как на сервере» — но НЕ СВЕРИЛИ: `isPrivileged` это
+   * `FULL_ACCESS_PROFILE_ROLES` = admin + director + РОП, а `is_admin()` —
+   * только admin. Директор и РОП продолжали видеть кнопку.
+   *
+   * И отказ был хуже 42501: DELETE запрещается через `USING`, то есть
+   * «удалено 0 строк», а не ошибка. Заказ пропадал из списка, всплывало
+   * зелёное «Заказ удалён» — и заказ возвращался при следующей загрузке.
+   * Проверено на живой базе: директор, удалено строк 0, заказ в базе остался.
+   *
+   * Сходимся на УЖЕ, а не на шире: удаление уносит позиции, этапы, материалы
+   * и файлы. Понадобится директору — это строка в политике, а не догадка здесь.
    */
-  const canDelete = access.isPrivileged;
+  const canDelete = access.isAdmin;
 
   const inTab = useMemo(
     () => orders.filter((o) => {
@@ -357,8 +364,10 @@ export default function OrdersScreen() {
             Сбросить даты
           </Button>
         )}
-        {/* Показ тестовых — только у admin/director: это отладочный режим,
-            и цеху он показал бы работу, которой нет. */}
+        {/* Показ тестовых — руководящему составу: это отладочный режим, и цеху
+            он показал бы работу, которой нет. Здесь `isPrivileged` уместен —
+            это ФИЛЬТР СПИСКА, он ничего не пишет. Сама пометка «тестовый»
+            (`onToggleDemo`) идёт под `isAdmin`: её страж требует `is_admin()`. */}
         {access.isPrivileged && (
           <label className={styles.checkLabel} title="Тестовые заказы скрыты из всех списков и счётчиков">
             <input
@@ -410,7 +419,7 @@ export default function OrdersScreen() {
               onDelete={onDelete}
               canDelete={canDelete}
               onShip={canShip ? onShip : null}
-              onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
+              onToggleDemo={access.isAdmin ? onToggleDemo : undefined}
             />
           ))}
         </div>
@@ -440,7 +449,7 @@ export default function OrdersScreen() {
                   onDelete={onDelete}
                   canDelete={canDelete}
                   onShip={canShip ? onShip : null}
-                  onToggleDemo={access.isPrivileged ? onToggleDemo : undefined}
+                  onToggleDemo={access.isAdmin ? onToggleDemo : undefined}
                 />
               ))}
             </tbody>

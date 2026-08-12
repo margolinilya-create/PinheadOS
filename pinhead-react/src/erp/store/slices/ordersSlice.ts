@@ -11,6 +11,7 @@ import { buildItemRoute } from '../../utils/routes';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { isBypassed } from '../../utils/bypass';
 import { daysLeft } from '../../utils/time';
+import { pluralize } from '../../../utils/i18n';
 import type {
   ErpDepartment,
   ErpItemStage,
@@ -24,6 +25,32 @@ import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers'
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
 export const ARCHIVE_PAGE_SIZE = 50;
+
+/**
+ * Пути файлов заказа в бакете `erp-attachments`: ТЗ в PDF и вложения
+ * (превью макета, фото). Обе таблицы уедут каскадом вместе с заказом,
+ * поэтому спрашивать их надо ДО удаления.
+ *
+ * Отдельным запросом, а не из `order.tz_documents`/`order.attachments`
+ * в сторе: в списке заказ приезжает по `ORDER_LIST_SELECT`, где этих связей
+ * нет, и уборка работала бы только у заказа, чью карточку успели открыть.
+ *
+ * Сбой чтения НЕ отменяет удаление: невозможность перечислить файлы — плохая
+ * причина запретить удалить заказ. Хуже сироты только заблокированное действие.
+ */
+async function orderFilePaths(orderId: string): Promise<string[]> {
+  const [tz, att] = await Promise.all([
+    erpQuery(() => supabase
+      .from('erp_tz_documents').select('file_path').eq('order_id', orderId)),
+    erpQuery(() => supabase
+      .from('erp_order_attachments').select('file_path').eq('order_id', orderId)),
+  ]);
+  const rows = [
+    ...(tz.data ?? []),
+    ...(att.data ?? []),
+  ] as { file_path: string | null }[];
+  return rows.map((r) => r.file_path).filter((p): p is string => Boolean(p));
+}
 
 import type {
   ErpStore,
@@ -506,13 +533,51 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   deleteOrder: async (id) => {
-    // НЕ optimistic — ждём Supabase
-    const { error } = await erpQuery(() => supabase.from('erp_orders').delete().eq('id', id));
+    /**
+     * Пути файлов собираются ДО удаления: строки `erp_tz_documents`
+     * и `erp_order_attachments` уедут каскадом вместе с заказом, и после
+     * DELETE спрашивать будет уже нечего. Так в бакете и накопились сироты:
+     * заказ удалялся, ТЗ-PDF оставались навсегда — платные, никем не учтённые
+     * и, пока бакет публичный, доступные по ссылке.
+     */
+    const paths = await orderFilePaths(id);
+
+    /**
+     * `.select()` обязателен. RLS запрещает DELETE через `USING`, то есть
+     * «удалено 0 строк», а НЕ ошибка: проверка только по `error` показывала
+     * зелёное «Заказ удалён», убирала заказ из списка — и он возвращался при
+     * следующей загрузке. Пустой ответ здесь и есть отказ.
+     */
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_orders').delete().eq('id', id).select('id'));
     if (error) {
       erpError('Не удалось удалить заказ', error);
       return false;
     }
+    if (!data || data.length === 0) {
+      toast.error('Заказ не удалён: удаление доступно только администратору');
+      return false;
+    }
     set((s) => ({ orders: s.orders.filter((o) => o.id !== id) }));
+
+    /**
+     * Файлы — ПОСЛЕ строки. Обратный порядок означал бы, что упавший DELETE
+     * оставляет живой заказ без ТЗ. Неудача уборки заказ не отменяет (он уже
+     * удалён), но и молчать нельзя: файл остаётся в хранилище.
+     */
+    if (paths.length > 0) {
+      const { error: rmError } = await erpQuery(() => supabase
+        .storage.from('erp-attachments').remove(paths));
+      if (rmError) {
+        // Число впереди слова: «1 файл осталось» не согласуется, а
+        // «осталось файлов: 1» читается верно при любом количестве
+        toast.warning(
+          'Заказ удалён, но в хранилище осталось '
+          + `${pluralize(paths.length, 'файл', 'файла', 'файлов')}: ${paths.length}`
+          + ' — уберите их вручную',
+        );
+      }
+    }
     return true;
   },
 

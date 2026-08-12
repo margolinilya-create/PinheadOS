@@ -277,15 +277,32 @@ describe('страж заказа совпадает с интерфейсом',
     expect(ERP_PERMISSIONS).not.toContain('order.ship');
   });
 
+  /**
+   * Страж требует `is_admin()` — значит и КНОПКА пометки под `isAdmin`.
+   * Прежняя версия теста проверяла `access.isPrivileged && (`, но это выражение
+   * в файле встречается дважды и означает РАЗНОЕ: фильтр списка «показывать
+   * тестовые» (ничего не пишет) и саму пометку. Совпадение с первым делало
+   * проверку зелёной независимо от второго.
+   */
   it('пометка «тестовый» — админская с обеих сторон', () => {
     expect(ORDER_SQL).toMatch(/is_demo is distinct from old\.is_demo and not public\.is_admin\(\)/);
-    expect(ORDERS_SCREEN).toMatch(/access\.isPrivileged && \(/);
+    expect(ORDERS_SCREEN).toMatch(/onToggleDemo=\{access\.isAdmin \? onToggleDemo : undefined\}/);
+    expect(ORDERS_SCREEN).not.toMatch(/onToggleDemo=\{access\.isPrivileged/);
   });
 
-  it('удаление заказа: клиент сведён к admin/director, как в политике', () => {
-    // Политика `erp_orders_delete` = is_admin(). Раньше клиент показывал кнопку
-    // и при order.manage — менеджер получал 42501.
-    expect(ORDERS_SCREEN).toMatch(/const canDelete = access\.isPrivileged;/);
+  /**
+   * ИСПРАВЛЕНО 12.08. Тест назывался «клиент сведён к admin/director, как
+   * в политике» и проверял `access.isPrivileged` — а это
+   * `FULL_ACCESS_PROFILE_ROLES`, то есть admin + director + РОП, тогда как
+   * политика `erp_orders_delete` стоит на `is_admin()`. Сторож своим именем
+   * утверждал совпадение, а телом закреплял расхождение.
+   *
+   * Полная проверка обеих сторон (плюс «0 строк ≠ успех» и уборка файлов) —
+   * в `orderDeleteGate.test.ts`; здесь остаётся пара «страж ↔ кнопка».
+   */
+  it('удаление заказа: клиент сведён к admin, как в политике', () => {
+    expect(ORDERS_SCREEN).toMatch(/const canDelete = access\.isAdmin;/);
+    expect(ORDERS_SCREEN).not.toMatch(/const canDelete = access\.isPrivileged;/);
   });
 
   it('позиции заказа: клиент туда не пишет, сервер требует order.manage', () => {

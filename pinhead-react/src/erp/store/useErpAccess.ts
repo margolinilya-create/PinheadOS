@@ -32,6 +32,13 @@ export interface ErpAccess {
   canDo: (permission: ErpPermission, departmentId: string | null | undefined) => boolean;
   /** Руководящий состав (или dev): работает во всех цехах, привязка не ограничивает */
   isPrivileged: boolean;
+  /**
+   * Профиль администратора (или dev). УЖЕ, чем `isPrivileged`, и это намеренно:
+   * необратимое удаление заказа на сервере стоит под `is_admin()`, а
+   * `isPrivileged` — это ещё директор и РОП. Гейт интерфейса обязан совпадать
+   * с политикой базы, иначе кнопка есть, а действие молча не проходит.
+   */
+  isAdmin: boolean;
   /** Роль, по которой резолвятся права */
   role: EmployeeRole;
   /** Цех пользователя (null — привязки нет) */
@@ -61,6 +68,8 @@ export function useErpAccess(): ErpAccess {
       canActIn,
       canDo: (permission, departmentId) => can(permission) && canActIn(departmentId),
       isPrivileged: isDev || FULL_ACCESS_PROFILE_ROLES.includes(user?.role ?? ''),
+      // Зеркало серверной `is_admin()`: та проверяет profiles.role = 'admin'
+      isAdmin: isDev || user?.role === 'admin',
       role,
       myDeptId,
     };

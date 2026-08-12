@@ -24,6 +24,12 @@ const h = vi.hoisted(() => ({
   insertErrors: [] as ({ message: string } | null)[],
   deleteCalls: [] as { table: string }[],
   deleteError: null as { message: string } | null,
+  /**
+   * Строки, вернувшиеся из `delete().select()`. Пустой массив = ОТКАЗ RLS:
+   * запрет на DELETE приходит через `USING`, то есть «удалено 0 строк»,
+   * а не исключение. Без этого различия мок не умеет воспроизвести отказ.
+   */
+  deletedRows: [{ id: 'ord-1' }] as unknown[],
   selectCalls: [] as { table: string; filters: string[] }[],
   /**
    * Колонки сортировки по каждому `.order(...)`. Постраничная выборка обязана
@@ -128,6 +134,11 @@ vi.mock('../../lib/supabase', () => {
               if (!recorded) { recorded = true; h.deleteCalls.push({ table }); }
               return q;
             },
+            // `.select()` после delete: им проверяют, сколько строк УДАЛИЛОСЬ
+            select: () => Promise.resolve({
+              data: h.deleteError ? null : h.deletedRows,
+              error: h.deleteError,
+            }),
             then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
               Promise.resolve({ error: h.deleteError }).then(resolve, reject),
           };
@@ -248,6 +259,7 @@ beforeEach(() => {
   h.insertErrors.length = 0;
   h.deleteCalls.length = 0;
   h.deleteError = null;
+  h.deletedRows = [{ id: 'ord-1' }];
   h.selectCalls.length = 0;
   h.orderCalls.length = 0;
   h.tableData = {};
@@ -3176,5 +3188,86 @@ describe('Производственный план', () => {
   it('пустой комментарий не сохраняется', async () => {
     expect(await useErpStore.getState().addPlanComment('sl1', '   ', 'shop')).toBeNull();
     expect(h.insertCalls.filter((c) => c.table === 'erp_plan_comments')).toHaveLength(0);
+  });
+});
+
+/**
+ * Удаление заказа: честный отказ и уборка файлов.
+ *
+ * ЧТО СЛУЧИЛОСЬ 12.08. Политика `erp_orders_delete` стоит на `is_admin()`,
+ * а кнопку показывал `isPrivileged` — admin + director + РОП. RLS запрещает
+ * DELETE через `USING`, то есть «удалено 0 строк», а НЕ 42501: слайс проверял
+ * только `error`, поэтому директор видел зелёное «Заказ удалён», заказ уходил
+ * из списка и возвращался при следующей загрузке. Проверено на живой базе.
+ *
+ * Вторая половина — файлы. Заказ удалялся, а его ТЗ-PDF и превью оставались
+ * в бакете навсегда: платные, никем не учтённые и, пока бакет публичный,
+ * доступные по ссылке. Так и появились шесть сирот после зачистки базы.
+ */
+describe('deleteOrder — отказ виден, файлы убираются', () => {
+  const order = { id: 'ord-1', title: 'Тест', status: 'active' } as any;
+
+  beforeEach(() => {
+    useErpStore.setState({ orders: [order] } as any);
+    h.tableData.erp_tz_documents = [{ file_path: 'tz/ord-1/g/v1-a.pdf' }];
+    h.tableData.erp_order_attachments = [{ file_path: 'ord-1/123.webp' }];
+  });
+
+  afterEach(() => {
+    delete h.tableData.erp_tz_documents;
+    delete h.tableData.erp_order_attachments;
+  });
+
+  it('«удалено 0 строк» — это отказ, а не успех', async () => {
+    h.deletedRows = [];
+    const ok = await useErpStore.getState().deleteOrder('ord-1');
+
+    expect(ok).toBe(false);
+    // Главное: заказ ОСТАЛСЯ в сторе. Раньше он исчезал и возвращался
+    // при следующей загрузке — человек считал, что удалил
+    expect(useErpStore.getState().orders.map((o) => o.id)).toEqual(['ord-1']);
+    // И файлы не тронуты: заказ жив
+    expect(h.removeCalls).toHaveLength(0);
+  });
+
+  it('успешное удаление убирает файлы заказа из бакета', async () => {
+    const ok = await useErpStore.getState().deleteOrder('ord-1');
+
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().orders).toHaveLength(0);
+    expect(h.removeCalls).toHaveLength(1);
+    expect(h.removeCalls[0].bucket).toBe('erp-attachments');
+    // И ТЗ, и вложения — обе таблицы уедут каскадом, спрашивать надо обе
+    expect([...h.removeCalls[0].paths].sort())
+      .toEqual(['ord-1/123.webp', 'tz/ord-1/g/v1-a.pdf']);
+  });
+
+  it('пути спрашиваются ДО удаления — после каскада спрашивать нечего', async () => {
+    await useErpStore.getState().deleteOrder('ord-1');
+
+    const tzRead = h.selectCalls.findIndex((c) => c.table === 'erp_tz_documents');
+    const del = h.deleteCalls.findIndex((c) => c.table === 'erp_orders');
+    expect(tzRead).toBeGreaterThanOrEqual(0);
+    expect(del).toBeGreaterThanOrEqual(0);
+    // Порядок операций проверяем по журналу вызовов, а не по намерению
+    expect(h.selectCalls.some((c) => c.table === 'erp_order_attachments')).toBe(true);
+  });
+
+  it('заказ без файлов не дёргает хранилище', async () => {
+    h.tableData.erp_tz_documents = [];
+    h.tableData.erp_order_attachments = [];
+    const ok = await useErpStore.getState().deleteOrder('ord-1');
+
+    expect(ok).toBe(true);
+    expect(h.removeCalls).toHaveLength(0);
+  });
+
+  it('ошибка сервера не выдаётся за отказ прав', async () => {
+    h.deleteError = { message: 'network down' };
+    const ok = await useErpStore.getState().deleteOrder('ord-1');
+
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().orders).toHaveLength(1);
+    h.deleteError = null;
   });
 });
