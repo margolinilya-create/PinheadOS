@@ -67,3 +67,38 @@ describe('orderProgress', () => {
     expect(orderProgress({})).toEqual({ done: 0, total: 0, pct: 0 });
   });
 });
+
+/**
+ * Этап образца в прогресс серии не входит (ТЗ ЭКС 12.08).
+ *
+ * Передача задачи разработки в цех создаёт настоящий этап на позиции заказа.
+ * Пока таких этапов в проде ноль, это ничего не меняет; с новой моделью они
+ * станут рутиной, и без отбора маршрут из четырёх этапов с одним заходом
+ * образца показывал бы 80 % при полностью закрытой работе.
+ */
+describe('прогресс не считает этапы образца', () => {
+  it('этап образца не попадает ни в числитель, ни в знаменатель', () => {
+    const item = {
+      qty: 100,
+      stages: [
+        { status: 'done' as const },
+        { status: 'done' as const },
+        // Образец: три штуки, своя история, к серии отношения не имеет
+        { status: 'ready' as const, qty_done: 0, origin: 'experimental' },
+      ],
+    };
+    expect(itemProgress(item)).toEqual({ done: 200, total: 200, pct: 100 });
+  });
+
+  it('этап без поля origin считается серийным', () => {
+    // Колонка `not null default 'production'`, но в фикстурах поля нет
+    const item = { qty: 10, stages: [{ status: 'done' as const }] };
+    expect(itemProgress(item).total).toBe(10);
+  });
+
+  it('позиция ТОЛЬКО из этапов образца даёт «неизвестно», а не 100 %', () => {
+    // Ноль в знаменателе — правило проекта: pct 0 при total 0
+    const item = { qty: 3, stages: [{ status: 'done' as const, origin: 'experimental' }] };
+    expect(itemProgress(item)).toEqual({ done: 0, total: 0, pct: 0 });
+  });
+});

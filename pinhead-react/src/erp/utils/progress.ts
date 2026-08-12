@@ -23,7 +23,11 @@ export interface QtyProgress {
 }
 
 /** Минимум этапа для расчёта прогресса */
-type ProgressStage = Pick<ErpItemStage, 'status'> & { qty_done?: number | null };
+type ProgressStage = Pick<ErpItemStage, 'status'> & {
+  qty_done?: number | null;
+  /** Образец или серия — образец в прогресс СЕРИИ не входит */
+  origin?: string | null;
+};
 /** Минимум позиции */
 interface ProgressItem {
   qty: number;
@@ -46,9 +50,22 @@ export function stageQtyProgress(stage: ProgressStage, itemQty: number): QtyProg
   return { done, total, pct: pct(done, total) };
 }
 
-/** Прогресс позиции: сделанное по всем этапам маршрута из (тираж × этапы) */
+/**
+ * Прогресс позиции: сделанное по всем этапам маршрута из (тираж × этапы).
+ *
+ * Этапы ОБРАЗЦА (`origin = 'experimental'`) в расчёт не входят. Они появляются
+ * по решению технолога вне маршрута, тираж у них свой (три штуки против ста),
+ * и в знаменателе они разбавляли бы прогресс серии: маршрут из четырёх этапов
+ * с одним заходом образца показывал бы 80 % при полностью закрытой работе.
+ *
+ * Это не противоречит правилу «`origin` в маршрутную логику не входит»: то
+ * правило про ПЕРЕХОДЫ и ГЕЙТЫ самого этапа — цех работает с образцом теми же
+ * кнопками, под теми же правами и через тот же страж. Здесь считается доля
+ * выполненного, а не решается, можно ли работать.
+ */
 export function itemProgress(item: ProgressItem): QtyProgress {
-  const relevant = (item.stages ?? []).filter((s) => s.status !== 'skipped');
+  const relevant = (item.stages ?? []).filter(
+    (s) => s.status !== 'skipped' && s.origin !== 'experimental');
   const qty = Math.max(item.qty, 0);
   const total = relevant.length * qty;
   const done = relevant.reduce((sum, s) => sum + stageQtyProgress(s, qty).done, 0);

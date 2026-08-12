@@ -571,22 +571,104 @@ export interface ErpExperimentalOp {
   created_at: string;
 }
 
+// --- Задачи разработки (ТЗ заказчика 12.08) ---------------------------------
+
+/**
+ * Статус задачи разработки — ровно пять из документа (п.12) плюс отмена.
+ *
+ * `waiting` — задача передана в цех и её ведёт триггер: клиент такую строку
+ * только читает, иначе у колонки два писателя.
+ */
+export type DevTaskStatus =
+  'todo' | 'in_progress' | 'waiting' | 'blocked' | 'done' | 'cancelled';
+
+export const DEV_TASK_STATUS_LABELS: Record<DevTaskStatus, string> = {
+  todo: 'Не начато',
+  in_progress: 'В работе',
+  waiting: 'Ожидает',
+  blocked: 'Заблокировано',
+  done: 'Готово',
+  cancelled: 'Отменено',
+};
+
+/**
+ * Исход разработки (ТЗ п.9). Это ФИНАЛЬНЫЙ СТАТУС, а не очередной этап
+ * маршрута: «Готово к серии» ничего не создаёт автоматически — производственный
+ * заказ заводит менеджер (решение заказчика).
+ */
+export type DevOutcome =
+  'ready_for_serial' | 'needs_rework' | 'moved_to_production' | 'cancelled' | 'other';
+
+export const DEV_OUTCOME_LABELS: Record<DevOutcome, string> = {
+  ready_for_serial: 'Готово к серии',
+  needs_rework: 'Нужна доработка',
+  moved_to_production: 'Передано в основной цех',
+  cancelled: 'Отменено',
+  other: 'Другое',
+};
+
+export interface ErpExperimentalTask {
+  id: string;
+  experimental_id: string;
+  /** Код из справочника `experimental_task_type`; ввод свободный */
+  task_type: string;
+  title: string | null;
+  responsible: string | null;
+  due_date: string | null;
+  status: DevTaskStatus;
+  blocked_reason: string | null;
+  /** Зависимости на задачи ТОЙ ЖЕ разработки */
+  depends_on: string[];
+  /** Номер круга: повторная примерка — новая строка, а не счётчик на старой */
+  cycle: number;
+  sort_order: number;
+  qty: number | null;
+  comment: string | null;
+  result: string | null;
+  /** Заполнены, только когда задача передана в цех */
+  department_id: string | null;
+  stage_id: string | null;
+  done_on: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ErpExperimental {
   id: string;
   order_id: string;
+  /**
+   * Позиция заказа. Заменяет эвристику `items[0]`: передача задачи в цех
+   * создаёт этап именно этой позиции, а не первой попавшейся.
+   */
+  item_id?: string | null;
+  /** @deprecated фазы заменены задачами (ТЗ 12.08); колонка мертва до уборки */
   phase: ExperimentalPhase;
   tech_name: string | null;
   measurement_table: string | null;
   has_3d: boolean;
   constructor: string | null;
+  /** Проработчик. Код колонки не переименовывается — меняется только подпись */
   technologist: string | null;
+  /** @deprecated заменено на `outcome` */
   final_outcome: ExperimentalOutcome | null;
+  /** @deprecated возврат конструктору — результат примерки, а не фаза */
   constructor_return_comment: string | null;
+  /** Исход разработки; null — ещё идёт */
+  outcome?: DevOutcome | null;
+  outcome_comment?: string | null;
+  closed_at?: string | null;
+  owner?: string | null;
+  dev_type?: string | null;
+  priority?: number;
+  due_date?: string | null;
+  comment?: string | null;
   created_at: string;
   updated_at: string;
   /** Присоединяются при загрузке */
+  tasks?: ErpExperimentalTask[];
+  /** @deprecated операции переехали в `tasks` */
   ops?: ErpExperimentalOp[];
-  order?: { title: string; bitrix_id: string | null } | null;
+  order?: { title: string; bitrix_id: string | null; due_date?: string | null } | null;
 }
 
 /**
