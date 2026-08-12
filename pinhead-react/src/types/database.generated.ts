@@ -364,48 +364,73 @@ export type Database = {
       }
       erp_experimental: {
         Row: {
+          closed_at: string | null
+          comment: string | null
           constructor: string | null
-          constructor_return_comment: string | null
           created_at: string
-          final_outcome: string | null
+          dev_type: string | null
+          due_date: string | null
           has_3d: boolean
           id: string
+          item_id: string | null
           measurement_table: string | null
           order_id: string
-          phase: string
+          outcome: string | null
+          outcome_comment: string | null
+          owner: string | null
+          priority: number
           tech_name: string | null
           technologist: string | null
           updated_at: string
         }
         Insert: {
+          closed_at?: string | null
+          comment?: string | null
           constructor?: string | null
-          constructor_return_comment?: string | null
           created_at?: string
-          final_outcome?: string | null
+          dev_type?: string | null
+          due_date?: string | null
           has_3d?: boolean
           id?: string
+          item_id?: string | null
           measurement_table?: string | null
           order_id: string
-          phase?: string
+          outcome?: string | null
+          outcome_comment?: string | null
+          owner?: string | null
+          priority?: number
           tech_name?: string | null
           technologist?: string | null
           updated_at?: string
         }
         Update: {
+          closed_at?: string | null
+          comment?: string | null
           constructor?: string | null
-          constructor_return_comment?: string | null
           created_at?: string
-          final_outcome?: string | null
+          dev_type?: string | null
+          due_date?: string | null
           has_3d?: boolean
           id?: string
+          item_id?: string | null
           measurement_table?: string | null
           order_id?: string
-          phase?: string
+          outcome?: string | null
+          outcome_comment?: string | null
+          owner?: string | null
+          priority?: number
           tech_name?: string | null
           technologist?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "erp_experimental_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "erp_experimental_order_id_fkey"
             columns: ["order_id"]
@@ -415,74 +440,87 @@ export type Database = {
           },
         ]
       }
-      erp_experimental_ops: {
+      erp_experimental_tasks: {
         Row: {
-          branding_method: string | null
-          colors: string | null
+          blocked_reason: string | null
           comment: string | null
           created_at: string
+          cycle: number
+          department_id: string | null
+          depends_on: string[]
+          done_on: string | null
+          due_date: string | null
           experimental_id: string
           id: string
-          kind: string
-          mockup: string | null
-          operation: string | null
-          planned_date: string | null
           qty: number | null
           responsible: string | null
-          returned_at: string | null
-          size_mm: string | null
+          result: string | null
+          sort_order: number
           stage_id: string | null
           status: string
-          zone: string | null
+          task_type: string
+          title: string | null
+          updated_at: string
         }
         Insert: {
-          branding_method?: string | null
-          colors?: string | null
+          blocked_reason?: string | null
           comment?: string | null
           created_at?: string
+          cycle?: number
+          department_id?: string | null
+          depends_on?: string[]
+          done_on?: string | null
+          due_date?: string | null
           experimental_id: string
           id?: string
-          kind: string
-          mockup?: string | null
-          operation?: string | null
-          planned_date?: string | null
           qty?: number | null
           responsible?: string | null
-          returned_at?: string | null
-          size_mm?: string | null
+          result?: string | null
+          sort_order?: number
           stage_id?: string | null
           status?: string
-          zone?: string | null
+          task_type: string
+          title?: string | null
+          updated_at?: string
         }
         Update: {
-          branding_method?: string | null
-          colors?: string | null
+          blocked_reason?: string | null
           comment?: string | null
           created_at?: string
+          cycle?: number
+          department_id?: string | null
+          depends_on?: string[]
+          done_on?: string | null
+          due_date?: string | null
           experimental_id?: string
           id?: string
-          kind?: string
-          mockup?: string | null
-          operation?: string | null
-          planned_date?: string | null
           qty?: number | null
           responsible?: string | null
-          returned_at?: string | null
-          size_mm?: string | null
+          result?: string | null
+          sort_order?: number
           stage_id?: string | null
           status?: string
-          zone?: string | null
+          task_type?: string
+          title?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "erp_experimental_ops_experimental_id_fkey"
+            foreignKeyName: "erp_experimental_tasks_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "erp_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_experimental_tasks_experimental_id_fkey"
             columns: ["experimental_id"]
             isOneToOne: false
             referencedRelation: "erp_experimental"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "erp_experimental_ops_stage_id_fkey"
+            foreignKeyName: "erp_experimental_tasks_stage_id_fkey"
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "erp_item_stages"
@@ -1555,58 +1593,6 @@ export type Database = {
           },
         ]
       }
-      erp_tz_assignments: {
-        Row: {
-          assigned_by: string | null
-          created_at: string
-          department_id: string
-          group_id: string
-          id: string
-          item_id: string
-          order_id: string
-        }
-        Insert: {
-          assigned_by?: string | null
-          created_at?: string
-          department_id: string
-          group_id: string
-          id?: string
-          item_id: string
-          order_id: string
-        }
-        Update: {
-          assigned_by?: string | null
-          created_at?: string
-          department_id?: string
-          group_id?: string
-          id?: string
-          item_id?: string
-          order_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_tz_assignments_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "erp_departments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "erp_tz_assignments_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "erp_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "erp_tz_assignments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "erp_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       erp_tz_documents: {
         Row: {
           created_at: string
@@ -1969,6 +1955,7 @@ export type Database = {
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_manage_tz: { Args: never; Returns: boolean }
+      erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
       erp_clamp_done: {
         Args: { p_current: number; p_delta: number; p_total: number }
         Returns: number
@@ -1979,39 +1966,67 @@ export type Database = {
       }
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
-      erp_experimental_send_to_dept: {
-        Args: {
-          p_department_id: string
-          p_item_id: string
-          p_planned_end?: string
-        }
+      erp_experimental_add_tasks: {
+        Args: { p_experimental_id: string; p_tasks: Json }
         Returns: {
-          assignee: string | null
-          block_reason: string | null
+          blocked_reason: string | null
+          comment: string | null
           created_at: string
           cycle: number
-          department_id: string
+          department_id: string | null
           depends_on: string[]
-          finished_at: string | null
+          done_on: string | null
+          due_date: string | null
+          experimental_id: string
           id: string
-          item_id: string
-          notes: string | null
-          origin: string
-          overdue_ack_at: string | null
-          overdue_comment: string | null
-          planned_end: string | null
-          planned_start: string | null
-          qty_done: number
-          qty_rework: number
-          queue_position: number | null
+          qty: number | null
+          responsible: string | null
+          result: string | null
           sort_order: number
-          started_at: string | null
+          stage_id: string | null
           status: string
+          task_type: string
+          title: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "erp_experimental_tasks"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      erp_experimental_task_send: {
+        Args: {
+          p_department_id: string
+          p_planned_end?: string
+          p_qty?: number
+          p_task_id: string
+        }
+        Returns: {
+          blocked_reason: string | null
+          comment: string | null
+          created_at: string
+          cycle: number
+          department_id: string | null
+          depends_on: string[]
+          done_on: string | null
+          due_date: string | null
+          experimental_id: string
+          id: string
+          qty: number | null
+          responsible: string | null
+          result: string | null
+          sort_order: number
+          stage_id: string | null
+          status: string
+          task_type: string
+          title: string | null
           updated_at: string
         }
         SetofOptions: {
           from: "*"
-          to: "erp_item_stages"
+          to: "erp_experimental_tasks"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -2019,6 +2034,7 @@ export type Database = {
       erp_has_permission: { Args: { perm: string }; Returns: boolean }
       erp_is_manager: { Args: never; Returns: boolean }
       erp_is_member: { Args: never; Returns: boolean }
+      erp_local_date: { Args: never; Returns: string }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
       erp_role_of_caller: { Args: never; Returns: string }
       erp_stage_apply_defect: {

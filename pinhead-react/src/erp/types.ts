@@ -392,21 +392,6 @@ export interface ErpTzDocument {
   created_at: string;
 }
 
-/**
- * @deprecated 2026-08-03. Поцеховое назначение ТЗ отменено: документ принадлежит
- * позиции и виден всему её производственному маршруту (`itemTzDocument`).
- * Таблица `erp_tz_assignments` осталась в схеме пустой — код её не читает и не пишет.
- */
-export interface ErpTzAssignment {
-  id: string;
-  order_id: string;
-  item_id: string;
-  department_id: string;
-  group_id: string;
-  assigned_by: string | null;
-  created_at: string;
-}
-
 /** Бакет и префикс ТЗ в Supabase Storage */
 export const TZ_BUCKET = 'erp-attachments';
 export const TZ_PREFIX = 'tz';
@@ -539,39 +524,14 @@ export interface ErpSubcontractOp {
 
 // --- Экспериментальный цех (правка 6) --------------------------------------
 
-export type ExperimentalPhase =
-  | 'patterns' | 'development' | 'final_fitting' | 'returned_to_constructor' | 'done';
-export type ExperimentalOutcome =
-  | 'approved' | 'needs_rework' | 'needs_rebranding' | 'needs_pattern_change' | 'ready_for_serial';
-export type ExperimentalOpKind = 'to_sewing' | 'to_branding';
-export type ExperimentalOpStatus = 'sent' | 'in_progress' | 'returned' | 'cancelled';
-
-export interface ErpExperimentalOp {
-  id: string;
-  experimental_id: string;
-  kind: ExperimentalOpKind;
-  operation: string | null;
-  qty: number | null;
-  responsible: string | null;
-  planned_date: string | null;
-  comment: string | null;
-  status: ExperimentalOpStatus;
-  /**
-   * Этап, которым эта передача СТАЛА (волна 3.6). Задача нанесения образца —
-   * одна строка `erp_item_stages`, её видит очередь цеха: двух независимых
-   * задач нет физически, а не по соглашению.
-   */
-  stage_id?: string | null;
-  returned_at: string | null;
-  branding_method: string | null;
-  mockup: string | null;
-  zone: string | null;
-  size_mm: string | null;
-  colors: string | null;
-  created_at: string;
-}
-
-// --- Задачи разработки (ТЗ заказчика 12.08) ---------------------------------
+/**
+ * Разработка изделия в экспериментальном цехе.
+ *
+ * Фазовая модель (`ExperimentalPhase`, `ExperimentalOutcome`, `ErpExperimentalOp`)
+ * удалена вместе с колонками 12.08: разработка не линейна, работа ведётся
+ * набором задач, а состояние ВЫЧИСЛЯЕТСЯ (`utils/experimentalTasks.devState`).
+ * Хранится только исход.
+ */
 
 /**
  * Статус задачи разработки — ровно пять из документа (п.12) плюс отмена.
@@ -641,18 +601,12 @@ export interface ErpExperimental {
    * создаёт этап именно этой позиции, а не первой попавшейся.
    */
   item_id?: string | null;
-  /** @deprecated фазы заменены задачами (ТЗ 12.08); колонка мертва до уборки */
-  phase: ExperimentalPhase;
   tech_name: string | null;
   measurement_table: string | null;
   has_3d: boolean;
   constructor: string | null;
   /** Проработчик. Код колонки не переименовывается — меняется только подпись */
   technologist: string | null;
-  /** @deprecated заменено на `outcome` */
-  final_outcome: ExperimentalOutcome | null;
-  /** @deprecated возврат конструктору — результат примерки, а не фаза */
-  constructor_return_comment: string | null;
   /** Исход разработки; null — ещё идёт */
   outcome?: DevOutcome | null;
   outcome_comment?: string | null;
@@ -666,8 +620,6 @@ export interface ErpExperimental {
   updated_at: string;
   /** Присоединяются при загрузке */
   tasks?: ErpExperimentalTask[];
-  /** @deprecated операции переехали в `tasks` */
-  ops?: ErpExperimentalOp[];
   order?: { title: string; bitrix_id: string | null; due_date?: string | null } | null;
 }
 
@@ -920,33 +872,9 @@ export const SUBCONTRACT_MATERIAL_SOURCE_LABELS: Record<SubcontractMaterialSourc
   contractor: 'Материалы подрядчика',
 };
 
-export const EXPERIMENTAL_PHASE_LABELS: Record<ExperimentalPhase, string> = {
-  patterns: 'Построение лекал',
-  development: 'Проработка',
-  final_fitting: 'Финальная примерка',
-  returned_to_constructor: 'Возврат конструктору',
-  done: 'Готов к серии',
-};
 
-export const EXPERIMENTAL_OUTCOME_LABELS: Record<ExperimentalOutcome, string> = {
-  approved: 'Образец утверждён',
-  needs_rework: 'Нужна доработка',
-  needs_rebranding: 'Повторное нанесение',
-  needs_pattern_change: 'Изменение лекал',
-  ready_for_serial: 'Готов к серийному производству',
-};
 
-export const EXPERIMENTAL_OP_KIND_LABELS: Record<ExperimentalOpKind, string> = {
-  to_sewing: 'В общий швейный цех',
-  to_branding: 'На нанесение',
-};
 
-export const EXPERIMENTAL_OP_STATUS_LABELS: Record<ExperimentalOpStatus, string> = {
-  sent: 'Передано',
-  in_progress: 'В работе',
-  returned: 'Возвращено',
-  cancelled: 'Отменено',
-};
 
 export const ORDER_STATUS_LABELS: Record<ErpOrderStatus, string> = {
   active: 'В работе',

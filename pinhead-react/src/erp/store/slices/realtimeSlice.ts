@@ -111,8 +111,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * открытая карточка разработки показывала бы старое состояние до
      * перезагрузки руками. Это ровно тот дефект, который чинится всей волной.
      */
-    if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_ops'
-      || ev.table === 'erp_experimental_tasks') {
+    if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_tasks') {
       if (get().experimentalLoaded) void get().loadExperimental();
       return;
     }
@@ -276,18 +275,6 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_experimental' },
         forward('erp_experimental'),
-      )
-      /**
-       * Операции экспериментального цеха — подписка была ПРОПУЩЕНА, хотя
-       * обработчик для них написан (см. ветку `erp_experimental_ops` выше).
-       * Ветка была недостижима: возврат образца из швейки или с нанесения
-       * не обновлял экран разработки, пока его не перезагрузят руками.
-       * Нашлось сверкой подписок с обработчиками при разборе 11.08.
-       */
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_experimental_ops' },
-        forward('erp_experimental_ops'),
       )
       /**
        * Задачи разработки: их статус пишет триггер при закрытии этапа цехом.
