@@ -21,7 +21,7 @@ import type {
 } from '../../types';
 import { currentActor, erpError, erpQuery, erpRead, removeOrphanUpload, withPending } from '../shared';
 import { cachedQuery, invalidate } from '../queryCache';
-import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
+import { ORDER_SELECT, ORDER_LIST_SELECT, restoreOrderIn, sortOrderFull } from '../orderHelpers';
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
 export const ARCHIVE_PAGE_SIZE = 50;
@@ -480,7 +480,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const { error } = await erpQuery(() => withPending(`order:${id}`, () =>
       supabase.from('erp_orders').update(patch).eq('id', id)));
     if (error) {
-      set({ orders: prev });
+      // Точечный откат: только этот заказ, соседние мутации не трогаем
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, id) }));
       erpError('Не удалось обновить заказ', error);
       return false;
     }
@@ -524,7 +525,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const { error } = await erpQuery(() => withPending(`order:${orderId}`, () =>
       supabase.from('erp_orders').update(patch).eq('id', orderId)));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, orderId) }));
       erpError('Не удалось отгрузить заказ', error);
       return false;
     }

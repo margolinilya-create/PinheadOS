@@ -9,6 +9,7 @@ import { erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpProcurementTask } from '../../types';
 import type { ErpStore, ProcurementSlice } from '../types';
+import { restoreOrderIn } from '../orderHelpers';
 
 export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> = (set, get) => ({
   createProcurementTask: async (orderId, task) => {
@@ -44,6 +45,8 @@ export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> 
 
   updateProcurementTask: async (id, patch) => {
     const prev = get().orders;
+    // Заказ задачи — для точечного отката (общий снимок стёр бы соседние правки)
+    const taskOrderId = prev.find((o) => (o.procurement_tasks ?? []).some((t) => t.id === id))?.id;
     set((s) => ({
       orders: s.orders.map((o) => ({
         ...o,
@@ -53,7 +56,7 @@ export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> 
     }));
     const { error } = await erpQuery(() => supabase.from('erp_procurement_tasks').update(patch).eq('id', id));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, taskOrderId) }));
       toast.error('Не удалось обновить задачу закупки');
       return false;
     }

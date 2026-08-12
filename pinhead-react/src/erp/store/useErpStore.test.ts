@@ -380,6 +380,60 @@ describe('useErpStore — reportProgress (частичная готовност�
   });
 });
 
+/*
+ * Откат ОДНОГО действия не должен стирать соседнее.
+ *
+ * Все откаты были написаны как `set({ orders: prev })`, где `prev` — снимок
+ * ВСЕГО массива на момент старта своей мутации. Действия идут внахлёст: цех
+ * берёт в работу одно задание, диспетчер в это же время двигает другое.
+ * Если первое стартовало раньше и упало позже, его откат возвращал массив
+ * к моменту СВОЕГО старта — вместе с ним пропадало чужое изменение, которое
+ * успело и пройти на сервере, и лечь в стор. На экране это выглядело так:
+ * только что взятое в работу задание само откатилось в «ожидает», а ошибка
+ * показана про ДРУГОЕ задание.
+ */
+describe('useErpStore — откат мутации точечный, а не по всему массиву', () => {
+  function seedTwoOrders() {
+    const mkStage = (id: string, itemId: string) => ({
+      id, item_id: itemId, department_id: 'd1', depends_on: [], status: 'waiting',
+      qty_done: 0, qty_rework: 0, sort_order: 10,
+      planned_start: null, planned_end: null, started_at: null, finished_at: null,
+      assignee: null, block_reason: null, notes: null,
+    });
+    const mkOrder = (oid: string, itemId: string, stageId: string) => ({
+      id: oid, title: `Заказ ${oid}`, status: 'active', materials: [],
+      items: [{
+        id: itemId, order_id: oid, product_type: 'Футболка', variant: null, qty: 100,
+        production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+        notes: null, sort_order: 10, prints: [], stages: [mkStage(stageId, itemId)],
+      }],
+    });
+    useErpStore.setState({
+      orders: [mkOrder('o1', 'it1', 'stA'), mkOrder('o2', 'it2', 'stB')] as any,
+      departments: [{ id: 'd1', code: 'sewing', name: 'Швейный цех', active: true }] as any,
+      loaded: true,
+    });
+  }
+  const statusOf = (stageId: string) => useErpStore.getState().orders
+    .flatMap((o: any) => o.items).flatMap((it: any) => it.stages)
+    .find((st: any) => st.id === stageId)?.status;
+
+  it('упавшее действие по одному заказу не откатывает УСПЕШНОЕ по другому', async () => {
+    seedTwoOrders();
+    // Первый вызов (заказ o1) падает, второй (заказ o2) проходит
+    h.updateErrors = [{ message: 'boom' }, null];
+
+    const failing = useErpStore.getState().setStageStatus('stA', 'in_progress');
+    const succeeding = useErpStore.getState().setStageStatus('stB', 'in_progress');
+    const [okA, okB] = await Promise.all([failing, succeeding]);
+
+    expect(okA, 'первое действие обязано отчитаться о неудаче').toBe(false);
+    expect(okB, 'второе действие прошло').toBe(true);
+    expect(statusOf('stA'), 'упавшее — откатилось').toBe('waiting');
+    expect(statusOf('stB'), 'успешное соседнее НЕ должно быть стёрто откатом').toBe('in_progress');
+  });
+});
+
 describe('useErpStore — setStageStatus (полное закрытие)', () => {
   it('«Готово» без числа закрывает целиком: qty_done = qty позиции', async () => {
     seed({ qty_done: 300 });

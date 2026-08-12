@@ -11,6 +11,7 @@ import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
+import { restoreOrderIn } from '../orderHelpers';
 import { findSupplyDept, openSupplyStages, supplyMaterialSummary } from '../../utils/supply';
 import { actorCanDo } from '../../utils/permissions';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -53,6 +54,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
 
   updateMaterial: async (id, patch) => {
     const prev = get().orders;
+    const matOrderId = prev.find((o) => o.materials.some((m) => m.id === id))?.id;
     set((s) => ({
       orders: s.orders.map((o) => ({
         ...o,
@@ -61,7 +63,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     }));
     const { error } = await erpQuery(() => supabase.from('erp_materials').update(patch).eq('id', id));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, matOrderId) }));
       toast.error('Не удалось обновить материал');
       return false;
     }
@@ -97,6 +99,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
 
   updateSupplierOption: async (materialId, optionId, patch) => {
     const prev = get().orders;
+    const optOrderId = prev.find((o) => o.materials.some((m) => m.id === materialId))?.id;
     set((s) => ({
       orders: patchSuppliersIn(s.orders, materialId, (list) =>
         list.map((o) => (o.id === optionId ? { ...o, ...patch } : o))),
@@ -104,7 +107,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     const { error } = await erpQuery(() => supabase
       .from('erp_material_suppliers').update(patch).eq('id', optionId));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, optOrderId) }));
       toast.error('Не удалось сохранить вариант поставщика');
       return false;
     }
@@ -119,6 +122,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
    */
   selectSupplierOption: async (materialId, optionId) => {
     const prev = get().orders;
+    const selOrderId = prev.find((o) => o.materials.some((m) => m.id === materialId))?.id;
     const material = prev.flatMap((o) => o.materials).find((m) => m.id === materialId);
     const option = (material?.suppliers ?? []).find((o) => o.id === optionId);
     if (!option) return false;
@@ -135,7 +139,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       const { error } = await erpQuery(() => supabase
         .from('erp_material_suppliers').update({ is_selected: false }).eq('id', old.id));
       if (error) {
-        set({ orders: prev });
+        set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, selOrderId) }));
         toast.error('Не удалось сменить поставщика');
         return false;
       }
@@ -143,7 +147,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     const { error } = await erpQuery(() => supabase
       .from('erp_material_suppliers').update({ is_selected: true }).eq('id', optionId));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, selOrderId) }));
       toast.error('Не удалось выбрать поставщика');
       return false;
     }

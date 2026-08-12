@@ -19,6 +19,57 @@ import type { ErpOrderFull, ErpStore, RealtimeSlice } from '../types';
 /** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
 let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * ВСЕ отложенные таймеры подписки — чтобы снять их при отписке.
+ *
+ * Отложенное событие (по сущности шла мутация) заводило цепочку до десяти
+ * попыток по секунде, и отменить её было нечем: при отписке чистился только
+ * `fullReloadTimer`. Событие сессии предыдущего пользователя применялось
+ * в стор СЛЕДУЮЩЕЙ смены через секунду после выхода — воспроизведено
+ * прогоном. Плюс до десяти секунд висящих таймеров на каждое событие.
+ */
+const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+
+/** setTimeout, который умеет быть отменённым при отписке */
+function deferCancelable(fn: () => void, ms: number): void {
+  const t = setTimeout(() => {
+    pendingTimers.delete(t);
+    fn();
+  }, ms);
+  pendingTimers.add(t);
+}
+
+/**
+ * Перечитывание таблицы целиком — С ДЕБАУНСОМ, по одному таймеру на таблицу.
+ *
+ * Ветка «неизвестная таблица» дебаунс имела и вела себя правильно (1000 событий
+ * → 1 перезагрузка), а три ветки с полным перечитыванием — нет: замер дал
+ * 1000 событий `erp_bypasses` → 1000 запросов, 500 событий подряда → 500
+ * запросов. Массовая правка подряда или триггерный каскад давали по полному
+ * перечитыванию таблицы НА КАЖДУЮ СТРОКУ.
+ *
+ * 500 мс для человека всё ещё «немедленно», а для сети — разница в три порядка.
+ */
+const tableReloadTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function debouncedTableReload(table: string, run: () => void): void {
+  const running = tableReloadTimers.get(table);
+  if (running) clearTimeout(running);
+  const t = setTimeout(() => {
+    tableReloadTimers.delete(table);
+    pendingTimers.delete(t);
+    run();
+  }, FULL_RELOAD_DEBOUNCE_MS);
+  tableReloadTimers.set(table, t);
+  pendingTimers.add(t);
+}
+
+/** Снять всё отложенное — при отписке и выходе */
+function clearPendingTimers(): void {
+  for (const t of pendingTimers) clearTimeout(t);
+  pendingTimers.clear();
+  tableReloadTimers.clear();
+}
+
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
 type ChildKey =
   | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
@@ -100,7 +151,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
     if (ev.table === 'erp_subcontracting') {
-      if (get().subcontractingLoaded) void get().loadSubcontracting();
+      if (get().subcontractingLoaded) debouncedTableReload('erp_subcontracting', () => { void get().loadSubcontracting(); });
       return;
     }
     /**
@@ -112,7 +163,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * перезагрузки руками. Это ровно тот дефект, который чинится всей волной.
      */
     if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_tasks') {
-      if (get().experimentalLoaded) void get().loadExperimental();
+      if (get().experimentalLoaded) debouncedTableReload('erp_experimental', () => { void get().loadExperimental(); });
       return;
     }
 
@@ -129,7 +180,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
     const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
     if (_pendingMutations.has(key)) {
       const attempt = (left: number) => {
-        setTimeout(() => {
+        deferCancelable(() => {
           if (!_pendingMutations.has(key)) get().applyRealtimeEvent(ev);
           else if (left > 0) attempt(left - 1);
         }, REALTIME_DEFER_MS);
@@ -212,7 +263,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * Список маленький, поэтому перечитываем его целиком, а не патчим точечно.
      */
     if (ev.table === 'erp_bypasses') {
-      void get().loadBypasses();
+      debouncedTableReload('erp_bypasses', () => { void get().loadBypasses(); });
       return;
     }
 
@@ -302,6 +353,9 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         clearTimeout(fullReloadTimer);
         fullReloadTimer = null;
       }
+      // Отложенные события и перечитывания — тоже. Без этого событие прошлой
+      // смены применялось в стор следующей уже после выхода.
+      clearPendingTimers();
       supabase.removeChannel(channel);
     };
   },

@@ -19,7 +19,7 @@ import {
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
 import { erpError, erpQuery, logStageEvent, withPending } from '../shared';
-import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
+import { addStageIn, findStage, patchStageIn, restoreOrderIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
 
 /**
@@ -62,7 +62,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
       supabase.from('erp_item_stages').update(patch).eq('id', stageId)));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, findStage(prev, stageId)?.order.id) }));
       erpError('Этап не обновлён', error);
       return false;
     }
@@ -105,7 +105,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { data, error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
       supabase.rpc('erp_stage_report_progress', { p_stage_id: stageId, p_qty: qty })));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, findStage(prev, stageId)?.order.id) }));
       erpError('Результат не записан', error);
       return false;
     }
@@ -353,7 +353,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { data, error } = await erpQuery(() => withPending(`stage:${stage.id}`, () =>
       supabase.rpc('erp_stage_apply_defect', { p_patches: patches.map((p) => p.write) })));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, findStage(prev, stageId)?.order.id) }));
       erpError('Брак не записан', error);
       return false;
     }
@@ -452,7 +452,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
       supabase.from('erp_item_stages').update(patch).eq('id', stageId)));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, findStage(prev, stageId)?.order.id) }));
       erpError('Комментарий не сохранён', error);
       return false;
     }
@@ -497,7 +497,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
       supabase.rpc('erp_stage_reorder_queue', { p_writes: writes })));
     if (error) {
-      set({ orders: prevOrders });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prevOrders, findStage(prevOrders, stageId)?.order.id) }));
       erpError('Приоритет не сохранён', error);
       return false;
     }
@@ -587,7 +587,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       })));
     if (error) {
       // Транзакция не оставила следа — откат интерфейса честен.
-      set({ orders: prevOrders });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prevOrders, findStage(prevOrders, stageId)?.order.id) }));
       erpError(`Задание не перенесено в «${targetName}»`, error);
       return false;
     }
@@ -648,7 +648,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
       supabase.from('erp_item_stages').update(plan).eq('id', stageId)));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, findStage(prev, stageId)?.order.id) }));
       erpError('План этапа не сохранён', error);
       return false;
     }

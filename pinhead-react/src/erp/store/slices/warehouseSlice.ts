@@ -15,6 +15,7 @@ import type {
 import { currentActor, erpError, erpQuery, erpRefused, rlsRefused } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
+import { restoreOrderIn } from '../orderHelpers';
 
 /** Тип складской операции для приёмки по статусу приёмки */
 function receiptOpType(acceptStatus: string): ErpWarehouseOp['op_type'] {
@@ -187,12 +188,12 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     const { data, error } = await erpQuery(() => supabase
       .from('erp_warehouse_tasks').update(patch).eq('id', taskId).select('id'));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, order.id) }));
       erpError('Не удалось обновить задачу склада', error);
       return false;
     }
     if (rlsRefused(data)) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, order.id) }));
       return erpRefused('Задача склада не обновлена', 'нужно право «Движение складских задач»');
     }
     // История склада для значимых переходов (маркировка выпущена / упаковано / отгружено)

@@ -12,6 +12,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { TZ_BUCKET, TZ_MAX_BYTES, TZ_MIME } from '../../types';
+import { restoreOrderIn } from '../orderHelpers';
 import type { ErpTzDocument } from '../../types';
 import { documentHistory, tzFilePath } from '../../utils/tz';
 import { currentActor, erpError, erpQuery, logStageEvent, removeOrphanUpload } from '../shared';
@@ -210,7 +211,7 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
       .update({ tz_required: required })
       .eq('id', orderId));
     if (error) {
-      set({ orders: prev });
+      set((s2) => ({ orders: restoreOrderIn(s2.orders, prev, orderId) }));
       erpError('Не удалось изменить требование ТЗ', error);
       return false;
     }
