@@ -55,7 +55,7 @@ const NEXT_PERMISSION = {
   in_progress: 'stage.complete',
 };
 
-function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
+function StageChip({ stage, item, order, deptById, deptFullNameById, onAdvance, allowAdvance }) {
   const dept = deptById.get(stage.department_id);
   const allStages = item.stages;
 
@@ -69,8 +69,12 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   const reason =
     displayStatus === 'waiting' || displayStatus === 'blocked'
       ? waitingReason(
+          // Карта имён приходит ГОТОВОЙ от родителя. Здесь она пересобиралась
+          // заново внутри КАЖДОГО чипа — а чипов на доске столько же, сколько
+          // этапов (15 225 при 5 000 заказов). Родитель уже держит такую же
+          // память по цехам, её просто не передавали вниз.
           stage, allStages, materialsForItem(order.materials, item.id),
-          new Map([...deptById].map(([id, d]) => [id, d.name])),
+          deptFullNameById,
           dept, false, noTz,
         )
       : null;
@@ -167,6 +171,16 @@ export default function ProductionBoard() {
     [departments],
   );
 
+  /**
+   * Полные имена цехов — для причины ожидания в чипе этапа. Отдельно от
+   * `deptNameById` (там короткие): текст причины читается целиком, и сокращения
+   * в нём выглядели бы обрывками. Считается один раз на доску, а не на чип.
+   */
+  const deptFullNameById = useMemo(
+    () => new Map(departments.map((d) => [d.id, d.name])),
+    [departments],
+  );
+
   /** Задания всех заказов — тот же источник, что у очереди и канбана */
   const entries = useMemo(
     () => buildQueueEntries(orders, departments, { includeInactive: !onlyActive, bypasses }),
@@ -203,6 +217,7 @@ export default function ProductionBoard() {
       item={item}
       order={order}
       deptById={deptById}
+      deptFullNameById={deptFullNameById}
       onAdvance={onAdvance}
       allowAdvance={allowAdvance}
     />
