@@ -29,6 +29,37 @@ interface Entry<T> {
 const cache = new Map<string, Entry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
 
+/**
+ * Поколение кэша. Растёт при КАЖДОЙ инвалидации и при полной очистке.
+ *
+ * Без него ответ, летевший в момент выхода из системы, приземлялся в уже
+ * очищенный кэш: `clearQueryCache()` чистил карту, а `.then` запроса,
+ * стартовавшего до выхода, спокойно писал в неё значение обратно. Следующая
+ * смена, открыв тот же заказ, получала его ИЗ КЭША, без единого сетевого
+ * запроса — вместе с комментариями, историей и аудитом предыдущего
+ * пользователя, собранными под его RLS. Тем же путём протекал и пакет
+ * оболочки: роль и цех предыдущего человека доставались следующему.
+ *
+ * Ровно ради этого случая в `resetErpStore()` и дописан `clearQueryCache()` —
+ * но окно «запрос в полёте» он не закрывал.
+ *
+ * Инвалидация после мутации тоже поднимает поколение: иначе ответ, ушедший
+ * ДО правки, вернулся бы после неё и вернул в кэш устаревшие данные.
+ * Вызывающий при этом ничего не теряет — значение ему возвращается,
+ * не сохраняется только запись в кэше.
+ */
+let epoch = 0;
+
+/**
+ * Потолок числа записей. Кэш держал их без ограничения и без вычистки
+ * по времени: TTL решает лишь «отдавать или перезапрашивать», из карты
+ * запись не выпадала никогда, и каждая держит полный пакет заказа
+ * (замер: 100 000 записей — 530 МБ). Реально ключей столько не набирается,
+ * но потолка в коде не было вовсе. Вытеснение — по давности обращения:
+ * `Map` хранит порядок вставки, а чтение переставляет ключ в конец.
+ */
+export const MAX_ENTRIES = 200;
+
 /** Сколько ответ считается свежим (мс). Дольше — отдаём и обновляем в фоне */
 export const DEFAULT_TTL_MS = 30_000;
 
@@ -54,6 +85,11 @@ export async function cachedQuery<T>(
   { ttlMs = DEFAULT_TTL_MS, onRevalidated }: CachedOptions<T> = {},
 ): Promise<T> {
   const hit = cache.get(key) as Entry<T> | undefined;
+  if (hit) {
+    // Обращение освежает запись в порядке вытеснения (LRU через порядок Map)
+    cache.delete(key);
+    cache.set(key, hit as Entry<unknown>);
+  }
   const fresh = hit && now() - hit.at < ttlMs;
   if (hit && fresh) return hit.value;
 
@@ -68,9 +104,16 @@ export async function cachedQuery<T>(
     return running;
   }
 
+  const startedAt = epoch;
   const promise = fetcher()
     .then((value) => {
-      cache.set(key, { value, at: now() });
+      // Поколение сменилось, пока запрос летел, — значит был выход или
+      // инвалидация. Значение отдаём вызывающему, но в кэш НЕ кладём:
+      // иначе данные предыдущей смены достанутся следующей.
+      if (epoch === startedAt) {
+        cache.set(key, { value, at: now() });
+        evictOverflow();
+      }
       return value;
     })
     .finally(() => { inflight.delete(key); });
@@ -84,17 +127,30 @@ export async function cachedQuery<T>(
   return promise;
 }
 
+/** Убрать самые давние записи сверх потолка */
+function evictOverflow(): void {
+  while (cache.size > MAX_ENTRIES) {
+    const oldest = cache.keys().next();
+    if (oldest.done) return;
+    cache.delete(oldest.value);
+  }
+}
+
 /** Сбросить записи, чей ключ начинается с префикса (инвалидация после мутации) */
 export function invalidate(prefix: string): void {
   for (const key of [...cache.keys()]) {
     if (key.startsWith(prefix)) cache.delete(key);
   }
+  // Поколение поднимается ВСЕГДА, даже если удалять было нечего: запрос
+  // по этому ключу может быть ещё в полёте, и его ответ устарел ровно так же.
+  epoch += 1;
 }
 
 /** Полная очистка — при выходе из системы и в тестах */
 export function clearQueryCache(): void {
   cache.clear();
   inflight.clear();
+  epoch += 1;
 }
 
 /** Только для тестов: что лежит в кэше */

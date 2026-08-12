@@ -6,7 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { erpError, erpQuery, erpRefused, rlsRefused } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDepartment, ErpEmployee } from '../../types';
 import type { ErpStore, EmployeesSlice, StaffProfile } from '../types';
@@ -44,15 +44,28 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   },
 
   loadEmployees: async () => {
+    /*
+     * Оба запроса — через `erpQuery`, и это не косметика.
+     *
+     * Это были единственные два сетевых вызова во всех слайсах ERP, шедшие
+     * голым `supabase`. Правило раздела: supabase-js возвращает `error`
+     * на ОТВЕТ сервера и БРОСАЕТ, когда ответа не было (нет сети, CORS).
+     * При обрыве связи `Promise.all` отклонялся, ветка `if (emps.error …)`
+     * не выполнялась вовсе, `employeesLoaded` оставался `false` — и человек
+     * получал unhandled rejection в консоли, вечный скелетон, ни тоста,
+     * ни кнопки «Повторить». Повторной попытки не было: эффект
+     * `if (!employeesLoaded) loadEmployees()` второй раз не срабатывает,
+     * потому что его зависимости не менялись. Единственным выходом был F5.
+     */
     const [emps, profs] = await Promise.all([
-      supabase.from('erp_employees').select('*').order('full_name'),
-      supabase
+      erpQuery(() => supabase.from('erp_employees').select('*').order('full_name')),
+      erpQuery(() => supabase
         .from('profiles')
         .select('id, name, email, role, approved, active')
-        .order('name'),
+        .order('name')),
     ]);
     if (emps.error || profs.error) {
-      toast.error('Не удалось загрузить сотрудников');
+      erpError('Не удалось загрузить сотрудников', emps.error ?? profs.error);
       return;
     }
     set({
@@ -104,11 +117,19 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     set((s) => ({
       employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_employees').update(patch).eq('id', id));
+    // `.select()` обязателен: политика стоит на `is_admin()`, а RLS запрещает
+    // UPDATE через `USING` — это «0 строк», а не ошибка. Без него смена роли
+    // или цеха сотрудника показывалась сохранённой и возвращалась при F5.
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_employees').update(patch).eq('id', id).select('id'));
     if (error) {
       set({ employees: prev });
-      toast.error('Не удалось обновить сотрудника');
+      erpError('Не удалось обновить сотрудника', error);
       return false;
+    }
+    if (rlsRefused(data)) {
+      set({ employees: prev });
+      return erpRefused('Сотрудник не обновлён', 'управление сотрудниками доступно только администратору');
     }
     return true;
   },
@@ -136,11 +157,19 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
         .map((d) => (d.id === id ? { ...d, ...patch } : d))
         .sort((a, b) => a.sort_order - b.sort_order),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_departments').update(patch).eq('id', id));
+    // `.select()` обязателен по той же причине, что у сотрудников: отказ RLS
+    // на UPDATE — это «0 строк». Здесь он особенно дорог: через этот же путь
+    // правится `gate_material_kinds`, то есть материальный гейт участка.
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_departments').update(patch).eq('id', id).select('id'));
     if (error) {
       set({ departments: prev });
-      toast.error('Не удалось сохранить участок');
+      erpError('Не удалось сохранить участок', error);
       return false;
+    }
+    if (rlsRefused(data)) {
+      set({ departments: prev });
+      return erpRefused('Участок не сохранён', 'нужно право «Править справочники»');
     }
     return true;
   },

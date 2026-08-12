@@ -12,7 +12,7 @@ import { toast } from '../../../store/useToastStore';
 import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
-import { currentActor, erpError, erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery, erpRefused, rlsRefused } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
 
@@ -179,11 +179,21 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       ...(extra?.note !== undefined ? { note: extra.note } : {}),
     };
     set((s) => ({ orders: patchTaskIn(s.orders, taskId, patch) }));
-    const { error } = await erpQuery(() => supabase.from('erp_warehouse_tasks').update(patch).eq('id', taskId));
+    // `.select()` обязателен: политика стоит на `warehouse.manage`, а RLS
+    // запрещает UPDATE через `USING` — это «0 строк», а не ошибка. Диспетчер
+    // (у него есть `material.receive`, но нет `warehouse.manage`) закрывал
+    // задачу приёмки «в никуда»: оптимистичный патч оставался на экране,
+    // тоста не было, а задача висела вечно и бейдж «Склад» не гас.
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_warehouse_tasks').update(patch).eq('id', taskId).select('id'));
     if (error) {
       set({ orders: prev });
-      toast.error('Не удалось обновить задачу склада');
+      erpError('Не удалось обновить задачу склада', error);
       return false;
+    }
+    if (rlsRefused(data)) {
+      set({ orders: prev });
+      return erpRefused('Задача склада не обновлена', 'нужно право «Движение складских задач»');
     }
     // История склада для значимых переходов (маркировка выпущена / упаковано / отгружено)
     const opType = OP_FOR_STATUS[status];

@@ -8,7 +8,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { erpError, erpQuery, erpRefused, rlsRefused } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDictionaryItem } from '../../types';
 import type { DictionariesSlice, ErpStore } from '../types';
@@ -87,11 +87,20 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
     set((s) => ({
       dictionaries: s.dictionaries.map((d) => (d.id === id ? { ...d, ...patch } : d)).sort(byOrder),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_dictionaries').update(patch).eq('id', id));
+    // `.select()` обязателен: RLS запрещает UPDATE через `USING`, то есть
+    // «0 строк», а не ошибка. Без него экран показывал новое значение,
+    // а при перезагрузке возвращалось старое — притом что соседняя кнопка
+    // «Добавить» падала громко (её ловит `WITH CHECK`).
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_dictionaries').update(patch).eq('id', id).select('id'));
     if (error) {
       set({ dictionaries: prev });
-      toast.error('Не удалось сохранить значение справочника');
+      erpError('Не удалось сохранить значение справочника', error);
       return false;
+    }
+    if (rlsRefused(data)) {
+      set({ dictionaries: prev });
+      return erpRefused('Значение справочника не сохранено');
     }
     return true;
   },
@@ -133,14 +142,50 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
         })
         .sort(byOrder),
     }));
-    const results = await Promise.all([
-      supabase.from('erp_dictionaries').update({ sort_order: b.sort_order }).eq('id', a.id),
-      supabase.from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', b.id),
-    ]);
-    if (results.some((r) => r.error)) {
+    /*
+     * Две записи идут ПОСЛЕДОВАТЕЛЬНО, и при сбое второй первая КОМПЕНСИРУЕТСЯ.
+     *
+     * Было `Promise.all` двух голых запросов с общим откатом интерфейса. Это
+     * нарушало сразу три правила раздела. Голый `supabase` вместо `erpQuery`:
+     * при обрыве связи промис ОТКЛОНЯЛСЯ, ветка отката не выполнялась вовсе,
+     * порядок на экране оставался переставленным, тоста не было. Общий откат
+     * поверх закоммиченного: если первый UPDATE прошёл, а второй отказал,
+     * в базе у двух значений оставался ОДИНАКОВЫЙ `sort_order`, а интерфейс
+     * показывал исходный порядок — расхождение, которое видно только после
+     * перезагрузки. И отказ RLS через `USING` не отличался от успеха.
+     *
+     * Транзакция (RPC) была бы честнее, но заводить серверную функцию ради
+     * перестановки значения справочника — цена выше пользы; компенсирующая
+     * запись даёт тот же итог: в базе либо оба значения переставлены, либо
+     * ни одного.
+     */
+    const first = await erpQuery(() => supabase
+      .from('erp_dictionaries').update({ sort_order: b.sort_order }).eq('id', a.id).select('id'));
+    if (first.error || rlsRefused(first.data)) {
       set({ dictionaries: prev });
-      toast.error('Не удалось изменить порядок');
-      return false;
+      return first.error
+        ? erpError('Не удалось изменить порядок', first.error)
+        : erpRefused('Порядок не изменён');
+    }
+
+    const second = await erpQuery(() => supabase
+      .from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', b.id).select('id'));
+    if (second.error || rlsRefused(second.data)) {
+      // Возвращаем первому значению прежний порядок — иначе в базе останутся
+      // два одинаковых `sort_order`, которых никто не выбирал
+      const undo = await erpQuery(() => supabase
+        .from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', a.id).select('id'));
+      set({ dictionaries: prev });
+      if (undo.error || rlsRefused(undo.data)) {
+        toast.error(
+          'Порядок изменён наполовину и вернуть его не удалось. Обновите страницу '
+          + 'и проверьте порядок значений в справочнике',
+        );
+        return false;
+      }
+      return second.error
+        ? erpError('Не удалось изменить порядок', second.error)
+        : erpRefused('Порядок не изменён');
     }
     return true;
   },

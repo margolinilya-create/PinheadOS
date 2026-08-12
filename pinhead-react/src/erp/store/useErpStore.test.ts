@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   updateError: null as { message: string } | null,
   /** Ошибки на каждый update по порядку; пусто — используется updateError */
   updateErrors: [] as ({ message: string } | null)[],
+  /** Очередь «сервер отказал молча»: следующий update вернёт 0 строк без ошибки */
+  updateRefused: [] as boolean[],
   /** Аргумент .select(...) по каждому запросу — списочный запрос обязан быть лёгким */
   selectCols: [] as { table: string; cols: string }[],
   insertCalls: [] as { table: string; row: unknown }[],
@@ -94,13 +96,29 @@ vi.mock('../../lib/supabase', () => {
               return q;
             },
             neq: () => q,
-            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+            /*
+             * `.select()` после `update` — обязательное звено.
+             *
+             * Отказ RLS на UPDATE приходит как «0 строк», а не как ошибка,
+             * поэтому слайсы дописывают `.select('id')` и разбирают пустой
+             * ответ. Мок обязан это уметь, иначе он проверяет путь, которым
+             * приложение больше не ходит.
+             *
+             * По умолчанию отдаём одну строку — «сервер разрешил». Отказ
+             * задаётся через `h.updateRefused`: следующий update вернёт
+             * пустой массив, и сработает ветка «прав не хватило».
+             */
+            select: () => q,
+            then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
               // updateErrors — очередь на КАЖДЫЙ вызов по порядку (как insertErrors).
               // Нужна там, где важно, какой именно шаг упал: у переноса этапа первый
               // update коммитится, а падает второй, и поведение обязано различаться.
-              Promise
-                .resolve({ error: h.updateErrors.length ? h.updateErrors.shift()! : h.updateError })
-                .then(resolve, reject),
+              const error = h.updateErrors.length ? h.updateErrors.shift()! : h.updateError;
+              const refused = h.updateRefused.length ? h.updateRefused.shift()! : false;
+              return Promise
+                .resolve({ data: error || refused ? [] : [{ id: 'row' }], error })
+                .then(resolve, reject);
+            },
           };
           return q;
         }),
@@ -254,6 +272,7 @@ beforeEach(() => {
   h.updateCalls.length = 0;
   h.updateError = null;
   h.updateErrors.length = 0;
+  h.updateRefused.length = 0;
   h.selectCols.length = 0;
   h.insertCalls.length = 0;
   h.insertErrors.length = 0;
@@ -854,7 +873,27 @@ describe('useErpStore — задачи склада (волна 4): advanceWareh
     const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'packing');
     expect(ok).toBe(false);
     expect(task0()?.status).toBe('accepted');
-    expect(toast.error).toHaveBeenCalledWith('Не удалось обновить задачу склада');
+    // Причина в тексте — как у соседних действий: отказ прав, обрыв сети
+    // и конфликт не должны выглядеть одинаково
+    expect(toast.error).toHaveBeenCalledWith('Не удалось обновить задачу склада: boom');
+  });
+
+  /*
+   * Тихий отказ RLS. Политика задач склада стоит на `warehouse.manage`,
+   * а запрет через `USING` — это «затронуто 0 строк», а не ошибка. Диспетчер
+   * (у него есть `material.receive`, но нет `warehouse.manage`) закрывал
+   * задачу приёмки в никуда: оптимистичный патч оставался на экране, тоста
+   * не было, задача висела вечно и бейдж «Склад» не гас.
+   */
+  it('отказ RLS («0 строк» без ошибки) — откат и внятный тост', async () => {
+    seedTask({ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'pack_ship', status: 'accepted' });
+    h.updateRefused = [true];
+    const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'packing');
+    expect(ok, 'молчаливый отказ обязан читаться как неуспех').toBe(false);
+    expect(task0()?.status, 'оптимистичный патч обязан откатиться').toBe('accepted');
+    expect(toast.error).toHaveBeenCalledWith(
+      'Задача склада не обновлена: нужно право «Движение складских задач»',
+    );
   });
 
   it('pack_ship ready_to_ship→shipped: отгружает заказ (все этапы done) → done_* + shipment', async () => {
