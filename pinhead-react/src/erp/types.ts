@@ -1062,7 +1062,8 @@ export interface ErpRolePermission {
  * в админке показаны только для чтения.
  */
 export type DictionaryKind =
-  'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit';
+  'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
+  | 'experimental_task_type';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1070,6 +1071,7 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   product_type: 'Типы изделий',
   supplier: 'Поставщики',
   unit: 'Единицы измерения',
+  experimental_task_type: 'Задачи разработки',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -1079,6 +1081,8 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
   product_type: 'Подсказки в поле «Изделие» при создании заказа.',
   unit: 'Подсказки в поле единицы измерения материала (кг, м, шт).',
   supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
+  experimental_task_type:
+    'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
 };
 
 export interface ErpDictionaryItem {
