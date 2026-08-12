@@ -423,10 +423,22 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           return_dept: it.subcontract_kind === 'operation' ? (items[k]?.return_dept ?? null) : null,
         });
       }
-      // Эксперимент (волна 4.3): заказ-образец сразу заводит разработку в эксперим. цехе
-      // (фаза «Построение лекал»), чтобы проработка не создавалась вручную.
-      if (created.items.some((it) => it.production_type === 'samples')) {
-        await get().createExperimental(created.id);
+      /**
+       * Заказ-образец сразу заводит разработку в эксперим. цехе, чтобы
+       * проработка не создавалась вручную.
+       *
+       * Разработка заводится НА КАЖДУЮ позицию-образец, а не одна на заказ:
+       * задачи разработки уходят в цеха этапами конкретной позиции, и одна
+       * разработка на заказ из двух образцов отправила бы работу не туда.
+       * Задач при создании нет — их набор выбирает технолог (ТЗ п.11),
+       * и пятиступенчатый план по умолчанию это ровно то, от чего отказались.
+       */
+      for (const it of created.items) {
+        if (it.production_type !== 'samples') continue;
+        await get().createExperimental(created.id, {
+          item_id: it.id,
+          tech_name: it.variant ? `${it.product_type} · ${it.variant}` : it.product_type,
+        });
       }
     }
     return created;

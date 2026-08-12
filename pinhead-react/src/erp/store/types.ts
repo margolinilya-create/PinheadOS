@@ -23,8 +23,10 @@ import type {
   ErpMaterialSupplier,
   ErpOrder,
   ErpOrderItem,
+  DevOutcome,
+  DevTaskStatus,
   ErpExperimental,
-  ErpExperimentalOp,
+  ErpExperimentalTask,
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
@@ -639,25 +641,79 @@ export interface RealtimeSlice {
 }
 
 /** Экспериментальный цех (правка 6): воронка разработки со стейт-машиной фаз */
+/**
+ * Правка разработки.
+ *
+ * Колонка `constructor` (конструктор изделия) сталкивается с
+ * `Object.prototype.constructor`: тип с полем `constructor?: string`
+ * TypeScript не даёт заполнить объектным литералом ВООБЩЕ — ни `Partial`,
+ * ни `Omit` с обратным добавлением не спасают, проверяется «видимый» тип
+ * литерала. Поэтому поле приходит под своим именем `constructorName`,
+ * а слайс перекладывает его в колонку. Переименовывать колонку в базе
+ * ради этого нельзя — она уже в данных и в истории.
+ */
+export type DevPatch =
+  Partial<Omit<ErpExperimental, 'constructor' | 'tasks' | 'ops' | 'order'>> & {
+    /** Конструктор изделия → колонка `constructor` */
+    constructorName?: string | null;
+  };
+
+/** Одна задача во входе `addDevTasks`; `depends_on` — ИНДЕКСЫ в этом же массиве */
+export interface DevTaskInput {
+  task_type: string;
+  title?: string | null;
+  responsible?: string | null;
+  due_date?: string | null;
+  status?: DevTaskStatus;
+  comment?: string | null;
+  qty?: number | null;
+  depends_on?: number[];
+}
+
 export interface ExperimentalSlice {
   experimental: ErpExperimental[];
   experimentalLoaded: boolean;
   loadExperimental: () => Promise<void>;
-  createExperimental: (orderId: string) => Promise<ErpExperimental | null>;
-  updateExperimental: (id: string, patch: Partial<ErpExperimental>) => Promise<boolean>;
+  createExperimental: (
+    orderId: string,
+    input?: { item_id?: string | null; tech_name?: string | null },
+  ) => Promise<ErpExperimental | null>;
+  updateExperimental: (id: string, patch: DevPatch) => Promise<boolean>;
+
   /**
-   * Передача образца (волна 3.6). При указанных `department_id` и `item_id`
-   * заводит НАСТОЯЩИЙ этап в следующем свободном цикле — цех видит образец
-   * в своей очереди, как любую другую работу. Оба поля в саму запись передачи
-   * не пишутся: они адресуют этап, а не операцию.
+   * Пачка задач ОДНОЙ транзакцией (`erp_experimental_add_tasks`).
+   * Зависимости внутри пачки задаются индексами массива — так же, как этапы
+   * в `erp_create_order`. Какие задачи создать и как связать, решает клиент;
+   * сервер отвечает за атомарность и номер круга.
    */
-  createExperimentalOp: (
+  addDevTasks: (
     experimentalId: string,
-    op: Partial<ErpExperimentalOp> & Pick<ErpExperimentalOp, 'kind'>
-      & { department_id?: string | null; item_id?: string | null },
-  ) => Promise<ErpExperimentalOp | null>;
-  /** Завершить передачу (returned) → заказ авто-возвращается на фазу «Проработка» */
-  completeExperimentalOp: (opId: string) => Promise<boolean>;
+    tasks: DevTaskInput[],
+  ) => Promise<ErpExperimentalTask[] | null>;
+
+  /**
+   * Правка задачи. Задача, переданная в цех (`stage_id`), статуса отсюда
+   * НЕ принимает: его ведёт триггер, и второй писатель затирал бы первого.
+   */
+  updateDevTask: (
+    id: string,
+    patch: Partial<ErpExperimentalTask>,
+  ) => Promise<boolean>;
+
+  /**
+   * Передача задачи в цех (`erp_experimental_task_send`): этап с
+   * `origin='experimental'` + привязка `stage_id`, одной транзакцией.
+   */
+  sendDevTaskToDept: (
+    taskId: string,
+    input: { department_id: string; planned_end?: string | null; qty?: number | null },
+  ) => Promise<boolean>;
+
+  /** Зафиксировать исход разработки (ТЗ п.9) — финальный статус, не этап */
+  closeExperimental: (
+    id: string,
+    input: { outcome: DevOutcome; comment?: string | null },
+  ) => Promise<boolean>;
 }
 
 /**

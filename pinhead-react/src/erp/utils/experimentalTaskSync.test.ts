@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { functionBody, latestDefining, latestMatching } from './migrations.testutil';
 
 /**
@@ -162,5 +164,48 @@ describe('права на задачи разработки', () => {
   it('политика пишется НА КОМАНДУ, а не `for all`', () => {
     // Иначе Postgres проверяет обе на каждый SELECT (advisor multiple_permissive_policies)
     expect(RLS).not.toMatch(/create policy erp_experimental_tasks_\w+ on [\w.]+\s+for all/);
+  });
+});
+
+/**
+ * У колонки ОДИН писатель.
+ *
+ * Статус задачи, ушедшей в цех, ведёт триггер. Если клиент начнёт писать его
+ * тоже, значения будут затирать друг друга МОЛЧА: «готово», поставленное
+ * технологом, разойдётся с открытым этапом в цехе, и оба пути будут выглядеть
+ * работающими. Проект уже проходил это с `qty_received` — колонка, которую
+ * ведёт триггер, стала в интерфейсе текстом тем же коммитом.
+ *
+ * Сторож едет ВМЕСТЕ с писателем: без клиентского кода он проверял бы пустоту.
+ */
+describe('статус задачи в цехе клиент не пишет', () => {
+  const SLICE = readFileSync(
+    join(process.cwd(), 'src/erp/store/slices/experimentalSlice.ts'), 'utf8',
+  );
+
+  it('слайс действительно пишет задачи — иначе сторож пустой', () => {
+    expect(SLICE).toContain("from('erp_experimental_tasks')");
+  });
+
+  it('перед записью снимаются поля, которые ведёт триггер', () => {
+    // Ровно три: статус, причина блокировки и дата закрытия
+    const guard = SLICE.match(/if \(task\.stage_id\) \{[\s\S]*?\}/)?.[0] ?? '';
+    expect(guard, 'нет ветки «задача в цехе»').toContain('delete safe.status');
+    expect(guard).toContain('delete safe.blocked_reason');
+    expect(guard).toContain('delete safe.done_on');
+  });
+
+  it('пустой патч не уходит на сервер, а объясняет отказ', () => {
+    // Иначе человек нажимает «Готово» и не понимает, почему ничего не произошло
+    expect(SLICE).toMatch(/Object\.keys\(safe\)\.length === 0[\s\S]{0,200}toast\.warning/);
+  });
+
+  it('карточка не рисует кнопки статуса у задачи в цехе', () => {
+    // Гейт на клиенте и снятие полей в сторе — две половины одного правила:
+    // без первой была бы кнопка, которая молча ничего не делает
+    const board = readFileSync(
+      join(process.cwd(), 'src/erp/screens/experimental/DevTasksSection.jsx'), 'utf8',
+    );
+    expect(board).toMatch(/const actions = delegated \? \[\]/);
   });
 });

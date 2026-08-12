@@ -34,7 +34,7 @@ const h = vi.hoisted(() => ({
   tableData: {} as Record<string, unknown[]>,
   selectError: null as { message: string } | null,
   singleData: null as unknown,
-  rpcCalls: [] as { fn: string; args: { payload?: unknown } }[],
+  rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
   rpcResult: { data: null as unknown, error: null as { message: string } | null },
   /**
    * Ответ по КОНКРЕТНОЙ функции — операции этапов уехали в свои RPC
@@ -134,7 +134,7 @@ vi.mock('../../lib/supabase', () => {
           return q;
         }),
       })),
-      rpc: vi.fn((fn: string, args: { payload?: unknown }) => {
+      rpc: vi.fn((fn: string, args: Record<string, unknown>) => {
         h.rpcCalls.push({ fn, args });
         return Promise.resolve(h.rpcByFn[fn] ?? h.rpcResult);
       }),
@@ -1813,7 +1813,7 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     expect((subInsert!.row as any).return_dept).toBe('sewing');
   });
 
-  it('образец (волна 4.3): авто-создаёт эксперим. разработку в фазе patterns', async () => {
+  it('образец: авто-создаёт разработку НА ПОЗИЦИЮ, без задач и без фазы', async () => {
     useErpStore.setState({ departments: DEPS as any });
     h.rpcResult = { data: 'o-exp', error: null };
     h.singleData = {
@@ -1831,7 +1831,15 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     const expInsert = h.insertCalls.find((c) => c.table === 'erp_experimental');
     expect(expInsert).toBeTruthy();
     expect((expInsert!.row as any).order_id).toBe('o-exp');
-    expect((expInsert!.row as any).phase).toBe('patterns');
+    /**
+     * Позиция обязательна: задачи разработки уходят в цеха этапами КОНКРЕТНОЙ
+     * позиции, и одна разработка на заказ из двух образцов отправила бы работу
+     * не туда. Прежде здесь стояла эвристика «первая позиция» в экране.
+     */
+    expect((expInsert!.row as any).item_id).toBe('it-exp');
+    // Фазы больше нет: состояние вычисляется из задач, а набор задач
+    // выбирает технолог — план по умолчанию это то, от чего отказались
+    expect((expInsert!.row as any).phase).toBeUndefined();
   });
 });
 
@@ -1874,43 +1882,107 @@ describe('logStageEvent — ретрай аудита (п.33)', () => {
   });
 });
 
-describe('useErpStore — экспериментальный цех (правка 6)', () => {
-  it('createExperimental создаёт разработку в фазе patterns', async () => {
+describe('useErpStore — экспериментальный цех: задачи вместо фаз (ТЗ 12.08)', () => {
+  const seed = (tasks: object[] = []) => {
+    useErpStore.setState({
+      experimental: [{ id: 'e1', order_id: 'o1', item_id: 'i1', tasks }],
+      experimentalLoaded: true,
+    } as any);
+  };
+
+  it('createExperimental заводит разработку с позицией заказа', async () => {
+    // `item_id` чинит эвристику items[0]: передача задачи в цех создаёт этап
+    // именно этой позиции, а не первой попавшейся
     useErpStore.setState({ experimental: [], experimentalLoaded: true } as any);
-    const row = await useErpStore.getState().createExperimental('o1');
+    const row = await useErpStore.getState().createExperimental('o1', { item_id: 'i1' });
     expect(row).toBeTruthy();
-    expect(useErpStore.getState().experimental[0].phase).toBe('patterns');
+    const insert = h.insertCalls.find((c) => c.table === 'erp_experimental');
+    const inserted = insert?.row as Record<string, unknown> | undefined;
+    expect(inserted?.item_id).toBe('i1');
+    // Фаза больше не задаётся: состояние вычисляется из задач
+    expect(inserted?.phase).toBeUndefined();
   });
 
-  it('createExperimentalOp добавляет передачу', async () => {
-    useErpStore.setState({
-      experimental: [{ id: 'e1', order_id: 'o1', phase: 'development', ops: [] }],
-      experimentalLoaded: true,
-    } as any);
-    const row = await useErpStore.getState().createExperimentalOp('e1', {
-      kind: 'to_branding', branding_method: 'DTF',
+  it('addDevTasks шлёт пачку ОДНИМ RPC', async () => {
+    seed();
+    await useErpStore.getState().addDevTasks('e1', [
+      { task_type: 'patterns', title: 'Лекала' },
+      { task_type: 'sample', depends_on: [0] },
+    ]);
+    const rpc = h.rpcCalls.find((c) => c.fn === 'erp_experimental_add_tasks');
+    expect(rpc).toBeTruthy();
+    expect(rpc?.args.p_experimental_id).toBe('e1');
+    expect(rpc?.args.p_tasks).toHaveLength(2);
+    // Зависимость едет ИНДЕКСОМ — id ещё не существует
+    expect((rpc?.args.p_tasks as any)[1].depends_on).toEqual([0]);
+  });
+
+  it('пустая пачка не идёт на сервер', async () => {
+    seed();
+    const before = h.rpcCalls.length;
+    expect(await useErpStore.getState().addDevTasks('e1', [])).toEqual([]);
+    expect(h.rpcCalls).toHaveLength(before);
+  });
+
+  it('sendDevTaskToDept — один RPC вместо RPC + INSERT', async () => {
+    // Прежде это были два запроса: при сбое второго этап оставался в очереди
+    // цеха, а разработка о нём не знала
+    seed([{ id: 't1', experimental_id: 'e1', task_type: 'dtf', status: 'todo' }]);
+    await useErpStore.getState().sendDevTaskToDept('t1', {
+      department_id: 'd-dtf', planned_end: '2026-08-20', qty: 3,
     });
-    expect(row).toBeTruthy();
-    expect(useErpStore.getState().experimental[0].ops).toHaveLength(1);
+    const rpc = h.rpcCalls.find((c) => c.fn === 'erp_experimental_task_send');
+    expect(rpc?.args).toMatchObject({
+      p_task_id: 't1', p_department_id: 'd-dtf', p_planned_end: '2026-08-20', p_qty: 3,
+    });
+    expect(h.insertCalls.filter((c) => c.table === 'erp_experimental_tasks')).toHaveLength(0);
   });
 
-  it('completeExperimentalOp возвращает передачу и авто-возвращает на «Проработку»', async () => {
-    useErpStore.setState({
-      experimental: [{
-        id: 'e1', order_id: 'o1', phase: 'final_fitting',
-        ops: [{ id: 'op1', experimental_id: 'e1', kind: 'to_sewing', status: 'sent' }],
-      }],
-      experimentalLoaded: true,
+  it('статус задачи В ЦЕХЕ клиент не пишет — его ведёт триггер', async () => {
+    // Два писателя одной колонки затирают друг друга молча: «готово»,
+    // поставленное технологом, разошлось бы с открытым этапом в цехе
+    seed([{ id: 't1', experimental_id: 'e1', task_type: 'dtf', status: 'waiting', stage_id: 'st1' }]);
+    const ok = await useErpStore.getState().updateDevTask('t1', { status: 'done' } as any);
+    expect(ok).toBe(false);
+    expect(h.updateCalls.filter((c) => c.table === 'erp_experimental_tasks')).toHaveLength(0);
+  });
+
+  it('но комментарий и результат у задачи в цехе правятся', async () => {
+    seed([{ id: 't1', experimental_id: 'e1', task_type: 'dtf', status: 'waiting', stage_id: 'st1' }]);
+    const ok = await useErpStore.getState().updateDevTask('t1', {
+      status: 'done', comment: 'плёнка своя',
     } as any);
-    const ok = await useErpStore.getState().completeExperimentalOp('op1');
     expect(ok).toBe(true);
-    const e = useErpStore.getState().experimental[0];
-    expect(e.phase).toBe('development'); // авто-возврат
-    // `ops` необязательное поле (приезжает вложенным select), поэтому
-    // проверяем его наличие явно — иначе падение было бы «cannot read [0]»
-    expect(e.ops).toBeDefined();
-    expect(e.ops![0].status).toBe('returned');
-    expect(e.ops![0].returned_at).toBeTruthy();
+    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental_tasks');
+    expect(upd?.patch.comment).toBe('плёнка своя');
+    expect(upd?.patch.status).toBeUndefined();
+  });
+
+  it('у задачи БЕЗ цеха статус меняется свободно', async () => {
+    seed([{ id: 't1', experimental_id: 'e1', task_type: 'patterns', status: 'todo' }]);
+    expect(await useErpStore.getState().updateDevTask('t1', { status: 'done' } as any)).toBe(true);
+    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental_tasks');
+    expect(upd?.patch.status).toBe('done');
+  });
+
+  it('closeExperimental пишет исход и дату закрытия', async () => {
+    seed();
+    await useErpStore.getState().closeExperimental('e1', {
+      outcome: 'ready_for_serial', comment: 'принято',
+    });
+    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental');
+    expect(upd?.patch.outcome).toBe('ready_for_serial');
+    expect(upd?.patch.outcome_comment).toBe('принято');
+    expect(upd?.patch.closed_at).toBeTruthy();
+  });
+
+  it('конструктор едет в колонку `constructor` под своим именем поля', async () => {
+    // `constructorName` в типе — обход столкновения с Object.prototype.constructor
+    seed();
+    await useErpStore.getState().updateExperimental('e1', { constructorName: 'Иван' });
+    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental');
+    expect(upd?.patch.constructor).toBe('Иван');
+    expect(upd?.patch.constructorName).toBeUndefined();
   });
 });
 
@@ -2288,9 +2360,16 @@ describe('orderHelpers — счётчики разделов (сайдбар р�
     ])).toBe(3);
   });
 
-  it('activeExperimentalCount: разработки с фазой ≠ done', () => {
+  it('activeExperimentalCount: разработки без зафиксированного исхода', () => {
+    /**
+     * Считается по ИСХОДУ, а не по фазе: фазы заменены задачами (ТЗ 12.08),
+     * и `phase` осталась мёртвой колонкой до уборочной миграции. Оставь тест
+     * на фазе — бейдж «Эксперим. цех» повис бы навсегда, показывая все
+     * разработки активными.
+     */
     expect(activeExperimentalCount([
-      { phase: 'patterns' }, { phase: 'development' }, { phase: 'done' },
+      { outcome: null }, { outcome: undefined }, { outcome: 'ready_for_serial' },
+      { outcome: 'cancelled' },
     ])).toBe(2);
   });
 });

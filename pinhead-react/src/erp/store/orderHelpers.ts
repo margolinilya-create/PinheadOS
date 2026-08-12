@@ -352,9 +352,18 @@ export function openSubcontractCount(
   return subcontracting.filter((o) => !isSubcontractTerminal(subcontractPhase(o))).length;
 }
 
-/** Активных разработок в эксперим. цехе (фаза ≠ done) — бейдж «Эксперим. цех» */
-export function activeExperimentalCount(experimental: { phase: string }[]): number {
-  return experimental.filter((e) => e.phase !== 'done').length;
+/**
+ * Активных разработок — бейдж «Эксперим. цех».
+ *
+ * Считается по ИСХОДУ, а не по фазе: фазы заменены задачами (ТЗ 12.08),
+ * и `phase` осталась мёртвой колонкой до уборочной миграции. Разработка
+ * активна, пока по ней не принято финальное решение; «что происходит сейчас»
+ * вычисляется из задач и на бейдж не влияет — там нужно одно число.
+ */
+export function activeExperimentalCount(
+  experimental: { outcome?: string | null }[],
+): number {
+  return experimental.filter((e) => !e.outcome).length;
 }
 
 /**

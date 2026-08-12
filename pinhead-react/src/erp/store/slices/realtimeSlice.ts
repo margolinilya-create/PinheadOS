@@ -103,7 +103,16 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       if (get().subcontractingLoaded) void get().loadSubcontracting();
       return;
     }
-    if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_ops') {
+    /**
+     * Разработка, её задачи и старые операции.
+     *
+     * `erp_experimental_tasks` подписаны обязательно: статус задачи, ушедшей
+     * в цех, ведёт ТРИГГЕР — цех закрывает этап у себя, и без подписки
+     * открытая карточка разработки показывала бы старое состояние до
+     * перезагрузки руками. Это ровно тот дефект, который чинится всей волной.
+     */
+    if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_ops'
+      || ev.table === 'erp_experimental_tasks') {
       if (get().experimentalLoaded) void get().loadExperimental();
       return;
     }
@@ -279,6 +288,16 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_experimental_ops' },
         forward('erp_experimental_ops'),
+      )
+      /**
+       * Задачи разработки: их статус пишет триггер при закрытии этапа цехом.
+       * Подписка и обработчик заводятся ВМЕСТЕ — расхождение сторожит
+       * `realtimeCoverage.test.ts`.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_experimental_tasks' },
+        forward('erp_experimental_tasks'),
       )
       .on(
         'postgres_changes',
