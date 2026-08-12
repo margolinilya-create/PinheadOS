@@ -132,13 +132,31 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
      * вызывающих к одному месту, а не отбирать у них загрузку на полпути.
      */
     set({ loading: true, loadError: false });
-    // Архив лениво (п.26): пока архив не открывали — грузим только активные.
-    // Если архив уже загружен, полная перезагрузка обновляет и его.
+    /*
+     * Грузим ВСЕГДА только активные заказы.
+     *
+     * Здесь стояло `if (!archiveLoaded) …eq('status','active')` с пояснением
+     * «если архив уже загружен, полная перезагрузка обновляет и его». На деле
+     * это отменяло пагинацию целиком: после захода на вкладку архива ЛЮБОЙ
+     * последующий `loadAll` — а его зовёт и realtime-фолбэк `scheduleFullReload`,
+     * и каждый экран при монтировании — вытягивал ВЕСЬ архив одним запросом
+     * полным `ORDER_LIST_SELECT`. Ровно то, ради чего пагинацию и вводили.
+     *
+     * Хуже того, `archiveOffset` при этом не двигался: в сторе оказывались все
+     * архивные заказы, а смещение оставалось на первой странице. «Показать ещё»
+     * запрашивала уже загруженное, дедуп по id гасил результат, и кнопка
+     * не добавляла НИ ОДНОЙ строки, оставаясь активной. Замер: 200 заказов
+     * в сторе при `archiveOffset = 50` и `hasMore = true`.
+     *
+     * Уже загруженные страницы архива обновляются ниже отдельным запросом,
+     * ограниченным текущим смещением, — тогда содержимое стора остаётся
+     * ровно тем, что человек открыл кнопкой.
+     */
     let ordersQuery = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
+      .eq('status', 'active')
       .order('due_date', { ascending: true, nullsFirst: false });
-    if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
     if (!get().showDemoOrders) ordersQuery = ordersQuery.eq('is_demo', false);
     /**
      * Цеха запрашиваются, только если их ещё нет.
@@ -162,12 +180,48 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       set({ loading: false, loadError: true });
       return;
     }
+    const active = ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull);
+
+    /*
+     * Архивные заказы, уже показанные человеку, СОХРАНЯЕМ и обновляем.
+     *
+     * Их два вида, и оба обязаны пережить полную перезагрузку: страницы,
+     * открытые кнопкой «Показать ещё», и одиночные заказы, приехавшие мимо
+     * пагинации (диплинк `?order=` → `loadOne`). Просто заменить массив
+     * активными значило бы, что открытая по ссылке карточка архивного заказа
+     * пропадает при любом realtime-событии.
+     */
+    const keptArchive = get().orders.filter((o) => o.status !== 'active');
+    const activeIds = new Set(active.map((o) => o.id));
     set({
       ...(deps.data ? { departments: deps.data as ErpDepartment[] } : {}),
-      orders: ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+      orders: [...active, ...keptArchive.filter((o) => !activeIds.has(o.id))],
       loading: false,
       loaded: true,
     });
+
+    // Открытые страницы архива перечитываем ровно на текущее смещение —
+    // не больше и не меньше, чтобы `archiveOffset` не разъезжался с содержимым
+    const offset = get().archiveOffset;
+    if (get().archiveLoaded && offset > 0) {
+      let archiveQuery = supabase
+        .from('erp_orders')
+        .select(ORDER_LIST_SELECT)
+        .neq('status', 'active');
+      if (!get().showDemoOrders) archiveQuery = archiveQuery.eq('is_demo', false);
+      const { data: archiveRows, error: archiveError } = await erpQuery(() => archiveQuery
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .order('id', { ascending: true })
+        .range(0, offset - 1));
+      // Молча: активные заказы уже показаны, и ронять весь экран из-за архива
+      // неправильно. Но и делать вид, что архив свежий, тоже нельзя —
+      // следующая полная загрузка попробует снова.
+      if (!archiveError) {
+        const fresh = ((archiveRows ?? []) as ErpOrderFull[]).map(sortOrderFull);
+        const paged = new Set(fresh.map((o) => o.id));
+        set((s) => ({ orders: [...s.orders.filter((o) => !paged.has(o.id)), ...fresh] }));
+      }
+    }
   },
 
   /**

@@ -1714,13 +1714,37 @@ describe('ленивый архив (п.26)', () => {
     expect(h.selectCalls).toHaveLength(0);
   });
 
-  it('после загрузки архива loadAll перезагружает всё (без фильтра active)', async () => {
-    useErpStore.setState({ archiveLoaded: true });
+  /*
+   * Здесь стояло обратное утверждение — «после загрузки архива loadAll
+   * перезагружает всё (без фильтра active)», — и оно закрепляло отмену
+   * пагинации: после захода на вкладку архива ЛЮБОЙ последующий loadAll
+   * (а его зовёт и realtime-фолбэк, и каждый экран при монтировании) тянул
+   * ВЕСЬ архив одним запросом полным ORDER_LIST_SELECT. При этом
+   * archiveOffset не двигался, и «Показать ещё» переставала добавлять строки,
+   * оставаясь активной.
+   */
+  it('loadAll всегда просит только активные — пагинация архива не отменяется', async () => {
+    useErpStore.setState({ archiveLoaded: true, archiveOffset: 0 });
     h.tableData = { erp_departments: [dept], erp_orders: [activeRow, archivedRow] };
     await useErpStore.getState().loadAll();
     const call = h.selectCalls.find((c) => c.table === 'erp_orders');
-    expect(call?.filters).not.toContain('eq:status=active');
-    expect(useErpStore.getState().orders).toHaveLength(2);
+    expect(call?.filters).toContain('eq:status=active');
+  });
+
+  it('уже открытые страницы архива переживают полную перезагрузку', async () => {
+    // Человек открыл вкладку архива: одна страница загружена
+    h.tableData = { erp_departments: [dept], erp_orders: [archivedRow] };
+    await useErpStore.getState().loadArchive();
+    expect(useErpStore.getState().archiveOffset).toBe(1);
+
+    // Полная перезагрузка (например, фолбэк realtime)
+    h.tableData = { erp_departments: [dept], erp_orders: [activeRow, archivedRow] };
+    await useErpStore.getState().loadAll();
+
+    const ids = useErpStore.getState().orders.map((o: any) => o.id);
+    expect(ids, 'активный заказ на месте').toContain(activeRow.id);
+    expect(ids, 'открытая страница архива не должна пропасть').toContain(archivedRow.id);
+    expect(useErpStore.getState().archiveOffset, 'смещение не разъезжается').toBe(1);
   });
 
   it('повторный loadArchive — no-op (archiveLoaded уже true)', async () => {
