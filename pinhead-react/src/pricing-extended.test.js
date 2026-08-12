@@ -141,8 +141,11 @@ describe('calcTotal — urgentOption порядок применения', () =>
     const basePrice = PRICES.type['tee'];
     const markup = getMarkup(100, 'tee');
     const markedUp = Math.round(basePrice * (1 + markup));
-    const urgentSurcharge = markedUp * 0.2;
-    const expected = Math.round(100 * (markedUp + urgentSurcharge));
+    // Надбавка округляется НА ЕДИНИЦУ: это то же число, что показано в разбивке
+    // строкой «Срочность», и только при таком порядке «цена за шт. × тираж»
+    // сходится с «ИТОГО» в коммерческом предложении.
+    const urgentSurcharge = Math.round(markedUp * 0.2);
+    const expected = 100 * (markedUp + urgentSurcharge);
     expect(total).toBe(expected);
   });
   it('срочность с наценкой (qty=10)', () => {

@@ -17,8 +17,8 @@ import { useAuthStore } from '../../store/useAuthStore';
 import type { EmployeeRole, ErpPermission } from '../types';
 import {
   FULL_ACCESS_PROFILE_ROLES,
+  actorCan,
   canActInDept,
-  isAllowed,
   resolveErpRole,
 } from '../utils/permissions';
 import { useErpStore } from './useErpStore';
@@ -58,9 +58,13 @@ export function useErpAccess(): ErpAccess {
   return useMemo(() => {
     const isDev = user?.id === 'dev';
     const role = resolveErpRole(user?.role, myRole);
+    // Тот же actor, что читают слайсы стора: гейт кнопки и гейт побочного
+    // эффекта обязаны считаться ОДНИМ кодом, иначе расходятся (см. ErpActor).
+    const actor = {
+      profileRole: user?.role, isDev, employeeRole: myRole, myDeptId, matrix: permissionMatrix,
+    };
     // dev-режим (локальный автологин) — полный доступ, как и раньше на всех экранах
-    const can = (permission: ErpPermission) =>
-      isDev || isAllowed(permissionMatrix, role, permission);
+    const can = (permission: ErpPermission) => actorCan(actor, permission);
     const canActIn = (departmentId: string | null | undefined) =>
       canActInDept(user?.role, myDeptId, departmentId, isDev);
     return {

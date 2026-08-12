@@ -20,15 +20,29 @@ export const STATUS_COLORS: Record<OrderStatus, StatusColors> = {
   done:       { bg: '#F0FFF4', text: '#06A77D', bar: '#06A77D' },
 };
 
-// ─── Generate sequential PH-XXXX order number via Supabase sequence ───
-async function generateOrderNumber(): Promise<string> {
-  try {
-    const { data, error } = await supabase.rpc('generate_order_number');
-    if (!error && data) return data as string;
-  } catch { /* fallback below */ }
-  // Fallback: timestamp-based to avoid collisions
-  return `PH-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-}
+/*
+ * Номер заказа НЕ генерируется клиентом — его ставит база.
+ *
+ * У колонки `orders.order_number` есть рабочий DEFAULT
+ * `'PH-' || lpad(nextval('order_number_seq'), 4, '0')` (миграция
+ * 20260101000000). Достаточно не передавать колонку во вставке и прочитать
+ * присвоенное значение из `.select()`.
+ *
+ * Здесь стояло обратное: клиент звал `supabase.rpc('generate_order_number')`,
+ * а такой функции нет ни в базе, ни в одной миграции. PostgREST отвечал
+ * PGRST202, ветка `if (!error && data)` не срабатывала НИ РАЗУ, ошибка гасилась
+ * пустым `catch {}` — и каждый заказ получал запасной `PH-1786553…-x9k2`
+ * вместо `PH-0042`, перебивая своим значением исправный DEFAULT. Формат
+ * «PH-XXXX» из документации на деле не соблюдался ни в одном заказе.
+ *
+ * Сторож `rpcContract.test.ts` этого не поймал: его регулярка требует второй
+ * аргумент (`supabase.rpc('name', { … })`), а вызовы без аргументов не
+ * матчатся вовсе. Регулярка расширена тем же коммитом.
+ *
+ * Генерация номера на клиенте не нужна и вредна: два менеджера, сохранившие
+ * заказ одновременно, получили бы одинаковый номер — последовательность в БД
+ * от этого защищает по построению.
+ */
 
 const PAGE_SIZE = 50;
 
@@ -172,9 +186,8 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
     }
   },
 
-  // Сохранить новый заказ (INSERT с sequence PH-XXXX)
+  // Сохранить новый заказ (INSERT; номер PH-XXXX ставит DEFAULT колонки)
   saveOrder: async (orderData) => {
-    const orderNumber = await generateOrderNumber();
     const auth = useAuthStore.getState();
     // DEV_MODE user id 'dev' is not a valid UUID — use null for created_by
     const userId = auth.user?.id;
@@ -182,7 +195,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
     const managerName = auth.user?.name || auth.user?.email || '';
     const dataWithManager = { ...orderData, managerName };
     const row = {
-      order_number: orderNumber,
+      // order_number намеренно НЕ передаётся — его ставит DEFAULT колонки
       status: 'draft' as OrderStatus,
       data: dataWithManager,
       total_sum: orderData.total || 0,
@@ -306,12 +319,11 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
 
   // Дублировать заказ
   duplicateOrder: async (order) => {
-    const orderNumber = await generateOrderNumber();
     const auth = useAuthStore.getState();
     const userId = auth.user?.id;
     const createdBy = (userId && userId !== 'dev') ? userId : null;
     const dup = {
-      order_number: orderNumber,
+      // order_number намеренно НЕ передаётся — его ставит DEFAULT колонки
       status: 'draft' as OrderStatus,
       data: order.data ? JSON.parse(JSON.stringify(order.data)) : {},
       total_sum: order.total_sum || 0,

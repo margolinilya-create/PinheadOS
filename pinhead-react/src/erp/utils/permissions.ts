@@ -180,3 +180,42 @@ export function canActInDept(
   if (!myDeptId) return true;
   return Boolean(deptId) && myDeptId === deptId;
 }
+
+/**
+ * Действующее лицо, каким его видят и экраны, и слайсы стора.
+ *
+ * Нужно потому, что гейт понадобился ВНЕ React. `useErpAccess` — хук, а
+ * побочные эффекты стора (автозакрытие закупки при приёмке материала) правами
+ * не спрашивались вовсе: действие просто уходило на сервер и получало 42501
+ * от стража. Вторую копию правил заводить нельзя — это ровно тот случай,
+ * когда «две реализации дают худший отказ», поэтому и хук, и стор зовут
+ * функции ниже.
+ */
+export interface ErpActor {
+  /** Роль профиля Order Studio (useAuthStore) */
+  profileRole?: string | null;
+  /** Локальный dev-автологин — полный доступ, как на всех экранах */
+  isDev?: boolean;
+  /** Цеховая роль (erp_employees.role) */
+  employeeRole?: EmployeeRole | null;
+  /** Цех сотрудника; null — привязки нет */
+  myDeptId?: string | null;
+  /** Матрица из БД; null — работают DEFAULT_PERMISSIONS */
+  matrix?: PermissionMatrix | null;
+}
+
+/** «Что этой роли вообще можно» — без учёта цеха */
+export function actorCan(actor: ErpActor, permission: ErpPermission): boolean {
+  if (actor.isDev) return true;
+  return isAllowed(actor.matrix, resolveErpRole(actor.profileRole, actor.employeeRole), permission);
+}
+
+/** Право И принадлежность цеху — основной гейт действия над этапом */
+export function actorCanDo(
+  actor: ErpActor,
+  permission: ErpPermission,
+  deptId: string | null | undefined,
+): boolean {
+  return actorCan(actor, permission)
+    && canActInDept(actor.profileRole, actor.myDeptId, deptId, actor.isDev);
+}

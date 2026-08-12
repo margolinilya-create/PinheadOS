@@ -393,9 +393,19 @@ export function calcTotal(state: PricingState, debug = false): number {
 
   const unitPrice = markedUpBase + extrasPrice + labelsCost + printPrice + packCost;
 
-  // Срочность считается ПОСЛЕ наценки
+  // Срочность считается ПОСЛЕ наценки.
+  //
+  // Надбавка округляется НА ЕДИНИЦУ, и итог считается уже по округлённой.
+  // Раньше цена за штуку брала округлённую надбавку, а итог — неокруглённую,
+  // и «цена за шт. × тираж» переставало сходиться с «ИТОГО»: тираж 1000 давал
+  // 806 ₽/шт при итоге 806 400 ₽ вместо 806 000. Клиент видит оба числа рядом
+  // (PriceBreakdown) и складывает столбец сам в КП (PrintPreview печатает
+  // построчно `qty × цена за шт.`), поэтому расхождение выглядит обсчётом.
+  // Округляем именно надбавку, а не итог: это ровно то число, которое уже
+  // показано в разбивке строкой «Срочность». Цена до срочности всегда целая,
+  // поэтому итог получается точным. Инвариант сторожит pricing.test.js.
   const urgentSurcharge = state.urgentOption
-    ? unitPrice * (P.urgentMult || 0.20)
+    ? Math.round(unitPrice * (P.urgentMult || 0.20))
     : 0;
 
   const total = Math.round(totalQty * (unitPrice + urgentSurcharge));
@@ -447,7 +457,10 @@ export function calcTotalBreakdown(state: PricingState): PriceBreakdown {
     ? Math.round(unitBeforeUrgent * (P.urgentMult || 0.20))
     : 0;
   const unitPrice = unitBeforeUrgent + urgentAmount;
-  const total = Math.round(qty * (unitBeforeUrgent + (state.urgentOption ? unitBeforeUrgent * (P.urgentMult || 0.20) : 0)));
+  // Итог — строго `тираж × цена за шт.`, теми же слагаемыми, что показаны выше.
+  // Прежняя строка пересчитывала надбавку заново и БЕЗ округления, поэтому
+  // разбивка и итог расходились между собой (см. комментарий в calcTotal).
+  const total = Math.round(qty * unitPrice);
 
   return { cost: costPrice, markup: markupAmount, markupPct, markedBase, base: costPrice, extras, labels, print, pack, discount: markupAmount, urgent: urgentAmount, unitPrice, total, qty };
 }

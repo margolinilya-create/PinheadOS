@@ -478,9 +478,14 @@ describe('calcItemTotal', () => {
 
   it('urgent adds 20%', () => {
     const item = makeItemState();
-    const normal = calcItemTotal(item, { ...catalogs, urgentOption: false });
+    const qty = getItemTotalQty(item);
+    const normalUnit = getItemUnitPrice(item, { ...catalogs, urgentOption: false });
     const urgent = calcItemTotal(item, { ...catalogs, urgentOption: true });
-    expect(urgent).toBe(Math.round(normal * 1.2));
+    // Надбавка округляется НА ЕДИНИЦУ — то же число, что показано в разбивке
+    // строкой «Срочность». Прежнее `Math.round(normal * 1.2)` округляло итог
+    // целиком и потому расходилось с «цена за шт. × тираж» в КП.
+    expect(urgent).toBe(qty * (normalUnit + Math.round(normalUnit * 0.2)));
+    expect(urgent).toBe(qty * getItemUnitPrice(item, { ...catalogs, urgentOption: true }));
   });
 
   it('dtg print adds cost', () => {
@@ -1552,9 +1557,11 @@ describe('Multi-item pricing: pack/urgent affect all items', () => {
 
   it('urgent 20% applies to each item separately', () => {
     const tee = makeItemState({ sizes: { M: 10 } });
-    const normal = calcItemTotal(tee, catalogs);
+    const qty = getItemTotalQty(tee);
+    const normalUnit = getItemUnitPrice(tee, catalogs);
     const urgent = calcItemTotal(tee, { ...catalogs, urgentOption: true });
-    expect(urgent).toBe(Math.round(normal * 1.2));
+    // См. комментарий у «urgent adds 20%»: округление на единицу, не на итог
+    expect(urgent).toBe(qty * (normalUnit + Math.round(normalUnit * 0.2)));
   });
 });
 

@@ -12,6 +12,8 @@ import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
 import { findSupplyDept, openSupplyStages, supplyMaterialSummary } from '../../utils/supply';
+import { actorCanDo } from '../../utils/permissions';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 /** Точечный патч массива вариантов поставщика у материала (не трогая остальные заказы) */
 function patchSuppliersIn(
@@ -233,10 +235,43 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       return;
     }
     const openSupply = openSupplyStages(order, supplyDept.id);
+    if (openSupply.length === 0) return;
+    /*
+     * Побочный эффект спрашивает права ТЕМ ЖЕ гейтом, что кнопка.
+     *
+     * Закрытие этапа закупки требует `stage.complete` (плюс принадлежность
+     * цеху) — так же, как любое другое закрытие этапа. Право есть у закупщика
+     * (выдано 12.08 ровно ради этого) и у руководящего состава, но НЕТ
+     * у кладовщика: решение записано в `DEFAULT_PERMISSIONS` («этапа
+     * в маршруте у склада нет вовсе»). А сюда приходит именно кладовщик —
+     * `acceptMaterial` → `updateMaterial` → это место, — и раньше уходил
+     * на сервер без всякой проверки, получая от `erp_stage_guard` 42501
+     * и красное «Этап не обновлён» поверх успешно принятого материала.
+     * Менеджер получал то же самое, правя закупочные поля: они правом
+     * не гейтятся, а закрытие этапа — гейтится.
+     *
+     * Без права просто НЕ закрываем: у закупщика есть явное действие
+     * «Закупка завершена», и заказ остаётся в его очереди (`ordersAwaitingSupply`
+     * считает открытые этапы). Ложная ошибка исчезает, а решение остаётся
+     * за тем, за кем оно и должно быть по документу.
+     */
+    const user = useAuthStore.getState().user;
+    const canClose = actorCanDo(
+      {
+        profileRole: user?.role,
+        isDev: user?.id === 'dev',
+        employeeRole: get().myRole,
+        myDeptId: get().myDeptId,
+        matrix: get().permissionMatrix,
+      },
+      'stage.complete',
+      supplyDept.id,
+    );
+    if (!canClose) return;
     for (const st of openSupply) {
       await get().setStageStatus(st.id, 'done', { comment: 'Материалы готовы — закупка закрыта автоматически' });
     }
-    if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
+    toast.success('Материалы готовы — закупка по заказу закрыта');
   },
 
   takeSupply: async (orderId) => {

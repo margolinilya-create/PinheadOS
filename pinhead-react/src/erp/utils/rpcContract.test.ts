@@ -30,18 +30,47 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Вызовы `supabase.rpc('name', { args })` во всём исходнике */
+/**
+ * Комментарии JS/TS — прочь перед разбором.
+ *
+ * Сторож ищет вызовы по тексту файла, и без этого он считает вызовом ЛЮБОЕ
+ * упоминание — в том числе объяснение рядом с кодом («здесь стоял
+ * `supabase.rpc('generate_order_number')`, такой функции нет»). Тест начинал
+ * ругаться на собственную документацию, а автор — переписывать комментарий
+ * вместо кода. Это тот же изъян, из-за которого утверждения о миграциях
+ * ловили русский заголовок вместо правила.
+ */
+function withoutJsComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.replace(/(^|[^:'"`])\/\/.*$/, '$1'))
+    .join('\n');
+}
+
+/** Вызовы `supabase.rpc('name')` и `supabase.rpc('name', { args })` во всём исходнике */
 export function rpcCallSites(files: string[]): { file: string; fn: string; args: string[] }[] {
   const out: { file: string; fn: string; args: string[] }[] = [];
   for (const file of files) {
-    const text = readFileSync(file, 'utf8');
-    const re = /supabase\.rpc\(\s*'([a-z0-9_]+)'\s*,\s*\{([\s\S]{0,400}?)\}\s*\)/g;
+    const text = withoutJsComments(readFileSync(file, 'utf8'));
+    // Второй аргумент НЕОБЯЗАТЕЛЕН.
+    //
+    // Прежняя регулярка требовала `, { … }` — и вызовы без аргументов
+    // не попадали в проверку вообще. Их два, и один из них,
+    // `supabase.rpc('generate_order_number')`, звал функцию, которой нет
+    // ни в базе, ни в одной миграции: PostgREST отвечал PGRST202, ошибка
+    // гасилась пустым `catch {}`, и каждый заказ Order Studio получал
+    // запасной номер с меткой времени вместо PH-XXXX. Сторож, обещающий
+    // «каждая вызываемая функция объявлена в миграциях», не видел целый
+    // синтаксический класс вызовов.
+    const re = /supabase\.rpc\(\s*'([a-z0-9_]+)'\s*(?:,\s*\{([\s\S]{0,400}?)\}\s*)?\)/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
       // Ключи объекта аргументов — и `name: value`, и сокращённая запись `{ payload }`.
       // Без второй формы вызов `rpc('erp_create_order', { payload })` выглядел бы
       // как «аргументов нет», и сторож молча пропускал бы самый старый RPC в разделе.
-      const args = [...m[2].matchAll(/(?:^|,)\s*([a-z_][a-z0-9_]*)\s*(?::|,|$)/g)].map((a) => a[1]);
+      // `m[2]` отсутствует у вызова без аргументов — он проверяется по имени
+      const args = [...(m[2] ?? '').matchAll(/(?:^|,)\s*([a-z_][a-z0-9_]*)\s*(?::|,|$)/g)].map((a) => a[1]);
       out.push({ file, fn: m[1], args });
     }
   }

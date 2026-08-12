@@ -32,13 +32,12 @@ function dependentDeptNamesFactory(deptNameById) {
 
 export function useStageActions() {
   const {
-    departments, setStageStatus, setStagePlan, reportProgress, reportDefect,
+    departments, setStageStatus, reportProgress, reportDefect,
     uploadOrderAttachment, ackStageOverdue,
   } = useErpStore(
     useShallow((s) => ({
       departments: s.departments,
       setStageStatus: s.setStageStatus,
-      setStagePlan: s.setStagePlan,
       reportProgress: s.reportProgress,
       reportDefect: s.reportDefect,
       uploadOrderAttachment: s.uploadOrderAttachment,
@@ -51,13 +50,27 @@ export function useStageActions() {
   );
   const dependentDeptNames = useMemo(() => dependentDeptNamesFactory(deptNameById), [deptNameById]);
 
-  /** Взять в работу: план завершения + закрепление за исполнителем */
+  /**
+   * Взять в работу: план завершения + закрепление за исполнителем — ОДНИМ UPDATE.
+   *
+   * Разбивать нельзя. `erp_stage_guard` пускает плановую дату под `stage.take`
+   * только внутри самого взятия — то есть когда в ЭТОМ ЖЕ UPDATE `new.status`
+   * становится `in_progress`. Прежние две записи (сначала дата, потом статус)
+   * под исключение не подпадали никогда: в первой запрос менял только дату,
+   * статус оставался прежним. Каждый рабочий цеха — все, у кого есть
+   * `stage.take` и нет `order.manage`, — получал на взятии красный «План этапа
+   * не сохранён», следом зелёный «Взято в работу», а `planned_end` не
+   * записывался (результат `setStagePlan` даже не проверялся). Отсюда же
+   * росла дыра в контроле сроков: этапы уходили в работу без плановой даты.
+   */
   const onStart = useCallback(async (entry, plannedEnd) => {
-    if (plannedEnd) await setStagePlan(entry.stage.id, { planned_end: plannedEnd });
-    const ok = await setStageStatus(entry.stage.id, 'in_progress', { assignee: currentActor() });
+    const ok = await setStageStatus(entry.stage.id, 'in_progress', {
+      assignee: currentActor(),
+      ...(plannedEnd ? { planned_end: plannedEnd } : {}),
+    });
     if (ok) toast.success(`Взято в работу: ${entry.item.product_type || 'позиция'} · ${entry.item.qty} шт`);
     return ok;
-  }, [setStagePlan, setStageStatus]);
+  }, [setStageStatus]);
 
   /**
    * «Готово» без числа — закрыть этап целиком.

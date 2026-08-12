@@ -165,26 +165,51 @@ describe('useOrdersStore — deleteOrder', () => {
   });
 });
 
-describe('useOrdersStore — generateOrderNumber via RPC', () => {
-  it('saveOrder uses supabase.rpc for order number', async () => {
-    mockRpc.mockResolvedValueOnce({ data: 'PH-0042', error: null });
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockResolvedValue({
-          data: [{ id: 99, order_number: 'PH-0042', status: 'draft' }],
-          error: null,
-        }),
+// Номер заказа ставит БАЗА (DEFAULT колонки `orders.order_number`), клиент его
+// не передаёт и не выдумывает. Прежние тесты здесь закрепляли ровно обратное:
+// они требовали вызова `supabase.rpc('generate_order_number')` — функции,
+// которой нет ни в базе, ни в одной миграции. Мок отвечал 'PH-0042', тест был
+// зелёный, а в проде PostgREST отвечал PGRST202, пустой `catch {}` глотал
+// ошибку, и каждый заказ получал `PH-1786553…-x9k2`. Тест на мок несуществующей
+// функции проверяет мок, а не систему.
+describe('useOrdersStore — номер заказа ставит база', () => {
+  it('saveOrder не передаёт order_number и берёт присвоенный базой', async () => {
+    const insert = vi.fn().mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: 99, order_number: 'PH-0042', status: 'draft' }],
+        error: null,
       }),
     });
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({ insert });
 
     const result = await useOrdersStore.getState().saveOrder({ type: 'tee' });
-    expect(mockRpc).toHaveBeenCalledWith('generate_order_number');
+
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert.mock.calls[0][0]).not.toHaveProperty('order_number');
+    expect(mockRpc).not.toHaveBeenCalled();
     expect(result.order_number).toBe('PH-0042');
   });
 
-  it('returns null when rpc and insert both fail', async () => {
-    mockRpc.mockRejectedValueOnce(new Error('network'));
+  it('duplicateOrder тоже не передаёт order_number', async () => {
+    const insert = vi.fn().mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: 100, order_number: 'PH-0043', status: 'draft' }],
+        error: null,
+      }),
+    });
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({ insert });
+
+    const result = await useOrdersStore.getState().duplicateOrder({
+      id: 1, order_number: 'PH-0001', data: { type: 'tee' }, total_sum: 10, total_qty: 1,
+    });
+
+    expect(insert.mock.calls[0][0]).not.toHaveProperty('order_number');
+    expect(result.order_number).toBe('PH-0043');
+  });
+
+  it('returns null when insert fails', async () => {
     const { supabase } = await import('../lib/supabase');
     supabase.from.mockReturnValue({
       insert: vi.fn().mockReturnValue({

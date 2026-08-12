@@ -3,6 +3,7 @@ import {
   screenLookup, flexLookup, getZoneSurcharge, getTotalQty,
   calcTotal, getSkuEstPrice, getLabelConfigPrice, getMarkup,
   isAccessory, hasNoPrint, SCREEN_FX, TECH_TABS,
+  calcTotalBreakdown, getUnitPrice,
 } from './pricing';
 import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT } from '../data';
 
@@ -282,7 +283,11 @@ describe('calcTotal', () => {
     const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
     const markup = getMarkup(40, s.sku.category);
     const markedUp = Math.round(skuBase * (1 + markup));
-    const expected = Math.round(40 * markedUp * 1.2);
+    // Надбавка округляется НА ЕДИНИЦУ, и уже округлённая умножается на тираж.
+    // Прежняя запись `Math.round(40 * markedUp * 1.2)` округляла итог целиком —
+    // то есть закрепляла тестом ровно то расхождение между «ценой за шт.»
+    // и «ИТОГО», из-за которого столбец в КП не сходился с итогом.
+    const expected = 40 * (markedUp + Math.round(markedUp * 0.2));
     expect(calcTotal(s)).toBe(expected);
   });
 
@@ -327,5 +332,64 @@ describe('SCREEN_FX', () => {
     expect(SCREEN_FX[0].key).toBe('none');
     expect(SCREEN_FX[0].mult).toBe(1);
     expect(SCREEN_FX[1].mult).toBe(2);
+  });
+});
+
+// ── Инвариант коммерческого предложения ──
+//
+// Клиент видит «Итого за шт.» и «ИТОГО» рядом (PriceBreakdown) и складывает
+// столбец сам: PrintPreview печатает построчно `тираж × цена за шт.`. Значит
+// два числа обязаны сходиться при ЛЮБОМ тираже.
+//
+// Дефект, ради которого тест написан: надбавка за срочность округлялась
+// в цене за штуку и НЕ округлялась в итоге. Тираж 1000 давал 806 ₽/шт при
+// итоге 806 400 ₽ вместо 806 000 — расхождение до 2000 ₽ на заказ. 84 теста
+// выше этого не замечали, потому что проверяли слагаемые, а не их согласие.
+describe('инвариант КП: тираж × цена за шт. === ИТОГО', () => {
+  const withQty = (qty, extra = {}) => ({
+    ...baseState(),
+    sizes: { '2XS': 0, 'XS': 0, 'S': 0, 'M': qty, 'L': 0, 'XL': 0, '2XL': 0, '3XL': 0 },
+    ...extra,
+  });
+
+  it('держится на срочных заказах во всём диапазоне тиражей', () => {
+    const broken = [];
+    for (let qty = 1; qty <= 500; qty += 1) {
+      const state = withQty(qty, { urgentOption: true });
+      const b = calcTotalBreakdown(state);
+      if (b.total !== b.qty * b.unitPrice) {
+        broken.push(`тираж ${qty}: итог ${b.total} ≠ ${b.qty} × ${b.unitPrice}`);
+      }
+    }
+    expect(broken).toEqual([]);
+  });
+
+  it('держится на обычных заказах во всём диапазоне тиражей', () => {
+    const broken = [];
+    for (let qty = 1; qty <= 500; qty += 1) {
+      const b = calcTotalBreakdown(withQty(qty));
+      if (b.total !== b.qty * b.unitPrice) {
+        broken.push(`тираж ${qty}: итог ${b.total} ≠ ${b.qty} × ${b.unitPrice}`);
+      }
+    }
+    expect(broken).toEqual([]);
+  });
+
+  it('calcTotal и разбивка дают один и тот же итог', () => {
+    for (const urgentOption of [false, true]) {
+      for (const qty of [1, 7, 13, 37, 100, 333, 1000]) {
+        const state = withQty(qty, { urgentOption });
+        expect(calcTotal(state)).toBe(calcTotalBreakdown(state).total);
+      }
+    }
+  });
+
+  it('getUnitPrice совпадает с ценой за шт. из разбивки', () => {
+    for (const urgentOption of [false, true]) {
+      for (const qty of [1, 7, 13, 37, 100, 333, 1000]) {
+        const state = withQty(qty, { urgentOption });
+        expect(getUnitPrice(state)).toBe(calcTotalBreakdown(state).unitPrice);
+      }
+    }
   });
 });
