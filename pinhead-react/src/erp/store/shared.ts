@@ -136,9 +136,12 @@ export function erpRefused(what: string, who = 'у вашей роли нет п
  *
  * Сама уборка не должна ронять сценарий: человеку уже сказали, что привязать
  * не вышло, и «не удалилось то, о чём он не знает» ему ничего не объясняет.
+ * Отсюда и `erpQuery`: голый вызов при обрыве связи ОТКЛОНЯЛСЯ, и отклонение
+ * всплывало наружу — `uploadOrderPreview`/`uploadOrderAttachment` падали
+ * вместо честного `return false`.
  */
 export async function removeOrphanUpload(bucket: string, path: string): Promise<void> {
-  const { error } = await supabase.storage.from(bucket).remove([path]);
+  const { error } = await erpQuery(() => supabase.storage.from(bucket).remove([path]));
   if (error) console.warn('orphan upload not removed:', path, error.message);
 }
 
@@ -152,7 +155,22 @@ export const STAGE_EVENT_RETRY_MS = 1500;
  */
 export function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
   const row = { ...ev, actor: currentActor() };
-  const attempt = () => supabase.from('erp_stage_events').insert(row);
+  /*
+   * Попытка идёт через `erpQuery`, а не голым запросом.
+   *
+   * Здесь стоял `void attempt().then(({ error }) => …)` без ветки отказа
+   * промиса. По правилу раздела supabase-js БРОСАЕТ, когда ответа не было
+   * (нет сети, CORS), — то есть при обрыве связи сразу после успешного
+   * действия цеха этот промис отклонялся: ретрай не запускался, тост
+   * «Событие истории не записалось» не показывался, а в консоль улетал
+   * unhandled rejection. Срабатывало после КАЖДОГО действия цеха, если сеть
+   * отвалилась сразу после мутации, — то есть именно тогда, когда запись
+   * в историю и нужна.
+   *
+   * `erpQuery` превращает бросок в такой же `{ data: null, error }`, какой
+   * пришёл бы от сервера, и ниже работает уже написанная ветка `if (error)`.
+   */
+  const attempt = () => erpQuery(() => supabase.from('erp_stage_events').insert(row));
   void attempt().then(({ error }) => {
     if (!error) return;
     setTimeout(() => {

@@ -148,3 +148,29 @@ describe('toast helper', () => {
     expect(useToastStore.getState().toasts[0].type).toBe('warning');
   });
 });
+
+/*
+ * Потолок числа полос. Счётчик одинаковых сообщений решал задачу наполовину:
+ * `erpError` подставляет в текст ИМЯ ДЕЙСТВИЯ, поэтому при одном обрыве связи
+ * сообщения получаются разные, и дедуп по полному тексту не срабатывает ни разу.
+ * Прогон оффлайна дал 11 полос сразу, а потолка не было вовсе.
+ */
+describe('потолок одновременных полос', () => {
+  it('разные сообщения не перекрывают экран', () => {
+    for (let i = 0; i < 11; i += 1) {
+      toast.error(`Не удалось загрузить раздел ${i}: нет связи`);
+    }
+    const { toasts } = useToastStore.getState();
+    expect(toasts.length).toBeLessThanOrEqual(4);
+    // Остаются САМЫЕ СВЕЖИЕ: они про то, что человек делает прямо сейчас
+    expect(toasts[toasts.length - 1].message).toContain('раздел 10');
+    expect(toasts.some((t) => t.message.includes('раздел 0'))).toBe(false);
+  });
+
+  it('одинаковые по-прежнему считаются, а не копятся', () => {
+    for (let i = 0; i < 100; i += 1) toast.error('Один и тот же сбой');
+    const { toasts } = useToastStore.getState();
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].count).toBe(100);
+  });
+});

@@ -26,7 +26,7 @@ import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
 import { deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
 import { translateSupabaseError } from '../../../utils/i18n';
-import { currentActor, erpQuery } from '../../store/shared';
+import { currentActor, erpQuery, removeOrphanUpload } from '../../store/shared';
 import { supabase } from '../../../lib/supabase';
 import {
   TZ_BUCKET,
@@ -70,6 +70,38 @@ function buildTzItems(items, deptByCode) {
           .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
       };
     });
+}
+
+/*
+ * Стабильная идентичность позиции для React.
+ *
+ * Список рисовался с `key={i}`, то есть по индексу. При удалении позиции
+ * следующая занимала освободившийся индекс и НАСЛЕДОВАЛА смонтированное
+ * состояние соседа: `SizeGridEditor` определяет шкалу размеров (детская или
+ * взрослая) ленивым инициализатором `useState`, который отрабатывает один раз
+ * на инстанс. Удалили позицию с детской шкалой — у оставшейся взрослой
+ * позиции чипы размеров переключались на детские, а уже выбранные размеры
+ * уезжали в хвост как «свои». Данные не портились, но следующее нажатие шло
+ * по чужой шкале.
+ *
+ * Что про сдвиг индексов здесь знали, видно по `removeItem`: привязка файлов
+ * ТЗ там пересобирается честно. Ключ остался индексным.
+ *
+ * Счётчик, а не случайное число и не отметка времени: два быстрых нажатия
+ * «+ Добавить позицию» в одну миллисекунду получили бы одинаковый ключ —
+ * та же ошибка, из-за которой id тоста когда-то считали от `Date.now()`.
+ *
+ * `_key` в payload не попадает: позиция собирается по полям поимённо.
+ */
+let itemKeySeq = 0;
+function newItem(fields = EMPTY_ITEM) {
+  itemKeySeq += 1;
+  return { ...fields, _key: `item-${itemKeySeq}` };
+}
+
+/** Черновик мог быть сохранён до появления ключей — доставляем недостающие */
+function withItemKeys(items) {
+  return (items ?? []).map((it) => (it && it._key ? it : newItem(it)));
 }
 
 export function CreateOrderModal({ onClose }) {
@@ -118,7 +150,7 @@ export function CreateOrderModal({ onClose }) {
   const initialLaunch = useMemo(() => factoryToday(), []);
   const [restoredDraft] = useState(() => loadOrderDraft());
   const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
-  const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
+  const [items, setItems] = useState(() => withItemKeys(restoredDraft?.items ?? [{ ...EMPTY_ITEM }]));
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
   /**
@@ -218,8 +250,35 @@ export function CreateOrderModal({ onClose }) {
     uploadTzFile(groupId, doc.file);
   };
 
+  /*
+   * Файл ТЗ уходит в бакет при ВЫБОРЕ (иначе интерфейс показывал приложенным
+   * то, чего в Storage ещё нет). Значит и убирать его надо самим — во всех
+   * трёх случаях, когда документ перестаёт быть нужным: сняли документ,
+   * удалили позицию вместе с её ТЗ, закрыли форму не сохранив.
+   *
+   * Раньше не убиралось ни в одном: файл оставался в `tz/new/<group_id>/`
+   * навсегда — платный, никому не принадлежащий и, пока бакет публичный,
+   * доступный по прямой ссылке. Это боевые ТЗ клиентов с именами и номерами
+   * заказов прямо в ключе объекта.
+   *
+   * Оправдание в коде («удалять из бакета клиент не может, политика delete —
+   * только admin») устарело 05.08: политика `erp_att_delete_own` разрешает
+   * автору убрать СВОЙ объект, и `tzSlice` этим уже пользуется.
+   *
+   * Уборка молчаливая: человек уже сделал то, что хотел, и сообщение
+   * «не удалился файл, о котором вы не знаете» ему ничего не объясняет.
+   */
+  const discardTzFiles = (docs) => {
+    for (const d of docs) {
+      if (d?.path) void removeOrphanUpload(TZ_BUCKET, d.path);
+    }
+  };
+
   const removeTzDoc = (groupId) => {
-    setTzDocs((arr) => arr.filter((d) => d.groupId !== groupId));
+    setTzDocs((arr) => {
+      discardTzFiles(arr.filter((d) => d.groupId === groupId));
+      return arr.filter((d) => d.groupId !== groupId);
+    });
   };
 
   // Удаление позиции сдвигает индексы — пересобираем привязку файлов ТЗ,
@@ -243,9 +302,13 @@ export function CreateOrderModal({ onClose }) {
     }
     setItems((arr) => arr.filter((_, idx) => idx !== i));
     const shift = (idx) => (idx > i ? idx - 1 : idx);
-    setTzDocs((arr) => arr
-      .filter((d) => d.itemIndex !== i)
-      .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) })));
+    setTzDocs((arr) => {
+      // ТЗ удалённой позиции больше никому не принадлежит — убираем и файл
+      discardTzFiles(arr.filter((d) => d.itemIndex === i));
+      return arr
+        .filter((d) => d.itemIndex !== i)
+        .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) }));
+    });
   };
 
   /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
@@ -299,7 +362,7 @@ export function CreateOrderModal({ onClose }) {
   const resetDraft = () => {
     clearOrderDraft();
     setForm(emptyOrderForm(initialLaunch));
-    setItems([{ ...EMPTY_ITEM }]);
+    setItems([newItem()]);
     setDraftRestored(false);
     setSubmitted(false);
   };
@@ -310,6 +373,7 @@ export function CreateOrderModal({ onClose }) {
     if (saving || closingRef.current) return;
     if (isFormEmpty(form, items, initialLaunch)) {
       clearOrderDraft();
+      discardTzFiles(tzDocs);
       onClose();
       return;
     }
@@ -324,6 +388,10 @@ export function CreateOrderModal({ onClose }) {
     closingRef.current = false;
     if (ok) {
       saveOrderDraft(form, items);
+      // Черновик не хранит File-объекты (в JSON они превратились бы в `{}`),
+      // и об этом прямо сказано в тексте подтверждения выше: «файлы придётся
+      // приложить заново». Значит уже загруженные файлы осиротели — убираем.
+      discardTzFiles(tzDocs);
       onClose();
     }
   };
@@ -655,7 +723,7 @@ export function CreateOrderModal({ onClose }) {
         >
         {items.map((it, i) => (
           <ItemBlock
-            key={i}
+            key={it._key}
             it={it}
             i={i}
             itemsCount={items.length}
@@ -670,7 +738,7 @@ export function CreateOrderModal({ onClose }) {
           />
         ))}
         <div>
-          <Button variant="secondary" onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}>
+          <Button variant="secondary" onClick={() => setItems((arr) => [...arr, newItem()])}>
             + Добавить позицию
           </Button>
         </div>
