@@ -320,6 +320,26 @@ export default function Experimental() {
         </div>
       )}
 
+      {/*
+        Позиции-образцы без разработки. Раньше о них было не узнать: авто-создание
+        при заведении заказа падало 42501 молча (у менеджера нет `experimental.manage`),
+        и заказ-образец оставался без разработки — 15 из 21 на боевой базе.
+        Право расширено, но старые позиции сами не появятся; массово заводить их
+        нельзя — вышли бы пустые карточки, то есть мусор.
+      */}
+      {experimentalLoaded && canManage && availableItems.length > 0 && (
+        <div className={styles.toolbar} style={{ marginTop: -8 }}>
+          <span className={`${styles.chip} ${styles.chipWaiting}`}>
+            <Icon name="alert" size={13} />
+            {' '}
+            Позиций-образцов без разработки: {availableItems.length}
+          </span>
+          <span className={styles.subText}>
+            Выберите в списке справа те, которые ещё актуальны.
+          </span>
+        </div>
+      )}
+
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="разработки" />}
       {!experimentalLoaded && !loadError && <TableSkeleton rows={5} label="Загрузка разработок" />}
 
