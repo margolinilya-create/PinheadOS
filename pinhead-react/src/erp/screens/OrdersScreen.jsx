@@ -302,7 +302,16 @@ export default function OrdersScreen() {
             className={`${styles.chip} ${styles.chipBtn} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
                         onClick={() => setTab('archive')}
           >
-            Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
+            {/*
+              M-02 отчёта QA 13.08.2026: счётчик архива «появлялся» после
+              загрузки, и подпись прыгала. Архив грузится лениво (он растёт
+              без ограничений — это записанное решение), поэтому число до
+              открытия вкладки неизвестно честно. Многоточие говорит «ещё
+              не знаем» и держит ширину, вместо того чтобы возникать из ниоткуда.
+            */}
+            Архив ({archiveLoaded
+              ? orders.filter((o) => o.status !== 'active').length
+              : <span title="Архив загружается при первом открытии вкладки">…</span>})
           </button>
           {tab === 'active' && (
             <>
@@ -331,6 +340,16 @@ export default function OrdersScreen() {
                 <Icon name="clock" size={13} /> Просрочено ({counts.overdue})
               </button>
             </>
+          )}
+          {/*
+            M-03: три фильтра сроков исчезали при переходе в архив без единого
+            слова. Они и не могут там работать — в архиве заказы уже сданы, —
+            но пропажа трёх кнопок читается как поломка, а не как правило.
+          */}
+          {tab === 'archive' && (
+            <span className={styles.subText}>
+              Фильтры сроков — только для активных: в архиве заказы уже сданы
+            </span>
           )}
         </div>
         <input

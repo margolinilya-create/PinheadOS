@@ -544,15 +544,17 @@ export default function FabricPurchasing() {
                     </td>
                     <td>
                       <input
-                        className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"
+                        className={`${styles.input} ${styles.inputSm} ${styles.cellInput}`}
+                        defaultValue={m.article || ''} placeholder="артикул"
                         onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.article || null)) updateMaterial(m.id, { article: v }); }}
                         aria-label={`Артикул ${m.name}`} style={{ maxWidth: 110 }}
                       />
                     </td>
                     <td>
                       <input
-                        type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.qty_expected ?? ''} placeholder="—"
+                        type="number" min="0" step="0.01"
+                        className={`${styles.input} ${styles.inputSm} ${styles.cellInput}`}
+                        defaultValue={m.qty_expected ?? ''} placeholder="кол-во"
                         onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v }); }}
                         aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
                       />
@@ -567,7 +569,8 @@ export default function FabricPurchasing() {
                           в карточке «Ожидают материалы» — accepted_by для этого
                           не годится: он заполняется уже после приёмки */}
                       <input
-                        className={`${styles.input} ${styles.inputSm}`} defaultValue={m.responsible || ''} placeholder="—"
+                        className={`${styles.input} ${styles.inputSm} ${styles.cellInput}`}
+                        defaultValue={m.responsible || ''} placeholder="кто ведёт"
                         onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.responsible || null)) updateMaterial(m.id, { responsible: v }); }}
                         aria-label={`Ответственный за получение ${m.name}`} style={{ maxWidth: 120 }}
                       />

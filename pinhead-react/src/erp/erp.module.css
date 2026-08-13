@@ -219,6 +219,13 @@
   transition: width 160ms ease;
 }
 .sidebarCollapsed { width: 64px; }
+/*
+  Место под пункт цеха, пока список не приехал (L-01). Не мерцающий скелетон,
+  а тихая пустая строка нужной высоты: она держит разметку и не притворяется
+  содержимым. Меню — навигация, а не данные; мигающая полоска здесь читалась
+  бы как «что-то грузится и сейчас появится другое».
+*/
+.navLinkSkeleton { pointer-events: none; opacity: 0; }
 /* Логотип — ссылка на главную ERP (правка 13): кликабелен весь блок, не только буква */
 .sidebarBrand {
   display: flex;
@@ -1937,6 +1944,22 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   cursor: pointer;
 }
 .supplierCell:hover { border-color: var(--border-mid); background: var(--surface); }
+/*
+  Правимая ячейка таблицы (M-16 отчёта QA 13.08.2026).
+
+  Пустое поле с рамкой и прочерком внутри читалось как «пустая рамка»:
+  непонятно, это поле ввода, заглушка или обрезанная колонка. Рамка
+  появляется по наведению и фокусу — как у соседней ячейки поставщика,
+  чтобы вся строка вела себя одинаково, — а вместо прочерка стоит
+  подсказка, называющая, что сюда пишут.
+*/
+.cellInput {
+  border-color: transparent;
+  background: none;
+}
+.cellInput:hover { border-color: var(--border-mid); background: var(--surface); }
+.cellInput:focus { border-color: var(--border-mid); background: var(--card); }
+.cellInput::placeholder { color: var(--text-muted); font-style: italic; }
 .supplierCell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Выбранный вариант в таблице сравнения */
 .supplierRowSelected { background: var(--bg-success); }

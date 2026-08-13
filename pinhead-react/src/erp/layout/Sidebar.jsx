@@ -82,6 +82,18 @@ function NavItem({ item, count, collapsed }) {
   );
 }
 
+/**
+ * Сколько мест держать под цеха, пока их список не приехал.
+ *
+ * L-01 отчёта QA 13.08.2026: меню сначала рисовалось без секции «ЦЕХА»
+ * и без счётчиков, потом они появлялись — весь низ меню прыгал вниз, и
+ * попасть по пункту в первую секунду было нельзя. Цеха приезжают пакетом
+ * оболочки, то есть задержка неизбежна; убрать надо не её, а скачок.
+ * Шесть — размер боевого набора участков; ошибка на один-два ряда стоит
+ * куда меньше прыжка на всю секцию.
+ */
+const DEPT_PLACEHOLDERS = 6;
+
 export function Sidebar({
   isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse,
   open = false, onNavigate,
@@ -117,17 +129,25 @@ export function Sidebar({
                 <NavItem key={n.to} item={n} count={counts[n.to] || 0} collapsed={collapsed} />
               ))}
               {/* Цеха — сразу под «Главным»: постоянный список участков с числом заданий */}
-              {g.title === 'Главное' && deptItems.length > 0 && (
+              {g.title === 'Главное' && (
                 <>
                   <div className={styles.navGroup}>Цеха</div>
-                  {deptItems.map((d) => (
-                    <NavItem
-                      key={d.to}
-                      item={{ to: d.to, label: d.label, icon: d.icon }}
-                      count={d.count}
-                      collapsed={collapsed}
-                    />
-                  ))}
+                  {deptItems.length > 0
+                    ? deptItems.map((d) => (
+                      <NavItem
+                        key={d.to}
+                        item={{ to: d.to, label: d.label, icon: d.icon }}
+                        count={d.count}
+                        collapsed={collapsed}
+                      />
+                    ))
+                    : Array.from({ length: DEPT_PLACEHOLDERS }, (_, i) => (
+                      <div
+                        key={`dept-skeleton-${i}`}
+                        className={`${styles.navLink} ${styles.navLinkSkeleton}`}
+                        aria-hidden="true"
+                      />
+                    ))}
                 </>
               )}
             </div>
