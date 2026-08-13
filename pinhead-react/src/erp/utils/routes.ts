@@ -19,6 +19,7 @@ import type {
   ErpMaterial,
   ProductionType,
 } from '../types';
+import { stagesById } from './stagesById';
 import { formatDateShort } from './time';
 
 export interface RouteStage {
@@ -283,7 +284,7 @@ export function isStageReady(
   if (blockedByProcurement) return false;
   if (missingTz) return false;
   if (materialsBlockStage(materials, dept)) return false;
-  const byId = new Map(allStages.map((s) => [s.id, s]));
+  const byId = stagesById(allStages);
   return stage.depends_on.every((depId) => {
     const dep = byId.get(depId);
     return !dep || dep.status === 'done' || dep.status === 'skipped';
@@ -320,7 +321,7 @@ export function waitingReason(
     });
     return `Ждём материалы: ${parts.join(', ')}`;
   }
-  const byId = new Map(allStages.map((s) => [s.id, s]));
+  const byId = stagesById(allStages);
   for (const depId of stage.depends_on) {
     const dep = byId.get(depId);
     if (dep && dep.status !== 'done' && dep.status !== 'skipped') {

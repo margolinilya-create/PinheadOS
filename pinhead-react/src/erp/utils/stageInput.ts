@@ -13,6 +13,7 @@
  */
 
 import type { ErpItemStage } from '../types';
+import { stagesById } from './stagesById';
 
 /** Минимум этапа для расчёта входа */
 export type InputStage = Pick<ErpItemStage, 'id' | 'status' | 'depends_on'> & {
@@ -51,7 +52,7 @@ export function stageInputQty(
   const deps = stage.depends_on ?? [];
   if (deps.length === 0) return total;
 
-  const byId = new Map(allStages.map((s) => [s.id, s]));
+  const byId = stagesById(allStages);
   const outputs = deps
     .map((id) => byId.get(id))
     .filter((s): s is InputStage => Boolean(s))
