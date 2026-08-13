@@ -126,8 +126,16 @@ test.describe('Уведомления обзора сгруппированы п
   });
 
   test('колокол в шапке ведёт к уведомлениям', async ({ page }) => {
+    /*
+      Колокол — ССЫЛКА, а не кнопка (H-09 отчёта QA 13.08.2026): панели
+      уведомлений в ERP нет, список живёт виджетом на обзоре, и иконка обязана
+      честно показывать, что она ведёт на другой экран. Раньше это была кнопка
+      с `navigate()`, которая к тому же не срабатывала повторно.
+    */
     await page.goto('/?studio=0');
-    await page.getByRole('button', { name: 'Уведомления' }).click();
+    const bell = page.getByRole('link', { name: /Уведомления/ });
+    await expect(bell).toBeVisible();
+    await bell.click();
     await expect(page).toHaveURL(/#notifications/);
   });
 });
