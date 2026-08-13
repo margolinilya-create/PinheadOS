@@ -21,7 +21,17 @@ import { join } from 'node:path';
 
 const SRC = join(process.cwd(), 'src');
 const generated = readFileSync(join(SRC, 'types/database.generated.ts'), 'utf8');
-const manual = readFileSync(join(SRC, 'erp/types.ts'), 'utf8');
+/**
+ * Ручные типы лежат в ДВУХ файлах, и сторож обязан читать оба.
+ *
+ * Читался только `erp/types.ts`, а `ErpOrderAuditRow` живёт в
+ * `erp/store/types.ts` — из-за этого колонка `erp_order_audit.changed_by_id`
+ * не попала в зеркало и не могла быть замечена ни одной из проверок.
+ */
+const manual = [
+  readFileSync(join(SRC, 'erp/types.ts'), 'utf8'),
+  readFileSync(join(SRC, 'erp/store/types.ts'), 'utf8'),
+].join('\n');
 
 /** Колонки таблицы из блока `Row: { … }` сгенерированного файла */
 function columnsOf(table: string): string[] {
@@ -57,6 +67,12 @@ const EMBEDS: Record<string, string[]> = {
   ErpSubcontractOp: ['order'],
 };
 
+/**
+ * Колонки, СОЗНАТЕЛЬНО не описанные в ручном типе. Список явный: молчаливое
+ * отсутствие колонки — это и есть дефект, который ловит обратная сверка.
+ */
+const NOT_MIRRORED: Record<string, string[]> = {};
+
 const PAIRS: [string, string][] = [
   ['ErpOrder', 'erp_orders'],
   ['ErpOrderItem', 'erp_order_items'],
@@ -70,6 +86,10 @@ const PAIRS: [string, string][] = [
   ['ErpMaterialReceipt', 'erp_material_receipts'],
   ['ErpSubcontractMove', 'erp_subcontract_moves'],
   ['ErpSubcontractOp', 'erp_subcontracting'],
+  // Пары не было вовсе — оттого `actor_id` и оказался вне зеркала
+  ['ErpStageEvent', 'erp_stage_events'],
+  // Интерфейс живёт в erp/store/types.ts — второй файл ручных типов
+  ['ErpOrderAuditRow', 'erp_order_audit'],
 ];
 
 describe('ручные типы ERP не разошлись со схемой БД', () => {
@@ -78,6 +98,36 @@ describe('ручные типы ERP не разошлись со схемой Б
     const embeds = new Set(EMBEDS[iface] ?? []);
     const extra = fieldsOf(iface).filter((f) => !cols.has(f) && !embeds.has(f));
     expect(extra, `${iface}: полей нет в таблице ${table} — ${extra.join(', ')}`).toEqual([]);
+  });
+
+  /*
+   * ОБРАТНАЯ сверка: колонка есть в таблице, а в ручном типе её нет.
+   *
+   * Раньше проверялась только одна сторона — «в типе нет лишнего». Из-за
+   * этого мимо зеркала проехали три живые колонки:
+   *   · `erp_materials.responsible` — её и ЧИТАЮТ, и ПИШУТ
+   *     (`screens/FabricPurchasing.jsx`, `screens/queue/MaterialWait.jsx`),
+   *     и не падало это только потому, что оба файла .jsx и под tsc не попадают;
+   *   · `erp_stage_events.actor_id` — пары для этой таблицы не было в PAIRS вовсе;
+   *   · `erp_order_audit.changed_by_id` — интерфейс живёт в `store/types.ts`,
+   *     который сторож не читал.
+   *
+   * Пропущенная колонка не ломает сборку и не даёт ошибки: она просто
+   * не существует для TypeScript, и обращение к ней остаётся невидимым
+   * до рантайма. Поэтому сверка обязана быть двусторонней.
+   *
+   * Колонку можно НЕ описывать осознанно — но тогда она попадает в
+   * `NOT_MIRRORED` с объяснением, а не пропадает молча.
+   */
+  it.each(PAIRS)('%s описывает ВСЕ колонки %s (или исключает их явно)', (iface, table) => {
+    const fields = new Set(fieldsOf(iface));
+    const skip = new Set(NOT_MIRRORED[iface] ?? []);
+    const missing = columnsOf(table).filter((c) => !fields.has(c) && !skip.has(c));
+    expect(
+      missing,
+      `${iface}: колонки ${table} нет в типе — ${missing.join(', ')}. `
+      + 'Опишите её или впишите в NOT_MIRRORED с причиной',
+    ).toEqual([]);
   });
 
   it('список отношений не разросся: каждое должно быть осознанным', () => {

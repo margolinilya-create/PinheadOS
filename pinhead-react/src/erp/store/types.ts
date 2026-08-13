@@ -62,6 +62,13 @@ export interface ErpOrderAuditRow {
   old_value: string | null;
   new_value: string | null;
   changed_by: string | null;
+  /**
+   * Автор изменения как uuid — рядом с именем, по той же причине, что
+   * `actor_id` в ErpStageEvent: имя рвётся при переименовании и не различает
+   * тёзок (миграция 20260803240000). Была вне зеркала, потому что сторож
+   * схемы читал только `erp/types.ts` и до этого файла не доходил.
+   */
+  changed_by_id: string | null;
   changed_at: string;
 }
 

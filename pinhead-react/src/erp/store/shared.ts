@@ -153,7 +153,17 @@ export const STAGE_EVENT_RETRY_MS = 1500;
  * При ошибке — 1 повторная попытка через ~1.5с; если обе неудачны —
  * toast.error + console.warn.
  */
-export function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
+export function logStageEvent(
+  /**
+   * `actor_id` исключён вместе с `actor`: имя проставляет `currentActor()`
+   * ниже, а uuid не пишет НИКТО — колонка заведена 03.08 и с тех пор пуста
+   * (0 значений из 27 строк). Заполнить её — отдельная работа: сегодня
+   * действующее лицо известно только по имени, и подставлять сюда
+   * `auth.uid()` наугад значило бы завести второй, расходящийся источник.
+   * Тип отражает то, что есть, а не то, что задумано.
+   */
+  ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor' | 'actor_id'>,
+) {
   const row = { ...ev, actor: currentActor() };
   /*
    * Попытка идёт через `erpQuery`, а не голым запросом.

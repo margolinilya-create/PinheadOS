@@ -327,6 +327,12 @@ export interface ErpMaterial {
   accepted_at: string | null;
   accepted_by: string | null;
   accept_comment: string | null;
+  /**
+   * Ответственный за закупку позиции. Колонка была ВНЕ зеркала, хотя её и
+   * читают, и пишут (`screens/FabricPurchasing.jsx`, `screens/queue/MaterialWait.jsx`);
+   * не падало это только потому, что оба файла .jsx и под `tsc` не попадают.
+   */
+  responsible: string | null;
   created_at: string;
   updated_at: string;
   /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
@@ -937,6 +943,15 @@ export interface ErpStageEvent {
   qty_done: number | null;
   qty_rework: number | null;
   comment: string | null;
+  /**
+   * Действующее лицо как uuid. Имя (`actor`) рвётся при переименовании
+   * и не различает тёзок, поэтому колонка заведена рядом с ним
+   * (миграция 20260803240000). ВНИМАНИЕ: сегодня её не пишет никто —
+   * колонка мертва с 03.08, и заполнение её отдельная работа. Здесь она
+   * описана потому, что существует в схеме: зеркало отражает базу,
+   * а не намерения.
+   */
+  actor_id: string | null;
   created_at: string;
 }
 
