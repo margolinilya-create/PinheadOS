@@ -4,6 +4,7 @@ import styles from '../App.module.css'
 import { useStore } from '../store/useStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/useAuthStore'
+import { isModeSwitchInFlight } from '../config/appMode'
 import Header from '../components/layout/Header'
 import ProgressBar from '../components/layout/ProgressBar'
 import StepGarment from '../components/steps/StepGarment'
@@ -91,6 +92,17 @@ export default function OrderStudioApp({ user }) {
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
+      /**
+       * Намеренный переход в «Производство» — не уход с сайта.
+       *
+       * Без этой проверки страж перехватывал переключение раздела: браузер
+       * показывал нативное «Покинуть страницу?», отмена оставляла человека
+       * в Studio, и кнопка «🏭 Производство» выглядела мёртвой — ни запроса,
+       * ни сообщения. Автоматический обход такие диалоги отменяет сам,
+       * поэтому там не происходило вообще ничего. Черновик визарда при этом
+       * не теряется: его пишет `useDraft` на каждое изменение.
+       */
+      if (isModeSwitchInFlight()) return;
       const { step, saved } = useStore.getState();
       if (step > 0 && !saved) {
         e.preventDefault();

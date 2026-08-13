@@ -6,6 +6,8 @@ import { useDictionary } from '../../store/useDictionary';
 import { Drawer } from '../../components/Drawer';
 import { Icon } from '../../components/Icon';
 import { DateField } from '../../components/DateField';
+import { useFormGate } from '../../components/useFormGate';
+import { FieldError, FormGateHint } from '../../components/FormGate';
 import { toast } from '../../../store/useToastStore';
 import { confirm } from '../../../store/useConfirmStore';
 import { formatDateShort } from '../../utils/time';
@@ -51,6 +53,12 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Ошибка — на поле, не тостом в углу (H-16 отчёта QA 13.08.2026)
+  const problemGate = useFormGate([
+    { key: 'problemType', label: 'Тип проблемы', ok: Boolean(problem.type.trim()) },
+  ]);
+
+
   useEffect(() => {
     if (slot?.id) loadPlanComments(slot.id);
   }, [slot?.id, loadPlanComments]);
@@ -95,14 +103,13 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
     }
   });
 
-  const saveProblem = () => run(async () => {
-    if (!problem.type.trim()) {
-      toast.error('Выберите тип проблемы');
-      return;
-    }
+  const saveProblem = problemGate.guard(() => run(async () => {
     const ok = await reportPlanProblem(slot.id, problem);
-    if (ok) toast.success('Проблема зафиксирована — задача подсвечена руководителю');
-  });
+    if (ok) {
+      problemGate.reset();
+      toast.success('Проблема зафиксирована — задача подсвечена руководителю');
+    }
+  }));
 
   const send = (side) => run(async () => {
     const row = await addPlanComment(slot.id, message, side);
@@ -289,14 +296,16 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>Тип</span>
                   <input
-                    className={styles.input} list="erp-plan-problem-types"
+                    className={problemGate.cls(styles.input, 'problemType')} list="erp-plan-problem-types"
                     value={problem.type}
                     onChange={(e) => setProblem({ ...problem, type: e.target.value })}
                     placeholder="нет материалов, брак, ошибка в ТЗ…"
+                    {...problemGate.field('problemType')}
                   />
                   <datalist id="erp-plan-problem-types">
                     {problemTypes.map((t) => <option key={t.id} value={t.name} />)}
                   </datalist>
+                  <FieldError id={problemGate.errId('problemType')} text={problemGate.error('problemType')} />
                 </label>
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>Описание</span>
@@ -326,9 +335,14 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
                   />
                   работу можно продолжать
                 </label>
-                <Button variant="secondary" disabled={busy} onClick={saveProblem}>
+                <Button
+                  variant="secondary"
+                  disabled={busy || (problemGate.submitted && !problemGate.ok)}
+                  onClick={saveProblem}
+                >
                   Зафиксировать проблему
                 </Button>
+                <FormGateHint gate={problemGate} />
               </div>
             )}
           </section>

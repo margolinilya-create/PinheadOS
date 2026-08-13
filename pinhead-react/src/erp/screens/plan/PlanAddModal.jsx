@@ -4,6 +4,8 @@ import { useErpStore } from '../../store/useErpStore';
 import { Icon } from '../../components/Icon';
 import { SearchInput } from '../../components/SearchInput';
 import { DateField } from '../../components/DateField';
+import { useFormGate } from '../../components/useFormGate';
+import { FieldError, FormGateHint } from '../../components/FormGate';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { toast } from '../../../store/useToastStore';
 import { formatDateShort } from '../../utils/time';
@@ -82,15 +84,24 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
     setQty(String(remainingQty(entry)));
   };
 
+  /**
+   * Причина называется у поля, а не тостом в углу и не молчаливым `disabled`
+   * (H-16 отчёта QA 13.08.2026): кнопка блокировалась при пустом количестве
+   * и не сообщала об этом ничего.
+   */
+  const gate = useFormGate([
+    { key: 'picked', label: 'Задание', ok: Boolean(picked), message: 'Выберите задание из списка выше' },
+    { key: 'workDate', label: 'День', ok: Boolean(workDate), message: 'Выберите день' },
+    {
+      key: 'qty',
+      label: 'Количество на день',
+      ok: Number(qty) > 0,
+      kind: qty === '' ? 'missing' : 'invalid',
+      message: 'Количество на день должно быть больше нуля',
+    },
+  ]);
+
   const submit = async () => {
-    if (!picked) {
-      toast.error('Выберите задание');
-      return;
-    }
-    if (!workDate) {
-      toast.error('Выберите день');
-      return;
-    }
     setBusy(true);
     const row = await planStage({
       stageId: picked.stage.id,
@@ -179,18 +190,23 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>День *</span>
                 <DateField
+                  className={gate.cls(styles.input, 'workDate')}
                   value={workDate}
                   onChange={setWorkDate}
                   aria-label="День, на который ставится задача"
+                  {...gate.field('workDate')}
                 />
+                <FieldError id={gate.errId('workDate')} text={gate.error('workDate')} />
               </label>
             )}
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Количество на день *</span>
               <input
-                type="number" min="1" className={styles.input}
+                type="number" min="1" className={gate.cls(styles.input, 'qty')}
                 value={qty} onChange={(e) => setQty(e.target.value)}
+                {...gate.field('qty')}
               />
+              <FieldError id={gate.errId('qty')} text={gate.error('qty')} />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Комментарий цеху</span>
@@ -208,11 +224,12 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
         )}
 
         <div className={styles.modalActions}>
+          <FormGateHint gate={gate} />
           <Button variant="ghost" onClick={onClose}>Отмена</Button>
           <Button
             variant="primary"
-            disabled={busy || !picked || !workDate || !(Number(qty) > 0)}
-            onClick={submit}
+            disabled={busy || (gate.submitted && !gate.ok)}
+            onClick={gate.guard(submit)}
           >
             {busy ? 'Добавляем…' : 'В план'}
           </Button>

@@ -6,7 +6,7 @@ import App from './App.jsx'
 import { useStore } from './store/useStore'
 import { useAuthStore, watchAuthState } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
-import { FEATURES } from './config/features'
+import { resolveAppMode } from './config/appMode'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
 import { isNetworkFailure } from './utils/i18n'
 
@@ -36,8 +36,11 @@ window.addEventListener('unhandledrejection', (event) => {
 useAuthStore.getState().init().catch(() => {});
 watchAuthState();
 
-// Order Studio-специфичное: черновик и каталоги грузим только при включённом флаге
-if (FEATURES.orderStudio) {
+// Order Studio-специфичное: черновик и каталоги грузим только когда реально
+// показываем Studio. Спрашиваем `resolveAppMode`, а не флаг: при аварийном
+// выходе (ERP-маршрут с включённым флагом) рисуется ERP, и тянуть сюда
+// каталоги визарда значит платить лишним запросом за экран, которого нет.
+if (resolveAppMode(window.location.pathname) === 'studio') {
   const draft = localStorage.getItem('pinhead_draft');
   if (draft) {
     try {

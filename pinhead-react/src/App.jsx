@@ -1,4 +1,5 @@
 import React, { useEffect, Suspense } from 'react'
+import { useLocation } from 'react-router-dom'
 import './styles/index.css'
 import styles from './App.module.css'
 import { useShallow } from 'zustand/react/shallow'
@@ -7,7 +8,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import AuthScreen from './components/auth/AuthScreen'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
-import { FEATURES } from './config/features'
+import { resolveAppMode, rememberMode } from './config/appMode'
 
 // Order Studio (визард/цены) — заархивирован за feature-flag, грузится только при включении.
 const OrderStudioApp = React.lazy(() => import('./orderstudio/OrderStudioApp'))
@@ -40,9 +41,24 @@ function App() {
     profileStatus: s.profileStatus,
   })));
 
+  /**
+   * Раздел выбирается по АДРЕСУ, а не только по запомненному флагу: маршрут,
+   * которого в Order Studio нет (`/board`, `/queue`, …), обязан открыть ERP
+   * даже при включённом флаге. Это аварийный выход из блокера, при котором
+   * человек залипал в Studio во всех вкладках сразу — см. config/appMode.ts.
+   */
+  const { pathname } = useLocation();
+  const mode = resolveAppMode(pathname);
+
   useEffect(() => {
     init();
   }, [init]);
+
+  // Память следует за адресом: иначе `/board` открылся бы в ERP, а первый же
+  // переход в «Заказы» вернул бы Studio — флаг остался бы прежним.
+  useEffect(() => {
+    rememberMode(mode);
+  }, [mode]);
 
   if (authLoading) {
     return <LoadingScreen />;
@@ -101,7 +117,7 @@ function App() {
     );
   }
 
-  const Shell = FEATURES.orderStudio ? OrderStudioApp : ErpApp;
+  const Shell = mode === 'studio' ? OrderStudioApp : ErpApp;
 
   return (
     <>

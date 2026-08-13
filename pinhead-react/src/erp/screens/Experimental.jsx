@@ -12,10 +12,11 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
+import { useFormGate } from '../components/useFormGate';
+import { FieldError } from '../components/FormGate';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
-import { toast } from '../../store/useToastStore';
 import {
   DEV_STATE_LABELS,
   EMPTY_DEV_FILTERS,
@@ -167,8 +168,15 @@ export default function Experimental() {
     return out;
   }, [orders, experimental]);
 
+  /**
+   * Ошибка показывается НА ПОЛЕ, а не тостом в углу экрана (H-16 отчёта QA
+   * 13.08.2026): тост уезжает от того самого селекта, о котором говорит.
+   */
+  const devGate = useFormGate([
+    { key: 'newOrderId', label: 'Позиция-образец', ok: Boolean(newOrderId), message: 'Выберите позицию-образец' },
+  ]);
+
   const addDev = async () => {
-    if (!newOrderId) { toast.error('Выберите позицию-образец'); return; }
     const found = availableItems.find(({ item }) => item.id === newOrderId);
     if (!found) return;
     const row = await createExperimental(found.order.id, {
@@ -177,7 +185,7 @@ export default function Experimental() {
         ? `${found.item.product_type} · ${found.item.variant}`
         : found.item.product_type,
     });
-    if (row) { setNewOrderId(''); openDev(row.id); }
+    if (row) { setNewOrderId(''); devGate.reset(); openDev(row.id); }
   };
 
   const set = (patch) => { setFilters({ ...filters, ...patch }); setPage(1); };
@@ -217,22 +225,26 @@ export default function Experimental() {
         searchPlaceholder="Поиск: изделие, заказ, № сделки"
         searchLabel="Поиск по разработкам"
         right={canManage && (
-          <>
-            <select
-              className={styles.select}
-              value={newOrderId}
-              onChange={(e) => setNewOrderId(e.target.value)}
-              aria-label="Позиция-образец для разработки"
-            >
-              <option value="">Позиция-образец…</option>
-              {availableItems.map(({ order, item }) => (
-                <option key={item.id} value={item.id}>
-                  №{order.bitrix_id || '—'} · {item.product_type}
-                </option>
-              ))}
-            </select>
-            <Button variant="primary" onClick={addDev}>+ Разработка</Button>
-          </>
+          <div className={styles.field}>
+            <div className={styles.formActions}>
+              <select
+                className={devGate.cls(styles.select, 'newOrderId')}
+                value={newOrderId}
+                onChange={(e) => setNewOrderId(e.target.value)}
+                aria-label="Позиция-образец для разработки"
+                {...devGate.field('newOrderId')}
+              >
+                <option value="">Позиция-образец…</option>
+                {availableItems.map(({ order, item }) => (
+                  <option key={item.id} value={item.id}>
+                    №{order.bitrix_id || '—'} · {item.product_type}
+                  </option>
+                ))}
+              </select>
+              <Button variant="primary" onClick={devGate.guard(addDev)}>+ Разработка</Button>
+            </div>
+            <FieldError id={devGate.errId('newOrderId')} text={devGate.error('newOrderId')} />
+          </div>
         )}
       >
         <button

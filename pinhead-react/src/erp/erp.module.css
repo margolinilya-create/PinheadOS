@@ -2512,6 +2512,29 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   gap: 8px 12px;
   align-items: flex-end;
 }
+/*
+  Подпись бывает ШИРЕ своего поля: «Принято, шт *» это ~110px над input в 84px.
+  Во flex-ряду ширину задаёт содержимое, поэтому две такие подписи подряд
+  смыкались друг с другом и читались как одна (H-17, QA 13.08.2026).
+  Поле резервирует место под собственную подпись, а не под ввод.
+*/
+.fieldQty { min-width: 112px; }
+/* `fieldWide` — из grid-разметки (`grid-column: span 2`) и во flex-ряду
+   не работает вовсе; растяжение здесь выражается флексом */
+.fieldGrow { flex: 1 1 220px; min-width: 180px; }
+/*
+  Ряд действий формы: слева сводка «Осталось заполнить: …» (она забирает
+  свободное место через `.remainingHint { flex: 1 }`), справа кнопка.
+  Сводка обязана стоять рядом с кнопкой — тост в углу экрана человек
+  на планшете цеха просто не видит.
+*/
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
 .planComment {
   display: flex;
   flex-direction: column;

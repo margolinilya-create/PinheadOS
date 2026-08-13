@@ -6,13 +6,14 @@ import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
-import { toast } from '../../store/useToastStore';
 import { deptShortName } from '../data/departments';
 import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
 import { EMPLOYEE_ROLE_LABELS } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
+import { useFormGate } from '../components/useFormGate';
+import { FieldError, FormGateHint } from '../components/FormGate';
 
 /**
  * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
@@ -50,6 +51,10 @@ export default function EmployeesScreen({ embedded = false }) {
   const me = useAuthStore((s) => s.user);
   const [showInactive, setShowInactive] = useState(false);
   const [newName, setNewName] = useState('');
+  // Ошибка — на поле, не тостом в углу (H-16 отчёта QA 13.08.2026)
+  const nameGate = useFormGate([
+    { key: 'name', label: 'Имя', ok: Boolean(newName.trim()), message: 'Укажите имя работника' },
+  ]);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -324,23 +329,32 @@ export default function EmployeesScreen({ embedded = false }) {
 
       <form
         className={styles.addMatRow}
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
+          // preventDefault ДО проверки: иначе форма с незаполненным полем
+          // уходит нативным сабмитом и перезагружает страницу
           e.preventDefault();
-          const name = newName.trim();
-          if (!name) { toast.error('Укажите имя'); return; }
-          const row = await createEmployee({ full_name: name, role: 'worker' });
-          if (row) setNewName('');
+          nameGate.guard(async () => {
+            const row = await createEmployee({ full_name: newName.trim(), role: 'worker' });
+            if (row) { setNewName(''); nameGate.reset(); }
+          })();
         }}
       >
-        <input
-          className={styles.input}
-          placeholder="Имя нового работника без логина"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          aria-label="Имя нового работника"
-          style={{ minWidth: 240 }}
-        />
-        <Button variant="secondary" type="submit">+ Добавить без логина</Button>
+        <label className={styles.field}>
+          <input
+            className={nameGate.cls(styles.input, 'name')}
+            placeholder="Имя нового работника без логина"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            aria-label="Имя нового работника"
+            style={{ minWidth: 240 }}
+            {...nameGate.field('name')}
+          />
+          <FieldError id={nameGate.errId('name')} text={nameGate.error('name')} />
+        </label>
+        <Button variant="secondary" type="submit" disabled={nameGate.submitted && !nameGate.ok}>
+          + Добавить без логина
+        </Button>
+        <FormGateHint gate={nameGate} />
       </form>
     </>
   );

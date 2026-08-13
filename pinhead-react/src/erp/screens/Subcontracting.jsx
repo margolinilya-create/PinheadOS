@@ -6,7 +6,6 @@ import { SearchInput } from '../components/SearchInput';
 import { StageIndicator } from '../components/StageIndicator';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { toast } from '../../store/useToastStore';
 import { formatDateShort, subcontractOverdue } from '../utils/time';
 import { deptShortName, isProductionDept } from '../data/departments';
 import {
@@ -23,6 +22,8 @@ import {
 } from '../utils/subcontractPhase';
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
+import { useFormGate } from '../components/useFormGate';
+import { FormGateHint } from '../components/FormGate';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
@@ -68,9 +69,13 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
   const [form, setForm] = useState(EMPTY_OP);
   const [saving, setSaving] = useState(false);
 
+  // Ошибка — на поле, не тостом в углу (H-16 отчёта QA 13.08.2026)
+  const gate = useFormGate([
+    { key: 'order_id', label: 'Заказ', ok: Boolean(form.order_id), message: 'Выберите заказ' },
+    { key: 'operation', label: 'Операция', ok: Boolean(form.operation.trim()) },
+  ]);
+
   const submit = async () => {
-    if (!form.order_id) { toast.error('Выберите заказ'); return; }
-    if (!form.operation.trim()) { toast.error('Укажите операцию'); return; }
     setSaving(true);
     const row = await onAdd({
       order_id: form.order_id,
@@ -92,12 +97,12 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       ...subcontractPhasePatch(form.sent_date ? 'sent' : 'planned'),
     });
     setSaving(false);
-    if (row) setForm(EMPTY_OP);
+    if (row) { setForm(EMPTY_OP); gate.reset(); }
   };
 
   return (
     <div className={styles.addMatRow}>
-      <select className={styles.select} value={form.order_id} onChange={(e) => setForm({ ...form, order_id: e.target.value })} aria-label="Заказ">
+      <select className={gate.cls(styles.select, 'order_id')} value={form.order_id} onChange={(e) => setForm({ ...form, order_id: e.target.value })} aria-label="Заказ" {...gate.field('order_id')}>
         <option value="">Заказ…</option>
         {orders.map((o) => (
           <option key={o.id} value={o.id}>№{o.bitrix_id || '—'} · {o.title}</option>
@@ -115,12 +120,19 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
           {queueDepts.map((d) => <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>)}
         </select>
       )}
-      <input className={styles.input} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" />
+      <input className={gate.cls(styles.input, 'operation')} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" {...gate.field('operation')} />
       <input className={styles.input} placeholder="Контрагент" value={form.contractor} onChange={(e) => setForm({ ...form, contractor: e.target.value })} aria-label="Контрагент" style={{ maxWidth: 150 }} />
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 90 }} />
       <label className={styles.subText}>передан<DateField showFormatHint={false} value={form.sent_date} onChange={(v) => setForm({ ...form, sent_date: v })} aria-label="Дата передачи" /></label>
       <label className={styles.subText}>готов<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => setForm({ ...form, planned_date: v })} aria-label="Плановая готовность" /></label>
-      <Button variant="secondary" disabled={saving} onClick={submit}>+ Добавить</Button>
+      <Button
+        variant="secondary"
+        disabled={saving || (gate.submitted && !gate.ok)}
+        onClick={gate.guard(submit)}
+      >
+        + Добавить
+      </Button>
+      <FormGateHint gate={gate} />
     </div>
   );
 }

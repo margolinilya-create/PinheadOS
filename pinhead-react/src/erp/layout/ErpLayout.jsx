@@ -14,7 +14,7 @@ import {
   openSubcontractCount,
   activeExperimentalCount,
 } from '../store/useErpStore';
-import { setFeature } from '../../config/features';
+import { switchAppMode } from '../../config/appMode';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
@@ -206,10 +206,7 @@ export default function ErpLayout({ user, children }) {
               className={styles.iconBtn}
               title="Перейти в Order Studio (создание ТЗ)"
               aria-label="Order Studio"
-              onClick={() => {
-                setFeature('orderStudio', true);
-                window.location.href = '/';
-              }}
+              onClick={() => switchAppMode('studio')}
             >
               <Icon name="pencil" size={19} />
             </button>

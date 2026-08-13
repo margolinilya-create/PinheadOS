@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
 import { useTheme } from '../../hooks/useTheme';
-import { setFeature } from '../../config/features';
+import { switchAppMode } from '../../config/appMode';
 import styles from './Header.module.css';
 
 export default function Header() {
@@ -89,12 +89,10 @@ export default function Header() {
         )}
         {isAdmin && (
           <button
+            type="button"
             className={styles['header-nav-btn']}
             title="Перейти во внутреннее ERP производства"
-            onClick={() => {
-              setFeature('orderStudio', false);
-              window.location.href = '/';
-            }}
+            onClick={() => switchAppMode('erp')}
           >
             🏭 Производство
           </button>

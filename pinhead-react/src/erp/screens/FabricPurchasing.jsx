@@ -11,11 +11,12 @@ import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
 import { DateField } from '../components/DateField';
+import { useFormGate } from '../components/useFormGate';
+import { FieldError, FormGateHint } from '../components/FormGate';
 import { Icon } from '../components/Icon';
 import { sortRows, useTableSort } from '../utils/tableSort';
 import { useErpStore } from '../store/useErpStore';
 import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
-import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
 import { SupplyQueue } from './purchasing/SupplyQueue';
@@ -108,13 +109,31 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   const [saving, setSaving] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
+  /**
+   * Проверка полей, а не тост в углу экрана (H-16, QA 13.08.2026).
+   *
+   * Тост уезжал в правый нижний угол — за пределы модалки, далеко от поля
+   * и без подсветки самого поля: человек читал «Укажите материал» и искал,
+   * какое из одиннадцати полей имеется в виду.
+   */
+  const gate = useFormGate([
+    { key: 'order_id', label: 'Заказ', ok: Boolean(form.order_id), message: 'Выберите заказ' },
+    { key: 'name', label: 'Материал', ok: Boolean(form.name.trim()) },
+    {
+      key: 'eta_date',
+      label: 'План прихода',
+      ok: form.source !== 'purchase' || Boolean(form.eta_date),
+      message: 'Для закупки нужна плановая дата прихода',
+    },
+    {
+      key: 'qty_expected',
+      label: 'План, кол-во',
+      ok: form.source !== 'purchase' || Number(form.qty_expected) > 0,
+      message: 'Для закупки нужно плановое количество больше нуля',
+    },
+  ]);
+
   const submit = async () => {
-    if (!form.order_id) { toast.error('Выберите заказ'); return; }
-    if (!form.name.trim()) { toast.error('Укажите материал'); return; }
-    if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
-    if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
-      toast.error('Укажите плановое количество'); return;
-    }
     setSaving(true);
     const row = await onAdd(form.order_id, {
       kind: form.kind, name: form.name.trim(), source: form.source,
@@ -137,10 +156,17 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Заказ</span>
-            <select className={styles.select} value={form.order_id} onChange={(e) => set({ order_id: e.target.value })} aria-label="Заказ">
+            <select
+              className={gate.cls(styles.select, 'order_id')}
+              value={form.order_id}
+              onChange={(e) => set({ order_id: e.target.value })}
+              aria-label="Заказ"
+              {...gate.field('order_id')}
+            >
               <option value="">Выберите заказ…</option>
               {orders.map((o) => <option key={o.id} value={o.id}>№{o.bitrix_id || '—'} · {o.title}</option>)}
             </select>
+            <FieldError id={gate.errId('order_id')} text={gate.error('order_id')} />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Тип</span>
@@ -150,7 +176,15 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
           </label>
           <label className={`${styles.field} ${styles.fieldWide}`}>
             <span className={styles.fieldLabel}>Материал</span>
-            <input className={styles.input} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Кулирка 230гр чёрная" aria-label="Материал" />
+            <input
+              className={gate.cls(styles.input, 'name')}
+              value={form.name}
+              onChange={(e) => set({ name: e.target.value })}
+              placeholder="Кулирка 230гр чёрная"
+              aria-label="Материал"
+              {...gate.field('name')}
+            />
+            <FieldError id={gate.errId('name')} text={gate.error('name')} />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Цвет</span>
@@ -183,7 +217,15 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               килограммами. Пересчёта между единицами система не делает */}
           <label className={styles.field}>
             <span className={styles.fieldLabel}>План, кол-во</span>
-            <input type="number" min="0" step="0.01" className={styles.input} value={form.qty_expected} onChange={(e) => set({ qty_expected: e.target.value })} aria-label="Плановое количество" />
+            <input
+              type="number" min="0" step="0.01"
+              className={gate.cls(styles.input, 'qty_expected')}
+              value={form.qty_expected}
+              onChange={(e) => set({ qty_expected: e.target.value })}
+              aria-label="Плановое количество"
+              {...gate.field('qty_expected')}
+            />
+            <FieldError id={gate.errId('qty_expected')} text={gate.error('qty_expected')} />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Единица</span>
@@ -208,12 +250,26 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>План прихода</span>
-            <DateField value={form.eta_date} onChange={(v) => set({ eta_date: v })} aria-label="План прихода" />
+            <DateField
+              className={gate.cls(styles.input, 'eta_date')}
+              value={form.eta_date}
+              onChange={(v) => set({ eta_date: v })}
+              aria-label="План прихода"
+              {...gate.field('eta_date')}
+            />
+            <FieldError id={gate.errId('eta_date')} text={gate.error('eta_date')} />
           </label>
         </div>
         <div className={styles.modalActions}>
+          <FormGateHint gate={gate} />
           <Button variant="ghost" onClick={onClose}>Отмена</Button>
-          <Button variant="primary" disabled={saving} onClick={submit}>Добавить</Button>
+          <Button
+            variant="primary"
+            disabled={saving || (gate.submitted && !gate.ok)}
+            onClick={gate.guard(submit)}
+          >
+            Добавить
+          </Button>
         </div>
       </div>
     </div>

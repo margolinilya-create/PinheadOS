@@ -4,6 +4,8 @@ import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { DateField } from '../../components/DateField';
+import { useFormGate } from '../../components/useFormGate';
+import { FieldError, FormGateHint } from '../../components/FormGate';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import { ReadOnlyFieldset } from '../../components/ReadOnlyFieldset';
 import { useDictionary } from '../../store/useDictionary';
@@ -46,8 +48,12 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
   const [dependsOn, setDependsOn] = useState([]);
   const [busy, setBusy] = useState(false);
 
+  // Ошибка — на поле, не тостом в углу (H-16 отчёта QA 13.08.2026)
+  const gate = useFormGate([
+    { key: 'type', label: 'Тип задачи', ok: Boolean(type.trim()) },
+  ]);
+
   const submit = async () => {
-    if (!type.trim()) { toast.error('Выберите тип задачи'); return; }
     setBusy(true);
     /**
      * Зависимости на СУЩЕСТВУЮЩИЕ задачи передаются id, а не индексами:
@@ -62,7 +68,7 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
       due_date: due || null,
     }], dependsOn);
     setBusy(false);
-    if (rows) { setType(''); setTitle(''); setResponsible(''); setDue(''); setDependsOn([]); }
+    if (rows) { setType(''); setTitle(''); setResponsible(''); setDue(''); setDependsOn([]); gate.reset(); }
   };
 
   const openTasks = tasks.filter((t) => t.status !== 'cancelled');
@@ -74,13 +80,15 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
         {/* Справочник — подсказка поверх свободного ввода (правило проекта) */}
         <DictionaryDatalist kind="experimental_task_type" id="erp-dev-task-types" />
         <input
-          className={styles.input}
+          className={gate.cls(styles.input, 'type')}
           value={type}
           list="erp-dev-task-types"
           onChange={(e) => setType(e.target.value)}
           placeholder="Лекала, Подбор материала, Примерка…"
           aria-label="Тип задачи"
+          {...gate.field('type')}
         />
+        <FieldError id={gate.errId('type')} text={gate.error('type')} />
       </label>
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Уточнение</span>
@@ -125,7 +133,8 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
         </label>
       )}
       <div className={styles.modalActions}>
-        <Button variant="primary" disabled={busy} onClick={submit}>+ Добавить задачу</Button>
+        <Button variant="primary" disabled={busy || (gate.submitted && !gate.ok)} onClick={gate.guard(submit)}>+ Добавить задачу</Button>
+        <FormGateHint gate={gate} />
       </div>
     </div>
   );

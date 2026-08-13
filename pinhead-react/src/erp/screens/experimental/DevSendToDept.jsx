@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
+import { useFormGate } from '../../components/useFormGate';
+import { FieldError, FormGateHint } from '../../components/FormGate';
 import { deptShortName } from '../../data/departments';
-import { toast } from '../../../store/useToastStore';
 import styles from '../../erp.module.css';
 
 /**
@@ -24,8 +25,12 @@ export function DevSendToDept({ task, taskName, departments, onSend, onCancel })
   const [qty, setQty] = useState(task.qty != null ? String(task.qty) : '');
   const [busy, setBusy] = useState(false);
 
+  // Ошибка — на поле, не тостом в углу (H-16 отчёта QA 13.08.2026)
+  const gate = useFormGate([
+    { key: 'deptId', label: 'Цех', ok: Boolean(deptId), message: 'Выберите цех' },
+  ]);
+
   const submit = async () => {
-    if (!deptId) { toast.error('Выберите цех'); return; }
     setBusy(true);
     const ok = await onSend(task.id, {
       department_id: deptId,
@@ -43,16 +48,18 @@ export function DevSendToDept({ task, taskName, departments, onSend, onCancel })
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Цех</span>
           <select
-            className={styles.select}
+            className={gate.cls(styles.select, 'deptId')}
             value={deptId}
             onChange={(e) => setDeptId(e.target.value)}
             aria-label="Цех для задачи разработки"
+            {...gate.field('deptId')}
           >
             <option value="">Выберите цех…</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>{deptShortName(d.code, d.name)}</option>
             ))}
           </select>
+          <FieldError id={gate.errId('deptId')} text={gate.error('deptId')} />
         </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Срок</span>
@@ -75,7 +82,8 @@ export function DevSendToDept({ task, taskName, departments, onSend, onCancel })
       </p>
       <div className={styles.modalActions}>
         <Button variant="ghost" onClick={onCancel}>Отмена</Button>
-        <Button variant="primary" disabled={busy} onClick={submit}>Передать</Button>
+        <Button variant="primary" disabled={busy || (gate.submitted && !gate.ok)} onClick={gate.guard(submit)}>Передать</Button>
+        <FormGateHint gate={gate} />
       </div>
     </div>
   );

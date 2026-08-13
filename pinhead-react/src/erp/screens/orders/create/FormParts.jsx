@@ -53,8 +53,9 @@ export function PdfPick({ label, onPick }) {
   );
 }
 
-/** Текст ошибки под полем (инлайн-валидация) */
-export function FieldError({ id, text }) {
-  if (!text) return null;
-  return <span id={id} className={styles.fieldError}>{text}</span>;
-}
+/**
+ * Текст ошибки под полем живёт в общем примитиве валидации
+ * (`components/FormGate`) — там же, где строка «Осталось заполнить: …».
+ * Реэкспорт, а не копия: разъехавшиеся правила подачи ошибки и были H-16.
+ */
+export { FieldError } from '../../../components/FormGate';
