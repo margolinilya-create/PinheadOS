@@ -8,6 +8,7 @@ vi.mock('../lib/supabase', () => ({
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
       signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
       signUp: vi.fn().mockResolvedValue({ data: { user: { id: 'new-id' } }, error: null }),
+      resend: vi.fn().mockResolvedValue({ error: null }),
       signOut: vi.fn().mockResolvedValue({}),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
@@ -28,7 +29,175 @@ const { useOrdersStore } = await import('./useOrdersStore');
 beforeEach(() => {
   useAuthStore.setState({
     user: null, profileStatus: 'no_profile', loading: false, error: null,
-    previewRole: null, signingOut: false,
+    previewRole: null, signingOut: false, unconfirmedEmail: null,
+  });
+});
+
+/**
+ * Регистрация.
+ *
+ * Проверено на проде 13.08.2026: в проекте включено подтверждение адреса, поэтому
+ * `signUp` возвращает пользователя БЕЗ сессии, а профиль создаёт серверный триггер
+ * `handle_new_user` из метаданных. Клиентский `upsert` в `profiles`, стоявший здесь
+ * с прежних времён, отвечал 42501 на КАЖДОЙ регистрации — результат не проверялся.
+ */
+describe('useAuthStore — регистрация', () => {
+  it('имя уходит в метаданные: оттуда его берёт серверный триггер', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'u-new', identities: [{ id: 'i1' }] }, session: null }, error: null,
+    });
+
+    await useAuthStore.getState().register('Иван Петров', 'ivan@pnhd.ru', 'secret123');
+
+    const args = supabase.auth.signUp.mock.calls.at(-1)[0];
+    expect(args.options.data).toEqual({ name: 'Иван Петров' });
+    // Иначе ссылка из письма ведёт на Site URL проекта — один на все окружения
+    expect(args.options.emailRedirectTo).toBeTruthy();
+  });
+
+  it('мёртвого upsert в profiles больше нет: профиль пишет триггер', async () => {
+    supabase.from.mockClear();
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'u-new', identities: [{ id: 'i1' }] }, session: null }, error: null,
+    });
+
+    await useAuthStore.getState().register('Иван', 'ivan@pnhd.ru', 'secret123');
+
+    expect(supabase.from).not.toHaveBeenCalledWith('profiles');
+  });
+
+  /**
+   * Сессии нет — значит человек НЕ вошёл. Прежний код всё равно писал его в стор:
+   * приложение считало его вошедшим и слало запросы ролью `anon` (чтение пусто,
+   * запись отказ по RLS).
+   */
+  it('без сессии пользователь в стор не пишется', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'u-new', identities: [{ id: 'i1' }] }, session: null }, error: null,
+    });
+
+    const outcome = await useAuthStore.getState().register('Иван', 'ivan@pnhd.ru', 'secret123');
+
+    expect(outcome).toEqual({ status: 'confirm_email' });
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().loading).toBe(false);
+  });
+
+  /**
+   * Занятый адрес Supabase не называет прямо (защита от перебора почт): 200
+   * и пользователь с пустым `identities`. Прежний код считал это успехом.
+   */
+  it('занятый адрес отличается от успеха', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'u-fake', identities: [] }, session: null }, error: null,
+    });
+
+    const outcome = await useAuthStore.getState().register('Иван', 'mib@pnhd.ru', 'secret123');
+
+    expect(outcome).toEqual({ status: 'already_registered' });
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it('подтверждение выключено: сессия есть — читаем профиль', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: {
+        user: { id: 'u-new', identities: [{ id: 'i1' }] },
+        session: { user: { id: 'u-new', email: 'ivan@pnhd.ru' } },
+      },
+      error: null,
+    });
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { name: 'Иван', role: 'manager', approved: false, active: true },
+      }),
+    });
+
+    const outcome = await useAuthStore.getState().register('Иван', 'ivan@pnhd.ru', 'secret123');
+
+    expect(outcome).toEqual({ status: 'signed_in' });
+    expect(useAuthStore.getState().user?.name).toBe('Иван');
+    expect(useAuthStore.getState().profileStatus).toBe('pending_approval');
+  });
+
+  /**
+   * supabase-js БРОСАЕТ, когда ответа не было вовсе. Без try/catch отклонение
+   * всплывало наружу, а `loading` оставался true — кнопка навсегда «Регистрация...».
+   */
+  it('при БРОСКЕ не виснет в загрузке и называет причину', async () => {
+    supabase.auth.signUp.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const outcome = await useAuthStore.getState().register('Иван', 'ivan@pnhd.ru', 'secret123');
+
+    expect(outcome).toEqual({ status: 'error' });
+    expect(useAuthStore.getState().loading).toBe(false);
+    expect(useAuthStore.getState().error).toMatch(/нет связи с сервером/);
+  });
+
+  it('отказ сервера показывается по-русски и не роняет флаг занятости', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { message: 'Password should be at least 6 characters' },
+    });
+
+    const outcome = await useAuthStore.getState().register('Иван', 'ivan@pnhd.ru', '123');
+
+    expect(outcome).toEqual({ status: 'error' });
+    expect(useAuthStore.getState().error).toMatch(/не короче 6 символов/);
+    expect(useAuthStore.getState().loading).toBe(false);
+  });
+});
+
+describe('useAuthStore — вход и подтверждение адреса', () => {
+  it('неподтверждённый адрес запоминается — его предложат подтвердить заново', async () => {
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { session: null },
+      error: { message: 'Email not confirmed', code: 'email_not_confirmed' },
+    });
+
+    const ok = await useAuthStore.getState().login('ivan@pnhd.ru', 'secret123');
+
+    expect(ok).toBe(false);
+    expect(useAuthStore.getState().unconfirmedEmail).toBe('ivan@pnhd.ru');
+    expect(useAuthStore.getState().error).toBe('Email не подтверждён');
+  });
+
+  it('неверный пароль адрес не запоминает: письмо тут ни при чём', async () => {
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { session: null },
+      error: { message: 'Invalid login credentials', code: 'invalid_credentials' },
+    });
+
+    await useAuthStore.getState().login('ivan@pnhd.ru', 'wrong');
+
+    expect(useAuthStore.getState().unconfirmedEmail).toBeNull();
+  });
+
+  it('вход при БРОСКЕ не виснет в загрузке', async () => {
+    supabase.auth.signInWithPassword.mockRejectedValueOnce(new TypeError('Load failed'));
+
+    const ok = await useAuthStore.getState().login('ivan@pnhd.ru', 'secret123');
+
+    expect(ok).toBe(false);
+    expect(useAuthStore.getState().loading).toBe(false);
+    expect(useAuthStore.getState().error).toMatch(/нет связи с сервером/);
+  });
+
+  it('resendConfirmation шлёт письмо на указанный адрес', async () => {
+    const ok = await useAuthStore.getState().resendConfirmation('ivan@pnhd.ru');
+
+    expect(ok).toBe(true);
+    expect(supabase.auth.resend).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'signup', email: 'ivan@pnhd.ru' }),
+    );
+    expect(useAuthStore.getState().loading).toBe(false);
+  });
+
+  it('clearError снимает и предложение выслать письмо', () => {
+    useAuthStore.setState({ error: 'Email не подтверждён', unconfirmedEmail: 'ivan@pnhd.ru' });
+    useAuthStore.getState().clearError();
+    expect(useAuthStore.getState().unconfirmedEmail).toBeNull();
   });
 });
 
@@ -344,6 +513,34 @@ describe('useAuthStore — profileStatus', () => {
     await useAuthStore.getState().fetchProfile('uid-4', 'test@test.com');
     expect(useAuthStore.getState().profileStatus).toBe('no_profile');
     expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  /**
+   * Вошёл — и вернулся на форму входа без единого слова: при `user === null`
+   * App рисует именно её. Отсутствие профиля обязано быть НАЗВАНО, иначе
+   * успешный вход выглядит как несработавший.
+   */
+  it('нет профиля при живой сессии — причина названа', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'no rows' } }),
+    });
+    await useAuthStore.getState().fetchProfile('uid-5', 'test@test.com');
+    expect(useAuthStore.getState().error).toMatch(/Профиль не найден/);
+  });
+
+  it('сбой запроса профиля отличается от его отсутствия', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+    });
+    await useAuthStore.getState().fetchProfile('uid-6', 'test@test.com');
+    expect(useAuthStore.getState().error).toMatch(/нет связи с сервером/);
+    expect(useAuthStore.getState().loading).toBe(false);
   });
 });
 

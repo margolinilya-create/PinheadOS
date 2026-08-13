@@ -27,10 +27,27 @@ const ERROR_MAP: Record<string, string> = {
   'User already registered':         'Пользователь уже зарегистрирован',
   'Password should be at least 6 characters': 'Пароль должен быть не короче 6 символов',
   'Unable to validate email address: invalid format': 'Некорректный формат email',
-  'Email rate limit exceeded':       'Слишком много запросов, попробуйте позже',
+  'Email rate limit exceeded':       'Слишком много писем за час, попробуйте позже',
   'Network request failed':          'Ошибка сети',
   'Failed to fetch':                 'Ошибка соединения',
+  'Signups not allowed for this instance': 'Регистрация отключена, обратитесь к администратору',
+  'Error sending confirmation email': 'Не удалось отправить письмо с подтверждением. Обратитесь к администратору',
 };
+
+/**
+ * Сообщения с переменной частью — точки в карте им не хватает.
+ *
+ * Supabase дописывает в текст число секунд («…only request this after 51
+ * seconds»), а к требованию к паролю — точку в конце. Совпадение по полной
+ * строке на таких не срабатывает, и человек получал английский текст: именно
+ * так выглядит отказ при повторной отправке письма, самый частый на экране
+ * подтверждения адреса.
+ */
+const ERROR_PATTERNS: Array<[RegExp, string]> = [
+  [/only request this (?:once every|after)/i, 'Письмо уже отправлено. Повторить можно через минуту'],
+  [/password should be at least (\d+) characters/i, 'Пароль должен быть не короче $1 символов'],
+  [/email address .* is invalid/i, 'Некорректный формат email'],
+];
 
 /**
  * Отказы серверных стражей приходят с техническим префиксом функции
@@ -42,6 +59,9 @@ const GUARD_PREFIX = /^erp_[a-z_]+:\s*/;
 export function translateSupabaseError(msg: string | null | undefined): string {
   if (!msg) return 'Неизвестная ошибка';
   if (ERROR_MAP[msg]) return ERROR_MAP[msg];
+  for (const [pattern, ru] of ERROR_PATTERNS) {
+    if (pattern.test(msg)) return msg.replace(pattern, ru);
+  }
   return msg.replace(GUARD_PREFIX, '');
 }
 

@@ -9,18 +9,30 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const { login, register, error, loading, clearError } = useAuthStore(
-    useShallow(s => ({ login: s.login, register: s.register, error: s.error, loading: s.loading, clearError: s.clearError }))
+  /** Сообщение, которого нет в сторе: занятый адрес сервер ошибкой не считает */
+  const [notice, setNotice] = useState('');
+  const { login, register, resendConfirmation, error, unconfirmedEmail, loading, clearError } = useAuthStore(
+    useShallow(s => ({
+      login: s.login,
+      register: s.register,
+      resendConfirmation: s.resendConfirmation,
+      error: s.error,
+      unconfirmedEmail: s.unconfirmedEmail,
+      loading: s.loading,
+      clearError: s.clearError,
+    }))
   );
 
   const switchTab = (t) => {
     setTab(t);
+    setNotice('');
     clearError();
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) return;
+    setNotice('');
     await login(email, password);
   };
 
@@ -32,21 +44,64 @@ export default function AuthScreen() {
     const pv = validatePassword(password);
     if (!pv.valid) { setPassError(pv.error); return; }
     setPassError('');
-    const ok = await register(name, email, password);
-    if (ok) setTab('pending');
+    setNotice('');
+
+    const outcome = await register(name, email, password);
+
+    if (outcome.status === 'confirm_email') { setTab('confirm'); return; }
+    /**
+     * Подтверждение адреса выключено — сессия уже выдана, и профиль в сторе есть.
+     * Экран регистрации свою работу закончил: дальше App сам покажет «ожидание
+     * подтверждения администратором», и второй такой же экран здесь был бы враньём
+     * про письмо, которого никто не отправлял.
+     */
+    if (outcome.status === 'signed_in') return;
+    if (outcome.status === 'already_registered') {
+      setNotice('Этот email уже зарегистрирован. Войдите под ним или обратитесь к администратору.');
+      setTab('login');
+      return;
+    }
+    // status === 'error' — причина уже лежит в error стора
   };
 
-  if (tab === 'pending') {
+  /**
+   * Экран после регистрации говорит то, что произошло НА САМОМ ДЕЛЕ.
+   *
+   * Прежний текст («заявка отправлена, администратор подтвердит доступ») называл
+   * только второй шаг и умалчивал первый: в проекте включено подтверждение адреса,
+   * и до перехода по ссылке из письма вход отвечает «Email не подтверждён».
+   * Человек ждал администратора, администратор его одобрял, а войти всё равно
+   * не получалось — и это и была та самая «ошибка при регистрации».
+   */
+  if (tab === 'confirm') {
     return (
       <div className="auth-overlay">
         <div className="auth-card">
           <div className="auth-logo">✳ PINHEAD</div>
           <div className="auth-pending">
-            <div className="auth-pending-icon">⏳</div>
-            <h3>Ожидание подтверждения</h3>
-            <p>Ваша заявка отправлена. Администратор подтвердит доступ в ближайшее время.</p>
+            <div className="auth-pending-icon">✉</div>
+            <h3>Подтвердите email</h3>
+            <p>Мы отправили письмо со ссылкой на адрес:</p>
             <p className="auth-pending-email">{email}</p>
-            <button className="btn-secondary" onClick={() => switchTab('login')}>Вернуться ко входу</button>
+            <p>
+              Откройте ссылку из письма — без этого вход невозможен.
+              После подтверждения администратор откроет доступ к системе.
+            </p>
+            <p className="auth-note">Письмо не пришло? Проверьте папку «Спам».</p>
+            {error && <div className="auth-error">{error}</div>}
+            <div className="auth-pending-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={loading}
+                onClick={() => resendConfirmation(email)}
+              >
+                {loading ? 'Отправка...' : 'Выслать письмо повторно'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => switchTab('login')}>
+                Вернуться ко входу
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -65,6 +120,26 @@ export default function AuthScreen() {
         </div>
 
         {error && <div className="auth-error">{error}</div>}
+        {notice && <div className="auth-error">{notice}</div>}
+
+        {/*
+          Неподтверждённый адрес — единственный отказ входа, который повтором
+          ввода не лечится. Поэтому рядом с ошибкой стоит то, что действительно
+          помогает, а не предложение попробовать ещё раз.
+        */}
+        {unconfirmedEmail && (
+          <p className="auth-note">
+            Регистрация не завершена: адрес не подтверждён.{' '}
+            <button
+              type="button"
+              className="auth-linkbtn"
+              disabled={loading}
+              onClick={() => resendConfirmation(unconfirmedEmail)}
+            >
+              Выслать письмо повторно
+            </button>
+          </p>
+        )}
 
         {tab === 'login' ? (
           <form className="auth-form" onSubmit={handleLogin}>
@@ -105,6 +180,10 @@ export default function AuthScreen() {
               </div>
               {passError && <span className="auth-error">{passError}</span>}
             </div>
+            <p className="auth-note">
+              После регистрации на этот адрес придёт письмо со ссылкой. Доступ откроет
+              администратор — после того, как вы подтвердите адрес.
+            </p>
             <button type="submit" className="btn-accent auth-submit" disabled={loading}>
               {loading ? 'Регистрация...' : 'Зарегистрироваться'}
             </button>

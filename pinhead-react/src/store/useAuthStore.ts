@@ -31,6 +31,24 @@ const DEV_USER: User = {
   role: 'admin', approved: true, active: true,
 };
 
+/**
+ * Чем кончилась регистрация.
+ *
+ * Булев ответ здесь не годится: после регистрации экран обязан сказать РАЗНОЕ —
+ * «проверьте почту», «вы уже вошли, ждите одобрения» и «этот адрес уже занят».
+ * По `true/false` их не различить, и прежний код показывал всем троим один и тот
+ * же текст «Администратор подтвердит доступ».
+ */
+export type RegisterOutcome =
+  /** Аккаунт создан, адрес нужно подтвердить письмом — сессии ещё нет */
+  | { status: 'confirm_email' }
+  /** Подтверждение адреса выключено: сессия выдана сразу, дальше решает админ */
+  | { status: 'signed_in' }
+  /** Адрес уже занят (Supabase не говорит этого прямо — см. register) */
+  | { status: 'already_registered' }
+  /** Причина в `error` стора */
+  | { status: 'error' };
+
 interface AuthStore {
   user: User | null;
   profileStatus: ProfileStatus;
@@ -41,12 +59,21 @@ interface AuthStore {
   /** true, пока идёт наш собственный выход — чтобы не путать его с потерей сессии */
   signingOut: boolean;
 
+  /**
+   * Адрес, вход которому закрыт неподтверждённой почтой. Держим отдельно от
+   * `error`: это единственный отказ входа, который лечится не повтором ввода,
+   * а письмом, — и экран предлагает выслать его заново.
+   */
+  unconfirmedEmail: string | null;
+
   init: () => Promise<void>;
   fetchProfile: (id: string, email: string) => Promise<void>;
   /** Сессия кончилась не по воле человека: сбросить данные и объяснить, что делать */
   sessionLost: () => void;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<RegisterOutcome>;
+  /** Выслать письмо с подтверждением адреса заново */
+  resendConfirmation: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
 
@@ -66,6 +93,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   error: null,
   previewRole: null,
   signingOut: false,
+  unconfirmedEmail: null,
 
   // Инициализация — сначала настоящая сессия, и только потом всё остальное
   init: async () => {
@@ -101,57 +129,180 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   fetchProfile: async (id, email) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
-    if (data) {
-      const active = data.active !== false;
-      const status: ProfileStatus = !active ? 'disabled' : data.approved ? 'active' : 'pending_approval';
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
+      if (data) {
+        const active = data.active !== false;
+        const status: ProfileStatus = !active ? 'disabled' : data.approved ? 'active' : 'pending_approval';
+        set({
+          user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved: data.approved, active },
+          profileStatus: status,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
+      /**
+       * Сессия есть, а профиля нет — молчать здесь нельзя.
+       *
+       * При `user === null` App рисует форму входа, и человек, только что
+       * успешно вошедший, возвращается на неё без единого слова: выглядит
+       * это как «вход не сработал», хотя пароль верный и сессия выдана.
+       * Ровно так и стояли зарегистрировавшиеся до серверного триггера
+       * (их профили достроены миграцией 20260813110000).
+       *
+       * Отсутствие строки (`PGRST116` от `.single()`) и сбой запроса —
+       * разные причины, и советы у них разные.
+       */
+      const missing = !error || error.code === 'PGRST116';
       set({
-        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved: data.approved, active },
-        profileStatus: status,
+        user: null,
+        profileStatus: 'no_profile',
         loading: false,
-        error: null,
+        error: missing
+          ? 'Профиль не найден. Обратитесь к администратору — учётную запись нужно завести заново.'
+          : `Не удалось загрузить профиль: ${translateSupabaseError(error.message)}`,
       });
-    } else {
-      set({ user: null, profileStatus: 'no_profile', loading: false });
+    } catch (e) {
+      // supabase-js БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS)
+      console.error('[auth.fetchProfile]', e);
+      set({
+        user: null,
+        profileStatus: 'no_profile',
+        loading: false,
+        error: `Не удалось загрузить профиль: ${networkFailureMessage(e)}`,
+      });
     }
   },
 
+  /**
+   * Вход. Сетевой вызов идёт в try/catch, флаг занятости снимается в `finally`:
+   * `signInWithPassword` БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS),
+   * и без этого кнопка навсегда оставалась в состоянии «Вход...».
+   */
   login: async (email, password) => {
-    set({ error: null, loading: true });
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      set({ error: translateSupabaseError(error.message), loading: false });
+    set({ error: null, unconfirmedEmail: null, loading: true });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        /**
+         * «Email not confirmed» — не опечатка в пароле, а незавершённая
+         * регистрация: письмо не открыли. Повтор ввода тут не поможет никогда,
+         * поэтому адрес запоминается, и экран предлагает выслать письмо заново.
+         */
+        const needsConfirm = error.code === 'email_not_confirmed'
+          || /email not confirmed/i.test(error.message);
+        set({
+          error: translateSupabaseError(error.message),
+          unconfirmedEmail: needsConfirm ? email : null,
+        });
+        return false;
+      }
+      if (data?.session?.user) {
+        await get().fetchProfile(data.session.user.id, data.session.user.email ?? email);
+      }
+      return true;
+    } catch (e) {
+      console.error('[auth.login]', e);
+      set({ error: `Не удалось войти: ${networkFailureMessage(e)}` });
       return false;
+    } finally {
+      set({ loading: false });
     }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await get().fetchProfile(session.user.id, session.user.email!);
-    }
-    return true;
   },
 
+  /**
+   * Регистрация. Профиль создаёт СЕРВЕРНЫЙ триггер `handle_new_user`
+   * (миграция 20260722215558): он обходит RLS как `security definer`.
+   *
+   * Клиентский `upsert` в `profiles`, стоявший здесь, эту же миграцию и пережил,
+   * хотя работать перестал: политика `profiles_insert` требует `is_admin()`,
+   * а у регистранта в этот момент нет даже сессии. Каждая регистрация молча
+   * получала 42501 (проверено на проде 13.08.2026) — результат не проверялся
+   * вовсе. Единственное, что этот вызов ещё нёс, — имя; теперь оно уходит
+   * в метаданные, откуда его и берёт триггер.
+   */
   register: async (name, email, password) => {
-    set({ error: null, loading: true });
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      set({ error: translateSupabaseError(error.message), loading: false });
-      return false;
-    }
-    if (data?.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        name,
+    set({ error: null, unconfirmedEmail: null, loading: true });
+    try {
+      const { data, error } = await supabase.auth.signUp({
         email,
-        role: 'manager',
-        approved: false,
+        password,
+        options: {
+          /**
+           * Имя обязано уехать сюда: триггер читает
+           * `raw_user_meta_data->>'name'`, а без него подставляет email. Здесь
+           * имя не передавалось — и у каждого зарегистрировавшегося в списке
+           * пользователей вместо имени стоял его адрес.
+           */
+          data: { name },
+          /**
+           * Ссылка из письма обязана вести туда, где человек регистрировался.
+           * Без этого адрес берётся из настройки Site URL — одной на все
+           * окружения, и зарегистрировавшийся на боевом домене получал ссылку
+           * на localhost. Адрес должен стоять в списке Redirect URLs проекта:
+           * посторонний Supabase молча заменит на Site URL.
+           */
+          emailRedirectTo: window.location.origin,
+        },
       });
-      set({
-        user: { id: data.user.id, email, name, role: 'manager', approved: false, active: true },
-        profileStatus: 'pending_approval' as ProfileStatus,
-        loading: false,
-      });
+      if (error) {
+        set({ error: translateSupabaseError(error.message) });
+        return { status: 'error' };
+      }
+
+      /**
+       * Занятый адрес Supabase прямо не называет — это защита от перебора почт:
+       * приходит 200 и пользователь БЕЗ `identities` (проверено на проде
+       * 13.08.2026). Прежний код считал такой ответ успехом и отправлял человека
+       * ждать письма, которого никто не отправлял.
+       */
+      if (data.user && data.user.identities?.length === 0) {
+        return { status: 'already_registered' };
+      }
+
+      /**
+       * Подтверждение адреса включено — сессии нет, и писать пользователя в стор
+       * НЕЛЬЗЯ. Прежний код его писал: приложение считало человека вошедшим,
+       * а запросы уходили ролью `anon` — чтение пусто, запись отказ по RLS.
+       * Это ровно тот случай, ради которого dev-автологин сделали явным.
+       */
+      if (!data.session) return { status: 'confirm_email' };
+
+      // Подтверждение выключено: сессия выдана сразу, дальше решает админ.
+      await get().fetchProfile(data.session.user.id, data.session.user.email ?? email);
+      return { status: 'signed_in' };
+    } catch (e) {
+      console.error('[auth.register]', e);
+      set({ error: `Не удалось зарегистрироваться: ${networkFailureMessage(e)}` });
+      return { status: 'error' };
+    } finally {
+      set({ loading: false });
     }
-    return true;
+  },
+
+  resendConfirmation: async (email) => {
+    set({ error: null, loading: true });
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) {
+        set({ error: translateSupabaseError(error.message) });
+        return false;
+      }
+      toast.success(`Письмо отправлено повторно на ${email}`);
+      return true;
+    } catch (e) {
+      console.error('[auth.resendConfirmation]', e);
+      set({ error: `Не удалось отправить письмо: ${networkFailureMessage(e)}` });
+      return false;
+    } finally {
+      set({ loading: false });
+    }
   },
 
   /**
@@ -229,11 +380,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       });
       set({
         user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
+        unconfirmedEmail: null,
       });
     }
   },
 
-  clearError: () => set({ error: null }),
+  // Предложение «выслать письмо повторно» снимается вместе с ошибкой: оно
+  // относилось к конкретной неудачной попытке входа, а не к экрану вообще.
+  clearError: () => set({ error: null, unconfirmedEmail: null }),
 
   // ─── Preview role ───
   setPreviewRole: (role) => set({ previewRole: role }),
