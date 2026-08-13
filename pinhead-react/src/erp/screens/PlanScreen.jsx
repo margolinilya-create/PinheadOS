@@ -213,6 +213,7 @@ export default function PlanScreen() {
         report={weekCapacity}
         periodLabel={`неделя ${formatDateShort(dates[0])} — ${formatDateShort(dates[dates.length - 1])}`}
         hint="Изделия активных заказов со сроком сдачи на этой неделе против доступной мощности. Раскладка ниже — работа цехов, её штуки с этим числом не складываются."
+        monthlyUnits={capacity.monthly_units}
       />
 
       <div className={styles.toolbar}>

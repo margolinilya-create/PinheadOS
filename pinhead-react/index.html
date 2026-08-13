@@ -21,11 +21,12 @@
       раньше. <noscript> оставляет прежнее поведение там, где нет скриптов.
     -->
     <link
+      data-font-swap
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap"
       rel="stylesheet"
       media="print"
-      onload="this.media='all';this.onload=null"
     />
+    <script src="/font-swap.js" defer></script>
     <noscript>
       <link
         href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap"
@@ -35,12 +36,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <meta property="og:title" content="PINHEAD Order Studio">
-    <meta property="og:description" content="Система приёма заказов на мерч">
+    <!-- L-03: описания не было вовсе — ни в выдаче, ни в превью ссылки -->
+    <meta name="description" content="PINHEAD ERP — внутренняя система производства: заказы, цеха, план, склад и закупка.">
+    <meta property="og:title" content="PINHEAD ERP">
+    <meta property="og:description" content="Внутренняя система производства типографии: заказы, цеха, план, склад и закупка.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://pinhead-os.vercel.app/">
     <meta name="theme-color" content="#2B2BF0">
-    <title>Pinhead Order Studio</title>
+    <!-- Заголовок вкладки дальше ведёт `PageHead`: у каждого экрана свой (M-13) -->
+    <title>PINHEAD ERP</title>
   </head>
   <body>
     <div id="root"></div>

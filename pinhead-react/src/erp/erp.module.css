@@ -392,15 +392,19 @@
 .sidebarCollapsed .navLink { position: relative; }
 .sidebarCollapsed .navBadge {
   position: absolute;
-  top: 3px;
-  right: 8px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  /* Точка держится ВНУТРИ пункта (M-12): при `right: 8px` и min-width 16px
+     двузначный счётчик вылезал за правый край иконочной панели шириной 64px */
+  top: 4px;
+  right: 6px;
+  min-width: 15px;
+  max-width: 30px;
+  height: 15px;
+  padding: 0 3px;
   font-size: 10px;
-  line-height: 16px;
+  line-height: 15px;
   text-align: center;
   border-radius: 999px;
+  overflow: hidden;
 }
 
 .main {
@@ -1468,6 +1472,15 @@
 .kanbanDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* ─── Инлайн-правка ─── */
+/*
+  Кнопка и поле инлайн-правки ОДНОЙ высоты (M-21 отчёта QA 13.08.2026).
+
+  Кнопка была высотой в строку текста, а поле — 30px, и переход в правку
+  раздвигал строку метаданных: «Клиент / Менеджер / Запуск / Срок» уезжала
+  вниз, чипы статусов — ещё ниже. Скачок повторялся на каждое открытие
+  заметки. Высота одна и та же на обоих состояниях, и на планшете
+  (`pointer: coarse`) обе растут вместе — правило ≥44px ниже.
+*/
 .inlineEditBtn {
   appearance: none;
   background: none;
@@ -1481,6 +1494,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 30px;
+  vertical-align: middle;
 }
 .inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }
 .inlineEditBtn:disabled { cursor: default; }
@@ -1781,6 +1796,8 @@ a.cellTitle:hover { color: var(--accent); }
 @media (pointer: coarse) {
   .input, .select { min-height: 44px; }
   .inputSm { min-height: 44px; }
+  /* Пара: обе высоты обязаны совпадать, иначе на планшете возвращается
+     скачок строки метаданных из M-21 (`.inlineEditBtn` ниже в этом же блоке) */
   .inputXs { min-height: 44px; }
   .tile { min-height: 44px; }
   .tileSm { min-height: 44px; }
@@ -1876,7 +1893,19 @@ a.cellTitle:hover { color: var(--accent); }
 
 /* ─── Dashboard (редизайн, по макету) ─── */
 .dash { display: flex; flex-direction: column; gap: 16px; }
-.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+/*
+  Ряд показателей.
+
+  M-20 отчёта QA 13.08.2026: при minmax(190px) шесть карточек вставали в ряд
+  только от 1456px, а на 1431px рассыпались на 5 + 1 — одинокая карточка
+  во второй строке читается как отдельный блок, а не как часть сводки.
+  160px хватает: подпись переносится, а значение это две-три цифры моноширинным.
+
+  align-items: stretch (по умолчанию) плюс `space-between` в `.kpiBody` держат
+  ЦИФРЫ на одной линии, даже если подпись где-то перенеслась на две строки, —
+  это M-25 из того же отчёта.
+*/
+.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
 .kpiCard {
   display: flex; align-items: center; gap: 14px;
   padding: 16px;
@@ -1932,7 +1961,14 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .kpiIconWarn { background: var(--bg-warning); }
 .kpiIconDanger { background: var(--bg-error); }
 .kpiIconViolet { background: var(--bg-violet); }
-.kpiBody { display: flex; flex-direction: column; min-width: 0; }
+.kpiBody {
+  display: flex; flex-direction: column; min-width: 0;
+  /* Подпись сверху, значение снизу: карточки в grid одинаковой высоты,
+     поэтому цифры выстраиваются по одной линии независимо от переносов (M-25) */
+  flex: 1;
+  justify-content: space-between;
+  gap: 2px;
+}
 .kpiCardLabel { font-size: 12px; color: var(--text-dim); }
 .kpiCardValue {
   font-family: var(--mono); font-size: 26px; font-weight: 600;

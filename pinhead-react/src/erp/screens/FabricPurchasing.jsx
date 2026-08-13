@@ -8,7 +8,7 @@ import { TableSkeleton } from '../components/ErpSkeletons';
 import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
-import { Pagination } from '../components/Pagination';
+import { Pagination, DEFAULT_PAGE_SIZE } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
 import { DateField } from '../components/DateField';
 import { useFormGate } from '../components/useFormGate';
@@ -318,7 +318,7 @@ export default function FabricPurchasing() {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('all');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   /** Модалка «Новая закупка»: false | { orderId } — заказ предвыбран из очереди */
   const [adding, setAdding] = useState(false);
   /** Открытая модалка сравнения вариантов поставщика: { material, order } */

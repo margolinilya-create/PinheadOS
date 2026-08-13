@@ -12,7 +12,7 @@ import styles from '../erp.module.css';
  * пишется как 130 %, а перебор выносится отдельным числом в штуках. Заклампить
  * подпись значило бы спрятать ровно тот случай, ради которого показатель завели.
  */
-export function CapacityBar({ report, periodLabel, hint }) {
+export function CapacityBar({ report, periodLabel, hint, monthlyUnits = null }) {
   const notSet = report.capacity === null;
   const fill = notSet ? 0 : Math.min(100, report.percent ?? 0);
 
@@ -49,6 +49,22 @@ export function CapacityBar({ report, periodLabel, hint }) {
 
       <p className={styles.queueReason}>
         {hint ?? 'Считается по изделиям активных заказов со сроком сдачи в этом периоде — не по этапам: одно изделие проходит несколько цехов.'}
+        {/*
+          Откуда взялось число периода (M-11 отчёта QA 13.08.2026).
+          На плане полоса показывала «2381 шт/нед», на загрузке и обзоре —
+          «10000 шт/мес», и связь между ними нигде не называлась: два разных
+          числа выглядели двумя разными мощностями. Мощность одна, месячная,
+          а недельная доля считается из неё по рабочим дням.
+        */}
+        {monthlyUnits != null && (
+          <>
+            {' '}Общая мощность фабрики —{' '}
+            <Link to="/admin?tab=capacity" className={styles.widgetLink}>
+              {monthlyUnits} шт в месяц
+            </Link>
+            ; доля периода считается из неё по числу рабочих дней.
+          </>
+        )}
       </p>
     </section>
   );

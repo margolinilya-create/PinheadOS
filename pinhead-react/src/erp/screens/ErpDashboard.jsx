@@ -98,7 +98,10 @@ export default function ErpDashboard() {
     if (loaded && location.hash === '#notifications') {
       document.getElementById('notifications')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [loaded, location.hash]);
+    // `location.key` в зависимостях обязателен: повторное нажатие на колокол
+    // с уже открытого `/#notifications` не меняет ни путь, ни хэш — эффект
+    // не срабатывал, и кнопка выглядела мёртвой (H-09).
+  }, [loaded, location.hash, location.key]);
 
   const data = useMemo(() => {
     const deptById = new Map(departments.map((d) => [d.id, d]));

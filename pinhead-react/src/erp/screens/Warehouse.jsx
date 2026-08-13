@@ -4,7 +4,7 @@ import { PageHead } from '../components/PageHead';
 import { LoadFailed } from '../components/ErpStates';
 import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
-import { Pagination } from '../components/Pagination';
+import { Pagination, DEFAULT_PAGE_SIZE } from '../components/Pagination';
 import { Drawer } from '../components/Drawer';
 import { SortableTh } from '../components/SortableTh';
 import { Icon } from '../components/Icon';
@@ -159,7 +159,7 @@ export default function Warehouse() {
   const [tab, setTab] = useState('all');
   const [onlyOpen, setOnlyOpen] = useState(true);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [openId, setOpenId] = useState(null);
   const { sort, toggle: toggleSort } = useTableSort();
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useErpSearch } from '../store/useErpSearch';
@@ -179,16 +179,31 @@ export default function ErpLayout({ user, children }) {
           </div>
           <div className={styles.spacer} />
 
-          <button
-            type="button"
+          {/*
+            Колокол — ССЫЛКА, а не кнопка (H-09 отчёта QA 13.08.2026).
+
+            Панели уведомлений в ERP нет и не планировалось: список живёт
+            виджетом на обзоре (там он группируется по тому, что делать).
+            Но иконка колокола обещает «сейчас откроется панель», и переход
+            на другой экран читался как промах, а не как замысел. Ссылка это
+            обещание снимает: видно, куда ведёт, работают Ctrl+клик и «открыть
+            в новой вкладке», а подпись говорит прямо.
+
+            `<Link>`, а не `navigate()`: прежний обработчик к тому же ничего
+            не делал при повторном нажатии — адрес не менялся, и эффект
+            прокрутки на обзоре не срабатывал.
+          */}
+          <Link
+            to="/#notifications"
             className={styles.iconBtn}
-            title="Уведомления"
-            aria-label="Уведомления"
-            onClick={() => navigate('/#notifications')}
+            title="Уведомления — список на обзоре производства"
+            aria-label={overdueCount > 0
+              ? `Уведомления: ${overdueCount} — открыть список на обзоре`
+              : 'Уведомления — открыть список на обзоре'}
           >
             <Icon name="bell" size={19} />
             {overdueCount > 0 && <span className={styles.iconDot}>{overdueCount}</span>}
-          </button>
+          </Link>
 
           <button
             type="button"

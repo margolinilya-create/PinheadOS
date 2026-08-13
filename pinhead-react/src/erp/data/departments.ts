@@ -82,10 +82,16 @@ export const DEPT_ICONS: Record<string, string> = {
   experimental: 'flask',
   warehouse: 'box',
   cutting: 'scissors',
-  silkscreen: 'printer',
-  dtf: 'printer',
+  /*
+    У каждого участка СВОЯ иконка (M-12 отчёта QA 13.08.2026). В свёрнутом
+    меню от пункта остаётся только она, а «Шелкография»/«ДТФ» рисовались
+    одним принтером и «Вышивка»/«Швейка» — одной иглой: четыре цеха
+    превращались в две пары близнецов.
+  */
+  silkscreen: 'screenPrint',
+  dtf: 'film',
   embroidery: 'needle',
-  sewing: 'needle',
+  sewing: 'spool',
   vto: 'iron',
   qc: 'shield',
   warehouse_fg: 'tag',

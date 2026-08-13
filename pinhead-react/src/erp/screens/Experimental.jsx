@@ -7,7 +7,7 @@ import { TableSkeleton } from '../components/ErpSkeletons';
 import { FilterBar } from '../components/FilterBar';
 import { Badge } from '../components/Badge';
 import { Drawer } from '../components/Drawer';
-import { Pagination } from '../components/Pagination';
+import { Pagination, DEFAULT_PAGE_SIZE } from '../components/Pagination';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
@@ -124,7 +124,7 @@ export default function Experimental() {
 
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [newOrderId, setNewOrderId] = useState('');
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);

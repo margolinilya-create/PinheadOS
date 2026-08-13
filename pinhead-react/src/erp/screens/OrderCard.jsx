@@ -152,7 +152,14 @@ export default function OrderCard() {
           </span>
         )}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
-        {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}
+        {/* Ссылка, а не серая надпись среди чипов (L-05 отчёта QA 13.08.2026):
+            «Отгрузка — во вкладке "Склад"» читалась как сломанная кнопка.
+            Раз она называет, куда идти, — пусть туда и ведёт. */}
+        {readyToShip && order.shipped_status !== 'shipped' && (
+          <ButtonLink to="/warehouse" variant="ghost" size="sm" icon="truck">
+            Отгрузить — на складе
+          </ButtonLink>
+        )}
         {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
         {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
         {order.packaging && order.packaging !== 'none' && (
@@ -219,7 +226,7 @@ export default function OrderCard() {
           </section>
         )}
 
-        {tab === 'files' && <FilesSection attachments={order.attachments} />}
+        {tab === 'files' && <FilesSection attachments={order.attachments} orderId={order.id} />}
 
         {tab === 'comments' && <CommentsSection comments={comments} onSend={onSendComment} />}
 

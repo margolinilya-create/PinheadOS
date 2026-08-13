@@ -31,7 +31,7 @@ import { OrderCardMobile } from './orders/OrderCardMobile';
 const CreateOrderModal = lazy(() => import('./orders/CreateOrderModal')
   .then((m) => ({ default: m.CreateOrderModal })));
 import { ScrollHintBox } from '../components/ScrollHintBox';
-import { Pagination } from '../components/Pagination';
+import { Pagination, DEFAULT_PAGE_SIZE } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
 import { sortRows } from '../utils/tableSort';
 import { Button } from '../components/Button';
@@ -208,7 +208,7 @@ export default function OrdersScreen() {
     patchParams({ sort: next.key || '', dir: next.key && next.dir === 'desc' ? 'desc' : '' });
   };
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   /**
    * Значение колонки берётся ТО ЖЕ, что видно в ячейке (правило utils/tableSort):

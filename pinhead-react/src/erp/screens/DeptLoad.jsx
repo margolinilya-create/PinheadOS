@@ -49,11 +49,19 @@ export default function DeptLoad() {
 
   const today = factoryToday();
   const [start, setStart] = useState(() => weekStart(factoryToday()));
+  /**
+   * M-10 отчёта QA 13.08.2026: соседние вкладки одного раздела считали неделю
+   * по-разному — «План» пн–пт с переключателем выходных, «Загрузка» всегда
+   * пн–вс и без него. Два определения недели рядом означают, что цифры
+   * двух экранов нельзя сопоставить, а человек об этом не знает.
+   * Переключатель и умолчание теперь те же, что на «Плане».
+   */
+  const [withWeekend, setWithWeekend] = useState(false);
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
 
-  const days = useMemo(() => loadDays(start, 7), [start]);
+  const days = useMemo(() => loadDays(start, withWeekend ? 7 : 5), [start, withWeekend]);
   const { rows, maxCell } = useMemo(
     () => buildDeptLoad(orders, departments, days, today),
     [orders, departments, days, today],
@@ -77,8 +85,9 @@ export default function DeptLoad() {
   );
 
   const isCurrentWeek = start === weekStart(today);
-  const periodLabel = `${dayLabel(days[0]).day} — ${dayLabel(days[6]).day} ${
-    parseIsoDate(days[6]).toLocaleDateString('ru-RU', { month: 'long' })}`;
+  const lastDay = days[days.length - 1];
+  const periodLabel = `${dayLabel(days[0]).day} — ${dayLabel(lastDay).day} ${
+    parseIsoDate(lastDay).toLocaleDateString('ru-RU', { month: 'long' })}`;
 
   return (
     <>
@@ -92,6 +101,7 @@ export default function DeptLoad() {
         report={isCurrentWeek ? monthReport : weekReport}
         periodLabel={isCurrentWeek ? monthLabel(today) : periodLabel}
         hint="Изделия активных заказов со сроком сдачи в периоде против общей мощности. Сетка ниже считает другое — обязательства цехов по дням, где одно изделие попадает в несколько строк."
+        monthlyUnits={capacity.monthly_units}
       />
 
       <div className={styles.toolbar}>
@@ -108,6 +118,14 @@ export default function DeptLoad() {
         {!isCurrentWeek && (
           <Button variant="secondary" onClick={() => setStart(weekStart(today))}>Сегодня</Button>
         )}
+        <label className={styles.checkLabel}>
+          <input
+            type="checkbox"
+            checked={withWeekend}
+            onChange={(e) => setWithWeekend(e.target.checked)}
+          />
+          с выходными
+        </label>
       </div>
 
       {!loaded && !loadError && <TableSkeleton />}
