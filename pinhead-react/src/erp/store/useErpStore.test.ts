@@ -864,6 +864,58 @@ describe('useErpStore — материал со склада / авто-закр
     expect(ops[0].qty).toBe(100);
   });
 
+  /*
+   * ПРИЁМКА ЗАПИСЫВАЕТ ПРИХОД В ЖУРНАЛ.
+   *
+   * Волна 3.3 верно убрала прямую запись `qty_received` (колонку ведёт триггер
+   * по журналу), но журнал остался ОТДЕЛЬНЫМ необязательным действием, которого
+   * ни один путь приёмки не выполнял: число уходило только в историю склада,
+   * а колонка оставалась пустой. На боевой базе так и вышло — два материала
+   * «принято полностью», план 100 и 50, `qty_received` NULL, строк журнала 0.
+   * Склад отчитался о полной приёмке, а сколько пришло, не знал никто.
+   */
+  it('acceptMaterial: записывает приход в журнал erp_material_receipts', async () => {
+    seedSupply([mat({ status: 'pending', accept_status: null })]);
+    const ok = await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 100, accept_status: 'accepted_full', accept_comment: 'ок',
+    });
+    expect(ok).toBe(true);
+    const receipt = h.insertCalls.find((c) => c.table === 'erp_material_receipts');
+    expect(receipt, 'приёмка обязана записать приход').toBeTruthy();
+    expect((receipt!.row as any).qty).toBe(100);
+    expect((receipt!.row as any).material_id).toBe('m1');
+  });
+
+  it('acceptMaterial: не удваивает приход, уже внесённый формой журнала', async () => {
+    // Кладовщик внёс 60 формой «Приход» — сумма журнала уже в qty_received
+    seedSupply([mat({ status: 'received', accept_status: null, qty_received: 60 })]);
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 100, accept_status: 'accepted_full',
+    });
+    const receipt = h.insertCalls.find((c) => c.table === 'erp_material_receipts');
+    expect(receipt, 'дописывается только недостающее').toBeTruthy();
+    expect((receipt!.row as any).qty, '100 план − 60 уже в журнале').toBe(40);
+  });
+
+  it('acceptMaterial: экран склада передаёт сумму журнала — журнал не трогается', async () => {
+    seedSupply([mat({ status: 'received', accept_status: null, qty_received: 100 })]);
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 100, accept_status: 'accepted_full',
+    });
+    expect(h.insertCalls.find((c) => c.table === 'erp_material_receipts')).toBeFalsy();
+  });
+
+  it('acceptMaterial: неудача журнала НЕ отменяет приёмку', async () => {
+    // Отклонение без объяснения — addMaterialReceipt откажет своей проверкой.
+    // Приёмка обязана пройти: без неё встаёт цех, а это дороже незаписанного прихода.
+    seedSupply([mat({ status: 'received', accept_status: null })]);
+    const ok = await useErpStore.getState().acceptMaterial('m1', {
+      qty_received: 50, accept_status: 'mismatch', accept_comment: null,
+    });
+    expect(ok).toBe(true);
+    expect(useErpStore.getState().orders[0].materials[0].accept_status).toBe('mismatch');
+  });
+
   it('acceptMaterial: частичная приёмка пишется как partial_receipt', async () => {
     seedSupply([mat({ status: 'received', accept_status: null })]);
     await useErpStore.getState().acceptMaterial('m1', {

@@ -57,7 +57,34 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
     : 0;
   const claimsFull = status === 'accepted_full';
 
+  /*
+   * Отклонение объясняется — то же правило, что в форме журнала приходов
+   * (`ReceiptEntry` ниже). Гейт стоит В ИНТЕРФЕЙСЕ, а не только в сторе:
+   * приёмка теперь записывает приход в журнал, а тот отказывает без
+   * объяснения — и человек получил бы «кнопка есть, действие падает».
+   */
+  const needsComment = status === 'shortage' || status === 'mismatch' || status === 'rejected';
+  const commentMissing = needsComment && !comment.trim();
+
   const accept = async () => {
+    /*
+     * «Принято полностью», когда не записано НИ ОДНОГО прихода.
+     *
+     * Сравнение плана с фактом ниже при пустом факте молчало — то есть
+     * защита не срабатывала ровно в том случае, ради которого заведена.
+     * На проде так и вышло: два материала «приняты полностью», план 100 и 50,
+     * количество — нигде.
+     */
+    if (claimsFull && factQty === null && Number.isFinite(expected) && expected > 0) {
+      const ok = await confirm({
+        title: 'Принять полностью, не записав приход?',
+        message: `План ${expected}, но ни одного прихода в журнале нет. `
+          + 'Будет записан приход на весь план. Если пришло не всё — сначала внесите '
+          + 'фактическое количество формой «Приход» выше.',
+        confirmLabel: 'Записать приход на весь план',
+      });
+      if (!ok) return;
+    }
     if (shortfall > 0 && claimsFull) {
       const ok = await confirm({
         title: 'Принять как полную приёмку?',
@@ -71,7 +98,12 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
     }
     setSaving(true);
     await onAccept(m.id, {
-      qty_received: received === '' ? null : Number(received),
+      // Полная приёмка без записанных приходов означает «пришло по плану» —
+      // именно это подтвердил человек в диалоге выше. Иначе передаём сумму
+      // журнала, и приёмка ничего к ней не дописывает.
+      qty_received: received === ''
+        ? (claimsFull && Number.isFinite(expected) && expected > 0 ? expected : null)
+        : Number(received),
       accept_status: status,
       accept_comment: comment.trim() || null,
       fact_name: factName.trim() || null,
@@ -166,9 +198,13 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
         <input className={styles.input} style={{ flex: 1, minWidth: 160 }} placeholder="Комментарий"
           value={comment} onChange={(e) => setComment(e.target.value)}
           aria-label={`Комментарий приёмки ${m.name}`} />
-        <Button variant="primary" disabled={saving} onClick={accept}>
+        <Button variant="primary" disabled={saving || commentMissing} onClick={accept}
+          title={commentMissing ? 'Объясните отклонение в комментарии' : undefined}>
           {done ? 'Обновить приёмку' : 'Принять'}
         </Button>
+        {commentMissing && (
+          <span className={styles.subText}>Отклонение нужно объяснить в комментарии</span>
+        )}
       </div>
     </div>
   );
