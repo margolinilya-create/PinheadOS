@@ -69,6 +69,19 @@ function fromEnv(name: FeatureName): boolean | null {
 export function isFeatureEnabled(name: FeatureName): boolean {
   const url = fromUrl(name);
   if (url !== null) return url;
+  return storedFeature(name);
+}
+
+/**
+ * То же, но БЕЗ параметра адреса — только запомненный выбор.
+ *
+ * Нужно, чтобы понять, оставил ли параметр след. `isFeatureEnabled` для этого
+ * не годится: она сама читает параметр, поэтому «совпадает ли показанный режим
+ * с запомненным» через неё всегда отвечает «да», пока параметр в адресе. Так
+ * решение `?studio=0` и не доживало до следующего перехода — см. `rememberMode`
+ * в `config/appMode.ts`.
+ */
+export function storedFeature(name: FeatureName): boolean {
   const ls = fromLocalStorage(name);
   if (ls !== null) return ls;
   const env = fromEnv(name);

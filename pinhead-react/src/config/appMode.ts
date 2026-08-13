@@ -32,7 +32,7 @@
  *    Любая ссылка на производство — аварийный выход.
  */
 
-import { isFeatureEnabled, setFeature } from './features';
+import { isFeatureEnabled, setFeature, storedFeature } from './features';
 
 export type AppMode = 'erp' | 'studio';
 
@@ -75,9 +75,16 @@ export function resolveAppMode(pathname: string): AppMode {
  * Без этого аварийный выход был бы половинчатым: `/board` открылся бы в ERP,
  * а первый же переход в «Заказы» вернул бы Studio — флаг-то остался единицей.
  * Пишем только при расхождении, чтобы не трогать хранилище на каждой отрисовке.
+ *
+ * Сравнение идёт с ЗАПОМНЕННЫМ значением (`storedFeature`), а не с
+ * `isFeatureEnabled`: последняя сама читает параметр адреса, и пока `?studio=0`
+ * висит в строке, расхождения «нет» по построению — запись не происходит,
+ * а на следующем же переходе параметр теряется вместе с решением. Ровно так
+ * ломался переход по логотипу из `/orders?studio=0` на `/`: там, где env
+ * включает Studio, приложение возвращалось в него.
  */
 export function rememberMode(mode: AppMode): void {
-  const stored = isFeatureEnabled('orderStudio') ? 'studio' : 'erp';
+  const stored = storedFeature('orderStudio') ? 'studio' : 'erp';
   if (stored !== mode) setFeature('orderStudio', mode === 'studio');
 }
 

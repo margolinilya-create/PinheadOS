@@ -84,6 +84,33 @@ describe('appMode — память следует за адресом', () => {
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  it('решение параметра адреса ДОЖИВАЕТ до следующего перехода', () => {
+    /*
+      Здесь был настоящий дефект, найденный e2e.
+
+      `rememberMode` сравнивала показанный режим с `isFeatureEnabled`, а та сама
+      читает параметр адреса. Пока `?studio=0` висит в строке, расхождения «нет»
+      по построению — в хранилище не пишется НИЧЕГО. Первый же переход внутри
+      приложения (клик по логотипу с `/orders?studio=0` на `/`) теряет параметр
+      вместе с решением, и там, где Studio включён окружением, приложение
+      возвращалось в него.
+
+      Сравнивать надо с ЗАПОМНЕННЫМ значением, а не с показанным.
+    */
+    // Запомнено «Studio» (залипший флаг или включённый билд), а параметр
+    // адреса говорит обратное — показан ERP
+    setFeature('orderStudio', true);
+    vi.stubGlobal('location', { ...window.location, search: '?studio=0' });
+    expect(resolveAppMode('/orders')).toBe('erp');
+
+    rememberMode(resolveAppMode('/orders'));
+
+    expect(localStorage.getItem(LS_KEY), 'решение параметра не сохранилось').toBe('0');
+    // Параметра больше нет — режим держится на записанном значении
+    vi.stubGlobal('location', { ...window.location, search: '' });
+    expect(resolveAppMode('/')).toBe('erp');
+  });
 });
 
 describe('appMode — переключение', () => {
