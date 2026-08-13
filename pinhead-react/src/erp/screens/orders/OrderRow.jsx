@@ -14,7 +14,7 @@ import {
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
-import { formatDateCell } from '../../utils/format';
+import { formatDateCell, orderStatusLabel } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
@@ -87,7 +87,7 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
             </span>
           ) : (
             <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-              {ORDER_STATUS_LABELS[order.status]}
+              {orderStatusLabel(order, ORDER_STATUS_LABELS)}
             </span>
           )}
           {hasOpenProcurement(order.procurement_tasks) && (

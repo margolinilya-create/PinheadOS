@@ -1,6 +1,6 @@
 import { isStageReady, waitingReason, isStageAwaitingProcurement, materialsForItem } from '../../utils/routes';
 import { stageMissingTz } from '../../utils/tz';
-import { deptShortName } from '../../data/departments';
+import { deptShortName, isProductionDept } from '../../data/departments';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import {
   STAGE_STATUS_LABELS,
@@ -128,7 +128,25 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
                       : '—'}
                   </td>
                   <td className={styles.progressCell}>
-                    {st.qty_done > 0 ? `${st.qty_done}` : '—'}
+                    {/*
+                      M-06 отчёта QA 13.08.2026: у закрытого этапа «Закупка»
+                      стоял прочерк в колонке «Сделано» — «Готово» и «—» рядом
+                      читаются как потерянные данные. Данных и нет: закупка,
+                      как и любой непроизводственный участок, в штуках не
+                      считается, и прочерк обязан это СКАЗАТЬ, а не молчать.
+                      Разделение по `is_production` — то же, что у канбана
+                      и очередей: признак из данных, не константа.
+                    */}
+                    {st.qty_done > 0 ? `${st.qty_done}` : (
+                      <span
+                        className={styles.subText}
+                        title={isProductionDept(dept)
+                          ? 'Изделия по этому этапу ещё не сдавали'
+                          : 'Участок не считается в штуках'}
+                      >
+                        {isProductionDept(dept) ? '—' : 'не в штуках'}
+                      </span>
+                    )}
                     {st.qty_rework > 0 && (
                       <span className={styles.overdue}> · брак {st.qty_rework}</span>
                     )}

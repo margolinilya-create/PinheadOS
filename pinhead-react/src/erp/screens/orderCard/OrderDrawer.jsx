@@ -26,6 +26,7 @@ import { TzDocsSection, TzMissingBanner } from './TzDocsSection';
 import { useOrderDetail } from './useOrderDetail';
 import { ButtonLink } from '../../components/Button';
 import { useErpAccess } from '../../store/useErpAccess';
+import { orderStatusLabel } from '../../utils/format';
 
 /**
  * Боковая карточка заказа (редизайн): те же данные, что и страница /orders/:id, но в правом
@@ -65,7 +66,7 @@ export function OrderDrawer({ orderId, onClose }) {
     ? `${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`
     : (notFound ? 'Заказ не найден' : 'Загрузка…');
   const badge = order
-    ? <Badge variant={order.status === 'active' ? 'progress' : 'neutral'}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+    ? <Badge variant={order.status === 'active' ? 'progress' : 'neutral'}>{orderStatusLabel(order, ORDER_STATUS_LABELS)}</Badge>
     : null;
 
   return (
@@ -133,7 +134,7 @@ export function OrderDrawer({ orderId, onClose }) {
           )}
 
           <div className={styles.toolbar}>
-            <Badge variant={order.status === 'active' ? 'progress' : 'neutral'}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+            <Badge variant={order.status === 'active' ? 'progress' : 'neutral'}>{orderStatusLabel(order, ORDER_STATUS_LABELS)}</Badge>
             {readyToShip && <Badge variant="ready"><Icon name="checkCircle" size={13} /> Готов к отгрузке</Badge>}
             <Badge variant={order.shipped_status === 'shipped' ? 'ready' : 'neutral'}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</Badge>
             {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}

@@ -614,8 +614,17 @@
 .itemRow {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-  align-items: end;
+  gap: 12px 8px;
+  /*
+    `align-items: end` выравнивал поля по НИЖНЕМУ краю, а низ у них разный:
+    под одними висит текст ошибки, под другими подсказка «из размерной сетки»,
+    а «Тип производства» это ряд плиток вдвое выше поля ввода. В итоге подписи
+    и сами поля стояли на трёх разных линиях, а плитки «Образцы»/«Подряд»
+    налезали на соседний ряд (H-02 отчёта QA 13.08.2026).
+    Выравнивание по верху ставит подписи на одну линию, а хвосты (ошибка,
+    подсказка) свисают вниз, никого не сдвигая.
+  */
+  align-items: start;
   padding: 12px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
@@ -657,9 +666,24 @@
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 900px;
-  padding: 24px;
+  /*
+    Нижнего отступа нет намеренно: его даёт липкий футер своим padding-bottom.
+    Иначе между футером и краем окна оставалась полоса, сквозь которую
+    проезжало содержимое формы — «часть текста вне белого окна» (H-01).
+  */
+  padding: 24px 24px 0;
   display: flex; flex-direction: column; gap: var(--space-md);
   box-shadow: var(--shadow-modal);
+  /*
+    Прокручивается САМО окно, а не оверлей (H-01 отчёта QA 13.08.2026).
+    Пока скроллил оверлей, липкий футер прилипал к нижнему краю ЭКРАНА,
+    и последняя строка формы («ТЗ увидят: Закрой · Швейка · ВТО») навсегда
+    оставалась под ним: дальше прокручивать было нечего.
+    92vh = 100vh минус padding оверлея (4vh сверху и снизу).
+  */
+  max-height: 92vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .modalTitle {
   font-size: 26px;
@@ -676,8 +700,11 @@
   position: sticky;
   bottom: 0;
   z-index: 2;
-  padding: 10px 0 2px;
-  margin-top: 4px;
+  /* Отрицательные боковые поля растягивают фон на всю ширину окна: иначе
+     по краям (в 24px padding модалки) содержимое просвечивало из-под футера.
+     Нижний padding заменяет собой снятый padding-bottom у `.modal`. */
+  margin: 4px -24px 0;
+  padding: 12px 24px 16px;
   background: var(--card);
   border-top: 1px solid var(--border-light);
 }

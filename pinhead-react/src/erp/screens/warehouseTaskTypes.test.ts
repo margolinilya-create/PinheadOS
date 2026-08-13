@@ -80,6 +80,21 @@ describe('типы складских задач заведены целиком
     expect(missing, `нет ветки Drawer: ${missing.join(', ')}`).toEqual([]);
   });
 
+  /**
+   * ТРИНАДЦАТАЯ точка касания (H-10 отчёта QA 13.08.2026). Плитки KPI и
+   * объект-накопитель счётчиков были написаны руками, и в обоих не хватало
+   * `fg_receipt`: «Все задачи: 1», все плитки по нулям, а карточки для типа,
+   * который на экране реально был, нет вовсе. `c[task.task_type] += 1` по
+   * несуществующему ключу давал NaN — молча.
+   *
+   * Теперь и то и другое строится из `TABS`. Тест сторожит именно ЭТО:
+   * вернётся рукописный список — вернётся и пропуск.
+   */
+  it('плитки KPI и счётчики строятся из вкладок, а не переписаны руками', () => {
+    expect(SOURCES.screen).toContain('const KPI_TILES = TABS.map(');
+    expect(SOURCES.screen).toContain('Object.fromEntries(TABS.map(');
+  });
+
   it('CHECK в базе перечисляет ровно те же типы', () => {
     const sql = withoutComments(latestMatching(
       /add constraint erp_warehouse_tasks_task_type_check/,

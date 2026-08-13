@@ -13,6 +13,7 @@ import {
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
 import { DateField } from './DateField';
+import { isRangeInverted } from '../utils/dateRange';
 import { Button } from '../components/Button';
 
 /**
@@ -191,6 +192,7 @@ export function QueueFilters({
             <span className={styles.fieldLabel}>Срок с</span>
             <DateField
               value={filters.dueFrom}
+              max={filters.dueTo || undefined}
               onChange={(v) => set({ dueFrom: v })}
               aria-label="Срок клиента с"
             />
@@ -199,10 +201,17 @@ export function QueueFilters({
             <span className={styles.fieldLabel}>Срок по</span>
             <DateField
               value={filters.dueTo}
+              min={filters.dueFrom || undefined}
               onChange={(v) => set({ dueTo: v })}
               aria-label="Срок клиента по"
             />
           </label>
+          {/* H-13: перевёрнутый интервал даёт пустой список без объяснения */}
+          {isRangeInverted(filters.dueFrom, filters.dueTo) && (
+            <span className={styles.fieldError} role="status">
+              «с» позже «по» — в таком интервале заданий не будет
+            </span>
+          )}
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Сортировка</span>
             <select

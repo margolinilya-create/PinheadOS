@@ -16,6 +16,7 @@ import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
+import { isRangeInverted } from '../utils/dateRange';
 import { Icon } from '../components/Icon';
 import { OrderRow } from './orders/OrderRow';
 import { OrderCardMobile } from './orders/OrderCardMobile';
@@ -34,6 +35,7 @@ import { Pagination } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
 import { sortRows } from '../utils/tableSort';
 import { Button } from '../components/Button';
+import { orderStatusLabel } from '../utils/format';
 
 export default function OrdersScreen() {
   const {
@@ -223,7 +225,7 @@ export default function OrdersScreen() {
       case 'due': return o.due_date || null;
       // Готовность — то же вычисление, что рисует чип: сортировка «по статусу»
       // должна собирать вместе строки с одинаковой подписью
-      case 'status': return isOrderReadyToShip(o) ? 'Готов к отгрузке' : ORDER_STATUS_LABELS[o.status];
+      case 'status': return isOrderReadyToShip(o) ? 'Готов к отгрузке' : orderStatusLabel(o, ORDER_STATUS_LABELS);
       default: return null;
     }
   };
@@ -342,7 +344,7 @@ export default function OrdersScreen() {
         <label className={styles.checkLabel}>
           Создан с
           <DateField
-            showFormatHint={false}
+           
             value={dateFrom}
             max={dateTo || undefined}
             onChange={setDateFrom}
@@ -352,13 +354,20 @@ export default function OrdersScreen() {
         <label className={styles.checkLabel}>
           по
           <DateField
-            showFormatHint={false}
+           
             value={dateTo}
             min={dateFrom || undefined}
             onChange={setDateTo}
             aria-label="Дата создания: по"
           />
         </label>
+        {/* H-13: «с» позже «по» — интервал пуст, и список всегда будет пустым.
+            Молчать об этом значит показывать «ничего не найдено» вместо причины */}
+        {isRangeInverted(dateFrom, dateTo) && (
+          <span className={styles.fieldError} role="status">
+            «с» позже «по» — в таком интервале заказов не будет
+          </span>
+        )}
         {(dateFrom || dateTo) && (
           <Button variant="ghost" onClick={() => patchParams({ from: '', to: '' })}>
             Сбросить даты

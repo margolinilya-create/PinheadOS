@@ -123,8 +123,8 @@ function AddOpRow({ orders, queueDepts, onAdd }) {
       <input className={gate.cls(styles.input, 'operation')} placeholder="Операция (пошив, вышивка…)" value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })} aria-label="Операция" {...gate.field('operation')} />
       <input className={styles.input} placeholder="Контрагент" value={form.contractor} onChange={(e) => setForm({ ...form, contractor: e.target.value })} aria-label="Контрагент" style={{ maxWidth: 150 }} />
       <input type="number" min="1" className={styles.input} placeholder="шт" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} aria-label="Количество" style={{ maxWidth: 90 }} />
-      <label className={styles.subText}>передан<DateField showFormatHint={false} value={form.sent_date} onChange={(v) => setForm({ ...form, sent_date: v })} aria-label="Дата передачи" /></label>
-      <label className={styles.subText}>готов<DateField showFormatHint={false} value={form.planned_date} onChange={(v) => setForm({ ...form, planned_date: v })} aria-label="Плановая готовность" /></label>
+      <label className={styles.subText}>передан<DateField value={form.sent_date} onChange={(v) => setForm({ ...form, sent_date: v })} aria-label="Дата передачи" /></label>
+      <label className={styles.subText}>готов<DateField value={form.planned_date} onChange={(v) => setForm({ ...form, planned_date: v })} aria-label="Плановая готовность" /></label>
       <Button
         variant="secondary"
         disabled={saving || (gate.submitted && !gate.ok)}
@@ -367,7 +367,7 @@ export default function Subcontracting() {
                         <label className={styles.subText}>
                           возврат:{' '}
                           <DateField
-                            showFormatHint={false}
+                           
                             disabled={!canManage}
                             value={op.returned_date || ''}
                             onChange={(v) => updateSubcontractOp(op.id, {

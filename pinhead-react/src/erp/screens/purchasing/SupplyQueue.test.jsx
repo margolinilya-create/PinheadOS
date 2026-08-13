@@ -64,7 +64,7 @@ describe('очередь закупки', () => {
 
   it('пусто — так и написано, а не пустая таблица', () => {
     renderQueue([]);
-    expect(screen.getByText(/Заказов, ожидающих закупки, нет/)).toBeInTheDocument();
+    expect(screen.getByText(/Ни у одного заказа нет открытого этапа «Закупка»/)).toBeInTheDocument();
   });
 
   it('показывает, сколько материалов на месте', () => {

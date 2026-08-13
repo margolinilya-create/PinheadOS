@@ -313,3 +313,58 @@ describe('isFormEmpty / isItemEmpty', () => {
     }))).toBe(false);
   });
 });
+
+describe('validateOrderForm — даты и количества (находки QA 13.08.2026)', () => {
+  const today = '2026-07-17';
+  const okForm = { ...emptyOrderForm(today), title: 'Заказ' };
+  const okItem = () => item({ product_type: 'футболка', qty: '10' });
+
+  it('H-13: абсурдный год отвергается и НЕ выдаётся за «дату в прошлом»', () => {
+    // Нативное поле принимает `0002`; «срок в прошлом» тут верно, но бесполезно —
+    // человек искал бы ошибку не там.
+    const v = validateOrderForm({ ...okForm, due_date: '0002-01-01' }, [okItem()], today);
+    expect(v.errors.due_date).toBe('Год вне диапазона 2000–2100 — проверьте дату');
+    expect(v.invalid).toContain('Срок клиента');
+  });
+
+  it('H-13: срок раньше запуска — интервал перевёрнут', () => {
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-08-20', due_date: '2026-08-10' },
+      [okItem()],
+      today,
+    );
+    expect(v.errors.due_date).toBe('Срок клиента раньше даты запуска');
+  });
+
+  it('H-13: нормальный интервал ошибок не даёт', () => {
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-08-10', due_date: '2026-08-20' },
+      [okItem()],
+      today,
+    );
+    expect(v.errors.due_date).toBeUndefined();
+    expect(v.errors.launch_date).toBeUndefined();
+  });
+
+  it('H-14: отрицательный буфер не проходит', () => {
+    const v = validateOrderForm({ ...okForm, buffer_days: '-3' }, [okItem()], today);
+    expect(v.errors.buffer_days).toBe('Буфер не может быть отрицательным');
+    expect(v.invalid).toContain('Буфер');
+  });
+
+  it('H-14: отрицательное количество — это invalid, а не missing', () => {
+    // Раньше минус срезался в поле (`-5` → `5`), и проверка отрицательного
+    // числа вообще не видела. Теперь видит — и говорит «проверьте», а не
+    // «осталось заполнить»: поле-то заполнено.
+    const v = validateOrderForm(okForm, [item({ product_type: 'ф', qty: '-5' })], today);
+    expect(v.errors.item_0_qty).toBe('Количество должно быть больше 0');
+    expect(v.invalid).toContain('Кол-во');
+    expect(v.missing).not.toContain('Кол-во');
+  });
+
+  it('пустое количество остаётся missing', () => {
+    const v = validateOrderForm(okForm, [item({ product_type: 'ф', qty: '' })], today);
+    expect(v.missing).toContain('Кол-во');
+    expect(v.invalid).not.toContain('Кол-во');
+  });
+});

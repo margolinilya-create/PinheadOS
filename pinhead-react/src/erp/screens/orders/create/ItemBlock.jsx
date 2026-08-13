@@ -86,7 +86,14 @@ export function ItemBlock({
             min="1"
             className={inputCls(`item_${i}_qty`)}
             value={it.qty}
-            onChange={(e) => setItem(i, { qty: e.target.value.replace('-', '') })}
+            /*
+              H-14: было `.replace('-', '')` — минус молча срезался, и «-5»
+              становилось «5». Тихо менять введённое число нельзя: человек
+              видит не то, что напечатал, и не узнаёт об ошибке. Отрицательное
+              значение доезжает до проверки и получает подпись «Количество
+              должно быть больше 0».
+            */
+            onChange={(e) => setItem(i, { qty: e.target.value })}
             aria-required="true"
             aria-invalid={err(`item_${i}_qty`) ? true : undefined}
             aria-describedby={err(`item_${i}_qty`) ? `err-item-${i}-qty` : undefined}

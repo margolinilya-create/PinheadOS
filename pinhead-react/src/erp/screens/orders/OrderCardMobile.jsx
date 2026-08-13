@@ -10,7 +10,7 @@ import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
-import { formatDateCell } from '../../utils/format';
+import { formatDateCell, orderStatusLabel } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
@@ -59,7 +59,7 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
           </span>
         ) : (
           <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-            {ORDER_STATUS_LABELS[order.status]}
+            {orderStatusLabel(order, ORDER_STATUS_LABELS)}
           </span>
         )}
         {order.shipped_at && (

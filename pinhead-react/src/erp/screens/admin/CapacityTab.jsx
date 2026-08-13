@@ -105,7 +105,14 @@ export function CapacityTab() {
             onChange={(e) => setUnits(e.target.value)}
             placeholder="напр. 10000"
           />
-          <span className={styles.queueReason}>Пусто — мощность не задана, проценты загрузки не считаются.</span>
+          {/* Подсказка появляется, только когда поле действительно пусто:
+              «Пусто — мощность не задана» под числом 10000 (H-12 отчёта QA
+              13.08.2026) читается как отказ системы принять введённое */}
+          {draft.monthly_units === null && (
+            <span className={styles.queueReason}>
+              Мощность не задана — проценты загрузки не считаются.
+            </span>
+          )}
         </label>
 
         <label className={styles.field}>
@@ -130,9 +137,20 @@ export function CapacityTab() {
         <h3 className={styles.fieldLabel}>Что это значит для {monthLabel(today)}</h3>
         <ul className={styles.queueReason}>
           <li>рабочих дней в месяце: <b>{workDays}</b></li>
+          {/*
+            «≈» и расчёт рядом — обязательны (H-12 отчёта QA 13.08.2026).
+            Без них строчки читались как ошибка в арифметике: 476 × 21 = 9 996,
+            а месяцем ниже стоит 10 000. Дневная мощность это ЧАСТНОЕ, и её
+            округление к месячной сумме не сходится по определению.
+          */}
           <li>
             доступно в день:{' '}
-            <b>{perDay === null ? '—' : Math.round(perDay)}</b> шт
+            <b>{perDay === null ? '—' : `≈${Math.round(perDay)}`}</b> шт
+            {perDay !== null && (
+              <span className={styles.subText}>
+                {' '}({report.capacity} ÷ {workDays}, округлено)
+              </span>
+            )}
           </li>
           <li>
             доступно за месяц:{' '}

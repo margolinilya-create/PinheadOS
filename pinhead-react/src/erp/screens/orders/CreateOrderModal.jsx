@@ -637,10 +637,16 @@ export function CreateOrderModal({ onClose }) {
             <input
               type="number"
               min="0"
-              className={styles.input}
+              className={inputCls('buffer_days')}
               value={form.buffer_days}
-              onChange={(e) => setForm({ ...form, buffer_days: e.target.value.replace('-', '') })}
+              /* Минус не срезаем молча (H-14) — отрицательный буфер отсекает
+                 сама проверка, показывая причину под полем */
+              onChange={(e) => setForm({ ...form, buffer_days: e.target.value })}
+              aria-invalid={err('buffer_days') ? true : undefined}
+              aria-describedby={err('buffer_days') ? 'err-order-buffer' : undefined}
+              data-invalid={err('buffer_days') ? true : undefined}
             />
+            <FieldError id="err-order-buffer" text={err('buffer_days')} />
             <span className={styles.subText}>Запас до срока клиента</span>
           </label>
         </div>

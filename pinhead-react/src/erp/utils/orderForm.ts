@@ -8,6 +8,7 @@
 
 import { storageGet, storageRemove, storageSet } from '../../lib/storage';
 import { factoryToday } from '../../utils/date';
+import { DATE_MAX, DATE_MIN, isDateOutOfRange, isRangeInverted } from './dateRange';
 import type { SizeGridRow } from '../types';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
@@ -233,13 +234,45 @@ export function validateOrderForm(
     errors.title = 'Укажите название заказа';
     missing.push('Название');
   }
-  if (form.launch_date && form.launch_date < today) {
+  /*
+    Порядок проверок дат — от самой конкретной причины к самой общей, и каждая
+    следующая не перетирает уже названную. Год `0002` тоже «в прошлом», но
+    сказать про него «срок в прошлом» значит спрятать опечатку за верным,
+    но бесполезным текстом.
+
+    Абсурдный год — обычная опечатка при вводе с клавиатуры (H-13 отчёта QA
+    13.08.2026). Проверка стоит здесь, а не только в поле: `min`/`max`
+    у `input type="date"` ограничивают календарь, но не набор с клавиатуры.
+  */
+  const YEARS = `${DATE_MIN.slice(0, 4)}–${DATE_MAX.slice(0, 4)}`;
+  if (isDateOutOfRange(form.launch_date)) {
+    errors.launch_date = `Год вне диапазона ${YEARS} — проверьте дату`;
+    invalid.push('Дата запуска');
+  } else if (form.launch_date && form.launch_date < today) {
     errors.launch_date = 'Дата запуска в прошлом — проверьте дату';
     invalid.push('Дата запуска');
   }
-  if (form.due_date && form.due_date < today) {
+
+  if (isDateOutOfRange(form.due_date)) {
+    errors.due_date = `Год вне диапазона ${YEARS} — проверьте дату`;
+    invalid.push('Срок клиента');
+  } else if (form.due_date && form.due_date < today) {
     errors.due_date = 'Срок клиента в прошлом — проверьте дату';
     invalid.push('Срок клиента');
+  } else if (isRangeInverted(form.launch_date, form.due_date)) {
+    // Срок раньше запуска — заказ, который надо сдать до того, как он начат.
+    // Проверяется парой, а не полем: по отдельности обе даты допустимы.
+    errors.due_date = 'Срок клиента раньше даты запуска';
+    invalid.push('Срок клиента');
+  }
+
+  /*
+    H-14: буфер срезался как `.replace('-', '')` — «-3» молча становилось «3».
+    Тихая правка введённого числа хуже отказа: человек видит не то, что набрал.
+  */
+  if (String(form.buffer_days).trim() !== '' && Number(form.buffer_days) < 0) {
+    errors.buffer_days = 'Буфер не может быть отрицательным';
+    invalid.push('Буфер');
   }
 
   items.forEach((it, i) => {
@@ -252,7 +285,16 @@ export function validateOrderForm(
     }
     if (!(effectiveQty(it) > 0)) {
       errors[`item_${i}_qty`] = 'Количество должно быть больше 0';
-      missing.push(`Кол-во${pos}`);
+      /*
+        Заполненное, но неверное («-5», «0») — это `invalid`, а не `missing`:
+        подсказка «Осталось заполнить: Кол-во» при заполненном поле сбивает
+        с толку. То же различение, что у дат выше.
+      */
+      if (String(it.qty).trim() === '' && gridTotal(it.size_grid) === 0) {
+        missing.push(`Кол-во${pos}`);
+      } else {
+        invalid.push(`Кол-во${pos}`);
+      }
     }
     if (it.has_branding && it.prints.length === 0) {
       errors[`item_${i}_prints`] = 'Добавьте хотя бы одно нанесение';

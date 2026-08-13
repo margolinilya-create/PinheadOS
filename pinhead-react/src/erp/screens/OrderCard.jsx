@@ -25,6 +25,7 @@ import { useOrderDetail } from './orderCard/useOrderDetail';
 import { ButtonLink } from '../components/Button';
 import { useErpAccess } from '../store/useErpAccess';
 import { OrderCardTabs } from './orderCard/OrderCardTabs';
+import { orderStatusLabel } from '../utils/format';
 
 /**
  * Карточка заказа (страница /orders/:id) — «трекинг посылки»: маршрут по этапам с план/фактом,
@@ -133,8 +134,23 @@ export default function OrderCard() {
         <div className={styles.queueThumbStub} style={{ marginBottom: 10 }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось"><Icon name="image" size={22} /></div>
       )}
       <div className={styles.toolbar}>
-        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{ORDER_STATUS_LABELS[order.status]}</span>
-        {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}><Icon name="checkCircle" size={13} /> Готов к отгрузке</span>}
+        {/*
+          Один чип производственного состояния, а не два (M-05 отчёта QA
+          13.08.2026). «В работе» и «Готов к отгрузке» стояли рядом и читались
+          как противоречие: в цехах работы уже нет, заказ ждёт логистику.
+          «Готов к отгрузке» — это и есть состояние активного заказа, у которого
+          закрыты все этапы, поэтому он ЗАМЕЩАЕТ «В работе», как в списке
+          заказов (`OrderRow`), а не добавляется к нему.
+        */}
+        {order.status === 'active' && readyToShip ? (
+          <span className={`${styles.chip} ${styles.chipReady}`}>
+            <Icon name="checkCircle" size={13} /> Готов к отгрузке
+          </span>
+        ) : (
+          <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
+            {orderStatusLabel(order, ORDER_STATUS_LABELS)}
+          </span>
+        )}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
         {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}
         {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}

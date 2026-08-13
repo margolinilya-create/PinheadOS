@@ -64,6 +64,34 @@ const TABS = [
   { key: 'pack_ship', label: 'Упаковка/отгрузка' },
 ];
 
+/**
+ * Плитки KPI — ИЗ ТЕХ ЖЕ вкладок, а не отдельным списком (H-10 отчёта QA
+ * 13.08.2026).
+ *
+ * Раньше и список плиток, и объект-накопитель счётчиков были написаны руками,
+ * и в обоих не хватало `fg_receipt`. Результат: «Все задачи: 1», все пять
+ * плиток по нулям и ни одной карточки для типа, который на экране реально был.
+ * `c[task.task_type] += 1` по несуществующему ключу давал NaN — молча,
+ * без единой ошибки.
+ *
+ * Тринадцатая точка касания типа складской задачи (двенадцать перечислены
+ * в `warehouseTaskTypes.test.ts`) — и её больше нет: перечисление одно.
+ * Цвет плитки — единственное, что задаётся отдельно, и его пропуск даёт
+ * серую иконку, а не потерянный счётчик.
+ */
+const KPI_ACCENT = {
+  material_receipt: 'kpiIconWarn',
+  subcontract_receipt: 'kpiIconViolet',
+  fg_receipt: 'kpiIconOk',
+  pack_ship: 'kpiIconOk',
+};
+const KPI_TILES = TABS.map(({ key, label }) => ({
+  key,
+  label: key === 'all' ? 'Все задачи' : label,
+  icon: key === 'all' ? 'orders' : TYPE_ICON[key],
+  cls: KPI_ACCENT[key] ?? '',
+}));
+
 function taskStatusLabel(task) {
   switch (task.task_type) {
     case 'marking': return MARKING_STATUS_LABELS[task.status] ?? task.status;
@@ -158,7 +186,8 @@ export default function Warehouse() {
    * onlyOpen — над таблицей из трёх строк висела плитка «Упаковка/отгрузка 14».
    */
   const counts = useMemo(() => {
-    const c = { all: 0, material_receipt: 0, subcontract_receipt: 0, marking: 0, pack_ship: 0 };
+    // Ключи — из TABS: рукописный литерал уже терял `fg_receipt` (H-10)
+    const c = Object.fromEntries(TABS.map(({ key }) => [key, 0]));
     for (const { task } of allRows) {
       if (onlyOpen && task.status === TERMINAL[task.task_type]) continue;
       c.all += 1;
@@ -200,13 +229,7 @@ export default function Warehouse() {
 
       {loaded && (
         <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {[
-            { key: 'all', icon: 'orders', cls: '', label: 'Все задачи', val: counts.all },
-            { key: 'material_receipt', icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
-            { key: 'subcontract_receipt', icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
-            { key: 'marking', icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
-            { key: 'pack_ship', icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
-          ].map((k) => (
+          {KPI_TILES.map((k) => (
             // Плитка кликабельна целиком и фильтрует список — как в закупке
             // (правило DESIGN.md). Раньше это были неинтерактивные <div>.
             <button
@@ -216,10 +239,10 @@ export default function Warehouse() {
               aria-pressed={tab === k.key}
               onClick={() => { setTab(tab === k.key ? 'all' : k.key); setPage(1); }}
             >
-              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={20} /></span>
+              <span className={`${styles.kpiIcon} ${styles[k.cls] ?? ''}`}><Icon name={k.icon} size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>{k.label}</span>
-                <span className={styles.kpiCardValue}>{k.val}</span>
+                <span className={styles.kpiCardValue}>{counts[k.key]}</span>
               </span>
             </button>
           ))}

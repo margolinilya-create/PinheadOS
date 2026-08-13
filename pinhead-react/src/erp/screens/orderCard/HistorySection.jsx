@@ -7,6 +7,12 @@ import {
   STAGE_STATUS_LABELS,
   PACKAGING_LABELS,
   STICKERS_LABELS,
+  MATERIAL_STATUS_LABELS,
+  MATERIAL_ACCEPT_LABELS,
+  MATERIAL_KIND_LABELS,
+  PROCUREMENT_STATUS_LABELS,
+  SUBCONTRACT_STATUS_LABELS,
+  PRODUCTION_TYPE_LABELS,
 } from '../../types';
 import styles from '../../erp.module.css';
 import { fmt, fmtTs } from './format';
@@ -56,6 +62,7 @@ const AUDIT_FIELD_LABELS = {
 
   'item.qty': 'Позиция: тираж',
   'item.product_type': 'Позиция: изделие',
+  'item.production_type': 'Позиция: тип производства',
   'item.variant': 'Позиция: вариант',
   'item.notes': 'Позиция: заметка',
 
@@ -80,16 +87,40 @@ const AUDIT_DATE_FIELDS = new Set([
   'subcontract.planned_date', 'subcontract.returned_date',
 ]);
 
+/**
+ * Словарь значений аудита: поле → как читать его значение по-русски.
+ *
+ * Таблицей, а не цепочкой `if` (M-07 отчёта QA 13.08.2026). Ветки покрывали
+ * шесть полей из тридцати с лишним, и в истории попадались сырые коды —
+ * `accepted_full` вместо «принято полностью». Заметить пропуск в цепочке
+ * нельзя: она не падает, она просто печатает то, что пришло из базы.
+ * У таблицы пропуск виден сразу — поле есть в подписях, а в значениях нет,
+ * и это сторожит `HistorySection.test.jsx`.
+ *
+ * Поле, у которого значение и так человеческое (название, комментарий,
+ * имя исполнителя), в таблице не нужно — там нечего переводить.
+ */
+const AUDIT_VALUE_LABELS = {
+  status: ORDER_STATUS_LABELS,
+  shipped_status: SHIPPED_STATUS_LABELS,
+  packaging: PACKAGING_LABELS,
+  stickers: STICKERS_LABELS,
+  // Статус этапа — своя машина состояний, а не статус заказа. Поле называется
+  // одинаково у обоих, поэтому префикс обязателен.
+  'stage.status': STAGE_STATUS_LABELS,
+  'material.status': MATERIAL_STATUS_LABELS,
+  'material.accept_status': MATERIAL_ACCEPT_LABELS,
+  'material.kind': MATERIAL_KIND_LABELS,
+  'procurement.status': PROCUREMENT_STATUS_LABELS,
+  'subcontract.status': SUBCONTRACT_STATUS_LABELS,
+  'item.production_type': PRODUCTION_TYPE_LABELS,
+};
+
 /** Читабельные значения аудита: статусы, даты и флаги — на русском */
 function auditValue(field, v) {
   if (v == null || v === '') return '—';
-  // Статус этапа — своя машина состояний, а не статус заказа. Раньше поле
-  // называлось одинаково у обоих, и подмена лейбла была бы незаметной.
-  if (field === 'stage.status') return STAGE_STATUS_LABELS[v] || v;
-  if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
-  if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
-  if (field === 'packaging') return PACKAGING_LABELS[v] || v;
-  if (field === 'stickers') return STICKERS_LABELS[v] || v;
+  const labels = AUDIT_VALUE_LABELS[field];
+  if (labels) return labels[v] || v;
   if (field === 'no_chestny_znak') return v === 'true' ? 'да' : 'нет';
   if (AUDIT_DATE_FIELDS.has(field)) return fmt(v);
   return v;

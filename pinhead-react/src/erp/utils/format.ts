@@ -192,3 +192,22 @@ function parseLocal(d: string): Date | null {
   const dt = new Date(iso);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
+
+/**
+ * Подпись статуса заказа.
+ *
+ * M-04 отчёта QA 13.08.2026: в архиве стояло «Сдан вовремя» у заказа
+ * с ПУСТЫМ сроком клиента. Сервер выставляет `done_on_time` и когда срока
+ * не было вовсе (сравнивать не с чем — значит не опоздали), но в интерфейсе
+ * это превращается в утверждение, которое нечем подтвердить.
+ *
+ * Врать нельзя ни в одну сторону: «просрочен» тут тоже неправда. Поэтому
+ * без срока заказ просто «Сдан» — факт без оценки.
+ */
+export function orderStatusLabel(
+  order: { status: string; due_date?: string | null },
+  labels: Record<string, string>,
+): string {
+  if (order.status === 'done_on_time' && !order.due_date) return 'Сдан';
+  return labels[order.status] ?? order.status;
+}
