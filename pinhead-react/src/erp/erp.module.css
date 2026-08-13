@@ -1743,6 +1743,13 @@ a.cellTitle:hover { color: var(--accent); }
    style={{ alignSelf: 'end', minHeight: 40 }} — и minHeight перебивал
    @media (pointer: coarse), оставляя на планшете 40px вместо 44. */
 .checkLabelEnd { align-self: end; }
+/*
+  Столбик/строка чекбоксов. Сами подписи — `inline-flex` без внешних отступов,
+  и соседние вставали вплотную: «бирки☐упаковка» читалось одним словом
+  (H-03 отчёта QA 13.08.2026). Расстояние задаёт контейнер, а не подпись:
+  у подписи оно зависело бы от того, где её поставили.
+*/
+.checkList { display: flex; flex-wrap: wrap; gap: 2px 14px; }
 
 @media (pointer: coarse) {
   .input, .select { min-height: 44px; }
@@ -1913,6 +1920,23 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
    разворачивались в один столбец. auto-fit подстраивается сам: сколько
    помещается по 280px, столько и колонок, и отдельный медиазапрос не нужен. */
 .dashRow3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+/*
+  Ряд «таблица + два списка» (H-05 отчёта QA 13.08.2026).
+
+  `auto-fit minmax(280px, 1fr)` давал три равные колонки, и таблице «Заказы
+  в работе» доставалось 283px при нужных ~540: колонки «Срок» и «Статус»
+  просто отсутствовали на экране, а прокрутка внутри виджета шириной
+  в половину таблицы — не решение, а его имитация.
+
+  Ширина задаётся отношением, а не пикселями: списки цехов и дедлайнов узкие
+  по существу и лишнего места не просят. Ниже 1024px (брейкпоинт проекта)
+  колонки складываются в одну — там таблица получает всю ширину экрана.
+*/
+.dashRowSplit { grid-template-columns: minmax(0, 1fr); }
+.dashStack { display: grid; gap: 16px; align-content: start; }
+@media (min-width: 1024px) {
+  .dashRowSplit { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+}
 .dashRow2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .widget {
   background: var(--card);

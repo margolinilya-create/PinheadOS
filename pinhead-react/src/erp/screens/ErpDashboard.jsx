@@ -274,8 +274,16 @@ export default function ErpDashboard() {
               вопрос раньше, чем «какой цех занят сильнее». */}
           <CapacityBar report={data.capacity} periodLabel={monthLabel(today)} />
 
-          {/* Заказы в работе / Задачи по цехам / Дедлайны */}
-          <div className={`${styles.dashRow} ${styles.dashRow3}`}>
+          {/*
+            Заказы в работе / Задачи по цехам / Дедлайны.
+
+            Раскладка НЕ на три равные колонки (H-05 отчёта QA 13.08.2026):
+            таблице заказов нужно ~540px, а треть ряда на ноутбуке давала 283px —
+            «Срок» и «Статус», две самые важные колонки, оказывались за краем.
+            Список задач и список дедлайнов узкие по существу, поэтому они
+            встают друг под другом в правой колонке, а таблица получает левую.
+          */}
+          <div className={`${styles.dashRow} ${styles.dashRowSplit}`}>
             <div className={styles.widget}>
               <div className={styles.widgetHead}>
                 <h2 className={styles.widgetTitle}>Заказы в работе</h2>
@@ -306,6 +314,7 @@ export default function ErpDashboard() {
               )}
             </div>
 
+            <div className={styles.dashStack}>
             <div className={styles.widget}>
               {/* «Задачи по цехам», а не «Загрузка цехов» (решение заказчика 10.08):
                   блок считает ЭТАПЫ, а экран /load — штуки. Одно слово на две разные
@@ -349,6 +358,7 @@ export default function ErpDashboard() {
                   );
                 })
               )}
+            </div>
             </div>
           </div>
 

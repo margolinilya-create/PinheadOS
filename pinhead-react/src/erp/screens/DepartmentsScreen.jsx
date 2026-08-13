@@ -268,6 +268,9 @@ export default function DepartmentsScreen({ embedded = false }) {
                       Раньше карта была константой в коде (ткань → закрой,
                       фурнитура и бирки → швейка), и участок, заведённый здесь,
                       под материальный гейт не попадал вовсе. Пусто = не гейтится. */}
+                  {/* Обёртка с gap: соседние inline-flex подписи стояли вплотную
+                      и читались как одно слово — «бирки☐упаковка» (H-03) */}
+                  <div className={styles.checkList}>
                   {GATE_KINDS.map(([kind, label]) => (
                     <label key={kind} className={styles.checkLabel}>
                       <input
@@ -279,8 +282,9 @@ export default function DepartmentsScreen({ embedded = false }) {
                       {label}
                     </label>
                   ))}
+                  </div>
                   {(d.gate_material_kinds ?? []).length === 0 && (
-                    <div className={styles.subText}>не гейтится</div>
+                    <div className={styles.subText}>материал участок не ждёт</div>
                   )}
                 </td>
                 <td>

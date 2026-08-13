@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
+import { TabStrip } from '../components/TabStrip';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import EmployeesScreen from './EmployeesScreen';
 import DepartmentsScreen from './DepartmentsScreen';
@@ -53,7 +54,7 @@ export default function AdminScreen() {
         title="Админка"
         sub="Общая для обоих режимов: пользователи и права, цеха, справочники, заказы Order Studio."
       />
-      <div className={styles.deptTabs} role="tablist" aria-label="Разделы админки" onKeyDown={onTabListKeyDown}>
+      <TabStrip label="Разделы админки" onKeyDown={onTabListKeyDown}>
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -69,7 +70,7 @@ export default function AdminScreen() {
             {t.label}
           </button>
         ))}
-      </div>
+      </TabStrip>
 
       <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} tabIndex={-1}>
       {tab === 'users' && <EmployeesScreen embedded />}

@@ -17,6 +17,7 @@ import {
 import { onTabListKeyDown } from '../../utils/tabs';
 import styles from '../../erp.module.css';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { TabStrip } from '../../components/TabStrip';
 import { Button } from '../../components/Button';
 import { confirm } from '../../../store/useConfirmStore';
 
@@ -242,7 +243,7 @@ export function DictionariesTab() {
 
   return (
     <>
-      <div className={styles.deptTabs} role="tablist" aria-label="Справочники" onKeyDown={onTabListKeyDown}>
+      <TabStrip label="Справочники" onKeyDown={onTabListKeyDown}>
         {KINDS.map((k) => (
           <button
             key={k}
@@ -270,7 +271,7 @@ export function DictionariesTab() {
         >
           Статусы
         </button>
-      </div>
+      </TabStrip>
 
       <div id="dict-tabpanel" role="tabpanel" aria-labelledby={`dict-tab-${kind}`} tabIndex={-1}>
         {kind === 'statuses' ? <StatusesList /> : <DictionaryList key={kind} kind={kind} />}

@@ -1,4 +1,5 @@
 import { onTabListKeyDown } from '../../utils/tabs';
+import { TabStrip } from '../../components/TabStrip';
 import styles from '../../erp.module.css';
 
 /**
@@ -22,12 +23,7 @@ import styles from '../../erp.module.css';
 
 export function OrderCardTabs({ tabs, active, onSelect }) {
   return (
-    <div
-      className={styles.deptTabs}
-      role="tablist"
-      aria-label="Разделы карточки заказа"
-      onKeyDown={onTabListKeyDown}
-    >
+    <TabStrip label="Разделы карточки заказа" onKeyDown={onTabListKeyDown}>
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -49,6 +45,6 @@ export function OrderCardTabs({ tabs, active, onSelect }) {
           )}
         </button>
       ))}
-    </div>
+    </TabStrip>
   );
 }
