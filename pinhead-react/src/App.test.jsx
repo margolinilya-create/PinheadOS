@@ -70,20 +70,12 @@ vi.mock('./utils/mockup', () => ({
   getGarmentSVG: vi.fn(() => ''),
 }));
 
-// Mock recharts
-vi.mock('recharts', () => ({
-  BarChart: ({ children }) => <div>{children}</div>,
+// Mock react-chartjs-2 — jsdom не умеет canvas, реальный chart.js сыплет
+// «HTMLCanvasElement's getContext() is not implemented» на каждый график
+vi.mock('react-chartjs-2', () => ({
   Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
-  PieChart: ({ children }) => <div>{children}</div>,
-  Pie: () => null,
-  Cell: () => null,
-  Legend: () => null,
-  AreaChart: ({ children }) => <div>{children}</div>,
-  Area: () => null,
+  Line: () => null,
+  Doughnut: () => null,
 }));
 
 // Mock QRCode

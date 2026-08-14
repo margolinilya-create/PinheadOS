@@ -28,20 +28,12 @@ vi.mock('../../store/useAuthStore', () => ({
   },
 }));
 
-// Mock Recharts to avoid rendering issues
-vi.mock('recharts', () => ({
-  BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
-  PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
-  Pie: () => null,
-  Cell: () => null,
-  Legend: () => null,
-  AreaChart: ({ children }) => <div data-testid="area-chart">{children}</div>,
-  Area: () => null,
+// Mock react-chartjs-2 — jsdom не умеет canvas, реальный chart.js сыплет
+// «HTMLCanvasElement's getContext() is not implemented» на каждый график
+vi.mock('react-chartjs-2', () => ({
+  Bar: () => <div data-testid="bar-chart" />,
+  Line: () => <div data-testid="line-chart" />,
+  Doughnut: () => <div data-testid="doughnut-chart" />,
 }));
 
 function renderDashboard() {

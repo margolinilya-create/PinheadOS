@@ -34,7 +34,7 @@ Pinhead — внутренняя ERP/CRM-система для типограф�
 - **Стейт:** Zustand 5 (слайсы), useShallow для селекторов
 - **Роутинг:** react-router-dom 7 (Routes/Route в App.jsx)
 - **БД/Auth:** Supabase (supabase-js)
-- **Графики:** Recharts
+- **Графики:** Chart.js через react-chartjs-2
 - **Тесты:** Vitest + Testing Library (unit), Playwright (e2e)
 - **Линтинг:** ESLint 9, Husky + lint-staged
 - **CSS:** Vanilla CSS + CSS Modules (*.module.css), CSS-токены
