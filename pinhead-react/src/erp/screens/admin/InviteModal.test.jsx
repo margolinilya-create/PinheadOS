@@ -41,6 +41,9 @@ beforeEach(() => {
   revokeInvite = vi.fn().mockResolvedValue(true);
   useErpStore.setState({
     departments: DEPARTMENTS,
+    profilesList: [
+      { id: 'p-1', email: 'za@pnhd.ru', name: 'za@pnhd.ru', role: 'manager', approved: false, active: false },
+    ],
     invites: [],
     invitesLoaded: true,
     loadInvites: vi.fn(),
@@ -121,5 +124,30 @@ describe('InviteModal — список и отзыв', () => {
     useConfirmStore.getState()._close(true);
 
     await waitFor(() => expect(revokeInvite).toHaveBeenCalledWith('code-1'));
+  });
+});
+
+/**
+ * Приглашение на адрес, у которого уже есть учётная запись, — тупик:
+ * `signUp` вторую учётку не создаёт, и человек упирается в «уже
+ * зарегистрирован» сколько бы раз ни открыл ссылку. На проде так и вышло:
+ * девять попыток подряд. Сказать об этом ЗДЕСЬ дешевле, чем разбираться
+ * потом по логам.
+ */
+describe('InviteModal — адрес уже заведён', () => {
+  it('предупреждает при вводе существующего адреса и называет, что он отключён', () => {
+    render(<InviteModal onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'ZA@pnhd.ru' } });
+
+    expect(screen.getByText(/уже есть учётная запись \(отключена\)/)).toBeInTheDocument();
+  });
+
+  it('на свободный адрес не ругается', () => {
+    render(<InviteModal onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'nobody@pnhd.ru' } });
+
+    expect(screen.queryByText(/уже есть учётная запись/)).toBeNull();
   });
 });

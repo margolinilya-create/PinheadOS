@@ -15,6 +15,10 @@ beforeEach(() => {
     resendingConfirm: false,
     resendConfirmation: vi.fn(),
     clearEmailConfirm: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    sendingReset: false,
+    resetSentTo: null,
+    clearPasswordReset: vi.fn(),
   });
 });
 
@@ -139,5 +143,49 @@ describe('AuthScreen — подтверждение адреса почты', ()
     fireEvent.click(screen.getByText('Вернуться ко входу'));
 
     expect(clearEmailConfirm).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Забытый пароль.
+ *
+ * Восстановления не было ВООБЩЕ: человек упирался в «Неверный email или пароль»
+ * и не имел ни одного выхода — повторная регистрация отвечает «адрес уже
+ * заведён», а сменить пароль некому. В эту дыру попал сотрудник, которому
+ * выписали приглашение на существующий адрес: две неудачные попытки входа
+ * и девять попыток регистрации подряд.
+ */
+describe('AuthScreen — восстановление пароля', () => {
+  it('«Забыли пароль?» отправляет ссылку на введённый адрес', () => {
+    const requestPasswordReset = vi.fn();
+    useAuthStore.setState({ requestPasswordReset });
+    render(<AuthScreen />);
+
+    fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
+      target: { value: 'za@pnhd.ru' },
+    });
+    fireEvent.click(screen.getByText('Забыли пароль?'));
+
+    expect(requestPasswordReset).toHaveBeenCalledWith('za@pnhd.ru');
+  });
+
+  it('без адреса не шлёт запрос, а просит его ввести', () => {
+    const requestPasswordReset = vi.fn();
+    useAuthStore.setState({ requestPasswordReset });
+    render(<AuthScreen />);
+
+    fireEvent.click(screen.getByText('Забыли пароль?'));
+
+    expect(requestPasswordReset).not.toHaveBeenCalled();
+    expect(screen.getByText(/Введите email/)).toBeInTheDocument();
+  });
+
+  it('после отправки экран называет адрес, а не гасит сообщение через три секунды', () => {
+    useAuthStore.setState({ resetSentTo: 'za@pnhd.ru' });
+    render(<AuthScreen />);
+
+    expect(screen.getByText('Ссылка отправлена')).toBeInTheDocument();
+    expect(screen.getByText('za@pnhd.ru')).toBeInTheDocument();
+    expect(screen.queryByText('Войти')).toBeNull();
   });
 });

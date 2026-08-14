@@ -41,7 +41,7 @@ const DEV_USER: User = {
  * ожидания. Исход не называется «ждите одобрения» именно поэтому: с приходом
  * приглашений это перестало быть правдой для основного пути.
  */
-export type RegisterOutcome = 'confirm_email' | 'signed_in' | 'failed';
+export type RegisterOutcome = 'confirm_email' | 'signed_in' | 'already_registered' | 'failed';
 
 /**
  * Куда вернуть человека по ссылке из письма — в то приложение, откуда он
@@ -50,6 +50,20 @@ export type RegisterOutcome = 'confirm_email' | 'signed_in' | 'failed';
  */
 function appOrigin(): string | undefined {
   return typeof window !== 'undefined' ? window.location.origin : undefined;
+}
+
+/**
+ * Адрес уже заведён.
+ *
+ * Для приглашения это ТУПИК, а не обычная ошибка формы: `signUp` вторую учётную
+ * запись на существующий адрес не создаёт, поэтому ссылка не сработает никогда,
+ * сколько её ни открывай. На проде так и вышло — девять попыток подряд с одним
+ * и тем же `422 user_already_exists`, потому что экран показывал сухое
+ * «Пользователь уже зарегистрирован» и не говорил, куда идти.
+ */
+function isAlreadyRegistered(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'user_already_exists' || error.message === 'User already registered';
 }
 
 /** Отказ входа именно из-за неподтверждённого адреса, а не из-за пароля */
@@ -61,7 +75,20 @@ function isEmailNotConfirmed(error: { code?: string; message?: string } | null):
 interface AuthStore {
   user: User | null;
   profileStatus: ProfileStatus;
+  /** Идёт действие авторизации: вход, регистрация. Гасит кнопку формы */
   loading: boolean;
+  /**
+   * Идёт ПЕРВИЧНАЯ проверка сессии — единственное состояние, ради которого
+   * приложение имеет право показать пустой экран загрузки вместо формы.
+   *
+   * Отдельный флаг, а не `loading`: на общем App подменял форму глобальным
+   * «Загрузка…» на время КАЖДОГО входа и КАЖДОЙ регистрации, а по возвращении
+   * монтировал её заново — с пустыми полями и потерянным состоянием экрана.
+   * На приглашении это съедало объяснение «такой сотрудник уже заведён»
+   * (`already_registered` приходил в размонтированный компонент), а на входе —
+   * набранный адрес: человек после неудачной попытки вводил всё заново.
+   */
+  initializing: boolean;
   error: string | null;
   previewRole: UserRole | null;
 
@@ -74,6 +101,13 @@ interface AuthStore {
   resendingConfirm: boolean;
   /** Идёт ручная перепроверка профиля («Проверить снова» на стене ожидания) */
   checkingProfile: boolean;
+
+  /** Адрес, на который ушло письмо восстановления пароля */
+  resetSentTo: string | null;
+  sendingReset: boolean;
+  /** Человек пришёл по ссылке восстановления: форма нового пароля перекрывает всё */
+  passwordRecovery: boolean;
+  savingPassword: boolean;
 
   init: () => Promise<void>;
   fetchProfile: (id: string, email: string) => Promise<void>;
@@ -92,6 +126,11 @@ interface AuthStore {
   resendConfirmation: () => Promise<boolean>;
   /** Уйти с экрана «подтвердите адрес» обратно на форму входа */
   clearEmailConfirm: () => void;
+  /** Выслать письмо со ссылкой на смену пароля */
+  requestPasswordReset: (email: string) => Promise<boolean>;
+  /** Задать новый пароль, придя по ссылке из письма */
+  completePasswordReset: (password: string) => Promise<boolean>;
+  clearPasswordReset: () => void;
   logout: () => Promise<void>;
   clearError: () => void;
 
@@ -107,45 +146,56 @@ interface AuthStore {
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   profileStatus: 'no_profile' as ProfileStatus,
-  loading: true,
+  loading: false,
+  initializing: true,
   error: null,
   previewRole: null,
   signingOut: false,
   awaitingEmailConfirm: null,
   resendingConfirm: false,
   checkingProfile: false,
+  resetSentTo: null,
+  sendingReset: false,
+  passwordRecovery: false,
+  savingPassword: false,
 
   // Инициализация — сначала настоящая сессия, и только потом всё остальное
   init: async () => {
-    let session = null;
+    // `finally`, а не строка в конце: у веток ниже свои `return`, и экран
+    // загрузки, оставшийся висеть на одной из них, — это белый экран навсегда
     try {
-      const { data } = await supabase.auth.getSession();
-      session = data.session;
-    } catch (err) {
-      // getSession БРОСАЕТ, когда ответа не было (нет сети, клиент не настроен)
-      console.error('[auth.init]', err);
-      if (!DEV_AUTOLOGIN) {
-        toast.error('Ошибка авторизации');
-        set({ loading: false });
+      let session = null;
+      try {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
+      } catch (err) {
+        // getSession БРОСАЕТ, когда ответа не было (нет сети, клиент не настроен)
+        console.error('[auth.init]', err);
+        if (!DEV_AUTOLOGIN) {
+          toast.error('Ошибка авторизации');
+          set({ loading: false });
+          return;
+        }
+      }
+
+      if (session?.user) {
+        await get().fetchProfile(session.user.id, session.user.email!);
         return;
       }
-    }
 
-    if (session?.user) {
-      await get().fetchProfile(session.user.id, session.user.email!);
-      return;
-    }
+      if (DEV_AUTOLOGIN) {
+        console.warn(
+          '[auth] dev-автологин: настоящей сессии нет. Запросы уходят ролью anon — '
+          + 'чтение вернёт пусто, запись откажет по RLS. Войдите, чтобы работать с данными.',
+        );
+        set({ user: DEV_USER, profileStatus: 'active' as ProfileStatus, loading: false, error: null });
+        return;
+      }
 
-    if (DEV_AUTOLOGIN) {
-      console.warn(
-        '[auth] dev-автологин: настоящей сессии нет. Запросы уходят ролью anon — '
-        + 'чтение вернёт пусто, запись откажет по RLS. Войдите, чтобы работать с данными.',
-      );
-      set({ user: DEV_USER, profileStatus: 'active' as ProfileStatus, loading: false, error: null });
-      return;
+      set({ loading: false });
+    } finally {
+      set({ initializing: false });
     }
-
-    set({ loading: false });
   },
 
   /**
@@ -290,6 +340,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
 
     if (result.error) {
+      if (isAlreadyRegistered(result.error)) {
+        // Не ошибка ввода: исправлять человеку нечего, ему нужен вход
+        set({ error: null, loading: false });
+        return 'already_registered';
+      }
       set({ error: translateSupabaseError(result.error.message), loading: false });
       return 'failed';
     }
@@ -339,6 +394,71 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   clearEmailConfirm: () => set({ awaitingEmailConfirm: null, error: null }),
+
+  /**
+   * Забытый пароль.
+   *
+   * Восстановления не было ВООБЩЕ — ни кнопки, ни экрана. Человек, не помнящий
+   * пароль, упирался в «Неверный email или пароль» и не имел ни одного выхода:
+   * повторная регистрация отвечает «адрес уже заведён», а сменить пароль
+   * некому — админ этого не умеет. Именно в эту дыру и попал сотрудник,
+   * которому выписали приглашение на уже существующий адрес.
+   */
+  requestPasswordReset: async (email) => {
+    if (!email || get().sendingReset) return false;
+    set({ sendingReset: true, error: null });
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: appOrigin(),
+      });
+      if (error) {
+        set({ error: translateSupabaseError(error.message) });
+        return false;
+      }
+      set({ resetSentTo: email });
+      return true;
+    } catch (e) {
+      set({ error: `Не удалось отправить письмо: ${networkFailureMessage(e)}` });
+      return false;
+    } finally {
+      set({ sendingReset: false });
+    }
+  },
+
+  /**
+   * Новый пароль по ссылке из письма.
+   *
+   * Ссылка восстановления ВХОДИТ человека — Supabase выдаёт сессию и присылает
+   * `PASSWORD_RECOVERY`. Без этого экрана он оказался бы просто внутри, так
+   * и не задав пароль, и в следующий раз пришёл бы за новой ссылкой. Поэтому
+   * форма перекрывает всё остальное, пока пароль не сменён.
+   */
+  completePasswordReset: async (password) => {
+    if (get().savingPassword) return false;
+    set({ savingPassword: true, error: null });
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        set({ error: translateSupabaseError(error.message) });
+        return false;
+      }
+      set({ passwordRecovery: false });
+      toast.success('Пароль изменён');
+      // Профиль подтянется сам: сессия уже есть, дальше решает стена или оболочка
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        await get().fetchProfile(data.session.user.id, data.session.user.email ?? '');
+      }
+      return true;
+    } catch (e) {
+      set({ error: `Не удалось сменить пароль: ${networkFailureMessage(e)}` });
+      return false;
+    } finally {
+      set({ savingPassword: false });
+    }
+  },
+
+  clearPasswordReset: () => set({ resetSentTo: null, error: null }),
 
   /**
    * Сессия кончилась сама: истёк refresh-токен, доступ отозвали, вышли в соседней
@@ -415,7 +535,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       });
       set({
         user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
-        awaitingEmailConfirm: null,
+        awaitingEmailConfirm: null, resetSentTo: null, passwordRecovery: false,
       });
     }
   },
@@ -452,6 +572,16 @@ export function watchAuthState(): () => void {
 
     if (event === 'SIGNED_OUT') {
       store.sessionLost();
+      return;
+    }
+
+    /**
+     * Ссылка восстановления вошла человека в систему. Без этой ветки он попал бы
+     * прямо в оболочку, так и не задав пароль, — и в следующий раз пришёл бы
+     * за новой ссылкой.
+     */
+    if (event === 'PASSWORD_RECOVERY') {
+      useAuthStore.setState({ passwordRecovery: true, resetSentTo: null });
       return;
     }
 

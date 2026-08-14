@@ -10,6 +10,8 @@ vi.mock('../lib/supabase', () => ({
       signUp: vi.fn().mockResolvedValue({ data: { user: { id: 'new-id' }, session: null }, error: null }),
       signOut: vi.fn().mockResolvedValue({}),
       resend: vi.fn().mockResolvedValue({ error: null }),
+      resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
+      updateUser: vi.fn().mockResolvedValue({ error: null }),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
     from: vi.fn(() => ({
@@ -31,6 +33,51 @@ beforeEach(() => {
     user: null, profileStatus: 'no_profile', loading: false, error: null,
     previewRole: null, signingOut: false,
     awaitingEmailConfirm: null, resendingConfirm: false, checkingProfile: false,
+    resetSentTo: null, sendingReset: false, passwordRecovery: false, savingPassword: false,
+    initializing: false,
+  });
+});
+
+/**
+ * Первичная проверка сессии — своё состояние, отдельное от `loading`.
+ *
+ * `loading` поднимает каждое действие авторизации, и пока экран загрузки
+ * приложения стоял на нём, форма на время входа размонтировалась и возвращалась
+ * с пустыми полями, а исход регистрации приходил в компонент, которого больше
+ * нет. Флаг обязан сниматься на ЛЮБОМ выходе из `init()` — оставшийся поднятым
+ * означает белый экран навсегда.
+ */
+describe('useAuthStore — первичная проверка сессии', () => {
+  it('снимается, когда сессии нет', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
+    useAuthStore.setState({ initializing: true });
+
+    await useAuthStore.getState().init();
+
+    expect(useAuthStore.getState().initializing).toBe(false);
+  });
+
+  it('снимается и когда сессию не удалось спросить вовсе', async () => {
+    const { supabase } = await import('../lib/supabase');
+    // getSession БРОСАЕТ, когда ответа не было (нет сети, клиент не настроен)
+    supabase.auth.getSession.mockRejectedValueOnce(new TypeError('Load failed'));
+    useAuthStore.setState({ initializing: true });
+
+    await useAuthStore.getState().init();
+
+    expect(useAuthStore.getState().initializing).toBe(false);
+  });
+
+  it('действие авторизации его не поднимает — иначе экран пересоберётся', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null }, error: { message: 'Invalid login credentials' },
+    });
+
+    await useAuthStore.getState().login('za@pnhd.ru', 'wrong');
+
+    expect(useAuthStore.getState().initializing).toBe(false);
   });
 });
 
@@ -556,5 +603,115 @@ describe('logout завершает сессию даже без сети', () =
     await useAuthStore.getState().logout();
     expect(calls).toEqual(['global']);
     expect(useAuthStore.getState().signingOut).toBe(false);
+  });
+});
+
+/**
+ * Забытый пароль и приглашение на уже заведённый адрес.
+ *
+ * На проде это сошлось в один тупик: приглашение выписали на адрес, у которого
+ * уже была (отключённая) учётная запись. Девять попыток регистрации подряд —
+ * все `422 user_already_exists`, две попытки входа — обе мимо пароля,
+ * а восстановления пароля в интерфейсе не было вовсе.
+ */
+describe('useAuthStore — тупик «адрес уже заведён»', () => {
+  it('повторная регистрация отличается от ошибки формы', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { code: 'user_already_exists', message: 'User already registered' },
+    });
+
+    const outcome = await useAuthStore.getState().register('Нина', 'za@pnhd.ru', 'secret123');
+
+    expect(outcome).toBe('already_registered');
+    // Красной строки быть не должно: человеку нужен вход, а не исправление формы
+    expect(useAuthStore.getState().error).toBeNull();
+    expect(useAuthStore.getState().loading).toBe(false);
+  });
+
+  it('прочие отказы регистрации остаются ошибкой формы', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { message: 'Password should be at least 6 characters' },
+    });
+
+    const outcome = await useAuthStore.getState().register('Нина', 'n@pinhead.ru', '123');
+
+    expect(outcome).toBe('failed');
+    expect(useAuthStore.getState().error).toMatch(/не короче 6/);
+  });
+});
+
+describe('useAuthStore — восстановление пароля', () => {
+  it('письмо уходит на указанный адрес и экран его называет', async () => {
+    const { supabase } = await import('../lib/supabase');
+
+    const ok = await useAuthStore.getState().requestPasswordReset('za@pnhd.ru');
+
+    expect(ok).toBe(true);
+    expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+      'za@pnhd.ru', expect.objectContaining({ redirectTo: expect.any(String) }),
+    );
+    expect(useAuthStore.getState().resetSentTo).toBe('za@pnhd.ru');
+    expect(useAuthStore.getState().sendingReset).toBe(false);
+  });
+
+  it('сбой отправки называет причину и не показывает ложный успех', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.resetPasswordForEmail.mockResolvedValueOnce({
+      error: { message: 'Email rate limit exceeded' },
+    });
+
+    const ok = await useAuthStore.getState().requestPasswordReset('za@pnhd.ru');
+
+    expect(ok).toBe(false);
+    expect(useAuthStore.getState().resetSentTo).toBeNull();
+    expect(useAuthStore.getState().error).toMatch(/Слишком много запросов/);
+  });
+
+  /**
+   * Ссылка восстановления ВХОДИТ человека. Без этой ветки он попал бы прямо
+   * в оболочку, так и не задав пароль, и вернулся бы за новой ссылкой.
+   */
+  it('событие восстановления поднимает форму нового пароля', async () => {
+    const { supabase } = await import('../lib/supabase');
+    let handler = null;
+    supabase.auth.onAuthStateChange.mockImplementationOnce((cb) => {
+      handler = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+
+    const unsubscribe = watchAuthState();
+    handler('PASSWORD_RECOVERY', { user: { id: 'u1', email: 'za@pnhd.ru' } });
+
+    expect(useAuthStore.getState().passwordRecovery).toBe(true);
+    unsubscribe();
+  });
+
+  it('новый пароль сохраняется и снимает форму', async () => {
+    const { supabase } = await import('../lib/supabase');
+    useAuthStore.setState({ passwordRecovery: true });
+    supabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
+
+    const ok = await useAuthStore.getState().completePasswordReset('newsecret123');
+
+    expect(ok).toBe(true);
+    expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'newsecret123' });
+    expect(useAuthStore.getState().passwordRecovery).toBe(false);
+    expect(useAuthStore.getState().savingPassword).toBe(false);
+  });
+
+  it('отказ смены пароля оставляет форму на месте', async () => {
+    const { supabase } = await import('../lib/supabase');
+    useAuthStore.setState({ passwordRecovery: true });
+    supabase.auth.updateUser.mockResolvedValueOnce({ error: { message: 'Auth session missing!' } });
+
+    const ok = await useAuthStore.getState().completePasswordReset('newsecret123');
+
+    expect(ok).toBe(false);
+    expect(useAuthStore.getState().passwordRecovery).toBe(true);
+    expect(useAuthStore.getState().error).toBeTruthy();
   });
 });
