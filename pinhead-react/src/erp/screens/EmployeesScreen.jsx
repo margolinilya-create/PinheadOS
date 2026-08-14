@@ -15,6 +15,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { useErpAccess } from '../store/useErpAccess';
 import { InviteModal } from './admin/InviteModal';
+import { UserModal } from './admin/UserModal';
 
 /**
  * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
@@ -54,6 +55,12 @@ export default function EmployeesScreen({ embedded = false }) {
   const [showInactive, setShowInactive] = useState(false);
   const [newName, setNewName] = useState('');
   const [inviting, setInviting] = useState(false);
+  /**
+   * Карточка учётной записи: `null` — закрыта, `'new'` — заведение,
+   * профиль — правка. Имя, адрес входа и пароль лежат в `auth.users`, и
+   * в таблице их не поправить: там только то, что живёт под RLS.
+   */
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -124,6 +131,12 @@ export default function EmployeesScreen({ embedded = false }) {
   return (
     <>
       {inviting && <InviteModal onClose={() => setInviting(false)} />}
+      {editing && (
+        <UserModal
+          profile={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
 
       {!embedded && (
         <PageHead
@@ -148,8 +161,15 @@ export default function EmployeesScreen({ embedded = false }) {
         {/* Приглашение раздаёт права, поэтому гейтится правом матрицы,
             а не ролью учётной записи — сервер проверяет ровно это же */}
         {access.can('staff.invite') && (
-          <Button variant="primary" icon="plus" onClick={() => setInviting(true)}>
+          <Button variant="secondary" icon="externalLink" onClick={() => setInviting(true)}>
             Пригласить
+          </Button>
+        )}
+        {/* Заведение с паролем идёт через Admin API, а он на сервере закрыт
+            `is_admin()` — зеркалим ту же функцию, а не более широкий гейт */}
+        {access.isAdmin && (
+          <Button variant="primary" icon="plus" onClick={() => setEditing('new')}>
+            Добавить
           </Button>
         )}
       </div>
@@ -229,6 +249,18 @@ export default function EmployeesScreen({ embedded = false }) {
                       <span className={`${styles.chip} ${styles[st.cls]}`}>{st.label}</span>
                     </td>
                     <td className={styles.nowrap}>
+                      {/* Имя, адрес входа и пароль лежат в `auth.users` — в таблице
+                          их не поправить, для них и открывается карточка */}
+                      {access.isAdmin && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            aria-label={`Изменить ${p.name || p.email}`}
+                            title="Имя, email, пароль, удаление"
+                            onClick={() => setEditing(p)}
+                          ><Icon name="pencil" size={15} /></Button>{' '}
+                        </>
+                      )}
                       {p.active === false ? (
                         <Button variant="secondary" onClick={() => updateProfile(p.id, { active: true })}>
                           Вернуть
