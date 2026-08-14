@@ -27,11 +27,59 @@
 .auth-pending h3     { font-family: var(--font-body); font-size: 16px; font-weight: 700; margin-bottom: 8px; }
 .auth-pending p      { font-family: var(--font-body); font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
 .auth-pending-email  { font-weight: 600; color: var(--accent); }
+.auth-pending-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+
+/* Приглашение по ссылке: кем и куда зовут — до того, как человек начнёт вводить */
+.auth-join-invite {
+  text-align: center; padding: 16px; margin-bottom: 24px;
+  background: var(--accent-light); border-left: 3px solid var(--accent);
+}
+.auth-join-role { font-family: var(--font-body); font-size: 16px; font-weight: 700; color: var(--text); }
+.auth-join-dept { font-family: var(--font-body); font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+.auth-join-hint { font-family: var(--font-body); font-size: 11px; color: var(--text-dim); }
+/* Ссылка, выглядящая кнопкой, обязана остаться ссылкой: Ctrl+клик и новая вкладка */
+.auth-join-link { display: block; text-align: center; text-decoration: none; }
 .auth-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--font-body); font-size: 13px; color: var(--text-dim); }
+
+/* ═══════════════════════════════════════════ */
+/* ACCESS WALL — ожидание одобрения / доступ отключён */
+/* ═══════════════════════════════════════════ */
+/*
+ * Разметка стены (`#pendingScreen`, `.pending-*`) жила в App.jsx без единого
+ * объявления стиля — классы остались от прежнего html-прототипа. Человек,
+ * упёршийся в стену, видел системный шрифт и нативную серую кнопку и читал
+ * это как поломку сайта, а не как сообщение о статусе доступа.
+ */
+#pendingScreen {
+  display: none; min-height: 100dvh; align-items: center; justify-content: center;
+  background: var(--bg); padding: 24px;
+}
+#pendingScreen.show { display: flex; }
+.pending-box {
+  width: 100%; max-width: 400px; border: 1px solid var(--border-light);
+  background: var(--card); padding: 48px; text-align: center;
+}
+.pending-icon  { font-size: 36px; margin-bottom: 16px; }
+.pending-title { font-family: var(--font-body); font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.pending-desc  { font-family: var(--font-body); font-size: 13px; line-height: 1.5; color: var(--text-dim); margin-bottom: 8px; }
+.pending-email { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 24px; overflow-wrap: anywhere; }
+.pending-actions { display: flex; flex-direction: column; gap: 8px; }
+.pending-recheck, .pending-logout {
+  width: 100%; padding: 14px; font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; border: 1px solid var(--border-light);
+  cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out;
+}
+.pending-recheck { background: var(--accent); border-color: var(--accent); color: var(--white); }
+.pending-recheck:hover:not(:disabled) { background: var(--accent-hover); }
+.pending-recheck:disabled { opacity: .5; cursor: default; }
+.pending-logout { background: var(--card); color: var(--text-dim); }
+.pending-logout:hover { background: var(--surface); color: var(--text); }
 
 @media (max-width: 480px) {
   .auth-card { padding: 24px 16px; }
   .auth-logo { font-size: 20px; letter-spacing: 2px; }
   .auth-tab { padding: 10px 12px; font-size: 12px; }
   .auth-submit { min-height: 48px; }
+  .pending-box { padding: 24px 16px; }
+  .pending-recheck, .pending-logout { min-height: 48px; }
 }

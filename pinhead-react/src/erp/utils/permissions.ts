@@ -57,8 +57,10 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    * шире — галочкой в матрице, на то она и есть.
    */
   production_head: ERP_PERMISSIONS.filter(
-    // Образцы ведёт технолог: разработка — не производственный поток
-    (p) => p !== 'bypass.manage' && p !== 'experimental.manage',
+    // Образцы ведёт технолог: разработка — не производственный поток.
+    // Приглашения — тоже не его: они раздают права и заводят учётные записи,
+    // это решение руководства (seed миграции даёт `staff.invite` директору)
+    (p) => p !== 'bypass.manage' && p !== 'experimental.manage' && p !== 'staff.invite',
   ),
   /**
    * Диспетчер план НЕ ставит — за это отвечает руководитель производства.
@@ -67,7 +69,8 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    */
   dispatcher: ERP_PERMISSIONS.filter(
     (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage'
-      && p !== 'experimental.manage' && p !== 'warehouse.manage',
+      && p !== 'experimental.manage' && p !== 'warehouse.manage'
+      && p !== 'staff.invite',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
@@ -142,6 +145,13 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    */
   storekeeper: ['stage.block', 'material.receive', 'warehouse.manage'],
   hr: [],
+  /**
+   * Новичок до назначения должности. Пусто здесь так же обязательно, как
+   * в матрице БД: `DEFAULT_PERMISSIONS` — это то, что действует, когда матрица
+   * не загрузилась, и непустая строка выдала бы права ровно в тот момент,
+   * когда проверить их некому.
+   */
+  pending: [],
 };
 
 /** Матрица из БД: роль → право → разрешено */

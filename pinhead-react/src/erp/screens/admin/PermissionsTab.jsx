@@ -24,18 +24,27 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 const ROLES = [
   'director', 'production_head', 'dispatcher', 'manager', 'technologist', 'foreman',
   'worker', 'dtf', 'silkscreen', 'embroidery', 'purchaser', 'storekeeper', 'hr',
+  // Новичок до назначения должности — последним: это не должность, а состояние
+  'pending',
 ];
 
 /**
- * Колонка руководства правится только чтением.
+ * Колонки, которые правятся только чтением, и причина у каждой своя.
  *
- * Профили `admin` и `director` приводятся к цеховой роли `director`
- * (utils/permissions.resolveErpRole), и никакого обхода матрицы для них нет.
- * То есть админ, снявший здесь галочку, отключал право самому себе — и вернуть
- * его через интерфейс уже не мог. Раньше подпись вкладки обещала обратное
- * («полный доступ независимо от галочек»), что и делало ловушку незаметной.
+ * `director` — профили `admin` и `director` приводятся к этой цеховой роли
+ * (utils/permissions.resolveErpRole), обхода матрицы для них нет. Админ,
+ * снявший здесь галочку, отключал право самому себе и вернуть его через
+ * интерфейс уже не мог.
+ *
+ * `pending` — под неё попадает КАЖДЫЙ, кто только что зарегистрировался и ещё
+ * не получил должность. Смысл роли в том, что прав у неё нет; одна галочка
+ * здесь раздала бы право всем неназначенным разом, и заметить это было бы
+ * нечем. Права выдаются назначением должности, а не правкой этой колонки.
  */
-const LOCKED_ROLE = 'director';
+const LOCKED_ROLES = {
+  director: 'Колонка руководства — не редактируется',
+  pending: 'Роль без прав по определению — назначьте человеку должность',
+};
 
 export function PermissionsTab() {
   const { permissionMatrix, permissionsLoaded, loadPermissions, setRolePermission } = useErpStore(
@@ -56,8 +65,11 @@ export function PermissionsTab() {
       <div className={styles.queueReason} style={{ marginBottom: 12 }}>
         Матрица отвечает на вопрос «что этой роли вообще можно». Ограничение «только свой цех»
         проверяется отдельно — по привязке сотрудника к участку, и матрицей не отменяется.
-        Колонка «{EMPLOYEE_ROLE_LABELS[LOCKED_ROLE]}» <Icon name="ban" size={13} /> не редактируется: под неё попадают
+        Колонка «{EMPLOYEE_ROLE_LABELS.director}» <Icon name="ban" size={13} /> не редактируется: под неё попадают
         и администраторы, снятая галочка отключила бы доступ им самим.
+        Колонка «{EMPLOYEE_ROLE_LABELS.pending}» — тоже: с неё начинается каждая
+        регистрация, и права там появляться не должны. Человеку назначают должность
+        на вкладке «Пользователи», и права он получает вместе с ней.
       </div>
 
       <ScrollHintBox className={styles.tableWrap} label="Матрица прав по ролям">
@@ -68,8 +80,8 @@ export function PermissionsTab() {
               {ROLES.map((r) => (
                 <th key={r}>
                   {EMPLOYEE_ROLE_LABELS[r]}
-                  {r === LOCKED_ROLE && (
-                    <span title="Колонка руководства — не редактируется"> <Icon name="ban" size={12} /></span>
+                  {LOCKED_ROLES[r] && (
+                    <span title={LOCKED_ROLES[r]}> <Icon name="ban" size={12} /></span>
                   )}
                 </th>
               ))}
@@ -84,16 +96,16 @@ export function PermissionsTab() {
                 </td>
                 {ROLES.map((role) => {
                   const checked = isAllowed(permissionMatrix, role, permission);
-                  const locked = role === LOCKED_ROLE;
+                  const lockReason = LOCKED_ROLES[role];
                   const label = `${ERP_PERMISSION_LABELS[permission]} — ${EMPLOYEE_ROLE_LABELS[role]}`;
                   return (
                     <td key={role}>
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={locked}
-                        aria-label={locked ? `${label} (не редактируется)` : label}
-                        title={locked ? 'Колонка руководства — не редактируется' : label}
+                        disabled={Boolean(lockReason)}
+                        aria-label={lockReason ? `${label} (не редактируется)` : label}
+                        title={lockReason || label}
                         onChange={(e) => setRolePermission(role, permission, e.target.checked)}
                       />
                     </td>

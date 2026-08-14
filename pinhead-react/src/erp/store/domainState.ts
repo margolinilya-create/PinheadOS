@@ -30,6 +30,7 @@ import type { ErpStore } from './types';
 type DomainState = Pick<ErpStore,
   | 'subcontracting' | 'subcontractingLoaded'
   | 'employees' | 'profilesList' | 'employeesLoaded'
+  | 'invites' | 'invitesLoaded'
   | 'myDeptId' | 'myRole' | 'myDeptLoaded'
   | 'dictionaries' | 'dictionariesLoaded'
   | 'experimental' | 'experimentalLoaded'
@@ -49,6 +50,9 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   myDeptId: null,
   myRole: null,
   myDeptLoaded: false,
+  // invitesSlice
+  invites: [],
+  invitesLoaded: false,
   // dictionariesSlice
   dictionaries: [],
   dictionariesLoaded: false,

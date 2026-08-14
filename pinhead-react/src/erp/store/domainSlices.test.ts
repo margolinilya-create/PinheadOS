@@ -27,7 +27,7 @@ const ERP = join(process.cwd(), 'src/erp');
 const CORE = ['bootstrapSlice', 'ordersSlice', 'permissionsSlice', 'bypassSlice', 'realtimeSlice'];
 const DOMAIN = [
   'stagesSlice', 'materialsSlice', 'warehouseSlice', 'procurementSlice',
-  'subcontractingSlice', 'employeesSlice', 'dictionariesSlice', 'experimentalSlice',
+  'subcontractingSlice', 'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
   'tzSlice', 'planSlice', 'settingsSlice',
 ];
 
@@ -197,5 +197,31 @@ describe('ленивый ERP-экран заводится только lazyScre
   it('доменный чанк греется в простое вместе с соседними экранами', () => {
     const src = readFileSync(join(ERP, 'ErpApp.jsx'), 'utf8');
     expect(src).toContain('ensureDomainSlices');
+  });
+});
+
+/**
+ * Выбор оболочки не зависит от переходов роутера.
+ *
+ * ЧТО СЛУЧИЛОСЬ. Экран приглашения `/join` выбирается по адресу, и путь взяли
+ * из `useLocation()` — самое очевидное решение. Оно подписало `App` на КАЖДЫЙ
+ * переход, а `App` на каждом рендере читает `FEATURES.orderStudio` — геттер,
+ * который берёт `?studio=` из адреса. Внутренние ссылки параметр не несут,
+ * поэтому первый же переход внутри производства открывал Order Studio: адрес
+ * менялся правильно, а на экране оказывался чужой раздел. Восемь сценариев
+ * e2e сразу — навигация, очередь, план, вкладки, мобильное меню.
+ *
+ * Сторож проверяет СПОСОБ, а не результат: юнит-тесты рендерят `App` через
+ * `createMemoryRouter` и подписки не замечают вовсе, а e2e ловит это только
+ * через четыре минуты прогона.
+ */
+describe('оболочка выбирается без подписки на роутер', () => {
+  it('App не использует useLocation', () => {
+    const src = readFileSync(join(process.cwd(), 'src/App.jsx'), 'utf8');
+    // Комментарии снимаем: объяснение «почему подписки нет» содержит те же
+    // слова, что и сама подписка, и утверждение «этого здесь нет» ловило бы его
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code, 'App снова подписан на переходы — режим будет пересчитываться')
+      .not.toMatch(/useLocation\s*\(/);
   });
 });
