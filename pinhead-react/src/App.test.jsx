@@ -108,6 +108,7 @@ beforeEach(() => {
     // отправлял все следующие на экран «Доступ отключён»
     profileStatus: 'no_profile',
     loading: false,
+    initializing: false,
     error: null,
     checkingProfile: false,
     init: vi.fn(),
@@ -128,10 +129,28 @@ afterEach(() => {
 });
 
 describe('App', () => {
-  it('shows loading spinner when loading', () => {
-    useAuthStore.setState({ loading: true });
+  it('shows loading spinner while the session is being checked', () => {
+    useAuthStore.setState({ initializing: true });
     renderApp();
     expect(screen.getByText('Загрузка...')).toBeInTheDocument();
+  });
+
+  /**
+   * Действие авторизации экран НЕ подменяет.
+   *
+   * Общий `loading` поднимает каждый вход и каждая регистрация, и пока он стоял
+   * гейтом всего приложения, форма на время запроса размонтировалась, а потом
+   * монтировалась заново — с пустыми полями. На экране приглашения это съедало
+   * исход `already_registered`: сообщение «такой сотрудник уже заведён»
+   * приходило в компонент, которого уже не было, и человек видел ту же пустую
+   * форму — на проде он нажал «Начать работу» девять раз подряд.
+   */
+  it('вход не подменяет форму глобальным «Загрузка...»', () => {
+    useAuthStore.setState({ loading: true, initializing: false });
+    renderApp();
+
+    expect(screen.queryByText('Загрузка...')).toBeNull();
+    expect(screen.getByText(/PINHEAD/)).toBeInTheDocument();
   });
 
   it('shows auth screen when no user', async () => {

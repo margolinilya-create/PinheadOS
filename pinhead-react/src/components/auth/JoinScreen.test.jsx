@@ -137,3 +137,30 @@ describe('JoinScreen — ссылка не работает', () => {
     expect(await screen.findByText('Сотрудник цеха')).toBeInTheDocument();
   });
 });
+
+/**
+ * Приглашение выписали на адрес, у которого уже есть учётная запись.
+ *
+ * `signUp` вторую учётку не создаёт, поэтому ссылка не сработает НИКОГДА.
+ * На проде человек нажал девять раз подряд, каждый раз получая одно и то же
+ * «Пользователь уже зарегистрирован» — экран не говорил, куда идти.
+ */
+describe('JoinScreen — адрес уже заведён', () => {
+  it('объясняет тупик и ведёт ко входу, а не показывает сухую ошибку', async () => {
+    const register = vi.fn().mockResolvedValue('already_registered');
+    useAuthStore.setState({ register });
+    supabase.rpc.mockResolvedValue({ data: [INVITE], error: null });
+    renderAt('code-1');
+    await screen.findByText('Сотрудник цеха');
+
+    fireEvent.change(screen.getByPlaceholderText('Ваше имя'), { target: { value: 'Нина' } });
+    fireEvent.change(screen.getByPlaceholderText('email@example.com'), { target: { value: 'za@pnhd.ru' } });
+    fireEvent.change(screen.getByPlaceholderText(/мин\. 6/), { target: { value: 'secret123' } });
+    fireEvent.submit(screen.getByText('Начать работу').closest('form'));
+
+    expect(await screen.findByText('Такой сотрудник уже заведён')).toBeInTheDocument();
+    expect(screen.getByText('za@pnhd.ru')).toBeInTheDocument();
+    expect(screen.getByText(/Забыли пароль/)).toBeInTheDocument();
+    expect(screen.getByText('Перейти ко входу')).toBeInTheDocument();
+  });
+});

@@ -43,6 +43,8 @@ export default function JoinScreen() {
   const [password, setPassword] = useState('');
   const [passError, setPassError] = useState('');
   const [showPass, setShowPass] = useState(false);
+  /** Приглашение выписали на адрес, у которого уже есть учётная запись */
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   /**
    * Приглашение показывает серверная функция, а не выборка из таблицы: политика
@@ -79,7 +81,11 @@ export default function JoinScreen() {
     clearError();
     // Дальше показывать нечего: сессия есть, профиль одобрен приглашением —
     // `App` сам отрисует рабочую оболочку.
-    await register(name, email, password, { inviteCode: code });
+    const outcome = await register(name, email, password, { inviteCode: code });
+    // `signUp` вторую учётку на существующий адрес не создаёт, поэтому ссылка
+    // не сработает НИКОГДА — сколько её ни открывай. Человеку нужен вход,
+    // а не ещё одна попытка регистрации.
+    if (outcome === 'already_registered') setAlreadyRegistered(true);
   };
 
   const shell = (children) => (
@@ -135,6 +141,25 @@ export default function JoinScreen() {
           <a className="btn-secondary auth-submit auth-join-link" href="/">
             Обычная регистрация
           </a>
+        </div>
+      </div>,
+    );
+  }
+
+  if (alreadyRegistered) {
+    return shell(
+      <div className="auth-pending">
+        <div className="auth-pending-icon">👤</div>
+        <h3>Такой сотрудник уже заведён</h3>
+        <p>На адрес</p>
+        <p className="auth-pending-email">{email}</p>
+        <p>
+          учётная запись уже существует, и второй раз зарегистрировать её нельзя.
+          Войдите обычным входом. Не помните пароль — там же «Забыли пароль?».
+          Если вход отвечает, что доступ закрыт, — попросите администратора включить его.
+        </p>
+        <div className="auth-pending-actions">
+          <a className="btn-accent auth-submit auth-join-link" href="/">Перейти ко входу</a>
         </div>
       </div>,
     );

@@ -29,6 +29,15 @@
 .auth-pending-email  { font-weight: 600; color: var(--accent); }
 .auth-pending-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
 
+/* «Забыли пароль?» — ссылка по виду, кнопка по сути: она отправляет запрос */
+.auth-forgot {
+  align-self: center; background: none; border: none; cursor: pointer;
+  font-family: var(--font-body); font-size: 12px; color: var(--text-dim);
+  padding: 4px; text-decoration: underline;
+}
+.auth-forgot:hover:not(:disabled) { color: var(--accent); }
+.auth-forgot:disabled { opacity: .5; cursor: default; }
+
 /* Приглашение по ссылке: кем и куда зовут — до того, как человек начнёт вводить */
 .auth-join-invite {
   text-align: center; padding: 16px; margin-bottom: 24px;

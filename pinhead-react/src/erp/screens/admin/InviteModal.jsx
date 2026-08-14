@@ -46,9 +46,10 @@ const EMPTY = {
 export function InviteModal({ onClose }) {
   const trapRef = useFocusTrap(true, onClose);
   const {
-    departments, invites, invitesLoaded, loadInvites, createInvite, revokeInvite,
+    departments, profilesList, invites, invitesLoaded, loadInvites, createInvite, revokeInvite,
   } = useErpStore(useShallow((s) => ({
     departments: s.departments,
+    profilesList: s.profilesList,
     invites: s.invites,
     invitesLoaded: s.invitesLoaded,
     loadInvites: s.loadInvites,
@@ -112,6 +113,20 @@ export function InviteModal({ onClose }) {
     });
     if (ok) await revokeInvite(invite.code);
   };
+
+  /**
+   * Адрес, у которого УЖЕ есть учётная запись.
+   *
+   * Приглашение на такой адрес — тупик: `signUp` вторую учётку не создаёт,
+   * и человек упирается в «уже зарегистрирован» сколько бы раз ни открыл
+   * ссылку. На проде так и вышло: девять попыток подряд. Дешевле сказать
+   * об этом здесь, чем разбираться потом по логам.
+   */
+  const existing = useMemo(() => {
+    const typed = form.email.trim().toLowerCase();
+    if (!typed) return null;
+    return profilesList.find((p) => (p.email || '').toLowerCase() === typed) || null;
+  }, [form.email, profilesList]);
 
   const roleLine = (i) => [
     EMPLOYEE_ROLE_LABELS[i.employee_role] || i.employee_role,
@@ -192,6 +207,10 @@ export function InviteModal({ onClose }) {
             onChange={(e) => set({ email: e.target.value })}
             placeholder="ivan@example.com"
             hint="Указан — ссылкой сможет воспользоваться только этот адрес"
+            error={existing
+              ? `У этого адреса уже есть учётная запись${existing.active === false ? ' (отключена)' : ''}. `
+                + 'Приглашение на него не сработает — включите доступ в списке пользователей.'
+              : undefined}
           />
 
           <Field

@@ -19,6 +19,8 @@ const ErpApp = React.lazy(() => import('./erp/ErpApp'))
  * а тянет он словарь ролей ERP — во входном чанке ему делать нечего.
  */
 const JoinScreen = React.lazy(() => import('./components/auth/JoinScreen'))
+/** Смена пароля по ссылке из письма — открывается один раз и редко */
+const NewPasswordScreen = React.lazy(() => import('./components/auth/NewPasswordScreen'))
 
 function LoadingScreen() {
   return (
@@ -64,12 +66,13 @@ function AccessWall({ icon, title, children, email, actions }) {
 }
 
 function App() {
-  const { user, authLoading, init, profileStatus, checkingProfile } = useAuthStore(useShallow(s => ({
+  const { user, initializing, init, profileStatus, checkingProfile, passwordRecovery } = useAuthStore(useShallow(s => ({
     user: s.user,
-    authLoading: s.loading,
+    initializing: s.initializing,
     init: s.init,
     profileStatus: s.profileStatus,
     checkingProfile: s.checkingProfile,
+    passwordRecovery: s.passwordRecovery,
   })));
 
   /**
@@ -92,8 +95,38 @@ function App() {
     init();
   }, [init]);
 
-  if (authLoading) {
+  /**
+   * Пустой экран загрузки — ТОЛЬКО на первичную проверку сессии.
+   *
+   * Здесь стоял общий `loading` авторизации, который поднимает КАЖДЫЙ вход и
+   * КАЖДАЯ регистрация. На время запроса App подменял форму глобальным
+   * «Загрузка…», а по возвращении монтировал её ЗАНОВО: локальное состояние
+   * экрана обнулялось. На приглашении из-за этого не показывалось объяснение
+   * «такой сотрудник уже заведён» — исход приходил в размонтированный
+   * компонент; на форме входа после неудачной попытки очищался набранный
+   * адрес. Кнопки при этом свои состояния («Вход…», «Создаём доступ…») имеют
+   * и показать их не могли — экрана в этот момент не существовало.
+   */
+  if (initializing) {
     return <LoadingScreen />;
+  }
+
+  /**
+   * Пришли по ссылке восстановления пароля.
+   *
+   * Проверка стоит ПЕРЕД пользователем намеренно: ссылка уже вошла человека
+   * в систему, и без этой ветки он попал бы прямо в рабочую оболочку, так
+   * и не задав пароль, — то есть в следующий раз пришёл бы за новой ссылкой.
+   */
+  if (passwordRecovery) {
+    return (
+      <>
+        <Suspense fallback={<LoadingScreen />}>
+          <NewPasswordScreen />
+        </Suspense>
+        <GlobalHosts />
+      </>
+    );
   }
 
   if (!user) {
