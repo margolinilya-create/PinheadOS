@@ -671,6 +671,27 @@
 .inviteArchive { color: var(--text-dim); }
 .inviteArchive summary { cursor: pointer; padding: 6px 0; }
 
+/* ─── Карточка пользователя ─── */
+/* Смена пароля и смена адреса — отдельные действия, а не часть «Сохранить»:
+   они уходят на сервер поодиночке, и общая кнопка врала бы про то, что
+   именно сохранилось. Отсюда своя строка «поле + кнопка» у каждого. */
+/* Кнопки формы — на всю ширину сетки, а не в ячейку рядом с последним полем:
+   в колонке ~180px они складываются в столбик и читаются как ещё одно поле */
+.formGrid > .modalActions { grid-column: 1 / -1; }
+.userRow {
+  display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap;
+}
+.userRow > :first-child { flex: 1 1 220px; min-width: 0; }
+/* Удаление стоит поодаль от правок и подписано красным: рядом с «Сохранить»
+   его нажимают промахом, а отката у него нет */
+.dangerZone {
+  margin-top: var(--space-md);
+  padding: 12px;
+  border-left: 3px solid var(--signal);
+  background: var(--bg-error);
+}
+.dangerZoneTitle { font-weight: 600; color: var(--color-error-ink); margin-bottom: 4px; }
+
 /* ─── Модалка ─── */
 .modalOverlay {
   position: fixed; inset: 0;

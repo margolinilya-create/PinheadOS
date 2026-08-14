@@ -21,7 +21,8 @@ URL: https://pinhead-os.vercel.app
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
   TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
-  screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o);
+  screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
+  InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
@@ -395,6 +396,28 @@ URL: https://pinhead-os.vercel.app
   остались свободными: полная типизация состояния визарда — отдельная работа
 - Live-регион тостов смонтирован всегда, даже пустой (`Toast.jsx`). Регион,
   появляющийся в DOM вместе с первым сообщением, скринридер не отслеживает
+
+## Правила администрирования учётных записей (сессия 31)
+
+- Клиентская половина — `erp/store/adminUsers.ts` (вызов серверной функции
+  и разбор её ответа) + четыре действия в `employeesSlice`:
+  `createUserAccount` · `setUserPassword` · `setUserEmail` · `deleteUserAccount`.
+  Сам `service_role` живёт только в функции `supabase/functions/admin-users`
+- **Причина отказа достаётся ОДИН раз, в `adminUsers.ts`.** У `functions.invoke`
+  на любой не-2xx в `error` лежит единственный текст «Edge Function returned
+  a non-2xx status code», а объяснение — в теле (`error.context`). Без разбора
+  отказ прав, занятый адрес и заказы, держащие удаление, выглядят одинаково
+- **`invoke` БРОСАЕТ, когда ответа не было** (нет сети, функция не выкачена) —
+  то же правило, что у `erpQuery`: бросок превращается в обычный
+  `{ data: null, error }`, иначе busy-флаг не снимется
+- Список после заведения ПЕРЕЧИТЫВАЕТСЯ (`loadEmployees`), а не достраивается:
+  профиль и строку сотрудника пишет триггер, и собрать их на клиенте — значит
+  угадывать, что именно он записал
+- Удаление НЕ оптимистичное (правило проекта) и гейтится `access.isAdmin` —
+  дословным зеркалом серверной `is_admin()`, а не более широким `isPrivileged`
+- Имя правится в ДВУХ местах: `profiles.name` (списки, авторство) и
+  `erp_employees.full_name` (исполнитель этапа, назначения в цехе). Поправить
+  одно — получить человека, который в заказе Иванов, а в очереди цеха «ivan@…»
 
 ## Правила ERP (правки заказчика 12.08)
 

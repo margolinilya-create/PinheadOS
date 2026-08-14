@@ -6,7 +6,8 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { erpQuery, erpError } from '../shared';
+import { adminUsers } from '../adminUsers';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDepartment, ErpEmployee } from '../../types';
 import type { ErpStore, EmployeesSlice, StaffProfile } from '../types';
@@ -73,6 +74,75 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
       toast.error('Не удалось обновить пользователя');
       return false;
     }
+    return true;
+  },
+
+  /**
+   * Завести человека с готовым паролем — второй путь рядом с приглашением.
+   *
+   * Приглашение остаётся основным: человек задаёт пароль сам, и админ его
+   * не знает. Но случай «сотрудник рядом, заведи прямо сейчас» и случай
+   * «ссылку потеряли» приглашением не закрываются никак, и до сих пор
+   * единственным выходом был дашборд Supabase.
+   *
+   * Список перечитываем целиком: профиль и строку сотрудника пишет ТРИГГЕР,
+   * и собрать их на клиенте значит угадывать, что именно он записал.
+   */
+  createUserAccount: async (draft) => {
+    const { error } = await adminUsers<{ id: string }>('create', {
+      email: draft.email,
+      password: draft.password,
+      name: draft.name,
+      profile_role: draft.profile_role,
+      employee_role: draft.employee_role,
+      department_id: draft.department_id || null,
+    });
+    if (error) return erpError('Не удалось завести пользователя', error);
+    await get().loadEmployees();
+    toast.success('Пользователь заведён');
+    return true;
+  },
+
+  /**
+   * Пароль сотруднику задаёт админ. Восстановление по письму остаётся, но
+   * письма шлёт встроенный SMTP (порядка двух в час, у gmail спам) — на этом
+   * в проекте уже вставали люди, и «позвони, я поставлю новый» надёжнее.
+   */
+  setUserPassword: async (userId, password) => {
+    const { error } = await adminUsers('set_password', { user_id: userId, password });
+    if (error) return erpError('Не удалось сменить пароль', error);
+    toast.success('Пароль изменён');
+    return true;
+  },
+
+  /** Адрес — это ЛОГИН: сервер меняет его и в `auth.users`, и в `profiles` */
+  setUserEmail: async (userId, email) => {
+    const next = email.trim().toLowerCase();
+    const { error } = await adminUsers('set_email', { user_id: userId, email: next });
+    if (error) return erpError('Не удалось сменить email', error);
+    set((s) => ({
+      profilesList: s.profilesList.map((p) => (p.id === userId ? { ...p, email: next } : p)),
+    }));
+    toast.success('Email изменён');
+    return true;
+  },
+
+  /**
+   * Безвозвратное удаление — НЕ замена «Отключить», а другое действие.
+   * Обычный путь остаётся мягким (`active = false`): у отключённого сохраняется
+   * история и его можно вернуть. Удаление нужно для учётной записи, заведённой
+   * по ошибке; сервер откажет, если за человеком числятся заказы.
+   *
+   * Оптимистично не убираем: правило проекта — удаление ждёт ответа.
+   */
+  deleteUserAccount: async (userId) => {
+    const { error } = await adminUsers('delete', { user_id: userId });
+    if (error) return erpError('Не удалось удалить пользователя', error);
+    set((s) => ({
+      profilesList: s.profilesList.filter((p) => p.id !== userId),
+      employees: s.employees.filter((e) => e.profile_id !== userId),
+    }));
+    toast.success('Пользователь удалён');
     return true;
   },
 

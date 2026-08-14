@@ -56,6 +56,23 @@ export interface StaffProfile {
   active: boolean | null;
 }
 
+/**
+ * Новая учётная запись, заводимая администратором вручную.
+ *
+ * Роль, цеховая роль и цех те же, что у приглашения, и не случайно: сервер
+ * проставляет их ТЕМ ЖЕ путём — заводит одноразовое приглашение и отдаёт его
+ * код триггеру регистрации. Вторая реализация «кому какие права» разъехалась
+ * бы с первой в первую же правку.
+ */
+export interface NewUserDraft {
+  name: string;
+  email: string;
+  password: string;
+  profile_role: string;
+  employee_role: string;
+  department_id: string | null;
+}
+
 export interface ErpOrderAuditRow {
   id: string;
   order_id: string;
@@ -556,6 +573,20 @@ export interface EmployeesSlice {
     profile: StaffProfile,
     patch: Partial<Pick<ErpEmployee, 'department_id' | 'role' | 'notes'>>,
   ) => Promise<boolean>;
+
+  /**
+   * Администрирование учётных записей. Всё это умеет только Admin API GoTrue
+   * (`service_role`), поэтому идёт через серверную функцию `admin-users`:
+   * ключ, обходящий RLS, в браузере не бывает. Гейт на сервере — `is_admin()`,
+   * та же функция, на которой стоят политики `profiles`.
+   */
+  createUserAccount: (draft: NewUserDraft) => Promise<boolean>;
+  /** Задать пароль сотруднику: письма встроенного SMTP теряются, звонок — нет */
+  setUserPassword: (userId: string, password: string) => Promise<boolean>;
+  /** Сменить адрес входа — и в `auth.users`, и в `profiles` одним действием */
+  setUserEmail: (userId: string, email: string) => Promise<boolean>;
+  /** Безвозвратно: не замена «Отключить», а случай «заведён по ошибке» */
+  deleteUserAccount: (userId: string) => Promise<boolean>;
 
   /** Справочник цехов (правки 11/12): создание участка и правка его атрибутов */
   createDepartment: (
