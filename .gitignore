@@ -10,11 +10,6 @@ node_modules
 .DS_Store
 test-results/
 
-# Runtime-данные хуков (не версионируется).
-# .agents/skills и skills-lock.json — НАОБОРОТ в репозитории: туда
+# .agents/skills и skills-lock.json НЕ игнорируются намеренно: туда
 # `npx skills add` кладёт внешние скилы, и на них из .claude/skills симлинки.
-.claude-flow/
-.swarm/
-.claude/helpers/*.db
-.hive-mind/
-memory.db
+
