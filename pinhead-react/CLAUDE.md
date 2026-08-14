@@ -1,661 +1,442 @@
 # PINHEAD Order Studio — pinhead-react
 
-## Проект
-ERP/CRM для типографии (печать на одежде). React 19 + Vite 7 + Zustand 5 + Supabase.
-URL: https://pinhead-os.vercel.app
+React-приложение. Здесь только то, что специфично для клиента: структура,
+стор, экраны, UI и тесты. Продукт, схема БД, права на сервере, маршрут
+производства, даты и правила работы с Supabase — в корневом `CLAUDE.md`,
+дублировать их сюда не нужно.
 
-## Два раздела (переключение в шапке, admin/director)
-- **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
-  screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
-  ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
-  screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal
-  (+ create/: SizeGridEditor, FormParts, ItemBlock, TzSection — форма разрезана);
-  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
-  StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
-  DefectWizard (мастер брака: 2 шага в Drawer);
-  screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
-  screens/PlanScreen.jsx — «План производства» (/plan): недельная доска по дням,
-  вкладки цехов, сводка «Все цеха», отклонения; screens/plan/ — PlanTaskCard/
-  PlanSlotDrawer (план+факт+проблема+переписка)/PlanAddModal (постановка из общего плана);
-  screens/queue/DeptPlanPanel.jsx — вкладка «План» в кабинете цеха;
-  screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
-  useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
-  TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
-  screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o);
-  screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
-  SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
-  screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
-  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
-  ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
-  Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
-  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
-  редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
-  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
-  + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
-  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
-  контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
-  точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
-  utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
-  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay),
-  data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
-  pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
-  PWA: public/manifest.webmanifest + icon-192/512.
-- **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
-  SKU, аналитика. Компоненты ниже — его состав.
-- Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
-- Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
+Правила сгруппированы ПО ТЕМАМ. Новое дописывается в существующий раздел;
+раздел с датой или номером волны в названии не заводить.
+
+## Два раздела
+
+Переключение в шапке (admin/director), единая админка (`erp/screens/AdminScreen`)
+смонтирована в оба.
+
+- **`erp/`** — 🏭 Производство (по умолчанию)
+- **`orderstudio/`** — ✏️ ТЗ (за флагом `orderStudio`): визард, SKU, аналитика
 
 ## Структура src/
-- components/ — UI-компоненты
-  - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
-  - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
-  - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
-  - editors/ — PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
-  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
-  - analytics/ — Dashboard (Chart.js)
-  - auth/ — AuthScreen, AdminPanel
-  - layout/ — Header (dark mode toggle), ProgressBar (fill bar)
-  - output/ — PrintPreview
-  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, OnboardingTips, CommandPalette, PriceBreakdown, RolePreviewBar
-- store/ — Zustand (все .ts)
-  - useStore.ts — главный store (7 слайсов)
-  - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
-  - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
-- utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
-- lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
-- types/ — TypeScript типы: order, catalog, auth, pricing
-- data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js, useScrollRestore.js
 
-## Ключевые правила
-- Общение с пользователем: всегда на русском языке
-- Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
-- Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
-- Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
-- app_config хранит: sku_catalog, prices, extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog
-- catalog_config хранит: fabricsCatalog, trimCatalog
-- SKU Editor: 8 табов (items, fabrics, trims, extras, hardware, pricing, rules, zones)
-- CategoryRules: per-категория (allowedTechs, moq, availableSizes, defaultExtras, allowedZoneTechs)
-- Per-SKU overrides: allowedFabrics, allowedExtras, availableSizes, overrides (techs/moq/colors), priceMultiplier
-- Зоны нанесения: динамические (ZoneDefinition в zonesCatalog), не хардкод
-- Визард: useEffectiveRules() → фильтрация техник, цветов, размеров, тканей, обработок
-- SKU фото: Supabase Storage bucket `sku-photos`, до 4 фото на артикул, поле `photos[]` (photoUrl удалён)
-- Черновик: localStorage 'pinhead_draft'
-- Роли: admin > director > rop > manager > production > designer
-- Auth states (ProfileStatus): active | pending_approval | disabled | no_profile
-- Пользователи: soft-delete (active=false), не hard delete
-- RLS: manager видит только свои заказы
-- Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-- Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
+```
+src/
+├── components/            # Order Studio
+│   ├── steps/             # Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2–5)
+│   │   └── garment/       # SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
+│   ├── orders/            # KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
+│   ├── editors/           # PriceEditor, SkuEditor (8 табов), ExpressCalc
+│   │   └── sku/           # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab,
+│   │                      # PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal,
+│   │                      # ZonesModal, SkuDetailModal
+│   ├── analytics/         # Dashboard (Chart.js)
+│   ├── auth/              # AuthScreen, AdminPanel
+│   ├── layout/            # Header (dark mode toggle), ProgressBar
+│   ├── output/            # PrintPreview
+│   └── shared/            # ErrorBoundary, Toast, PageHeader, Skeleton, OnboardingTips,
+│                          # CommandPalette, PriceBreakdown, RolePreviewBar
+├── erp/                   # см. раздел «ERP: состав» ниже
+├── store/                 # Zustand, всё .ts
+│   ├── useStore.ts        # главный store (7 слайсов)
+│   ├── slices/            # wizard, product, design, items, details, catalog, order
+│   └── useAuthStore.ts · useOrdersStore.ts · useCommentsStore.ts · useToastStore.ts · useConfirmStore.ts
+├── utils/                 # pricing, skuRules, validate, mockup, deadline, i18n, date
+├── lib/                   # supabase, api, storage, catalogs, errorReport, configError
+├── types/                 # order, catalog, auth, pricing, database.generated
+├── data/                  # fallback: prices, skuCatalog, extras, fabrics, colors
+└── hooks/                 # useDraft, useFocusTrap, useEffectiveRules, useMediaQuery,
+                           # useScrollHints, useScrollRestore
+```
 
-## Правила ERP (волна 1 «Ядро диспетчера»)
-- Права: только через `useErpAccess` — `can(право)` (матрица `erp_role_permissions`) И
-  `canActIn(цех)` (привязка `erp_employees`). Не проверять роли в компонентах вручную
-- Приоритет очереди: `erp_item_stages.queue_position` — numeric-середина между соседями,
-  писать через `reorderStageQueue`, не перенумеровывать вручную
-- Перенос между цехами: только `moveStageToDepartment`; правила и последствия — в
-  `utils/stageMove.analyzeStageMove`, подтверждение в UI. Молча этап не закрывать
-- Прогресс — в штуках (`utils/progress`), не в числе завершённых этапов
-- Задания: группа и причина ожидания считаются одним `buildQueueEntries`, не по месту
-- Исполнитель проставляется при «Взять в работу» (`assignee = currentActor()`)
-- Фильтры заданий — `utils/filterStages`, состояние в URL (возврат из заказа его восстанавливает)
-- Справочники (`erp_dictionaries`) — подсказка, а не ограничение: `datalist`/чипы поверх
-  свободного ввода. Значения отключаются (`active:false`), не удаляются
-- Статусы в справочник не выносить: они в CHECK-констрейнтах и стейт-машинах;
-  в админке — вкладка только для чтения
+Компоненты — `.jsx`, утилиты и типы — `.ts`. Тесты рядом с файлами:
+`Component.test.jsx`, `util.test.ts`.
 
-## Правила ERP (волны 3–4: поставщики и ТЗ в PDF)
-- Варианты поставщика — `erp_material_suppliers`; выбранный дублируется в
-  `erp_materials.supplier`, поэтому все прежние экраны показывают его без правок.
-  Снимать флаг у прежнего варианта ДО установки нового (партиальный уникальный индекс)
-- ТЗ принадлежит ПОЗИЦИИ (`erp_tz_documents.item_id`; `null` — общее ТЗ заказа) и видно
-  всем цехам её производственного маршрута. Резолюция — `utils/tz.itemTzDocument`:
-  своё ТЗ позиции → общее ТЗ заказа. Поцеховое назначение отменено правкой менеджера
-  2026-08-03: оно требовало выбрать один и тот же PDF в N выпадающих списках и
-  блокировало создание заказа, если пропущен хоть один. Таблица `erp_tz_assignments`
-  удалена 12.08 вместе с веткой вставки в `erp_create_order`; секция
-  `tz.assignments` в payload по-прежнему принимается и игнорируется —
-  падать на лишнем ключе значило бы сломать старый бандл ради чистоты
-- Замена файла: снять `is_current` со старой версии, ПОТОМ вставить новую — тот же
-  порядок, что у вариантов поставщика строкой выше, и по той же причине
-  (`unique (group_id) where is_current`). Обратный порядок падает с 23505; он и стоял
-  в коде вместе с комментарием и тестом, утверждавшими обратное. Между снятием и
-  вставкой группа без актуальной версии, поэтому при сбое вставки флаг возвращается
-- Гейт ТЗ (`utils/tz.stageMissingTz`) — только для производственных цехов (`deptNeedsTz`)
-  и только при `tz_required === true`. Отсутствие поля не блокирует: остановка цеха fail-open
-- Ключ объекта Storage строго ASCII: `tzFilePath` транслитерирует кириллицу. Supabase
-  проверяет ключ регуляркой S3-safe символов (`\w` без флага `u`) и на русское имя
-  отвечает `InvalidKey` — из-за этого не загрузилось НИ ОДНО ТЗ и не создавался ни один
-  заказ с ним. Имя для человека берётся из `erp_tz_documents.file_name`
-- Файл ТЗ уходит в бакет при ВЫБОРЕ, а не в сабмите, и несёт своё состояние
-  (`uploading`/`uploaded`/`error`); «Создать заказ» заблокирована, пока есть
-  незавершённые. Загрузка в сабмите показывала файл приложенным до того, как он
-  оказывался в Storage
-- Заказ с ТЗ создаётся одной транзакцией: файлы в бакет (`tz/new/<group_id>/`) → RPC
-  `erp_create_order` с секцией `tz`. Обратный порядок нарушил бы «заказ без ТЗ невозможен»
-- File-объекты никогда не кладутся в `form`/`items` формы создания — черновик пишется
-  через `JSON.stringify`, и File молча превратился бы в `{}`
-- Маршрут позиции считать `buildItemRoute` (и в сторе, и в превью формы) — правило
-  вырезания `supply` при материале подрядчика живёт там
+## ERP: состав
 
-## Правила ERP (отложенное: ОТК, сортировка, даты, диплинк, индикаторы)
-- Финальный ОТК (`qc`) — последний этап производственного маршрута, зависит от ВСЕХ
-  терминальных этапов: нанесение на готовом даёт параллельные ветки, и «после
-  последнего по списку» пустило бы контроль до конца соседней ветки. Маршрут без
-  производственных этапов ОТК не получает — иначе вечная пробка на пустом месте.
-  `needsQc` живёт только в форме: этапы материализуются при создании, и колонка
-  в позиции стала бы вторым источником правды
-- Сортировка таблиц — `utils/tableSort`: пустые ячейки ВСЕГДА внизу (иначе «по
-  убыванию» поднимает строки без значения), порядок стабильный, значение колонки
-  берётся то же, что видно в ячейке. Применять до пагинации
-- Нативный `type="date"` не заменяем: на планшете это системный календарь, лучший
-  тач-ввод из существующих. Формат задаёт локаль браузера (en-US → mm/dd/yyyy) и
-  страницей не переопределяется — поэтому `DateField` печатает эхо «14 авг. 2026»
-  под полем. Свой календарь был бы хуже, а не лучше
-- Оверлей, который хочется переслать или обновить, живёт в адресе: боковая карточка
-  заказа — `?order=`. Открытие пушит запись истории, закрытие снимает её же, поэтому
-  «Назад» и ✕ совпадают. Пришли по чужой ссылке — своей записи нет, закрытие идёт
-  `replace`, иначе ✕ уносит на прошлый сайт. Стор про роутер не знает: навигатор
-  регистрирует `OrderDrawerHost`, без него `open/close` работают по памяти (тесты)
-- Индикатор стадий один — `StageIndicator` с вариантами `dots`/`funnel`/`pipeline`.
-  Три ВИДА осознанны (отвечают на разные вопросы), три РЕАЛИЗАЦИИ были долгом
+- **screens/** — Dashboard · Orders · OrderCard · ProductionBoard (+Kanban) ·
+  DepartmentQueue · ProductionTask · FabricPurchasing · AdminScreen ·
+  DeptLoad (`/load`, сетка «цех × день») · PlanScreen (`/plan`, недельная доска)
+- Крупные экраны разрезаны на под-компоненты:
+  - `screens/orders/` — DueCell, OrderRow, OrderCardMobile, CreateOrderModal
+    (+ `create/`: SizeGridEditor, FormParts, ItemBlock, TzSection)
+  - `screens/queue/` — Lightbox, PhotoAttach, TzBlock, QueueCard, QueueRow,
+    StageActionsPanel + `useStageActions` (действия цеха, общие со страницей
+    задания), DefectWizard, DeptPlanPanel
+  - `screens/orderCard/` — PlanCell, StageStepper, OrderItemSection,
+    CommentsSection, HistorySection, TzDocsSection, OrderCardTabs +
+    `useOrderDetail`, OrderDrawer/OrderDrawerHost
+  - `screens/plan/` — PlanTaskCard, PlanSlotDrawer, PlanAddModal
+  - `screens/warehouse/` — MaterialReceiptCard, MarkingCard, PackShipCard,
+    SubcontractReceiptCard
+  - `screens/purchasing/` — SupplyQueue, SupplierOptionsModal
+  - `screens/experimental/` — DevCard, DevTasksSection, DevSendToDept
+  - `screens/admin/` — PermissionsTab, DictionariesTab
+- **components/** — ErpKanban (+ `kanban/`: KanbanCard, useTouchDndPolyfill),
+  InlineEdit, PageHead, ErpSkeletons, ErpStates (LoadFailed/EmptyResult/EmptyState),
+  Icon + icons.js (свой SVG-набор), Button, Field, RouteProgress, QueueFilters,
+  DictionaryDatalist, TzViewer, ReadOnlyFieldset, StageIndicator +
+  примитивы Badge/Drawer/Pagination/FilterBar/Stepper
+- **store/** — `useErpStore.ts` (ядро) + `slices/` + `useOrderDrawer.ts` +
+  `useErpSearch.ts` + `useErpAccess.ts` + `useStagePermissions.ts` + `useDictionary.js`;
+  контракт и DTO в `types.ts`, плумбинг в `shared.ts`, чистые хелперы
+  в `orderHelpers.ts`
+- **utils/** — routes · time · format · stageUi · orderForm · progress ·
+  filterStages · queueEntries · queueOrder · stageMove · stageDone · stageDefect ·
+  stageInput · permissions · screenAccess · kanbanDrop · tz + tzFile · supply ·
+  subcontractPhase · bypass · capacity · deptLoad · planCard · planDay ·
+  experimentalTasks · filterExperimental · tableSort · tabs
+- Touch-DnD канбана: `mobile-drag-drop` (dynamic import). PWA:
+  `public/manifest.webmanifest` + icon-192/512
 
-## Правила ERP (UX-аудит, хвост долгов)
-- Действие, откатывающее не только выбранный объект, обязано перечислить всё
-  затронутое: возврат брака переоткрывает и промежуточные этапы (`utils/stageDefect`
-  считает тот же диапазон `sort_order`, что и слайс, — чтобы текст не разошёлся с фактом)
-- Ссылка «в глубину» несёт текущий `search` в `location.state.from`, а обратная
-  ссылка ведёт по нему: `useScrollRestore` ключуется по `pathname+search`, и без этого
-  теряются и фильтры, и позиция прокрутки
-- `title` даётся для того, что НЕ видно: дублировать уже видимый номер бессмысленно,
-  а обрезанное многоточием название без подсказки прочитать нельзя
-- Горизонтально прокручиваемый блок оборачивается в `ScrollHintBox` — иначе не видно,
-  что справа есть содержимое
-- Любое действие, отправляющее запрос, блокируется на время ответа (`busy`-флаг):
-  `withPending` в сторе защищает от гонки с realtime, но не от повторного тапа
-- Чипы-подсказки справочника ДОПИСЫВАЮТ значение, а не затирают набранный текст
-- Никаких тихих лимитов в списках: «показаны последние N из M» + кнопка
+## Order Studio: каталоги и визард
 
-## Правила ERP (UX-аудит, волны UX-4…UX-6)
-- Валидация формы различает `missing` (не заполнено) и `invalid` (заполнено неверно) —
-  иначе подсказка «Осталось заполнить: Дата запуска» появляется при заполненной дате
-- Проверка поля живёт в `validateOrderForm`, а не в сабмите: только оттуда работают
-  рамка, `aria-invalid`, автоскролл и строка у кнопки. Тост для этого не годится
-- Удаление заполненного блока формы (позиция, нанесение) — через `confirm()`:
-  новое состояние уезжает в черновик через 500 мс, отката нет
-- `Escape`/`Enter` внутри инлайн-правки гасить `stopPropagation()` — контейнеры
-  слушают их через `useFocusTrap`/форму и реагируют вместо поля
-- Боковая карточка закрывается на смене маршрута: хост смонтирован вне `<Routes>`
-  и иначе переживает переход
-- Контекст списка (вкладка, даты, фильтр) — в URL, позиция прокрутки — `useScrollRestore`
-- `role="tab"` ставится только вместе с `aria-controls`, `role="tabpanel"`,
-  roving tabindex и `onTabListKeyDown` (`utils/tabs`). Половина паттерна хуже, чем
-  обычные кнопки с `aria-pressed` — так сделаны переключатели вида и вкладки заказов
-- У любого перетаскивания обязана быть клавиатурная альтернатива: приоритет очереди —
-  кнопки ↑/↓ (они же решают проблему планшета), карточка канбана — Enter/Space
-- Фолбэки `var(--token, X)` не писать: токены объявлены в `index.css`, который
-  импортируется первым, а фолбэк становится вторым тихим источником правды
-- Дубли примитивов сводить через `composes` (класс-источник должен быть объявлен ВЫШЕ)
-- Слои: `--z-drawer` < `--z-modal` < `--z-lightbox`. Один z-index на все полноэкранные
-  элементы означает, что порядок наложения держится на порядке монтирования
+- Цены: `getPrices()` → store → localStorage → `DEFAULT_PRICES`
+- Каталоги: Supabase (`app_config` + `catalog_config`) → localStorage → defaults.
+  Все — в Zustand (`catalogSlice`): skuCatalog, fabricsCatalog, trimCatalog,
+  extrasCatalog, hardwareCatalog, labelsCatalog
+- SKU Editor — 8 табов: items, fabrics, trims, extras, hardware, pricing, rules, zones
+- `CategoryRules` — per-категория: allowedTechs, moq, availableSizes, defaultExtras,
+  allowedZoneTechs. Per-SKU overrides: allowedFabrics, allowedExtras, availableSizes,
+  overrides (techs/moq/colors), priceMultiplier
+- Зоны нанесения динамические (`ZoneDefinition` в `zonesCatalog`), не хардкод
+- Визард: `useEffectiveRules()` → фильтрация техник, цветов, размеров, тканей, обработок
+- SKU-фото: bucket `sku-photos`, до 4 на артикул, поле `photos[]` (`photoUrl` удалён).
+  `deleteSkuPhotoByUrl` проверяет результат и показывает `toast.error` при ошибке
+- Черновик: localStorage `pinhead_draft`
 
-## Правила ERP (UX-аудит, волна UX-3)
-- Цвет статуса и цвет текста на нём — разные токены: заливка `--color-*`/`--bg-*`,
-  текст `--color-*-ink`. Красить текст той же переменной, что заливку, нельзя:
-  в светлой теме «ожидает» давало 2.02:1 при норме 4.5
-- Список в `@media (pointer: coarse)` — часть правила ≥44px, а не довесок. Добавили
-  интерактивный класс — впишите его туда же, иначе на планшете он останется мелким
-- Инлайновый `minHeight`/`font` на элементе с классом всегда бьёт медиазапрос.
-  Компактные размеры — только классами (`.inputXs`, `.chipBtn`)
-- Токен, которого нет, молча работает фолбэком: так `var(--danger, #c0392b)` и
-  `var(--font-mono, monospace)` жили в коде, не совпадая ни с чем. Прежде чем писать
-  фолбэк — проверьте, что токен объявлен
-- Токены, нужные ERP-компонентам, объявляются в `index.css`, а не только в `.shell`:
-  AdminScreen смонтирован и в Order Studio, вне `.shell` объявление отбрасывается
-- Ниже 760px сайдбар — выезжающий оверлей; в свёрнутом виде счётчик заданий остаётся
-  точкой поверх иконки и дублируется в `title`
-- Высоты оболочки — `100dvh`, не `100vh`: адресная строка планшета съедает низ
+## Стор
 
-## Правила ERP (UX-аудит, волна UX-2)
-- Три состояния экрана в этом порядке: **ошибка** (`LoadFailed` с «Повторить») →
-  **скелетон** → **пусто**. Скелетон вешать на `!loaded && !loadError`, а НЕ на
-  `loading`: при сбое `loading` уже false, и экран замирал навсегда
-- Новый экран со своими данными обязан обрабатывать `loadError`. Эффект
-  `if (!loaded) loadAll()` второй раз не срабатывает — без кнопки повтора
-  единственный выход у человека это F5
-- Пустое состояние обязано различать «работы нет» и «под фильтры ничего не попало»
-  (`EmptyResult` с текстом запроса и кнопкой «Сбросить»)
-- Скелетон повторяет финальный лейаут буквально, теми же классами. Разошёлся —
-  это не скелетон, а мигание чужой разметкой
-
-## Правила ERP (UX-аудит, волна UX-1)
-- Права проверяются **по действию**, а не по цеху: `useStagePermissions(deptId)` даёт
-  `take/progress/complete/block/defect`, и каждая кнопка гейтится своим правом.
-  `canActIn` — это «ваш ли цех» для пояснения «только просмотр», не гейт
-- Все 10 прав матрицы обязаны что-то выключать. Добавили право — сразу проведите его
-  до элемента интерфейса, иначе матрица снова станет декоративной
-- Колонка «Директор» в матрице не редактируется: профили `admin`/`director`
-  приводятся к этой роли, и снятая галочка отключила бы доступ самому админу
-- `DEFAULT_PERMISSIONS` обязан повторять seed миграций — есть тест
-- Закрытие этапа «целиком» пишет весь тираж, поэтому идёт через `confirmStageDone`
-  (`utils/stageDone`) во всех трёх точках: очередь, дорожка канбана, чип плана
-- Смысл броска на канбане считает `utils/kanbanDrop.kanbanDropIntent`. Дорожка НЕ
-  трогает событие от карточки чужого цеха — иначе она обнулит drag-состояние
-  раньше, чем сработает колонка, и перенос между цехами потеряется
-- Производственный план фильтруется тем же `applyStageFilters`, что очередь и канбан:
-  строка видна, если под подбор попал хотя бы один её этап
-
-## Правила ERP (правки менеджера, волны 2–3)
-- Материальный гейт — из данных: `erp_departments.gate_material_kinds`, правится
-  в админке. Пусто = участок не гейтится (fail-open). Гейтовые функции
-  (`isStageReady`, `waitingReason`, `missingMaterialsForStage`) принимают СТРОКУ
-  цеха, а не код: константа «ткань → закрой» не давала новому участку попасть под гейт
-- Группа `awaiting_materials` отделена от `waiting`: «ждём ткань» и «швейка ещё
-  не сдала» — разные решения руководителя. Дорожка на канбане идёт перед «Готово
-  к работе», `blocked` тоже получил свою вместо подмешивания в «Готово»
-- Отметка поступления материала ведёт в существующий путь приёмки
-  (`acceptMaterial`/`confirmStockMaterial`): `status='received'` без `accept_status`
-  гейт не снимает, и кнопка была бы декоративной. Право — `material.receive`
-- План производства РУЧНОЙ: система ничего не переносит и не планирует за человека.
-  Недовыполнение остаётся отклонением на своей дате (`utils/planDay.deviations`),
-  новую дату ставит руководитель
-- «Убрать из плана» — `status='cancelled'`, не DELETE: факт и переписка остаются,
-  а повторная постановка на ту же дату проходит upsert-ом по
-  `unique (stage_id, work_date)`. Обратный порядок падал бы на 23505
-- **Индекс под `onConflict` не может быть частичным.** PostgREST шлёт голый
-  `ON CONFLICT (col, col)`, а целевой индекс Postgres выводит только из списка
-  колонок: частичный подойдёт, лишь если в ON CONFLICT продублирован его предикат,
-  чего PostgREST не умеет. Индекс плана завели с `where stage_id is not null`,
-  и `planStage` падал на 42P10 при КАЖДОМ вызове — спецификация проверяется при
-  планировании запроса, до поиска конфликта. Предикат снимается без последствий:
-  NULL-ы в обычном уникальном индексе Postgres считает разными. Сторожит
-  `upsertConflict.test.ts` (находит каждый `onConflict` и сверяет со схемой)
-- Факт за день (`qty_done`) — НАКОПИТЕЛЬНЫЙ за этот день, а не приращение:
-  повторный ввод исправляет ошибку, а не удваивает результат. Поле факта пустое,
-  а не предзаполнено планом — то же правило, что у «сколько сдано» в задании цеха
-- Цвет карточки плана — дополнительный сигнал: текстовый статус
-  (`PLAN_STATE_LABELS`) стоит рядом всегда. «Ожидает материалы» перебивает цвет
-  просрочки (отвечает на вопрос «почему»), но сама просрочка отдаётся отдельно
-  `planOverdue` и на карточке видны обе
-
-## Правила ERP (закрытие техдолга аудита 29.07)
-
-- Возврат брака переоткрывает этапы по ГРАФУ `depends_on` (транзитивные потомки
-  целевого), а не по интервалу `sort_order`. Ветки нанесения получают ОДИНАКОВЫЙ
-  `sortOrder`, и отсечка по интервалу выбрасывала соседнюю ветку: партия уходила
-  в пошив без печати. Статус делает отбор сам — этап в `waiting` этих единиц
-  не видел. Считает `utils/stageDefect.intermediateReopened`, слайс зовёт ЕЁ ЖЕ
-- Действие из двух записей: при сбое второй НЕ откатывать интерфейс поверх
-  закоммиченной первой. Сначала компенсирующая запись; если и она не прошла —
-  показываем состояние базы и говорим, что делать. Иначе realtime возвращает
-  закоммиченное, и задание исчезает из обоих цехов (`moveStageToDepartment`)
-- Приёмка материала (`accept_*`, `qty_received`, `fact_*`, переход в `reserved`)
-  требует `material.receive` и на сервере: она снимает материальный гейт цеха.
-  Закупочные поля (артикул, срок, поставщик, ответственный) страж не трогает —
-  их правит снабжение, и правом они не гейтятся ни в интерфейсе, ни на сервере
-- Плановые даты этапа — под `order.manage` с ОБЕИХ сторон (`PlanCell` + страж).
-  Не `plan.manage`: это расписание заказа у менеджера, а не дневная раскладка
-  цеха. Без права даты показываются на чтение — цеху важно видеть срок
-- Аудит: `erp_stage_events` — богатая лента, пишет клиент (комментарий знает
-  только он); `erp_order_audit` — гарантированный след, пишет триггер
-  `erp_log_changes` на пяти таблицах. Закрылась вкладка — лента потеряет строку,
-  факт движения останется. Действующее лицо пишется и как `uuid`: имя рвётся при
-  переименовании и не различает тёзок. Новые поля идут с ПРЕФИКСОМ
-  (`material.status`), иначе история подписала бы их как поля заказа
-- Пересоздаёшь функцию БД целиком — бери ПОДЛИННЫЙ текст прежней миграции,
-  а не пиши по памяти: сверка показала расхождение в пяти правилах из десяти
-- Списочный запрос заказов (`ORDER_LIST_SELECT`) отличается от полного
-  (`ORDER_SELECT`) набором колонок: `select *` в PostgREST шлёт и NULL-колонки.
-  Убрать оттуда колонку, которую читает списочный экран, — значит получить
-  `undefined` молча, без ошибки. Сторожит `orderSelect.test.ts`: он вытаскивает
-  обращения `stage.X` из файлов, работающих по всему массиву. Карточка
-  дозагружает полный заказ по `detailIds`, а не по «есть ли заказ в сторе»
-- Отчёты об ошибках — `lib/errorReport`: адрес приёмника из `.env`, пусто =
-  выключено. Всё в try/catch, дубли гасятся, потолок на сессию: отчёт об ошибке,
-  роняющий приложение второй раз или забивающий сеть из цикла рендера, —
-  худший вид наблюдаемости
-
-## Правила ERP (аудит по скилам)
-- «Производственный цех» — признак из данных (`erp_departments.is_production`,
-  хелпер `isProductionDept`), НЕ константа. Иначе участок, заведённый в админке,
-  не появится ни в меню, ни в канбане, ни в маршруте, ни в гейте ТЗ
-- Диалоги — только через `useConfirmStore`: `confirm()` для да/нет,
-  `confirmWithInput()` когда нужна причина. `window.confirm/prompt` не использовать
-- Архив заказов грузится страницами (`ARCHIVE_PAGE_SIZE`, кнопка «Показать ещё»),
-  тихих лимитов не ставить — сколько загружено, должно быть видно
-- e2e: ERP-сценарии живут в `e2e/erp-queue.spec.ts` (проект `desktop`), мобильная
-  разметка — в `e2e/erp-mobile.spec.ts` (проект `mobile`, 375px). Спеки разведены
-  через `testIgnore` у обоих проектов: гонять desktop-разметку на 375px и наоборот
-  бессмысленно — там другой интерфейс, а не тот же в меньшем масштабе
-
-## Правила ERP (аудит 03.08.2026, фазы 0–5)
-
-- Бюджет критического пути считает `scripts/bundle-budget.mjs` ПО МАНИФЕСТУ
-  сборки, а не по `index.html`: оболочка ERP приезжает динамическим импортом,
-  и в HTML её нет. Считать по HTML — значит не видеть 60 кБ из 280 и получить
-  вечно зелёный страж. Чанк ищется по `manifest.name`; переименуют файл —
-  страж скажет, а не посчитает оболочку нулевой
-- Форматирование срока, процентов и дат — только `erp/utils/format`. Две метки
-  срока и ровно две: `dueLabel` там, где фраза читается целиком, `dueLabelCompact`
-  в плотных строках. Своя копия в компоненте означает пятый вариант написания
-  одного и того же — их уже было семь
-- Ноль в знаменателе это «неизвестно», а не «готово»: `percentOf` отдаёт `null`,
-  интерфейс показывает «—». Прежняя 100 при плане 0 рисовала пустую неделю
-  полностью закрытой
-- Просрочка ЗАКАЗА — `isOrderOverdue`: срок прошёл И заказ не готов к отгрузке.
-  Готовый ждёт логистики, а не производства. Ступени 1–7 / 8–30 / 30+ —
-  `overdueBucket`; одно число «просрочено: 47» не отвечает на вопрос «что делать»
-- Тестовые заказы отделяются флагом `erp_orders.is_demo`, и фильтр стоит
-  В САМОМ ЗАПРОСЕ, а не в экранах: их пятнадцать, и один забытый показывает демо
-  как боевую работу. `loadOne` фильтру не подчиняется — прямая ссылка обязана
-  открываться. Realtime тоже проверяет флаг. Автоматически по имени флаг
-  не ставится: спрятать боевой заказ хуже, чем показать тестовый
-- Кнопки ERP — только примитив `Button`/`ButtonLink`. Глобальный `btn btn-*` это
-  язык Order Studio (uppercase-типографика). Ссылка-кнопка обязана оставаться
-  ссылкой: `ButtonLink` сохраняет Ctrl+клик, «открыть в новой вкладке» и роль
-  для скринридера
-- Невалидное CSS-объявление браузер отбрасывает МОЛЧА. `var(--x))` с лишней
-  скобкой прожил в примитиве неизвестно сколько, и вместо починки его обходили.
-  Если примитив «не приживается» — сначала проверьте, работает ли он
-- Контраст текстовых токенов сторожит `styles/contrast.test.ts`: читает настоящий
-  `index.css`, разворачивает `var()`-алиасы и считает WCAG по всем парам
-  «текст × поверхность». Пятого уровня серого выше порога AA в палитре нет —
-  иерархия ниже `--text-dim` выражается размером и положением, не контрастом
-- Данные страницы берутся ПАКЕТОМ: `erp_bootstrap()` для оболочки,
-  `erp_order_detail(uuid)` для карточки. Обе `SECURITY INVOKER` — «одним
-  запросом» не означает «мимо RLS». Цех вызывающего берётся из `auth.uid()`,
-  а не из `profile_id` в параметрах
+- `useShallow` для объектных селекторов Zustand — обязательно
+- **Стор ERP разделён на ЯДРО и доменную часть.** В ядре (`useErpStore.ts`) — ровно
+  то, чем пользуется оболочка: `bootstrap`, `orders`, `permissions`, `bypass`,
+  `realtime`. Остальные 11 слайсов приезжают отдельным чанком вместе с первым
+  экраном (`store/domainSlices.ts`). Импорты ядра ЯВНЫЕ: баррель `./slices` тянет
+  все шестнадцать, и лишние отваливаются только благодаря tree-shaking, то есть
+  по умолчанию, а не по решению
+- **`attachDomainSlices` переносит ТОЛЬКО функции.** Данные доменных слайсов стоят
+  в ядре (`store/domainState.ts`): `loadBootstrap` наполняет
+  `subcontracting`/`experimental`/`dictionaries` ещё до открытия любого экрана,
+  а `myDeptId`/`myRole` читает `useErpAccess` в самой оболочке. Приедь данные вместе
+  со слайсом — позднее подключение затирало бы загруженное. Сторожит
+  `domainSlices.test.ts`
+- У этапов, материалов, склада, закупки и ТЗ собственных данных НЕТ вовсе — они
+  правят `orders` из ядра. В `DOMAIN_INITIAL_STATE` их нет, и пустая строка там
+  была бы ложью о наличии состояния
+- **Файлы `src/store/**`, `main.jsx` и `App.jsx` НЕ импортируют `erp/store/*`
+  статически.** Одна такая строка (`resetErpStore` в `useAuthStore`) тянула весь
+  ERP-стор во входной чанк — 26 кБ gzip у каждого, кто открыл только Order Studio.
+  Сбросы регистрируются через `store/appReset`; строку сторожит тест, потому что
+  бюджет бандла скажет «стало больше», но не скажет, из-за чего
 - Кэш запросов — `store/queryCache`: дедупликация, stale-while-revalidate,
   инвалидация по префиксу. Отмены запроса нет намеренно (supabase-js не принимает
-  AbortSignal); от «поздний ответ перезаписал экран» защищает alive-гард.
-  Кэш чистится в `resetErpStore()` — это вторая память рядом со стором, и
-  оставить её при выходе значит отдать следующей смене чужие данные
-- Брейкпоинты: 480 / 768 / 1024. Совпадают с `COMPACT_LAYOUT_QUERY`. Если сетка
-  может подстроиться сама (`auto-fit` + `minmax`), порог не переносят, а убирают
-- Раздел «Производство» — один пункт меню и вкладки `ProductionTabs`
-  (Доска · План · Загрузка). Адреса `/board`, `/plan`, `/load` СОХРАНЕНЫ:
-  редирект сломал бы закладки и добавил переход на самом частом пути.
-  Вкладки — ссылки с `aria-current`, не `role="tab"`: каждая это своя страница
-- Уведомления группируются по тому, ЧТО ДЕЛАТЬ, а не по типу записи. Срочное
-  развёрнуто, давнее свёрнуто со счётчиком. Группа — нативный `<details>`:
-  клавиатура и скринридер работают без строчки JS
-- Витрина дизайн-системы — `/styleguide` за флагом `styleguide`. Тест проверяет
-  вычислимое, витрина — различимы ли элементы рядом друг с другом
-- Вкладки карточки заказа (`orderCard/OrderCardTabs`) — шесть, активная в адресе
-  (`?tab=`), полный таб-паттерн. Шапка «почему заказ стоит» остаётся видимой
-  на любой вкладке: она отвечает на вопрос, с которым в карточку и заходят
-- Инлайн-правки заказа гейтятся `order.manage` НА КЛИЕНТЕ ТОЖЕ — страж
-  `erp_order_guard` в БД зеркалит ровно это. Гейт и страж ставятся одним
-  коммитом, иначе получится запрещённое «кнопка есть, действие падает»
-- Активный список заказов серверной пагинации не получает (причина —
-  в корневом CLAUDE.md). Постранично грузится архив; списку даны пагинация,
-  сортировка (`utils/tableSort`) и контекст в адресе
-- `strict: true` включён, `npm run typecheck` в CI. Типы стора Order Studio
-  собираются из `ReturnType` слайсов — типизированы ДЕЙСТВИЯ, поля данных
-  остались свободными: полная типизация состояния визарда — отдельная работа
-- Live-регион тостов смонтирован всегда, даже пустой (`Toast.jsx`). Регион,
-  появляющийся в DOM вместе с первым сообщением, скринридер не отслеживает
+  AbortSignal); от «поздний ответ перезаписал экран» защищает alive-гард. Кэш
+  чистится в `resetErpStore()` — это вторая память рядом со стором, и оставить её
+  при выходе значит отдать следующей смене чужие данные
+- **У `loadAll` НЕТ guard'а «уже грузим — выходим», и это проверено.** Обе формы
+  экономии (ранний выход и дедупликация общим промисом) ломают очередь цеха —
+  10 e2e из 24: экраны зовут `loadAll()` как загрузку своих данных и читают стор
+  сразу после. Лишний запрос дешевле пустого экрана
+- Любое действие, отправляющее запрос, блокируется на время ответа (`withPending`):
+  он защищает от гонки с realtime, но не от повторного тапа — нужен `busy`-флаг
+- **Одинаковые тосты не копятся**: повтор поднимает счётчик у висящей полосы. Один
+  системный сбой доходит до человека десятью экранами сразу, потому что флаги
+  загрузки общие. Id тоста — счётчик, а не `Date.now()`: два сообщения в одну
+  миллисекунду получали общий id, и закрытие одного гасило оба
+- Realtime точечный; архив ленивый; создание заказа — RPC `erp_create_order`
 
-## Правила ERP (правки заказчика 12.08)
+## Ленивость и бюджет
 
-- Закупка как этап маршрута — `erp/utils/supply.ts` (модуль-лист): им пользуются
-  бейдж оболочки, `screens/purchasing/SupplyQueue.jsx` и `maybeCloseSupply`.
-  Строка списка — ЗАКАЗ, а не этап
-- Экран непроизводственного цеха обязан строить строки ИЗ ЭТАПОВ —
-  сторожит `utils/routeReachable.test.ts`. Экран, показывающий соседние данные,
-  выглядит рабочим и прячет заказ целиком
-- Модель ЭКС: `utils/experimentalTasks.ts` (готовность, блокер, следующее
-  действие, состояние) + `utils/filterExperimental.ts` (фильтры экрана).
-  `isStageReady` НЕ переиспользуется: её сигнатура тянет материалы, цех, гейты
-  закупки и ТЗ, которых у задач разработки нет
-- Карточка разработки — `screens/experimental/DevCard.jsx` + `DevTasksSection`
-  (доска задач) + `DevSendToDept` (передача в цех). Пять веток по `phase`
-  удалены: это и была линейная модель, от которой заказчик отказался
-- Задача со `stage_id` в интерфейсе только на ЧТЕНИЕ: её статус ведёт триггер.
-  `updateDevTask` снимает `status`/`blocked_reason`/`done_on` перед записью
-- Фильтр очереди по происхождению — `origin` в `filterStages` (перечисление,
-  не булев флаг: ссылки на отфильтрованную очередь живут в переписке)
-- `StageIndicator` — ДВА вида: `dots` и `funnel`. Третий, `pipeline`, удалён
-  вместе с фазовой моделью: после удаления `ExperimentalCard.jsx` он остался
-  без единого вызова, и держал его только собственный тест. Удаляя экран,
-  проверьте, не осиротел ли примитив, который звал только он
-- Объект БД, дропнутый миграцией, ищется В ТЕЛАХ ФУНКЦИЙ, а не только по коду —
-  сторожит `utils/droppedObjects.test.ts`. `grep` по исходникам не видит
-  `erp_bootstrap()`: её текст лежит в миграции, а не в `src/`
-- **Перекрывающиеся `page.route` разрешаются ПОРЯДКОМ РЕГИСТРАЦИИ, и выигрывает
-  ПОСЛЕДНИЙ.** В `e2e/support/mockSupabase.ts` частный `**/rest/v1/rpc/**` стоял
-  перед общим `**/rest/v1/**` — и не срабатывал ни разу: `erp_bootstrap` отвечал
-  `[]`, как таблица с именем `rpc/erp_bootstrap`, а приложение молча уходило
-  на запасной путь `loadAll`. Весь e2e шёл не по тому пути, по которому ходит
-  прод, — ровно то, что комментарий рядом обещал не допустить. Чинится не
-  перестановкой (порядок забудут при следующей правке), а ОТСУТСТВИЕМ
-  перекрытия: один обработчик, ветка по пути запроса
-- Спека, которой нужны свои данные, передаёт их вторым аргументом
-  `installSupabaseMock(page, { orders, experimental, dictionaries })`. Дописывать
-  в общие фикстуры нельзя: четыре базовых заказа держат visual-эталоны
-  и счётчики `erp-queue`/`erp-plan`
-
-## Правила ERP (правки заказчика 10.08, волна 1)
-
-- Роли: коды в БД неизменны, меняются подписи (`EMPLOYEE_ROLE_LABELS` в `erp/types.ts`).
-  Новые роли — `technologist` + участки `dtf`/`silkscreen`/`embroidery`; у участков
-  права как у `worker`, различает их привязка `erp_employees.department_id`
-- ОТК: `buildRoute` больше не добавляет `qc`, поля `needs_qc` нет, цех деактивирован
-- Аварийное снятие блокировок — `erp_bypasses` + `utils/bypass.ts`. Применяется
-  в местах сборки гейта (`queueEntries`, `ordersSlice.shipOrder`), а не внутри
-  `isStageReady`/`waitingReason`: они принимают материалы и «нет ТЗ» параметрами
-- Пометка «Проверка снята вручную» ставится только там, где снятие повлияло —
-  `buildQueueEntries` пересчитывает готовность по настоящим данным и сравнивает
-- Пропуск этапа (`skipped`) — под `order.manage`, с обязательной причиной;
-  в `erp_stage_guard` у него своя ветка (раньше переход не проверялся вовсе)
-
-## Правила ERP (календарные даты, сессия 29)
-
-- **Календарная дата — только `src/utils/date.ts`** (`isoDate`, `localToday`,
-  `parseIsoDate`, `addDays`, `weekdayIndex`, `mondayOfWeek`). Модуль-лист без
-  зависимостей: им пользуются оба раздела. `toISOString()` даёт дату в UTC —
-  годится для МОМЕНТА (`created_at`, `fact_at`, `shipped_at`), не для дня
-- **`toISOString().slice(0, 10)` — запрещённый оборот**, его ищет по всем
-  исходникам `src/utils/date.test.ts` (комментарии снимаются). Он увёл доску
-  плана на двое суток: `mondayOf` сдвигал на день и `weekDates` от него ещё
-  на день, 10.08.2026 (понедельник) выходил «средой», неделя начиналась
-  с субботы 08.08
-- **Тесты дат идут в поясе заказчика**: `process.env.TZ = 'Europe/Moscow'`
-  в unit, `test.use({ timezoneId: 'Europe/Moscow' })` в e2e. В UTC-контейнере
-  сдвиг равен нулю и проходит ЛЮБАЯ реализация — поэтому дефект и доехал
-  до прода при зелёном CI
-- **День недели — `erp/utils/format.weekdayName`/`weekdayShort`, из ДАТЫ.**
-  Подпись по индексу колонки (`DAY_NAMES[i]`) с датой не спорит: когда расчёт
-  недели уехал, подписи уехали вместе с ним вместо того, чтобы дать расхождение
-- **На сервере календарную дату даёт `erp_local_date()`**, а не `current_date`:
-  база в UTC, и с 00:00 до 03:00 по Москве `current_date` — это вчера. Пояс
-  назван в одной функции; `set timezone` на всю базу не ставим — он поменял бы
-  печать всех `timestamptz` в ответах API. Сторожит `serverDates.test.ts`,
-  проверяя ПОСЛЕДНИЕ определения всех функций миграций
-
-## Правила ERP (вес оболочки, сессия 29)
-
-- **Все экраны ERP ленивые, включая первые три.** Обзор, заказы и очередь цеха
-  были статикой ради «без мигания на первом экране» и стоили оболочке 37 кБ
-  gzip: их код ехал каждому и всегда, в том числе рабочему, который открывает
-  только свой цех. Скелетоны у экранов есть, а `usePrefetchScreens` в `ErpApp`
-  тянет соседние в ПРОСТОЕ (`requestIdleCallback`) — к нажатию чанк уже в кэше
-- **Хост боковой карточки смонтирован вне `<Routes>`, поэтому её содержимое
-  обязано быть ленивым.** Статический импорт тянул в критический путь всё
-  дерево карточки (комментарии, история, ТЗ, файлы, инлайн-правки) — 124 кБ,
-  притом что хост возвращал `null`, пока карточка закрыта: не рисовалось,
-  но ехало. Заглушка `Suspense` не использует примитив `Drawer` — иначе он
-  вернулся бы в оболочку, ради чего всё и делалось
-- Потолок оболочки — 222 кБ gzip (был 250, упирались в 249). Бюджет, к которому
-  подошли вплотную, ломает сборку на каждой правке вместо того, чтобы ловить
-  регрессию. Возврат одного экрана в критический путь — это ~30 кБ, страж
-  такое видит
-- **Стор разделён на ЯДРО и доменную часть.** В ядре (`useErpStore.ts`) —
-  ровно то, чем пользуется оболочка: `bootstrap`, `orders`, `permissions`,
-  `bypass`, `realtime`. Остальные 11 слайсов приезжают отдельным чанком вместе
-  с первым экраном (`store/domainSlices.ts`) — 208,8 → 198,2 кБ gzip. Импорты
-  ядра ЯВНЫЕ: баррель `./slices` тянет все шестнадцать, и лишние отваливаются
-  только благодаря tree-shaking, то есть по умолчанию, а не по решению
+- **Все экраны ERP ленивые, включая первые три.** Обзор, заказы и очередь были
+  статикой ради «без мигания на первом экране» и стоили оболочке 37 кБ gzip: их код
+  ехал каждому и всегда, в том числе рабочему, который открывает только свой цех.
+  Скелетоны у экранов есть, а `usePrefetchScreens` тянет соседние в ПРОСТОЕ
+  (`requestIdleCallback`)
 - **Экран ERP заводится `lazyScreen`, а не голым `lazy`** (`erp/lazyScreen.js`):
   обёртка грузит чанк экрана и доменный чанк ПАРАЛЛЕЛЬНО и подключает слайсы
   до первой отрисовки. Голый `lazy` даёт стор без половины действий — ошибка
   не при сборке и не при переходе, а при нажатии на кнопку, то есть у цеха
 - **Правило сформулировано ПО ЭКРАНАМ, а не по файлу-оболочке.** Первая версия
-  сторожа обходила статический граф `ErpApp` и пропустила настоящую поломку:
-  единая админка смонтирована ЕЩЁ И в `OrderStudioApp`, голым `lazy`, мимо
-  всякого `ErpApp` — `/admin` в том разделе падал с «loadEmployees is not
-  a function». Сторож, привязанный к одной точке входа, сторожит одну точку входа
-- **`attachDomainSlices` переносит ТОЛЬКО функции.** Данные доменных слайсов
-  стоят в ядре (`store/domainState.ts`), потому что `loadBootstrap` наполняет
-  `subcontracting`/`experimental`/`dictionaries` ещё до открытия любого экрана,
-  а `myDeptId`/`myRole` читает `useErpAccess` в самой оболочке. Приедь данные
-  вместе со слайсом — позднее подключение затирало бы загруженное, и кто
-  финиширует последним, зависело бы от кэша. Совпадение значений с тем, что
-  объявляют слайсы, сторожит `domainSlices.test.ts`
-- У этапов, материалов, склада, закупки и ТЗ собственных данных НЕТ вовсе —
-  они правят `orders` из ядра. В `DOMAIN_INITIAL_STATE` их нет, и пустая строка
-  там была бы ложью о наличии состояния
-- Тест, который рендерит экран напрямую (минуя `lazyScreen`), обязан сам
-  позвать `attachDomainSlices()`. В общий `setupTests` это не выносится:
-  моки Supabase объявлены в файлах тестов, и слайсы, поднятые раньше, захватят
-  другой инстанс клиента — действия будут работать, но мимо шпионов
+  сторожа обходила статический граф `ErpApp` и пропустила настоящую поломку: единая
+  админка смонтирована ЕЩЁ И в `OrderStudioApp`, голым `lazy`, мимо всякого
+  `ErpApp` — `/admin` там падал с «loadEmployees is not a function»
+- **Хост боковой карточки смонтирован вне `<Routes>`, поэтому её содержимое обязано
+  быть ленивым.** Статический импорт тянул в критический путь всё дерево карточки —
+  124 кБ, притом что хост возвращал `null`, пока карточка закрыта: не рисовалось,
+  но ехало. Заглушка `Suspense` не использует примитив `Drawer` — иначе он вернулся
+  бы в оболочку, ради чего всё и делалось
+- **Бюджет считает `scripts/bundle-budget.mjs` ПО МАНИФЕСТУ сборки**, а не
+  по `index.html`: оболочка ERP приезжает динамическим импортом, и в HTML её нет.
+  Считать по HTML — значит не видеть 60 кБ из 280 и получить вечно зелёный страж.
+  Чанк ищется по `manifest.name`. Пороги живут в `BUDGETS` того же файла — там
+  их и смотреть, а не в документации: записанное здесь число устареет первым
+- Бюджет, к которому подошли вплотную, ломает сборку на каждой правке вместо того,
+  чтобы ловить регрессию. Возврат одного экрана в критический путь — это ~30 кБ,
+  страж такое видит
+- Новую утилиту в `orderHelpers.ts` не импортировать без замера: она попадёт
+  в оболочку, а не в ленивый чанк
 
-## Правила ERP (решения заказчика по матрице, сессия 29)
+## Права в интерфейсе
 
-- Прав стало 16: добавлено `warehouse.manage` (движение складских задач).
-  Гейт экрана склада — `useErpAccess().can('warehouse.manage')`, без права
-  Drawer оборачивается в `ReadOnlyFieldset`. Тот же примитив у карточки
-  разработки образцов — копий быть не должно
-- `manager` получил `stage.move_department`; `production_head` — `catalog.edit`
-  (подтверждённая правка заказчика). Все четыре решения закреплены поимённо
-  в `permissionsCoverage.test.ts`, блок «решения заказчика по матрице»
+Матрица и серверная сторона — в корневом `CLAUDE.md`. Здесь только клиент:
 
-## Правила ERP (хвосты документа 10.08, сессия 29)
+- Права проверяются **по действию**, а не по цеху: `useStagePermissions(deptId)`
+  даёт `take/progress/complete/block/defect`, и каждая кнопка гейтится своим правом.
+  `canActIn` — это «ваш ли цех» для пояснения «только просмотр», не гейт
+- Не проверять роли в компонентах вручную — только `useErpAccess`
+- Все права матрицы обязаны что-то выключать. Добавили право — сразу проведите его
+  до элемента интерфейса, иначе матрица снова станет декоративной
+- Колонка «Директор» в матрице не редактируется: профили `admin`/`director`
+  приводятся к этой роли, и снятая галочка отключила бы доступ самому админу
+- Без права экран остаётся на чтение — `ReadOnlyFieldset`, а не `disabled`
+  на каждом элементе. Копий этого блока быть не должно
 
-- Подрядную операцию двигает `phase`, НЕ `status`. Маппинг — `utils/subcontractPhase`
-  (`subcontractPhase` для чтения, `subcontractPhasePatch` для записи), один на оба
-  типа операции. `status` — зеркало для совместимости, помечено `@deprecated`,
-  читать не нужно нигде. Переходы в `subcontractingSlice` сравнивают ФАЗЫ:
-  зеркало есть в патче всегда, и сравнение по `status` срабатывало бы вхолостую
-- Гейты экранов: подряд — `order.manage`, разработка образцов —
-  `experimental.manage`. Оба ставились ОДНИМ коммитом с серверной политикой.
-  Без права экран остаётся на чтение; карточка разработки заворачивается
-  в `fieldset[disabled]` (`.readonlyFieldset`) — он гасит всё вложенное разом
-- Заглавные начертания — групповое правило в начале `erp.module.css`
-  (`.labelCaps` + заголовки). Свой класс объявляет ТОЛЬКО отличие; полный набор
-  объявлений в классе ловит `erp/styles.test.ts`
-- Бюджет оболочки ERP исчерпан (248,8 из 250 кБ). Новую утилиту в `orderHelpers.ts`
-  импортировать нельзя без замера — она попадёт в оболочку, а не в ленивый чанк
+## Очередь, канбан, задания
 
-## Правила ERP (правки заказчика 10.08, волна 0)
+- Приоритет очереди — `erp_item_stages.queue_position`, numeric-середина между
+  соседями, писать через `reorderStageQueue`, не перенумеровывать вручную
+- Группа и причина ожидания считаются одним `buildQueueEntries`, не по месту
+- Исполнитель проставляется при «Взять в работу» (`assignee = currentActor()`)
+- Фильтры заданий — `utils/filterStages`, состояние в URL (возврат из заказа его
+  восстанавливает). Тем же `applyStageFilters` фильтруется производственный план:
+  строка видна, если под подбор попал хотя бы один её этап
+- Перенос между цехами — только `moveStageToDepartment`; правила и последствия —
+  `utils/stageMove.analyzeStageMove`, подтверждение в UI. Молча этап не закрывать
+- Закрытие этапа «целиком» пишет весь тираж, поэтому идёт через `confirmStageDone`
+  (`utils/stageDone`) во всех трёх точках: очередь, дорожка канбана, чип плана
+- Действие, откатывающее не только выбранный объект, обязано перечислить всё
+  затронутое: возврат брака переоткрывает и промежуточные этапы. Считает
+  `utils/stageDefect.intermediateReopened`, слайс зовёт ЕЁ ЖЕ, чтобы текст
+  не разошёлся с фактом
+- **Возврат брака переоткрывает этапы по ГРАФУ `depends_on`** (транзитивные потомки
+  целевого), а не по интервалу `sort_order`. Ветки нанесения получают ОДИНАКОВЫЙ
+  `sortOrder`, и отсечка по интервалу выбрасывала соседнюю ветку: партия уходила
+  в пошив без печати
+- Смысл броска на канбане считает `utils/kanbanDrop.kanbanDropIntent`. Дорожка
+  НЕ трогает событие от карточки чужого цеха — иначе она обнулит drag-состояние
+  раньше, чем сработает колонка, и перенос между цехами потеряется
+- Прогресс — в штуках (`utils/progress`), не в числе завершённых этапов
+- Фильтр очереди по происхождению — `origin` в `filterStages` (перечисление,
+  не булев флаг: ссылки на отфильтрованную очередь живут в переписке)
 
-- Dev-автологин — только по `VITE_DEV_AUTOLOGIN=1` и только вместо ОТСУТСТВУЮЩЕЙ
-  сессии (`store/useAuthStore.ts`). Раньше он шёл от `import.meta.env.DEV`: любой
-  `npm run dev` против боевой базы показывал полный доступ админа, а запросы уходили
-  ролью `anon` — чтение пусто, запись «new row violates row-level security policy»
-- Сессия отслеживается подпиской `watchAuthState()` из `main.jsx`, а не разовой
-  проверкой в `init()`. Потеря сессии → `sessionLost()`: сброс сторов и «Сессия
-  истекла, войдите заново»
-- Каждый сетевой вызов слайса оборачивается `erpQuery` (`store/shared.ts`): бросок
-  supabase-js становится обычным `{ data: null, error }`, и существующая ветка
-  `if (error) …` снимает busy-флаг, откатывает и называет причину через `erpError`
-- `loadAll` намеренно БЕЗ guard'а от повторного вызова — см. комментарий в
-  `slices/ordersSlice.ts`: экономия ломает очередь цеха
-- Повтор тоста поднимает счётчик, а не добавляет полосу (`useToastStore`)
+Разработка образцов (ЭКС) считается своими утилитами —
+`utils/experimentalTasks.ts` (готовность, блокер, следующее действие, состояние)
+и `utils/filterExperimental.ts` (фильтры экрана). `isStageReady` там НЕ
+переиспользуется: её сигнатура тянет материалы, цех, гейты закупки и ТЗ, которых
+у задач разработки нет. Задача со `stage_id` в интерфейсе только на ЧТЕНИЕ — её
+статус ведёт триггер, поэтому `updateDevTask` снимает `status`/`blocked_reason`/
+`done_on` перед записью.
 
-## Правила ERP (код-ревью 05.08)
+## Состояния экрана
 
-- Счётчики этапа (`qty_done`, `qty_rework`) пишутся ТОЛЬКО приращением, на сервере
-  (`erp_stage_report_progress`, `erp_stage_apply_defect`). Абсолют с клиента —
-  потерянное обновление: два планшета в одном цехе читают своё значение и
-  затирают запись друг друга. Для цеха с несколькими исполнителями это обычный
-  день, а не редкая гонка
-- Действие из нескольких записей — ОДНА транзакция (RPC), а не `Promise.all`.
-  Пачка независимых UPDATE с общим откатом интерфейса откатывает поверх уже
-  закоммиченных: возврат брака оставлял позицию в состоянии, которого никто
-  не выбирал. У переноса этапа это же правило раньше решалось компенсирующей
-  записью — с транзакцией она не нужна
-- Логику маршрута (какие этапы затронуты) считает КЛИЕНТ и остаётся её
-  единственным источником. Сервер отвечает за атомарность и арифметику: вторая
-  реализация обхода `depends_on` на SQL — та самая рассинхронизация, из-за
-  которой текст подтверждения когда-то разошёлся с фактом
-- Перенос между цехами переводит на целевой этап ВСЕХ, кто зависел от исходного.
-  Без этого финальный ОТК открывался раньше перенесённой работы: исходный этап
-  закрыт, ОТК видит зависимость выполненной, а новый цех ещё не начинал
-- Страж этапов проверяет и ПРИНАДЛЕЖНОСТЬ ЦЕХУ (`erp_can_act_in_dept`, зеркало
-  `canActInDept`) — интерфейс гейтит дважды, право И цех, и матрица второго
-  не отменяет. Право `stage.move_department` проверку снимает: целевая строка
-  по определению в чужом цехе, а перенос интерфейс гейтит по цеху-ИСТОЧНИКУ
-- Плановые даты этапа — под `order.manage`, НО взятие задания в работу пишет
-  `planned_end` под `stage.take`: форма «Взять в работу» просит план завершения
-  и пишет его тем же действием. Без исключения каждый рабочий получал 42501
-  на каждом взятии, а вместе с датой терялся расчёт просрочки
-- Сторожевой тест, читающий миграцию ПО ИМЕНИ, сторожит файл, а не базу: функции
-  пересоздаются целиком, и прежняя миграция остаётся со СТАРЫМИ правилами. Брать
-  последнюю миграцию, определяющую функцию (`latestDefining` в
-  `serverPermissions.test.ts`)
-- Каждый `supabase.rpc(...)` сверяется с сигнатурой в миграциях
-  (`rpcContract.test.ts`): опечатка в имени функции или параметра не ломает
-  ни сборку, ни один тест — она отвечает PGRST202 в проде, на том действии,
-  которое никто не прокликал
-- Постраничная выборка обязана иметь УНИКАЛЬНЫЙ доводчик сортировки, а смещение
-  вести своим счётчиком, а не считать из стора: `due_date` не уникален, а в стор
-  архивные заказы попадают мимо пагинации (диплинк, realtime) и сдвигают
-  смещение. Дубль гасит дедуп по id — пропуск не видно ничем
-- `started_at` ставится ОДИН раз, при первом входе в работу. Снятие блокировки,
-  переоткрытие после брака и открытие этапа при переносе её не сдвигают: от неё
-  считается бейдж «ТЗ обновлено», и сдвиг прятал предупреждение, ради которого
-  бейдж и сделан
-- Файл, загруженный в бакет и не привязанный к строке БД, убирается за собой
-  (`removeOrphanUpload`, политика `erp_att_delete_own` — автор удаляет СВОЙ
-  объект). Прежде в трёх местах стоял комментарий «удалять политика не даёт»,
-  и сироты копились навсегда
-- Ошибки Supabase во ВСЕХ слайсах идут через `erpError` — он называет причину
-  (офлайн, отказ прав, конфликт). Плоский `toast.error('Не удалось …')` делает
-  42501 от стража неотличимым от обрыва сети
+- Три состояния в этом порядке: **ошибка** (`LoadFailed` с «Повторить») →
+  **скелетон** → **пусто**. Скелетон вешать на `!loaded && !loadError`, а НЕ
+  на `loading`: при сбое `loading` уже false, и экран замирал навсегда
+- Новый экран со своими данными обязан обрабатывать `loadError`. Эффект
+  `if (!loaded) loadAll()` второй раз не срабатывает — без кнопки повтора
+  единственный выход у человека это F5
+- Пустое состояние различает «работы нет» и «под фильтры ничего не попало»
+  (`EmptyResult` с текстом запроса и кнопкой «Сбросить»)
+- Скелетон повторяет финальный лейаут буквально, теми же классами. Разошёлся —
+  это не скелетон, а мигание чужой разметкой
+- Никаких тихих лимитов в списках: «показаны последние N из M» + кнопка.
+  Архив грузится страницами (`ARCHIVE_PAGE_SIZE`, «Показать ещё»)
+- Live-регион (`aria-live`) монтируется ВСЕГДА, даже пустой (`Toast.jsx`).
+  Скринридер отслеживает ИЗМЕНЕНИЯ внутри уже существующего региона; регион,
+  добавленный в DOM вместе с содержимым, он не читает. Разметка при этом выглядит
+  правильной — поэтому баг и прожил долго
 
-## Не трогать без тестов
-- utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
-- store/slices/ — 796 тестов зависят от них
-- erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
-  волны 1, 88 тестов
-- erp/utils/tz.ts — резолюция версий и гейт ТЗ, 38 тестов
-- erp/utils/queueEntries.js — единый источник групп очереди, 21 тест
+## Формы и диалоги
+
+- Валидация различает `missing` (не заполнено) и `invalid` (заполнено неверно) —
+  иначе подсказка «Осталось заполнить: Дата запуска» появляется при заполненной дате
+- Проверка поля живёт в `validateOrderForm`, а не в сабмите: только оттуда работают
+  рамка, `aria-invalid`, автоскролл и строка у кнопки. Тост для этого не годится
+- Диалоги — только через `useConfirmStore`: `confirm()` для да/нет,
+  `confirmWithInput()` когда нужна причина. `window.confirm/prompt` не использовать
+- Удаление заполненного блока формы (позиция, нанесение) — через подтверждение:
+  новое состояние уезжает в черновик через 500 мс, отката нет
+- `Escape`/`Enter` внутри инлайн-правки гасить `stopPropagation()` — контейнеры
+  слушают их через `useFocusTrap`/форму и реагируют вместо поля
+- Чипы-подсказки справочника ДОПИСЫВАЮТ значение, а не затирают набранный текст
+- Autofocus на первом поле формы
+- File-объекты никогда не кладутся в `form`/`items` формы создания — черновик
+  пишется через `JSON.stringify`, и File молча превратился бы в `{}`
+- Маршрут позиции считать `buildItemRoute` (и в сторе, и в превью формы): правило
+  вырезания `supply` при материале подрядчика живёт там
+
+## Навигация и адрес
+
+- Оверлей, который хочется переслать или обновить, живёт в адресе: боковая карточка
+  заказа — `?order=`. Открытие пушит запись истории, закрытие снимает её же, поэтому
+  «Назад» и ✕ совпадают. Пришли по чужой ссылке — своей записи нет, закрытие идёт
+  `replace`, иначе ✕ уносит на прошлый сайт. Стор про роутер не знает: навигатор
+  регистрирует `OrderDrawerHost`, без него `open/close` работают по памяти (тесты)
+- Боковая карточка закрывается на смене маршрута: хост смонтирован вне `<Routes>`
+  и иначе переживает переход
+- Контекст списка (вкладка, даты, фильтр) — в URL, позиция прокрутки —
+  `useScrollRestore` (ключ `pathname+search`)
+- Ссылка «в глубину» несёт текущий `search` в `location.state.from`, а обратная
+  ведёт по нему — иначе теряются и фильтры, и позиция
+- Вкладки карточки заказа (`orderCard/OrderCardTabs`) — активная в адресе (`?tab=`),
+  полный таб-паттерн. Шапка «почему заказ стоит» остаётся видимой на любой вкладке:
+  она отвечает на вопрос, с которым в карточку и заходят
+- Уведомления группируются по тому, ЧТО ДЕЛАТЬ, а не по типу записи. Срочное
+  развёрнуто, давнее свёрнуто со счётчиком. Группа — нативный `<details>`:
+  клавиатура и скринридер работают без строчки JS
+
+## Доступность
+
+- `role="tab"` ставится только вместе с `aria-controls`, `role="tabpanel"`,
+  roving tabindex и `onTabListKeyDown` (`utils/tabs`). Половина паттерна хуже,
+  чем обычные кнопки с `aria-pressed`
+- У любого перетаскивания обязана быть клавиатурная альтернатива: приоритет
+  очереди — кнопки ↑/↓ (они же решают проблему планшета), карточка канбана —
+  Enter/Space
+- `title` даётся для того, что НЕ видно: дублировать уже видимый номер бессмысленно,
+  а обрезанное многоточием название без подсказки прочитать нельзя
+- Горизонтально прокручиваемый блок оборачивается в `ScrollHintBox` — иначе не видно,
+  что справа есть содержимое
+- Ссылка-кнопка обязана оставаться ссылкой: `ButtonLink` сохраняет Ctrl+клик,
+  «открыть в новой вкладке» и роль для скринридера
+
+## Формат и представление
+
+- Форматирование срока, процентов и дат — только `erp/utils/format`. Две метки
+  срока и ровно две: `dueLabel` там, где фраза читается целиком, `dueLabelCompact`
+  в плотных строках. Своя копия в компоненте означает пятый вариант написания
+  одного и того же — их уже было семь
+- **Ноль в знаменателе это «неизвестно», а не «готово»**: `percentOf` отдаёт `null`,
+  интерфейс показывает «—». Прежняя 100 при плане 0 рисовала пустую неделю полностью
+  закрытой. Рядом `percentUncapped`: потолок в 100 % прячет перегрузку — ровно тот
+  случай, ради которого показатель заводили
+- Сортировка таблиц — `utils/tableSort`: пустые ячейки ВСЕГДА внизу (иначе
+  «по убыванию» поднимает строки без значения), порядок стабильный, значение
+  берётся то же, что видно в ячейке. Применять до пагинации
+- Индикатор стадий один — `StageIndicator`, ДВА вида: `dots` и `funnel`. Третий,
+  `pipeline`, удалён вместе с фазовой моделью: после удаления `ExperimentalCard.jsx`
+  он остался без единого вызова, и держал его только собственный тест. **Удаляя
+  экран, проверьте, не осиротел ли примитив, который звал только он**
+- Цвет — дополнительный сигнал, не единственный: текстовый статус
+  (`PLAN_STATE_LABELS`) стоит рядом всегда. «Ожидает материалы» перебивает цвет
+  просрочки (отвечает на вопрос «почему»), но сама просрочка отдаётся отдельно
+  `planOverdue`, и на карточке видны обе
+- **Нативный `type="date"` не заменяем**: на планшете это системный календарь,
+  лучший тач-ввод из существующих. Формат задаёт локаль браузера (en-US → mm/dd/yyyy)
+  и страницей не переопределяется — поэтому `DateField` печатает эхо «14 авг. 2026»
+  под полем. Эхо НЕ убирать; пресеты убраны, решение записано в SESSION-STATE,
+  чтобы его можно было оспорить
+
+## CSS
+
+- Токены из `:root` в `src/index.css` (`--type-*`, `--space-*`, `--z-*`,
+  `--radius-*`, `--color-*`). Не `!important`
+- **Фолбэки `var(--token, X)` не писать**: токены объявлены в `index.css`, который
+  импортируется первым, а фолбэк становится вторым тихим источником правды. Токен,
+  которого нет, молча работает фолбэком — так `var(--danger, #c0392b)`
+  и `var(--font-mono, monospace)` жили в коде, не совпадая ни с чем
+- Токены, нужные ERP-компонентам, объявляются в `index.css`, а не только в `.shell`:
+  AdminScreen смонтирован и в Order Studio, вне `.shell` объявление отбрасывается
+- **Невалидное CSS-объявление браузер отбрасывает МОЛЧА.** `var(--x))` с лишней
+  скобкой прожил в примитиве неизвестно сколько, и вместо починки его обходили.
+  Если примитив «не приживается» — сначала проверьте, работает ли он
+- Цвет статуса и цвет текста на нём — разные токены: заливка `--color-*`/`--bg-*`,
+  текст `--color-*-ink`. Красить текст той же переменной, что заливку, нельзя:
+  в светлой теме «ожидает» давало 2.02:1 при норме 4.5
+- Контраст текстовых токенов сторожит `styles/contrast.test.ts`: читает настоящий
+  `index.css`, разворачивает `var()`-алиасы и считает WCAG по всем парам
+  «текст × поверхность». Пятого уровня серого выше порога AA в палитре нет —
+  иерархия ниже `--text-dim` выражается размером и положением, не контрастом
+- Дубли примитивов сводить через `composes` (класс-источник объявлен ВЫШЕ).
+  Заглавные начертания ERP — ОДНО групповое правило в начале `erp.module.css`
+  (`.labelCaps` + заголовки), каждый класс уточняет только осознанную разницу.
+  `composes` там не годится — он не работает на селекторе потомка (`.table th`).
+  Сторожит `erp/styles.test.ts`
+- **Uppercase Order Studio не трогать**: это его документированный язык, и из 155
+  объявлений большинство — его кнопки. «Единый класс на весь проект» сменил бы вид
+  половине интерфейса, а не убрал дубль
+- Кнопки ERP — только примитив `Button`/`ButtonLink`. Глобальный `btn btn-*` —
+  язык Order Studio
+- Иконки ERP: `Icon` + набор в `icons.js`. Эмодзи вместо иконок не использовать;
+  иконка участка — `deptIcon(code)`, значение это ИМЯ иконки, не глиф
+- **Шрифты — только токенами и только загруженные.** `Space Grotesk`
+  и `Roboto Condensed` жили в CSS, но отсутствовали в `index.html`: браузер молча
+  падал на следующий, правила существовали, эффекта не давали. Сторожит
+  `styles/fonts.test.ts`. Сейчас: Barlow Condensed (заголовки) / Inter (текст) /
+  Roboto Mono (числа)
+- Брейкпоинты: 480 / 768 / 1024, совпадают с `COMPACT_LAYOUT_QUERY`. Если сетка
+  может подстроиться сама (`auto-fit` + `minmax`), порог не переносят, а убирают
+- Ниже 760px сайдбар — выезжающий оверлей; в свёрнутом виде счётчик заданий
+  остаётся точкой поверх иконки и дублируется в `title`
+- Высоты оболочки — `100dvh`, не `100vh`: адресная строка планшета съедает низ
+- Список в `@media (pointer: coarse)` — часть правила ≥44px, а не довесок. Добавили
+  интерактивный класс — впишите его туда же, иначе на планшете он останется мелким.
+  Инлайновый `minHeight`/`font` на элементе с классом всегда бьёт медиазапрос:
+  компактные размеры — только классами (`.inputXs`, `.chipBtn`)
+- Слои: `--z-drawer` < `--z-modal` < `--z-lightbox`. Один z-index на все
+  полноэкранные элементы означает, что порядок наложения держится на порядке
+  монтирования
+- Dark mode: `html[data-theme="dark"]` с полным набором override-токенов, toggle
+  в Header, persist в localStorage
+- Анимации: fadeSlideIn, slideInRight, scaleIn, skeleton shimmer
+- Витрина дизайн-системы — `/styleguide` за флагом `styleguide`. Тест проверяет
+  вычислимое, витрина — различимы ли элементы рядом друг с другом
 
 ## Тесты
+
 ```bash
-npm run test      # 1788 unit тестов (Vitest)
+npm run test      # Vitest unit
 npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
-npm run e2e       # E2E (Playwright, 11 файлов, 96 сценариев desktop + 13 mobile).
-                  # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
-                  # вместо временного конфига проще разложить ожидаемые пути
-                  # из имеющихся бинарников:
-                  #   mkdir -p /opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64
-                  #   ln -s .../chromium_headless_shell-1194/chrome-linux/headless_shell \
-                  #         .../chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
-                  #   ln -s .../chromium-1194/chrome-linux .../chromium-1208/chrome-linux
-                  # Тогда работает штатная команда, без своего конфига
 npm run lint      # 0 ошибок обязательно
 npm run build     # успешный билд обязательно
+npm run e2e       # Playwright
 ```
 
-**Без `.env` e2e падает ВЕСЬ, и падает молча белым экраном.** `lib/supabase.ts`
-бросает «Missing Supabase credentials» на уровне модуля — до React, поэтому
-ErrorBoundary не срабатывает, а Playwright видит пустой `<div id="root">`
-и сообщает «element(s) not found» про каждый локатор. Мок Supabase от этого
-не спасает: он перехватывает сеть, а падает импорт. `.env` в гите нет
-(`.gitignore`), значения — `VITE_SUPABASE_URL` и публичный
-`VITE_SUPABASE_ANON_KEY`, шаблон в `.env.example`. Увидели 13 падений подряд
-с пустой страницей — сначала проверьте `.env`, а не спеки.
+Типы стора Order Studio собираются из `ReturnType` слайсов — типизированы
+ДЕЙСТВИЯ, поля данных остались свободными: полная типизация состояния визарда —
+отдельная работа.
 
-## Design System
-- Токены: src/index.css (:root) — --type-*, --space-*, --z-*, --radius-*, --color-*
-- Dark mode: html[data-theme="dark"] с полным набором override-токенов
-- Шрифты: Barlow Condensed (заголовки) / Inter (текст) / Roboto Mono (числа)
-- Кнопки: в ERP — примитив `erp/components/Button` (variant/size/icon/loading);
-  глобальные .btn + variants остаются языком Order Studio
-- Иконки ERP: `erp/components/Icon` + набор в icons.js. Эмодзи вместо иконок не использовать;
-  иконка участка — `deptIcon(code)`, значение это ИМЯ иконки, не глиф
-- Высоты примитивов заданы явно + свой @media (pointer: coarse) в их CSS-модуле
-  (общий список классов ≥44px — в erp.module.css)
-- Анимации: fadeSlideIn, slideInRight, scaleIn, skeleton shimmer
+**Не трогать без тестов** (чистая логика, на ней держатся расчёты):
+`utils/pricing.ts` · `store/slices/` · `erp/utils/` progress, filterStages,
+queueOrder, stageMove, permissions · `erp/utils/tz.ts` · `erp/utils/queueEntries.js`.
+
+- Тест, который рендерит экран напрямую (минуя `lazyScreen`), обязан сам позвать
+  `attachDomainSlices()`. В общий `setupTests` это не выносится: моки Supabase
+  объявлены в файлах тестов, и слайсы, поднятые раньше, захватят другой инстанс
+  клиента — действия будут работать, но мимо шпионов
+- Тесты дат идут в поясе заказчика (`process.env.TZ = 'Europe/Moscow'` в unit,
+  `test.use({ timezoneId })` в e2e): в UTC-контейнере сдвиг равен нулю и проходит
+  ЛЮБАЯ реализация
+- jsdom не умеет canvas: графики (`react-chartjs-2`) в тестах мокаются, иначе
+  каждый прогон печатает «HTMLCanvasElement's getContext() is not implemented»
+
+### e2e
+
+- ERP-сценарии — `e2e/erp-*.spec.ts` (проект `desktop`), мобильная разметка —
+  `e2e/erp-mobile.spec.ts` (проект `mobile`, 375px). Спеки разведены через
+  `testIgnore` у обоих проектов: гонять desktop-разметку на 375px и наоборот
+  бессмысленно — там другой интерфейс, а не тот же в меньшем масштабе
+- **Перекрывающиеся `page.route` разрешаются ПОРЯДКОМ РЕГИСТРАЦИИ, и выигрывает
+  ПОСЛЕДНИЙ.** В `e2e/support/mockSupabase.ts` частный `**/rest/v1/rpc/**` стоял
+  перед общим `**/rest/v1/**` — и не срабатывал ни разу: `erp_bootstrap` отвечал
+  `[]`, как таблица с именем `rpc/erp_bootstrap`, а приложение молча уходило
+  на запасной путь `loadAll`. Весь e2e шёл не по тому пути, по которому ходит
+  прод. Чинится не перестановкой (порядок забудут), а ОТСУТСТВИЕМ перекрытия:
+  один обработчик, ветка по пути запроса
+- Спека, которой нужны свои данные, передаёт их вторым аргументом
+  `installSupabaseMock(page, { orders, experimental, dictionaries })`. Дописывать
+  в общие фикстуры нельзя: базовые заказы держат visual-эталоны и счётчики
+- **Без `.env` e2e падает ВЕСЬ, и падает молча белым экраном.** `lib/supabase.ts`
+  бросает «Missing Supabase credentials» на уровне модуля — до React, поэтому
+  ErrorBoundary не срабатывает, а Playwright видит пустой `<div id="root">`
+  и сообщает «element(s) not found» про каждый локатор. Мок Supabase от этого
+  не спасает: он перехватывает сеть, а падает импорт. Шаблон — `.env.example`.
+  Увидели падения подряд с пустой страницей — сначала проверьте `.env`, а не спеки
+- Если `@playwright/test` ждёт сборку браузера новее предустановленной, проще
+  разложить ожидаемые пути симлинками на имеющиеся бинарники, чем держать свой
+  конфиг
+
+## Наблюдаемость
+
+Отчёты об ошибках — `lib/errorReport`: адрес приёмника из `.env`, пусто =
+выключено. Всё в try/catch, дубли гасятся, потолок на сессию: отчёт об ошибке,
+роняющий приложение второй раз или забивающий сеть из цикла рендера, — худший
+вид наблюдаемости.
