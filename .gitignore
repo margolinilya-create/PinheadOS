@@ -2,18 +2,19 @@ dist
 node_modules
 .env
 .env.*
+!pinhead-react/.env.example
 .playwright-mcp/
-skills-lock.json
 *.png
 !pinhead-react/e2e/**/*.png
 !pinhead-react/public/icon-*.png
 .DS_Store
 test-results/
 
-# Ruflo / claude-flow runtime & data (не версионируется)
+# Runtime-данные хуков (не версионируется).
+# .agents/skills и skills-lock.json — НАОБОРОТ в репозитории: туда
+# `npx skills add` кладёт внешние скилы, и на них из .claude/skills симлинки.
 .claude-flow/
 .swarm/
-.agents/
 .claude/helpers/*.db
 .hive-mind/
 memory.db
