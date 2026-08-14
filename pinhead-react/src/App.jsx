@@ -1,5 +1,4 @@
 import React, { useEffect, Suspense } from 'react'
-import { useLocation } from 'react-router-dom'
 import './styles/index.css'
 import styles from './App.module.css'
 import { useShallow } from 'zustand/react/shallow'
@@ -72,7 +71,22 @@ function App() {
     profileStatus: s.profileStatus,
     checkingProfile: s.checkingProfile,
   })));
-  const { pathname } = useLocation();
+
+  /**
+   * Путь читается НАПРЯМУЮ, а не через `useLocation()`.
+   *
+   * `useLocation()` подписывает App на каждый переход — и этого достаточно,
+   * чтобы сломать выбор оболочки. `FEATURES.orderStudio` — геттер, читающий
+   * `?studio=` из адреса; внутренние ссылки параметр не несут. Пока App
+   * не перерисовывался на переходах, режим вычислялся один раз за загрузку;
+   * с подпиской первый же переход внутри производства открывал Order Studio.
+   * Поймали e2e: 8 сценариев навигации, очереди, плана и вкладок.
+   *
+   * Подписка приглашению и не нужна: на `/join` приходят по ссылке извне,
+   * то есть новой загрузкой страницы, а внутри приложения на этот адрес
+   * не переходят ниоткуда.
+   */
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
 
   useEffect(() => {
     init();
