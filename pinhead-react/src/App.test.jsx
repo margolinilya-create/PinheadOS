@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/useAuthStore';
@@ -34,6 +34,7 @@ vi.mock('./lib/supabase', () => ({
       in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       upsert: vi.fn().mockResolvedValue({}),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
@@ -108,11 +109,13 @@ beforeEach(() => {
     profileStatus: 'no_profile',
     loading: false,
     error: null,
+    checkingProfile: false,
     init: vi.fn(),
     login: vi.fn(),
     register: vi.fn(),
     logout: vi.fn(),
     clearError: vi.fn(),
+    refreshProfile: vi.fn(),
     isAdmin: () => false,
     isROP: () => false,
     isProduction: () => false,
@@ -144,6 +147,26 @@ describe('App', () => {
     });
     renderApp();
     await waitFor(() => expect(screen.getByText(/Ожидание подтверждения/)).toBeInTheDocument());
+  });
+
+  /**
+   * Админ одобряет доступ в своей вкладке, а эта об этом не узнаёт: подписки
+   * на собственный профиль нет. Без кнопки человек стоял на стене уже одобренным
+   * и должен был сам додуматься до F5.
+   */
+  it('стена ожидания даёт перечитать профиль без перезагрузки страницы', async () => {
+    const refreshProfile = vi.fn();
+    useAuthStore.setState({
+      user: { id: '1', role: 'manager', email: 'test@test.com', approved: false },
+      profileStatus: 'pending_approval',
+      refreshProfile,
+    });
+    renderApp();
+    await waitFor(() => expect(screen.getByText(/Ожидание подтверждения/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
+
+    expect(refreshProfile).toHaveBeenCalled();
   });
 
   /**

@@ -6,15 +6,16 @@ vi.mock('../lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
-      signUp: vi.fn().mockResolvedValue({ data: { user: { id: 'new-id' } }, error: null }),
+      signInWithPassword: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      signUp: vi.fn().mockResolvedValue({ data: { user: { id: 'new-id' }, session: null }, error: null }),
       signOut: vi.fn().mockResolvedValue({}),
+      resend: vi.fn().mockResolvedValue({ error: null }),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null }),
       upsert: vi.fn().mockResolvedValue({}),
     })),
   },
@@ -29,6 +30,167 @@ beforeEach(() => {
   useAuthStore.setState({
     user: null, profileStatus: 'no_profile', loading: false, error: null,
     previewRole: null, signingOut: false,
+    awaitingEmailConfirm: null, resendingConfirm: false, checkingProfile: false,
+  });
+});
+
+/**
+ * Регистрация при включённом подтверждении адреса.
+ *
+ * `signUp` не создаёт сессию, пока человек не откроет ссылку из письма. Прежний
+ * код клал `user` в стор при любом исходе — App рисовал стену «аккаунт ещё
+ * не подтверждён администратором», хотя администратор мог одобрить доступ сразу
+ * (в базе `approved=true`), а не хватало подтверждения ПОЧТЫ. Сессии при этом
+ * нет: перечитать профиль нечем, F5 уносит на форму входа, вход отвечает
+ * `email_not_confirmed`. Так застряли две учётные записи, обе одобренные.
+ */
+describe('useAuthStore — регистрация и подтверждение адреса', () => {
+  it('без сессии не подделывает пользователя, а просит подтвердить почту', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'new-id' }, session: null }, error: null,
+    });
+
+    const outcome = await useAuthStore.getState().register('Марина', 'm@pinhead.ru', 'secret123');
+
+    expect(outcome).toBe('confirm_email');
+    expect(useAuthStore.getState().awaitingEmailConfirm).toBe('m@pinhead.ru');
+    // Именно это и рисовало ложную стену «ждите администратора»
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().loading).toBe(false);
+  });
+
+  it('имя уходит в метаданные — профиль заводит серверный триггер', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'new-id' }, session: null }, error: null,
+    });
+
+    await useAuthStore.getState().register('Марина', 'm@pinhead.ru', 'secret123');
+
+    expect(supabase.auth.signUp).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'm@pinhead.ru',
+      options: expect.objectContaining({ data: { name: 'Марина' } }),
+    }));
+  });
+
+  it('с сессией (подтверждение выключено) читает профиль из базы', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'u9' }, session: { user: { id: 'u9', email: 'm@pinhead.ru' } } },
+      error: null,
+    });
+    supabase.from.mockReturnValueOnce({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { name: 'Марина', role: 'manager', approved: false, active: true }, error: null,
+      }),
+    });
+
+    const outcome = await useAuthStore.getState().register('Марина', 'm@pinhead.ru', 'secret123');
+
+    expect(outcome).toBe('pending_approval');
+    expect(useAuthStore.getState().profileStatus).toBe('pending_approval');
+    expect(useAuthStore.getState().user?.name).toBe('Марина');
+  });
+
+  it('signUp БРОСАЕТ (нет сети) — кнопка не остаётся в «Регистрация...»', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signUp.mockRejectedValueOnce(new TypeError('Load failed'));
+
+    const outcome = await useAuthStore.getState().register('Марина', 'm@pinhead.ru', 'secret123');
+
+    expect(outcome).toBe('failed');
+    expect(useAuthStore.getState().loading).toBe(false);
+    expect(useAuthStore.getState().error).toMatch(/нет связи с сервером/);
+  });
+
+  it('вход в неподтверждённый аккаунт ведёт на экран письма, а не в красную строку', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { session: null }, error: { code: 'email_not_confirmed', message: 'Email not confirmed' },
+    });
+
+    const ok = await useAuthStore.getState().login('m@pinhead.ru', 'secret123');
+
+    expect(ok).toBe(false);
+    expect(useAuthStore.getState().awaitingEmailConfirm).toBe('m@pinhead.ru');
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('неверный пароль остаётся обычной ошибкой формы', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { session: null }, error: { message: 'Invalid login credentials' },
+    });
+
+    await useAuthStore.getState().login('m@pinhead.ru', 'wrong');
+
+    expect(useAuthStore.getState().awaitingEmailConfirm).toBeNull();
+    expect(useAuthStore.getState().error).toBe('Неверный email или пароль');
+  });
+
+  it('повторная отправка письма шлёт запрос на сохранённый адрес', async () => {
+    const { supabase } = await import('../lib/supabase');
+    useAuthStore.setState({ awaitingEmailConfirm: 'm@pinhead.ru' });
+
+    const ok = await useAuthStore.getState().resendConfirmation();
+
+    expect(ok).toBe(true);
+    expect(supabase.auth.resend).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'signup', email: 'm@pinhead.ru' }),
+    );
+    expect(useAuthStore.getState().resendingConfirm).toBe(false);
+  });
+});
+
+/**
+ * Одобрение админом происходит в другой вкладке, и подписки на собственный
+ * профиль нет: без ручной перепроверки человек стоит на стене уже одобренным.
+ */
+describe('useAuthStore — refreshProfile', () => {
+  it('перечитывает профиль и снимает стену после одобрения', async () => {
+    const { supabase } = await import('../lib/supabase');
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'm@pinhead.ru', name: 'Марина', role: 'manager', approved: false, active: true },
+      profileStatus: 'pending_approval',
+    });
+    supabase.from.mockReturnValueOnce({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { name: 'Марина', role: 'manager', approved: true, active: true }, error: null,
+      }),
+    });
+
+    await useAuthStore.getState().refreshProfile();
+
+    expect(useAuthStore.getState().profileStatus).toBe('active');
+    expect(useAuthStore.getState().checkingProfile).toBe(false);
+  });
+
+  /**
+   * Сбой запроса — не «профиля нет». Прежний `fetchProfile` смотрел только
+   * на `data`, и обрыв связи выкидывал человека с живой сессией на форму входа.
+   */
+  it('сбой запроса не выкидывает на форму входа', async () => {
+    const { supabase } = await import('../lib/supabase');
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'm@pinhead.ru', name: 'Марина', role: 'manager', approved: false, active: true },
+      profileStatus: 'pending_approval',
+    });
+    supabase.from.mockReturnValueOnce({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockRejectedValue(new TypeError('Load failed')),
+    });
+
+    await useAuthStore.getState().refreshProfile();
+
+    expect(useAuthStore.getState().user?.id).toBe('u1');
+    expect(useAuthStore.getState().profileStatus).toBe('pending_approval');
+    expect(useAuthStore.getState().checkingProfile).toBe(false);
   });
 });
 
@@ -61,7 +223,7 @@ describe('useAuthStore — init и сессия', () => {
     supabase.from.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
+      maybeSingle: vi.fn().mockResolvedValue({
         data: { name: 'Настоящий', role: 'manager', approved: true, active: true },
       }),
     });
@@ -299,7 +461,7 @@ describe('useAuthStore — profileStatus', () => {
     supabase.from.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
+      maybeSingle: vi.fn().mockResolvedValue({
         data: { name: 'Test', role: 'manager', approved: true, active: false },
       }),
     });
@@ -313,7 +475,7 @@ describe('useAuthStore — profileStatus', () => {
     supabase.from.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
+      maybeSingle: vi.fn().mockResolvedValue({
         data: { name: 'Test', role: 'manager', approved: false, active: true },
       }),
     });
@@ -326,7 +488,7 @@ describe('useAuthStore — profileStatus', () => {
     supabase.from.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
+      maybeSingle: vi.fn().mockResolvedValue({
         data: { name: 'Test', role: 'admin', approved: true, active: true },
       }),
     });
@@ -339,7 +501,7 @@ describe('useAuthStore — profileStatus', () => {
     supabase.from.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null }),
     });
     await useAuthStore.getState().fetchProfile('uid-4', 'test@test.com');
     expect(useAuthStore.getState().profileStatus).toBe('no_profile');

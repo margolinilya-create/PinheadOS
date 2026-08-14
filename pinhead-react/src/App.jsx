@@ -32,12 +32,38 @@ function GlobalHosts() {
   );
 }
 
+/**
+ * Стена: доступа нет, работать нельзя, объяснение и выход.
+ *
+ * Разметка была в двух экземплярах, а стилей у неё не было НИ ОДНОГО — классы
+ * `pending-*` не объявлены ни в одном css-файле проекта (остались от прежнего
+ * html-прототипа). Человек упирался в нестилизованный текст с нативной серой
+ * кнопкой и читал это как поломку сайта, а не как сообщение.
+ */
+function AccessWall({ icon, title, children, email, actions }) {
+  return (
+    <div id="pendingScreen" className="show">
+      <div className="pending-box">
+        <div className="pending-icon">{icon}</div>
+        <div className="pending-title">{title}</div>
+        <p className="pending-desc">{children}</p>
+        <p className="pending-email">{email}</p>
+        <div className="pending-actions">
+          {actions}
+          <button className="pending-logout" onClick={() => useAuthStore.getState().logout()}>Выйти</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  const { user, authLoading, init, profileStatus } = useAuthStore(useShallow(s => ({
+  const { user, authLoading, init, profileStatus, checkingProfile } = useAuthStore(useShallow(s => ({
     user: s.user,
     authLoading: s.loading,
     init: s.init,
     profileStatus: s.profileStatus,
+    checkingProfile: s.checkingProfile,
   })));
 
   useEffect(() => {
@@ -68,17 +94,9 @@ function App() {
   if (profileStatus === 'disabled') {
     return (
       <>
-        <div id="pendingScreen" className="show">
-          <div className="pending-box">
-            <div className="pending-icon">🔒</div>
-            <div className="pending-title">Доступ отключён</div>
-            <p className="pending-desc">
-              Ваш аккаунт отключён администратором. Если это ошибка — обратитесь к руководителю.
-            </p>
-            <p className="pending-email">{user.email}</p>
-            <button className="pending-logout" onClick={() => useAuthStore.getState().logout()}>Выйти</button>
-          </div>
-        </div>
+        <AccessWall icon="🔒" title="Доступ отключён" email={user.email}>
+          Ваш аккаунт отключён администратором. Если это ошибка — обратитесь к руководителю.
+        </AccessWall>
         <GlobalHosts />
       </>
     );
@@ -87,15 +105,28 @@ function App() {
   if (user.approved === false) {
     return (
       <>
-        <div id="pendingScreen" className="show">
-          <div className="pending-box">
-            <div className="pending-icon">⏳</div>
-            <div className="pending-title">Ожидание подтверждения</div>
-            <p className="pending-desc">Ваш аккаунт ещё не подтверждён администратором.</p>
-            <p className="pending-email">{user.email}</p>
-            <button className="pending-logout" onClick={() => useAuthStore.getState().logout()}>Выйти</button>
-          </div>
-        </div>
+        <AccessWall
+          icon="⏳"
+          title="Ожидание подтверждения"
+          email={user.email}
+          /**
+           * «Проверить снова» вместо F5: админ одобряет доступ в своей вкладке,
+           * а эта об этом не узнаёт — подписки на собственный профиль нет.
+           * Человек сидел на стене уже одобренным и ждал того, что сделано.
+           */
+          actions={(
+            <button
+              className="pending-recheck"
+              onClick={() => useAuthStore.getState().refreshProfile()}
+              disabled={checkingProfile}
+            >
+              {checkingProfile ? 'Проверяем...' : 'Проверить снова'}
+            </button>
+          )}
+        >
+          Ваш аккаунт ещё не подтверждён администратором. Как только доступ откроют,
+          нажмите «Проверить снова».
+        </AccessWall>
         <GlobalHosts />
       </>
     );
