@@ -1,4 +1,5 @@
 import React, { useEffect, Suspense } from 'react'
+import { useLocation } from 'react-router-dom'
 import './styles/index.css'
 import styles from './App.module.css'
 import { useShallow } from 'zustand/react/shallow'
@@ -8,11 +9,17 @@ import AuthScreen from './components/auth/AuthScreen'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import { FEATURES } from './config/features'
+import { JOIN_PATH } from './erp/utils/invite'
 
 // Order Studio (визард/цены) — заархивирован за feature-flag, грузится только при включении.
 const OrderStudioApp = React.lazy(() => import('./orderstudio/OrderStudioApp'))
 // Внутреннее ERP — новый корень приложения.
 const ErpApp = React.lazy(() => import('./erp/ErpApp'))
+/**
+ * Приглашение по ссылке. Ленивый: экран открывают один раз в жизни сотрудника,
+ * а тянет он словарь ролей ERP — во входном чанке ему делать нечего.
+ */
+const JoinScreen = React.lazy(() => import('./components/auth/JoinScreen'))
 
 function LoadingScreen() {
   return (
@@ -65,6 +72,7 @@ function App() {
     profileStatus: s.profileStatus,
     checkingProfile: s.checkingProfile,
   })));
+  const { pathname } = useLocation();
 
   useEffect(() => {
     init();
@@ -75,6 +83,22 @@ function App() {
   }
 
   if (!user) {
+    /**
+     * Пришли по приглашению — форма входа не нужна: у человека ещё нет ни
+     * пароля, ни учётной записи, а есть ссылка, в которой уже записаны его
+     * роль и цех. Отдельного маршрута не заводим: до входа приложение
+     * не показывает ни одного экрана, кроме этих двух.
+     */
+    if (pathname === JOIN_PATH) {
+      return (
+        <>
+          <Suspense fallback={<LoadingScreen />}>
+            <JoinScreen />
+          </Suspense>
+          <GlobalHosts />
+        </>
+      );
+    }
     return (
       <>
         <AuthScreen />

@@ -104,6 +104,67 @@ describe('роли согласованы между собой', () => {
 });
 
 /**
+ * Новичок заводится БЕЗ ПРАВ.
+ *
+ * До 14.08 `handle_new_user` создавал только профиль с `role = 'manager'`.
+ * Строки в `erp_employees` не было, поэтому `erp_role_of_caller()` уходил
+ * в запасной путь «роль профиля → цеховая роль» и отдавал `manager` — пять
+ * прав, включая правку любого заказа и перенос этапов между цехами. И всё это
+ * по ВСЕЙ фабрике: ограничение по цеху на человека без цеха не действует
+ * (`canActInDept` там fail-open, и это осознанно — цеха нет у менеджера
+ * и снабжения). Одна галочка «Подтвердить» в админке выдавала весь набор.
+ *
+ * Сторож держит обе половины правила: роль без прав существует И её ставит
+ * триггер регистрации. Половина правила молча бесполезна — роль, которую никто
+ * не назначает, не защищает никого.
+ */
+describe('регистрация не выдаёт прав вместе с одобрением', () => {
+  const NEW_EMPLOYEE_ROLE = 'pending';
+
+  it('у роли новичка нет ни одного права по умолчанию', () => {
+    expect(DEFAULT_PERMISSIONS[NEW_EMPLOYEE_ROLE]).toEqual([]);
+  });
+
+  it('матрица в базе тоже не даёт ей прав', () => {
+    /**
+     * Ищем ПО САМОЙ СТРОКЕ seed'а, а не по «где-то рядом есть слово pending»:
+     * первая версия этой проверки цеплялась за любую миграцию, где после
+     * `insert into erp_role_permissions` встречается 'pending', и уже на
+     * следующей миграции стала читать не тот файл.
+     */
+    const seed = latestMatching(
+      new RegExp(`select '${NEW_EMPLOYEE_ROLE}', [\\w.]+, false`),
+      `seed матрицы для роли ${NEW_EMPLOYEE_ROLE}`,
+    );
+    expect(seed).toContain('erp_role_permissions');
+  });
+
+  it('триггер регистрации ставит именно её', () => {
+    const trigger = latestDefining('handle_new_user');
+    expect(trigger).toContain('insert into public.erp_employees');
+    expect(trigger).toContain(`'${NEW_EMPLOYEE_ROLE}'`);
+  });
+
+  /**
+   * Индекс `erp_employees_profile_uniq` частичный (`where profile_id is not null`),
+   * а Postgres выводит целевой индекс из списка колонок ON CONFLICT: без предиката
+   * он не находит его и падает с 42P10 ещё при планировании — то есть регистрация
+   * перестала бы работать вовсе, а не «иногда».
+   */
+  it('вставка сотрудника указывает предикат частичного индекса', () => {
+    expect(latestDefining('handle_new_user')).toContain(
+      'on conflict (profile_id) where profile_id is not null',
+    );
+  });
+
+  it('колонка роли новичка в матрице админки не редактируется', () => {
+    const matrix = readFileSync(join(SRC, 'erp/screens/admin/PermissionsTab.jsx'), 'utf8');
+    // Одна галочка здесь раздала бы право всем неназначенным разом
+    expect(matrix).toMatch(new RegExp(`LOCKED_ROLES[\\s\\S]*?${NEW_EMPLOYEE_ROLE}:`));
+  });
+});
+
+/**
  * Решения заказчика 10.08 по матрице — закреплены поимённо.
  *
  * Прежний сторож назывался «дефолты не выдают прав, которых не даёт seed», но

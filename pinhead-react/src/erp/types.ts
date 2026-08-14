@@ -912,7 +912,19 @@ export type EmployeeRole =
    * собой — различает их привязка `erp_employees.department_id`. Заведены отдельно,
    * потому что заказчик перечислил их как самостоятельные роли команды.
    */
-  | 'dtf' | 'silkscreen' | 'embroidery';
+  | 'dtf' | 'silkscreen' | 'embroidery'
+  /**
+   * Заведён, должность не назначена — ЕДИНСТВЕННАЯ роль без единого права
+   * (кроме `hr`, но та означает должность, а не состояние).
+   *
+   * С неё начинается каждая самостоятельная регистрация: её ставит триггер
+   * `handle_new_user`. Без строки сотрудника `erp_role_of_caller()` выводит
+   * роль из профиля и делает новичка менеджером — и «Подтвердить» в админке
+   * выдавало заодно правку любого заказа, ТЗ и перенос этапов между цехами,
+   * причём по всей фабрике: ограничение по цеху на человека без цеха
+   * не действует (`canActInDept` там fail-open).
+   */
+  | 'pending';
 
 export interface ErpEmployee {
   id: string;
@@ -925,6 +937,33 @@ export interface ErpEmployee {
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Приглашение по ссылке (`erp_invites`) — основной путь появления сотрудника.
+ *
+ * Код несёт РОЛЬ и ЦЕХ: человек, перешедший по ссылке, заводится сразу
+ * одобренным и с правами, а админ делает ровно одно действие. Проверяет
+ * и гасит код серверный триггер регистрации — клиент код только показывает.
+ */
+export interface ErpInvite {
+  /** Секрет ссылки. uuid перебору недоступен, отдельного пароля у ссылки нет */
+  code: string;
+  /** Роль профиля Order Studio */
+  profile_role: string;
+  /** Цеховая роль ERP — вход в матрицу прав */
+  employee_role: EmployeeRole;
+  department_id: string | null;
+  /** Привязка к адресу; null — ссылкой воспользуется любой, кому её дали */
+  email: string | null;
+  note: string | null;
+  expires_at: string;
+  used_at: string | null;
+  used_by: string | null;
+  /** Отзыв, а не удаление: журнал «кто, кого и куда звал» остаётся */
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface ErpStageEvent {
@@ -974,6 +1013,8 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   dtf: 'ДТФ',
   silkscreen: 'Шелкография',
   embroidery: 'Вышивка',
+  /** Подпись называет СОСТОЯНИЕ, а не должность: это и есть смысл роли */
+  pending: 'Без доступа — должность не назначена',
 };
 
 // --- Матрица прав (ядро правки 11) ------------------------------------------
@@ -1005,13 +1046,21 @@ export type ErpPermission =
    * продукцию принятой (а это открывает упаковку) и отгрузить её.
    * `material.receive` для этого не годился: маркировка и упаковка — не приёмка.
    */
-  | 'warehouse.manage';
+  | 'warehouse.manage'
+  /**
+   * Приглашать сотрудников ссылкой — то есть заводить человека сразу с ролью
+   * и цехом. Действие раздаёт права, поэтому гейтится ПРАВОМ, а не ролью
+   * учётной записи: роль-исключение означала бы расхождение с сервером
+   * (`isPrivileged` это admin + director + РОП, а `is_admin()` — только admin),
+   * а на таком расхождении в проекте уже ловились.
+   */
+  | 'staff.invite';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
   'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
   'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
-  'bypass.manage', 'experimental.manage',
+  'bypass.manage', 'experimental.manage', 'staff.invite',
 ];
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
@@ -1031,6 +1080,7 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'catalog.edit': 'Править справочники',
   'experimental.manage': 'Вести экспериментальный цех',
   'bypass.manage': 'Аварийно снимать блокировки',
+  'staff.invite': 'Приглашать сотрудников ссылкой',
 };
 
 // --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------

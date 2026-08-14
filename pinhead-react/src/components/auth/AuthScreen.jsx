@@ -44,7 +44,7 @@ export default function AuthScreen() {
     const outcome = await register(name, email, password);
     // 'confirm_email' — экран подтверждения адреса поднимает стор (он же нужен
     // и при входе в неподтверждённый аккаунт), 'failed' — причина уже в `error`.
-    if (outcome === 'pending_approval') setTab('pending');
+    if (outcome === 'signed_in') setTab('pending');
   };
 
   /**

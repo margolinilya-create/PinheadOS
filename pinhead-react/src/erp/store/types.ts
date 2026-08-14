@@ -16,6 +16,7 @@ import type {
   BypassKind,
   ErpDictionaryItem,
   ErpEmployee,
+  ErpInvite,
   ErpPermission,
   ErpItemPrint,
   ErpItemStage,
@@ -564,6 +565,31 @@ export interface EmployeesSlice {
   updateDepartment: (id: string, patch: Partial<ErpDepartment>) => Promise<boolean>;
 }
 
+/**
+ * Приглашения по ссылке (`erp_invites`) — заведение сотрудника одним действием.
+ * Гасит код серверный триггер регистрации, поэтому здесь только выдача,
+ * список и отзыв.
+ */
+export interface InvitesSlice {
+  invites: ErpInvite[];
+  invitesLoaded: boolean;
+  loadInvites: () => Promise<void>;
+  /**
+   * Возвращает созданную строку — админке нужен её `code`, чтобы собрать
+   * ссылку и дать её скопировать.
+   */
+  createInvite: (draft: {
+    profile_role: string;
+    employee_role: EmployeeRole;
+    department_id: string | null;
+    email: string | null;
+    note: string | null;
+    expiresInHours: number;
+  }) => Promise<ErpInvite | null>;
+  /** Отзыв — `revoked_at`, не DELETE: журнал остаётся */
+  revokeInvite: (code: string) => Promise<boolean>;
+}
+
 /** Права: матрица «роль × право» из erp_role_permissions (правка 11) */
 export interface PermissionsSlice {
   /** null — матрица ещё не загружена (действуют DEFAULT_PERMISSIONS) */
@@ -808,6 +834,7 @@ export type ErpStore = BootstrapSlice &
   ProcurementSlice &
   SubcontractingSlice &
   EmployeesSlice &
+  InvitesSlice &
   PermissionsSlice &
   DictionariesSlice &
   ExperimentalSlice &

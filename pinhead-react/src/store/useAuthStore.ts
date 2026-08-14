@@ -36,9 +36,12 @@ const DEV_USER: User = {
  *
  * `confirm_email` — сессии нет, в проекте включено подтверждение адреса:
  * пока не пройдена ссылка из письма, войти нельзя ничем.
- * `pending_approval` — сессия есть, дело за администратором.
+ * `signed_in` — сессия есть, дальше решает ПРОФИЛЬ: пришедший по приглашению
+ * попадает прямо в оболочку (он уже одобрен), пришедший сам — на стену
+ * ожидания. Исход не называется «ждите одобрения» именно поэтому: с приходом
+ * приглашений это перестало быть правдой для основного пути.
  */
-export type RegisterOutcome = 'confirm_email' | 'pending_approval' | 'failed';
+export type RegisterOutcome = 'confirm_email' | 'signed_in' | 'failed';
 
 /**
  * Куда вернуть человека по ссылке из письма — в то приложение, откуда он
@@ -79,7 +82,12 @@ interface AuthStore {
   /** Сессия кончилась не по воле человека: сбросить данные и объяснить, что делать */
   sessionLost: () => void;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<RegisterOutcome>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    options?: { inviteCode?: string },
+  ) => Promise<RegisterOutcome>;
   /** Выслать письмо с подтверждением адреса заново */
   resendConfirmation: () => Promise<boolean>;
   /** Уйти с экрана «подтвердите адрес» обратно на форму входа */
@@ -257,7 +265,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
    * `is_admin()`, а его ошибку молча игнорировали, поэтому у всех, кто
    * регистрировался сам, имя в базе равно адресу почты.
    */
-  register: async (name, email, password) => {
+  register: async (name, email, password, options) => {
     set({ error: null, loading: true, awaitingEmailConfirm: null });
 
     let result: Awaited<ReturnType<typeof supabase.auth.signUp>>;
@@ -265,7 +273,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       result = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name }, emailRedirectTo: appOrigin() },
+        options: {
+          /**
+           * Код приглашения уходит теми же метаданными, что и имя, и его читает
+           * тот же серверный триггер. Проверяется он ТОЛЬКО там: сюда его кладёт
+           * клиент, а значит подделать можно что угодно. Триггер гасит код
+           * атомарным `update … returning` — по сроку, отзыву и адресу.
+           */
+          data: options?.inviteCode ? { name, invite_code: options.inviteCode } : { name },
+          emailRedirectTo: appOrigin(),
+        },
       });
     } catch (e) {
       set({ error: `Не удалось зарегистрироваться: ${networkFailureMessage(e)}`, loading: false });
@@ -289,7 +306,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
 
     await get().fetchProfile(session.user.id, session.user.email ?? email);
-    return 'pending_approval';
+    return 'signed_in';
   },
 
   /**

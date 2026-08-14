@@ -77,7 +77,7 @@ describe('AuthScreen', () => {
   });
 
   it('shows pending screen after successful registration', async () => {
-    const register = vi.fn().mockResolvedValue('pending_approval');
+    const register = vi.fn().mockResolvedValue('signed_in');
     useAuthStore.setState({ register });
     render(<AuthScreen />);
     fireEvent.click(screen.getByText('Регистрация'));

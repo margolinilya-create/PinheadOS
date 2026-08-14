@@ -13,6 +13,8 @@ import { EMPLOYEE_ROLE_LABELS } from '../types';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
+import { useErpAccess } from '../store/useErpAccess';
+import { InviteModal } from './admin/InviteModal';
 
 /**
  * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
@@ -48,8 +50,10 @@ export default function EmployeesScreen({ embedded = false }) {
     })),
   );
   const me = useAuthStore((s) => s.user);
+  const access = useErpAccess();
   const [showInactive, setShowInactive] = useState(false);
   const [newName, setNewName] = useState('');
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -119,6 +123,8 @@ export default function EmployeesScreen({ embedded = false }) {
 
   return (
     <>
+      {inviting && <InviteModal onClose={() => setInviting(false)} />}
+
       {!embedded && (
         <PageHead
           title="Сотрудники"
@@ -139,6 +145,13 @@ export default function EmployeesScreen({ embedded = false }) {
         <span className={styles.subText}>
           {profileRows.length} с логином · {looseEmployees.length} без логина
         </span>
+        {/* Приглашение раздаёт права, поэтому гейтится правом матрицы,
+            а не ролью учётной записи — сервер проверяет ровно это же */}
+        {access.can('staff.invite') && (
+          <Button variant="primary" icon="plus" onClick={() => setInviting(true)}>
+            Пригласить
+          </Button>
+        )}
       </div>
 
       {employeesLoaded && profileRows.length === 0 && looseEmployees.length === 0 && (

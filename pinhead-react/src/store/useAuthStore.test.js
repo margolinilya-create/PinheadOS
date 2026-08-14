@@ -90,7 +90,7 @@ describe('useAuthStore — регистрация и подтверждение 
 
     const outcome = await useAuthStore.getState().register('Марина', 'm@pinhead.ru', 'secret123');
 
-    expect(outcome).toBe('pending_approval');
+    expect(outcome).toBe('signed_in');
     expect(useAuthStore.getState().profileStatus).toBe('pending_approval');
     expect(useAuthStore.getState().user?.name).toBe('Марина');
   });
