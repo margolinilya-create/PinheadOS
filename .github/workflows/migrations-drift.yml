@@ -1,0 +1,52 @@
+# Сверка «что применено на базе» с «что лежит в репозитории».
+#
+# ЗАЧЕМ. 15.08.2026 на проде нашлись миграции от 13.08, файлов которых не было
+# ни в одной ветке git: страж этапов, политики справочников и волна правок прав.
+# Ловится это только сравнением с базой — ни один тест, ни сборка, ни ревью
+# такого не видят. А цена высокая: сторожевые тесты проекта читают МИГРАЦИИ,
+# то есть при расхождении сверяют код с текстом, которого база не исполняет,
+# и восстановление схемы из репозитория откатывает прод назад.
+#
+# ПОЧЕМУ НЕ В ОСНОВНОМ CI. Проверке нужен доступ к боевой базе, а он есть не
+# у каждого запуска (форки, PR без секретов). Гейт, который у половины запусков
+# падает по причине «нет ключа», превращается в шум — проект это уже проходил
+# с `npm audit --audit-level=high`. Поэтому отдельный workflow: по расписанию
+# и по кнопке.
+#
+# ТРЕБУЕТ СЕКРЕТА (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL — строка подключения к pinhead-os-v2
+#                     (Dashboard → Project Settings → Database → Connection string)
+# Без него job падает с понятным сообщением, а не молча зеленеет.
+
+name: Migrations drift
+
+on:
+  schedule:
+    # По понедельникам в 06:00 UTC (09:00 МСК) — до начала рабочей недели.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Проверить, что секрет задан
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Не задан секрет SUPABASE_DB_URL — сверить применённые миграции не с чем."
+            echo "Добавьте его в Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Сверить применённое с репозиторием
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run migrations:drift

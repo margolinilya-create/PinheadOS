@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "migrations:drift": "node scripts/migrations-drift.mjs"
+  },
   "devDependencies": {
     "agentation": "^2.3.3"
   }

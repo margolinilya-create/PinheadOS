@@ -1,0 +1,51 @@
+{
+  "_": "Снимок расхождений между применённым на боевой базе и файлами в репозитории. Сверяет scripts/migrations-drift.mjs (npm run migrations:drift). Каждое расхождение обязано иметь причину: строка без причины роняет проверку. Заведён 15.08.2026 после того, как на проде нашлись три миграции без файлов — см. docs/2026-08-15-erp-consilium.md, P0-1.",
+  "generatedAt": "2026-08-15",
+  "project": "pinhead-os-v2 (glhwbktsokphgksdvcxj)",
+  "appliedCount": 127,
+
+  "appliedWithoutFile": {
+    "copy_catalog_config_extras_from_shared": "Разовое копирование данных каталога из соседнего проекта. Схему не меняет — файла не положено.",
+    "copy_catalog_config_fabrics_from_shared": "То же: перенос данных, не схемы.",
+    "copy_catalog_config_labels_from_shared": "То же: перенос данных, не схемы.",
+    "copy_catalog_config_prices_from_shared": "То же: перенос данных, не схемы.",
+    "copy_catalog_config_trim_from_shared": "То же: перенос данных, не схемы.",
+    "copy_catalog_config_fabricsCatalog_from_shared": "То же: перенос данных, не схемы.",
+    "copy_app_config_extras_hardware_from_shared": "То же: перенос данных, не схемы.",
+    "copy_app_config_sku_catalog_from_shared": "То же: перенос данных, не схемы.",
+
+    "temp_anon_write_sku_photos": "Временная QA-политика на запись в бакет. Снята следующей же миграцией (drop_temp_anon_write_sku_photos). Правило проекта — временные политики убирать за собой, в репозиторий они не едут.",
+    "drop_temp_anon_write_sku_photos": "Снятие временной QA-политики выше. Пары в репозитории нет по той же причине.",
+
+    "erp_experimental_tasks_backfill": "Разовый бэкфилл данных под таблицу erp_experimental_tasks (схема — в 20260812120000_erp_experimental_tasks.sql).",
+
+    "erp_create_order_tz": "Промежуточная версия erp_create_order. Перекрыта более поздними определениями; действующее — из 20260812140000_erp_drop_legacy_experimental.sql. Значение имеет только ПОСЛЕДНЕЕ определение функции.",
+    "erp_stage_guard_skip_full_text": "Промежуточная версия erp_stage_guard. Перекрыта: действующее определение — 20260812200000_erp_stage_guard_ready.sql.",
+    "erp_review_fix_stage_guard_skip_order": "Применение файла 20260810300000_erp_stage_guard_skip_order.sql под другим именем. Перекрыто той же erp_stage_guard_ready.",
+    "erp_stage_guard_move_scope": "Применение файла 20260810340000_erp_security_review_fixes.sql (часть про метку erp.moving) под другим именем. Перекрыто erp_stage_guard_ready.",
+    "erp_review_fix_pack_ship_and_rollup": "Применение файла 20260810310000_erp_pack_ship_single_condition.sql под другим именем (erp_can_pack_ship + erp_warehouse_task_derive).",
+    "erp_review_fix_partial_fg_receipt": "Применение файла 20260810320000_erp_warehouse_journal_gate.sql под другим именем: erp_warehouse_submit_report с закрытием приёмки ГП по НАКОПЛЕННОЙ сумме журнала. Сверено по телу — накопительная ветка в файле есть.",
+    "erp_procurement_matches_screen_audience": "Применение файла 20260810350000_erp_screens_open_by_permission.sql под другим именем (политики erp_procurement_tasks и erp_material_suppliers).",
+    "erp_experimental_tasks_rpc": "Применение части файла 20260812120000_erp_experimental_tasks.sql под другим именем (функция erp_experimental_add_tasks).",
+    "erp_drop_legacy_experimental_part1": "Файл 20260812140000_erp_drop_legacy_experimental.sql применён двумя частями. Это первая (дроп erp_experimental_ops и колонок фазовой модели).",
+    "erp_create_order_without_tz_assignments": "Вторая часть того же файла: пересоздание erp_create_order без секции erp_tz_assignments.",
+
+    "erp_stage_events_actor_index": "Индекс erp_stage_events_actor_idx, применён отдельно; в репозитории он лежит внутри 20260803240000_erp_audit_by_trigger.sql.",
+    "erp_revoke_trigger_functions_rest": "Догоняющий отзыв EXECUTE у триггерных функций; в репозитории — 20260803250000_erp_revoke_trigger_functions.sql, финальный обход по prorettype='trigger' — 20260812160000_erp_revoke_trigger_functions_sweep.sql (он и есть действующее состояние).",
+    "erp_revoke_anon_predicates_fix": "Починка отзыва: снимать нужно у PUBLIC, а не только у anon. В репозитории — 20260803290000_erp_revoke_anon_predicates.sql.",
+
+    "erp_order_summary": "Представление erp_order_summary, заведено и в тот же день снято следующей миграцией. Чистого следа в схеме нет.",
+    "erp_order_summary_drop_unused": "Снятие представления выше: потребителя не нашлось. Итоговое состояние схемы = как будто ни того, ни другого не было."
+  },
+
+  "fileNotApplied": {
+    "20260101000000_baseline_order_studio.sql": "Базовая схема Order Studio: заведена до перехода на этот проект, в журнале миграций pinhead-os-v2 не значится.",
+    "20260101000100_order_templates.sql": "То же: досталась из истории Order Studio.",
+    "20260320_order_audit_log.sql": "То же: досталась из истории Order Studio.",
+    "20260410120000_soft_delete_profiles.sql": "Мягкое удаление профилей; на этом проекте применено в составе более поздней is_admin_respects_soft_delete.",
+    "20260810300000_erp_stage_guard_skip_order.sql": "Применено под именем erp_review_fix_stage_guard_skip_order.",
+    "20260810310000_erp_pack_ship_single_condition.sql": "Применено под именем erp_review_fix_pack_ship_and_rollup.",
+    "20260810350000_erp_screens_open_by_permission.sql": "Применено под именем erp_procurement_matches_screen_audience.",
+    "20260812140000_erp_drop_legacy_experimental.sql": "Применено двумя частями: erp_drop_legacy_experimental_part1 и erp_create_order_without_tz_assignments."
+  }
+}
