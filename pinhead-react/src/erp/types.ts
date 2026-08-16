@@ -539,8 +539,13 @@ export type SubcontractStatus =
 
 /** Тип операции подряда: готовое изделие целиком или отдельная тех. операция */
 export type SubcontractOpType = 'finished_product' | 'operation';
-/** Кто предоставляет материалы: Pinhead (проходит закупку) или подрядчик (не проходит) */
-export type SubcontractMaterialSource = 'pinhead' | 'contractor';
+/**
+ * Кто предоставляет материалы: Pinhead (проходит закупку), подрядчик
+ * (не проходит) или смешанно — документ прямо называет третий вариант
+ * («часть материалов наша, часть подрядчика»). `mixed` ведёт себя как
+ * `pinhead`: раз хоть что-то наше, закупка и передача материалов нужны.
+ */
+export type SubcontractMaterialSource = 'pinhead' | 'contractor' | 'mixed';
 
 export interface ErpSubcontractOp {
   id: string;
@@ -577,6 +582,14 @@ export interface ErpSubcontractOp {
   updated_at: string;
   /** Присоединяется при загрузке (заголовок/№ заказа для таблицы) */
   order?: { title: string; bitrix_id: string | null } | null;
+  /**
+   * Журнал перемещений, присоединяется при загрузке. Именно он, а не правка
+   * количеств руками, двигает `qty_sent`/`qty_returned`/`qty_accepted`:
+   * их ведёт триггер `erp_subcontract_moves_rollup`, а приёмка вдобавок
+   * приращает `qty_done` привязанного этапа — тем же серверным правилом,
+   * что и все остальные счётчики производства.
+   */
+  moves?: ErpSubcontractMove[];
 }
 
 // --- Экспериментальный цех (правка 6) --------------------------------------
@@ -872,7 +885,7 @@ export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
  * тем, из-за чего подряд жил отдельной жизнью.
  */
 export type SubcontractPhase =
-  | 'planned' | 'materials_ready' | 'sent' | 'at_contractor'
+  | 'planned' | 'materials_ready' | 'sent' | 'at_contractor' | 'ready_at_contractor'
   | 'returned' | 'accepted' | 'closed';
 
 export const SUBCONTRACT_PHASE_LABELS: Record<SubcontractPhase, string> = {
@@ -880,6 +893,13 @@ export const SUBCONTRACT_PHASE_LABELS: Record<SubcontractPhase, string> = {
   materials_ready: 'Материалы собраны',
   sent: 'Передано подрядчику',
   at_contractor: 'У подрядчика',
+  /**
+   * Восьмое состояние документа. Отличается от «У подрядчика» тем, КОМУ адресован
+   * вопрос: там работа идёт и ждать нужно подрядчика, здесь она сделана и ждут
+   * НАС — забрать. Без этой фазы забытая у подрядчика готовая партия неотличима
+   * от той, что ещё шьётся.
+   */
+  ready_at_contractor: 'Готово у подрядчика',
   returned: 'Вернулось',
   accepted: 'Принято складом',
   closed: 'Закрыто',
@@ -927,6 +947,7 @@ export const SUBCONTRACT_OP_TYPE_LABELS: Record<SubcontractOpType, string> = {
 export const SUBCONTRACT_MATERIAL_SOURCE_LABELS: Record<SubcontractMaterialSource, string> = {
   pinhead: 'Материалы Pinhead',
   contractor: 'Материалы подрядчика',
+  mixed: 'Материалы смешанно',
 };
 
 

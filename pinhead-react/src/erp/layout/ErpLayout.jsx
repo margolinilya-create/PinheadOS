@@ -11,9 +11,9 @@ import {
   overdueUnackCountFor,
   openWarehouseTaskCount,
   openProcurementCount,
-  openSubcontractCount,
   activeExperimentalCount,
 } from '../store/useErpStore';
+import { ordersWithOutsourcing } from '../utils/outsourcing';
 import { setFeature } from '../../config/features';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
@@ -27,12 +27,11 @@ export default function ErpLayout({ user, children }) {
   const navigate = useNavigate();
   const search = useErpSearch((s) => s.query);
   const setSearch = useErpSearch((s) => s.setQuery);
-  const { orders, departments, myDeptId, subcontracting, experimental, bypasses } = useErpStore(
+  const { orders, departments, myDeptId, experimental, bypasses } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       myDeptId: s.myDeptId,
-      subcontracting: s.subcontracting,
       experimental: s.experimental,
       bypasses: s.bypasses,
     })),
@@ -97,10 +96,15 @@ export default function ErpLayout({ user, children }) {
       // Заказы, ждущие закупки, + дозакупки. Без справочника цехов первое
       // не посчитать: участок берётся из данных, а не из константы
       '/purchasing': openProcurementCount(orders, departments),
-      '/subcontracting': openSubcontractCount(subcontracting ?? []),
+      /**
+       * Считаем по ЗАКАЗАМ из ядра, а не по лениво загружаемому реестру подряда:
+       * пока бейдж стоял на `subcontracting`, он показывал 0 до тех пор, пока
+       * раздел не открыли, — то есть молчал ровно тогда, когда был нужен.
+       */
+      '/subcontracting': ordersWithOutsourcing(orders).length,
       '/experimental': activeExperimentalCount(experimental ?? []),
     }),
-    [orders, departments, myCode, subcontracting, experimental, bypasses],
+    [orders, departments, myCode, experimental, bypasses],
   );
 
   /**

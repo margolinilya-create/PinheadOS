@@ -71,8 +71,20 @@ async function applySubcontractTransition(get: () => ErpStore, op: ErpSubcontrac
     await get().loadOne(op.order_id);
     return;
   }
-  // Отдельная операция возвращена подрядчиком → дальнейший маршрут (правка 4.2.3)
-  if (op.op_type === 'operation' && phase === 'returned') {
+  /**
+   * Возврат отдельной операции у строки БЕЗ маршрута (правка 4.2.3).
+   *
+   * У подряда, заведённого конструктором маршрута, ветки нет и быть не должно:
+   * следующий этап УЖЕ в маршруте и зависит от подрядного через `depends_on`,
+   * а закрывает подрядный этап приёмка в журнале перемещений. Это и есть
+   * ответ на «вернулось от подрядчика ≠ заказ готов» — без единой строчки
+   * специальной логики.
+   *
+   * Ветка осталась ровно для строк, заведённых до перехода (`stage_id is null`):
+   * маршрута у них нет, и убрать её сейчас значило бы оставить такой заказ
+   * стоять после возврата. Уйдёт вместе с блоком совместимости на экране.
+   */
+  if (op.op_type === 'operation' && phase === 'returned' && !op.stage_id) {
     if (op.return_dept) {
       // доработка внутри Pinhead → готовый к работе этап на выбранном участке
       const dept = get().departments.find((d) => d.code === op.return_dept);
@@ -82,25 +94,42 @@ async function applySubcontractTransition(get: () => ErpStore, op: ErpSubcontrac
         toast.error('Не удалось направить заказ на следующий участок');
         return;
       }
-      const { error } = await erpQuery(() => supabase
+      /**
+       * ЯВНАЯ ПРОВЕРКА ВМЕСТО `upsert(onConflict)` — и это не стилистика.
+       * Уникальность этапа стала ЧАСТИЧНОЙ (`where executor = 'internal'`):
+       * документ требует нескольких подрядных этапов на одну позицию, а полный
+       * индекс `(item_id, department_id, cycle)` разрешал ровно один. PostgREST
+       * же шлёт голый `ON CONFLICT (col, col)`, и частичный индекс по нему
+       * Postgres не выводит — прежний вызов отвечал бы 42P10 на КАЖДОМ возврате
+       * подряда. Спецификация проверяется при планировании запроса, до поиска
+       * конфликта, поэтому «дубля же не будет» здесь не спасает.
+       *
+       * Гонки бояться нечего: путь legacy-только, его проходит один человек
+       * одним нажатием, а смысл прежнего `ignoreDuplicates` («вставить, если
+       * нет») проверка воспроизводит буквально.
+       */
+      const { data: existing, error: findErr } = await erpQuery(() => supabase
         .from('erp_item_stages')
-        .upsert(
-          {
-            item_id: itemId, department_id: dept.id, cycle: 0,
-            status: 'ready', sort_order: 900, depends_on: [],
-          },
-          /**
-           * `cycle` в ключе конфликта обязателен с волны 3: уникальность этапа
-           * стала `(item_id, department_id, cycle)`, и прежний двухколоночный
-           * `onConflict` не нашёл бы индекса — PostgREST ответил бы 42P10
-           * на КАЖДОМ возврате подряда. Возврат всегда идёт в основной проход,
-           * поэтому `cycle: 0` здесь не «пока так», а точное значение.
-           */
-          { onConflict: 'item_id,department_id,cycle', ignoreDuplicates: true },
-        ));
-      if (error) {
+        .select('id')
+        .eq('item_id', itemId)
+        .eq('department_id', dept.id)
+        .eq('cycle', 0)
+        .limit(1));
+      if (findErr) {
         toast.error(`Не удалось создать этап: ${dept.name}`);
         return;
+      }
+      if ((existing ?? []).length === 0) {
+        const { error } = await erpQuery(() => supabase
+          .from('erp_item_stages')
+          .insert({
+            item_id: itemId, department_id: dept.id, cycle: 0,
+            status: 'ready', sort_order: 900, depends_on: [],
+          }));
+        if (error) {
+          toast.error(`Не удалось создать этап: ${dept.name}`);
+          return;
+        }
       }
     } else {
       // доработка не нужна → упаковка/отгрузка (приёмка склада = шаг awaiting_receipt→accepted)
@@ -117,7 +146,13 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   loadSubcontracting: async () => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_subcontracting')
-      .select('*, order:erp_orders (title, bitrix_id)')
+      /**
+       * Журнал перемещений едет ВМЕСТЕ с карточкой. Отдельным запросом на строку
+       * это было бы N+1 на экране, где строк столько же, сколько подрядных
+       * этапов; отдельным запросом на весь экран — вторая точка загрузки,
+       * которую придётся не забыть обновить после каждой записи.
+       */
+      .select('*, order:erp_orders (title, bitrix_id), moves:erp_subcontract_moves (*)')
       .order('created_at', { ascending: false }));
     if (error) {
       toast.error('Не удалось загрузить операции подряда');

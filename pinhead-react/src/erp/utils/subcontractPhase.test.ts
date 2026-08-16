@@ -78,14 +78,27 @@ describe('перевод в обе стороны', () => {
    * было два, у `operation` схлопывались `materials_ready` и `accepted`:
    * поведение зеркала зависело от того, чем занят подрядчик.
    */
-  it.each(PHASES.filter((p) => p !== 'closed'))('%s переживает круговой прогон', (phase) => {
+  const COLLAPSED: SubcontractPhase[] = ['closed', 'ready_at_contractor'];
+  it.each(PHASES.filter((p) => !COLLAPSED.includes(p)))('%s переживает круговой прогон', (phase) => {
     expect(phaseFromLegacyStatus(legacyStatusFromPhase(phase))).toBe(phase);
   });
 
   it('closed схлопывается в accepted и это осознанно', () => {
-    // В перечислении `status` значения `closed` нет вовсе — единственное
-    // допустимое схлопывание, и ни одно старое чтение его не различает.
+    // В перечислении `status` значения `closed` нет вовсе — ни одно старое
+    // чтение его не различает.
     expect(phaseFromLegacyStatus(legacyStatusFromPhase('closed'))).toBe('accepted');
+  });
+
+  /**
+   * Второе схлопывание — восьмая фаза документа, заведённая правкой 16.08.
+   * `ready_to_ship` в бэкфилле уже занят под `at_contractor`, и перевесить его
+   * нельзя: тот маппинг сторожит проверка выше, читающая саму миграцию, а
+   * перевес поменял бы чтение существующих строк. Потеря ровно там, где старая
+   * колонка и не умела различать «работа идёт» и «работа сделана, заберите».
+   */
+  it('ready_at_contractor схлопывается в at_contractor и это вынужденно', () => {
+    expect(legacyStatusFromPhase('ready_at_contractor')).toBe('ready_to_ship');
+    expect(phaseFromLegacyStatus('ready_to_ship')).toBe('at_contractor');
   });
 
   it('оплата больше не появляется в производственном потоке', () => {
