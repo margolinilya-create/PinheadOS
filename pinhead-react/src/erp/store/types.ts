@@ -467,6 +467,33 @@ export interface StagesSlice {
     targetDepartmentId: string,
     opts?: { comment?: string | null },
   ) => Promise<boolean>;
+  /**
+   * Сохранение маршрута позиции ОДНОЙ транзакцией (`erp_route_apply`).
+   *
+   * Что именно сохранять, решил клиент — `utils/routeDraft.linearize`; сюда
+   * приезжает уже плоский список с `depends_on` ИНДЕКСАМИ массива (у нового
+   * этапа идентификатора ещё нет). Сервер отвечает за атомарность: правка
+   * маршрута трогает несколько строк, и `Promise.all` из отдельных запросов
+   * означал бы откат интерфейса поверх уже закоммиченного.
+   */
+  applyItemRoute: (
+    orderId: string,
+    itemId: string,
+    steps: RouteStepWrite[],
+  ) => Promise<boolean>;
+}
+
+/** Шаг маршрута в payload `erp_route_apply` */
+export interface RouteStepWrite {
+  /** null — этапа ещё нет в базе */
+  stage_id: string | null;
+  department_id: string;
+  sort_order: number;
+  executor: 'internal' | 'contractor';
+  contractor: string | null;
+  operation: string | null;
+  /** ИНДЕКСЫ предшественников в этом же массиве, не идентификаторы */
+  depends_on: number[];
 }
 
 /** Материалы: добавление/правка, подтверждение склада, авто-закрытие закупки */

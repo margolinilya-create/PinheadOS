@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { isStageReady, waitingReason, isStageAwaitingProcurement, materialsForItem } from '../../utils/routes';
 import { stageMissingTz } from '../../utils/tz';
 import { deptShortName } from '../../data/departments';
@@ -13,9 +14,22 @@ import { StageStepper } from './StageStepper';
 import { PlanCell } from './PlanCell';
 import { fmtTs } from './format';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { RouteEditor } from '../../components/RouteEditor';
+import { isOutsourced } from '../../utils/outsourcing';
+import { Button } from '../../components/Button';
 
 /** Блок одной позиции заказа: лента этапов, размерная сетка, нанесения, таблица этапов */
 export function OrderItemSection({ item, order, deptById, deptNameById, events, onSavePlan }) {
+  /**
+   * Конструктор монтируется ТОЛЬКО открытым и размонтируется при закрытии.
+   *
+   * Это не экономия рендера: черновик — состояние компонента, посеянное
+   * из `item.stages`. Оставь его смонтированным — после сохранения он продолжит
+   * показывать прежний черновик поверх перечитанного заказа, и следующая правка
+   * ушла бы на сервер от устаревшего состава этапов.
+   */
+  const [editingRoute, setEditingRoute] = useState(false);
+
   return (
     <section className={styles.matSection}>
       <div className={styles.matSectionHead}>
@@ -112,7 +126,18 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
                 : null;
               return (
                 <tr key={st.id}>
-                  <td><strong>{dept ? deptShortName(dept.code, dept.name) : '?'}</strong></td>
+                  <td>
+                    <strong>{dept ? deptShortName(dept.code, dept.name) : '?'}</strong>
+                    {/* Подрядный этап подписывается ОПЕРАЦИЕЙ и подрядчиком: цех
+                        у него означает «чей это участок ответственности», а человек
+                        читает строку, чтобы понять, кто и что сейчас делает */}
+                    {isOutsourced(st) && (
+                      <div className={styles.subText}>
+                        подряд{st.operation ? ` · ${st.operation}` : ''}
+                        {st.contractor ? ` · ${st.contractor}` : ''}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <span className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[display]]}`}>
                       {STAGE_STATUS_LABELS[display]}
@@ -139,6 +164,25 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
           </tbody>
         </table>
       </ScrollHintBox>
+
+      <div className={styles.routeEditorFoot}>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={editingRoute ? 'chevronUp' : 'route'}
+          onClick={() => setEditingRoute((v) => !v)}
+          aria-expanded={editingRoute}
+        >
+          {editingRoute ? 'Свернуть маршрут' : 'Изменить маршрут'}
+        </Button>
+      </div>
+      {editingRoute && (
+        <RouteEditor
+          item={item}
+          orderId={order.id}
+          onDone={() => setEditingRoute(false)}
+        />
+      )}
     </section>
   );
 }
