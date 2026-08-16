@@ -1673,7 +1673,7 @@ describe('ленивый архив (п.26)', () => {
   it('архивный заказ, открытый по ссылке, не пропадает при заходе в архив', async () => {
     h.tableData = { erp_departments: [dept], erp_orders: [activeRow] };
     await useErpStore.getState().loadAll();
-    // Пришли по ссылке `?order=o-z` — заказ в сторе, карточка открыта
+    // Пришли по прямой ссылке `/orders/o-z` — заказ дозагружен в стор
     h.singleData = archivedRow;
     await useErpStore.getState().loadOne('o-z');
     expect(useErpStore.getState().orders.map((o) => o.id)).toContain('o-z');
