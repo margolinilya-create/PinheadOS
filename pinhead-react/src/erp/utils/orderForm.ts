@@ -9,6 +9,7 @@
 import { storageGet, storageRemove, storageSet } from '../../lib/storage';
 import { factoryToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
+import type { RouteGroup } from './routeDraft';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
 
@@ -87,6 +88,19 @@ export interface DraftItem {
   return_dept?: string;
   prints: DraftPrint[];
   size_grid: DraftGrid | null;
+  /**
+   * Правка маршрута человеком (правки заказчика 16.08, блок 2).
+   *
+   * `undefined` — «маршрут не трогали, считать автоматически». Именно отсутствие,
+   * а не пустой массив: пустой означал бы «маршрута нет вовсе», и заказ уехал бы
+   * без единого этапа. Заказчик решил, что автоматический расчёт остаётся
+   * предложением по умолчанию, а не заменяется ручной сборкой.
+   *
+   * Тип структурный (`RouteGroup[]` из `utils/routeDraft`), но в форме он живёт
+   * как обычный JSON: черновик пишется через `JSON.stringify`, и ничего, кроме
+   * строк, чисел и булевых, здесь быть не должно.
+   */
+  route?: RouteGroup[];
 }
 
 /**

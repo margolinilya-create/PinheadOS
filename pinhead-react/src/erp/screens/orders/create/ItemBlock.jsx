@@ -13,6 +13,8 @@ import {
 } from '../../../types';
 import styles from '../../../erp.module.css';
 import { Button } from '../../../components/Button';
+import { RouteFields, RouteIssues } from '../../../components/RouteFields';
+import { routeIssues } from '../../../utils/routeDraft';
 
 /**
  * Одна позиция заказа в форме создания: изделие, вариант, тираж (или размерная
@@ -23,7 +25,7 @@ import { Button } from '../../../components/Button';
  * валидация и черновик остались в одном месте — в самой модалке.
  */
 export function ItemBlock({
-  it, i, itemsCount, err, inputCls, queueDepts,
+  it, i, itemsCount, err, inputCls, queueDepts, route,
   setItem, setBranding, setPrint, removeItem, removePrint,
 }) {
   const gTotal = gridTotal(it.size_grid);
@@ -341,6 +343,7 @@ export function ItemBlock({
 
         <TechBlock it={it} i={i} setItem={setItem} />
         <PackagingBlock it={it} i={i} setItem={setItem} />
+        <RouteBlock it={it} i={i} setItem={setItem} route={route} />
         </div>
   );
 }
@@ -456,6 +459,51 @@ function PackagingBlock({ it, i, setItem }) {
           placeholder="пакет 40×60, стикер на лицевую сторону снизу справа"
         />
       </label>
+    </details>
+  );
+}
+
+/**
+ * Маршрут позиции в форме создания (правки заказчика 16.08, блок 2).
+ *
+ * Заказчик решил прямо: автоматический расчёт ОСТАЁТСЯ и предлагает маршрут,
+ * а человек его правит. Поэтому блок свёрнут по умолчанию и подписан тем,
+ * что получится, если его не открывать, — «рассчитан автоматически».
+ *
+ * `it.route === undefined` и есть «не трогали». Отличать это от пустого массива
+ * обязательно: пустой означал бы «маршрута нет вовсе», и заказ уехал бы без
+ * единого этапа — то есть невидимым для всех цехов сразу.
+ *
+ * Разметка — общий `RouteFields`, тот же, что в карточке заказа. Две реализации
+ * одного решения («какие этапы, в каком порядке, чьими руками») разошлись бы
+ * в первую же правку, и обе при этом продолжали бы «работать».
+ */
+function RouteBlock({ it, i, setItem, route }) {
+  const edited = Boolean(it.route);
+  const issues = routeIssues(route);
+
+  return (
+    <details className={styles.gridDetails}>
+      <summary className={styles.subText}>
+        Маршрут производства — {edited ? 'правлен вручную' : 'рассчитан автоматически'},
+        {' '}шагов: {route.length}
+      </summary>
+      <div className={styles.routeEditor}>
+        <RouteFields draft={route} onChange={(next) => setItem(i, { route: next })} />
+        <RouteIssues issues={issues} />
+        {edited && (
+          <div className={styles.routeEditorFoot}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="undo"
+              onClick={() => setItem(i, { route: undefined })}
+            >
+              Вернуть расчётный маршрут
+            </Button>
+          </div>
+        )}
+      </div>
     </details>
   );
 }

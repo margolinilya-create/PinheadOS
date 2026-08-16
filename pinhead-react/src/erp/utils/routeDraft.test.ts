@@ -4,6 +4,7 @@ import {
   draftFromRoute,
   draftFromStages,
   emptyStep,
+  formItemRoute,
   insertGroup,
   isStepLocked,
   linearize,
@@ -255,5 +256,76 @@ describe('patchStep', () => {
     const next = patchStep(draft, 0, 1, { executor: 'contractor', contractor: 'ИП' });
     expect(next[0][0].executor).toBe('internal');
     expect(next[0][1].contractor).toBe('ИП');
+  });
+});
+
+/**
+ * `formItemRoute` — единственное место, где решается «правка человека или расчёт»
+ * И собираются аргументы расчёта. Читателей трое: превью ТЗ в форме, сам
+ * конструктор и сборка payload в `createOrder`. Разойдись они — заказ создастся
+ * не по тому маршруту, по которому считался гейт ТЗ, причём обе стороны будут
+ * «работать».
+ */
+describe('formItemRoute', () => {
+  it('без правки отдаёт расчётный маршрут', () => {
+    const it = { production_type: 'sewing', branding_on: 'cut', has_branding: false };
+    expect(formItemRoute(it)).toEqual(draftFromRoute(buildItemRoute({
+      productionType: 'sewing', brandingMethods: [], brandingOn: 'cut', materialSource: null,
+    })));
+  });
+
+  it('правка человека побеждает расчёт', () => {
+    const route = [[{ ...emptyStep('sewing'), executor: 'contractor' as const, contractor: 'ИП' }]];
+    expect(formItemRoute({ production_type: 'sewing', route })).toBe(route);
+  });
+
+  /**
+   * Пустой массив — это не «маршрута нет», а состояние, из которого человек
+   * не вышел. Принять его буквально значило бы создать заказ без единого этапа,
+   * то есть невидимый для всех цехов сразу.
+   */
+  it('пустая правка читается как «не трогали»', () => {
+    expect(formItemRoute({ production_type: 'sewing', route: [] }).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Техники приходят в ДВУХ видах: в форме это блоки нанесений под флагом
+   * `has_branding`, в payload заказа — готовый `branding_methods`. Понимать
+   * надо оба, иначе по разные стороны одного сабмита получится разный маршрут:
+   * в форме с печатью, в сторе без неё — и заказ уедет мимо участков нанесения.
+   */
+  it('техники нанесения читаются и из формы, и из payload одинаково', () => {
+    const fromForm = formItemRoute({
+      production_type: 'sewing', branding_on: 'cut', has_branding: true,
+      prints: [{ method: 'dtf' }, { method: 'dtf' }, { method: 'embroidery' }],
+    });
+    const fromPayload = formItemRoute({
+      production_type: 'sewing', branding_on: 'cut',
+      branding_methods: ['dtf', 'embroidery'],
+    });
+    expect(fromForm).toEqual(fromPayload);
+    expect(fromForm.flat().map((s) => s.departmentCode)).toContain('dtf');
+  });
+
+  it('снятый флаг брендирования выбрасывает нанесения из маршрута', () => {
+    const codes = formItemRoute({
+      production_type: 'sewing', branding_on: 'cut', has_branding: false,
+      prints: [{ method: 'dtf' }],
+    }).flat().map((s) => s.departmentCode);
+    expect(codes).not.toContain('dtf');
+  });
+
+  /**
+   * `materialSource` подставляется ТОЛЬКО при подряде — иначе он вырезал бы
+   * из маршрута закупку у обычного заказа. Именно такое расхождение между двумя
+   * сборками аргументов и было бы самым тихим.
+   */
+  it('источник материалов учитывается только у подряда', () => {
+    const sewing = formItemRoute({ production_type: 'sewing', material_source: 'contractor' })
+      .flat().map((s) => s.departmentCode);
+    const outsource = formItemRoute({ production_type: 'outsource', material_source: 'contractor' })
+      .flat().map((s) => s.departmentCode);
+    expect(sewing).toContain('supply');
+    expect(outsource).not.toContain('supply');
   });
 });

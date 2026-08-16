@@ -30,7 +30,8 @@ import type { SubcontractPhase, SubcontractStatus } from '../types';
  * а последствия перехода (см. applySubcontractTransition).
  */
 export const SUBCONTRACT_PHASE_FLOW: SubcontractPhase[] = [
-  'planned', 'materials_ready', 'sent', 'at_contractor', 'returned', 'accepted', 'closed',
+  'planned', 'materials_ready', 'sent', 'at_contractor', 'ready_at_contractor',
+  'returned', 'accepted', 'closed',
 ];
 
 /**
@@ -86,9 +87,15 @@ export function phaseFromLegacyStatus(status: string | null | undefined): Subcon
  * поведение зеркала зависит от того, чем именно занят подрядчик. Проверено
  * тестом: круговой прогон держится для шести фаз из семи.
  *
- * Единственное схлопывание: в перечислении `status` нет значения `closed`,
- * поэтому закрытая операция зеркалится как принятая. Осознанно — зеркало
- * существует для старых чтений, а «закрыто» ни одно из них не различает.
+ * СХЛОПЫВАНИЙ РОВНО ДВА, и оба вынуждены перечислением `status`:
+ *   · `closed` — значения `closed` в нём нет вовсе, закрытая операция
+ *     зеркалится как принятая; ни одно старое чтение их не различает;
+ *   · `ready_at_contractor` — восьмая фаза документа, заведённая правкой 16.08.
+ *     Ближайшее по смыслу `ready_to_ship` в бэкфилле миграции уже занято
+ *     под `at_contractor`, и перевесить его нельзя: тот маппинг сторожит тест,
+ *     читающий саму миграцию, а перевес поменял бы чтение уже существующих
+ *     строк. Поэтому обратный ход даёт `at_contractor` — потеря ровно в том
+ *     месте, где старая колонка и не умела различать эти два состояния.
  */
 export function legacyStatusFromPhase(phase: SubcontractPhase): SubcontractStatus {
   switch (phase) {
@@ -96,6 +103,7 @@ export function legacyStatusFromPhase(phase: SubcontractPhase): SubcontractStatu
     case 'materials_ready': return 'awaiting_materials';
     case 'sent': return 'sent';
     case 'at_contractor': return 'in_progress';
+    case 'ready_at_contractor': return 'ready_to_ship';
     case 'returned': return 'returned';
     case 'accepted': return 'received_at_pinhead';
     case 'closed': return 'received_at_pinhead';

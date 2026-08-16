@@ -2927,3 +2927,49 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   padding-bottom: 2px;
 }
 .groupHead + .groupHead { border-left: 1px solid var(--border-light); padding-left: 10px; }
+
+/* ─── Конструктор маршрута позиции (правки заказчика 16.08, блок 2) ─── */
+.routeEditor { display: flex; flex-direction: column; gap: 10px; }
+.routeSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.routeStep {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.routeStepHead { display: flex; align-items: center; gap: 8px; }
+/* Номер шага — единственное, что связывает строку конструктора с текстом
+   ошибки под ним («Шаг 2: у подрядного этапа не указан подрядчик») */
+.routeStepNo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.routeStepRow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.routeStepRow .select { min-width: 130px; }
+.routeStepRow .input { flex: 1 1 160px; min-width: 120px; }
+.routeStepFoot { display: flex; gap: 6px; flex-wrap: wrap; }
+.routeIssues {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-error-ink);
+  font-size: 13px;
+}
+.routeEditorFoot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

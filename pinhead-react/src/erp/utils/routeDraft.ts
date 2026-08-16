@@ -1,4 +1,5 @@
-import type { ErpItemStage } from '../types';
+import type { BrandingMethod, BrandingOn, ErpItemStage, ProductionType } from '../types';
+import { buildItemRoute } from './routes';
 import type { RouteStage } from './routes';
 
 /**
@@ -82,6 +83,66 @@ export function draftFromRoute(route: readonly RouteStage[]): RouteGroup[] {
   return [...byOrder.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([, group]) => group);
+}
+
+/**
+ * Позиция формы создания — ровно те поля, из которых считается маршрут.
+ *
+ * Техники нанесения принимаются В ДВУХ ВИДАХ намеренно: в самой форме это
+ * блоки «Нанесение №N» под флагом `has_branding`, а в payload заказа —
+ * готовый список `branding_methods`. Одна функция обязана понимать оба,
+ * иначе она вернёт разный маршрут по разные стороны одного сабмита: в форме
+ * с нанесениями, в сторе без них — и заказ уедет мимо участков печати.
+ */
+export interface FormItemLike {
+  production_type?: string;
+  branding_on?: string;
+  material_source?: string;
+  has_branding?: boolean;
+  prints?: { method?: string }[];
+  branding_methods?: string[];
+  route?: RouteGroup[];
+}
+
+/** Техники нанесения позиции, из какого бы вида она ни пришла */
+function methodsOf(it: FormItemLike): BrandingMethod[] {
+  const raw = it.branding_methods
+    ?? (it.has_branding ? (it.prints ?? []).map((p) => p.method) : []);
+  return raw
+    .filter((m): m is string => Boolean(m))
+    .filter((m, i, all) => all.indexOf(m) === i) as BrandingMethod[];
+}
+
+/**
+ * Маршрут позиции ФОРМЫ СОЗДАНИЯ: правка человека, если она есть, иначе расчёт.
+ *
+ * ЦЕЛИКОМ, ВКЛЮЧАЯ СБОРКУ АРГУМЕНТОВ РАСЧЁТА, и это главное. Читателей уже
+ * трое — превью ТЗ в форме, сам конструктор и сборка payload в `createOrder`, —
+ * и разойтись они могут не только правилом «правка или расчёт», но и тем, что
+ * подставлено в `buildItemRoute`. Второе тише: `materialSource`, взятый на одной
+ * стороне без проверки типа производства, вырезает из маршрута закупку — заказ
+ * создаётся не по тому маршруту, по которому считался гейт ТЗ, и обе стороны
+ * при этом «работают».
+ *
+ * Пустой массив трактуется как «не трогали»: маршрут без единого этапа —
+ * это не решение человека, а состояние, из которого он не вышел.
+ */
+export function formItemRoute(it: FormItemLike): RouteGroup[] {
+  if (it.route && it.route.length > 0) return it.route;
+  return draftFromRoute(buildItemRoute({
+    /**
+     * Приведение типов, а не проверка: в форме эти поля — свободные строки
+     * (их выбирают плитками и списками, но хранятся они как есть), а
+     * `buildItemRoute` объявлен на перечислениях. Значение вне перечисления
+     * маршрут не роняет — `buildRoute` разбирает его `switch`-ем с ветками
+     * по умолчанию, — поэтому санитайзер здесь был бы вторым местом, где
+     * решают, что считать допустимым типом производства.
+     */
+    productionType: it.production_type as ProductionType,
+    brandingMethods: methodsOf(it),
+    brandingOn: (it.branding_on ?? 'cut') as BrandingOn,
+    materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+  }));
 }
 
 interface StageLike extends Pick<

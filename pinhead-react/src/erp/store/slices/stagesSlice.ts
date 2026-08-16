@@ -642,6 +642,26 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return true;
   },
 
+  /**
+   * Правка маршрута позиции (конструктор, правки заказчика 16.08).
+   *
+   * Оптимистичного обновления здесь НЕТ намеренно: правка меняет состав этапов,
+   * их порядок и связи `depends_on` разом, и собрать это состояние на клиенте
+   * значило бы во второй раз реализовать то, что уже сделала функция — включая
+   * решение, какие выпавшие этапы она удалить ПОСТЕСНЯЛАСЬ (с фактом их
+   * не трогает ни она, ни RLS). Поэтому заказ перечитывается целиком.
+   */
+  applyItemRoute: async (orderId, itemId, steps) => {
+    const { error } = await erpQuery(() => withPending(`route:${itemId}`, () =>
+      supabase.rpc('erp_route_apply', { p_item_id: itemId, p_steps: steps })));
+    if (error) {
+      erpError('Маршрут не сохранён', error);
+      return false;
+    }
+    await get().loadOne(orderId);
+    return true;
+  },
+
   setStagePlan: async (stageId, plan) => {
     const prev = get().orders;
     set((s) => ({ orders: patchStageIn(s.orders, stageId, plan) }));

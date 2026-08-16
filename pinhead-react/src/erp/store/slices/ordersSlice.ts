@@ -7,7 +7,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { buildItemRoute } from '../../utils/routes';
+import { formItemRoute, linearize } from '../../utils/routeDraft';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { isBypassed } from '../../utils/bypass';
 import { daysLeft } from '../../utils/time';
@@ -351,17 +351,30 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       items: items.map((it, i) => {
         // Правка 4.2.2 (вырезание supply при материале подрядчика) — внутри buildItemRoute,
         // общего с превью маршрута в форме создания заказа.
-        const route = buildItemRoute({
-          productionType: it.production_type,
-          brandingMethods: it.branding_methods,
-          brandingOn: it.branding_on ?? 'cut',
-          materialSource: it.material_source,
-        });
-        const valid = route.filter((r) => deptByCode.has(r.departmentCode));
-        for (const r of route) {
-          if (!deptByCode.has(r.departmentCode)) droppedDepts.add(r.departmentCode);
+        /**
+         * Маршрут берётся из ЧЕРНОВИКА формы (`formItemRoute`), а не считается
+         * здесь заново: конструктор маршрута (правки заказчика 16.08) позволяет
+         * менеджеру править предложенный вариант, и второй расчёт означал бы,
+         * что заказ создаётся не по тому маршруту, который человек утвердил.
+         * Не тронутый маршрут `formItemRoute` отдаёт РОВНО расчётным —
+         * инвариант тождества сторожит `routeDraft.test.ts`.
+         */
+        const linear = linearize(formItemRoute(it));
+        for (const l of linear) {
+          if (!deptByCode.has(l.step.departmentCode)) droppedDepts.add(l.step.departmentCode);
         }
-        const codeToIdx = new Map(valid.map((r, idx) => [r.departmentCode, idx]));
+        /**
+         * Этап с неизвестным цехом выпадает, а зависимости пересчитываются
+         * по ОСТАВШИМСЯ: индексы в `depends_on` указывают на позиции в массиве,
+         * и отфильтровать элементы, не сдвинув ссылки, значит перепутать
+         * предшественников — молча и на каждом заказе.
+         */
+        const kept = linear.filter((l) => deptByCode.has(l.step.departmentCode));
+        const newIndex = new Map<number, number>();
+        linear.forEach((l, oldIdx) => {
+          const at = kept.indexOf(l);
+          if (at >= 0) newIndex.set(oldIdx, at);
+        });
         return {
           product_type: it.product_type,
           variant: it.variant || null,
@@ -394,11 +407,16 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
             pantone: p.pantone || null,
             comment: p.comment || null,
           })),
-          stages: valid.map((r) => ({
-            department_id: deptByCode.get(r.departmentCode)!.id,
-            sort_order: r.sortOrder,
-            depends_on: r.dependsOnCodes
-              .map((c) => codeToIdx.get(c))
+          stages: kept.map((l) => ({
+            department_id: deptByCode.get(l.step.departmentCode)!.id,
+            sort_order: l.sortOrder,
+            executor: l.step.executor,
+            contractor: l.step.executor === 'contractor'
+              ? (l.step.contractor.trim() || null)
+              : null,
+            operation: l.step.operation.trim() || null,
+            depends_on: l.dependsOn
+              .map((idx) => newIndex.get(idx))
               .filter((x): x is number => x !== undefined),
           })),
         };
