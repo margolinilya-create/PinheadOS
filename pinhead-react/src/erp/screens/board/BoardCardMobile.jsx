@@ -1,8 +1,7 @@
-import { Link } from 'react-router-dom';
 import { formatDateShort, daysLeft } from '../../utils/time';
 import { itemProgress } from '../../utils/progress';
 import { isOrderReadyToShip } from '../../utils/stageUi';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { dueLabelCompact } from '../../utils/format';
@@ -29,14 +28,13 @@ export function BoardCardMobile({ order, item, renderStage }) {
   return (
     <article className={styles.orderCardM} aria-label={`${order.title}: ${item.product_type}`}>
       <div className={styles.orderCardMHead}>
-        <Link
-          to={`/orders/${order.id}`}
-          onClick={(e) => orderLinkClick(order.id, e)}
+        <OrderLink
+          orderId={order.id}
           className={styles.orderCardMTitle}
           title={`№${order.bitrix_id || '—'} · ${order.title}`}
         >
           №{order.bitrix_id || '—'} · {order.title} ↗
-        </Link>
+        </OrderLink>
       </div>
 
       <div className={styles.subText} title={`${item.product_type}${item.variant ? ` · ${item.variant}` : ''}`}>

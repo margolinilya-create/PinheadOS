@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { useLocation } from 'react-router-dom';
+import { OrderLink } from '../../components/OrderLink';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { stageQtyProgress } from '../../utils/progress';
 import { STAGE_STATUS_LABELS } from '../../types';
@@ -103,15 +103,14 @@ export function QueueRow({
         </span>
 
         <span className={styles.queueRowTitle}>
-          <Link
-            to={`/orders/${order.id}`}
-            onClick={(e) => orderLinkClick(order.id, e)}
+          <OrderLink
+            orderId={order.id}
             className={styles.queueCardTitleLink}
             title={`№${order.bitrix_id || '—'} · ${order.title}`}
             draggable={false}
           >
             №{order.bitrix_id || '—'} · {order.title}
-          </Link>
+          </OrderLink>
           <span
             className={styles.subText}
             title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}

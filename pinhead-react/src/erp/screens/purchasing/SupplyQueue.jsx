@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { useStagePermissions } from '../../store/useStagePermissions';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { pluralize } from '../../../utils/i18n';
 import { daysLeft } from '../../utils/time';
@@ -125,13 +124,12 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
   return (
     <tr>
       <td>
-        <Link
-          to={`/orders/${order.id}`}
-          onClick={(e) => orderLinkClick(order.id, e)}
+        <OrderLink
+          orderId={order.id}
           title={`Открыть заказ №${order.bitrix_id || '—'}`}
         >
           №{order.bitrix_id || '—'}
-        </Link>
+        </OrderLink>
         <div className={styles.cellSub} title={order.title}>{order.title}</div>
       </td>
       <td>{dueLabelCompact(left)}</td>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed } from '../components/ErpStates';
@@ -14,7 +14,8 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { sortRows, useTableSort } from '../utils/tableSort';
 import { useErpStore } from '../store/useErpStore';
-import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
+import { OrderLink } from '../components/OrderLink';
+import { orderLinkTarget } from '../utils/orderLink';
 import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
@@ -270,6 +271,8 @@ export default function FabricPurchasing() {
   const { sort, toggle: toggleSort } = useTableSort();
   const { sort: procSort, toggle: toggleProcSort } = useTableSort();
   const today = factoryToday();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Смена сортировки возвращает на первую страницу: иначе человек нажимает
   // «по сроку» и остаётся на пятой странице уже другого списка
@@ -348,7 +351,7 @@ export default function FabricPurchasing() {
   const openKpi = (key) => {
     const rows = key === 'all' ? allRows : allRows.filter((r) => r.group === key);
     if (rows.length === 1) {
-      useOrderDrawer.getState().open(rows[0].order.id);
+      navigate(...orderLinkTarget(rows[0].order.id, location));
       return;
     }
     setTab(key);
@@ -455,13 +458,12 @@ export default function FabricPurchasing() {
                   <tr key={m.id}>
                     <td>
                       {/* Правка 10: номер заказа — ссылка на его карточку */}
-                      <Link
-                        to={`/orders/${order.id}`}
-                        onClick={(e) => orderLinkClick(order.id, e)}
+                      <OrderLink
+                        orderId={order.id}
                         title={`Открыть заказ №${order.bitrix_id || '—'}`}
                       >
                         №{order.bitrix_id || '—'}
-                      </Link>
+                      </OrderLink>
                       <div className={styles.cellSub} title={order.title}>{order.title}</div>
                     </td>
                     <td>
@@ -572,13 +574,12 @@ export default function FabricPurchasing() {
                 {sortedProcurement.map(({ order, t }) => (
                   <tr key={t.id}>
                     <td>
-                      <Link
-                        to={`/orders/${order.id}`}
-                        onClick={(e) => orderLinkClick(order.id, e)}
+                      <OrderLink
+                        orderId={order.id}
                         title={`Открыть заказ №${order.bitrix_id || '—'}`}
                       >
                         №{order.bitrix_id || '—'}
-                      </Link>
+                      </OrderLink>
                     </td>
                     <td>{t.material_name}</td>
                     <td>{PROCUREMENT_KIND_LABELS[t.kind]}{!t.counts_as_purchase && <div className={styles.subText}>не закупка компании</div>}</td>

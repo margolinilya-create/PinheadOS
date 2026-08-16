@@ -1,10 +1,9 @@
 import { useMemo, memo } from 'react';
-import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
 import { orderProgress } from '../../utils/progress';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { hasOpenProcurement } from '../../utils/routes';
 import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
@@ -33,14 +32,13 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
   return (
     <article className={styles.orderCardM} aria-label={`Заказ ${order.title}`}>
       <div className={styles.orderCardMHead}>
-        <Link
-          to={`/orders/${order.id}`}
-          onClick={(e) => orderLinkClick(order.id, e)}
+        <OrderLink
+          orderId={order.id}
           className={styles.orderCardMTitle}
           title={order.title}
         >
           {order.title} ↗
-        </Link>
+        </OrderLink>
         {canDelete && (
           <Button variant="ghost" aria-label={`Удалить заказ ${order.title}`} onClick={() => onDelete(order)}>
             <Icon name="x" size={15} />

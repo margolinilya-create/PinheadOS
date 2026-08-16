@@ -8,7 +8,6 @@ import { ScreenSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed } from '../components/ErpStates';
 import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
 import { useStagePermissions } from '../store/useStagePermissions';
-import { useOrderDrawer } from '../store/useOrderDrawer';
 import { findStage } from '../store/orderHelpers';
 import { deptShortName } from '../data/departments';
 import { isStageAwaitingProcurement, isStageReady, waitingReason, materialsForItem } from '../utils/routes';
@@ -134,15 +133,11 @@ export default function ProductionTask() {
       />
 
       <div className={styles.toolbar}>
-        {/* Номер заказа кликабелен: боковая карточка, Ctrl/Cmd — полная страница */}
+        {/* Заказ открывается своей страницей и помнит, откуда пришли */}
         <ButtonLink
           to={`/orders/${order.id}`}
+          state={{ from: `${location.pathname}${location.search}` }}
           variant="secondary"
-          onClick={(e) => {
-            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
-            e.preventDefault();
-            useOrderDrawer.getState().open(order.id);
-          }}
         >
           Открыть заказ №{order.bitrix_id || '—'} ↗
         </ButtonLink>

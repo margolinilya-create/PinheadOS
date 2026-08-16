@@ -5,7 +5,6 @@ import ErpLayout from './layout/ErpLayout';
 import { ScreenSkeleton } from './components/ErpSkeletons';
 import { LoadFailed } from './components/ErpStates';
 import { Icon } from './components/Icon';
-import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import { FEATURES } from '../config/features';
 import { useErpAccess } from './store/useErpAccess';
 import { canOpenScreen } from './utils/screenAccess';
@@ -78,7 +77,7 @@ function usePrefetchScreens() {
 /**
  * Кей по orderId → свежий инстанс карточки на каждый заказ: при переходе A→B страница
  * ремонтируется, useOrderDetail стартует с чистого стейта (без мигания данных прошлого заказа).
- * Зеркалит OrderDrawerHost (key={orderId}).
+ * Единственная карточка заказа: боковая панель убрана правкой заказчика 16.08.
  */
 function OrderCardRoute() {
   const { orderId } = useParams();
@@ -155,7 +154,6 @@ export default function ErpApp({ user }) {
           </Routes>
         </Suspense>
       </ErrorBoundary>
-      <OrderDrawerHost />
     </ErpLayout>
   );
 }

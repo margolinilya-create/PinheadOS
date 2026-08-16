@@ -228,10 +228,13 @@ describe('страж этапов повторяет гейты интерфей
  * клиента — это «кнопка есть, действие падает»; мягче — дыра.
  */
 describe('страж заказа совпадает с интерфейсом', () => {
+  /**
+   * Карточка одна: боковая панель убрана правкой заказчика 16.08, и вместе
+   * с ней исчез второй экран, который приходилось держать в согласии со стражем.
+   * Проверки остались прежними — сузился только их предмет.
+   */
   const ORDER_CARD = readFileSync(
     join(process.cwd(), 'src/erp/screens/OrderCard.jsx'), 'utf8');
-  const ORDER_DRAWER = readFileSync(
-    join(process.cwd(), 'src/erp/screens/orderCard/OrderDrawer.jsx'), 'utf8');
   const ORDERS_SCREEN = readFileSync(
     join(process.cwd(), 'src/erp/screens/OrdersScreen.jsx'), 'utf8');
 
@@ -240,18 +243,16 @@ describe('страж заказа совпадает с интерфейсом',
     expect(ORDER_SQL).toMatch(/правка полей заказа требует права order\.manage/);
   });
 
-  it('те же поля гейтятся тем же правом в обеих карточках', () => {
-    for (const src of [ORDER_CARD, ORDER_DRAWER]) {
-      expect(src).toMatch(/can\('order\.manage'\)/);
-      // Каждое поле, которое сторожит SQL, обязано быть отключаемым в разметке
-      expect(src.match(/disabled=\{!canManageOrder\}/g) ?? []).toHaveLength(5);
-    }
+  it('те же поля гейтятся тем же правом в карточке', () => {
+    expect(ORDER_CARD).toMatch(/can\('order\.manage'\)/);
+    // Каждое поле, которое сторожит SQL, обязано быть отключаемым в разметке
+    expect(ORDER_CARD.match(/disabled=\{!canManageOrder\}/g) ?? []).toHaveLength(5);
   });
 
   it('колонки, которые сторожит SQL, — это те же поля, что правит карточка', () => {
     for (const field of ['customer', 'manager', 'launch_date', 'due_date', 'notes']) {
       expect(ORDER_SQL).toMatch(new RegExp(`new\\.${field}\\s+is distinct from old\\.${field}`));
-      expect(ORDER_CARD + ORDER_DRAWER).toContain(`saveOrderField({ ${field}:`);
+      expect(ORDER_CARD).toContain(`saveOrderField({ ${field}:`);
     }
   });
 

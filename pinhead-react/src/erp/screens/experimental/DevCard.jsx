@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -7,7 +6,7 @@ import { DateField } from '../../components/DateField';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import { ReadOnlyFieldset } from '../../components/ReadOnlyFieldset';
 import { useDictionary } from '../../store/useDictionary';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { DEV_OUTCOME_LABELS } from '../../types';
@@ -237,9 +236,9 @@ export function DevCard({
         <div>
           <strong>
             {order ? (
-              <Link to={`/orders/${order.id}`} onClick={(e) => orderLinkClick(order.id, e)}>
+              <OrderLink orderId={order.id}>
                 №{order.bitrix_id || '—'}
-              </Link>
+              </OrderLink>
             ) : `№${dev.order?.bitrix_id || '—'}`}
             {' · '}
             {order?.title || dev.order?.title || 'Заказ'}
