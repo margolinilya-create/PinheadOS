@@ -4,6 +4,7 @@ import {
 } from './routes';
 import { stageMissingTz } from './tz';
 import { bypassFor, isBypassed, materialsAfterBypass } from './bypass';
+import { isOutsourced } from './outsourcing';
 
 /**
  * Задания производства как плоский список: этап позиции + вычисленная группа
@@ -39,6 +40,13 @@ export function buildQueueEntries(
       for (const stage of item.stages ?? []) {
         if (departmentId && stage.department_id !== departmentId) continue;
         if (stage.status === 'skipped') continue;
+        /**
+         * Подрядный этап в очередь НАШЕГО цеха не попадает: работу делает
+         * внешний исполнитель, а цех у этапа означает лишь участок
+         * ответственности. Показать такой этап рабочему значило бы дать ему
+         * задание, которого он не сделает. Ведётся он в разделе «Подряд».
+         */
+        if (isOutsourced(stage)) continue;
         const dept = deptById.get(stage.department_id);
         if (!dept) continue;
 

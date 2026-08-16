@@ -81,8 +81,7 @@ export default function OrdersScreen() {
    * не годится — `setState` в теле эффекта ловит react-hooks, и он прав:
    * это следствие ДЕЙСТВИЯ, а не следствие рендера.
    */
-  const patchParams = (patch) => {
-    setPage(1);
+  const patchPage = (patch) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       for (const [k, v] of Object.entries(patch)) {
@@ -91,6 +90,8 @@ export default function OrdersScreen() {
       return next;
     }, { replace: true });
   };
+  /** Правка подбора всегда возвращает на первую страницу — тем же запросом */
+  const patchParams = (patch) => patchPage({ ...patch, page: '' });
   const dateFrom = searchParams.get('from') || '';
   const dateTo = searchParams.get('to') || '';
   const setDateFrom = (v) => patchParams({ from: v });
@@ -190,9 +191,17 @@ export default function OrdersScreen() {
    * рисовались одним куском и сортировались только тем порядком, в котором
    * приехали из запроса (по сроку клиента).
    *
-   * Страница НЕ уходит в адрес намеренно: ссылку на заказ шлют по `/orders/:id`,
-   * а «страница 3 списка» смысла не несёт и при смене фильтра сразу протухает.
-   * Фильтры, вкладка, даты, поиск и сортировка — в адресе, они контекст.
+   * СТРАНИЦА ТЕПЕРЬ ТОЖЕ В АДРЕСЕ, и прежнее решение здесь было обратным:
+   * «страница 3 смысла не несёт». Оно было верным, пока заказ открывался
+   * боковой панелью — экран списка не размонтировался, и локальное состояние
+   * переживало просмотр карточки само собой. С правкой заказчика 16.08 карточка
+   * стала отдельной страницей: список закрывается, и `useState` теряется
+   * безвозвратно. Человек, открывший заказ с третьей страницы, возвращался
+   * на первую — и это ровно тот вид потери контекста, ради которого фильтры,
+   * вкладка, даты и сортировка уже живут в адресе.
+   *
+   * `pageSize` уходит туда же: при странице 3 и размере 50 возврат к размеру
+   * по умолчанию показал бы совсем другие строки под тем же номером страницы.
    */
   const sortKey = searchParams.get('sort') || null;
   const sortDir = searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
@@ -205,8 +214,10 @@ export default function OrdersScreen() {
         : { key: null, dir: 'asc' };
     patchParams({ sort: next.key || '', dir: next.key && next.dir === 'desc' ? 'desc' : '' });
   };
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const setPage = (p) => patchPage({ page: p > 1 ? String(p) : '' });
+  const pageSize = Math.max(1, Number(searchParams.get('size')) || 25);
+  const setPageSize = (n) => patchPage({ size: n === 25 ? '' : String(n), page: '' });
 
   /**
    * Значение колонки берётся ТО ЖЕ, что видно в ячейке (правило utils/tableSort):
@@ -464,7 +475,9 @@ export default function OrdersScreen() {
           total={sorted.length}
           pageSize={pageSize}
           onPage={setPage}
-          onPageSize={(n) => { setPageSize(n); setPage(1); }}
+          // setPageSize сам возвращает на первую страницу: два запроса подряд
+          // к одному адресу затирали бы друг друга
+          onPageSize={setPageSize}
         />
       )}
 

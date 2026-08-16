@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed } from '../components/ErpStates';
 import InlineEdit from '../components/InlineEdit';
 import { Icon } from '../components/Icon';
 import { formatDateShort } from '../utils/time';
+import { orderProgress } from '../utils/progress';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
@@ -25,10 +26,30 @@ import { useOrderDetail } from './orderCard/useOrderDetail';
 import { ButtonLink } from '../components/Button';
 import { useErpAccess } from '../store/useErpAccess';
 import { OrderCardTabs } from './orderCard/OrderCardTabs';
+import { TzBlock } from './queue/TzBlock';
+
+/** Готовность заказа в штуках по этапам — знаменатель поясняется в подписи */
+function OrderReadiness({ order }) {
+  const p = orderProgress(order);
+  return (
+    <div className={styles.routeTotal} style={{ marginBottom: 12 }}>
+      <span className={styles.routeTotalLabel}>Готовность заказа</span>
+      <div className={styles.progressTrack} aria-hidden="true">
+        <div className={styles.progressFill} style={{ width: `${p.pct}%` }} />
+      </div>
+      <span className={styles.progressCell}>{p.pct}%</span>
+      <span className={styles.subText}>{p.done}/{p.total} шт по этапам</span>
+    </div>
+  );
+}
 
 /**
  * Карточка заказа (страница /orders/:id) — «трекинг посылки»: маршрут по этапам с план/фактом,
- * материалы, история. Общая логика — в useOrderDetail (её же использует боковой OrderDrawer).
+ * материалы, история.
+ *
+ * Единственный вид карточки: боковая панель убрана правкой заказчика 16.08 —
+ * в узком окне не помещался растущий объём (маршрут, материалы, ТЗ, файлы,
+ * комментарии), а всё, что она умела сверх страницы, переехало сюда.
  */
 export default function OrderCard() {
   const { orderId } = useParams();
@@ -46,6 +67,20 @@ export default function OrderCard() {
    * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
    */
   const canManageOrder = useErpAccess().can('order.manage');
+
+  /**
+   * Куда возвращает «Заказы». Раньше здесь стоял безусловный `/orders`, и возврат
+   * приводил на «Активные» без фильтров, дат, сортировки и страницы — с другим
+   * ключом `useScrollRestore` (он ключуется по `pathname+search`), то есть и без
+   * позиции прокрутки. Пока карточка открывалась боковой панелью, это было
+   * незаметно: список не размонтировался вовсе. Теперь он размонтируется, и
+   * контекст обязан приезжать явно — тем же приёмом, что в `ProductionTask`.
+   *
+   * В заказ приходят и не из списка (канбан, очередь цеха, план, дашборд), и
+   * ссылками от коллег — поэтому `from` необязателен, а запасной путь остаётся.
+   */
+  const location = useLocation();
+  const backTo = location.state?.from || '/orders';
 
   /**
    * Активная вкладка — в адресе: ссылку на карточку шлют коллегам, и «смотри
@@ -69,7 +104,7 @@ export default function OrderCard() {
     return (
       <>
         <PageHead title="Заказ не найден" />
-        <ButtonLink to="/orders" variant="secondary" className={styles.cellWithIcon}>
+        <ButtonLink to={backTo} variant="secondary" className={styles.cellWithIcon}>
           <Icon name="chevronLeft" size={14} />К списку заказов
         </ButtonLink>
       </>
@@ -88,7 +123,7 @@ export default function OrderCard() {
   return (
     <>
       <div className={styles.toolbar} style={{ marginBottom: 4 }}>
-        <Link to="/orders" className={`${styles.subText} ${styles.cellWithIcon}`}>
+        <Link to={backTo} className={`${styles.subText} ${styles.cellWithIcon}`}>
           <Icon name="chevronLeft" size={13} />Заказы
         </Link>
       </div>
@@ -165,9 +200,16 @@ export default function OrderCard() {
       />
 
       <div id="order-tabpanel" role="tabpanel" aria-labelledby={`order-tab-${tab}`} tabIndex={-1}>
-        {tab === 'items' && order.items.map((item) => (
-          <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
-        ))}
+        {tab === 'items' && (
+          <>
+            {/* Готовность заказа в штуках по этапам. Жила только в боковой карточке,
+                хотя отвечает на первый вопрос к заказу — «насколько он сделан». */}
+            <OrderReadiness order={order} />
+            {order.items.map((item) => (
+              <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
+            ))}
+          </>
+        )}
 
         {tab === 'tz' && (
           <section className={styles.matSection}>
@@ -178,6 +220,9 @@ export default function OrderCard() {
                   <span className={styles.queueQty}>{item.qty} шт</span>
                 </div>
                 <TzDocsSection order={order} item={item} deptById={deptById} />
+                {/* Структурное ТЗ (сетка, нанесения, упаковка) — рядом с PDF, как
+                    это было в боковой карточке: цеху нужны оба вида сразу */}
+                <TzBlock order={order} item={item} defaultOpen hideToggle />
               </div>
             ))}
           </section>
@@ -185,6 +230,13 @@ export default function OrderCard() {
 
         {tab === 'materials' && (
           <section className={styles.matSection}>
+            {/* Лист закупки для печати: те же данные, что здесь, но в виде
+                документа — его передают закупщику и поставщику (правка 16.08) */}
+            <div className={styles.toolbar}>
+              <ButtonLink to={`/orders/${orderId}/purchase-list`} variant="secondary">
+                <Icon name="file" size={14} /> Лист закупки
+              </ButtonLink>
+            </div>
             {order.materials.length > 0 ? (
               <div className={styles.stageChips}>
                 {order.materials.map((m) => {
@@ -192,7 +244,9 @@ export default function OrderCard() {
                   const eta = pending ? formatDateShort(m.eta_date) : '';
                   return (
                     <span key={m.id} className={`${styles.chip} ${pending ? styles.chipProgress : styles.chipReady}`}>
-                      {m.name} · {MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                      {m.name}
+                      {m.supplier ? ` · ${m.supplier}` : ''}
+                      {' · '}{MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
                     </span>
                   );
                 })}

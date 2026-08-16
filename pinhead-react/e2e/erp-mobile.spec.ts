@@ -110,9 +110,12 @@ test.describe('Список заказов на телефоне', () => {
     await expect(page.locator('table')).toHaveCount(0);
 
     await card.getByRole('link').first().click();
-    // Боковая карточка на телефоне занимает экран целиком; проверяем, что открылась
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page).toHaveURL(/[?&]order=ord-/);
+    // Правка заказчика 16.08: карточка — отдельная страница, а не панель.
+    // На телефоне это тем более верно: панель и так занимала экран целиком,
+    // но при этом ограничивала себя шириной, рассчитанной на десктоп.
+    await expect(page).toHaveURL(/\/orders\/ord-/);
+    await expect(page.getByRole('tab', { name: /Позиции/ })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 });
 

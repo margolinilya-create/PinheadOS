@@ -18,6 +18,8 @@ import { isSubcontractTerminal, subcontractPhase } from '../utils/subcontractPha
 // Модуль-лист без зависимостей: закупка как этап маршрута считается ОДИН раз
 // и одинаково в бейдже меню, на экране закупки и в автозакрытии
 import { ordersAwaitingSupply } from '../utils/supply';
+// Подрядный этап не работа нашего цеха: правило одно на весь проект
+import { isOutsourced } from '../utils/outsourcing';
 import type { ErpBypass, ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
 
@@ -54,6 +56,13 @@ export const ORDER_SELECT = `
  *     (`stages.updated_at` ЧИТАЕТСЯ карточкой канбана и остаётся);
  *   · `items.size_grid` — размерная сетка, её рисует только карточка заказа.
  *
+ * Технический блок позиции (`fit`, `trim_material`, `cutting_note`,
+ * `sewing_note`, `labels_note`, `packaging`, `packaging_note`) в списке ЕСТЬ,
+ * хотя это и новые поля: их читает `screens/queue/TzBlock` — структурное ТЗ
+ * в строке очереди цеха, то есть самый списочный из экранов. Без них цех
+ * увидел бы пустой техблок там, где данные заполнены, и ошибку никто бы
+ * не заметил: поле просто приезжает `undefined`.
+ *
  * Что осталось и почему: `overdue_comment` показывает карточка очереди,
  * `procurement_tasks` нужны причине ожидания, `tz_documents` — гейту ТЗ,
  * `materials` — материальному гейту. Отношения `attachments`/`warehouse_*`/
@@ -70,11 +79,14 @@ export const ORDER_LIST_SELECT = `
     id, order_id, product_type, variant, qty, production_type,
     branding_methods, branding_on, notes, sort_order,
     subcontract_kind, material_source,
+    fit, trim_material, cutting_note, sewing_note, labels_note,
+    packaging, packaging_note,
     stages:erp_item_stages (
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
       planned_start, planned_end, started_at, finished_at, assignee,
       block_reason, sort_order, updated_at, overdue_comment, overdue_ack_at,
-      queue_position, cycle, origin
+      queue_position, cycle, origin,
+      executor, contractor, operation
     ),
     prints:erp_item_prints (*)
   ),
@@ -173,7 +185,8 @@ export function stagesInDept(
     if (order.status !== 'active') continue;
     for (const item of order.items) {
       for (const stage of item.stages) {
-        if (stage.department_id === departmentId && stage.status !== 'skipped') {
+        if (stage.department_id === departmentId && stage.status !== 'skipped'
+            && !isOutsourced(stage)) {
           rows.push({ stage, order });
         }
       }
@@ -204,6 +217,7 @@ export function readyCountFor(
     for (const it of o.items) {
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
         if (st.status === 'in_progress') n += 1;
         else if (
           st.status === 'waiting' &&
@@ -241,6 +255,7 @@ export function readyOnlyCountFor(
     for (const it of o.items) {
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
         if (
           st.status === 'waiting' &&
           isStageReady(
@@ -268,6 +283,7 @@ export function overdueUnackCountFor(orders: ErpOrderFull[], departments: ErpDep
     for (const it of o.items) {
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
         if (stageOverdue(st.planned_end, st.status) && !st.overdue_ack_at) n += 1;
       }
     }

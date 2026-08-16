@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { KanbanSkeleton, TableSkeleton } from '../components/ErpSkeletons';
@@ -9,7 +9,7 @@ import ErpKanban from '../components/ErpKanban';
 import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { orderLinkClick } from '../store/useOrderDrawer';
+import { OrderLink } from '../components/OrderLink';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { isStageReady, waitingReason, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
@@ -359,23 +359,21 @@ export default function ProductionBoard() {
                     {/* Номер и название — ссылки: раньше это был обычный текст,
                         и увиденную на доске проблемную позицию нельзя было открыть */}
                     <td>
-                      <Link
-                        to={`/orders/${order.id}`}
-                        onClick={(e) => orderLinkClick(order.id, e)}
+                      <OrderLink
+                        orderId={order.id}
                         title={`Открыть заказ №${order.bitrix_id || '—'}`}
                       >
                         {order.bitrix_id || '—'}
-                      </Link>
+                      </OrderLink>
                     </td>
                     <td>
-                      <Link
-                        to={`/orders/${order.id}`}
-                        onClick={(e) => orderLinkClick(order.id, e)}
+                      <OrderLink
+                        orderId={order.id}
                         className={styles.cellTitle}
                         title={order.title}
                       >
                         {order.title}
-                      </Link>
+                      </OrderLink>
                       {isOrderReadyToShip(order) && (
                         <span
                           className={`${styles.chip} ${styles.chipReady}`}

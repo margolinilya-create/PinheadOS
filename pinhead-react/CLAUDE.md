@@ -419,6 +419,25 @@ URL: https://pinhead-os.vercel.app
   `erp_employees.full_name` (исполнитель этапа, назначения в цехе). Поправить
   одно — получить человека, который в заказе Иванов, а в очереди цеха «ivan@…»
 
+## Правила ERP (правки заказчика 16.08, сессия 32)
+
+- Карточка заказа — только страница `/orders/:orderId`. Боковая панель
+  (`OrderDrawer`, `OrderDrawerHost`, стор `useOrderDrawer`) удалена. Открытие —
+  `components/OrderLink`, для мест без ссылки — `utils/orderLink.orderLinkTarget`
+- Упаковка позиции: `utils/packaging.itemPackaging` — единственное место, где
+  «своё → общее по заказу» разрешается. `inherit` ≠ `none`
+- Лист закупки: `screens/orders/create/PurchaseListSection` → секция `materials`
+  payload; печатная форма — `screens/purchasing/PurchaseListPrint` (`window.print()`)
+- Подряд: `utils/outsourcing.ts` (модуль-лист) — что такое подрядный этап,
+  где заказ сейчас, следующий этап маршрута, подпись этапа. Отсев подряда
+  из очереди/счётчиков/загрузки есть в трёх файлах, сторожит
+  `contractorStageNotInQueue.test.ts`
+- Конструктор маршрута: `utils/routeDraft.ts` — группы вместо линейного списка,
+  инвариант тождества с `buildItemRoute`, замок на этапе с фактом.
+  Сохранение — RPC `erp_route_apply` (одна транзакция, `depends_on` индексами)
+- Новые справочники: `fit` (крой изделия), `route_operation` (операции маршрута).
+  Вид справочника по-прежнему живёт в ЧЕТЫРЁХ местах
+
 ## Правила ERP (правки заказчика 12.08)
 
 - Закупка как этап маршрута — `erp/utils/supply.ts` (модуль-лист): им пользуются

@@ -528,6 +528,59 @@ export type Database = {
           },
         ]
       }
+      erp_invites: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          department_id: string | null
+          email: string | null
+          employee_role: string
+          expires_at: string
+          note: string | null
+          profile_role: string
+          revoked_at: string | null
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          email?: string | null
+          employee_role: string
+          expires_at: string
+          note?: string | null
+          profile_role: string
+          revoked_at?: string | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          email?: string | null
+          employee_role?: string
+          expires_at?: string
+          note?: string | null
+          profile_role?: string
+          revoked_at?: string | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_invites_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "erp_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_item_prints: {
         Row: {
           comment: string | null
@@ -588,14 +641,17 @@ export type Database = {
         Row: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -612,14 +668,17 @@ export type Database = {
         Insert: {
           assignee?: string | null
           block_reason?: string | null
+          contractor?: string | null
           created_at?: string
           cycle?: number
           department_id: string
           depends_on?: string[]
+          executor?: string
           finished_at?: string | null
           id?: string
           item_id: string
           notes?: string | null
+          operation?: string | null
           origin?: string
           overdue_ack_at?: string | null
           overdue_comment?: string | null
@@ -636,14 +695,17 @@ export type Database = {
         Update: {
           assignee?: string | null
           block_reason?: string | null
+          contractor?: string | null
           created_at?: string
           cycle?: number
           department_id?: string
           depends_on?: string[]
+          executor?: string
           finished_at?: string | null
           id?: string
           item_id?: string
           notes?: string | null
+          operation?: string | null
           origin?: string
           overdue_ack_at?: string | null
           overdue_comment?: string | null
@@ -790,12 +852,15 @@ export type Database = {
           id: string
           item_id: string | null
           kind: string
+          manager_note: string | null
           name: string
           notes: string | null
           order_id: string
+          ordered_on: string | null
           price_per_unit: number | null
           qty: string | null
           qty_expected: number | null
+          qty_ordered: number | null
           qty_received: number | null
           received_at: string | null
           responsible: string | null
@@ -821,12 +886,15 @@ export type Database = {
           id?: string
           item_id?: string | null
           kind: string
+          manager_note?: string | null
           name: string
           notes?: string | null
           order_id: string
+          ordered_on?: string | null
           price_per_unit?: number | null
           qty?: string | null
           qty_expected?: number | null
+          qty_ordered?: number | null
           qty_received?: number | null
           received_at?: string | null
           responsible?: string | null
@@ -852,12 +920,15 @@ export type Database = {
           id?: string
           item_id?: string | null
           kind?: string
+          manager_note?: string | null
           name?: string
           notes?: string | null
           order_id?: string
+          ordered_on?: string | null
           price_per_unit?: number | null
           qty?: string | null
           qty_expected?: number | null
+          qty_ordered?: number | null
           qty_received?: number | null
           received_at?: string | null
           responsible?: string | null
@@ -891,6 +962,7 @@ export type Database = {
           file_name: string | null
           file_path: string
           id: string
+          item_id: string | null
           kind: string
           order_id: string
           uploaded_by: string | null
@@ -900,6 +972,7 @@ export type Database = {
           file_name?: string | null
           file_path: string
           id?: string
+          item_id?: string | null
           kind?: string
           order_id: string
           uploaded_by?: string | null
@@ -909,11 +982,19 @@ export type Database = {
           file_name?: string | null
           file_path?: string
           id?: string
+          item_id?: string | null
           kind?: string
           order_id?: string
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "erp_order_attachments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "erp_order_attachments_order_id_fkey"
             columns: ["order_id"]
@@ -1008,16 +1089,23 @@ export type Database = {
           branding_methods: string[]
           branding_on: string | null
           created_at: string
+          cutting_note: string | null
+          fit: string | null
           id: string
+          labels_note: string | null
           material_source: string | null
           notes: string | null
           order_id: string
+          packaging: string
+          packaging_note: string | null
           product_type: string
           production_type: string
           qty: number
+          sewing_note: string | null
           size_grid: Json | null
           sort_order: number
           subcontract_kind: string | null
+          trim_material: string | null
           updated_at: string
           variant: string | null
         }
@@ -1025,16 +1113,23 @@ export type Database = {
           branding_methods?: string[]
           branding_on?: string | null
           created_at?: string
+          cutting_note?: string | null
+          fit?: string | null
           id?: string
+          labels_note?: string | null
           material_source?: string | null
           notes?: string | null
           order_id: string
+          packaging?: string
+          packaging_note?: string | null
           product_type: string
           production_type?: string
           qty: number
+          sewing_note?: string | null
           size_grid?: Json | null
           sort_order?: number
           subcontract_kind?: string | null
+          trim_material?: string | null
           updated_at?: string
           variant?: string | null
         }
@@ -1042,16 +1137,23 @@ export type Database = {
           branding_methods?: string[]
           branding_on?: string | null
           created_at?: string
+          cutting_note?: string | null
+          fit?: string | null
           id?: string
+          labels_note?: string | null
           material_source?: string | null
           notes?: string | null
           order_id?: string
+          packaging?: string
+          packaging_note?: string | null
           product_type?: string
           production_type?: string
           qty?: number
+          sewing_note?: string | null
           size_grid?: Json | null
           sort_order?: number
           subcontract_kind?: string | null
+          trim_material?: string | null
           updated_at?: string
           variant?: string | null
         }
@@ -1496,11 +1598,15 @@ export type Database = {
       erp_subcontracting: {
         Row: {
           contractor: string | null
+          cost: number | null
           created_at: string
           delay_comment: string | null
           id: string
           item_id: string | null
           material_source: string
+          materials_note: string | null
+          materials_qty: string | null
+          materials_sent_on: string | null
           op_type: string
           operation: string
           order_id: string
@@ -1521,11 +1627,15 @@ export type Database = {
         }
         Insert: {
           contractor?: string | null
+          cost?: number | null
           created_at?: string
           delay_comment?: string | null
           id?: string
           item_id?: string | null
           material_source?: string
+          materials_note?: string | null
+          materials_qty?: string | null
+          materials_sent_on?: string | null
           op_type?: string
           operation: string
           order_id: string
@@ -1546,11 +1656,15 @@ export type Database = {
         }
         Update: {
           contractor?: string | null
+          cost?: number | null
           created_at?: string
           delay_comment?: string | null
           id?: string
           item_id?: string | null
           material_source?: string
+          materials_note?: string | null
+          materials_qty?: string | null
+          materials_sent_on?: string | null
           op_type?: string
           operation?: string
           order_id?: string
@@ -1606,6 +1720,7 @@ export type Database = {
           note: string | null
           order_id: string
           size_bytes: number | null
+          stage_id: string | null
           uploaded_by: string | null
           version: number
         }
@@ -1621,6 +1736,7 @@ export type Database = {
           note?: string | null
           order_id: string
           size_bytes?: number | null
+          stage_id?: string | null
           uploaded_by?: string | null
           version?: number
         }
@@ -1636,6 +1752,7 @@ export type Database = {
           note?: string | null
           order_id?: string
           size_bytes?: number | null
+          stage_id?: string | null
           uploaded_by?: string | null
           version?: number
         }
@@ -1652,6 +1769,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_tz_documents_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
             referencedColumns: ["id"]
           },
         ]
@@ -1954,7 +2078,6 @@ export type Database = {
     Functions: {
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
-      erp_can_manage_tz: { Args: never; Returns: boolean }
       erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
       erp_clamp_done: {
         Args: { p_current: number; p_delta: number; p_total: number }
@@ -2032,6 +2155,16 @@ export type Database = {
         }
       }
       erp_has_permission: { Args: { perm: string }; Returns: boolean }
+      erp_invite_preview: {
+        Args: { p_code: string }
+        Returns: {
+          department_name: string
+          email: string
+          employee_role: string
+          expires_at: string
+          profile_role: string
+        }[]
+      }
       erp_is_manager: { Args: never; Returns: boolean }
       erp_is_member: { Args: never; Returns: boolean }
       erp_local_date: { Args: never; Returns: string }
@@ -2042,14 +2175,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2080,14 +2216,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2113,14 +2252,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2146,14 +2288,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2188,14 +2333,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { orderPreviewUrl } from '../../store/useErpStore';
-import { orderLinkClick, useOrderDrawer } from '../../store/useOrderDrawer';
+import { OrderLink } from '../OrderLink';
+import { orderLinkTarget } from '../../utils/orderLink';
 import { daysLeft, formatTimeIn } from '../../utils/time';
 import styles from '../../erp.module.css';
 import { Icon } from '../Icon';
@@ -32,6 +33,9 @@ export function KanbanCard({
   const { order, item, stage, group } = entry;
   const [imgError, setImgError] = useState(false);
   const preview = orderPreviewUrl(order);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const openOrder = () => navigate(...orderLinkTarget(order.id, location));
   const timeIn = group === 'in_progress'
     ? formatTimeIn(stage.started_at)
     : formatTimeIn(stage.updated_at);
@@ -49,7 +53,7 @@ export function KanbanCard({
       onDragStart={(e) => onDragStart(e, entry)}
       onDragEnd={onDragEnd}
       onDragOver={(e) => onDragOverCard?.(e, entry)}
-      onClick={() => useOrderDrawer.getState().open(order.id)}
+      onClick={openOrder}
       // Карточку нельзя было ни открыть, ни тронуть с клавиатуры: ни tabIndex,
       // ни onKeyDown. Канбан Order Studio это умеет — здесь был регресс.
       tabIndex={0}
@@ -58,7 +62,7 @@ export function KanbanCard({
         // Enter/Space на вложенной ссылке отдаём ей самой
         if (e.target !== e.currentTarget) return;
         e.preventDefault();
-        useOrderDrawer.getState().open(order.id);
+        openOrder();
       }}
       role="listitem"
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
@@ -76,15 +80,14 @@ export function KanbanCard({
         {preview && imgError && (
           <div className={styles.orderThumbStub} aria-hidden="true"><Icon name="image" size={18} /></div>
         )}
-        <Link
-          to={`/orders/${order.id}`}
-          onClick={(e) => orderLinkClick(order.id, e)}
+        <OrderLink
+          orderId={order.id}
           draggable={false}
           className={styles.kanbanCardTitle}
           title={order.title}
         >
           {order.title}
-        </Link>
+        </OrderLink>
         <DeadlineDot due={order.due_date} />
       </div>
       <div className={styles.subText}>

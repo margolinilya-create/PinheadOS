@@ -297,59 +297,69 @@ test.describe('Технические задания в PDF', () => {
 });
 
 /**
- * Отложенное: боковая карточка живёт в адресе (`?order=`). Раньше её состояние
- * было только в памяти — перезагрузка теряла открытую панель, ссылку нельзя было
- * переслать, а «Назад» уводил с экрана вместо закрытия.
+ * Карточка заказа — ОТДЕЛЬНАЯ СТРАНИЦА (правка заказчика 16.08).
+ *
+ * Раньше заказ открывался боковой панелью, и её состояние жило в адресе
+ * (`?order=`). Заказчик от панели отказался: в узком окне не помещается
+ * маршрут, материалы, ТЗ, файлы и комментарии сразу. Переход стал обычным,
+ * и вместе с ним появилась цена, которой у панели не было — экран списка
+ * ЗАКРЫВАЕТСЯ, а с ним теряются фильтры, страница и позиция прокрутки,
+ * если их не унести в переход явно (`location.state.from`).
  */
-test.describe('Диплинк боковой карточки (?order=)', () => {
-  test('клик по заказу пишет адрес, «Назад» закрывает карточку, а не уходит с экрана', async ({ page }) => {
+test.describe('Карточка заказа открывается страницей', () => {
+  test('клик по заказу уводит на его страницу, боковой панели больше нет', async ({ page }) => {
     await page.goto('/orders?studio=0');
     // Ссылка строки названа заголовком заказа, номер — в отдельной колонке
     await page.getByRole('link', { name: /Веранда/ }).first().click();
 
-    const drawer = page.getByRole('dialog');
-    await expect(drawer).toBeVisible();
-    await expect(page).toHaveURL(/[?&]order=ord-/);
+    await expect(page).toHaveURL(/\/orders\/ord-/);
+    await expect(page.getByRole('tab', { name: /Позиции/ })).toBeVisible();
+    // Именно панели нет, а не «она пустая»: диалога в дереве быть не должно
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).not.toHaveURL(/[?&]order=/);
+  });
+
+  test('«Назад» возвращает в список, сохраняя вкладку и фильтр', async ({ page }) => {
+    await page.goto('/orders?tab=active&filter=urgent&studio=0');
+    await page.getByRole('link', { name: /Веранда/ }).first().click();
+    await expect(page).toHaveURL(/\/orders\/ord-/);
 
     await page.goBack();
-    // остались на списке, карточка закрыта — параметра больше нет
-    await expect(drawer).toHaveCount(0);
-    await expect(page).not.toHaveURL(/[?&]order=/);
-    await expect(page).toHaveURL(/\/orders/);
-  });
-
-  test('перезагрузка сохраняет открытую карточку', async ({ page }) => {
-    await page.goto('/orders?studio=0');
-    await page.getByRole('link', { name: /Веранда/ }).first().click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-
-    await page.reload();
-    // Именно это и было потеряно раньше: F5 закрывал панель
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByRole('dialog').getByText(/Веранда/).first()).toBeVisible();
-  });
-
-  test('ссылка со ?order= открывает карточку сразу, ✕ не уносит со страницы', async ({ page }) => {
-    await page.goto('/orders?order=ord-b&studio=0');
-    const drawer = page.getByRole('dialog');
-    await expect(drawer).toBeVisible();
-
-    // Своей записи в истории нет — закрытие снимает параметр, оставляя нас на списке
-    await drawer.getByRole('button', { name: /Закрыть/ }).click();
-    await expect(drawer).toHaveCount(0);
-    await expect(page).toHaveURL(/\/orders/);
-    await expect(page).not.toHaveURL(/[?&]order=/);
-  });
-
-  test('фильтры списка не теряются при открытии и закрытии карточки', async ({ page }) => {
-    await page.goto('/orders?tab=active&studio=0');
-    await page.getByRole('link', { name: /Веранда/ }).first().click();
     await expect(page).toHaveURL(/tab=active/);
-    await expect(page).toHaveURL(/order=ord-/);
+    await expect(page).toHaveURL(/filter=urgent/);
+  });
 
-    await page.getByRole('dialog').getByRole('button', { name: /Закрыть/ }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page).toHaveURL(/tab=active/);
+  test('ссылка «Заказы» из карточки ведёт туда, откуда пришли, а не в голый список', async ({ page }) => {
+    await page.goto('/orders?studio=0&sort=title&dir=desc');
+    await page.getByRole('link', { name: /Веранда/ }).first().click();
+    await expect(page).toHaveURL(/\/orders\/ord-/);
+
+    // Раньше здесь стоял безусловный `/orders`, и сортировка с фильтрами терялась.
+    // Ищем В КАРТОЧКЕ: пункт меню в сайдбаре называется так же и ведёт в голый список
+    await page.locator('main').getByRole('link', { name: /^Заказы$/ }).first().click();
+    await expect(page).toHaveURL(/sort=title/);
+    await expect(page).toHaveURL(/dir=desc/);
+  });
+
+  test('страница списка живёт в адресе — возврат не бросает на первую', async ({ page }) => {
+    // page/size в адресе появились вместе с полноэкранной карточкой: локальный
+    // useState умирал вместе с размонтированным списком
+    await page.goto('/orders?studio=0&page=2&size=1');
+    // Именно ссылка строки таблицы: в шапке и меню есть свои «Заказы»
+    await page.locator('table').getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/orders\/ord-/);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page).toHaveURL(/size=1/);
+  });
+
+  test('прямая ссылка на заказ открывается и без контекста списка', async ({ page }) => {
+    await page.goto('/orders/ord-b?studio=0');
+    await expect(page.getByRole('tab', { name: /Позиции/ })).toBeVisible();
+    // Пришли по чужой ссылке — возврат ведёт в обычный список
+    await expect(page.getByRole('link', { name: /Заказы/ }).first())
+      .toHaveAttribute('href', '/orders');
   });
 });
 

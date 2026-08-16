@@ -189,10 +189,12 @@ describe('ленивый ERP-экран заводится только lazyScre
     expect(bad, `экран ERP без lazyScreen:\n${bad.join('\n')}`).toEqual([]);
   });
 
-  it('карточка заказа тоже: её хост смонтирован вне <Routes>', () => {
-    const src = readFileSync(join(ERP, 'screens/orderCard/OrderDrawerHost.jsx'), 'utf8');
-    expect(src).toContain('lazyScreen(');
-  });
+  /**
+   * Проверка «хост боковой карточки тоже обёрнут lazyScreen» снята вместе
+   * с самим хостом (правка заказчика 16.08: карточка открывается страницей).
+   * Отдельного правила ей больше не нужно — `/orders/:orderId` это обычный
+   * экран в `<Routes>`, и его накрывает общая проверка выше.
+   */
 
   it('доменный чанк греется в простое вместе с соседними экранами', () => {
     const src = readFileSync(join(ERP, 'ErpApp.jsx'), 'utf8');

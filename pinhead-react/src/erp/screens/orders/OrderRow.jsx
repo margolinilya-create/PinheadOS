@@ -1,9 +1,8 @@
 import { useMemo, useState, memo } from 'react';
-import { Link } from 'react-router-dom';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { hasOpenProcurement } from '../../utils/routes';
 import {
   PRODUCTION_TYPE_LABELS,
@@ -57,14 +56,13 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
           {order.bitrix_id || '—'}
         </td>
         <td>
-          <Link
-            to={`/orders/${order.id}`}
-            onClick={(e) => orderLinkClick(order.id, e)}
+          <OrderLink
+            orderId={order.id}
             className={styles.cellTitle}
             title={order.title}
           >
             {order.title} <Icon name="externalLink" size={12} />
-          </Link>
+          </OrderLink>
           {/* Когда показ демо включён, тестовый заказ обязан быть отличим:
               иначе список выглядит боевым и человек снова считает по нему сроки. */}
           {order.is_demo && (

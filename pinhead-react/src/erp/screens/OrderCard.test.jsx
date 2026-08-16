@@ -44,15 +44,16 @@ const ORDER = {
   tz_documents: [],
 };
 
-function renderCard(initialUrl = '/orders/o1') {
+function renderCard(initialUrl = '/orders/o1', state = undefined) {
   useErpStore.setState({
     orders: [ORDER], departments: DEPTS, loaded: true, detailIds: ['o1'],
     loadOrderBundle: async () => ({ events: [], audit: [], comments: [] }),
     loadOne: async () => ORDER,
     loadAll: async () => {},
   });
+  const entry = state ? { pathname: initialUrl, state } : initialUrl;
   return render(
-    <MemoryRouter initialEntries={[initialUrl]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes><Route path="/orders/:orderId" element={<OrderCard />} /></Routes>
     </MemoryRouter>,
   );
@@ -157,5 +158,33 @@ describe('OrderCard — правка полей под правом order.manage
     for (const label of [/^Клиент:/, /^Менеджер:/, /^Дата запуска:/, /^Срок клиента:/, /^Заметка:/]) {
       expect(screen.getByRole('button', { name: label })).toBeDisabled();
     }
+  });
+});
+
+/**
+ * Возврат в список.
+ *
+ * До правки заказчика 16.08 заказ открывался боковой панелью: экран списка
+ * не размонтировался, и фильтры, страница и позиция прокрутки переживали
+ * просмотр карточки сами собой. Карточка стала страницей — список закрывается,
+ * и контекст обязан приезжать в переходе (`location.state.from`). Ссылка
+ * «Заказы» без него вела на «Активные» без фильтров и в начало списка,
+ * потому что `useScrollRestore` ключуется по `pathname + search`.
+ */
+describe('OrderCard — возврат в список', () => {
+  beforeEach(() => {
+    canOrderManage = true;
+    useErpStore.setState({ orders: [], departments: [], loaded: false, detailIds: [] });
+  });
+
+  it('ведёт туда, откуда пришли, вместе с фильтрами', () => {
+    renderCard('/orders/o1', { from: '/orders?tab=archive&filter=overdue&page=3' });
+    expect(screen.getByRole('link', { name: /Заказы/ }))
+      .toHaveAttribute('href', '/orders?tab=archive&filter=overdue&page=3');
+  });
+
+  it('без контекста — обычный список: в заказ приходят и по ссылке от коллеги', () => {
+    renderCard();
+    expect(screen.getByRole('link', { name: /Заказы/ })).toHaveAttribute('href', '/orders');
   });
 });

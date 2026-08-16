@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed } from '../components/ErpStates';
@@ -14,7 +14,8 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { sortRows, useTableSort } from '../utils/tableSort';
 import { useErpStore } from '../store/useErpStore';
-import { orderLinkClick, useOrderDrawer } from '../store/useOrderDrawer';
+import { OrderLink } from '../components/OrderLink';
+import { orderLinkTarget } from '../utils/orderLink';
 import { toast } from '../../store/useToastStore';
 import { pluralize } from '../../utils/i18n';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
@@ -111,7 +112,16 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   const submit = async () => {
     if (!form.order_id) { toast.error('Выберите заказ'); return; }
     if (!form.name.trim()) { toast.error('Укажите материал'); return; }
-    if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
+    /**
+     * План прихода БОЛЬШЕ НЕ ОБЯЗАТЕЛЕН (правка заказчика 16.08, п. 13):
+     * «менеджер зачастую не знает эту информацию на момент запуска, поле должен
+     * заполнять закупщик после взаимодействия с поставщиком». Строку заводят
+     * ДО разговора с поставщиком — и раньше её нельзя было завести вовсе,
+     * не выдумав дату.
+     *
+     * Плановое количество обязательным остаётся: без него закупка не закроется
+     * автоматически (`supply.missingPlan`), то есть строка просто застрянет.
+     */
     if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
       toast.error('Укажите плановое количество'); return;
     }
@@ -270,6 +280,8 @@ export default function FabricPurchasing() {
   const { sort, toggle: toggleSort } = useTableSort();
   const { sort: procSort, toggle: toggleProcSort } = useTableSort();
   const today = factoryToday();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Смена сортировки возвращает на первую страницу: иначе человек нажимает
   // «по сроку» и остаётся на пятой странице уже другого списка
@@ -348,7 +360,7 @@ export default function FabricPurchasing() {
   const openKpi = (key) => {
     const rows = key === 'all' ? allRows : allRows.filter((r) => r.group === key);
     if (rows.length === 1) {
-      useOrderDrawer.getState().open(rows[0].order.id);
+      navigate(...orderLinkTarget(rows[0].order.id, location));
       return;
     }
     setTab(key);
@@ -438,12 +450,25 @@ export default function FabricPurchasing() {
           <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
             <table className={styles.table}>
               <thead>
+                {/*
+                  Две группы колонок — прямое требование документа (п. 12):
+                  «в интерфейсе закупки необходимо визуально разделить исходный
+                  запрос и данные закупщика». Слева то, что задал менеджер при
+                  создании заказа, справа то, что закупщик выясняет и вносит сам.
+                  Пока группы не были названы, обе роли писали в общую строку,
+                  и «нужно было 100 м → закупили 110» показать было нечем.
+                */}
+                <tr className={styles.groupHeadRow}>
+                  <th className={styles.groupHead} colSpan={4}>Потребность — задал менеджер</th>
+                  <th className={styles.groupHead} colSpan={6}>Факт — ведёт закупка</th>
+                </tr>
                 <tr>
                   <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
                   <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
+                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">Нужно</SortableTh>
+                  <th>Комментарий менеджера</th>
                   <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
                   <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
-                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">План, кол-во</SortableTh>
                   <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
                   <th>Ответственный</th>
                   <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
@@ -455,18 +480,33 @@ export default function FabricPurchasing() {
                   <tr key={m.id}>
                     <td>
                       {/* Правка 10: номер заказа — ссылка на его карточку */}
-                      <Link
-                        to={`/orders/${order.id}`}
-                        onClick={(e) => orderLinkClick(order.id, e)}
+                      <OrderLink
+                        orderId={order.id}
                         title={`Открыть заказ №${order.bitrix_id || '—'}`}
                       >
                         №{order.bitrix_id || '—'}
-                      </Link>
+                      </OrderLink>
                       <div className={styles.cellSub} title={order.title}>{order.title}</div>
                     </td>
                     <td>
                       <strong>{m.name}</strong>
                       <div className={styles.subText}>{KIND_LABELS[m.kind]}{m.color ? ` · ${m.color}` : ''}{m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}</div>
+                    </td>
+                    <td>
+                      <input
+                        type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
+                        defaultValue={m.qty_expected ?? ''} placeholder="—"
+                        onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v }); }}
+                        aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
+                      />
+                    </td>
+                    <td>
+                      {/* Комментарий МЕНЕДЖЕРА — на чтение: это исходное задание,
+                          и правка его закупщиком стёрла бы то, что просили.
+                          Свой комментарий закупщик пишет в приёмке. */}
+                      <span className={m.manager_note ? undefined : styles.subText}>
+                        {m.manager_note || '—'}
+                      </span>
                     </td>
                     <td>
                       {/* Правка 10: поставщик — не одно поле, а выбор из вариантов */}
@@ -491,14 +531,6 @@ export default function FabricPurchasing() {
                         className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"
                         onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.article || null)) updateMaterial(m.id, { article: v }); }}
                         aria-label={`Артикул ${m.name}`} style={{ maxWidth: 110 }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.qty_expected ?? ''} placeholder="—"
-                        onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v }); }}
-                        aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
                       />
                     </td>
                     <td>
@@ -572,13 +604,12 @@ export default function FabricPurchasing() {
                 {sortedProcurement.map(({ order, t }) => (
                   <tr key={t.id}>
                     <td>
-                      <Link
-                        to={`/orders/${order.id}`}
-                        onClick={(e) => orderLinkClick(order.id, e)}
+                      <OrderLink
+                        orderId={order.id}
                         title={`Открыть заказ №${order.bitrix_id || '—'}`}
                       >
                         №{order.bitrix_id || '—'}
-                      </Link>
+                      </OrderLink>
                     </td>
                     <td>{t.material_name}</td>
                     <td>{PROCUREMENT_KIND_LABELS[t.kind]}{!t.counts_as_purchase && <div className={styles.subText}>не закупка компании</div>}</td>

@@ -5,7 +5,6 @@ import ErpLayout from './layout/ErpLayout';
 import { ScreenSkeleton } from './components/ErpSkeletons';
 import { LoadFailed } from './components/ErpStates';
 import { Icon } from './components/Icon';
-import { OrderDrawerHost } from './screens/orderCard/OrderDrawerHost';
 import { FEATURES } from '../config/features';
 import { useErpAccess } from './store/useErpAccess';
 import { canOpenScreen } from './utils/screenAccess';
@@ -33,6 +32,7 @@ const ProductionBoard = lazyScreen(() => import('./screens/ProductionBoard')); /
 const AdminScreen = lazyScreen(() => import('./screens/AdminScreen')); // + Employees/Departments
 const ProductionTask = lazyScreen(() => import('./screens/ProductionTask'));
 const FabricPurchasing = lazyScreen(() => import('./screens/FabricPurchasing'));
+const PurchaseListPrint = lazyScreen(() => import('./screens/purchasing/PurchaseListPrint'));
 const Warehouse = lazyScreen(() => import('./screens/Warehouse'));
 const Subcontracting = lazyScreen(() => import('./screens/Subcontracting'));
 const Experimental = lazyScreen(() => import('./screens/Experimental'));
@@ -78,7 +78,7 @@ function usePrefetchScreens() {
 /**
  * Кей по orderId → свежий инстанс карточки на каждый заказ: при переходе A→B страница
  * ремонтируется, useOrderDetail стартует с чистого стейта (без мигания данных прошлого заказа).
- * Зеркалит OrderDrawerHost (key={orderId}).
+ * Единственная карточка заказа: боковая панель убрана правкой заказчика 16.08.
  */
 function OrderCardRoute() {
   const { orderId } = useParams();
@@ -146,6 +146,11 @@ export default function ErpApp({ user }) {
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
           <Route path="/purchasing" element={<ErpGuard allowed={canOpen('/purchasing')}><FabricPurchasing /></ErpGuard>} />
+          {/* Печатный лист закупки заказа. Гейта нет намеренно: это представление
+              данных самого заказа, а карточку заказа видят все — закрывать печать
+              строже, чем экран, откуда её открывают, значит показать кнопку,
+              которая отвечает отказом. */}
+          <Route path="/orders/:orderId/purchase-list" element={<PurchaseListPrint />} />
           <Route path="/warehouse" element={<ErpGuard allowed={canOpen('/warehouse')}><Warehouse /></ErpGuard>} />
           <Route path="/subcontracting" element={<ErpGuard allowed={canOpen('/subcontracting')}><Subcontracting /></ErpGuard>} />
           <Route path="/experimental" element={<ErpGuard allowed={canOpen('/experimental')}><Experimental /></ErpGuard>} />
@@ -155,7 +160,6 @@ export default function ErpApp({ user }) {
           </Routes>
         </Suspense>
       </ErrorBoundary>
-      <OrderDrawerHost />
     </ErpLayout>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
@@ -55,14 +55,13 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
           <div className={styles.queueThumbStub} aria-hidden="true"><Icon name="image" size={20} /></div>
         )}
         <div className={styles.queueCardHeadText}>
-          <Link
-            to={`/orders/${order.id}`}
-            onClick={(e) => orderLinkClick(order.id, e)}
+          <OrderLink
+            orderId={order.id}
             className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}
             title={`№${order.bitrix_id || '—'} · ${order.title}`}
           >
             №{order.bitrix_id || '—'} · {order.title}
-          </Link>
+          </OrderLink>
           <div
             className={styles.subText}
             title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}

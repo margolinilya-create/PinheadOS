@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
+import { Button, ButtonLink } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { useStagePermissions } from '../../store/useStagePermissions';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { pluralize } from '../../../utils/i18n';
 import { daysLeft } from '../../utils/time';
@@ -125,13 +124,12 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
   return (
     <tr>
       <td>
-        <Link
-          to={`/orders/${order.id}`}
-          onClick={(e) => orderLinkClick(order.id, e)}
+        <OrderLink
+          orderId={order.id}
           title={`Открыть заказ №${order.bitrix_id || '—'}`}
         >
           №{order.bitrix_id || '—'}
-        </Link>
+        </OrderLink>
         <div className={styles.cellSub} title={order.title}>{order.title}</div>
       </td>
       <td>{dueLabelCompact(left)}</td>
@@ -151,6 +149,11 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
         {/* Тот же класс, что у действий в очереди цеха: копия «две кнопки
             во flex» здесь была бы четвёртым вариантом одного и того же */}
         <div className={styles.queueActions}>
+          {/* Лист закупки, сформированный менеджером при создании заказа:
+              закупщик читает исходное задание, а не собирает его заново */}
+          <ButtonLink to={`/orders/${order.id}/purchase-list`} variant="ghost">
+            Лист закупки
+          </ButtonLink>
           <Button variant="ghost" disabled={busy} onClick={() => onAddMaterial(order.id)}>
             + Материал
           </Button>

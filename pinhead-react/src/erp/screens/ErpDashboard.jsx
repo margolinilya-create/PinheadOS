@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { orderLinkClick } from '../store/useOrderDrawer';
+import { OrderLink } from '../components/OrderLink';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
@@ -292,7 +292,7 @@ export default function ErpDashboard() {
                     <tbody>
                       {data.inWork.map(({ order, product, stage, qty, status }) => (
                         <tr key={order.id}>
-                          <td><Link to={`/orders/${order.id}`}>{order.bitrix_id || '—'}</Link></td>
+                          <td><OrderLink orderId={order.id}>{order.bitrix_id || '—'}</OrderLink></td>
                           <td><span className={styles.cellTitle} title={product}>{product}</span></td>
                           <td>{stage}</td>
                           <td>{qty} шт</td>
@@ -335,7 +335,7 @@ export default function ErpDashboard() {
                   const dt = order.due_date ? new Date(order.due_date) : null;
                   const label = dueLabel(days);
                   return (
-                    <Link key={order.id} to={`/orders/${order.id}`} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
+                    <OrderLink key={order.id} orderId={order.id} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
                       <span className={styles.deadlineDate}>
                         <span className={styles.deadlineDay}>{dt ? dt.getDate() : '—'}</span>
                         <span className={styles.deadlineMon}>{dt ? MONTHS[dt.getMonth()] : ''}</span>
@@ -345,7 +345,7 @@ export default function ErpDashboard() {
                         <span className={styles.deadlineMeta}>№{order.bitrix_id || '—'} · {order.manager || '—'}</span>
                       </span>
                       <Badge variant={days < 0 ? 'blocked' : days <= 1 ? 'waiting' : 'neutral'}>{label}</Badge>
-                    </Link>
+                    </OrderLink>
                   );
                 })
               )}
@@ -392,10 +392,9 @@ export default function ErpDashboard() {
                     {g.items.slice(0, 8).map((n) => (
                       // Алерт без ссылки — тупик: пользователь читал «Просрочен
                       // заказ №1042» и шёл искать его руками, хотя id лежит рядом
-                      <Link
+                      <OrderLink
                         key={n.id}
-                        to={`/orders/${n.orderId}`}
-                        onClick={(e) => orderLinkClick(n.orderId, e)}
+                        orderId={n.orderId}
                         className={styles.notifItem}
                       >
                         <span className={styles.notifText}>
@@ -407,7 +406,7 @@ export default function ErpDashboard() {
                             {n.overdueDays} дн.
                           </Badge>
                         )}
-                      </Link>
+                      </OrderLink>
                     ))}
                     {g.items.length > 8 && (
                       // Никаких тихих лимитов: сколько показано и сколько всего

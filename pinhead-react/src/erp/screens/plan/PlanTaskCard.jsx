@@ -1,5 +1,4 @@
-import { Link } from 'react-router-dom';
-import { orderLinkClick } from '../../store/useOrderDrawer';
+import { OrderLink } from '../../components/OrderLink';
 import { Icon } from '../../components/Icon';
 import { itemTzDocument } from '../../utils/tz';
 import { tzFileUrl } from '../../utils/tzFile';
@@ -46,14 +45,13 @@ export function PlanTaskCard({
       <header className={styles.planCardHead}>
         <span className={styles.planCardTitle}>
           {order ? (
-            <Link
-              to={`/orders/${order.id}`}
-              onClick={(e) => orderLinkClick(order.id, e)}
+            <OrderLink
+              orderId={order.id}
               className={styles.queueCardTitleLink}
               draggable={false}
             >
               №{order.bitrix_id || '—'} · {order.title}
-            </Link>
+            </OrderLink>
           ) : 'Задача плана'}
         </span>
         {slot.priority > 0 && (

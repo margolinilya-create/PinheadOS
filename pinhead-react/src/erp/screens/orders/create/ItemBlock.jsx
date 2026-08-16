@@ -5,6 +5,7 @@ import { Icon } from '../../../components/Icon';
 import { deptShortName } from '../../../data/departments';
 import { EMPTY_PRINT, gridTotal } from '../../../utils/orderForm';
 import {
+  ITEM_PACKAGING_LABELS,
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
   SUBCONTRACT_OP_TYPE_LABELS,
@@ -65,6 +66,20 @@ export function ItemBlock({
           value={it.variant}
           onChange={(e) => setItem(i, { variant: e.target.value })}
           placeholder="голубые"
+        />
+      </label>
+      {/* Крой стоит между цветом и количеством: документ задаёт порядок
+          заполнения позиции — Изделие → Цвет → Крой → Размер → Количество.
+          Ввод свободный с подсказками справочника: у каждого заказчика свои
+          лекала, и перечисление означало бы миграцию на каждое название. */}
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Крой</span>
+        <input
+          className={styles.input}
+          value={it.fit}
+          onChange={(e) => setItem(i, { fit: e.target.value })}
+          placeholder="Oversize"
+          list="erp-fits"
         />
       </label>
       {gTotal > 0 ? (
@@ -323,6 +338,124 @@ export function ItemBlock({
             onChange={(g) => setItem(i, { size_grid: g })}
           />
         </details>
+
+        <TechBlock it={it} i={i} setItem={setItem} />
+        <PackagingBlock it={it} i={i} setItem={setItem} />
         </div>
+  );
+}
+
+/**
+ * Технический блок изделия (правка заказчика 16.08).
+ *
+ * «В карточке изделия необходимо отдельно фиксировать технические особенности
+ * производства»: отделочное полотно, комментарий по раскрою, комментарий
+ * по пошиву, бирки. Раньше всё это писали в общую заметку позиции или
+ * не писали вовсе, и цех узнавал об особенности от менеджера голосом.
+ *
+ * Свёрнут по умолчанию: заказ без технических особенностей — обычное дело,
+ * и четыре пустых поля на каждой позиции удлиняли бы форму втрое. Счётчик
+ * в заголовке показывает, что внутри что-то есть, — иначе свёрнутый блок
+ * неотличим от пустого.
+ */
+function TechBlock({ it, i, setItem }) {
+  const filled = [it.trim_material, it.cutting_note, it.sewing_note, it.labels_note]
+    .filter((v) => v.trim()).length;
+
+  return (
+    <details className={styles.gridDetails}>
+      <summary className={styles.subText}>
+        Технический блок изделия{filled > 0 ? ` — заполнено полей: ${filled}` : ''}
+      </summary>
+      <div className={styles.itemRow}>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Отделочный материал</span>
+          <input
+            className={styles.input}
+            value={it.trim_material}
+            onChange={(e) => setItem(i, { trim_material: e.target.value })}
+            placeholder="твилл плащевый 190гр + подклад"
+          />
+        </label>
+        <label className={`${styles.field} ${styles.fieldWide}`}>
+          <span className={styles.fieldLabel}>Комментарий по раскрою</span>
+          <input
+            className={styles.input}
+            value={it.cutting_note}
+            onChange={(e) => setItem(i, { cutting_note: e.target.value })}
+            placeholder="долевая по спинке, припуск 1.5 см"
+          />
+        </label>
+        <label className={`${styles.field} ${styles.fieldWide}`}>
+          <span className={styles.fieldLabel}>Комментарий по пошиву</span>
+          <input
+            className={styles.input}
+            value={it.sewing_note}
+            onChange={(e) => setItem(i, { sewing_note: e.target.value })}
+            placeholder="плоскошовка, обтачка горловины"
+          />
+        </label>
+        <label className={`${styles.field} ${styles.fieldWide}`}>
+          <span className={styles.fieldLabel}>Бирки</span>
+          <input
+            className={styles.input}
+            value={it.labels_note}
+            onChange={(e) => setItem(i, { labels_note: e.target.value })}
+            placeholder="размерник + составник, левый внутренний боковой шов"
+          />
+        </label>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * Упаковка ПОЗИЦИИ (правка заказчика 16.08).
+ *
+ * «У разных изделий внутри одной сделки могут отличаться тип пакета, размер
+ * пакета, расположение стикера и маркировки — упаковка должна задаваться именно
+ * на уровне изделия». Настройка на весь заказ при этом осталась: для заказа
+ * из одинаковых изделий она удобнее, и её несут уже заведённые заказы.
+ *
+ * Отсюда значение «Как в заказе» и то, что оно стоит первым и по умолчанию.
+ * Пустого значения нет намеренно: «не заполняли» и «эту позицию не упаковывать»
+ * должны различаться, иначе забытая позиция молча уедет в отгрузку без упаковки.
+ * Разрешает эти два уровня одна функция — `utils/packaging.itemPackaging`.
+ */
+function PackagingBlock({ it, i, setItem }) {
+  const own = it.packaging !== 'inherit';
+
+  return (
+    <details className={styles.gridDetails}>
+      <summary className={styles.subText}>
+        Упаковка изделия{own ? ` — ${ITEM_PACKAGING_LABELS[it.packaging] ?? it.packaging}` : ' — как в заказе'}
+      </summary>
+      <div className={styles.field}>
+        <span className={styles.fieldLabel}>Вариант упаковки</span>
+        <div className={styles.tileRow} role="radiogroup" aria-label={`Упаковка позиции ${i + 1}`}>
+          {Object.entries(ITEM_PACKAGING_LABELS).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={it.packaging === v}
+              className={`${styles.tile} ${styles.tileSm} ${it.packaging === v ? styles.tileActive : ''}`}
+              onClick={() => setItem(i, { packaging: v })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className={`${styles.field} ${styles.fieldWide}`}>
+        <span className={styles.fieldLabel}>Комментарий по упаковке</span>
+        <input
+          className={styles.input}
+          value={it.packaging_note}
+          onChange={(e) => setItem(i, { packaging_note: e.target.value })}
+          placeholder="пакет 40×60, стикер на лицевую сторону снизу справа"
+        />
+      </label>
+    </details>
   );
 }

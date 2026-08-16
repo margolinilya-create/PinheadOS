@@ -37,6 +37,7 @@ import type {
   ErpTzDocument,
   ErpWarehouseOp,
   ErpWarehouseTask,
+  ItemPackagingType,
   MaterialAcceptStatus,
   ProcurementCauseType,
   ProductionType,
@@ -91,12 +92,23 @@ export interface ErpOrderComment {
   created_at: string;
 }
 
+/**
+ * Вид вложения. `preview` — макет заказа, `attachment` — прочий файл; три
+ * последних заведены правкой заказчика 16.08 и отвечают на вопрос «в каком
+ * блоке карточки показывать»: без них файлы упаковки, техблока и листа закупки
+ * свалились бы во вкладку «Файлы» вперемешку.
+ */
+export type ErpAttachmentKind =
+  | 'preview' | 'attachment' | 'packaging' | 'tech' | 'purchase';
+
 export interface ErpOrderAttachment {
   id: string;
   order_id: string;
+  /** Позиция, к которой относится файл. NULL — файл всего заказа */
+  item_id?: string | null;
   file_path: string;
   file_name: string | null;
-  kind: 'preview' | 'attachment';
+  kind: ErpAttachmentKind;
   uploaded_by: string | null;
   created_at: string;
 }
@@ -161,6 +173,41 @@ export interface NewOrderItemInput {
   subcontract_operation?: string;
   /** Следующий участок после отдельной операции (код цеха); null = доработка не нужна */
   return_dept?: string | null;
+  /**
+   * Технический блок и упаковка позиции (правки заказчика 16.08).
+   * Пустые поля не отправляются вовсе: колонка со значением `''` сделала бы
+   * «не заполняли» неотличимым от «заполнили пустым».
+   */
+  fit?: string;
+  trim_material?: string;
+  cutting_note?: string;
+  sewing_note?: string;
+  labels_note?: string;
+  /** `inherit` — упаковка берётся из заказа (см. utils/packaging) */
+  packaging?: ItemPackagingType;
+  packaging_note?: string;
+}
+
+/**
+ * Строка листа закупки в payload создания заказа.
+ *
+ * Здесь только ПОТРЕБНОСТЬ: поставщик, цена, план и факт прихода — часть
+ * закупщика, и заполняет он их у себя. Документ требует разделения прямо:
+ * «один показатель не должен заменять другой».
+ */
+export interface NewOrderMaterialInput {
+  /** Индекс позиции в `items`; null — материал на весь заказ */
+  item_index: number | null;
+  kind: string;
+  role?: string;
+  name: string;
+  color?: string;
+  /** Плановая потребность заказа */
+  qty_expected: number | null;
+  unit?: string;
+  manager_note?: string;
+  source?: string;
+  status?: string;
 }
 
 /** Документ ТЗ в payload создания заказа: файл уже лежит в бакете */
@@ -205,6 +252,12 @@ export interface NewOrderInput {
   /** Требовать ли ТЗ (волна 4). Новые заказы из формы — всегда true */
   tz_required?: boolean;
   items: NewOrderItemInput[];
+  /**
+   * Лист закупки (правки заказчика 16.08): потребность, сформированная
+   * МЕНЕДЖЕРОМ при создании заказа. Уезжает той же транзакцией — закупщик
+   * получает готовые строки, а не заводит их заново.
+   */
+  materials?: NewOrderMaterialInput[];
   /**
    * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их одной транзакцией
    * с заказом — «создать заказ без ТЗ» невозможно даже при сбое.
