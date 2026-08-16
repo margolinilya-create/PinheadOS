@@ -12,6 +12,7 @@
  */
 
 import { addDays, mondayOfWeek } from '../../utils/date';
+import { isOutsourced } from './outsourcing';
 import type { ErpDepartment } from '../types';
 import type { ErpOrderFull } from '../store/types';
 
@@ -91,6 +92,9 @@ export function buildDeptLoad(
     for (const item of order.items) {
       for (const stage of item.stages) {
         if (!OPEN_STATUSES.has(stage.status)) continue;
+        // Подрядные часы — не загрузка нашего цеха: план показал бы перегруз
+        // там, где работы у нас нет вовсе
+        if (isOutsourced(stage)) continue;
         const row = rows.get(stage.department_id);
         if (!row) continue;
 

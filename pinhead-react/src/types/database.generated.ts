@@ -641,14 +641,17 @@ export type Database = {
         Row: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -665,14 +668,17 @@ export type Database = {
         Insert: {
           assignee?: string | null
           block_reason?: string | null
+          contractor?: string | null
           created_at?: string
           cycle?: number
           department_id: string
           depends_on?: string[]
+          executor?: string
           finished_at?: string | null
           id?: string
           item_id: string
           notes?: string | null
+          operation?: string | null
           origin?: string
           overdue_ack_at?: string | null
           overdue_comment?: string | null
@@ -689,14 +695,17 @@ export type Database = {
         Update: {
           assignee?: string | null
           block_reason?: string | null
+          contractor?: string | null
           created_at?: string
           cycle?: number
           department_id?: string
           depends_on?: string[]
+          executor?: string
           finished_at?: string | null
           id?: string
           item_id?: string
           notes?: string | null
+          operation?: string | null
           origin?: string
           overdue_ack_at?: string | null
           overdue_comment?: string | null
@@ -1589,11 +1598,15 @@ export type Database = {
       erp_subcontracting: {
         Row: {
           contractor: string | null
+          cost: number | null
           created_at: string
           delay_comment: string | null
           id: string
           item_id: string | null
           material_source: string
+          materials_note: string | null
+          materials_qty: string | null
+          materials_sent_on: string | null
           op_type: string
           operation: string
           order_id: string
@@ -1614,11 +1627,15 @@ export type Database = {
         }
         Insert: {
           contractor?: string | null
+          cost?: number | null
           created_at?: string
           delay_comment?: string | null
           id?: string
           item_id?: string | null
           material_source?: string
+          materials_note?: string | null
+          materials_qty?: string | null
+          materials_sent_on?: string | null
           op_type?: string
           operation: string
           order_id: string
@@ -1639,11 +1656,15 @@ export type Database = {
         }
         Update: {
           contractor?: string | null
+          cost?: number | null
           created_at?: string
           delay_comment?: string | null
           id?: string
           item_id?: string | null
           material_source?: string
+          materials_note?: string | null
+          materials_qty?: string | null
+          materials_sent_on?: string | null
           op_type?: string
           operation?: string
           order_id?: string
@@ -1699,6 +1720,7 @@ export type Database = {
           note: string | null
           order_id: string
           size_bytes: number | null
+          stage_id: string | null
           uploaded_by: string | null
           version: number
         }
@@ -1714,6 +1736,7 @@ export type Database = {
           note?: string | null
           order_id: string
           size_bytes?: number | null
+          stage_id?: string | null
           uploaded_by?: string | null
           version?: number
         }
@@ -1729,6 +1752,7 @@ export type Database = {
           note?: string | null
           order_id?: string
           size_bytes?: number | null
+          stage_id?: string | null
           uploaded_by?: string | null
           version?: number
         }
@@ -1745,6 +1769,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_tz_documents_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
             referencedColumns: ["id"]
           },
         ]
@@ -2144,14 +2175,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2182,14 +2216,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2215,14 +2252,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2248,14 +2288,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null
@@ -2290,14 +2333,17 @@ export type Database = {
         Returns: {
           assignee: string | null
           block_reason: string | null
+          contractor: string | null
           created_at: string
           cycle: number
           department_id: string
           depends_on: string[]
+          executor: string
           finished_at: string | null
           id: string
           item_id: string
           notes: string | null
+          operation: string | null
           origin: string
           overdue_ack_at: string | null
           overdue_comment: string | null

@@ -18,6 +18,8 @@ import { isSubcontractTerminal, subcontractPhase } from '../utils/subcontractPha
 // Модуль-лист без зависимостей: закупка как этап маршрута считается ОДИН раз
 // и одинаково в бейдже меню, на экране закупки и в автозакрытии
 import { ordersAwaitingSupply } from '../utils/supply';
+// Подрядный этап не работа нашего цеха: правило одно на весь проект
+import { isOutsourced } from '../utils/outsourcing';
 import type { ErpBypass, ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
 
@@ -83,7 +85,8 @@ export const ORDER_LIST_SELECT = `
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
       planned_start, planned_end, started_at, finished_at, assignee,
       block_reason, sort_order, updated_at, overdue_comment, overdue_ack_at,
-      queue_position, cycle, origin
+      queue_position, cycle, origin,
+      executor, contractor, operation
     ),
     prints:erp_item_prints (*)
   ),
@@ -182,7 +185,8 @@ export function stagesInDept(
     if (order.status !== 'active') continue;
     for (const item of order.items) {
       for (const stage of item.stages) {
-        if (stage.department_id === departmentId && stage.status !== 'skipped') {
+        if (stage.department_id === departmentId && stage.status !== 'skipped'
+            && !isOutsourced(stage)) {
           rows.push({ stage, order });
         }
       }
@@ -213,6 +217,7 @@ export function readyCountFor(
     for (const it of o.items) {
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
         if (st.status === 'in_progress') n += 1;
         else if (
           st.status === 'waiting' &&
@@ -250,6 +255,7 @@ export function readyOnlyCountFor(
     for (const it of o.items) {
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
         if (
           st.status === 'waiting' &&
           isStageReady(
@@ -277,6 +283,7 @@ export function overdueUnackCountFor(orders: ErpOrderFull[], departments: ErpDep
     for (const it of o.items) {
       for (const st of it.stages) {
         if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
         if (stageOverdue(st.planned_end, st.status) && !st.overdue_ack_at) n += 1;
       }
     }

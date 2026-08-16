@@ -237,10 +237,32 @@ export interface ErpOrderItem {
 /** Упаковка позиции: та же шкала, что у заказа, плюс «как в заказе» */
 export type ItemPackagingType = 'inherit' | PackagingType;
 
+/** Кто выполняет этап маршрута (правки заказчика 16.08) */
+export type StageExecutor = 'internal' | 'contractor';
+
 export interface ErpItemStage {
   id: string;
   item_id: string;
   department_id: string;
+  /**
+   * Исполнитель этапа. `contractor` — работу делает подрядчик: этап НЕ попадает
+   * в очередь нашего цеха и в его загрузку, а ведётся в разделе «Подряд».
+   *
+   * `department_id` при этом остаётся и означает ЧЕЙ ЭТО УЧАСТОК
+   * ОТВЕТСТВЕННОСТИ — какой наш цех делал бы эту работу и куда она вернётся.
+   * Псевдо-цех «Подряд» завести было нельзя: он потёк бы во все поверхности,
+   * читающие цеха из данных, а уникальность (item_id, department_id, cycle)
+   * разрешила бы ровно один подрядный этап на позицию.
+   *
+   * Поле НЕОБЯЗАТЕЛЬНО в типе: у этапов, приехавших урезанным запросом или
+   * из старых фикстур, его нет, и правило обязано быть fail-open к `undefined` —
+   * сравнивать надо с `'contractor'`, а не с `!== 'internal'`.
+   */
+  executor?: StageExecutor;
+  /** Подрядчик свободным текстом — справочника на первом этапе не заводим */
+  contractor?: string | null;
+  /** Имя операции, когда оно расходится с именем цеха-владельца */
+  operation?: string | null;
   depends_on: string[];
   status: StageStatus;
   qty_done: number;
@@ -1173,7 +1195,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type' | 'fit';
+  | 'experimental_task_type' | 'fit' | 'route_operation';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1183,6 +1205,7 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   unit: 'Единицы измерения',
   experimental_task_type: 'Задачи разработки',
   fit: 'Крой изделия',
+  route_operation: 'Операции маршрута',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -1195,6 +1218,8 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
   experimental_task_type:
     'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
   fit: 'Подсказки в поле «Крой» при создании заказа (Regular, Oversize, Free Fit).',
+  route_operation:
+    'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
 };
 
 export interface ErpDictionaryItem {
