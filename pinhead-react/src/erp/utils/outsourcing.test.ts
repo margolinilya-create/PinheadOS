@@ -9,6 +9,7 @@ import {
   ordersWithOutsourcing,
   outsourcedStages,
   stageLabel,
+  subcontractShortfall,
 } from './outsourcing';
 import type { ErpItemStage } from '../types';
 
@@ -188,5 +189,33 @@ describe('подпись этапа', () => {
   it('у нашего этапа операция подпись не подменяет', () => {
     // Иначе одна и та же работа называлась бы по-разному в очереди и на канбане
     expect(stageLabel({ executor: 'internal', operation: 'Сублимация' }, 'Цех ДТФ')).toBe('Цех ДТФ');
+  });
+});
+
+/**
+ * Расхождение считается из журнала, а не хранится: вторая пара счётчиков
+ * рядом с ним дала бы двух писателей одной величины — на этом в проекте
+ * уже ловились с `qty_received` у материалов.
+ */
+describe('subcontractShortfall', () => {
+  it('потери — передали, но не вернулось; брак — вернулось, но не приняли', () => {
+    expect(subcontractShortfall({ qty_sent: 100, qty_returned: 95, qty_accepted: 90 }))
+      .toEqual({ lost: 5, defect: 5 });
+  });
+
+  it('полный проход без расхождений даёт нули', () => {
+    expect(subcontractShortfall({ qty_sent: 50, qty_returned: 50, qty_accepted: 50 }))
+      .toEqual({ lost: 0, defect: 0 });
+  });
+
+  /** Приняли больше, чем вернулось, — ошибка ввода; «−3 брака» было бы враньём */
+  it('отрицательных значений не показывает', () => {
+    expect(subcontractShortfall({ qty_sent: 10, qty_returned: 12, qty_accepted: 15 }))
+      .toEqual({ lost: 0, defect: 0 });
+  });
+
+  it('пустая карточка не роняет расчёт', () => {
+    expect(subcontractShortfall(null)).toEqual({ lost: 0, defect: 0 });
+    expect(subcontractShortfall({})).toEqual({ lost: 0, defect: 0 });
   });
 });

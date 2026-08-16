@@ -40,10 +40,24 @@ export async function adminUsers<T = { ok: true }>(
   action: string,
   payload: Record<string, unknown> = {},
 ): Promise<AdminUsersResult<T>> {
+  return invokeFunction<T>('admin-users', { action, ...payload });
+}
+
+/**
+ * Вызов ЛЮБОЙ серверной функции проекта с тем же разбором ошибки.
+ *
+ * Функций стало две (`admin-users`, `purchase-list-pdf`), и механика отказа
+ * у них общая: `invoke` кладёт в `error` один и тот же текст «Edge Function
+ * returned a non-2xx status code» на любой не-2xx, а причина лежит в теле.
+ * Копия разбора во второй функции означала бы, что отказ прав и обрыв сети
+ * снова выглядят одинаково — ровно то, ради чего этот модуль и заведён.
+ */
+export async function invokeFunction<T = { ok: true }>(
+  name: string,
+  body: Record<string, unknown> = {},
+): Promise<AdminUsersResult<T>> {
   try {
-    const { data, error } = await supabase.functions.invoke('admin-users', {
-      body: { action, ...payload },
-    });
+    const { data, error } = await supabase.functions.invoke(name, { body });
     if (error) {
       const reason = await reasonFrom(error);
       return { data: null, error: { message: reason ?? error.message } };

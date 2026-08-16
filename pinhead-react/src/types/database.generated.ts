@@ -958,6 +958,7 @@ export type Database = {
       }
       erp_order_attachments: {
         Row: {
+          material_id: string | null
           created_at: string
           file_name: string | null
           file_path: string
@@ -968,6 +969,7 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          material_id?: string | null
           created_at?: string
           file_name?: string | null
           file_path: string
@@ -978,6 +980,7 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          material_id?: string | null
           created_at?: string
           file_name?: string | null
           file_path?: string
@@ -1086,6 +1089,9 @@ export type Database = {
       }
       erp_order_items: {
         Row: {
+          packaging_size: string | null
+          sticker_place: string | null
+          marking_place: string | null
           branding_methods: string[]
           branding_on: string | null
           created_at: string
@@ -1110,6 +1116,9 @@ export type Database = {
           variant: string | null
         }
         Insert: {
+          packaging_size?: string | null
+          sticker_place?: string | null
+          marking_place?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           created_at?: string
@@ -1134,6 +1143,9 @@ export type Database = {
           variant?: string | null
         }
         Update: {
+          packaging_size?: string | null
+          sticker_place?: string | null
+          marking_place?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           created_at?: string

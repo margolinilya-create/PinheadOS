@@ -2,6 +2,7 @@ import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { Icon } from '../../../components/Icon';
 import { Button } from '../../../components/Button';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
+import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import styles from '../../../erp.module.css';
 
 /**
@@ -26,7 +27,7 @@ import styles from '../../../erp.module.css';
  */
 
 /** Одна строка потребности. `item_index` = null — материал на весь заказ */
-export function PurchaseListSection({ rows, items, addRow, setRow, removeRow }) {
+export function PurchaseListSection({ rows, items, attach, addRow, setRow, removeRow }) {
   return (
     <>
       <p className={styles.subText}>
@@ -154,6 +155,20 @@ export function PurchaseListSection({ rows, items, addRow, setRow, removeRow }) 
               />
             </label>
           </div>
+          {/* Документ (п. 14): «фотография материала, ссылка / скрин позиции
+              поставщика, техническое описание, цвет, пример, отделочный
+              материал». Файл привязан к СТРОКЕ, а не к заказу целиком —
+              иначе закупщик получает кучу картинок без ответа, к чему они */}
+          <AttachmentPicker
+            label="+ Файлы позиции закупки"
+            hint="фото материала, скрин позиции поставщика, референс"
+            files={attach.files}
+            kind="purchase"
+            ownerKey={r.key}
+            onAdd={attach.add}
+            onRetry={attach.retry}
+            onRemove={attach.remove}
+          />
         </div>
       ))}
 

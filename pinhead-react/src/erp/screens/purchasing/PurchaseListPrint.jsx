@@ -7,6 +7,8 @@ import { Icon } from '../../components/Icon';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../types';
 import { useOrderDetail } from '../orderCard/useOrderDetail';
+import { AttachmentList } from '../../components/AttachmentList';
+import { materialAttachments } from '../../utils/attachments';
 import styles from '../../erp.module.css';
 
 /**
@@ -137,7 +139,14 @@ export default function PurchaseListPrint() {
                   </td>
                   {/* Комментарий МЕНЕДЖЕРА, не закупщика: лист закупки —
                       это исходное задание, а не отчёт о его исполнении */}
-                  <td>{m.manager_note || '—'}</td>
+                  <td>
+                    {m.manager_note || '—'}
+                    {/* Изображения и референсы (п. 15 документа): «фотография
+                        материала, скрин позиции поставщика, пример». На бумаге
+                        они и есть половина смысла листа — по описанию словами
+                        ткань не опознают */}
+                    <AttachmentList files={materialAttachments(order, m.id)} />
+                  </td>
                 </tr>
               ))}
             </tbody>

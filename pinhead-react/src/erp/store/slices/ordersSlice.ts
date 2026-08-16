@@ -8,6 +8,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { formItemRoute, linearize } from '../../utils/routeDraft';
+import { invokeFunction } from '../adminUsers';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { isBypassed } from '../../utils/bypass';
 import { daysLeft } from '../../utils/time';
@@ -330,7 +331,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-    const { items, tz, materials, ...orderFields } = input;
+    const { items, tz, materials, attachments, ...orderFields } = input;
 
     /**
      * Цеха маршрута, которых нет в справочнике `erp_departments`.
@@ -395,6 +396,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           sewing_note: it.sewing_note || null,
           labels_note: it.labels_note || null,
           packaging: it.packaging ?? 'inherit',
+          packaging_size: it.packaging_size || null,
+          sticker_place: it.sticker_place || null,
+          marking_place: it.marking_place || null,
           packaging_note: it.packaging_note || null,
           prints: (it.prints ?? []).map((p, j) => ({
             seq: j + 1,
@@ -430,6 +434,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       materials: materials ?? [],
       // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
       tz: tz ?? { documents: [], assignments: [] },
+      /**
+       * Вложения блоков (правки заказчика 16.08). Как и `materials`, секция
+       * долго существовала в RPC и не использовалась: `item_id` у вложения
+       * появился той же миграцией, а слать было нечего — форм загрузки не было.
+       */
+      attachments: attachments ?? [],
     };
 
     // Два разных исхода supabase-js: на ОТВЕТ сервера он возвращает `error`,
@@ -458,6 +468,22 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     }
     // Созданный заказ забираем тем же вложенным select
     const created = await get().loadOne(newId);
+
+    /**
+     * PDF листа закупки собирается САМ (п. 15 документа: «менеджер не должен
+     * отдельно вручную делать PDF и потом загружать его»). Отдельным вызовом
+     * ПОСЛЕ создания, а не внутри транзакции: генерация идёт секунды и ходит
+     * во внешнюю сеть за шрифтом, и держать на ней транзакцию заказа нельзя.
+     *
+     * Сбой сборки НЕ отменяет заказ и даже не показывается ошибкой: заказ
+     * создан, лист закупки в нём есть, а PDF — производная от него, которую
+     * можно пересобрать кнопкой. Красная полоса здесь читалась бы как
+     * «заказ не создался».
+     */
+    if (created && (materials ?? []).length > 0) {
+      invokeFunction('purchase-list-pdf', { order_id: newId })
+        .then((r) => { if (r.error) console.warn('[purchase-list-pdf]', r.error.message); });
+    }
     // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
     // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
     if (created) {
@@ -516,6 +542,23 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       erpError('Не удалось обновить заказ', error);
       return false;
     }
+    return true;
+  },
+
+  /**
+   * PDF листа закупки. Заказ перечитывается после успеха: файл появляется
+   * строкой `erp_order_attachments`, и без перечитывания человек увидит его
+   * только после F5 — то есть решит, что кнопка не сработала.
+   */
+  generatePurchaseListPdf: async (orderId) => {
+    const { error } = await withPending(`pdf:${orderId}`, () =>
+      invokeFunction('purchase-list-pdf', { order_id: orderId }));
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    await get().loadOne(orderId);
+    toast.success('Лист закупки сформирован — файл в документах заказа');
     return true;
   },
 

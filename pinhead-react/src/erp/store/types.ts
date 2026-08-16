@@ -108,6 +108,13 @@ export interface ErpOrderAttachment {
   order_id: string;
   /** Позиция, к которой относится файл. NULL — файл всего заказа */
   item_id?: string | null;
+  /**
+   * Строка листа закупки, к которой относится файл (правки 16.08, п. 14).
+   * NULL — файл заказа или позиции. Референсы закупщика («фото материала,
+   * скрин позиции поставщика») относятся к КОНКРЕТНОЙ строке: свалить их
+   * в общую кучу значит отдать десяток картинок без ответа, к чему они.
+   */
+  material_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -187,6 +194,10 @@ export interface NewOrderItemInput {
   labels_note?: string;
   /** `inherit` — упаковка берётся из заказа (см. utils/packaging) */
   packaging?: ItemPackagingType;
+  /** Размер пакета, расположение стикера и маркировки — п. 1 документа 16.08 */
+  packaging_size?: string;
+  sticker_place?: string;
+  marking_place?: string;
   packaging_note?: string;
   /**
    * Маршрут, ПРАВЛЕННЫЙ человеком в конструкторе (правки заказчика 16.08).
@@ -272,6 +283,24 @@ export interface NewOrderInput {
    * `assignments` больше не заполняется (см. NewOrderTzAssignment).
    */
   tz?: { documents: NewOrderTzDocument[]; assignments?: NewOrderTzAssignment[] };
+  /**
+   * Вложения блоков заказа: упаковка, техблок, лист закупки (правки 16.08).
+   * Файлы уже лежат в бакете — их грузит форма при ВЫБОРЕ, а RPC только
+   * привязывает строки той же транзакцией, что и заказ.
+   */
+  attachments?: NewOrderAttachment[];
+}
+
+/** Вложение в payload создания заказа: файл уже в бакете */
+export interface NewOrderAttachment {
+  /** Индекс позиции в `items`; null — файл заказа целиком */
+  item_index: number | null;
+  /** Индекс строки в `materials`; null — файл не относится к листу закупки */
+  material_index: number | null;
+  file_path: string;
+  file_name: string;
+  kind: ErpAttachmentKind;
+  uploaded_by?: string;
 }
 
 /** Нормализованное realtime-событие postgres_changes (для точечного применения) */
@@ -397,6 +426,12 @@ export interface OrdersSlice {
    * Отгрузка готового заказа: status → done_* (по сроку клиента),
    * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
    */
+  /**
+   * Сформировать PDF листа закупки (правки 16.08, п. 15). Считает и кладёт файл
+   * СЕРВЕР: документ требует, чтобы система делала это сама, а PDF-библиотека
+   * в клиенте стоила бы 100–200 кБ при оболочке на 97 % бюджета.
+   */
+  generatePurchaseListPdf: (orderId: string) => Promise<boolean>;
   shipOrder: (orderId: string) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
@@ -506,6 +541,24 @@ export interface RouteStepWrite {
 
 /** Материалы: добавление/правка, подтверждение склада, авто-закрытие закупки */
 export interface MaterialsSlice {
+  /**
+   * Предварительные закупки — строки `erp_materials` без заказа (п. 17
+   * документа 16.08). Держим их ОТДЕЛЬНЫМ списком, а не в `orders`: обычные
+   * материалы приезжают join-ом к заказу, и строка без заказа не попала бы
+   * туда никогда — её бы просто не existовало для интерфейса.
+   */
+  preliminary: ErpMaterial[];
+  preliminaryLoaded: boolean;
+  loadPreliminary: () => Promise<void>;
+  addPreliminaryMaterial: (
+    material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
+  ) => Promise<ErpMaterial | null>;
+  /**
+   * Привязка предварительной закупки к заказу — UPDATE существующей строки.
+   * Не копия: документ прямо требует, чтобы система «не создавала вторую
+   * дублирующую закупку».
+   */
+  attachPreliminaryToOrder: (materialId: string, orderId: string) => Promise<boolean>;
   addMaterial: (
     orderId: string,
     material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,

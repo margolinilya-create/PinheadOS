@@ -29,6 +29,7 @@ import type { ErpStore } from './types';
  */
 type DomainState = Pick<ErpStore,
   | 'subcontracting' | 'subcontractingLoaded'
+  | 'preliminary' | 'preliminaryLoaded'
   | 'employees' | 'profilesList' | 'employeesLoaded'
   | 'invites' | 'invitesLoaded'
   | 'myDeptId' | 'myRole' | 'myDeptLoaded'
@@ -43,6 +44,14 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   // subcontractingSlice
   subcontracting: [],
   subcontractingLoaded: false,
+  /**
+   * materialsSlice — ПЕРВЫЕ собственные данные у этого слайса: предварительные
+   * закупки (п. 17 документа 16.08). Остальные материалы живут внутри заказов
+   * и своего состояния не имеют, а строка без заказа в `orders` не попадёт
+   * никогда — её грузит отдельный запрос.
+   */
+  preliminary: [],
+  preliminaryLoaded: false,
   // employeesSlice — `myDeptId`/`myRole` нужны оболочке (useErpAccess)
   employees: [],
   profilesList: [],

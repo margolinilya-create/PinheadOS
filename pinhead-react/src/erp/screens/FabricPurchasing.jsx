@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { PreliminarySection } from './purchasing/PreliminarySection';
 import { LoadFailed } from '../components/ErpStates';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { TableSkeleton } from '../components/ErpSkeletons';
@@ -385,6 +386,11 @@ export default function FabricPurchasing() {
           onAddMaterial={(orderId) => setAdding({ orderId })}
         />
       )}
+
+      {/* Предварительная закупка (п. 17): исключение при сжатых сроках,
+          поэтому блок свёрнут и стоит ПОСЛЕ очереди участка — она отвечает
+          на вопрос «что делать сейчас» */}
+      {loaded && <PreliminarySection orders={orders} />}
 
       {loaded && (
         <div className={styles.dashKpis} style={{ marginBottom: 16 }}>

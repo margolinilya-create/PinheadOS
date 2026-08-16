@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
-import { isProductionDept, deptShortName } from '../../data/departments';
+import {deptShortName} from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
@@ -43,6 +43,7 @@ import styles from '../../erp.module.css';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { PurchaseListSection } from './create/PurchaseListSection';
+import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
 import { Button } from '../../components/Button';
 
@@ -73,10 +74,6 @@ export function CreateOrderModal({ onClose }) {
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const departments = useErpStore((s) => s.departments);
-  const queueDepts = useMemo(
-    () => departments.filter((d) => d.active && isProductionDept(d)),
-    [departments],
-  );
   const [saving, setSaving] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -121,12 +118,22 @@ export function CreateOrderModal({ onClose }) {
    * Строки уезжают в заказ той же транзакцией (секция `materials` RPC).
    */
   const [purchase, setPurchase] = useState(() => restoredDraft?.purchase ?? []);
+  /**
+   * Вложения блоков: упаковка, техблок, лист закупки (правки заказчика 16.08 —
+   * документ требует файлы в шести местах). File-объекты живут ОТДЕЛЬНО от
+   * form/items, как и ТЗ: черновик пишется через `JSON.stringify`, и File
+   * сериализовался бы в `{}` молча.
+   */
+  const attach = useAttachmentUploads('new');
   const addPurchaseRow = () =>
     setPurchase((rows) => [...rows, emptyPurchaseRow(crypto.randomUUID())]);
   const setPurchaseRow = (key, patch) =>
     setPurchase((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const removePurchaseRow = (key) =>
+  const removePurchaseRow = (key) => {
     setPurchase((rows) => rows.filter((r) => r.key !== key));
+    // Файлы строки уходят вместе с ней — и из состояния, и из бакета
+    attach.dropOwner(key);
+  };
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
   /**
@@ -264,6 +271,9 @@ export function CreateOrderModal({ onClose }) {
     setTzDocs((arr) => arr
       .filter((d) => d.itemIndex !== i)
       .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) })));
+    // Тот же сдвиг для файлов упаковки и техблока: иначе следующая позиция
+    // унаследует чужое превью упаковки
+    attach.dropItem(i);
   };
 
   /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
@@ -420,6 +430,17 @@ export function CreateOrderModal({ onClose }) {
         : 'ТЗ не загрузилось — повторите загрузку файла или уберите его');
       return;
     }
+    /**
+     * То же правило, что у ТЗ: заказ не создаётся, пока есть незавершённые
+     * загрузки. Иначе форма покажет файл приложенным, а в Storage его не будет —
+     * и обнаружит это цех, когда откроет пустое вложение.
+     */
+    if (attach.uploading || attach.failed) {
+      toast.error(attach.uploading
+        ? 'Файлы ещё загружаются — дождитесь окончания'
+        : 'Файл не загрузился — повторите загрузку или уберите его');
+      return;
+    }
 
     setSaving(true);
 
@@ -461,8 +482,15 @@ export function CreateOrderModal({ onClose }) {
      * привязанный к третьей позиции, уехал бы к другой, если вторая пустая
      * и в заказ не попала.
      */
-    const materials = purchase
-      .filter((r) => !isPurchaseRowEmpty(r) && r.name.trim())
+    /**
+     * Ключи строк В ТОМ ЖЕ ПОРЯДКЕ, в каком они уедут в секцию `materials`, —
+     * по ним считается `material_index` файлов. Считать индекс по положению
+     * в состоянии формы нельзя: пустые строки отбрасываются, и привязка
+     * сдвинулась бы у всех, кто ниже.
+     */
+    const purchaseRows = purchase.filter((r) => !isPurchaseRowEmpty(r) && r.name.trim());
+    const purchaseKeys = purchaseRows.map((r) => r.key);
+    const materials = purchaseRows
       .map((r) => {
         const idx = r.item_index === null ? null : formToPayloadIndex.get(r.item_index);
         return {
@@ -483,6 +511,9 @@ export function CreateOrderModal({ onClose }) {
 
     created = await createOrder({
       materials,
+      // Вложения блоков: упаковка, техблок, лист закупки. Файлы уже в бакете —
+      // грузятся при выборе, RPC только привязывает их одной транзакцией
+      attachments: attach.payload(purchaseKeys),
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
@@ -516,6 +547,9 @@ export function CreateOrderModal({ onClose }) {
           sewing_note: it.sewing_note.trim() || undefined,
           labels_note: it.labels_note.trim() || undefined,
           packaging: it.packaging || 'inherit',
+          packaging_size: it.packaging_size.trim() || undefined,
+          sticker_place: it.sticker_place.trim() || undefined,
+          marking_place: it.marking_place.trim() || undefined,
           packaging_note: it.packaging_note.trim() || undefined,
           // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
           ...(it.production_type === 'outsource'
@@ -744,8 +778,8 @@ export function CreateOrderModal({ onClose }) {
             itemsCount={items.length}
             err={err}
             inputCls={inputCls}
-            queueDepts={queueDepts}
             route={itemRoutes[i]}
+            attach={attach}
             setItem={setItem}
             setBranding={setBranding}
             setPrint={setPrint}
@@ -784,6 +818,7 @@ export function CreateOrderModal({ onClose }) {
           onToggle={() => toggleSection('purchase')}
         >
         <PurchaseListSection
+          attach={attach}
           rows={purchase}
           items={items}
           addRow={addPurchaseRow}
@@ -915,8 +950,9 @@ export function CreateOrderModal({ onClose }) {
           <Button
             variant="primary"
             type="submit"
-            disabled={saving || tzUploading || tzFailed || tzValidation.missing.length
-          > 0 || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}>
+            disabled={saving || tzUploading || tzFailed || attach.uploading || attach.failed
+          || tzValidation.missing.length > 0
+          || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}>
             {saving ? 'Создание…' : 'Создать заказ'}
           </Button>
         </div>

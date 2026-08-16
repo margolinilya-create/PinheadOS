@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
@@ -23,7 +23,8 @@ import { CommentsSection } from './orderCard/CommentsSection';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
-import { ButtonLink } from '../components/Button';
+import { Button, ButtonLink } from '../components/Button';
+import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { OrderCardTabs } from './orderCard/OrderCardTabs';
 import { TzBlock } from './queue/TzBlock';
@@ -67,6 +68,13 @@ export default function OrderCard() {
    * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
    */
   const canManageOrder = useErpAccess().can('order.manage');
+  const generatePurchaseListPdf = useErpStore((st) => st.generatePurchaseListPdf);
+  /**
+   * Локальный флаг занятости, а не общий `pending`: сборка PDF идёт секунды
+   * (холодный старт функции тянет шрифт), и без него человек нажимает кнопку
+   * второй раз, получая вторую сборку того же листа.
+   */
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   /**
    * Куда возвращает «Заказы». Раньше здесь стоял безусловный `/orders`, и возврат
@@ -236,6 +244,24 @@ export default function OrderCard() {
               <ButtonLink to={`/orders/${orderId}/purchase-list`} variant="secondary">
                 <Icon name="file" size={14} /> Лист закупки
               </ButtonLink>
+              {/* PDF формирует СЕРВЕР и кладёт в документы заказа (п. 15).
+                  Кнопка нужна для повторного формирования: лист меняется,
+                  когда закупщик правит позиции, а автоматически он собирается
+                  один раз — при создании заказа */}
+              {order.materials.length > 0 && (
+                <Button
+                  variant="ghost"
+                  icon="download"
+                  loading={pdfBusy}
+                  onClick={async () => {
+                    setPdfBusy(true);
+                    await generatePurchaseListPdf(orderId);
+                    setPdfBusy(false);
+                  }}
+                >
+                  Пересобрать PDF
+                </Button>
+              )}
             </div>
             {order.materials.length > 0 ? (
               <div className={styles.stageChips}>

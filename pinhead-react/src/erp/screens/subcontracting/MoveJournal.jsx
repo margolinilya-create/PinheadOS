@@ -5,6 +5,7 @@ import { SUBCONTRACT_MOVE_LABELS } from '../../types';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { formatDateShort } from '../../utils/time';
+import { subcontractShortfall } from '../../utils/outsourcing';
 import { factoryToday } from '../../../utils/date';
 import styles from '../../erp.module.css';
 
@@ -27,7 +28,10 @@ import styles from '../../erp.module.css';
 const KINDS = ['send', 'return', 'accept'];
 
 export function MoveJournal({ op, canManage }) {
-  const addSubcontractMove = useErpStore(useShallow((s) => s.addSubcontractMove));
+  const { addSubcontractMove, updateSubcontractOp } = useErpStore(useShallow((s) => ({
+    addSubcontractMove: s.addSubcontractMove,
+    updateSubcontractOp: s.updateSubcontractOp,
+  })));
   const [kind, setKind] = useState('send');
   const [qty, setQty] = useState('');
   const [movedOn, setMovedOn] = useState(factoryToday());
@@ -35,6 +39,14 @@ export function MoveJournal({ op, canManage }) {
   const [saving, setSaving] = useState(false);
 
   const moves = [...(op.moves ?? [])].sort((a, b) => b.moved_on.localeCompare(a.moved_on));
+  const shortfall = subcontractShortfall(op);
+
+  /** Правка поля по blur: пишем только при реальном изменении, иначе каждый
+   *  уход фокуса отправлял бы запрос с тем же значением */
+  const saveField = (field, value) => {
+    if (value === (op[field] ?? null)) return;
+    updateSubcontractOp(op.id, { [field]: value });
+  };
 
   const submit = async () => {
     setSaving(true);
@@ -53,6 +65,70 @@ export function MoveJournal({ op, canManage }) {
           {' · '}принято {op.qty_accepted ?? 0}
           {op.qty ? ` из ${op.qty}` : ''}
         </span>
+        {/* Документ (п. 12) просит «количество брака» и «количество потерянных
+            изделий». Обе величины ВЫВОДЯТСЯ из журнала — держать под них
+            колонки значило бы завести второго писателя тех же чисел */}
+        {shortfall.lost > 0 && (
+          <span className={`${styles.chip} ${styles.chipBlocked}`}>
+            не вернулось: {shortfall.lost}
+          </span>
+        )}
+        {shortfall.defect > 0 && (
+          <span className={`${styles.chip} ${styles.chipBlocked}`}>
+            брак: {shortfall.defect}
+          </span>
+        )}
+      </div>
+
+      {/* Материалы Pinhead: «что передано, количество, дату передачи» —
+          прямое требование п. 13. При материалах подрядчика передавать нечего,
+          и блок не показывается вовсе */}
+      {op.material_source !== 'contractor' && (
+        <div className={styles.addMatRow}>
+          <span className={styles.subText}>Передано подрядчику:</span>
+          <input
+            className={styles.input}
+            placeholder="что передано (ткань, фурнитура, крой)"
+            defaultValue={op.materials_note || ''}
+            disabled={!canManage}
+            onBlur={(e) => saveField('materials_note', e.target.value.trim() || null)}
+            aria-label="Что передано подрядчику"
+          />
+          <input
+            className={styles.input}
+            placeholder="сколько"
+            defaultValue={op.materials_qty || ''}
+            disabled={!canManage}
+            onBlur={(e) => saveField('materials_qty', e.target.value.trim() || null)}
+            aria-label="Количество переданных материалов"
+            style={{ maxWidth: 120 }}
+          />
+          <DateField
+            showFormatHint={false}
+            disabled={!canManage}
+            value={op.materials_sent_on || ''}
+            onChange={(v) => saveField('materials_sent_on', v || null)}
+            aria-label="Дата передачи материалов"
+          />
+        </div>
+      )}
+
+      {/* Стоимость подряда (п. 12). Статус оплаты живёт в строке таблицы —
+          он в производственных переходах не участвует и не должен читаться
+          как шаг потока */}
+      <div className={styles.addMatRow}>
+        <span className={styles.subText}>Стоимость работ:</span>
+        <input
+          type="number"
+          min="0"
+          className={styles.input}
+          placeholder="₽"
+          defaultValue={op.cost ?? ''}
+          disabled={!canManage}
+          onBlur={(e) => saveField('cost', e.target.value === '' ? null : Number(e.target.value))}
+          aria-label="Стоимость подрядных работ"
+          style={{ maxWidth: 140 }}
+        />
       </div>
 
       {canManage && (

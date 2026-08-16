@@ -30,6 +30,68 @@ function patchSuppliersIn(
 }
 
 export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (set, get) => ({
+  preliminary: [],
+  preliminaryLoaded: false,
+
+  /**
+   * Предварительные закупки: строки без заказа. Отдельный запрос обязателен —
+   * обычные материалы приезжают вложенным select-ом к заказу, и строка,
+   * у которой заказа нет, туда не попадёт никогда.
+   */
+  loadPreliminary: async () => {
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_materials')
+      .select('*')
+      .is('order_id', null)
+      .order('created_at', { ascending: false }));
+    if (error) {
+      erpError('Не удалось загрузить предварительные закупки', error);
+      return;
+    }
+    set({ preliminary: (data ?? []) as ErpMaterial[], preliminaryLoaded: true });
+  },
+
+  addPreliminaryMaterial: async (material) => {
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_materials')
+      .insert({ ...material, order_id: null, source: material.source ?? 'purchase' })
+      .select());
+    const row = data?.[0] as ErpMaterial | undefined;
+    if (error || !row) {
+      erpError('Предварительная закупка не создана', error);
+      return null;
+    }
+    set((s) => ({ preliminary: [row, ...s.preliminary] }));
+    return row;
+  },
+
+  /**
+   * Привязка к заказу — UPDATE, а не копия: «система не должна создавать вторую
+   * дублирующую закупку» (п. 17.1). После привязки строка уходит из списка
+   * предварительных и появляется в заказе, поэтому заказ перечитывается.
+   */
+  attachPreliminaryToOrder: async (materialId, orderId) => {
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_materials')
+      .update({ order_id: orderId })
+      .eq('id', materialId)
+      .is('order_id', null)
+      .select());
+    /**
+     * Пустой ответ — не успех. RLS на UPDATE запрещает через `USING`, то есть
+     * отдаёт «0 строк», а не ошибку; и то же самое вернёт `.is('order_id', null)`,
+     * если строку уже привязали в соседней вкладке. Молча показать зелёное
+     * здесь означало бы «привязал» там, где ничего не произошло.
+     */
+    if (error || (data ?? []).length === 0) {
+      erpError('Закупка не привязана к заказу', error);
+      return false;
+    }
+    set((s) => ({ preliminary: s.preliminary.filter((m) => m.id !== materialId) }));
+    await get().loadOne(orderId);
+    return true;
+  },
+
   addMaterial: async (orderId, material) => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_materials')

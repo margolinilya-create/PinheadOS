@@ -24,6 +24,7 @@
 import { isProductionDept } from '../data/departments';
 import type { ProductionDeptLike } from '../data/departments';
 import type { ErpTzDocument } from '../types';
+import { safeFileName, translitAscii } from './storageKey';
 
 /** Минимальная форма заказа для резолюции ТЗ (чтобы не тянуть весь ErpOrderFull) */
 export interface TzSource {
@@ -264,61 +265,9 @@ export function tzUpdatedAfterStart(
   return document.created_at > started;
 }
 
-/**
- * Кириллица → латиница. Нужна не для красоты: Supabase Storage проверяет ключ
- * объекта регуляркой из S3-safe символов, где `\w` объявлен БЕЗ флага `u`, то есть
- * только ASCII. Любая русская буква в ключе — ответ `InvalidKey`, и файл не
- * загружается вообще. Имя для человека живёт в `erp_tz_documents.file_name`,
- * в ключе оно нужно только чтобы объект можно было опознать глазами.
- */
-const TRANSLIT: Record<string, string> = {
-  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z',
-  и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
-  с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch',
-  ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
-};
-
-/** Транслитерация с сохранением регистра: «ТЗ» → «TZ», «Швейка» → «Shveyka» */
-export function translitAscii(value: string): string {
-  let out = '';
-  for (const ch of value) {
-    const lower = ch.toLowerCase();
-    const mapped = TRANSLIT[lower];
-    if (mapped === undefined) {
-      out += ch;
-    } else if (ch === lower) {
-      out += mapped;
-    } else {
-      out += mapped.charAt(0).toUpperCase() + mapped.slice(1);
-    }
-  }
-  return out;
-}
-
-/** Всё, что не ASCII-буква, цифра, `_`, `-` или точка, схлопывается в один «_» */
-function sanitizeKeyPart(value: string): string {
-  return value
-    .replace(/[^\w.-]+/g, '_')
-    .replace(/\.{2,}/g, '.')
-    .replace(/_{2,}/g, '_')
-    .replace(/^[._\-\s]+/, '')
-    .replace(/[._\-\s]+$/, '');
-}
-
-/**
- * Ключ хранения файла: tz/<scope>/<group_id>/v<N>-<имя>.
- *
- * Имя транслитерируется и обеззараживается: результат строго ASCII (иначе Storage
- * отвечает `InvalidKey`), слэши и скобки уходят в «_», серии точек схлопываются —
- * иначе «../../» из имени файла уехало бы в ключ объекта. Расширение отделяется
- * заранее: иначе имя целиком из непереводимых символов съело бы и его.
- */
 export function tzFilePath(scope: string, groupId: string, version: number, fileName: string): string {
-  const raw = fileName || '';
-  const dot = raw.lastIndexOf('.');
-  const ext = dot > 0 ? sanitizeKeyPart(translitAscii(raw.slice(dot + 1))).slice(0, 8) : '';
-  // Голова, а не хвост: расширение уже отделено, а опознают файл по началу имени
-  const base = sanitizeKeyPart(sanitizeKeyPart(translitAscii(dot > 0 ? raw.slice(0, dot) : raw)).slice(0, 100));
-  const name = base || 'tz';
-  return `tz/${scope}/${groupId}/v${version}-${name}.${ext || 'pdf'}`;
+  return `tz/${scope}/${groupId}/v${version}-${safeFileName(fileName, 'tz', 'pdf')}`;
 }
+
+/** Реэкспорт: правило живёт в `utils/storageKey`, здесь — совместимость чтения */
+export { translitAscii };

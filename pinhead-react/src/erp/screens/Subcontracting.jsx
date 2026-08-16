@@ -28,6 +28,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
 import { MoveJournal } from './subcontracting/MoveJournal';
+import { RouteProgress } from '../components/RouteProgress';
 
 /**
  * Подряд — ЭТАПЫ МАРШРУТА, отданные подрядчику (правки заказчика 16.08, блок 2).
@@ -111,6 +112,10 @@ export default function Subcontracting() {
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!subcontractingLoaded) loadSubcontracting(); }, [subcontractingLoaded, loadSubcontracting]);
 
+  const deptById = useMemo(
+    () => new Map(departments.map((d) => [d.id, d])),
+    [departments],
+  );
   const deptNameById = useMemo(
     () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
     [departments],
@@ -323,6 +328,15 @@ export default function Subcontracting() {
                   open && sub && (
                     <tr key={`${stage.id}-journal`}>
                       <td colSpan={10}>
+                        {/* Документ (п. 19): «при открытии заказа показывать весь
+                            маршрут целиком» — что уже сделано, где заказ сейчас
+                            и что будет дальше. Примитив это уже умеет */}
+                        <RouteProgress
+                          item={item}
+                          order={order}
+                          deptById={deptById}
+                          currentStageId={stage.id}
+                        />
                         <MoveJournal op={sub} canManage={canManage} />
                       </td>
                     </tr>
