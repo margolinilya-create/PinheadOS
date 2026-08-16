@@ -12,9 +12,22 @@ import type { SizeGridRow } from '../types';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
 
-/** Пресеты размерной сетки */
+/**
+ * Пресеты размерной сетки.
+ *
+ * Взрослый ряд расширен до 3XS—5XL правкой заказчика 16.08: прежние семь
+ * размеров (XS…3XL) не покрывали ни мелкие, ни крупные заказы, и такие размеры
+ * приходилось добавлять режимом «Своя» — по одному, руками, на каждой позиции.
+ *
+ * Написание приведено к одному виду: `2XL` вместо прежнего `XXL` — иначе в одном
+ * ряду стояли бы `XXL` и `3XL`, то есть два разных правила подряд. Прежние
+ * заказы это не задевает: размеры хранятся КЛЮЧАМИ JSON внутри `size_grid`,
+ * а всё, что их показывает (`OrderItemSection`, `TzBlock`), берёт ключи из самих
+ * данных, а не из этого списка. В редакторе размер вне пресета тоже виден —
+ * `SizeGridEditor` дописывает к пресету активные размеры сетки.
+ */
 export const SIZE_PRESETS: Record<'adult' | 'kids', readonly string[]> = {
-  adult: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'],
+  adult: ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'],
   kids: ['92', '98', '104', '110', '116', '122', '128', '134', '140', '146'],
 };
 
@@ -44,7 +57,21 @@ export interface DraftGrid {
 export interface DraftItem {
   product_type: string;
   variant: string;
+  /**
+   * Крой изделия (правка заказчика 16.08). Порядок заполнения по документу:
+   * Изделие → Цвет → Крой → Размер → Количество — поле стоит между вариантом
+   * и количеством и в форме тоже.
+   */
+  fit: string;
   qty: string | number;
+  /** Технический блок изделия (правка 16.08): что цех должен знать о производстве */
+  trim_material: string;
+  cutting_note: string;
+  sewing_note: string;
+  labels_note: string;
+  /** Упаковка ПОЗИЦИИ; `inherit` — как в заказе (см. utils/packaging) */
+  packaging: string;
+  packaging_note: string;
   production_type: string;
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
@@ -60,6 +87,49 @@ export interface DraftItem {
   return_dept?: string;
   prints: DraftPrint[];
   size_grid: DraftGrid | null;
+}
+
+/**
+ * Строка листа закупки в форме создания (правки заказчика 16.08).
+ *
+ * `key` — локальный идентификатор строки, только для React и правок: в payload
+ * он не уезжает. Индекс массива для этого не годится — удаление средней строки
+ * пересобрало бы все поля ниже.
+ *
+ * `qty_expected` строкой, а не числом: поле ввода отдаёт строку, и приведение
+ * на каждое нажатие превращает «12.» в 12, не давая набрать «12.5».
+ */
+export interface DraftPurchaseRow {
+  key: string;
+  /** Индекс позиции заказа; null — материал на весь заказ */
+  item_index: number | null;
+  kind: string;
+  role: string;
+  name: string;
+  color: string;
+  qty_expected: string;
+  unit: string;
+  manager_note: string;
+}
+
+export function emptyPurchaseRow(key: string): DraftPurchaseRow {
+  return {
+    key,
+    item_index: null,
+    kind: 'fabric',
+    role: 'main',
+    name: '',
+    color: '',
+    qty_expected: '',
+    unit: '',
+    manager_note: '',
+  };
+}
+
+/** Пустая строка листа: её не показываем в ошибках и не отправляем */
+export function isPurchaseRowEmpty(r: DraftPurchaseRow): boolean {
+  return !r.name.trim() && !r.color.trim() && !r.manager_note.trim()
+    && !(Number(r.qty_expected) > 0);
 }
 
 export interface DraftForm {
@@ -91,7 +161,16 @@ export const EMPTY_PRINT: DraftPrint = {
 export const EMPTY_ITEM: DraftItem = {
   product_type: '',
   variant: '',
+  fit: '',
   qty: '',
+  trim_material: '',
+  cutting_note: '',
+  sewing_note: '',
+  labels_note: '',
+  // «Как в заказе» по умолчанию: пустое значение было бы неотличимо
+  // от осознанного «эту позицию не упаковывать»
+  packaging: 'inherit',
+  packaging_note: '',
   production_type: 'sewing',
   branding_on: 'cut',
   has_branding: false,
@@ -177,7 +256,20 @@ export function isItemEmpty(item: DraftItem): boolean {
     !item.variant.trim() &&
     !(Number(item.qty) > 0) &&
     item.prints.length === 0 &&
-    gridTotal(item.size_grid) === 0
+    gridTotal(item.size_grid) === 0 &&
+    /**
+     * Технический блок считается данными: позиция, где заполнен только
+     * комментарий по пошиву, «пустой» не является. Иначе форма молча выбросила
+     * бы её из заказа (пустые дополнительные строки пропускаются валидацией)
+     * либо закрылась без подтверждения, унеся набранный текст.
+     */
+    !item.fit.trim() &&
+    !item.trim_material.trim() &&
+    !item.cutting_note.trim() &&
+    !item.sewing_note.trim() &&
+    !item.labels_note.trim() &&
+    (item.packaging === 'inherit' || !item.packaging) &&
+    !item.packaging_note.trim()
   );
 }
 
@@ -280,11 +372,19 @@ export function validateOrderForm(
 interface OrderDraftEnvelope {
   form: DraftForm;
   items: DraftItem[];
+  /** Лист закупки; в старых черновиках его нет вовсе */
+  purchase?: DraftPurchaseRow[];
   savedAt: string;
 }
 
+export interface OrderDraft {
+  form: DraftForm;
+  items: DraftItem[];
+  purchase: DraftPurchaseRow[];
+}
+
 /** Восстановить черновик; null — если черновика нет или он битый */
-export function loadOrderDraft(): { form: DraftForm; items: DraftItem[] } | null {
+export function loadOrderDraft(): OrderDraft | null {
   const raw = storageGet<OrderDraftEnvelope>(ORDER_DRAFT_KEY);
   if (!raw || typeof raw !== 'object') return null;
   if (!raw.form || typeof raw.form !== 'object') return null;
@@ -298,11 +398,22 @@ export function loadOrderDraft(): { form: DraftForm; items: DraftItem[] } | null
       // старые черновики без флага: брендирование — если есть нанесения
       has_branding: it.has_branding ?? (Array.isArray(it.prints) && it.prints.length > 0),
     })),
+    /**
+     * Черновик, сохранённый до появления листа закупки, отдаёт пустой лист,
+     * а не роняет восстановление: человек мог начать заказ вчера.
+     */
+    purchase: Array.isArray(raw.purchase)
+      ? raw.purchase.map((r, i) => ({ ...emptyPurchaseRow(r.key || `p${i}`), ...r }))
+      : [],
   };
 }
 
-export function saveOrderDraft(form: DraftForm, items: DraftItem[]): void {
-  storageSet(ORDER_DRAFT_KEY, { form, items, savedAt: new Date().toISOString() });
+export function saveOrderDraft(
+  form: DraftForm,
+  items: DraftItem[],
+  purchase: DraftPurchaseRow[] = [],
+): void {
+  storageSet(ORDER_DRAFT_KEY, { form, items, purchase, savedAt: new Date().toISOString() });
 }
 
 export function clearOrderDraft(): void {

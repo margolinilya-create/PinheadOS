@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
+import { Button, ButtonLink } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { useStagePermissions } from '../../store/useStagePermissions';
@@ -149,6 +149,11 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
         {/* Тот же класс, что у действий в очереди цеха: копия «две кнопки
             во flex» здесь была бы четвёртым вариантом одного и того же */}
         <div className={styles.queueActions}>
+          {/* Лист закупки, сформированный менеджером при создании заказа:
+              закупщик читает исходное задание, а не собирает его заново */}
+          <ButtonLink to={`/orders/${order.id}/purchase-list`} variant="ghost">
+            Лист закупки
+          </ButtonLink>
           <Button variant="ghost" disabled={busy} onClick={() => onAddMaterial(order.id)}>
             + Материал
           </Button>

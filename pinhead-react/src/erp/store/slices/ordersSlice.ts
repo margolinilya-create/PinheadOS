@@ -330,7 +330,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-    const { items, tz, ...orderFields } = input;
+    const { items, tz, materials, ...orderFields } = input;
 
     /**
      * Цеха маршрута, которых нет в справочнике `erp_departments`.
@@ -375,6 +375,14 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           // Подряд (волна 4.2): тип/источник материалов для production_type='outsource'
           subcontract_kind: it.production_type === 'outsource' ? (it.subcontract_kind ?? null) : null,
           material_source: it.production_type === 'outsource' ? (it.material_source ?? null) : null,
+          // Технический блок и упаковка позиции (правки заказчика 16.08)
+          fit: it.fit || null,
+          trim_material: it.trim_material || null,
+          cutting_note: it.cutting_note || null,
+          sewing_note: it.sewing_note || null,
+          labels_note: it.labels_note || null,
+          packaging: it.packaging ?? 'inherit',
+          packaging_note: it.packaging_note || null,
           prints: (it.prints ?? []).map((p, j) => ({
             seq: j + 1,
             method: p.method,
@@ -395,7 +403,13 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           })),
         };
       }),
-      materials: [],
+      /**
+       * Лист закупки (правки заказчика 16.08). Раньше здесь стоял жёсткий `[]`,
+       * и секция, которую RPC принимал с самого начала, не использовалась вовсе:
+       * закупщик заводил те же строки заново на своём экране. Теперь потребность
+       * приезжает вместе с заказом одной транзакцией.
+       */
+      materials: materials ?? [],
       // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
       tz: tz ?? { documents: [], assignments: [] },
     };

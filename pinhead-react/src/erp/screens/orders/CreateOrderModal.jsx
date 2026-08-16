@@ -10,6 +10,8 @@ import { pluralize } from '../../../utils/i18n';
 import {
   EMPTY_ITEM,
   clearOrderDraft,
+  emptyPurchaseRow,
+  isPurchaseRowEmpty,
   effectiveQty,
   EMPTY_PRINT,
   emptyOrderForm,
@@ -40,6 +42,7 @@ import styles from '../../erp.module.css';
 // Секции и примитивы формы вынесены в ./create/ — модалка осталась композицией
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
+import { PurchaseListSection } from './create/PurchaseListSection';
 import { ItemBlock } from './create/ItemBlock';
 import { Button } from '../../components/Button';
 
@@ -119,6 +122,18 @@ export function CreateOrderModal({ onClose }) {
   const [restoredDraft] = useState(() => loadOrderDraft());
   const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
+  /**
+   * Лист закупки (правки заказчика 16.08). Потребность формирует МЕНЕДЖЕР при
+   * создании заказа — раньше её вбивал закупщик заново на своём экране.
+   * Строки уезжают в заказ той же транзакцией (секция `materials` RPC).
+   */
+  const [purchase, setPurchase] = useState(() => restoredDraft?.purchase ?? []);
+  const addPurchaseRow = () =>
+    setPurchase((rows) => [...rows, emptyPurchaseRow(crypto.randomUUID())]);
+  const setPurchaseRow = (key, patch) =>
+    setPurchase((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const removePurchaseRow = (key) =>
+    setPurchase((rows) => rows.filter((r) => r.key !== key));
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
   /**
@@ -267,7 +282,16 @@ export function CreateOrderModal({ onClose }) {
   };
 
   // Аккордеон-секции: все раскрыты по умолчанию
-  const [open, setOpen] = useState({ main: true, items: true, extra: true, tz: true });
+  const [open, setOpen] = useState({
+    main: true, items: true, extra: true, tz: true,
+    /**
+     * Лист закупки свёрнут по умолчанию: закупка нужна не каждому заказу
+     * (готовое изделие, давальческое сырьё, материалы подрядчика), и разворачивать
+     * шесть полей всем подряд значит удлинять форму ради меньшинства случаев.
+     * Резюме в заголовке показывает, есть ли внутри строки.
+     */
+    purchase: false,
+  });
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
 
@@ -290,16 +314,20 @@ export function CreateOrderModal({ onClose }) {
   // Автосейв черновика (debounce 500 мс); пустая форма — черновик удаляется
   useEffect(() => {
     const t = setTimeout(() => {
-      if (isFormEmpty(form, items, initialLaunch)) clearOrderDraft();
-      else saveOrderDraft(form, items);
+      if (isFormEmpty(form, items, initialLaunch) && purchase.every(isPurchaseRowEmpty)) {
+        clearOrderDraft();
+      } else {
+        saveOrderDraft(form, items, purchase);
+      }
     }, 500);
     return () => clearTimeout(t);
-  }, [form, items, initialLaunch]);
+  }, [form, items, purchase, initialLaunch]);
 
   const resetDraft = () => {
     clearOrderDraft();
     setForm(emptyOrderForm(initialLaunch));
     setItems([{ ...EMPTY_ITEM }]);
+    setPurchase([]);
     setDraftRestored(false);
     setSubmitted(false);
   };
@@ -308,7 +336,7 @@ export function CreateOrderModal({ onClose }) {
   const closingRef = useRef(false);
   const requestClose = async () => {
     if (saving || closingRef.current) return;
-    if (isFormEmpty(form, items, initialLaunch)) {
+    if (isFormEmpty(form, items, initialLaunch) && purchase.every(isPurchaseRowEmpty)) {
       clearOrderDraft();
       onClose();
       return;
@@ -323,7 +351,7 @@ export function CreateOrderModal({ onClose }) {
     });
     closingRef.current = false;
     if (ok) {
-      saveOrderDraft(form, items);
+      saveOrderDraft(form, items, purchase);
       onClose();
     }
   };
@@ -424,7 +452,34 @@ export function CreateOrderModal({ onClose }) {
     }
     let created = null;
     try {
+    /**
+     * Лист закупки: пустые строки отбрасываются, `item_index` пересобирается
+     * под НОВУЮ нумерацию позиций — та же карта, что у ТЗ. Без неё материал,
+     * привязанный к третьей позиции, уехал бы к другой, если вторая пустая
+     * и в заказ не попала.
+     */
+    const materials = purchase
+      .filter((r) => !isPurchaseRowEmpty(r) && r.name.trim())
+      .map((r) => {
+        const idx = r.item_index === null ? null : formToPayloadIndex.get(r.item_index);
+        return {
+          // Материал позиции, которая выпала из заказа, становится общим
+          // по заказу, а не теряется вместе с ней: потребность реальна
+          item_index: idx === undefined ? null : idx,
+          kind: r.kind,
+          role: r.role,
+          name: r.name.trim(),
+          color: r.color.trim() || undefined,
+          qty_expected: Number(r.qty_expected) || null,
+          unit: r.unit.trim() || undefined,
+          manager_note: r.manager_note.trim() || undefined,
+          source: 'purchase',
+          status: 'pending',
+        };
+      });
+
     created = await createOrder({
+      materials,
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
@@ -448,6 +503,17 @@ export function CreateOrderModal({ onClose }) {
           // сетка заполнена → количество из сетки, иначе ручной ввод
           qty: effectiveQty(it),
           production_type: it.production_type,
+          // Технический блок и упаковка позиции (правки заказчика 16.08).
+          // Пустое поле уходит undefined, а не пустой строкой: иначе колонка
+          // хранит '' и «не заполняли» становится неотличимо от «заполнили
+          // пустым» — а по этому различию считается, показывать ли блок цеху.
+          fit: it.fit.trim() || undefined,
+          trim_material: it.trim_material.trim() || undefined,
+          cutting_note: it.cutting_note.trim() || undefined,
+          sewing_note: it.sewing_note.trim() || undefined,
+          labels_note: it.labels_note.trim() || undefined,
+          packaging: it.packaging || 'inherit',
+          packaging_note: it.packaging_note.trim() || undefined,
           // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
           ...(it.production_type === 'outsource'
             ? { subcontract_kind: it.subcontract_kind || 'finished_product',
@@ -502,6 +568,10 @@ export function CreateOrderModal({ onClose }) {
   const itemsSummary =
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
+  const purchaseFilled = purchase.filter((r) => !isPurchaseRowEmpty(r)).length;
+  const purchaseSummary = purchaseFilled === 0
+    ? 'закупка не требуется'
+    : `${purchaseFilled} ${pluralize(purchaseFilled, 'позиция', 'позиции', 'позиций')}`;
   const tzUploaded = tzDocs.filter((d) => d.state === 'uploaded').length;
   const tzSummary = tzUploading
     ? 'загружается…'
@@ -542,6 +612,8 @@ export function CreateOrderModal({ onClose }) {
 
         {/* Подсказки справочников для полей «Изделие» и «Поставщик» (правка 12) */}
         <DictionaryDatalist kind="product_type" id="erp-product-types" />
+        {/* Подсказки кроя: Regular / Oversize / Free Fit — ввод остаётся свободным */}
+        <DictionaryDatalist kind="fit" id="erp-fits" />
         <DictionaryDatalist kind="supplier" id="erp-suppliers" />
 
         <FormSection
@@ -689,6 +761,22 @@ export function CreateOrderModal({ onClose }) {
           addTzDoc={addTzDoc}
           removeTzDoc={removeTzDoc}
           retryTzDoc={retryTzDoc}
+        />
+        </FormSection>
+
+        <FormSection
+          id="order-section-purchase"
+          title="Лист закупки"
+          summary={purchaseSummary}
+          open={open.purchase}
+          onToggle={() => toggleSection('purchase')}
+        >
+        <PurchaseListSection
+          rows={purchase}
+          items={items}
+          addRow={addPurchaseRow}
+          setRow={setPurchaseRow}
+          removeRow={removePurchaseRow}
         />
         </FormSection>
 

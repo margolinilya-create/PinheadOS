@@ -3,13 +3,20 @@ import { formatDateShort } from '../../utils/time';
 import {
   BRANDING_METHOD_LABELS,
   MATERIAL_STATUS_LABELS,
-  PACKAGING_LABELS,
-  STICKERS_LABELS,
 } from '../../types';
+import { hasPackaging, itemPackaging, packagingLabel, stickersLabel } from '../../utils/packaging';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
+
+/** Технический блок изделия: подпись и колонка. Порядок — как в форме создания */
+const TECH_FIELDS = [
+  ['trim_material', 'Отделочный материал'],
+  ['cutting_note', 'Раскрой'],
+  ['sewing_note', 'Пошив'],
+  ['labels_note', 'Бирки'],
+];
 
 /**
  * Полное ТЗ позиции: сетка, нанесения, упаковка, материалы.
@@ -23,6 +30,12 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
     () => [...(item.prints ?? [])].sort((a, b) => a.seq - b.seq),
     [item.prints],
   );
+  /**
+   * Упаковка позиции: своя или общая по заказу — одно правило на весь проект
+   * (`utils/packaging`), потому что мест, где может лежать ответ, стало два.
+   */
+  const packaging = useMemo(() => itemPackaging(order, item), [order, item]);
+  const stickers = stickersLabel(order.stickers, order.stickers_note);
   const allSizes = useMemo(
     () => (item.size_grid?.length
       ? [...new Set(item.size_grid.flatMap((r) => Object.keys(r.sizes)))]
@@ -49,16 +62,20 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
             {item.variant && (
               <span className={`${styles.chip} ${styles.chipNeutral}`}>Вариант: {item.variant}</span>
             )}
-            {order.packaging && order.packaging !== 'none' && (
+            {item.fit && (
+              <span className={`${styles.chip} ${styles.chipNeutral}`}>Крой: {item.fit}</span>
+            )}
+            {/* Упаковка ПОЗИЦИИ: своя, а при `inherit` — общая по заказу.
+                Правило разрешения одно на весь проект — utils/packaging. */}
+            {hasPackaging(packaging) && (
               <span className={`${styles.chip} ${styles.chipNeutral}`}>
-                <Icon name="box" size={13} />{PACKAGING_LABELS[order.packaging]}
-                {order.packaging_note ? `: ${order.packaging_note}` : ''}
+                <Icon name="box" size={13} />{packagingLabel(packaging)}
+                {packaging.inherited ? '' : ' (у этого изделия)'}
               </span>
             )}
-            {order.stickers && order.stickers !== 'none' && (
+            {stickers && (
               <span className={`${styles.chip} ${styles.chipNeutral}`}>
-                <Icon name="tag" size={13} />Стикеры: {STICKERS_LABELS[order.stickers]}
-                {order.stickers_note ? ` — ${order.stickers_note}` : ''}
+                <Icon name="tag" size={13} />Стикеры: {stickers}
               </span>
             )}
             {order.no_chestny_znak && (
@@ -138,6 +155,22 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
               <div className={styles.subText}>Материалы не ожидаются.</div>
             )}
           </div>
+
+          {/* Технический блок изделия (правка заказчика 16.08): цех читает его
+              здесь же, где сетку и нанесения. Пустые поля не показываются —
+              подпись без значения это шум, а не «поле есть». */}
+          {TECH_FIELDS.some(([key]) => item[key]) && (
+            <div>
+              <div className={styles.fieldLabel}>Технические особенности</div>
+              <ul className={styles.tzMatList}>
+                {TECH_FIELDS.map(([key, label]) => item[key] && (
+                  <li key={key}>
+                    <span className={styles.subText}>{label}: </span>{item[key]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {item.notes && <div className={styles.subText}>Заметка: {item.notes}</div>}
         </div>

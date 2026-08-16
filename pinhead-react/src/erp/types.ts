@@ -212,9 +212,30 @@ export interface ErpOrderItem {
   /** Подряд (волна 4.2): выбирается при создании заказа с типом «Подряд» */
   subcontract_kind?: SubcontractOpType | null;
   material_source?: SubcontractMaterialSource | null;
+  /**
+   * Технический блок изделия (правки заказчика 16.08). Свободные поля: цех
+   * читает их в задании, они же уходят в ТЗ. Порядок заполнения позиции по
+   * документу: Изделие → Цвет → Крой → Размер → Количество.
+   */
+  fit?: string | null;
+  trim_material?: string | null;
+  cutting_note?: string | null;
+  sewing_note?: string | null;
+  labels_note?: string | null;
+  /**
+   * Упаковка ПОЗИЦИИ. `inherit` (значение по умолчанию) = брать из заказа;
+   * резолюция — `utils/packaging.itemPackaging`, второго места с этим правилом
+   * быть не должно. У позиций, заведённых до правки, колонки нет вовсе —
+   * это тоже читается как «как в заказе».
+   */
+  packaging?: ItemPackagingType | null;
+  packaging_note?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Упаковка позиции: та же шкала, что у заказа, плюс «как в заказе» */
+export type ItemPackagingType = 'inherit' | PackagingType;
 
 export interface ErpItemStage {
   id: string;
@@ -327,6 +348,20 @@ export interface ErpMaterial {
   accepted_at: string | null;
   accepted_by: string | null;
   accept_comment: string | null;
+  /**
+   * Лист закупки (правки заказчика 16.08). Документ требует разделить поля
+   * менеджера и закупщика: «один показатель не должен заменять другой».
+   *
+   * `manager_note` — комментарий МЕНЕДЖЕРА при создании заказа, отдельно от
+   * `notes` закупщика. Раньше поле было одно, и обе роли писали в одну строку.
+   *
+   * `qty_ordered` — сколько закупщик фактически ЗАКАЗАЛ. Это ни план
+   * (`qty_expected`), ни приход (`qty_received`): «нужно было 100 м →
+   * закупили 110 м» — про разницу первого и этого.
+   */
+  manager_note?: string | null;
+  qty_ordered?: number | null;
+  ordered_on?: string | null;
   created_at: string;
   updated_at: string;
   /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
@@ -1138,7 +1173,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type';
+  | 'experimental_task_type' | 'fit';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1147,6 +1182,7 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   supplier: 'Поставщики',
   unit: 'Единицы измерения',
   experimental_task_type: 'Задачи разработки',
+  fit: 'Крой изделия',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -1158,6 +1194,7 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
   supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
   experimental_task_type:
     'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
+  fit: 'Подсказки в поле «Крой» при создании заказа (Regular, Oversize, Free Fit).',
 };
 
 export interface ErpDictionaryItem {
@@ -1178,6 +1215,20 @@ export type PackagingType = 'none' | 'bopp' | 'zip' | 'other';
 export type StickersType = 'none' | 'blank' | 'other';
 
 export const PACKAGING_LABELS: Record<PackagingType, string> = {
+  none: 'Нет',
+  bopp: 'БОПП-пакет',
+  zip: 'ZIP-пакет',
+  other: 'Другое',
+};
+
+/**
+ * Шкала упаковки ПОЗИЦИИ (правка заказчика 16.08). «Как в заказе» стоит первым
+ * и служит значением по умолчанию: пустого значения нет намеренно — «не
+ * заполняли» и «эту позицию не упаковывать» обязаны различаться, иначе забытая
+ * позиция уедет в отгрузку без упаковки, и никто этого не заметит.
+ */
+export const ITEM_PACKAGING_LABELS: Record<ItemPackagingType, string> = {
+  inherit: 'Как в заказе',
   none: 'Нет',
   bopp: 'БОПП-пакет',
   zip: 'ZIP-пакет',

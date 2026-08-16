@@ -2855,3 +2855,75 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   padding: 0;
   min-width: 0;
 }
+
+/**
+ * Печатная форма листа закупки (правка заказчика 16.08, п. 15).
+ *
+ * PDF формирует браузер: «Печать → Сохранить как PDF». Отсюда два требования
+ * к странице — она должна читаться на бумаге и не тащить в печать интерфейс.
+ * `.no-print` — глобальный класс (объявлен в styles/utils.css вместе с правилами
+ * печати Order Studio), поэтому здесь он не дублируется: два объявления одного
+ * класса разъехались бы при первой же правке.
+ */
+.printPage {
+  max-width: 900px;
+}
+.printTitle {
+  font-family: var(--font-display);
+  /* --type-h1 это 56px — заголовок экрана, а не документа: на листе А4 он
+     съел бы четверть первой страницы */
+  font-size: var(--type-h2);
+  margin: 0 0 var(--space-md);
+}
+.printFacts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px var(--space-md);
+  margin: 0 0 var(--space-lg);
+  font-size: 13px;
+}
+.printFacts dt { color: var(--text-dim); }
+.printFacts dd { margin: 0; }
+.printSection { margin-bottom: var(--space-lg); }
+.printSectionTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-body);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-sm);
+}
+.printFoot {
+  margin-top: var(--space-lg);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+@media print {
+  /* Лист печатается сам по себе: оболочка, сайдбар и шапка на бумаге не нужны */
+  .printPage {
+    max-width: none;
+  }
+  .printSection {
+    /* Таблица материалов изделия не должна разрываться посреди строки */
+    break-inside: avoid;
+  }
+}
+
+/**
+ * Групповая строка заголовка таблицы: «Потребность — задал менеджер» против
+ * «Факт — ведёт закупка» (правка заказчика 16.08, п. 12).
+ *
+ * Разделитель — вертикальная граница у первой ячейки группы, а не цвет фона:
+ * цветом в этой таблице уже показан статус материала, и вторая цветовая
+ * система рядом с ним читалась бы как ещё один статус.
+ */
+.groupHeadRow th { border-bottom: 0; }
+.groupHead {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: 2px;
+}
+.groupHead + .groupHead { border-left: 1px solid var(--border-light); padding-left: 10px; }

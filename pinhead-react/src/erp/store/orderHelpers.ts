@@ -54,6 +54,13 @@ export const ORDER_SELECT = `
  *     (`stages.updated_at` ЧИТАЕТСЯ карточкой канбана и остаётся);
  *   · `items.size_grid` — размерная сетка, её рисует только карточка заказа.
  *
+ * Технический блок позиции (`fit`, `trim_material`, `cutting_note`,
+ * `sewing_note`, `labels_note`, `packaging`, `packaging_note`) в списке ЕСТЬ,
+ * хотя это и новые поля: их читает `screens/queue/TzBlock` — структурное ТЗ
+ * в строке очереди цеха, то есть самый списочный из экранов. Без них цех
+ * увидел бы пустой техблок там, где данные заполнены, и ошибку никто бы
+ * не заметил: поле просто приезжает `undefined`.
+ *
  * Что осталось и почему: `overdue_comment` показывает карточка очереди,
  * `procurement_tasks` нужны причине ожидания, `tz_documents` — гейту ТЗ,
  * `materials` — материальному гейту. Отношения `attachments`/`warehouse_*`/
@@ -70,6 +77,8 @@ export const ORDER_LIST_SELECT = `
     id, order_id, product_type, variant, qty, production_type,
     branding_methods, branding_on, notes, sort_order,
     subcontract_kind, material_source,
+    fit, trim_material, cutting_note, sewing_note, labels_note,
+    packaging, packaging_note,
     stages:erp_item_stages (
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
       planned_start, planned_end, started_at, finished_at, assignee,

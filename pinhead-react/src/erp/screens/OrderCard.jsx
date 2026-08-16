@@ -230,6 +230,13 @@ export default function OrderCard() {
 
         {tab === 'materials' && (
           <section className={styles.matSection}>
+            {/* Лист закупки для печати: те же данные, что здесь, но в виде
+                документа — его передают закупщику и поставщику (правка 16.08) */}
+            <div className={styles.toolbar}>
+              <ButtonLink to={`/orders/${orderId}/purchase-list`} variant="secondary">
+                <Icon name="file" size={14} /> Лист закупки
+              </ButtonLink>
+            </div>
             {order.materials.length > 0 ? (
               <div className={styles.stageChips}>
                 {order.materials.map((m) => {

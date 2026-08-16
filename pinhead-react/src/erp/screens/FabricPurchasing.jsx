@@ -112,7 +112,16 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   const submit = async () => {
     if (!form.order_id) { toast.error('Выберите заказ'); return; }
     if (!form.name.trim()) { toast.error('Укажите материал'); return; }
-    if (form.source === 'purchase' && !form.eta_date) { toast.error('Укажите план прихода'); return; }
+    /**
+     * План прихода БОЛЬШЕ НЕ ОБЯЗАТЕЛЕН (правка заказчика 16.08, п. 13):
+     * «менеджер зачастую не знает эту информацию на момент запуска, поле должен
+     * заполнять закупщик после взаимодействия с поставщиком». Строку заводят
+     * ДО разговора с поставщиком — и раньше её нельзя было завести вовсе,
+     * не выдумав дату.
+     *
+     * Плановое количество обязательным остаётся: без него закупка не закроется
+     * автоматически (`supply.missingPlan`), то есть строка просто застрянет.
+     */
     if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
       toast.error('Укажите плановое количество'); return;
     }
@@ -441,12 +450,25 @@ export default function FabricPurchasing() {
           <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
             <table className={styles.table}>
               <thead>
+                {/*
+                  Две группы колонок — прямое требование документа (п. 12):
+                  «в интерфейсе закупки необходимо визуально разделить исходный
+                  запрос и данные закупщика». Слева то, что задал менеджер при
+                  создании заказа, справа то, что закупщик выясняет и вносит сам.
+                  Пока группы не были названы, обе роли писали в общую строку,
+                  и «нужно было 100 м → закупили 110» показать было нечем.
+                */}
+                <tr className={styles.groupHeadRow}>
+                  <th className={styles.groupHead} colSpan={4}>Потребность — задал менеджер</th>
+                  <th className={styles.groupHead} colSpan={6}>Факт — ведёт закупка</th>
+                </tr>
                 <tr>
                   <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
                   <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
+                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">Нужно</SortableTh>
+                  <th>Комментарий менеджера</th>
                   <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
                   <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
-                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">План, кол-во</SortableTh>
                   <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
                   <th>Ответственный</th>
                   <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
@@ -471,6 +493,22 @@ export default function FabricPurchasing() {
                       <div className={styles.subText}>{KIND_LABELS[m.kind]}{m.color ? ` · ${m.color}` : ''}{m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}</div>
                     </td>
                     <td>
+                      <input
+                        type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
+                        defaultValue={m.qty_expected ?? ''} placeholder="—"
+                        onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v }); }}
+                        aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
+                      />
+                    </td>
+                    <td>
+                      {/* Комментарий МЕНЕДЖЕРА — на чтение: это исходное задание,
+                          и правка его закупщиком стёрла бы то, что просили.
+                          Свой комментарий закупщик пишет в приёмке. */}
+                      <span className={m.manager_note ? undefined : styles.subText}>
+                        {m.manager_note || '—'}
+                      </span>
+                    </td>
+                    <td>
                       {/* Правка 10: поставщик — не одно поле, а выбор из вариантов */}
                       <button
                         type="button"
@@ -493,14 +531,6 @@ export default function FabricPurchasing() {
                         className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"
                         onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.article || null)) updateMaterial(m.id, { article: v }); }}
                         aria-label={`Артикул ${m.name}`} style={{ maxWidth: 110 }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.qty_expected ?? ''} placeholder="—"
-                        onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v }); }}
-                        aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
                       />
                     </td>
                     <td>

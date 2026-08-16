@@ -12,6 +12,9 @@ import {
   isItemEmpty,
   loadOrderDraft,
   saveOrderDraft,
+  SIZE_PRESETS,
+  emptyPurchaseRow,
+  isPurchaseRowEmpty,
   toggleSize,
   validateOrderForm,
   type DraftItem,
@@ -130,6 +133,31 @@ describe('gridTotal / effectiveQty', () => {
     expect(effectiveQty({ qty: '99', size_grid: grid })).toBe(20);
     expect(effectiveQty({ qty: '99', size_grid: null })).toBe(99);
     expect(effectiveQty({ qty: '', size_grid: null })).toBe(0);
+  });
+});
+
+describe('размерный ряд', () => {
+  it('покрывает 3XS—5XL — прямое требование заказчика 16.08', () => {
+    expect(SIZE_PRESETS.adult[0]).toBe('3XS');
+    expect(SIZE_PRESETS.adult.at(-1)).toBe('5XL');
+  });
+
+  it('идёт по возрастанию, без пропусков в середине', () => {
+    expect(SIZE_PRESETS.adult).toEqual(
+      ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'],
+    );
+  });
+
+  it('написание одно: XXL из прежнего набора не соседствует с 2XL', () => {
+    // Иначе в одном ряду стояли бы два разных правила подряд (XXL, затем 3XL).
+    // Прежним заказам это не мешает: размеры хранятся ключами JSON в size_grid,
+    // и показывают их из самих данных, а не из этого списка.
+    expect(SIZE_PRESETS.adult).not.toContain('XXL');
+  });
+
+  it('детский ряд не тронут', () => {
+    expect(SIZE_PRESETS.kids).toContain('92');
+    expect(SIZE_PRESETS.kids).toContain('146');
   });
 });
 
@@ -311,5 +339,55 @@ describe('isFormEmpty / isItemEmpty', () => {
     expect(isItemEmpty(item({
       size_grid: { sizes: ['S'], rows: [{ color: '', sizes: { S: 1 } }] },
     }))).toBe(false);
+  });
+});
+
+// ─── Лист закупки ────────────────────────────────────────────────────────────
+
+describe('лист закупки в черновике', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('строка считается пустой, пока в ней нет ни одного значащего поля', () => {
+    const r = emptyPurchaseRow('k1');
+    expect(isPurchaseRowEmpty(r)).toBe(true);
+    // Тип и роль имеют значения по умолчанию — сами по себе они не данные
+    expect(isPurchaseRowEmpty({ ...r, kind: 'labels', role: 'trim' })).toBe(true);
+  });
+
+  it('любое заполненное поле делает строку значащей', () => {
+    const r = emptyPurchaseRow('k1');
+    expect(isPurchaseRowEmpty({ ...r, name: 'Кулирка' })).toBe(false);
+    expect(isPurchaseRowEmpty({ ...r, color: 'чёрный' })).toBe(false);
+    expect(isPurchaseRowEmpty({ ...r, qty_expected: '120' })).toBe(false);
+    expect(isPurchaseRowEmpty({ ...r, manager_note: 'как в прошлый раз' })).toBe(false);
+  });
+
+  it('ноль в количестве — не данные: поле трогали, но ничего не сказали', () => {
+    expect(isPurchaseRowEmpty({ ...emptyPurchaseRow('k1'), qty_expected: '0' })).toBe(true);
+  });
+
+  it('лист сохраняется в черновик и восстанавливается', () => {
+    const rows = [{ ...emptyPurchaseRow('k1'), name: 'Кулирка', qty_expected: '120' }];
+    saveOrderDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })], rows);
+    expect(loadOrderDraft()?.purchase).toEqual(rows);
+  });
+
+  it('черновик БЕЗ листа (сохранён до правки 16.08) восстанавливается с пустым', () => {
+    // Человек мог начать заказ вчера — падать на этом нельзя
+    saveOrderDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })]);
+    expect(loadOrderDraft()?.purchase).toEqual([]);
+  });
+
+  it('строка из старого черновика дополняется значениями по умолчанию', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+      form: emptyOrderForm(),
+      items: [item({ product_type: 'Худи', qty: 10 })],
+      purchase: [{ key: 'k1', name: 'Кулирка' }],
+      savedAt: new Date().toISOString(),
+    }));
+    const restored = loadOrderDraft()?.purchase?.[0];
+    expect(restored?.kind).toBe('fabric');
+    expect(restored?.item_index).toBeNull();
+    expect(restored?.name).toBe('Кулирка');
   });
 });
