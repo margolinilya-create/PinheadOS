@@ -426,6 +426,12 @@ export interface OrdersSlice {
    * Отгрузка готового заказа: status → done_* (по сроку клиента),
    * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
    */
+  /**
+   * Сформировать PDF листа закупки (правки 16.08, п. 15). Считает и кладёт файл
+   * СЕРВЕР: документ требует, чтобы система делала это сама, а PDF-библиотека
+   * в клиенте стоила бы 100–200 кБ при оболочке на 97 % бюджета.
+   */
+  generatePurchaseListPdf: (orderId: string) => Promise<boolean>;
   shipOrder: (orderId: string) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
