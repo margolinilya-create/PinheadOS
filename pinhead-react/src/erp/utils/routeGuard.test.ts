@@ -108,3 +108,62 @@ describe('политики появления и удаления этапов',
     expect(DEL).toMatch(/public\.is_admin\(\)/);
   });
 });
+
+/**
+ * Маршрут, собранный в форме СОЗДАНИЯ заказа.
+ *
+ * Секция `stages` payload-а принимала только цех, порядок и зависимости, и
+ * подрядный этап, заданный конструктором до создания заказа, становился нашим —
+ * молча, без единой ошибки. Ошибка этого рода не падает: заказ создаётся,
+ * выглядит правильно и просто уходит не тому исполнителю.
+ */
+describe('erp_create_order принимает исполнителя этапа', () => {
+  const SQL = functionBody(latestDefining('erp_create_order'), 'erp_create_order');
+
+  it('вставка этапа читает executor, contractor и operation', () => {
+    for (const col of ['executor', 'contractor', 'operation']) {
+      expect(SQL, `секция stages не читает ${col}`).toMatch(new RegExp(`v_stage->>'${col}'`));
+    }
+    // Отсутствие поля означает НАШ этап: колонка новая, и payload старого
+    // бандла её не несёт вовсе — fail-open обязателен именно в эту сторону
+    expect(SQL).toMatch(/coalesce\(v_stage->>'executor', 'internal'\)/);
+  });
+
+  /**
+   * Карточку подрядчика заводит тот же оператор, что и этап. Второго писателя
+   * связи `stage_id` быть не должно — именно её отсутствие (на боевой базе обе
+   * строки подряда с `null`) и делало раздел «Подряд» тупиком.
+   */
+  it('подрядный этап заводит карточку подрядчика той же транзакцией', () => {
+    expect(SQL).toMatch(/insert into erp_subcontracting[\s\S]{0,200}stage_id/);
+  });
+});
+
+/**
+ * Перечисление, разъехавшееся между двумя таблицами.
+ *
+ * `mixed` завели в `erp_subcontracting`, а выбирает источник менеджер В ФОРМЕ
+ * ЗАКАЗА — то есть значение пишется прежде всего в `erp_order_items`, где CHECK
+ * остался на двух значениях. Заказ со смешанными материалами не создавался
+ * вовсе: 23514 на вставке позиции, ещё до единого этапа. В клиенте перечисление
+ * ОДНО на оба поля, поэтому ни типы, ни тесты маршрута расхождения не видели.
+ */
+describe('источник материалов совпадает у позиции и у карточки подряда', () => {
+  const VALUES = ['pinhead', 'contractor', 'mixed'];
+
+  // Привязываемся к ИМЕНИ КОНСТРЕЙНТА и берём текст CHECK сразу за ним:
+  // просто «в файле есть слово material_source» найдёт любую соседнюю миграцию,
+  // и сторож станет зелёным независимо от того, что сторожит
+  it.each([
+    ['erp_order_items', 'erp_order_items_material_source_check'],
+    ['erp_subcontracting', 'erp_subcontracting_material_source_check'],
+  ])('%s принимает все три значения', (table, constraint) => {
+    const sql = latestMatching(
+      new RegExp(`add constraint ${constraint}`), `CHECK material_source у ${table}`);
+    const check = sql.match(
+      new RegExp(`add constraint ${constraint}\\s+check \\(([^)]*\\))`))?.[1] ?? '';
+    for (const v of VALUES) {
+      expect(check, `в CHECK ${constraint} нет значения ${v}`).toContain(`'${v}'`);
+    }
+  });
+});

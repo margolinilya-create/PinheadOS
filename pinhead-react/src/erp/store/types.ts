@@ -6,6 +6,7 @@
 
 import type { PermissionMatrix } from '../utils/permissions';
 import type { CapacitySettings } from '../utils/capacity';
+import type { RouteGroup } from '../utils/routeDraft';
 import type {
   BrandingMethod,
   BrandingOn,
@@ -31,6 +32,7 @@ import type {
   ErpProcurementTask,
   ErpStageEvent,
   ErpSubcontractOp,
+  SubcontractMaterialSource,
   SubcontractMoveKind,
   ErpCalendarSlot,
   ErpPlanComment,
@@ -168,7 +170,7 @@ export interface NewOrderItemInput {
   prints?: NewPrintInput[];
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: 'finished_product' | 'operation';
-  material_source?: 'pinhead' | 'contractor';
+  material_source?: SubcontractMaterialSource;
   /** Что за операция делает подрядчик (правка 4.2.3) — для «отдельной операции» */
   subcontract_operation?: string;
   /** Следующий участок после отдельной операции (код цеха); null = доработка не нужна */
@@ -186,6 +188,12 @@ export interface NewOrderItemInput {
   /** `inherit` — упаковка берётся из заказа (см. utils/packaging) */
   packaging?: ItemPackagingType;
   packaging_note?: string;
+  /**
+   * Маршрут, ПРАВЛЕННЫЙ человеком в конструкторе (правки заказчика 16.08).
+   * `undefined` — не трогали: стор посчитает маршрут сам тем же
+   * `formItemRoute`, и правило «правка или расчёт» остаётся в одном месте.
+   */
+  route?: RouteGroup[];
 }
 
 /**

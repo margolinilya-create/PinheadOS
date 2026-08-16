@@ -23,7 +23,7 @@ import {
   validateOrderForm,
 } from '../../utils/orderForm';
 import { factoryToday } from '../../../utils/date';
-import { buildItemRoute } from '../../utils/routes';
+import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
 import { deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
@@ -52,28 +52,21 @@ import { Button } from '../../components/Button';
  * превью в форме не расходится с фактом. ТЗ требуют только производственные цеха
  * (`deptNeedsTz`): закупке и складам PDF не адресуется.
  */
-function buildTzItems(items, deptByCode) {
+function buildTzItems(items, routes, deptByCode) {
   return items
     .map((it, index) => ({ it, index }))
     .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
-    .map(({ it, index }) => {
-      const prints = it.has_branding ? it.prints : [];
-      const route = buildItemRoute({
-        productionType: it.production_type,
-        brandingMethods: [...new Set(prints.map((p) => p.method))],
-        brandingOn: it.branding_on ?? 'cut',
-        materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
-      });
-      return {
-        index,
-        label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
-        stages: route
-          .map((r) => deptByCode.get(r.departmentCode))
-          .filter((d) => deptNeedsTz(d))
-          .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
-      };
-    });
+    .map(({ it, index }) => ({
+      index,
+      label: [it.product_type.trim(), it.variant.trim()].filter(Boolean).join(' ') || 'Позиция',
+      stages: (routes[index] ?? [])
+        .flat()
+        .map((step) => deptByCode.get(step.departmentCode))
+        .filter((d) => deptNeedsTz(d))
+        .map((d) => ({ departmentId: d.id, departmentName: deptShortName(d.code, d.name) })),
+    }));
 }
+
 
 export function CreateOrderModal({ onClose }) {
   const createOrder = useErpStore((s) => s.createOrder);
@@ -159,7 +152,17 @@ export function CreateOrderModal({ onClose }) {
     () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
     [departments],
   );
-  const tzItems = useMemo(() => buildTzItems(items, deptByCode), [items, deptByCode]);
+  /**
+   * Маршруты позиций: правка человека, если она есть, иначе расчёт. Правило
+   * одно на всю форму и на стор — `routeGroupsForItem`; разойдись они, гейт ТЗ
+   * считался бы по одному маршруту, а заказ создавался по другому.
+   */
+  const itemRoutes = useMemo(
+    () => items.map((it) => formItemRoute(it)),
+    [items],
+  );
+  const tzItems = useMemo(
+    () => buildTzItems(items, itemRoutes, deptByCode), [items, itemRoutes, deptByCode]);
 
   /**
    * ТЗ в PDF. File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
@@ -527,6 +530,14 @@ export function CreateOrderModal({ onClose }) {
             : {}),
           // маршрут строится по техникам из блоков «Нанесение №N»
           branding_methods: [...new Set(prints.map((p) => p.method))],
+          /**
+           * Правка маршрута человеком едет как есть; не тронутый маршрут —
+           * `undefined`, и стор посчитает его сам тем же `formItemRoute`.
+           * Передаём именно ПРАВКУ, а не готовый маршрут: правило «правка или
+           * расчёт» должно остаться в одном месте, иначе форма и стор начнут
+           * решать это по-разному.
+           */
+          route: it.route,
           branding_on: it.branding_on,
           size_grid: gridToPayload(it.size_grid),
           prints: prints.map((p) => ({
@@ -734,6 +745,7 @@ export function CreateOrderModal({ onClose }) {
             err={err}
             inputCls={inputCls}
             queueDepts={queueDepts}
+            route={itemRoutes[i]}
             setItem={setItem}
             setBranding={setBranding}
             setPrint={setPrint}
