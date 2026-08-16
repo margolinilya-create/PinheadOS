@@ -194,6 +194,10 @@ export interface NewOrderItemInput {
   labels_note?: string;
   /** `inherit` — упаковка берётся из заказа (см. utils/packaging) */
   packaging?: ItemPackagingType;
+  /** Размер пакета, расположение стикера и маркировки — п. 1 документа 16.08 */
+  packaging_size?: string;
+  sticker_place?: string;
+  marking_place?: string;
   packaging_note?: string;
   /**
    * Маршрут, ПРАВЛЕННЫЙ человеком в конструкторе (правки заказчика 16.08).
@@ -531,6 +535,24 @@ export interface RouteStepWrite {
 
 /** Материалы: добавление/правка, подтверждение склада, авто-закрытие закупки */
 export interface MaterialsSlice {
+  /**
+   * Предварительные закупки — строки `erp_materials` без заказа (п. 17
+   * документа 16.08). Держим их ОТДЕЛЬНЫМ списком, а не в `orders`: обычные
+   * материалы приезжают join-ом к заказу, и строка без заказа не попала бы
+   * туда никогда — её бы просто не existовало для интерфейса.
+   */
+  preliminary: ErpMaterial[];
+  preliminaryLoaded: boolean;
+  loadPreliminary: () => Promise<void>;
+  addPreliminaryMaterial: (
+    material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,
+  ) => Promise<ErpMaterial | null>;
+  /**
+   * Привязка предварительной закупки к заказу — UPDATE существующей строки.
+   * Не копия: документ прямо требует, чтобы система «не создавала вторую
+   * дублирующую закупку».
+   */
+  attachPreliminaryToOrder: (materialId: string, orderId: string) => Promise<boolean>;
   addMaterial: (
     orderId: string,
     material: Partial<ErpMaterial> & Pick<ErpMaterial, 'kind' | 'name'>,

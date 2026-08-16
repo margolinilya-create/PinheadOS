@@ -13,6 +13,14 @@ import { AttachmentList } from '../../components/AttachmentList';
 import { itemAttachments } from '../../utils/attachments';
 
 /** Технический блок изделия: подпись и колонка. Порядок — как в форме создания */
+/** Упаковка изделия: поля, которые документ перечисляет отдельно (п. 1) */
+const PACKAGING_FIELDS = [
+  ['packaging_size', 'Размер пакета'],
+  ['sticker_place', 'Стикер'],
+  ['marking_place', 'Маркировка'],
+  ['packaging_note', 'Доп. требования'],
+];
+
 const TECH_FIELDS = [
   ['trim_material', 'Отделочный материал'],
   ['cutting_note', 'Раскрой'],
@@ -179,6 +187,20 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
             label="Файлы техблока"
             files={itemAttachments(order, item.id, 'tech')}
           />
+          {/* Размер пакета, стикер и маркировка — то, что цех читает
+              при упаковке. В свободном комментарии они терялись */}
+          {PACKAGING_FIELDS.some(([key]) => item[key]) && (
+            <div>
+              <div className={styles.fieldLabel}>Упаковка изделия</div>
+              <ul className={styles.tzMatList}>
+                {PACKAGING_FIELDS.map(([key, label]) => item[key] && (
+                  <li key={key}>
+                    <span className={styles.subText}>{label}: </span>{item[key]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <AttachmentList
             label="Файлы упаковки"
             files={itemAttachments(order, item.id, 'packaging')}

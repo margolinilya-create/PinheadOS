@@ -11,9 +11,16 @@ import { attachmentFilePath, safeFileName } from './storageKey';
  * цеху чужую схему узла.
  */
 
-const att = (over: Record<string, unknown>) => ({
+interface TestAttachment {
+  id: string;
+  kind: string;
+  item_id: string | null;
+  material_id: string | null;
+}
+
+const att = (over: Partial<TestAttachment>): TestAttachment => ({
   id: 'a1', kind: 'tech', item_id: null, material_id: null, ...over,
-} as never);
+});
 
 const ORDER = {
   attachments: [

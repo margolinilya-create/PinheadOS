@@ -148,3 +148,32 @@ export function stageLabel(
   if (isOutsourced(stage) && stage.operation?.trim()) return stage.operation.trim();
   return departmentName;
 }
+
+/**
+ * Расхождение по подрядному этапу: сколько не вернулось и сколько не приняли.
+ *
+ * СЧИТАЕМ, А НЕ ХРАНИМ. Документ (п. 12) просит показывать «количество брака»
+ * и «количество потерянных / недостающих изделий», и соблазн завести под них
+ * колонки велик. Нельзя: журнал перемещений уже хранит приращения по видам,
+ * и обе величины из него выводятся однозначно. Вторая пара счётчиков рядом
+ * с журналом означала бы двух писателей одной величины — ровно то, на чём
+ * в проекте уже ловились с `qty_received` у материалов, где прямая запись
+ * из карточки приёмки затирала сумму журнала.
+ *
+ * `lost` — передали, но не вернулось; `defect` — вернулось, но не приняли.
+ * Отрицательных значений не бывает по построению: приняли больше, чем вернулось,
+ * означает ошибку ввода, и показывать её как «−3 брака» было бы враньём.
+ */
+export function subcontractShortfall(sub: {
+  qty_sent?: number | null;
+  qty_returned?: number | null;
+  qty_accepted?: number | null;
+} | null | undefined): { lost: number; defect: number } {
+  const sent = Number(sub?.qty_sent ?? 0);
+  const returned = Number(sub?.qty_returned ?? 0);
+  const accepted = Number(sub?.qty_accepted ?? 0);
+  return {
+    lost: Math.max(0, sent - returned),
+    defect: Math.max(0, returned - accepted),
+  };
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
-import { isProductionDept, deptShortName } from '../../data/departments';
+import {deptShortName} from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
@@ -74,10 +74,6 @@ export function CreateOrderModal({ onClose }) {
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const departments = useErpStore((s) => s.departments);
-  const queueDepts = useMemo(
-    () => departments.filter((d) => d.active && isProductionDept(d)),
-    [departments],
-  );
   const [saving, setSaving] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -551,6 +547,9 @@ export function CreateOrderModal({ onClose }) {
           sewing_note: it.sewing_note.trim() || undefined,
           labels_note: it.labels_note.trim() || undefined,
           packaging: it.packaging || 'inherit',
+          packaging_size: it.packaging_size.trim() || undefined,
+          sticker_place: it.sticker_place.trim() || undefined,
+          marking_place: it.marking_place.trim() || undefined,
           packaging_note: it.packaging_note.trim() || undefined,
           // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
           ...(it.production_type === 'outsource'
@@ -779,7 +778,6 @@ export function CreateOrderModal({ onClose }) {
             itemsCount={items.length}
             err={err}
             inputCls={inputCls}
-            queueDepts={queueDepts}
             route={itemRoutes[i]}
             attach={attach}
             setItem={setItem}

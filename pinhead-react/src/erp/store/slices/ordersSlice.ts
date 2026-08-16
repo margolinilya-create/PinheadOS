@@ -395,6 +395,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           sewing_note: it.sewing_note || null,
           labels_note: it.labels_note || null,
           packaging: it.packaging ?? 'inherit',
+          packaging_size: it.packaging_size || null,
+          sticker_place: it.sticker_place || null,
+          marking_place: it.marking_place || null,
           packaging_note: it.packaging_note || null,
           prints: (it.prints ?? []).map((p, j) => ({
             seq: j + 1,

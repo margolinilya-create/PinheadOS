@@ -2,14 +2,11 @@ import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { SizeGridEditor } from './SizeGridEditor';
 import { FieldError } from './FormParts';
 import { Icon } from '../../../components/Icon';
-import { deptShortName } from '../../../data/departments';
 import { EMPTY_PRINT, gridTotal } from '../../../utils/orderForm';
 import {
   ITEM_PACKAGING_LABELS,
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
-  SUBCONTRACT_OP_TYPE_LABELS,
-  SUBCONTRACT_MATERIAL_SOURCE_LABELS,
 } from '../../../types';
 import styles from '../../../erp.module.css';
 import { Button } from '../../../components/Button';
@@ -26,7 +23,7 @@ import { routeIssues } from '../../../utils/routeDraft';
  * валидация и черновик остались в одном месте — в самой модалке.
  */
 export function ItemBlock({
-  it, i, itemsCount, err, inputCls, queueDepts, route, attach,
+  it, i, itemsCount, err, inputCls, route, attach,
   setItem, setBranding, setPrint, removeItem, removePrint,
 }) {
   const gTotal = gridTotal(it.size_grid);
@@ -130,100 +127,24 @@ export function ItemBlock({
           ))}
         </div>
       </div>
-      {it.production_type === 'outsource' && (
-        <>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Тип подряда</span>
-            <select
-              className={styles.select}
-              value={it.subcontract_kind ?? 'finished_product'}
-              onChange={(e) => setItem(i, { subcontract_kind: e.target.value })}
-              aria-label="Тип подряда"
-            >
-              {Object.entries(SUBCONTRACT_OP_TYPE_LABELS).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Материалы</span>
-            <select
-              className={styles.select}
-              value={it.material_source ?? 'pinhead'}
-              onChange={(e) => setItem(i, { material_source: e.target.value })}
-              aria-label="Источник материалов"
-            >
-              {Object.entries(SUBCONTRACT_MATERIAL_SOURCE_LABELS).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
-              ))}
-            </select>
-          </label>
-          {(it.subcontract_kind ?? 'finished_product') === 'operation' && (
-            <>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Операция подрядчика</span>
-                <input
-                  className={styles.input}
-                  value={it.subcontract_operation ?? ''}
-                  onChange={(e) => setItem(i, { subcontract_operation: e.target.value })}
-                  placeholder="печать по полотну / варка / вышивка…"
-                  aria-label="Какая операция выполняется подрядчиком"
-                />
-              </label>
-              <div className={styles.field}>
-                <span className={styles.fieldLabel}>Требуется доработка в Pinhead?</span>
-                <div className={styles.tileRow} role="radiogroup" aria-label="Требуется доработка в Pinhead">
-                  {[['no', 'Нет'], ['yes', 'Да']].map(([v, label]) => {
-                    const on = (v === 'yes') === Boolean(it.needs_further);
-                        return (
-                      <button
-                        key={v}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        className={`${styles.tile} ${on ? styles.tileActive : ''}`}
-                        onClick={() => setItem(i, {
-                          needs_further: v === 'yes',
-                          return_dept: v === 'yes' ? it.return_dept : '',
-                        })}
-                      >
-                        {label}
-                      </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {it.needs_further && (
-                    <label
-                      className={styles.field}
-                      data-invalid={err(`item_${i}_return_dept`) ? true : undefined}
-                    >
-                      <span className={styles.fieldLabel}>Следующий участок *</span>
-                      <select
-                        className={err(`item_${i}_return_dept`)
-                          ? `${styles.select} ${styles.inputError}` : styles.select}
-                        value={it.return_dept ?? ''}
-                        onChange={(e) => setItem(i, { return_dept: e.target.value })}
-                        aria-label="Следующий участок после операции подряда"
-                        aria-invalid={err(`item_${i}_return_dept`) ? true : undefined}
-                        aria-describedby={err(`item_${i}_return_dept`)
-                          ? `err-item-${i}-return-dept` : undefined}
-                      >
-                        <option value="">Выберите участок…</option>
-                        {queueDepts.map((d) => (
-                          <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
-                        ))}
-                      </select>
-                      <FieldError
-                        id={`err-item-${i}-return-dept`}
-                        text={err(`item_${i}_return_dept`)}
-                      />
-                    </label>
-                  )}
-                </>
-              )}
-            </>
-          )}
+      {/*
+        БЛОК «ТИП ПОДРЯДА» УДАЛЁН (правки заказчика 16.08, п. 5 блока 2).
+
+        Документ запрещает фиксированные типы подряда прямо: «не нужно создавать
+        отдельные типы — подряд на пошив, на печать, на крой и т.д. Вместо этого
+        маршрут должен собираться из последовательных этапов, и для каждого
+        выбирается тип исполнителя: наш цех или подрядный цех».
+
+        Теперь это делает блок «Маршрут производства» ниже: у каждого этапа свой
+        исполнитель, подрядных этапов может быть несколько, а изделие
+        возвращается в наши цеха обычным следующим этапом маршрута.
+
+        Колонки `subcontract_kind` / `material_source` / `return_dept` в схеме
+        ОСТАЮТСЯ: их несут заказы, заведённые до правки, и блок совместимости
+        на экране «Подряд» читает их до тех пор, пока не опустеет. Снимать их
+        раньше — тот самый обратный порядок, который уже ронял весь раздел
+        «Производство» дропом `erp_experimental_ops`.
+      */}
           <div className={styles.field}>
             <span className={styles.fieldLabel}>Брендирование</span>
             <label className={styles.checkLabel}>
@@ -463,13 +384,45 @@ function PackagingBlock({ it, i, setItem, attach }) {
           ))}
         </div>
       </div>
+      {/* Документ (п. 1) перечисляет их отдельными пунктами: это читает цех
+          при упаковке, а из свободного комментария половина теряется
+          при беглом чтении */}
+      <div className={styles.itemRow}>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Размер пакета</span>
+          <input
+            className={styles.input}
+            value={it.packaging_size}
+            onChange={(e) => setItem(i, { packaging_size: e.target.value })}
+            placeholder="40×60"
+          />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Расположение стикера</span>
+          <input
+            className={styles.input}
+            value={it.sticker_place}
+            onChange={(e) => setItem(i, { sticker_place: e.target.value })}
+            placeholder="лицевая сторона, снизу справа"
+          />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Расположение маркировки</span>
+          <input
+            className={styles.input}
+            value={it.marking_place}
+            onChange={(e) => setItem(i, { marking_place: e.target.value })}
+            placeholder="боковой шов"
+          />
+        </label>
+      </div>
       <label className={`${styles.field} ${styles.fieldWide}`}>
-        <span className={styles.fieldLabel}>Комментарий по упаковке</span>
+        <span className={styles.fieldLabel}>Дополнительные требования к упаковке</span>
         <input
           className={styles.input}
           value={it.packaging_note}
           onChange={(e) => setItem(i, { packaging_note: e.target.value })}
-          placeholder="пакет 40×60, стикер на лицевую сторону снизу справа"
+          placeholder="вложить открытку, не складывать пополам"
         />
       </label>
       {/* Документ (п. 1): вариант упаковки, расположение стикера и маркировки

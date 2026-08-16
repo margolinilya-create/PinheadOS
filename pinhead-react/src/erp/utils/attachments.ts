@@ -1,5 +1,3 @@
-import type { ErpOrderAttachment } from '../store/types';
-
 /**
  * Отбор вложений заказа по тому, К ЧЕМУ они относятся (правки заказчика 16.08).
  *
@@ -14,10 +12,17 @@ import type { ErpOrderAttachment } from '../store/types';
  * вовсе: `undefined` обязан читаться как «файлов нет», а не ронять экран.
  */
 
-type AttachLike = Pick<ErpOrderAttachment, 'kind'> & {
+/**
+ * Вид вложения принимается СТРОКОЙ, а не перечислением `ErpAttachmentKind`.
+ * Значение приходит из базы, где колонка объявлена `text`: вид, добавленный
+ * миграцией раньше, чем типом, не должен ронять отбор — он просто ни во что
+ * не попадёт. Сравнение всё равно идёт по значению.
+ */
+interface AttachLike {
+  kind: string;
   item_id?: string | null;
   material_id?: string | null;
-};
+}
 
 interface OrderLike {
   attachments?: AttachLike[];

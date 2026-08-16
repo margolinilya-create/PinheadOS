@@ -72,6 +72,14 @@ export interface DraftItem {
   labels_note: string;
   /** Упаковка ПОЗИЦИИ; `inherit` — как в заказе (см. utils/packaging) */
   packaging: string;
+  /**
+   * Документ (п. 1) перечисляет их отдельными пунктами, и не зря: это читает
+   * цех при упаковке, а из свободного комментария половина теряется при беглом
+   * чтении. `packaging_note` остался «дополнительными требованиями».
+   */
+  packaging_size: string;
+  sticker_place: string;
+  marking_place: string;
   packaging_note: string;
   production_type: string;
   branding_on: string;
@@ -184,6 +192,9 @@ export const EMPTY_ITEM: DraftItem = {
   // «Как в заказе» по умолчанию: пустое значение было бы неотличимо
   // от осознанного «эту позицию не упаковывать»
   packaging: 'inherit',
+  packaging_size: '',
+  sticker_place: '',
+  marking_place: '',
   packaging_note: '',
   production_type: 'sewing',
   branding_on: 'cut',
