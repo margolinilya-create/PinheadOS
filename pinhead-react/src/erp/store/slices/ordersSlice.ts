@@ -330,7 +330,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-    const { items, tz, materials, ...orderFields } = input;
+    const { items, tz, materials, attachments, ...orderFields } = input;
 
     /**
      * Цеха маршрута, которых нет в справочнике `erp_departments`.
@@ -430,6 +430,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       materials: materials ?? [],
       // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
       tz: tz ?? { documents: [], assignments: [] },
+      /**
+       * Вложения блоков (правки заказчика 16.08). Как и `materials`, секция
+       * долго существовала в RPC и не использовалась: `item_id` у вложения
+       * появился той же миграцией, а слать было нечего — форм загрузки не было.
+       */
+      attachments: attachments ?? [],
     };
 
     // Два разных исхода supabase-js: на ОТВЕТ сервера он возвращает `error`,

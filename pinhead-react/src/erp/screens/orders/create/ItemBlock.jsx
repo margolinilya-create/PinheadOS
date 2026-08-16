@@ -14,6 +14,7 @@ import {
 import styles from '../../../erp.module.css';
 import { Button } from '../../../components/Button';
 import { RouteFields, RouteIssues } from '../../../components/RouteFields';
+import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { routeIssues } from '../../../utils/routeDraft';
 
 /**
@@ -25,7 +26,7 @@ import { routeIssues } from '../../../utils/routeDraft';
  * валидация и черновик остались в одном месте — в самой модалке.
  */
 export function ItemBlock({
-  it, i, itemsCount, err, inputCls, queueDepts, route,
+  it, i, itemsCount, err, inputCls, queueDepts, route, attach,
   setItem, setBranding, setPrint, removeItem, removePrint,
 }) {
   const gTotal = gridTotal(it.size_grid);
@@ -341,8 +342,8 @@ export function ItemBlock({
           />
         </details>
 
-        <TechBlock it={it} i={i} setItem={setItem} />
-        <PackagingBlock it={it} i={i} setItem={setItem} />
+        <TechBlock it={it} i={i} setItem={setItem} attach={attach} />
+        <PackagingBlock it={it} i={i} setItem={setItem} attach={attach} />
         <RouteBlock it={it} i={i} setItem={setItem} route={route} />
         </div>
   );
@@ -361,7 +362,7 @@ export function ItemBlock({
  * в заголовке показывает, что внутри что-то есть, — иначе свёрнутый блок
  * неотличим от пустого.
  */
-function TechBlock({ it, i, setItem }) {
+function TechBlock({ it, i, setItem, attach }) {
   const filled = [it.trim_material, it.cutting_note, it.sewing_note, it.labels_note]
     .filter((v) => v.trim()).length;
 
@@ -408,6 +409,18 @@ function TechBlock({ it, i, setItem }) {
           />
         </label>
       </div>
+      {/* Документ (п. 5): «схема узла, расположение бирки, вариант обработки,
+          пример раскроя, пример пошива» — словами это не передаётся */}
+      <AttachmentPicker
+        label="+ Файлы техблока"
+        hint="схема узла, расположение бирки, пример раскроя"
+        files={attach.files}
+        kind="tech"
+        itemIndex={i}
+        onAdd={attach.add}
+        onRetry={attach.retry}
+        onRemove={attach.remove}
+      />
     </details>
   );
 }
@@ -425,7 +438,7 @@ function TechBlock({ it, i, setItem }) {
  * должны различаться, иначе забытая позиция молча уедет в отгрузку без упаковки.
  * Разрешает эти два уровня одна функция — `utils/packaging.itemPackaging`.
  */
-function PackagingBlock({ it, i, setItem }) {
+function PackagingBlock({ it, i, setItem, attach }) {
   const own = it.packaging !== 'inherit';
 
   return (
@@ -459,6 +472,18 @@ function PackagingBlock({ it, i, setItem }) {
           placeholder="пакет 40×60, стикер на лицевую сторону снизу справа"
         />
       </label>
+      {/* Документ (п. 1): вариант упаковки, расположение стикера и маркировки
+          показываются картинкой, а не описываются */}
+      <AttachmentPicker
+        label="+ Файлы упаковки"
+        hint="вариант упаковки, расположение стикера и маркировки"
+        files={attach.files}
+        kind="packaging"
+        itemIndex={i}
+        onAdd={attach.add}
+        onRetry={attach.retry}
+        onRemove={attach.remove}
+      />
     </details>
   );
 }

@@ -2973,3 +2973,43 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   font-size: 13px;
 }
 .routeEditorFoot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ─── Вложения блока формы: упаковка, техблок, лист закупки (правки 16.08) ─── */
+.attachBlock { display: flex; flex-direction: column; gap: 4px; }
+.attachList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.attachRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+/* Имя файла режется многоточием, но остаётся читаемым по title: в ключе объекта
+   оно транслитерировано, и человек опознаёт файл только по этой строке */
+.attachName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.attachThumbs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+/* Миниатюра фиксированной высоты: файлы приходят с телефона в любой пропорции,
+   и сетка, зависящая от снимка, рассыпается на первом же вертикальном фото */
+.attachThumb {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.attachThumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

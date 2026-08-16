@@ -9,6 +9,8 @@ import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
+import { AttachmentList } from '../../components/AttachmentList';
+import { itemAttachments } from '../../utils/attachments';
 
 /** Технический блок изделия: подпись и колонка. Порядок — как в форме создания */
 const TECH_FIELDS = [
@@ -171,6 +173,16 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
               </ul>
             </div>
           )}
+          {/* Файлы техблока и упаковки: схема узла, расположение бирки и
+              стикера. Ради этого их и просили — адресат здесь, в задании цеха */}
+          <AttachmentList
+            label="Файлы техблока"
+            files={itemAttachments(order, item.id, 'tech')}
+          />
+          <AttachmentList
+            label="Файлы упаковки"
+            files={itemAttachments(order, item.id, 'packaging')}
+          />
 
           {item.notes && <div className={styles.subText}>Заметка: {item.notes}</div>}
         </div>

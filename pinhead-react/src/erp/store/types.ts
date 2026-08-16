@@ -108,6 +108,13 @@ export interface ErpOrderAttachment {
   order_id: string;
   /** Позиция, к которой относится файл. NULL — файл всего заказа */
   item_id?: string | null;
+  /**
+   * Строка листа закупки, к которой относится файл (правки 16.08, п. 14).
+   * NULL — файл заказа или позиции. Референсы закупщика («фото материала,
+   * скрин позиции поставщика») относятся к КОНКРЕТНОЙ строке: свалить их
+   * в общую кучу значит отдать десяток картинок без ответа, к чему они.
+   */
+  material_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -272,6 +279,24 @@ export interface NewOrderInput {
    * `assignments` больше не заполняется (см. NewOrderTzAssignment).
    */
   tz?: { documents: NewOrderTzDocument[]; assignments?: NewOrderTzAssignment[] };
+  /**
+   * Вложения блоков заказа: упаковка, техблок, лист закупки (правки 16.08).
+   * Файлы уже лежат в бакете — их грузит форма при ВЫБОРЕ, а RPC только
+   * привязывает строки той же транзакцией, что и заказ.
+   */
+  attachments?: NewOrderAttachment[];
+}
+
+/** Вложение в payload создания заказа: файл уже в бакете */
+export interface NewOrderAttachment {
+  /** Индекс позиции в `items`; null — файл заказа целиком */
+  item_index: number | null;
+  /** Индекс строки в `materials`; null — файл не относится к листу закупки */
+  material_index: number | null;
+  file_path: string;
+  file_name: string;
+  kind: ErpAttachmentKind;
+  uploaded_by?: string;
 }
 
 /** Нормализованное realtime-событие postgres_changes (для точечного применения) */
