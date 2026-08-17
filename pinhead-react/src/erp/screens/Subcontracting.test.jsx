@@ -143,6 +143,68 @@ describe('Подряд', () => {
     expect(input).toMatchObject({ kind: 'accept', qty: 40 });
   });
 
+  /**
+   * Поля п. 12–13 документа: стоимость и передача материалов Pinhead.
+   * Пишутся по blur и ТОЛЬКО при реальном изменении — иначе каждый уход
+   * фокуса отправлял бы запрос с тем же значением.
+   */
+  it('стоимость и передача материалов пишутся по blur', async () => {
+    setup();
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    const update = useErpStore.getState().updateSubcontractOp;
+
+    const cost = screen.getByLabelText('Стоимость подрядных работ');
+    fireEvent.blur(cost, { target: { value: '35000' } });
+    await waitFor(() => expect(update).toHaveBeenCalledWith('sc1', { cost: 35000 }));
+
+    const what = screen.getByLabelText('Что передано подрядчику');
+    fireEvent.blur(what, { target: { value: 'крой 100 шт' } });
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('sc1', { materials_note: 'крой 100 шт' }));
+  });
+
+  /** Значение не изменилось — запроса быть не должно */
+  it('blur без изменения не шлёт запрос', () => {
+    setup();
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    const update = useErpStore.getState().updateSubcontractOp;
+    update.mockClear();
+    fireEvent.blur(screen.getByLabelText('Стоимость подрядных работ'), { target: { value: '' } });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * При материалах подрядчика передавать нечего — блок не показывается вовсе,
+   * а не стоит пустым с вопросом «что сюда писать».
+   */
+  it('материалы подрядчика убирают блок передачи', () => {
+    setup({ subcontracting: [{ ...SUB, material_source: 'contractor' }] });
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    expect(screen.queryByLabelText('Что передано подрядчику')).toBeNull();
+  });
+
+  /**
+   * Брак и потери СЧИТАЮТСЯ из журнала (п. 12 доп.): «не вернулось» =
+   * передано − вернулось, «брак» = вернулось − принято. Колонок под них нет
+   * намеренно — вторая пара счётчиков рядом с журналом означала бы двух
+   * писателей одной величины.
+   */
+  it('расхождение показано из журнала, а не из отдельных полей', () => {
+    setup({
+      subcontracting: [{ ...SUB, qty_sent: 100, qty_returned: 95, qty_accepted: 90 }],
+    });
+    fireEvent.click(within(row()).getByRole('button', { name: /90\/100/ }));
+    expect(screen.getByText('не вернулось: 5')).toBeInTheDocument();
+    expect(screen.getByText('брак: 5')).toBeInTheDocument();
+  });
+
+  /** Документ (п. 19): «при открытии заказа показывать весь маршрут целиком» */
+  it('в раскрытой строке виден весь маршрут позиции', () => {
+    setup();
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    expect(screen.getByText('Готовность позиции')).toBeInTheDocument();
+  });
+
   it('без права «Ведение заказа» журнал только читается', () => {
     setup({ canManage: false });
     fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
