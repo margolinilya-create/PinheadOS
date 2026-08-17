@@ -341,6 +341,7 @@ export function validateOrderForm(
   form: DraftForm,
   items: DraftItem[],
   today: string = factoryToday(),
+  purchase: DraftPurchaseRow[] = [],
 ): OrderFormValidation {
   const errors: Record<string, string> = {};
   const missing: string[] = [];
@@ -386,6 +387,28 @@ export function validateOrderForm(
     ) {
       errors[`item_${i}_return_dept`] = 'Выберите участок для доработки';
       missing.push(`Следующий участок${pos}`);
+    }
+  });
+
+  /**
+   * Лист закупки. Начатая строка обязана нести НАЗВАНИЕ и КОЛИЧЕСТВО — оба поля
+   * подписаны звёздочкой, но не проверялись вовсе: заказ уезжал со строкой без
+   * количества, а `supply.missingPlan` требует `qty_expected`, чтобы закрыть
+   * закупку автоматически. То есть заказ создавался и молча вставал.
+   *
+   * Совсем пустая строка — не ошибка: её отбрасывает сам сабмит
+   * (`isPurchaseRowEmpty`), и человек мог просто нажать «+ Позиция закупки».
+   */
+  purchase.forEach((r, i) => {
+    if (isPurchaseRowEmpty(r)) return;
+    const pos = purchase.length > 1 ? ` (строка ${i + 1})` : '';
+    if (!r.name.trim()) {
+      errors[`purchase_${i}_name`] = 'Укажите материал';
+      missing.push(`Материал закупки${pos}`);
+    }
+    if (!(Number(r.qty_expected) > 0)) {
+      errors[`purchase_${i}_qty`] = 'Количество должно быть больше 0';
+      missing.push(`Кол-во закупки${pos}`);
     }
   });
 

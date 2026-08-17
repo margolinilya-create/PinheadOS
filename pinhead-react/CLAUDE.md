@@ -427,7 +427,11 @@ URL: https://pinhead-os.vercel.app
 - Упаковка позиции: `utils/packaging.itemPackaging` — единственное место, где
   «своё → общее по заказу» разрешается. `inherit` ≠ `none`
 - Лист закупки: `screens/orders/create/PurchaseListSection` → секция `materials`
-  payload; печатная форма — `screens/purchasing/PurchaseListPrint` (`window.print()`)
+  payload; печатная форма — `screens/purchasing/PurchaseListPrint` (`window.print()`).
+  Строки листа проверяет `validateOrderForm` (четвёртый, необязательный
+  аргумент): начатая строка обязана нести название и количество, совсем пустая
+  ошибкой не считается. Без этого заказ уезжал со строкой без `qty_expected`,
+  а закупка по такой строке не закрывается автоматически никогда
 - Подряд: `utils/outsourcing.ts` (модуль-лист) — что такое подрядный этап,
   где заказ сейчас, следующий этап маршрута, подпись этапа. Отсев подряда
   из очереди/счётчиков/загрузки есть в трёх файлах, сторожит
