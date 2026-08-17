@@ -316,6 +316,56 @@ describe('validateOrderForm', () => {
       expect(v.errors.launch_date).toBeUndefined();
     }
   });
+
+  /**
+   * Лист закупки. Оба поля подписаны звёздочкой, но не проверялись вовсе —
+   * дефект найден прокликиванием на боевой базе: заказ создался со строкой
+   * закупки без количества. Молча: `supply.missingPlan` требует `qty_expected`,
+   * поэтому такая закупка не закроется автоматически никогда.
+   */
+  describe('лист закупки', () => {
+    const row = (patch = {}) => ({ ...emptyPurchaseRow('k1'), ...patch });
+    const okItems = [item({ product_type: 'ф', qty: '1' })];
+
+    it('начатая строка без количества — ошибка у поля', () => {
+      const v = validateOrderForm(okForm, okItems, today, [row({ name: 'Футер 320' })]);
+      expect(v.errors.purchase_0_qty).toBe('Количество должно быть больше 0');
+      expect(v.missing).toContain('Кол-во закупки');
+    });
+
+    it('строка без названия — ошибка у поля', () => {
+      const v = validateOrderForm(okForm, okItems, today, [row({ qty_expected: '120' })]);
+      expect(v.errors.purchase_0_name).toBe('Укажите материал');
+      expect(v.missing).toContain('Материал закупки');
+    });
+
+    /** Нажали «+ Позиция закупки» и передумали — это не ошибка */
+    it('совсем пустая строка не мешает создать заказ', () => {
+      const v = validateOrderForm(okForm, okItems, today, [row()]);
+      expect(v.errors).toEqual({});
+    });
+
+    it('заполненная строка проходит', () => {
+      const v = validateOrderForm(okForm, okItems, today,
+        [row({ name: 'Футер 320', qty_expected: '120' })]);
+      expect(v.errors).toEqual({});
+    });
+
+    it('ошибки нумеруются по строкам', () => {
+      const v = validateOrderForm(okForm, okItems, today, [
+        row({ name: 'Футер 320', qty_expected: '120' }),
+        { ...emptyPurchaseRow('k2'), name: 'Рибана' },
+      ]);
+      expect(v.errors.purchase_1_qty).toBeDefined();
+      expect(v.errors.purchase_0_qty).toBeUndefined();
+      expect(v.missing).toContain('Кол-во закупки (строка 2)');
+    });
+
+    /** Лист не передан вовсе (старые вызовы) — поведение прежнее */
+    it('без листа закупки валидация работает как раньше', () => {
+      expect(validateOrderForm(okForm, okItems, today).errors).toEqual({});
+    });
+  });
 });
 
 // ─── Пустота формы ────────────────────────────────────────────────────────────

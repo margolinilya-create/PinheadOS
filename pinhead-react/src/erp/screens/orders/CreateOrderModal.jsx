@@ -319,7 +319,10 @@ export function CreateOrderModal({ onClose }) {
 
   // Инлайн-валидация: после первой попытки сабмита ошибки живут вместе с вводом
   const [submitted, setSubmitted] = useState(false);
-  const validation = useMemo(() => validateOrderForm(form, items), [form, items]);
+  const validation = useMemo(
+    () => validateOrderForm(form, items, undefined, purchase),
+    [form, items, purchase],
+  );
   const fieldErrors = submitted ? validation.errors : {};
   const err = (key) => fieldErrors[key];
   const inputCls = (key) => (err(key) ? `${styles.input} ${styles.inputError}` : styles.input);
@@ -398,15 +401,17 @@ export function CreateOrderModal({ onClose }) {
   const submit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
-    const { errors } = validateOrderForm(form, items);
+    const { errors } = validateOrderForm(form, items, undefined, purchase);
     if (Object.keys(errors).length > 0) {
       // раскрыть секции с ошибками и проскроллить к первому ошибочному полю
       const inMain = Boolean(errors.title || errors.launch_date || errors.due_date);
       const inItems = Object.keys(errors).some((k) => k.startsWith('item_'));
+      const inPurchase = Object.keys(errors).some((k) => k.startsWith('purchase_'));
       setOpen((o) => ({
         ...o,
         main: o.main || inMain,
         items: o.items || inItems,
+        purchase: o.purchase || inPurchase,
       }));
       requestAnimationFrame(() => {
         const el = document.querySelector('[data-invalid="true"]');
@@ -821,6 +826,8 @@ export function CreateOrderModal({ onClose }) {
           attach={attach}
           rows={purchase}
           items={items}
+          err={err}
+          inputCls={inputCls}
           addRow={addPurchaseRow}
           setRow={setPurchaseRow}
           removeRow={removePurchaseRow}

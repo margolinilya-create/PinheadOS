@@ -3,6 +3,7 @@ import { Icon } from '../../../components/Icon';
 import { Button } from '../../../components/Button';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
+import { FieldError } from './FormParts';
 import styles from '../../../erp.module.css';
 
 /**
@@ -27,7 +28,10 @@ import styles from '../../../erp.module.css';
  */
 
 /** Одна строка потребности. `item_index` = null — материал на весь заказ */
-export function PurchaseListSection({ rows, items, attach, addRow, setRow, removeRow }) {
+export function PurchaseListSection({
+  rows, items, attach, addRow, setRow, removeRow,
+  err = () => undefined, inputCls = () => styles.input,
+}) {
   return (
     <>
       <p className={styles.subText}>
@@ -60,11 +64,15 @@ export function PurchaseListSection({ rows, items, attach, addRow, setRow, remov
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Материал *</span>
               <input
-                className={styles.input}
+                className={inputCls(`purchase_${ri}_name`)}
                 value={r.name}
                 onChange={(e) => setRow(r.key, { name: e.target.value })}
                 placeholder="Кулирка 230гр"
+                aria-invalid={err(`purchase_${ri}_name`) ? true : undefined}
+                aria-describedby={err(`purchase_${ri}_name`) ? `err-purchase-${ri}-name` : undefined}
+                data-invalid={err(`purchase_${ri}_name`) ? true : undefined}
               />
+              <FieldError id={`err-purchase-${ri}-name`} text={err(`purchase_${ri}_name`)} />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Цвет</span>
@@ -109,11 +117,15 @@ export function PurchaseListSection({ rows, items, attach, addRow, setRow, remov
                 type="number"
                 min="0"
                 step="any"
-                className={styles.input}
+                className={inputCls(`purchase_${ri}_qty`)}
                 value={r.qty_expected}
                 onChange={(e) => setRow(r.key, { qty_expected: e.target.value.replace('-', '') })}
                 placeholder="120"
+                aria-invalid={err(`purchase_${ri}_qty`) ? true : undefined}
+                aria-describedby={err(`purchase_${ri}_qty`) ? `err-purchase-${ri}-qty` : undefined}
+                data-invalid={err(`purchase_${ri}_qty`) ? true : undefined}
               />
+              <FieldError id={`err-purchase-${ri}-qty`} text={err(`purchase_${ri}_qty`)} />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Единица</span>
