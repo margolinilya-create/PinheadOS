@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import process from 'node:process';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AdminPanel from './AdminPanel';
@@ -48,40 +51,69 @@ beforeEach(() => {
   });
 });
 
-describe('AdminPanel', () => {
-  it('renders title', () => {
-    renderAdmin();
-    expect(screen.getByText(/АДМИН-ПАНЕЛЬ/i)).toBeInTheDocument();
-  });
-
-  it('renders tabs', () => {
-    renderAdmin();
-    expect(screen.getByText('Заказы')).toBeInTheDocument();
-    expect(screen.getByText('Пользователи')).toBeInTheDocument();
-  });
-
-  it('shows orders tab by default', () => {
+describe('AdminPanel — вкладка «Заказы ТЗ»', () => {
+  it('показывает заказы', () => {
     renderAdmin();
     expect(screen.getByText('PH-0001')).toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 
-  it('shows order stats', () => {
+  it('показывает счётчик заказов', () => {
     renderAdmin();
     expect(screen.getByText(/1 заказ/)).toBeInTheDocument();
   });
 
-  it('shows search input', () => {
+  it('показывает поиск, фильтр и обновление', () => {
     renderAdmin();
     expect(screen.getByPlaceholderText(/Поиск/)).toBeInTheDocument();
-  });
-
-  it('shows refresh button', () => {
-    renderAdmin();
+    expect(screen.getByText('Все статусы')).toBeInTheDocument();
     expect(screen.getByText('Обновить')).toBeInTheDocument();
   });
 
-  it('shows status filter', () => {
+  it('пустой список без фильтров объясняет, чего ждать', () => {
+    useOrdersStore.setState({ orders: [] });
     renderAdmin();
-    expect(screen.getByText('Все статусы')).toBeInTheDocument();
+    expect(screen.getByText('Заказов ТЗ пока нет')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Сторож удаления второй реализации управления учётками.
+ *
+ * Вкладка «Пользователи» правила `profiles.role` напрямую — мимо `erp_employees`,
+ * приглашений, матрицы прав и серверной функции `admin-users`. Она была
+ * достижима только при `ordersOnly === false`, а таких вызовов в проекте нет,
+ * то есть мёртвый код повторял правила, которые живут в `EmployeesScreen`.
+ * Вернуть её сюда — значит завести второй источник правды по правам, а на
+ * расхождении двух реализаций проект уже ловился (`isPrivileged` против
+ * `is_admin()`).
+ */
+describe('управление учётками сюда не возвращается', () => {
+  /**
+   * Комментарии снимаются перед проверкой ОТСУТСТВИЯ — правило проекта
+   * (то же делает `utils/date.test.ts`). Объяснение «почему этой половины
+   * больше нет» называет ровно те же имена, и без стрипа сторож ловил бы
+   * объяснение вместо кода.
+   */
+  const stripComments = (src) => src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').filter((l) => !l.trimStart().startsWith('//')).join('\n');
+
+  const read = (p) => stripComments(readFileSync(join(process.cwd(), p), 'utf8'));
+  const SRC = read('src/components/auth/AdminPanel.jsx');
+
+  it('панель не правит profiles', () => {
+    expect(SRC).not.toMatch(/from\(['"]profiles['"]\)/);
+  });
+
+  it('панель не знает про роли и одобрение', () => {
+    for (const forbidden of ['approved', 'ALL_ROLES', 'ROLE_LABELS']) {
+      expect(SRC, `вернулось: ${forbidden}`).not.toContain(forbidden);
+    }
+  });
+
+  it('пропа ordersOnly больше нет — панель всегда только заказы', () => {
+    expect(SRC).not.toContain('ordersOnly');
+    expect(read('src/erp/screens/AdminScreen.jsx')).not.toContain('ordersOnly');
   });
 });

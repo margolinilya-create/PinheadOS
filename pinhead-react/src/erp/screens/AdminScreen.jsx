@@ -80,7 +80,7 @@ export default function AdminScreen() {
       {tab === 'bypass' && <BypassTab />}
       {tab === 'studio' && (
         <Suspense fallback={<TableSkeleton rows={5} label="Загрузка админки" />}>
-          <AdminPanel ordersOnly />
+          <AdminPanel />
         </Suspense>
       )}
       </div>
