@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
+import { CatalogDatalist } from '../../components/CatalogDatalist';
 import {deptShortName} from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
@@ -660,10 +661,16 @@ export function CreateOrderModal({ onClose }) {
           </div>
         )}
 
-        {/* Подсказки справочников для полей «Изделие» и «Поставщик» (правка 12) */}
-        <DictionaryDatalist kind="product_type" id="erp-product-types" />
-        {/* Подсказки кроя: Regular / Oversize / Free Fit — ввод остаётся свободным */}
-        <DictionaryDatalist kind="fit" id="erp-fits" />
+        {/* Изделие и крой подсказывает КАТАЛОГ, а не справочник: у каталога есть
+            цены, зоны, размерные сетки и фото, и он же источник правды по
+            ассортименту (решение заказчика).
+
+            У изделий справочник остаётся ДОПОЛНЕНИЕМ: сверка с боевой базой
+            показала «Рубашку», «Фартук» и «Кепку», которых в каталоге нет
+            ни одной. У кроя дополнять нечем — каталог покрывает справочник
+            целиком и даже шире (Classic), поэтому вид `fit` снят. */}
+        <CatalogDatalist field="productTypes" id="erp-product-types" dictionaryKind="product_type" />
+        <CatalogDatalist field="fits" id="erp-fits" />
         <DictionaryDatalist kind="supplier" id="erp-suppliers" />
 
         <FormSection

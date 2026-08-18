@@ -1216,7 +1216,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type' | 'fit' | 'route_operation';
+  | 'experimental_task_type' | 'route_operation';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1225,7 +1225,6 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   supplier: 'Поставщики',
   unit: 'Единицы измерения',
   experimental_task_type: 'Задачи разработки',
-  fit: 'Крой изделия',
   route_operation: 'Операции маршрута',
 };
 
@@ -1233,12 +1232,14 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
 export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
   block_reason: 'Быстрый выбор в форме «Проблема» у задания цеха.',
   problem_type: 'Быстрый выбор при оформлении брака и переделки.',
-  product_type: 'Подсказки в поле «Изделие» при создании заказа.',
+  product_type:
+    'Дополняет каталог в поле «Изделие»: каталог SKU — источник, справочник нужен '
+    + 'для изделий, которых в нём ещё нет (рубашка, фартук, кепка). '
+    + 'Крой сюда не выносится — его целиком покрывает каталог.',
   unit: 'Подсказки в поле единицы измерения материала (кг, м, шт).',
   supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
   experimental_task_type:
     'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
-  fit: 'Подсказки в поле «Крой» при создании заказа (Regular, Oversize, Free Fit).',
   route_operation:
     'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
 };

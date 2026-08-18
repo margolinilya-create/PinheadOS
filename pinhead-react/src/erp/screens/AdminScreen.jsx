@@ -13,13 +13,20 @@ import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
 
 const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
+/**
+ * Библиотека тянет за собой стор Order Studio (каталоги живут там), поэтому
+ * она ленивая целиком, а не только редактор внутри неё: иначе стор визарда
+ * приезжал бы в чанк админки каждому, кто открыл «Пользователей».
+ */
+const LibraryTab = React.lazy(() => import('./admin/LibraryTab'));
 
 /**
  * Единая админка обоих приложений (ERP + Order Studio).
  * Табы: Пользователи (общие profiles + цеховая привязка) · Права (матрица ролей,
  * правка 11) · Цеха (справочник участков с руководителем и нормативом) ·
  * Мощность (общая мощность производства, правки 10.08) · Справочники (правка 12) ·
- * Аварийный режим (снятые проверки) · Заказы ТЗ (админ-таблица заказов Order Studio).
+ * Библиотека (каталоги и цены) · Аварийный режим (снятые проверки) ·
+ * Заказы ТЗ (админ-таблица заказов Order Studio).
  */
 
 /** `needs` — право матрицы, без которого вкладка не показывается */
@@ -31,6 +38,8 @@ const TABS = [
   // мощность это часть планирования, а не отдельная сущность со своим правом
   { id: 'capacity', label: 'Мощность', needs: 'plan.manage' },
   { id: 'dicts', label: 'Справочники', needs: 'catalog.edit' },
+  // Библиотека — то же право, что справочники: и то и другое правит ассортимент
+  { id: 'library', label: 'Библиотека', needs: 'catalog.edit' },
   // Аварийный режим (правки 10.08): снять блокирующую проверку, когда она
   // останавливает работу из-за ошибки в системе
   { id: 'bypass', label: 'Аварийный режим', needs: 'bypass.manage' },
@@ -77,6 +86,11 @@ export default function AdminScreen() {
       {tab === 'depts' && <DepartmentsScreen embedded />}
       {tab === 'dicts' && <DictionariesTab />}
       {tab === 'capacity' && <CapacityTab />}
+      {tab === 'library' && (
+        <Suspense fallback={<TableSkeleton rows={6} label="Загрузка библиотеки" />}>
+          <LibraryTab />
+        </Suspense>
+      )}
       {tab === 'bypass' && <BypassTab />}
       {tab === 'studio' && (
         <Suspense fallback={<TableSkeleton rows={5} label="Загрузка админки" />}>

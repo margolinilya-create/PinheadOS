@@ -140,7 +140,8 @@ test.describe('Админка: права и справочники (правк�
     await page.goto('/admin?studio=0');
     const tabs = page.getByRole('tablist', { name: 'Разделы админки' });
     for (const name of [
-      'Пользователи', 'Права', 'Цеха', 'Мощность', 'Справочники', 'Аварийный режим', 'Заказы ТЗ',
+      'Пользователи', 'Права', 'Цеха', 'Мощность', 'Справочники', 'Библиотека',
+      'Аварийный режим', 'Заказы ТЗ',
     ]) {
       await expect(tabs.getByRole('tab', { name })).toBeVisible();
     }

@@ -1,4 +1,5 @@
 import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
+import { CatalogDatalist } from '../../../components/CatalogDatalist';
 import { Icon } from '../../../components/Icon';
 import { Button } from '../../../components/Button';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
@@ -68,6 +69,13 @@ export function PurchaseListSection({
                 value={r.name}
                 onChange={(e) => setRow(r.key, { name: e.target.value })}
                 placeholder="Кулирка 230гр"
+                /* Подсказки каталога тканей — только для строк вида «ткань»:
+                   у фурнитуры, бирок и упаковки каталога нет вовсе, и чужой
+                   список там был бы хуже отсутствующего. Отделочная роль
+                   подсказывает из каталога отделки, а не основного полотна. */
+                list={r.kind === 'fabric'
+                  ? (r.role === 'trim' ? 'erp-trims' : 'erp-fabrics')
+                  : undefined}
                 aria-invalid={err(`purchase_${ri}_name`) ? true : undefined}
                 aria-describedby={err(`purchase_${ri}_name`) ? `err-purchase-${ri}-name` : undefined}
                 data-invalid={err(`purchase_${ri}_name`) ? true : undefined}
@@ -191,6 +199,8 @@ export function PurchaseListSection({
       </div>
 
       <DictionaryDatalist kind="unit" id="erp-units" />
+      <CatalogDatalist field="fabrics" id="erp-fabrics" />
+      <CatalogDatalist field="trims" id="erp-trims" />
     </>
   );
 }
