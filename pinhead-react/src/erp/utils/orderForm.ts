@@ -70,6 +70,14 @@ export interface DraftItem {
   cutting_note: string;
   sewing_note: string;
   labels_note: string;
+  /**
+   * Примечание к позиции (`erp_order_items.notes`) — что цех читает в задании
+   * помимо техблока. Колонка была в схеме и принималась RPC с самого начала,
+   * а поля в форме не было: завести позицию с комментарием было нельзя
+   * ниоткуда. Понадобилось мосту из ТЗ — там живут заметки дизайнера,
+   * комментарий по размерам и список обработок.
+   */
+  notes: string;
   /** Упаковка ПОЗИЦИИ; `inherit` — как в заказе (см. utils/packaging) */
   packaging: string;
   /**
@@ -168,6 +176,16 @@ export interface DraftForm {
   stickers: string;
   stickers_note: string;
   no_chestny_znak: boolean;
+  /**
+   * Примечание к заказу целиком (`erp_orders.notes`).
+   *
+   * Колонка была в схеме с первой волны, `erp_create_order` её принимал,
+   * а форма не заполняла — то есть завести заказ с примечанием было нельзя
+   * ниоткуда, кроме инлайн-правки уже созданной карточки. Понадобилось мосту
+   * из ТЗ: адрес доставки, контакт заказчика и пометка «срочный» живут
+   * в техническом задании, и деть их было некуда.
+   */
+  notes: string;
 }
 
 export const EMPTY_PRINT: DraftPrint = {
@@ -189,6 +207,7 @@ export const EMPTY_ITEM: DraftItem = {
   cutting_note: '',
   sewing_note: '',
   labels_note: '',
+  notes: '',
   // «Как в заказе» по умолчанию: пустое значение было бы неотличимо
   // от осознанного «эту позицию не упаковывать»
   packaging: 'inherit',
@@ -222,6 +241,7 @@ export function emptyOrderForm(launchDate: string = factoryToday()): DraftForm {
     stickers: 'none',
     stickers_note: '',
     no_chestny_znak: false,
+    notes: '',
   };
 }
 
@@ -293,6 +313,7 @@ export function isItemEmpty(item: DraftItem): boolean {
     !item.cutting_note.trim() &&
     !item.sewing_note.trim() &&
     !item.labels_note.trim() &&
+    !item.notes.trim() &&
     (item.packaging === 'inherit' || !item.packaging) &&
     !item.packaging_note.trim()
   );

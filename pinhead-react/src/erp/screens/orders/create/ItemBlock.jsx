@@ -288,7 +288,7 @@ export function ItemBlock({
  * неотличим от пустого.
  */
 function TechBlock({ it, i, setItem, attach }) {
-  const filled = [it.trim_material, it.cutting_note, it.sewing_note, it.labels_note]
+  const filled = [it.trim_material, it.cutting_note, it.sewing_note, it.labels_note, it.notes]
     .filter((v) => v.trim()).length;
 
   return (
@@ -331,6 +331,20 @@ function TechBlock({ it, i, setItem, attach }) {
             value={it.labels_note}
             onChange={(e) => setItem(i, { labels_note: e.target.value })}
             placeholder="размерник + составник, левый внутренний боковой шов"
+          />
+        </label>
+        {/* Примечание позиции (`erp_order_items.notes`): колонка принималась
+            RPC с самого начала, а поля не было — завести позицию с
+            комментарием было нельзя ниоткуда. Из ТЗ сюда приезжают заметки
+            дизайнера, комментарий по размерам и список обработок. */}
+        <label className={`${styles.field} ${styles.fieldWide}`}>
+          <span className={styles.fieldLabel}>Примечание к позиции</span>
+          <textarea
+            className={styles.input}
+            rows={2}
+            value={it.notes}
+            onChange={(e) => setItem(i, { notes: e.target.value })}
+            placeholder="что ещё важно знать цеху по этой позиции"
           />
         </label>
       </div>

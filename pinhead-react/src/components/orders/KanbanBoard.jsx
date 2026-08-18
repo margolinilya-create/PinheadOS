@@ -9,6 +9,8 @@ import styles from './KanbanBoard.module.css';
 import KanbanCard from './KanbanCard';
 import OrderDrawer from './OrderDrawer';
 import { SkeletonCard } from '../shared/Skeleton';
+import { setFeature } from '../../config/features';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const FINAL_STATUSES = ['done'];
 
@@ -77,6 +79,15 @@ export default function KanbanBoard() {
     return cols;
   }, [orders, search, typeFilter]);
 
+  /**
+   * Кнопку видит тот, кому вообще доступен раздел производства: она и есть
+   * переход туда. Условие — то же, что у переключателя разделов в шапке;
+   * шире делать нельзя (человек упрётся в чужой раздел), а само создание
+   * заказа гейтится уже там, правом `order.manage` и политикой сервера.
+   */
+  const userRole = useAuthStore((st) => st.user?.role);
+  const canToProduction = userRole === 'admin' || userRole === 'director';
+
   const totalQty = orders.reduce((s, o) => s + (o.total_qty || 0), 0);
   const totalSum = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
 
@@ -124,6 +135,24 @@ export default function KanbanBoard() {
     loadOrder(order);
     navigate('/print');
   };
+
+  /**
+   * Мост «ТЗ → производство».
+   *
+   * Кнопка НЕ создаёт заказ — она переводит человека в раздел производства,
+   * где открывается форма заказа, заполненная из этого ТЗ (`?fromTz=`).
+   * Так у моста остаётся ОДИН путь создания заказа со всей его валидацией,
+   * конструктором маршрута и правилом «правка человека или расчёт»; второй
+   * путь означал бы вторую реализацию каждого из этих правил.
+   *
+   * Переключение раздела — тем же приёмом, что и в шапке: флаг живёт
+   * в localStorage и читается при старте приложения, поэтому нужен полный
+   * переход, а не `navigate`.
+   */
+  const handleToProduction = useCallback((order) => {
+    setFeature('orderStudio', false);
+    window.location.href = `/orders?fromTz=${encodeURIComponent(order.id)}`;
+  }, []);
 
   const handleStatusChange = useCallback((id, status) => {
     updateStatus(id, status);
@@ -242,6 +271,7 @@ export default function KanbanBoard() {
                         key={o.id} order={o} statusColor={STATUS_COLORS[s]}
                         onStatusChange={handleStatusChange} onDelete={deleteOrder} onDuplicate={handleDuplicate}
                         onOpenTZ={handleOpenTZ} onCardClick={setDrawerOrder}
+                        onToProduction={canToProduction ? handleToProduction : undefined}
                       />
                     ))
                   )}

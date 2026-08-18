@@ -14,7 +14,7 @@ function getInitials(name) {
 
 const FINAL_STATUSES = ['done'];
 
-const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onCardClick }) {
+const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange, onDelete, onDuplicate, onOpenTZ, onCardClick, onToProduction }) {
   const [showMenu, setShowMenu] = useState(false);
 
   const handleKeyDown = (e) => {
@@ -107,6 +107,28 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
           <div className={styles.rowFlexGap4}>
             <div className="kb-card-actions">
               <button className="kb-open" onClick={stopAndRun(() => onOpenTZ(order))}>Открыть</button>
+              {/* Мост «ТЗ → производство». Кнопка НЕ создаёт заказ молча: она
+                  открывает форму производственного заказа, заполненную из ТЗ.
+                  В ТЗ нет полей, без которых заказ не живёт (тип производства,
+                  нанесение на крое или на готовом, дата запуска), и угаданные
+                  молча означают заказ не по тому маршруту.
+
+                  Только у утверждённого ТЗ: черновик ещё правят, а заказ,
+                  заведённый по нему, уже занял бы очередь в цехах. */}
+              {onToProduction && order.status === 'approved' && (
+                order.erp_order_id ? (
+                  <span className="kb-sent" title="Производственный заказ уже создан">
+                    в производстве
+                  </span>
+                ) : (
+                  <button
+                    onClick={stopAndRun(() => onToProduction(order))}
+                    title="Создать производственный заказ из этого ТЗ"
+                  >
+                    В производство
+                  </button>
+                )
+              )}
               <button onClick={stopAndRun(() => onDuplicate(order))} title="Дублировать" aria-label="Дублировать заказ">⎘</button>
               <button onClick={stopAndRun(async () => { const ok = await confirm({ title: `Удалить заказ #${order.order_number || order.id}?`, message: 'Это действие нельзя отменить.', variant: 'danger', confirmLabel: 'Удалить' }); if (ok) onDelete(order.id); })} title="Удалить" aria-label="Удалить заказ">✕</button>
             </div>

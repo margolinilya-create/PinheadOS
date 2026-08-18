@@ -855,7 +855,7 @@ export type Database = {
           manager_note: string | null
           name: string
           notes: string | null
-          order_id: string
+          order_id: string | null
           ordered_on: string | null
           price_per_unit: number | null
           qty: string | null
@@ -889,7 +889,7 @@ export type Database = {
           manager_note?: string | null
           name: string
           notes?: string | null
-          order_id: string
+          order_id?: string | null
           ordered_on?: string | null
           price_per_unit?: number | null
           qty?: string | null
@@ -923,7 +923,7 @@ export type Database = {
           manager_note?: string | null
           name?: string
           notes?: string | null
-          order_id?: string
+          order_id?: string | null
           ordered_on?: string | null
           price_per_unit?: number | null
           qty?: string | null
@@ -958,35 +958,35 @@ export type Database = {
       }
       erp_order_attachments: {
         Row: {
-          material_id: string | null
           created_at: string
           file_name: string | null
           file_path: string
           id: string
           item_id: string | null
           kind: string
+          material_id: string | null
           order_id: string
           uploaded_by: string | null
         }
         Insert: {
-          material_id?: string | null
           created_at?: string
           file_name?: string | null
           file_path: string
           id?: string
           item_id?: string | null
           kind?: string
+          material_id?: string | null
           order_id: string
           uploaded_by?: string | null
         }
         Update: {
-          material_id?: string | null
           created_at?: string
           file_name?: string | null
           file_path?: string
           id?: string
           item_id?: string | null
           kind?: string
+          material_id?: string | null
           order_id?: string
           uploaded_by?: string | null
         }
@@ -996,6 +996,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_attachments_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
             referencedColumns: ["id"]
           },
           {
@@ -1089,9 +1096,6 @@ export type Database = {
       }
       erp_order_items: {
         Row: {
-          packaging_size: string | null
-          sticker_place: string | null
-          marking_place: string | null
           branding_methods: string[]
           branding_on: string | null
           created_at: string
@@ -1099,26 +1103,26 @@ export type Database = {
           fit: string | null
           id: string
           labels_note: string | null
+          marking_place: string | null
           material_source: string | null
           notes: string | null
           order_id: string
           packaging: string
           packaging_note: string | null
+          packaging_size: string | null
           product_type: string
           production_type: string
           qty: number
           sewing_note: string | null
           size_grid: Json | null
           sort_order: number
+          sticker_place: string | null
           subcontract_kind: string | null
           trim_material: string | null
           updated_at: string
           variant: string | null
         }
         Insert: {
-          packaging_size?: string | null
-          sticker_place?: string | null
-          marking_place?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           created_at?: string
@@ -1126,26 +1130,26 @@ export type Database = {
           fit?: string | null
           id?: string
           labels_note?: string | null
+          marking_place?: string | null
           material_source?: string | null
           notes?: string | null
           order_id: string
           packaging?: string
           packaging_note?: string | null
+          packaging_size?: string | null
           product_type: string
           production_type?: string
           qty: number
           sewing_note?: string | null
           size_grid?: Json | null
           sort_order?: number
+          sticker_place?: string | null
           subcontract_kind?: string | null
           trim_material?: string | null
           updated_at?: string
           variant?: string | null
         }
         Update: {
-          packaging_size?: string | null
-          sticker_place?: string | null
-          marking_place?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           created_at?: string
@@ -1153,17 +1157,20 @@ export type Database = {
           fit?: string | null
           id?: string
           labels_note?: string | null
+          marking_place?: string | null
           material_source?: string | null
           notes?: string | null
           order_id?: string
           packaging?: string
           packaging_note?: string | null
+          packaging_size?: string | null
           product_type?: string
           production_type?: string
           qty?: number
           sewing_note?: string | null
           size_grid?: Json | null
           sort_order?: number
+          sticker_place?: string | null
           subcontract_kind?: string | null
           trim_material?: string | null
           updated_at?: string
@@ -1204,6 +1211,8 @@ export type Database = {
           stickers: string
           stickers_note: string | null
           title: string
+          tz_number: string | null
+          tz_order_id: string | null
           tz_required: boolean
           updated_at: string
         }
@@ -1231,6 +1240,8 @@ export type Database = {
           stickers?: string
           stickers_note?: string | null
           title: string
+          tz_number?: string | null
+          tz_order_id?: string | null
           tz_required?: boolean
           updated_at?: string
         }
@@ -1258,6 +1269,8 @@ export type Database = {
           stickers?: string
           stickers_note?: string | null
           title?: string
+          tz_number?: string | null
+          tz_order_id?: string | null
           tz_required?: boolean
           updated_at?: string
         }
@@ -1267,6 +1280,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_orders_tz_order_id_fkey"
+            columns: ["tz_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1998,6 +2018,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           data: Json
+          erp_order_id: string | null
           id: string
           item_type: string | null
           notes: string | null
@@ -2013,6 +2034,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data?: Json
+          erp_order_id?: string | null
           id?: string
           item_type?: string | null
           notes?: string | null
@@ -2028,6 +2050,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data?: Json
+          erp_order_id?: string | null
           id?: string
           item_type?: string | null
           notes?: string | null
@@ -2043,6 +2066,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_erp_order_id_fkey"
+            columns: ["erp_order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -2182,6 +2212,42 @@ export type Database = {
       erp_local_date: { Args: never; Returns: string }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
       erp_role_of_caller: { Args: never; Returns: string }
+      erp_route_apply: {
+        Args: { p_item_id: string; p_steps: Json }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          contractor: string | null
+          created_at: string
+          cycle: number
+          department_id: string
+          depends_on: string[]
+          executor: string
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          operation: string | null
+          origin: string
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       erp_stage_apply_defect: {
         Args: { p_patches: Json }
         Returns: {

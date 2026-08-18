@@ -117,6 +117,25 @@ function getScreenFxMult(fxKey: string | undefined | null): number {
 
 // Flex printing
 const FLEX_QTY_TIERS: number[] = [1, 20, 35, 50];
+/**
+ * Формат макета → размер в миллиметрах.
+ *
+ * Жила внутри расчёта ДТФ, а нужна ещё и мосту «ТЗ → производство»: в ТЗ размер
+ * нанесения выбирается форматом (A4/A3/A3+), а производственный заказ хранит
+ * ширину и высоту в миллиметрах (`erp_item_prints.width_mm/height_mm`).
+ * Вторая копия таблицы означала бы два ответа на вопрос «сколько это в мм».
+ *
+ * Формата «Max» здесь нет намеренно: это «во всю доступную площадь», у него
+ * нет размера в миллиметрах, и придуманное число цех принял бы за указание.
+ */
+export const FMT_SIZES: Record<string, { w: number; h: number }> = {
+  'A6':  { w: 105, h: 148 },
+  'A5':  { w: 148, h: 210 },
+  'A4':  { w: 210, h: 297 },
+  'A3':  { w: 297, h: 420 },
+  'A3+': { w: 329, h: 483 },
+};
+
 const FLEX_FORMATS: string[] = ['A6', 'A5', 'A4', 'A3'];
 const FLEX_MAX_COLORS = 3;
 const FLEX_SINGLE_PRICE: Record<string, number> = { 'A6': 450, 'A5': 600, 'A4': 750, 'A3': 850 };
@@ -223,13 +242,6 @@ export function calcZonePriceDirect(tech: string, params: ZoneCalcParams, qty: n
   }
   if (tech === 'dtf') {
     const P = getPrices();
-    const FMT_SIZES: Record<string, { w: number; h: number }> = {
-      'A6':  { w: 105, h: 148 },
-      'A5':  { w: 148, h: 210 },
-      'A4':  { w: 210, h: 297 },
-      'A3':  { w: 297, h: 420 },
-      'A3+': { w: 329, h: 483 },
-    };
     const width_mm  = params.width_mm  || FMT_SIZES[params.fmt || params.size || 'A4']?.w || 210;
     const height_mm = params.height_mm || FMT_SIZES[params.fmt || params.size || 'A4']?.h || 297;
     const gap        = P.dtfGap           || 10;

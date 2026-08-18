@@ -461,6 +461,14 @@ export type MockExtras = {
   experimental?: unknown[];
   /** Значения справочников — приезжают пакетом оболочки */
   dictionaries?: unknown[];
+  /**
+   * Технические задания Order Studio (таблица `orders`) — их читает мост
+   * «ТЗ → производство» по `?fromTz=`. Отдельно от `orders` выше: те —
+   * производственные заказы `erp_orders`, и путать их нельзя.
+   */
+  tzOrders?: unknown[];
+  /** Каталоги (`catalog_config` + `app_config`): по ним мост расшифровывает коды */
+  catalogs?: Array<{ key: string; value: unknown }>;
 };
 
 type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
@@ -470,6 +478,24 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
   switch (table) {
     case 'erp_departments':
       return departmentsFx;
+    /**
+     * Технические задания Order Studio. Мост читает одно ТЗ по id
+     * (`?fromTz=`), поэтому фильтр по id мок обязан повторять: без него
+     * вернулся бы весь список, и `maybeSingle` взял бы чужое задание.
+     */
+    case 'orders': {
+      const rows = (extra.tzOrders ?? []) as Array<{ id: string }>;
+      const idFilter = params.get('id');
+      if (idFilter?.startsWith('eq.')) {
+        const id = idFilter.slice(3);
+        return rows.filter((o) => o.id === id);
+      }
+      return rows;
+    }
+    // Каталоги: ключ/значение из двух таблиц, приложение читает обе разом
+    case 'catalog_config':
+    case 'app_config':
+      return extra.catalogs ?? [];
     case 'erp_experimental':
       // Разработки приезжают и пакетом оболочки, и этим запросом — на проде
       // это один и тот же набор, и мок обязан повторять именно так

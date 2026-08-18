@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTzPrefill, linkTzToOrder } from '../hooks/useTzPrefill';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
@@ -64,6 +65,25 @@ export default function OrdersScreen() {
   // чтобы работали ссылки с KPI-плиток и «Новый заказ» с дашборда
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get('new') === '1');
+
+  /**
+   * Мост «ТЗ → производство»: `?fromTz=<id>`.
+   *
+   * Кнопка в Order Studio сюда переводит, а заказ заводится обычной формой —
+   * заполненной из ТЗ. Одного пути создания достаточно: у него уже есть
+   * валидация, конструктор маршрута и правило «правка человека или расчёт».
+   */
+  const fromTz = searchParams.get('fromTz');
+  const { state: tzState, prefill: tzPrefill, tz } = useTzPrefill(fromTz);
+  const clearFromTz = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('fromTz');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+
   // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
   const query = useErpSearch((s) => s.query);
   const setQuery = useErpSearch((s) => s.setQuery);
@@ -293,6 +313,27 @@ export default function OrdersScreen() {
     <>
       <PageHead title="Заказы" sub="Производственные заказы: позиции, маршрут по цехам, сроки." />
 
+      {/*
+        Мост не сработал — и об этом сказано УСТОЙЧИВО, а не тостом.
+        Тост живёт три секунды: человек, нажавший «В производство» и попавший
+        на список заказов, за это время ещё читает экран. Ответ «почему формы
+        нет» обязан дождаться его.
+
+        Второй заказ по одному ТЗ запрещён уникальным индексом на сервере,
+        поэтому «уже отправлено» — не ошибка, а нормальный исход: заказ есть
+        в этом же списке.
+      */}
+      {(tzState === 'done' || tzState === 'error') && (
+        <div className={styles.draftBanner} role="status">
+          <span>
+            {tzState === 'done'
+              ? `ТЗ ${tz?.order_number ?? ''} уже отправлено в производство — заказ есть в списке`
+              : 'ТЗ не найдено: оно удалено или недоступно вам. Производственный заказ не создан'}
+          </span>
+          <Button variant="ghost" onClick={clearFromTz}>Понятно</Button>
+        </div>
+      )}
+
       <div className={styles.toolbar}>
         <div role="group" aria-label="Фильтр заказов" className={styles.filterRow}>
           <button
@@ -495,11 +536,22 @@ export default function OrdersScreen() {
 
       {/* Без fallback: модалка появляется по клику, и скелетон поверх экрана
           мигал бы сильнее, чем задержка загрузки чанка на цеховом Wi-Fi. */}
-      {showCreate && (
+      {(showCreate || tzState === 'ready') && (
         <Suspense fallback={null}>
         <CreateOrderModal
+          /**
+           * `key` перемонтирует форму, когда приехало ТЗ: состояние формы
+           * посеяно в `useState`-инициализаторах, и без этого предзаполнение
+           * приехало бы в уже смонтированную пустую форму и не применилось.
+           */
+          key={tzPrefill ? `tz-${tzPrefill.tzOrderId}` : 'blank'}
+          prefill={tzPrefill}
+          onCreated={async (created) => {
+            if (tzPrefill) await linkTzToOrder(tzPrefill.tzOrderId, created.id);
+          }}
           onClose={() => {
             setShowCreate(false);
+            if (fromTz) clearFromTz();
             if (searchParams.get('new')) {
               setSearchParams((prev) => {
                 const next = new URLSearchParams(prev);

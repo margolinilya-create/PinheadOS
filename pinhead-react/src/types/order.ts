@@ -15,6 +15,14 @@ export interface Order {
   bitrix_deal: string | null;
   notes: string | null;
   created_by: string | null;
+  /**
+   * Производственный заказ, созданный из этого ТЗ (мост в ERP).
+   * Подсказка интерфейсу: по ней вместо кнопки «В производство» показывается
+   * «в производстве». Источник правды — `erp_orders.tz_order_id` с уникальным
+   * индексом; незаписанная ссылка приводит лишь к повторному показу кнопки,
+   * а не ко второму заказу.
+   */
+  erp_order_id?: string | null;
   created_at: string;
   updated_at?: string;
 }

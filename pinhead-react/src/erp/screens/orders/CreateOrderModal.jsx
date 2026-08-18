@@ -70,7 +70,13 @@ function buildTzItems(items, routes, deptByCode) {
 }
 
 
-export function CreateOrderModal({ onClose }) {
+/**
+ * `prefill` — черновик из ТЗ (мост «ТЗ → производство», `utils/tzBridge`).
+ * Он ПОБЕЖДАЕТ восстановленный черновик формы: человек нажал «В производство»
+ * по конкретному заказу, и показать ему вместо этого позавчерашние наброски
+ * значило бы молча подменить предмет работы.
+ */
+export function CreateOrderModal({ onClose, prefill = null, onCreated }) {
   const createOrder = useErpStore((s) => s.createOrder);
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
@@ -110,15 +116,22 @@ export function CreateOrderModal({ onClose }) {
   }, []);
   // Дата запуска по умолчанию — сегодня; черновик восстанавливается из localStorage
   const initialLaunch = useMemo(() => factoryToday(), []);
-  const [restoredDraft] = useState(() => loadOrderDraft());
-  const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
-  const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
+  // Черновик не восстанавливается поверх ТЗ — см. комментарий у пропа
+  const [restoredDraft] = useState(() => (prefill ? null : loadOrderDraft()));
+  const [form, setForm] = useState(
+    () => prefill?.form ?? restoredDraft?.form ?? emptyOrderForm(initialLaunch),
+  );
+  const [items, setItems] = useState(
+    () => (prefill?.items?.length ? prefill.items : restoredDraft?.items) ?? [{ ...EMPTY_ITEM }],
+  );
   /**
    * Лист закупки (правки заказчика 16.08). Потребность формирует МЕНЕДЖЕР при
    * создании заказа — раньше её вбивал закупщик заново на своём экране.
    * Строки уезжают в заказ той же транзакцией (секция `materials` RPC).
    */
-  const [purchase, setPurchase] = useState(() => restoredDraft?.purchase ?? []);
+  const [purchase, setPurchase] = useState(
+    () => prefill?.purchase ?? restoredDraft?.purchase ?? [],
+  );
   /**
    * Вложения блоков: упаковка, техблок, лист закупки (правки заказчика 16.08 —
    * документ требует файлы в шести местах). File-объекты живут ОТДЕЛЬНО от
@@ -523,6 +536,10 @@ export function CreateOrderModal({ onClose }) {
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
+      // Связь с техническим заданием (мост). Номер дублируется текстом
+      // намеренно: таблицу `orders` цех не видит по RLS, а номер ему нужен
+      tz_order_id: prefill?.tzOrderId,
+      tz_number: prefill?.tzNumber,
       bitrix_id: form.bitrix_id.trim() || undefined,
       title: form.title.trim(),
       customer: form.customer.trim() || undefined,
@@ -535,6 +552,7 @@ export function CreateOrderModal({ onClose }) {
       stickers: form.stickers,
       stickers_note: form.stickers === 'other' ? form.stickers_note.trim() || undefined : undefined,
       no_chestny_znak: form.no_chestny_znak,
+      notes: form.notes.trim() || undefined,
       items: validItems.map((it) => {
         const prints = it.has_branding ? it.prints : [];
         return {
@@ -552,6 +570,7 @@ export function CreateOrderModal({ onClose }) {
           cutting_note: it.cutting_note.trim() || undefined,
           sewing_note: it.sewing_note.trim() || undefined,
           labels_note: it.labels_note.trim() || undefined,
+          notes: it.notes.trim() || undefined,
           packaging: it.packaging || 'inherit',
           packaging_size: it.packaging_size.trim() || undefined,
           sticker_place: it.sticker_place.trim() || undefined,
@@ -605,6 +624,9 @@ export function CreateOrderModal({ onClose }) {
     if (created) {
       clearOrderDraft();
       toast.success(`Заказ «${created.title}» создан, маршрут построен`);
+      // Обратная ссылка в ТЗ пишется вызывающим: у моста своё продолжение
+      // (показать «в производстве» вместо кнопки), а форма про ТЗ не знает
+      await onCreated?.(created);
       onClose();
     }
   };
@@ -650,7 +672,23 @@ export function CreateOrderModal({ onClose }) {
         aria-modal="true"
         aria-label="Новый производственный заказ"
       >
-        <div className={styles.modalTitle}>Новый заказ</div>
+        <div className={styles.modalTitle}>
+          {prefill ? `Заказ из ТЗ ${prefill.tzNumber ?? ''}`.trim() : 'Новый заказ'}
+        </div>
+
+        {/*
+          Что из ТЗ НЕ поехало в производственный заказ — списком, а не молча.
+          Цена, макеты по зонам, незнакомая производству техника нанесения:
+          часть модели ERP не имеет, часть требует решения человека. Молчание
+          здесь означало бы заказ, в котором чего-то нет, и никто не знает чего.
+        */}
+        {prefill?.notes?.length > 0 && (
+          <div className={styles.draftBanner} role="status">
+            <span>
+              Перенесено из ТЗ. Осталось в ТЗ: {prefill.notes.join('; ')}
+            </span>
+          </div>
+        )}
 
         {draftRestored && (
           <div className={styles.draftBanner} role="status">
@@ -771,6 +809,20 @@ export function CreateOrderModal({ onClose }) {
               onChange={(e) => setForm({ ...form, buffer_days: e.target.value.replace('-', '') })}
             />
             <span className={styles.subText}>Запас до срока клиента</span>
+          </label>
+          {/* Примечание к заказу целиком. Колонка `erp_orders.notes` была
+              в схеме с первой волны и принималась RPC, но форма её не
+              заполняла — завести заказ с примечанием было нельзя ниоткуда,
+              кроме правки уже созданной карточки. */}
+          <label className={`${styles.field} ${styles.fieldWide}`}>
+            <span className={styles.fieldLabel}>Примечание к заказу</span>
+            <textarea
+              className={styles.input}
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="адрес доставки, контакт заказчика, договорённости"
+            />
           </label>
         </div>
         </FormSection>
