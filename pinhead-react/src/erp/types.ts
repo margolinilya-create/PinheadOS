@@ -30,6 +30,7 @@ export type BrandingMethod =
   | 'embroidery'     // Вышивка
   | 'silkscreen'     // Шелкография
   | 'dtf'            // ДТФ
+  | 'dtg'            // DTG (прямая печать по ткани)
   | 'heat_transfer'  // Термоперенос
   | 'other';         // Прочие (пришив нашивок и т.п.)
 
@@ -757,6 +758,7 @@ export const BRANDING_METHOD_LABELS: Record<BrandingMethod, string> = {
   embroidery: 'Вышивка',
   silkscreen: 'Шелкография',
   dtf: 'ДТФ',
+  dtg: 'DTG',
   heat_transfer: 'Термоперенос',
   other: 'Прочие',
 };
@@ -990,7 +992,7 @@ export type EmployeeRole =
    * собой — различает их привязка `erp_employees.department_id`. Заведены отдельно,
    * потому что заказчик перечислил их как самостоятельные роли команды.
    */
-  | 'dtf' | 'silkscreen' | 'embroidery'
+  | 'dtf' | 'dtg' | 'silkscreen' | 'embroidery'
   /**
    * Заведён, должность не назначена — ЕДИНСТВЕННАЯ роль без единого права
    * (кроме `hr`, но та означает должность, а не состояние).
@@ -1089,6 +1091,7 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
    */
   technologist: 'Конструктор / технолог',
   dtf: 'ДТФ',
+  dtg: 'DTG',
   silkscreen: 'Шелкография',
   embroidery: 'Вышивка',
   /** Подпись называет СОСТОЯНИЕ, а не должность: это и есть смысл роли */

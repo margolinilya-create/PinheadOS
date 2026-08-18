@@ -44,6 +44,10 @@ const BRANDING_DEPT: Record<BrandingMethod, string | null> = {
   embroidery: 'embroidery',
   silkscreen: 'silkscreen',
   dtf: 'dtf',
+  // DTG — прямая печать по готовому изделию, отдельная машина и отдельный
+  // участок. В «прочие» его сводить нельзя: у них цеха нет вовсе, и позиция
+  // с DTG прошла бы маршрут без этапа печати — никто бы не увидел задания.
+  dtg: 'dtg',
   heat_transfer: 'dtf', // тот же цех, колонка «DTF/Термоперенос»
   other: null,          // пришив нашивок и т.п. — внутри швейки
 };

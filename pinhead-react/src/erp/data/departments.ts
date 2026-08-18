@@ -14,6 +14,7 @@ export type DepartmentType =
   | 'cutting'       // Раскрой
   | 'silkscreen'    // Шелкография
   | 'dtf'           // ДТФ
+  | 'dtg'           // DTG (прямая печать по ткани)
   | 'embroidery'    // Вышивка
   | 'sewing'        // Пошив
   | 'vto'           // ВТО
@@ -41,6 +42,7 @@ export const DEPARTMENTS: Department[] = [
   { code: 'silkscreen',   name: 'Цех шелкографии',         type: 'silkscreen',   order: 60, is_branding: true },
   { code: 'dtf',          name: 'Цех ДТФ',                 type: 'dtf',          order: 61, is_branding: true },
   { code: 'embroidery',   name: 'Цех вышивки',             type: 'embroidery',   order: 62, is_branding: true },
+  { code: 'dtg',          name: 'Цех DTG',                 type: 'dtg',          order: 63, is_branding: true },
   { code: 'sewing',       name: 'Швейный цех',             type: 'sewing',       order: 70 },
   { code: 'vto',          name: 'ВТО цех',                 type: 'vto',          order: 80 },
   { code: 'qc',           name: 'ОТК',                     type: 'qc',           order: 85 },
@@ -60,6 +62,7 @@ export const DEPT_SHORT_NAMES: Record<string, string> = {
   cutting: 'Закрой',
   silkscreen: 'Шелкография',
   dtf: 'ДТФ',
+  dtg: 'DTG',
   embroidery: 'Вышивка',
   sewing: 'Швейка',
   vto: 'ВТО',
@@ -84,6 +87,7 @@ export const DEPT_ICONS: Record<string, string> = {
   cutting: 'scissors',
   silkscreen: 'printer',
   dtf: 'printer',
+  dtg: 'printer',
   embroidery: 'needle',
   sewing: 'needle',
   vto: 'iron',
@@ -107,7 +111,7 @@ export function deptIcon(code: string): string {
  */
 // experimental вынесен в отдельную вкладку «Эксперим. цех» (правка 6) — не в общей очереди
 export const QUEUE_DEPT_CODES = new Set([
-  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto', 'qc',
+  'cutting', 'silkscreen', 'dtf', 'dtg', 'embroidery', 'sewing', 'vto', 'qc',
 ]);
 
 /** @deprecated Признак по коду — только для сида. В коде: `isProductionDept(dept)` */

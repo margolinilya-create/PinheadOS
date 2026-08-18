@@ -23,7 +23,7 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 /** Порядок ролей — от руководства к исполнителям, участки нанесения рядом */
 const ROLES = [
   'director', 'production_head', 'dispatcher', 'manager', 'technologist', 'foreman',
-  'worker', 'dtf', 'silkscreen', 'embroidery', 'purchaser', 'storekeeper', 'hr',
+  'worker', 'dtf', 'dtg', 'silkscreen', 'embroidery', 'purchaser', 'storekeeper', 'hr',
   // Новичок до назначения должности — последним: это не должность, а состояние
   'pending',
 ];

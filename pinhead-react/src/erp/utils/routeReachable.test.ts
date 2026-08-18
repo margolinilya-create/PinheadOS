@@ -41,7 +41,7 @@ function routeDeptCodes(): Set<string> {
     'no_product', 'ready_garment', 'cut', 'sewing', 'samples', 'outsource',
   ];
   const METHODS: BrandingMethod[] = [
-    'embroidery', 'silkscreen', 'dtf', 'heat_transfer', 'other',
+    'embroidery', 'silkscreen', 'dtf', 'dtg', 'heat_transfer', 'other',
   ];
   // Значений ровно два — так же, как в CHECK `erp_order_items_branding_on_check`
 const ON: BrandingOn[] = ['cut', 'finished'];
@@ -65,21 +65,35 @@ const ON: BrandingOn[] = ['cut', 'finished'];
 }
 
 /**
- * Производственные цеха по сиду миграций — последний `is_production = true`.
- * Читаем по СМЫСЛУ (по тексту UPDATE), а не по имени файла: файл устаревает
- * тише, чем содержимое.
+ * Производственные цеха по сиду миграций — все, кого хоть одна миграция
+ * пометила `is_production = true`. Читаем по СМЫСЛУ (по тексту UPDATE),
+ * а не по имени файла: файл устаревает тише, чем содержимое.
+ *
+ * Раньше здесь бралась ПОСЛЕДНЯЯ такая строка целиком, то есть предполагалось,
+ * что каждая новая миграция перечисляет весь список заново. Участок, заведённый
+ * своей миграцией (DTG), из набора выпадал — и сторож объявлял недостижимым
+ * цех, у которого поверхность есть. Требовать же от каждой миграции повторять
+ * полный список — значит копировать его при каждой правке и однажды забыть
+ * в нём кого-то.
+ *
+ * Отключение участка этим не ловится, но оно и раньше не ловилось: цех
+ * убирают из работы через `active = false`, а не снятием `is_production`.
  */
 function seededProductionCodes(): Set<string> {
   const files = readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql')).sort();
-  let last: string[] | null = null;
+  const codes = new Set<string>();
   for (const name of files) {
     const sql = readFileSync(join(MIGRATIONS, name), 'utf8');
     for (const m of sql.matchAll(
       /set\s+is_production\s*=\s*true\s+where\s+code\s+in\s*\(([^)]*)\)/gi)) {
-      last = [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+      for (const c of m[1].matchAll(/'([a-z_]+)'/g)) codes.add(c[1]);
+    }
+    for (const m of sql.matchAll(
+      /set\s+is_production\s*=\s*true\s+where\s+code\s*=\s*'([a-z_]+)'/gi)) {
+      codes.add(m[1]);
     }
   }
-  return new Set(last ?? []);
+  return codes;
 }
 
 /**
