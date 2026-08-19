@@ -34,8 +34,40 @@ function walk(dir, ext) {
   return results;
 }
 
-function scanLines(file, regex) {
-  const lines = readFileSync(file, 'utf8').split('\n');
+/**
+ * Комментарии снимаются ПЕРЕД любой проверкой — правило проекта (то же делает
+ * `src/utils/date.test.ts`). Без этого аудит ловил объяснение вместо кода:
+ * четыре «хардкоженных цвета» в `index.css` — это hex внутри комментариев,
+ * которые как раз и обосновывают, почему токен имеет такое значение
+ * («был #888888 и не проходил AA»). Написать такое объяснение было
+ * единственным способом сделать аудит красным.
+ *
+ * Номера строк обязаны сохраниться, поэтому содержимое комментария
+ * заменяется пробелами, а переводы строк остаются на месте: иначе адрес
+ * настоящей находки уехал бы, и человек искал бы её не там.
+ */
+function stripCssComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+}
+
+/**
+ * У JS/JSX комментарии двух видов, и `//` внутри строки (`https://…`) — не
+ * комментарий. Поэтому построчный вариант: блочные снимаются, а строчные
+ * только когда строка с них НАЧИНАЕТСЯ. Тот же приём, что в тестах проекта.
+ */
+function stripJsComments(src) {
+  return stripCssComments(src)
+    .split('\n')
+    .map((l) => (l.trimStart().startsWith('//') ? '' : l))
+    .join('\n');
+}
+
+function readCss(file) {
+  return stripCssComments(readFileSync(file, 'utf8'));
+}
+
+function scanLines(file, regex, strip = stripJsComments) {
+  const lines = strip(readFileSync(file, 'utf8')).split('\n');
   const hits = [];
   lines.forEach((line, i) => {
     if (regex.test(line)) {
@@ -83,7 +115,7 @@ const indexCss = join(ROOT, 'src/index.css');
 
 const hexHits = [];
 for (const f of [...cssFiles, indexCss]) {
-  const lines = readFileSync(f, 'utf8').split('\n');
+  const lines = readCss(f).split('\n');
   lines.forEach((line, i) => {
     if (isAllowedHex(line)) return;
     // Match 6-digit or 3-digit hex codes
@@ -110,7 +142,7 @@ printSection(
 
 const barlowHits = [];
 for (const f of cssFiles) {
-  const hits = scanLines(f, /Barlow Condensed/i);
+  const hits = scanLines(f, /Barlow Condensed/i, stripCssComments);
   // Filter out lines that already use var(--font-display)
   for (const h of hits) {
     if (!h.text.includes('var(--font-display)')) {
@@ -129,7 +161,7 @@ printSection(
 
 const monoHits = [];
 for (const f of cssFiles) {
-  const hits = scanLines(f, /Roboto Mono/i);
+  const hits = scanLines(f, /Roboto Mono/i, stripCssComments);
   for (const h of hits) {
     if (!h.text.includes('var(--mono)')) {
       monoHits.push(h);
@@ -145,21 +177,40 @@ printSection(
 
 // ── 4. @keyframes without prefers-reduced-motion ─────────────
 
+/**
+ * ДВА ПРОХОДА, а не один.
+ *
+ * Раньше имена анимаций собирались и покрытие проверялось в одном цикле по
+ * файлам, поэтому глобальный override («гасим ВСЕ анимации») засчитывался
+ * только тем анимациям, которые встретились ДО него по порядку обхода.
+ * `fadeSlideIn` объявлена в `wizard.css`, а override живёт в `utils.css`,
+ * то есть в файле, идущем раньше по алфавиту, — и покрытая анимация
+ * рапортовалась как непокрытая. Порядок файлов не должен решать ничего.
+ */
 const keyframeNames = new Set();
 const motionCoveredNames = new Set();
+const cssSources = [...cssFiles, indexCss].map(readCss);
 
-for (const f of [...cssFiles, indexCss]) {
-  const content = readFileSync(f, 'utf8');
-  // Collect all @keyframes names
+for (const content of cssSources) {
   for (const m of content.matchAll(/@keyframes\s+([\w-]+)/g)) {
     keyframeNames.add(m[1]);
   }
-  // Check which ones appear inside a prefers-reduced-motion block
+}
+
+for (const content of cssSources) {
   const motionBlocks = content.matchAll(/@media\s*\(prefers-reduced-motion[^)]*\)\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g);
   for (const block of motionBlocks) {
     const inner = block[0];
-    // A wildcard * rule covers everything
-    if (/\*/.test(inner)) {
+    /**
+     * Универсальное правило (`*, *::before, *::after { animation-duration: … }`)
+     * гасит вообще все анимации — это стандартный приём W3C для SC 2.3.3,
+     * и в проекте он объявлен один раз в `utils.css`.
+     *
+     * Ищем именно СЕЛЕКТОР, а не любую звёздочку: прежнее `/\*/` срабатывало
+     * и на `/*` комментария внутри блока, то есть комментарий засчитывался
+     * как покрытие всех анимаций разом.
+     */
+    if (/(^|[\s,{])\*(?=[\s,:{])/.test(inner)) {
       for (const name of keyframeNames) motionCoveredNames.add(name);
     }
     for (const name of keyframeNames) {
