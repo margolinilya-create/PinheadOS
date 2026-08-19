@@ -12,7 +12,10 @@ import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { daysLeft, isUrgent } from '../utils/time';
 import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
-import { ORDER_STATUS_LABELS } from '../types';
+import { orderStageSummary } from '../utils/orderStage';
+import { isMyOrder } from '../utils/myOrders';
+import { useAuthStore } from '../../store/useAuthStore';
+import { deptShortName } from '../data/departments';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import styles from '../erp.module.css';
@@ -119,17 +122,29 @@ export default function OrdersScreen() {
   const tab = searchParams.get('tab') === 'archive' ? 'archive' : 'active';
   const setTab = (v) => patchParams({ tab: v === 'archive' ? 'archive' : '' });
   const filterParam = searchParams.get('filter');
-  const filter = ['ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
+  const filter = ['mine', 'ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
   const toggleFilter = (name) => patchParams({ filter: filter === name ? '' : name });
+  /**
+   * «Мои заказы» — ответ менеджера на вопрос «где моя сделка». Связь двойная
+   * (создал я ИЛИ моё имя в поле «Менеджер»), правило живёт в `utils/myOrders`.
+   * Читаем профиль напрямую: `useErpAccess` отвечает за права, а не за личность,
+   * и складывать туда имя значило бы расширять его назначение.
+   */
+  const me = useAuthStore(useShallow((s) => ({
+    id: s.user?.id ?? null,
+    name: s.user?.name ?? '',
+  })));
+
   // Счётчики чипов — та же логика, что у KPI-плиток дашборда (активные заказы)
   const counts = useMemo(() => {
     const active = orders.filter((o) => o.status === 'active');
     return {
+      mine: active.filter((o) => isMyOrder(o, me)).length,
       ready: active.filter((o) => isOrderReadyToShip(o)).length,
       urgent: active.filter((o) => isUrgent(o.due_date)).length,
       overdue: active.filter((o) => isOrderOverdue(o, daysLeft(o.due_date))).length,
     };
-  }, [orders]);
+  }, [orders, me]);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -179,12 +194,13 @@ export default function OrdersScreen() {
     () => orders.filter((o) => {
       if (tab === 'archive') return o.status !== 'active';
       if (o.status !== 'active') return false;
+      if (filter === 'mine') return isMyOrder(o, me);
       if (filter === 'ready') return isOrderReadyToShip(o);
       if (filter === 'urgent') return isUrgent(o.due_date);
       if (filter === 'overdue') return isOrderOverdue(o, daysLeft(o.due_date));
       return true;
     }),
-    [orders, tab, filter],
+    [orders, tab, filter, me],
   );
 
   const filtered = useMemo(() => {
@@ -239,12 +255,19 @@ export default function OrdersScreen() {
   const pageSize = Math.max(1, Number(searchParams.get('size')) || 25);
   const setPageSize = (n) => patchPage({ size: n === 25 ? '' : String(n), page: '' });
 
+  // Название цеха для подписи стадии — то же, что рисует строка заказа
+  const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
+  const deptName = useCallback((id) => {
+    const d = deptById.get(id);
+    return d ? deptShortName(d.code, d.name) : null;
+  }, [deptById]);
+
   /**
    * Значение колонки берётся ТО ЖЕ, что видно в ячейке (правило utils/tableSort):
    * иначе сортировка «по статусу» упорядочивала бы по внутреннему коду,
    * а человек видел бы подпись и не понимал порядка.
    */
-  const sortValue = (o, key) => {
+  const sortValue = useCallback((o, key) => {
     switch (key) {
       case 'bitrix': return o.bitrix_id || null;
       case 'title': return o.title;
@@ -252,15 +275,16 @@ export default function OrdersScreen() {
       case 'qty': return o.items.reduce((n, it) => n + (it.qty || 0), 0);
       case 'created': return o.created_at || null;
       case 'due': return o.due_date || null;
-      // Готовность — то же вычисление, что рисует чип: сортировка «по статусу»
-      // должна собирать вместе строки с одинаковой подписью
-      case 'status': return isOrderReadyToShip(o) ? 'Готов к отгрузке' : ORDER_STATUS_LABELS[o.status];
+      // Та же фраза, что рисует чип (правило utils/tableSort): сортировка
+      // «по стадии» должна собирать вместе строки с одинаковой подписью,
+      // то есть заказы, стоящие в одном цехе
+      case 'status': return orderStageSummary(o, deptName).label;
       default: return null;
     }
-  };
+  }, [deptName]);
 
   // Сортировка ДО пагинации: иначе сортируется только текущая страница
-  const sorted = useMemo(() => sortRows(filtered, sort, sortValue), [filtered, sort]);
+  const sorted = useMemo(() => sortRows(filtered, sort, sortValue), [filtered, sort, sortValue]);
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -356,6 +380,19 @@ export default function OrdersScreen() {
           </button>
           {tab === 'active' && (
             <>
+              {/* «Мои» стоит первым: менеджер заходит в список за своими
+                  сделками, а не за общим производством. Без имени в профиле
+                  чип не показываем — он отобрал бы все строки разом */}
+              {(me.id || me.name) && (
+                <button
+                  type="button"
+                  aria-pressed={filter === 'mine'}
+                  className={`${styles.chip} ${styles.chipBtn} ${filter === 'mine' ? styles.chipProgress : styles.chipNeutral}`}
+                  onClick={() => toggleFilter('mine')}
+                >
+                  <Icon name="user" size={13} /> Мои ({counts.mine})
+                </button>
+              )}
               <button
                 type="button"
                 aria-pressed={filter === 'ready'}
@@ -488,7 +525,7 @@ export default function OrdersScreen() {
                 <SortableTh sortKey="qty" sort={sort} onSort={sortBy}>Кол-во</SortableTh>
                 <SortableTh sortKey="created" sort={sort} onSort={sortBy}>Создан</SortableTh>
                 <SortableTh sortKey="due" sort={sort} onSort={sortBy}>Срок клиента</SortableTh>
-                <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
+                <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Стадия</SortableTh>
                 <th aria-label="Действия" />
               </tr>
             </thead>

@@ -60,7 +60,12 @@ function TzDocRow({ doc, onRemove, onRetry }) {
   );
 }
 
-export function TzSection({ tzItems, tzDocs, addTzDoc, removeTzDoc, retryTzDoc }) {
+/**
+ * `autoTzFrom` — номер ТЗ Order Studio, из которого создаётся заказ. Тогда PDF
+ * собирает система (после создания заказа), и раздел объясняет это вместо того,
+ * чтобы красным требовать файл, которого человеку негде взять.
+ */
+export function TzSection({ tzItems, tzDocs, addTzDoc, removeTzDoc, retryTzDoc, autoTzFrom = null }) {
   const generalDocs = tzDocs.filter((d) => d.itemIndex === null);
 
   return (
@@ -70,6 +75,16 @@ export function TzSection({ tzItems, tzDocs, addTzDoc, removeTzDoc, retryTzDoc }
         в заказе одинаковые, достаточно общего ТЗ на заказ. Заменить файл потом можно
         в карточке заказа — обновится сразу у всех цехов.
       </p>
+      {/* Не live-регион: это постоянный текст раздела, появляющийся вместе
+          с формой, а регион, добавленный в DOM вместе с содержимым,
+          скринридер всё равно не читает (правило проекта) */}
+      {autoTzFrom && (
+        <p className={styles.subText}>
+          ТЗ соберёт система из {autoTzFrom} сразу после создания заказа — прикладывать
+          файл не нужно. Приложите свой PDF, если хотите заменить собранный: тогда
+          система собирать не будет и файл понадобится каждой позиции.
+        </p>
+      )}
 
       <div className={styles.checkRow}>
         <PdfPick label="+ Общее ТЗ заказа (PDF)" onPick={(f) => addTzDoc(f, null)} />
@@ -115,6 +130,10 @@ export function TzSection({ tzItems, tzDocs, addTzDoc, removeTzDoc, retryTzDoc }
                 </span>
               ) : covered ? (
                 <span>{ti.stages.map((st) => st.departmentName).join(' · ')}</span>
+              ) : autoTzFrom ? (
+                <span>
+                  {ti.stages.map((st) => st.departmentName).join(' · ')} — ТЗ соберёт система
+                </span>
               ) : (
                 <span className={styles.tzAssignMissing}>
                   {ti.stages.map((st) => st.departmentName).join(' · ')} — ТЗ не загружено

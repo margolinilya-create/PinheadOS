@@ -356,5 +356,19 @@ export function tzToOrderForm(
   if (hasArtworks) notes.push('Макеты по зонам остаются в ТЗ — приложите файлы к позиции, если они нужны цеху');
   if (!form.due_date) notes.push('В ТЗ нет срока сдачи — заполните его в форме');
 
-  return { form, items, purchase: purchaseRows(rawItems, catalogs), notes };
+  /**
+   * Количество в листе закупки — обязательное поле формы, а расхода материалов
+   * в ТЗ нет вовсе (см. `purchaseRows`). Без этой строки человек узнавал бы
+   * о недостающих количествах только по серой кнопке после нажатия «Создать»,
+   * а прочитал бы её как поломку моста: остальное-то заполнилось само.
+   */
+  const purchase = purchaseRows(rawItems, catalogs);
+  if (purchase.length > 0) {
+    notes.push(
+      `Лист закупки собран из ТЗ (${purchase.length}) — проставьте количество: `
+      + 'расход материалов ТЗ не содержит',
+    );
+  }
+
+  return { form, items, purchase, notes };
 }

@@ -6,6 +6,26 @@ import { toast } from '../../store/useToastStore';
 import { factoryToday } from '../../utils/date';
 import { tzToOrderForm } from '../utils/tzBridge';
 import { findColorEntry } from '../../data/colors';
+import {
+  SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, ZONES_CATALOG_DEFAULT,
+} from '../../data';
+
+/**
+ * `loadAllCatalogs` отдаёт РОВНО то, что лежит в базе, и ключа там может
+ * не быть вовсе: на боевой базе нет строки `zonesCatalog`, и визард живёт
+ * на дефолтах из `src/data` (так устроен `catalogSlice`). Мост этого не делал,
+ * и в ТЗ-PDF уезжало «Зона: front» вместо «Грудь (перед)» — цех получал код
+ * вместо слова, причём молча: перевод остальных полей работал.
+ *
+ * Запасные значения берутся ОТТУДА ЖЕ, откуда их берёт визард, — иначе
+ * подписи в ТЗ и в ТЗ-PDF разошлись бы для одного и того же заказа.
+ */
+const withDefaults = (c) => ({
+  skuCatalog: c.skuCatalog ?? SKU_CATALOG_DEFAULT,
+  fabricsCatalog: c.fabricsCatalog ?? FABRICS_CATALOG_DEFAULT,
+  trimCatalog: c.trimCatalog ?? TRIM_CATALOG_DEFAULT,
+  zonesCatalog: c.zonesCatalog ?? ZONES_CATALOG_DEFAULT,
+});
 
 /**
  * Приём ТЗ в производстве: `/orders?fromTz=<id>` → черновик формы заказа.
@@ -63,10 +83,7 @@ export function useTzPrefill(tzOrderId) {
       }
 
       const built = tzToOrderForm(data, {
-        skuCatalog: catalogs.skuCatalog,
-        trimCatalog: catalogs.trimCatalog,
-        fabricsCatalog: catalogs.fabricsCatalog,
-        zonesCatalog: catalogs.zonesCatalog,
+        ...withDefaults(catalogs),
         findColor: findColorEntry,
       }, factoryToday());
       setResult({

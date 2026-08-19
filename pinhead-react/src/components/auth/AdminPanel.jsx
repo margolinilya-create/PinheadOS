@@ -5,11 +5,29 @@ import { TYPE_NAMES } from '../../data';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import { Button } from '../../erp/components/Button';
-import { setFeature } from '../../config/features';
+import { setFeature, FEATURES } from '../../config/features';
 import { EmptyResult, EmptyState } from '../../erp/components/ErpStates';
 import { ScrollHintBox } from '../../erp/components/ScrollHintBox';
 import { TableSkeleton } from '../../erp/components/ErpSkeletons';
+import { OrderLink } from '../../erp/components/OrderLink';
+import { useErpStore } from '../../erp/store/useErpStore';
+import { orderStageSummary, ORDER_STAGE_CHIP } from '../../erp/utils/orderStage';
+import { deptShortName } from '../../erp/data/departments';
 import styles from '../../erp/erp.module.css';
+
+/**
+ * Уход в раздел производства по адресу.
+ *
+ * Флаг раздела живёт в localStorage и читается при СТАРТЕ приложения, поэтому
+ * переход обязан быть полным, а не роутерным. Панель смонтирована в обоих
+ * разделах: в производстве снятие флага не меняет ничего, в Order Studio —
+ * переводит. Один помощник на кнопку «В производство» и на ссылку «заказ»:
+ * два места, читающих один флаг по-разному, разошлись бы в первую же правку.
+ */
+function goToProduction(path) {
+  setFeature('orderStudio', false);
+  window.location.href = path;
+}
 
 /**
  * Таблица заказов Order Studio — вкладка «Заказы ТЗ» единой админки ERP.
@@ -30,6 +48,57 @@ import styles from '../../erp/erp.module.css';
  *
  * Шапку раздела рисует сама `AdminScreen` — второй заголовок тут не нужен.
  */
+/**
+ * Стадия производственного заказа в строке ТЗ (правка заказчика, сессия 33:
+ * менеджер должен видеть стадию своей сделки).
+ *
+ * Данные берутся из УЖЕ ЗАГРУЖЕННОГО списка активных заказов ERP — своего
+ * запроса здесь нет: панель смонтирована внутри админки ERP, где оболочка
+ * загрузила заказы пакетом (`erp_bootstrap`). Заказ, ушедший в архив, в этом
+ * списке отсутствует, и вместо стадии остаётся ссылка: диплинк обязан
+ * работать всегда, а «стадия неизвестна» честнее выдуманной.
+ */
+function ProductionCell({ orderId }) {
+  const orders = useErpStore((s) => s.orders);
+  const departments = useErpStore((s) => s.departments);
+  const order = orders.find((o) => o.id === orderId);
+  const stage = useMemo(() => {
+    if (!order) return null;
+    const byId = new Map(departments.map((d) => [d.id, d]));
+    return orderStageSummary(order, (id) => {
+      const d = byId.get(id);
+      return d ? deptShortName(d.code, d.name) : null;
+    });
+  }, [order, departments]);
+
+  return (
+    <>
+      {stage ? (
+        <span className={`${styles.chip} ${styles[ORDER_STAGE_CHIP[stage.tone]]}`}>
+          {stage.label}{stage.pct !== null ? ` · ${stage.pct}%` : ''}
+        </span>
+      ) : (
+        <span className={styles.subText}>в производстве</span>
+      )}
+      {' '}
+      {/**
+       * Ссылка на карточку — только в разделе производства: маршрута
+       * `/orders/:id` в Order Studio НЕТ вовсе, и обычная ссылка увела бы
+       * на пустой экран. Из Studio уходим тем же приёмом, что кнопка
+       * «В производство»: снимаем флаг раздела и делаем полный переход,
+       * потому что флаг читается при старте приложения.
+       */}
+      {FEATURES.orderStudio ? (
+        <Button variant="ghost" size="sm" onClick={() => goToProduction(`/orders/${orderId}`)}>
+          заказ
+        </Button>
+      ) : (
+        <OrderLink orderId={orderId}>заказ</OrderLink>
+      )}
+    </>
+  );
+}
+
 export default function AdminPanel() {
   const { orders, loading, fetchOrders, updateStatus, deleteOrder } = useOrdersStore(
     useShallow((s) => ({
@@ -62,8 +131,7 @@ export default function AdminPanel() {
    * ничего не меняет, а в Studio — переводит в производство.
    */
   const toProduction = (order) => {
-    setFeature('orderStudio', false);
-    window.location.href = `/orders?fromTz=${encodeURIComponent(order.id)}`;
+    goToProduction(`/orders?fromTz=${encodeURIComponent(order.id)}`);
   };
 
   const handleDeleteOrder = async (id) => {
@@ -172,7 +240,7 @@ export default function AdminPanel() {
                     {/* Только у утверждённого ТЗ: черновик ещё правят, а заказ
                         по нему уже занял бы очередь в цехах */}
                     {o.erp_order_id ? (
-                      <span className={styles.subText}>в производстве</span>
+                      <ProductionCell orderId={o.erp_order_id} />
                     ) : o.status === 'approved' ? (
                       <Button variant="secondary" size="sm" onClick={() => toProduction(o)}>
                         В производство

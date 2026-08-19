@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { CreateOrderModal } from './CreateOrderModal';
 import { useErpStore } from '../../store/useErpStore';
 import { supabase } from '../../../lib/supabase';
+import { EMPTY_ITEM, emptyOrderForm } from '../../utils/orderForm';
 
 /**
  * Форма создания заказа — до этой правки не покрытая ни одним тестом, хотя именно
@@ -50,6 +51,40 @@ function setup() {
   return { createOrder };
 }
 
+/**
+ * Заказ из ТЗ (мост) с ДВУМЯ позициями: одна позиция не показала бы разницы
+ * между «система соберёт всем» и «одного файла достаточно».
+ */
+function setupWithPrefill() {
+  const createOrder = vi.fn().mockResolvedValue({ id: 'o-new' });
+  useErpStore.setState({
+    departments: DEPARTMENTS,
+    orders: [],
+    loaded: true,
+    createOrder,
+    uploadOrderPreview: vi.fn().mockResolvedValue(null),
+  });
+  const item = (product_type) => ({
+    ...EMPTY_ITEM, product_type, qty: 50, production_type: 'sewing',
+  });
+  render(
+    <MemoryRouter>
+      <CreateOrderModal
+        onClose={vi.fn()}
+        prefill={{
+          tzOrderId: 'tz-1',
+          tzNumber: 'PH-QA01',
+          form: { ...emptyOrderForm('2026-08-19'), title: 'PH-QA01 · QA Ромашка' },
+          items: [item('Футболка'), item('Худи')],
+          purchase: [],
+          notes: [],
+        }}
+      />
+    </MemoryRouter>,
+  );
+  return { createOrder };
+}
+
 /** Минимально достаточный заказ: название + изделие + тираж */
 function fillRequired() {
   fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
@@ -62,8 +97,8 @@ function fillRequired() {
 }
 
 /** Выбор PDF через скрытый input рядом с кнопкой «+ ТЗ позиции (PDF)» */
-function pickItemPdf(file) {
-  const btn = screen.getByRole('button', { name: '+ ТЗ позиции (PDF)' });
+function pickItemPdf(file, index = 0) {
+  const btn = screen.getAllByRole('button', { name: '+ ТЗ позиции (PDF)' })[index];
   const input = btn.parentElement.querySelector('input[type="file"]');
   fireEvent.change(input, { target: { files: [file] } });
 }
@@ -176,6 +211,32 @@ describe('CreateOrderModal — ТЗ в PDF', () => {
 
     expect(await screen.findByText(/ТЗ загружено/)).toBeInTheDocument();
     await waitFor(() => expect(submitBtn()).toBeEnabled());
+  });
+
+  /**
+   * Мост «ТЗ → производство». Проверять это надо ИМЕННО ЗДЕСЬ: гейт живёт
+   * в форме, и на боевом прокликивании он сделал мост неработающим — кнопка
+   * «Создать заказ» оставалась серой с причиной «не загружено ТЗ», а взять
+   * файл человеку негде: документ собирает система после создания заказа.
+   */
+  it('заказ из ТЗ создаётся без приложенного файла — ТЗ соберёт система', async () => {
+    setupWithPrefill();
+    expect(screen.getByText(/ТЗ соберёт система из PH-QA01/)).toBeInTheDocument();
+    await waitFor(() => expect(submitBtn()).toBeEnabled());
+  });
+
+  /**
+   * `createOrder` собирает ТЗ, только когда своих документов нет вовсе
+   * (приложенный человеком важнее собранного). Значит, один файл на две
+   * позиции оставил бы вторую без ТЗ совсем — и цех встал бы на гейте.
+   */
+  it('свой файл возвращает обычный гейт: ТЗ нужно каждой позиции', async () => {
+    setupWithPrefill();
+    pickItemPdf(pdf('Своё ТЗ.pdf'));
+    expect(await screen.findByText(/ТЗ загружено/)).toBeInTheDocument();
+    // Вторая позиция ТЗ не получила — форма снова не пускает
+    await waitFor(() => expect(submitBtn()).toBeDisabled());
+    expect(screen.getByText(/не загружено ТЗ для позиции/)).toBeInTheDocument();
   });
 
   it('не-PDF в бакет не уходит', () => {

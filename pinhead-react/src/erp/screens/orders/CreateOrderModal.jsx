@@ -322,12 +322,27 @@ export function CreateOrderModal({ onClose, prefill = null, onCreated }) {
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
 
+  /**
+   * Заказ из ТЗ: документ соберёт система (решение заказчика №2 по мосту).
+   * Гейт «без приложенного PDF заказ не создать» здесь сделал бы мост
+   * неработающим — прокликивание на боевой базе упиралось ровно в него:
+   * кнопка «Создать заказ» оставалась серой с причиной «не загружено ТЗ»,
+   * а взять файл человеку было негде.
+   *
+   * Но ТОЛЬКО пока своих файлов нет. `createOrder` запускает сборку, лишь
+   * когда документов не приложили вовсе (приложенный человеком важнее
+   * собранного из полей), — а значит, при одном приложенном PDF на две
+   * позиции вторая осталась бы без ТЗ вообще, и цех встал бы на гейте.
+   * Правило простое и объяснимое: или всё система, или каждой позиции своё.
+   */
+  const tzFromBridge = Boolean(prefill?.tzOrderId) && tzDocs.length === 0;
   const tzValidation = useMemo(
     () => validateTzDocs(
       tzItems,
       tzDocs.map((d) => ({ itemIndex: d.itemIndex, uploaded: d.state === 'uploaded' })),
+      tzFromBridge,
     ),
-    [tzItems, tzDocs],
+    [tzItems, tzDocs, tzFromBridge],
   );
 
 
@@ -652,7 +667,10 @@ export function CreateOrderModal({ onClose, prefill = null, onCreated }) {
       ? 'ошибка загрузки'
       : tzValidation.missing.length > 0
         ? `нет ТЗ у позиций: ${tzValidation.missing.length}`
-        : `${tzUploaded} ${pluralize(tzUploaded, 'файл', 'файла', 'файлов')} · загружено`;
+        : tzFromBridge && tzUploaded === 0
+          // «0 файлов · загружено» в свёрнутой секции читалось бы как «ТЗ забыли»
+          ? 'соберёт система'
+          : `${tzUploaded} ${pluralize(tzUploaded, 'файл', 'файла', 'файлов')} · загружено`;
   const extraSummary = [
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
@@ -871,6 +889,7 @@ export function CreateOrderModal({ onClose, prefill = null, onCreated }) {
           addTzDoc={addTzDoc}
           removeTzDoc={removeTzDoc}
           retryTzDoc={retryTzDoc}
+          autoTzFrom={tzFromBridge ? (prefill?.tzNumber ?? 'ТЗ') : null}
         />
         </FormSection>
 

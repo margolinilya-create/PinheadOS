@@ -332,6 +332,23 @@ describe('validateTzDocs (форма создания)', () => {
     expect(res.message).toBeNull();
   });
 
+  /**
+   * Мост «ТЗ → производство»: документ соберёт `tz-pdf` сразу после создания
+   * заказа, и требовать приложенный вручную PDF здесь нельзя — взять его
+   * человеку негде, а собрать заранее нечем: функция читает уже созданный
+   * заказ. На боевом прокликивании кнопка «Создать заказ» из-за этого гейта
+   * оставалась серой, и мост не работал вовсе.
+   */
+  it('заказ из ТЗ не требует приложенного файла — ТЗ соберёт система', () => {
+    const res = validateTzDocs(items, [], true);
+    expect(res.missing).toEqual([]);
+    expect(res.message).toBeNull();
+  });
+
+  it('без флага тот же вход остаётся ошибкой', () => {
+    expect(validateTzDocs(items, []).missing).toHaveLength(2);
+  });
+
   it('называет позиции без ТЗ', () => {
     const res = validateTzDocs(items, [{ itemIndex: 0, uploaded: true }]);
     expect(res.missing).toEqual([{ index: 1, label: 'Худи' }]);

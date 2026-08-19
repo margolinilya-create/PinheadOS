@@ -3,9 +3,10 @@ import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
 import { orderProgress } from '../../utils/progress';
+import { orderStageSummary, ORDER_STAGE_CHIP } from '../../utils/orderStage';
 import { OrderLink } from '../../components/OrderLink';
 import { hasOpenProcurement } from '../../utils/routes';
-import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
+import { STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
@@ -21,6 +22,14 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
   const progress = orderProgress(order);
   const ready = isOrderReadyToShip(order);
+  // Стадия — та же фраза, что в строке таблицы: разметка разная, ответ один
+  const stage = useMemo(
+    () => orderStageSummary(order, (id) => {
+      const d = deptById.get(id);
+      return d ? deptShortName(d.code, d.name) : null;
+    }),
+    [order, deptById],
+  );
   /**
    * Готовность и ПРАВО отгрузить — разное. Признак «готов к отгрузке»
    * видят все: цеху полезно знать, что заказ дособран. Кнопку показываем
@@ -51,15 +60,9 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
         {order.created_at ? ` · создан ${formatDateShort(order.created_at)}` : ''}
       </div>
       <div className={styles.orderCardMMeta}>
-        {ready ? (
-          <span className={`${styles.chip} ${styles.chipReady}`}>
-            <Icon name="checkCircle" size={13} /> Готов к отгрузке
-          </span>
-        ) : (
-          <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-            {ORDER_STATUS_LABELS[order.status]}
-          </span>
-        )}
+        <span className={`${styles.chip} ${styles[ORDER_STAGE_CHIP[stage.tone]]}`}>
+          {ready && <Icon name="checkCircle" size={13} />} {stage.label}
+        </span>
         {order.shipped_at && (
           <span className={styles.subText}>
             отгружен {formatDateCell(order.shipped_at)}

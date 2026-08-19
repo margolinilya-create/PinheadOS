@@ -231,10 +231,24 @@ export interface DraftTzValidation {
   message: string | null;
 }
 
+/**
+ * `systemWillGenerate` — заказ создаётся из ТЗ Order Studio, и документ соберёт
+ * САМА система (`supabase/functions/tz-pdf`) сразу после создания. Требовать
+ * в этом случае приложенный вручную PDF значит отменить решение заказчика
+ * «мост генерирует ТЗ-PDF сам»: собрать файл заранее невозможно — функция
+ * читает уже созданный заказ (`erp_order_detail`), а позиций и этапов до
+ * вставки не существует.
+ *
+ * Флаг не «выключает проверку», а называет второй способ выполнить то же
+ * условие. Свой PDF приложить по-прежнему можно — приложенный человеком
+ * важнее собранного из полей, и `createOrder` тогда сборку не запускает.
+ */
 export function validateTzDocs(
   items: DraftTzItem[],
   docs: DraftTzDoc[],
+  systemWillGenerate = false,
 ): DraftTzValidation {
+  if (systemWillGenerate) return { missing: [], message: null };
   const ready = docs.filter((d) => d.uploaded !== false);
   const hasGeneral = ready.some((d) => d.itemIndex === null);
   const missing: DraftTzValidation['missing'] = [];
