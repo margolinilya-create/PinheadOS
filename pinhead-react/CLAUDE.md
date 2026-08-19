@@ -671,6 +671,22 @@ URL: https://pinhead-os.vercel.app
   (офлайн, отказ прав, конфликт). Плоский `toast.error('Не удалось …')` делает
   42501 от стража неотличимым от обрыва сети
 
+## Мост «ТЗ → Производство» (сессия 33)
+
+- `erp/utils/tzBridge.ts` — чистая раскладка ТЗ Order Studio в черновик формы
+  заказа ERP; читатели: `erp/hooks/useTzPrefill` (приём `/orders?fromTz=`)
+  и через него `CreateOrderModal` (проп `prefill`)
+- Кнопка «В производство» — `components/orders/KanbanCard` + обработчик
+  в `KanbanBoard`: переключает флаг раздела и уходит на `/orders?fromTz=`
+- `erp/data/catalogRefs.ts` + `erp/hooks/useCatalogRefs` + `components/CatalogDatalist`
+  — подсказки заказа из каталога SKU (дополняются справочником у изделий)
+- `erp/screens/admin/LibraryTab` — редактор каталогов в админке ERP; не пускает
+  к редактору без загруженных каталогов
+- `supabase/functions/tz-pdf` + `_shared/pdfFont.ts` — ТЗ в PDF по позициям,
+  версии внутри `group_id`; вызывается после создания заказа и кнопкой
+  во вкладке «ТЗ» карточки (`generateTzPdf`)
+- Правила и их причины — в корневом `CLAUDE.md`, раздел «Правила моста»
+
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
 - store/slices/ — 796 тестов зависят от них
