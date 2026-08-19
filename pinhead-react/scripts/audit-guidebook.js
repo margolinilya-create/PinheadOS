@@ -9,10 +9,25 @@
  *   5. SVG icons using fill="currentColor" (should be stroke-only)
  *
  * Run:  npm run audit
+ *
+ * САМИ ПРАВИЛА живут в `audit-rules.mjs` и покрыты тестами
+ * (`audit-rules.test.js`). Здесь остались только чтение файлов, печать и код
+ * возврата: пока правила были внутри этого файла, проверить их было нечем —
+ * импорт скрипта запускает аудит, — и два невидимых дефекта (комментарий,
+ * принятый за код, и зависимость от порядка обхода файлов) прожили здесь
+ * до 19.08.2026, делая аудит красным на одних ложных находках.
  */
 
 import { readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
+import {
+  stripCssComments,
+  stripJsComments,
+  isTokenDeclaration,
+  findHexHits,
+  findLineHits,
+  uncoveredKeyframes,
+} from './audit-rules.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const STYLES_DIR = join(ROOT, 'src/styles');
@@ -34,48 +49,8 @@ function walk(dir, ext) {
   return results;
 }
 
-/**
- * Комментарии снимаются ПЕРЕД любой проверкой — правило проекта (то же делает
- * `src/utils/date.test.ts`). Без этого аудит ловил объяснение вместо кода:
- * четыре «хардкоженных цвета» в `index.css` — это hex внутри комментариев,
- * которые как раз и обосновывают, почему токен имеет такое значение
- * («был #888888 и не проходил AA»). Написать такое объяснение было
- * единственным способом сделать аудит красным.
- *
- * Номера строк обязаны сохраниться, поэтому содержимое комментария
- * заменяется пробелами, а переводы строк остаются на месте: иначе адрес
- * настоящей находки уехал бы, и человек искал бы её не там.
- */
-function stripCssComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
-}
-
-/**
- * У JS/JSX комментарии двух видов, и `//` внутри строки (`https://…`) — не
- * комментарий. Поэтому построчный вариант: блочные снимаются, а строчные
- * только когда строка с них НАЧИНАЕТСЯ. Тот же приём, что в тестах проекта.
- */
-function stripJsComments(src) {
-  return stripCssComments(src)
-    .split('\n')
-    .map((l) => (l.trimStart().startsWith('//') ? '' : l))
-    .join('\n');
-}
-
-function readCss(file) {
-  return stripCssComments(readFileSync(file, 'utf8'));
-}
-
-function scanLines(file, regex, strip = stripJsComments) {
-  const lines = strip(readFileSync(file, 'utf8')).split('\n');
-  const hits = [];
-  lines.forEach((line, i) => {
-    if (regex.test(line)) {
-      hits.push({ file: relative(ROOT, file), line: i + 1, text: line.trim() });
-    }
-  });
-  return hits;
-}
+const read = (file) => readFileSync(file, 'utf8');
+const label = (file) => relative(ROOT, file);
 
 function printSection(title, hits, ok) {
   console.log(`\n${'═'.repeat(60)}`);
@@ -92,45 +67,11 @@ function printSection(title, hits, ok) {
   }
 }
 
-// ── Allowed hex patterns (tokens, rgba, common safe values) ──
-
-const HEX_ALLOWLIST = new Set([
-  '#fff', '#ffffff', '#000', '#000000', '#ccc',
-]);
-
-function isAllowedHex(line) {
-  // Allow lines that are inside :root / CSS custom property definitions
-  if (/^\s*--[\w-]+\s*:/.test(line)) return true;
-  // Allow rgba() values — they embed hex-like digits but are fine
-  if (/rgba?\(/.test(line)) return true;
-  // Allow var() fallbacks like var(--color-error, #FF3B30)
-  if (/var\(.*#[0-9A-Fa-f]/.test(line)) return true;
-  return false;
-}
+const cssFiles = [...walk(STYLES_DIR, '.css'), join(ROOT, 'src/index.css')];
 
 // ── 1. Hardcoded hex colors in CSS ───────────────────────────
 
-const cssFiles = walk(STYLES_DIR, '.css');
-const indexCss = join(ROOT, 'src/index.css');
-
-const hexHits = [];
-for (const f of [...cssFiles, indexCss]) {
-  const lines = readCss(f).split('\n');
-  lines.forEach((line, i) => {
-    if (isAllowedHex(line)) return;
-    // Match 6-digit or 3-digit hex codes
-    const m = line.match(/#[0-9A-Fa-f]{3,8}\b/g);
-    if (!m) return;
-    const bad = m.filter(h => !HEX_ALLOWLIST.has(h.toLowerCase()));
-    if (bad.length > 0) {
-      hexHits.push({
-        file: relative(ROOT, f),
-        line: i + 1,
-        text: `${line.trim()}  [${bad.join(', ')}]`,
-      });
-    }
-  });
-}
+const hexHits = cssFiles.flatMap((f) => findHexHits(read(f), label(f)));
 
 printSection(
   '1. Hardcoded hex colors in CSS',
@@ -140,16 +81,9 @@ printSection(
 
 // ── 2. Barlow Condensed not via var(--font-display) ──────────
 
-const barlowHits = [];
-for (const f of cssFiles) {
-  const hits = scanLines(f, /Barlow Condensed/i, stripCssComments);
-  // Filter out lines that already use var(--font-display)
-  for (const h of hits) {
-    if (!h.text.includes('var(--font-display)')) {
-      barlowHits.push(h);
-    }
-  }
-}
+const barlowHits = cssFiles.flatMap((f) => findLineHits(read(f), /Barlow Condensed/i, {
+  file: label(f), strip: stripCssComments, exclude: 'var(--font-display)', skip: isTokenDeclaration,
+}));
 
 printSection(
   '2. Barlow Condensed not via var(--font-display)',
@@ -159,15 +93,9 @@ printSection(
 
 // ── 3. Roboto Mono not via var(--mono) ───────────────────────
 
-const monoHits = [];
-for (const f of cssFiles) {
-  const hits = scanLines(f, /Roboto Mono/i, stripCssComments);
-  for (const h of hits) {
-    if (!h.text.includes('var(--mono)')) {
-      monoHits.push(h);
-    }
-  }
-}
+const monoHits = cssFiles.flatMap((f) => findLineHits(read(f), /Roboto Mono/i, {
+  file: label(f), strip: stripCssComments, exclude: 'var(--mono)', skip: isTokenDeclaration,
+}));
 
 printSection(
   '3. Roboto Mono not via var(--mono)',
@@ -177,50 +105,7 @@ printSection(
 
 // ── 4. @keyframes without prefers-reduced-motion ─────────────
 
-/**
- * ДВА ПРОХОДА, а не один.
- *
- * Раньше имена анимаций собирались и покрытие проверялось в одном цикле по
- * файлам, поэтому глобальный override («гасим ВСЕ анимации») засчитывался
- * только тем анимациям, которые встретились ДО него по порядку обхода.
- * `fadeSlideIn` объявлена в `wizard.css`, а override живёт в `utils.css`,
- * то есть в файле, идущем раньше по алфавиту, — и покрытая анимация
- * рапортовалась как непокрытая. Порядок файлов не должен решать ничего.
- */
-const keyframeNames = new Set();
-const motionCoveredNames = new Set();
-const cssSources = [...cssFiles, indexCss].map(readCss);
-
-for (const content of cssSources) {
-  for (const m of content.matchAll(/@keyframes\s+([\w-]+)/g)) {
-    keyframeNames.add(m[1]);
-  }
-}
-
-for (const content of cssSources) {
-  const motionBlocks = content.matchAll(/@media\s*\(prefers-reduced-motion[^)]*\)\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g);
-  for (const block of motionBlocks) {
-    const inner = block[0];
-    /**
-     * Универсальное правило (`*, *::before, *::after { animation-duration: … }`)
-     * гасит вообще все анимации — это стандартный приём W3C для SC 2.3.3,
-     * и в проекте он объявлен один раз в `utils.css`.
-     *
-     * Ищем именно СЕЛЕКТОР, а не любую звёздочку: прежнее `/\*/` срабатывало
-     * и на `/*` комментария внутри блока, то есть комментарий засчитывался
-     * как покрытие всех анимаций разом.
-     */
-    if (/(^|[\s,{])\*(?=[\s,:{])/.test(inner)) {
-      for (const name of keyframeNames) motionCoveredNames.add(name);
-    }
-    for (const name of keyframeNames) {
-      if (inner.includes(name)) motionCoveredNames.add(name);
-    }
-  }
-}
-
-const uncoveredKeyframes = [...keyframeNames].filter(n => !motionCoveredNames.has(n));
-const kfHits = uncoveredKeyframes.map(name => ({
+const kfHits = uncoveredKeyframes(cssFiles.map(read)).map((name) => ({
   file: 'src/styles/*',
   line: 0,
   text: `@keyframes ${name} — no prefers-reduced-motion coverage`,
@@ -241,11 +126,9 @@ const componentFiles = [
   ...walk(DATA_DIR, '.jsx'),
 ];
 
-const fillHits = [];
-for (const f of componentFiles) {
-  const hits = scanLines(f, /fill=["']currentColor["']/);
-  fillHits.push(...hits);
-}
+const fillHits = componentFiles.flatMap((f) => findLineHits(
+  read(f), /fill=["']currentColor["']/, { file: label(f), strip: stripJsComments },
+));
 
 printSection(
   '5. SVG icons with fill="currentColor"',
