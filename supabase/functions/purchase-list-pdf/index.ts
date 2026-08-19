@@ -12,21 +12,15 @@
  * 100–200 кБ. Но главное — в браузере файл всё равно делал бы ЧЕЛОВЕК нажатием
  * кнопки, то есть слово «автоматически» осталось бы невыполненным.
  *
- * ГЛАВНАЯ СЛОЖНОСТЬ ЗДЕСЬ — НЕ ГЕНЕРАЦИЯ, А ШРИФТ. Четырнадцать стандартных
- * шрифтов PDF кодируют текст в WinAnsi и кириллицы не знают ВООБЩЕ: `drawText`
- * с русской строкой либо бросает, либо рисует мусор. Поэтому шрифт с кириллицей
- * встраивается в документ (DejaVu Sans, свободная лицензия), а `fontkit`
- * подключается явно — без него `embedFont` не принимает TTF.
- *
- * Шрифт кэшируется в памяти инстанса: холодный старт тянет его один раз,
- * последующие вызовы берут готовый. Падение загрузки шрифта — это отказ всей
- * операции, а не «сделаем без кириллицы»: PDF с мусором вместо названий
- * материалов хуже отсутствующего.
+ * ГЛАВНАЯ СЛОЖНОСТЬ ЗДЕСЬ — НЕ ГЕНЕРАЦИЯ, А ШРИФТ: стандартные шрифты PDF
+ * кириллицы не знают вовсе. Всё про это — в `_shared/pdfFont.ts`, общем
+ * на все наши PDF-функции.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import { PDFDocument, rgb } from 'https://esm.sh/pdf-lib@1.17.1';
 import fontkit from 'https://esm.sh/@pdf-lib/fontkit@1.1.1';
+import { loadPdfFont } from '../_shared/pdfFont.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +28,6 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const FONT_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf';
 const BUCKET = 'erp-attachments';
 
 const json = (body: unknown, status = 200) =>
@@ -44,17 +37,6 @@ const json = (body: unknown, status = 200) =>
   });
 
 const fail = (message: string, status = 400) => json({ error: message }, status);
-
-/** Шрифт живёт в памяти инстанса: холодный старт тянет его один раз */
-let fontCache: Uint8Array | null = null;
-
-async function loadFont(): Promise<Uint8Array> {
-  if (fontCache) return fontCache;
-  const res = await fetch(FONT_URL);
-  if (!res.ok) throw new Error(`шрифт не загрузился: ${res.status}`);
-  fontCache = new Uint8Array(await res.arrayBuffer());
-  return fontCache;
-}
 
 const MATERIAL_KIND: Record<string, string> = {
   fabric: 'Ткань',
@@ -147,7 +129,7 @@ Deno.serve(async (req: Request) => {
   try {
     const doc = await PDFDocument.create();
     doc.registerFontkit(fontkit);
-    const font = await doc.embedFont(await loadFont(), { subset: true });
+    const font = await doc.embedFont(await loadPdfFont(), { subset: true });
 
     const A4: [number, number] = [595.28, 841.89];
     const margin = 40;

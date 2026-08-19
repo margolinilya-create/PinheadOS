@@ -58,13 +58,24 @@ describe('purchase-list-pdf: кириллица и хранение', () => {
    */
   it('шрифт с кириллицей встраивается через fontkit', () => {
     expect(SRC).toMatch(/registerFontkit\(fontkit\)/);
-    expect(SRC).toMatch(/embedFont\(await loadFont\(\)/);
-    expect(SRC).toMatch(/DejaVuSans\.ttf/);
+    expect(SRC).toMatch(/embedFont\(await loadPdfFont\(\)/);
   });
 
-  /** Сбой шрифта — отказ всей операции, а не «сделаем без кириллицы» */
-  it('несостоявшийся шрифт роняет сборку, а не молчит', () => {
-    expect(SRC).toMatch(/throw new Error\(`шрифт не загрузился/);
+  /**
+   * Загрузка шрифта — ОБЩИЙ модуль на все PDF-функции (`_shared/pdfFont.ts`),
+   * а не копия в каждой: копия означала бы, что однажды одна из функций
+   * останется со старым URL и сломается способом, невидимым по коду.
+   *
+   * Сбой шрифта — отказ всей операции, а не «сделаем без кириллицы»:
+   * документ с мусором вместо названий материалов хуже отсутствующего.
+   */
+  it('шрифт берётся из общего модуля, и его сбой роняет сборку', () => {
+    expect(SRC).toMatch(/from '\.\.\/_shared\/pdfFont\.ts'/);
+    const font = readFileSync(
+      join(process.cwd(), '../supabase/functions/_shared/pdfFont.ts'), 'utf8',
+    );
+    expect(font).toMatch(/DejaVuSans\.ttf/);
+    expect(font).toMatch(/throw new Error\(`шрифт не загрузился/);
   });
 
   /**

@@ -484,6 +484,27 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       invokeFunction('purchase-list-pdf', { order_id: newId })
         .then((r) => { if (r.error) console.warn('[purchase-list-pdf]', r.error.message); });
     }
+
+    /**
+     * ТЗ в PDF собирается тем же способом и по той же причине: это
+     * единственный шаг заказа, который система раньше не делала сама, — а без
+     * документа гейт `stageMissingTz` не пускает в работу ни один
+     * производственный цех.
+     *
+     * Только когда своих документов не приложили: загруженный человеком PDF
+     * важнее собранного из полей, и подменять его нельзя. Сбой сборки, как
+     * и у листа закупки, не показывается ошибкой — заказ создан, документ
+     * пересобирается кнопкой из карточки.
+     */
+    if (created && (tz?.documents ?? []).length === 0) {
+      invokeFunction('tz-pdf', { order_id: newId })
+        .then((r) => {
+          if (r.error) console.warn('[tz-pdf]', r.error.message);
+          // Документы приезжают вложенным select'ом, поэтому заказ
+          // перечитывается: иначе вкладка ТЗ пуста до перезагрузки экрана
+          else void get().loadOne(newId);
+        });
+    }
     // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
     // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
     if (created) {
@@ -559,6 +580,26 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     }
     await get().loadOne(orderId);
     toast.success('Лист закупки сформирован — файл в документах заказа');
+    return true;
+  },
+
+  /**
+   * Пересобрать ТЗ в PDF по текущим полям заказа.
+   *
+   * Каждая сборка — НОВАЯ ВЕРСИЯ в той же группе, а не перезапись файла:
+   * правка ТЗ после запуска обязана быть видна цеху бейджем «ТЗ обновлено»
+   * (`tz.tzUpdatedAfterStart`). Перезаписанный файл сменился бы у всех молча,
+   * и человек, работающий по распечатке, не узнал бы об изменении.
+   */
+  generateTzPdf: async (orderId) => {
+    const { error } = await withPending(`tzpdf:${orderId}`, () =>
+      invokeFunction('tz-pdf', { order_id: orderId }));
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    await get().loadOne(orderId);
+    toast.success('ТЗ сформировано — новая версия в документах заказа');
     return true;
   },
 

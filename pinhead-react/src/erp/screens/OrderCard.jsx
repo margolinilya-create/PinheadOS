@@ -69,12 +69,14 @@ export default function OrderCard() {
    */
   const canManageOrder = useErpAccess().can('order.manage');
   const generatePurchaseListPdf = useErpStore((st) => st.generatePurchaseListPdf);
+  const generateTzPdf = useErpStore((st) => st.generateTzPdf);
   /**
    * Локальный флаг занятости, а не общий `pending`: сборка PDF идёт секунды
    * (холодный старт функции тянет шрифт), и без него человек нажимает кнопку
    * второй раз, получая вторую сборку того же листа.
    */
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [tzPdfBusy, setTzPdfBusy] = useState(false);
 
   /**
    * Куда возвращает «Заказы». Раньше здесь стоял безусловный `/orders`, и возврат
@@ -221,6 +223,31 @@ export default function OrderCard() {
 
         {tab === 'tz' && (
           <section className={styles.matSection}>
+            {/*
+              ТЗ формирует СИСТЕМА из полей заказа — это единственный шаг,
+              который раньше делал человек в другой программе, при том что без
+              документа гейт не пускает в работу ни один производственный цех.
+
+              Кнопка нужна для ПОВТОРНОЙ сборки: поля заказа правятся, а сам
+              документ собирается один раз, при создании. Каждая сборка даёт
+              новую версию в той же группе, а не перезаписывает файл: цех
+              обязан увидеть бейдж «ТЗ обновлено», иначе изменение дойдёт
+              только до тех, кто откроет карточку заново.
+            */}
+            <div className={styles.toolbar}>
+              <Button
+                variant="ghost"
+                icon="file"
+                loading={tzPdfBusy}
+                onClick={async () => {
+                  setTzPdfBusy(true);
+                  await generateTzPdf(orderId);
+                  setTzPdfBusy(false);
+                }}
+              >
+                Сформировать ТЗ из полей заказа
+              </Button>
+            </div>
             {order.items.map((item) => (
               <div key={item.id}>
                 <div className={styles.matSectionHead}>

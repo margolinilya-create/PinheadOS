@@ -432,6 +432,8 @@ export interface OrdersSlice {
    * в клиенте стоила бы 100–200 кБ при оболочке на 97 % бюджета.
    */
   generatePurchaseListPdf: (orderId: string) => Promise<boolean>;
+  /** Пересобрать ТЗ в PDF: новая версия в той же группе, не перезапись файла */
+  generateTzPdf: (orderId: string) => Promise<boolean>;
   shipOrder: (orderId: string) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
