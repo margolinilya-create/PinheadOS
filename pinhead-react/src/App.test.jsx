@@ -242,7 +242,8 @@ describe('App', () => {
       logout: vi.fn(),
     });
     renderApp();
-    await waitFor(() => expect(screen.getByText('Заказы')).toBeInTheDocument());
+    // «Заказы» (канбан ТЗ) убраны в сессии 33 — проверяем оставшийся пункт
+    await waitFor(() => expect(screen.getByText('ТЗ')).toBeInTheDocument());
   });
 
   it('redirects unknown routes to home (orderStudio flag on)', async () => {

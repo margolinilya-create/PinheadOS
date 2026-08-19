@@ -65,9 +65,6 @@ export default function Header() {
             Экспресс
           </button>
         )}
-        <button className={`${styles['header-nav-btn']}${isActive('/orders') ? ` ${styles.active}` : ''}`} data-nav="orders" onClick={nav('/orders')}>
-          Заказы
-        </button>
         <button className={`${styles['header-nav-btn']}${isActive('/print') ? ` ${styles.active}` : ''}`} onClick={nav('/print')}>
           ТЗ
         </button>
@@ -77,11 +74,6 @@ export default function Header() {
           </button>
         )}
         {/* "Цены нанесений" tab removed — pricing is now the 6th tab inside SKU Editor */}
-        {(isAdmin || isProd || effectiveRole === 'rop') && (
-          <button className={`${styles['header-nav-btn']}${isActive('/analytics') ? ` ${styles.active}` : ''}`} onClick={nav('/analytics')}>
-            Аналитика
-          </button>
-        )}
         {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/admin') ? ` ${styles.active}` : ''}`} onClick={nav('/admin')}>
             Админ

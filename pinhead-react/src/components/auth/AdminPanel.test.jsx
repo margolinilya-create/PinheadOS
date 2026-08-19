@@ -106,8 +106,12 @@ describe('управление учётками сюда не возвращае
     expect(SRC).not.toMatch(/from\(['"]profiles['"]\)/);
   });
 
-  it('панель не знает про роли и одобрение', () => {
-    for (const forbidden of ['approved', 'ALL_ROLES', 'ROLE_LABELS']) {
+  it('панель не знает про роли и одобрение пользователей', () => {
+    // `approved` ищется как ПОЛЕ ПРОФИЛЯ (`approved:`), а не как слово:
+    // статус заказа ТЗ тоже называется `approved`, и проверка на подстроку
+    // после моста стала ложно срабатывать на нём
+    expect(SRC).not.toMatch(/approved\s*:/);
+    for (const forbidden of ['ALL_ROLES', 'ROLE_LABELS']) {
       expect(SRC, `вернулось: ${forbidden}`).not.toContain(forbidden);
     }
   });

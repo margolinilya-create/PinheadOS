@@ -111,20 +111,22 @@ supabase/
 | `/load` | DeptLoad (загрузка цехов из плановых дат этапов) | Все |
 | `/orders/:orderId/purchase-list` | PurchaseListPrint (печатный лист закупки) | Все |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
-| `/admin` | AdminScreen (пользователи, права, цеха, мощность, справочники, аварийный режим, заказы ТЗ) | admin, director |
+| `/admin` | AdminScreen (пользователи, права, цеха, мощность, справочники, библиотека каталогов, аварийный режим, заказы ТЗ) | admin, director |
 
 ### ✏️ ТЗ (Order Studio) — за флагом `orderStudio`
 
 | Путь | Компонент | Доступ |
 |---|---|---|
 | `/` | WizardPage (5 шагов) | Все |
-| `/orders` | KanbanBoard | Все |
 | `/print` | PrintPreview | Все |
 | `/express` | ExpressCalc | Не production/designer |
 | `/prices` | → redirect `/sku?tab=pricing` | admin, director |
 | `/sku` | SkuEditor (8 табов) | admin, director |
-| `/admin` | AdminPanel | admin, director |
-| `/analytics` | Dashboard | admin, director, rop, production |
+| `/admin` | AdminScreen (единая админка ERP) | admin, director |
+
+Канбан заказов ТЗ (`/orders`) и аналитика (`/analytics`) убраны в сессии 33
+(решение заказчика): оба дублировали поверхности ERP. Список ТЗ — вкладка
+«Заказы ТЗ» админки, и там же кнопка «В производство».
 
 ## Роли
 

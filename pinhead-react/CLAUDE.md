@@ -42,7 +42,10 @@ URL: https://pinhead-os.vercel.app
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
 - **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
-  SKU, аналитика. Компоненты ниже — его состав.
+  каталоги (SkuEditor), экспресс-калькулятор, печать ТЗ. Канбан заказов ТЗ
+  и аналитика убраны в сессии 33 (дублировали поверхности ERP): список ТЗ
+  живёт вкладкой «Заказы ТЗ» в единой админке, и оттуда же ТЗ уходит
+  в производство.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -50,10 +53,8 @@ URL: https://pinhead-os.vercel.app
 - components/ — UI-компоненты
   - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
   - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
-  - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
   - editors/ — PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
   - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
-  - analytics/ — Dashboard (Chart.js)
   - auth/ — AuthScreen, AdminPanel
   - layout/ — Header (dark mode toggle), ProgressBar (fill bar)
   - output/ — PrintPreview
@@ -676,8 +677,9 @@ URL: https://pinhead-os.vercel.app
 - `erp/utils/tzBridge.ts` — чистая раскладка ТЗ Order Studio в черновик формы
   заказа ERP; читатели: `erp/hooks/useTzPrefill` (приём `/orders?fromTz=`)
   и через него `CreateOrderModal` (проп `prefill`)
-- Кнопка «В производство» — `components/orders/KanbanCard` + обработчик
-  в `KanbanBoard`: переключает флаг раздела и уходит на `/orders?fromTz=`
+- Кнопка «В производство» — в таблице `components/auth/AdminPanel` (вкладка
+  «Заказы ТЗ» админки): переключает флаг раздела и уходит на `/orders?fromTz=`.
+  Это ЕДИНСТВЕННЫЙ вход в мост после архива канбана ТЗ
 - `erp/data/catalogRefs.ts` + `erp/hooks/useCatalogRefs` + `components/CatalogDatalist`
   — подсказки заказа из каталога SKU (дополняются справочником у изделий)
 - `erp/screens/admin/LibraryTab` — редактор каталогов в админке ERP; не пускает

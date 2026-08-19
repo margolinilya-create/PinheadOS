@@ -5,6 +5,7 @@ import { TYPE_NAMES } from '../../data';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import { Button } from '../../erp/components/Button';
+import { setFeature } from '../../config/features';
 import { EmptyResult, EmptyState } from '../../erp/components/ErpStates';
 import { ScrollHintBox } from '../../erp/components/ScrollHintBox';
 import { TableSkeleton } from '../../erp/components/ErpSkeletons';
@@ -46,6 +47,24 @@ export default function AdminPanel() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  /**
+   * Мост «ТЗ → производство» (сессия 33).
+   *
+   * Единственная точка входа после того, как канбан ТЗ ушёл в архив: кнопка
+   * НЕ создаёт заказ, а переводит человека в раздел производства, где
+   * открывается форма заказа, заполненная из этого ТЗ. У создания заказа
+   * остаётся один путь со всей его валидацией и конструктором маршрута.
+   *
+   * Переключение раздела — тем же приёмом, что в шапке: флаг живёт
+   * в localStorage и читается при старте, поэтому нужен полный переход.
+   * Панель смонтирована и в ERP, и в Order Studio; снятие флага в ERP
+   * ничего не меняет, а в Studio — переводит в производство.
+   */
+  const toProduction = (order) => {
+    setFeature('orderStudio', false);
+    window.location.href = `/orders?fromTz=${encodeURIComponent(order.id)}`;
+  };
 
   const handleDeleteOrder = async (id) => {
     const ok = await confirm({ title: 'Удалить заказ?', confirmLabel: 'Удалить', variant: 'danger' });
@@ -118,6 +137,7 @@ export default function AdminPanel() {
                 <th>Сумма</th>
                 <th>Статус</th>
                 <th>Дата</th>
+                <th>Производство</th>
                 <th aria-label="Действия" />
               </tr>
             </thead>
@@ -147,6 +167,19 @@ export default function AdminPanel() {
                   </td>
                   <td className={styles.subText}>
                     {o.created_at ? new Date(o.created_at).toLocaleDateString('ru-RU') : ''}
+                  </td>
+                  <td>
+                    {/* Только у утверждённого ТЗ: черновик ещё правят, а заказ
+                        по нему уже занял бы очередь в цехах */}
+                    {o.erp_order_id ? (
+                      <span className={styles.subText}>в производстве</span>
+                    ) : o.status === 'approved' ? (
+                      <Button variant="secondary" size="sm" onClick={() => toProduction(o)}>
+                        В производство
+                      </Button>
+                    ) : (
+                      <span className={styles.subText}>—</span>
+                    )}
                   </td>
                   <td>
                     <Button

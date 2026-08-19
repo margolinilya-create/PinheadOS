@@ -267,7 +267,11 @@ export default function StepSummary() {
           <div className="success-btns">
             <button className="btn" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
             <button className="btn" onClick={() => navigate('/print')}>Печать / PDF</button>
-            <button className="btn" onClick={() => navigate('/orders')}>Все заказы</button>
+            {/* Канбан заказов ТЗ убран (решение заказчика, сессия 33): список
+                ТЗ живёт вкладкой «Заказы ТЗ» в единой админке, и оттуда же
+                утверждённое ТЗ уходит в производство. Кнопка ведёт туда;
+                у кого нет доступа к админке, гейт маршрута вернёт в визард. */}
+            <button className="btn" onClick={() => navigate('/admin?tab=studio')}>Все ТЗ</button>
             <button className="btn btn-primary" onClick={() => { resetOrder(); setSavedNum(null); }}>Новый заказ</button>
           </div>
         </div>

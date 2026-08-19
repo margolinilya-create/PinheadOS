@@ -18,7 +18,6 @@ import RolePreviewBar from '../components/shared/RolePreviewBar'
 import OnboardingTips from '../components/shared/OnboardingTips'
 import CommandPalette from '../components/shared/CommandPalette'
 
-const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc'));
@@ -29,7 +28,6 @@ const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc')
  * «loadEmployees is not a function» вместо списка сотрудников.
  */
 const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
-const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
 const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 // Agentation — dev widget, lazy-loaded (tree-shakes out of prod admin bundle)
@@ -71,8 +69,17 @@ function LoadingScreen() {
 }
 
 /**
- * Order Studio — визард оформления заказа + цены (заархивировано за feature-flag).
- * Показывается только при FEATURES.orderStudio === true.
+ * Order Studio — визард оформления ТЗ, каталоги и экспресс-калькулятор
+ * (за feature-flag `orderStudio`, по умолчанию выключен).
+ *
+ * КАНБАН ЗАКАЗОВ ТЗ И АНАЛИТИКА УБРАНЫ (решение заказчика, сессия 33). Оба
+ * дублировали поверхности ERP: список заказов ТЗ живёт вкладкой в единой
+ * админке, а обзор производства — на дашборде ERP, где он считается по этапам,
+ * а не по сумме ТЗ.
+ *
+ * Вместе с канбаном ушла и точка входа в мост «ТЗ → производство» — кнопка
+ * переехала в ту же вкладку админки. Убирать канбан, не перенеся кнопку,
+ * значило бы оставить мост без входа: заказ снова заводился бы руками.
  */
 export default function OrderStudioApp({ user }) {
   const previewRole = useAuthStore(s => s.previewRole);
@@ -144,13 +151,11 @@ export default function OrderStudioApp({ user }) {
       <main id="main-content">
       <Routes>
         <Route path="/" element={<WizardPage />} />
-        <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
         <Route path="/print" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PrintPreview /></Suspense>} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
         <Route path="/prices" element={<Navigate to="/sku?tab=pricing" replace />} />
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </main>

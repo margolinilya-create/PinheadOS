@@ -38,9 +38,9 @@ test.describe('Dark mode', () => {
     await page.goto('/');
     await page.getByRole('button', { name: /тема/i }).click();
 
-    // Navigate to orders. Тему навешивает эффект после монтирования, поэтому
-    // ждём атрибут, а не читаем его сразу после goto — иначе гонка.
-    await page.goto('/orders');
+    // Переходим на другой экран раздела. Тему навешивает эффект после
+    // монтирования, поэтому ждём атрибут, а не читаем его сразу после goto.
+    await page.goto('/express');
     await expect
       .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
       .toBe('dark');

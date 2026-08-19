@@ -1,5 +1,7 @@
 // E2E smoke tests: routes that had zero coverage
-// Covers: /admin, /analytics, /prices, /sku, /print
+// Covers: /admin, /prices, /sku, /print
+// Аналитика Order Studio убрана (решение заказчика, сессия 33): обзор
+// производства живёт на дашборде ERP и считается по этапам, а не по сумме ТЗ.
 
 import { test, expect } from '@playwright/test';
 
@@ -21,15 +23,6 @@ test.describe('Admin panel', () => {
   test('loads user management interface', async ({ page }) => {
     await page.goto('/admin');
     await expect(page.getByText(/Пользователи|Администрирование|Управление/i).first()).toBeVisible({ timeout: 10000 });
-  });
-});
-
-test.describe('Analytics dashboard', () => {
-  test('loads with chart or empty state', async ({ page }) => {
-    await page.goto('/analytics');
-    // Dashboard renders either charts or loading/empty state
-    // Dashboard lazy-loads; wait for any content to render
-    await expect(page.locator('main').first()).toBeVisible({ timeout: 10000 });
   });
 });
 

@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * Канбан заказов ТЗ и аналитика Order Studio убраны (решение заказчика,
+ * сессия 33): оба дублировали поверхности ERP. Список ТЗ живёт вкладкой
+ * «Заказы ТЗ» в единой админке, обзор производства — на дашборде ERP.
+ */
 const COMMANDS = [
   { id: 'wizard', label: 'Новый заказ', desc: 'Открыть визард', path: '/', icon: '+' },
-  { id: 'orders', label: 'Заказы', desc: 'Kanban-доска', path: '/orders', icon: '☰' },
   { id: 'express', label: 'Экспресс калькулятор', desc: 'Быстрый расчёт', path: '/express', icon: '⚡' },
   { id: 'sku', label: 'Каталог SKU', desc: 'Управление изделиями', path: '/sku', icon: '📦' },
   { id: 'prices', label: 'Цены нанесений', desc: 'Матрицы цен', path: '/sku?tab=pricing', icon: '💰' },
-  { id: 'analytics', label: 'Аналитика', desc: 'Дашборд', path: '/analytics', icon: '📊' },
   { id: 'admin', label: 'Админ-панель', desc: 'Управление', path: '/admin', icon: '⚙' },
 ];
 

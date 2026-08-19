@@ -37,9 +37,17 @@ describe('Header', () => {
     expect(screen.getByText('Выйти')).toBeInTheDocument();
   });
 
-  it('shows orders button', () => {
+  /**
+   * Канбан заказов ТЗ и аналитика Order Studio убраны (решение заказчика,
+   * сессия 33): оба дублировали поверхности ERP. Пункт меню, ведущий
+   * в несуществующий раздел, — это переход в пустоту, а не «просто лишняя
+   * кнопка», поэтому сторожим отсутствие.
+   */
+  it('пунктов убранных разделов в меню нет', () => {
+    useAuthStore.setState({ user: { role: 'admin' }, logout: vi.fn() });
     renderHeader();
-    expect(screen.getByText('Заказы')).toBeInTheDocument();
+    expect(screen.queryByText('Заказы')).not.toBeInTheDocument();
+    expect(screen.queryByText('Аналитика')).not.toBeInTheDocument();
   });
 
   it('shows admin button for admin role', () => {
@@ -60,30 +68,6 @@ describe('Header', () => {
     expect(screen.queryByText('Express')).not.toBeInTheDocument();
     expect(screen.queryByText('SKU')).not.toBeInTheDocument();
     expect(screen.queryByText('Цены')).not.toBeInTheDocument();
-  });
-
-  it('shows Analytics for admin', () => {
-    useAuthStore.setState({ user: { role: 'admin' }, logout: vi.fn() });
-    renderHeader();
-    expect(screen.getByText('Аналитика')).toBeInTheDocument();
-  });
-
-  it('shows Analytics for production', () => {
-    useAuthStore.setState({ user: { role: 'production' }, logout: vi.fn() });
-    renderHeader();
-    expect(screen.getByText('Аналитика')).toBeInTheDocument();
-  });
-
-  it('shows Analytics for rop', () => {
-    useAuthStore.setState({ user: { role: 'rop' }, logout: vi.fn() });
-    renderHeader();
-    expect(screen.getByText('Аналитика')).toBeInTheDocument();
-  });
-
-  it('hides Analytics for designer', () => {
-    useAuthStore.setState({ user: { role: 'designer' }, logout: vi.fn() });
-    renderHeader();
-    expect(screen.queryByText('Аналитика')).not.toBeInTheDocument();
   });
 
   it('shows draft section on home page', () => {

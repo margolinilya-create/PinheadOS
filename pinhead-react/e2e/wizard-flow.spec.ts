@@ -118,8 +118,10 @@ test.describe('Order Creation Wizard', () => {
     await page.getByRole('button', { name: 'Далее' }).click();
     await expect(page.getByRole('heading', { name: 'ДИЗАЙН' })).toBeVisible();
 
-    // Try to navigate away via header
-    await page.getByRole('button', { name: 'Заказы' }).click();
+    // Уходим со страницы через шапку. Пункт «Заказы» (канбан ТЗ) убран
+    // в сессии 33 — берём оставшийся, «ТЗ»: проверяется сам блокировщик
+    // навигации, а не конкретный раздел
+    await page.getByRole('button', { name: 'ТЗ', exact: true }).click();
 
     // Blocker dialog should appear
     await expect(page.getByText('Заказ не сохранён')).toBeVisible();

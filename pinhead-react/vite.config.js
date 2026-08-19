@@ -17,6 +17,11 @@ export default defineConfig({
       output: {
         // Крупные вендоры — в отдельные чанки: меньше главный бандл, лучше кеширование.
         //
+        // Группа 'vendor-charts' убрана вместе с аналитикой Order Studio
+        // (сессия 33): chart.js был её единственным потребителем и удалён
+        // из зависимостей. Правило, ссылающееся на отсутствующий пакет,
+        // не ловит регрессию — оно только выглядит защитой.
+        //
         // Форма именно функциональная, а не объектная. Объектная перечисляет ТОЧКИ ВХОДА
         // пакетов, а не всё их дерево: `react/jsx-runtime` — отдельный вход, в списке
         // 'vendor-react' его не было, и Rollup отдал его первой группе, которая его
@@ -30,9 +35,6 @@ export default defineConfig({
             return 'vendor-react';
           }
           if (id.includes('@supabase')) return 'vendor-supabase';
-          if (id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('@kurkle')) {
-            return 'vendor-charts';
-          }
           return undefined;
         },
       },
