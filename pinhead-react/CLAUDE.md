@@ -419,6 +419,42 @@ URL: https://pinhead-os.vercel.app
   `erp_employees.full_name` (исполнитель этапа, назначения в цехе). Поправить
   одно — получить человека, который в заказе Иванов, а в очереди цеха «ivan@…»
 
+## Правила ERP (правки заказчика 20.08, сессия 33)
+
+- Подряд: поля этапа заполняются в конструкторе маршрута (`components/RouteFields`),
+  превращение шага в поля сервера — единственное выражение `stepPayload`
+  (`utils/routeDraft`). Движение операции — действия
+  (`screens/subcontracting/StageActions`), не селект фазы; вычисляемые фазы
+  и доступные действия — `utils/subcontractFlow`
+- Приёмка подряда — задача склада на КАЖДЫЙ подрядный этап
+  (`screens/warehouse/SubcontractReceiptCard`): «принято» пишет журнал `accept`,
+  который приращает `qty_done` этапа и открывает следующий
+- Лист закупки: файл менеджера (`purchase_list`) либо отметка «Закупка
+  не требуется» — проверяет `validateOrderForm`. Резолюция файла —
+  `utils/attachments.purchaseListFile`; маршрут вырезает `supply` при
+  `needsPurchase = false` (`utils/routes.buildItemRoute`)
+- ЭКС: доска по этапам — `utils/experimentalBoard` (шаг задачи, гейт кроя,
+  состояния шагов, колонка разработки) + `screens/experimental/DevBoard`.
+  Внутренние виды — `screens/experimental/DevViews`: свои очереди читают
+  ЗАДАЧИ, нанесения — `buildQueueEntries` с отбором по `origin`
+- ЭКС: доработка по областям — `utils/experimentalTasks.reworkPlan` (задачи
+  и текст последствий считает ОДНА функция), интерфейс —
+  `screens/experimental/DevSampleCheck`. История доработок — плоский список
+  (`reworkHistory`): круг считает сервер по ТИПУ задачи, и группа по номеру
+  собрала бы неполный круг
+- ЭКС: финальный пакет — `utils/finalPackage` (перечень недостающего) +
+  `screens/experimental/DevFinalPackage`. Файлы принадлежат разработке
+  (`experimental_id`), виды `dev_pattern | dev_passport | dev_photo`
+- Вид раздела ЭКС — в QUERY (`?view=`), а не подпутём: `canOpenScreen`
+  перечисляет ИСКЛЮЧЕНИЯ и открывает незнакомый путь, поэтому
+  `/experimental/dtf` был бы доступен всем, включая цех без права
+- **Без `.env` падает ВЕСЬ e2e**, белым экраном и «element(s) not found»:
+  `lib/supabase.ts` бросает на уровне модуля, до React, и мок сети не спасает.
+  Значения фиктивные — Supabase перехвачен `e2e/support/mockSupabase`
+- Спека, которой нужен этап образца, заводит СВОЙ заказ
+  (`installSupabaseMock(page, { orders })`): базовые четыре держат
+  visual-эталоны и счётчики очередей
+
 ## Правила ERP (правки заказчика 16.08, сессия 32)
 
 - Карточка заказа — только страница `/orders/:orderId`. Боковая панель
