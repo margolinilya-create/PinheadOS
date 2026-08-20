@@ -715,3 +715,131 @@ describe('useAuthStore — восстановление пароля', () => {
     expect(useAuthStore.getState().error).toBeTruthy();
   });
 });
+
+/**
+ * Перехваченный лок сессии на входе.
+ *
+ * supabase-js держит сессию под общим Web Lock, и с auth-js 2.98 захват,
+ * прождавший дольше пяти секунд, забирает лок силой (`steal: true`). Прежний
+ * держатель получает `AbortError: Lock broken by another request with the
+ * 'steal' option` — а вместе с ним и запрос профиля, потому что токен доступа
+ * берётся под тем же локом. На проде это выглядело так: пароль приняли (200
+ * в логах входа), а человек остался на форме с четырьмя красными полосами
+ * английского текста.
+ *
+ * Запрос при этом НЕ УХОДИЛ — значит его надо повторить, а не показывать сбой.
+ */
+describe('useAuthStore — перехваченный лок сессии', () => {
+  const stolenLock = () => {
+    const e = new Error("Lock broken by another request with the 'steal' option.");
+    e.name = 'AbortError';
+    return e;
+  };
+
+  const profileQuery = (maybeSingle) => ({
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle,
+  });
+
+  /**
+   * PostgREST сам ловит исключение `fetch` и отдаёт его ПОЛЕМ `error`,
+   * подписав именем: «AbortError: Lock broken…». Проверка, ждущая броска,
+   * этот случай — то есть настоящий — пропустила бы целиком.
+   */
+  const stolenResponse = () => ({
+    data: null,
+    error: { message: "AbortError: Lock broken by another request with the 'steal' option." },
+  });
+
+  it('профиль догружается со второй попытки, и человек ничего не теряет', async () => {
+    const { supabase } = await import('../lib/supabase');
+    const maybeSingle = vi.fn()
+      .mockResolvedValueOnce(stolenResponse())
+      .mockResolvedValueOnce({ data: { name: 'Заур', role: 'admin', approved: true, active: true } });
+    supabase.from.mockReturnValue(profileQuery(maybeSingle));
+
+    await useAuthStore.getState().fetchProfile('u-lock', 'za@pnhd.ru');
+
+    expect(maybeSingle).toHaveBeenCalledTimes(2);
+    expect(useAuthStore.getState().user?.name).toBe('Заур');
+    expect(useAuthStore.getState().profileStatus).toBe('active');
+  });
+
+  it('бросок вместо ответа читается так же — вход не должен зависеть от формы сбоя', async () => {
+    const { supabase } = await import('../lib/supabase');
+    const maybeSingle = vi.fn()
+      .mockRejectedValueOnce(stolenLock())
+      .mockResolvedValueOnce({ data: { name: 'Заур', role: 'admin', approved: true, active: true } });
+    supabase.from.mockReturnValue(profileQuery(maybeSingle));
+
+    await useAuthStore.getState().fetchProfile('u-lock-thrown', 'za@pnhd.ru');
+
+    expect(maybeSingle).toHaveBeenCalledTimes(2);
+    expect(useAuthStore.getState().user?.name).toBe('Заур');
+  });
+
+  it('если сорвался и повтор — в полосе русская фраза, а не текст браузера', async () => {
+    const { supabase } = await import('../lib/supabase');
+    const { useToastStore } = await import('./useToastStore');
+    useToastStore.setState({ toasts: [] });
+    supabase.from.mockReturnValue(profileQuery(vi.fn().mockResolvedValue(stolenResponse())));
+
+    await useAuthStore.getState().fetchProfile('u-lock', 'za@pnhd.ru');
+
+    const messages = useToastStore.getState().toasts.map((t) => t.message);
+    expect(messages.join(' ')).not.toMatch(/steal|Lock broken/);
+    expect(messages.join(' ')).toMatch(/другой вкладке/);
+  });
+
+  /**
+   * Событие `SIGNED_IN` приходит не только на вход: его же шлёт восстановление
+   * сессии, обновление токена и соседняя вкладка — на проде три подряд.
+   * Гейт «профиля в памяти нет» их не разводит: пока первый запрос не вернулся,
+   * память пуста, и каждое событие заводило свой запрос и свою красную полосу.
+   */
+  it('несколько одновременных вызовов дают ОДИН запрос', async () => {
+    const { supabase } = await import('../lib/supabase');
+    let resolveQuery;
+    const maybeSingle = vi.fn(() => new Promise((resolve) => { resolveQuery = resolve; }));
+    supabase.from.mockReturnValue(profileQuery(maybeSingle));
+
+    const all = Promise.all([
+      useAuthStore.getState().fetchProfile('u-dup', 'za@pnhd.ru'),
+      useAuthStore.getState().fetchProfile('u-dup', 'za@pnhd.ru'),
+      useAuthStore.getState().fetchProfile('u-dup', 'za@pnhd.ru'),
+    ]);
+    resolveQuery({ data: { name: 'Заур', role: 'admin', approved: true, active: true } });
+    await all;
+
+    expect(maybeSingle).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user?.name).toBe('Заур');
+  });
+
+  /**
+   * Обработчик `onAuthStateChange` исполняется ВНУТРИ удерживаемого лока, и всё
+   * запущенное из него встаёт в очередь того же лока: запрос профиля ждал конца
+   * обновления токена, а оно после уснувшей сети висит и минуту. Поэтому вызов
+   * откладывается на следующий тик — проверяем, что из самого обработчика
+   * ни одного запроса не уходит.
+   */
+  it('watchAuthState не ходит в базу прямо из обработчика события', async () => {
+    const { supabase } = await import('../lib/supabase');
+    let handler = null;
+    supabase.auth.onAuthStateChange.mockImplementationOnce((cb) => {
+      handler = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+    supabase.from.mockClear();
+    supabase.from.mockReturnValue(profileQuery(vi.fn().mockResolvedValue({ data: null })));
+
+    const unsubscribe = watchAuthState();
+    handler('SIGNED_IN', { user: { id: 'u-tick', email: 'za@pnhd.ru' } });
+
+    expect(supabase.from).not.toHaveBeenCalled();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(supabase.from).toHaveBeenCalledWith('profiles');
+    unsubscribe();
+  });
+});

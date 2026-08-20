@@ -39,9 +39,71 @@ const ERROR_MAP: Record<string, string> = {
  */
 const GUARD_PREFIX = /^erp_[a-z_]+:\s*/;
 
+/**
+ * Гонка за сессию ВНУТРИ supabase-js, а не отказ сервера и не обрыв связи.
+ *
+ * Клиент держит сессию под общим для всей вкладки Web Lock (`lock:sb-…-auth-token`),
+ * и с версии auth-js 2.98 захват, не дождавшийся своей очереди за 5 секунд,
+ * ЗАБИРАЕТ лок силой (`steal: true`). Прежний держатель в этот момент получает
+ * `AbortError: Lock broken by another request with the 'steal' option` — и его
+ * запрос не уходит вовсе, потому что токен доступа берётся как раз под этим локом.
+ *
+ * Держателем становится любая затянувшаяся операция авторизации: обновление
+ * токена при возвращении на вкладку (`visibilitychange` → `_recoverAndRefresh`),
+ * восстановление просроченной сессии при загрузке страницы. Достаточно уснувшей
+ * или медленной сети, чтобы она провисела дольше пяти секунд, — а рядом хватает
+ * второй вкладки того же приложения, чтобы кража состоялась.
+ *
+ * Для человека это не сообщение: он видел английский текст браузера («Не удалось
+ * загрузить профиль: AbortError: Lock broken by another request with the 'steal'
+ * option») и не мог ни понять причину, ни что-то исправить. Запрос при этом
+ * ПОВТОРИМ — он не был отправлен.
+ */
+const AUTH_LOCK_SIGNS = /lock broken by another request|navigator lockmanager lock/i;
+
+/**
+ * Сообщение о сорванном локе — ОДНА строка на весь проект.
+ *
+ * По ней же `erpRead` узнаёт свой случай для повтора, поэтому копия рядом
+ * означала бы повтор, который молча перестанет срабатывать при правке текста.
+ */
+export const AUTH_LOCK_MESSAGE = 'сессия обновлялась в другой вкладке, попробуйте ещё раз';
+
+/**
+ * Текст причины у чего угодно: у брошенной ошибки, у строки и у объекта
+ * `{ message }`, каким сбой приезжает из `erpQuery` и из `fetchProfile`.
+ * Отдельно от `rawReason`: тот намеренно строг — по нему решается «это обрыв
+ * связи», и объект без текста не должен объявляться потерей сети.
+ */
+function messageOf(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object' && 'message' in e) {
+    return String((e as { message?: unknown }).message ?? '');
+  }
+  return '';
+}
+
+/**
+ * Сбой из-за перехваченного лока сессии, а не из-за сети или отказа сервера.
+ *
+ * Причина приезжает в ТРЁХ видах, и узнавать надо все: брошенной ошибкой
+ * (`getSession` вне запроса), полем `error` ответа PostgREST — он сам ловит
+ * исключение `fetch` и подписывает его именем (`AbortError: Lock broken…`), —
+ * и уже переведённой фразой, если её успел обработать `networkFailureMessage`.
+ * Проверка, знающая только сырой текст, молча перестала бы срабатывать после
+ * перевода: повтор не сделался бы ни разу, а выглядело бы всё рабочим.
+ */
+export function isAuthLockFailure(e: unknown): boolean {
+  const msg = messageOf(e);
+  return AUTH_LOCK_SIGNS.test(msg) || msg === AUTH_LOCK_MESSAGE;
+}
+
 export function translateSupabaseError(msg: string | null | undefined): string {
   if (!msg) return 'Неизвестная ошибка';
   if (ERROR_MAP[msg]) return ERROR_MAP[msg];
+  // Гонка за лок сессии приходит сюда сырым текстом браузера — см. AUTH_LOCK_SIGNS
+  if (isAuthLockFailure(msg)) return AUTH_LOCK_MESSAGE;
   return msg.replace(GUARD_PREFIX, '');
 }
 
@@ -62,10 +124,28 @@ function rawReason(e: unknown): string {
   return e instanceof Error ? e.message : typeof e === 'string' ? e : '';
 }
 
+/** Сообщение об обрыве связи — одно на весь проект, по нему же решается повтор */
+export const NETWORK_MESSAGE = 'нет связи с сервером';
+
 export function networkFailureMessage(e: unknown): string {
   const raw = rawReason(e);
-  if (NETWORK_SIGNS.test(raw)) return 'нет связи с сервером';
-  return raw.trim() || 'нет связи с сервером';
+  if (NETWORK_SIGNS.test(raw)) return NETWORK_MESSAGE;
+  if (AUTH_LOCK_SIGNS.test(raw)) return AUTH_LOCK_MESSAGE;
+  return raw.trim() || NETWORK_MESSAGE;
+}
+
+/**
+ * Сбой, при котором ОТВЕТА СЕРВЕРА НЕ БЫЛО: оборвалась связь или перехватили лок
+ * сессии. Отличается от отказа сервера тем, что о судьбе запроса ничего не
+ * известно — он мог не уйти вовсе, а мог и выполниться (20.08 загрузка ТЗ
+ * «не удалась» у человека и при этом записалась в Storage). Поэтому такой сбой
+ * и повторяют, и перепроверяют, а отказ прав или `InvalidKey` — никогда.
+ *
+ * Причина приезжает и сырым текстом браузера, и уже переведённой: узнаём оба.
+ */
+export function isTransportFailure(e: unknown): boolean {
+  const msg = messageOf(e);
+  return NETWORK_SIGNS.test(msg) || msg === NETWORK_MESSAGE || isAuthLockFailure(e);
 }
 
 /**

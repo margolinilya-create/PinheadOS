@@ -24,11 +24,25 @@ const DEPARTMENTS = [
   { id: 'd-old', name: 'Закрытый участок', active: false },
 ];
 
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Действующее приглашение — то, срок которого ЕЩЁ НЕ ВЫШЕЛ, а это величина
+ * относительная: экран сравнивает `expires_at` с `new Date()`.
+ *
+ * Здесь стояла фиксированная дата (`2026-08-20T10:00:00Z`), и тест исправно
+ * проходил ровно до того часа, когда она наступила: 20.08 «действующих (1)»
+ * стало «(0)», и два теста упали сами по себе, без единой правки кода.
+ * Фиксированные ISO нужны там, где дата ПОКАЗЫВАЕТСЯ или сравнивается
+ * с другой фикстурой; сроку, который должен быть в будущем всегда,
+ * фиксированная дата — отложенная поломка.
+ */
 const FRESH = {
   code: 'code-1', profile_role: 'production', employee_role: 'worker',
   department_id: 'd-sew', email: null, note: null,
-  expires_at: '2026-08-20T10:00:00Z', used_at: null, revoked_at: null,
-  created_by: null, created_at: '2026-08-14T10:00:00Z',
+  expires_at: new Date(Date.now() + 72 * HOUR_MS).toISOString(),
+  used_at: null, revoked_at: null,
+  created_by: null, created_at: new Date(Date.now() - HOUR_MS).toISOString(),
 };
 
 let createInvite;

@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { erpQuery, removeOrphanUpload } from '../store/shared';
+import { removeOrphanUpload, uploadResilient } from '../store/shared';
 import { toast } from '../../store/useToastStore';
 import { translateSupabaseError } from '../../utils/i18n';
 import { attachmentFilePath } from '../utils/storageKey';
@@ -20,11 +19,15 @@ import { attachmentFilePath } from '../utils/storageKey';
  * отвечает `InvalidKey`. На этом ломалось создание ЛЮБОГО заказа с ТЗ —
  * повторять ту же историю на вложениях незачем.
  *
- * ЗАГРУЗКА ИДЁТ ЧЕРЕЗ `erpQuery`, а не голым `await`: без ответа сервера
+ * ЗАГРУЗКА ИДЁТ ЧЕРЕЗ `uploadResilient`, а не голым `await`: без ответа сервера
  * supabase-js БРОСАЕТ, и тогда `setFiles` ниже не выполнился бы вовсе — файл
  * остался бы в состоянии «загружается» навсегда, а вместе с ним заблокированной
  * оказалась бы кнопка создания заказа. Кнопки «Загрузить заново» человек при
  * этом не видит: она показывается только в состоянии ошибки.
+ *
+ * Он же не даёт потерять УЖЕ ЗАГРУЖЕННОЕ: при обрыве связи ответ мог не дойти,
+ * а файл — записаться (проверено на проде 20.08 на ТЗ), поэтому перед повтором
+ * бакет спрашивают, а не гонят мегабайты заново.
  */
 
 const BUCKET = 'erp-attachments';
@@ -36,9 +39,9 @@ export function useAttachmentUploads(scope = 'new') {
 
   const upload = useCallback(async (uid, kind, file) => {
     const path = attachmentFilePath(scope, kind, uid, file.name);
-    const { error } = await erpQuery(() => supabase.storage
-      .from(BUCKET)
-      .upload(path, file, { contentType: file.type || 'application/octet-stream' }));
+    const { error } = await uploadResilient(BUCKET, path, file, {
+      contentType: file.type || 'application/octet-stream',
+    });
     setFiles((arr) => arr.map((f) => {
       if (f.uid !== uid) return f;
       if (!error) return { ...f, state: 'uploaded', error: null, path };

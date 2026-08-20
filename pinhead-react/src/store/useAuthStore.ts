@@ -4,7 +4,7 @@ import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
 import { runAppResets } from './appReset';
 import { useOrdersStore } from './useOrdersStore';
-import { networkFailureMessage, translateSupabaseError } from '../utils/i18n';
+import { isAuthLockFailure, networkFailureMessage, translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus, Profile } from '../types/auth';
 
 /**
@@ -70,6 +70,79 @@ function isAlreadyRegistered(error: { code?: string; message?: string } | null):
 function isEmailNotConfirmed(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   return error.code === 'email_not_confirmed' || error.message === 'Email not confirmed';
+}
+
+/**
+ * Идущая загрузка профиля: чей и чем закончится.
+ *
+ * Живёт вне стора намеренно — это не состояние интерфейса, а защита от дублей,
+ * и попади оно в стор, каждая такая загрузка перерисовывала бы подписчиков.
+ */
+let profileInFlight: { id: string; promise: Promise<void> } | null = null;
+
+/** Пауза перед повтором запроса, сорванного гонкой за лок сессии */
+export const AUTH_LOCK_RETRY_MS = 400;
+
+/** Профиль из базы: `null` в `data` — строки нет, `error` — запрос не прошёл */
+async function readProfile(id: string) {
+  try {
+    return await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+  } catch (e) {
+    // supabase-js БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS,
+    // перехваченный лок сессии — тогда запрос не уходил вообще)
+    return { data: null as Partial<Profile> | null, error: { message: networkFailureMessage(e) } };
+  }
+}
+
+/**
+ * Загрузка профиля: один повтор, когда лок сессии перехватили.
+ *
+ * Перехват (`AbortError: Lock broken by another request with the 'steal' option`)
+ * означает, что запрос НЕ БЫЛ ОТПРАВЛЕН: токен доступа берётся под тем самым
+ * локом, и цепочка оборвалась до сети. Повторять безопасно и обязательно —
+ * иначе вход заканчивается красной полосой на ровном месте, а человек остаётся
+ * на форме, хотя пароль приняли (в логах входа за 20.08 — 200 на каждом запросе).
+ *
+ * Повторяется ТОЛЬКО этот случай. Ответ сервера — решение, а не помеха, и
+ * повторять его значит прятать причину; обрыв связи повторять здесь тоже нечем:
+ * человек всё равно упрётся в него на первом же экране.
+ */
+async function loadProfile(
+  id: string,
+  email: string,
+  set: (patch: Partial<AuthStore>) => void,
+): Promise<void> {
+  let { data, error } = await readProfile(id);
+
+  // Признак живёт в `utils/i18n` и узнаёт лок в любом виде: PostgREST отдаёт
+  // его полем `error` ответа («AbortError: Lock broken…»), а не броском —
+  // сравнение с одной готовой фразой не сработало бы вовсе
+  if (isAuthLockFailure(error)) {
+    await new Promise((resolve) => setTimeout(resolve, AUTH_LOCK_RETRY_MS));
+    ({ data, error } = await readProfile(id));
+  }
+
+  if (error) {
+    // Пользователя в памяти НЕ трогаем: на стене ожидания это кнопка
+    // «Проверить снова», и обрыв связи не должен выкидывать на форму входа.
+    set({ loading: false });
+    toast.error(`Не удалось загрузить профиль: ${translateSupabaseError(error.message)}`);
+    return;
+  }
+
+  if (data) {
+    const active = data.active !== false;
+    const approved = data.approved === true;
+    const status: ProfileStatus = !active ? 'disabled' : approved ? 'active' : 'pending_approval';
+    set({
+      user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved, active },
+      profileStatus: status,
+      loading: false,
+      error: null,
+    });
+  } else {
+    set({ user: null, profileStatus: 'no_profile', loading: false });
+  }
 }
 
 interface AuthStore {
@@ -208,35 +281,25 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
    * входа без единого слова о том, что случилось.
    */
   fetchProfile: async (id, email) => {
-    let data: Partial<Profile> | null = null;
-    let error: { message: string } | null = null;
+    /**
+     * Один запрос профиля на человека, сколько бы раз его ни попросили.
+     *
+     * `supabase-js` присылает `SIGNED_IN` не только на вход: его же шлёт
+     * восстановление сессии при загрузке, обновление токена и приход события
+     * из соседней вкладки — на проде три подряд за миллисекунду. Гейт «профиля
+     * в памяти нет» от этого не спасает: пока первый запрос не вернулся, память
+     * пуста, и каждое событие заводило свой запрос. Дальше умножалось всё —
+     * запросы, гонки за лок сессии и одинаковые красные полосы.
+     */
+    const running = profileInFlight;
+    if (running && running.id === id) return running.promise;
+
+    const promise = loadProfile(id, email, set);
+    profileInFlight = { id, promise };
     try {
-      ({ data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle());
-    } catch (e) {
-      // supabase-js БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS)
-      error = { message: networkFailureMessage(e) };
-    }
-
-    if (error) {
-      // Пользователя в памяти НЕ трогаем: на стене ожидания это кнопка
-      // «Проверить снова», и обрыв связи не должен выкидывать на форму входа.
-      set({ loading: false });
-      toast.error(`Не удалось загрузить профиль: ${translateSupabaseError(error.message)}`);
-      return;
-    }
-
-    if (data) {
-      const active = data.active !== false;
-      const approved = data.approved === true;
-      const status: ProfileStatus = !active ? 'disabled' : approved ? 'active' : 'pending_approval';
-      set({
-        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved, active },
-        profileStatus: status,
-        loading: false,
-        error: null,
-      });
-    } else {
-      set({ user: null, profileStatus: 'no_profile', loading: false });
+      await promise;
+    } finally {
+      if (profileInFlight?.promise === promise) profileInFlight = null;
     }
   },
 
@@ -585,10 +648,20 @@ export function watchAuthState(): () => void {
       return;
     }
 
-    // Вошли в соседней вкладке или токен обновился, а профиля в памяти нет —
-    // подтягиваем, иначе экран останется формой входа при живой сессии.
+    /**
+     * Вошли в соседней вкладке или токен обновился, а профиля в памяти нет —
+     * подтягиваем, иначе экран останется формой входа при живой сессии.
+     *
+     * Запрос уходит СЛЕДУЮЩИМ тиком, а не прямо отсюда. Обработчик события
+     * вызывается ВНУТРИ удерживаемого лока сессии, и всё, что запущено из него,
+     * попадает в очередь этого же лока: запрос профиля ждал завершения
+     * обновления токена — а оно после уснувшей сети висит и минуту. Отложенный
+     * вызов идёт своим чередом и лока не задерживает; так же это описано
+     * и в документации Supabase про `onAuthStateChange`.
+     */
     if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !store.user) {
-      void store.fetchProfile(session.user.id, session.user.email ?? '');
+      const { id, email } = session.user;
+      setTimeout(() => { void useAuthStore.getState().fetchProfile(id, email ?? ''); }, 0);
     }
   });
   return () => data.subscription.unsubscribe();

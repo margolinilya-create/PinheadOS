@@ -8,7 +8,7 @@ import { useAuthStore, watchAuthState } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
 import { FEATURES } from './config/features'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
-import { isNetworkFailure } from './utils/i18n'
+import { isAuthLockFailure, isNetworkFailure, translateSupabaseError } from './utils/i18n'
 
 // Ошибки вне React (события, таймеры, промисы) до ErrorBoundary не доходят.
 // Тост остаётся пользователю, отчёт уходит наружу — если приёмник настроен.
@@ -26,9 +26,22 @@ installGlobalErrorReporting();
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[unhandledrejection]', event.reason);
   reportError(event.reason, 'promise');
-  toast.error(isNetworkFailure(event.reason)
-    ? 'Нет связи с сервером — часть данных не загрузилась'
-    : (event.reason?.message || 'Неизвестная ошибка'));
+  if (isNetworkFailure(event.reason)) {
+    toast.error('Нет связи с сервером — часть данных не загрузилась');
+    return;
+  }
+  /**
+   * Перехваченный лок сессии — внутренняя гонка supabase-js, а не поломка.
+   * Сырым текстом («Lock broken by another request with the 'steal' option»)
+   * он и доставался человеку на форме входа, рядом с такой же полосой про
+   * профиль. Тот, кто читает эту строку, ничего исправить не может, поэтому
+   * говорим, что произошло, человеческими словами.
+   */
+  if (isAuthLockFailure(event.reason)) {
+    toast.error(`Не удалось прочитать сессию: ${translateSupabaseError(event.reason?.message)}`);
+    return;
+  }
+  toast.error(event.reason?.message || 'Неизвестная ошибка');
 });
 
 // Загружаем авторизацию сразу и следим за ней дальше: сессия может кончиться
