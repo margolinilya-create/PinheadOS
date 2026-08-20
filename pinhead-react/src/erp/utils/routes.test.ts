@@ -444,6 +444,72 @@ describe('buildItemRoute — вырезание закупки при матер
     expect(route.map((s) => s.departmentCode)).toContain('supply');
   });
 
+  /**
+   * Отметка «Закупка не требуется» (правки заказчика 20.08).
+   *
+   * Документ: «сам факт наличия подряда не означает, что что-то нужно
+   * покупать… закупка создаётся только тогда, когда для заказа действительно
+   * требуется закупка». Раньше этап `supply` стоял в начале маршрута у ЛЮБОГО
+   * типа производства, и заказ, где покупать нечего, всё равно ждал закупщика.
+   *
+   * Вырезание этапа — единственный механизм: заказ не появляется у закупщика
+   * ПО ПОСТРОЕНИЮ (`ordersAwaitingSupply` считает этапы), без второго правила
+   * «показывать/не показывать» на его экране.
+   */
+  it('«Закупка не требуется» вырезает supply у обычного производства', () => {
+    const route = buildItemRoute({
+      productionType: 'sewing',
+      brandingMethods: ['dtf'],
+      brandingOn: 'cut',
+      needsPurchase: false,
+    });
+    expect(route.map((s) => s.departmentCode)).not.toContain('supply');
+    // Остальной маршрут не тронут — вырезали ровно закупку
+    expect(route.map((s) => s.departmentCode)).toEqual(['cutting', 'dtf', 'sewing', 'vto']);
+  });
+
+  it('вырезая закупку, снимаем её и из зависимостей — иначе этап осиротеет', () => {
+    const route = buildItemRoute({
+      productionType: 'sewing',
+      brandingMethods: [],
+      brandingOn: 'cut',
+      needsPurchase: false,
+    });
+    for (const stage of route) {
+      expect(stage.dependsOnCodes).not.toContain('supply');
+    }
+    // Первый этап остался без зависимостей и потому готов к работе
+    expect(route[0].dependsOnCodes).toEqual([]);
+  });
+
+  it('не передано — считаем, что закупка нужна: старые заказы не меняются', () => {
+    // `purchase_required` у заведённых до 20.08 стоит `true` по умолчанию,
+    // и дорисовывать им отсутствие закупки задним числом нельзя
+    const route = buildItemRoute({
+      productionType: 'sewing', brandingMethods: [], brandingOn: 'cut',
+    });
+    expect(route.map((s) => s.departmentCode)).toContain('supply');
+    expect(buildItemRoute({
+      productionType: 'sewing', brandingMethods: [], brandingOn: 'cut',
+      needsPurchase: true,
+    }).map((s) => s.departmentCode)).toContain('supply');
+  });
+
+  it('«Закупка не требуется» и материал подрядчика дают один результат', () => {
+    // Второе правило поглощается первым, но оставлено явным — и оба обязаны
+    // приводить к одному маршруту, иначе поведение зависело бы от того,
+    // каким путём пришли к «закупать нечего»
+    const byFlag = buildItemRoute({
+      productionType: 'outsource', brandingMethods: ['silkscreen'],
+      brandingOn: 'finished', needsPurchase: false,
+    });
+    const bySource = buildItemRoute({
+      productionType: 'outsource', brandingMethods: ['silkscreen'],
+      brandingOn: 'finished', materialSource: 'contractor',
+    });
+    expect(byFlag).toEqual(bySource);
+  });
+
   it('«только нанесение» методом без своего цеха тоже даёт пустой маршрут', () => {
     // BRANDING_DEPT.other = null — пришив нашивок делают внутри швейки
     const route = buildItemRoute({

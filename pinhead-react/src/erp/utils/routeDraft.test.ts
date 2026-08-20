@@ -421,6 +421,27 @@ describe('formItemRoute', () => {
     expect(fromForm.flat().map((s) => s.departmentCode)).toContain('dtf');
   });
 
+  /**
+   * Контекст ЗАКАЗА доезжает до расчёта (правки 20.08).
+   *
+   * Правило «правка человека или расчёт» — это `formItemRoute` ЦЕЛИКОМ,
+   * включая сборку аргументов `buildItemRoute`: читателей трое (превью ТЗ
+   * в форме, конструктор маршрута и `createOrder`), и разойтись они могут
+   * не только правилом, но и подставленным значением. Забытый `needsPurchase`
+   * означал бы заказ, созданный НЕ ПО ТОМУ маршруту, по которому человеку
+   * показали превью.
+   */
+  it('отметка «Закупка не требуется» доезжает до расчёта маршрута', () => {
+    const it = { production_type: 'sewing', branding_on: 'cut', has_branding: false };
+    const codes = (draft: ReturnType<typeof formItemRoute>) =>
+      draft.flat().map((s) => s.departmentCode);
+
+    expect(codes(formItemRoute(it, { needsPurchase: false }))).not.toContain('supply');
+    // Без контекста — как раньше: закупка нужна
+    expect(codes(formItemRoute(it))).toContain('supply');
+    expect(codes(formItemRoute(it, { needsPurchase: true }))).toContain('supply');
+  });
+
   it('снятый флаг брендирования выбрасывает нанесения из маршрута', () => {
     const codes = formItemRoute({
       production_type: 'sewing', branding_on: 'cut', has_branding: false,
