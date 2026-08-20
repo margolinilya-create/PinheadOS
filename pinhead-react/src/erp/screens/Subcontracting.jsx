@@ -348,7 +348,12 @@ export default function Subcontracting() {
                           currentStageId={stage.id}
                         />
                         <StageActions op={sub} view={view} canManage={canManage} />
-                        <MoveJournal op={sub} canManage={canManage} />
+                        <MoveJournal
+                          op={sub}
+                          canManage={canManage}
+                          order={order}
+                          itemId={item.id}
+                        />
                       </td>
                     </tr>
                   ),

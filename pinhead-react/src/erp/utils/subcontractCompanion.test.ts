@@ -86,6 +86,19 @@ describe('карточка подрядчика: два писателя и од
    * по ПОЗИЦИИ в массиве (`v_ids[e.ord]`) — так же, как в этой же функции
    * разрешаются `depends_on`.
    */
+  it('файл подрядного шага привязывается к ЭТАПУ по паре «позиция:этап»', () => {
+    /**
+     * Девятое поле подрядного шага — «ТЗ / файлы». Этапа в момент выбора файла
+     * ещё нет, поэтому в payload едет `stage_index` — номер этапа ВНУТРИ
+     * позиции. Ключ составной: `v_stage_ids` обнуляется на каждой позиции,
+     * и сквозной номер сдвигал бы привязку у всех позиций ниже первой —
+     * ровно та ошибка, которую уже ловили на `material_index`.
+     */
+    expect(CREATE_ORDER).toContain("v_att->'stage_index'");
+    expect(CREATE_ORDER).toContain('v_stage_keys');
+    expect(CREATE_ORDER).toMatch(/insert into erp_order_attachments[\s\S]{0,200}stage_id/);
+  });
+
   it('erp_route_apply связывает шаг с этапом ПО ПОЗИЦИИ, а не по stage_id', () => {
     expect(ROUTE_APPLY).toContain('with ordinality as e(value, ord)');
     expect(ROUTE_APPLY).toContain('v_ids[e.ord] = s.id');

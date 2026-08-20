@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { deptShortName } from '../data/departments';
+import { isOutsourced, stageLabel } from '../utils/outsourcing';
 import { STAGE_STATUS_LABELS } from '../types';
 import { isStageAwaitingProcurement, isStageReady, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
@@ -62,7 +63,19 @@ export function RouteProgress({
               className={`${styles.routeRow} ${stage.id === currentStageId ? styles.routeRowCurrent : ''}`}
             >
               <span className={styles.routeName}>
-                {dept ? deptShortName(dept.code, dept.name) : '—'}
+                {/*
+                  Подрядный шаг называется ОПЕРАЦИЕЙ, а не участком: цех здесь
+                  означает лишь участок ответственности, а человек читает
+                  маршрут словами «Закрой — Швейка — Варка — ВТО».
+                  Документ 20.08 требует этого прямо: «если этап подрядный,
+                  дополнительно показывается подрядчик и название операции».
+                */}
+                {stageLabel(stage, dept ? deptShortName(dept.code, dept.name) : '—')}
+                {isOutsourced(stage) && (
+                  <span className={`${styles.chip} ${styles.chipNeutral}`} title="Подрядный этап">
+                    подряд{stage.contractor ? `: ${stage.contractor}` : ''}
+                  </span>
+                )}
               </span>
               <span className={styles.routeQty}>{p.done}/{p.total}</span>
               {!compact && (

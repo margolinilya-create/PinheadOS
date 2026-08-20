@@ -1,8 +1,11 @@
+import { useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { SUBCONTRACT_MOVE_LABELS } from '../../types';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
+import { AttachmentList } from '../../components/AttachmentList';
+import { confirm } from '../../../store/useConfirmStore';
 import { formatDateShort } from '../../utils/time';
 import { subcontractShortfall } from '../../utils/outsourcing';
 import styles from '../../erp.module.css';
@@ -23,8 +26,44 @@ import styles from '../../erp.module.css';
  * ровно так же, как у этапов цеха.
  */
 
-export function MoveJournal({ op, canManage }) {
-  const updateSubcontractOp = useErpStore(useShallow((s) => s.updateSubcontractOp));
+export function MoveJournal({ op, canManage, order = null, itemId = null }) {
+  const { updateSubcontractOp, uploadStageFile, deleteStageFile } = useErpStore(
+    useShallow((s) => ({
+      updateSubcontractOp: s.updateSubcontractOp,
+      uploadStageFile: s.uploadStageFile,
+      deleteStageFile: s.deleteStageFile,
+    })),
+  );
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  /** ТЗ и файлы ЭТОГО подрядного этапа: чужая схема узла хуже никакой */
+  const files = (order?.attachments ?? []).filter(
+    (a) => a.kind === 'subcontract' && a.stage_id === op.stage_id,
+  );
+
+  const pickFiles = async (e) => {
+    const chosen = [...(e.target.files ?? [])];
+    e.target.value = '';
+    if (chosen.length === 0 || !op.stage_id || !order) return;
+    setUploading(true);
+    for (const file of chosen) {
+      await uploadStageFile({
+        stageId: op.stage_id, orderId: order.id, itemId, file,
+      });
+    }
+    setUploading(false);
+  };
+
+  const removeFile = async (att) => {
+    const ok = await confirm({
+      title: 'Снять файл?',
+      message: `«${att.file_name || 'файл'}» будет удалён вместе с самим файлом.`,
+      confirmLabel: 'Снять',
+      variant: 'danger',
+    });
+    if (ok) await deleteStageFile(order.id, att.id);
+  };
 
   const moves = [...(op.moves ?? [])].sort((a, b) => b.moved_on.localeCompare(a.moved_on));
   const shortfall = subcontractShortfall(op);
@@ -58,6 +97,80 @@ export function MoveJournal({ op, canManage }) {
           </span>
         )}
       </div>
+
+      {/*
+        Поля, которые менеджер задал В МАРШРУТЕ (правки 20.08): ответственный
+        Pinhead, план передачи и комментарий. Они заполняются один раз при
+        сборке маршрута — и до сих пор нигде не показывались: карточка
+        подрядной операции перечисляет их в документе прямо, а раздел «Подряд»
+        и есть то место, где по ним работают. Заполнять и не показывать —
+        та же ошибка, что показывать и не сохранять.
+      */}
+      <div className={styles.checkRow}>
+        <span className={styles.subText}>
+          Ответственный Pinhead: <strong>{op.responsible || '—'}</strong>
+        </span>
+        <span className={styles.subText}>
+          Передача план: <strong>{op.send_plan_date ? formatDateShort(op.send_plan_date) : '—'}</strong>
+          {op.sent_date ? ` · факт ${formatDateShort(op.sent_date)}` : ''}
+        </span>
+        <span className={styles.subText}>
+          Возврат план: <strong>{op.planned_date ? formatDateShort(op.planned_date) : '—'}</strong>
+          {op.returned_date ? ` · факт ${formatDateShort(op.returned_date)}` : ''}
+        </span>
+      </div>
+      {op.comment && (
+        <div className={styles.subText}>Комментарий: {op.comment}</div>
+      )}
+
+      {/*
+        ТЗ и файлы подрядного этапа — девятое поле подрядного шага из документа.
+        Они уезжают наружу вместе с партией, поэтому привязаны к ЭТАПУ:
+        подрядных этапов в позиции бывает несколько (сублимация полотна
+        и варка готового), и общая куча отдала бы подрядчику чужую схему.
+      */}
+      {op.stage_id && order && (
+        <div className={styles.attachBlock}>
+          <div className={styles.checkRow}>
+            <span className={styles.fieldLabel}>ТЗ и файлы для подрядчика</span>
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="paperclip"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? 'Загрузка…' : 'Приложить'}
+              </Button>
+            )}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            onChange={pickFiles}
+            aria-label="ТЗ и файлы для подрядчика"
+            style={{ display: 'none' }}
+          />
+          {files.length === 0 ? (
+            <span className={styles.subText}>файлов нет</span>
+          ) : (
+            <>
+              <AttachmentList files={files} />
+              {canManage && (
+                <div className={styles.checkRow}>
+                  {files.map((f) => (
+                    <Button key={f.id} variant="ghost" size="sm" onClick={() => removeFile(f)}>
+                      ✕ {f.file_name || 'файл'}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Материалы Pinhead: «что передано, количество, дату передачи» —
           прямое требование п. 13. При материалах подрядчика передавать нечего,

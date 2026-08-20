@@ -98,7 +98,7 @@ function OperationField({ step, gi, si, onPatch }) {
 }
 
 /** Дополнительные поля подрядного этапа — раскрываются вместе с исполнителем */
-function ContractorFields({ step, gi, si, onPatch }) {
+function ContractorFields({ step, gi, si, onPatch, renderFiles }) {
   const set = (patch) => onPatch(gi, si, patch);
   return (
     <div className={styles.routeSubFields}>
@@ -164,6 +164,17 @@ function ContractorFields({ step, gi, si, onPatch }) {
           onChange={(e) => set({ comment: e.target.value })}
         />
       </label>
+      {/*
+        ТЗ и файлы подрядного этапа — девятое поле подрядного шага (документ
+        20.08). Рендерит их ВЫЗЫВАЮЩИЙ: в форме создания файл уезжает в payload
+        и привязывается к этапу той же транзакцией, а в карточке заказа этап уже
+        существует, и файлы там прикладываются в разделе «Подряд». Одна разметка
+        с двумя способами хранения — это два разных ответа на «что будет,
+        если загрузка не прошла».
+      */}
+      {renderFiles && (
+        <div className={styles.fieldWide}>{renderFiles(gi, si, step)}</div>
+      )}
     </div>
   );
 }
@@ -249,7 +260,7 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
   );
 }
 
-export function RouteFields({ draft, onChange }) {
+export function RouteFields({ draft, onChange, renderStageFiles = null }) {
   const departments = useErpStore(useShallow((s) => s.departments));
   /**
    * Предлагаем только участки, у которых ЕСТЬ ПОВЕРХНОСТЬ с их открытыми
@@ -312,7 +323,13 @@ export function RouteFields({ draft, onChange }) {
                       требует заполнить их ЗДЕСЬ, одним движением с выбором
                       «Подрядчик», а не потом на другом экране */}
                   {step.executor === 'contractor' && (
-                    <ContractorFields step={step} gi={gi} si={si} onPatch={patch} />
+                    <ContractorFields
+                      step={step}
+                      gi={gi}
+                      si={si}
+                      onPatch={patch}
+                      renderFiles={renderStageFiles}
+                    />
                   )}
                 </div>
               ))}

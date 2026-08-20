@@ -343,6 +343,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
      * но и молчать нельзя — иначе о дыре в маршруте узнают на сдаче.
      */
     const droppedDepts = new Set<string>();
+    /** `stage:<позиция>:<группа>:<шаг>` → номер этапа внутри позиции */
+    const stageKeyIndex = new Map<string, number>();
 
     // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
     // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
@@ -377,6 +379,13 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
          * предшественников — молча и на каждом заказе.
          */
         const kept = linear.filter((l) => deptByCode.has(l.step.departmentCode));
+        /**
+         * Ключи шагов В ТОМ ЖЕ ПОРЯДКЕ, в каком этапы уедут в секцию `stages`.
+         * По ним файл подрядного шага находит свой `stage_index` — считать его
+         * отдельным обходом значило бы завести второй порядок этапов рядом
+         * с этим, и однажды они разойдутся (ровно как у строк закупки).
+         */
+        kept.forEach((l, at) => stageKeyIndex.set(`stage:${i}:${l.gi}:${l.si}`, at));
         const newIndex = new Map<number, number>();
         linear.forEach((l, oldIdx) => {
           const at = kept.indexOf(l);
@@ -444,7 +453,22 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
        * долго существовала в RPC и не использовалась: `item_id` у вложения
        * появился той же миграцией, а слать было нечего — форм загрузки не было.
        */
-      attachments: attachments ?? [],
+      /**
+       * Файлы подрядного шага приходят из формы с ключом шага: этапа
+       * на момент выбора ещё нет. Номер этапа проставляет ТОТ ЖЕ код, что
+       * построил `stages`, — иначе привязка считалась бы дважды и разъехалась.
+       * Файл шага, выпавшего из маршрута (неизвестный цех), не едет вовсе:
+       * привязывать его не к чему.
+       */
+      attachments: (attachments ?? [])
+        .map((a) => {
+          const key = (a as { stage_key?: string }).stage_key;
+          if (!key) return a;
+          const { stage_key: _drop, ...rest } = a as typeof a & { stage_key?: string };
+          const at = stageKeyIndex.get(key);
+          return at === undefined ? null : { ...rest, stage_index: at };
+        })
+        .filter((a): a is NonNullable<typeof a> => a !== null),
     };
 
     // Два разных исхода supabase-js: на ОТВЕТ сервера он возвращает `error`,

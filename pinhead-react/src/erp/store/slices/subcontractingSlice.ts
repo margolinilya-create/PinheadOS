@@ -19,12 +19,14 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { currentActor, erpError, erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontractPhase';
 import type { ErpStore, SubcontractingSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
+import { attachmentFilePath } from '../../utils/storageKey';
+import { TZ_BUCKET } from '../../types';
 
 /**
  * Создать задачу склада, если её ещё нет.
@@ -291,6 +293,66 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
     if (before && patch.phase && patch.phase !== before.phase) {
       await applySubcontractTransition(get, { ...before, ...patch } as ErpSubcontractOp);
     }
+    return true;
+  },
+
+  /**
+   * ТЗ и файлы подрядного ЭТАПА (девятое поле подрядного шага из документа).
+   *
+   * Файл уходит в бакет СРАЗУ и привязывается строкой — в таком порядке
+   * и с уборкой за собой: файл, загруженный и не привязанный, остаётся
+   * в бакете навсегда, платный и доступный по ссылке.
+   *
+   * Заказ ПЕРЕЧИТЫВАЕТСЯ вместо ручного достраивания: вложения приезжают
+   * вложенным списком заказа, и собрать их на клиенте значит угадывать,
+   * что именно записал сервер.
+   */
+  uploadStageFile: async ({ stageId, orderId, itemId, file }) => {
+    const path = attachmentFilePath(orderId, 'subcontract', crypto.randomUUID(), file.name);
+    const { error: upErr } = await erpQuery(() => supabase.storage
+      .from(TZ_BUCKET)
+      .upload(path, file, { contentType: file.type || 'application/octet-stream' }));
+    if (upErr) {
+      erpError('Не удалось загрузить файл', upErr);
+      return false;
+    }
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_order_attachments')
+      .insert({
+        order_id: orderId,
+        item_id: itemId ?? null,
+        stage_id: stageId,
+        file_path: path,
+        file_name: file.name,
+        kind: 'subcontract',
+        uploaded_by: currentActor(),
+      })
+      .select());
+    if (error || (data ?? []).length === 0) {
+      await removeOrphanUpload(TZ_BUCKET, path);
+      erpError('Файл загружен, но не привязан к этапу', error);
+      return false;
+    }
+    await get().loadOne(orderId);
+    return true;
+  },
+
+  /**
+   * Снятие файла: НЕ оптимистично и с `.select()` — RLS запрещает DELETE
+   * через `USING`, то есть отдаёт «0 строк», а не ошибку, и зелёное
+   * «файл снят» было бы неправдой.
+   */
+  deleteStageFile: async (orderId, attachmentId) => {
+    const order = get().orders.find((o) => o.id === orderId) ?? null;
+    const att = (order?.attachments ?? []).find((a) => a.id === attachmentId) ?? null;
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_order_attachments').delete().eq('id', attachmentId).select());
+    if (error || (data ?? []).length === 0) {
+      erpError('Файл не снят', error ?? { message: 'Нет прав на удаление файла' });
+      return false;
+    }
+    if (att?.file_path) await removeOrphanUpload(TZ_BUCKET, att.file_path);
+    await get().loadOne(orderId);
     return true;
   },
 });

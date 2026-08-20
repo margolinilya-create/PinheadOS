@@ -680,6 +680,21 @@ export interface SubcontractingSlice {
     input?: { qty?: number | string; movedOn?: string | null; comment?: string | null },
   ) => Promise<boolean>;
   updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
+
+  /**
+   * ТЗ и файлы подрядного ЭТАПА (документ 20.08, девятое поле подрядного шага).
+   * Файл уезжает наружу вместе с партией, поэтому привязан к этапу, а не
+   * к позиции: подрядных этапов в позиции бывает несколько, и чужая схема
+   * узла хуже никакой.
+   */
+  uploadStageFile: (input: {
+    stageId: string;
+    orderId: string;
+    itemId?: string | null;
+    file: File;
+  }) => Promise<boolean>;
+  /** Снять файл этапа: пустой ответ DELETE — отказ RLS, а не «файл снят» */
+  deleteStageFile: (orderId: string, attachmentId: string) => Promise<boolean>;
 }
 
 /** Сотрудники и профили: список, привязка цеха, роли */

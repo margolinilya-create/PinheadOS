@@ -18,7 +18,7 @@ import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
-  DEV_STAGE_LABELS, devBoardColumn, devStageStates,
+  DEV_STAGE_LABELS, cuttingGate, cuttingWaitLabel, devBoardColumn, devStageStates,
 } from '../../utils/experimentalBoard';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
@@ -164,6 +164,20 @@ export function DevCard({
     dev, tasks, materials: order?.materials ?? [],
   });
   const currentStage = devBoardColumn(stageStates, dev);
+  /**
+   * Статус материалов — обязательный пункт карточки по документу 20.08.
+   * Считается ТЕМ ЖЕ гейтом кроя, что и доска: «крой можно начать только когда
+   * лекала готовы И материалы физически приняты складом». Второй ответ на тот
+   * же вопрос разошёлся бы с первым — а человек читает оба на одном экране.
+   */
+  const patternsDone = tasks
+    .filter((t) => t.task_type === 'patterns')
+    .every((t) => t.status === 'done' || t.status === 'cancelled');
+  const materialGate = cuttingGate({
+    patternsDone: patternsDone && tasks.some((t) => t.task_type === 'patterns'),
+    itemId: dev.item_id,
+    materials: order?.materials ?? [],
+  });
 
   const shops = useMemo(
     () => (departments ?? []).filter((d) => d.active && isProductionDept(d)),
@@ -305,6 +319,25 @@ export function DevCard({
           <div style={{ marginTop: 8 }}>
             <span className={styles.fieldLabel}>Следующее действие</span>
             <div>{action || <span className={styles.subText}>—</span>}</div>
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <span className={styles.fieldLabel}>Материалы</span>
+            <div>
+              {materialGate.missing.length === 0 ? (
+                <span className={`${styles.chip} ${styles.chipReady}`}>
+                  приняты складом — крой не ждёт материал
+                </span>
+              ) : (
+                <span className={`${styles.chip} ${styles.chipWaiting}`}>
+                  {cuttingWaitLabel('materials', materialGate.missing)}
+                </span>
+              )}
+              {/* Лекала не ждут материал — единственное исключение документа,
+                  и сказать об этом надо там же, где человек видит ожидание */}
+              <div className={styles.subText}>
+                Построение лекал идёт независимо от прихода материалов.
+              </div>
+            </div>
           </div>
         </div>
       )}

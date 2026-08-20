@@ -122,16 +122,25 @@ export function useAttachmentUploads(scope = 'new') {
     .filter((f) => f.state === 'uploaded')
     .map((f) => {
       const at = f.ownerKey === null ? -1 : rowKeys.indexOf(f.ownerKey);
+      /**
+       * Файл подрядного ШАГА уезжает с КЛЮЧОМ шага, а не с номером этапа:
+       * этапа на момент выбора ещё нет, а номер знает только тот код, который
+       * строит секцию `stages` (`createOrder`). Считать его здесь значило бы
+       * завести второй порядок этапов рядом с настоящим.
+       */
       return {
         item_index: f.itemIndex,
         material_index: at >= 0 ? at : null,
+        ...(f.kind === 'subcontract' && f.ownerKey ? { stage_key: f.ownerKey } : {}),
         file_path: f.path,
         file_name: f.name,
         kind: f.kind,
       };
     })
     // Файл строки закупки, которую человек удалил, в заказ не едет
-    .filter((a) => !(a.material_index === null && a.kind === 'purchase')),
+    .filter((a) => !(a.material_index === null && a.kind === 'purchase'))
+    // Файл подрядного шага без ключа привязать не к чему — он не едет
+    .filter((a) => !(a.kind === 'subcontract' && !a.stage_key)),
   [files]);
 
   /** Убрать файлы удалённой строки листа закупки вместе с объектами в бакете */

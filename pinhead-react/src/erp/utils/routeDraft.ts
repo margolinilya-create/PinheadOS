@@ -327,6 +327,9 @@ export interface LinearStep {
   sortOrder: number;
   /** Индексы этапов-предшественников В ЭТОМ ЖЕ массиве */
   dependsOn: number[];
+  /** Координаты шага в черновике: группа и место внутри неё */
+  gi: number;
+  si: number;
 }
 
 /**
@@ -345,11 +348,19 @@ export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
   let prevIndices: number[] = [];
   let sort = 10;
 
-  for (const group of draft) {
+  for (let gi = 0; gi < draft.length; gi += 1) {
+    const group = draft[gi];
     const mine: number[] = [];
-    for (const step of group) {
+    for (let si = 0; si < group.length; si += 1) {
+      const step = group[si];
       mine.push(out.length);
-      out.push({ step, sortOrder: sort, dependsOn: [...prevIndices] });
+      /**
+       * Координаты шага в черновике едут вместе с ним: по ним форма создания
+       * адресует файлы подрядного шага (`stage:<позиция>:<группа>:<шаг>`).
+       * Считать их отдельным обходом значило бы завести второй порядок этапов
+       * рядом с этим — и однажды они разойдутся.
+       */
+      out.push({ step, sortOrder: sort, dependsOn: [...prevIndices], gi, si });
     }
     if (mine.length > 0) {
       prevIndices = mine;

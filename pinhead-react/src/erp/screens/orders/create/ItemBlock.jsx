@@ -277,7 +277,7 @@ export function ItemBlock({
 
         <TechBlock it={it} i={i} setItem={setItem} attach={attach} />
         <PackagingBlock it={it} i={i} setItem={setItem} attach={attach} />
-        <RouteBlock it={it} i={i} setItem={setItem} route={route} />
+        <RouteBlock it={it} i={i} setItem={setItem} route={route} attach={attach} />
         </div>
   );
 }
@@ -468,9 +468,38 @@ function PackagingBlock({ it, i, setItem, attach }) {
  * одного решения («какие этапы, в каком порядке, чьими руками») разошлись бы
  * в первую же правку, и обе при этом продолжали бы «работать».
  */
-function RouteBlock({ it, i, setItem, route }) {
+function RouteBlock({ it, i, setItem, route, attach }) {
   const edited = Boolean(it.route);
   const issues = routeIssues(route);
+
+  /**
+   * ТЗ и файлы подрядного шага (девятое поле подрядного этапа, документ 20.08).
+   *
+   * Этапа в этот момент ЕЩЁ НЕТ — он создаётся той же транзакцией, что и заказ.
+   * Поэтому файл привязывается к ШАГУ по ключу формы, а в payload превращается
+   * в `stage_index` (номер этапа внутри позиции) — тем же приёмом, что
+   * `material_index` у строк листа закупки.
+   *
+   * Ключ включает и позицию, и шаг: файлы разных позиций попали бы в одну кучу,
+   * а `stage_index` считается ВНУТРИ позиции.
+   */
+  const stageFiles = (gi, si) => {
+    const ownerKey = `stage:${i}:${gi}:${si}`;
+    return (
+      <AttachmentPicker
+        label="+ ТЗ / файлы подрядчику"
+        hint="схема узла, раскладка, образец шва — уедут подрядчику"
+        files={attach.files}
+        kind="subcontract"
+        itemIndex={i}
+        ownerKey={ownerKey}
+        accept="image/*,application/pdf"
+        onAdd={(file) => attach.add(file, 'subcontract', i, ownerKey)}
+        onRetry={attach.retry}
+        onRemove={attach.remove}
+      />
+    );
+  };
 
   return (
     <details className={styles.gridDetails}>
@@ -479,7 +508,11 @@ function RouteBlock({ it, i, setItem, route }) {
         {' '}шагов: {route.length}
       </summary>
       <div className={styles.routeEditor}>
-        <RouteFields draft={route} onChange={(next) => setItem(i, { route: next })} />
+        <RouteFields
+          draft={route}
+          onChange={(next) => setItem(i, { route: next })}
+          renderStageFiles={stageFiles}
+        />
         <RouteIssues issues={issues} />
         {edited && (
           <div className={styles.routeEditorFoot}>
