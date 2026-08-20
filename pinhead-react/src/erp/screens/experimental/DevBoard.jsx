@@ -42,10 +42,12 @@ const LANE_CHIP = {
 };
 
 function DevBoardCard({ row, onOpen }) {
-  const { dev, tasks, states, column } = row;
+  const { dev, tasks, states, column, typeNames } = row;
   const state = states.find((s) => s.stage === column);
-  const blocker = currentBlocker(tasks, null, row.today);
-  const action = nextAction(dev, tasks, null, row.today);
+  // Подписи задач берутся из справочника: без него человек читает код
+  // (`начать patterns`) — то же правило, что в строке списка
+  const blocker = currentBlocker(tasks, typeNames, row.today);
+  const action = nextAction(dev, tasks, typeNames, row.today);
   const due = dev.due_date || dev.order?.due_date || null;
   const left = daysLeft(due);
   const overdue = left !== null && left < 0 && !dev.outcome;
@@ -79,7 +81,7 @@ function DevBoardCard({ row, onOpen }) {
       {/* Текущая задача и следующее действие — то, ради чего доска и нужна */}
       {blocker && (
         <div className={styles.subText}>
-          <Icon name="flask" size={12} /> {taskLabel(blocker)}
+          <Icon name="flask" size={12} /> {taskLabel(blocker, typeNames)}
         </div>
       )}
       {state?.waitingReason && (
@@ -90,17 +92,23 @@ function DevBoardCard({ row, onOpen }) {
       {action && <div className={styles.cellSub}>{action}</div>}
 
       {/* Путь разработки: что выполнено, что идёт, что осталось.
-          Вид индикатора один на весь ERP — своей ленты точек здесь не заводим */}
+          Вид индикатора один на весь ERP — своей ленты точек здесь не заводим.
+          БЕЗ ПОДПИСЕЙ: пять названий шире колонки канбана, и карточка вылезала
+          в соседнюю. Название несут `title` и `aria-label` точки, а полный
+          путь со словами стоит в карточке разработки, где документ его и просит */}
       <StageIndicator
         variant="dots"
         label="Путь разработки"
         nodes={states.map((s) => ({
           key: s.stage,
-          label: DEV_STAGE_LABELS[s.stage],
+          label: '',
           title: DEV_STAGE_LABELS[s.stage],
+          // Пропущенный шаг НЕ помечается галочкой: она означает «выполнено»,
+          // а у образца без печати нанесения не было вовсе. Линия при этом
+          // идёт дальше — путь на нём не обрывается
           state: s.stage === column
             ? (s.lane === 'blocked' ? 'blocked' : 'active')
-            : (s.lane === 'done' || s.lane === 'skipped' ? 'done' : undefined),
+            : (s.lane === 'done' ? 'done' : undefined),
           lineDone: s.lane === 'done' || s.lane === 'skipped',
         }))}
       />
@@ -108,7 +116,7 @@ function DevBoardCard({ row, onOpen }) {
   );
 }
 
-export function DevBoard({ rows, today, onOpen, materialsByOrder }) {
+export function DevBoard({ rows, today, onOpen, materialsByOrder, typeNames }) {
   const { ref } = useScrollHints();
 
   const columns = useMemo(() => {
@@ -118,7 +126,9 @@ export function DevBoard({ rows, today, onOpen, materialsByOrder }) {
         tasks,
         materials: materialsByOrder?.get(dev.order_id) ?? [],
       });
-      return { dev, tasks, states, column: devBoardColumn(states, dev), today };
+      return {
+        dev, tasks, states, column: devBoardColumn(states, dev), today, typeNames,
+      };
     });
     return DEV_STAGE_ORDER.map((stage) => ({
       stage,
@@ -131,7 +141,7 @@ export function DevBoard({ rows, today, onOpen, materialsByOrder }) {
       })).filter((l) => l.rows.length > 0),
       total: prepared.filter((r) => r.column === stage).length,
     }));
-  }, [rows, today, materialsByOrder]);
+  }, [rows, today, materialsByOrder, typeNames]);
 
   return (
     <div className={styles.kanbanBoard} ref={ref}>

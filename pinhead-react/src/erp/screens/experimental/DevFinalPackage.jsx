@@ -4,7 +4,9 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
-import { DEV_ATTACHMENT_KINDS, missingFinalPackage } from '../../utils/finalPackage';
+import {
+  DEV_ATTACHMENT_KINDS, finalPackageProgress, missingFinalPackage,
+} from '../../utils/finalPackage';
 import styles from '../../erp.module.css';
 
 /**
@@ -98,6 +100,7 @@ export function DevFinalPackage({
 }) {
   const pkg = dev.final_package ?? {};
   const missing = missingFinalPackage(dev, attachments);
+  const progress = finalPackageProgress(dev, attachments);
   const filesOf = (kind) => attachments.filter((a) => a.kind === kind);
 
   /** Правка поля внутри JSON: объект пишется ЦЕЛИКОМ, точечных апдейтов нет */
@@ -158,6 +161,10 @@ export function DevFinalPackage({
     <section>
       <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
         Финальный технический пакет
+        {' '}
+        <span className={`${styles.chip} ${missing.length === 0 ? styles.chipReady : styles.chipNeutral}`}>
+          {progress.done} / {progress.total}
+        </span>
       </h3>
       <p className={styles.subText}>
         Собирается для повторного производства: при следующем заказе этой модели

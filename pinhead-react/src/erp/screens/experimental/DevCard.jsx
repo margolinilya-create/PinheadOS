@@ -16,6 +16,10 @@ import {
 import { deptShortName, isProductionDept } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
+import { StageIndicator } from '../../components/StageIndicator';
+import {
+  DEV_STAGE_LABELS, devBoardColumn, devStageStates,
+} from '../../utils/experimentalBoard';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
@@ -150,6 +154,16 @@ export function DevCard({
   const blocker = currentBlocker(tasks, typeNames, today);
   const action = nextAction(dev, tasks, typeNames, today);
   const history = reworkHistory(tasks);
+  /**
+   * Путь разработки СВЕРХУ — прямое требование документа 20.08: «Построение
+   * лекал — Крой — Нанесения — Пошив — Финальный этап… должно быть понятно,
+   * что уже выполнено, что сейчас в работе и что ещё осталось». Считается тем
+   * же `devStageStates`, что и доска: два ответа на один вопрос разошлись бы.
+   */
+  const stageStates = devStageStates({
+    dev, tasks, materials: order?.materials ?? [],
+  });
+  const currentStage = devBoardColumn(stageStates, dev);
 
   const shops = useMemo(
     () => (departments ?? []).filter((d) => d.active && isProductionDept(d)),
@@ -255,6 +269,25 @@ export function DevCard({
           )}
         </div>
       </div>
+
+      <StageIndicator
+        variant="dots"
+        label="Путь разработки"
+        nodes={stageStates.map((st) => ({
+          key: st.stage,
+          label: DEV_STAGE_LABELS[st.stage],
+          title: st.waitingReason
+            ? `${DEV_STAGE_LABELS[st.stage]}: ${st.waitingReason}`
+            : DEV_STAGE_LABELS[st.stage],
+          // Пропущенный шаг НЕ помечается галочкой: она означает «выполнено»,
+          // а у образца без печати нанесения не было вовсе. Линия при этом
+          // идёт дальше — путь на нём не обрывается
+          state: st.stage === currentStage
+            ? (st.lane === 'blocked' ? 'blocked' : 'active')
+            : (st.lane === 'done' ? 'done' : undefined),
+          lineDone: st.lane === 'done' || st.lane === 'skipped',
+        }))}
+      />
 
       {/* Две строки, ради которых заказчик и переделывает раздел: почему стоит
           и что делать дальше. Они видны ВСЕГДА, а не на отдельной вкладке */}

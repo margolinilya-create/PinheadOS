@@ -470,6 +470,7 @@ export default function Experimental() {
           today={today}
           onOpen={openDev}
           materialsByOrder={materialsByOrder}
+          typeNames={typeNames}
         />
       )}
 
