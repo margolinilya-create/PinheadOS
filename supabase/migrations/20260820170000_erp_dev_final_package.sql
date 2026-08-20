@@ -115,6 +115,10 @@ create or replace function public.erp_dev_package_guard()
 returns trigger
 language plpgsql security invoker set search_path = public as $$
 declare
+  -- `array_append`, а НЕ `v_missing || 'строка'`: у оператора `||` есть вариант
+  -- `anyarray || anyarray`, и нетипизированный литерал Postgres предпочитает
+  -- разобрать как массив — «malformed array literal» вместо перечня полей.
+  -- Проверено на боевой базе: страж срабатывал, но объяснял непонятно.
   v_missing text[] := '{}';
   v_pkg     jsonb  := coalesce(new.final_package, '{}'::jsonb);
 begin
@@ -127,53 +131,53 @@ begin
   end if;
 
   if btrim(coalesce(new.pattern_tech_name, '')) = '' then
-    v_missing := v_missing || 'Техническое название лекал';
+    v_missing := array_append(v_missing, 'Техническое название лекал');
   end if;
   if btrim(coalesce(new.pattern_version, '')) = '' then
-    v_missing := v_missing || 'Версия лекал';
+    v_missing := array_append(v_missing, 'Версия лекал');
   end if;
   -- «Файл ИЛИ ссылка на лекала» — документ допускает оба варианта
   if not exists (
     select 1 from public.erp_order_attachments a
      where a.experimental_id = new.id and a.kind = 'dev_pattern')
      and not public.erp_pkg_text_filled(v_pkg, 'pattern_link') then
-    v_missing := v_missing || 'Файл или ссылка на лекала';
+    v_missing := array_append(v_missing, 'Файл или ссылка на лекала');
   end if;
   if not exists (
     select 1 from public.erp_order_attachments a
      where a.experimental_id = new.id and a.kind = 'dev_passport') then
-    v_missing := v_missing || 'Технический паспорт';
+    v_missing := array_append(v_missing, 'Технический паспорт');
   end if;
   if not exists (
     select 1 from public.erp_order_attachments a
      where a.experimental_id = new.id and a.kind = 'dev_photo') then
-    v_missing := v_missing || 'Фото образца';
+    v_missing := array_append(v_missing, 'Фото образца');
   end if;
 
   if not public.erp_pkg_text_filled(v_pkg, 'description') then
-    v_missing := v_missing || 'Описание изделия';
+    v_missing := array_append(v_missing, 'Описание изделия');
   end if;
   if not public.erp_pkg_text_filled(v_pkg, 'fit') then
-    v_missing := v_missing || 'Крой / посадка';
+    v_missing := array_append(v_missing, 'Крой / посадка');
   end if;
   if not public.erp_pkg_text_filled(v_pkg, 'size_row') then
-    v_missing := v_missing || 'Размерный ряд';
+    v_missing := array_append(v_missing, 'Размерный ряд');
   end if;
 
   if not public.erp_pkg_list_filled(v_pkg, 'fabrics') then
-    v_missing := v_missing || 'Доступные ткани';
+    v_missing := array_append(v_missing, 'Доступные ткани');
   end if;
   if not public.erp_pkg_list_filled(v_pkg, 'branding') then
-    v_missing := v_missing || 'Доступные нанесения';
+    v_missing := array_append(v_missing, 'Доступные нанесения');
   end if;
   if not public.erp_pkg_list_filled(v_pkg, 'modifications') then
-    v_missing := v_missing || 'Возможные модификации';
+    v_missing := array_append(v_missing, 'Возможные модификации');
   end if;
 
   if new.price_min is null or new.price_max is null then
-    v_missing := v_missing || 'Ценовая вилка';
+    v_missing := array_append(v_missing, 'Ценовая вилка');
   elsif new.price_min > new.price_max then
-    v_missing := v_missing || 'Ценовая вилка: «от» больше «до»';
+    v_missing := array_append(v_missing, 'Ценовая вилка: «от» больше «до»');
   end if;
 
   if array_length(v_missing, 1) > 0 then
