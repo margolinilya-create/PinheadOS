@@ -158,9 +158,19 @@ function methodsOf(it: FormItemLike): BrandingMethod[] {
  * Пустой массив трактуется как «не трогали»: маршрут без единого этапа —
  * это не решение человека, а состояние, из которого он не вышел.
  */
-export function formItemRoute(it: FormItemLike): RouteGroup[] {
+export function formItemRoute(
+  it: FormItemLike,
+  /**
+   * Контекст ЗАКАЗА, а не позиции: «закупка не требуется» отмечается один раз
+   * на весь заказ. Необязателен — но передать его обязаны ВСЕ трое читателей,
+   * иначе заказ создастся не по тому маршруту, по которому считался гейт ТЗ.
+   * Ровно так уже расходились из-за `materialSource`.
+   */
+  order: { needsPurchase?: boolean } = {},
+): RouteGroup[] {
   if (it.route && it.route.length > 0) return it.route;
   return draftFromRoute(buildItemRoute({
+    needsPurchase: order.needsPurchase,
     /**
      * Приведение типов, а не проверка: в форме эти поля — свободные строки
      * (их выбирают плитками и списками, но хранятся они как есть), а

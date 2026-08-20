@@ -165,8 +165,10 @@ export function CreateOrderModal({ onClose }) {
    * считался бы по одному маршруту, а заказ создавался по другому.
    */
   const itemRoutes = useMemo(
-    () => items.map((it) => formItemRoute(it)),
-    [items],
+    // Контекст заказа обязаны передавать ВСЕ читатели правила: иначе гейт ТЗ
+    // считался бы по маршруту с закупкой, а заказ создался бы без неё
+    () => items.map((it) => formItemRoute(it, { needsPurchase: form.purchase_required !== false })),
+    [items, form.purchase_required],
   );
   const tzItems = useMemo(
     () => buildTzItems(items, itemRoutes, deptByCode), [items, itemRoutes, deptByCode]);
@@ -298,12 +300,13 @@ export function CreateOrderModal({ onClose }) {
   const [open, setOpen] = useState({
     main: true, items: true, extra: true, tz: true,
     /**
-     * Лист закупки свёрнут по умолчанию: закупка нужна не каждому заказу
-     * (готовое изделие, давальческое сырьё, материалы подрядчика), и разворачивать
-     * шесть полей всем подряд значит удлинять форму ради меньшинства случаев.
-     * Резюме в заголовке показывает, есть ли внутри строки.
+     * Лист закупки РАЗВЁРНУТ (правки 20.08). Он был свёрнут, пока внутри лежали
+     * необязательные строки. Теперь там обязательное решение — приложить лист
+     * или отметить «закупка не требуется», — и прятать его за свёрнутым
+     * заголовком значит гарантировать, что человек упрётся в отказ сабмита,
+     * не понимая, где именно поле.
      */
-    purchase: false,
+    purchase: true,
   });
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
@@ -319,9 +322,18 @@ export function CreateOrderModal({ onClose }) {
 
   // Инлайн-валидация: после первой попытки сабмита ошибки живут вместе с вводом
   const [submitted, setSubmitted] = useState(false);
+  /**
+   * Приложен ли файл листа закупки. Считаем по СОСТОЯНИЮ загрузки, а не по
+   * «есть ли выбранный файл»: файл, который ещё грузится или упал, приложенным
+   * не является — иначе форма отпустила бы заказ с листом, которого нет
+   * в Storage (правило «файл уходит в бакет при выборе»).
+   */
+  const hasPurchaseList = attach.files.some(
+    (f) => f.kind === 'purchase_list' && f.state === 'uploaded',
+  );
   const validation = useMemo(
-    () => validateOrderForm(form, items, undefined, purchase),
-    [form, items, purchase],
+    () => validateOrderForm(form, items, undefined, purchase, hasPurchaseList),
+    [form, items, purchase, hasPurchaseList],
   );
   const fieldErrors = submitted ? validation.errors : {};
   const err = (key) => fieldErrors[key];
@@ -401,7 +413,7 @@ export function CreateOrderModal({ onClose }) {
   const submit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
-    const { errors } = validateOrderForm(form, items, undefined, purchase);
+    const { errors } = validateOrderForm(form, items, undefined, purchase, hasPurchaseList);
     if (Object.keys(errors).length > 0) {
       // раскрыть секции с ошибками и проскроллить к первому ошибочному полю
       const inMain = Boolean(errors.title || errors.launch_date || errors.due_date);
@@ -534,6 +546,9 @@ export function CreateOrderModal({ onClose }) {
       stickers: form.stickers,
       stickers_note: form.stickers === 'other' ? form.stickers_note.trim() || undefined : undefined,
       no_chestny_znak: form.no_chestny_znak,
+      // Отметка «Закупка не требуется»: заказ не появится у закупщика,
+      // и этап «Закупка» в маршрут не попадёт (`buildItemRoute`)
+      purchase_required: form.purchase_required !== false,
       items: validItems.map((it) => {
         const prints = it.has_branding ? it.prints : [];
         return {
@@ -619,9 +634,11 @@ export function CreateOrderModal({ onClose }) {
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
   const purchaseFilled = purchase.filter((r) => !isPurchaseRowEmpty(r)).length;
-  const purchaseSummary = purchaseFilled === 0
+  const purchaseSummary = form.purchase_required === false
     ? 'закупка не требуется'
-    : `${purchaseFilled} ${pluralize(purchaseFilled, 'позиция', 'позиции', 'позиций')}`;
+    : hasPurchaseList
+      ? `лист приложен${purchaseFilled ? ` · подсказок: ${purchaseFilled}` : ''}`
+      : 'лист не приложен';
   const tzUploaded = tzDocs.filter((d) => d.state === 'uploaded').length;
   const tzSummary = tzUploading
     ? 'загружается…'
@@ -837,6 +854,8 @@ export function CreateOrderModal({ onClose }) {
           addRow={addPurchaseRow}
           setRow={setPurchaseRow}
           removeRow={removePurchaseRow}
+          notRequired={form.purchase_required === false}
+          onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
         />
         </FormSection>
 

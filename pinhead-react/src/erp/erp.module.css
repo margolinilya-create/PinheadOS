@@ -1732,6 +1732,13 @@ a.cellTitle:hover { color: var(--accent); }
 
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
+/* Незаполненный БЛОК, а не поле: у листа закупки ошибка относится к «файл
+   приложен или отмечено, что не нужен», и подсветить один input тут нечего */
+.invalidBlock {
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+}
 .fieldError { color: var(--color-error-ink); font-size: 12px; }
 /* Предупреждение под полем: не ошибка (заполнено верно), но требует внимания —
    поэтому цвет предупреждения, а не ошибки, и поле НЕ помечается aria-invalid. */

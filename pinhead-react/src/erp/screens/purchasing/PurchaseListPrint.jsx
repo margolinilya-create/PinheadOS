@@ -86,7 +86,13 @@ export default function PurchaseListPrint() {
         </Button>
       </div>
 
-      <h1 className={styles.printTitle}>Лист закупки</h1>
+      {/*
+        Документ называется по тому, ЧТО в нём: это строки закупщика, а не
+        лист менеджера. Лист менеджера — файл во вкладке «Файлы» заказа
+        (правки 20.08), и выдавать одно за другое нельзя: у них разные авторы
+        и разный смысл — потребность против факта.
+      */}
+      <h1 className={styles.printTitle}>Закупка по заказу</h1>
       <dl className={styles.printFacts}>
         <dt>Заказ</dt>
         <dd>№{order.bitrix_id || '—'} · {order.title}</dd>
@@ -102,7 +108,8 @@ export default function PurchaseListPrint() {
 
       {total === 0 ? (
         <p className={styles.subText}>
-          Лист закупки пуст — по этому заказу закупка не требуется.
+          Строк закупки нет: закупщик ещё не заводил позиции
+          {order.purchase_required === false ? ' — по заказу отмечено «закупка не требуется»' : ''}.
         </p>
       ) : groups.map((g, gi) => (
         <section key={gi} className={styles.printSection}>

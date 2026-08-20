@@ -168,6 +168,13 @@ export interface DraftForm {
   stickers: string;
   stickers_note: string;
   no_chestny_znak: boolean;
+  /**
+   * Требуется ли закупка (правки заказчика 20.08). Отметка МЕНЕДЖЕРА, а не
+   * вывод из пустого листа: «закупать нечего» и «до закупки ещё не дошли» —
+   * разные состояния, и второе не должно молча закрывать заказу путь
+   * к закупщику. `false` вырезает этап `supply` из маршрута.
+   */
+  purchase_required: boolean;
 }
 
 export const EMPTY_PRINT: DraftPrint = {
@@ -222,6 +229,7 @@ export function emptyOrderForm(launchDate: string = factoryToday()): DraftForm {
     stickers: 'none',
     stickers_note: '',
     no_chestny_znak: false,
+    purchase_required: true,
   };
 }
 
@@ -342,6 +350,11 @@ export function validateOrderForm(
   items: DraftItem[],
   today: string = factoryToday(),
   purchase: DraftPurchaseRow[] = [],
+  /**
+   * Приложен ли ФАЙЛ листа закупки (правки 20.08). Пятым аргументом и
+   * необязательным — прежние вызовы обязаны работать как раньше.
+   */
+  hasPurchaseList = false,
 ): OrderFormValidation {
   const errors: Record<string, string> = {};
   const missing: string[] = [];
@@ -399,6 +412,20 @@ export function validateOrderForm(
    * Совсем пустая строка — не ошибка: её отбрасывает сам сабмит
    * (`isPurchaseRowEmpty`), и человек мог просто нажать «+ Позиция закупки».
    */
+  /**
+   * ОДНО ИЗ ДВУХ ОБЯЗАТЕЛЬНО (документ 20.08): либо приложен файл листа
+   * закупки, либо явно отмечено «Закупка не требуется». «Если не выполнено
+   * ни одно условие — заказ создать нельзя».
+   *
+   * Проверка стоит ЗДЕСЬ, а не в сабмите: только отсюда работают рамка,
+   * `aria-invalid`, автоскролл и раскрытие секции. Тост для этого не годится —
+   * правило волны UX-4.
+   */
+  if (form.purchase_required !== false && !hasPurchaseList) {
+    errors.purchase_list = 'Приложите лист закупки или отметьте «Закупка не требуется»';
+    missing.push('Лист закупки');
+  }
+
   purchase.forEach((r, i) => {
     if (isPurchaseRowEmpty(r)) return;
     const pos = purchase.length > 1 ? ` (строка ${i + 1})` : '';

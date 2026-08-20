@@ -7,6 +7,8 @@ import { useStagePermissions } from '../../store/useStagePermissions';
 import { OrderLink } from '../../components/OrderLink';
 import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { pluralize } from '../../../utils/i18n';
+import { purchaseListFile } from '../../utils/attachments';
+import { supabase } from '../../../lib/supabase';
 import { daysLeft } from '../../utils/time';
 import { dueLabelCompact } from '../../utils/format';
 import {
@@ -73,6 +75,7 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
   const [busy, setBusy] = useState(false);
   const stages = useMemo(
     () => openSupplyStages(order, supplyDeptId), [order, supplyDeptId]);
+  const listFile = purchaseListFile(order);
   const summary = useMemo(
     () => supplyMaterialSummary(order.materials), [order.materials]);
   const state = supplyState(stages);
@@ -131,12 +134,47 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
           №{order.bitrix_id || '—'}
         </OrderLink>
         <div className={styles.cellSub} title={order.title}>{order.title}</div>
+        {/* Ответственный менеджер — п. 6 документа: закупщику есть кому
+            задать вопрос по листу, не открывая карточку заказа */}
+        {order.manager && (
+          <div className={styles.subText}>менеджер: {order.manager}</div>
+        )}
       </td>
       <td>{dueLabelCompact(left)}</td>
       <td>
         {stages.length} {pluralize(stages.length, 'позиция', 'позиции', 'позиций')}
       </td>
-      <td><MaterialsCell summary={summary} /></td>
+      <td>
+        {/*
+          Исходный лист лежит РЯДОМ со строками — прямое требование п. 6:
+          «исходный файл должен быть всегда доступен рядом с фактическими
+          строками закупки, чтобы закупщику не приходилось искать его
+          в карточке заказа».
+        */}
+        {listFile ? (
+          <a
+            href={supabase.storage.from('erp-attachments').getPublicUrl(listFile.file_path).data.publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={listFile.file_name || 'Лист закупки'}
+          >
+            {listFile.file_name || 'Лист закупки'}
+          </a>
+        ) : (
+          <span className={styles.cellWithIcon}>
+            <Icon name="alert" size={13} />
+            лист не приложен
+          </span>
+        )}
+      </td>
+      <td>
+        <MaterialsCell summary={summary} />
+        {summary.total > 0 && (
+          <div className={styles.subText}>
+            оформлено {summary.ordered} · в пути {summary.inTransit} · пришло {summary.arrived}
+          </div>
+        )}
+      </td>
       <td>
         <Badge variant={STATE[state].variant}>{STATE[state].label}</Badge>
         {state === 'blocked' && (
@@ -151,8 +189,10 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
         <div className={styles.queueActions}>
           {/* Лист закупки, сформированный менеджером при создании заказа:
               закупщик читает исходное задание, а не собирает его заново */}
+          {/* Печатная форма собирается по ФАКТИЧЕСКИМ строкам закупщика:
+              исходный лист менеджера — файл в колонке слева */}
           <ButtonLink to={`/orders/${order.id}/purchase-list`} variant="ghost">
-            Лист закупки
+            Печать
           </ButtonLink>
           <Button variant="ghost" disabled={busy} onClick={() => onAddMaterial(order.id)}>
             + Материал
@@ -202,6 +242,7 @@ export function SupplyQueue({ orders, supplyDept, onTake, onClose, onAddMaterial
                 <th>№ заказа</th>
                 <th>Срок</th>
                 <th>Этапов</th>
+                <th>Лист закупки</th>
                 <th>Материалы</th>
                 <th>Статус</th>
                 <th>Действие</th>

@@ -38,6 +38,13 @@ export function AttachmentPicker({
   onRetry,
   onRemove,
   hint,
+  /**
+   * Несколько файлов — значение по умолчанию: документ требовал этого
+   * во всех шести местах, где примитив стоит. Лист закупки — исключение
+   * (правки 20.08): он ОДИН, и «заменить файл до создания заказа» читается
+   * как замена, а не как добавление второго рядом.
+   */
+  multiple = true,
 }) {
   const inputRef = useRef(null);
   const mine = files.filter((f) => f.kind === kind
@@ -60,7 +67,7 @@ export function AttachmentPicker({
         ref={inputRef}
         type="file"
         accept={accept}
-        multiple
+        multiple={multiple}
         className={styles.visuallyHidden}
         aria-label={label}
         onChange={(e) => {

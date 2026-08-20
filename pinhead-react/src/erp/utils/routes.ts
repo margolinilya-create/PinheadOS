@@ -136,16 +136,36 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
 }
 
 /**
- * Маршрут позиции с учётом подряда: если материал даёт подрядчик, закупку не заводим —
- * этап supply вырезается, и его убирают из depends_on остальных, чтобы не осиротить
- * зависимость. Единый источник для стора (createOrder) и превью маршрута в форме
- * создания: раньше правило жило только в ordersSlice, и превью разошлось бы с фактом.
+ * Маршрут позиции с учётом закупки: если закупать нечего — этап `supply`
+ * вырезается, и его убирают из `depends_on` остальных, чтобы не осиротить
+ * зависимость. Единый источник для стора (`createOrder`) и превью маршрута
+ * в форме создания: раньше правило жило только в `ordersSlice`, и превью
+ * разошлось бы с фактом.
+ *
+ * ДВА ОСНОВАНИЯ ВЫРЕЗАТЬ ЗАКУПКУ, и главное из них — новое.
+ *
+ * `needsPurchase = false` — менеджер отметил «Закупка не требуется» (правки
+ * 20.08). Документ требует этого прямо: «сам факт наличия подряда не означает,
+ * что что-то нужно покупать… закупка создаётся только тогда, когда для заказа
+ * действительно требуется закупка». Раньше этап `supply` стоял в НАЧАЛЕ
+ * маршрута у любого типа производства — то есть закупка заводилась всегда,
+ * и заказ, где покупать нечего, всё равно ждал закупщика.
+ *
+ * `materialSource = 'contractor'` при подряде — прежнее частное правило.
+ * Оно поглощается первым (материал подрядчика = закупать нечего), но оставлено
+ * явным: у заказов, заведённых до отметки, `purchase_required` стоит `true`
+ * по умолчанию, и без этой ветки им дорисовало бы закупку задним числом.
  */
 export function buildItemRoute(input: BuildRouteInput & {
   materialSource?: string | null;
+  /** Требуется ли закупка по заказу; не передано — считаем, что да */
+  needsPurchase?: boolean;
 }): RouteStage[] {
   const route = buildRoute(input);
-  if (input.productionType !== 'outsource' || input.materialSource !== 'contractor') return route;
+  const contractorMaterial =
+    input.productionType === 'outsource' && input.materialSource === 'contractor';
+  const skipSupply = input.needsPurchase === false || contractorMaterial;
+  if (!skipSupply) return route;
   return route
     .filter((r) => r.departmentCode !== 'supply')
     .map((r) => ({ ...r, dependsOnCodes: r.dependsOnCodes.filter((c) => c !== 'supply') }));

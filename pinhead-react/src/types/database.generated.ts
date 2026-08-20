@@ -1204,6 +1204,7 @@ export type Database = {
           packaging: string
           packaging_note: string | null
           priority: number
+          purchase_required: boolean
           shipped_at: string | null
           shipped_by: string | null
           shipped_status: string
@@ -1233,6 +1234,7 @@ export type Database = {
           packaging?: string
           packaging_note?: string | null
           priority?: number
+          purchase_required?: boolean
           shipped_at?: string | null
           shipped_by?: string | null
           shipped_status?: string
@@ -1262,6 +1264,7 @@ export type Database = {
           packaging?: string
           packaging_note?: string | null
           priority?: number
+          purchase_required?: boolean
           shipped_at?: string | null
           shipped_by?: string | null
           shipped_status?: string
@@ -1878,6 +1881,7 @@ export type Database = {
           marking_type: string | null
           note: string | null
           order_id: string
+          stage_id: string | null
           status: string
           task_type: string
           updated_at: string
@@ -1890,6 +1894,7 @@ export type Database = {
           marking_type?: string | null
           note?: string | null
           order_id: string
+          stage_id?: string | null
           status: string
           task_type: string
           updated_at?: string
@@ -1902,6 +1907,7 @@ export type Database = {
           marking_type?: string | null
           note?: string | null
           order_id?: string
+          stage_id?: string | null
           status?: string
           task_type?: string
           updated_at?: string
@@ -1919,6 +1925,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_warehouse_tasks_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
             referencedColumns: ["id"]
           },
         ]
@@ -2451,6 +2464,55 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_subcontract_apply: {
+        Args: {
+          p_author?: string
+          p_comment?: string
+          p_id: string
+          p_kind?: string
+          p_moved_on?: string
+          p_phase: string
+          p_qty?: number
+        }
+        Returns: {
+          comment: string | null
+          contractor: string | null
+          cost: number | null
+          created_at: string
+          delay_comment: string | null
+          id: string
+          item_id: string | null
+          material_source: string
+          materials_note: string | null
+          materials_qty: string | null
+          materials_sent_on: string | null
+          op_type: string
+          operation: string
+          order_id: string
+          paid_amount: number | null
+          payment_status: string
+          phase: string
+          planned_date: string | null
+          qty: number | null
+          qty_accepted: number
+          qty_returned: number
+          qty_sent: number
+          responsible: string | null
+          return_dept: string | null
+          returned_date: string | null
+          send_plan_date: string | null
+          sent_date: string | null
+          stage_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_subcontracting"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       erp_warehouse_submit_report: {
         Args: {
           p_comment?: string
@@ -2468,6 +2530,7 @@ export type Database = {
           marking_type: string | null
           note: string | null
           order_id: string
+          stage_id: string | null
           status: string
           task_type: string
           updated_at: string

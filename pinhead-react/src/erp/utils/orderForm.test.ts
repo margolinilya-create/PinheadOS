@@ -197,7 +197,14 @@ describe('gridToPayload', () => {
 
 describe('validateOrderForm', () => {
   const today = '2026-07-17';
-  const okForm = { ...emptyOrderForm(today), title: 'Заказ' };
+  /**
+   * Базовая ВАЛИДНАЯ форма. С 20.08 в неё входит отметка «закупка
+   * не требуется»: заказ без листа закупки и без отметки создать нельзя
+   * (документ: «если не выполнено ни одно условие — заказ создать нельзя»),
+   * и без этого поля каждая проверка ниже спотыкалась бы о лист закупки
+   * вместо того, что она проверяет.
+   */
+  const okForm = { ...emptyOrderForm(today), title: 'Заказ', purchase_required: false };
 
   it('пустое название — ошибка с привязкой к полю', () => {
     const v = validateOrderForm({ ...okForm, title: '  ' }, [item({ product_type: 'ф', qty: '1' })], today);
@@ -349,6 +356,41 @@ describe('validateOrderForm', () => {
       const v = validateOrderForm(okForm, okItems, today,
         [row({ name: 'Футер 320', qty_expected: '120' })]);
       expect(v.errors).toEqual({});
+    });
+
+    /**
+     * ГЛАВНОЕ ПРАВИЛО ДОКУМЕНТА 20.08: потребность задаёт ФАЙЛ, и без него
+     * (или без явной отметки «закупка не требуется») заказ создать нельзя.
+     * Проверка живёт здесь, а не в сабмите: только отсюда работают рамка,
+     * `aria-invalid`, автоскролл и раскрытие секции.
+     */
+    describe('файл листа или отметка «не требуется»', () => {
+      const needsPurchase = { ...okForm, purchase_required: true };
+
+      it('ни файла, ни отметки — заказ не создать', () => {
+        const v = validateOrderForm(needsPurchase, okItems, today, [], false);
+        expect(v.errors.purchase_list)
+          .toBe('Приложите лист закупки или отметьте «Закупка не требуется»');
+        expect(v.missing).toContain('Лист закупки');
+      });
+
+      it('файл приложен — проходит', () => {
+        const v = validateOrderForm(needsPurchase, okItems, today, [], true);
+        expect(v.errors.purchase_list).toBeUndefined();
+      });
+
+      it('отмечено «закупка не требуется» — файл не нужен', () => {
+        const v = validateOrderForm(okForm, okItems, today, [], false);
+        expect(v.errors.purchase_list).toBeUndefined();
+      });
+
+      it('строки-подсказки листа НЕ ЗАМЕНЯЮТ', () => {
+        // Иначе «я же написал две строки» читалось бы как приложенный лист,
+        // а закупщик получил бы подсказки вместо потребности
+        const v = validateOrderForm(needsPurchase, okItems, today,
+          [row({ name: 'Футер 320', qty_expected: '120' })], false);
+        expect(v.errors.purchase_list).toBeDefined();
+      });
     });
 
     it('ошибки нумеруются по строкам', () => {

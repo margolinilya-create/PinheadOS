@@ -82,6 +82,12 @@ export interface SupplyMaterialSummary {
    * факт с планом, и без него сделка дальше не идёт (правка 4.1.3).
    */
   missingPlan: ErpMaterial[];
+  /** Сколько строк закупщик уже оформил (есть заказанное кол-во или дата заказа) */
+  ordered: number;
+  /** Сколько в пути */
+  inTransit: number;
+  /** Сколько пришло или зарезервировано со склада */
+  arrived: number;
 }
 
 export function supplyMaterialSummary(
@@ -95,6 +101,20 @@ export function supplyMaterialSummary(
     allSettled: list.length > 0 && settled === list.length,
     missingPlan: list.filter(
       (m) => m.source === 'purchase' && (m.qty_expected == null || m.qty_expected <= 0)),
+    /**
+     * Счётчики шапки карточки закупки (документ 20.08, п. 6): «общее количество
+     * позиций закупки; сколько оформлено; сколько в пути; сколько уже пришло».
+     *
+     * «Оформлено» — это ФАКТ ЗАКУПЩИКА, а не статус: строка считается
+     * оформленной, когда указано, сколько заказано, или дата заказа. Статус
+     * `ordered` для этого не годится — его ставят и до того, как узнали
+     * количество и цену, а документ спрашивает именно «сколько оформлено».
+     */
+    ordered: list.filter(
+      (m) => (m.qty_ordered != null && m.qty_ordered > 0) || Boolean(m.ordered_on)).length,
+    inTransit: list.filter(
+      (m) => m.status === 'ordered' || m.status === 'in_transit' || m.status === 'partial').length,
+    arrived: list.filter((m) => m.status === 'received' || m.status === 'reserved').length,
   };
 }
 

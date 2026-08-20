@@ -94,6 +94,8 @@ function statusGroup(m, today) {
 const EMPTY_MAT = {
   order_id: '', kind: 'fabric', name: '', source: 'purchase', supplier: '',
   color: '', article: '', qty: '', qty_expected: '', unit: '', price_per_unit: '', eta_date: '',
+  // Факт закупщика (документ 20.08, п. 4): сколько заказал и когда
+  qty_ordered: '', ordered_on: '',
 };
 
 /**
@@ -135,6 +137,8 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
       unit: form.unit.trim() || null,
       price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
       eta_date: form.eta_date || null,
+      qty_ordered: form.qty_ordered === '' ? null : Number(form.qty_ordered),
+      ordered_on: form.ordered_on || null,
       status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
     });
     setSaving(false);
@@ -170,6 +174,26 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Артикул</span>
             <input className={styles.input} value={form.article} onChange={(e) => set({ article: e.target.value })} aria-label="Артикул" />
+          </label>
+          {/* Факт закупщика (документ 20.08, п. 4). Заводя строку, он уже знает,
+              сколько заказал и когда: спрашивать это потом отдельным заходом
+              значит гарантировать, что поле останется пустым */}
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Заказано</span>
+            <input
+              type="number" min="0" step="any" className={styles.input}
+              value={form.qty_ordered}
+              onChange={(e) => set({ qty_ordered: e.target.value.replace('-', '') })}
+              aria-label="Сколько заказано"
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Дата заказа</span>
+            <DateField
+              value={form.ordered_on}
+              onChange={(v) => set({ ordered_on: v })}
+              aria-label="Дата заказа"
+            />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Источник</span>
@@ -466,7 +490,7 @@ export default function FabricPurchasing() {
                 */}
                 <tr className={styles.groupHeadRow}>
                   <th className={styles.groupHead} colSpan={4}>Потребность — задал менеджер</th>
-                  <th className={styles.groupHead} colSpan={6}>Факт — ведёт закупка</th>
+                  <th className={styles.groupHead} colSpan={10}>Факт — ведёт закупка</th>
                 </tr>
                 <tr>
                   <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
@@ -475,6 +499,15 @@ export default function FabricPurchasing() {
                   <th>Комментарий менеджера</th>
                   <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
                   <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
+                  {/* Факт закупщика (документ 20.08, п. 4): «сколько фактически
+                      заказано · цена за единицу · фактическая стоимость закупки ·
+                      дата заказа · плановая дата прихода». Колонки в БД были
+                      с 16.08, но не выведены НИ В ОДИН экран */}
+                  <th>Заказано</th>
+                  <th>Цена за ед.</th>
+                  <th>Стоимость</th>
+                  <th>Дата заказа</th>
+                  <th>План прихода</th>
                   <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
                   <th>Ответственный</th>
                   <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
@@ -537,6 +570,53 @@ export default function FabricPurchasing() {
                         className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"
                         onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.article || null)) updateMaterial(m.id, { article: v }); }}
                         aria-label={`Артикул ${m.name}`} style={{ maxWidth: 110 }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number" min="0" step="any"
+                        className={`${styles.input} ${styles.inputSm}`}
+                        defaultValue={m.qty_ordered ?? ''} placeholder="—"
+                        onBlur={(e) => {
+                          const v = e.target.value === '' ? null : Number(e.target.value);
+                          if (v !== (m.qty_ordered ?? null)) updateMaterial(m.id, { qty_ordered: v });
+                        }}
+                        aria-label={`Сколько заказано ${m.name}`} style={{ maxWidth: 90 }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number" min="0" step="any"
+                        className={`${styles.input} ${styles.inputSm}`}
+                        defaultValue={m.price_per_unit ?? ''} placeholder="—"
+                        onBlur={(e) => {
+                          const v = e.target.value === '' ? null : Number(e.target.value);
+                          if (v !== (m.price_per_unit ?? null)) updateMaterial(m.id, { price_per_unit: v });
+                        }}
+                        aria-label={`Цена за единицу ${m.name}`} style={{ maxWidth: 90 }}
+                      />
+                    </td>
+                    <td className={styles.progressCell}>
+                      {/* СЧИТАЕТСЯ, а не хранится: производная от двух полей
+                          рядом с ними — это второй писатель одного числа */}
+                      {m.qty_ordered != null && m.price_per_unit != null
+                        ? Math.round(m.qty_ordered * m.price_per_unit).toLocaleString('ru-RU')
+                        : '—'}
+                    </td>
+                    <td>
+                      <DateField
+                        showFormatHint={false}
+                        value={m.ordered_on || ''}
+                        onChange={(v) => updateMaterial(m.id, { ordered_on: v || null })}
+                        aria-label={`Дата заказа ${m.name}`}
+                      />
+                    </td>
+                    <td>
+                      <DateField
+                        showFormatHint={false}
+                        value={m.eta_date || ''}
+                        onChange={(v) => updateMaterial(m.id, { eta_date: v || null })}
+                        aria-label={`План прихода ${m.name}`}
                       />
                     </td>
                     <td>
