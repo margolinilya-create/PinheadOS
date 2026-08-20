@@ -2012,6 +2012,85 @@ describe('useErpStore — экспериментальный цех: задач�
     expect(upd?.patch.closed_at).toBeTruthy();
   });
 
+  it('approveSample хранит РЕШЕНИЕ человека, а не производную от задач', async () => {
+    // Закрытая примерка одинаково означает и «принято», и «не принято»:
+    // разница жила в свободном тексте `result`, то есть не читалась ничем
+    seed();
+    await useErpStore.getState().approveSample('e1', 'посадка ок');
+    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental');
+    expect(upd?.patch.sample_approved_at).toBeTruthy();
+    expect(upd?.patch.sample_approved_by).toBeTruthy();
+    expect(upd?.patch.sample_approved_note).toBe('посадка ок');
+  });
+
+  it('файл пакета уходит в бакет и привязывается к РАЗРАБОТКЕ', async () => {
+    seed();
+    const file = new File(['x'], 'Техпаспорт.pdf', { type: 'application/pdf' });
+    const ok = await useErpStore.getState().uploadDevFile({
+      devId: 'e1', orderId: 'o1', kind: 'dev_passport', file,
+    });
+    expect(ok).toBe(true);
+    // Ключ объекта строго ASCII — Storage не принимает кириллицу
+    const up = h.uploadCalls.at(-1)!;
+    expect(up.path).toMatch(/^att\/o1\/dev_passport\//);
+    expect(up.path).toMatch(/^[\x20-\x7e]+$/);
+    const ins = h.insertCalls.find((c) => c.table === 'erp_order_attachments');
+    expect((ins?.row as Record<string, unknown>).experimental_id).toBe('e1');
+    // Человекочитаемое имя остаётся в строке БД
+    expect((ins?.row as Record<string, unknown>).file_name).toBe('Техпаспорт.pdf');
+  });
+
+  it('не привязавшийся файл убирается за собой', async () => {
+    // Иначе он остаётся в бакете навсегда: платный, никем не учтённый
+    // и доступный по ссылке, пока бакет публичный
+    seed();
+    h.insertErrors.push({ message: 'insert failed' });
+    const file = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    const ok = await useErpStore.getState().uploadDevFile({
+      devId: 'e1', orderId: 'o1', kind: 'dev_photo', file,
+    });
+    expect(ok).toBe(false);
+    expect(h.removeCalls.at(-1)?.paths?.[0]).toBe(h.uploadCalls.at(-1)?.path);
+  });
+
+  it('пустой ответ DELETE — это ОТКАЗ RLS, а не «файл снят»', async () => {
+    /**
+     * RLS запрещает DELETE через `USING`, то есть отдаёт «0 строк», а не
+     * ошибку. Клиент, проверяющий только `error`, показал бы зелёное
+     * «файл снят» и убрал бы его с экрана — до следующей загрузки.
+     */
+    useErpStore.setState({
+      experimental: [{
+        id: 'e1', order_id: 'o1', item_id: 'i1', tasks: [],
+        attachments: [{ id: 'a1', kind: 'dev_photo', file_path: 'att/o1/dev_photo/p.jpg' }],
+      }],
+      experimentalLoaded: true,
+    } as never);
+    h.deletedRows = [];
+    const ok = await useErpStore.getState().deleteDevFile('e1', 'a1');
+    expect(ok).toBe(false);
+    const dev = useErpStore.getState().experimental[0] as unknown as
+      { attachments: unknown[] };
+    expect(dev.attachments).toHaveLength(1);
+    // Файл в бакете НЕ трогаем: строка осталась, и ссылка на него живая
+    expect(h.removeCalls.some((c) => c.paths.includes('att/o1/dev_photo/p.jpg')))
+      .toBe(false);
+  });
+
+  it('снятый файл убирается и из бакета — строка ушла, объект не нужен', async () => {
+    useErpStore.setState({
+      experimental: [{
+        id: 'e1', order_id: 'o1', item_id: 'i1', tasks: [],
+        attachments: [{ id: 'a1', kind: 'dev_photo', file_path: 'att/o1/dev_photo/p.jpg' }],
+      }],
+      experimentalLoaded: true,
+    } as never);
+    h.deletedRows = [{ id: 'a1' }];
+    const ok = await useErpStore.getState().deleteDevFile('e1', 'a1');
+    expect(ok).toBe(true);
+    expect(h.removeCalls.at(-1)?.paths).toEqual(['att/o1/dev_photo/p.jpg']);
+  });
+
   it('конструктор едет в колонку `constructor` под своим именем поля', async () => {
     // `constructorName` в типе — обход столкновения с Object.prototype.constructor
     seed();
