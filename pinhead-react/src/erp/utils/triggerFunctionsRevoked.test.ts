@@ -62,15 +62,26 @@ function firstTriggerFunctionDefs(): Map<string, string> {
   return out;
 }
 
-/** Имя → файл миграции, где у функции явно отозван EXECUTE */
+/**
+ * Имя → файл миграции, где у функции ПОЛНОЦЕННО отозван EXECUTE.
+ *
+ * Полноценно — это `from public, anon, authenticated`. Половинный отзыв
+ * (`from public, anon`) не снимает ПРЯМОЙ грант, который Supabase выдаёт роли
+ * `authenticated` через default privileges схемы, и функция остаётся
+ * вызываемой через REST. Так и случилось с `erp_subcontract_returned_receipt`:
+ * отзыв был, тест был зелёным, а предупреждение адвизора висело.
+ */
 function explicitRevokes(): Map<string, string> {
   const out = new Map<string, string>();
   for (const name of FILES) {
-    const re = /revoke execute on function public\.(\w+)\s*\(/gi;
+    const re = /revoke execute on function public\.(\w+)\s*\([^)]*\)\s*([^;]*);/gi;
     let m: RegExpExecArray | null;
     const text = sql(name);
     while ((m = re.exec(text)) !== null) {
-      if (!out.has(m[1])) out.set(m[1], name);
+      const roles = m[2].toLowerCase();
+      const full = roles.includes('public') && roles.includes('anon')
+        && roles.includes('authenticated');
+      if (full && !out.has(m[1])) out.set(m[1], name);
     }
   }
   return out;
@@ -106,7 +117,8 @@ describe('триггерные функции недоступны через RE
       const revoked = REVOKES.get(fn);
       if (!revoked || revoked < file) {
         problems.push(
-          `${fn}() заведена в ${file} — после обхода ${SWEEP} — и не имеет своего revoke`,
+          `${fn}() заведена в ${file} — после обхода ${SWEEP} — и не имеет ПОЛНОГО `
+          + 'revoke (from public, anon, authenticated)',
         );
       }
     }
