@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CreateOrderModal } from './CreateOrderModal';
 import { useErpStore } from '../../store/useErpStore';
@@ -195,5 +195,27 @@ describe('CreateOrderModal — ТЗ в PDF', () => {
       target: { files: [new File(['x'], 'скан.jpg', { type: 'image/jpeg' })] },
     });
     expect(uploadCalls).toHaveLength(0);
+  });
+});
+
+/**
+ * «Подряд» перестал быть типом производства (правки заказчика 20.08).
+ *
+ * Документ требует прямо: «убрать "Подряд" как отдельный тип производства».
+ * Подряд — признак ЭТАПА: исполнитель «Подрядчик» у любого шага маршрута,
+ * сколько угодно раз. Оставленная плитка означала бы два способа задать одно
+ * и то же, причём второй считал бы маршрут по частному правилу
+ * `material_source` — то есть заказ уезжал бы не по тому маршруту.
+ */
+describe('CreateOrderModal — тип производства', () => {
+  it('плитки «Подряд» в форме нет, а остальные типы на месте', async () => {
+    setup();
+    const group = await screen.findByRole('radiogroup', { name: 'Тип производства' });
+    const names = within(group).getAllByRole('radio').map((b) => b.textContent);
+    expect(names).not.toContain('Подряд');
+    // Сторож не должен быть зелёным на пустом списке
+    expect(names).toEqual(
+      expect.arrayContaining(['Пошив', 'Образцы', 'Крой', 'Готовое изделие']),
+    );
   });
 });

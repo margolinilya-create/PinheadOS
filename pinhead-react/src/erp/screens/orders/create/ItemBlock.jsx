@@ -111,19 +111,32 @@ export function ItemBlock({
       )}
       <div className={styles.field}>
         <span className={styles.fieldLabel}>Тип производства</span>
+        {/*
+          «Подряд» ТИПОМ ПРОИЗВОДСТВА БОЛЬШЕ НЕ ВЫБИРАЕТСЯ (правки 20.08):
+          документ требует этого прямо — «убрать "Подряд" как отдельный тип
+          производства». Подряд — признак ЭТАПА, и задаётся он в маршруте
+          ниже: исполнитель «Подрядчик» у любого шага, сколько угодно раз.
+
+          Значение `outsource` остаётся в схеме и в подписях: его несут заказы,
+          заведённые раньше, и карточка заказа обязана их показывать. Убрана
+          ровно точка ВВОДА — иначе одно и то же задавалось бы двумя способами,
+          а маршрут считался бы по частному правилу `material_source`.
+        */}
         <div className={styles.tileRow} role="radiogroup" aria-label="Тип производства">
-          {Object.entries(PRODUCTION_TYPE_LABELS).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={it.production_type === v}
-              className={`${styles.tile} ${it.production_type === v ? styles.tileActive : ''}`}
-              onClick={() => setItem(i, { production_type: v })}
-            >
-              {label}
-            </button>
-          ))}
+          {Object.entries(PRODUCTION_TYPE_LABELS)
+            .filter(([v]) => v !== 'outsource')
+            .map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={it.production_type === v}
+                className={`${styles.tile} ${it.production_type === v ? styles.tileActive : ''}`}
+                onClick={() => setItem(i, { production_type: v })}
+              >
+                {label}
+              </button>
+            ))}
         </div>
       </div>
       {/*
