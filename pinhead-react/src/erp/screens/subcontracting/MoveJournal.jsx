@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { SUBCONTRACT_MOVE_LABELS } from '../../types';
@@ -6,7 +5,6 @@ import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { formatDateShort } from '../../utils/time';
 import { subcontractShortfall } from '../../utils/outsourcing';
-import { factoryToday } from '../../../utils/date';
 import styles from '../../erp.module.css';
 
 /**
@@ -25,18 +23,8 @@ import styles from '../../erp.module.css';
  * ровно так же, как у этапов цеха.
  */
 
-const KINDS = ['send', 'return', 'accept'];
-
 export function MoveJournal({ op, canManage }) {
-  const { addSubcontractMove, updateSubcontractOp } = useErpStore(useShallow((s) => ({
-    addSubcontractMove: s.addSubcontractMove,
-    updateSubcontractOp: s.updateSubcontractOp,
-  })));
-  const [kind, setKind] = useState('send');
-  const [qty, setQty] = useState('');
-  const [movedOn, setMovedOn] = useState(factoryToday());
-  const [comment, setComment] = useState('');
-  const [saving, setSaving] = useState(false);
+  const updateSubcontractOp = useErpStore(useShallow((s) => s.updateSubcontractOp));
 
   const moves = [...(op.moves ?? [])].sort((a, b) => b.moved_on.localeCompare(a.moved_on));
   const shortfall = subcontractShortfall(op);
@@ -46,15 +34,6 @@ export function MoveJournal({ op, canManage }) {
   const saveField = (field, value) => {
     if (value === (op[field] ?? null)) return;
     updateSubcontractOp(op.id, { [field]: value });
-  };
-
-  const submit = async () => {
-    setSaving(true);
-    const ok = await addSubcontractMove(op.id, {
-      kind, qty: Number(qty), movedOn, comment,
-    });
-    setSaving(false);
-    if (ok) { setQty(''); setComment(''); }
   };
 
   return (
@@ -131,40 +110,16 @@ export function MoveJournal({ op, canManage }) {
         />
       </div>
 
-      {canManage && (
-        <div className={styles.addMatRow}>
-          <select
-            className={styles.select} value={kind}
-            onChange={(e) => setKind(e.target.value)}
-            aria-label="Вид перемещения"
-          >
-            {KINDS.map((k) => <option key={k} value={k}>{SUBCONTRACT_MOVE_LABELS[k]}</option>)}
-          </select>
-          <input
-            type="number" min="1" className={styles.input}
-            placeholder="шт" value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            aria-label="Количество"
-            style={{ maxWidth: 90 }}
-          />
-          <DateField
-            showFormatHint={false} value={movedOn} onChange={setMovedOn}
-            aria-label="Дата перемещения"
-          />
-          <input
-            className={styles.input} placeholder="Комментарий (расхождение, брак…)"
-            value={comment} onChange={(e) => setComment(e.target.value)}
-            aria-label="Комментарий к перемещению"
-          />
-          <Button
-            variant="secondary" size="sm"
-            disabled={!(Number(qty) > 0)} loading={saving}
-            onClick={submit}
-          >
-            Записать
-          </Button>
-        </div>
-      )}
+      {/*
+        Свободной формы «вид перемещения + количество» здесь БОЛЬШЕ НЕТ
+        (правки 20.08). Ею можно было записать `accept` — то есть оформить
+        приёмку мимо склада: `qty_done` этапа приращался, следующий этап
+        открывался, а брак и недостача не фиксировались нигде.
+
+        Передачу и возврат оформляют действия (`StageActions`), приёмку —
+        склад задачей «Приёмка подряда». Журнал остаётся тем, чем он и был
+        по смыслу: следом, а не пультом.
+      */}
 
       {moves.length === 0
         ? <p className={styles.subText}>Перемещений пока нет.</p>

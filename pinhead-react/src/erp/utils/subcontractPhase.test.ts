@@ -4,7 +4,6 @@ import {
   SUBCONTRACT_PHASE_FLOW,
   isSubcontractTerminal,
   legacyStatusFromPhase,
-  nextSubcontractPhase,
   phaseFromLegacyStatus,
   subcontractPhase,
   subcontractPhasePatch,
@@ -78,7 +77,14 @@ describe('перевод в обе стороны', () => {
    * было два, у `operation` схлопывались `materials_ready` и `accepted`:
    * поведение зеркала зависело от того, чем занят подрядчик.
    */
-  const COLLAPSED: SubcontractPhase[] = ['closed', 'ready_at_contractor'];
+  /**
+   * `rework` — третье схлопывание, и вынужденное так же, как два первых:
+   * в перечислении устаревшего `status` значения для переделки нет вовсе,
+   * а заводить его туда незачем — колонку никто не читает, она зеркало
+   * ради `not null`. Обратный ход даёт `at_contractor`: вещь у подрядчика,
+   * и это единственное, что старая колонка про неё умела сказать.
+   */
+  const COLLAPSED: SubcontractPhase[] = ['closed', 'ready_at_contractor', 'rework'];
   it.each(PHASES.filter((p) => !COLLAPSED.includes(p)))('%s переживает круговой прогон', (phase) => {
     expect(phaseFromLegacyStatus(legacyStatusFromPhase(phase))).toBe(phase);
   });
@@ -131,14 +137,17 @@ describe('чтение фазы у строки', () => {
 });
 
 describe('порядок фаз', () => {
-  it('идёт по документу и заканчивается', () => {
-    expect(nextSubcontractPhase('planned')).toBe('materials_ready');
-    expect(nextSubcontractPhase('returned')).toBe('accepted');
-    expect(nextSubcontractPhase('closed')).toBeNull();
-  });
-
-  it('незнакомая фаза начинает поток сначала', () => {
-    expect(nextSubcontractPhase('нет такой' as SubcontractPhase)).toBe('planned');
+  /**
+   * Тесты `nextSubcontractPhase` убраны вместе с самой функцией: линейного
+   * «следующего шага» у подряда больше нет. Из «ожидает приёмки» уходят
+   * и в приёмку (её делает склад), и в переделку; из «у подрядчика» можно
+   * догрузить остаток. Переходы считает `utils/subcontractFlow`.
+   */
+  it('переделка стоит между возвратом и приёмкой — воронка читается по порядку', () => {
+    expect(SUBCONTRACT_PHASE_FLOW.indexOf('rework'))
+      .toBeGreaterThan(SUBCONTRACT_PHASE_FLOW.indexOf('returned'));
+    expect(SUBCONTRACT_PHASE_FLOW.indexOf('rework'))
+      .toBeLessThan(SUBCONTRACT_PHASE_FLOW.indexOf('accepted'));
   });
 
   it('терминальные фазы не задерживают подрядчика', () => {

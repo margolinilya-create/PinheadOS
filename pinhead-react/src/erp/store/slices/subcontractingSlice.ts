@@ -26,16 +26,37 @@ import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontract
 import type { ErpStore, SubcontractingSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
 
-/** Создать/обеспечить задачу склада (идемпотентно по (order_id, task_type)) */
+/**
+ * Создать задачу склада, если её ещё нет.
+ *
+ * ЯВНАЯ ПРОВЕРКА ВМЕСТО `upsert(onConflict)`, и это не стилистика. Уникальность
+ * задач стала ЧАСТИЧНОЙ (правки 20.08): приёмка подряда уникальна по ЭТАПУ,
+ * остальные задачи — по заказу, потому что подрядных этапов у заказа бывает
+ * несколько. PostgREST шлёт голый `ON CONFLICT (order_id, task_type)`, а
+ * частичный индекс по нему Postgres не выведет — это 42P10 на каждом вызове.
+ * Спецификация проверяется при планировании запроса, до поиска конфликта,
+ * поэтому «дубля же не будет» здесь не спасает. Тем же приёмом и по той же
+ * причине переписаны вставки в триггерах склада.
+ */
 async function upsertWarehouseTask(
   orderId: string, taskType: string, status: string, itemId: string | null = null,
 ): Promise<boolean> {
+  const { data: existing, error: findErr } = await erpQuery(() => supabase
+    .from('erp_warehouse_tasks')
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('task_type', taskType)
+    .is('stage_id', null)
+    .limit(1));
+  if (findErr) {
+    toast.error('Не удалось создать задачу склада');
+    return false;
+  }
+  if ((existing ?? []).length > 0) return true;
+
   const { error } = await erpQuery(() => supabase
     .from('erp_warehouse_tasks')
-    .upsert(
-      { order_id: orderId, item_id: itemId, task_type: taskType, status },
-      { onConflict: 'order_id,task_type', ignoreDuplicates: true },
-    ));
+    .insert({ order_id: orderId, item_id: itemId, task_type: taskType, status }));
   if (error) {
     toast.error('Не удалось создать задачу склада');
     return false;
@@ -207,6 +228,44 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
       return false;
     }
     await get().loadSubcontracting();
+    return true;
+  },
+
+  /**
+   * Действие над подрядной операцией (правки 20.08): передать · готово
+   * у подрядчика · вернулось · на переделку.
+   *
+   * ОДНА транзакция на сервере (`erp_subcontract_apply`): то, что меняет
+   * количества, пишет журнал ТЕМ ЖЕ действием, что двигает фазу. Раньше
+   * фаза выставлялась селектом отдельно от журнала — и «Завершено» можно было
+   * поставить, не передав ни одной штуки, при живом этапе в производстве.
+   *
+   * Приёмки здесь нет: её оформляет склад задачей «Приёмка подряда», и она же
+   * приращает `qty_done` этапа. Второй путь к тому же переходу обошёл бы
+   * складской гейт и фиксацию брака.
+   */
+  applySubcontractAction: async (id, action, input = {}) => {
+    const { data, error } = await erpQuery(() => supabase.rpc('erp_subcontract_apply', {
+      p_id: id,
+      p_phase: action.phase,
+      p_kind: action.move,
+      p_qty: action.move ? Number(input.qty) : null,
+      p_moved_on: input.movedOn || factoryToday(),
+      p_comment: input.comment?.trim() || null,
+      p_author: currentActor(),
+    }));
+    if (error || !data) {
+      erpError('Не удалось записать действие по подряду', error);
+      return false;
+    }
+    await get().loadSubcontracting();
+    /**
+     * Заказ перечитываем: переход в «вернулось» заводит задачу склада
+     * триггером, а приёмка меняет счётчики этапа. Не перечитать — значит
+     * показать прежнее состояние маршрута рядом с новым состоянием подряда.
+     */
+    const row = data as ErpSubcontractOp;
+    if (row.order_id) await get().loadOne(row.order_id);
     return true;
   },
 

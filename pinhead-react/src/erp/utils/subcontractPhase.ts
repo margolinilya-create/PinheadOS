@@ -31,7 +31,7 @@ import type { SubcontractPhase, SubcontractStatus } from '../types';
  */
 export const SUBCONTRACT_PHASE_FLOW: SubcontractPhase[] = [
   'planned', 'materials_ready', 'sent', 'at_contractor', 'ready_at_contractor',
-  'returned', 'accepted', 'closed',
+  'returned', 'rework', 'accepted', 'closed',
 ];
 
 /**
@@ -40,6 +40,14 @@ export const SUBCONTRACT_PHASE_FLOW: SubcontractPhase[] = [
  * уже не задерживает — дальше вопрос к складу, а не к контрагенту.
  */
 export const SUBCONTRACT_TERMINAL_PHASES: SubcontractPhase[] = ['returned', 'accepted', 'closed'];
+
+/**
+ * Фазы, в которых вещь физически У ПОДРЯДЧИКА. `rework` сюда входит:
+ * переделка идёт там же, просто вопрос к подрядчику другой.
+ */
+export const SUBCONTRACT_AT_CONTRACTOR_PHASES: SubcontractPhase[] = [
+  'sent', 'at_contractor', 'ready_at_contractor', 'rework',
+];
 
 export function isSubcontractTerminal(phase: SubcontractPhase): boolean {
   return SUBCONTRACT_TERMINAL_PHASES.includes(phase);
@@ -105,6 +113,12 @@ export function legacyStatusFromPhase(phase: SubcontractPhase): SubcontractStatu
     case 'at_contractor': return 'in_progress';
     case 'ready_at_contractor': return 'ready_to_ship';
     case 'returned': return 'returned';
+    /**
+     * Переделка зеркалится в `in_progress`: вещь у подрядчика и работа идёт.
+     * Своего значения в перечислении `status` для неё нет, и заводить его
+     * незачем — колонка устаревшая, её никто не читает.
+     */
+    case 'rework': return 'in_progress';
     case 'accepted': return 'received_at_pinhead';
     case 'closed': return 'received_at_pinhead';
     default: return 'planned';
@@ -127,12 +141,16 @@ export function subcontractPhase(
   return phase && fromStatus === 'planned' ? phase : fromStatus;
 }
 
-/** Следующая фаза по порядку; null — дальше некуда */
-export function nextSubcontractPhase(phase: SubcontractPhase): SubcontractPhase | null {
-  const idx = SUBCONTRACT_PHASE_FLOW.indexOf(phase);
-  if (idx === -1) return SUBCONTRACT_PHASE_FLOW[0];
-  return SUBCONTRACT_PHASE_FLOW[idx + 1] ?? null;
-}
+/*
+ * `nextSubcontractPhase` УДАЛЕНА вместе с селектом фазы (правки 20.08).
+ *
+ * Она отвечала на вопрос «что дальше по порядку», а порядка больше нет:
+ * из «ожидает приёмки» можно уйти и в приёмку (её делает склад), и
+ * в переделку, а из «у подрядчика» — догрузить остаток той же операции.
+ * Линейная лестница подсказывала бы неверный шаг, а её единственным
+ * вызывающим был собственный тест. Доступные переходы считает
+ * `utils/subcontractFlow.availableActions`.
+ */
 
 /**
  * Патч перехода: фаза плюс зеркало устаревшей колонки. Единственное место,

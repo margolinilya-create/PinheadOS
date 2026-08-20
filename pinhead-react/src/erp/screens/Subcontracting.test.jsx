@@ -65,16 +65,18 @@ const SUB = {
 
 function setup({ orders = [ORDER], subcontracting = [SUB], canManage = true } = {}) {
   const addSubcontractMove = vi.fn().mockResolvedValue(true);
+  const applySubcontractAction = vi.fn().mockResolvedValue(true);
   useErpStore.setState({
     orders, departments: DEPTS, loaded: true, loadError: null,
     loadAll: vi.fn(), subcontracting, subcontractingLoaded: true,
     loadSubcontracting: vi.fn(), updateSubcontractOp: vi.fn().mockResolvedValue(true),
     addSubcontractMove,
+    applySubcontractAction,
     myRole: 'manager',
     permissionMatrix: { manager: { 'order.manage': canManage } },
   });
   render(<MemoryRouter><Subcontracting /></MemoryRouter>);
-  return { addSubcontractMove };
+  return { addSubcontractMove, applySubcontractAction };
 }
 
 describe('Подряд', () => {
@@ -124,23 +126,35 @@ describe('Подряд', () => {
   });
 
   /**
-   * Журнал — не история, а механизм: приёмка приращает `qty_done` подрядного
-   * этапа (`erp_subcontract_moves_rollup`) и закрывает его. До этой правки
-   * `addSubcontractMove` не имел НИ ОДНОЙ точки вызова, и подрядный этап
-   * не закрывался никогда — отсюда и тупик раздела.
+   * ДВИЖЕНИЕ — ДЕЙСТВИЯ, А НЕ ВЫБОР СОСТОЯНИЯ (правки 20.08).
+   *
+   * Здесь стоял селект фазы и свободная форма журнала с видом `accept`:
+   * ими можно было объявить операцию завершённой, не передав и не приняв
+   * ни одной штуки, — счётчики этапа приращает только журнал, и заказ
+   * оставался стоять при зелёном состоянии на экране.
    */
-  it('журнал перемещений записывает приёмку', async () => {
-    const { addSubcontractMove } = setup();
+  it('возврат от подрядчика оформляется действием и пишет журнал', async () => {
+    const { applySubcontractAction } = setup();
     fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
 
-    fireEvent.change(screen.getByLabelText('Вид перемещения'), { target: { value: 'accept' } });
-    fireEvent.change(screen.getByLabelText('Количество'), { target: { value: '40' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Записать' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вернулось' }));
+    fireEvent.change(screen.getByLabelText('Сколько вернулось'), { target: { value: '40' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Вернулось' })[1]);
 
-    await waitFor(() => expect(addSubcontractMove).toHaveBeenCalled());
-    const [subId, input] = addSubcontractMove.mock.calls[0];
+    await waitFor(() => expect(applySubcontractAction).toHaveBeenCalled());
+    const [subId, action, input] = applySubcontractAction.mock.calls[0];
     expect(subId).toBe('sc1');
-    expect(input).toMatchObject({ kind: 'accept', qty: 40 });
+    expect(action).toMatchObject({ phase: 'returned', move: 'return' });
+    expect(input).toMatchObject({ qty: '40' });
+  });
+
+  it('приёмки в разделе НЕТ — её оформляет склад', () => {
+    // Кнопка «принято» здесь была бы вторым путём к тому же переходу:
+    // мимо складского гейта и мимо фиксации брака и недостачи
+    setup();
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    expect(screen.queryByRole('button', { name: /Принят/ })).toBeNull();
+    expect(screen.queryByLabelText('Вид перемещения')).toBeNull();
   });
 
   /**

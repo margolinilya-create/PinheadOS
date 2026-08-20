@@ -80,9 +80,25 @@ function taskVariant(task) {
 }
 /** Краткое «содержимое» задачи для колонки таблицы */
 function taskSummary(order, task) {
-  if (task.task_type === 'material_receipt' || task.task_type === 'subcontract_receipt') {
+  if (task.task_type === 'subcontract_receipt') {
+    /**
+     * Подрядных приёмок у заказа может быть НЕСКОЛЬКО (сублимация и варка
+     * у одной позиции — прямой пример документа), и подпись «Готовое изделие»
+     * не различала их вовсе. Называем операцию и изделие: склад по этой
+     * строке решает, что именно принимает.
+     */
+    for (const it of order.items ?? []) {
+      const st = (it.stages ?? []).find((s) => s.id === task.stage_id);
+      if (st) {
+        const op = st.operation?.trim() || 'Подряд';
+        return `${op} · ${it.product_type}${it.variant ? ` (${it.variant})` : ''}`;
+      }
+    }
+    return 'Готовое изделие';
+  }
+  if (task.task_type === 'material_receipt') {
     const n = order.materials.length;
-    return task.task_type === 'subcontract_receipt' ? 'Готовое изделие' : `${n} ${n === 1 ? 'материал' : 'материалов'}`;
+    return `${n} ${n === 1 ? 'материал' : 'материалов'}`;
   }
   if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
   if (task.task_type === 'fg_receipt') {
@@ -110,13 +126,15 @@ function warehouseSortValue({ order, task }, key) {
 export default function Warehouse() {
   const {
     orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask, addMaterialReceipt,
-    submitWarehouseReport,
+    submitWarehouseReport, subcontractingLoaded, loadSubcontracting,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, advanceWarehouseTask: s.advanceWarehouseTask,
       addMaterialReceipt: s.addMaterialReceipt,
       submitWarehouseReport: s.submitWarehouseReport,
+      subcontractingLoaded: s.subcontractingLoaded,
+      loadSubcontracting: s.loadSubcontracting,
     })),
   );
   /**
@@ -139,6 +157,14 @@ export default function Warehouse() {
   const sortBy = (key) => { toggleSort(key); setPage(1); };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  /**
+   * Карточки подрядчика нужны приёмке подряда: сколько передано, сколько
+   * вернулось, кто подрядчик. Реестр ленивый — без этой загрузки склад
+   * увидел бы приёмку без единого числа.
+   */
+  useEffect(() => {
+    if (!subcontractingLoaded) loadSubcontracting();
+  }, [subcontractingLoaded, loadSubcontracting]);
 
   const allRows = useMemo(() => {
     const list = [];

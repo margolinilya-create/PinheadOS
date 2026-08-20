@@ -15,11 +15,9 @@ import {
   SUBCONTRACT_MATERIAL_SOURCE_LABELS,
   STAGE_STATUS_LABELS,
 } from '../types';
-import {
-  SUBCONTRACT_PHASE_FLOW,
-  subcontractPhase,
-  subcontractPhasePatch,
-} from '../utils/subcontractPhase';
+import { SUBCONTRACT_PHASE_FLOW, subcontractPhase } from '../utils/subcontractPhase';
+import { subcontractView } from '../utils/subcontractFlow';
+import { StageActions } from './subcontracting/StageActions';
 import { outsourcedStages, nextRouteStage, currentStage, stageLabel } from '../utils/outsourcing';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import styles from '../erp.module.css';
@@ -61,11 +59,12 @@ import { RouteProgress } from '../components/RouteProgress';
 
 const PHASE_CHIP = {
   planned: 'chipNeutral',
-  materials_ready: 'chipNeutral',
+  materials_ready: 'chipReady',
   sent: 'chipProgress',
   at_contractor: 'chipProgress',
   ready_at_contractor: 'chipProgress',
-  returned: 'chipReady',
+  returned: 'chipWaiting',
+  rework: 'chipBlocked',
   accepted: 'chipReady',
   closed: 'chipSkipped',
 };
@@ -131,7 +130,15 @@ export default function Subcontracting() {
     for (const order of orders) {
       if (order.status !== 'active') continue;
       for (const { item, stage } of outsourcedStages(order)) {
-        out.push({ order, item, stage, sub: subByStage.get(stage.id) ?? null });
+        const sub = subByStage.get(stage.id) ?? null;
+        /**
+         * «Запланировано» и «Готово к передаче» СЧИТАЮТСЯ из маршрута:
+         * пока предыдущий этап ничего не сдал — передавать нечего, сдал 200 —
+         * столько и готово. Документ формулирует это буквально, и хранить
+         * такое второй колонкой значит завести два источника правды.
+         */
+        const view = subcontractView(sub, stage, item.stages ?? [], item.qty ?? 0);
+        out.push({ order, item, stage, sub, view });
       }
     }
     return out.sort((a, b) => {
@@ -156,8 +163,9 @@ export default function Subcontracting() {
   const funnel = useMemo(() => {
     const counts = {};
     for (const r of rows) {
-      const phase = r.sub ? subcontractPhase(r.sub) : 'planned';
-      counts[phase] = (counts[phase] || 0) + 1;
+      // Считаем ПОКАЗЫВАЕМУЮ фазу: «готово к передаче» не хранится, и воронка
+      // по хранимой сваливала бы все ждущие передачи в «Запланировано»
+      counts[r.view.display] = (counts[r.view.display] || 0) + 1;
     }
     return FUNNEL_STEPS.map((s) => ({ ...s, count: counts[s.key] || 0 }));
   }, [rows]);
@@ -209,15 +217,15 @@ export default function Subcontracting() {
               <tr>
                 <th>Заказ</th><th>Изделие</th><th>Кол-во</th><th>Операция</th>
                 <th>Подрядчик</th><th>Где заказ сейчас</th><th>Сроки</th>
-                <th>Следующий этап</th><th>Фаза и оплата</th><th>Журнал</th>
+                <th>Следующий этап</th><th>Состояние и оплата</th><th>Журнал</th>
               </tr>
             </thead>
             <tbody>
-              {shown.map(({ order, item, stage, sub }) => {
-                const phase = sub ? subcontractPhase(sub) : 'planned';
+              {shown.map(({ order, item, stage, sub, view }) => {
+                const phase = view.display;
                 const overdue = subcontractOverdue(
-                  sub?.planned_date, sub?.returned_date, phase, today);
-                const delayed = overdue && phase !== 'returned';
+                  sub?.planned_date, sub?.returned_date, view.stored, today);
+                const delayed = overdue && view.stored !== 'returned';
                 const next = nextRouteStage(item, stage);
                 const open = openRow === stage.id;
                 return [
@@ -234,7 +242,16 @@ export default function Subcontracting() {
                       {item.product_type}
                       {item.variant && <div className={styles.subText}>{item.variant}</div>}
                     </td>
-                    <td className={styles.progressCell}>{item.qty ?? '—'}</td>
+                    <td className={styles.progressCell}>
+                      {item.qty ?? '—'}
+                      {/* «Швейка закончила 150 → в подряде появляется
+                          Варка — Готово к передаче — 150 шт» (документ) */}
+                      {view.readyQty > 0 && (
+                        <div className={styles.subText}>
+                          к передаче: {view.readyQty}
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <strong>{stageLabel(stage, deptNameById.get(stage.department_id) || '—')}</strong>
                       <div className={styles.subText}>
@@ -281,20 +298,13 @@ export default function Subcontracting() {
                       <div className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[stage.status]]}`}>
                         этап: {STAGE_STATUS_LABELS[stage.status]}
                       </div>
-                      {sub && (
-                        <select
-                          className={`${styles.select} ${styles.inputXs}`}
-                          value={phase}
-                          disabled={!canManage}
-                          onChange={(e) => updateSubcontractOp(sub.id, subcontractPhasePatch(e.target.value))}
-                          aria-label={`Фаза подряда ${stage.id}`}
-                          style={{ marginTop: 4 }}
-                        >
-                          {SUBCONTRACT_PHASE_FLOW.map((v) => (
-                            <option key={v} value={v}>{SUBCONTRACT_PHASE_LABELS[v]}</option>
-                          ))}
-                        </select>
-                      )}
+                      {/*
+                        Селекта фазы здесь БОЛЬШЕ НЕТ. Им можно было поставить
+                        «Завершено», не передав и не приняв ни одной штуки:
+                        счётчики этапа приращает только журнал, и заказ
+                        оставался стоять при зелёном состоянии на экране.
+                        Движение — действия в раскрытой строке.
+                      */}
                       {sub && (
                         <select
                           className={`${styles.select} ${styles.inputXs}`}
@@ -337,6 +347,7 @@ export default function Subcontracting() {
                           deptById={deptById}
                           currentStageId={stage.id}
                         />
+                        <StageActions op={sub} view={view} canManage={canManage} />
                         <MoveJournal op={sub} canManage={canManage} />
                       </td>
                     </tr>

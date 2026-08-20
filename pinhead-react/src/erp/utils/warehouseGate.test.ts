@@ -77,8 +77,17 @@ describe('приёмка ГП открывает упаковку', () => {
     expect(DERIVE).toMatch(/erp_can_pack_ship\(/);
   });
 
-  it('создаёт упаковку идемпотентно', () => {
-    expect(FG_ACCEPTED).toMatch(/on conflict \(order_id, task_type\) do nothing/);
+  it('создаёт упаковку идемпотентно — и БЕЗ on conflict', () => {
+    /**
+     * Идемпотентность держится на проверке существования, а не на
+     * `ON CONFLICT`: уникальность задач стала частичной (приёмка подряда
+     * уникальна по этапу, остальные — по заказу), а частичный индекс из голого
+     * `ON CONFLICT (order_id, task_type)` Postgres не выведет — это 42P10
+     * при каждом срабатывании триггера.
+     */
+    expect(FG_ACCEPTED).not.toMatch(/on conflict/);
+    expect(FG_ACCEPTED).toMatch(/where not exists/);
+    expect(FG_ACCEPTED).toMatch(/task_type = 'pack_ship'/);
   });
 });
 

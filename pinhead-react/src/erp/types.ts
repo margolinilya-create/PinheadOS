@@ -475,6 +475,13 @@ export interface ErpWarehouseTask {
   order_id: string;
   item_id: string | null;
   task_type: WarehouseTaskType;
+  /**
+   * Этап маршрута, к которому относится задача — заполнен у приёмки подряда
+   * (правки 20.08). У заказа подрядных этапов может быть несколько, и задача
+   * «одна на заказ» означала бы, что вторую приёмку склад не увидит вовсе.
+   * NULL — задача по заказу целиком (материалы, маркировка, упаковка).
+   */
+  stage_id?: string | null;
   status: WarehouseTaskStatus;
   marking_type: string | null;
   deadline: string | null;
@@ -901,11 +908,18 @@ export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
  */
 export type SubcontractPhase =
   | 'planned' | 'materials_ready' | 'sent' | 'at_contractor' | 'ready_at_contractor'
-  | 'returned' | 'accepted' | 'closed';
+  | 'returned' | 'rework' | 'accepted' | 'closed';
 
+/**
+ * Подписи приведены к семи состояниям документа 20.08. Хранимых фаз больше
+ * (девять), и это не расхождение: `sent` осталась от прежней модели и вручную
+ * не выставляется, а `accepted`/`closed` различают «склад принял» и «операция
+ * закрыта» — документ обе называет «Завершено», но складской гейт упаковки
+ * читает именно их, и схлопывать значения нельзя.
+ */
 export const SUBCONTRACT_PHASE_LABELS: Record<SubcontractPhase, string> = {
   planned: 'Запланировано',
-  materials_ready: 'Материалы собраны',
+  materials_ready: 'Готово к передаче',
   sent: 'Передано подрядчику',
   at_contractor: 'У подрядчика',
   /**
@@ -915,9 +929,16 @@ export const SUBCONTRACT_PHASE_LABELS: Record<SubcontractPhase, string> = {
    * от той, что ещё шьётся.
    */
   ready_at_contractor: 'Готово у подрядчика',
-  returned: 'Вернулось',
+  returned: 'Ожидает приёмки',
+  /**
+   * Седьмое состояние документа: «3 шт. можно отправить подрядчику
+   * на переделку, основные 97 при этом не блокируются». Это не «у подрядчика»:
+   * там идёт основная работа, здесь — исправление брака, и путать их значит
+   * не понимать, чего ждать и сколько.
+   */
+  rework: 'На переделке',
   accepted: 'Принято складом',
-  closed: 'Закрыто',
+  closed: 'Завершено',
 };
 
 /**

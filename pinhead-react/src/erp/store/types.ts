@@ -688,6 +688,16 @@ export interface SubcontractingSlice {
     movedOn?: string | null;
     comment?: string | null;
   }) => Promise<boolean>;
+  /**
+   * Действие над операцией (правки 20.08): фаза и запись журнала одной
+   * транзакцией (`erp_subcontract_apply`). Спецификации действий —
+   * `utils/subcontractFlow.SUBCONTRACT_ACTIONS`.
+   */
+  applySubcontractAction: (
+    id: string,
+    action: { phase: string; move: 'send' | 'return' | null },
+    input?: { qty?: number | string; movedOn?: string | null; comment?: string | null },
+  ) => Promise<boolean>;
   updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
 }
 

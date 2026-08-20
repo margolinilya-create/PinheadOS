@@ -63,6 +63,11 @@ vi.mock('../../lib/supabase', () => {
     const q: any = {
       eq: (col: string, val: unknown) => { filters.push(`eq:${col}=${val}`); return q; },
       neq: (col: string, val: unknown) => { filters.push(`neq:${col}=${val}`); return q; },
+      // `.is(col, null)` — проверка на NULL: ею отбираются задачи склада
+      // без этапа и предварительные закупки без заказа. Без звена в моке
+      // вызов бросал бы «q.is is not a function», и ветка молча уходила
+      // в обработку ошибки — то есть тест проверял бы не то
+      is: (col: string, val: unknown) => { filters.push(`is:${col}=${val}`); return q; },
       gte: (col: string, val: unknown) => { filters.push(`gte:${col}=${val}`); return q; },
       lte: (col: string, val: unknown) => { filters.push(`lte:${col}=${val}`); return q; },
       order: (col: string) => { h.orderCalls.push({ table, col }); return q; },
