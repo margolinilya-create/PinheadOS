@@ -91,19 +91,28 @@ describe('RouteEditor', () => {
     const [orderId, itemId, steps] = applyItemRoute.mock.calls[0];
     expect(orderId).toBe('o1');
     expect(itemId).toBe('i1');
+    // Подрядные поля документа 20.08 едут той же строкой шага: у нашего этапа
+    // они null (спутника у него нет), у подрядного — заполненные значения
+    const EMPTY_SUB = {
+      qty: null, send_plan_date: null, planned_date: null,
+      responsible: null, materials_note: null, comment: null,
+    };
     expect(steps).toEqual([
       {
         stage_id: 's1', department_id: 'd1', sort_order: 10,
         executor: 'internal', contractor: null, operation: null, depends_on: [],
+        ...EMPTY_SUB,
       },
       {
         stage_id: null, department_id: 'd2', sort_order: 20,
         executor: 'contractor', contractor: 'ИП Иванов', operation: 'Сублимация',
         depends_on: [0],
+        ...EMPTY_SUB,
       },
       {
         stage_id: 's2', department_id: 'd3', sort_order: 30,
         executor: 'internal', contractor: null, operation: null, depends_on: [1],
+        ...EMPTY_SUB,
       },
     ]);
   });

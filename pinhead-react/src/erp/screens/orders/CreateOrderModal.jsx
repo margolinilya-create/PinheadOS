@@ -662,8 +662,14 @@ export function CreateOrderModal({ onClose }) {
 
         {/* Подсказки справочников для полей «Изделие» и «Поставщик» (правка 12) */}
         <DictionaryDatalist kind="product_type" id="erp-product-types" />
-        {/* Подсказки кроя: Regular / Oversize / Free Fit — ввод остаётся свободным */}
-        <DictionaryDatalist kind="fit" id="erp-fits" />
+        {/*
+          Справочника кроя больше нет: 18.08 его удалили из базы («крой
+          подсказывает КАТАЛОГ, а не справочник» — миграция 20260818203320),
+          а вид `fit` убрали из CHECK. Клиент про это не знал и продолжал
+          показывать вкладку в админке, где добавление значения отвечало бы
+          23514. Поле «Крой» остаётся свободным вводом с подсказкой
+          в placeholder; подстановка из каталога SKU — отдельная работа.
+        */}
         <DictionaryDatalist kind="supplier" id="erp-suppliers" />
 
         <FormSection

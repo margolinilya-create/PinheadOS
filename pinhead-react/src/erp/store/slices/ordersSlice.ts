@@ -7,7 +7,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { formItemRoute, linearize } from '../../utils/routeDraft';
+import { formItemRoute, linearize, stepPayload } from '../../utils/routeDraft';
 import { invokeFunction } from '../adminUsers';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { isBypassed } from '../../utils/bypass';
@@ -414,14 +414,13 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           stages: kept.map((l) => ({
             department_id: deptByCode.get(l.step.departmentCode)!.id,
             sort_order: l.sortOrder,
-            executor: l.step.executor,
-            contractor: l.step.executor === 'contractor'
-              ? (l.step.contractor.trim() || null)
-              : null,
-            operation: l.step.operation.trim() || null,
             depends_on: l.dependsOn
               .map((idx) => newIndex.get(idx))
               .filter((x): x is number => x !== undefined),
+            // Исполнитель и карточка подрядчика — тем же выражением, что
+            // в правке маршрута (`stepPayload`): писателей спутника подряда
+            // ровно два, и оба обязаны слать одно и то же
+            ...stepPayload(l.step),
           })),
         };
       }),

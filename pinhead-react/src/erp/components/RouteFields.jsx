@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
-import { deptShortName } from '../data/departments';
+import { useErpAccess } from '../store/useErpAccess';
+import { useDictionary } from '../store/useDictionary';
+import { deptShortName, isProductionDept } from '../data/departments';
 import {
   emptyStep,
   insertGroup,
@@ -12,6 +14,7 @@ import {
 } from '../utils/routeDraft';
 import { Button } from './Button';
 import { Icon } from './Icon';
+import { DateField } from './DateField';
 import { DictionaryDatalist } from './DictionaryDatalist';
 import styles from '../erp.module.css';
 
@@ -35,8 +38,149 @@ const EXECUTOR_LABELS = {
   contractor: 'Подрядчик',
 };
 
+/**
+ * Поле «Операция» с пополнением библиотеки (правки заказчика 20.08).
+ *
+ * ЧТО ПРОСИТ ДОКУМЕНТ: «если нужной операции нет, менеджер нажимает
+ * + Создать новую операцию; после сохранения операция используется в текущем
+ * маршруте, автоматически добавляется в библиотеку и становится доступна
+ * в следующих заказах. Добавление нового вида подрядных работ не должно
+ * требовать доработки ERP».
+ *
+ * Кнопка появляется, только когда набранное значение библиотеке НЕ известно:
+ * иначе она предлагала бы завести дубль того, что уже есть. Гейт — зеркало
+ * серверной политики (`catalog.edit` ИЛИ `order.manage` для этого вида).
+ */
+function OperationField({ step, gi, si, onPatch }) {
+  const items = useDictionary('route_operation');
+  const createDictionaryItem = useErpStore((s) => s.createDictionaryItem);
+  const { can } = useErpAccess();
+  const canAdd = can('catalog.edit') || can('order.manage');
+  const [saving, setSaving] = useState(false);
+
+  const value = step.operation.trim();
+  const known = items.some((d) => d.name.toLowerCase() === value.toLowerCase());
+  const showAdd = canAdd && !step.locked && value.length > 1 && !known;
+
+  const add = async () => {
+    setSaving(true);
+    await createDictionaryItem('route_operation', value);
+    setSaving(false);
+  };
+
+  return (
+    <>
+      <input
+        className={styles.input}
+        list="erp-route-operations"
+        value={step.operation}
+        disabled={step.locked}
+        placeholder={step.executor === 'contractor'
+          ? 'Операция подрядчика: варка, сублимация…'
+          : 'Операция (если не совпадает с участком)'}
+        onChange={(e) => onPatch(gi, si, { operation: e.target.value })}
+        aria-label="Операция"
+      />
+      {showAdd && (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="plus"
+          loading={saving}
+          onClick={add}
+          title="Операция сохранится в библиотеке и будет предлагаться в следующих заказах"
+        >
+          В библиотеку
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** Дополнительные поля подрядного этапа — раскрываются вместе с исполнителем */
+function ContractorFields({ step, gi, si, onPatch }) {
+  const set = (patch) => onPatch(gi, si, patch);
+  return (
+    <div className={styles.routeSubFields}>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Количество</span>
+        <input
+          type="number"
+          min="0"
+          className={styles.input}
+          value={step.qty}
+          disabled={step.locked}
+          placeholder="150"
+          onChange={(e) => set({ qty: e.target.value.replace('-', '') })}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Передача, план</span>
+        <DateField
+          showFormatHint={false}
+          value={step.sendPlan}
+          disabled={step.locked}
+          onChange={(v) => set({ sendPlan: v })}
+          aria-label="Плановая дата передачи подрядчику"
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Возврат, план</span>
+        <DateField
+          showFormatHint={false}
+          value={step.returnPlan}
+          disabled={step.locked}
+          onChange={(v) => set({ returnPlan: v })}
+          aria-label="Плановая дата возврата от подрядчика"
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Ответственный Pinhead</span>
+        <input
+          className={styles.input}
+          value={step.responsible}
+          disabled={step.locked}
+          placeholder="кто ведёт передачу"
+          onChange={(e) => set({ responsible: e.target.value })}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Что передаём</span>
+        <input
+          className={styles.input}
+          value={step.handover}
+          disabled={step.locked}
+          placeholder="сшитые худи, полотно, кепки"
+          onChange={(e) => set({ handover: e.target.value })}
+        />
+      </label>
+      <label className={`${styles.field} ${styles.fieldWide}`}>
+        <span className={styles.fieldLabel}>Комментарий</span>
+        <input
+          className={styles.input}
+          value={step.comment}
+          disabled={step.locked}
+          placeholder="Stone Wash, допуски, особые условия"
+          onChange={(e) => set({ comment: e.target.value })}
+        />
+      </label>
+    </div>
+  );
+}
+
 /** Один этап внутри шага маршрута */
 function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
+  /**
+   * Участок, уже стоящий в этапе, показываем ВСЕГДА, даже если он выпал
+   * из предлагаемых (стал непроизводственным, деактивирован, пришёл из старого
+   * маршрута). Иначе select не нашёл бы своего значения, показал бы «Участок…»
+   * и первое же сохранение молча перевесило бы этап в никуда.
+   */
+  const options = useMemo(() => {
+    if (!step.departmentCode || depts.some((d) => d.code === step.departmentCode)) return depts;
+    return [...depts, { code: step.departmentCode, name: step.departmentCode }];
+  }, [depts, step.departmentCode]);
+
   return (
     <div className={styles.routeStepRow}>
       <select
@@ -47,7 +191,7 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
         aria-label="Участок ответственности"
       >
         <option value="">Участок…</option>
-        {depts.map((d) => (
+        {options.map((d) => (
           <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
         ))}
       </select>
@@ -84,15 +228,7 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
           сублимацию принимает участок ДТФ, упаковку — склад готовой продукции.
           Заводить их отдельными цехами нельзя — справочник участков перестанет
           означать наши участки и потечёт в меню, очередь, план и загрузку. */}
-      <input
-        className={styles.input}
-        list="erp-route-operations"
-        value={step.operation}
-        disabled={step.locked}
-        placeholder="Операция (если не совпадает с участком)"
-        onChange={(e) => onPatch(gi, si, { operation: e.target.value })}
-        aria-label="Операция"
-      />
+      <OperationField step={step} gi={gi} si={si} onPatch={onPatch} />
 
       {step.locked ? (
         <span className={styles.subText} title="В этапе уже есть работа — его можно только пропустить">
@@ -115,8 +251,21 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
 
 export function RouteFields({ draft, onChange }) {
   const departments = useErpStore(useShallow((s) => s.departments));
+  /**
+   * Предлагаем только участки, у которых ЕСТЬ ПОВЕРХНОСТЬ с их открытыми
+   * этапами: производственные (очередь, канбан, план) и закупка (свой экран,
+   * читающий этапы). Склад, логистика и экс-цех сюда не входят — этап там
+   * не появится нигде, и заказ встанет молча. Это ровно дефект 12.08, из-за
+   * которого 33 заказа стояли невидимыми: тогда причиной был `is_production`
+   * у закупки, а список конструктора предлагал такие участки до сих пор.
+   *
+   * Признак берётся из данных (`isProductionDept`), а не из списка кодов:
+   * участок, заведённый директором в админке, обязан появляться сам.
+   */
   const depts = useMemo(
-    () => departments.filter((d) => d.active).sort((a, b) => a.sort_order - b.sort_order),
+    () => departments
+      .filter((d) => d.active && (isProductionDept(d) || d.code === 'supply'))
+      .sort((a, b) => a.sort_order - b.sort_order),
     [departments],
   );
 
@@ -153,12 +302,19 @@ export function RouteFields({ draft, onChange }) {
               </div>
 
               {group.map((step, si) => (
-                <StepRow
-                  key={si}
-                  step={step} gi={gi} si={si} depts={depts}
-                  onPatch={patch} onRemove={drop}
-                  canRemove={draft.length > 1 || group.length > 1}
-                />
+                <div key={si}>
+                  <StepRow
+                    step={step} gi={gi} si={si} depts={depts}
+                    onPatch={patch} onRemove={drop}
+                    canRemove={draft.length > 1 || group.length > 1}
+                  />
+                  {/* Поля подрядчика раскрываются вместе с исполнителем: документ
+                      требует заполнить их ЗДЕСЬ, одним движением с выбором
+                      «Подрядчик», а не потом на другом экране */}
+                  {step.executor === 'contractor' && (
+                    <ContractorFields step={step} gi={gi} si={si} onPatch={patch} />
+                  )}
+                </div>
               ))}
 
               <div className={styles.routeStepFoot}>

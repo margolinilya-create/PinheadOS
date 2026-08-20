@@ -2966,6 +2966,16 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .routeStepRow .select { min-width: 130px; }
 .routeStepRow .input { flex: 1 1 160px; min-width: 120px; }
 .routeStepFoot { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Поля подрядного этапа: раскрываются под строкой шага и визуально к ней
+   привязаны — иначе на длинном маршруте непонятно, к какому этапу они. */
+.routeSubFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px 10px;
+  margin: 6px 0 2px 12px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-light);
+}
 .routeIssues {
   margin: 0;
   padding-left: 18px;

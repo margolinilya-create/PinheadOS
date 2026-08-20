@@ -13,6 +13,7 @@ import {
   removeStep,
   removedStageIds,
   routeIssues,
+  stepPayload,
 } from './routeDraft';
 import { buildItemRoute } from './routes';
 import type { BrandingMethod, BrandingOn, ProductionType, StageStatus } from '../types';
@@ -217,6 +218,89 @@ describe('черновик из существующих этапов', () => {
     const without = removeStep(draft, 2, 0);
     expect(removedStageIds(stages, without)).toEqual(['c']);
   });
+
+  it('подрядные поля поднимаются из карточки подрядчика', () => {
+    // Иначе конструктор предложил бы завести заново то, что уже заполнено:
+    // человек открыл маршрут поправить порядок — и стёр сроки передачи
+    const subs = new Map([['b', {
+      qty: 150,
+      send_plan_date: '2026-08-25',
+      planned_date: '2026-08-28',
+      responsible: 'Иванов',
+      materials_note: 'сшитые худи',
+      comment: 'Stone Wash',
+    }]]);
+    const step = draftFromStages(stages, codes, subs)[1][0];
+    expect(step.qty).toBe('150');
+    expect(step.sendPlan).toBe('2026-08-25');
+    expect(step.returnPlan).toBe('2026-08-28');
+    expect(step.responsible).toBe('Иванов');
+    expect(step.handover).toBe('сшитые худи');
+    expect(step.comment).toBe('Stone Wash');
+  });
+
+  it('без карточки подрядчика поля пустые, а не undefined', () => {
+    // Реестр подряда ленивый: до его загрузки конструктор обязан открываться,
+    // а поле формы — оставаться контролируемым
+    const step = draftFromStages(stages, codes)[1][0];
+    expect(step.qty).toBe('');
+    expect(step.responsible).toBe('');
+  });
+});
+
+describe('шаг черновика → payload сервера', () => {
+  const contractorStep = {
+    ...emptyStep('dtf'),
+    executor: 'contractor' as const,
+    contractor: '  ИП Иванов  ',
+    operation: ' Варка ',
+    qty: '150',
+    sendPlan: '2026-08-25',
+    returnPlan: '2026-08-28',
+    responsible: 'Иванов',
+    handover: 'сшитые худи',
+    comment: 'Stone Wash',
+  };
+
+  it('подрядные поля уезжают целиком, пробелы срезаются', () => {
+    expect(stepPayload(contractorStep)).toEqual({
+      executor: 'contractor',
+      contractor: 'ИП Иванов',
+      operation: 'Варка',
+      qty: 150,
+      send_plan_date: '2026-08-25',
+      planned_date: '2026-08-28',
+      responsible: 'Иванов',
+      materials_note: 'сшитые худи',
+      comment: 'Stone Wash',
+    });
+  });
+
+  it('у НАШЕГО этапа подрядных полей нет вовсе', () => {
+    // Спутника у него не существует, и присланное значение молча пропало бы —
+    // это хуже, чем не отправленное: форма показала бы сохранённым не то
+    const mine = { ...contractorStep, executor: 'internal' as const };
+    const payload = stepPayload(mine);
+    expect(payload.contractor).toBeNull();
+    expect(payload.qty).toBeNull();
+    expect(payload.planned_date).toBeNull();
+    expect(payload.responsible).toBeNull();
+    // Операция у нашего этапа остаётся: «упаковку принимает склад»
+    expect(payload.operation).toBe('Варка');
+  });
+
+  it('пустое поле — null, а не пустая строка', () => {
+    const bare = { ...emptyStep('dtf'), executor: 'contractor' as const, contractor: 'ИП' };
+    const payload = stepPayload(bare);
+    expect(payload.qty).toBeNull();
+    expect(payload.send_plan_date).toBeNull();
+    expect(payload.comment).toBeNull();
+  });
+
+  it('количество 0 и мусор не уезжают числом', () => {
+    expect(stepPayload({ ...contractorStep, qty: '0' }).qty).toBeNull();
+    expect(stepPayload({ ...contractorStep, qty: 'abc' }).qty).toBeNull();
+  });
 });
 
 describe('валидация маршрута', () => {
@@ -231,9 +315,29 @@ describe('валидация маршрута', () => {
     expect(routeIssues(draft).some((i) => /не указан подрядчик/.test(i.text))).toBe(true);
   });
 
-  it('подрядный этап С подрядчиком проходит', () => {
-    const draft = [[{ ...emptyStep('dtf'), executor: 'contractor' as const, contractor: 'ИП Иванов' }]];
+  it('подрядный этап без ОПЕРАЦИИ не сохраняется', () => {
+    // Документ 20.08 строит на операции весь раздел: отдельных вкладок под
+    // варку и сублимацию не заводится именно потому, что различает их это поле.
+    // Без него строка подписывается именем ЦЕХА — «Цех ДТФ» там, где человек
+    // ищет «Сублимацию»
+    const draft = [[{
+      ...emptyStep('dtf'), executor: 'contractor' as const, contractor: 'ИП Иванов',
+    }]];
+    expect(routeIssues(draft).some((i) => /не указана операция/.test(i.text))).toBe(true);
+  });
+
+  it('подрядный этап С подрядчиком и операцией проходит', () => {
+    const draft = [[{
+      ...emptyStep('dtf'),
+      executor: 'contractor' as const,
+      contractor: 'ИП Иванов',
+      operation: 'Сублимация',
+    }]];
     expect(routeIssues(draft)).toEqual([]);
+  });
+
+  it('операция обязательна только у подряда — наш этап называет цех', () => {
+    expect(routeIssues([[emptyStep('dtf')]])).toEqual([]);
   });
 
   it('один участок дважды в шаге — почти всегда промах руки', () => {
@@ -243,8 +347,18 @@ describe('валидация маршрута', () => {
 
   it('два ПОДРЯДНЫХ этапа одного цеха в шаге допустимы — это разные подрядчики', () => {
     const draft = [[
-      { ...emptyStep('sewing'), executor: 'contractor' as const, contractor: 'ИП Иванов' },
-      { ...emptyStep('sewing'), executor: 'contractor' as const, contractor: 'Цех Саша' },
+      {
+        ...emptyStep('sewing'),
+        executor: 'contractor' as const,
+        contractor: 'ИП Иванов',
+        operation: 'Пошив',
+      },
+      {
+        ...emptyStep('sewing'),
+        executor: 'contractor' as const,
+        contractor: 'Цех Саша',
+        operation: 'Пошив',
+      },
     ]];
     expect(routeIssues(draft)).toEqual([]);
   });

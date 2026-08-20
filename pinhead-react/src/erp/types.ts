@@ -578,6 +578,19 @@ export interface ErpSubcontractOp {
   qty_sent?: number;
   qty_returned?: number;
   qty_accepted?: number;
+  /**
+   * Поля подрядного этапа из документа 20.08. Заполняются В МАРШРУТЕ, одним
+   * движением с выбором исполнителя «Подрядчик»: разносить их по двум экранам
+   * значит гарантировать, что половина останется пустой.
+   *
+   * `send_plan_date` — план ПЕРЕДАЧИ; `planned_date` в этой таблице означает
+   * возврат, и второго смысла ей не дают. `materials_note` — «что передаём»
+   * (поле было и значит ровно это). `comment` — свободный комментарий,
+   * отдельно от `delay_comment`: тот про задержку.
+   */
+  send_plan_date?: string | null;
+  responsible?: string | null;
+  comment?: string | null;
   delay_comment: string | null;
   created_at: string;
   updated_at: string;
@@ -1220,7 +1233,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type' | 'fit' | 'route_operation';
+  | 'experimental_task_type' | 'route_operation';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1229,7 +1242,6 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   supplier: 'Поставщики',
   unit: 'Единицы измерения',
   experimental_task_type: 'Задачи разработки',
-  fit: 'Крой изделия',
   route_operation: 'Операции маршрута',
 };
 
@@ -1242,7 +1254,6 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
   supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
   experimental_task_type:
     'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
-  fit: 'Подсказки в поле «Крой» при создании заказа (Regular, Oversize, Free Fit).',
   route_operation:
     'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
 };

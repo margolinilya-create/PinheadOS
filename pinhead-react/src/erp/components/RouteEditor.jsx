@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { draftFromStages, linearize, routeIssues } from '../utils/routeDraft';
+import { draftFromStages, linearize, routeIssues, stepPayload } from '../utils/routeDraft';
 import { RouteFields, RouteIssues } from './RouteFields';
 import { Button } from './Button';
 import { confirm } from '../../store/useConfirmStore';
@@ -27,11 +27,26 @@ import styles from '../erp.module.css';
  * писался `utils/screenAccess`.
  */
 export function RouteEditor({ item, orderId, onDone }) {
-  const { departments, applyItemRoute } = useErpStore(useShallow((s) => ({
+  const {
+    departments, applyItemRoute, subcontracting, subcontractingLoaded, loadSubcontracting,
+  } = useErpStore(useShallow((s) => ({
     departments: s.departments,
     applyItemRoute: s.applyItemRoute,
+    subcontracting: s.subcontracting,
+    subcontractingLoaded: s.subcontractingLoaded,
+    loadSubcontracting: s.loadSubcontracting,
   })));
   const canManage = useErpAccess().can('order.manage');
+
+  /**
+   * Карточки подрядчика нужны, чтобы конструктор ПОКАЗАЛ уже заполненные поля
+   * подряда, а не предложил заводить их заново. Реестр ленивый, поэтому
+   * подгружаем его при открытии конструктора: без этого поля были бы пусты
+   * ровно у того, кто зашёл править маршрут первым.
+   */
+  useEffect(() => {
+    if (!subcontractingLoaded) loadSubcontracting();
+  }, [subcontractingLoaded, loadSubcontracting]);
 
   const codeById = useMemo(
     () => new Map(departments.map((d) => [d.id, d.code])),
@@ -41,10 +56,14 @@ export function RouteEditor({ item, orderId, onDone }) {
     () => new Map(departments.map((d) => [d.code, d.id])),
     [departments],
   );
+  const subByStage = useMemo(
+    () => new Map(subcontracting.filter((s) => s.stage_id).map((s) => [s.stage_id, s])),
+    [subcontracting],
+  );
 
   const initial = useMemo(
-    () => draftFromStages(item.stages ?? [], codeById),
-    [item.stages, codeById],
+    () => draftFromStages(item.stages ?? [], codeById, subByStage),
+    [item.stages, codeById, subByStage],
   );
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -60,12 +79,11 @@ export function RouteEditor({ item, orderId, onDone }) {
       stage_id: l.step.stageId,
       department_id: idByCode.get(l.step.departmentCode) ?? null,
       sort_order: l.sortOrder,
-      executor: l.step.executor,
-      contractor: l.step.executor === 'contractor'
-        ? (l.step.contractor.trim() || null)
-        : null,
-      operation: l.step.operation.trim() || null,
       depends_on: l.dependsOn,
+      // Исполнитель, подрядчик, операция и поля карточки подрядчика — одним
+      // выражением на обоих писателей (`stepPayload`), чтобы форма создания
+      // и правка маршрута не разошлись в первую же правку
+      ...stepPayload(l.step),
     }));
     /**
      * Удаление этапа названо ПОШТУЧНО перед сохранением. «Маршрут изменится»

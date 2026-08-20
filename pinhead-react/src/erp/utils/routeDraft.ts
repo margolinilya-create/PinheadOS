@@ -46,6 +46,31 @@ export interface RouteStep {
   /** Имя операции, когда оно расходится с именем цеха (сублимация и т.п.) */
   operation: string;
   /**
+   * Поля ПОДРЯДНОГО этапа (правки заказчика 20.08): «если при построении
+   * маршрута менеджер выбирает этап "Подряд", внутри этапа открываются
+   * дополнительные поля».
+   *
+   * Живут они не на этапе, а на его спутнике `erp_subcontracting` — карточке
+   * подрядчика при этапе. Здесь они собираются вместе с маршрутом, потому что
+   * заполняются одним движением: выбрал «Подрядчик» — назвал, кому, что, когда
+   * и сколько. Разносить это по двум экранам значит гарантировать, что половина
+   * останется пустой.
+   *
+   * Строки — как в форме: пустая строка означает «не заполнено», и в базу
+   * уезжает NULL. Числа тоже строками: поле ввода отдаёт строку, а `0` и «не
+   * указано» здесь разные вещи.
+   */
+  qty: string;
+  /** Плановая дата ПЕРЕДАЧИ подрядчику */
+  sendPlan: string;
+  /** Плановая дата ВОЗВРАТА (в схеме — `planned_date`) */
+  returnPlan: string;
+  /** Ответственный со стороны Pinhead */
+  responsible: string;
+  /** Что передаём подрядчику: «сшитые худи», «полотно», «кепки» */
+  handover: string;
+  comment: string;
+  /**
    * В этапе уже работали: переставить и удалить нельзя, только «Пропустить».
    * Считается из факта, а не из статуса: этап, взятый в работу и возвращённый
    * в очередь, тоже нельзя выбрасывать — его работа уже где-то учтена.
@@ -63,6 +88,12 @@ export function emptyStep(departmentCode: string): RouteStep {
     executor: 'internal',
     contractor: '',
     operation: '',
+    qty: '',
+    sendPlan: '',
+    returnPlan: '',
+    responsible: '',
+    handover: '',
+    comment: '',
     locked: false,
   };
 }
@@ -167,22 +198,56 @@ export function isStepLocked(stage: StageLike): boolean {
     || !['waiting', 'ready'].includes(stage.status);
 }
 
-/** Черновик из СУЩЕСТВУЮЩИХ этапов позиции — для карточки заказа */
+/**
+ * Карточка подрядчика при этапе — ровно те поля, которые правит конструктор.
+ * Принимаем структурный тип, а не `ErpSubcontractOp`: реестр грузится лениво,
+ * и заставлять карточку заказа тянуть его тип ради шести строк незачем.
+ */
+export interface SubcontractSeed {
+  qty?: number | null;
+  send_plan_date?: string | null;
+  planned_date?: string | null;
+  responsible?: string | null;
+  materials_note?: string | null;
+  comment?: string | null;
+}
+
+/** Пустая строка вместо null — поле формы не должно становиться uncontrolled */
+function text(v: string | number | null | undefined): string {
+  return v === null || v === undefined ? '' : String(v);
+}
+
+/**
+ * Черновик из СУЩЕСТВУЮЩИХ этапов позиции — для карточки заказа.
+ *
+ * `subByStage` необязателен: реестр подряда грузится лениво, и до его загрузки
+ * конструктор обязан открываться — просто с пустыми подрядными полями, а не
+ * с ошибкой. Затирания при сохранении это не даёт: `erp_route_apply` пишет
+ * только присланные ключи.
+ */
 export function draftFromStages(
   stages: readonly StageLike[],
   deptCodeById: ReadonlyMap<string, string>,
+  subByStage?: ReadonlyMap<string, SubcontractSeed>,
 ): RouteGroup[] {
   const byOrder = new Map<number, RouteGroup>();
   for (const s of [...stages].sort((a, b) => a.sort_order - b.sort_order)) {
     // Пропущенный этап в конструкторе не показываем: он уже выведен из маршрута
     if (s.status === 'skipped') continue;
     const group = byOrder.get(s.sort_order) ?? [];
+    const sub = subByStage?.get(s.id);
     group.push({
       stageId: s.id,
       departmentCode: deptCodeById.get(s.department_id) ?? '',
       executor: s.executor === 'contractor' ? 'contractor' : 'internal',
       contractor: s.contractor ?? '',
       operation: s.operation ?? '',
+      qty: text(sub?.qty),
+      sendPlan: text(sub?.send_plan_date),
+      returnPlan: text(sub?.planned_date),
+      responsible: text(sub?.responsible),
+      handover: text(sub?.materials_note),
+      comment: text(sub?.comment),
       locked: isStepLocked(s),
     });
     byOrder.set(s.sort_order, group);
@@ -284,6 +349,46 @@ export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
   return out;
 }
 
+/**
+ * Шаг черновика → поля этапа и его подрядного спутника для сервера.
+ *
+ * ОДНА функция на обоих писателей: `RouteEditor` (RPC `erp_route_apply`) и
+ * `createOrder` (секция `items[].stages` в `erp_create_order`). Правило проекта
+ * записано после того, как спутника подряда завели два места и разошлись бы
+ * в первую правку: сервер их уже держит одним выражением, клиент обязан тоже.
+ *
+ * Пустая строка превращается в `null`, а не в пустое значение: «не заполнено»
+ * и «заполнено пустым» на экране неразличимы, а в базе разные.
+ */
+export function stepPayload(step: RouteStep): {
+  executor: 'internal' | 'contractor';
+  contractor: string | null;
+  operation: string | null;
+  qty: number | null;
+  send_plan_date: string | null;
+  planned_date: string | null;
+  responsible: string | null;
+  materials_note: string | null;
+  comment: string | null;
+} {
+  const contractor = step.executor === 'contractor';
+  const str = (v: string) => (v.trim() ? v.trim() : null);
+  const qty = Number(step.qty);
+  return {
+    executor: step.executor,
+    contractor: contractor ? str(step.contractor) : null,
+    operation: str(step.operation),
+    // Подрядные поля у нашего этапа не хранятся вовсе: спутника у него нет,
+    // и присланное значение молча пропало бы — хуже, чем не отправленное
+    qty: contractor && step.qty.trim() && Number.isFinite(qty) && qty > 0 ? qty : null,
+    send_plan_date: contractor ? str(step.sendPlan) : null,
+    planned_date: contractor ? str(step.returnPlan) : null,
+    responsible: contractor ? str(step.responsible) : null,
+    materials_note: contractor ? str(step.handover) : null,
+    comment: contractor ? str(step.comment) : null,
+  };
+}
+
 // --- Валидация ----------------------------------------------------------------
 
 export interface RouteIssue {
@@ -309,6 +414,17 @@ export function routeIssues(draft: readonly RouteGroup[]): RouteIssue[] {
        */
       if (step.executor === 'contractor' && !step.contractor.trim()) {
         issues.push({ group: gi, text: 'У подрядного этапа не указан подрядчик' });
+      }
+      /**
+       * Операция у подряда ОБЯЗАТЕЛЬНА (правки 20.08). Документ строит на ней
+       * весь раздел: «название конкретной подрядной операции хранится внутри
+       * карточки подрядного этапа и используется для поиска и фильтрации»,
+       * и отдельных вкладок под варку и сублимацию не заводится именно потому,
+       * что различает их это поле. Без него строка раздела подписывается
+       * именем ЦЕХА — то есть «Цех ДТФ» там, где человек ищет «Сублимацию».
+       */
+      if (step.executor === 'contractor' && !step.operation.trim()) {
+        issues.push({ group: gi, text: 'У подрядного этапа не указана операция' });
       }
     });
     // Один и тот же участок дважды в одном шаге — почти всегда промах руки

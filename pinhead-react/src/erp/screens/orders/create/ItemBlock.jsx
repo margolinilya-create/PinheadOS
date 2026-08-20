@@ -78,8 +78,7 @@ export function ItemBlock({
           className={styles.input}
           value={it.fit}
           onChange={(e) => setItem(i, { fit: e.target.value })}
-          placeholder="Oversize"
-          list="erp-fits"
+          placeholder="Regular · Oversize · Free Fit"
         />
       </label>
       {gTotal > 0 ? (
