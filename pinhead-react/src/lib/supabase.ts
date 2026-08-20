@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { renderConfigError } from './configError';
+import { withRefreshTimeout } from './authFetch';
 
 const SUPA_URL: string = import.meta.env.VITE_SUPABASE_URL;
 const SUPA_KEY: string = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -37,4 +38,6 @@ export const supabase: SupabaseClient = createClient(SUPA_URL, SUPA_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
+  // Обновление токена не имеет права висеть вечно — см. `lib/authFetch`
+  global: { fetch: withRefreshTimeout() },
 });

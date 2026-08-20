@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { erpQuery, erpRead, networkFailureMessage } from './shared';
+import { AUTH_LOCK_MESSAGE } from '../../utils/i18n';
 
 /**
  * Сбой ДО ответа сервера.
@@ -105,5 +106,39 @@ describe('erpRead — повтор только сети и только чте�
     });
     expect(calls).toBe(2);
     expect(res.error?.message).toBe('нет связи с сервером');
+  });
+});
+
+/**
+ * Перехваченный лок сессии — тоже сбой ДО отправки.
+ *
+ * Токен доступа берётся под тем же локом, что и сессия: когда его забирают
+ * силой (`steal: true` в auth-js 2.98), запрос не уходит вовсе. Повторить
+ * здесь не только можно, но и нужно — иначе экран пустеет из-за внутренней
+ * гонки клиента, о которой человеку нечего сказать.
+ */
+describe('erpRead — перехваченный лок сессии повторяется', () => {
+  const stolen = () => {
+    const e = new Error("Lock broken by another request with the 'steal' option.");
+    e.name = 'AbortError';
+    return e;
+  };
+
+  it('второй заход спасает экран', async () => {
+    let calls = 0;
+    const res = await erpRead<number[]>(async () => {
+      calls += 1;
+      if (calls === 1) throw stolen();
+      return { data: [7], error: null };
+    });
+    expect(calls).toBe(2);
+    expect(res.data).toEqual([7]);
+    expect(res.error).toBeNull();
+  });
+
+  it('если сорвался и повтор — человеку остаётся русская фраза, а не текст браузера', async () => {
+    const res = await erpRead(async () => { throw stolen(); });
+    expect(res.error?.message).toBe(AUTH_LOCK_MESSAGE);
+    expect(res.error?.message).not.toMatch(/steal/);
   });
 });

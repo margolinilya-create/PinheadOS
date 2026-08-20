@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { isNetworkFailure, networkFailureMessage } from './i18n';
+import {
+  AUTH_LOCK_MESSAGE, isAuthLockFailure, isNetworkFailure, networkFailureMessage,
+  translateSupabaseError,
+} from './i18n';
 
 /**
  * «Не нашлось текста» ≠ «нет связи».
@@ -49,5 +52,43 @@ describe('networkFailureMessage всегда даёт текст человек�
 
   it('null не превращается в слово «null»', () => {
     expect(networkFailureMessage(null)).not.toContain('null');
+  });
+});
+
+/**
+ * Перехваченный лок сессии — не сеть и не отказ сервера.
+ *
+ * `supabase-js` держит сессию под общим Web Lock, и с auth-js 2.98 захват,
+ * прождавший дольше пяти секунд, забирает лок силой (`steal: true`). Прежний
+ * держатель получает `AbortError: Lock broken by another request with the
+ * 'steal' option`, и этот английский текст доходил до человека дословно —
+ * на форме входа, красной полосой, четырежды подряд.
+ */
+describe('перехваченный лок сессии называется по-человечески', () => {
+  const stolen = () => {
+    const e = new Error("Lock broken by another request with the 'steal' option.");
+    e.name = 'AbortError';
+    return e;
+  };
+
+  it('узнаётся и в брошенной ошибке, и в объекте { message }', () => {
+    expect(isAuthLockFailure(stolen())).toBe(true);
+    expect(isAuthLockFailure({ message: "AbortError: Lock broken by another request with the 'steal' option." }))
+      .toBe(true);
+  });
+
+  it('сетевым сбоем не считается — иначе повтор и текст выберутся не те', () => {
+    expect(isNetworkFailure(stolen())).toBe(false);
+  });
+
+  it('отказ сервера локом не считается', () => {
+    expect(isAuthLockFailure(new Error('permission denied for table erp_orders'))).toBe(false);
+    expect(isAuthLockFailure(null)).toBe(false);
+  });
+
+  it('и в броске, и в сообщении получается одна и та же фраза', () => {
+    expect(networkFailureMessage(stolen())).toBe(AUTH_LOCK_MESSAGE);
+    expect(translateSupabaseError("Lock broken by another request with the 'steal' option."))
+      .toBe(AUTH_LOCK_MESSAGE);
   });
 });

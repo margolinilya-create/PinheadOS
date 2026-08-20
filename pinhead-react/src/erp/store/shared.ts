@@ -7,7 +7,7 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
+import { isAuthLockFailure, networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
 import type { ErpStageEvent } from '../types';
 
 /** Имя действующего пользователя для аудита */
@@ -60,13 +60,19 @@ export const READ_RETRY_MS = 800;
  *     решение, а не помеха: повторять его значит скрывать причину и тратить время;
  *   · повторяется только чтение. Повторить запись — это второй заказ, вторая
  *     приёмка, второе списание брака. Мутации остаются на `erpQuery`.
+ *
+ * Сюда же попадает перехваченный лок сессии (`isAuthLockFailure`): это тоже
+ * сбой ДО отправки — токен доступа берётся под тем самым локом, и запрос
+ * не уходил вовсе. Разница с сетью в том, что повтор здесь почти наверняка
+ * пройдёт: лок к этому моменту уже у другого, а тот его отпустит.
  */
 export async function erpRead<T>(
   run: () => PromiseLike<{ data: T; error: { message: string } | null }>,
 ): Promise<ErpResult<T>> {
   const first = await erpQuery(run);
-  const networkFailure = first.error && first.error.message === 'нет связи с сервером';
-  if (!networkFailure) return first;
+  const retryable = first.error
+    && (first.error.message === 'нет связи с сервером' || isAuthLockFailure(first.error));
+  if (!retryable) return first;
   await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
   return erpQuery(run);
 }
