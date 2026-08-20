@@ -23,7 +23,9 @@ import type {
   ErpItemStage,
   ErpMaterial,
   ErpMaterialSupplier,
+  ErpAttachmentKind,
   ErpOrder,
+  ErpOrderAttachment,
   ErpOrderItem,
   DevOutcome,
   DevTaskStatus,
@@ -95,32 +97,11 @@ export interface ErpOrderComment {
 }
 
 /**
- * Вид вложения. `preview` — макет заказа, `attachment` — прочий файл; три
- * последних заведены правкой заказчика 16.08 и отвечают на вопрос «в каком
- * блоке карточки показывать»: без них файлы упаковки, техблока и листа закупки
- * свалились бы во вкладку «Файлы» вперемешку.
+ * Вложение заказа — зеркало таблицы, поэтому объявление живёт в `erp/types.ts`
+ * рядом с остальной схемой: разработка ссылается на него тоже, и держать тип
+ * здесь значило бы завести цикл импортов ради одного поля.
  */
-export type ErpAttachmentKind =
-  | 'preview' | 'attachment' | 'packaging' | 'tech' | 'purchase';
-
-export interface ErpOrderAttachment {
-  id: string;
-  order_id: string;
-  /** Позиция, к которой относится файл. NULL — файл всего заказа */
-  item_id?: string | null;
-  /**
-   * Строка листа закупки, к которой относится файл (правки 16.08, п. 14).
-   * NULL — файл заказа или позиции. Референсы закупщика («фото материала,
-   * скрин позиции поставщика») относятся к КОНКРЕТНОЙ строке: свалить их
-   * в общую кучу значит отдать десяток картинок без ответа, к чему они.
-   */
-  material_id?: string | null;
-  file_path: string;
-  file_name: string | null;
-  kind: ErpAttachmentKind;
-  uploaded_by: string | null;
-  created_at: string;
-}
+export type { ErpAttachmentKind, ErpOrderAttachment } from '../types';
 
 /** Заказ со вложенными позициями/этапами/материалами (join при загрузке) */
 export interface ErpOrderFull extends ErpOrder {
@@ -861,7 +842,7 @@ export interface RealtimeSlice {
  * ради этого нельзя — она уже в данных и в истории.
  */
 export type DevPatch =
-  Partial<Omit<ErpExperimental, 'constructor' | 'tasks' | 'ops' | 'order'>> & {
+  Partial<Omit<ErpExperimental, 'constructor' | 'tasks' | 'ops' | 'order' | 'attachments'>> & {
     /** Конструктор изделия → колонка `constructor` */
     constructorName?: string | null;
   };
@@ -922,6 +903,29 @@ export interface ExperimentalSlice {
     id: string,
     input: { outcome: DevOutcome; comment?: string | null },
   ) => Promise<boolean>;
+
+  /**
+   * Образец утверждён (правки 20.08). ЕДИНСТВЕННОЕ хранимое решение по этапам:
+   * из статусов задач его не вывести — закрытая примерка означает и «принято»,
+   * и «не принято». Снятие (`null`) допустимо: решение принимает человек,
+   * и ошибиться он вправе.
+   */
+  approveSample: (id: string, note?: string | null) => Promise<boolean>;
+
+  /**
+   * Файл финального пакета: лекала, техпаспорт, фото образца. Уходит в бакет
+   * СРАЗУ и привязывается к РАЗРАБОТКЕ (`experimental_id`), а не к позиции:
+   * лекала описывают модель, а не тот заказ, из которого она вышла.
+   */
+  uploadDevFile: (input: {
+    devId: string;
+    orderId: string;
+    kind: ErpAttachmentKind;
+    file: File;
+  }) => Promise<boolean>;
+
+  /** Снять файл пакета (техпаспорт вышел новой версией, фото переснято) */
+  deleteDevFile: (devId: string, attachmentId: string) => Promise<boolean>;
 }
 
 /**

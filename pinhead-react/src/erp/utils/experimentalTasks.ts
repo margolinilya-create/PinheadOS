@@ -251,3 +251,166 @@ export function devOverdue(
 export function isSuccessOutcome(outcome: DevOutcome | null | undefined): boolean {
   return outcome === 'ready_for_serial';
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Доработка образца ПО ОБЛАСТЯМ (правки заказчика 20.08)
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Что именно нужно изменить — перечень документа дословно.
+ *
+ * ПОЧЕМУ ЭТО НЕ СВОБОДНЫЙ ТЕКСТ. От области зависит НАБОР повторных задач,
+ * то есть реальная работа цеха. Прежняя кнопка «Примерка не принята» заводила
+ * жёсткую тройку `rework → sample → fitting` независимо от причины: вышивку
+ * перезапускали из-за длины рукава, а крой не перезапускали вовсе. Документ
+ * требует обратного: «повторно запускаются только необходимые этапы… нанесение
+ * не запускается повторно, если изменения его не касаются».
+ */
+export type ReworkArea = 'patterns' | 'material' | 'cutting' | 'branding' | 'sewing' | 'other';
+
+export const REWORK_AREAS: ReworkArea[] = [
+  'patterns', 'material', 'cutting', 'branding', 'sewing', 'other',
+];
+
+export const REWORK_AREA_LABELS: Record<ReworkArea, string> = {
+  patterns: 'Лекала',
+  material: 'Материал',
+  cutting: 'Крой',
+  branding: 'Нанесение',
+  sewing: 'Пошив',
+  other: 'Другое',
+};
+
+/** Задача нового круга: тот же вход, что у `addDevTasks` (индексы — внутри пачки) */
+export interface ReworkTask {
+  task_type: string;
+  title: string;
+  comment?: string | null;
+  depends_on?: number[];
+}
+
+export interface ReworkPlan {
+  tasks: ReworkTask[];
+  /** Текст последствий для подтверждения — считает ТА ЖЕ функция, что и задачи */
+  summary: string;
+  /** Выбрано «нанесение», а повторять нечего: задачи нанесения не было */
+  brandingMissing: boolean;
+}
+
+/** Типы задач нанесения, встречающиеся в разработке (для повтора того же участка) */
+const BRANDING_TYPES: ReadonlySet<string> = new Set([
+  'dtf', 'dtg', 'silkscreen', 'embroidery', 'sublimation',
+]);
+
+/**
+ * Набор задач повторного круга под выбранные области — и текст последствий
+ * к нему. Одна функция на оба, по правилу проекта: «последствия называет
+ * утилита с тестами», иначе подтверждение расходится с фактом.
+ *
+ * ПРАВИЛО СОСТАВА. Меняются лекала или материал — кроить и шить надо заново;
+ * меняется крой — шить заново. Пошив пересобирается ВСЕГДА: образец физически
+ * разбирается, иначе проверять нечего. Нанесение повторяется ТОЛЬКО когда его
+ * выбрали — это единственное требование документа, сформулированное запретом.
+ *
+ * ЗАВИСИМОСТИ повторяют производственный порядок (лекала и материал идут
+ * параллельно, крой ждёт обоих, пошив ждёт крой и все нанесения), а номер
+ * круга считает СЕРВЕР по типу задачи: рисовать его заранее значит показать
+ * число, которого может не получиться.
+ */
+export function reworkPlan(
+  areas: readonly ReworkArea[],
+  input: {
+    note?: string | null;
+    /** Существующие задачи — из них берутся участки нанесения для повтора */
+    tasks?: readonly Pick<ErpExperimentalTask, 'task_type'>[];
+  } = {},
+): ReworkPlan {
+  const picked = new Set(areas);
+  const note = (input.note ?? '').trim();
+  const suffix = note ? `: ${note}` : '';
+  const tasks: ReworkTask[] = [];
+  const steps: string[] = [];
+  const idx = (t: ReworkTask) => { tasks.push(t); return tasks.length - 1; };
+
+  const patternsAt = picked.has('patterns')
+    ? idx({ task_type: 'patterns', title: `Доработка лекал${suffix}`, comment: note || null })
+    : -1;
+  if (patternsAt >= 0) steps.push('доработка лекал');
+
+  const materialAt = picked.has('material')
+    ? idx({ task_type: 'material', title: `Замена материала${suffix}`, comment: note || null })
+    : -1;
+  if (materialAt >= 0) steps.push('подбор материала');
+
+  // Крой заново — при смене лекал, материала или самого кроя
+  const needCut = picked.has('patterns') || picked.has('material') || picked.has('cutting');
+  const cutAt = needCut
+    ? idx({
+      task_type: 'cutting',
+      title: 'Новый крой',
+      comment: note || null,
+      depends_on: [patternsAt, materialAt].filter((i) => i >= 0),
+    })
+    : -1;
+  if (cutAt >= 0) steps.push('новый крой');
+
+  const brandTypes = picked.has('branding')
+    ? [...new Set((input.tasks ?? [])
+      .map((t) => t.task_type)
+      .filter((t) => BRANDING_TYPES.has(t)))]
+    : [];
+  const brandAt: number[] = brandTypes.map((type) => idx({
+    task_type: type,
+    title: 'Повторное нанесение',
+    comment: note || null,
+    depends_on: cutAt >= 0 ? [cutAt] : [],
+  }));
+  if (brandAt.length > 0) steps.push('повторное нанесение');
+
+  const sewAt = idx({
+    task_type: 'sample',
+    title: 'Повторная сборка образца',
+    comment: note || null,
+    depends_on: [...(cutAt >= 0 ? [cutAt] : []), ...brandAt],
+  });
+  steps.push('новый пошив');
+
+  idx({
+    task_type: 'fitting',
+    title: 'Повторная проверка образца',
+    comment: note || null,
+    depends_on: [sewAt],
+  });
+  steps.push('повторная проверка образца');
+
+  const brandingMissing = picked.has('branding') && brandTypes.length === 0;
+  const tail = picked.has('branding')
+    ? (brandingMissing
+      ? ' Задач нанесения в разработке нет — повторять нечего, заведите её вручную.'
+      : '')
+    : ' Нанесение повторно НЕ запускается: изменения его не касаются.';
+
+  return {
+    tasks,
+    summary: `Появятся задачи нового круга: ${steps.join(' → ')}.${tail}`,
+    brandingMissing,
+  };
+}
+
+/**
+ * История доработок — задачи повторных кругов, в порядке заведения.
+ *
+ * ПЛОСКИЙ СПИСОК, А НЕ ГРУППЫ ПО `cycle`, и это не упрощение. Круг считает
+ * сервер ПО ТИПУ задачи: в одном и том же круге доработки лекала получат
+ * `cycle = 1`, а повторная сборка образца — `cycle = 2`, если образец уже
+ * собирали. Группа, подписанная «Круг 1», не содержала бы половины своей же
+ * работы — и врала бы убедительно. Номер круга остаётся у КАЖДОЙ задачи,
+ * там он верен: «примерка, круг 2» — это ровно вторая примерка.
+ */
+export function reworkHistory(
+  tasks: readonly ErpExperimentalTask[],
+): ErpExperimentalTask[] {
+  return (tasks ?? [])
+    .filter((t) => t.cycle > 0)
+    .sort((a, b) => a.sort_order - b.sort_order);
+}

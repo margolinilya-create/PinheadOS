@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { installSupabaseMock, deptId, FX_CREATED } from './support/mockSupabase';
+import { installSupabaseMock, buildStages, deptId, FX_CREATED } from './support/mockSupabase';
 
 /**
  * Экспериментальный цех: задачи вместо фаз (ТЗ заказчика 12.08).
@@ -173,6 +173,35 @@ const DICTIONARIES = [
   },
 ];
 
+/**
+ * Заказ-образец СО СВОИМ этапом нанесения (`origin: 'experimental'`).
+ *
+ * Отдельный заказ, а не правка базовых четырёх: те держат visual-эталоны
+ * и счётчики очередей `erp-queue`/`erp-plan`, и добавленный этап сдвинул бы
+ * чужие проверки. Правило спек: свои данные — вторым аргументом мока.
+ */
+const SAMPLE_ORDER = {
+  id: 'ord-s', bitrix_id: '55300', title: 'Образец: ветровка',
+  manager: 'Ирина', launch_date: '2026-07-14', due_date: '2026-08-14',
+  buffer_days: 1, priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'zip', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: FX_CREATED, updated_at: FX_CREATED,
+  items: [{
+    id: 'ord-s-i1', order_id: 'ord-s', product_type: 'Ветровка', variant: 'образец',
+    qty: 2, production_type: 'samples', branding_methods: ['dtf'], branding_on: 'cut',
+    notes: null, size_grid: null, sort_order: 10,
+    created_at: FX_CREATED, updated_at: FX_CREATED,
+    stages: buildStages('ord-s-i1', [
+      { code: 'dtf', status: 'in_progress', qty_done: 1, origin: 'experimental' },
+    ]),
+    prints: [],
+  }],
+  materials: [],
+  attachments: [],
+};
+
 test.beforeEach(async ({ page }) => {
   await installSupabaseMock(page, { experimental: EXPERIMENTAL, dictionaries: DICTIONARIES });
   await page.clock.setFixedTime(FIXED_TIME);
@@ -191,11 +220,11 @@ test.describe('Экран разработки: состояния считаю�
     for (const label of ['Новые', 'В работе', 'Требуют внимания', 'На примерке', 'Готовы к серии']) {
       await expect(tile(page, label).first()).toContainText('1');
     }
-    await expect(tile(page, 'Все разработки').first()).toContainText('5');
+    await expect(tile(page, 'Все').first()).toContainText('5');
   });
 
   test('таблица отвечает «почему стоит», а не «на какой фазе»', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await page.goto('/experimental?studio=0&view=list');
     const row = page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' });
 
     // Готовность — в ЗАДАЧАХ (0 из 1), блокер назван словами
@@ -205,7 +234,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('ноль задач дал бы «—», а не 100 % — здесь готовность честная', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await page.goto('/experimental?studio=0&view=list');
     // У «Новые» две задачи, ни одна не закрыта
     await expect(
       page.getByRole('row').filter({ hasText: 'Худи оверсайз' }),
@@ -213,7 +242,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('подпись задачи без названия берётся из справочника', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await page.goto('/experimental?studio=0&view=list');
     // У задач «Новых» своих названий нет — блокер показывает имя из справочника,
     // а не код `patterns`
     const row = page.getByRole('row').filter({ hasText: 'Худи оверсайз' });
@@ -222,7 +251,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('фильтр по состоянию живёт в адресе — ссылкой можно поделиться', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await page.goto('/experimental?studio=0&view=list');
     await tile(page, 'Требуют внимания').first().click();
 
     await expect(page).toHaveURL(/state=attention/);
@@ -230,7 +259,7 @@ test.describe('Экран разработки: состояния считаю�
     await expect(page.getByRole('row').filter({ hasText: 'Худи оверсайз' })).toHaveCount(0);
 
     // Прямой заход по той же ссылке восстанавливает подбор
-    await page.goto('/experimental?studio=0&state=ready');
+    await page.goto('/experimental?studio=0&view=list&state=ready');
     await expect(page.getByRole('row').filter({ hasText: 'Футболка freefit' })).toBeVisible();
     await expect(page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' })).toHaveCount(0);
   });
@@ -238,7 +267,7 @@ test.describe('Экран разработки: состояния считаю�
 
 test.describe('Карточка разработки', () => {
   test('открывается в адресе и показывает блокер и следующее действие', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await page.goto('/experimental?studio=0&view=list');
     await page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' }).click();
 
     await expect(page).toHaveURL(/dev=dev-block/);
@@ -277,14 +306,24 @@ test.describe('Карточка разработки', () => {
     await expect(drawer.getByRole('row').filter({ hasText: 'Доработка: дно +2 см' })).toBeVisible();
   });
 
-  test('«Примерка не принята» обещает новый круг, а не возврат к фазе', async ({ page }) => {
+  test('доработка спрашивает ОБЛАСТИ и называет последствия', async ({ page }) => {
+    /**
+     * Правки 20.08: «указывается, что именно нужно изменить… после этого
+     * повторно запускаются только необходимые этапы». Прежняя кнопка
+     * «Примерка не принята» заводила жёсткую тройку задач независимо
+     * от причины — вышивку перезапускали из-за длины рукава.
+     */
     await page.goto('/experimental?studio=0&dev=dev-fit');
     const drawer = page.getByRole('dialog');
-    await drawer.getByRole('button', { name: 'Примерка не принята' }).click();
+    await drawer.getByRole('button', { name: 'Требуется доработка' }).click();
 
-    const dialog = page.getByRole('dialog').filter({ hasText: 'Примерка не принята?' });
-    await expect(dialog).toContainText('три задачи нового круга');
-    await expect(dialog.getByLabel('Что исправить')).toBeVisible();
+    await drawer.getByRole('checkbox', { name: 'Лекала' }).check();
+    await drawer.getByLabel('Что исправить').fill('рукав +2 см');
+
+    // Последствия видны ДО нажатия и считаются той же функцией, что и задачи
+    await expect(drawer).toContainText('доработка лекал');
+    await expect(drawer).toContainText('новый крой');
+    await expect(drawer).toContainText('Нанесение повторно НЕ запускается');
   });
 
   test('закрытая разработка не предлагает действий — хранится только исход', async ({ page }) => {
@@ -302,6 +341,83 @@ test.describe('Карточка разработки', () => {
     async ({ page }) => {
       await page.goto('/experimental?studio=0&dev=dev-work');
       const drawer = page.getByRole('dialog');
-      await expect(drawer).toContainText('производственный заказ на серию заводит менеджер');
+      await expect(drawer).toContainText('заказ на серию заводит менеджер');
     });
+});
+
+/**
+ * Доска по этапам — ГЛАВНЫЙ экран раздела (правки заказчика 20.08).
+ *
+ * «Главный экран должен быть построен по этапам, по тому же принципу, как
+ * сейчас выглядит общий производственный борд… Колонки: Построение лекал ·
+ * Крой · Нанесения · Пошив · Финальный этап».
+ */
+test.describe('Доска экспериментального цеха', () => {
+  test('пять колонок документа, и «Нанесения» ОДНА', async ({ page }) => {
+    await page.goto('/experimental?studio=0');
+    for (const col of ['Построение лекал', 'Крой', 'Нанесения', 'Пошив', 'Финальный этап']) {
+      await expect(page.getByText(col, { exact: true }).first()).toBeVisible();
+    }
+    // Отдельного ВТО документ запрещает прямо: «оно выполняется внутри работы
+    // экс цеха без создания отдельной колонки и отдельной очереди».
+    // Смотрим ТОЛЬКО на доску: в сайдбаре ВТО есть и остаётся — это общий цех
+    await expect(page.getByRole('main').getByText('ВТО', { exact: true })).toHaveCount(0);
+  });
+
+  test('разработка стоит в колонке своего шага, а не там, где её положили',
+    async ({ page }) => {
+      await page.goto('/experimental?studio=0');
+      // Колонка ВЫЧИСЛЯЕТСЯ из задач: у «Ветровки» идут лекала, у «Футболки»
+      // зафиксирован исход — она в финальном этапе
+      const board = page.locator('section').filter({ hasText: 'Построение лекал' }).first();
+      await expect(board).toContainText('Ветровка на молнии');
+    });
+
+  test('вид раздела живёт в адресе — ссылкой можно поделиться', async ({ page }) => {
+    await page.goto('/experimental?studio=0');
+    await page.getByRole('button', { name: 'Лекала', exact: true }).click();
+    await expect(page).toHaveURL(/view=patterns/);
+
+    // Собственная очередь ЭКС: задачи лекал по ВСЕМ разработкам
+    const row = page.getByRole('row').filter({ hasText: 'Лекала базовые' });
+    await expect(row).toContainText('Ветровка на молнии');
+    await expect(row).toContainText('Ирина');
+  });
+
+  test('нанесения — отфильтрованное ОБЩЕЕ задание с пометкой образца',
+    async ({ page }) => {
+      /**
+       * «Задачи нанесений не дублируются… одновременно отображается в общем
+       * цехе и в экс цехе». Поэтому здесь читаются ЭТАПЫ, те же самые, что
+       * видит цех, — отобранные по `origin`.
+       *
+       * Заказ СВОЙ: базовые четыре держат visual-эталоны и счётчики очередей,
+       * и подмешивать в них этап образца значило бы править чужие проверки.
+       */
+      await installSupabaseMock(page, {
+        experimental: EXPERIMENTAL,
+        dictionaries: DICTIONARIES,
+        orders: [SAMPLE_ORDER],
+      });
+      await page.goto('/experimental?studio=0&view=dtf');
+      await expect(page.getByText('ЭКС / ОБРАЗЕЦ').first()).toBeVisible();
+      await expect(page.getByRole('link', { name: /Открыть/ }).first()).toBeVisible();
+    });
+});
+
+test.describe('Финальный технический пакет', () => {
+  test('«Готово к серии» закрыто и НАЗЫВАЕТ, чего не хватает', async ({ page }) => {
+    /**
+     * «Разработку нельзя перевести в "Готово к серии", пока обязательные
+     * данные не заполнены… система должна показать, какие поля ещё
+     * не заполнены». Гейт кнопки — зеркало серверного стража.
+     */
+    await page.goto('/experimental?studio=0&dev=dev-work');
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toContainText('Не хватает для «Готово к серии»');
+    await expect(drawer).toContainText('Техническое название лекал');
+    await expect(drawer).toContainText('Фото образца');
+    await expect(drawer).toContainText('Ценовая вилка');
+    await expect(drawer.getByRole('button', { name: 'Готово к серии' })).toBeDisabled();
+  });
 });

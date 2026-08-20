@@ -370,6 +370,7 @@ export type Database = {
           created_at: string
           dev_type: string | null
           due_date: string | null
+          final_package: Json
           has_3d: boolean
           id: string
           item_id: string | null
@@ -378,7 +379,14 @@ export type Database = {
           outcome: string | null
           outcome_comment: string | null
           owner: string | null
+          pattern_tech_name: string | null
+          pattern_version: string | null
+          price_max: number | null
+          price_min: number | null
           priority: number
+          sample_approved_at: string | null
+          sample_approved_by: string | null
+          sample_approved_note: string | null
           tech_name: string | null
           technologist: string | null
           updated_at: string
@@ -390,6 +398,7 @@ export type Database = {
           created_at?: string
           dev_type?: string | null
           due_date?: string | null
+          final_package?: Json
           has_3d?: boolean
           id?: string
           item_id?: string | null
@@ -398,7 +407,14 @@ export type Database = {
           outcome?: string | null
           outcome_comment?: string | null
           owner?: string | null
+          pattern_tech_name?: string | null
+          pattern_version?: string | null
+          price_max?: number | null
+          price_min?: number | null
           priority?: number
+          sample_approved_at?: string | null
+          sample_approved_by?: string | null
+          sample_approved_note?: string | null
           tech_name?: string | null
           technologist?: string | null
           updated_at?: string
@@ -410,6 +426,7 @@ export type Database = {
           created_at?: string
           dev_type?: string | null
           due_date?: string | null
+          final_package?: Json
           has_3d?: boolean
           id?: string
           item_id?: string | null
@@ -418,7 +435,14 @@ export type Database = {
           outcome?: string | null
           outcome_comment?: string | null
           owner?: string | null
+          pattern_tech_name?: string | null
+          pattern_version?: string | null
+          price_max?: number | null
+          price_min?: number | null
           priority?: number
+          sample_approved_at?: string | null
+          sample_approved_by?: string | null
+          sample_approved_note?: string | null
           tech_name?: string | null
           technologist?: string | null
           updated_at?: string
@@ -959,6 +983,7 @@ export type Database = {
       erp_order_attachments: {
         Row: {
           created_at: string
+          experimental_id: string | null
           file_name: string | null
           file_path: string
           id: string
@@ -970,6 +995,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          experimental_id?: string | null
           file_name?: string | null
           file_path: string
           id?: string
@@ -981,6 +1007,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          experimental_id?: string | null
           file_name?: string | null
           file_path?: string
           id?: string
@@ -991,6 +1018,13 @@ export type Database = {
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "erp_order_attachments_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: false
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "erp_order_attachments_item_id_fkey"
             columns: ["item_id"]
@@ -2183,6 +2217,48 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      erp_experimental_create: {
+        Args: {
+          p_item_id: string
+          p_order_id: string
+          p_tasks?: Json
+          p_tech_name?: string
+        }
+        Returns: {
+          closed_at: string | null
+          comment: string | null
+          constructor: string | null
+          created_at: string
+          dev_type: string | null
+          due_date: string | null
+          final_package: Json
+          has_3d: boolean
+          id: string
+          item_id: string | null
+          measurement_table: string | null
+          order_id: string
+          outcome: string | null
+          outcome_comment: string | null
+          owner: string | null
+          pattern_tech_name: string | null
+          pattern_version: string | null
+          price_max: number | null
+          price_min: number | null
+          priority: number
+          sample_approved_at: string | null
+          sample_approved_by: string | null
+          sample_approved_note: string | null
+          tech_name: string | null
+          technologist: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_experimental"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       erp_experimental_task_send: {
         Args: {
           p_department_id: string
@@ -2233,6 +2309,14 @@ export type Database = {
       erp_is_member: { Args: never; Returns: boolean }
       erp_local_date: { Args: never; Returns: string }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
+      erp_pkg_list_filled: {
+        Args: { p_key: string; p_pkg: Json }
+        Returns: boolean
+      }
+      erp_pkg_text_filled: {
+        Args: { p_key: string; p_pkg: Json }
+        Returns: boolean
+      }
       erp_role_of_caller: { Args: never; Returns: string }
       erp_route_apply: {
         Args: { p_item_id: string; p_steps: Json }

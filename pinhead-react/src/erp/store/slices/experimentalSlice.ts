@@ -15,9 +15,11 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpError, erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
 import { toast } from '../../../store/useToastStore';
-import type { ErpExperimental, ErpExperimentalTask } from '../../types';
+import { attachmentFilePath } from '../../utils/storageKey';
+import { TZ_BUCKET } from '../../types';
+import type { ErpExperimental, ErpExperimentalTask, ErpOrderAttachment } from '../../types';
 import type { DevTaskInput, ErpStore, ExperimentalSlice } from '../types';
 
 /**
@@ -29,6 +31,7 @@ import type { DevTaskInput, ErpStore, ExperimentalSlice } from '../types';
 const EXP_SELECT = `
   *,
   tasks:erp_experimental_tasks (*),
+  attachments:erp_order_attachments (*),
   order:erp_orders (title, bitrix_id, due_date)
 `;
 
@@ -65,20 +68,37 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     set({ experimental: rows, experimentalLoaded: true });
   },
 
+  /**
+   * Создание разработки ВМЕСТЕ со стартовой задачей — одной транзакцией
+   * (правки 20.08, RPC `erp_experimental_create`).
+   *
+   * Раньше это был обычный INSERT, и разработка заводилась БЕЗ ЕДИНОЙ ЗАДАЧИ:
+   * доска по этапам у неё пуста, а документ требует задачу на лекала сразу
+   * после запуска. Двумя запросами это делать нельзя — правило проекта
+   * про действие из нескольких записей: при сбое второго осталась бы
+   * разработка без обязательной задачи, и заметить это было бы нечем.
+   *
+   * Строка перечитывается вторым запросом: RPC возвращает голую строку,
+   * а экрану нужны `tasks` и заголовок заказа. Два запроса на ЧТЕНИЕ
+   * допустимы — транзакционность записи от этого не страдает.
+   */
   createExperimental: async (orderId, input = {}) => {
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_experimental')
-      .insert({
-        order_id: orderId,
-        item_id: input.item_id ?? null,
-        tech_name: input.tech_name ?? null,
-      })
-      .select(EXP_SELECT));
-    const row = data?.[0] as ErpExperimental | undefined;
-    if (error || !row) {
+    const { data, error } = await erpQuery(() => supabase.rpc('erp_experimental_create', {
+      p_order_id: orderId,
+      p_item_id: input.item_id ?? null,
+      p_tech_name: input.tech_name ?? null,
+    }));
+    const created = data as ErpExperimental | null;
+    if (error || !created) {
       erpError('Не удалось создать разработку', error);
       return null;
     }
+    const { data: full } = await erpQuery(() => supabase
+      .from('erp_experimental')
+      .select(EXP_SELECT)
+      .eq('id', created.id)
+      .maybeSingle());
+    const row = (full as ErpExperimental | null) ?? created;
     set((s) => ({ experimental: [{ ...row, tasks: row.tasks ?? [] }, ...s.experimental] }));
     return row;
   },
@@ -189,6 +209,11 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   /**
    * Исход разработки. «Готово к серии» НИЧЕГО не создаёт автоматически
    * (решение заказчика): производственный заказ заводит менеджер.
+   *
+   * Полноту финального пакета проверяют ДВОЕ: интерфейс (кнопка заблокирована
+   * и перечисляет недостающее) и страж `erp_dev_package_guard`. Здесь ничего
+   * не проверяется намеренно — третья реализация того же правила разошлась бы
+   * с обеими.
    */
   closeExperimental: async (id, input) => {
     return get().updateExperimental(id, {
@@ -196,5 +221,79 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       outcome_comment: input.comment?.trim() || null,
       closed_at: new Date().toISOString(),
     });
+  },
+
+  approveSample: async (id, note) => {
+    const actor = currentActor();
+    return get().updateExperimental(id, {
+      sample_approved_at: new Date().toISOString(),
+      sample_approved_by: actor,
+      sample_approved_note: note?.trim() || null,
+    });
+  },
+
+  /**
+   * Файл пакета уходит в бакет и привязывается строкой — в таком порядке,
+   * и с уборкой за собой: файл, загруженный и не привязанный, остаётся
+   * навсегда — платный, никем не учтённый и доступный по ссылке.
+   */
+  uploadDevFile: async ({ devId, orderId, kind, file }) => {
+    const path = attachmentFilePath(orderId, kind, crypto.randomUUID(), file.name);
+    const { error: upErr } = await erpQuery(() => supabase.storage
+      .from(TZ_BUCKET)
+      .upload(path, file, { contentType: file.type || 'application/octet-stream' }));
+    if (upErr) {
+      erpError('Не удалось загрузить файл', upErr);
+      return false;
+    }
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_order_attachments')
+      .insert({
+        order_id: orderId,
+        experimental_id: devId,
+        file_path: path,
+        file_name: file.name,
+        kind,
+        uploaded_by: currentActor(),
+      })
+      .select());
+    const row = (data?.[0] ?? null) as ErpOrderAttachment | null;
+    if (error || !row) {
+      await removeOrphanUpload(TZ_BUCKET, path);
+      erpError('Файл загружен, но не привязан к разработке', error);
+      return false;
+    }
+    set((s) => ({
+      experimental: s.experimental.map((e) => (e.id === devId
+        ? { ...e, attachments: [...(e.attachments ?? []), row] }
+        : e)),
+    }));
+    return true;
+  },
+
+  /**
+   * Удаление НЕ оптимистичное (правило проекта) и идёт с `.select()`: RLS
+   * запрещает DELETE через `USING`, то есть отдаёт «0 строк», а не ошибку —
+   * без этой проверки отказ прав выглядел бы зелёным «файл снят».
+   *
+   * Объект бакета убирается ПОСЛЕ строки: обратный порядок оставил бы
+   * разработку со ссылкой на несуществующий файл, если DELETE не прошёл.
+   */
+  deleteDevFile: async (devId, attachmentId) => {
+    const dev = get().experimental.find((e) => e.id === devId);
+    const att = (dev?.attachments ?? []).find((a) => a.id === attachmentId) ?? null;
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_order_attachments').delete().eq('id', attachmentId).select());
+    if (error || (data ?? []).length === 0) {
+      erpError('Файл не снят', error ?? { message: 'Нет прав на удаление файла' });
+      return false;
+    }
+    if (att?.file_path) await removeOrphanUpload(TZ_BUCKET, att.file_path);
+    set((s) => ({
+      experimental: s.experimental.map((e) => (e.id === devId
+        ? { ...e, attachments: (e.attachments ?? []).filter((a) => a.id !== attachmentId) }
+        : e)),
+    }));
+    return true;
   },
 });

@@ -7,6 +7,9 @@ import {
   isDelegated,
   isTaskReady,
   nextAction,
+  REWORK_AREAS,
+  reworkHistory,
+  reworkPlan,
   taskGroup,
   taskLabel,
   taskWaitingReason,
@@ -287,5 +290,94 @@ describe('вспомогательное', () => {
     // Закрытая разработка просроченной не считается — она больше не в работе
     expect(devOverdue(dev({ due_date: '2026-08-01', outcome: 'ready_for_serial' }), NOW))
       .toBe(false);
+  });
+});
+
+/**
+ * Доработка по областям — сценарий документа 20.08 дословно: «если нужно
+ * изменить только лекала и посадку, повторно запускаются: доработка лекал,
+ * новый крой, новый пошив, повторная проверка образца. Нанесение не
+ * запускается повторно, если изменения его не касаются».
+ */
+describe('reworkPlan — что перезапускать', () => {
+  const types = (plan: ReturnType<typeof reworkPlan>) => plan.tasks.map((t) => t.task_type);
+
+  it('только лекала: крой и пошив заново, нанесение — НЕТ', () => {
+    const plan = reworkPlan(['patterns'], {
+      note: 'рукав +2 см',
+      tasks: [task({ task_type: 'embroidery' })],
+    });
+    expect(types(plan)).toEqual(['patterns', 'cutting', 'sample', 'fitting']);
+    expect(plan.summary).toContain('Нанесение повторно НЕ запускается');
+  });
+
+  it('нанесение выбрано — повторяется ТОТ ЖЕ участок, а не все', () => {
+    const plan = reworkPlan(['branding'], {
+      note: 'сместить логотип',
+      tasks: [task({ task_type: 'embroidery' }), task({ task_type: 'sample' })],
+    });
+    expect(types(plan)).toEqual(['embroidery', 'sample', 'fitting']);
+    // Крой не трогаем: лекала и материал не менялись
+    expect(types(plan)).not.toContain('cutting');
+  });
+
+  it('нанесение выбрано, а задач нанесения не было — говорим об этом', () => {
+    const plan = reworkPlan(['branding'], { note: 'добавить принт', tasks: [task()] });
+    expect(plan.brandingMissing).toBe(true);
+    expect(plan.summary).toContain('повторять нечего');
+  });
+
+  it('смена материала тянет новый крой', () => {
+    expect(types(reworkPlan(['material'], { note: 'другая ткань' })))
+      .toEqual(['material', 'cutting', 'sample', 'fitting']);
+  });
+
+  it('пошив пересобирается ВСЕГДА: образец физически разбирают', () => {
+    for (const area of REWORK_AREAS) {
+      expect(types(reworkPlan([area], { note: 'x' }))).toContain('sample');
+      expect(types(reworkPlan([area], { note: 'x' }))).toContain('fitting');
+    }
+  });
+
+  it('зависимости повторяют производственный порядок', () => {
+    const plan = reworkPlan(['patterns', 'material'], { note: 'x' });
+    const [patterns, material, cutting, sample, fitting] = plan.tasks;
+    expect(patterns.depends_on).toBeUndefined();
+    expect(material.depends_on).toBeUndefined();
+    // Крой ждёт ОБОИХ: лекала и материал идут параллельно
+    expect(cutting.depends_on).toEqual([0, 1]);
+    expect(sample.depends_on).toEqual([2]);
+    expect(fitting.depends_on).toEqual([3]);
+  });
+
+  it('текст последствий считает та же функция, что и задачи', () => {
+    const plan = reworkPlan(['patterns'], { note: 'рукав' });
+    // Иначе подтверждение однажды разойдётся с фактом — правило проекта
+    expect(plan.summary).toContain('доработка лекал');
+    expect(plan.summary).toContain('новый крой');
+    expect(plan.summary).toContain('повторная проверка образца');
+  });
+});
+
+describe('история доработок', () => {
+  it('нулевой круг — не доработка', () => {
+    const list = reworkHistory([
+      task({ id: 'a', cycle: 0 }),
+      task({ id: 'b', cycle: 1, sort_order: 20 }),
+    ]);
+    expect(list.map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('порядок — по заведению, а не по номеру круга', () => {
+    /**
+     * Круг считает сервер ПО ТИПУ задачи: в одном круге доработки лекала
+     * получат cycle=1, а повторная сборка образца — cycle=2. Группировка
+     * по номеру собрала бы «Круг 1» без половины его же работы.
+     */
+    const list = reworkHistory([
+      task({ id: 'sample2', cycle: 2, sort_order: 40, task_type: 'sample' }),
+      task({ id: 'patterns1', cycle: 1, sort_order: 20, task_type: 'patterns' }),
+    ]);
+    expect(list.map((t) => t.id)).toEqual(['patterns1', 'sample2']);
   });
 });

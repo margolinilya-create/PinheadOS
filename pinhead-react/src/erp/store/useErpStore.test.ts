@@ -1830,9 +1830,13 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     expect((subInsert!.row as any).return_dept).toBe('sewing');
   });
 
-  it('образец: авто-создаёт разработку НА ПОЗИЦИЮ, без задач и без фазы', async () => {
+  it('образец: авто-создаёт разработку НА ПОЗИЦИЮ, одной транзакцией со стартовой задачей', async () => {
     useErpStore.setState({ departments: DEPS as any });
     h.rpcResult = { data: 'o-exp', error: null };
+    h.rpcByFn.erp_experimental_create = {
+      data: { id: 'e-exp', order_id: 'o-exp', item_id: 'it-exp' },
+      error: null,
+    };
     h.singleData = {
       id: 'o-exp', title: 'Образец', status: 'active', materials: [],
       items: [{
@@ -1845,18 +1849,25 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
       title: 'Образец',
       items: [{ product_type: 'Худи', qty: 2, production_type: 'samples', branding_methods: [], branding_on: 'cut' }],
     });
-    const expInsert = h.insertCalls.find((c) => c.table === 'erp_experimental');
-    expect(expInsert).toBeTruthy();
-    expect((expInsert!.row as any).order_id).toBe('o-exp');
+    const rpc = h.rpcCalls.find((c) => c.fn === 'erp_experimental_create');
+    expect(rpc).toBeTruthy();
+    expect(rpc!.args.p_order_id).toBe('o-exp');
     /**
      * Позиция обязательна: задачи разработки уходят в цеха этапами КОНКРЕТНОЙ
      * позиции, и одна разработка на заказ из двух образцов отправила бы работу
      * не туда. Прежде здесь стояла эвристика «первая позиция» в экране.
      */
-    expect((expInsert!.row as any).item_id).toBe('it-exp');
-    // Фазы больше нет: состояние вычисляется из задач, а набор задач
-    // выбирает технолог — план по умолчанию это то, от чего отказались
-    expect((expInsert!.row as any).phase).toBeUndefined();
+    expect(rpc!.args.p_item_id).toBe('it-exp');
+    /**
+     * Прямой вставки БОЛЬШЕ НЕТ (правки 20.08): разработка заводится вместе
+     * со стартовой задачей лекал одной транзакцией. Двумя запросами подряд
+     * при сбое второго получилась бы разработка без обязательной задачи —
+     * доска по этапам у неё пуста, и заметить это нечем.
+     */
+    expect(h.insertCalls.find((c) => c.table === 'erp_experimental')).toBeFalsy();
+    // Фазы по-прежнему нет: состояние вычисляется из задач, а линейный план
+    // по умолчанию — это ровно то, от чего отказались 12.08
+    expect(rpc!.args).not.toHaveProperty('p_phase');
   });
 });
 
@@ -1907,17 +1918,25 @@ describe('useErpStore — экспериментальный цех: задач�
     } as any);
   };
 
-  it('createExperimental заводит разработку с позицией заказа', async () => {
+  it('createExperimental заводит разработку с позицией заказа — ОДНИМ RPC', async () => {
     // `item_id` чинит эвристику items[0]: передача задачи в цех создаёт этап
     // именно этой позиции, а не первой попавшейся
     useErpStore.setState({ experimental: [], experimentalLoaded: true } as any);
+    h.rpcByFn.erp_experimental_create = {
+      data: { id: 'e-new', order_id: 'o1', item_id: 'i1' },
+      error: null,
+    };
     const row = await useErpStore.getState().createExperimental('o1', { item_id: 'i1' });
     expect(row).toBeTruthy();
-    const insert = h.insertCalls.find((c) => c.table === 'erp_experimental');
-    const inserted = insert?.row as Record<string, unknown> | undefined;
-    expect(inserted?.item_id).toBe('i1');
-    // Фаза больше не задаётся: состояние вычисляется из задач
-    expect(inserted?.phase).toBeUndefined();
+    const rpc = h.rpcCalls.find((c) => c.fn === 'erp_experimental_create');
+    expect(rpc?.args.p_order_id).toBe('o1');
+    expect(rpc?.args.p_item_id).toBe('i1');
+    // Стартовая задача лекал заводится ТОЙ ЖЕ транзакцией — отдельного
+    // INSERT в `erp_experimental` (и второго запроса на задачу) больше нет
+    expect(h.insertCalls.find((c) => c.table === 'erp_experimental')).toBeFalsy();
+    expect(h.insertCalls.find((c) => c.table === 'erp_experimental_tasks')).toBeFalsy();
+    // Фаза не задаётся: состояние вычисляется из задач
+    expect(rpc?.args).not.toHaveProperty('p_phase');
   });
 
   it('addDevTasks шлёт пачку ОДНИМ RPC', async () => {

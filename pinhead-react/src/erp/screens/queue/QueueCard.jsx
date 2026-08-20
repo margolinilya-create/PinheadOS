@@ -86,6 +86,21 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
         <Lightbox src={preview} alt={`Макет: ${order.title}`} onClose={() => setZoom(false)} />
       )}
 
+      {/*
+        Образец экс-цеха. Пометка была ТОЛЬКО в строке очереди (`QueueRow`),
+        а карточку видит тот же цех на планшете и на канбане: документ 20.08
+        требует «заметную пометку ЭКС / ОБРАЗЕЦ», чтобы цех понимал — тираж
+        один-два, и спрос другой. В маршрутную логику признак не входит.
+      */}
+      {stage.origin === 'experimental' && (
+        <span
+          className={`${styles.chip} ${styles.chipWaiting}`}
+          title="Образец из экспериментального цеха — разработка, а не серия"
+        >
+          <Icon name="flask" size={13} /> ЭКС / ОБРАЗЕЦ
+        </span>
+      )}
+
       {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} />}
       {reason && group !== 'awaiting_materials' && (
         <div className={styles.queueReason}>

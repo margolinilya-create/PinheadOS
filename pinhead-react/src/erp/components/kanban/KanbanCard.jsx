@@ -96,6 +96,17 @@ export function KanbanCard({
       </div>
       <div className={styles.kanbanCardFoot}>
         <span className={styles.queueQty}>{item.qty} шт</span>
+        {/* Образец экс-цеха (документ 20.08). Пометка нужна и здесь: доска —
+            вторая поверхность, где цех видит задание, и «тираж один-два,
+            а не сто» относится к ней ровно так же */}
+        {stage.origin === 'experimental' && (
+          <span
+            className={`${styles.chip} ${styles.chipWaiting}`}
+            title="Образец из экспериментального цеха — разработка, а не серия"
+          >
+            ЭКС
+          </span>
+        )}
         {stage.qty_rework > 0 && (
           <span className={styles.overdue}>брак {stage.qty_rework}</span>
         )}

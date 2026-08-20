@@ -145,25 +145,55 @@ describe('пачка задач разработки', () => {
  * половины дали бы «карточка открыта, задача не сохраняется».
  */
 describe('права на задачи разработки', () => {
-  const RLS = latestMatching(
-    /create policy erp_experimental_tasks_insert/,
-    'политики задач разработки',
+  /**
+   * Каждая политика читается из ПОСЛЕДНЕЙ миграции, которая её создаёт,
+   * а не из одной общей: `insert` пересоздан 20.08 отдельно от соседей,
+   * и файл, взятый по нему одному, не содержит ни `update`, ни `read` —
+   * сторож молча проверял бы отсутствие вместо правила.
+   */
+  const policy = (cmd: string) => latestMatching(
+    new RegExp(`create policy erp_experimental_tasks_${cmd}\\b`),
+    `политику erp_experimental_tasks_${cmd}`,
   );
+  const RLS = policy('insert');
 
   it('запись — под experimental.manage, чтение — участнику раздела', () => {
     for (const cmd of ['insert', 'update']) {
-      expect(RLS).toMatch(
+      expect(policy(cmd)).toMatch(
         new RegExp(`create policy erp_experimental_tasks_${cmd}[\\s\\S]{0,300}erp_has_permission\\('experimental\\.manage'\\)`),
       );
     }
-    expect(RLS).toMatch(
+    expect(policy('read')).toMatch(
       /create policy erp_experimental_tasks_read[\s\S]{0,200}erp_is_member\(\)/,
+    );
+  });
+
+  /**
+   * INSERT — ещё и под `order.manage`, и это не послабление, а следствие
+   * транзакции. Разработка-образец заводится вместе со стартовой задачей
+   * (`erp_experimental_create`), а INSERT в саму `erp_experimental` открыт
+   * менеджеру заказа с 12.08 — иначе 15 позиций из 21 остались без разработки.
+   * Оставь мы задачи только под `experimental.manage`, ТА ЖЕ транзакция падала
+   * бы на стартовой задаче — теперь уже с заказом, который создан.
+   *
+   * Расширена ровно одна дверь: UPDATE и DELETE остаются под правом раздела.
+   */
+  it('INSERT задачи открыт и менеджеру заказа — иначе падает своя же транзакция', () => {
+    expect(RLS).toMatch(
+      /create policy erp_experimental_tasks_insert[\s\S]{0,400}erp_has_permission\('order\.manage'\)/,
+    );
+    expect(policy('update')).not.toMatch(
+      /create policy erp_experimental_tasks_update[\s\S]{0,400}erp_has_permission\('order\.manage'\)/,
     );
   });
 
   it('политика пишется НА КОМАНДУ, а не `for all`', () => {
     // Иначе Postgres проверяет обе на каждый SELECT (advisor multiple_permissive_policies)
-    expect(RLS).not.toMatch(/create policy erp_experimental_tasks_\w+ on [\w.]+\s+for all/);
+    for (const cmd of ['insert', 'update', 'read']) {
+      expect(policy(cmd)).not.toMatch(
+        /create policy erp_experimental_tasks_\w+ on [\w.]+\s+for all/,
+      );
+    }
   });
 });
 

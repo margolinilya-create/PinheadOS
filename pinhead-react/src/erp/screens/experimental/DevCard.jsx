@@ -11,13 +11,15 @@ import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { DEV_OUTCOME_LABELS } from '../../types';
 import {
-  currentBlocker, devReadiness, nextAction, taskLabel,
+  currentBlocker, devReadiness, nextAction, reworkHistory, taskLabel,
 } from '../../utils/experimentalTasks';
 import { deptShortName, isProductionDept } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
+import { DevSampleCheck } from './DevSampleCheck';
+import { DevFinalPackage } from './DevFinalPackage';
 import styles from '../../erp.module.css';
 
 /**
@@ -133,6 +135,7 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
 export function DevCard({
   dev, order, departments, canManage,
   onUpdate, onAddTasks, onUpdateTask, onSendTask, onClose,
+  onApproveSample, onUploadFile, onRemoveFile,
 }) {
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
@@ -146,6 +149,7 @@ export function DevCard({
   const readiness = devReadiness(tasks);
   const blocker = currentBlocker(tasks, typeNames, today);
   const action = nextAction(dev, tasks, typeNames, today);
+  const history = reworkHistory(tasks);
 
   const shops = useMemo(
     () => (departments ?? []).filter((d) => d.active && isProductionDept(d)),
@@ -183,26 +187,21 @@ export function DevCard({
     setSendFor(task);
   };
 
-  /** Провал примерки заводит НОВЫЙ круг: доработка → проработка → примерка */
-  const failFitting = async (task) => {
-    const { ok, value } = await confirmWithInput({
-      title: 'Примерка не принята?',
-      message: 'Появятся три задачи нового круга: доработка, повторная проработка '
-        + 'и повторная примерка — связанные между собой. Число кругов не ограничено.',
-      confirmLabel: 'Завести доработку',
-      prompt: {
-        label: 'Что исправить',
-        placeholder: 'Увеличить длину рукава на 2 см',
-        required: true,
-      },
-    });
-    if (!ok) return;
-    await onUpdateTask(task.id, { status: 'done', result: `Не принято: ${value}` });
-    await onAddTasks([
-      { task_type: 'rework', title: `Доработка: ${value}`, comment: value },
-      { task_type: 'sample', title: 'Повторная проработка', depends_on: [0] },
-      { task_type: 'fitting', title: 'Повторная примерка', depends_on: [1] },
-    ]);
+  /**
+   * Доработка нового круга. Состав задач считает `reworkPlan` по ВЫБРАННЫМ
+   * областям (правки 20.08): прежняя жёсткая тройка `rework → sample → fitting`
+   * перезапускала вышивку из-за длины рукава и не перезапускала крой вовсе.
+   *
+   * Открытая примерка закрывается тем же действием — «не принято» это её
+   * результат, а не отдельная задача.
+   */
+  const startRework = async (rows) => {
+    const created = await onAddTasks(rows);
+    if (!created) return null;
+    if (fittingTask) {
+      await onUpdateTask(fittingTask.id, { status: 'done', result: 'Не принято' });
+    }
+    return created;
   };
 
   const closeDev = async (outcome) => {
@@ -384,35 +383,66 @@ export function DevCard({
 
         {!dev.outcome && (
           <>
-            {fittingTask && (
-              <div className={styles.toolbar} style={{ marginTop: 12 }}>
-                <Button variant="secondary" onClick={() => failFitting(fittingTask)}>
-                  Примерка не принята
-                </Button>
-                <span className={styles.subText}>
-                  Заведёт доработку и повторный круг — «возврат конструктору» больше не фаза.
-                </span>
-              </div>
+            <DevSampleCheck
+              dev={dev}
+              tasks={tasks}
+              onApprove={(note) => onApproveSample(dev.id, note)}
+              onRework={startRework}
+            />
+
+            {/* История доработок — прямое требование документа. Круг считает
+                сервер по ТИПУ задачи, поэтому номер стоит у каждой задачи,
+                а не у группы: там он верен */}
+            {history.length > 0 && (
+              <>
+                <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+                  История доработок
+                </h3>
+                <ul className={styles.subText}>
+                  {history.map((t) => (
+                    <li key={t.id}>
+                      {taskLabel(t, typeNames)} · круг {t.cycle}
+                      {t.done_on ? ` · ${formatDateShort(t.done_on)}` : ''}
+                      {t.comment ? ` — ${t.comment}` : ''}
+                      {t.result ? ` → ${t.result}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
 
             <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>Добавить задачу</h3>
             <AddTaskForm typeItems={typeNames} tasks={tasks} onAdd={addTasks} />
 
-            <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>Итог разработки</h3>
+            <DevFinalPackage
+              dev={dev}
+              attachments={dev.attachments ?? []}
+              canManage={canManage}
+              onUpdate={onUpdate}
+              onUpload={(kind, file) => onUploadFile({
+                devId: dev.id, orderId: dev.order_id, kind, file,
+              })}
+              onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
+              onReady={() => closeDev('ready_for_serial')}
+            />
+
+            <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+              Другой итог разработки
+            </h3>
             <div className={styles.queueActions}>
-              {Object.entries(DEV_OUTCOME_LABELS).map(([code, label]) => (
-                <Button
-                  key={code}
-                  variant={code === 'ready_for_serial' ? 'primary' : 'ghost'}
-                  onClick={() => closeDev(code)}
-                >
-                  {label}
-                </Button>
-              ))}
+              {Object.entries(DEV_OUTCOME_LABELS)
+                // «Готово к серии» живёт в блоке пакета: там же видно, чего
+                // не хватает. Кнопка в общем ряду обходила бы этот перечень
+                .filter(([code]) => code !== 'ready_for_serial')
+                .map(([code, label]) => (
+                  <Button key={code} variant="ghost" onClick={() => closeDev(code)}>
+                    {label}
+                  </Button>
+                ))}
             </div>
             <p className={styles.subText}>
-              «Готово к серии» ничего не создаёт автоматически: производственный
-              заказ на серию заводит менеджер.
+              Незаконченная разработка закрывается незаконченной: финального
+              пакета такие исходы не требуют.
             </p>
           </>
         )}

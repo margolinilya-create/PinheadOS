@@ -51,6 +51,12 @@ type StageSpec = {
   qty_done?: number;
   /** Индексы этапов этой же позиции (depends_on по id) */
   deps?: number[];
+  /**
+   * Происхождение этапа: `experimental` — работа над образцом. В маршрутную
+   * логику признак не входит, но по нему отбираются внутренние представления
+   * экс-цеха и ставится пометка «ЭКС / ОБРАЗЕЦ» в общем цехе.
+   */
+  origin?: 'production' | 'experimental';
 };
 
 /** Собирает этапы позиции, проставляя depends_on реальными id зависимостей. */
@@ -62,6 +68,7 @@ export function buildStages(itemId: string, specs: StageSpec[]) {
     department_id: deptId(s.code),
     depends_on: (s.deps ?? []).map((d) => ids[d]),
     status: s.status,
+    origin: s.origin ?? 'production',
     qty_done: s.qty_done ?? 0,
     qty_rework: 0,
     planned_start: null,

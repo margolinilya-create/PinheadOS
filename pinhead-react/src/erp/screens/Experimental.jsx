@@ -33,6 +33,8 @@ import { DEV_OUTCOME_LABELS } from '../types';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevCard } from './experimental/DevCard';
+import { DevBoard } from './experimental/DevBoard';
+import { DevViews } from './experimental/DevViews';
 import styles from '../erp.module.css';
 
 /**
@@ -50,13 +52,54 @@ import styles from '../erp.module.css';
 
 /** Плитки-состояния в порядке срочности: сначала то, где нужно вмешаться */
 const STATE_TILES = [
-  { key: '', icon: 'orders', label: 'Все разработки', cls: '' },
+  // «Все», а не «Все разработки»: так теперь называется ВИД раздела (документ
+  // 20.08), и две одинаковые подписи рядом означали бы два разных действия
+  { key: '', icon: 'orders', label: 'Все', cls: '' },
   { key: 'new', icon: 'plus', label: DEV_STATE_LABELS.new, cls: '' },
   { key: 'in_progress', icon: 'flask', label: DEV_STATE_LABELS.in_progress, cls: '' },
   { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention, cls: 'kpiIconDanger' },
   { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting, cls: '' },
   { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready, cls: 'kpiIconOk' },
 ];
+
+/**
+ * Виды раздела (правки заказчика 20.08). Доска — по умолчанию: документ
+ * называет её ГЛАВНЫМ экраном.
+ *
+ * «Кроме главного борда по этапам, внутри раздела должны быть доступны:
+ * Все разработки · Лекала · Крой · Шелкография · DTF · Вышивка · DTG ·
+ * Пошив · Финальный этап». Отдельного ВТО здесь нет — документ его запрещает
+ * прямо: «если для образца требуется ВТО, оно выполняется внутри работы
+ * экс цеха без создания отдельной колонки и отдельной очереди».
+ *
+ * Вид — в QUERY, а не подпутём: `canOpenScreen` перечисляет ИСКЛЮЧЕНИЯ
+ * и открывает незнакомый путь, поэтому `/experimental/dtf` был бы доступен
+ * всем, включая цех без права.
+ */
+const VIEWS = [
+  'board', 'list',
+  'patterns', 'cutting',
+  'silkscreen', 'dtf', 'embroidery', 'dtg',
+  'sewing', 'final',
+];
+
+const VIEW_LABELS = {
+  board: 'Доска по этапам',
+  list: 'Все разработки',
+  patterns: 'Лекала',
+  cutting: 'Крой',
+  silkscreen: 'Шелкография',
+  dtf: 'DTF',
+  embroidery: 'Вышивка',
+  dtg: 'DTG',
+  sewing: 'Пошив',
+  final: 'Финальный этап',
+};
+
+/** Виды, показывающие внутренние очереди, а не список разработок */
+const QUEUE_VIEWS = new Set([
+  'patterns', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'dtg', 'sewing', 'final',
+]);
 
 const STATE_VARIANT = {
   new: 'neutral', in_progress: 'progress', attention: 'blocked',
@@ -69,6 +112,7 @@ export default function Experimental() {
     experimental, experimentalLoaded, loadExperimental,
     createExperimental, updateExperimental,
     addDevTasks, updateDevTask, sendDevTaskToDept, closeExperimental,
+    approveSample, uploadDevFile, deleteDevFile,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -85,6 +129,9 @@ export default function Experimental() {
       updateDevTask: s.updateDevTask,
       sendDevTaskToDept: s.sendDevTaskToDept,
       closeExperimental: s.closeExperimental,
+      approveSample: s.approveSample,
+      uploadDevFile: s.uploadDevFile,
+      deleteDevFile: s.deleteDevFile,
     })),
   );
 
@@ -103,6 +150,21 @@ export default function Experimental() {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => devFiltersFromParams(params), [params]);
   const openId = params.get('dev');
+  /**
+   * Вид раздела — в адресе, как и остальной контекст списка. QUERY, а не
+   * путь-сегмент: `canOpenScreen` перечисляет ИСКЛЮЧЕНИЯ и открывает
+   * незнакомый путь, поэтому `/experimental/board` был бы доступен всем,
+   * включая цех без права. Белый список — чтобы мусор в адресе не давал
+   * молча пустой экран.
+   */
+  const view = VIEWS.includes(params.get('view')) ? params.get('view') : 'board';
+  const setView = useCallback((next) => {
+    setParams((prev) => {
+      const out = new URLSearchParams(prev);
+      if (next === 'board') out.delete('view'); else out.set('view', next);
+      return out;
+    });
+  }, [setParams]);
 
   const setFilters = useCallback((next) => {
     setParams((prev) => {
@@ -133,6 +195,15 @@ export default function Experimental() {
 
   const today = factoryToday();
   const rows = useMemo(() => buildDevRows(experimental, today), [experimental, today]);
+  /**
+   * Материалы по заказам — их спрашивает гейт кроя: «крой можно начать только
+   * когда лекала готовы И материалы физически приняты складом». Берём из уже
+   * загруженных заказов, отдельного запроса не заводим.
+   */
+  const materialsByOrder = useMemo(
+    () => new Map(orders.map((o) => [o.id, o.materials ?? []])),
+    [orders],
+  );
 
   const counts = useMemo(() => {
     const c = { '': rows.length, new: 0, in_progress: 0, attention: 0, fitting: 0, ready: 0 };
@@ -340,6 +411,25 @@ export default function Experimental() {
         </div>
       )}
 
+      {experimentalLoaded && rows.length > 0 && (
+        <ScrollHintBox className={styles.toolbar} label="Представления раздела">
+          {VIEWS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              // Переключатель вида — кнопки с `aria-pressed`, а не `role="tab"`:
+              // половина таб-паттерна хуже, чем обычные кнопки (правило проекта)
+              aria-pressed={view === v}
+              className={`${styles.chip} ${styles.chipBtn} ${
+                view === v ? styles.chipProgress : styles.chipNeutral}`}
+              onClick={() => setView(v)}
+            >
+              {VIEW_LABELS[v]}
+            </button>
+          ))}
+        </ScrollHintBox>
+      )}
+
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="разработки" />}
       {!experimentalLoaded && !loadError && <TableSkeleton rows={5} label="Загрузка разработок" />}
 
@@ -351,13 +441,39 @@ export default function Experimental() {
         />
       )}
 
-      {experimentalLoaded && rows.length > 0 && visible.length === 0 && (
+      {/* Пустой подбор — сообщение СПИСКА и доски: внутренние очереди фильтрами
+          не гейтятся и о них ничего не знают */}
+      {experimentalLoaded && !QUEUE_VIEWS.has(view)
+        && rows.length > 0 && visible.length === 0 && (
         <EmptyResult onReset={() => setFilters({ ...EMPTY_DEV_FILTERS })}>
           Под фильтры ничего не подошло. Всего разработок: {rows.length}.
         </EmptyResult>
       )}
 
-      {experimentalLoaded && visible.length > 0 && (
+      {/* Внутренние очереди читают ВСЕ разработки, а не отфильтрованный
+          список: фильтры списка (конструктор, срок, состояние) отвечают
+          на другой вопрос, и «пусто» из-за них выглядело бы как «работы нет» */}
+      {experimentalLoaded && QUEUE_VIEWS.has(view) && (
+        <DevViews
+          view={view}
+          rows={rows}
+          orders={orders}
+          departments={departments}
+          typeNames={typeNames}
+          onOpen={openDev}
+        />
+      )}
+
+      {experimentalLoaded && visible.length > 0 && view === 'board' && (
+        <DevBoard
+          rows={visible}
+          today={today}
+          onOpen={openDev}
+          materialsByOrder={materialsByOrder}
+        />
+      )}
+
+      {experimentalLoaded && visible.length > 0 && view === 'list' && (
         <>
           <ScrollHintBox className={styles.tableWrap} label="Разработки">
             <table className={styles.table}>
@@ -450,6 +566,9 @@ export default function Experimental() {
             onUpdateTask={updateDevTask}
             onSendTask={sendDevTaskToDept}
             onClose={closeExperimental}
+            onApproveSample={approveSample}
+            onUploadFile={uploadDevFile}
+            onRemoveFile={deleteDevFile}
           />
         </Drawer>
       )}

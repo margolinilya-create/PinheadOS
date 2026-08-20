@@ -692,6 +692,74 @@ export interface ErpExperimentalTask {
   updated_at: string;
 }
 
+/**
+ * Вид вложения. `preview` — макет заказа, `attachment` — прочий файл; три
+ * последних заведены правкой заказчика 16.08 и отвечают на вопрос «в каком
+ * блоке карточки показывать»: без них файлы упаковки, техблока и листа закупки
+ * свалились бы во вкладку «Файлы» вперемешку.
+ */
+export type ErpAttachmentKind =
+  | 'preview' | 'attachment' | 'packaging' | 'tech' | 'purchase'
+  /** Лист закупки, приложенный менеджером при создании заказа (правки 20.08) */
+  | 'purchase_list'
+  /**
+   * Финальный технический пакет разработки (правки 20.08). Файлы привязаны
+   * к РАЗРАБОТКЕ (`experimental_id`), а не к позиции: лекала и техпаспорт
+   * описывают модель, а не тот заказ, из которого она вышла.
+   */
+  | 'dev_pattern' | 'dev_passport' | 'dev_photo';
+
+export interface ErpOrderAttachment {
+  id: string;
+  order_id: string;
+  /** Позиция, к которой относится файл. NULL — файл всего заказа */
+  item_id?: string | null;
+  /**
+   * Строка листа закупки, к которой относится файл (правки 16.08, п. 14).
+   * NULL — файл заказа или позиции. Референсы закупщика («фото материала,
+   * скрин позиции поставщика») относятся к КОНКРЕТНОЙ строке: свалить их
+   * в общую кучу значит отдать десяток картинок без ответа, к чему они.
+   */
+  material_id?: string | null;
+  /**
+   * Разработка, к которой относится файл (правки 20.08): лекала, техпаспорт,
+   * фото образца. NULL — обычное вложение заказа.
+   */
+  experimental_id?: string | null;
+  file_path: string;
+  file_name: string | null;
+  kind: ErpAttachmentKind;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/**
+ * Карточка SKU разработки — то, что читается ТОЛЬКО вместе с разработкой
+ * (колонка `final_package jsonb`). В колонки вынесено лишь то, что ищут
+ * и показывают в списке: название и версия лекал, ценовая вилка.
+ *
+ * Обязательность полей проверяет `utils/finalPackage.missingFinalPackage`,
+ * и ровно то же — серверный страж `erp_dev_package_guard`.
+ */
+export interface DevFinalPackage {
+  description?: string | null;
+  /** Крой / посадка */
+  fit?: string | null;
+  /** Размерный ряд */
+  size_row?: string | null;
+  features?: string | null;
+  finishes?: string | null;
+  limits?: string | null;
+  /** Ссылка на лекала — альтернатива файлу («файл ИЛИ ссылка» из документа) */
+  pattern_link?: string | null;
+  /** Все утверждённые ткани, а не только ткань образца */
+  fabrics?: string[] | null;
+  /** Допустимые нанесения для SKU */
+  branding?: string[] | null;
+  /** Возможные модификации: длина, карманы, молния, фурнитура… */
+  modifications?: string[] | null;
+}
+
 export interface ErpExperimental {
   id: string;
   order_id: string;
@@ -706,6 +774,28 @@ export interface ErpExperimental {
   constructor: string | null;
   /** Проработчик. Код колонки не переименовывается — меняется только подпись */
   technologist: string | null;
+  /**
+   * Образец утверждён (правки 20.08). ЕДИНСТВЕННОЕ хранимое решение по этапам:
+   * всё остальное — какой шаг идёт сейчас — вычисляется из задач
+   * (`utils/experimentalBoard`). Из статусов это не вывести: закрытая примерка
+   * одинаково означает и «принято», и «не принято», и разница жила
+   * в свободном тексте `result`, то есть не читалась ничем.
+   */
+  sample_approved_at?: string | null;
+  sample_approved_by?: string | null;
+  sample_approved_note?: string | null;
+  /**
+   * Финальный технический пакет (правки 20.08). В колонки вынесено то, что
+   * ищут и показывают в списке; карточка SKU, ткани, нанесения и модификации
+   * читаются только вместе с разработкой и живут в `final_package`.
+   * Обязательность проверяют `utils/finalPackage` и страж `erp_dev_package_guard` —
+   * вместе и одинаково.
+   */
+  pattern_tech_name?: string | null;
+  pattern_version?: string | null;
+  price_min?: number | null;
+  price_max?: number | null;
+  final_package?: DevFinalPackage | null;
   /** Исход разработки; null — ещё идёт */
   outcome?: DevOutcome | null;
   outcome_comment?: string | null;
@@ -719,6 +809,7 @@ export interface ErpExperimental {
   updated_at: string;
   /** Присоединяются при загрузке */
   tasks?: ErpExperimentalTask[];
+  attachments?: ErpOrderAttachment[];
   order?: { title: string; bitrix_id: string | null; due_date?: string | null } | null;
 }
 
