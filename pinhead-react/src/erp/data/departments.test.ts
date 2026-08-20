@@ -8,8 +8,8 @@ import {
 } from './departments';
 
 describe('DEPARTMENTS seed', () => {
-  it('содержит 12 цехов', () => {
-    expect(DEPARTMENTS).toHaveLength(12);
+  it('содержит 13 цехов', () => {
+    expect(DEPARTMENTS).toHaveLength(13);
   });
 
   it('у каждого цеха есть короткое имя и иконка', () => {
@@ -30,9 +30,9 @@ describe('DEPARTMENTS seed', () => {
     expect(new Set(codes).size).toBe(codes.length);
   });
 
-  it('отмечает три цеха брендирования', () => {
+  it('отмечает четыре цеха брендирования', () => {
     const branding = DEPARTMENTS.filter((d) => d.is_branding).map((d) => d.code);
-    expect(branding).toEqual(['silkscreen', 'dtf', 'embroidery']);
+    expect(branding).toEqual(['silkscreen', 'dtf', 'embroidery', 'dtg']);
   });
 
   it('getDepartmentByCode находит по коду', () => {

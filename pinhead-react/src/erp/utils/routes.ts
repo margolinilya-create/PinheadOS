@@ -44,6 +44,7 @@ const BRANDING_DEPT: Record<BrandingMethod, string | null> = {
   embroidery: 'embroidery',
   silkscreen: 'silkscreen',
   dtf: 'dtf',
+  dtg: 'dtg',           // свой участок: прямая печать по изделию, не плёнка
   heat_transfer: 'dtf', // тот же цех, колонка «DTF/Термоперенос»
   other: null,          // пришив нашивок и т.п. — внутри швейки
 };

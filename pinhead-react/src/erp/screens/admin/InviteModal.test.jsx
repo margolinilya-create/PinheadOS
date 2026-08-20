@@ -24,11 +24,21 @@ const DEPARTMENTS = [
   { id: 'd-old', name: 'Закрытый участок', active: false },
 ];
 
+/**
+ * Срок ОТНОСИТЕЛЬНЫЙ, а не записанный датой.
+ *
+ * Здесь стояло `2026-08-20T10:00:00Z`, и 20.08 в 10:00 приглашение стало
+ * просроченным — тест начал падать сам по себе, без единой правки кода.
+ * «Действующее приглашение» по определению то, у которого срок ВПЕРЕДИ,
+ * поэтому фикстура обязана считать его от текущего момента.
+ */
+const inHours = (h) => new Date(Date.now() + h * 3600_000).toISOString();
+
 const FRESH = {
   code: 'code-1', profile_role: 'production', employee_role: 'worker',
   department_id: 'd-sew', email: null, note: null,
-  expires_at: '2026-08-20T10:00:00Z', used_at: null, revoked_at: null,
-  created_by: null, created_at: '2026-08-14T10:00:00Z',
+  expires_at: inHours(72), used_at: null, revoked_at: null,
+  created_by: null, created_at: inHours(-24),
 };
 
 let createInvite;

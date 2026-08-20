@@ -96,7 +96,7 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   ],
   /**
    * Участки нанесения: права ровно как у сотрудника цеха. Различает их не право,
-   * а привязка к цеху — поэтому три одинаковых строки здесь не дублирование,
+   * а привязка к цеху — поэтому четыре одинаковых строки здесь не дублирование,
    * а честное «по правам они равны».
    */
   dtf: [
@@ -106,6 +106,9 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
   ],
   embroidery: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
+  ],
+  dtg: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
   ],
   /**
