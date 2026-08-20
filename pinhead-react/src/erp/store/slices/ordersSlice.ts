@@ -20,7 +20,9 @@ import type {
   ErpOrderStatus,
   ErpStageEvent,
 } from '../../types';
-import { currentActor, erpError, erpQuery, erpRead, removeOrphanUpload, withPending } from '../shared';
+import {
+  currentActor, erpError, erpQuery, erpRead, removeOrphanUpload, uploadResilient, withPending,
+} from '../shared';
 import { cachedQuery, invalidate } from '../queryCache';
 import { ORDER_SELECT, ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
 
@@ -77,6 +79,19 @@ function readShowDemo(): boolean {
   } catch {
     return false; // приватный режим — ведём себя как по умолчанию
   }
+}
+
+/**
+ * Ключ вложения заказа.
+ *
+ * К метке времени добавлен случайный хвост: `uploadResilient` перезаписывает
+ * СВОЙ ключ (иначе повтор после обрыва отвечал бы «уже существует» на файл,
+ * который сам же и положил), и ключ обязан быть уникальным — двое из одного
+ * цеха, приложившие фото в одну миллисекунду, не должны затирать друг друга.
+ */
+function attachmentPath(orderId: string, fileName: string, fallbackExt: string): string {
+  const ext = (fileName.split('.').pop() || fallbackExt).toLowerCase();
+  return `${orderId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 }
 
 export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, get) => ({
@@ -671,11 +686,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   uploadOrderPreview: async (orderId, file) => {
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
-    const { error: upErr } = await erpQuery(() => supabase.storage
-      .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/png' }));
+    const path = attachmentPath(orderId, file.name, 'png');
+    const { error: upErr } = await uploadResilient('erp-attachments', path, file, {
+      contentType: file.type || 'image/png',
+    });
     if (upErr) {
       erpError('Не удалось загрузить превью', upErr);
       return false;
@@ -708,11 +722,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   },
 
   uploadOrderAttachment: async (orderId, file, note) => {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
-    const { error: upErr } = await erpQuery(() => supabase.storage
-      .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/jpeg' }));
+    const path = attachmentPath(orderId, file.name, 'jpg');
+    const { error: upErr } = await uploadResilient('erp-attachments', path, file, {
+      contentType: file.type || 'image/jpeg',
+    });
     if (upErr) {
       erpError('Не удалось загрузить фото', upErr);
       return false;

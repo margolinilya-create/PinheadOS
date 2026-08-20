@@ -28,8 +28,7 @@ import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
 import { deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
 import { translateSupabaseError } from '../../../utils/i18n';
-import { currentActor, erpQuery } from '../../store/shared';
-import { supabase } from '../../../lib/supabase';
+import { currentActor, uploadResilient } from '../../store/shared';
 import {
   TZ_BUCKET,
   TZ_MAX_BYTES,
@@ -196,15 +195,18 @@ export function CreateOrderModal({ onClose }) {
   const uploadTzFile = async (groupId, file) => {
     const path = tzFilePath('new', groupId, 1, file.name);
     /**
-     * `erpQuery`, а не голый `await`: без ответа сервера supabase-js БРОСАЕТ, и тогда
-     * `setTzDocs` ниже не выполнялся вовсе — файл оставался в состоянии «загружается»
-     * навсегда, а «Создать заказ» блокировалась незавершённой загрузкой, которая
-     * никогда не завершится. Кнопки «Загрузить заново» человек при этом не видел:
-     * она показывается только в состоянии ошибки.
+     * `uploadResilient`, а не голый `await`: без ответа сервера supabase-js БРОСАЕТ,
+     * и тогда `setTzDocs` ниже не выполнялся вовсе — файл оставался в состоянии
+     * «загружается» навсегда, а «Создать заказ» блокировалась загрузкой, которая
+     * никогда не завершится.
+     *
+     * Он же спрашивает бакет, когда связь оборвалась: 20.08 менеджер получил
+     * «не загрузилось» на ОБА ТЗ, которые в Storage лежали (ответ на загрузку
+     * пришёл через шестнадцать минут после запроса, браузер столько не ждёт).
+     * Файл на месте — значит загрузка состоялась, и заново гонять мегабайты
+     * по только что оборвавшейся связи незачем.
      */
-    const { error } = await erpQuery(() => supabase.storage
-      .from(TZ_BUCKET)
-      .upload(path, file, { contentType: TZ_MIME, upsert: true }));
+    const { error } = await uploadResilient(TZ_BUCKET, path, file, { contentType: TZ_MIME });
     setTzDocs((arr) => arr.map((d) => {
       if (d.groupId !== groupId) return d;
       if (!error) return { ...d, state: 'uploaded', error: null, path };

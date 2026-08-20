@@ -14,7 +14,9 @@ import { toast } from '../../../store/useToastStore';
 import { TZ_BUCKET, TZ_MAX_BYTES, TZ_MIME } from '../../types';
 import type { ErpTzDocument } from '../../types';
 import { documentHistory, tzFilePath } from '../../utils/tz';
-import { currentActor, erpError, erpQuery, logStageEvent, removeOrphanUpload } from '../shared';
+import {
+  currentActor, erpError, erpQuery, logStageEvent, removeOrphanUpload, uploadResilient,
+} from '../shared';
 import type { ErpOrderFull, ErpStore, TzSlice } from '../types';
 
 /** Точечный патч массива документов заказа (остальные заказы сохраняют идентичность) */
@@ -36,11 +38,15 @@ function checkFile(file: File): string | null {
   return null;
 }
 
-/** Загрузка файла в бакет; возвращает путь или null (toast уже показан) */
+/**
+ * Загрузка файла в бакет; возвращает путь или null (toast уже показан).
+ *
+ * `uploadResilient` спрашивает бакет, когда связь оборвалась: ответ мог не дойти,
+ * а файл — записаться (20.08 так «не загрузились» два ТЗ, лежащие в Storage).
+ * Ключ детерминирован (`group_id` + версия), поэтому повтор пишет свой же файл.
+ */
 async function uploadFile(path: string, file: File): Promise<string | null> {
-  const { error } = await erpQuery(() => supabase.storage
-    .from(TZ_BUCKET)
-    .upload(path, file, { contentType: TZ_MIME, upsert: false }));
+  const { error } = await uploadResilient(TZ_BUCKET, path, file, { contentType: TZ_MIME });
   if (error) {
     // Причина обязана быть названа: отказ прав, обрыв связи и слетевшая сессия
     // требуют разных действий, а «Не удалось загрузить файл ТЗ» одинаково молчит

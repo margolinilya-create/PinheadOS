@@ -7,7 +7,7 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { isAuthLockFailure, networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
+import { isTransportFailure, networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
 import type { ErpStageEvent } from '../types';
 
 /** Имя действующего пользователя для аудита */
@@ -61,18 +61,15 @@ export const READ_RETRY_MS = 800;
  *   · повторяется только чтение. Повторить запись — это второй заказ, вторая
  *     приёмка, второе списание брака. Мутации остаются на `erpQuery`.
  *
- * Сюда же попадает перехваченный лок сессии (`isAuthLockFailure`): это тоже
- * сбой ДО отправки — токен доступа берётся под тем самым локом, и запрос
- * не уходил вовсе. Разница с сетью в том, что повтор здесь почти наверняка
- * пройдёт: лок к этому моменту уже у другого, а тот его отпустит.
+ * Сюда же попадает перехваченный лок сессии: это тоже сбой ДО отправки — токен
+ * доступа берётся под тем самым локом, и запрос не уходил вовсе. Оба случая
+ * узнаёт `isTransportFailure`, и она же решает повтор у загрузки файлов.
  */
 export async function erpRead<T>(
   run: () => PromiseLike<{ data: T; error: { message: string } | null }>,
 ): Promise<ErpResult<T>> {
   const first = await erpQuery(run);
-  const retryable = first.error
-    && (first.error.message === 'нет связи с сервером' || isAuthLockFailure(first.error));
-  if (!retryable) return first;
+  if (!isTransportFailure(first.error)) return first;
   await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
   return erpQuery(run);
 }
@@ -102,6 +99,81 @@ export function erpError(what: string, error?: { message?: string } | null): fal
   const reason = error?.message ? translateSupabaseError(error.message) : null;
   toast.error(reason ? `${what}: ${reason}` : what);
   return false;
+}
+
+/** Пауза перед повтором загрузки файла, оборвавшейся на сети */
+export const UPLOAD_RETRY_MS = 600;
+
+/** Ответ Storage «объект с таким ключом уже есть» */
+function alreadyExists(message: string): boolean {
+  return /already exists|duplicate/i.test(message);
+}
+
+/**
+ * Файл ЕСТЬ в бакете?
+ *
+ * `list` ищет по каталогу с фильтром `search` (это подстрока, поэтому имя
+ * сверяем точно). Политика чтения бакета обязательна — без неё проверка
+ * молча отвечала бы «файла нет» и превращалась бы в лишний повтор.
+ */
+async function objectExists(bucket: string, path: string): Promise<boolean> {
+  const cut = path.lastIndexOf('/');
+  const dir = cut > 0 ? path.slice(0, cut) : '';
+  const name = path.slice(cut + 1);
+  const { data } = await erpQuery(() => supabase.storage
+    .from(bucket)
+    .list(dir, { search: name, limit: 100 }));
+  return Array.isArray(data) && data.some((o) => o?.name === name);
+}
+
+/**
+ * Загрузка файла, которая не теряет уже загруженное.
+ *
+ * Проверено на проде 20.08: менеджер приложил к заказу два ТЗ, интерфейс написал
+ * «не загрузилось: Ошибка соединения» у обоих и заблокировал «Создать заказ», —
+ * а в Storage ОБА файла лежали. По логам видно почему: preflight ушёл в 12:31,
+ * ответ на загрузку пришёл в 12:48. Шестнадцать минут связь не отвечала, браузер
+ * успел объявить `fetch` несостоявшимся, а сервер файлы всё-таки принял и записал.
+ * Человек в этот момент видит ошибку про файлы, которые на месте, и не может ни
+ * создать заказ, ни понять, что происходит.
+ *
+ * Отсюда три шага, и порядок у них не случайный:
+ *   1. `already exists` — это УСПЕХ, а не сбой: ключ содержит `uuid`, выданный
+ *      этой же формой, поэтому занять его мог только наш предыдущий заход;
+ *   2. сбой без ответа сервера — сначала СПРОСИТЬ бакет. Если файл там, повтор
+ *      был бы вторым мегабайтом по той самой связи, которая только что оборвалась;
+ *   3. и только потом один повтор, и после него — та же проверка: ответ мог
+ *      снова не дойти, а файл снова записаться.
+ *
+ * Повторяется ТОЛЬКО сбой без ответа сервера. Отказ прав и `InvalidKey` —
+ * это решение сервера: повтор их не исправит, а причину спрячет.
+ */
+export async function uploadResilient(
+  bucket: string,
+  path: string,
+  file: File | Blob,
+  options?: { contentType?: string; upsert?: boolean },
+): Promise<{ error: { message: string } | null }> {
+  const put = () => erpQuery(() => supabase.storage
+    .from(bucket)
+    // `upsert` всегда: повторный заход перезаписывает СВОЙ же ключ (в нём `uuid`
+    // этой формы), а без него второй заход отвечает «уже существует» на файл,
+    // который сам же и положил
+    .upload(path, file, { ...options, upsert: true }));
+
+  const first = await put();
+  if (!first.error) return { error: null };
+  if (alreadyExists(first.error.message)) return { error: null };
+  if (!isTransportFailure(first.error)) return { error: first.error };
+
+  if (await objectExists(bucket, path)) return { error: null };
+
+  await new Promise((resolve) => setTimeout(resolve, UPLOAD_RETRY_MS));
+  const second = await put();
+  if (!second.error) return { error: null };
+  if (alreadyExists(second.error.message)) return { error: null };
+  if (await objectExists(bucket, path)) return { error: null };
+  return { error: second.error };
 }
 
 /**

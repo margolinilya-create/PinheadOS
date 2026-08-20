@@ -124,11 +124,28 @@ function rawReason(e: unknown): string {
   return e instanceof Error ? e.message : typeof e === 'string' ? e : '';
 }
 
+/** Сообщение об обрыве связи — одно на весь проект, по нему же решается повтор */
+export const NETWORK_MESSAGE = 'нет связи с сервером';
+
 export function networkFailureMessage(e: unknown): string {
   const raw = rawReason(e);
-  if (NETWORK_SIGNS.test(raw)) return 'нет связи с сервером';
+  if (NETWORK_SIGNS.test(raw)) return NETWORK_MESSAGE;
   if (AUTH_LOCK_SIGNS.test(raw)) return AUTH_LOCK_MESSAGE;
-  return raw.trim() || 'нет связи с сервером';
+  return raw.trim() || NETWORK_MESSAGE;
+}
+
+/**
+ * Сбой, при котором ОТВЕТА СЕРВЕРА НЕ БЫЛО: оборвалась связь или перехватили лок
+ * сессии. Отличается от отказа сервера тем, что о судьбе запроса ничего не
+ * известно — он мог не уйти вовсе, а мог и выполниться (20.08 загрузка ТЗ
+ * «не удалась» у человека и при этом записалась в Storage). Поэтому такой сбой
+ * и повторяют, и перепроверяют, а отказ прав или `InvalidKey` — никогда.
+ *
+ * Причина приезжает и сырым текстом браузера, и уже переведённой: узнаём оба.
+ */
+export function isTransportFailure(e: unknown): boolean {
+  const msg = messageOf(e);
+  return NETWORK_SIGNS.test(msg) || msg === NETWORK_MESSAGE || isAuthLockFailure(e);
 }
 
 /**
