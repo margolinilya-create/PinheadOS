@@ -24,6 +24,7 @@ import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
 import { DevFinalPackage } from './DevFinalPackage';
+import { DevToSku } from './DevToSku';
 import styles from '../../erp.module.css';
 
 /**
@@ -173,6 +174,7 @@ export function DevCard({
   const patternsDone = tasks
     .filter((t) => t.task_type === 'patterns')
     .every((t) => t.status === 'done' || t.status === 'cancelled');
+  const [toSkuOpen, setToSkuOpen] = useState(false);
   const materialGate = cuttingGate({
     patternsDone: patternsDone && tasks.some((t) => t.task_type === 'patterns'),
     itemId: dev.item_id,
@@ -519,7 +521,49 @@ export function DevCard({
             {dev.outcome_comment ? `: ${dev.outcome_comment}` : ''}.
           </p>
         )}
+
+        {/*
+          ПЕРЕНОС В КАТАЛОГ SKU (решение заказчика 21.08). Документ обещает,
+          что «при следующем заказе этой модели экспериментальный цех повторно
+          не требуется» — но пока пакет лежит только здесь, менеджер повторного
+          заказа о нём не знает: он открывает визард, модели там нет, и заводит
+          разработку заново. Кнопка появляется у готовой к серии разработки
+          и исчезает после переноса: второй артикул той же модели — это два
+          источника правды о ней.
+        */}
+        {dev.outcome === 'ready_for_serial' && (
+          <div style={{ marginTop: 12 }}>
+            {dev.sku_code ? (
+              <span className={`${styles.chip} ${styles.chipDone}`}>
+                В каталоге SKU: {dev.sku_code}
+              </span>
+            ) : (
+              <>
+                <Button
+                  variant="primary"
+                  icon="box"
+                  disabled={!canManage}
+                  onClick={() => setToSkuOpen(true)}
+                >
+                  Перенести модель в каталог SKU
+                </Button>
+                <p className={styles.subText} style={{ marginTop: 4 }}>
+                  Артикул опишет модель числами прайса — код, категорию и цену
+                  пошива спросим в форме: пакет их не содержит.
+                </p>
+              </>
+            )}
+          </div>
+        )}
       </ReadOnlyFieldset>
+
+      {toSkuOpen && (
+        <DevToSku
+          dev={dev}
+          attachments={dev.attachments ?? []}
+          onClose={() => setToSkuOpen(false)}
+        />
+      )}
     </section>
   );
 }

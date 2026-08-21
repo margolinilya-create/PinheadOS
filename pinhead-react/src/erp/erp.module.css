@@ -2107,6 +2107,16 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 }
 /* Финальный шаг «Склад» — не этап цеха, а задачи склада: отделяем чертой,
    чтобы человек не искал его в очереди участка */
+/* Предупреждение внутри формы: переносится по словам, в отличие от чипа —
+   чип обрезал список ненайденных тканей краем панели, а прочитать нужно все */
+.warnBox {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  font-size: var(--type-sm);
+  line-height: 1.4;
+}
 .routeRowFinal {
   border-top: 1px dashed var(--border);
   margin-top: 2px;

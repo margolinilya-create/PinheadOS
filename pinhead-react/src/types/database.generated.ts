@@ -387,6 +387,7 @@ export type Database = {
           sample_approved_at: string | null
           sample_approved_by: string | null
           sample_approved_note: string | null
+          sku_code: string | null
           tech_name: string | null
           technologist: string | null
           updated_at: string
@@ -415,6 +416,7 @@ export type Database = {
           sample_approved_at?: string | null
           sample_approved_by?: string | null
           sample_approved_note?: string | null
+          sku_code?: string | null
           tech_name?: string | null
           technologist?: string | null
           updated_at?: string
@@ -443,6 +445,7 @@ export type Database = {
           sample_approved_at?: string | null
           sample_approved_by?: string | null
           sample_approved_note?: string | null
+          sku_code?: string | null
           tech_name?: string | null
           technologist?: string | null
           updated_at?: string
@@ -991,6 +994,7 @@ export type Database = {
           kind: string
           material_id: string | null
           order_id: string
+          stage_id: string | null
           uploaded_by: string | null
         }
         Insert: {
@@ -1003,6 +1007,7 @@ export type Database = {
           kind?: string
           material_id?: string | null
           order_id: string
+          stage_id?: string | null
           uploaded_by?: string | null
         }
         Update: {
@@ -1015,6 +1020,7 @@ export type Database = {
           kind?: string
           material_id?: string | null
           order_id?: string
+          stage_id?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
@@ -1044,6 +1050,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_attachments_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
             referencedColumns: ["id"]
           },
         ]
@@ -2248,6 +2261,7 @@ export type Database = {
           sample_approved_at: string | null
           sample_approved_by: string | null
           sample_approved_note: string | null
+          sku_code: string | null
           tech_name: string | null
           technologist: string | null
           updated_at: string
@@ -2353,6 +2367,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      erp_sku_from_dev: {
+        Args: { p_dev: string; p_sku: Json }
+        Returns: string
       }
       erp_stage_apply_defect: {
         Args: { p_patches: Json }
@@ -2759,3 +2777,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

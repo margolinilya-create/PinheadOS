@@ -796,6 +796,12 @@ export interface ErpExperimental {
   price_min?: number | null;
   price_max?: number | null;
   final_package?: DevFinalPackage | null;
+  /**
+   * Артикул каталога, в который перенесён финальный пакет (решение 21.08).
+   * Пишет ТОЛЬКО `erp_sku_from_dev`; повторный перенос запрещён — иначе
+   * у модели появилось бы два артикула, то есть два источника правды о ней.
+   */
+  sku_code?: string | null;
   /** Исход разработки; null — ещё идёт */
   outcome?: DevOutcome | null;
   outcome_comment?: string | null;

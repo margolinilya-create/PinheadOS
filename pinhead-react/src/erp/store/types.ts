@@ -913,6 +913,13 @@ export interface ExperimentalSlice {
     input: { department_id: string; planned_end?: string | null; qty?: number | null },
   ) => Promise<boolean>;
 
+  /**
+   * Перенос финального пакета в каталог SKU (решение заказчика 21.08).
+   * Возвращает код артикула или null. Недостающее собирает форма сверки —
+   * действие ничего не придумывает (`utils/skuFromDev` считает перечень).
+   */
+  transferDevToSku: (devId: string, sku: Record<string, unknown>) => Promise<string | null>;
+
   /** Зафиксировать исход разработки (ТЗ п.9) — финальный статус, не этап */
   closeExperimental: (
     id: string,
