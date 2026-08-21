@@ -2105,6 +2105,13 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   outline: 1px solid var(--accent);
   background: var(--accent-light);
 }
+/* Финальный шаг «Склад» — не этап цеха, а задачи склада: отделяем чертой,
+   чтобы человек не искал его в очереди участка */
+.routeRowFinal {
+  border-top: 1px dashed var(--border);
+  margin-top: 2px;
+  padding-top: 7px;
+}
 .routeName {
   flex: 0 0 110px;
   font-size: 13px;

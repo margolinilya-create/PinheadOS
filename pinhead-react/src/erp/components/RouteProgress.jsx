@@ -1,12 +1,25 @@
 import { useMemo } from 'react';
 import { deptShortName } from '../data/departments';
 import { isOutsourced, stageLabel } from '../utils/outsourcing';
+import { warehouseStep } from '../utils/warehouseStep';
 import { STAGE_STATUS_LABELS } from '../types';
 import { isStageAwaitingProcurement, isStageReady, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { itemProgress, stageQtyProgress } from '../utils/progress';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import styles from '../erp.module.css';
+
+/** Состояние склада говорит теми же словами, что этапы цеха */
+const WH_STATE_LABELS = {
+  waiting: 'Ожидает',
+  in_progress: 'В работе',
+  done: 'Завершено',
+};
+const WH_CHIP = {
+  waiting: 'chipNeutral',
+  in_progress: 'chipProgress',
+  done: 'chipDone',
+};
 
 /**
  * Маршрут позиции по стадиям с прогрессом в штуках (правка 7):
@@ -22,6 +35,8 @@ export function RouteProgress({
   item, order, deptById, currentStageId = null, compact = false, showStages = true,
 }) {
   const total = useMemo(() => itemProgress(item), [item]);
+  /** Шаг принадлежит ЗАКАЗУ: упаковка и отгрузка идут по заказу целиком */
+  const wh = warehouseStep(order);
 
   return (
     <div className={styles.routeProgress}>
@@ -92,6 +107,26 @@ export function RouteProgress({
             </li>
           );
         })}
+
+        {/*
+          ФИНАЛЬНЫЙ ШАГ «СКЛАД» (решение заказчика 21.08). Документ перечисляет
+          его среди этапов маршрута, а у подряда под ключ маршрут вообще
+          состоит из двух шагов — «Подряд — Склад». Этапом это не заводится:
+          непроизводственный цех не попал бы ни в очередь, ни на канбан
+          (на этом 12.08 встали 33 заказа). Шаг ВЫЧИСЛЯЕТСЯ из задач склада,
+          и маршрут перестаёт обрываться на последнем цехе.
+        */}
+        <li className={`${styles.routeRow} ${styles.routeRowFinal}`}>
+          <span className={styles.routeName}>
+            Склад
+            <span className={styles.subText}> · {wh.label}</span>
+          </span>
+          <span className={styles.routeQty} />
+          {!compact && <span className={styles.routeBar} aria-hidden="true" />}
+          <span className={`${styles.chip} ${styles[WH_CHIP[wh.state]]}`}>
+            {WH_STATE_LABELS[wh.state]}
+          </span>
+        </li>
       </ol>
       )}
     </div>

@@ -188,3 +188,28 @@ describe('OrderCard — возврат в список', () => {
     expect(screen.getByRole('link', { name: /Заказы/ })).toHaveAttribute('href', '/orders');
   });
 });
+
+/**
+ * ФИНАЛЬНЫЙ ШАГ «СКЛАД» В ЛЕНТЕ ЭТАПОВ (решение заказчика 21.08).
+ *
+ * Документ перечисляет «Склад» среди этапов маршрута, а у подряда под ключ
+ * маршрут вообще состоит из двух шагов — «Подряд — Склад». Этапом это
+ * не заводится (непроизводственный цех не попадает ни в очередь, ни на канбан),
+ * поэтому шаг вычисляется из задач склада. Сторож проверяет ровно то, ради
+ * чего он заведён: лента не обрывается на последнем цехе.
+ */
+describe('OrderCard — маршрут не обрывается на последнем цехе', () => {
+  beforeEach(() => {
+    canOrderManage = true;
+    useErpStore.setState({ orders: [], departments: [], loaded: false, detailIds: [] });
+  });
+
+  it('лента этапов заканчивается складом', async () => {
+    renderCard();
+    const strip = await screen.findByLabelText('Лента этапов');
+    expect(within(strip).getByText('Склад')).toBeInTheDocument();
+    // Именно ПОСЛЕДНИЙ: склад идёт после производства, а не между цехами
+    const labels = within(strip).getAllByText(/\S/).map((n) => n.textContent);
+    expect(labels[labels.length - 1]).toBe('Склад');
+  });
+});

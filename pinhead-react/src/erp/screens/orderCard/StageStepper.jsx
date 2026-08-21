@@ -4,6 +4,7 @@ import { stageMissingTz } from '../../utils/tz';
 import { deptShortName } from '../../data/departments';
 import { STAGE_STATUS_LABELS } from '../../types';
 import { StageIndicator } from '../../components/StageIndicator';
+import { warehouseStep } from '../../utils/warehouseStep';
 import { fmtTs } from './format';
 
 /**
@@ -51,5 +52,21 @@ export function StageStepper({ item, order, deptById, events }) {
     };
   });
 
-  return <StageIndicator variant="dots" nodes={nodes} label="Лента этапов" />;
+  /**
+   * ФИНАЛЬНЫЙ ШАГ «СКЛАД» (решение заказчика 21.08). Документ перечисляет его
+   * среди этапов маршрута, а у подряда под ключ маршрут вообще состоит из двух
+   * шагов — «Подряд — Склад». Этапом это не заводится: непроизводственный цех
+   * не попал бы ни в очередь, ни на канбан. Шаг ВЫЧИСЛЯЕТСЯ из задач склада
+   * (`utils/warehouseStep`), и лента перестаёт обрываться на последнем цехе.
+   */
+  const wh = warehouseStep(order);
+  const withWarehouse = [...nodes, {
+    key: 'warehouse',
+    label: 'Склад',
+    state: wh.state === 'done' ? 'done' : (wh.state === 'in_progress' ? 'active' : undefined),
+    lineDone: wh.state === 'done',
+    title: `Склад · ${wh.label}`,
+  }];
+
+  return <StageIndicator variant="dots" nodes={withWarehouse} label="Лента этапов" />;
 }
