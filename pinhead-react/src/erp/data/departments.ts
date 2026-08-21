@@ -19,7 +19,8 @@ export type DepartmentType =
   | 'sewing'        // Пошив
   | 'vto'           // ВТО
   | 'qc'            // ОТК (финальный контроль)
-  | 'warehouse_fg'; // Склад готовой продукции
+  | 'warehouse_fg'  // Склад готовой продукции
+  | 'outsource';    // Подряд — шаг маршрута, выполняемый снаружи
 
 export interface Department {
   /** Стабильный машинный код */
@@ -49,6 +50,16 @@ export const DEPARTMENTS: Department[] = [
   { code: 'vto',          name: 'ВТО цех',                 type: 'vto',          order: 80 },
   { code: 'qc',           name: 'ОТК',                     type: 'qc',           order: 85 },
   { code: 'warehouse_fg', name: 'Склад готовой продукции', type: 'warehouse_fg', order: 90 },
+  /**
+   * «Подряд» заведён правками 21.08: документ просит отдельный участок в списке
+   * участков, при выборе которого исполнитель определяется сам. Это НЕ наш цех
+   * и не подрядчик как компания — это место в маршруте, где работу делают
+   * снаружи; имя подрядчика и операция живут в самом этапе.
+   *
+   * Непроизводственный намеренно: задача подряда видна только во вкладке
+   * «Подряд» — в очередь, канбан, план и загрузку она не попадает.
+   */
+  { code: 'outsource',    name: 'Подряд',                  type: 'outsource',    order: 95 },
 ];
 
 export function getDepartmentByCode(code: string): Department | undefined {
@@ -70,6 +81,7 @@ export const DEPT_SHORT_NAMES: Record<string, string> = {
   vto: 'ВТО',
   qc: 'ОТК',
   warehouse_fg: 'Склад ГП',
+  outsource: 'Подряд',
 };
 
 export function deptShortName(code: string, fallback?: string): string {
@@ -95,6 +107,8 @@ export const DEPT_ICONS: Record<string, string> = {
   vto: 'iron',
   qc: 'shield',
   warehouse_fg: 'tag',
+  // Работа уходит наружу — та же метафора, что у ссылки на внешний ресурс
+  outsource: 'externalLink',
 };
 
 /** Имя иконки участка; неизвестный код — нейтральная «очередь» */

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildItemRoute } from './routes';
+import { ROUTE_EXTRA_DEPT_CODES } from './routeDraft';
+import { isProductionDept } from '../data/departments';
 import type { BrandingMethod, BrandingOn, ProductionType } from '../types';
 
 /**
@@ -89,6 +91,10 @@ function seededProductionCodes(): Set<string> {
  */
 const OWN_SCREEN: Record<string, string> = {
   supply: 'erp/screens/purchasing/SupplyQueue.jsx',
+  // Участок «Подряд» (правки 21.08): задача видна только во вкладке «Подряд»,
+  // и раздел строит строки ИЗ ЭТАПОВ (`outsourcedStages`), а не из реестра —
+  // именно из-за реестра раздел когда-то и был тупиком
+  outsource: 'erp/screens/Subcontracting.jsx',
 };
 
 describe('до каждого этапа маршрута можно добраться', () => {
@@ -125,10 +131,41 @@ describe('до каждого этапа маршрута можно добра�
       if (PRODUCTION.has(code)) continue;
       const src = readFileSync(join(SRC, screen), 'utf8');
       expect(
-        /openSupplyStages|buildQueueEntries/.test(src),
+        /openSupplyStages|buildQueueEntries|outsourcedStages/.test(src),
         `${screen} не читает этапы — заказ без сопутствующих данных снова пропадёт`,
       ).toBe(true);
     }
+  });
+
+  /**
+   * Конструктор маршрута предлагает участки, которых расчёт не выдаёт вовсе:
+   * человек может поставить в маршрут закупку или «Подряд» руками. Тот же
+   * вопрос, что и выше, — «где человек увидит этот этап», — обязан быть решён
+   * и для них, иначе заказ снова станет невидимым, только теперь по воле
+   * менеджера, а не расчёта.
+   */
+  it('участок, предлагаемый конструктором помимо производственных, имеет свой экран', () => {
+    expect(ROUTE_EXTRA_DEPT_CODES.length).toBeGreaterThan(0);
+    for (const code of ROUTE_EXTRA_DEPT_CODES) {
+      if (PRODUCTION.has(code)) continue;
+      const screen = OWN_SCREEN[code];
+      expect(
+        screen,
+        `конструктор предлагает участок ${code}, но экрана с его этапами нет`,
+      ).toBeTruthy();
+      expect(existsSync(join(SRC, screen)), `${screen} не найден`).toBe(true);
+    }
+  });
+
+  /**
+   * Участок «Подряд» обязан остаться НЕпроизводственным: документ просит,
+   * чтобы задача была видна только во вкладке «Подряд». Стань он
+   * производственным — попадёт в очередь цеха, на канбан, в план и в загрузку,
+   * то есть рабочий увидит в своих заданиях работу, которую делает подрядчик.
+   */
+  it('«Подряд» не заведён производственным участком', () => {
+    expect(PRODUCTION.has('outsource')).toBe(false);
+    expect(isProductionDept({ code: 'outsource' })).toBe(false);
   });
 
   it('закупка вырезается из маршрута только у подряда с материалом подрядчика', () => {

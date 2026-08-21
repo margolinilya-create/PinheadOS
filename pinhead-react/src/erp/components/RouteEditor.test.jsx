@@ -20,6 +20,9 @@ const DEPTS = [
   { id: 'd1', code: 'cutting', name: 'Закройный', active: true, sort_order: 10 },
   { id: 'd2', code: 'dtf', name: 'ДТФ', active: true, sort_order: 20 },
   { id: 'd3', code: 'sewing', name: 'Швейный', active: true, sort_order: 30 },
+  // Участок «Подряд» (правки 21.08) — единственная точка ввода подрядного
+  // этапа: отдельного селекта исполнителя больше нет
+  { id: 'd9', code: 'outsource', name: 'Подряд', active: true, sort_order: 95 },
 ];
 
 const stage = (over) => ({
@@ -80,8 +83,10 @@ describe('RouteEditor', () => {
       .getByRole('button', { name: 'Шаг после' }));
 
     const added = screen.getAllByRole('listitem')[1];
-    fireEvent.change(within(added).getByLabelText('Участок ответственности'), { target: { value: 'dtf' } });
-    fireEvent.change(within(added).getByLabelText('Исполнитель этапа'), { target: { value: 'contractor' } });
+    // ОДНО движение: выбран участок «Подряд» — этап стал подрядным, и поля
+    // подрядчика раскрылись тут же. Второго селекта больше нет
+    fireEvent.change(within(added).getByLabelText('Участок ответственности'), { target: { value: 'outsource' } });
+    expect(within(added).queryByLabelText('Исполнитель этапа')).toBeNull();
     fireEvent.change(within(added).getByLabelText('Подрядчик'), { target: { value: 'ИП Иванов' } });
     fireEvent.change(within(added).getByLabelText('Операция'), { target: { value: 'Сублимация' } });
 
@@ -104,7 +109,7 @@ describe('RouteEditor', () => {
         ...EMPTY_SUB,
       },
       {
-        stage_id: null, department_id: 'd2', sort_order: 20,
+        stage_id: null, department_id: 'd9', sort_order: 20,
         executor: 'contractor', contractor: 'ИП Иванов', operation: 'Сублимация',
         depends_on: [0],
         ...EMPTY_SUB,
@@ -124,10 +129,13 @@ describe('RouteEditor', () => {
   it('возврат этапа в наш цех стирает подрядчика', async () => {
     const { applyItemRoute } = setup({
       id: 'i1',
-      stages: [stage({ executor: 'contractor', contractor: 'ИП Иванов', operation: 'Печать' })],
+      stages: [stage({
+        department_id: 'd9', executor: 'contractor',
+        contractor: 'ИП Иванов', operation: 'Печать',
+      })],
     });
 
-    fireEvent.change(screen.getByLabelText('Исполнитель этапа'), { target: { value: 'internal' } });
+    fireEvent.change(screen.getByLabelText('Участок ответственности'), { target: { value: 'sewing' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить маршрут' }));
 
     await waitFor(() => expect(applyItemRoute).toHaveBeenCalled());
@@ -136,10 +144,27 @@ describe('RouteEditor', () => {
     });
   });
 
+  /**
+   * Этап, заведённый ДО 21.08, стоит на реальном цехе с `executor='contractor'`.
+   * Он обязан остаться подрядным: конструктор показывает его участок как есть
+   * и подрядные поля раскрывает по исполнителю, а не по коду участка.
+   */
+  it('подрядный этап на реальном цехе остаётся подрядным', () => {
+    setup({
+      id: 'i1',
+      stages: [stage({
+        department_id: 'd2', executor: 'contractor',
+        contractor: 'ИП Иванов', operation: 'Сублимация',
+      })],
+    });
+    expect(screen.getByLabelText('Участок ответственности')).toHaveValue('dtf');
+    expect(screen.getByLabelText('Подрядчик')).toHaveValue('ИП Иванов');
+  });
+
   it('подрядный этап без подрядчика сохранить нельзя', async () => {
     setup();
     const first = screen.getAllByRole('listitem')[0];
-    fireEvent.change(within(first).getByLabelText('Исполнитель этапа'), { target: { value: 'contractor' } });
+    fireEvent.change(within(first).getByLabelText('Участок ответственности'), { target: { value: 'outsource' } });
     expect(screen.getByText(/не указан подрядчик/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Сохранить маршрут' })).toBeDisabled();
   });

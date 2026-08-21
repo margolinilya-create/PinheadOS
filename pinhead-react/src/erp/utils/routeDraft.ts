@@ -1,6 +1,7 @@
 import type { BrandingMethod, BrandingOn, ErpItemStage, ProductionType } from '../types';
 import { buildItemRoute } from './routes';
 import type { RouteStage } from './routes';
+import { OUTSOURCE_DEPT_CODE, executorForDept } from './outsourcing';
 
 /**
  * Черновик маршрута — движок конструктора этапов (правки заказчика 16.08).
@@ -81,11 +82,25 @@ export interface RouteStep {
 /** Шаг маршрута: один этап или несколько параллельных (ветки нанесения) */
 export type RouteGroup = RouteStep[];
 
+/**
+ * Участки, которые конструктор предлагает ПОМИМО производственных.
+ *
+ * Список короткий и ведётся руками намеренно: вписать сюда код — значит вслух
+ * ответить на вопрос «а где человек увидит этот этап». У закупки это очередь
+ * закупки, у подряда — раздел «Подряд»; оба читают ЭТАПЫ. Участок без такой
+ * поверхности превращает заказ в невидимый — так 12.08 встали 33 заказа.
+ * Сверяет `routeReachable.test.ts`.
+ */
+export const ROUTE_EXTRA_DEPT_CODES: readonly string[] = ['supply', OUTSOURCE_DEPT_CODE];
+
 export function emptyStep(departmentCode: string): RouteStep {
   return {
     stageId: null,
     departmentCode,
-    executor: 'internal',
+    // Исполнитель СЛЕДУЕТ из участка (правки 21.08): выбрал «Подряд» —
+    // этап подрядный. Отдельного переключателя нет, и одна точка ввода
+    // и есть то, о чём просил заказчик
+    executor: executorForDept(departmentCode),
     contractor: '',
     operation: '',
     qty: '',
@@ -310,14 +325,40 @@ export function removeStep(draft: RouteGroup[], gi: number, si: number): RouteGr
     .filter((g) => g.length > 0);
 }
 
+/**
+ * Правка одного этапа черновика.
+ *
+ * СМЕНА УЧАСТКА ПЕРЕСЧИТЫВАЕТ ИСПОЛНИТЕЛЯ, и правило живёт ЗДЕСЬ, а не в
+ * разметке. До 21.08 исполнителя выбирали вторым селектом, и обработчик этого
+ * селекта заодно чистил имя подрядчика; селект убран — но чистка нужна
+ * по-прежнему, потому что строка `erp_subcontracting` при уходе из подряда
+ * удаляется, и оставленное имя врало бы про исполнителя. Утилита — общее место
+ * обоих конструкторов (форма создания и карточка заказа), разметка — нет.
+ *
+ * Явно переданный `executor` в патче сильнее вывода из участка: так черновик
+ * из СУЩЕСТВУЮЩИХ этапов остаётся правимым — подрядный этап, заведённый
+ * до 21.08 на реальном цехе, не должен переставать быть подрядным от того,
+ * что человек поправил у него количество.
+ */
 export function patchStep(
   draft: RouteGroup[],
   gi: number,
   si: number,
   patch: Partial<RouteStep>,
 ): RouteGroup[] {
+  const full: Partial<RouteStep> = patch.departmentCode !== undefined
+    && patch.executor === undefined
+    ? (() => {
+      const executor = executorForDept(patch.departmentCode as string);
+      return {
+        ...patch,
+        executor,
+        ...(executor === 'internal' ? { contractor: '' } : {}),
+      };
+    })()
+    : patch;
   return draft.map((g, i) => (
-    i === gi ? g.map((s, j) => (j === si ? { ...s, ...patch } : s)) : g));
+    i === gi ? g.map((s, j) => (j === si ? { ...s, ...full } : s)) : g));
 }
 
 // --- Линеаризация -------------------------------------------------------------

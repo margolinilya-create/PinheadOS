@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ROUTE_EXTRA_DEPT_CODES,
   addParallel,
   draftFromRoute,
   draftFromStages,
@@ -16,6 +17,7 @@ import {
   stepPayload,
 } from './routeDraft';
 import { buildItemRoute } from './routes';
+import { OUTSOURCE_DEPT_CODE } from './outsourcing';
 import type { BrandingMethod, BrandingOn, ProductionType, StageStatus } from '../types';
 
 /**
@@ -370,6 +372,88 @@ describe('patchStep', () => {
     const next = patchStep(draft, 0, 1, { executor: 'contractor', contractor: 'ИП' });
     expect(next[0][0].executor).toBe('internal');
     expect(next[0][1].contractor).toBe('ИП');
+  });
+});
+
+/**
+ * УЧАСТОК «ПОДРЯД» — ОДНА ТОЧКА ВВОДА (правки заказчика 21.08).
+ *
+ * Документ: «добавить в список участков отдельный участок "Подряд"; при выборе
+ * этого участка исполнитель определяется автоматически как "Подрядчик",
+ * и внутри этапа открываются дополнительные поля». Селекта исполнителя больше
+ * нет вовсе, поэтому правило обязано жить здесь: разметка конструктора
+ * монтируется в двух местах, и правило в ней разошлось бы с самим собой.
+ */
+describe('участок задаёт исполнителя', () => {
+  it('новый этап на участке «Подряд» сразу подрядный', () => {
+    expect(emptyStep(OUTSOURCE_DEPT_CODE).executor).toBe('contractor');
+    expect(emptyStep('sewing').executor).toBe('internal');
+    // Пустой участок («Шаг после», «Параллельный этап») — наш, пока не выбрали
+    expect(emptyStep('').executor).toBe('internal');
+  });
+
+  it('смена участка на «Подряд» делает этап подрядным', () => {
+    const draft = [[emptyStep('sewing')]];
+    const next = patchStep(draft, 0, 0, { departmentCode: OUTSOURCE_DEPT_CODE });
+    expect(next[0][0].executor).toBe('contractor');
+  });
+
+  it('возврат на обычный цех снимает подряд И СТИРАЕТ подрядчика', () => {
+    /**
+     * Имя подрядчика у нашего этапа — не косметика: строка `erp_subcontracting`
+     * при сохранении удаляется, и оставшееся имя врало бы про исполнителя.
+     * До 21.08 это делал обработчик селекта исполнителя; селекта нет — чистка
+     * переехала сюда вместе с правилом.
+     */
+    const draft = [[{
+      ...emptyStep(OUTSOURCE_DEPT_CODE),
+      contractor: 'ИП Иванов',
+      operation: 'Варка',
+    }]];
+    const next = patchStep(draft, 0, 0, { departmentCode: 'vto' });
+    expect(next[0][0].executor).toBe('internal');
+    expect(next[0][0].contractor).toBe('');
+  });
+
+  it('правка ДРУГОГО поля подрядного этапа его подрядности не трогает', () => {
+    /**
+     * Этап, заведённый до 21.08, стоит на реальном цехе с `executor='contractor'`.
+     * Пересчитывай мы исполнителя на любой патч, он перестал бы быть подрядным
+     * от того, что человек поправил у него количество, — и всплыл бы в очереди
+     * чужого цеха.
+     */
+    const legacy = [[{
+      ...emptyStep('dtf'), executor: 'contractor' as const, contractor: 'ИП Иванов',
+    }]];
+    expect(patchStep(legacy, 0, 0, { qty: '150' })[0][0].executor).toBe('contractor');
+  });
+
+  it('явный исполнитель в патче сильнее вывода из участка', () => {
+    const draft = [[emptyStep('dtf')]];
+    const next = patchStep(draft, 0, 0, {
+      departmentCode: 'sewing', executor: 'contractor', contractor: 'Цех Саша',
+    });
+    expect(next[0][0].executor).toBe('contractor');
+    expect(next[0][0].contractor).toBe('Цех Саша');
+  });
+
+  it('маршрут документа собирается участками: Закрой → Подряд: Варка → ВТО', () => {
+    const draft = [
+      [emptyStep('cutting')],
+      [{ ...emptyStep(OUTSOURCE_DEPT_CODE), contractor: 'ИП Иванов', operation: 'Варка' }],
+      [emptyStep('vto')],
+    ];
+    expect(routeIssues(draft)).toEqual([]);
+    const linear = linearize(draft);
+    expect(linear.map((l) => l.step.executor)).toEqual(['internal', 'contractor', 'internal']);
+    // «Вернулось от подрядчика ≠ заказ готов»: следующий этап уже в маршруте
+    // и ждёт подрядный — специальной логики для этого не нужно
+    expect(linear[2].dependsOn).toEqual([1]);
+  });
+
+  it('участок «Подряд» предлагается конструктором наравне с закупкой', () => {
+    expect(ROUTE_EXTRA_DEPT_CODES).toContain(OUTSOURCE_DEPT_CODE);
+    expect(ROUTE_EXTRA_DEPT_CODES).toContain('supply');
   });
 });
 

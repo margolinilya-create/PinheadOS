@@ -8,8 +8,18 @@ import {
 } from './departments';
 
 describe('DEPARTMENTS seed', () => {
-  it('содержит 13 цехов', () => {
-    expect(DEPARTMENTS).toHaveLength(13);
+  it('содержит 14 участков', () => {
+    expect(DEPARTMENTS).toHaveLength(14);
+  });
+
+  /**
+   * «Подряд» заведён участком правками 21.08 — это точка ввода подрядного этапа
+   * в конструкторе маршрута. В общую очередь он не входит: документ просит,
+   * чтобы задача была видна только во вкладке «Подряд».
+   */
+  it('«Подряд» — участок, но не цех с очередью', () => {
+    expect(getDepartmentByCode('outsource')?.name).toBe('Подряд');
+    expect(QUEUE_DEPT_CODES.has('outsource')).toBe(false);
   });
 
   it('у каждого цеха есть короткое имя и иконка', () => {

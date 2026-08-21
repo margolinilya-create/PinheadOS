@@ -5,6 +5,7 @@ import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
 import { deptShortName, isProductionDept } from '../data/departments';
 import {
+  ROUTE_EXTRA_DEPT_CODES,
   emptyStep,
   insertGroup,
   addParallel,
@@ -31,12 +32,14 @@ import styles from '../erp.module.css';
  * СТРОКА — ШАГ, А НЕ ЭТАП. Документ описывает маршрут линейно, модель — граф
  * с параллельными ветками нанесения. Шаг (группа) — ровно то, что `buildRoute`
  * уже помечает одинаковым `sortOrder`.
+ *
+ * ОДНА ТОЧКА ВВОДА ПОДРЯДА (правки заказчика 21.08). Раньше подрядный этап
+ * заводился в два движения: выбрать участок-цех и переключить второй селект
+ * «Исполнитель» на «Подрядчик». Заказчик просит выбрать участок «Подряд» —
+ * и всё. Селекта исполнителя больше нет вовсе; правило «участок → исполнитель»
+ * живёт в `utils/routeDraft.patchStep`, а не здесь: конструктор монтируется
+ * в двух местах, и правило в разметке однажды разошлось бы с самим собой.
  */
-
-const EXECUTOR_LABELS = {
-  internal: 'Наш цех',
-  contractor: 'Подрядчик',
-};
 
 /**
  * Поле «Операция» с пополнением библиотеки (правки заказчика 20.08).
@@ -97,7 +100,7 @@ function OperationField({ step, gi, si, onPatch }) {
   );
 }
 
-/** Дополнительные поля подрядного этапа — раскрываются вместе с исполнителем */
+/** Дополнительные поля подрядного этапа — раскрываются вместе с участком «Подряд» */
 function ContractorFields({ step, gi, si, onPatch, renderFiles }) {
   const set = (patch) => onPatch(gi, si, patch);
   return (
@@ -194,6 +197,12 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
 
   return (
     <div className={styles.routeStepRow}>
+      {/*
+        Единственный выбор в строке. Среди участков есть «Подряд» — выбрав его,
+        человек получает подрядный этап целиком: исполнителя проставляет
+        `patchStep`, поля подрядчика раскрываются ниже. Вернул обычный цех —
+        подряд снялся, и имя подрядчика стёрлось вместе с ним.
+      */}
       <select
         className={styles.select}
         value={step.departmentCode}
@@ -204,23 +213,6 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
         <option value="">Участок…</option>
         {options.map((d) => (
           <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
-        ))}
-      </select>
-
-      <select
-        className={styles.select}
-        value={step.executor}
-        disabled={step.locked}
-        onChange={(e) => onPatch(gi, si, {
-          executor: e.target.value,
-          // Уходя из подряда, имя подрядчика не держим: строка `erp_subcontracting`
-          // при сохранении удаляется, и оставленное имя врало бы про исполнителя
-          ...(e.target.value === 'internal' ? { contractor: '' } : {}),
-        })}
-        aria-label="Исполнитель этапа"
-      >
-        {Object.entries(EXECUTOR_LABELS).map(([v, l]) => (
-          <option key={v} value={v}>{l}</option>
         ))}
       </select>
 
@@ -264,18 +256,19 @@ export function RouteFields({ draft, onChange, renderStageFiles = null }) {
   const departments = useErpStore(useShallow((s) => s.departments));
   /**
    * Предлагаем только участки, у которых ЕСТЬ ПОВЕРХНОСТЬ с их открытыми
-   * этапами: производственные (очередь, канбан, план) и закупка (свой экран,
-   * читающий этапы). Склад, логистика и экс-цех сюда не входят — этап там
-   * не появится нигде, и заказ встанет молча. Это ровно дефект 12.08, из-за
-   * которого 33 заказа стояли невидимыми: тогда причиной был `is_production`
-   * у закупки, а список конструктора предлагал такие участки до сих пор.
+   * этапами: производственные (очередь, канбан, план) и перечисленные в
+   * `ROUTE_EXTRA_DEPT_CODES` — закупка (своя очередь) и «Подряд» (свой раздел).
+   * Оба читают ЭТАПЫ, а не соседние данные. Склад, логистика и экс-цех сюда
+   * не входят: этап там не появится нигде, и заказ встанет молча — ровно
+   * дефект 12.08, из-за которого 33 заказа стояли невидимыми.
    *
    * Признак берётся из данных (`isProductionDept`), а не из списка кодов:
    * участок, заведённый директором в админке, обязан появляться сам.
    */
   const depts = useMemo(
     () => departments
-      .filter((d) => d.active && (isProductionDept(d) || d.code === 'supply'))
+      .filter((d) => d.active
+        && (isProductionDept(d) || ROUTE_EXTRA_DEPT_CODES.includes(d.code)))
       .sort((a, b) => a.sort_order - b.sort_order),
     [departments],
   );
@@ -319,9 +312,9 @@ export function RouteFields({ draft, onChange, renderStageFiles = null }) {
                     onPatch={patch} onRemove={drop}
                     canRemove={draft.length > 1 || group.length > 1}
                   />
-                  {/* Поля подрядчика раскрываются вместе с исполнителем: документ
-                      требует заполнить их ЗДЕСЬ, одним движением с выбором
-                      «Подрядчик», а не потом на другом экране */}
+                  {/* Поля подрядчика раскрываются вместе с участком «Подряд»:
+                      документ требует заполнить их ЗДЕСЬ, одним движением
+                      с выбором участка, а не потом на другом экране */}
                   {step.executor === 'contractor' && (
                     <ContractorFields
                       step={step}
