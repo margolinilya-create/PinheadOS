@@ -128,3 +128,60 @@ describe('предусловия упаковки — одно выражени�
     expect(FG_ACCEPTED).toMatch(/subcontract_receipt/);
   });
 });
+
+/**
+ * ПРИЁМКА ПОДРЯДА СКЛАДОМ — сквозной путь, а не одна дверь.
+ *
+ * Дефект, найденный проверкой прав ОТ ЛИЦА РОЛИ (21.08): RLS журнала
+ * `erp_subcontract_moves` расширили до `warehouse.manage`, и на этом успокоились
+ * — а дальше по цепочке стоит триггер `erp_subcontract_moves_rollup`, который
+ * приращает `qty_done` подрядного этапа, и `erp_stage_guard` отклонял ВСЮ
+ * транзакцию: у роли `storekeeper` нет НИ ОДНОГО права `stage.*`, поэтому
+ * страж падал на самой первой проверке. Центральный сценарий документа
+ * («склад принял → следующий этап открылся») не работал вовсе.
+ *
+ * Сторож проверяет МЕХАНИЗМ пропуска, а не наличие слов: метку ставит и
+ * снимает сам rollup, страж принимает её только для подрядного этапа и только
+ * у того, кто вправе писать журнал.
+ */
+describe('приёмка подряда складом проходит страж этапов', () => {
+  const ROLLUP = latestDefining('erp_subcontract_moves_rollup');
+  const GUARD = latestDefining('erp_stage_guard');
+
+  it('rollup помечает свой update и снимает метку за собой', () => {
+    expect(ROLLUP).toMatch(/set_config\('erp\.subcontract_rollup', 'on', true\)/);
+    expect(ROLLUP).toMatch(/set_config\('erp\.subcontract_rollup', 'off', true\)/);
+    // Метка стоит ВОКРУГ обновления этапа, а не в начале функции: окно
+    // пропуска обязано быть не шире самого действия
+    const on = ROLLUP.indexOf("set_config('erp.subcontract_rollup', 'on'");
+    const upd = ROLLUP.indexOf('update public.erp_item_stages');
+    const off = ROLLUP.indexOf("set_config('erp.subcontract_rollup', 'off'");
+    expect(on).toBeLessThan(upd);
+    expect(upd).toBeLessThan(off);
+  });
+
+  it('страж пропускает ТОЛЬКО подрядный этап и ТОЛЬКО с правом на журнал', () => {
+    expect(GUARD).toMatch(
+      /current_setting\('erp\.subcontract_rollup', true\)[\s\S]{0,400}erp_has_permission\('warehouse\.manage'\)/,
+    );
+    // Три условия сразу: метка, подрядный исполнитель, право писать журнал.
+    // Пропуск, выданный «на всякий случай», однажды выдаётся не тому
+    const branch = GUARD.slice(
+      GUARD.indexOf("current_setting('erp.subcontract_rollup'"),
+      GUARD.indexOf("v_take     := public.erp_has_permission('stage.take')"),
+    );
+    expect(branch).toMatch(/new\.executor, 'internal'\) = 'contractor'/);
+    expect(branch).toMatch(/erp_has_permission\('order\.manage'\)/);
+  });
+
+  it('пропуск стоит ПОСЛЕ отсечки неохраняемых колонок, но ДО проверки прав', () => {
+    // Выше — ранний выход `not v_guarded`, ниже — вычисление прав `stage.*`.
+    // Поставить ветку ниже значило бы не починить ничего: страж падает
+    // на `not v_any` раньше, чем доходит до счётчиков
+    const guarded = GUARD.indexOf('if not v_guarded then');
+    const bypass = GUARD.indexOf("current_setting('erp.subcontract_rollup'");
+    const perms = GUARD.indexOf("v_take     := public.erp_has_permission('stage.take')");
+    expect(guarded).toBeLessThan(bypass);
+    expect(bypass).toBeLessThan(perms);
+  });
+});
