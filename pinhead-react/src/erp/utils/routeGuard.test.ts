@@ -63,8 +63,16 @@ describe('страж этапов знает про исполнителя', () 
   });
 
   it('«Задержка/проблема» на подряде доступна тому, кто её обнаружил', () => {
-    // blocked — общий механизм остановки; отдельной фазой задержку не заводим
-    expect(GUARD).toMatch(/order\.manage'\) or v_block or v_moving/);
+    /**
+     * blocked — общий механизм остановки; отдельной фазой задержку не заводим.
+     * Форма условия СУЖЕНА 21.08: раньше здесь стояло голое `or v_block`,
+     * и право блокировки (оно есть у каждого рабочего) пропускало ЛЮБОЕ
+     * изменение подрядного этапа — вплоть до «этап закрыт». Теперь пропуск
+     * действует только на саму блокировку, а смысл требования сохранён:
+     * цех, увидевший проблему, по-прежнему может её объявить.
+     */
+    expect(GUARD).toMatch(/v_block and v_block_change/);
+    expect(GUARD).toMatch(/new\.status = 'blocked' or old\.status = 'blocked'/);
   });
 
   /**
@@ -165,5 +173,40 @@ describe('источник материалов совпадает у позиц
     for (const v of VALUES) {
       expect(check, `в CHECK ${constraint} нет значения ${v}`).toContain(`'${v}'`);
     }
+  });
+});
+
+/**
+ * ПОДРЯДНЫЙ ЭТАП ЗАКРЫВАЕТ ТОТ, КТО ИМ ВЕДАЕТ.
+ *
+ * Найдено проверкой прав от лица роли (21.08): ветка стража для подрядного
+ * этапа пропускала любого, у кого есть `stage.block`, — а это КАЖДЫЙ рабочий.
+ * Дальше по статусу требовался `stage.take`, он у рабочего тоже есть: рабочий
+ * чужого цеха мог взять подрядный этап в работу и закрыть его, то есть
+ * объявить работу подрядчика выполненной, не передав и не приняв ни штуки.
+ *
+ * Через интерфейс так не сделать — подрядные этапы отсеиваются из очереди.
+ * Но страж на то и страж: он последний рубеж, а не дубль интерфейса.
+ */
+describe('подрядный этап: право блокировки не открывает всё остальное', () => {
+  const SQL = latestDefining('erp_stage_guard');
+
+  it('`stage.block` пропускает подрядный этап ТОЛЬКО ради блокировки', () => {
+    expect(SQL).toMatch(/v_block and v_block_change/);
+    // И `v_block_change` — это именно блокировка, а не «что угодно»
+    expect(SQL).toMatch(
+      /v_block_change :=[\s\S]{0,220}new\.status = 'blocked' or old\.status = 'blocked'/,
+    );
+    expect(SQL).toMatch(/v_block_change :=[\s\S]{0,260}block_reason is distinct from old\.block_reason/);
+  });
+
+  it('голого `or v_block` в ветке подряда больше нет', () => {
+    // Именно эта форма и была дырой: она пропускала любое изменение
+    const branch = SQL.slice(
+      SQL.indexOf('if v_outsourced then'),
+      SQL.indexOf('elsif not v_moving and not public.erp_can_act_in_dept'),
+    );
+    expect(branch).not.toMatch(/or v_block or v_moving/);
+    expect(branch).toMatch(/erp_has_permission\('order\.manage'\)/);
   });
 });
