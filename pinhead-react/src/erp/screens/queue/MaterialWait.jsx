@@ -4,6 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
+import { toast } from '../../../store/useToastStore';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
@@ -40,12 +41,27 @@ export function MaterialWait({ materials, compact = false }) {
 
   const receive = async (m) => {
     const fromStock = m.source === 'stock';
+    const planned = Number(m.qty_expected);
+    /**
+     * Полная приёмка отсюда возможна, только когда план количества задан:
+     * приход уходит в журнал (`erp_material_accept`), а приход «ноль единиц»
+     * не бывает — сервер такую приёмку и не примет. Раньше сюда уезжало
+     * `Number(m.qty_expected) || 0`, то есть у позиции без плана оформлялась
+     * приёмка нулевого количества.
+     */
+    if (!fromStock && !(planned > 0)) {
+      toast.error(
+        'У материала не задано плановое количество — примите его на экране «Склад», '
+        + 'указав, сколько пришло',
+      );
+      return;
+    }
     const ok = await confirm({
       title: `Материал поступил: ${m.name || 'без названия'}?`,
       message: fromStock
         ? 'Материал будет помечен доступным со склада, и этап станет «Готов к работе».'
         : [
-            `Будет оформлена приёмка полного количества${m.qty_expected ? ` (${m.qty_expected})` : ''}.`,
+            `Будет оформлена приёмка полного количества (${planned}) и записан приход на это же число.`,
             'Если пришло не всё или есть расхождения — принимайте на экране «Склад»:',
             'там можно указать фактическое количество, пересорт и комментарий.',
           ].join(' '),
@@ -57,7 +73,7 @@ export function MaterialWait({ materials, compact = false }) {
       await confirmStockMaterial(m.id);
     } else {
       await acceptMaterial(m.id, {
-        qty_received: Number(m.qty_expected) || 0,
+        qty: planned,
         accept_status: 'accepted_full',
         accept_comment: null,
       });

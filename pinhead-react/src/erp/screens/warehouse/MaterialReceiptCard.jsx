@@ -31,8 +31,16 @@ function awaitsAcceptance(m) {
   return m.accept_status !== 'accepted_full' && m.accept_status !== 'accepted_partial';
 }
 
-/** Приёмка одного материала: план read-only слева, факт (заполняет кладовщик) справа */
-function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
+/**
+ * Приёмка одного материала: план read-only слева, факт (заполняет кладовщик) справа.
+ *
+ * Форм здесь было ДВЕ — «Записать приход» и «Принять», каждая со своим селектом
+ * статуса приёмки, и вторая работала без первой. На боевой базе за полтора
+ * месяца это дало девять принятых материалов при пустом журнале приходов:
+ * заполняли ту форму, которая закрывает задачу, а не ту, которая пишет
+ * количество. Теперь действие одно, и уходит оно одной транзакцией.
+ */
+function AcceptBlock({ material: m, onAccept }) {
   const done = !awaitsAcceptance(m) && m.accept_status;
   // Факт-атрибуты преднаполняются планом — кладовщик правит только при пересорте/расхождении
   const [factName, setFactName] = useState(m.fact_name ?? m.name ?? '');
@@ -40,28 +48,45 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
   const [factArticle, setFactArticle] = useState(m.fact_article ?? m.article ?? '');
   // Сумма журнала приходов: считает сервер, карточка её только показывает
   const received = m.qty_received ?? '';
+  const [qty, setQty] = useState('');
+  const [invoice, setInvoice] = useState('');
   const [status, setStatus] = useState(m.accept_status ?? 'accepted_full');
   const [comment, setComment] = useState(m.accept_comment ?? '');
   const [saving, setSaving] = useState(false);
+
+  const already = Number(m.qty_received ?? 0);
+  const expected = Number(m.qty_expected);
+  const arriving = qty === '' ? 0 : Number(qty);
+  /** Сколько будет принято после этого действия — на нём и считается расхождение */
+  const totalAfter = Math.round((already + (Number.isFinite(arriving) ? arriving : 0)) * 100) / 100;
+  const left = Number.isFinite(expected) && expected > 0
+    ? Math.round((expected - already) * 100) / 100
+    : null;
 
   /**
    * Расхождение план↔факт. Статус по умолчанию — «Принято полностью», и недостача
    * уезжала в систему как полная приёмка: гейт закроя открывался, а несоответствие
    * всплывало уже в цехе. Сравнение — только когда обе величины есть.
    */
-  const expected = Number(m.qty_expected);
-  const factQty = received === '' ? null : Number(received);
-  const shortfall = Number.isFinite(expected) && expected > 0 && factQty !== null
-    && Number.isFinite(factQty) && factQty < expected
-    ? Math.round((expected - factQty) * 100) / 100
+  const shortfall = Number.isFinite(expected) && expected > 0 && totalAfter < expected
+    ? Math.round((expected - totalAfter) * 100) / 100
     : 0;
   const claimsFull = status === 'accepted_full';
+  const needsComment = status !== 'accepted_full' && status !== 'accepted_partial';
+  /**
+   * Сервер не даст объявить приёмку без записанного прихода (гейт
+   * `erp_material_accept`). Кнопка гасится по тому же правилу: гейт, о котором
+   * человек узнаёт только из ошибки, — это «кнопка есть, действие падает».
+   */
+  const needsQty = !claimsFull && status !== 'accepted_partial'
+    ? false
+    : already <= 0 && !(arriving > 0);
 
   const accept = async () => {
     if (shortfall > 0 && claimsFull) {
       const ok = await confirm({
         title: 'Принять как полную приёмку?',
-        message: `План ${expected}, факт ${factQty} — не хватает ${shortfall}. `
+        message: `План ${expected}, принято ${totalAfter} — не хватает ${shortfall}. `
           + 'Полная приёмка откроет закрой на весь план, и расхождение всплывёт уже в цехе. '
           + 'Обычно здесь нужен статус «Недостача» или «Принято частично».',
         confirmLabel: 'Всё равно принять полностью',
@@ -70,15 +95,18 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
       if (!ok) return;
     }
     setSaving(true);
-    await onAccept(m.id, {
-      qty_received: received === '' ? null : Number(received),
+    const ok = await onAccept(m.id, {
+      // Пусто — значит нового прихода нет: правят статус или комментарий
+      qty: arriving > 0 ? arriving : null,
       accept_status: status,
       accept_comment: comment.trim() || null,
+      invoice: invoice.trim() || null,
       fact_name: factName.trim() || null,
       fact_color: factColor.trim() || null,
       fact_article: factArticle.trim() || null,
     });
     setSaving(false);
+    if (ok) { setQty(''); setInvoice(''); }
   };
 
   return (
@@ -135,11 +163,12 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
               </td>
             </tr>
             {/*
-              Количество — ЧТЕНИЕ. С волны 3.3 приход вносится частями отдельной
-              формой ниже, а `qty_received` стала суммой журнала, которую ведёт
-              триггер. Поле ввода здесь означало бы второго писателя одной
-              колонки: первый же следующий приход пересчитал бы сумму и затёр
-              набранное — молча, потому что оба пути «работают».
+              Количество — ЧТЕНИЕ: это сумма журнала приходов, её ведёт триггер
+              `erp_material_receipts_rollup`. Поле ввода здесь означало бы
+              второго писателя одной колонки — первый же следующий приход
+              пересчитал бы сумму и затёр набранное, молча, потому что оба пути
+              «работают». Вводится ниже «сколько пришло сейчас», а не итог:
+              итог система складывает сама.
             */}
             <tr>
               <td>Количество{m.unit ? `, ${m.unit}` : ''}</td>
@@ -154,19 +183,62 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
           </tbody>
         </table>
       </ScrollHintBox>
-      <ReceiptEntry material={m} onAdd={onAddReceipt} />
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-        <select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value)}
-          aria-label={`Статус приёмки ${m.name}`}>
-          {Object.entries(MATERIAL_ACCEPT_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
-        <input className={styles.input} style={{ flex: 1, minWidth: 160 }} placeholder="Комментарий"
-          value={comment} onChange={(e) => setComment(e.target.value)}
-          aria-label={`Комментарий приёмки ${m.name}`} />
-        <Button variant="primary" disabled={saving} onClick={accept}>
+      <div className={styles.queueBlockForm}>
+        <span className={styles.queueReason}>
+          Принято всего: <b>{already || 0}</b>
+          {m.unit ? ` ${m.unit}` : ''}
+          {left !== null && left > 0 && <span className={styles.dueSoon}> · осталось {left}</span>}
+          {left !== null && left <= 0 && already > 0 && (
+            <span className={styles.subText}> · план закрыт</span>
+          )}
+        </span>
+        <div className={styles.planFormRow}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>
+              Пришло сейчас{m.unit ? `, ${m.unit}` : ''}{needsQty ? ' *' : ''}
+            </span>
+            <input
+              type="number" min="0" step="0.01" className={styles.input}
+              value={qty} onChange={(e) => setQty(e.target.value)}
+              aria-label={`Сколько пришло сейчас, ${m.name}`}
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Что приехало</span>
+            <select className={styles.select} value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label={`Статус приёмки ${m.name}`}>
+              {Object.entries(MATERIAL_ACCEPT_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Накладная</span>
+            <input className={styles.input} value={invoice}
+              onChange={(e) => setInvoice(e.target.value)}
+              aria-label={`Накладная прихода ${m.name}`} />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>
+              Комментарий{needsComment ? ' * (объясните отклонение)' : ''}
+            </span>
+            <input className={styles.input} value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              aria-label={`Комментарий приёмки ${m.name}`} />
+          </label>
+        </div>
+        {/* Причина, по которой кнопка погашена, называется рядом с кнопкой */}
+        {needsQty && (
+          <span className={styles.subText}>
+            Укажите, сколько пришло: приёмка без записанного прихода не сохранится.
+          </span>
+        )}
+        <Button
+          variant="primary"
+          disabled={saving || needsQty || (needsComment && !comment.trim())}
+          onClick={accept}
+        >
           {done ? 'Обновить приёмку' : 'Принять'}
         </Button>
       </div>
@@ -174,96 +246,7 @@ function AcceptBlock({ material: m, onAccept, onAddReceipt }) {
   );
 }
 
-
-/**
- * Приход материала частями (правки заказчика 10.08, волна 3.3).
- *
- * «Пришло 60 из 100, потом ещё 35 — видно, что осталось 5». Каждый приход —
- * строка журнала; сумму по журналу кладёт в карточку триггер. Поэтому здесь
- * вводится СКОЛЬКО ПРИШЛО СЕЙЧАС, а не итог: итог система считает сама,
- * и просить его у человека значило бы просить сложить в уме.
- */
-function ReceiptEntry({ material: m, onAdd }) {
-  const [qty, setQty] = useState('');
-  const [status, setStatus] = useState('accepted_full');
-  const [invoice, setInvoice] = useState('');
-  const [comment, setComment] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const expected = Number(m.qty_expected);
-  const already = Number(m.qty_received ?? 0);
-  const left = Number.isFinite(expected) && expected > 0
-    ? Math.round((expected - already) * 100) / 100
-    : null;
-  const needsComment = status !== 'accepted_full' && status !== 'accepted_partial';
-
-  const add = async () => {
-    setBusy(true);
-    const ok = await onAdd(m.id, {
-      qty: Number(qty),
-      unit: m.unit ?? null,
-      acceptStatus: status,
-      invoice,
-      comment,
-    });
-    setBusy(false);
-    if (ok) { setQty(''); setInvoice(''); setComment(''); }
-  };
-
-  return (
-    <div className={styles.queueBlockForm}>
-      <span className={styles.queueReason}>
-        Принято всего: <b>{already || 0}</b>
-        {m.unit ? ` ${m.unit}` : ''}
-        {left !== null && left > 0 && <span className={styles.dueSoon}> · осталось {left}</span>}
-        {left !== null && left <= 0 && <span className={styles.subText}> · план закрыт</span>}
-      </span>
-      <div className={styles.planFormRow}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Пришло сейчас{m.unit ? `, ${m.unit}` : ''} *</span>
-          <input
-            type="number" min="0" step="0.01" className={styles.input}
-            value={qty} onChange={(e) => setQty(e.target.value)}
-            aria-label={`Сколько пришло сейчас, ${m.name}`}
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Что приехало</span>
-          <select className={styles.select} value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            aria-label={`Статус прихода ${m.name}`}>
-            {Object.entries(MATERIAL_ACCEPT_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Накладная</span>
-          <input className={styles.input} value={invoice}
-            onChange={(e) => setInvoice(e.target.value)}
-            aria-label={`Накладная прихода ${m.name}`} />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>
-            Комментарий{needsComment ? ' * (объясните отклонение)' : ''}
-          </span>
-          <input className={styles.input} value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            aria-label={`Комментарий прихода ${m.name}`} />
-        </label>
-      </div>
-      <Button
-        variant="secondary"
-        disabled={busy || !(Number(qty) > 0) || (needsComment && !comment.trim())}
-        onClick={add}
-      >
-        Записать приход
-      </Button>
-    </div>
-  );
-}
-
-export function MaterialReceiptCard({ order, task, onAccept, onAddReceipt }) {
+export function MaterialReceiptCard({ order, task, onAccept }) {
   const accepted = task.status === 'accepted';
   return (
     <section className={styles.matSection}>
@@ -275,7 +258,7 @@ export function MaterialReceiptCard({ order, task, onAccept, onAddReceipt }) {
         {accepted && <span className={`${styles.chip} ${styles.chipDone}`}>Материалы приняты</span>}
       </div>
       {order.materials.map((m) => (
-        <AcceptBlock key={m.id} material={m} onAccept={onAccept} onAddReceipt={onAddReceipt} />
+        <AcceptBlock key={m.id} material={m} onAccept={onAccept} />
       ))}
     </section>
   );

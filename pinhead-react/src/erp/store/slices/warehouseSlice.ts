@@ -43,45 +43,68 @@ function patchTaskIn(orders: ErpOrderFull[], taskId: string, patch: Partial<ErpW
 }
 
 export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (set, get) => ({
+  /**
+   * Приёмка материала: приход в журнал и статус позиции — ОДНОЙ транзакцией
+   * (RPC `erp_material_accept`).
+   *
+   * До 22.08 это были два независимых действия: статус писала эта функция,
+   * а строку журнала — отдельная форма «Записать приход», необязательная.
+   * На боевой базе результат был такой: девять материалов приняты, задач
+   * приёмки закрыто шесть, строк в `erp_material_receipts` — НОЛЬ, и
+   * `qty_received` пуст у всех девятнадцати позиций.
+   *
+   * Ломалось при этом три вещи разом, и все молча: экран закупки показывал
+   * «принято: —» у каждого принятого материала; «сколько осталось принять»
+   * считалось от нуля, то есть частичная приёмка не работала вовсе; сортировка
+   * по «принято» падала на дату. Производство не встало только потому, что
+   * материальный гейт цеха смотрит `status` + `accept_status`, а не количество.
+   *
+   * Правило проекта, под которое это подпадает дословно, записано после разбора
+   * подряда 20.08: «селект хранимого статуса рядом с величиной, которую ведёт
+   * журнал, — это разрешение соврать; то, что меняет количества, пишет журнал
+   * той же транзакцией». Здесь та же конструкция: «Принято полностью» можно
+   * было выставить, не записав ни единицы.
+   *
+   * `qty` необязателен: правка статуса или комментария у уже принятого
+   * материала нового прихода не означает. Сам гейт («принято» невозможно при
+   * нулевом `qty_received`) стоит на сервере — там, где его не обойти.
+   */
   acceptMaterial: async (
     materialId,
-    { qty_received, accept_status, accept_comment = null,
+    { qty = null, accept_status, accept_comment = null, invoice = null,
       fact_name = null, fact_color = null, fact_article = null },
   ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
-    if (!order) return false;
-    // Патч материала (optimistic + rollback + авто-закрытие закупки) — через materialsSlice.
-    // Приёмка складом означает, что материал ФИЗИЧЕСКИ прибыл → status='received'
-    // (иначе гейт закроя по приёмке не сработает: он ждёт received + accept_status).
-    // Факт-атрибуты (правка 4.1.3): что фактически поступило (пересорт/расхождение с планом).
-    /**
-     * Количество здесь БОЛЬШЕ НЕ ПИШЕТСЯ (волна 3.3).
-     *
-     * `qty_received` стала суммой журнала приходов и ведётся триггером. Оставить
-     * прямую запись значило бы завести двух писателей одной колонки: карточка
-     * поставила бы своё число, а первый же следующий приход пересчитал бы сумму
-     * и затёр его — молча, потому что оба пути «работают».
-     *
-     * Приход вносится отдельным действием `addMaterialReceipt`; сюда приходит
-     * уже посчитанное значение только для истории склада и для проверки
-     * расхождения на экране.
-     */
-    const ok = await get().updateMaterial(materialId, {
-      status: 'received',
-      accept_status,
-      accepted_at: factoryToday(),
-      accepted_by: currentActor(),
-      accept_comment,
-      fact_name,
-      fact_color,
-      fact_article,
-    });
-    if (!ok) return false;
-    // История склада: строка приёмки
+    if (!order) {
+      erpError('Приёмка не записана', { message: 'Материал не найден в загруженных заказах' });
+      return false;
+    }
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_accept', {
+      p_material_id: materialId,
+      p_accept_status: accept_status,
+      p_qty: qty,
+      p_comment: accept_comment,
+      p_invoice: invoice,
+      p_received_on: factoryToday(),
+      p_fact_name: fact_name,
+      p_fact_color: fact_color,
+      p_fact_article: fact_article,
+      p_actor: currentActor(),
+    }));
+    if (error) {
+      erpError('Приёмка не записана', error);
+      return false;
+    }
+    // Сумму журнала пересчитал триггер — перечитываем заказ, чтобы её увидели
+    // и гейты, и экран. Не optimistic по той же причине: считает сервер.
+    await get().loadOne(order.id);
+
+    // История склада: строка приёмки. Её неудача приёмку не отменяет —
+    // та уже закоммичена, и откатывать интерфейс поверх неё нельзя.
     const opRow = await get().logWarehouseOp(order.id, {
       op_type: receiptOpType(accept_status),
       material_id: materialId,
-      qty: qty_received,
+      qty,
       note: accept_comment,
     });
     if (!opRow) toast.warning('Приёмка записана, но не попала в историю склада');

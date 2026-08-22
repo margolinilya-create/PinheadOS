@@ -563,19 +563,6 @@ export interface MaterialsSlice {
   /** Удалить вариант; удаление выбранного очищает поставщика у позиции */
   deleteSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
   /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
-  /**
-   * Приход материала частями (волна 3.3): строка журнала `erp_material_receipts`.
-   * Сумму по журналу в `qty_received` кладёт триггер — прямой записи в колонку
-   * из карточки больше нет, иначе у значения два писателя.
-   */
-  addMaterialReceipt: (materialId: string, input: {
-    qty: number;
-    unit?: string | null;
-    acceptStatus?: MaterialAcceptStatus;
-    invoice?: string | null;
-    comment?: string | null;
-    receivedOn?: string | null;
-  }) => Promise<boolean>;
   maybeCloseSupply: (orderId: string) => Promise<void>;
   /**
    * Взять закупку по заказу в работу — все её открытые этапы разом.
@@ -597,15 +584,23 @@ export interface MaterialsSlice {
 /** Склад: числовая приёмка материалов + история складских операций (правки 2, 3) */
 export interface WarehouseSlice {
   /**
-   * Приёмка материала складом: сверка план/факт + статус + запись в историю склада.
+   * Приёмка материала складом ОДНОЙ транзакцией (RPC `erp_material_accept`):
+   * строка журнала `erp_material_receipts` плюс статус позиции. Сумму журнала
+   * в `qty_received` кладёт триггер — он единственный писатель количества.
+   *
+   * `qty` необязателен: правка статуса или комментария у уже принятого
+   * материала нового прихода не означает. Гейт «принято невозможно при нулевом
+   * приходе» стоит на сервере.
+   *
    * Факт-атрибуты (правка 4.1.3) — что фактически поступило (пересорт/расхождение).
    */
   acceptMaterial: (
     materialId: string,
     opts: {
-      qty_received: number | null;
+      qty?: number | null;
       accept_status: MaterialAcceptStatus;
       accept_comment?: string | null;
+      invoice?: string | null;
       fact_name?: string | null;
       fact_color?: string | null;
       fact_article?: string | null;

@@ -6,7 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { currentActor, erpError, erpQuery } from '../shared';
+import { erpError, erpQuery } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
@@ -232,51 +232,20 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return true;
   },
 
-  /**
-   * Приход материала частями (правки заказчика 10.08, волна 3.3).
+  /*
+   * `addMaterialReceipt` удалено 22.08.
    *
-   * Документ: «пришло 60 из 100, потом ещё 35 — видно, что осталось 5».
-   * Пишем СТРОКУ ЖУРНАЛА, а не поле: сумму по журналу ведёт триггер и кладёт
-   * её в `erp_materials.qty_received`, которую читают материальный гейт, гейт
-   * отгрузки и автозакрытие закупки. Прямая запись в колонку из карточки
-   * убрана — иначе у одного значения два писателя, и приход затирал бы приход.
+   * Это было ОТДЕЛЬНОЕ действие «записать приход» рядом с «принять материал»,
+   * и приход в нём был необязательным вторым шагом. На боевой базе за полтора
+   * месяца им не воспользовались ни разу: девять материалов приняты, строк
+   * журнала — ноль, `qty_received` пуст у всех девятнадцати позиций. Форма,
+   * которую можно не заполнить, у величины, на которой построены три
+   * показателя экрана, — это не форма, а необязательное поле.
    *
-   * Не optimistic: сумму считает сервер, и показать её раньше ответа значит
-   * нарисовать число, которого может не получиться (права, CHECK на отклонении).
+   * Теперь приход и статус пишет один оператор — `acceptMaterial`
+   * (RPC `erp_material_accept`, журнал плюс позиция одной транзакцией).
+   * Второй писатель здесь снова завёл бы ту же развилку.
    */
-  addMaterialReceipt: async (materialId, input) => {
-    const qty = Number(input.qty);
-    if (!(qty > 0)) {
-      toast.error('Количество прихода должно быть больше нуля');
-      return false;
-    }
-    const status = input.acceptStatus ?? 'accepted_full';
-    const comment = (input.comment ?? '').trim();
-    if (status !== 'accepted_full' && status !== 'accepted_partial' && !comment) {
-      toast.error('Отклонение нужно объяснить — заполните комментарий');
-      return false;
-    }
-    const { error } = await erpQuery(() => supabase
-      .from('erp_material_receipts')
-      .insert({
-        material_id: materialId,
-        qty,
-        unit: input.unit ?? null,
-        accept_status: status,
-        invoice: input.invoice?.trim() || null,
-        comment: comment || null,
-        received_on: input.receivedOn || factoryToday(),
-        author: currentActor(),
-      }));
-    if (error) {
-      erpError('Приход не записан', error);
-      return false;
-    }
-    // Сумму пересчитал триггер — перечитываем заказ, чтобы гейты увидели новое
-    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
-    if (order) await get().loadOne(order.id);
-    return true;
-  },
 
   maybeCloseSupply: async (orderId) => {
     const order = get().orders.find((o) => o.id === orderId);

@@ -125,13 +125,12 @@ function warehouseSortValue({ order, task }, key) {
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask, addMaterialReceipt,
+    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask,
     submitWarehouseReport, subcontractingLoaded, loadSubcontracting,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, advanceWarehouseTask: s.advanceWarehouseTask,
-      addMaterialReceipt: s.addMaterialReceipt,
       submitWarehouseReport: s.submitWarehouseReport,
       subcontractingLoaded: s.subcontractingLoaded,
       loadSubcontracting: s.loadSubcontracting,
@@ -340,7 +339,6 @@ export default function Warehouse() {
                 order={open.order}
                 task={open.task}
                 onAccept={acceptMaterial}
-                onAddReceipt={addMaterialReceipt}
               />
             )}
             {open.task.task_type === 'subcontract_receipt' && (

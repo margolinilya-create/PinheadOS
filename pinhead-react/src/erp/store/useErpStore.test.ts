@@ -771,25 +771,32 @@ describe('useErpStore — материал со склада / авто-закр
     expect(supplyStage().status).toBe('done');
   });
 
-  it('acceptMaterial: помечает материал received + пишет строку истории склада (правки 2, 3)', async () => {
+  /**
+   * Приёмка идёт ОДНОЙ транзакцией — RPC `erp_material_accept`: строка журнала
+   * `erp_material_receipts` плюс статус позиции. До 22.08 это были два действия,
+   * и второе работало без первого: на боевой базе девять материалов оказались
+   * приняты при полностью пустом журнале, а `qty_received` — пуст у всех.
+   *
+   * Поэтому тест проверяет ИМЕННО вызов и его аргументы: состояние материала
+   * теперь приезжает перечитыванием заказа, и утверждать его по локальному
+   * патчу значило бы проверять то, чего в этом пути больше нет.
+   */
+  it('acceptMaterial: приход и статус уходят одним RPC + строка истории склада', async () => {
     seedSupply([mat({ status: 'pending', accept_status: null })]);
     const ok = await useErpStore.getState().acceptMaterial('m1', {
-      qty_received: 100, accept_status: 'accepted_full', accept_comment: 'ок',
+      qty: 100, accept_status: 'accepted_full', accept_comment: 'ок', invoice: 'ТН-7',
     });
     expect(ok).toBe(true);
-    const m = useErpStore.getState().orders[0].materials[0];
-    expect(m.status).toBe('received'); // приёмка помечает прибытие
-    expect(m.accept_status).toBe('accepted_full');
-    /**
-     * Количество приёмка БОЛЬШЕ НЕ ПИШЕТ (волна 3.3): `qty_received` стала
-     * суммой журнала `erp_material_receipts` и ведётся триггером. Прямая запись
-     * из карточки означала бы двух писателей одной колонки — первый же приход
-     * пересчитал бы сумму и затёр набранное. Число по-прежнему уходит
-     * в историю склада (проверяется ниже) и в проверку расхождения на экране.
-     */
-    expect(m.qty_received).toBeUndefined();
-    expect(m.accepted_at).toBeTruthy();
-    expect(m.accepted_by).toBe('Тест');
+    const call = h.rpcCalls.find((c) => c.fn === 'erp_material_accept');
+    expect(call, 'приёмка обязана идти через erp_material_accept').toBeTruthy();
+    expect(call!.args.p_material_id).toBe('m1');
+    expect(call!.args.p_qty).toBe(100);
+    expect(call!.args.p_accept_status).toBe('accepted_full');
+    expect(call!.args.p_comment).toBe('ок');
+    expect(call!.args.p_invoice).toBe('ТН-7');
+    // Прямой записи в erp_materials из этого пути больше нет: у количества
+    // один писатель — триггер журнала
+    expect(h.updateCalls.filter((c) => c.table === 'erp_materials')).toHaveLength(0);
     const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
     expect(ops).toHaveLength(1);
     expect(ops[0].op_type).toBe('material_receipt');
@@ -799,13 +806,29 @@ describe('useErpStore — материал со склада / авто-закр
   it('acceptMaterial: частичная приёмка пишется как partial_receipt', async () => {
     seedSupply([mat({ status: 'received', accept_status: null })]);
     await useErpStore.getState().acceptMaterial('m1', {
-      qty_received: 60, accept_status: 'accepted_partial',
+      qty: 60, accept_status: 'accepted_partial',
     });
     const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
     expect(ops[0].op_type).toBe('partial_receipt');
   });
 
-  it('acceptMaterial: закрывает задачу приёмки, когда все материалы приняты', async () => {
+  /**
+   * Правка статуса или комментария у уже принятого материала нового прихода
+   * не означает — `p_qty` уезжает пустым. Гейт «принято невозможно при нулевом
+   * приходе» стоит на сервере, здесь важно лишь то, что клиент не выдумывает
+   * количество сам: подставленный «весь план» — это ровно то враньё, из-за
+   * которого журнал и оказался пустым.
+   */
+  it('acceptMaterial: без нового прихода количество не подставляется', async () => {
+    seedSupply([mat({ status: 'received', accept_status: 'accepted_partial' })]);
+    await useErpStore.getState().acceptMaterial('m1', {
+      accept_status: 'accepted_full', accept_comment: 'досчитали',
+    });
+    const call = h.rpcCalls.filter((c) => c.fn === 'erp_material_accept').pop();
+    expect(call!.args.p_qty).toBeNull();
+  });
+
+  it('acceptMaterial: отказ сервера не закрывает задачу приёмки', async () => {
     seedSupply([mat({ status: 'pending', accept_status: null })]);
     useErpStore.setState({
       orders: [{
@@ -813,8 +836,28 @@ describe('useErpStore — материал со склада / авто-закр
         warehouse_tasks: [{ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'material_receipt', status: 'awaiting' }],
       }] as any,
     });
+    h.rpcByFn.erp_material_accept = {
+      data: null,
+      error: { message: 'приёмка без записанного прихода — укажите, сколько пришло' },
+    };
+    const ok = await useErpStore.getState().acceptMaterial('m1', {
+      accept_status: 'accepted_full',
+    });
+    expect(ok).toBe(false);
+    const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
+    expect(task?.status, 'задача закрылась при неудачной приёмке').toBe('awaiting');
+  });
+
+  it('acceptMaterial: закрывает задачу приёмки, когда все материалы приняты', async () => {
+    seedSupply([mat({ status: 'received', accept_status: 'accepted_full' })]);
+    useErpStore.setState({
+      orders: [{
+        ...useErpStore.getState().orders[0],
+        warehouse_tasks: [{ id: 'wt1', order_id: 'o1', item_id: null, task_type: 'material_receipt', status: 'awaiting' }],
+      }] as any,
+    });
     await useErpStore.getState().acceptMaterial('m1', {
-      qty_received: 100, accept_status: 'accepted_full',
+      qty: 100, accept_status: 'accepted_full',
     });
     const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
     expect(task?.status).toBe('accepted');
@@ -2283,13 +2326,13 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
       departments: depts as any, loaded: true,
     });
     await useErpStore.getState().acceptMaterial('m1', {
-      qty_received: 126, accept_status: 'mismatch',
+      qty: 126, accept_status: 'mismatch', accept_comment: 'пересорт',
       fact_name: 'Футер 3Н', fact_color: 'Чёрный', fact_article: 'FT-320-02',
     });
-    const upd = h.updateCalls.find((c) => c.table === 'erp_materials');
-    expect(upd?.patch.fact_name).toBe('Футер 3Н');
-    expect(upd?.patch.fact_color).toBe('Чёрный');
-    expect(upd?.patch.fact_article).toBe('FT-320-02');
+    const call = h.rpcCalls.find((c) => c.fn === 'erp_material_accept');
+    expect(call!.args.p_fact_name).toBe('Футер 3Н');
+    expect(call!.args.p_fact_color).toBe('Чёрный');
+    expect(call!.args.p_fact_article).toBe('FT-320-02');
   });
 
   it('maybeCloseSupply: без планового кол-ва закупку НЕ закрывает', async () => {
