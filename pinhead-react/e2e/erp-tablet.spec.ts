@@ -74,6 +74,102 @@ test.describe('Очередь цеха на планшете', () => {
   });
 });
 
+/**
+ * Экраны пилота — «Склад» и «Закупка».
+ *
+ * До 22.08 планшетной раскладки у них не было вовсе: рисовалась та же таблица,
+ * что на десктопе, — шесть колонок у склада и ЧЕТЫРНАДЦАТЬ у закупки. На 768px
+ * это прокрутка на несколько экранов, а колонка «Действие» стоит последней,
+ * то есть кнопка, ради которой на экран и приходят, оказывалась за краем.
+ *
+ * Тем временем `playwright.config.ts` исключал `erp-warehouse.spec.ts` из
+ * проекта `mobile` со словами «ниже 1024px экран показывает карточки» — их
+ * не было ни одной. Комментарий описывал раскладку, которой не существует,
+ * и покрытия при этом не было ни на одной ширине.
+ */
+
+const WH_ORDER = {
+  id: 'tab-wh', bitrix_id: '90210', title: 'Свитшоты планшет-тест',
+  customer: 'ООО «Ромашка»', manager: 'Анна',
+  launch_date: '2026-07-18', due_date: '2026-07-28', buffer_days: 1,
+  priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'none', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  attachments: [],
+  items: [],
+  materials: [{
+    id: 'tab-wh-m1', order_id: 'tab-wh', item_id: null, kind: 'fabric',
+    name: 'Футер трёхнитка', source: 'purchase', qty: '100 кг',
+    qty_expected: 100, qty_received: null, unit: 'кг',
+    status: 'received', accept_status: null, eta_date: null, received_at: null,
+    notes: null, created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  }],
+  warehouse_tasks: [{
+    id: 'tab-wh-t1', order_id: 'tab-wh', item_id: null, stage_id: null,
+    task_type: 'material_receipt', status: 'awaiting',
+    marking_type: null, deadline: '2026-07-28', note: null,
+    created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  }],
+};
+
+/** Ширина документа не превышает экран — то, что и ломала широкая таблица */
+async function expectNoHorizontalScroll(page: import('@playwright/test').Page) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
+test.describe('Склад на планшете', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, { orders: [WH_ORDER] });
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
+
+  test('задачи рисуются карточками, а не таблицей из шести колонок', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    const card = page.getByRole('article', { name: /Приёмка материалов/ });
+    await expect(card).toBeVisible();
+    await expect(page.getByRole('table')).toHaveCount(0);
+  });
+
+  test('страница не прокручивается по горизонтали', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await expect(page.getByRole('article').first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('кнопка «Открыть» видна целиком и не мельче 44px', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    const open = page.getByRole('button', { name: 'Открыть' }).first();
+    await expect(open).toBeVisible();
+    const viewport = page.viewportSize()!;
+    const box = await open.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  });
+});
+
+test.describe('Закупка на планшете', () => {
+  test('строки рисуются карточками, обе группы полей названы', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const card = page.getByRole('article', { name: /^Закупка:/ }).first();
+    await expect(card).toBeVisible();
+    // Разделение ролей — требование документа, и смену раскладки оно переживает
+    await expect(card).toContainText('Потребность — задал менеджер');
+    await expect(card).toContainText('Факт — ведёт закупка');
+  });
+
+  test('страница не прокручивается по горизонтали', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await expect(page.getByRole('article', { name: /^Закупка:/ }).first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+});
+
 test.describe('Оболочка на планшете', () => {
   test('сайдбар — оверлей: не съедает ширину, открывается бургером', async ({ page }) => {
     await page.goto('/?studio=0');

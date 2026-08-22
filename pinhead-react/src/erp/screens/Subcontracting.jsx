@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
-import { LoadFailed, EmptyResult } from '../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import { SearchInput } from '../components/SearchInput';
 import { StageIndicator } from '../components/StageIndicator';
 import { OrderLink } from '../components/OrderLink';
@@ -200,11 +201,15 @@ export default function Subcontracting() {
       </div>
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="подрядные этапы" />}
+      {/* Скелетона здесь не было: пока заказы едут, экран показывал пустоту,
+          неотличимую от «подрядных этапов нет» (правило UX-2) */}
+      {!loaded && !loadError && <TableSkeleton rows={5} label="Загрузка подрядных этапов" />}
       {loaded && rows.length === 0 && (
-        <div className={styles.emptyState}>
-          Подрядных этапов нет. Подряд заводится в карточке заказа: вкладка «Позиции» →
-          «Изменить маршрут» → исполнитель «Подрядчик».
-        </div>
+        <EmptyState
+          icon="truck"
+          title="Подрядных этапов нет"
+          text="Подряд заводится в карточке заказа: вкладка «Позиции» → «Изменить маршрут» → участок «Подряд»."
+        />
       )}
       {rows.length > 0 && shown.length === 0 && (
         <EmptyResult query={query.trim()} onReset={() => setQuery('')} />

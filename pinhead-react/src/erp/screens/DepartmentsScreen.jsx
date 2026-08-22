@@ -12,6 +12,8 @@ import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { LoadFailed, EmptyState } from '../components/ErpStates';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import { Button } from '../components/Button';
 
 /** Виды материалов для настройки «участок ждёт материал» (порядок = порядок чекбоксов) */
@@ -45,7 +47,7 @@ function codeFromName(name) {
 
 export default function DepartmentsScreen({ embedded = false }) {
   const {
-    departments, orders, loaded, loadAll,
+    departments, orders, loaded, loadError, loadAll,
     employees, employeesLoaded, loadEmployees,
     createDepartment, updateDepartment,
   } = useErpStore(
@@ -53,6 +55,7 @@ export default function DepartmentsScreen({ embedded = false }) {
       departments: s.departments,
       orders: s.orders,
       loaded: s.loaded,
+      loadError: s.loadError,
       loadAll: s.loadAll,
       employees: s.employees,
       employeesLoaded: s.employeesLoaded,
@@ -205,6 +208,13 @@ export default function DepartmentsScreen({ embedded = false }) {
         </label>
       </div>
 
+      {/* Три состояния по правилу UX-2: ошибка → скелетон → пусто.
+          Ни одного из них здесь не было: при сбое загрузки экран показывал
+          пустую таблицу с одной шапкой, а повторить запрос было нечем —
+          эффект `if (!loaded) loadAll()` второй раз не срабатывает. */}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="участки" />}
+      {!loaded && !loadError && <TableSkeleton rows={6} label="Загрузка участков" />}
+      {loaded && visible.length > 0 && (
       <ScrollHintBox className={styles.tableWrap} label="Участки производства">
         <table className={styles.table}>
           <thead>
@@ -335,6 +345,16 @@ export default function DepartmentsScreen({ embedded = false }) {
           </tbody>
         </table>
       </ScrollHintBox>
+      )}
+      {loaded && visible.length === 0 && (
+        <EmptyState
+          icon="settings"
+          title={showHidden ? 'Участков нет' : 'Все участки отключены'}
+          text={showHidden
+            ? 'Заведите первый участок полем выше — он появится в меню, очередях и конструкторе маршрута.'
+            : 'Включите показ отключённых, чтобы вернуть нужный: участки не удаляются, на них ссылаются этапы заказов.'}
+        />
+      )}
     </>
   );
 }

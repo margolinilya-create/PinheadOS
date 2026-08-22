@@ -286,6 +286,8 @@
 .fieldLabel,
 .table th,
 .deptTab,
+.dataCardGroup,
+.dataCardFieldLabel,
 .stubPhase {
   font-family: var(--font-body);
   font-size: var(--type-label);
@@ -1263,9 +1265,14 @@
 .addMatRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .addMatRow .input:nth-child(2) { flex: 1; min-width: 200px; }
 
-/* ─── Список заказов карточками (мобильный, <760px) ─── */
-.orderCardList { display: flex; flex-direction: column; gap: 10px; }
-.orderCardM {
+/* ─── Карточка записи вместо строки таблицы (компактная раскладка) ───
+   Вид один на все списки раздела: заказы, задачи склада, строки закупки.
+   Заводился он для заказов (.orderCardM ниже), но ни одно его правило про
+   заказ не знает — а экраны пилота при этом рисовали на планшете таблицу
+   в 6 и 14 колонок. Источник объявлен ВЫШЕ потребителей: `composes`
+   требует такого порядка, и то же правило действует для уточнений. */
+.dataCardList { display: flex; flex-direction: column; gap: 10px; }
+.dataCard {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--card);
@@ -1274,8 +1281,8 @@
   flex-direction: column;
   gap: 8px;
 }
-.orderCardMHead { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
-.orderCardMTitle {
+.dataCardHead { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.dataCardTitle {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
@@ -1290,9 +1297,11 @@
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.orderCardMTitle:hover { color: var(--accent); }
-.orderCardMMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-.orderCardMItem {
+.dataCardTitle:hover { color: var(--accent); }
+.dataCardMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+/* Строка внутри карточки, отбитая от предыдущей: позиция заказа,
+   группа полей закупки, содержимое складской задачи */
+.dataCardRow {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 8px;
@@ -1300,6 +1309,30 @@
   border-top: 1px dashed var(--border-light);
   padding-top: 8px;
 }
+/* Пара «подпись — значение»; на узком экране подписи колонок исчезают
+   вместе с шапкой таблицы, и без них число теряет смысл.
+   Начертание подписей — из .labelCaps выше, здесь только раскладка. */
+.dataCardField { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Подпись группы полей: на планшете заменяет заголовок группы колонок
+   таблицы закупки («Потребность — задал менеджер» / «Факт — ведёт закупка»).
+   Разделение групп — записанное решение, и в карточке оно обязано выжить. */
+.dataCardGroup { width: 100%; padding-top: 2px; }
+/* Сетка полей карточки: подстраивается сама, поэтому своего брейкпоинта
+   не имеет — правило проекта «может подстроиться — порог не заводим» */
+.dataCardFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 12px;
+  width: 100%;
+}
+
+/* ─── Список заказов карточками (мобильный, <760px) ─── */
+.orderCardList { composes: dataCardList; }
+.orderCardM { composes: dataCard; }
+.orderCardMHead { composes: dataCardHead; }
+.orderCardMTitle { composes: dataCardTitle; }
+.orderCardMMeta { composes: dataCardMeta; }
+.orderCardMItem { composes: dataCardRow; }
 
 /* ─── Мобильный ─── */
 @media (max-width: 768px) {
@@ -2114,7 +2147,9 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   border-radius: var(--radius-sm);
   background: var(--bg-warning);
   color: var(--color-warning-ink);
-  font-size: var(--type-sm);
+  /* Был `var(--type-sm)` — токена с таким именем НЕТ, и всё объявление
+     браузер отбрасывал молча: размер шрифта у предупреждения не задавался */
+  font-size: var(--type-body-sm);
   line-height: 1.4;
 }
 .routeRowFinal {

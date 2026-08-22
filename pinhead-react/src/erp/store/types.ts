@@ -704,6 +704,12 @@ export interface EmployeesSlice {
   employees: ErpEmployee[];
   profilesList: StaffProfile[];
   employeesLoaded: boolean;
+  /**
+   * Причина, по которой список не загрузился. Отдельно от `employeesLoaded`:
+   * «ещё не грузили» и «попытались и не смогли» — разные состояния экрана,
+   * и второе обязано давать кнопку повтора (правило UX-2).
+   */
+  employeesError: string | null;
   /** Цех текущего пользователя (erp_employees.department_id по profile_id) */
   myDeptId: string | null;
   /** Цеховая роль текущего пользователя — вход в матрицу прав (ядро правки 11) */
@@ -712,7 +718,7 @@ export interface EmployeesSlice {
 
   /** Автопривязка цеха и цеховой роли: ищет erp_employees по profile_id пользователя */
   loadMyDept: (profileId: string | undefined) => Promise<void>;
-  loadEmployees: () => Promise<void>;
+  loadEmployees: () => Promise<boolean>;
   createEmployee: (emp: Partial<ErpEmployee> & { full_name: string }) => Promise<ErpEmployee | null>;
   updateEmployee: (id: string, patch: Partial<ErpEmployee>) => Promise<boolean>;
   /** Профили общие с Order Studio: те же действия, что в Админке */

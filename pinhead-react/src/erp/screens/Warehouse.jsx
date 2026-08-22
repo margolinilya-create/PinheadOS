@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
-import { LoadFailed } from '../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
+import { TableSkeleton } from '../components/ErpSkeletons';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
@@ -23,6 +25,7 @@ import { FgReceiptCard } from './warehouse/FgReceiptCard';
 import { MarkingCard } from './warehouse/MarkingCard';
 import { PackShipCard } from './warehouse/PackShipCard';
 import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
+import { WarehouseTaskCard } from './warehouse/WarehouseTaskCard';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { ReadOnlyFieldset } from '../components/ReadOnlyFieldset';
@@ -151,9 +154,23 @@ export default function Warehouse() {
   const [pageSize, setPageSize] = useState(10);
   const [openId, setOpenId] = useState(null);
   const { sort, toggle: toggleSort } = useTableSort();
+  /**
+   * Ниже 1024px (и на любом тач-устройстве) — карточки вместо таблицы.
+   * Тот же приём и тот же порог, что у очереди цеха и списка заказов:
+   * шесть колонок на планшете уезжали за край вместе с колонкой «Действие».
+   */
+  const isCompact = useCompactLayout();
 
   // Смена сортировки возвращает на первую страницу
   const sortBy = (key) => { toggleSort(key); setPage(1); };
+
+  /**
+   * Сброс подбора для «ничего не найдено». Снимает и «Только открытые»:
+   * чаще всего задача не пропала, а закрылась, и именно эта галочка её прячет.
+   */
+  const resetFilters = () => {
+    setQuery(''); setTab('all'); setOnlyOpen(false); setPage(1);
+  };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   /**
@@ -285,13 +302,53 @@ export default function Warehouse() {
       </FilterBar>
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задачи склада" />}
-      {loaded && filtered.length === 0 && (
-        <div className={styles.emptyState}>{onlyOpen ? 'Открытых задач склада нет.' : 'Задач склада нет.'}</div>
+      {/* Скелетон висит на `!loaded && !loadError`, а не на `loading`: при сбое
+          `loading` уже false, и экран замирал бы навсегда (правило UX-2).
+          До этой правки при загрузке здесь не было НИЧЕГО — пустая страница,
+          неотличимая от «задач нет». */}
+      {!loaded && !loadError && <TableSkeleton rows={6} label="Загрузка задач склада" />}
+
+      {/* «Работы нет» и «под фильтры ничего не попало» — разные ответы, и
+          человеку нужен разный следующий шаг. Прежде оба показывались одной
+          серой строкой, различавшей только галочку «Только открытые». */}
+      {loaded && filtered.length === 0 && allRows.length === 0 && (
+        <EmptyState
+          icon="box"
+          title="Задач склада нет"
+          text="Они появляются сами: приёмку материалов заводит закупка, остальные — цеха по мере закрытия этапов."
+        />
+      )}
+      {loaded && filtered.length === 0 && allRows.length > 0 && (
+        <EmptyResult query={query.trim()} onReset={resetFilters}>
+          {query.trim()
+            ? undefined
+            : onlyOpen
+              ? 'Открытых задач под выбранный фильтр нет — возможно, они уже закрыты.'
+              : 'Под выбранный фильтр ничего не попало.'}
+        </EmptyResult>
       )}
 
-      {loaded && filtered.length > 0 && (
-        <>
-          <ScrollHintBox className={styles.tableWrap} label="Задачи склада">
+      {loaded && filtered.length > 0 && isCompact && (
+        <div className={styles.dataCardList}>
+          {pageRows.map(({ order, task }) => (
+            <WarehouseTaskCard
+              key={task.id}
+              typeLabel={WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}
+              typeIcon={TYPE_ICON[task.task_type]}
+              orderNo={order.bitrix_id}
+              orderTitle={order.title}
+              summary={taskSummary(order, task)}
+              statusLabel={taskStatusLabel(task)}
+              statusVariant={taskVariant(task)}
+              deadline={formatDateShort(task.deadline)}
+              onOpen={() => setOpenId(task.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {loaded && filtered.length > 0 && !isCompact && (
+        <ScrollHintBox className={styles.tableWrap} label="Задачи склада">
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -328,11 +385,15 @@ export default function Warehouse() {
               </tbody>
             </table>
           </ScrollHintBox>
-          <Pagination
-            page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
-            onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
-          />
-        </>
+      )}
+
+      {/* Пагинация одна на обе раскладки: страница и её размер — свойство
+          подбора, а не таблицы */}
+      {loaded && filtered.length > 0 && (
+        <Pagination
+          page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
+          onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
+        />
       )}
 
       {open && (

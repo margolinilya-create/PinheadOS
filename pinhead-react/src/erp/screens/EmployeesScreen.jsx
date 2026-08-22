@@ -4,6 +4,8 @@ import { PageHead } from '../components/PageHead';
 import InlineEdit from '../components/InlineEdit';
 import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
+import { LoadFailed, EmptyState } from '../components/ErpStates';
+import { TableSkeleton } from '../components/ErpSkeletons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
@@ -32,7 +34,7 @@ function statusChip(p) {
 
 export default function EmployeesScreen({ embedded = false }) {
   const {
-    employees, profilesList, employeesLoaded, departments, loaded,
+    employees, profilesList, employeesLoaded, employeesError, departments, loaded,
     loadAll, loadEmployees, createEmployee, updateEmployee,
     updateProfile, upsertProfileDept,
   } = useErpStore(
@@ -40,6 +42,7 @@ export default function EmployeesScreen({ embedded = false }) {
       employees: s.employees,
       profilesList: s.profilesList,
       employeesLoaded: s.employeesLoaded,
+      employeesError: s.employeesError,
       departments: s.departments,
       loaded: s.loaded,
       loadAll: s.loadAll,
@@ -174,13 +177,26 @@ export default function EmployeesScreen({ embedded = false }) {
         )}
       </div>
 
+      {/*
+        Раньше здесь стояла одна серая строка «Пользователи не загрузились»
+        с кнопкой повтора, и она отвечала на два разных вопроса сразу — причём
+        в случае СБОЯ не показывалась вовсе: `employeesLoaded` при неудаче
+        не поднимался, а эффект `if (!employeesLoaded) loadEmployees()` второй
+        раз не срабатывает. Экран оставался пустым навсегда, и выходом была
+        только перезагрузка страницы.
+      */}
+      {employeesError && !employeesLoaded && (
+        <LoadFailed onRetry={loadEmployees} what="сотрудников" />
+      )}
+      {!employeesLoaded && !employeesError && (
+        <TableSkeleton rows={5} label="Загрузка сотрудников" />
+      )}
       {employeesLoaded && profileRows.length === 0 && looseEmployees.length === 0 && (
-        <div className={styles.emptyState}>
-                  Пользователи не загрузились.{' '}
-                  <Button variant="secondary" onClick={() => loadEmployees()}>
-                    Повторить
-                  </Button>
-                </div>
+        <EmptyState
+          icon="users"
+          title="Сотрудников нет"
+          text="Пригласите первого ссылкой — роль и участок задаются при выписке приглашения."
+        />
       )}
 
       {profileRows.length > 0 && (

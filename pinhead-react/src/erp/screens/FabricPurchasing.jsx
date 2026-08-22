@@ -3,9 +3,17 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { PreliminarySection } from './purchasing/PreliminarySection';
-import { LoadFailed } from '../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { TableSkeleton } from '../components/ErpSkeletons';
+import { useCompactLayout } from '../layout/useCompactLayout';
+import { PurchaseRowCard } from './purchasing/PurchaseRowCard';
+import {
+  ArticleField, CostValue, EtaField, ManagerNote, MaterialCell, OrderCell,
+  OrderedOnField, PlanField, PriceField, QtyOrderedField, ReceivedValue,
+  ResponsibleField, StatusCell, StatusControl, SupplierCell,
+} from './purchasing/PurchaseFields';
+import { KIND_LABELS, PURCHASE_GROUPS, SOURCE_LABELS } from './purchasing/purchaseLabels';
 import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
@@ -18,11 +26,9 @@ import { useErpStore } from '../store/useErpStore';
 import { OrderLink } from '../components/OrderLink';
 import { orderLinkTarget } from '../utils/orderLink';
 import { toast } from '../../store/useToastStore';
-import { pluralize } from '../../utils/i18n';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
 import { SupplyQueue } from './purchasing/SupplyQueue';
 import { findSupplyDept, ordersAwaitingSupply } from '../utils/supply';
-import { formatDateShort, procurementSla } from '../utils/time';
 import {
   MATERIAL_STATUS_LABELS,
   PROCUREMENT_CAUSE_LABELS,
@@ -41,13 +47,9 @@ import { factoryToday } from '../../utils/date';
  * Бизнес-логика (addMaterial/updateMaterial/confirmStockMaterial/procurement) не менялась.
  */
 
-const KIND_LABELS = { fabric: 'Ткань', hardware: 'Фурнитура', labels: 'Бирки/этикетки', packaging: 'Упаковка', other: 'Прочее' };
-const SOURCE_LABELS = { purchase: 'Закупка', stock: 'Со склада', client: 'Давальческое', none: 'Без закупки' };
-
-const STATUS_VARIANT = {
-  pending: 'waiting', ordered: 'progress', in_transit: 'progress',
-  partial: 'waiting', received: 'ready', reserved: 'ready', not_needed: 'neutral',
-};
+/* Подписи (KIND_LABELS, SOURCE_LABELS, STATUS_VARIANT, PURCHASE_GROUPS) переехали
+   в `purchasing/purchaseLabels`, содержимое колонок — в `purchasing/PurchaseFields`:
+   и то и другое читают обе раскладки строки закупки — таблица и карточка. */
 
 /**
  * Значение колонки для сортировки. Берём ровно то, что видно в ячейке
@@ -278,13 +280,13 @@ const KPIS = [
 
 export default function FabricPurchasing() {
   const {
-    orders, departments, loading, loaded, loadError, loadAll, addMaterial, updateMaterial,
+    orders, departments, loaded, loadError, loadAll, addMaterial, updateMaterial,
     confirmStockMaterial, updateProcurementTask, takeSupply, closeSupply,
     addSupplierOption, updateSupplierOption, selectSupplierOption, deleteSupplierOption,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, departments: s.departments,
-      loading: s.loading, loaded: s.loaded, loadError: s.loadError,
+      loaded: s.loaded, loadError: s.loadError,
       loadAll: s.loadAll, addMaterial: s.addMaterial, updateMaterial: s.updateMaterial,
       confirmStockMaterial: s.confirmStockMaterial, updateProcurementTask: s.updateProcurementTask,
       takeSupply: s.takeSupply, closeSupply: s.closeSupply,
@@ -304,6 +306,12 @@ export default function FabricPurchasing() {
   const [optionsFor, setOptionsFor] = useState(null);
   const { sort, toggle: toggleSort } = useTableSort();
   const { sort: procSort, toggle: toggleProcSort } = useTableSort();
+  /**
+   * Ниже 1024px (и на любом тач-устройстве) — карточки вместо таблицы.
+   * У закупки колонок ЧЕТЫРНАДЦАТЬ: на планшете это прокрутка на три экрана,
+   * а «Закупка» входит в пилот наравне со «Складом».
+   */
+  const isCompact = useCompactLayout();
   const today = factoryToday();
   const navigate = useNavigate();
   const location = useLocation();
@@ -377,6 +385,9 @@ export default function FabricPurchasing() {
     if (status === 'received') patch.received_at = today;
     await updateMaterial(m.id, patch);
   };
+
+  /** Сброс подбора для «ничего не найдено» — и поиск, и вкладка сразу */
+  const resetFilters = () => { setQuery(''); setTab('all'); setPage(1); };
 
   /**
    * Клик по показателю: несколько позиций — список с уже применённым фильтром,
@@ -470,12 +481,40 @@ export default function FabricPurchasing() {
       </FilterBar>
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="закупку" />}
-      {!loadError && loading && !loaded && <TableSkeleton rows={8} label="Загрузка закупки" />}
-      {loaded && filtered.length === 0 && (
-        <div className={styles.emptyState}>Закупочных строк не найдено.</div>
+      {/* Скелетон — на `!loaded && !loadError`, а не на `loading`: при сбое
+          `loading` уже false, и экран замирал бы навсегда (правило UX-2) */}
+      {!loadError && !loaded && <TableSkeleton rows={8} label="Загрузка закупки" />}
+
+      {/* «Закупать нечего» и «подбор всё отсеял» — разные ответы: в первом
+          случае человеку нечего сбрасывать, во втором сброс и есть выход */}
+      {loaded && filtered.length === 0 && allRows.length === 0 && (
+        <EmptyState
+          icon="inbox"
+          title="Закупочных строк нет"
+          text="Лист закупки задаёт менеджер при создании заказа. Отдельную позицию можно завести кнопкой «Новая закупка»."
+        />
+      )}
+      {loaded && filtered.length === 0 && allRows.length > 0 && (
+        <EmptyResult query={query.trim()} onReset={resetFilters} resetLabel="Сбросить всё" />
       )}
 
-      {loaded && filtered.length > 0 && (
+      {loaded && filtered.length > 0 && isCompact && (
+        <div className={styles.dataCardList}>
+          {pageRows.map(({ order, m }) => (
+            <PurchaseRowCard
+              key={m.id}
+              order={order}
+              m={m}
+              onUpdate={updateMaterial}
+              onOpenOptions={setOptionsFor}
+              onConfirmStock={confirmStockMaterial}
+              onSetStatus={setStatus}
+            />
+          ))}
+        </div>
+      )}
+
+      {loaded && filtered.length > 0 && !isCompact && (
         <>
           <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
             <table className={styles.table}>
@@ -488,9 +527,12 @@ export default function FabricPurchasing() {
                   Пока группы не были названы, обе роли писали в общую строку,
                   и «нужно было 100 м → закупили 110» показать было нечем.
                 */}
+                {/* colSpan считаются по колонкам ниже: 4 + 11 = 15. Стояло
+                    4 + 10 — группа «Факт» была на колонку короче строки,
+                    и её разделитель не доходил до «Действия» */}
                 <tr className={styles.groupHeadRow}>
-                  <th className={styles.groupHead} colSpan={4}>Потребность — задал менеджер</th>
-                  <th className={styles.groupHead} colSpan={10}>Факт — ведёт закупка</th>
+                  <th className={styles.groupHead} colSpan={4}>{PURCHASE_GROUPS[0].label}</th>
+                  <th className={styles.groupHead} colSpan={11}>{PURCHASE_GROUPS[1].label}</th>
                 </tr>
                 <tr>
                   <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
@@ -515,160 +557,47 @@ export default function FabricPurchasing() {
                 </tr>
               </thead>
               <tbody>
+                {/* Содержимое ячеек — из PurchaseFields, теми же элементами,
+                    что рисует карточка планшета. Две реализации инлайн-правки
+                    разошлись бы молча: обе «работают», просто пишут по-разному */}
                 {pageRows.map(({ order, m }) => (
                   <tr key={m.id}>
+                    <td><OrderCell order={order} /></td>
+                    <td><MaterialCell m={m} /></td>
+                    <td><PlanField m={m} onUpdate={updateMaterial} /></td>
+                    <td><ManagerNote m={m} /></td>
+                    <td><SupplierCell m={m} order={order} onOpenOptions={setOptionsFor} /></td>
+                    <td><ArticleField m={m} onUpdate={updateMaterial} /></td>
+                    <td><QtyOrderedField m={m} onUpdate={updateMaterial} /></td>
+                    <td><PriceField m={m} onUpdate={updateMaterial} /></td>
+                    <td className={styles.progressCell}><CostValue m={m} /></td>
+                    <td><OrderedOnField m={m} onUpdate={updateMaterial} /></td>
+                    <td><EtaField m={m} onUpdate={updateMaterial} /></td>
+                    <td><ReceivedValue m={m} /></td>
+                    <td><ResponsibleField m={m} onUpdate={updateMaterial} /></td>
+                    <td><StatusCell m={m} /></td>
                     <td>
-                      {/* Правка 10: номер заказа — ссылка на его карточку */}
-                      <OrderLink
-                        orderId={order.id}
-                        title={`Открыть заказ №${order.bitrix_id || '—'}`}
-                      >
-                        №{order.bitrix_id || '—'}
-                      </OrderLink>
-                      <div className={styles.cellSub} title={order.title}>{order.title}</div>
-                    </td>
-                    <td>
-                      <strong>{m.name}</strong>
-                      <div className={styles.subText}>{KIND_LABELS[m.kind]}{m.color ? ` · ${m.color}` : ''}{m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}</div>
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.qty_expected ?? ''} placeholder="—"
-                        onBlur={(e) => { const v = e.target.value === '' ? null : Number(e.target.value); if (v !== (m.qty_expected ?? null)) updateMaterial(m.id, { qty_expected: v }); }}
-                        aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
+                      <StatusControl
+                        m={m}
+                        onConfirmStock={confirmStockMaterial}
+                        onSetStatus={setStatus}
                       />
-                    </td>
-                    <td>
-                      {/* Комментарий МЕНЕДЖЕРА — на чтение: это исходное задание,
-                          и правка его закупщиком стёрла бы то, что просили.
-                          Свой комментарий закупщик пишет в приёмке. */}
-                      <span className={m.manager_note ? undefined : styles.subText}>
-                        {m.manager_note || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      {/* Правка 10: поставщик — не одно поле, а выбор из вариантов */}
-                      <button
-                        type="button"
-                        className={styles.supplierCell}
-                        onClick={() => setOptionsFor({ material: m, order })}
-                        title={`Варианты поставщиков: ${m.name}`}
-                      >
-                        <span className={m.supplier ? undefined : styles.subText}>
-                          {m.supplier || 'не выбран'}
-                        </span>
-                        <span className={styles.subText}>
-                          {(m.suppliers ?? []).length > 0
-                            ? `${(m.suppliers ?? []).length} ${pluralize((m.suppliers ?? []).length, 'вариант', 'варианта', 'вариантов')}`
-                            : 'добавить вариант'}
-                        </span>
-                      </button>
-                    </td>
-                    <td>
-                      <input
-                        className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"
-                        onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.article || null)) updateMaterial(m.id, { article: v }); }}
-                        aria-label={`Артикул ${m.name}`} style={{ maxWidth: 110 }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0" step="any"
-                        className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.qty_ordered ?? ''} placeholder="—"
-                        onBlur={(e) => {
-                          const v = e.target.value === '' ? null : Number(e.target.value);
-                          if (v !== (m.qty_ordered ?? null)) updateMaterial(m.id, { qty_ordered: v });
-                        }}
-                        aria-label={`Сколько заказано ${m.name}`} style={{ maxWidth: 90 }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number" min="0" step="any"
-                        className={`${styles.input} ${styles.inputSm}`}
-                        defaultValue={m.price_per_unit ?? ''} placeholder="—"
-                        onBlur={(e) => {
-                          const v = e.target.value === '' ? null : Number(e.target.value);
-                          if (v !== (m.price_per_unit ?? null)) updateMaterial(m.id, { price_per_unit: v });
-                        }}
-                        aria-label={`Цена за единицу ${m.name}`} style={{ maxWidth: 90 }}
-                      />
-                    </td>
-                    <td className={styles.progressCell}>
-                      {/* СЧИТАЕТСЯ, а не хранится: производная от двух полей
-                          рядом с ними — это второй писатель одного числа */}
-                      {m.qty_ordered != null && m.price_per_unit != null
-                        ? Math.round(m.qty_ordered * m.price_per_unit).toLocaleString('ru-RU')
-                        : '—'}
-                    </td>
-                    <td>
-                      <DateField
-                        showFormatHint={false}
-                        value={m.ordered_on || ''}
-                        onChange={(v) => updateMaterial(m.id, { ordered_on: v || null })}
-                        aria-label={`Дата заказа ${m.name}`}
-                      />
-                    </td>
-                    <td>
-                      <DateField
-                        showFormatHint={false}
-                        value={m.eta_date || ''}
-                        onChange={(v) => updateMaterial(m.id, { eta_date: v || null })}
-                        aria-label={`План прихода ${m.name}`}
-                      />
-                    </td>
-                    <td>
-                      {m.qty_received != null
-                        ? `${m.qty_received}${m.unit ? ` ${m.unit}` : ''}`
-                        : (m.received_at ? formatDateShort(m.received_at) : '—')}
-                    </td>
-                    <td>
-                      {/* С кого спрашивать, пока материала нет. Показывается цеху
-                          в карточке «Ожидают материалы» — accepted_by для этого
-                          не годится: он заполняется уже после приёмки */}
-                      <input
-                        className={`${styles.input} ${styles.inputSm}`} defaultValue={m.responsible || ''} placeholder="—"
-                        onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (m.responsible || null)) updateMaterial(m.id, { responsible: v }); }}
-                        aria-label={`Ответственный за получение ${m.name}`} style={{ maxWidth: 120 }}
-                      />
-                    </td>
-                    <td>
-                      <Badge variant={STATUS_VARIANT[m.status] || 'neutral'}>{MATERIAL_STATUS_LABELS[m.status]}</Badge>
-                      {(() => {
-                        const sla = m.source === 'purchase' ? procurementSla(m.created_at, m.status) : null;
-                        if (!sla) return null;
-                        return (
-                          <div className={styles.subText}>
-                            {sla === 'overdue' ? (
-                              <span className={styles.cellWithIcon}><Icon name="alert" size={13} /> просрочено</span>
-                            ) : 'на обработке'}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td>
-                      {m.source === 'stock' && m.status === 'pending' ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => confirmStockMaterial(m.id)}>Наличие</Button>
-                      ) : (
-                        <select className={styles.select} value={m.status} onChange={(e) => setStatus(m, e.target.value)} aria-label={`Статус ${m.name}`}>
-                          {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </ScrollHintBox>
-          <Pagination
-            page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
-            onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
-          />
         </>
+      )}
+
+      {/* Пагинация одна на обе раскладки: страница и её размер — свойство
+          подбора, а не таблицы */}
+      {loaded && filtered.length > 0 && (
+        <Pagination
+          page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
+          onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
+        />
       )}
 
       {procurementRows.length > 0 && (

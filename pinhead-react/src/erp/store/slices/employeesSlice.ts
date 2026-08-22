@@ -16,6 +16,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   employees: [],
   profilesList: [],
   employeesLoaded: false,
+  employeesError: null,
   myDeptId: null,
   myRole: null,
   myDeptLoaded: false,
@@ -45,22 +46,36 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
   },
 
   loadEmployees: async () => {
+    /**
+     * Сбой оставлял экран НАВСЕГДА пустым: `employeesLoaded` не поднимался,
+     * а эффект `if (!employeesLoaded) loadEmployees()` второй раз не срабатывает
+     * (зависимости те же). Выходом была только перезагрузка страницы — ровно то,
+     * что правило UX-2 запрещает. Теперь причина запоминается, и экран рисует
+     * `LoadFailed` с «Повторить».
+     *
+     * Оба чтения — через `erpQuery`: supabase-js БРОСАЕТ, когда ответа не было
+     * вовсе (нет сети, CORS), и голый `await` дал бы unhandled rejection вместо
+     * обычной ветки `if (error)`.
+     */
+    set({ employeesError: null });
     const [emps, profs] = await Promise.all([
-      supabase.from('erp_employees').select('*').order('full_name'),
-      supabase
+      erpQuery(() => supabase.from('erp_employees').select('*').order('full_name')),
+      erpQuery(() => supabase
         .from('profiles')
         .select('id, name, email, role, approved, active')
-        .order('name'),
+        .order('name')),
     ]);
-    if (emps.error || profs.error) {
-      toast.error('Не удалось загрузить сотрудников');
-      return;
+    const error = emps.error || profs.error;
+    if (error) {
+      set({ employeesError: error.message });
+      return erpError('Не удалось загрузить сотрудников', error);
     }
     set({
       employees: (emps.data ?? []) as ErpEmployee[],
       profilesList: (profs.data ?? []) as StaffProfile[],
       employeesLoaded: true,
     });
+    return true;
   },
 
   updateProfile: async (id, patch) => {
