@@ -240,114 +240,6 @@
   .pp-overlay, .pp-page-wrap { position: static; overflow: visible; }
   .pp-page { margin: 0; padding: 24px; border: none; box-shadow: none; }
 }
-/* ══════════════════════════════════════════ */
-/* RESPONSIVE                                */
-/* ══════════════════════════════════════════ */
-/* ── Tablet ── */
-@media (max-width: 768px) {
-  .container          { padding: 24px 16px; }
-  /* header height — moved to Header.module.css */
-  /* header/nav/progress-bar tablet — moved to Header.module.css & ProgressBar.module.css */
-  .step-header-title  { font-size: 28px; }
-  .summary-grid       { grid-template-columns: 1fr; }
-  .form-grid          { grid-template-columns: 1fr; }
-  .form-field.full    { grid-column: 1; }
-  .btn-row            { flex-wrap: wrap; gap: 8px; }
-  .btn-row > *        { flex: 1 1 auto; min-width: 120px; }
-  .garment-row-name   { font-size: 16px; }
-  .swatches           { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
-  .extras-grid        { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-  .zones-grid         { grid-template-columns: repeat(3, 1fr); }
-  .label-fields       { grid-template-columns: 1fr; }
-  .exp-panel          { width: 100%; max-width: 100%; }
-  .exp-zt-techs       { grid-template-columns: repeat(2, 1fr); }
-  .pp-page            { padding: 32px 24px; margin: 16px 12px; }
-  .pp-table th        { font-size: 9px; padding: 4px 6px; }
-  .pp-table td        { padding: 4px 6px; }
-  .kanban-board       { -webkit-overflow-scrolling: touch; }
-  .kanban-col         { min-width: 280px; flex: 0 0 280px; }
-  .kb-search          { width: 100%; }
-  .kanban-filter-bar  { flex-wrap: wrap; }
-  .kanban-stats-bar   { flex-wrap: wrap; }
-  .sku-ed-panel       { padding: 0 24px; }
-  .sku-ed-table       { font-size: 11px; }
-  .sku-th-name        { min-width: 100px; }
-  .tc-doc-row         { flex-direction: column; gap: 24px; }
-  .tc-doc-mockup      { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-  .tc-mockup-svg      { width: 140px; }
-  .tc-photos          { flex-wrap: wrap; }
-  .add-size-form      { flex-wrap: wrap; gap: 8px; }
-  .dash-panel         { width: 100%; max-width: 100%; margin: 0; border-radius: 0; }
-  .dash-metrics       { grid-template-columns: repeat(2, 1fr); }
-  .dash-row           { flex-direction: column; }
-  .dash-chart         { min-width: 100%; }
-  .step-content-grid  { grid-template-columns: 1fr; }
-  .step-aside         { display: none; }
-  .page-view          { padding: 0 24px 40px; }
-  .exp-page-grid      { grid-template-columns: 1fr; }
-  .exp-result-section { position: static; }
-  .page-header        { flex-direction: column; }
-}
-/* ── Phone ── */
-@media (max-width: 480px) {
-  /* header/progress-bar phone — moved to Header.module.css & ProgressBar.module.css */
-  .step-header-title  { font-size: 28px; }
-  .btn-row            { flex-direction: column; }
-  .btn-row > *        { width: 100%; min-width: 0; }
-  .garment-row        { height: 48px; }
-  .garment-row-name   { font-size: 13px; }
-  .swatch             { min-width: 44px; min-height: 44px; }
-  .swatch-circle      { width: 28px; height: 28px; }
-  .swatches           { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); }
-  .qty-btn            { width: 36px; height: 36px; }
-  .qty-input          { width: 48px; height: 36px; }
-  .extras-grid        { grid-template-columns: repeat(2, 1fr); }
-  .extra-card         { padding: 12px 8px; }
-  .zones-grid         { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .zone-card          { height: 48px; }
-  .label-placement-btns { flex-wrap: wrap; }
-  .label-color-btns   { flex-wrap: wrap; }
-  .label-placement-btn { padding: 8px 12px; }
-  .exp-panel          { width: 100vw; }
-  .exp-zt-techs       { grid-template-columns: 1fr; }
-  .pp-page            { padding: 16px 12px; margin: 12px 8px; }
-  .pp-toolbar         { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
-  .pp-toolbar .btn    { padding: 8px 16px; font-size: 11px; }
-  .pp-table th        { font-size: 9px; padding: 3px 4px; }
-  .pp-table td        { padding: 3px 4px; }
-  .pp-kv-row          { flex-direction: column; gap: 4px; }
-  .pp-kv-dots         { display: none; }
-  .pp-logo            { font-size: 20px; }
-  .pp-title           { font-size: 16px; }
-  .kb-card            { min-height: auto; }
-  .kb-card-client     { font-size: 12px; }
-  .kb-card-menu-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 299; }
-  .kb-card-menu       { position: fixed; top: auto; bottom: 0; left: 0; right: 0; min-width: 100%; z-index: 300; }
-  .kb-card-menu button { padding: 12px 16px; font-size: 13px; }
-  .sku-ed-panel       { padding: 0 12px; }
-  .sku-ed-header      { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .sku-ed-title       { font-size: 20px; }
-  .sku-ed-table       { font-size: 9px; }
-  .sku-th-name        { min-width: 80px; }
-  .tc-doc-mockup      { width: 100%; }
-  .tc-mockup-svg      { width: 120px; }
-  .tc-doc-qr          { width: 40px; height: 40px; }
-  .tc-photo           { width: 64px; height: 64px; }
-  .tc-photo-add       { width: 64px; height: 64px; }
-  .add-size-form      { flex-direction: column; align-items: stretch; }
-  .add-size-form-input { width: 100%; }
-  .add-size-form-qty   { width: 100%; }
-  .size-td-price      { display: none; }
-  .size-th-price      { display: none; }
-  .dash-metrics       { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .dash-metric        { padding: 12px; }
-  .dash-metric .dash-metric-val { font-size: 20px; }
-  .dash-period-btns   { flex-wrap: wrap; }
-  .dash-period-btns button { padding: 8px 12px; font-size: 11px; }
-  .dash-chart         { min-height: 200px; }
-  /* toast responsive — moved to Toast.module.css */
-  .kanban-col         { min-width: 260px; flex: 0 0 260px; }
-}
 /* ── Global reduced-motion ──
  * WCAG 2.1 SC 2.3.3: Universal override of animation-duration / transition-duration
  * inherently needs !important to beat per-component animation rules. This is the
@@ -361,41 +253,47 @@
   }
 }
 
-/* ── Mobile: tables get horizontal scroll ── */
+/* ── Mobile: prevent iOS zoom on focus (inputs must be ≥16px) ──
+ *
+ * ПОЧЕМУ ЗДЕСЬ `html` ПЕРЕД СЕЛЕКТОРАМИ. Это защитный минимум, а не оформление:
+ * поле мельче 16px заставляет iOS зумить страницу при фокусе, и человек
+ * оказывается в увеличенной вёрстке, из которой сам не выйдет. Правило обязано
+ * выигрывать у компонентных правил ТОЙ ЖЕ специфичности.
+ *
+ * Пока весь CSS лежал одним файлом, это обеспечивал порядок: блок был
+ * последним. Когда стили Order Studio уехали в свой чанк, «последнего» места
+ * не стало вовсе — их файлы грузятся ПОСЛЕ глобальных, и
+ * `.sku-ed-rate-internal input { font-size: 13px }` (та же специфичность,
+ * 1 класс + 1 элемент) начал выигрывать: поле курса в SKU-редакторе
+ * уменьшилось. Поймал ровно один visual-эталон.
+ *
+ * `html` добавляет один элемент к специфичности — этого хватает, чтобы
+ * побеждать случайные совпадения и НЕ побеждать осознанные переопределения
+ * вроде `input[type="number"].pe-usd-input` (два класса против одного).
+ * `!important` в проекте запрещён, и здесь он не нужен.
+ */
 @media (max-width: 768px) {
-  .sku-ed-table,
-  .pe-matrix-table,
-  .pp-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    max-width: 100%;
-  }
-}
-
-/* ── Mobile: prevent iOS zoom on focus (inputs must be ≥16px) ── */
-@media (max-width: 768px) {
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="tel"],
-  input[type="number"],
-  input[type="search"],
-  input[type="date"],
-  input[type="url"],
-  textarea,
-  select {
+  html input[type="text"],
+  html input[type="email"],
+  html input[type="password"],
+  html input[type="tel"],
+  html input[type="number"],
+  html input[type="search"],
+  html input[type="date"],
+  html input[type="url"],
+  html textarea,
+  html select {
     font-size: 16px;
   }
 
-  /* Touch targets: 44x44 minimum for interactive elements */
-  button,
-  [role="button"],
-  [role="checkbox"],
-  .btn,
-  .btn-primary,
-  .btn-accent,
-  .btn-secondary {
+  /* Touch targets: 44x44 minimum for interactive elements — по той же причине */
+  html button,
+  html [role="button"],
+  html [role="checkbox"],
+  html .btn,
+  html .btn-primary,
+  html .btn-accent,
+  html .btn-secondary {
     min-height: 44px;
     min-width: 44px;
   }

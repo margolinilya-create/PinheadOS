@@ -21,6 +21,8 @@ import '../../styles/wizard.css'
 import '../../styles/extras-zones.css'
 import '../../styles/kanban.css'
 import '../../styles/editors.css'
+/* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
+import '../../styles/responsive.css'
 
 export default function AdminPanel({ ordersOnly = false }) {
   const [tab, setTab] = useState('orders');

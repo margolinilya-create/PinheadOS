@@ -14,6 +14,8 @@ import '../styles/extras-zones.css'
 import '../styles/kanban.css'
 import '../styles/express.css'
 import '../styles/editors.css'
+/* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
+import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/useAuthStore'
