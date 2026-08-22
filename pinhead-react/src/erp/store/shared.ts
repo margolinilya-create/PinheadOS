@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
+import { reportError } from '../../lib/errorReport';
 import type { ErpStageEvent } from '../types';
 
 /** Имя действующего пользователя для аудита */
@@ -91,10 +92,28 @@ export function erpError(what: string, error?: { message?: string } | null): fal
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
   if (offline) {
     toast.error(`${what}: нет сети. Действие не сохранено — повторите, когда связь появится`);
+    // Офлайн наружу НЕ шлём: это состояние сети, а не поломка приложения,
+    // и отправлять отчёт всё равно некуда
     return false;
   }
   const reason = error?.message ? translateSupabaseError(error.message) : null;
   toast.error(reason ? `${what}: ${reason}` : what);
+  /**
+   * Отказ сервера — наружу, к наблюдаемости.
+   *
+   * Механизм отчётов (`lib/errorReport`) ловил только падения рендера, window
+   * и промисов. Но из цеха приезжать будет не белый экран, а именно это:
+   * 42501 от стража на действии, которое интерфейс разрешил, конфликт версий,
+   * оборванный запрос. Без такого отчёта единственный способ узнать о разошедшемся
+   * гейте — звонок от того, у кого «кнопка есть, а действие падает».
+   *
+   * `reportError` сам дедуплицирует и держит потолок на сессию, поэтому
+   * зацикленный экран не забьёт сеть. Отдельный `source` — чтобы отделить
+   * отказы сервера от падений интерфейса.
+   */
+  if (error?.message) {
+    reportError(new Error(`${what}: ${error.message}`), 'erp-supabase');
+  }
   return false;
 }
 
