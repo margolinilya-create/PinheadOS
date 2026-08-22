@@ -5,7 +5,7 @@ import { warehouseStep } from '../utils/warehouseStep';
 import { STAGE_STATUS_LABELS } from '../types';
 import { isStageAwaitingProcurement, isStageReady, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
-import { itemProgress, stageQtyProgress } from '../utils/progress';
+import { itemProgress, stageCountProgress, stageQtyProgress } from '../utils/progress';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import styles from '../erp.module.css';
 
@@ -35,6 +35,12 @@ export function RouteProgress({
   item, order, deptById, currentStageId = null, compact = false, showStages = true,
 }) {
   const total = useMemo(() => itemProgress(item), [item]);
+  /**
+   * Счёт ЭТАПОВ (правка 22.08, п. 3.11): «1 из 5 этапов завершено».
+   * Прежняя подпись «100/500 шт·этапов» верна, но не читается — а количество
+   * изделий остаётся внутри строки конкретного этапа, где оно и значит что-то.
+   */
+  const steps = useMemo(() => stageCountProgress(item), [item]);
   /** Шаг принадлежит ЗАКАЗУ: упаковка и отгрузка идут по заказу целиком */
   const wh = warehouseStep(order);
 
@@ -46,13 +52,15 @@ export function RouteProgress({
           <div className={styles.progressFill} style={{ width: `${total.pct}%` }} />
         </div>
         <span className={styles.progressCell}>{total.pct}%</span>
-        {/* Знаменатель — тираж × число этапов маршрута, а не количество изделий:
-            подпись «шт» без пояснения читалась как «250 изделий» */}
+        {/* Читаемая форма: сколько этапов закрыто. Полная сумма по штукам
+            остаётся в подсказке — она отвечает на другой вопрос */}
         <span
           className={styles.subText}
-          title={`Сумма по всем этапам маршрута: ${total.done} из ${total.total} шт·этапов`}
+          title={`По штукам: ${total.done} из ${total.total} шт·этапов маршрута`}
         >
-          {total.done}/{total.total} шт·этапов
+          {steps.total > 0
+            ? `завершено ${steps.done} из ${steps.total} этапов`
+            : 'этапов нет'}
         </span>
       </div>
 
@@ -116,9 +124,20 @@ export function RouteProgress({
           (на этом 12.08 встали 33 заказа). Шаг ВЫЧИСЛЯЕТСЯ из задач склада,
           и маршрут перестаёт обрываться на последнем цехе.
         */}
+        {/*
+          Склад ОТДЕЛЁН ОТ РУЧНОГО МАРШРУТА (правка 22.08, п. 3.10): он
+          подключается автоматически, а выглядел как ещё один этап, добавленный
+          человеком, — и тогда непонятно, почему предыдущий называется
+          последним этапом маршрута.
+        */}
+        <li className={styles.routeRow} aria-hidden="true">
+          <span className={`${styles.routeName} ${styles.subText}`}>
+            После завершения производства
+          </span>
+        </li>
         <li className={`${styles.routeRow} ${styles.routeRowFinal}`}>
           <span className={styles.routeName}>
-            Склад
+            Приёмка на складе Pinhead
             <span className={styles.subText}> · {wh.label}</span>
           </span>
           <span className={styles.routeQty} />

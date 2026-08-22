@@ -1254,6 +1254,21 @@
       "files": [
         "20260823130000_erp_order_drafts.sql"
       ]
+    },
+    {
+      "version": "20260822184640",
+      "name": "erp_order_notes",
+      "files": [
+        "20260823140000_erp_order_notes.sql"
+      ]
+    },
+    {
+      "version": "20260822184816",
+      "name": "erp_create_order_notes",
+      "files": [
+        "20260823150000_erp_create_order_notes.sql"
+      ],
+      "note": "к базе применена перегенерация функции из её же pg_get_functiondef (правило «подлинный текст»); файл несёт полный текст получившейся функции"
     }
   ]
 }

@@ -28,6 +28,7 @@ import type {
   ErpOrderAttachment,
   ErpOrderDraft,
   ErpOrderItem,
+  ErpOrderNote,
   DevOutcome,
   DevTaskStatus,
   ErpExperimental,
@@ -114,6 +115,13 @@ export interface ErpOrderFull extends ErpOrder {
   warehouse_tasks?: ErpWarehouseTask[];
   /** ТЗ в PDF: все версии всех групп заказа. Документ принадлежит позиции */
   tz_documents?: ErpTzDocument[];
+  /**
+   * Заметки к заказу (правка 22.08, п. 5.8). Алиас `notes_list`, а не `notes`:
+   * колонка `erp_orders.notes` уже занята свободным комментарием заказа,
+   * и одно имя на два разных смысла — верный способ однажды затереть одно
+   * другим.
+   */
+  notes_list?: ErpOrderNote[];
 }
 
 /**
@@ -297,6 +305,15 @@ export interface NewOrderInput {
    * получает готовые строки, а не заводит их заново.
    */
   materials?: NewOrderMaterialInput[];
+  /**
+   * Заметки к заказу (правка 22.08, п. 5.8) — то, что нельзя разложить
+   * по структурным полям. Изображения приезжают вложениями с `note_index`.
+   *
+   * Имя `notes_list`, а не `notes`: `notes` у заказа уже занято свободным
+   * комментарием, и одно имя на два разных смысла однажды затрёт одно
+   * другим. В payload RPC секция называется `notes` — там она одна.
+   */
+  notes_list?: { seq: number; text: string | null }[];
   /**
    * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их одной транзакцией
    * с заказом — «создать заказ без ТЗ» невозможно даже при сбое.

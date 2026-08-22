@@ -40,6 +40,13 @@ function PrintArtwork({ order, printId }) {
   return <AttachmentList files={files} />;
 }
 
+/** Изображения заметки — вложения, привязанные к её строке */
+function NoteImages({ order, noteId }) {
+  const files = (order.attachments ?? []).filter((a) => a.note_id === noteId);
+  if (files.length === 0) return null;
+  return <AttachmentList files={files} />;
+}
+
 /** Макет бирки — вложение, привязанное к строке бирки */
 function LabelArtwork({ order, labelId }) {
   const files = (order.attachments ?? []).filter((a) => a.label_id === labelId);
@@ -184,6 +191,24 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
                   </div>
                   {l.comment && <div className={styles.subText}>{l.comment}</div>}
                   <LabelArtwork order={order} labelId={l.id} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/*
+            ЗАМЕТКИ К ЗАКАЗУ (правка 22.08, п. 5.8): «они должны попадать
+            в итоговое ТЗ для производства». Уровня заказа, поэтому стоят
+            после позиции и подписаны как заметки — структурные поля выше
+            они не заменяют.
+          */}
+          {(order.notes_list ?? []).length > 0 && (
+            <div>
+              <div className={styles.fieldLabel}>Заметки к заказу</div>
+              {[...order.notes_list].sort((a, b) => a.seq - b.seq).map((n) => (
+                <div key={n.id} className={styles.printBlock}>
+                  {n.text && <div>{n.text}</div>}
+                  <NoteImages order={order} noteId={n.id} />
                 </div>
               ))}
             </div>

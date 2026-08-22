@@ -118,7 +118,7 @@ export function useAttachmentUploads(scope = 'new') {
    * в секцию `materials`: индекс материала считается по нему, а не по позиции
    * ключа в состоянии, иначе удалённая средняя строка сдвинула бы привязку.
    */
-  const payload = useCallback((rowKeys = []) => files
+  const payload = useCallback((rowKeys = [], noteKeys = []) => files
     .filter((f) => f.state === 'uploaded')
     .map((f) => {
       const at = f.ownerKey === null ? -1 : rowKeys.indexOf(f.ownerKey);
@@ -141,6 +141,15 @@ export function useAttachmentUploads(scope = 'new') {
         ...(f.kind === 'subcontract' && f.ownerKey ? { stage_key: f.ownerKey } : {}),
         ...(f.kind === 'print' && f.ownerKey ? { print_key: f.ownerKey } : {}),
         ...(f.kind === 'label' && f.ownerKey ? { label_key: f.ownerKey } : {}),
+        /**
+         * Изображение заметки адресуется НОМЕРОМ заметки в заказе: заметки
+         * общие для всего заказа, разводить их по позициям не нужно.
+         * Индекс считается по `noteKeys` — тому же порядку, в каком заметки
+         * уедут в секцию `notes`.
+         */
+        ...(f.kind === 'note' && f.ownerKey
+          ? { note_index: noteKeys.indexOf(f.ownerKey) }
+          : {}),
         file_path: f.path,
         file_name: f.name,
         kind: f.kind,
@@ -151,7 +160,9 @@ export function useAttachmentUploads(scope = 'new') {
     // Файл подрядного шага без ключа привязать не к чему — он не едет
     .filter((a) => !(a.kind === 'subcontract' && !a.stage_key))
     .filter((a) => !(a.kind === 'print' && !a.print_key))
-    .filter((a) => !(a.kind === 'label' && !a.label_key)),
+    .filter((a) => !(a.kind === 'label' && !a.label_key))
+    // Изображение удалённой заметки привязывать не к чему — оно не едет
+    .filter((a) => !(a.kind === 'note' && (a.note_index ?? -1) < 0)),
   [files]);
 
   /** Убрать файлы удалённой строки листа закупки вместе с объектами в бакете */

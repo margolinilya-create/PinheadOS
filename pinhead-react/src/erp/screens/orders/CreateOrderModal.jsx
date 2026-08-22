@@ -44,6 +44,7 @@ import styles from '../../erp.module.css';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { PurchaseListSection } from './create/PurchaseListSection';
+import { NotesSection } from './create/NotesSection';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
 import { Button } from '../../components/Button';
@@ -150,6 +151,12 @@ export function CreateOrderModal({ onClose, draftId = null }) {
    * Строки уезжают в заказ той же транзакцией (секция `materials` RPC).
    */
   const [purchase, setPurchase] = useState(() => restoredDraft?.purchase ?? []);
+  /**
+   * Заметки к заказу (правка 22.08, п. 5.8). Уровня ЗАКАЗА, а не позиции,
+   * и живут в черновике вместе с формой: File-объекты в них не попадают —
+   * изображения держит `useAttachmentUploads`, как и остальные вложения.
+   */
+  const [notes, setNotes] = useState(() => restoredDraft?.notes ?? []);
   /**
    * Вложения блоков: упаковка, техблок, лист закупки (правки заказчика 16.08 —
    * документ требует файлы в шести местах). File-объекты живут ОТДЕЛЬНО от
@@ -310,6 +317,37 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     attach.dropItem(i);
   };
 
+  /**
+   * Копия позиции (п. 5.7). Ключи нанесений и бирок ПЕРЕСОЗДАЮТСЯ: по ним
+   * файлы находят свою строку, и общий ключ отдал бы копии чужой макет.
+   * Сами файлы не копируются — они привязаны к строкам оригинала; в копии
+   * их прикладывают заново, зато все параметры уже на месте.
+   */
+  const copyItem = (i) => {
+    const src = items[i];
+    if (!src) return;
+    setItems((arr) => [...arr, {
+      ...src,
+      route: undefined,
+      prints: (src.prints ?? []).map((p) => ({ ...p, key: crypto.randomUUID() })),
+      labels: (src.labels ?? []).map((l) => ({ ...l, key: crypto.randomUUID() })),
+    }]);
+  };
+
+  /**
+   * Копирование ОДНОГО нанесения из другой позиции (п. 5.4): «в одной сделке
+   * могут быть футболка и свитшот с полностью одинаковыми нанесениями».
+   * Копируются все параметры; макет остаётся у источника — файл принадлежит
+   * его строке, а в копии он прикладывается заново.
+   */
+  const copyPrint = (targetIndex, sourceIndex, printIndex) => {
+    const src = items[sourceIndex]?.prints?.[printIndex];
+    if (!src) return;
+    setItems((arr) => arr.map((it, idx) => (idx === targetIndex
+      ? { ...it, has_branding: true, prints: [...it.prints, { ...src, key: crypto.randomUUID() }] }
+      : it)));
+  };
+
   /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
   const removePrint = async (i, pi) => {
     const print = items[i]?.prints?.[pi];
@@ -330,7 +368,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
 
   // Аккордеон-секции: все раскрыты по умолчанию
   const [open, setOpen] = useState({
-    main: true, items: true, extra: true, tz: true,
+    main: true, items: true, extra: true, tz: true, notes: false,
     /**
      * Лист закупки РАЗВЁРНУТ (правки 20.08). Он был свёрнут, пока внутри лежали
      * необязательные строки. Теперь там обязательное решение — приложить лист
@@ -400,7 +438,8 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         return;
       }
       const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
-      const row = await saveDraftRow(rowIdRef.current, title, { form, items, purchase });
+      const row = await saveDraftRow(
+        rowIdRef.current, title, { form, items, purchase, notes });
       if (row && !rowIdRef.current) {
         rowIdRef.current = row.id;
         setRowId(row.id);
@@ -408,7 +447,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       if (row) clearOrderDraft();
     }, 500);
     return () => clearTimeout(t);
-  }, [form, items, purchase, initialLaunch, saveDraftRow, deleteDraftRow]);
+  }, [form, items, purchase, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
 
   const resetDraft = async () => {
     clearOrderDraft();
@@ -572,6 +611,15 @@ export function CreateOrderModal({ onClose, draftId = null }) {
      */
     const purchaseRows = purchase.filter((r) => !isPurchaseRowEmpty(r) && r.name.trim());
     const purchaseKeys = purchaseRows.map((r) => r.key);
+    /**
+     * Ключи заметок В ТОМ ЖЕ ПОРЯДКЕ, в каком они уедут в секцию `notes`:
+     * по ним изображение находит свою заметку. Отбор здесь обязан совпадать
+     * с отбором в самой секции — иначе подпись уедет к соседней картинке.
+     */
+    const noteKeys = notes
+      .filter((n) => n.text.trim() || attach.files.some(
+        (f) => f.ownerKey === n.key && f.state === 'uploaded'))
+      .map((n) => n.key);
     const materials = purchaseRows
       .map((r) => {
         const idx = r.item_index === null ? null : formToPayloadIndex.get(r.item_index);
@@ -595,7 +643,17 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       materials,
       // Вложения блоков: упаковка, техблок, лист закупки. Файлы уже в бакете —
       // грузятся при выборе, RPC только привязывает их одной транзакцией
-      attachments: attach.payload(purchaseKeys),
+      attachments: attach.payload(purchaseKeys, noteKeys),
+      /**
+       * Заметки к заказу (п. 5.8). Совсем пустая не едет: человек мог нажать
+       * «+ Заметка» и передумать — то же правило, что у строк листа закупки
+       * и бирок. Изображение без текста заметкой является: подпись
+       * необязательна, а фото само по себе несёт смысл.
+       */
+      notes_list: notes
+        .filter((n) => n.text.trim() || attach.files.some(
+          (f) => f.ownerKey === n.key && f.state === 'uploaded'))
+        .map((n, i) => ({ seq: i + 1, text: n.text.trim() || null })),
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
@@ -900,12 +958,29 @@ export function CreateOrderModal({ onClose, draftId = null }) {
             setPrint={setPrint}
             removeItem={removeItem}
             removePrint={removePrint}
+            allItems={items}
+            onCopyPrint={copyPrint}
           />
         ))}
-        <div>
+        <div className={styles.checkRow}>
           <Button variant="secondary" onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}>
             + Добавить позицию
           </Button>
+          {/*
+            КОПИРОВАНИЕ ПОЗИЦИИ (правка 22.08, п. 5.7): «если несколько позиций
+            одинаковые или почти одинаковые, можно предусмотреть Копировать
+            данные из позиции». Заказ из четырёх подрядных изделий иначе
+            заполняется четырежды вручную.
+
+            Маршрут в копию НЕ переносится: он пересчитается по новым данным,
+            а перенесённая правка означала бы, что человек утвердил маршрут,
+            которого не видел.
+          */}
+          {items.length > 0 && (
+            <Button variant="ghost" onClick={() => copyItem(items.length - 1)}>
+              Копировать последнюю позицию
+            </Button>
+          )}
         </div>
         </FormSection>
 
@@ -944,6 +1019,16 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           notRequired={form.purchase_required === false}
           onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
         />
+        </FormSection>
+
+        <FormSection
+          id="order-section-notes"
+          title="Заметки к заказу"
+          summary={notes.length > 0 ? `${notes.length}` : 'нет'}
+          open={open.notes}
+          onToggle={() => toggleSection('notes')}
+        >
+          <NotesSection notes={notes} setNotes={setNotes} attach={attach} />
         </FormSection>
 
         <FormSection

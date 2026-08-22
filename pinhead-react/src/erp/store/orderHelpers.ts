@@ -40,7 +40,8 @@ export const ORDER_SELECT = `
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
-  tz_documents:erp_tz_documents (*)
+  tz_documents:erp_tz_documents (*),
+  notes_list:erp_order_notes (*)
 `;
 
 /**
@@ -106,7 +107,8 @@ export const ORDER_LIST_SELECT = `
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
-  tz_documents:erp_tz_documents (*)
+  tz_documents:erp_tz_documents (*),
+  notes_list:erp_order_notes (*)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */

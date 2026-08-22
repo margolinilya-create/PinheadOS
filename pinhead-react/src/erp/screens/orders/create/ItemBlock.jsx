@@ -12,7 +12,8 @@ import styles from '../../../erp.module.css';
 import { Button } from '../../../components/Button';
 import { RouteFields, RouteIssues } from '../../../components/RouteFields';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
-import { routeIssues } from '../../../utils/routeDraft';
+import { emptyStep, routeIssues } from '../../../utils/routeDraft';
+import { OUTSOURCE_DEPT_CODE } from '../../../utils/outsourcing';
 
 /**
  * Одна позиция заказа в форме создания: изделие, вариант, тираж (или размерная
@@ -25,6 +26,7 @@ import { routeIssues } from '../../../utils/routeDraft';
 export function ItemBlock({
   it, i, itemsCount, err, inputCls, route, attach,
   setItem, setBranding, setPrint, removeItem, removePrint,
+  allItems = [], onCopyPrint,
 }) {
   const gTotal = gridTotal(it.size_grid);
 
@@ -280,6 +282,13 @@ export function ItemBlock({
               onClick={() => setItem(i, { prints: [...it.prints, emptyPrint()] })}>
               + Нанесение ({it.prints.length})
             </Button>
+            {/*
+              КОПИРОВАНИЕ НАНЕСЕНИЯ ИЗ ДРУГОЙ ПОЗИЦИИ (правка 22.08, п. 5.4):
+              «в одной сделке могут быть футболка и свитшот с полностью
+              одинаковыми нанесениями» — менеджер заполняет один раз.
+              После копирования данные правятся независимо от источника.
+            */}
+            <CopyPrintPicker items={allItems} target={i} onCopy={onCopyPrint} />
             <FieldError id={`err-item-${i}-prints`} text={err(`item_${i}_prints`)} />
           </div>
         )}
@@ -299,6 +308,53 @@ export function ItemBlock({
         <PackagingBlock it={it} i={i} setItem={setItem} attach={attach} />
         <RouteBlock it={it} i={i} setItem={setItem} route={route} attach={attach} />
         </div>
+  );
+}
+
+/**
+ * Выбор «откуда копировать нанесение» (п. 5.4).
+ *
+ * Селект, а не кнопка «копировать всё»: позиций бывает четыре, нанесений
+ * в каждой несколько, и человеку нужно назвать КОНКРЕТНОЕ. Показываем только
+ * заполненные нанесения других позиций — пустая строка в списке
+ * не отличалась бы от заполненной.
+ */
+function CopyPrintPicker({ items, target, onCopy }) {
+  const options = [];
+  (items ?? []).forEach((src, si) => {
+    if (si === target) return;
+    (src.prints ?? []).forEach((p, pi) => {
+      if (!p.zone?.trim() && !p.pantone?.trim() && !p.comment?.trim()) return;
+      options.push({
+        si,
+        pi,
+        label: `Поз. ${si + 1}${src.product_type ? ` (${src.product_type})` : ''} · `
+          + `${BRANDING_METHOD_LABELS[p.method] || p.method}`
+          + `${p.zone?.trim() ? ` — ${p.zone.trim()}` : ''}`,
+      });
+    });
+  });
+  if (options.length === 0 || !onCopy) return null;
+
+  return (
+    <label className={styles.checkLabel}>
+      <span className={styles.subText}>Копировать нанесение:</span>
+      <select
+        className={`${styles.select} ${styles.inputSm}`}
+        value=""
+        aria-label={`Копировать нанесение в позицию ${target + 1}`}
+        onChange={(e) => {
+          const opt = options[Number(e.target.value)];
+          if (opt) onCopy(target, opt.si, opt.pi);
+          e.target.value = '';
+        }}
+      >
+        <option value="">выбрать источник…</option>
+        {options.map((o, idx) => (
+          <option key={`${o.si}:${o.pi}`} value={idx}>{o.label}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -603,6 +659,27 @@ function PackagingBlock({ it, i, setItem, attach }) {
 function RouteBlock({ it, i, setItem, route, attach }) {
   const edited = Boolean(it.route);
   const issues = routeIssues(route);
+  /**
+   * ЯВНЫЙ ВХОД В ПОДРЯД (правка 22.08, п. 5.6).
+   *
+   * «В Типе производства видны Без изделий, Готовое изделие, Крой, Пошив
+   * и Образцы. Подряд как понятный отдельный сценарий не виден».
+   *
+   * НОВОЙ ЛОГИКИ ЗДЕСЬ НЕТ, и документ требует этого прямо: «после выбора
+   * должен использоваться уже существующий механизм подрядного маршрута».
+   * Кнопка добавляет в маршрут шаг на участке «Подряд» — то же, что человек
+   * сделал бы руками; подрядным его делает `executorForDept`, единственное
+   * правило «участок → исполнитель». Типом производства подряд не становится:
+   * эта плитка убрана 20.08 осознанно, две точки ввода одного решения
+   * однажды разойдутся.
+   */
+  const addOutsourceStep = () => setItem(i, {
+    route: [...route, [emptyStep(OUTSOURCE_DEPT_CODE)]],
+  });
+  const hasOutsource = route.some(
+    (group) => group.some((step) => step.departmentCode === OUTSOURCE_DEPT_CODE
+      || step.executor === 'contractor'),
+  );
 
   /**
    * ТЗ и файлы подрядного шага (девятое поле подрядного этапа, документ 20.08).
@@ -646,6 +723,17 @@ function RouteBlock({ it, i, setItem, route, attach }) {
           renderStageFiles={stageFiles}
         />
         <RouteIssues issues={issues} />
+        {!hasOutsource && (
+          <div className={styles.checkRow}>
+            <Button variant="secondary" size="sm" icon="truck" onClick={addOutsourceStep}>
+              Отдать шаг подрядчику
+            </Button>
+            <span className={styles.subText}>
+              добавит в маршрут участок «Подряд» — дальше работает обычный
+              подрядный этап
+            </span>
+          </div>
+        )}
         {edited && (
           <div className={styles.routeEditorFoot}>
             <Button

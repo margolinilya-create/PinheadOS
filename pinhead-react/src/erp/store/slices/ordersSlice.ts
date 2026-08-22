@@ -331,7 +331,9 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
-    const { items, tz, materials, attachments, ...orderFields } = input;
+    const {
+      items, tz, materials, attachments, notes_list: orderNotes, ...orderFields
+    } = input;
 
     /**
      * Цеха маршрута, которых нет в справочнике `erp_departments`.
@@ -471,6 +473,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
        * приезжает вместе с заказом одной транзакцией.
        */
       materials: materials ?? [],
+      /**
+       * Заметки к заказу (правка 22.08, п. 5.8). Секция уезжает той же
+       * транзакцией, что и заказ: изображения привязываются к строкам заметок
+       * по `note_index`, а строк до вставки не существует.
+       */
+      notes: orderNotes ?? [],
       // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
       tz: tz ?? { documents: [], assignments: [] },
       /**

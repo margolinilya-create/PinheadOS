@@ -499,13 +499,22 @@ interface OrderDraftEnvelope {
   items: DraftItem[];
   /** Лист закупки; в старых черновиках его нет вовсе */
   purchase?: DraftPurchaseRow[];
+  /** Заметки к заказу; в черновиках до 22.08 их нет */
+  notes?: DraftNote[];
   savedAt: string;
+}
+
+/** Заметка к заказу в черновике формы (правка 22.08, п. 5.8) */
+export interface DraftNote {
+  key: string;
+  text: string;
 }
 
 export interface OrderDraft {
   form: DraftForm;
   items: DraftItem[];
   purchase: DraftPurchaseRow[];
+  notes: DraftNote[];
 }
 
 /**
@@ -555,6 +564,9 @@ function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
     purchase: Array.isArray(raw.purchase)
       ? raw.purchase.map((r, i) => ({ ...emptyPurchaseRow(r.key || `p${i}`), ...r }))
       : [],
+    notes: Array.isArray(raw.notes)
+      ? raw.notes.map((n) => ({ ...n, text: n.text ?? '', key: n.key || crypto.randomUUID() }))
+      : [],
   };
 }
 
@@ -562,8 +574,11 @@ export function saveOrderDraft(
   form: DraftForm,
   items: DraftItem[],
   purchase: DraftPurchaseRow[] = [],
+  notes: DraftNote[] = [],
 ): void {
-  storageSet(ORDER_DRAFT_KEY, { form, items, purchase, savedAt: new Date().toISOString() });
+  storageSet(ORDER_DRAFT_KEY, {
+    form, items, purchase, notes, savedAt: new Date().toISOString(),
+  });
 }
 
 export function clearOrderDraft(): void {

@@ -733,7 +733,9 @@ export type ErpAttachmentKind =
    * пп. 5.2–5.3). До неё макеты лежали общей кучей вида `tech` у позиции,
    * и при трёх-четырёх нанесениях цех сам угадывал, какой к какому относится.
    */
-  | 'print' | 'label';
+  | 'print' | 'label'
+  /** Изображение заметки к заказу (правка 22.08, п. 5.8) */
+  | 'note';
 
 export interface ErpOrderAttachment {
   id: string;
@@ -759,6 +761,8 @@ export interface ErpOrderAttachment {
    */
   print_id?: string | null;
   label_id?: string | null;
+  /** Заметка к заказу, которой принадлежит изображение (правка 22.08) */
+  note_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -1535,6 +1539,28 @@ export interface ErpOrderDraft {
   /** Название заказа или № сделки — то, по чему человек узнаёт черновик */
   title: string | null;
   payload: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Заметка к заказу (правка 22.08, п. 5.8).
+ *
+ * То, что НЕЛЬЗЯ разложить по структурным полям: фото фурнитуры, референсы,
+ * пояснения по биркам, нестандартные инструкции. Структурные поля она
+ * не заменяет — документ говорит это прямо, иначе заметки станут свалкой,
+ * из которой цех будет вычитывать ТЗ.
+ *
+ * Принадлежит ЗАКАЗУ, а не позиции. Изображения — вложения с `note_id`
+ * и видом `note`: у каждого своя подпись, поэтому картинка привязана
+ * к конкретной заметке.
+ */
+export interface ErpOrderNote {
+  id: string;
+  order_id: string;
+  seq: number;
+  text: string | null;
+  author: string | null;
   created_at: string;
   updated_at: string;
 }
