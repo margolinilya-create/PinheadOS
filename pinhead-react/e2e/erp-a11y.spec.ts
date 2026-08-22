@@ -30,6 +30,33 @@ test.beforeEach(async ({ page }) => {
   await installSupabaseMock(page);
 });
 
+/**
+ * Переход на экран ERP с ожиданием, что экран СМОНТИРОВАН.
+ *
+ * `page.goto` разрешается по событию `load`, а экраны ERP — ленивые чанки
+ * (`lazyScreen`): оболочка к этому моменту уже нарисована, а самого экрана
+ * ещё нет, на его месте скелетон.
+ *
+ * Проверки Playwright вида `expect(locator)` перепроверяются сами и гонку
+ * переживают. А те, где счёт снимается ОДНИМ вызовом — `await locator.count()`
+ * — видят состояние ровно в этот момент, то есть ноль. Поэтому в CI падали
+ * именно они и только они: «h1 должен быть ровно один» получал 0, «у каждого
+ * видимого поля есть имя» — ноль полей, «тосты объявляются» — ноль `aria-live`.
+ * Такой же природы было падение skip-link: `Tab` нажимался раньше, чем
+ * появлялось, что фокусировать.
+ *
+ * Локально гонка не воспроизводится вовсе — чанк уже в кэше Vite, а машина
+ * быстрее раннера. Поэтому ждать нужно ЯВНО, а не «пока проходит»: тест,
+ * зелёный по случайности, ничего не сторожит.
+ *
+ * Якорь — `h1`: его рисует `PageHead` ВНУТРИ экрана, а не оболочка. Пока его
+ * нет, на странице скелетон.
+ */
+async function gotoScreen(page: Page, url: string) {
+  await page.goto(url);
+  await expect(page.locator('h1')).toBeVisible();
+}
+
 /** Есть ли у элемента видимая рамка фокуса (не `outline: none` без замены) */
 async function hasVisibleFocusRing(page: Page): Promise<boolean> {
   return page.evaluate(() => {
@@ -46,7 +73,7 @@ async function hasVisibleFocusRing(page: Page): Promise<boolean> {
 test.describe('Ориентиры и заголовки', () => {
   for (const screen of SCREENS) {
     test(`${screen.name}: один h1, есть main и nav`, async ({ page }) => {
-      await page.goto(screen.url);
+      await gotoScreen(page, screen.url);
       await expect(page.locator('main')).toHaveCount(1);
       await expect(page.getByRole('navigation').first()).toBeVisible();
       // Ровно один h1 — иначе навигация по заголовкам теряет точку входа
@@ -60,7 +87,7 @@ test.describe('Клавиатура', () => {
   test('skip-link — первая остановка Tab и уводит к содержимому', async ({ page }) => {
     // Сайдбар это 20+ ссылок, и без skip-link клавиатурный пользователь
     // проходил их заново на каждой странице.
-    await page.goto('/orders?studio=0');
+    await gotoScreen(page, '/orders?studio=0');
     await page.keyboard.press('Tab');
     const focused = page.locator(':focus');
     await expect(focused).toHaveText(/Перейти к содержимому/);
@@ -70,7 +97,7 @@ test.describe('Клавиатура', () => {
   });
 
   test('у первых интерактивных элементов виден фокус', async ({ page }) => {
-    await page.goto('/orders?studio=0');
+    await gotoScreen(page, '/orders?studio=0');
     for (let i = 0; i < 6; i += 1) {
       await page.keyboard.press('Tab');
       const tag = await page.evaluate(() => document.activeElement?.tagName ?? '');
@@ -80,7 +107,7 @@ test.describe('Клавиатура', () => {
   });
 
   test('вкладки карточки заказа — полный таб-паттерн', async ({ page }) => {
-    await page.goto('/orders/ord-a?studio=0');
+    await gotoScreen(page, '/orders/ord-a?studio=0');
     const tablist = page.getByRole('tablist', { name: /карточки заказа/i });
     await expect(tablist).toBeVisible();
     const active = page.getByRole('tab', { selected: true });
@@ -95,7 +122,7 @@ test.describe('Клавиатура', () => {
 
   test('группы уведомлений сворачиваются с клавиатуры', async ({ page }) => {
     // Нативный <details> — потому и выбран: работает без единой строки JS
-    await page.goto('/?studio=0');
+    await gotoScreen(page, '/?studio=0');
     const summary = page.locator('details[class*="notifGroup"] summary').first();
     if (await summary.count() === 0) test.skip();
     await summary.focus();
@@ -110,7 +137,7 @@ test.describe('Клавиатура', () => {
 
 test.describe('Формы и объявления', () => {
   test('у каждого видимого поля есть доступное имя', async ({ page }) => {
-    await page.goto('/orders?studio=0');
+    await gotoScreen(page, '/orders?studio=0');
     const inputs = page.locator('input:visible, select:visible');
     const n = await inputs.count();
     expect(n).toBeGreaterThan(0);
@@ -128,14 +155,14 @@ test.describe('Формы и объявления', () => {
   });
 
   test('тосты объявляются вспомогательным технологиям', async ({ page }) => {
-    await page.goto('/orders?studio=0');
+    await gotoScreen(page, '/orders?studio=0');
     const live = page.locator('[aria-live]');
     expect(await live.count()).toBeGreaterThan(0);
     await expect(live.first()).toHaveAttribute('aria-live', /polite|assertive/);
   });
 
   test('у картинок есть alt или роль представления', async ({ page }) => {
-    await page.goto('/orders/ord-a?studio=0');
+    await gotoScreen(page, '/orders/ord-a?studio=0');
     const imgs = page.locator('img');
     const n = await imgs.count();
     for (let i = 0; i < n; i += 1) {

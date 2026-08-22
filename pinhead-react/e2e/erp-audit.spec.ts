@@ -88,15 +88,36 @@ test.describe('Список заказов: страницы, сортировк
     // Доступное имя кнопки — ТЕКСТ колонки: `title` его не задаёт, а лишь
     // дополняет. Стрелка помечена aria-hidden и в имя не входит.
     const byTitle = page.getByRole('button', { name: 'Заказ', exact: true });
+    const header = page.getByRole('columnheader', { name: /Заказ/ });
+
+    /**
+     * После КАЖДОГО клика ждём не только адрес, но и `aria-sort` — то есть
+     * перерисовку. Иначе тест гоняет состояние быстрее, чем оно доезжает
+     * до разметки.
+     *
+     * Почему это не педантизм. Состояние сортировки выводится ИЗ АДРЕСА
+     * (`searchParams.get('sort')`), а обработчик кнопки считает следующий шаг
+     * от значений СВОЕГО рендера. `setSearchParams` меняет адрес раньше, чем
+     * React успевает перерисовать заголовок, и между этими двумя моментами
+     * кнопка ещё несёт обработчик из прошлого рендера. Клик в это окно
+     * вычисляет шаг от устаревшего направления: на третьем клике вместо
+     * «снять сортировку» получалось снова «по убыванию», адрес не менялся.
+     *
+     * Локально окно ничтожно и не воспроизводится, в CI на медленном раннере
+     * тест падал стабильно — с 21.08, ровно на этой строке.
+     */
     await byTitle.click();
     await expect(page).toHaveURL(/sort=title/);
-    await expect(page.getByRole('columnheader', { name: /Заказ/ })).toHaveAttribute('aria-sort', 'ascending');
+    await expect(header).toHaveAttribute('aria-sort', 'ascending');
 
     // Второй клик — по убыванию, третий снимает сортировку
     await byTitle.click();
     await expect(page).toHaveURL(/dir=desc/);
+    await expect(header).toHaveAttribute('aria-sort', 'descending');
+
     await byTitle.click();
     await expect(page).not.toHaveURL(/sort=/);
+    await expect(header).toHaveAttribute('aria-sort', 'none');
   });
 
   test('пагинация показывает общее число записей', async ({ page }) => {
