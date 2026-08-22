@@ -265,21 +265,36 @@ test.describe('Экран разработки: состояния считаю�
   });
 });
 
+/**
+ * Карточка разработки — СТРАНИЦА, а не боковая шторка (правка заказчика
+ * 22.08, п. 4.11): «для такого количества информации это неудобно».
+ * Поэтому здесь больше нет `getByRole('dialog')` — содержимое живёт
+ * прямо на странице `/experimental/<id>`.
+ */
 test.describe('Карточка разработки', () => {
-  test('открывается в адресе и показывает блокер и следующее действие', async ({ page }) => {
+  test('открывается страницей и показывает блокер и следующее действие', async ({ page }) => {
     await page.goto('/experimental?studio=0&view=list');
     await page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' }).click();
 
-    await expect(page).toHaveURL(/dev=dev-block/);
-    const drawer = page.getByRole('dialog');
-    await expect(drawer).toContainText('Текущий блокер');
-    await expect(drawer).toContainText('нет решения по цвету подкладки');
-    await expect(drawer).toContainText('Следующее действие');
+    await expect(page).toHaveURL(/\/experimental\/dev-block/);
+    const card = page.getByRole('main');
+    await expect(card).toContainText('Текущий блокер');
+    await expect(card).toContainText('нет решения по цвету подкладки');
+    await expect(card).toContainText('Следующее действие');
+  });
+
+  /**
+   * Ссылки на шторку живут в переписке и закладках — молча показать список
+   * вместо запрошенной карточки значит потерять человека на ровном месте.
+   */
+  test('старая ссылка ?dev= переадресует на страницу', async ({ page }) => {
+    await page.goto('/experimental?studio=0&dev=dev-work');
+    await expect(page).toHaveURL(/\/experimental\/dev-work/);
   });
 
   test('задача, отданная в цех, — только на чтение: её статус ведёт триггер', async ({ page }) => {
-    await page.goto('/experimental?studio=0&dev=dev-work');
-    const drawer = page.getByRole('dialog');
+    await page.goto('/experimental/dev-work?studio=0');
+    const drawer = page.getByRole('main');
     const delegated = drawer.getByRole('row').filter({ hasText: 'Нанесение образца' });
 
     await expect(delegated).toContainText('Передано в цех: ДТФ');
@@ -297,8 +312,8 @@ test.describe('Карточка разработки', () => {
   });
 
   test('повторная примерка — новая задача со своим кругом, а не счётчик', async ({ page }) => {
-    await page.goto('/experimental?studio=0&dev=dev-fit');
-    const drawer = page.getByRole('dialog');
+    await page.goto('/experimental/dev-fit?studio=0');
+    const drawer = page.getByRole('main');
     await expect(
       drawer.getByRole('row').filter({ hasText: 'Повторная примерка' }),
     ).toContainText('круг 2');
@@ -313,8 +328,8 @@ test.describe('Карточка разработки', () => {
      * «Примерка не принята» заводила жёсткую тройку задач независимо
      * от причины — вышивку перезапускали из-за длины рукава.
      */
-    await page.goto('/experimental?studio=0&dev=dev-fit');
-    const drawer = page.getByRole('dialog');
+    await page.goto('/experimental/dev-fit?studio=0');
+    const drawer = page.getByRole('main');
     await drawer.getByRole('button', { name: 'Требуется доработка' }).click();
 
     await drawer.getByRole('checkbox', { name: 'Лекала' }).check();
@@ -327,8 +342,8 @@ test.describe('Карточка разработки', () => {
   });
 
   test('закрытая разработка не предлагает действий — хранится только исход', async ({ page }) => {
-    await page.goto('/experimental?studio=0&dev=dev-ready');
-    const drawer = page.getByRole('dialog');
+    await page.goto('/experimental/dev-ready?studio=0');
+    const drawer = page.getByRole('main');
 
     await expect(drawer).toContainText('Готово к серии');
     await expect(drawer).toContainText('лекала утверждены');
@@ -339,8 +354,8 @@ test.describe('Карточка разработки', () => {
 
   test('«Готово к серии» честно говорит, что заказ на серию заводит менеджер',
     async ({ page }) => {
-      await page.goto('/experimental?studio=0&dev=dev-work');
-      const drawer = page.getByRole('dialog');
+      await page.goto('/experimental/dev-work?studio=0');
+      const drawer = page.getByRole('main');
       await expect(drawer).toContainText('заказ на серию заводит менеджер');
     });
 });
@@ -419,8 +434,8 @@ test.describe('Финальный технический пакет', () => {
      * данные не заполнены… система должна показать, какие поля ещё
      * не заполнены». Гейт кнопки — зеркало серверного стража.
      */
-    await page.goto('/experimental?studio=0&dev=dev-work');
-    const drawer = page.getByRole('dialog');
+    await page.goto('/experimental/dev-work?studio=0');
+    const drawer = page.getByRole('main');
     await expect(drawer).toContainText('Не хватает для «Готово к серии»');
     await expect(drawer).toContainText('Техническое название лекал');
     await expect(drawer).toContainText('Фото образца');

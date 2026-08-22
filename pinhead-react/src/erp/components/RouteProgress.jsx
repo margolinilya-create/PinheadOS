@@ -85,7 +85,10 @@ export function RouteProgress({
               key={stage.id}
               className={`${styles.routeRow} ${stage.id === currentStageId ? styles.routeRowCurrent : ''}`}
             >
-              <span className={styles.routeName}>
+              <span
+                className={styles.routeName}
+                title={stageLabel(stage, dept ? deptShortName(dept.code, dept.name) : '—')}
+              >
                 {/*
                   Подрядный шаг называется ОПЕРАЦИЕЙ, а не участком: цех здесь
                   означает лишь участок ответственности, а человек читает
@@ -136,7 +139,7 @@ export function RouteProgress({
           </span>
         </li>
         <li className={`${styles.routeRow} ${styles.routeRowFinal}`}>
-          <span className={styles.routeName}>
+          <span className={styles.routeName} title={`Приёмка на складе Pinhead · ${wh.label}`}>
             Приёмка на складе Pinhead
             <span className={styles.subText}> · {wh.label}</span>
           </span>
