@@ -19,7 +19,9 @@ import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
   DEV_STAGE_LABELS, cuttingGate, cuttingWaitLabel, devBoardColumn, devStageStates,
+  devStageOfTask, extraTasks,
 } from '../../utils/experimentalBoard';
+import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
@@ -166,6 +168,16 @@ export function DevCard({
   });
   const currentStage = devBoardColumn(stageStates, dev);
   /**
+   * Разделение задач на две группы (п. 4.6): «если внутри разработки создана
+   * задача Доработать рукав, на общей доске не должна появляться отдельная
+   * колонка Доработать рукав». Отбор один — `devStageOfTask`, та же таблица
+   * соответствий, по которой доска считает колонки.
+   */
+  // Без useMemo: обход одного короткого массива, а `tasks` пересобирается
+  // на каждый рендер (`dev.tasks ?? []`) — мемоизация тут только мешает
+  const extra = extraTasks(tasks);
+  const stageTaskList = tasks.filter((t) => devStageOfTask(t.task_type) !== null);
+  /**
    * Статус материалов — обязательный пункт карточки по документу 20.08.
    * Считается ТЕМ ЖЕ гейтом кроя, что и доска: «крой можно начать только когда
    * лекала готовы И материалы физически приняты складом». Второй ответ на тот
@@ -187,9 +199,59 @@ export function DevCard({
   /** Задача, для которой открыта форма передачи в цех */
   const [sendFor, setSendFor] = useState(null);
 
-  /** Добавление задачи + необязательная связь с уже существующими */
+  /**
+   * ЗАВЕРШЕНИЕ ЗАДАЧИ «ПОСТРОЕНИЕ ЛЕКАЛ» ТРЕБУЕТ РЕЗУЛЬТАТА (правка 22.08,
+   * п. 4.13). «Сейчас задачу Построение лекал можно завершить без
+   * зафиксированного результата. При завершении сделать обязательным поле
+   * Техническое название лекал».
+   *
+   * И ТУТ ЖЕ РЕШАЕТСЯ П. 4.14: введённое название пишется прямо
+   * в `erp_experimental.pattern_tech_name` — то самое поле, которое читает
+   * финальный технический пакет и проверяет страж `erp_dev_package_guard`.
+   * Отдельного «переноса» не существует, потому что колонка одна: два поля
+   * с одним смыслом разошлись бы в первую же правку.
+   *
+   * Обёртка стоит здесь, а не в `DevTasksSection`: та ничего не знает
+   * о разработке, а название принадлежит именно ей.
+   */
+  const updateTask = async (taskId, patch) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const closingPatterns = patch.status === 'done'
+      && task?.task_type === 'patterns'
+      && !dev.pattern_tech_name?.trim();
+    if (closingPatterns) {
+      const { ok, value } = await confirmWithInput({
+        title: 'Чем закончилось построение лекал?',
+        message: 'Название попадёт в финальный технический пакет — вводить его второй раз не придётся.',
+        confirmLabel: 'Завершить',
+        prompt: {
+          label: 'Техническое название лекал',
+          placeholder: 'PNHD-T04-FreeFit-v1',
+          required: true,
+        },
+      });
+      if (!ok) return null;
+      const saved = await onUpdate(dev.id, { pattern_tech_name: value.trim() });
+      // Название — условие завершения, а не довесок: не записалось — задача
+      // остаётся открытой, иначе результат потеряется молча
+      if (saved === false) return null;
+    }
+    return onUpdateTask(taskId, patch);
+  };
+
+  /**
+   * Добавление задачи + необязательная связь с уже существующими.
+   *
+   * Ответственный по умолчанию — проработчик разработки (п. 4.16: «не нужно
+   * заставлять пользователя повторно выбирать одного и того же технолога
+   * в каждой микро-задаче»). Явно указанный в форме сильнее.
+   */
   const addTasks = async (rows, dependsOnIds = []) => {
-    const created = await onAddTasks(rows);
+    const withOwner = rows.map((r) => ({
+      ...r,
+      responsible: r.responsible?.trim() || dev.technologist || null,
+    }));
+    const created = await onAddTasks(withOwner);
     if (created && created.length > 0 && dependsOnIds.length > 0) {
       await onUpdateTask(created[0].id, { depends_on: dependsOnIds });
     }
@@ -428,15 +490,59 @@ export function DevCard({
           </label>
         </div>
 
-        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>Задачи разработки</h3>
-        <DevTasksSection
+        {/*
+          ДВА БЛОКА, А НЕ ОДИН СПИСОК (правка 22.08, п. 4.7). Верхний двигает
+          разработку по канбану, нижний — внутренний список работ технолога.
+          Раньше они лежали вперемешку, и понять, какая задача что делает,
+          было нельзя: отсюда и ощущение, что доска спорит со списком.
+        */}
+        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+          Основной маршрут разработки
+        </h3>
+        <p className={styles.subText}>
+          Эти этапы двигают разработку по доске. Состояние считается из задач —
+          перетаскивать карточку не нужно.
+        </p>
+        <DevStageRoute
+          states={stageStates}
+          currentStage={currentStage}
           tasks={tasks}
           typeNames={typeNames}
+          onUpdateTask={updateTask}
+          canManage={canManage}
+        />
+
+        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+          Задачи этапов
+        </h3>
+        <DevTasksSection
+          tasks={stageTaskList}
+          allTasks={tasks}
+          typeNames={typeNames}
           deptNames={deptNames}
-          onUpdate={onUpdateTask}
+          onUpdate={updateTask}
           onSend={sendTask}
           onBlock={blockTask}
           canManage={canManage}
+        />
+
+        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+          Дополнительные задачи
+        </h3>
+        <p className={styles.subText}>
+          Внутренние работы технолога: доработать рукав, подобрать ткань,
+          проверить молнию. Колонок на доске они не создают.
+        </p>
+        <DevTasksSection
+          tasks={extra}
+          allTasks={tasks}
+          typeNames={typeNames}
+          deptNames={deptNames}
+          onUpdate={updateTask}
+          onSend={sendTask}
+          onBlock={blockTask}
+          canManage={canManage}
+          emptyText="Дополнительных задач нет — добавьте, если нужна работа вне основных этапов."
         />
 
         {sendFor && (

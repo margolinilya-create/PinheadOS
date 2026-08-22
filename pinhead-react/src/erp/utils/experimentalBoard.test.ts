@@ -6,9 +6,11 @@ import {
   cuttingWaitLabel,
   devBoardColumn,
   devStageOfTask,
+  devStageAction,
   devStageQueue,
   devStageStates,
   experimentalEntries,
+  extraTasks,
 } from './experimentalBoard';
 
 /**
@@ -245,5 +247,67 @@ describe('внутренние очереди ЭКС', () => {
       { stage: { id: 's3' } },
     ];
     expect(experimentalEntries(entries).map((e) => e.stage.id)).toEqual(['s1']);
+  });
+});
+
+/**
+ * ДОПОЛНИТЕЛЬНЫЕ ЗАДАЧИ НЕ ЯВЛЯЮТСЯ ЭТАПАМИ КАНБАНА (правка 22.08, п. 4.6).
+ *
+ * «Если внутри разработки создана задача Доработать рукав, на общей доске
+ * не должна появляться отдельная колонка Доработать рукав». Отбор один
+ * на карточку и на доску — та же таблица соответствий `devStageOfTask`.
+ */
+describe('дополнительные задачи', () => {
+  it('вне шагов остаются доработка, примерка, материалы и незнакомые типы', () => {
+    const list = [
+      task({ id: 'p', task_type: 'patterns' }),
+      task({ id: 'r', task_type: 'rework' }),
+      task({ id: 'f', task_type: 'fitting' }),
+      task({ id: 'm', task_type: 'material' }),
+      task({ id: 'x', task_type: 'Сублимация на молнии' }),
+      task({ id: 'dtg', task_type: 'dtg' }),
+    ];
+    expect(extraTasks(list).map((t) => t.id)).toEqual(['r', 'f', 'm', 'x']);
+  });
+
+  it('пустой ввод не роняет — карточка зовёт это до загрузки', () => {
+    expect(extraTasks(null)).toEqual([]);
+  });
+});
+
+/**
+ * ДЕЙСТВИЕ КЛЮЧЕВОГО ЭТАПА (пп. 4.3, 4.12) — НЕ ВТОРАЯ МЕХАНИКА.
+ * Функция читает уже посчитанное состояние шага и только называет действие;
+ * гейты, зависимости и статусы считает `devStageStates`, та же, что доска.
+ */
+describe('devStageAction', () => {
+  const stateOf = (over: Partial<ReturnType<typeof devStageStates>[number]>) => ({
+    stage: 'cutting' as const, lane: 'ready' as const, tasks: [task({ id: 'a' })],
+    waitingReason: null, ...over,
+  });
+
+  it('готовый этап предлагает начать работу', () => {
+    expect(devStageAction(stateOf({})).key).toBe('start');
+  });
+
+  it('этап в работе предлагает завершить', () => {
+    expect(devStageAction(stateOf({ lane: 'in_progress' })).key).toBe('complete');
+  });
+
+  it('ожидание объясняется причиной, а не кнопкой', () => {
+    const a = devStageAction(stateOf({ lane: 'waiting', waitingReason: 'Ожидает лекала' }));
+    expect(a.key).toBeNull();
+    expect(a.reason).toBe('Ожидает лекала');
+  });
+
+  it('пустой этап завершать нечем — сначала нужна работа', () => {
+    const a = devStageAction(stateOf({ tasks: [] }));
+    expect(a.key).toBeNull();
+    expect(a.reason).toMatch(/Задач этапа нет/);
+  });
+
+  it('закрытый и пропущенный шаги действий не предлагают', () => {
+    expect(devStageAction(stateOf({ lane: 'done' })).key).toBeNull();
+    expect(devStageAction(stateOf({ lane: 'skipped' })).key).toBeNull();
   });
 });

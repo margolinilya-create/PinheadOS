@@ -34,12 +34,24 @@ export const SCREEN_ACCESS: Record<string, ErpPermission[]> = {
  *
  * Незнакомый путь открыт: гейт разделов перечисляет ИСКЛЮЧЕНИЯ, а не выдаёт
  * доступ. Иначе новый экран, забытый в этом списке, молча пропал бы у всех.
+ *
+ * СРАВНЕНИЕ ИДЁТ ПО ПЕРВОМУ СЕГМЕНТУ, а не по строке целиком (правка 22.08).
+ * Точное совпадение работало, пока у разделов не было вложенных страниц:
+ * карточка разработки переехала со шторки `?dev=` на страницу
+ * `/experimental/<uuid>` — и при точном сравнении этот путь оказался бы
+ * НЕЗНАКОМЫМ, то есть открытым всем, включая цех без права
+ * `experimental.manage`. Ровно тем же рассуждением вид раздела в своё время
+ * увели в query-параметр; теперь причина устранена в самом гейте.
+ *
+ * Раздел без своих подстраниц от этого не меняется: у `/warehouse` первый
+ * сегмент тот же самый.
  */
 export function canOpenScreen(
   can: (p: ErpPermission) => boolean,
   path: string,
 ): boolean {
-  const needed = SCREEN_ACCESS[path];
+  const root = `/${path.split('/').filter(Boolean)[0] ?? ''}`;
+  const needed = SCREEN_ACCESS[path] ?? SCREEN_ACCESS[root];
   if (!needed) return true;
   return needed.some((p) => can(p));
 }

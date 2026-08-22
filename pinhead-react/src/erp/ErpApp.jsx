@@ -36,6 +36,7 @@ const PurchaseListPrint = lazyScreen(() => import('./screens/purchasing/Purchase
 const Warehouse = lazyScreen(() => import('./screens/Warehouse'));
 const Subcontracting = lazyScreen(() => import('./screens/Subcontracting'));
 const Experimental = lazyScreen(() => import('./screens/Experimental'));
+const DevPage = lazyScreen(() => import('./screens/DevPage'));
 const DeptLoad = lazyScreen(() => import('./screens/DeptLoad'));
 const PlanScreen = lazyScreen(() => import('./screens/PlanScreen'));
 // Витрина дизайн-системы — за флагом `styleguide`, отдельным чанком.
@@ -154,6 +155,14 @@ export default function ErpApp({ user }) {
           <Route path="/warehouse" element={<ErpGuard allowed={canOpen('/warehouse')}><Warehouse /></ErpGuard>} />
           <Route path="/subcontracting" element={<ErpGuard allowed={canOpen('/subcontracting')}><Subcontracting /></ErpGuard>} />
           <Route path="/experimental" element={<ErpGuard allowed={canOpen('/experimental')}><Experimental /></ErpGuard>} />
+          {/* Карточка разработки — СТРАНИЦА, а не шторка (правка 22.08, п. 4.11).
+              Гейт тот же, что у раздела: `canOpenScreen` сравнивает первый
+              сегмент пути, иначе подстраница была бы «незнакомым путём»,
+              то есть открытой всем */}
+          <Route
+            path="/experimental/:devId"
+            element={<ErpGuard allowed={canOpen('/experimental')}><DevPage /></ErpGuard>}
+          />
           {/* Инструмент разработки, не раздел ERP: в меню нет, по умолчанию выключен */}
           {FEATURES.styleguide && <Route path="/styleguide" element={<StyleGuide />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
