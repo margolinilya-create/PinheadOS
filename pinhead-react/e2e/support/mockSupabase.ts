@@ -577,9 +577,47 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
  * Ставит все перехватчики Supabase на страницу. Вызывать в beforeEach ДО goto.
  */
 export async function installSupabaseMock(page: Page, extra: MockExtras = {}): Promise<void> {
-  // Realtime websocket — глушим, чтобы не коннектиться к реальному серверу.
-  await page.routeWebSocket(/realtime/, () => {
-    /* mock-режим: к серверу не подключаемся, событий нет */
+  /**
+   * Realtime websocket — к реальному серверу не подключаемся, но ОТВЕЧАЕМ.
+   *
+   * Раньше здесь стояла пустая заглушка: сокет открыт, а на `phx_join` никто
+   * не отвечает. supabase-js ждёт ответа и по таймауту отдаёт `TIMED_OUT` —
+   * то есть в КАЖДОМ e2e-прогоне приложение считало себя отключённым, и с
+   * 22.08 (когда появился `StaleDataBar`) на каждом экране ERP висела полоса
+   * «Связь с сервером потеряна». Именно она и уронила восемь визуальных
+   * эталонов: они снимались до её появления.
+   *
+   * Узаконить полосу перегенерацией эталонов было бы хуже, чем ничего:
+   * это ИНДИКАТОР ОТКАЗА, и сделав его нормой, визуальный сторож навсегда
+   * перестал бы замечать «приложение всегда считает себя офлайн».
+   *
+   * Отвечаем минимальным Phoenix-ответом. Этого достаточно по построению
+   * `RealtimeChannel.subscribe`: если в ответе нет `postgres_changes`,
+   * клиент сразу переходит в `SUBSCRIBED`. Тем же ответом гасятся
+   * heartbeat-сообщения — без них сокет закрылся бы по своему таймауту.
+   * Событий по-прежнему нет: фикстуры статичны, реалтайм в спеках не проверяется.
+   */
+  await page.routeWebSocket(/realtime/, (ws) => {
+    ws.onMessage((raw) => {
+      let frame: unknown;
+      try {
+        frame = JSON.parse(String(raw));
+      } catch {
+        return; // не Phoenix-кадр — молчим
+      }
+      /**
+       * Формат кадра — МАССИВ `[join_ref, ref, topic, event, payload]`
+       * (сериализатор Phoenix v2), а не объект. Ответ обязан нести те же
+       * `join_ref`, `ref` и `topic`, иначе клиент не сопоставит его с запросом
+       * и будет перезаходить в канал по кругу — что и происходило, пока
+       * ответ отправлялся объектом.
+       */
+      if (!Array.isArray(frame)) return;
+      const [joinRef, ref, topic] = frame as [string, string, string, string, unknown];
+      ws.send(JSON.stringify([
+        joinRef, ref, topic, 'phx_reply', { status: 'ok', response: {} },
+      ]));
+    });
   });
 
   // Auth — заглушка (dev-автологин выставляет пользователя без сети).
