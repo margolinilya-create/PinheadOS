@@ -1,0 +1,1203 @@
+{
+  "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
+  "project": "pinhead-os-v2",
+  "capturedAt": "2026-08-22",
+  "preJournalFiles": [
+    "20260101000000_baseline_order_studio.sql",
+    "20260101000100_order_templates.sql",
+    "20260320_order_audit_log.sql",
+    "20260410120000_soft_delete_profiles.sql"
+  ],
+  "preJournalNote": "Базовая схема Order Studio: применена до того, как завели журнал (первая его запись — 20260415202746). Файлы есть, записей в журнале нет и не будет.",
+  "migrations": [
+    {
+      "version": "20260415202746",
+      "name": "20260530_hr_role_and_payroll_close",
+      "files": [
+        "20260415202746_hr_role_and_payroll_close.sql"
+      ],
+      "note": "имя в журнале несёт другую дату"
+    },
+    {
+      "version": "20260511165444",
+      "name": "copy_catalog_config_extras_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165515",
+      "name": "copy_catalog_config_fabrics_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165527",
+      "name": "copy_catalog_config_labels_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165544",
+      "name": "copy_catalog_config_prices_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165554",
+      "name": "copy_catalog_config_trim_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165613",
+      "name": "copy_catalog_config_fabricsCatalog_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165700",
+      "name": "copy_app_config_extras_hardware_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165915",
+      "name": "copy_app_config_sku_catalog_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511170014",
+      "name": "create_sku_photos_bucket_and_policies",
+      "files": [
+        "20260511170014_create_sku_photos_bucket_and_policies.sql"
+      ]
+    },
+    {
+      "version": "20260511170055",
+      "name": "temp_anon_write_sku_photos",
+      "files": [],
+      "noFile": true,
+      "note": "временная политика записи для anon, снята следующей же миграцией"
+    },
+    {
+      "version": "20260511170125",
+      "name": "drop_temp_anon_write_sku_photos",
+      "files": [],
+      "noFile": true,
+      "note": "снятие той временной политики"
+    },
+    {
+      "version": "20260515104159",
+      "name": "20260515_security_hardening_post_cutover",
+      "files": [
+        "20260515104159_security_hardening_post_cutover.sql"
+      ],
+      "note": "имя в журнале несёт другую дату"
+    },
+    {
+      "version": "20260515104329",
+      "name": "20260515_revoke_anon_from_rls_helpers",
+      "files": [
+        "20260515104329_revoke_anon_from_rls_helpers.sql"
+      ],
+      "note": "имя в журнале несёт другую дату"
+    },
+    {
+      "version": "20260716201440",
+      "name": "drop_legacy_erp_redesign_v2",
+      "files": [
+        "20260716120000_drop_legacy_erp_redesign_v2.sql"
+      ]
+    },
+    {
+      "version": "20260716203545",
+      "name": "erp_phase1_core_schema",
+      "files": [
+        "20260716140000_erp_phase1_core_schema.sql"
+      ]
+    },
+    {
+      "version": "20260716210757",
+      "name": "erp_drop_department_capacity",
+      "files": [
+        "20260716170000_erp_drop_department_capacity.sql"
+      ]
+    },
+    {
+      "version": "20260716214149",
+      "name": "erp_employees_and_stage_events",
+      "files": [
+        "20260716200000_erp_employees_and_stage_events.sql"
+      ]
+    },
+    {
+      "version": "20260717043231",
+      "name": "erp_order_audit_and_comments",
+      "files": [
+        "20260717090000_erp_order_audit_and_comments.sql"
+      ]
+    },
+    {
+      "version": "20260717045413",
+      "name": "erp_attachments",
+      "files": [
+        "20260717110000_erp_attachments.sql"
+      ]
+    },
+    {
+      "version": "20260717050725",
+      "name": "erp_employees_profile_unique",
+      "files": [
+        "20260717130000_erp_employees_profile_unique.sql"
+      ]
+    },
+    {
+      "version": "20260717061539",
+      "name": "erp_tz_fields",
+      "files": [
+        "20260717150000_erp_tz_fields.sql"
+      ]
+    },
+    {
+      "version": "20260717081011",
+      "name": "erp_stage_qty_done",
+      "files": [
+        "20260717170000_erp_stage_qty_done.sql"
+      ]
+    },
+    {
+      "version": "20260717101803",
+      "name": "erp_create_order_rpc",
+      "files": [
+        "20260717190000_erp_create_order_rpc.sql"
+      ]
+    },
+    {
+      "version": "20260717110902",
+      "name": "erp_order_shipping",
+      "files": [
+        "20260718090000_erp_order_shipping.sql"
+      ]
+    },
+    {
+      "version": "20260717153436",
+      "name": "erp_stage_plan_audit",
+      "files": [
+        "20260718100000_erp_stage_plan_audit.sql"
+      ]
+    },
+    {
+      "version": "20260719130024",
+      "name": "erp_procurement_tasks",
+      "files": [
+        "20260719120000_erp_procurement_tasks.sql"
+      ]
+    },
+    {
+      "version": "20260719130910",
+      "name": "erp_material_reserved",
+      "files": [
+        "20260719130000_erp_material_reserved.sql"
+      ]
+    },
+    {
+      "version": "20260719131613",
+      "name": "erp_subcontracting",
+      "files": [
+        "20260719140000_erp_subcontracting.sql"
+      ]
+    },
+    {
+      "version": "20260720060433",
+      "name": "erp_procurement_derive_trigger",
+      "files": [
+        "20260720120000_erp_procurement_derive_trigger.sql"
+      ]
+    },
+    {
+      "version": "20260720070514",
+      "name": "erp_procurement_rls_roles",
+      "files": [
+        "20260720130000_erp_procurement_rls_roles.sql"
+      ]
+    },
+    {
+      "version": "20260720181952",
+      "name": "erp_subcontracting_types",
+      "files": [
+        "20260721120000_erp_subcontracting_types.sql"
+      ]
+    },
+    {
+      "version": "20260720183511",
+      "name": "erp_material_acceptance",
+      "files": [
+        "20260721130000_erp_material_acceptance.sql"
+      ]
+    },
+    {
+      "version": "20260720183521",
+      "name": "erp_warehouse_ops",
+      "files": [
+        "20260721140000_erp_warehouse_ops.sql"
+      ]
+    },
+    {
+      "version": "20260720185801",
+      "name": "erp_stage_overdue_ack",
+      "files": [
+        "20260721150000_erp_stage_overdue_ack.sql"
+      ]
+    },
+    {
+      "version": "20260720190709",
+      "name": "erp_experimental",
+      "files": [
+        "20260721160000_erp_experimental.sql"
+      ]
+    },
+    {
+      "version": "20260720190721",
+      "name": "erp_experimental_ops",
+      "files": [
+        "20260721170000_erp_experimental_ops.sql"
+      ]
+    },
+    {
+      "version": "20260720193812",
+      "name": "erp_realtime_publication",
+      "files": [
+        "20260721180000_erp_realtime_publication.sql"
+      ]
+    },
+    {
+      "version": "20260721094256",
+      "name": "erp_warehouse_tasks",
+      "files": [
+        "20260722120000_erp_warehouse_tasks.sql"
+      ]
+    },
+    {
+      "version": "20260721094308",
+      "name": "erp_warehouse_task_derive",
+      "files": [
+        "20260722130000_erp_warehouse_task_derive.sql"
+      ]
+    },
+    {
+      "version": "20260721095936",
+      "name": "erp_subcontract_at_creation",
+      "files": [
+        "20260722140000_erp_subcontract_at_creation.sql"
+      ]
+    },
+    {
+      "version": "20260721095959",
+      "name": "erp_create_order_subcontract",
+      "files": [
+        "20260722150000_erp_create_order_subcontract.sql"
+      ]
+    },
+    {
+      "version": "20260722135031",
+      "name": "erp_material_article_fact",
+      "files": [
+        "20260722160000_erp_material_article_fact.sql"
+      ]
+    },
+    {
+      "version": "20260722135045",
+      "name": "erp_warehouse_subcontract_receipt",
+      "files": [
+        "20260722170000_erp_warehouse_subcontract_receipt.sql"
+      ]
+    },
+    {
+      "version": "20260722215209",
+      "name": "security_authz_hardening",
+      "files": [
+        "20260722215209_security_authz_hardening.sql"
+      ]
+    },
+    {
+      "version": "20260722215558",
+      "name": "security_onboarding_pending_profile",
+      "files": [
+        "20260722215558_security_onboarding_pending_profile.sql"
+      ]
+    },
+    {
+      "version": "20260722215651",
+      "name": "security_predicate_revoke_anon",
+      "files": [
+        "20260722215651_security_predicate_revoke_anon.sql"
+      ]
+    },
+    {
+      "version": "20260727151924",
+      "name": "erp_stage_queue_and_customer",
+      "files": [
+        "20260727120000_erp_stage_queue_and_customer.sql"
+      ]
+    },
+    {
+      "version": "20260727151937",
+      "name": "erp_role_permissions",
+      "files": [
+        "20260727130000_erp_role_permissions.sql"
+      ]
+    },
+    {
+      "version": "20260727162142",
+      "name": "erp_dictionaries",
+      "files": [
+        "20260727150000_erp_dictionaries.sql"
+      ]
+    },
+    {
+      "version": "20260727170539",
+      "name": "erp_material_suppliers",
+      "files": [
+        "20260727170000_erp_material_suppliers.sql"
+      ]
+    },
+    {
+      "version": "20260727172030",
+      "name": "erp_tz_documents",
+      "files": [
+        "20260727190000_erp_tz_documents.sql"
+      ]
+    },
+    {
+      "version": "20260727172100",
+      "name": "erp_create_order_tz",
+      "files": [
+        "20260727190000_erp_tz_documents.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260727182156",
+      "name": "erp_material_suppliers_rls",
+      "files": [
+        "20260727200000_erp_material_suppliers_rls.sql"
+      ]
+    },
+    {
+      "version": "20260727184343",
+      "name": "erp_departments_is_production",
+      "files": [
+        "20260727210000_erp_departments_is_production.sql"
+      ]
+    },
+    {
+      "version": "20260727184917",
+      "name": "fk_indexes",
+      "files": [
+        "20260727220000_fk_indexes.sql"
+      ]
+    },
+    {
+      "version": "20260727185154",
+      "name": "orderstudio_rls_perf",
+      "files": [
+        "20260727230000_orderstudio_rls_perf.sql"
+      ]
+    },
+    {
+      "version": "20260729071216",
+      "name": "is_admin_respects_soft_delete",
+      "files": [
+        "20260729100000_is_admin_respects_soft_delete.sql"
+      ]
+    },
+    {
+      "version": "20260729071508",
+      "name": "close_read_policies_true",
+      "files": [
+        "20260729110000_close_read_policies_true.sql"
+      ]
+    },
+    {
+      "version": "20260729071635",
+      "name": "storage_policies_and_limits",
+      "files": [
+        "20260729120000_storage_policies_and_limits.sql"
+      ]
+    },
+    {
+      "version": "20260803104926",
+      "name": "erp_material_gate_and_receive",
+      "files": [
+        "20260803120000_erp_material_gate_and_receive.sql"
+      ]
+    },
+    {
+      "version": "20260803105240",
+      "name": "erp_production_planning",
+      "files": [
+        "20260803140000_erp_production_planning.sql"
+      ]
+    },
+    {
+      "version": "20260803114209",
+      "name": "erp_permissions_server_side",
+      "files": [
+        "20260803160000_erp_permissions_server_side.sql"
+      ]
+    },
+    {
+      "version": "20260803114300",
+      "name": "erp_calendar_guard_service_role_bypass",
+      "files": [
+        "20260803160000_erp_permissions_server_side.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260803121814",
+      "name": "erp_stage_guard",
+      "files": [
+        "20260803180000_erp_stage_guard.sql"
+      ]
+    },
+    {
+      "version": "20260803133541",
+      "name": "erp_calendar_upsert_fix",
+      "files": [
+        "20260803200000_erp_calendar_upsert_fix.sql"
+      ]
+    },
+    {
+      "version": "20260803142632",
+      "name": "erp_material_guard",
+      "files": [
+        "20260803220000_erp_material_guard.sql"
+      ]
+    },
+    {
+      "version": "20260803143213",
+      "name": "erp_stage_guard_planned_dates",
+      "files": [
+        "20260803230000_erp_stage_guard_planned_dates.sql"
+      ]
+    },
+    {
+      "version": "20260803143905",
+      "name": "erp_audit_by_trigger",
+      "files": [
+        "20260803240000_erp_audit_by_trigger.sql"
+      ]
+    },
+    {
+      "version": "20260803150610",
+      "name": "erp_revoke_trigger_functions",
+      "files": [
+        "20260803250000_erp_revoke_trigger_functions.sql"
+      ]
+    },
+    {
+      "version": "20260803150825",
+      "name": "erp_revoke_trigger_functions_rest",
+      "files": [
+        "20260803250000_erp_revoke_trigger_functions.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260803150930",
+      "name": "erp_stage_events_actor_index",
+      "files": [
+        "20260803240000_erp_audit_by_trigger.sql"
+      ],
+      "note": "индекс erp_stage_events_actor_idx заведён там же"
+    },
+    {
+      "version": "20260803161027",
+      "name": "erp_order_summary",
+      "files": [],
+      "noFile": true,
+      "note": "представление erp_order_summary заведено…"
+    },
+    {
+      "version": "20260803161312",
+      "name": "erp_order_summary_drop_unused",
+      "files": [],
+      "noFile": true,
+      "note": "…и снято следом: потребителя не нашлось. Итог — пусто"
+    },
+    {
+      "version": "20260803170404",
+      "name": "erp_orders_is_demo",
+      "files": [
+        "20260803260000_erp_orders_is_demo.sql"
+      ]
+    },
+    {
+      "version": "20260803173639",
+      "name": "erp_bootstrap_rpc",
+      "files": [
+        "20260803270000_erp_bootstrap_rpc.sql"
+      ]
+    },
+    {
+      "version": "20260803182520",
+      "name": "erp_order_guard",
+      "files": [
+        "20260803280000_erp_order_guard.sql"
+      ]
+    },
+    {
+      "version": "20260803182937",
+      "name": "erp_revoke_anon_predicates",
+      "files": [
+        "20260803290000_erp_revoke_anon_predicates.sql"
+      ]
+    },
+    {
+      "version": "20260803183003",
+      "name": "erp_revoke_anon_predicates_fix",
+      "files": [
+        "20260803290000_erp_revoke_anon_predicates.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260805053304",
+      "name": "erp_stage_atomic_ops_and_guard",
+      "files": [
+        "20260805120000_erp_stage_atomic_ops_and_guard.sql"
+      ]
+    },
+    {
+      "version": "20260805053317",
+      "name": "erp_attachments_cleanup_own",
+      "files": [
+        "20260805130000_erp_attachments_cleanup_own.sql"
+      ]
+    },
+    {
+      "version": "20260805053518",
+      "name": "erp_stage_item_qty_invoker",
+      "files": [
+        "20260805140000_erp_stage_item_qty_invoker.sql"
+      ]
+    },
+    {
+      "version": "20260810091728",
+      "name": "erp_tz_gate_and_storage_read",
+      "files": [
+        "20260810120000_erp_tz_gate_and_storage_read.sql"
+      ]
+    },
+    {
+      "version": "20260810114719",
+      "name": "erp_roles_by_team_structure",
+      "files": [
+        "20260810130000_erp_roles_by_team_structure.sql"
+      ]
+    },
+    {
+      "version": "20260810115217",
+      "name": "erp_qc_department_off",
+      "files": [
+        "20260810140000_erp_qc_department_off.sql"
+      ]
+    },
+    {
+      "version": "20260810115840",
+      "name": "erp_stage_guard_skip",
+      "files": [
+        "20260810150000_erp_stage_guard_skip.sql"
+      ]
+    },
+    {
+      "version": "20260810115952",
+      "name": "erp_stage_guard_skip_full_text",
+      "files": [
+        "20260810150000_erp_stage_guard_skip.sql"
+      ],
+      "note": "подлинный текст стража доложен той же миграцией"
+    },
+    {
+      "version": "20260810121230",
+      "name": "erp_bypasses",
+      "files": [
+        "20260810160000_erp_bypasses.sql"
+      ]
+    },
+    {
+      "version": "20260810130123",
+      "name": "erp_settings_capacity",
+      "files": [
+        "20260810170000_erp_settings_capacity.sql"
+      ]
+    },
+    {
+      "version": "20260810154923",
+      "name": "erp_stage_cycle_and_qty_math",
+      "files": [
+        "20260810180000_erp_stage_cycle_and_qty_math.sql"
+      ]
+    },
+    {
+      "version": "20260810155641",
+      "name": "erp_stage_reports",
+      "files": [
+        "20260810190000_erp_stage_reports.sql"
+      ]
+    },
+    {
+      "version": "20260810160945",
+      "name": "erp_material_receipts_and_units",
+      "files": [
+        "20260810200000_erp_material_receipts_and_units.sql"
+      ]
+    },
+    {
+      "version": "20260810162206",
+      "name": "erp_subcontract_as_stage",
+      "files": [
+        "20260810210000_erp_subcontract_as_stage.sql"
+      ]
+    },
+    {
+      "version": "20260810163341",
+      "name": "erp_warehouse_fg_receipt",
+      "files": [
+        "20260810220000_erp_warehouse_fg_receipt.sql"
+      ]
+    },
+    {
+      "version": "20260810164026",
+      "name": "erp_experimental_stages",
+      "files": [
+        "20260810230000_erp_experimental_stages.sql"
+      ],
+      "note": "слаг совпадает с более поздней миграцией 20.08 — соответствие задано явно"
+    },
+    {
+      "version": "20260810164320",
+      "name": "erp_experimental_permission",
+      "files": [
+        "20260810240000_erp_experimental_permission.sql"
+      ]
+    },
+    {
+      "version": "20260810165959",
+      "name": "erp_pack_ship_requires_fg_receipt",
+      "files": [
+        "20260810250000_erp_pack_ship_requires_fg_receipt.sql"
+      ]
+    },
+    {
+      "version": "20260810173118",
+      "name": "erp_subcontracting_uses_matrix",
+      "files": [
+        "20260810260000_erp_subcontracting_uses_matrix.sql"
+      ]
+    },
+    {
+      "version": "20260810173634",
+      "name": "erp_procurement_gate_matches_rule",
+      "files": [
+        "20260810270000_erp_procurement_gate_matches_rule.sql"
+      ]
+    },
+    {
+      "version": "20260810173900",
+      "name": "erp_experimental_uses_matrix",
+      "files": [
+        "20260810280000_erp_experimental_uses_matrix.sql"
+      ]
+    },
+    {
+      "version": "20260810181720",
+      "name": "erp_warehouse_permission",
+      "files": [
+        "20260810290000_erp_warehouse_permission.sql"
+      ]
+    },
+    {
+      "version": "20260810185056",
+      "name": "erp_review_fix_stage_guard_skip_order",
+      "files": [
+        "20260810300000_erp_stage_guard_skip_order.sql"
+      ],
+      "note": "то же изменение под другим именем"
+    },
+    {
+      "version": "20260810185139",
+      "name": "erp_review_fix_pack_ship_and_rollup",
+      "files": [
+        "20260810310000_erp_pack_ship_single_condition.sql"
+      ],
+      "note": "то же изменение под другим именем"
+    },
+    {
+      "version": "20260810185226",
+      "name": "erp_review_fix_partial_fg_receipt",
+      "files": [
+        "20260810320000_erp_warehouse_journal_gate.sql"
+      ],
+      "note": "erp_warehouse_submit_report переопределён позже — живая версия совпадает с репозиторной"
+    },
+    {
+      "version": "20260810191453",
+      "name": "erp_warehouse_journal_gate",
+      "files": [
+        "20260810320000_erp_warehouse_journal_gate.sql"
+      ]
+    },
+    {
+      "version": "20260810192552",
+      "name": "erp_order_guard_shipping",
+      "files": [
+        "20260810330000_erp_order_guard_shipping.sql"
+      ]
+    },
+    {
+      "version": "20260810193717",
+      "name": "erp_security_review_fixes",
+      "files": [
+        "20260810340000_erp_security_review_fixes.sql"
+      ]
+    },
+    {
+      "version": "20260810193752",
+      "name": "erp_stage_guard_move_scope",
+      "files": [
+        "20260821130000_erp_stage_guard_contractor_block.sql"
+      ],
+      "note": "erp_stage_guard переопределён позже — живая версия совпадает с репозиторной"
+    },
+    {
+      "version": "20260810195148",
+      "name": "erp_procurement_matches_screen_audience",
+      "files": [
+        "20260810350000_erp_screens_open_by_permission.sql"
+      ],
+      "note": "то же изменение под другим именем"
+    },
+    {
+      "version": "20260810205422",
+      "name": "erp_local_calendar_date",
+      "files": [
+        "20260810360000_erp_local_calendar_date.sql"
+      ]
+    },
+    {
+      "version": "20260811052906",
+      "name": "erp_stage_finished_at_invariant",
+      "files": [
+        "20260811100000_erp_stage_finished_at_invariant.sql"
+      ]
+    },
+    {
+      "version": "20260812123338",
+      "name": "erp_purchaser_closes_supply",
+      "files": [
+        "20260812100000_erp_purchaser_closes_supply.sql"
+      ]
+    },
+    {
+      "version": "20260812134504",
+      "name": "erp_experimental_task_types",
+      "files": [
+        "20260812110000_erp_experimental_task_types.sql"
+      ]
+    },
+    {
+      "version": "20260812135254",
+      "name": "erp_experimental_tasks",
+      "files": [
+        "20260812120000_erp_experimental_tasks.sql"
+      ]
+    },
+    {
+      "version": "20260812135322",
+      "name": "erp_experimental_tasks_rpc",
+      "files": [
+        "20260812120000_erp_experimental_tasks.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260812135338",
+      "name": "erp_experimental_tasks_backfill",
+      "files": [],
+      "noFile": true,
+      "note": "разовый бэкфилл задач разработки"
+    },
+    {
+      "version": "20260812142143",
+      "name": "erp_experimental_insert_by_order_manage",
+      "files": [
+        "20260812130000_erp_experimental_insert_by_order_manage.sql"
+      ]
+    },
+    {
+      "version": "20260812143851",
+      "name": "erp_drop_legacy_experimental_part1",
+      "files": [
+        "20260812140000_erp_drop_legacy_experimental.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260812143941",
+      "name": "erp_create_order_without_tz_assignments",
+      "files": [
+        "20260812140000_erp_drop_legacy_experimental.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260812145237",
+      "name": "erp_bootstrap_without_experimental_ops",
+      "files": [
+        "20260812150000_erp_bootstrap_without_experimental_ops.sql"
+      ]
+    },
+    {
+      "version": "20260812152438",
+      "name": "erp_revoke_trigger_functions_sweep",
+      "files": [
+        "20260812160000_erp_revoke_trigger_functions_sweep.sql"
+      ]
+    },
+    {
+      "version": "20260813061312",
+      "name": "erp_stage_guard_ready",
+      "files": [
+        "20260812200000_erp_stage_guard_ready.sql"
+      ]
+    },
+    {
+      "version": "20260813061338",
+      "name": "erp_catalog_edit_policies",
+      "files": [
+        "20260812210000_erp_catalog_edit_policies.sql"
+      ]
+    },
+    {
+      "version": "20260813061353",
+      "name": "erp_guards_and_grants",
+      "files": [
+        "20260812230000_erp_guards_and_grants.sql"
+      ]
+    },
+    {
+      "version": "20260813105811",
+      "name": "backfill_profiles_without_row",
+      "files": [],
+      "noFile": true,
+      "note": "разовый бэкфилл профилей без строки"
+    },
+    {
+      "version": "20260814080833",
+      "name": "erp_pending_role_for_new_signups",
+      "files": [
+        "20260814090000_erp_pending_role_for_new_signups.sql"
+      ]
+    },
+    {
+      "version": "20260814082328",
+      "name": "erp_invites",
+      "files": [
+        "20260814100000_erp_invites.sql"
+      ]
+    },
+    {
+      "version": "20260816170631",
+      "name": "erp_item_tech_block_part1",
+      "files": [
+        "20260816120000_erp_item_tech_block.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816170726",
+      "name": "erp_create_order_tech_block",
+      "files": [
+        "20260816120000_erp_item_tech_block.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816173208",
+      "name": "erp_stage_executor_schema",
+      "files": [
+        "20260816130000_erp_stage_executor.sql"
+      ],
+      "note": "применено тремя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816173251",
+      "name": "erp_stage_executor_guard",
+      "files": [
+        "20260816130000_erp_stage_executor.sql"
+      ],
+      "note": "применено тремя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816173959",
+      "name": "erp_stage_guard_authentic_shape",
+      "files": [
+        "20260816130000_erp_stage_executor.sql"
+      ],
+      "note": "применено тремя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816175015",
+      "name": "erp_route_apply",
+      "files": [
+        "20260816140000_erp_route_apply.sql"
+      ]
+    },
+    {
+      "version": "20260816192903",
+      "name": "erp_route_subcontract_companion",
+      "files": [
+        "20260816150000_erp_route_subcontract_companion.sql"
+      ]
+    },
+    {
+      "version": "20260816193757",
+      "name": "erp_stage_unique_internal_only",
+      "files": [
+        "20260816160000_erp_stage_unique_internal_only.sql"
+      ]
+    },
+    {
+      "version": "20260816194929",
+      "name": "erp_create_order_executor",
+      "files": [
+        "20260816170000_erp_create_order_executor.sql"
+      ]
+    },
+    {
+      "version": "20260816195011",
+      "name": "erp_item_material_source_mixed",
+      "files": [
+        "20260816180000_erp_item_material_source_mixed.sql"
+      ]
+    },
+    {
+      "version": "20260816202440",
+      "name": "erp_attachment_material",
+      "files": [
+        "20260816190000_erp_attachment_material.sql"
+      ]
+    },
+    {
+      "version": "20260816203627",
+      "name": "erp_item_packaging_details",
+      "files": [
+        "20260816200000_erp_item_packaging_details.sql",
+        "20260816210000_erp_create_order_packaging.sql"
+      ],
+      "note": "применено одной версией, в репозитории разложено на два файла"
+    },
+    {
+      "version": "20260816203938",
+      "name": "erp_preliminary_purchase",
+      "files": [
+        "20260816220000_erp_preliminary_purchase.sql"
+      ]
+    },
+    {
+      "version": "20260818203320",
+      "name": "erp_fit_from_catalog",
+      "files": [
+        "20260818203320_erp_fit_from_catalog.sql"
+      ]
+    },
+    {
+      "version": "20260818203338",
+      "name": "erp_dtg_method_and_department",
+      "files": [
+        "20260818203338_erp_dtg_method_and_department.sql"
+      ]
+    },
+    {
+      "version": "20260818203459",
+      "name": "erp_order_from_tz",
+      "files": [
+        "20260818203459_erp_order_from_tz.sql"
+      ]
+    },
+    {
+      "version": "20260820171412",
+      "name": "erp_dtg_invite_role_and_operation",
+      "files": [
+        "20260820100000_erp_dtg_department.sql"
+      ],
+      "note": "CHECK erp_invites и операция маршрута заведены там же"
+    },
+    {
+      "version": "20260820171422",
+      "name": "erp_dictionaries_by_permission",
+      "files": [
+        "20260820110000_erp_dictionaries_by_permission.sql"
+      ]
+    },
+    {
+      "version": "20260820171608",
+      "name": "erp_subcontract_stage_fields_create_order",
+      "files": [
+        "20260820120000_erp_subcontract_stage_fields.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820171650",
+      "name": "erp_subcontract_stage_fields_route_apply",
+      "files": [
+        "20260820120000_erp_subcontract_stage_fields.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820172833",
+      "name": "erp_subcontract_receipt_per_stage",
+      "files": [
+        "20260820130000_erp_subcontract_receipt_per_stage.sql"
+      ]
+    },
+    {
+      "version": "20260820173026",
+      "name": "erp_subcontract_apply",
+      "files": [
+        "20260820140000_erp_subcontract_apply.sql"
+      ]
+    },
+    {
+      "version": "20260820174732",
+      "name": "erp_purchase_list_file_columns",
+      "files": [
+        "20260820150000_erp_purchase_list_file.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820174833",
+      "name": "erp_purchase_list_file_create_order",
+      "files": [
+        "20260820150000_erp_purchase_list_file.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820181726",
+      "name": "erp_experimental_stages",
+      "files": [
+        "20260820160000_erp_experimental_stages.sql"
+      ],
+      "note": "слаг совпадает с более ранней миграцией 10.08 — соответствие задано явно"
+    },
+    {
+      "version": "20260820183605",
+      "name": "erp_dev_final_package",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ]
+    },
+    {
+      "version": "20260820183647",
+      "name": "erp_dev_attachment_delete",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ],
+      "note": "применено четырьмя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820184302",
+      "name": "erp_dev_package_guard_revoke",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ],
+      "note": "применено четырьмя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820193110",
+      "name": "erp_dev_package_guard_array_append",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ],
+      "note": "применено четырьмя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820195244",
+      "name": "erp_subcontract_receipt_revoke",
+      "files": [
+        "20260820180000_erp_subcontract_receipt_revoke.sql"
+      ]
+    },
+    {
+      "version": "20260820201553",
+      "name": "erp_route_apply_new_stage_fields",
+      "files": [
+        "20260820190000_erp_route_apply_new_stage_fields.sql"
+      ]
+    },
+    {
+      "version": "20260820210100",
+      "name": "erp_stage_attachments",
+      "files": [
+        "20260820200000_erp_stage_attachments.sql"
+      ]
+    },
+    {
+      "version": "20260820210747",
+      "name": "erp_create_order_stage_files",
+      "files": [
+        "20260820210000_erp_create_order_stage_files.sql"
+      ]
+    },
+    {
+      "version": "20260821043217",
+      "name": "erp_att_delete_single_policy",
+      "files": [
+        "20260821100000_erp_att_delete_single_policy.sql"
+      ]
+    },
+    {
+      "version": "20260821044956",
+      "name": "erp_subcontract_receipt_guard",
+      "files": [
+        "20260821110000_erp_subcontract_receipt_guard.sql"
+      ]
+    },
+    {
+      "version": "20260821054216",
+      "name": "erp_sku_from_dev",
+      "files": [
+        "20260821120000_erp_sku_from_dev.sql"
+      ]
+    },
+    {
+      "version": "20260821060758",
+      "name": "erp_stage_guard_contractor_block",
+      "files": [
+        "20260821130000_erp_stage_guard_contractor_block.sql"
+      ]
+    },
+    {
+      "version": "20260821104013",
+      "name": "erp_outsource_department",
+      "files": [
+        "20260821140000_erp_outsource_department.sql"
+      ]
+    }
+  ]
+}
