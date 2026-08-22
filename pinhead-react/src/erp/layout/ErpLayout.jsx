@@ -18,6 +18,7 @@ import { setFeature } from '../../config/features';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
+import StaleDataBar from '../components/StaleDataBar';
 import styles from '../erp.module.css';
 import appStyles from '../../App.module.css';
 
@@ -236,6 +237,8 @@ export default function ErpLayout({ user, children }) {
         </header>
 
         <main className={styles.main} id="main-content">
+          {/* Разрыв канала виден на ЛЮБОМ экране: устареть может любой */}
+          <StaleDataBar />
           {children}
         </main>
       </div>

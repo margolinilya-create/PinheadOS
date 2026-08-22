@@ -19,6 +19,31 @@ import type { ErpOrderFull, ErpStore, RealtimeSlice } from '../types';
 /** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
 let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Переподключение канала.
+ *
+ * До 22.08 у `.subscribe()` не было обработчика статуса ВООБЩЕ: `CHANNEL_ERROR`
+ * и `TIMED_OUT` не ловились ничем, а слушателей `visibilitychange`/`online`/
+ * `focus` в проекте не было ни одного. Планшет цеха, ушедший в сон или
+ * потерявший Wi-Fi, возвращался с молча устаревшей очередью — и распознать
+ * это человек не мог в принципе: экран выглядит рабочим, просто показывает
+ * позавчерашнюю работу.
+ *
+ * Шаги растут до минуты и не дольше: цех смотрит в очередь постоянно, и
+ * получасовое ожидание переподключения для него то же самое, что его отсутствие.
+ */
+export const RECONNECT_STEPS_MS = [1000, 2000, 5000, 10000, 30000, 60000];
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempt = 0;
+
+function clearReconnect() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempt = 0;
+}
+
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
 type ChildKey =
   | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
@@ -59,6 +84,38 @@ function upsertChildRow(
 }
 
 export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set, get) => ({
+  /**
+   * Живой ли канал. `true` по умолчанию — до первой подписки говорить «связи
+   * нет» неправда, а полоса «данные могли устареть» на пустом экране пугает
+   * там, где ничего ещё не грузилось.
+   */
+  realtimeLive: true,
+
+  /** Идёт перечитывание после разрыва — полоса говорит «обновляем», а не «всё плохо» */
+  realtimeResyncing: false,
+
+  /**
+   * Перечитать данные после разрыва.
+   *
+   * Зовётся из трёх мест: возврат вкладки, появление сети, восстановление
+   * канала. Всё это — «мы не знаем, что произошло, пока нас не было», и ответ
+   * один: спросить сервер заново. `loadAll` намеренно без guard'а от повторного
+   * вызова (правило в `ordersSlice`), поэтому лишний вызов безопаснее пропуска.
+   */
+  resyncRealtime: async () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    set({ realtimeResyncing: true });
+    try {
+      await get().loadAll();
+      set({ realtimeLive: true });
+    } finally {
+      // В `finally`: сбой перезагрузки не должен оставить полосу «обновляем…»
+      // навсегда — это ровно тот вечный индикатор, от которого её и ставят
+      set({ realtimeResyncing: false });
+    }
+  },
+
   applyRealtimeEvent: (ev) => {
     const row = (ev.eventType === 'DELETE' ? ev.old : ev.new) ?? {};
     const id = row.id as string | undefined;
@@ -221,6 +278,12 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
   },
 
   subscribeRealtime: () => {
+    /**
+     * Отписка канала, ЗАМЕНИВШЕГО этот при переподключении. Объявлена до самого
+     * канала намеренно: обработчик статуса ссылается на неё, а выполняется он
+     * позже конструирования.
+     */
+    let cleanupNext: (() => void) | null = null;
     // Уникальное имя канала (паттерн kontora24); события применяются точечно (п.27)
     const forward = (table: string) => (payload: {
       eventType: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -296,13 +359,65 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         { event: '*', schema: 'public', table: 'erp_bypasses' },
         forward('erp_bypasses'),
       )
-      .subscribe();
+      /**
+       * Обработчик статуса. Его здесь не было вовсе, и это главный пробел
+       * реалтайма: разрыв канала не давал ни события, ни признака — экран
+       * просто переставал обновляться.
+       */
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          const wasDown = !get().realtimeLive;
+          clearReconnect();
+          set({ realtimeLive: true });
+          // Пока канала не было, в базе что-то произошло — событий об этом
+          // не придёт никогда, их можно только запросить заново
+          if (wasDown) void get().resyncRealtime();
+          return;
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          set({ realtimeLive: false });
+          if (reconnectTimer) return;
+          const delay = RECONNECT_STEPS_MS[
+            Math.min(reconnectAttempt, RECONNECT_STEPS_MS.length - 1)];
+          reconnectAttempt += 1;
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            // Канал пересоздаётся целиком: у оборванного `subscribe()` повторно
+            // не вызывают — supabase-js держит его в терминальном состоянии
+            supabase.removeChannel(channel);
+            const next = get().subscribeRealtime();
+            cleanupNext = next;
+          }, delay);
+        }
+      });
+
+    /**
+     * Возврат к экрану и появление сети — те же «нас не было»: канал мог
+     * пережить сон вкладки, а мог и нет, и полагаться на его статус нельзя.
+     * Слушателей `visibilitychange`/`online`/`focus` в проекте не было ни
+     * одного, поэтому планшет после сна показывал устаревшую очередь молча.
+     */
+    const onWake = () => { void get().resyncRealtime(); };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', onWake);
+      window.addEventListener('focus', onWake);
+      document.addEventListener('visibilitychange', onWake);
+    }
+
     return () => {
       if (fullReloadTimer) {
         clearTimeout(fullReloadTimer);
         fullReloadTimer = null;
       }
-      supabase.removeChannel(channel);
+      clearReconnect();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', onWake);
+        window.removeEventListener('focus', onWake);
+        document.removeEventListener('visibilitychange', onWake);
+      }
+      // Канал мог быть пересоздан переподключением — отписываем ТОТ, что живёт
+      if (cleanupNext) cleanupNext();
+      else supabase.removeChannel(channel);
     };
   },
 });
