@@ -455,6 +455,33 @@ URL: https://pinhead-os.vercel.app
   (`installSupabaseMock(page, { orders })`): базовые четыре держат
   visual-эталоны и счётчики очередей
 
+## Правила ERP (пред-продакшен аудит 22.08, сессия 35)
+
+- **Приёмка материала — ОДНО действие**: `acceptMaterial` → RPC
+  `erp_material_accept` (журнал `erp_material_receipts` + статус позиции одной
+  транзакцией). Отдельного `addMaterialReceipt` больше НЕТ: он был необязательным
+  вторым шагом, и за полтора месяца им не воспользовались ни разу — 9 принятых
+  материалов при пустом журнале. Форма в `MaterialReceiptCard` тоже одна:
+  два селекта статуса на одной карточке — это «статус рядом с величиной, которую
+  ведёт журнал», то есть разрешение соврать. Сторож — `materialReceipts.test.ts`
+- **`qty_received` клиент только ЧИТАЕТ.** Её ведёт триггер
+  `erp_material_receipts_rollup`; писать колонку с клиента — второй писатель,
+  и приход затирал бы приход
+- **Запись, у которой «0 строк» означает отказ, идёт через `erpWrite`**
+  (`store/shared.ts`), а не шестью копиями `.select()` + проверка длины по
+  слайсам. RLS на UPDATE и DELETE запрещает через `USING` — пустой результат
+  без ошибки
+- **Реалтайм:** `realtimeLive` / `realtimeResyncing` / `resyncRealtime`
+  в `realtimeSlice`; полоса — `components/StaleDataBar`, смонтирована
+  в `ErpLayout` (устареть может любой экран). Обработчик статуса `.subscribe()`
+  и слушатели `visibilitychange`/`online`/`focus` заводятся ВМЕСТЕ с ней:
+  переподключение без видимого признака — невидимая починка
+- **`canActInDept` принимает роль сотрудника** (`DEPT_BOUND_ROLES`), а не только
+  роль профиля. Отказ объясняет `components/DeptBindingNotice` — один текст
+  на очередь цеха и страницу задания
+- Ошибки Supabase из `erpError` уходят в `lib/errorReport` (source
+  `erp-supabase`). Офлайн не отправляется — это состояние сети, а не поломка
+
 ## Правила ERP (участок «Подряд», документ 21.08)
 
 - Участок `outsource` («Подряд») — в `data/departments` и в `erp_departments`,
