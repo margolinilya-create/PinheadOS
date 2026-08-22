@@ -23,6 +23,13 @@ import { join } from 'node:path';
 
 const SRC = join(process.cwd(), 'src');
 const INDEX_HTML = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
+const FONT_DIR = join(process.cwd(), 'public', 'fonts');
+/**
+ * Комментарии снимаются: объяснение, ПОЧЕМУ шрифты больше не берутся с CDN,
+ * содержит те же слова, что и запрещаемая ссылка. На этом сторожа в проекте
+ * уже спотыкались — и этот споткнулся на первом же прогоне.
+ */
+const withoutComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 const TOKENS = readFileSync(join(SRC, 'index.css'), 'utf8');
 
 function cssFiles(dir: string, out: string[] = []): string[] {
@@ -34,17 +41,57 @@ function cssFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Семейства, реально загруженные страницей (link на Google Fonts) */
+/**
+ * Семейства, реально загружаемые страницей.
+ *
+ * Раньше читалось из `index.html` — там стояла ссылка на Google Fonts.
+ * С 22.08 шрифты СВОИ: `@font-face` в `index.css`, файлы в `public/fonts`.
+ * Источник правды переехал, и сторож обязан был переехать вместе с ним —
+ * иначе он продолжал бы проверять несуществующую ссылку и зеленел впустую.
+ */
 function loadedFamilies(): string[] {
   const families: string[] = [];
-  for (const m of INDEX_HTML.matchAll(/family=([A-Za-z+]+)/g)) {
-    families.push(m[1].replace(/\+/g, ' '));
+  for (const m of TOKENS.matchAll(/@font-face\s*\{[^}]*?font-family:\s*'([^']+)'/g)) {
+    families.push(m[1]);
   }
   return [...new Set(families)];
 }
 
+/** Файлы, на которые ссылаются объявления */
+function referencedFiles(): string[] {
+  return [...TOKENS.matchAll(/url\('\/fonts\/([^']+)'\)/g)].map((m) => m[1]);
+}
+
 describe('шрифты', () => {
-  it('в index.html загружены ровно те семейства, что объявлены токенами', () => {
+  it('страница не ходит за шрифтами на сторонний домен', () => {
+    /**
+     * Шрифты грузились с fonts.googleapis.com, и это ломалось молча дважды:
+     * на раннере CI они не приезжали вовсе (весь интерфейс рисовался
+     * системным фолбэком, и визуальные эталоны не сходились никогда),
+     * а в цеху типографика зависела от чужого домена при нестабильном Wi-Fi.
+     */
+    expect(INDEX_HTML).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(withoutComments(TOKENS)).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+  });
+
+  it('каждый объявленный файл шрифта лежит в public/fonts', () => {
+    // Опечатка в имени файла даёт молчаливый фолбэк на системный шрифт —
+    // ровно тот отказ, ради которого шрифты и переехали к себе
+    const present = new Set(readdirSync(FONT_DIR));
+    const referenced = referencedFiles();
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const file of referenced) {
+      expect(present, `нет файла public/fonts/${file}`).toContain(file);
+    }
+  });
+
+  it('в public/fonts нет файлов, на которые никто не ссылается', () => {
+    const referenced = new Set(referencedFiles());
+    const orphans = readdirSync(FONT_DIR).filter((f) => f.endsWith('.woff2') && !referenced.has(f));
+    expect(orphans, `осиротевшие файлы шрифтов:\n${orphans.join('\n')}`).toEqual([]);
+  });
+
+  it('объявлены ровно те семейства, что нужны токенам', () => {
     const loaded = loadedFamilies();
     expect(loaded).toContain('Inter');
     expect(loaded).toContain('Barlow Condensed');
