@@ -41,12 +41,36 @@ export const SIZE_PRESET_LABELS: Record<'adult' | 'kids' | 'custom', string> = {
 // --- Черновые структуры формы (в state и localStorage) ------------------------
 
 export interface DraftPrint {
+  /**
+   * Локальный ключ нанесения. Нужен ради МАКЕТА (правка 22.08, п. 5.2):
+   * файл выбирается тогда, когда строки `erp_item_prints` ещё не существует,
+   * и привязка идёт по ключу формы — тем же приёмом, что у строк листа
+   * закупки. Индекс массива для этого не годится: удаление среднего
+   * нанесения сдвинуло бы привязку у всех, кто ниже, и макет уехал бы
+   * к чужой вышивке. В payload ключ не едет.
+   */
+  key: string;
   method: string;
   zone: string;
   width_mm: string | number;
   height_mm: string | number;
   offset_note: string;
   pantone: string;
+  comment: string;
+}
+
+/**
+ * Бирка позиции (правка 22.08, п. 5.3).
+ *
+ * «Сейчас используется одно общее текстовое поле Бирки. В реальном заказе
+ * у изделия обычно может быть несколько бирок» — размерник, составник,
+ * брендовая, по уходу, и у каждой своё расположение и свой макет.
+ */
+export interface DraftLabel {
+  key: string;
+  label_type: string;
+  place: string;
+  size: string;
   comment: string;
 }
 
@@ -66,6 +90,11 @@ export interface DraftItem {
   fit: string;
   qty: string | number;
   /** Технический блок изделия (правка 16.08): что цех должен знать о производстве */
+  /**
+   * Основное полотно (правка 22.08, п. 5.1). Отдельным полем: у изделия
+   * бывает и основная ткань, и отделочная, а раньше было только второе.
+   */
+  main_fabric: string;
   trim_material: string;
   cutting_note: string;
   sewing_note: string;
@@ -95,6 +124,8 @@ export interface DraftItem {
   /** Следующий участок после отдельной операции подряда (код цеха) */
   return_dept?: string;
   prints: DraftPrint[];
+  /** Бирки позиции (правка 22.08, п. 5.3) — повторяемый блок, как нанесения */
+  labels: DraftLabel[];
   size_grid: DraftGrid | null;
   /**
    * Правка маршрута человеком (правки заказчика 16.08, блок 2).
@@ -177,7 +208,7 @@ export interface DraftForm {
   purchase_required: boolean;
 }
 
-export const EMPTY_PRINT: DraftPrint = {
+const EMPTY_PRINT_FIELDS = {
   method: 'embroidery',
   zone: '',
   width_mm: '',
@@ -185,13 +216,27 @@ export const EMPTY_PRINT: DraftPrint = {
   offset_note: '',
   pantone: '',
   comment: '',
-};
+} as const;
+
+/**
+ * Новое нанесение. Функция, а не константа: у каждого свой ключ, по которому
+ * к нему привязывается макет. Общий объект дал бы всем нанесениям один ключ,
+ * то есть один макет на всех.
+ */
+export function emptyPrint(): DraftPrint {
+  return { key: crypto.randomUUID(), ...EMPTY_PRINT_FIELDS };
+}
+
+export function emptyLabel(): DraftLabel {
+  return { key: crypto.randomUUID(), label_type: '', place: '', size: '', comment: '' };
+}
 
 export const EMPTY_ITEM: DraftItem = {
   product_type: '',
   variant: '',
   fit: '',
   qty: '',
+  main_fabric: '',
   trim_material: '',
   cutting_note: '',
   sewing_note: '',
@@ -212,6 +257,7 @@ export const EMPTY_ITEM: DraftItem = {
   needs_further: false,
   return_dept: '',
   prints: [],
+  labels: [],
   size_grid: null,
 };
 
@@ -297,6 +343,10 @@ export function isItemEmpty(item: DraftItem): boolean {
      * либо закрылась без подтверждения, унеся набранный текст.
      */
     !item.fit.trim() &&
+    // Позиция с одной заполненной биркой пустой не является: иначе форма
+    // молча выбросила бы её из заказа вместе с набранным текстом
+    (item.labels ?? []).length === 0 &&
+    !item.main_fabric.trim() &&
     !item.trim_material.trim() &&
     !item.cutting_note.trim() &&
     !item.sewing_note.trim() &&
@@ -458,18 +508,43 @@ export interface OrderDraft {
   purchase: DraftPurchaseRow[];
 }
 
-/** Восстановить черновик; null — если черновика нет или он битый */
+/**
+ * Привести снимок формы к нынешней структуре.
+ *
+ * ОДНА функция и для локального черновика, и для строки из базы (правка 22.08,
+ * п. 5.5): снимки, сделанные раньше, лежат и там, и там, а дописывание ключей
+ * нанесениям и подстановка новых полей — правило одно. Вторая копия рядом
+ * означала бы, что часть черновиков чинится, а часть нет.
+ *
+ * `null` — снимка нет или он битый: форма откроется чистой, а не упадёт.
+ */
+export function normalizeDraft(raw: unknown): OrderDraft | null {
+  const env = raw as OrderDraftEnvelope | null;
+  if (!env || typeof env !== 'object') return null;
+  if (!env.form || typeof env.form !== 'object') return null;
+  if (!Array.isArray(env.items) || env.items.length === 0) return null;
+  return normalizeEnvelope(env);
+}
+
+/** Восстановить локальный черновик прежней версии; null — его нет или он битый */
 export function loadOrderDraft(): OrderDraft | null {
-  const raw = storageGet<OrderDraftEnvelope>(ORDER_DRAFT_KEY);
-  if (!raw || typeof raw !== 'object') return null;
-  if (!raw.form || typeof raw.form !== 'object') return null;
-  if (!Array.isArray(raw.items) || raw.items.length === 0) return null;
+  return normalizeDraft(storageGet<OrderDraftEnvelope>(ORDER_DRAFT_KEY));
+}
+
+function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
   return {
     form: { ...emptyOrderForm(), ...raw.form },
     items: raw.items.map((it) => ({
       ...EMPTY_ITEM,
       ...it,
-      prints: Array.isArray(it.prints) ? it.prints : [],
+      /**
+       * Ключи дописываются восстановленному черновику: он мог быть сохранён
+       * до правки 22.08, а без ключа макет не к чему привязать.
+       */
+      prints: (Array.isArray(it.prints) ? it.prints : [])
+        .map((p) => ({ ...p, key: p.key || crypto.randomUUID() })),
+      labels: (Array.isArray(it.labels) ? it.labels : [])
+        .map((l) => ({ ...l, key: l.key || crypto.randomUUID() })),
       // старые черновики без флага: брендирование — если есть нанесения
       has_branding: it.has_branding ?? (Array.isArray(it.prints) && it.prints.length > 0),
     })),

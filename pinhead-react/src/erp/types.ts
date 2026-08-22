@@ -227,6 +227,12 @@ export interface ErpOrderItem {
    * документу: Изделие → Цвет → Крой → Размер → Количество.
    */
   fit?: string | null;
+  /**
+   * Основное полотно (правка 22.08, п. 5.1). Отдельно от `trim_material`:
+   * у изделия бывает и основная ткань, и отделочная, а одно поле на двоих
+   * означает, что цех прочитает половину.
+   */
+  main_fabric?: string | null;
   trim_material?: string | null;
   cutting_note?: string | null;
   sewing_note?: string | null;
@@ -721,7 +727,13 @@ export type ErpAttachmentKind =
    * к РАЗРАБОТКЕ (`experimental_id`), а не к позиции: лекала и техпаспорт
    * описывают модель, а не тот заказ, из которого она вышла.
    */
-  | 'dev_pattern' | 'dev_passport' | 'dev_photo';
+  | 'dev_pattern' | 'dev_passport' | 'dev_photo'
+  /**
+   * Макет КОНКРЕТНОГО нанесения и файл КОНКРЕТНОЙ бирки (правка 22.08,
+   * пп. 5.2–5.3). До неё макеты лежали общей кучей вида `tech` у позиции,
+   * и при трёх-четырёх нанесениях цех сам угадывал, какой к какому относится.
+   */
+  | 'print' | 'label';
 
 export interface ErpOrderAttachment {
   id: string;
@@ -740,6 +752,13 @@ export interface ErpOrderAttachment {
    * фото образца. NULL — обычное вложение заказа.
    */
   experimental_id?: string | null;
+  /**
+   * Нанесение или бирка, которой принадлежит файл (правка 22.08, пп. 5.2–5.3).
+   * Связь именно со строкой, а не «где-то у позиции»: по каждому нанесению
+   * должно быть однозначно видно, какой макет использовать.
+   */
+  print_id?: string | null;
+  label_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -1384,7 +1403,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type' | 'route_operation';
+  | 'experimental_task_type' | 'route_operation' | 'label_type';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1394,6 +1413,7 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   unit: 'Единицы измерения',
   experimental_task_type: 'Задачи разработки',
   route_operation: 'Операции маршрута',
+  label_type: 'Типы бирок',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -1407,6 +1427,8 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
     'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
   route_operation:
     'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
+  label_type:
+    'Подсказки в блоке «Бирки» позиции заказа (размерник, составник, брендовая, по уходу).',
 };
 
 export interface ErpDictionaryItem {
@@ -1474,6 +1496,47 @@ export interface ErpItemPrint {
   special: string | null;
   comment: string | null;
   created_at: string;
+}
+
+/**
+ * Бирка позиции (правка 22.08, п. 5.3).
+ *
+ * ПОВТОРЯЕМЫЙ БЛОК, как нанесения: в заказе обычно размерник, составник,
+ * брендовая и бирка по уходу, у каждой своё расположение и макет. Раньше
+ * всё это лежало в ОДНОМ текстовом поле `labels_note` — оно осталось
+ * в схеме ради заведённых заказов и показывается как «старое поле»,
+ * пока не опустеет.
+ *
+ * Макет бирки — вложение с `label_id`, тем же приёмом, что макет нанесения.
+ */
+export interface ErpItemLabel {
+  id: string;
+  item_id: string;
+  seq: number;
+  /** Код из справочника `label_type`; ввод свободный */
+  label_type: string | null;
+  place: string | null;
+  size: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+/**
+ * Черновик формы создания заказа (правка 22.08, п. 5.5).
+ *
+ * ЭТО НЕ ЗАКАЗ. Снимок формы в JSON, своя таблица, никакой связи
+ * с `erp_orders`: заказ со статусом «черновик» потребовал бы фильтра
+ * в полутора десятках производственных поверхностей, и один забытый фильтр
+ * отправил бы незаконченный заказ в цех.
+ */
+export interface ErpOrderDraft {
+  id: string;
+  author_id: string;
+  /** Название заказа или № сделки — то, по чему человек узнаёт черновик */
+  title: string | null;
+  payload: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
 export type MaterialRole =

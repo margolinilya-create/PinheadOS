@@ -9,7 +9,7 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { daysLeft, isUrgent } from '../utils/time';
+import { daysLeft, formatDateShort, isUrgent } from '../utils/time';
 import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
 import { ORDER_STATUS_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
@@ -64,6 +64,23 @@ export default function OrdersScreen() {
   // чтобы работали ссылки с KPI-плиток и «Новый заказ» с дашборда
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get('new') === '1');
+  /**
+   * ЧЕРНОВИКИ ЗАКАЗОВ (правка 22.08, п. 5.5). Их несколько, они в базе,
+   * и открытый — в состоянии: `null` означает «чистая форма», id —
+   * «продолжаем именно этот». Раньше черновик был один и подставлялся сам,
+   * поэтому подготовить два заказа параллельно было невозможно.
+   */
+  const [openDraftId, setOpenDraftId] = useState(null);
+  const {
+    orderDrafts, orderDraftsLoaded, orderDraftsError,
+    loadOrderDrafts, deleteOrderDraft,
+  } = useErpStore(useShallow((s) => ({
+    orderDrafts: s.orderDrafts,
+    orderDraftsLoaded: s.orderDraftsLoaded,
+    orderDraftsError: s.orderDraftsError,
+    loadOrderDrafts: s.loadOrderDrafts,
+    deleteOrderDraft: s.deleteOrderDraft,
+  })));
   // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
   const query = useErpSearch((s) => s.query);
   const setQuery = useErpSearch((s) => s.setQuery);
@@ -114,6 +131,15 @@ export default function OrdersScreen() {
   useEffect(() => {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
+  /**
+   * Черновики грузим один раз: их список — часть страницы заказов
+   * («на странице заказов нужен понятный доступ к списку черновиков»).
+   * Ошибку запоминает стор, повтор — кнопкой в самом блоке: эффект
+   * второй раз не срабатывает, и без неё выходом была бы только F5.
+   */
+  useEffect(() => {
+    if (!orderDraftsLoaded) loadOrderDrafts();
+  }, [orderDraftsLoaded, loadOrderDrafts]);
   // Возврат из карточки восстанавливает и позицию прокрутки (правило DESIGN.md)
   useScrollRestore(loaded);
 
@@ -425,11 +451,67 @@ export default function OrdersScreen() {
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         {canManageOrders && (
-          <Button variant="primary" onClick={() => setShowCreate(true)}>
+          <Button
+            variant="primary"
+            onClick={() => { setOpenDraftId(null); setShowCreate(true); }}
+          >
             + Новый заказ
           </Button>
         )}
       </div>
+
+      {/*
+        Список черновиков (п. 5.5): «на странице заказов нужен понятный доступ
+        к списку черновиков». Свёрнут по умолчанию — это не рабочая очередь,
+        а личная папка незаконченного; в заголовке счётчик, чтобы свёрнутый
+        блок не был неотличим от пустого.
+      */}
+      {canManageOrders && (orderDrafts.length > 0 || orderDraftsError) && (
+        <details className={styles.matSection}>
+          <summary className={styles.subText}>
+            Черновики заказов — {orderDrafts.length}
+          </summary>
+          {orderDraftsError ? (
+            <div className={styles.checkRow}>
+              <span className={styles.subText}>{orderDraftsError}</span>
+              <Button variant="ghost" size="sm" onClick={loadOrderDrafts}>Повторить</Button>
+            </div>
+          ) : (
+            <ul className={styles.stackTight}>
+              {orderDrafts.map((d) => (
+                <li key={d.id} className={styles.checkRow}>
+                  <span>{d.title || 'Без названия'}</span>
+                  <span className={styles.subText}>
+                    изменён {formatDateShort(d.updated_at)}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => { setOpenDraftId(d.id); setShowCreate(true); }}
+                  >
+                    Продолжить
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Удалить черновик?',
+                        message: `«${d.title || 'Без названия'}» будет удалён безвозвратно.`,
+                        confirmLabel: 'Удалить',
+                        variant: 'danger',
+                      });
+                      if (ok) await deleteOrderDraft(d.id);
+                    }}
+                  >
+                    Удалить
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+      )}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="заказы" />}
       {!loadError && loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
@@ -531,8 +613,10 @@ export default function OrdersScreen() {
       {showCreate && (
         <Suspense fallback={null}>
         <CreateOrderModal
+          draftId={openDraftId}
           onClose={() => {
             setShowCreate(false);
+            setOpenDraftId(null);
             if (searchParams.get('new')) {
               setSearchParams((prev) => {
                 const next = new URLSearchParams(prev);

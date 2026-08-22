@@ -2,7 +2,7 @@ import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { SizeGridEditor } from './SizeGridEditor';
 import { FieldError } from './FormParts';
 import { Icon } from '../../../components/Icon';
-import { EMPTY_PRINT, gridTotal } from '../../../utils/orderForm';
+import { emptyLabel, emptyPrint, gridTotal } from '../../../utils/orderForm';
 import {
   ITEM_PACKAGING_LABELS,
   PRODUCTION_TYPE_LABELS,
@@ -247,6 +247,25 @@ export function ItemBlock({
                 onChange={(e) => setPrint(i, pi, { comment: e.target.value })}
               />
             </div>
+            {/*
+              МАКЕТ ПРИНАДЛЕЖИТ ЭТОМУ НАНЕСЕНИЮ (правка 22.08, п. 5.2).
+              Раньше макеты лежали общим блоком вместе с прочими файлами ТЗ,
+              и при трёх-четырёх нанесениях цех сам угадывал, какой файл
+              к какому относится. Привязка идёт по КЛЮЧУ нанесения: строки
+              `erp_item_prints` в этот момент ещё не существует — заказ
+              создаётся одной транзакцией.
+            */}
+            <AttachmentPicker
+              label="+ Макет нанесения"
+              hint="файл именно этого нанесения — цех не будет угадывать"
+              files={attach.files}
+              kind="print"
+              itemIndex={i}
+              ownerKey={p.key}
+              onAdd={(file) => attach.add(file, 'print', i, p.key)}
+              onRetry={attach.retry}
+              onRemove={attach.remove}
+            />
           </div>
         ))}
 
@@ -258,7 +277,7 @@ export function ItemBlock({
             <Button
               variant="secondary"
               aria-describedby={err(`item_${i}_prints`) ? `err-item-${i}-prints` : undefined}
-              onClick={() => setItem(i, { prints: [...it.prints, { ...EMPTY_PRINT }] })}>
+              onClick={() => setItem(i, { prints: [...it.prints, emptyPrint()] })}>
               + Нанесение ({it.prints.length})
             </Button>
             <FieldError id={`err-item-${i}-prints`} text={err(`item_${i}_prints`)} />
@@ -276,6 +295,7 @@ export function ItemBlock({
         </details>
 
         <TechBlock it={it} i={i} setItem={setItem} attach={attach} />
+        <LabelsBlock it={it} i={i} setItem={setItem} attach={attach} />
         <PackagingBlock it={it} i={i} setItem={setItem} attach={attach} />
         <RouteBlock it={it} i={i} setItem={setItem} route={route} attach={attach} />
         </div>
@@ -296,8 +316,8 @@ export function ItemBlock({
  * неотличим от пустого.
  */
 function TechBlock({ it, i, setItem, attach }) {
-  const filled = [it.trim_material, it.cutting_note, it.sewing_note, it.labels_note]
-    .filter((v) => v.trim()).length;
+  const filled = [it.main_fabric, it.trim_material, it.cutting_note, it.sewing_note,
+    it.labels_note].filter((v) => (v ?? '').trim()).length;
 
   return (
     <details className={styles.gridDetails}>
@@ -305,6 +325,22 @@ function TechBlock({ it, i, setItem, attach }) {
         Технический блок изделия{filled > 0 ? ` — заполнено полей: ${filled}` : ''}
       </summary>
       <div className={styles.itemRow}>
+        {/*
+          ОСНОВНАЯ ТКАНЬ — ОТДЕЛЬНОЕ ПОЛЕ (правка 22.08, п. 5.1). Раньше был
+          только отделочный материал, и основное полотно писали в свободные
+          заметки или не писали вовсе — при том, что ТЗ заказчика начинается
+          именно с него. Поля хранятся раздельно: у изделия бывает и то,
+          и другое.
+        */}
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Основная ткань</span>
+          <input
+            className={styles.input}
+            value={it.main_fabric}
+            onChange={(e) => setItem(i, { main_fabric: e.target.value })}
+            placeholder="шерпа 100% пэ, 240 гр"
+          />
+        </label>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Отделочный материал</span>
           <input
@@ -354,6 +390,102 @@ function TechBlock({ it, i, setItem, attach }) {
         onRetry={attach.retry}
         onRemove={attach.remove}
       />
+    </details>
+  );
+}
+
+/**
+ * БИРКИ ПОЗИЦИИ (правка 22.08, п. 5.3).
+ *
+ * «Сейчас используется одно общее текстовое поле Бирки. В реальном заказе
+ * у изделия обычно может быть несколько бирок» — размерник, составник,
+ * брендовая, по уходу, — и у каждой своё расположение, размер и МАКЕТ.
+ * Одно поле на всех означало, что половина сведений теряется при беглом
+ * чтении, а макет не привязан ни к чему.
+ *
+ * Старое поле `labels_note` осталось в техблоке: его несут заведённые заказы,
+ * и разложить свободный текст по полям может только человек.
+ */
+function LabelsBlock({ it, i, setItem, attach }) {
+  const labels = it.labels ?? [];
+  const setLabel = (li, patch) => setItem(i, {
+    labels: labels.map((l, k) => (k === li ? { ...l, ...patch } : l)),
+  });
+
+  return (
+    <details className={styles.gridDetails}>
+      <summary className={styles.subText}>
+        Бирки{labels.length > 0 ? ` — ${labels.length}` : ''}
+      </summary>
+      {/* Справочник — подсказка поверх свободного ввода (правило проекта) */}
+      <DictionaryDatalist kind="label_type" id="erp-label-types" />
+      {labels.map((l, li) => (
+        <div key={l.key} className={styles.printBlock}>
+          <div className={`${styles.checkRow} ${styles.printRow}`}>
+            <strong className={styles.fieldLabel}>Бирка №{li + 1}</strong>
+            <input
+              className={`${styles.input} ${styles.inputSm}`}
+              list="erp-label-types"
+              placeholder="Тип (размерник, составник)"
+              aria-label={`Тип бирки ${li + 1}`}
+              value={l.label_type}
+              onChange={(e) => setLabel(li, { label_type: e.target.value })}
+            />
+            <input
+              className={`${styles.input} ${styles.inputSm} ${styles.printZoneInput}`}
+              placeholder="Расположение (левый внутренний боковой шов)"
+              aria-label={`Расположение бирки ${li + 1}`}
+              value={l.place}
+              onChange={(e) => setLabel(li, { place: e.target.value })}
+            />
+            <input
+              className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
+              placeholder="Размер"
+              aria-label={`Размер бирки ${li + 1}`}
+              value={l.size}
+              onChange={(e) => setLabel(li, { size: e.target.value })}
+            />
+            <Button
+              variant="ghost"
+              aria-label={`Убрать бирку ${li + 1}`}
+              onClick={() => {
+                attach.dropOwner(l.key);
+                setItem(i, { labels: labels.filter((_, k) => k !== li) });
+              }}
+            >
+              <Icon name="x" size={14} />
+            </Button>
+          </div>
+          <div className={`${styles.checkRow} ${styles.printRow}`}>
+            <input
+              className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
+              placeholder="Комментарий"
+              aria-label={`Комментарий к бирке ${li + 1}`}
+              value={l.comment}
+              onChange={(e) => setLabel(li, { comment: e.target.value })}
+            />
+          </div>
+          <AttachmentPicker
+            label="+ Макет бирки"
+            hint="файл именно этой бирки"
+            files={attach.files}
+            kind="label"
+            itemIndex={i}
+            ownerKey={l.key}
+            onAdd={(file) => attach.add(file, 'label', i, l.key)}
+            onRetry={attach.retry}
+            onRemove={attach.remove}
+          />
+        </div>
+      ))}
+      <div className={styles.checkRow}>
+        <Button
+          variant="secondary"
+          onClick={() => setItem(i, { labels: [...labels, emptyLabel()] })}
+        >
+          + Бирка ({labels.length})
+        </Button>
+      </div>
     </details>
   );
 }

@@ -26,6 +26,7 @@ import type {
   ErpAttachmentKind,
   ErpOrder,
   ErpOrderAttachment,
+  ErpOrderDraft,
   ErpOrderItem,
   DevOutcome,
   DevTaskStatus,
@@ -136,6 +137,12 @@ export interface ReportDefectOptions {
 }
 
 export interface NewPrintInput {
+  /**
+   * Ключ строки формы (правка 22.08, п. 5.2). По нему макет находит своё
+   * нанесение: строки `erp_item_prints` в момент выбора файла ещё нет.
+   * В payload сервера ключ не едет — только номер внутри позиции.
+   */
+  key?: string;
   method: BrandingMethod;
   fabric?: string;
   zone?: string;
@@ -143,6 +150,15 @@ export interface NewPrintInput {
   height_mm?: number | null;
   offset_note?: string;
   pantone?: string;
+  comment?: string;
+}
+
+export interface NewLabelInput {
+  /** Ключ строки формы — по нему файл бирки находит свою строку */
+  key?: string;
+  label_type?: string;
+  place?: string;
+  size?: string;
   comment?: string;
 }
 
@@ -156,6 +172,8 @@ export interface NewOrderItemInput {
   notes?: string;
   size_grid?: SizeGridRow[] | null;
   prints?: NewPrintInput[];
+  /** Бирки позиции (правка 22.08, п. 5.3) — повторяемый блок, как нанесения */
+  labels?: NewLabelInput[];
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: 'finished_product' | 'operation';
   material_source?: SubcontractMaterialSource;
@@ -169,6 +187,8 @@ export interface NewOrderItemInput {
    * «не заполняли» неотличимым от «заполнили пустым».
    */
   fit?: string;
+  /** Основное полотно — отдельно от отделочного (правка 22.08, п. 5.1) */
+  main_fabric?: string;
   trim_material?: string;
   cutting_note?: string;
   sewing_note?: string;
@@ -186,6 +206,25 @@ export interface NewOrderItemInput {
    * `formItemRoute`, и правило «правка или расчёт» остаётся в одном месте.
    */
   route?: RouteGroup[];
+}
+
+/**
+ * Черновики формы создания заказа (правка 22.08, п. 5.5).
+ *
+ * Их несколько и они В БАЗЕ: прежний единственный ключ localStorage
+ * не давал вести два заказа параллельно и не переживал смену устройства.
+ */
+export interface OrderDraftsSlice {
+  orderDrafts: ErpOrderDraft[];
+  orderDraftsLoaded: boolean;
+  orderDraftsError: string | null;
+  loadOrderDrafts: () => Promise<void>;
+  /** `id === null` — создать новый; возвращает строку или null при отказе */
+  saveOrderDraft: (
+    id: string | null, title: string | null, payload: unknown,
+  ) => Promise<ErpOrderDraft | null>;
+  deleteOrderDraft: (id: string) => Promise<boolean>;
+  orderDraftById: (id: string) => ErpOrderDraft | null;
 }
 
 /**
@@ -1085,6 +1124,7 @@ export type ErpStore = BootstrapSlice &
   WarehouseSlice &
   ProcurementSlice &
   SubcontractingSlice &
+  OrderDraftsSlice &
   EmployeesSlice &
   InvitesSlice &
   PermissionsSlice &

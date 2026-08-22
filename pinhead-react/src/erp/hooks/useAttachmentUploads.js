@@ -128,10 +128,19 @@ export function useAttachmentUploads(scope = 'new') {
        * строит секцию `stages` (`createOrder`). Считать его здесь значило бы
        * завести второй порядок этапов рядом с настоящим.
        */
+      /**
+       * Макет нанесения и файл бирки уезжают с КЛЮЧОМ строки формы — по той же
+       * причине, что файл подрядного шага: строк `erp_item_prints`
+       * и `erp_item_labels` на момент выбора файла ещё нет, их создаёт
+       * та же транзакция. Номер внутри позиции проставляет ТОТ ЖЕ код,
+       * который строит секции `prints`/`labels` (`createOrder`).
+       */
       return {
         item_index: f.itemIndex,
         material_index: at >= 0 ? at : null,
         ...(f.kind === 'subcontract' && f.ownerKey ? { stage_key: f.ownerKey } : {}),
+        ...(f.kind === 'print' && f.ownerKey ? { print_key: f.ownerKey } : {}),
+        ...(f.kind === 'label' && f.ownerKey ? { label_key: f.ownerKey } : {}),
         file_path: f.path,
         file_name: f.name,
         kind: f.kind,
@@ -140,7 +149,9 @@ export function useAttachmentUploads(scope = 'new') {
     // Файл строки закупки, которую человек удалил, в заказ не едет
     .filter((a) => !(a.material_index === null && a.kind === 'purchase'))
     // Файл подрядного шага без ключа привязать не к чему — он не едет
-    .filter((a) => !(a.kind === 'subcontract' && !a.stage_key)),
+    .filter((a) => !(a.kind === 'subcontract' && !a.stage_key))
+    .filter((a) => !(a.kind === 'print' && !a.print_key))
+    .filter((a) => !(a.kind === 'label' && !a.label_key)),
   [files]);
 
   /** Убрать файлы удалённой строки листа закупки вместе с объектами в бакете */

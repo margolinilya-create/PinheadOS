@@ -345,6 +345,15 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     const droppedDepts = new Set<string>();
     /** `stage:<позиция>:<группа>:<шаг>` → номер этапа внутри позиции */
     const stageKeyIndex = new Map<string, number>();
+    /**
+     * Ключ нанесения/бирки формы → номер внутри позиции (правка 22.08,
+     * пп. 5.2–5.3). Тем же приёмом, что у подрядных шагов: строк на момент
+     * выбора файла ещё нет, а номер знает только тот код, который строит
+     * секции `prints`/`labels`. Считать его в другом месте значило бы
+     * завести второй порядок рядом с настоящим.
+     */
+    const printKeyIndex = new Map<string, number>();
+    const labelKeyIndex = new Map<string, number>();
 
     // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
     // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
@@ -406,6 +415,8 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           material_source: it.production_type === 'outsource' ? (it.material_source ?? null) : null,
           // Технический блок и упаковка позиции (правки заказчика 16.08)
           fit: it.fit || null,
+          // Основная ткань — отдельно от отделочной (правка 22.08, п. 5.1)
+          main_fabric: it.main_fabric || null,
           trim_material: it.trim_material || null,
           cutting_note: it.cutting_note || null,
           sewing_note: it.sewing_note || null,
@@ -415,17 +426,31 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
           sticker_place: it.sticker_place || null,
           marking_place: it.marking_place || null,
           packaging_note: it.packaging_note || null,
-          prints: (it.prints ?? []).map((p, j) => ({
-            seq: j + 1,
-            method: p.method,
-            fabric: p.fabric || null,
-            zone: p.zone || null,
-            width_mm: p.width_mm ?? null,
-            height_mm: p.height_mm ?? null,
-            offset_note: p.offset_note || null,
-            pantone: p.pantone || null,
-            comment: p.comment || null,
-          })),
+          prints: (it.prints ?? []).map((p, j) => {
+            if (p.key) printKeyIndex.set(p.key, j);
+            return {
+              seq: j + 1,
+              method: p.method,
+              fabric: p.fabric || null,
+              zone: p.zone || null,
+              width_mm: p.width_mm ?? null,
+              height_mm: p.height_mm ?? null,
+              offset_note: p.offset_note || null,
+              pantone: p.pantone || null,
+              comment: p.comment || null,
+            };
+          }),
+          /** Бирки позиции (правка 22.08, п. 5.3) — повторяемый блок ТЗ */
+          labels: (it.labels ?? []).map((l, j) => {
+            if (l.key) labelKeyIndex.set(l.key, j);
+            return {
+              seq: j + 1,
+              label_type: l.label_type || null,
+              place: l.place || null,
+              size: l.size || null,
+              comment: l.comment || null,
+            };
+          }),
           stages: kept.map((l) => ({
             department_id: deptByCode.get(l.step.departmentCode)!.id,
             sort_order: l.sortOrder,
@@ -462,11 +487,31 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
        */
       attachments: (attachments ?? [])
         .map((a) => {
-          const key = (a as { stage_key?: string }).stage_key;
-          if (!key) return a;
-          const { stage_key: _drop, ...rest } = a as typeof a & { stage_key?: string };
-          const at = stageKeyIndex.get(key);
-          return at === undefined ? null : { ...rest, stage_index: at };
+          const withKeys = a as typeof a & {
+            stage_key?: string; print_key?: string; label_key?: string;
+          };
+          const {
+            stage_key: stageKey, print_key: printKey, label_key: labelKey, ...rest
+          } = withKeys;
+          if (stageKey) {
+            const at = stageKeyIndex.get(stageKey);
+            return at === undefined ? null : { ...rest, stage_index: at };
+          }
+          /**
+           * Макет нанесения и файл бирки: ключ формы превращается в номер
+           * внутри позиции. Нанесение, которое человек удалил, ключа
+           * в карте не имеет — такой файл не едет вовсе, привязывать его
+           * не к чему.
+           */
+          if (printKey) {
+            const at = printKeyIndex.get(printKey);
+            return at === undefined ? null : { ...rest, print_index: at };
+          }
+          if (labelKey) {
+            const at = labelKeyIndex.get(labelKey);
+            return at === undefined ? null : { ...rest, label_index: at };
+          }
+          return a;
         })
         .filter((a): a is NonNullable<typeof a> => a !== null),
     };

@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   EMPTY_ITEM,
-  EMPTY_PRINT,
+  emptyLabel,
+  emptyPrint,
+  normalizeDraft,
   ORDER_DRAFT_KEY,
   clearOrderDraft,
   effectiveQty,
@@ -66,7 +68,7 @@ describe('черновик заказа (localStorage)', () => {
     const legacy = {
       form: { ...emptyOrderForm(), title: 'Старый' },
       items: [
-        { ...item({ product_type: 'худи' }), prints: [{ ...EMPTY_PRINT }] },
+        { ...item({ product_type: 'худи' }), prints: [emptyPrint()] },
         { ...item({ product_type: 'кепка' }), prints: [] },
       ].map((it) => {
         const rest: Record<string, unknown> = { ...it };
@@ -225,7 +227,7 @@ describe('validateOrderForm', () => {
   it('брендирование с нанесением — ок', () => {
     const v = validateOrderForm(
       okForm,
-      [item({ product_type: 'футболка', qty: '10', has_branding: true, prints: [{ ...EMPTY_PRINT }] })],
+      [item({ product_type: 'футболка', qty: '10', has_branding: true, prints: [emptyPrint()] })],
       today,
     );
     expect(v.errors).toEqual({});
@@ -427,7 +429,7 @@ describe('isFormEmpty / isItemEmpty', () => {
 
   it('позиция с сеткой или нанесением — не пустая', () => {
     expect(isItemEmpty(item())).toBe(true);
-    expect(isItemEmpty(item({ prints: [{ ...EMPTY_PRINT }] }))).toBe(false);
+    expect(isItemEmpty(item({ prints: [emptyPrint()] }))).toBe(false);
     expect(isItemEmpty(item({
       size_grid: { sizes: ['S'], rows: [{ color: '', sizes: { S: 1 } }] },
     }))).toBe(false);
@@ -481,5 +483,61 @@ describe('лист закупки в черновике', () => {
     expect(restored?.kind).toBe('fabric');
     expect(restored?.item_index).toBeNull();
     expect(restored?.name).toBe('Кулирка');
+  });
+});
+
+/**
+ * Правки заказчика 22.08: основная ткань, бирки, ключи нанесений.
+ */
+describe('бирки и основная ткань (правка 22.08)', () => {
+  /**
+   * П. 5.3. Позиция, в которой заполнена ТОЛЬКО бирка, пустой не является:
+   * иначе форма молча выбросила бы её из заказа вместе с набранным текстом —
+   * пустые дополнительные позиции валидация пропускает.
+   */
+  it('позиция с одной биркой пустой не считается', () => {
+    expect(isItemEmpty(item({ labels: [emptyLabel()] }))).toBe(false);
+    expect(isItemEmpty(item({ main_fabric: 'шерпа 240' }))).toBe(false);
+    expect(isItemEmpty(item({}))).toBe(true);
+  });
+
+  /**
+   * П. 5.2. У каждого нанесения СВОЙ ключ: по нему макет находит своё
+   * нанесение, пока строки `erp_item_prints` ещё не существует. Общая
+   * константа дала бы всем нанесениям один ключ, то есть один макет на всех.
+   */
+  it('у каждого нанесения свой ключ', () => {
+    expect(emptyPrint().key).not.toBe(emptyPrint().key);
+    expect(emptyLabel().key).not.toBe(emptyLabel().key);
+  });
+
+  it('черновик, сохранённый до правки, получает ключи при восстановлении', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+      form: emptyOrderForm(),
+      items: [{
+        ...item({ product_type: 'Худи', qty: 10 }),
+        prints: [{ method: 'embroidery', zone: 'спина' }],
+      }],
+      savedAt: new Date().toISOString(),
+    }));
+    const restored = loadOrderDraft();
+    expect(restored?.items[0].prints[0].key).toBeTruthy();
+    // И бирок в старом черновике нет вовсе — восстановление не падает
+    expect(restored?.items[0].labels).toEqual([]);
+  });
+
+  /**
+   * `normalizeDraft` — ОДНА функция и для локального снимка, и для строки
+   * из базы (п. 5.5): чинить нужно оба, и вторая копия рядом означала бы,
+   * что часть черновиков остаётся сломанной.
+   */
+  it('снимок из базы чинится тем же нормализатором', () => {
+    const fromDb = normalizeDraft({
+      form: emptyOrderForm(),
+      items: [{ ...item({ product_type: 'Худи', qty: 10 }), prints: [{ method: 'dtf' }] }],
+    });
+    expect(fromDb?.items[0].prints[0].key).toBeTruthy();
+    expect(normalizeDraft(null)).toBeNull();
+    expect(normalizeDraft({ items: [] })).toBeNull();
   });
 });

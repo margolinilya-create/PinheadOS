@@ -38,12 +38,17 @@ type DomainState = Pick<ErpStore,
   | 'planSlots' | 'planComments' | 'planLoaded' | 'planLoading' | 'planLoadError'
   | 'plannedStageIds' | 'plannedAheadLoaded'
   | 'capacity' | 'capacityLoaded'
+  | 'orderDrafts' | 'orderDraftsLoaded' | 'orderDraftsError'
 >;
 
 export const DOMAIN_INITIAL_STATE: DomainState = {
   // subcontractingSlice
   subcontracting: [],
   subcontractingLoaded: false,
+  // orderDraftsSlice — черновики формы создания заказа (правка 22.08, п. 5.5)
+  orderDrafts: [],
+  orderDraftsLoaded: false,
+  orderDraftsError: null,
   /**
    * materialsSlice — ПЕРВЫЕ собственные данные у этого слайса: предварительные
    * закупки (п. 17 документа 16.08). Остальные материалы живут внутри заказов

@@ -22,11 +22,30 @@ const PACKAGING_FIELDS = [
 ];
 
 const TECH_FIELDS = [
+  // Основная ткань идёт ПЕРВОЙ: ТЗ заказчика начинается с полотна,
+  // а до правки 22.08 поля для неё не было вовсе (п. 5.1)
+  ['main_fabric', 'Основная ткань'],
   ['trim_material', 'Отделочный материал'],
   ['cutting_note', 'Раскрой'],
   ['sewing_note', 'Пошив'],
-  ['labels_note', 'Бирки'],
+  // Свободное поле бирок осталось для заказов, заведённых до правки 22.08:
+  // структурные бирки показываются отдельным блоком ниже
+  ['labels_note', 'Бирки (текстом)'],
 ];
+
+/** Макет нанесения — вложение, привязанное к строке нанесения */
+function PrintArtwork({ order, printId }) {
+  const files = (order.attachments ?? []).filter((a) => a.print_id === printId);
+  if (files.length === 0) return null;
+  return <AttachmentList files={files} />;
+}
+
+/** Макет бирки — вложение, привязанное к строке бирки */
+function LabelArtwork({ order, labelId }) {
+  const files = (order.attachments ?? []).filter((a) => a.label_id === labelId);
+  if (files.length === 0) return null;
+  return <AttachmentList files={files} />;
+}
 
 /**
  * Полное ТЗ позиции: сетка, нанесения, упаковка, материалы.
@@ -139,8 +158,36 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
                   {[p.offset_note, p.comment].filter(Boolean).join(' · ')}
                 </div>
               )}
+              {/*
+                МАКЕТ ЭТОГО НАНЕСЕНИЯ (правка 22.08, п. 5.2). Раньше макеты
+                лежали общей кучей файлов ТЗ, и при трёх-четырёх нанесениях
+                цех сам угадывал, какой к какому относится.
+              */}
+              <PrintArtwork order={order} printId={p.id} />
             </div>
           ))}
+
+          {/*
+            БИРКИ ПОЗИЦИИ (п. 5.3). Одно текстовое поле на все бирки означало,
+            что половина сведений теряется при беглом чтении, а макет
+            не привязан ни к чему.
+          */}
+          {(item.labels ?? []).length > 0 && (
+            <div>
+              <div className={styles.fieldLabel}>Бирки</div>
+              {[...item.labels].sort((a, b) => a.seq - b.seq).map((l) => (
+                <div key={l.id} className={styles.printBlock}>
+                  <div className={styles.checkRow}>
+                    <strong>{l.label_type || `Бирка №${l.seq}`}</strong>
+                    {l.place && <span>{l.place}</span>}
+                    {l.size && <span className={styles.progressCell}>{l.size}</span>}
+                  </div>
+                  {l.comment && <div className={styles.subText}>{l.comment}</div>}
+                  <LabelArtwork order={order} labelId={l.id} />
+                </div>
+              ))}
+            </div>
+          )}
 
           <div>
             <div className={styles.fieldLabel}>Материалы</div>

@@ -27,7 +27,8 @@ const ERP = join(process.cwd(), 'src/erp');
 const CORE = ['bootstrapSlice', 'ordersSlice', 'permissionsSlice', 'bypassSlice', 'realtimeSlice'];
 const DOMAIN = [
   'stagesSlice', 'materialsSlice', 'warehouseSlice', 'procurementSlice',
-  'subcontractingSlice', 'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
+  'subcontractingSlice', 'orderDraftsSlice',
+  'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
   'tzSlice', 'planSlice', 'settingsSlice',
 ];
 
