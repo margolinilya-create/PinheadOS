@@ -2262,6 +2262,34 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
+/**
+ * Уважение к системной настройке «меньше движения».
+ *
+ * Таких блоков в проекте было пять, и все — в CSS Order Studio и в примитиве
+ * `Button`; собственные движения ERP не покрывал ни один. Заметнее всего
+ * выезд боковой панели — ровно то, из-за чего настройку и включают.
+ *
+ * Перечисление адресное, а не `* { … !important }`: `!important` в проекте
+ * запрещён, и правило-звёздочка всё равно пришлось бы им подпирать. Список
+ * ведётся так же, как список ≥44px для тач-экранов: добавили движение —
+ * впишите класс сюда же.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .drawerOverlay,
+  .drawerPanel { animation: none; }
+
+  .sidebar,
+  .sidebarBrand,
+  .sidebarLogo,
+  .navLink,
+  .card,
+  .deptTab,
+  .progressFill,
+  .inlineEditPen,
+  .tile,
+  .kpiCardClickable { transition: none; }
+}
+
 @media (max-width: 768px) {
   .drawerPanel { width: 100%; border-left: none; }
 }

@@ -9,6 +9,18 @@ import { toast } from '../../store/useToastStore';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import { SkeletonTable } from '../shared/Skeleton';
+/**
+ * Единая админка смонтирована и в ERP (вкладка «Заказы ТЗ» в AdminScreen),
+ * то есть вне Order Studio, — а разметка здесь на его классах
+ * (.page-header-*, .page-tabs, .empty-state, .kanban-page, .kb-search,
+ * .sku-table). Раньше они приезжали глобально; теперь стили раздела едут
+ * со своим чанком, поэтому нужные файлы импортирует тот, кто их использует.
+ * Компонент ленивый в обоих местах — в оболочку это не попадает.
+ */
+import '../../styles/wizard.css'
+import '../../styles/extras-zones.css'
+import '../../styles/kanban.css'
+import '../../styles/editors.css'
 
 export default function AdminPanel({ ordersOnly = false }) {
   const [tab, setTab] = useState('orders');

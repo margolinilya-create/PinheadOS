@@ -98,3 +98,54 @@ describe('семантические токены-заливки несут те
     expect(ratio, `--color-${kind}-ink даёт ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA);
   });
 });
+
+/**
+ * Палитра ERP проверялась НЕ БОЛЬШЕ, ЧЕМ КОММЕНТАРИЕМ.
+ *
+ * `.shell` переопределяет 37 токенов в светлой теме и 34 в тёмной — то есть
+ * весь раздел «Производство» работает на цветах, которых этот тест не видел
+ * вовсе: он читал только `index.css`. Единственной проверкой была фраза
+ * в `erp.module.css` о том, что один синий «чуть ниже нормы».
+ *
+ * Чипы статусов — главный быстрый сигнал для цеха: пара «заливка --bg-*,
+ * текст --color-*-ink». Именно на ней и ловились в прошлый раз (2.02:1
+ * у «ожидает» в светлой теме).
+ */
+const ERP_CSS = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'erp', 'erp.module.css'),
+  'utf8',
+);
+
+/** Блок палитры ERP: `:global(html) .shell` / `:global(html[data-theme='dark']) .shell` */
+function shellBlock(theme: 'light' | 'dark'): string {
+  const marker = theme === 'light'
+    ? ':global(html) .shell {'
+    : ":global(html[data-theme='dark']) .shell {";
+  const start = ERP_CSS.indexOf(marker);
+  if (start < 0) throw new Error(`палитра .shell (${theme}) не найдена`);
+  const end = ERP_CSS.indexOf('\n}', start);
+  return ERP_CSS.slice(start, end);
+}
+
+/** Чип статуса: подложка → цвет текста на ней */
+const CHIPS: Array<[bg: string, ink: string]> = [
+  ['bg-success', 'color-success-ink'],
+  ['bg-error', 'color-error-ink'],
+  ['bg-warning', 'color-warning-ink'],
+  ['bg-info', 'color-info-ink'],
+  ['bg-violet', 'color-violet-ink'],
+  ['bg-cyan', 'color-cyan-ink'],
+];
+
+describe.each(['light', 'dark'] as const)('чипы статусов ERP — %s', (theme) => {
+  const block = shellBlock(theme);
+  const color = (name: string) => resolve(block, tokenValue(block, name));
+
+  it.each(CHIPS)('текст --%s → --%s проходит AA', (bg, ink) => {
+    const ratio = contrast(color(ink), color(bg));
+    expect(
+      ratio,
+      `--${ink} (${color(ink)}) на --${bg} (${color(bg)}) даёт ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(AA);
+  });
+});

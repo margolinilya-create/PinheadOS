@@ -1,6 +1,19 @@
 import React, { lazy, useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import styles from '../App.module.css'
+/**
+ * Стили раздела. Лежат ЗДЕСЬ, а не в глобальном `styles/index.css`: раздел
+ * стоит за флагом `orderStudio` и по умолчанию выключен, а его CSS —
+ * 128 кБ сырого — ехал каждому, кто открыл только «Производство».
+ * Оболочка ERP не использует из этих файлов ни одного класса.
+ * Vite кладёт CSS ленивого чанка вместе с ним.
+ */
+import '../styles/wizard.css'
+import '../styles/garment.css'
+import '../styles/extras-zones.css'
+import '../styles/kanban.css'
+import '../styles/express.css'
+import '../styles/editors.css'
 import { useStore } from '../store/useStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/useAuthStore'
