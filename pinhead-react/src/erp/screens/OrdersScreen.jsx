@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
@@ -32,7 +32,7 @@ const CreateOrderModal = lazy(() => import('./orders/CreateOrderModal')
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Pagination } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
-import { sortRows } from '../utils/tableSort';
+import { sortRows, nextSortState } from '../utils/tableSort';
 import { Button } from '../components/Button';
 
 export default function OrdersScreen() {
@@ -208,11 +208,44 @@ export default function OrdersScreen() {
   // useMemo: объект-литерал пересоздавался каждый рендер и обнулял мемоизацию
   // сортировки — 39 заказов сортировались заново на любое движение состояния
   const sort = useMemo(() => ({ key: sortKey, dir: sortDir }), [sortKey, sortDir]);
+  /**
+   * Шаг сортировки считает `nextSortState` — та же машина состояний, что
+   * у `useTableSort`. Здесь была её рукописная копия, и копия потеряла
+   * главное свойство оригинала: `useTableSort` делает
+   * `setSort((s) => nextSortState(s, key))`, то есть всегда работает
+   * от ПОСЛЕДНЕГО состояния.
+   *
+   * ПОЧЕМУ REF, А НЕ ЗНАЧЕНИЯ РЕНДЕРА. Состояние сортировки живёт в адресе,
+   * а `setSearchParams` меняет адрес раньше, чем React перерисует заголовок.
+   * Пока перерисовки нет, кнопка несёт обработчик прошлого рендера, и клик
+   * в это окно считает шаг от устаревшего направления: третий клик вместо
+   * «снять сортировку» снова давал «по убыванию», то есть НЕ ДЕЛАЛ НИЧЕГО.
+   * Для человека это «мёртвый клик» по заголовку; в CI на медленном раннере
+   * окно шире, и тест падал стабильно с 21.08.
+   *
+   * Функциональная форма `setSearchParams((prev) => …)` от этого НЕ спасает,
+   * и это стоит помнить: react-router передаёт туда параметры ТОГО РЕНДЕРА,
+   * где создан обработчик (`nextInit(new URLSearchParams(searchParams))`
+   * в `useSearchParams`), а не текущий адрес. В отличие от `useState`,
+   * «функциональная форма = свежее состояние» здесь неверно.
+   *
+   * Поэтому ref: он хранит ПОСЛЕДНЕЕ НАМЕРЕНИЕ и обновляется сразу, до
+   * перерисовки. На каждом рендере он же приводится к тому, что в адресе, —
+   * значит переход «назад» или ссылка со своей сортировкой его не обманут.
+   */
+  const sortRef = useRef(sort);
+  // Приведение к адресу — эффектом, а не в теле рендера (запись в ref во время
+  // рендера запрещена правилом react-hooks и ломает конкурентный рендер).
+  // Внутри серии кликов перерисовки нет, поэтому ref продолжает нести намерение;
+  // а «назад» или ссылка со своей сортировкой поправят его здесь.
+  useEffect(() => { sortRef.current = sort; }, [sort]);
   const sortBy = (key) => {
-    const next = key !== sortKey ? { key, dir: 'asc' }
-      : sortDir === 'asc' ? { key, dir: 'desc' }
-        : { key: null, dir: 'asc' };
-    patchParams({ sort: next.key || '', dir: next.key && next.dir === 'desc' ? 'desc' : '' });
+    const next = nextSortState(sortRef.current, key);
+    sortRef.current = next;
+    patchParams({
+      sort: next.key || '',
+      dir: next.key && next.dir === 'desc' ? 'desc' : '',
+    });
   };
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const setPage = (p) => patchPage({ page: p > 1 ? String(p) : '' });
