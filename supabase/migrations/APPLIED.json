@@ -1198,6 +1198,34 @@
       "files": [
         "20260821140000_erp_outsource_department.sql"
       ]
+    },
+    {
+      "version": "20260822120653",
+      "name": "erp_dept_bound_roles",
+      "files": [
+        "20260822100000_erp_dept_bound_roles.sql"
+      ]
+    },
+    {
+      "version": "20260822120713",
+      "name": "erp_dtg_result_fields",
+      "files": [
+        "20260822110000_erp_dtg_result_fields.sql"
+      ]
+    },
+    {
+      "version": "20260822120745",
+      "name": "erp_material_accept",
+      "files": [
+        "20260822120000_erp_material_accept.sql"
+      ]
+    },
+    {
+      "version": "20260822120811",
+      "name": "erp_material_accept_idempotent",
+      "files": [
+        "20260822130000_erp_material_accept_idempotent.sql"
+      ]
     }
   ]
 }
