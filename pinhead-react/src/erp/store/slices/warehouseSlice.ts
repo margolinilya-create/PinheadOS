@@ -12,7 +12,7 @@ import { toast } from '../../../store/useToastStore';
 import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
-import { currentActor, erpError, erpQuery } from '../shared';
+import { currentActor, erpError, erpQuery, erpWrite } from '../shared';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
 
@@ -170,7 +170,9 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       .select());
     const row = data?.[0] as ErpWarehouseOp | undefined;
     if (error || !row) {
-      toast.error('Не удалось записать складскую операцию');
+      // `erpError`, а не плоский тост: отказ прав (42501) обязан отличаться
+      // от обрыва сети — правило проекта про причину, а не про факт
+      erpError('Складская операция не записана', error);
       return null;
     }
     set((s) => ({
@@ -202,10 +204,17 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       ...(extra?.note !== undefined ? { note: extra.note } : {}),
     };
     set((s) => ({ orders: patchTaskIn(s.orders, taskId, patch) }));
-    const { error } = await erpQuery(() => supabase.from('erp_warehouse_tasks').update(patch).eq('id', taskId));
-    if (error) {
+    /**
+     * `.select()` обязателен: RLS на UPDATE (`warehouse.manage`) запрещает через
+     * `USING`, то есть отдаёт «0 строк» БЕЗ ошибки. Проверка одного `error`
+     * оставляла бы на экране «задача принята» и «заказ отгружен» там, где
+     * в базе не изменилось ничего, — а следом `logWarehouseOp` дописывал
+     * в историю склада строку о непроизошедшем переходе.
+     */
+    const ok = await erpWrite('Задача склада не обновлена', () => supabase
+      .from('erp_warehouse_tasks').update(patch).eq('id', taskId).select());
+    if (!ok) {
       set({ orders: prev });
-      toast.error('Не удалось обновить задачу склада');
       return false;
     }
     // История склада для значимых переходов (маркировка выпущена / упаковано / отгружено)

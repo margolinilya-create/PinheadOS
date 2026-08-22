@@ -6,7 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpError, erpQuery } from '../shared';
+import { erpError, erpQuery, erpWrite } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
@@ -99,7 +99,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       .select());
     const row = data?.[0] as ErpMaterial | undefined;
     if (error || !row) {
-      toast.error('Не удалось добавить материал');
+      erpError('Материал не добавлен', error);
       return null;
     }
     set((s) => ({
@@ -119,10 +119,16 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
         materials: o.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
       })),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_materials').update(patch).eq('id', id));
-    if (error) {
+    /**
+     * `.select()` и проверка длины: RLS на UPDATE запрещает через `USING`,
+     * то есть отдаёт «0 строк» без ошибки. Закупочные поля правом не гейтятся,
+     * а вот `accept_*` держит страж `erp_material_guard` — и без этой проверки
+     * правка приёмки без права оставалась бы на экране как сохранённая.
+     */
+    const ok = await erpWrite('Материал не обновлён', () => supabase
+      .from('erp_materials').update(patch).eq('id', id).select());
+    if (!ok) {
       set({ orders: prev });
-      toast.error('Не удалось обновить материал');
       return false;
     }
     const order = get().orders.find((o) => o.materials.some((m) => m.id === id));
@@ -141,14 +147,18 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
 
   addSupplierOption: async (materialId, option) => {
     const supplier = (option.supplier ?? '').trim();
-    if (!supplier) return null;
+    if (!supplier) {
+      // Молчаливый выход: кнопка нажата, не происходит ничего, объяснения нет
+      toast.error('Укажите поставщика');
+      return null;
+    }
     const { data, error } = await erpQuery(() => supabase
       .from('erp_material_suppliers')
       .insert({ ...option, supplier, material_id: materialId })
       .select());
     const row = data?.[0] as ErpMaterialSupplier | undefined;
     if (error || !row) {
-      toast.error('Не удалось добавить вариант поставщика');
+      erpError('Вариант поставщика не добавлен', error);
       return null;
     }
     set((s) => ({ orders: patchSuppliersIn(s.orders, materialId, (list) => [...list, row]) }));
@@ -161,11 +171,10 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
       orders: patchSuppliersIn(s.orders, materialId, (list) =>
         list.map((o) => (o.id === optionId ? { ...o, ...patch } : o))),
     }));
-    const { error } = await erpQuery(() => supabase
-      .from('erp_material_suppliers').update(patch).eq('id', optionId));
-    if (error) {
+    const ok = await erpWrite('Вариант поставщика не сохранён', () => supabase
+      .from('erp_material_suppliers').update(patch).eq('id', optionId).select());
+    if (!ok) {
       set({ orders: prev });
-      toast.error('Не удалось сохранить вариант поставщика');
       return false;
     }
     return true;
@@ -181,7 +190,10 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     const prev = get().orders;
     const material = prev.flatMap((o) => o.materials).find((m) => m.id === materialId);
     const option = (material?.suppliers ?? []).find((o) => o.id === optionId);
-    if (!option) return false;
+    if (!option) {
+      erpError('Поставщик не выбран', { message: 'вариант не найден — обновите страницу' });
+      return false;
+    }
 
     const previousSelected = (material?.suppliers ?? []).filter(
       (o) => o.is_selected && o.id !== optionId);
@@ -191,22 +203,42 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
         list.map((o) => ({ ...o, is_selected: o.id === optionId }))),
     }));
 
-    for (const old of previousSelected) {
-      const { error } = await erpQuery(() => supabase
-        .from('erp_material_suppliers').update({ is_selected: false }).eq('id', old.id));
-      if (error) {
-        set({ orders: prev });
-        toast.error('Не удалось сменить поставщика');
-        return false;
+    /**
+     * Действие из нескольких записей, и откатывать интерфейс поверх уже
+     * закоммиченных нельзя (правило проекта, на нём ловились с переносом этапа).
+     * Здесь это было именно так: снятие флага у прежнего поставщика уходило
+     * отдельным запросом, и при сбое ВТОРОГО запроса `set({ orders: prev })`
+     * возвращал на экран прежнего выбранного — которого в базе уже не было.
+     *
+     * `committed` отмечает момент, после которого правды на клиенте нет:
+     * дальше состояние берётся с сервера, а не выдумывается.
+     */
+    let committed = false;
+    const orderId = prev.find((o) => o.materials.some((m) => m.id === materialId))?.id ?? null;
+    /** Сообщение об отказе одно: экран либо возвращается как был, либо перечитывается */
+    const fail = async (): Promise<false> => {
+      if (committed && orderId) {
+        await get().loadOne(orderId);
+        return erpError('Поставщик выбран не полностью',
+          { message: 'часть изменений сохранена — состояние перечитано с сервера' });
       }
-    }
-    const { error } = await erpQuery(() => supabase
-      .from('erp_material_suppliers').update({ is_selected: true }).eq('id', optionId));
-    if (error) {
       set({ orders: prev });
-      toast.error('Не удалось выбрать поставщика');
-      return false;
+      return erpError('Поставщик не выбран',
+        { message: 'нет прав на это действие или запись изменена другим' });
+    };
+    /** Запись без собственного тоста: о результате говорит `fail` один раз */
+    const write = async (id: string, isSelected: boolean): Promise<boolean> => {
+      const { data, error } = await erpQuery(() => supabase
+        .from('erp_material_suppliers').update({ is_selected: isSelected }).eq('id', id).select());
+      return !error && (data ?? []).length > 0;
+    };
+
+    for (const old of previousSelected) {
+      if (!(await write(old.id, false))) return fail();
+      committed = true;
     }
+    if (!(await write(optionId, true))) return fail();
+    committed = true;
     return get().updateMaterial(materialId, { supplier: option.supplier });
   },
 
@@ -219,11 +251,15 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     const material = prev.flatMap((o) => o.materials).find((m) => m.id === materialId);
     const option = (material?.suppliers ?? []).find((o) => o.id === optionId);
     // Не optimistic delete (правило репо) — ждём ответ Supabase
-    const { error } = await erpQuery(() => supabase.from('erp_material_suppliers').delete().eq('id', optionId));
-    if (error) {
-      toast.error('Не удалось удалить вариант поставщика');
-      return false;
-    }
+    /**
+     * DELETE под RLS запрещается через `USING` — «удалено 0 строк», а не 42501.
+     * Проверка одного `error` убирала вариант с экрана, а в базе он оставался
+     * и возвращался при следующей загрузке. То же самое уже ловили на удалении
+     * заказа.
+     */
+    const ok = await erpWrite('Вариант поставщика не удалён', () => supabase
+      .from('erp_material_suppliers').delete().eq('id', optionId).select());
+    if (!ok) return false;
     set((s) => ({
       orders: patchSuppliersIn(s.orders, materialId, (list) =>
         list.filter((o) => o.id !== optionId)),
@@ -273,12 +309,20 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
   takeSupply: async (orderId) => {
     const order = get().orders.find((o) => o.id === orderId);
     const supplyDept = findSupplyDept(get().departments);
-    if (!order || !supplyDept) return false;
+    if (!order || !supplyDept) {
+      return erpError('Закупка не взята в работу',
+        { message: 'данные ещё загружаются — обновите страницу и повторите' });
+    }
     // Берём только ещё не начатые: повторный перевод в `in_progress` — лишний
     // запрос, а у заблокированного этапа сначала снимают блокировку
     const toTake = openSupplyStages(order, supplyDept.id)
       .filter((st) => st.status !== 'in_progress' && st.status !== 'blocked');
-    if (toTake.length === 0) return false;
+    // Молча ничего не делать нельзя: кнопка нажата, и «уже в работе»
+    // от «заблокировано» человек должен отличить
+    if (toTake.length === 0) {
+      return erpError('Закупка не взята в работу',
+        { message: 'нечего брать: этапы уже в работе или заблокированы' });
+    }
     for (const st of toTake) {
       const ok = await get().setStageStatus(st.id, 'in_progress', {
         comment: 'Закупка взята в работу',
@@ -306,9 +350,20 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     }
     const order = get().orders.find((o) => o.id === orderId);
     const supplyDept = findSupplyDept(get().departments);
-    if (!order || !supplyDept) return false;
+    /**
+     * Молчаливые выходы: кнопка нажата, подтверждение введено — и не происходит
+     * ничего. Справочник цехов мог не догрузиться, а этап — закрыться в соседней
+     * вкладке; и то и другое человеку надо СКАЗАТЬ, иначе он жмёт снова.
+     */
+    if (!order || !supplyDept) {
+      return erpError('Закупка не закрыта',
+        { message: 'данные ещё загружаются — обновите страницу и повторите' });
+    }
     const openSupply = openSupplyStages(order, supplyDept.id);
-    if (openSupply.length === 0) return false;
+    if (openSupply.length === 0) {
+      return erpError('Закупка не закрыта',
+        { message: 'открытых этапов закупки у заказа нет — возможно, её уже закрыли' });
+    }
     for (const st of openSupply) {
       const ok = await get().setStageStatus(st.id, 'done', { comment: text });
       if (!ok) return false;

@@ -5,8 +5,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
-import { toast } from '../../../store/useToastStore';
+import { erpError, erpQuery, erpWrite } from '../shared';
 import type { ErpProcurementTask } from '../../types';
 import type { ErpStore, ProcurementSlice } from '../types';
 
@@ -30,7 +29,7 @@ export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> 
       .select());
     const row = data?.[0] as ErpProcurementTask | undefined;
     if (error || !row) {
-      toast.error('Не удалось создать задачу закупки');
+      erpError('Задача закупки не создана', error);
       return null;
     }
     set((s) => ({
@@ -51,10 +50,12 @@ export const procurementSlice: StateCreator<ErpStore, [], [], ProcurementSlice> 
           t.id === id ? { ...t, ...patch } : t),
       })),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_procurement_tasks').update(patch).eq('id', id));
-    if (error) {
+    // `.select()`: RLS на UPDATE запрещает через `USING` — «0 строк» без ошибки,
+    // и статус дозакупки оставался бы на экране изменённым, а в базе прежним
+    const ok = await erpWrite('Задача закупки не обновлена', () => supabase
+      .from('erp_procurement_tasks').update(patch).eq('id', id).select());
+    if (!ok) {
       set({ orders: prev });
-      toast.error('Не удалось обновить задачу закупки');
       return false;
     }
     return true;

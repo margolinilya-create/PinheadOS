@@ -30,6 +30,14 @@ const h = vi.hoisted(() => ({
    * а не исключение. Без этого различия мок не умеет воспроизвести отказ.
    */
   deletedRows: [{ id: 'ord-1' }] as unknown[],
+  /**
+   * Строки, вернувшиеся из `update().select()`. Пустой массив = ОТКАЗ RLS:
+   * запрет на UPDATE приходит через `USING`, то есть «обновлено 0 строк»,
+   * а не исключение. Без этого различия мок не воспроизводит отказ прав,
+   * и сторожить «0 строк — не успех» было бы нечем: именно поэтому дефект
+   * и дожил до аудита 22.08.
+   */
+  updatedRows: [{ id: 'row-1' }] as unknown[],
   selectCalls: [] as { table: string; filters: string[] }[],
   /**
    * Колонки сортировки по каждому `.order(...)`. Постраничная выборка обязана
@@ -99,6 +107,12 @@ vi.mock('../../lib/supabase', () => {
               return q;
             },
             neq: () => q,
+            is: () => q,
+            // `.select()` после update: им проверяют, сколько строк ОБНОВИЛОСЬ
+            select: () => {
+              const error = h.updateErrors.length ? h.updateErrors.shift()! : h.updateError;
+              return Promise.resolve({ data: error ? null : h.updatedRows, error });
+            },
             then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
               // updateErrors — очередь на КАЖДЫЙ вызов по порядку (как insertErrors).
               // Нужна там, где важно, какой именно шаг упал: у переноса этапа первый
@@ -265,6 +279,7 @@ beforeEach(() => {
   h.deleteCalls.length = 0;
   h.deleteError = null;
   h.deletedRows = [{ id: 'ord-1' }];
+  h.updatedRows = [{ id: 'row-1' }];
   h.selectCalls.length = 0;
   h.orderCalls.length = 0;
   h.tableData = {};
@@ -902,7 +917,8 @@ describe('useErpStore — задачи склада (волна 4): advanceWareh
     const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'packing');
     expect(ok).toBe(false);
     expect(task0()?.status).toBe('accepted');
-    expect(toast.error).toHaveBeenCalledWith('Не удалось обновить задачу склада');
+    // Причина названа, а не съедена: отказ прав обязан отличаться от обрыва сети
+    expect(toast.error).toHaveBeenCalledWith('Задача склада не обновлена: boom');
   });
 
   it('pack_ship ready_to_ship→shipped: отгружает заказ (все этапы done) → done_* + shipment', async () => {
@@ -1002,7 +1018,7 @@ describe('useErpStore — updateProcurementTask + error-пути (аудит P1)
     const ok2 = await useErpStore.getState().updateProcurementTask('pt1', { status: 'done' });
     expect(ok2).toBe(false);
     expect(useErpStore.getState().orders[0].procurement_tasks?.[0].status).toBe('ordered');
-    expect(toast.error).toHaveBeenCalledWith('Не удалось обновить задачу закупки');
+    expect(toast.error).toHaveBeenCalledWith('Задача закупки не обновлена: boom');
   });
 
   it('createProcurementTask: ошибка insert → null + toast', async () => {
@@ -1010,7 +1026,7 @@ describe('useErpStore — updateProcurementTask + error-пути (аудит P1)
     h.insertErrors.push({ message: 'down' });
     const row = await useErpStore.getState().createProcurementTask('o1', { material_name: 'X', cause_type: 'shortage' });
     expect(row).toBeNull();
-    expect(toast.error).toHaveBeenCalledWith('Не удалось создать задачу закупки');
+    expect(toast.error).toHaveBeenCalledWith('Задача закупки не создана: down');
   });
 
   it('addMaterial: ошибка insert → null + toast, материал не добавлен', async () => {
@@ -1018,7 +1034,64 @@ describe('useErpStore — updateProcurementTask + error-пути (аудит P1)
     h.insertErrors.push({ message: 'down' });
     const row = await useErpStore.getState().addMaterial('o1', { kind: 'fabric', name: 'X', source: 'purchase', status: 'pending' } as any);
     expect(row).toBeNull();
-    expect(toast.error).toHaveBeenCalledWith('Не удалось добавить материал');
+    expect(toast.error).toHaveBeenCalledWith('Материал не добавлен: down');
+  });
+});
+
+/**
+ * Отказ RLS на UPDATE — это «обновлено 0 строк», а не исключение: запрет
+ * приходит через `USING`, а бросает только `WITH CHECK`. Клиент, смотревший
+ * один `error`, показывал зелёное «сохранено» там, где в базе не изменилось
+ * ничего, а оптимистичная правка оставалась на экране до перезагрузки.
+ *
+ * До 22.08 мок не умел `update().select()` вовсе, поэтому воспроизвести этот
+ * отказ было НЕЧЕМ — и сторожить его тоже нечем: тесты «падение update»
+ * проверяли только ветку с исключением.
+ */
+describe('useErpStore — «0 строк» от RLS не считается успехом', () => {
+  it('задача склада: отказ не оставляет на экране закрытую задачу', async () => {
+    useErpStore.setState({
+      orders: [{
+        id: 'o1', title: 'З', status: 'active', items: [], materials: [],
+        warehouse_tasks: [{
+          id: 'wt1', order_id: 'o1', item_id: null, task_type: 'marking', status: 'new',
+        }],
+      }] as any,
+      loaded: true,
+    });
+    h.updatedRows = [];   // RLS запретил: строк не обновлено, ошибки нет
+    const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'in_progress');
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().orders[0].warehouse_tasks?.[0].status).toBe('new');
+    expect(toast.error).toHaveBeenCalledWith(
+      'Задача склада не обновлена: нет прав на это действие или запись изменена другим');
+  });
+
+  it('материал: отказ откатывает оптимистичную правку', async () => {
+    useErpStore.setState({
+      orders: [{
+        id: 'o1', title: 'З', status: 'active', items: [],
+        materials: [{ id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Футер', status: 'pending' }],
+      }] as any,
+      loaded: true,
+    });
+    h.updatedRows = [];
+    const ok = await useErpStore.getState().updateMaterial('m1', { status: 'ordered' });
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().orders[0].materials[0].status).toBe('pending');
+  });
+
+  it('задача закупки: отказ откатывает статус', async () => {
+    useErpStore.setState({
+      orders: [{
+        id: 'o1', title: 'З', status: 'active', items: [], materials: [],
+        procurement_tasks: [{ id: 'pt1', order_id: 'o1', status: 'new', material_name: 'X' }],
+      }] as any,
+    });
+    h.updatedRows = [];
+    const ok = await useErpStore.getState().updateProcurementTask('pt1', { status: 'ordered' });
+    expect(ok).toBe(false);
+    expect(useErpStore.getState().orders[0].procurement_tasks?.[0].status).toBe('new');
   });
 });
 

@@ -183,7 +183,15 @@ export default function Warehouse() {
    * onlyOpen — над таблицей из трёх строк висела плитка «Упаковка/отгрузка 14».
    */
   const counts = useMemo(() => {
-    const c = { all: 0, material_receipt: 0, subcontract_receipt: 0, marking: 0, pack_ship: 0 };
+    /**
+     * Начальные нули берутся ИЗ `TERMINAL`, а не перечисляются руками.
+     * Перечисленные руками, они пропустили `fg_receipt`: `undefined + 1` даёт
+     * `NaN`, проверка `counts[key] > 0` всегда ложна — и вкладка «Приёмка ГП»
+     * не показывала число открытых задач НИКОГДА. Ошибка тихая: экран
+     * выглядит рабочим, просто одна цифра всегда пуста.
+     */
+    const c = { all: 0 };
+    for (const type of Object.keys(TERMINAL)) c[type] = 0;
     for (const { task } of allRows) {
       if (onlyOpen && task.status === TERMINAL[task.task_type]) continue;
       c.all += 1;
@@ -230,6 +238,10 @@ export default function Warehouse() {
             { key: 'material_receipt', icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
             { key: 'subcontract_receipt', icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
             { key: 'marking', icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
+            // Плитки «Приёмка ГП» здесь не было вовсе, хотя вкладка есть:
+            // тип задачи заведён во всех остальных местах, а на этом экране
+            // его не видно ни счётчиком, ни плиткой
+            { key: 'fg_receipt', icon: 'inbox', cls: styles.kpiIconViolet, label: 'Приёмка ГП', val: counts.fg_receipt },
             { key: 'pack_ship', icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
           ].map((k) => (
             // Плитка кликабельна целиком и фильтрует список — как в закупке
