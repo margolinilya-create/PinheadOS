@@ -52,6 +52,31 @@ const Agentation = React.lazy(() =>
   import('agentation').then(m => ({ default: m.Agentation }))
 );
 
+/**
+ * Старт раздела: черновик визарда и каталоги.
+ *
+ * ЖИЛО В `main.jsx` — под проверкой `if (FEATURES.orderStudio)`, но с обычным
+ * импортом стора наверху файла. Проверка рантайм, импорт статический: стор
+ * Order Studio со всеми слайсами, весь `src/data` (SKU, цвета, ткани, цены,
+ * обработки), `utils/pricing` и `lib/catalogs` ехали ВО ВХОДНОМ ЧАНКЕ — то есть
+ * каждому, кто открыл «Производство», где этот раздел выключен флагом и не
+ * используется ни одной строкой. Ровно тот же класс отказа, что был у CSS
+ * Order Studio 22.08: условие в коде есть, а в графе сборки его нет.
+ *
+ * ЗДЕСЬ — МОДУЛЬНАЯ ОБЛАСТЬ, А НЕ `useEffect`. Эффект выполняется ПОСЛЕ первого
+ * рендера: визард успел бы отрисоваться с пустой формой и заполниться следом,
+ * то есть черновик мигал бы на глазах. Код модуля выполняется при загрузке
+ * чанка раздела, до его первого рендера, — тот же момент, что и в `main.jsx`.
+ */
+try {
+  const draft = localStorage.getItem('pinhead_draft');
+  if (draft) useStore.getState().restoreFromDraft(JSON.parse(draft));
+} catch {
+  // Битый черновик убираем: иначе он ломает восстановление при каждом старте
+  localStorage.removeItem('pinhead_draft');
+}
+useStore.getState().loadCatalogs().catch(() => {});
+
 const STEPS = [StepGarment, StepDesign, StepItems, StepDetails, StepSummary];
 
 // Wizard page — main step-based flow
