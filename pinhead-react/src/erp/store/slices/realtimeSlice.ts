@@ -14,6 +14,7 @@ import {
   FULL_RELOAD_DEBOUNCE_MS,
 } from '../shared';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
+import { flushQueue } from '../offlineQueue';
 import type { ErpOrderFull, ErpStore, RealtimeSlice } from '../types';
 
 /** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
@@ -107,6 +108,12 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     set({ realtimeResyncing: true });
     try {
+      /**
+       * Сначала отдать накопленное, потом читать. Обратный порядок показал бы
+       * человеку состояние БЕЗ его же приёмок, сделанных без связи, — и он
+       * ввёл бы их заново, теперь уже вторым приходом.
+       */
+      await flushQueue();
       await get().loadAll();
       set({ realtimeLive: true });
     } finally {

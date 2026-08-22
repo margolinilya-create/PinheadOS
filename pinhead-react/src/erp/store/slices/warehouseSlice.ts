@@ -13,6 +13,7 @@ import type {
   ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
 } from '../../types';
 import { currentActor, erpError, erpQuery, erpWrite } from '../shared';
+import { enqueue } from '../offlineQueue';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
 
@@ -72,14 +73,14 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
   acceptMaterial: async (
     materialId,
     { qty = null, accept_status, accept_comment = null, invoice = null,
-      fact_name = null, fact_color = null, fact_article = null },
+      fact_name = null, fact_color = null, fact_article = null, clientKey = null },
   ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) {
       erpError('Приёмка не записана', { message: 'Материал не найден в загруженных заказах' });
       return false;
     }
-    const { error } = await erpQuery(() => supabase.rpc('erp_material_accept', {
+    const args = {
       p_material_id: materialId,
       p_accept_status: accept_status,
       p_qty: qty,
@@ -90,7 +91,38 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       p_fact_color: fact_color,
       p_fact_article: fact_article,
       p_actor: currentActor(),
-    }));
+      p_client_key: clientKey,
+    };
+
+    /**
+     * Без связи приёмка не теряется, а ждёт (см. `store/offlineQueue`).
+     * Кладовщик стоит у поставки, и «нет сети, действие не сохранено»
+     * означало потерянные цифры и второй заход к тому же материалу.
+     *
+     * Очередь безопасна здесь и только здесь: операция накопительная и
+     * идемпотентна по `p_client_key` — повтор не удвоит приход. Ключ
+     * обязателен: без него очередь лечила бы обрыв связи двойным количеством
+     * материала на фабрике.
+     */
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (offline && clientKey) {
+      const material = order.materials.find((m) => m.id === materialId);
+      const ok = enqueue({
+        id: clientKey,
+        kind: 'material_accept',
+        label: `${material?.name ?? 'материал'} · ${order.title}`,
+        at: new Date().toISOString(),
+        args,
+      });
+      // Правду говорим полностью: приёмки в базе ЕЩЁ НЕТ, и «принято» было бы
+      // ложью — материал остаётся в списке ожидающих приёмки
+      if (ok) {
+        toast.warning('Нет связи. Приёмка сохранена на устройстве и уйдёт, когда связь появится');
+      }
+      return false;
+    }
+
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_accept', args));
     if (error) {
       erpError('Приёмка не записана', error);
       return false;

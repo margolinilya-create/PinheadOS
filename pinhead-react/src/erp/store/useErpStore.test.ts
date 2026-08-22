@@ -805,6 +805,9 @@ describe('useErpStore — материал со склада / авто-закр
     const call = h.rpcCalls.find((c) => c.fn === 'erp_material_accept');
     expect(call, 'приёмка обязана идти через erp_material_accept').toBeTruthy();
     expect(call!.args.p_material_id).toBe('m1');
+    // Ключ идемпотентности доезжает до сервера: без него повтор после
+    // оборвавшегося ответа записал бы приход дважды
+    expect(call!.args).toHaveProperty('p_client_key');
     expect(call!.args.p_qty).toBe(100);
     expect(call!.args.p_accept_status).toBe('accepted_full');
     expect(call!.args.p_comment).toBe('ок');

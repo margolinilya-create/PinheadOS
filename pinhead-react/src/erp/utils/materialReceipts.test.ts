@@ -29,7 +29,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
+import {
+  functionBody, latestDefining, latestMatching, withoutComments,
+} from './migrations.testutil';
 
 const ACCEPT_SQL = latestDefining('erp_material_accept');
 const ROLLUP_SQL = latestDefining('erp_material_receipts_rollup');
@@ -90,6 +92,41 @@ describe('приёмка материала: журнал и статус одн
   it('RPC исполняется от лица вызывающего', () => {
     expect(ACCEPT_SQL).toMatch(/create or replace function public\.erp_material_accept\([\s\S]{0,900}security invoker/);
     expect(ACCEPT_SQL).not.toMatch(/erp_material_accept\([\s\S]{0,900}security definer/);
+  });
+
+  /**
+   * Повтор той же попытки не удваивает приход. Сумма журнала — это количество
+   * материала на фабрике, и обрыв ответа при закоммиченной приёмке (обычное
+   * дело на цеховом Wi-Fi) не должен превращаться во второй приход.
+   *
+   * Без этого нельзя делать и офлайн-очередь: она по определению повторяет
+   * отправку и без идемпотентности лечила бы потерю связи удвоенным приходом.
+   */
+  it('повтор с тем же ключом не пишет вторую строку журнала', () => {
+    const body = withoutComments(functionBody(ACCEPT_SQL, 'erp_material_accept'));
+    expect(body).toMatch(/p_client_key is not null/);
+    expect(body).toMatch(/where client_key = p_client_key/);
+    // Вставка пропускается, а статус позиции всё равно приводится к запрошенному:
+    // повтор обязан оставить систему в том же состоянии, а не в половинчатом
+    expect(body).toMatch(/if p_qty is not null and not v_dup then/);
+    expect(body).toMatch(/'duplicate'/);
+  });
+
+  it('ключ уникален на уровне схемы, а не только в коде функции', () => {
+    const sql = latestMatching(
+      /create unique index if not exists erp_material_receipts_client_key_idx/,
+      'уникальный индекс client_key');
+    // Частичный: у строк до 22.08 ключа нет, и NULL-ы не должны мешать друг другу
+    expect(sql).toMatch(/where client_key is not null/);
+  });
+
+  /**
+   * Прежняя сигнатура без ключа снимается тем же коммитом: оставленная рядом,
+   * она стала бы вторым путём записи журнала — без идемпотентности.
+   */
+  it('сигнатуры без ключа не остаётся', () => {
+    expect(ACCEPT_SQL).toMatch(
+      /drop function if exists public\.erp_material_accept\([\s\S]{0,200}\)/);
   });
 
   it('перечень статусов в RPC совпадает с CHECK таблиц', () => {

@@ -1,0 +1,139 @@
+/**
+ * Очередь записей, сделанных без связи.
+ *
+ * ЗАЧЕМ И ПОЧЕМУ ТАК УЗКО. Кладовщик стоит у поставки с планшетом, и цеховой
+ * Wi-Fi там хуже всего. До этого при обрыве связи он получал «нет сети,
+ * действие не сохранено» — то есть терял набранное и должен был вернуться
+ * к материалу позже, вспомнив цифры.
+ *
+ * В очередь попадает ОДНА операция — приёмка материала, и это не экономия сил,
+ * а свойство операции:
+ *
+ *   · она НАКОПИТЕЛЬНАЯ: «пришло ещё 35» остаётся верным и через час.
+ *     Повторить её позже безопасно по построению;
+ *   · она ИДЕМПОТЕНТНА по `client_key` (миграция 20260822130000): очередь
+ *     по определению повторяет отправку, и без ключа она лечила бы потерю
+ *     связи удвоенным приходом — дефектом хуже того, который лечит.
+ *
+ * Переходы складских задач сюда НЕ кладутся, и это тоже решение, а не
+ * недоделка: «упаковано» — это стейт-машина. Отправленное через час
+ * «упаковано» может приехать после того, как заказ уже отгрузили, и сдвинет
+ * задачу назад. Такой операции нужны правила разрешения конфликта, а не
+ * очередь; пока их нет, честнее сказать «нет связи», чем тихо откатить чужую
+ * работу.
+ *
+ * Хранится в localStorage: планшет закрывают, роняют и перезагружают, а
+ * очередь в памяти это ровно то же потерянное набранное, только позже.
+ */
+
+import { supabase } from '../../lib/supabase';
+import { toast } from '../../store/useToastStore';
+import { erpQuery } from './shared';
+import { isNetworkFailure, networkFailureMessage } from '../../utils/i18n';
+
+const STORAGE_KEY = 'erp_offline_queue';
+
+/** Текст, которым `erpQuery` помечает «ответа сервера не было» */
+const NO_ANSWER = networkFailureMessage(null);
+
+/** Сколько записей держим: очередь — это забытый планшет, а не архив */
+export const MAX_QUEUED = 50;
+
+export interface QueuedAccept {
+  /** Он же ключ идемпотентности на сервере */
+  id: string;
+  kind: 'material_accept';
+  /** Что показать человеку в списке ожидающих */
+  label: string;
+  at: string;
+  args: Record<string, unknown>;
+}
+
+function read(): QueuedAccept[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    // Битое хранилище не должно ронять экран: очередь — это удобство,
+    // а не то, без чего нельзя работать
+    return [];
+  }
+}
+
+function write(list: QueuedAccept[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    /* приватный режим, переполненное хранилище — работаем без очереди */
+  }
+}
+
+export function queued(): QueuedAccept[] {
+  return read();
+}
+
+export function enqueue(entry: QueuedAccept): boolean {
+  const list = read();
+  if (list.length >= MAX_QUEUED) {
+    toast.error('Слишком много несохранённых действий — дождитесь связи');
+    return false;
+  }
+  write([...list, entry]);
+  return true;
+}
+
+export function clearQueue(): void {
+  write([]);
+}
+
+/**
+ * Отправить накопленное.
+ *
+ * Различие транзитной и окончательной неудачи здесь принципиально. Обрыв сети —
+ * это «ещё не время», запись остаётся. ОТВЕТ сервера (нет права, материал
+ * удалили, расхождение без комментария) — решение, и повторять его бессмысленно:
+ * такая запись уходит из очереди с объяснением, иначе она будет всплывать
+ * при каждом появлении связи вечно.
+ *
+ * @returns сколько записей отправлено
+ */
+export async function flushQueue(): Promise<number> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
+  const list = read();
+  if (list.length === 0) return 0;
+
+  const left: QueuedAccept[] = [];
+  const dropped: string[] = [];
+  let sent = 0;
+
+  for (const entry of list) {
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_accept', entry.args));
+    if (!error) {
+      sent += 1;
+      continue;
+    }
+    /**
+     * Транзитная неудача — та, при которой мы НЕ ЗНАЕМ, дошёл ли запрос.
+     *
+     * Проверок две, и обе нужны. `isNetworkFailure` ловит сырую причину,
+     * а `erpQuery` к этому моменту уже перевёл её в «нет связи с сервером» —
+     * ту же фразу он отдаёт и как фолбэк для отклонения без текста. Отличить
+     * их здесь нечем, и это не страшно: в обоих случаях ответа сервера не было.
+     *
+     * Оставить лишнее безопасно — повтор идемпотентен по ключу. Выбросить
+     * лишнее нельзя: это потерянная приёмка, ради которой очередь и заведена.
+     */
+    if (isNetworkFailure(error.message) || error.message === NO_ANSWER) {
+      // Связь снова пропала — остальное тоже подождёт, порядок сохраняем
+      left.push(entry);
+      continue;
+    }
+    dropped.push(`${entry.label}: ${error.message}`);
+  }
+
+  write(left);
+  if (sent > 0) toast.success(`Отправлено действий: ${sent}`);
+  for (const text of dropped) toast.error(`Не удалось отправить — ${text}`);
+  return sent;
+}

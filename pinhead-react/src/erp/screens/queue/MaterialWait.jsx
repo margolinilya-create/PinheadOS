@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
@@ -9,6 +9,7 @@ import { formatDateShort } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
 import styles from '../../erp.module.css';
 import { Button } from '../../components/Button';
+import { createAttemptKeeper } from '../../utils/attemptKey';
 
 /**
  * Чего именно ждёт задание из группы «Ожидают материалы» (правка менеджера
@@ -36,6 +37,13 @@ export function MaterialWait({ materials, compact = false }) {
   const access = useErpAccess();
   const canReceive = access.can('material.receive');
   const [busy, setBusy] = useState(null);
+  /**
+   * Ключ идемпотентности попытки — по той же причине, что в карточке склада:
+   * подтверждение здесь оформляет приёмку полного плана, и повтор после
+   * оборвавшегося ответа удвоил бы приход.
+   */
+  const attempt = useRef(null);
+  if (attempt.current == null) { attempt.current = createAttemptKeeper(); }
 
   if (!materials || materials.length === 0) return null;
 
@@ -72,11 +80,13 @@ export function MaterialWait({ materials, compact = false }) {
     if (fromStock) {
       await confirmStockMaterial(m.id);
     } else {
-      await acceptMaterial(m.id, {
+      const ok2 = await acceptMaterial(m.id, {
         qty: planned,
         accept_status: 'accepted_full',
         accept_comment: null,
+        clientKey: attempt.current.keyFor(JSON.stringify([m.id, planned])),
       });
+      if (ok2) attempt.current.reset();
     }
     setBusy(null);
   };

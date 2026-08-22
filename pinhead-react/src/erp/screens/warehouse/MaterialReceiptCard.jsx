@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import { confirm } from '../../../store/useConfirmStore';
 import styles from '../../erp.module.css';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
+import { createAttemptKeeper } from '../../utils/attemptKey';
 
 /**
  * Задача склада «Приёмка материалов» (правка 4.1.3): сравнение План↔Факт по каждому материалу.
@@ -53,6 +54,13 @@ function AcceptBlock({ material: m, onAccept }) {
   const [status, setStatus] = useState(m.accept_status ?? 'accepted_full');
   const [comment, setComment] = useState(m.accept_comment ?? '');
   const [saving, setSaving] = useState(false);
+  /**
+   * Ключ идемпотентности попытки. Обрыв ответа при закоммиченной приёмке —
+   * обычное дело на цеховом Wi-Fi, и второе нажатие не должно записать приход
+   * дважды: сумма журнала это количество материала на фабрике.
+   */
+  const attempt = useRef(null);
+  if (attempt.current == null) { attempt.current = createAttemptKeeper(); }
 
   const already = Number(m.qty_received ?? 0);
   const expected = Number(m.qty_expected);
@@ -95,7 +103,13 @@ function AcceptBlock({ material: m, onAccept }) {
       if (!ok) return;
     }
     setSaving(true);
+    // Подпись ввода: не менял — та же попытка, тот же ключ
+    const signature = JSON.stringify([
+      m.id, arriving, status, comment.trim(), invoice.trim(),
+      factName.trim(), factColor.trim(), factArticle.trim(),
+    ]);
     const ok = await onAccept(m.id, {
+      clientKey: attempt.current.keyFor(signature),
       // Пусто — значит нового прихода нет: правят статус или комментарий
       qty: arriving > 0 ? arriving : null,
       accept_status: status,
@@ -106,7 +120,7 @@ function AcceptBlock({ material: m, onAccept }) {
       fact_article: factArticle.trim() || null,
     });
     setSaving(false);
-    if (ok) { setQty(''); setInvoice(''); }
+    if (ok) { attempt.current.reset(); setQty(''); setInvoice(''); }
   };
 
   return (
