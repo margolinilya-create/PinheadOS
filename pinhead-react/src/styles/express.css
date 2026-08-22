@@ -83,8 +83,8 @@
 /* ── Page layout (full-page calc) ── */
 .exp-page-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
 .exp-form-section { display: flex; flex-direction: column; gap: 24px; }
-.exp-result-section { position: sticky; top: 80px; background: var(--card, var(--white)); border: 1px solid var(--border-light); border-radius: var(--radius-lg, 12px); padding: 24px; }
-.exp-result-card    { border: 1.5px solid var(--border); padding: 32px; background: var(--card); border-radius: var(--radius-md, 8px); }
+.exp-result-section { position: sticky; top: 80px; background: var(--card); border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 24px; }
+.exp-result-card    { border: 1.5px solid var(--border); padding: 32px; background: var(--card); border-radius: var(--radius-md); }
 .exp-result-card.exp-result-empty {
   border-color: var(--border-light);
   display: flex;
@@ -124,7 +124,7 @@
 /* ── Input polish ── */
 .exp-field select,
 .exp-field input {
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 768px) {

@@ -60,8 +60,8 @@
 .extras-accordion { margin-top: 16px; }
 .extras-accordion-toggle {
   width: 100%; display: flex; align-items: center; gap: 8px;
-  padding: 10px 14px; background: var(--bg-card, #f5f5f5);
-  border: 1px solid var(--border, #e0e0e0); border-radius: 6px;
+  padding: 10px 14px; background: var(--surface);  /* был var(--bg-card, #f5f5f5): токена --bg-card нет вовсе, работал фолбэк */
+  border: 1px solid var(--border); border-radius: 6px;
   cursor: pointer; font-size: 14px; font-weight: 600;
 }
 .extras-list-spaced { margin-top: 8px; }

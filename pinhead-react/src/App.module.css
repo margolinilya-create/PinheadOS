@@ -13,7 +13,7 @@
   width: 40px;
   height: 40px;
   border: 3px solid var(--border);
-  border-top-color: var(--accent, #333);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -77,8 +77,8 @@
   overflow: hidden;
   z-index: 9999;
   padding: 8px 16px;
-  background: var(--black, #000);
-  color: var(--white, #fff);
+  background: var(--black);
+  color: var(--white);
   text-decoration: none;
 }
 

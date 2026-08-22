@@ -33,11 +33,11 @@
   transition: background 150ms ease-out, color 150ms ease-out;
   white-space: nowrap; flex-shrink: 0;
 }
-.header-nav-btn:hover { color: var(--white, #fff); background: var(--accent); }
-.active { background: var(--accent); color: var(--white, #fff); }
+.header-nav-btn:hover { color: var(--white); background: var(--accent); }
+.active { background: var(--accent); color: var(--white); }
 
 /* Express — accent like other nav items */
-.express-btn { background: var(--accent); color: var(--white, #fff); border-left-color: var(--accent); }
+.express-btn { background: var(--accent); color: var(--white); border-left-color: var(--accent); }
 .express-btn:hover { opacity: 0.85; }
 .express-btn.active { background: var(--accent); }
 

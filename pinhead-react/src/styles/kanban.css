@@ -13,7 +13,7 @@
   font-weight: 700;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: var(--text-muted, #888);
+  color: var(--text-muted);
   margin-bottom: var(--space-xs);
   margin-top: var(--space-lg);
 }
@@ -54,18 +54,18 @@
 .kanban-col-sum     { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-dim); margin-left: auto; margin-right: var(--space-sm); letter-spacing: .5px; }
 .kanban-col-body    { flex: 1; overflow-y: auto; padding: var(--space-sm) var(--space-sm) 60px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
 .kanban-col-body.drag-over {
-  background: var(--accent-light, rgba(43,43,240,0.06));
-  border: 2px dashed var(--accent, #2B2BF0);
-  border-radius: var(--radius-md, 8px);
+  background: var(--accent-light);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
   transition: background 0.2s ease, border 0.2s ease;
 }
 /* Cards */
-.kb-card { background: var(--card); border: 1.5px solid var(--border-light); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 150ms ease-out; position: relative; display: flex; overflow: hidden; min-height: 110px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: var(--radius-md, 8px); }
+.kb-card { background: var(--card); border: 1.5px solid var(--border-light); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 150ms ease-out; position: relative; display: flex; overflow: hidden; min-height: 110px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: var(--radius-md); }
 .kb-card[draggable]   { cursor: grab; }
 .kb-card[draggable]:active { cursor: grabbing; }
 .kb-card:hover        { transform: translateY(-2px); border-color: var(--black); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.kb-card.dragging     { opacity: .5; transform: scale(0.97) rotate(1.5deg); box-shadow: 0 8px 24px rgba(0,0,0,.15); border-color: var(--accent, #2B2BF0); }
-.kb-card-bar     { width: 4px; flex-shrink: 0; align-self: stretch; border-radius: var(--radius-md, 8px) 0 0 var(--radius-md, 8px); }
+.kb-card.dragging     { opacity: .5; transform: scale(0.97) rotate(1.5deg); box-shadow: 0 8px 24px rgba(0,0,0,.15); border-color: var(--accent); }
+.kb-card-bar     { width: 4px; flex-shrink: 0; align-self: stretch; border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .kb-card-content { flex: 1; padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; }
 .kb-card-top     { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
 .kb-card-id      { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px; color: var(--accent); }
@@ -97,10 +97,10 @@
   align-items: center;
   justify-content: center;
   min-height: 120px;
-  border: 2px dashed var(--border, #e0e0e0);
+  border: 2px dashed var(--border);
   border-radius: 8px;
   margin: var(--space-sm);
-  color: var(--text-dim, #999);
+  color: var(--text-dim);
 }
 /* Card context menu */
 .kb-card-menu-btn { position: absolute; top: 6px; right: 6px; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-dim); padding: 2px 6px; transition: color 150ms ease-out; }

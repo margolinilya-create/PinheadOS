@@ -27,19 +27,25 @@ import { Button } from '../../components/Button';
  * Загрузка и замена — по праву `tz.manage`; смотреть и скачивать может каждый.
  */
 
-/** Кнопка выбора PDF: скрытый input + внешний вид обычной кнопки */
-function PdfButton({ label, onPick, disabled, variant = 'btn-secondary' }) {
+/**
+ * Кнопка выбора PDF: скрытый input + примитив `Button`.
+ *
+ * Здесь стоял глобальный `btn btn-secondary` — язык Order Studio с его
+ * uppercase-типографикой, и это было ЕДИНСТВЕННОЕ такое место в разделе.
+ * Правило проекта прямое: кнопки ERP — только примитив (у него свои размеры,
+ * состояния и ≥44px на тач-экранах, которых глобальный класс не даёт).
+ */
+function PdfButton({ label, onPick, disabled, variant = 'secondary' }) {
   const ref = useRef(null);
   return (
     <>
-      <button
-        type="button"
-        className={`btn ${variant}`}
+      <Button
+        variant={variant}
         disabled={disabled}
         onClick={() => ref.current?.click()}
       >
         {label}
-      </button>
+      </Button>
       <input
         ref={ref}
         type="file"
@@ -132,7 +138,7 @@ export function TzDocsSection({ order, item, deptById }) {
               actions={canManage ? (
                 <PdfButton
                   label="Заменить файл"
-                  variant="btn-ghost"
+                  variant="ghost"
                   disabled={busy}
                   onPick={(f) => replace(doc.group_id, f)}
                 />

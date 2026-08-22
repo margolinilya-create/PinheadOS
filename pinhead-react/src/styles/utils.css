@@ -186,7 +186,7 @@
   padding: 12px 24px; font-family: var(--font-body); font-size: 12px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase;
   opacity: 0; transition: all 250ms ease-out; z-index: var(--z-toast);
-  pointer-events: none; white-space: nowrap; border-left: 3px solid var(--signal, #FF3B30);
+  pointer-events: none; white-space: nowrap; border-left: 3px solid var(--signal);
 }
 .val-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 /* ── Toast Notifications — moved to Toast.module.css ── */
@@ -225,7 +225,7 @@
 .confirm-btn.cancel       { background: var(--bg2); color: var(--text-mid); }
 .confirm-btn.cancel:hover { background: var(--bg3); }
 .confirm-btn.danger       { background: var(--accent); color: var(--card); }
-.confirm-btn.danger:hover { background: var(--accent-hover, #1E1ED4); }
+.confirm-btn.danger:hover { background: var(--accent-hover); }
 /* ── Decorative ── */
 .ray-deco { position: absolute; pointer-events: none; opacity: .07; }
 /* ── Scrollbar ── */
