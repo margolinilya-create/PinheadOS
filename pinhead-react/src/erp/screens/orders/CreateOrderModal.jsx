@@ -320,32 +320,38 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   /**
    * Копия позиции (п. 5.7). Ключи нанесений и бирок ПЕРЕСОЗДАЮТСЯ: по ним
    * файлы находят свою строку, и общий ключ отдал бы копии чужой макет.
-   * Сами файлы не копируются — они привязаны к строкам оригинала; в копии
-   * их прикладывают заново, зато все параметры уже на месте.
+   * Файлы копируются следом — по новым ключам и настоящими объектами
+   * в бакете, а не ссылкой на тот же путь.
    */
   const copyItem = (i) => {
     const src = items[i];
     if (!src) return;
-    setItems((arr) => [...arr, {
-      ...src,
-      route: undefined,
-      prints: (src.prints ?? []).map((p) => ({ ...p, key: crypto.randomUUID() })),
-      labels: (src.labels ?? []).map((l) => ({ ...l, key: crypto.randomUUID() })),
-    }]);
+    const prints = (src.prints ?? []).map((p) => ({ ...p, key: crypto.randomUUID() }));
+    const labels = (src.labels ?? []).map((l) => ({ ...l, key: crypto.randomUUID() }));
+    setItems((arr) => [...arr, { ...src, route: undefined, prints, labels }]);
+    // Макеты и файлы бирок копируются вместе со строками (п. 5.4): копируют
+    // затем, чтобы не заводить одно и то же дважды
+    (src.prints ?? []).forEach((p, j) => attach.copyOwner(p.key, prints[j].key));
+    (src.labels ?? []).forEach((l, j) => attach.copyOwner(l.key, labels[j].key));
   };
 
   /**
    * Копирование ОДНОГО нанесения из другой позиции (п. 5.4): «в одной сделке
    * могут быть футболка и свитшот с полностью одинаковыми нанесениями».
-   * Копируются все параметры; макет остаётся у источника — файл принадлежит
-   * его строке, а в копии он прикладывается заново.
+   * Копируются ВСЕ семь полей документа, включая прикреплённый макет.
+   * После копирования данные правятся независимо от источника.
    */
   const copyPrint = (targetIndex, sourceIndex, printIndex) => {
     const src = items[sourceIndex]?.prints?.[printIndex];
     if (!src) return;
+    const copy = { ...src, key: crypto.randomUUID() };
     setItems((arr) => arr.map((it, idx) => (idx === targetIndex
-      ? { ...it, has_branding: true, prints: [...it.prints, { ...src, key: crypto.randomUUID() }] }
+      ? { ...it, has_branding: true, prints: [...it.prints, copy] }
       : it)));
+    // Документ перечисляет «прикреплённый макет» среди копируемого (п. 5.4):
+    // объект в бакете копируется настоящий, иначе удаление одной строки
+    // унесло бы файл у другой
+    attach.copyOwner(src.key, copy.key);
   };
 
   /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
@@ -419,32 +425,42 @@ export function CreateOrderModal({ onClose, draftId = null }) {
    *
    * `rowId` держим в ref рядом с состоянием: два автосохранения подряд
    * с `null` завели бы ДВА черновика на один заказ.
+   *
+   * ТЕЛО ЦЕЛИКОМ В `try/catch`: это async-функция внутри `setTimeout`, то есть
+   * её отказ никто не ждёт и он всплывает необработанным. Сообщать не о чем —
+   * слайс уже показал причину через `erpError`, а вторая полоса каждые 500 мс
+   * на потерянной связи превратила бы форму в мигалку. Молчит здесь ТОЛЬКО
+   * фоновое сохранение: сам заказ создаётся кнопкой и об ошибках говорит.
    */
   const rowIdRef = useRef(draftId);
   useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
   useEffect(() => {
     const t = setTimeout(async () => {
-      const empty = isFormEmpty(form, items, initialLaunch)
-        && purchase.every(isPurchaseRowEmpty);
-      if (empty) {
-        if (rowIdRef.current) {
-          const id = rowIdRef.current;
-          rowIdRef.current = null;
-          setRowId(null);
-          await deleteDraftRow(id);
+      try {
+        const empty = isFormEmpty(form, items, initialLaunch)
+          && purchase.every(isPurchaseRowEmpty);
+        if (empty) {
+          if (rowIdRef.current) {
+            const id = rowIdRef.current;
+            rowIdRef.current = null;
+            setRowId(null);
+            await deleteDraftRow(id);
+          }
+          // Локальный черновик прежней версии убираем вместе с переносом
+          clearOrderDraft();
+          return;
         }
-        // Локальный черновик прежней версии убираем вместе с переносом
-        clearOrderDraft();
-        return;
+        const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
+        const row = await saveDraftRow(
+          rowIdRef.current, title, { form, items, purchase, notes });
+        if (row && !rowIdRef.current) {
+          rowIdRef.current = row.id;
+          setRowId(row.id);
+        }
+        if (row) clearOrderDraft();
+      } catch {
+        // см. комментарий выше: черновик — фон, форма продолжает работать
       }
-      const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
-      const row = await saveDraftRow(
-        rowIdRef.current, title, { form, items, purchase, notes });
-      if (row && !rowIdRef.current) {
-        rowIdRef.current = row.id;
-        setRowId(row.id);
-      }
-      if (row) clearOrderDraft();
     }, 500);
     return () => clearTimeout(t);
   }, [form, items, purchase, notes, initialLaunch, saveDraftRow, deleteDraftRow]);

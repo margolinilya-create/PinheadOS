@@ -41,6 +41,11 @@ function setup() {
     loaded: true,
     createOrder,
     uploadOrderPreview: vi.fn().mockResolvedValue(null),
+    // Автосейв черновика (22.08) ходит в стор каждые 500 мс: без этих двух
+    // действий он падал бы на «не функция» — то есть тест проверял бы форму
+    // с неработающим автосохранением и молчал об этом
+    saveOrderDraft: vi.fn().mockResolvedValue({ id: 'draft-1' }),
+    deleteOrderDraft: vi.fn().mockResolvedValue(true),
   });
   render(
     <MemoryRouter>

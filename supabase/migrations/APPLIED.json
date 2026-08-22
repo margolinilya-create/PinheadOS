@@ -1269,6 +1269,14 @@
         "20260823150000_erp_create_order_notes.sql"
       ],
       "note": "к базе применена перегенерация функции из её же pg_get_functiondef (правило «подлинный текст»); файл несёт полный текст получившейся функции"
+    },
+    {
+      "version": "20260822195404",
+      "name": "erp_attachment_kinds_print_label_note",
+      "files": [
+        "20260823160000_erp_attachment_kinds_print_label_note.sql"
+      ],
+      "note": "найдено проверкой на живой базе: виды print/label/note были только в ErpAttachmentKind, CHECK отвечал 23514 и ронял создание заказа целиком. Сторож — attachmentKinds.test.ts"
     }
   ]
 }

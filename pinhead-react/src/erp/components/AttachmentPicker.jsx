@@ -45,6 +45,17 @@ export function AttachmentPicker({
    * как замена, а не как добавление второго рядом.
    */
   multiple = true,
+  /**
+   * Порядок файлов внутри блока — кнопки ↑/↓ (правка 22.08, п. 5.8:
+   * «менять порядок заметок и изображений»). Включается только там, где
+   * порядок ЗНАЧИМ: у заметок к заказу изображения читаются как рассказ,
+   * а у файлов техблока порядок ничего не сообщает.
+   *
+   * Кнопки, а не перетаскивание: у любого перетаскивания обязана быть
+   * клавиатурная альтернатива, а здесь строк немного и она полностью его
+   * заменяет — заодно работает на планшете.
+   */
+  onMove,
 }) {
   const inputRef = useRef(null);
   const mine = files.filter((f) => f.kind === kind
@@ -80,7 +91,7 @@ export function AttachmentPicker({
 
       {mine.length > 0 && (
         <ul className={styles.attachList}>
-          {mine.map((f) => (
+          {mine.map((f, i) => (
             <li key={f.uid} className={styles.attachRow}>
               <Icon name={STATE_ICON[f.state]} size={13} />
               <span className={styles.attachName} title={f.name}>{f.name}</span>
@@ -93,6 +104,28 @@ export function AttachmentPicker({
                 </>
               )}
               {f.state === 'uploading' && <span className={styles.subText}>загружается…</span>}
+              {onMove && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={i === 0}
+                    aria-label={`Поднять файл ${f.name}`}
+                    onClick={() => onMove(f.uid, -1)}
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={i === mine.length - 1}
+                    aria-label={`Опустить файл ${f.name}`}
+                    onClick={() => onMove(f.uid, 1)}
+                  >
+                    ↓
+                  </Button>
+                </>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

@@ -71,6 +71,69 @@ export function useAttachmentUploads(scope = 'new') {
     upload(uid, kind, file);
   }, [upload]);
 
+  /**
+   * Скопировать файлы одной строки формы на другую (правка 22.08, п. 5.4).
+   *
+   * Документ перечисляет прикреплённый макет среди того, что копируется
+   * вместе с нанесением, — и это правильно: копируют как раз затем, чтобы
+   * не заводить одно и то же дважды.
+   *
+   * ОБЪЕКТ В БАКЕТЕ КОПИРУЕТСЯ НАСТОЯЩИЙ (`storage.copy`), а не ссылка
+   * на тот же путь. Две строки на один объект означали бы, что удаление
+   * одной уносит файл у другой: уборка за собой (`removeOrphanUpload`)
+   * удаляет ОБЪЕКТ, а не привязку.
+   */
+  const copyOwner = useCallback(async (fromKey, toKey) => {
+    const source = files.filter((f) => f.ownerKey === fromKey && f.state === 'uploaded');
+    for (const f of source) {
+      const uid = crypto.randomUUID();
+      const path = attachmentFilePath(scope, f.kind, uid, f.name);
+      setFiles((arr) => [...arr, {
+        uid, kind: f.kind, itemIndex: f.itemIndex, ownerKey: toKey,
+        name: f.name, file: f.file, state: 'uploading', error: null, path: null,
+      }]);
+      const { error } = await erpQuery(() => supabase.storage
+        .from(BUCKET).copy(f.path, path));
+      setFiles((arr) => arr.map((x) => {
+        if (x.uid !== uid) return x;
+        if (!error) return { ...x, state: 'uploaded', path };
+        return {
+          ...x,
+          state: 'error',
+          error: navigator.onLine === false ? 'нет сети' : translateSupabaseError(error.message),
+        };
+      }));
+    }
+  }, [files, scope]);
+
+  /**
+   * Переставить файл внутри его блока (правка 22.08, п. 5.8).
+   *
+   * ПОРЯДОК В СОСТОЯНИИ И ЕСТЬ ПОРЯДОК В ЗАКАЗЕ: секция `attachments`
+   * payload собирается обходом этого массива, строки вставляются подряд,
+   * и показ сортируется по `created_at`. Отдельной колонки сортировки
+   * заводить не нужно — она стала бы вторым источником правды о порядке.
+   */
+  const moveFile = useCallback((uid, delta) => {
+    setFiles((arr) => {
+      const from = arr.findIndex((f) => f.uid === uid);
+      if (from < 0) return arr;
+      const self = arr[from];
+      // Соседа ищем среди файлов ТОГО ЖЕ блока: в массиве вперемешку лежат
+      // вложения всех позиций, и «соседний по индексу» был бы чужим
+      const sameOwner = arr
+        .map((f, i) => ({ f, i }))
+        .filter(({ f }) => f.ownerKey === self.ownerKey && f.kind === self.kind
+          && f.itemIndex === self.itemIndex);
+      const at = sameOwner.findIndex(({ f }) => f.uid === uid);
+      const to = sameOwner[at + delta]?.i;
+      if (to === undefined) return arr;
+      const next = [...arr];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  }, []);
+
   const retry = useCallback((uid) => {
     setFiles((arr) => {
       const f = arr.find((x) => x.uid === uid);
@@ -177,5 +240,8 @@ export function useAttachmentUploads(scope = 'new') {
   const uploading = useMemo(() => files.some((f) => f.state === 'uploading'), [files]);
   const failed = useMemo(() => files.some((f) => f.state === 'error'), [files]);
 
-  return { files, add, retry, remove, dropItem, dropOwner, payload, uploading, failed };
+  return {
+    files, add, retry, remove, copyOwner, moveFile, dropItem, dropOwner, payload,
+    uploading, failed,
+  };
 }

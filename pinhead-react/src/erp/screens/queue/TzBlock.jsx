@@ -42,7 +42,15 @@ function PrintArtwork({ order, printId }) {
 
 /** Изображения заметки — вложения, привязанные к её строке */
 function NoteImages({ order, noteId }) {
-  const files = (order.attachments ?? []).filter((a) => a.note_id === noteId);
+  /**
+   * Порядок — по `created_at`: строки вставляются подряд, в том порядке,
+   * в каком человек их выстроил кнопками ↑/↓ в форме (п. 5.8). Отдельной
+   * колонки сортировки нет намеренно — она стала бы вторым источником
+   * правды о порядке.
+   */
+  const files = (order.attachments ?? [])
+    .filter((a) => a.note_id === noteId)
+    .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
   if (files.length === 0) return null;
   return <AttachmentList files={files} />;
 }
