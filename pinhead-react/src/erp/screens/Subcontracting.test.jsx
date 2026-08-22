@@ -137,15 +137,29 @@ describe('Подряд', () => {
     const { applySubcontractAction } = setup();
     fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Вернулось' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Зафиксировать возврат' }));
     fireEvent.change(screen.getByLabelText('Сколько вернулось'), { target: { value: '40' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Вернулось' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Зафиксировать возврат' })[1]);
 
     await waitFor(() => expect(applySubcontractAction).toHaveBeenCalled());
     const [subId, action, input] = applySubcontractAction.mock.calls[0];
     expect(subId).toBe('sc1');
     expect(action).toMatchObject({ phase: 'returned', move: 'return' });
     expect(input).toMatchObject({ qty: '40' });
+  });
+
+  /**
+   * ГЛАВНОЕ ДЕЙСТВИЕ ОДНО, И ОНО В ШАПКЕ (правка 22.08, пп. 3.3–3.4).
+   * Раньше управление жило под заголовком «Журнал», то есть выглядело
+   * историей, а кнопки шли вперемешку одинаковой заметности.
+   */
+  it('в шапке карточки ровно одна главная кнопка', () => {
+    setup();
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    const primary = screen.getAllByRole('button')
+      .filter((b) => /_primary_/.test(b.className));
+    expect(primary).toHaveLength(1);
+    expect(primary[0]).toHaveTextContent('Зафиксировать возврат');
   });
 
   it('приёмки в разделе НЕТ — её оформляет склад', () => {
@@ -198,18 +212,32 @@ describe('Подряд', () => {
   });
 
   /**
-   * Брак и потери СЧИТАЮТСЯ из журнала (п. 12 доп.): «не вернулось» =
-   * передано − вернулось, «брак» = вернулось − принято. Колонок под них нет
-   * намеренно — вторая пара счётчиков рядом с журналом означала бы двух
-   * писателей одной величины.
+   * НЕПРИНЯТОЕ — НЕ БРАК (правка 22.08, п. 3.9). Раньше «вернулось 95,
+   * принято 90» давало «брак: 5», хотя эти пять могли ещё просто не дойти
+   * до приёмки. Брак теперь отмечается явно и хранится (`qty_defect`),
+   * а разница называется своим именем.
    */
-  it('расхождение показано из журнала, а не из отдельных полей', () => {
+  it('непринятое ждёт приёмки, браком становится только отмеченное', () => {
     setup({
-      subcontracting: [{ ...SUB, qty_sent: 100, qty_returned: 95, qty_accepted: 90 }],
+      subcontracting: [{
+        ...SUB, qty_sent: 100, qty_returned: 95, qty_accepted: 90, qty_defect: 2,
+      }],
     });
     fireEvent.click(within(row()).getByRole('button', { name: /90\/100/ }));
     expect(screen.getByText('не вернулось: 5')).toBeInTheDocument();
-    expect(screen.getByText('брак: 5')).toBeInTheDocument();
+    expect(screen.getByText('ожидает приёмки: 3')).toBeInTheDocument();
+    expect(screen.getByText('брак: 2')).toBeInTheDocument();
+  });
+
+  it('без отметки брака его на карточке нет вовсе', () => {
+    setup({
+      subcontracting: [{
+        ...SUB, phase: 'returned', qty_sent: 100, qty_returned: 100, qty_accepted: 0,
+      }],
+    });
+    fireEvent.click(within(row()).getByRole('button', { name: /0\/100/ }));
+    expect(screen.getByText('ожидает приёмки: 100')).toBeInTheDocument();
+    expect(screen.queryByText(/^брак:/)).toBeNull();
   });
 
   /** Документ (п. 19): «при открытии заказа показывать весь маршрут целиком» */

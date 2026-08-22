@@ -37,6 +37,9 @@ export interface SubLike {
   qty_sent?: number | null;
   qty_returned?: number | null;
   qty_accepted?: number | null;
+  qty_defect?: number | null;
+  qty_in_work?: number | null;
+  material_source?: string | null;
 }
 
 export interface SubcontractView {
@@ -46,16 +49,36 @@ export interface SubcontractView {
   display: SubcontractPhase;
   /** Сколько штук готово к передаче прямо сейчас */
   readyQty: number;
+  /**
+   * Сколько единиц подрядчик делает сейчас. Хранимое `qty_in_work`, а до
+   * запуска — то, что готово отдать: человек должен видеть объём работы
+   * ДО того, как нажмёт кнопку.
+   */
+  inWorkQty: number;
+  /** Материалы подрядчика — физическая передача не требуется вовсе */
+  contractorMaterials: boolean;
   /** Не вернулось от подрядчика (передано − вернулось) */
   lost: number;
-  /** Вернулось, но не принято складом */
+  /** Вернулось, но ещё не разобрано приёмкой */
+  awaitingAccept: number;
+  /** Брак, отмеченный ЯВНО */
   defect: number;
 }
 
 /**
- * Сколько единиц доступно к передаче: выход предыдущего этапа минус уже
- * переданное. Считается тем же `stageInputQty`, что и «принято в работу»
- * у обычного цеха — у подряда нет причин считать вход иначе.
+ * Сколько единиц доступно к запуску у подрядчика: выход предыдущего этапа
+ * минус то, что уже отдано в работу. Считается тем же `stageInputQty`,
+ * что и «принято в работу» у обычного цеха — у подряда нет причин считать
+ * вход иначе.
+ *
+ * ВЫЧИТАЕМ `qty_in_work`, А НЕ `qty_sent` (правка 22.08, п. 3.8). Раньше
+ * остаток считался от ФИЗИЧЕСКИ ПЕРЕДАННОГО, и на материалах подрядчика
+ * (передавать нечего, `qty_sent` всегда 0) кнопка «передать» предлагала
+ * отдать весь тираж заново после каждого запуска. Работа у подрядчика есть
+ * и без нашей передачи — её объём и есть `qty_in_work`.
+ *
+ * У операций, заведённых до правки, `qty_in_work` пуст: там остаток считается
+ * от переданного, как и раньше, — иначе им предложили бы отдать тираж дважды.
  */
 export function readyToSendQty(
   stage: Pick<ErpItemStage, 'id' | 'status' | 'depends_on'> & { qty_done?: number | null },
@@ -64,8 +87,10 @@ export function readyToSendQty(
   sub: SubLike | null | undefined,
 ): number {
   const input = stageInputQty(stage, allStages, itemQty);
-  const sent = Number(sub?.qty_sent ?? 0);
-  return Math.max(0, input - sent);
+  const taken = sub?.qty_in_work == null
+    ? Number(sub?.qty_sent ?? 0)
+    : Number(sub.qty_in_work);
+  return Math.max(0, input - taken);
 }
 
 export function subcontractView(
@@ -76,7 +101,16 @@ export function subcontractView(
 ): SubcontractView {
   const stored = sub ? subcontractPhase(sub) : 'planned';
   const readyQty = readyToSendQty(stage, allStages, itemQty, sub);
-  const { lost, defect } = subcontractShortfall(sub ?? undefined);
+  const { lost, awaitingAccept, defect } = subcontractShortfall(sub ?? undefined);
+  const contractorMaterials = sub?.material_source === 'contractor';
+  /**
+   * До запуска показываем ДОСТУПНЫЙ объём, после — принятый в работу.
+   * Ноль в `qty_in_work` у старых операций читается как «не заводили»:
+   * там объём работы равен тому, что уже передано.
+   */
+  const inWorkQty = Number(sub?.qty_in_work ?? 0) > 0
+    ? Number(sub?.qty_in_work)
+    : (Number(sub?.qty_sent ?? 0) || readyQty);
   /**
    * Считаем только ДО первой передачи. Дальше хранимая фаза авторитетна:
    * у операции, вернувшейся от подрядчика, «готово к передаче» на остаток
@@ -86,11 +120,14 @@ export function subcontractView(
   const display: SubcontractPhase = stored === 'planned' && readyQty > 0
     ? 'materials_ready'
     : stored;
-  return { stored, display, readyQty, lost, defect };
+  return {
+    stored, display, readyQty, inWorkQty, contractorMaterials,
+    lost, awaitingAccept, defect,
+  };
 }
 
 /** Действие над подрядной операцией — кнопка в разделе «Подряд» */
-export type SubcontractAction = 'send' | 'ready' | 'return' | 'rework';
+export type SubcontractAction = 'start' | 'send' | 'ready' | 'return' | 'defect' | 'rework';
 
 export interface ActionSpec {
   key: SubcontractAction;
@@ -98,15 +135,23 @@ export interface ActionSpec {
   /** Фаза, в которую переходим */
   phase: SubcontractPhase;
   /** Вид записи журнала; null — количеств не трогаем */
-  move: 'send' | 'return' | null;
+  move: 'send' | 'return' | 'defect' | null;
   /** Подпись поля количества в форме */
   qtyLabel: string | null;
+  /**
+   * Спрашивает ли действие «сколько единиц в работе».
+   *
+   * Ради этого поля правка и делалась: объём работы у подрядчика и объём
+   * физической передачи — РАЗНЫЕ величины, и на материалах подрядчика вторая
+   * равна нулю при первой в 200 штук.
+   */
+  asksInWork: boolean;
 }
 
 export const SUBCONTRACT_ACTIONS: Record<SubcontractAction, ActionSpec> = {
-  send: {
-    key: 'send',
-    label: 'Передать подрядчику',
+  start: {
+    key: 'start',
+    label: 'Передать в работу',
     /**
      * Сразу `at_contractor`, а не `sent`. Прежняя фаза «Передано подрядчику»
      * означала ровно то же самое и осталась от модели, где передачу
@@ -114,22 +159,57 @@ export const SUBCONTRACT_ACTIONS: Record<SubcontractAction, ActionSpec> = {
      * не знает: у него «У подрядчика».
      */
     phase: 'at_contractor',
+    /**
+     * Журнальная запись `send` пишется, ТОЛЬКО если человек указал физически
+     * переданное количество. Иначе действие двигает одну фазу: «физическая
+     * передача наших материалов не должна быть обязательным условием запуска
+     * подрядного этапа» (п. 3.8).
+     */
     move: 'send',
-    qtyLabel: 'Сколько передано',
+    qtyLabel: 'Физически передано (если передаём)',
+    asksInWork: true,
+  },
+  send: {
+    key: 'send',
+    label: 'Догрузить партию',
+    phase: 'at_contractor',
+    move: 'send',
+    qtyLabel: 'Физически передано (если передаём)',
+    asksInWork: true,
   },
   ready: {
     key: 'ready',
+    /**
+     * Шаг НЕОБЯЗАТЕЛЬНЫЙ (п. 3.5): основной путь — «У подрядчика → Готово →
+     * Приёмка», и «Зафиксировать возврат» доступно, минуя эту кнопку.
+     * Отметка нужна там, где готовую партию ещё не забрали: без неё
+     * забытый у подрядчика тираж неотличим от того, что ещё шьётся.
+     */
     label: 'Готово у подрядчика',
     phase: 'ready_at_contractor',
     move: null,
     qtyLabel: null,
+    asksInWork: false,
   },
   return: {
     key: 'return',
-    label: 'Вернулось',
+    label: 'Зафиксировать возврат',
     phase: 'returned',
     move: 'return',
     qtyLabel: 'Сколько вернулось',
+    asksInWork: false,
+  },
+  defect: {
+    key: 'defect',
+    /**
+     * Явная отметка брака — то, чего не хватало (п. 3.9). До неё браком
+     * считалось всё непринятое, то есть партия, ещё не дошедшая до приёмки.
+     */
+    label: 'Отметить брак',
+    phase: 'returned',
+    move: 'defect',
+    qtyLabel: 'Сколько брака',
+    asksInWork: false,
   },
   rework: {
     key: 'rework',
@@ -137,16 +217,23 @@ export const SUBCONTRACT_ACTIONS: Record<SubcontractAction, ActionSpec> = {
     /**
      * Переделка НЕ пишет журнал: изделия уже посчитаны как вернувшиеся,
      * и повторная запись `send` удвоила бы «передано». Сколько именно
-     * ушло в переделку, видно из расхождения «вернулось − принято».
+     * ушло в переделку, видно из отмеченного брака.
      */
     phase: 'rework',
     move: null,
     qtyLabel: null,
+    asksInWork: false,
   },
 };
 
 /**
  * Какие действия доступны из текущего состояния.
+ *
+ * ПЕРВОЕ В СПИСКЕ — ГЛАВНОЕ (правка 22.08, п. 3.3): «на одном состоянии этапа
+ * не должно быть нескольких одинаково заметных кнопок». Порядок здесь и есть
+ * приоритет, интерфейс рисует первую кнопку основной, остальные — вторичными.
+ * Держать приоритет в разметке нельзя: карточка подряда монтируется и в общем
+ * списке, и в деталях этапа.
  *
  * Приёмки здесь НЕТ намеренно: её делает СКЛАД, задачей «Приёмка подряда»,
  * и она же приращает `qty_done` этапа. Кнопка «принято» в этом разделе была бы
@@ -157,11 +244,13 @@ export function availableActions(view: SubcontractView): ActionSpec[] {
   const out: ActionSpec[] = [];
   const { display, readyQty } = view;
   if (display === 'planned' || display === 'materials_ready') {
-    if (readyQty > 0) out.push(SUBCONTRACT_ACTIONS.send);
+    if (readyQty > 0) out.push(SUBCONTRACT_ACTIONS.start);
     return out;
   }
   if (display === 'sent' || display === 'at_contractor') {
-    out.push(SUBCONTRACT_ACTIONS.ready, SUBCONTRACT_ACTIONS.return);
+    // Главное — возврат: документ убрал «Готово у подрядчика» из
+    // обязательного пути, оставив его отметкой для забытых партий
+    out.push(SUBCONTRACT_ACTIONS.return, SUBCONTRACT_ACTIONS.ready);
     // Остаток тиража можно догрузить той же операции, не дожидаясь возврата:
     // документ прямо про это — «оставшиеся 300 продолжают производство»
     if (readyQty > 0) out.push(SUBCONTRACT_ACTIONS.send);
@@ -173,9 +262,12 @@ export function availableActions(view: SubcontractView): ActionSpec[] {
     return out;
   }
   if (display === 'returned') {
-    // Ждём склад. Отправить брак на переделку можно сразу — основная партия
-    // при этом не блокируется, она уже у склада
-    out.push(SUBCONTRACT_ACTIONS.rework);
+    /**
+     * Ждём склад — он оформляет приёмку. Отсюда можно отметить брак
+     * и отправить его на переделку: основная партия при этом
+     * не блокируется, она уже у склада.
+     */
+    out.push(SUBCONTRACT_ACTIONS.defect, SUBCONTRACT_ACTIONS.rework);
     return out;
   }
   if (display === 'rework') {

@@ -18,16 +18,14 @@ import {
 } from '../types';
 import { SUBCONTRACT_PHASE_FLOW, subcontractPhase } from '../utils/subcontractPhase';
 import { subcontractView } from '../utils/subcontractFlow';
-import { StageActions } from './subcontracting/StageActions';
-import { outsourcedStages, nextRouteStage, currentStage, stageLabel } from '../utils/outsourcing';
+import { StageDetails } from './subcontracting/StageDetails';
+import { outsourcedStages, nextRouteStage, stageLabel, stageLocation } from '../utils/outsourcing';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
-import { MoveJournal } from './subcontracting/MoveJournal';
-import { RouteProgress } from '../components/RouteProgress';
 
 /**
  * Подряд — ЭТАПЫ МАРШРУТА, отданные подрядчику (правки заказчика 16.08, блок 2).
@@ -74,13 +72,13 @@ const FUNNEL_STEPS = SUBCONTRACT_PHASE_FLOW.map((key) => ({
   key, label: SUBCONTRACT_PHASE_LABELS[key],
 }));
 
-/** Где заказ физически находится сейчас — главный вопрос раздела */
-function whereNow(item, stage, deptNameById) {
-  const cur = currentStage(item);
-  if (!cur) return 'Производство закончено';
-  if (cur.id === stage.id) return `У подрядчика: ${stage.contractor || 'не указан'}`;
-  return `У нас: ${deptNameById.get(cur.department_id) || '—'}`;
-}
+/**
+ * «Где заказ сейчас» СЧИТАЕТ `utils/outsourcing.stageLocation` (правка 22.08,
+ * пп. 3.6–3.7). Здесь стояла своя версия, отвечавшая по маршруту: текущий этап
+ * подрядный — значит «У подрядчика», хотя передано 0 и этап стоит в «Готово
+ * к передаче». Будущий подрядный этап она же подписывала «У нас: Подряд» —
+ * названием участка вместо состояния.
+ */
 
 export default function Subcontracting() {
   const {
@@ -220,9 +218,9 @@ export default function Subcontracting() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Заказ</th><th>Изделие</th><th>Кол-во</th><th>Операция</th>
+                <th>Заказ</th><th>Изделие</th><th>В работе</th><th>Операция</th>
                 <th>Подрядчик</th><th>Где заказ сейчас</th><th>Сроки</th>
-                <th>Следующий этап</th><th>Состояние и оплата</th><th>Журнал</th>
+                <th>Следующий этап</th><th>Состояние и оплата</th><th>Этап</th>
               </tr>
             </thead>
             <tbody>
@@ -248,7 +246,10 @@ export default function Subcontracting() {
                       {item.variant && <div className={styles.subText}>{item.variant}</div>}
                     </td>
                     <td className={styles.progressCell}>
-                      {item.qty ?? '—'}
+                      {/* Количество В РАБОТЕ у подрядчика, а не тираж позиции:
+                          на материалах подрядчика мы не передаём ничего,
+                          но работа у него есть (п. 3.8) */}
+                      {view.inWorkQty || item.qty || '—'}
                       {/* «Швейка закончила 150 → в подряде появляется
                           Варка — Готово к передаче — 150 шт» (документ) */}
                       {view.readyQty > 0 && (
@@ -267,7 +268,7 @@ export default function Subcontracting() {
                       </div>
                     </td>
                     <td>{stage.contractor || '—'}</td>
-                    <td className={styles.subText}>{whereNow(item, stage, deptNameById)}</td>
+                    <td className={styles.subText}>{stageLocation(item, stage, view.display)}</td>
                     <td>
                       <div className={styles.subText}>
                         передан: {formatDateShort(sub?.sent_date) || '—'}
@@ -341,23 +342,24 @@ export default function Subcontracting() {
                     </td>
                   </tr>,
                   open && sub && (
-                    <tr key={`${stage.id}-journal`}>
+                    <tr key={`${stage.id}-details`}>
                       <td colSpan={10}>
-                        {/* Документ (п. 19): «при открытии заказа показывать весь
-                            маршрут целиком» — что уже сделано, где заказ сейчас
-                            и что будет дальше. Примитив это уже умеет */}
-                        <RouteProgress
+                        {/*
+                          Раскладку раскрытой карточки держит `StageDetails`
+                          (п. 3.2): сверху рабочая строка и одно главное
+                          действие, ниже — свёрнутые служебные блоки. Маршрут
+                          позиции тоже там, отдельным блоком: он отвечает
+                          на вопрос «что дальше», а не «что нажать сейчас».
+                        */}
+                        <StageDetails
+                          order={order}
                           item={item}
-                          order={order}
-                          deptById={deptById}
-                          currentStageId={stage.id}
-                        />
-                        <StageActions op={sub} view={view} canManage={canManage} />
-                        <MoveJournal
-                          op={sub}
+                          stage={stage}
+                          sub={sub}
+                          view={view}
                           canManage={canManage}
-                          order={order}
-                          itemId={item.id}
+                          deptById={deptById}
+                          deptNameById={deptNameById}
                         />
                       </td>
                     </tr>

@@ -18,6 +18,18 @@ import styles from '../../erp.module.css';
  * Действие называет ФАКТ («передал 200»), а фазу выводит из него. То, что
  * меняет количества, пишет журнал той же транзакцией (`erp_subcontract_apply`).
  *
+ * ПЕРВОЕ ДЕЙСТВИЕ — ГЛАВНОЕ (правка 22.08, п. 3.3). Порядок задаёт
+ * `availableActions`, здесь он только рисуется: первая кнопка `primary`,
+ * остальные `secondary`. «На одном состоянии этапа не должно быть нескольких
+ * одинаково заметных кнопок» — а держать приоритет в разметке нельзя,
+ * компонент монтируется в двух местах.
+ *
+ * ДВА КОЛИЧЕСТВА, А НЕ ОДНО (п. 3.8). «Сколько подрядчик должен сделать»
+ * и «сколько мы ему физически отдали» — разные величины: на материалах
+ * подрядчика вторая равна нулю при первой в 200 штук. Поэтому у запуска
+ * работы поле передачи НЕОБЯЗАТЕЛЬНОЕ, а на материалах подрядчика его нет
+ * вовсе — передавать нечего.
+ *
  * Приёмки среди действий НЕТ: её оформляет склад задачей «Приёмка подряда» —
  * там же фиксируются брак и недостача. Кнопка «принято» здесь была бы вторым
  * путём к тому же переходу, мимо складского гейта.
@@ -28,6 +40,7 @@ export function StageActions({ op, view, canManage }) {
   );
   const [open, setOpen] = useState(null);
   const [qty, setQty] = useState('');
+  const [inWork, setInWork] = useState('');
   const [movedOn, setMovedOn] = useState(factoryToday());
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,31 +57,56 @@ export function StageActions({ op, view, canManage }) {
     return <p className={styles.subText}>Действий нет: операция закрыта или ждёт склад.</p>;
   }
 
+  /** Нужна ли форма: у действия есть хоть одно поле количества */
+  const needsForm = (spec) => spec.asksInWork || Boolean(spec.qtyLabel);
+
   const start = (spec) => {
     setOpen(spec);
-    // Предзаполняем доступным остатком: документ требует частичных партий,
-    // и «сколько можно» человек не должен считать в уме
-    setQty(spec.qtyLabel && spec.key === 'send' ? String(view.readyQty) : '');
+    /**
+     * Предзаполняем доступным остатком: документ требует частичных партий,
+     * и «сколько можно» человек не должен считать в уме. Физическую передачу
+     * НЕ предзаполняем — она необязательна, и подставленное число прочиталось
+     * бы как «столько и отдали».
+     */
+    setQty(spec.key === 'return' ? String(view.inWorkQty || '') : '');
+    setInWork(spec.asksInWork ? String(view.readyQty || '') : '');
     setComment('');
     setMovedOn(factoryToday());
   };
 
   const run = async (spec) => {
     setSaving(true);
-    const ok = await applySubcontractAction(op.id, spec, { qty, movedOn, comment });
+    /**
+     * Догрузка партии присылает СУММУ: объём работы — величина менеджера,
+     * а не журнал приращений, и сервер пишет её абсолютом.
+     */
+    const inWorkTotal = spec.key === 'send'
+      ? Number(view.inWorkQty || 0) + Number(inWork || 0)
+      : Number(inWork || 0);
+    const ok = await applySubcontractAction(op.id, spec, {
+      qty,
+      inWorkQty: spec.asksInWork ? inWorkTotal : undefined,
+      movedOn,
+      comment,
+    });
     setSaving(false);
     if (ok) setOpen(null);
   };
 
+  /** Можно ли отправить: у действия должно быть названо хоть одно число */
+  const canSubmit = open
+    ? (open.asksInWork ? Number(inWork) > 0 : Number(qty) > 0)
+    : false;
+
   return (
     <div className={styles.stackTight}>
       <div className={styles.checkRow}>
-        {actions.map((spec) => (
+        {actions.map((spec, i) => (
           <Button
             key={spec.key}
-            variant={spec.key === 'send' ? 'primary' : 'secondary'}
+            variant={i === 0 ? 'primary' : 'secondary'}
             size="sm"
-            onClick={() => (spec.qtyLabel ? start(spec) : run(spec))}
+            onClick={() => (needsForm(spec) ? start(spec) : run(spec))}
             loading={saving && open?.key === spec.key}
           >
             {spec.label}
@@ -81,20 +119,44 @@ export function StageActions({ op, view, canManage }) {
         )}
       </div>
 
-      {open?.qtyLabel && (
+      {open && needsForm(open) && (
         <div className={styles.addMatRow}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{open.qtyLabel}</span>
-            <input
-              type="number"
-              min="1"
-              className={styles.input}
-              value={qty}
-              onChange={(e) => setQty(e.target.value.replace('-', ''))}
-              aria-label={open.qtyLabel}
-              style={{ maxWidth: 110 }}
-            />
-          </label>
+          {open.asksInWork && (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                {open.key === 'send' ? 'Добавить в работу, шт' : 'Количество в работе, шт'}
+              </span>
+              <input
+                type="number"
+                min="1"
+                className={styles.input}
+                value={inWork}
+                onChange={(e) => setInWork(e.target.value.replace('-', ''))}
+                aria-label="Количество в работе у подрядчика"
+                style={{ maxWidth: 130 }}
+              />
+              <span className={styles.subText}>сколько подрядчик должен сделать</span>
+            </label>
+          )}
+          {open.qtyLabel && !(open.asksInWork && view.contractorMaterials) && (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>{open.qtyLabel}</span>
+              <input
+                type="number"
+                min="0"
+                className={styles.input}
+                value={qty}
+                onChange={(e) => setQty(e.target.value.replace('-', ''))}
+                aria-label={open.qtyLabel}
+                style={{ maxWidth: 130 }}
+              />
+              {open.asksInWork && (
+                <span className={styles.subText}>
+                  необязательно — на материалах подрядчика передавать нечего
+                </span>
+              )}
+            </label>
+          )}
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Дата</span>
             <DateField
@@ -117,7 +179,7 @@ export function StageActions({ op, view, canManage }) {
           <Button
             variant="primary"
             size="sm"
-            disabled={!(Number(qty) > 0)}
+            disabled={!canSubmit}
             loading={saving}
             onClick={() => run(open)}
           >

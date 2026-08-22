@@ -58,6 +58,39 @@ describe('готово к передаче считается из маршру�
     expect(view.readyQty).toBe(100);
   });
 
+  /**
+   * КРИТЕРИЙ ГОТОВНОСТИ П. 3.8: «можно корректно провести подрядный этап
+   * на материале подрядчика без фиктивной передачи 200 единиц».
+   *
+   * Остаток считается от `qty_in_work`, а не от переданного, — иначе
+   * на материалах подрядчика (`qty_sent` всегда 0) кнопка предлагала бы
+   * отдать весь тираж заново после каждого запуска.
+   */
+  it('на материалах подрядчика запуск не требует передачи', () => {
+    const all = stages(200);
+    const view = subcontractView(
+      {
+        phase: 'at_contractor', material_source: 'contractor',
+        qty_in_work: 200, qty_sent: 0,
+      },
+      subStage(all), all, QTY);
+    expect(view.contractorMaterials).toBe(true);
+    expect(view.inWorkQty).toBe(200);
+    // Работа взята — предлагать отдать те же 200 снова нельзя
+    expect(view.readyQty).toBe(0);
+    // И это не недостача: мы ничего не передавали
+    expect(view.lost).toBe(0);
+  });
+
+  /** У операций до правки `qty_in_work` пуст — там остаток от переданного */
+  it('операция без qty_in_work считает остаток по-старому', () => {
+    const all = stages(200);
+    const view = subcontractView(
+      { phase: 'at_contractor', qty_sent: 150 }, subStage(all), all, QTY);
+    expect(view.readyQty).toBe(50);
+    expect(view.inWorkQty).toBe(150);
+  });
+
   it('после передачи хранимая фаза авторитетна — «ожидает приёмки» не подменяется', () => {
     // Иначе остаток тиража прятал бы то, чего ждёт склад
     const all = stages(500);
@@ -68,13 +101,27 @@ describe('готово к передаче считается из маршру�
   });
 });
 
-describe('расхождение считается, а не хранится', () => {
-  it('передано 100, вернулось 100, принято 97 — брак 3, потерь нет', () => {
+describe('брак отмечается явно, недостача считается', () => {
+  /** Главный случай п. 3.9: вернулось 200, принято 0 — это НЕ брак */
+  it('до приёмки непринятое ждёт приёмки, а не считается браком', () => {
     const all = stages(500);
     const view = subcontractView(
-      { phase: 'accepted', qty_sent: 100, qty_returned: 100, qty_accepted: 97 },
+      { phase: 'returned', qty_sent: 200, qty_returned: 200, qty_accepted: 0 },
+      subStage(all), all, QTY);
+    expect(view.awaitingAccept).toBe(200);
+    expect(view.defect).toBe(0);
+  });
+
+  it('после приёмки распределено: принято 197, брак 3', () => {
+    const all = stages(500);
+    const view = subcontractView(
+      {
+        phase: 'accepted', qty_sent: 200, qty_returned: 200,
+        qty_accepted: 197, qty_defect: 3,
+      },
       subStage(all), all, QTY);
     expect(view.defect).toBe(3);
+    expect(view.awaitingAccept).toBe(0);
     expect(view.lost).toBe(0);
   });
 
@@ -96,24 +143,30 @@ describe('доступные действия', () => {
     expect(availableActions(viewAt('planned', 0, 0))).toEqual([]);
   });
 
-  it('готово к передаче — только «Передать»', () => {
-    expect(availableActions(viewAt('planned')).map((a) => a.key)).toEqual(['send']);
+  it('готово к передаче — только «Передать в работу»', () => {
+    expect(availableActions(viewAt('planned')).map((a) => a.key)).toEqual(['start']);
   });
 
-  it('у подрядчика — «Готово», «Вернулось» и догрузка остатка', () => {
+  /**
+   * ПОРЯДОК ЗДЕСЬ — ЭТО ПРИОРИТЕТ (п. 3.3): первое действие интерфейс рисует
+   * главным. «Готово у подрядчика» перестало быть обязательным шагом (п. 3.5),
+   * поэтому главное — возврат, а отметка готовности идёт вторичной.
+   */
+  it('у подрядчика — главное «Зафиксировать возврат», потом отметка и догрузка', () => {
     expect(availableActions(viewAt('at_contractor', 100)).map((a) => a.key))
-      .toEqual(['ready', 'return', 'send']);
+      .toEqual(['return', 'ready', 'send']);
   });
 
   it('всё передано — догрузки нет', () => {
     expect(availableActions(viewAt('at_contractor', 200)).map((a) => a.key))
-      .toEqual(['ready', 'return']);
+      .toEqual(['return', 'ready']);
   });
 
-  it('ожидает приёмки — только «На переделку»: принимает СКЛАД', () => {
+  it('ожидает приёмки — брак и переделка: ПРИНИМАЕТ склад', () => {
     // Кнопка «принято» здесь была бы вторым путём к тому же переходу —
     // мимо складского гейта и мимо фиксации брака
-    expect(availableActions(viewAt('returned', 200)).map((a) => a.key)).toEqual(['rework']);
+    expect(availableActions(viewAt('returned', 200)).map((a) => a.key))
+      .toEqual(['defect', 'rework']);
   });
 
   it('на переделке — «Вернулось»', () => {
@@ -126,9 +179,11 @@ describe('доступные действия', () => {
 });
 
 describe('журнал пишется там, где меняются количества', () => {
-  it('передача и возврат — записи журнала', () => {
+  it('передача, возврат и брак — записи журнала', () => {
+    expect(SUBCONTRACT_ACTIONS.start.move).toBe('send');
     expect(SUBCONTRACT_ACTIONS.send.move).toBe('send');
     expect(SUBCONTRACT_ACTIONS.return.move).toBe('return');
+    expect(SUBCONTRACT_ACTIONS.defect.move).toBe('defect');
   });
 
   it('«готово у подрядчика» и «на переделку» количеств не трогают', () => {
@@ -136,5 +191,17 @@ describe('журнал пишется там, где меняются колич
     // уже посчитаны вернувшимися
     expect(SUBCONTRACT_ACTIONS.ready.move).toBeNull();
     expect(SUBCONTRACT_ACTIONS.rework.move).toBeNull();
+  });
+
+  /**
+   * Объём работы спрашивают только те действия, которые его задают: запуск
+   * и догрузка. У возврата и брака его нет — там количество означает штуки,
+   * прошедшие через журнал, и второе поле рядом путало бы (п. 3.8).
+   */
+  it('объём работы спрашивают запуск и догрузка, а не возврат', () => {
+    expect(SUBCONTRACT_ACTIONS.start.asksInWork).toBe(true);
+    expect(SUBCONTRACT_ACTIONS.send.asksInWork).toBe(true);
+    expect(SUBCONTRACT_ACTIONS.return.asksInWork).toBe(false);
+    expect(SUBCONTRACT_ACTIONS.defect.asksInWork).toBe(false);
   });
 });

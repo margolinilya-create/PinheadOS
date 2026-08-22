@@ -57,16 +57,16 @@ const TASK = {
   task_type: 'subcontract_receipt', status: 'awaiting_receipt',
 };
 
-const addSubcontractMove = vi.fn(async () => true);
+const receiveSubcontract = vi.fn(async () => true);
 const onAdvance = vi.fn(async () => true);
 
 beforeEach(() => {
-  addSubcontractMove.mockClear();
+  receiveSubcontract.mockClear();
   onAdvance.mockClear();
   useErpStore.setState({
     departments: DEPTS,
     subcontracting: [SUB],
-    addSubcontractMove,
+    receiveSubcontract,
   });
 });
 
@@ -83,8 +83,9 @@ describe('карточка приёмки подряда', () => {
     // Операция и подрядчик — без них склад не знает, что принимает
     expect(text).toContain('Варка');
     expect(text).toContain('ООО Варка');
-    // Количества берутся из ЖУРНАЛА, а не из полей задачи
-    expect(text).toMatch(/Передано:\s*200/);
+    // Количества берутся из ЖУРНАЛА, а не из полей задачи. «В работе»
+    // и «физически передано» — разные величины (правка 22.08, п. 3.8)
+    expect(text).toMatch(/физически передано:\s*200/);
     expect(text).toMatch(/вернулось:\s*200/);
   });
 
@@ -115,18 +116,18 @@ describe('карточка приёмки подряда', () => {
     expect(screen.getByText(/это число открывает следующий этап/)).toBeInTheDocument();
   });
 
-  it('приёмка пишет журнал `accept` и ТОЛЬКО ПОТОМ закрывает задачу', async () => {
+  it('приёмка пишет журнал и ТОЛЬКО ПОТОМ закрывает задачу', async () => {
     renderCard();
     fireEvent.change(screen.getByLabelText('Сколько принято'), { target: { value: '200' } });
     fireEvent.click(screen.getByRole('button', { name: /Подтвердить приёмку/ }));
 
     await waitFor(() => expect(onAdvance).toHaveBeenCalled());
-    expect(addSubcontractMove).toHaveBeenCalledWith('sc1', expect.objectContaining({
-      kind: 'accept', qty: 200,
+    expect(receiveSubcontract).toHaveBeenCalledWith('sc1', expect.objectContaining({
+      accepted: 200,
     }));
     // Порядок: журнал приращает qty_done этапа, и только после этого задача
     // закрывается. Иначе следующий этап открылся бы, не посчитав принятое
-    const moveAt = addSubcontractMove.mock.invocationCallOrder[0];
+    const moveAt = receiveSubcontract.mock.invocationCallOrder[0];
     const advanceAt = onAdvance.mock.invocationCallOrder[0];
     expect(moveAt).toBeLessThan(advanceAt);
     expect(onAdvance).toHaveBeenCalledWith('wt1', 'accepted');
@@ -135,21 +136,45 @@ describe('карточка приёмки подряда', () => {
   it('неудачная запись журнала НЕ закрывает задачу', async () => {
     // Иначе на экране приёмка закрыта, а в производстве этап открыт —
     // ровно то состояние, из-за которого раздел «Подряд» был тупиком
-    addSubcontractMove.mockResolvedValueOnce(false);
+    receiveSubcontract.mockResolvedValueOnce(false);
     renderCard();
     fireEvent.change(screen.getByLabelText('Сколько принято'), { target: { value: '50' } });
     fireEvent.click(screen.getByRole('button', { name: /Подтвердить приёмку/ }));
 
-    await waitFor(() => expect(addSubcontractMove).toHaveBeenCalled());
+    await waitFor(() => expect(receiveSubcontract).toHaveBeenCalled());
     expect(onAdvance).not.toHaveBeenCalled();
   });
 
-  it('частичная приёмка называет, сколько уйдёт в брак', () => {
-    // Документ: брак возвращается подрядчику на переделку, а вернуть можно
-    // только то, что посчитано
+  /**
+   * ОСТАТОК НЕ ОБЪЯВЛЯЕТСЯ БРАКОМ САМ (правка 22.08, п. 3.9). Раньше карточка
+   * писала «В брак уйдёт: 50» — и ровно на это документ жалуется: изделия,
+   * которые ещё не разобрали, браком не являются.
+   */
+  it('неразобранный остаток называется остатком, а не браком', () => {
     renderCard();
     fireEvent.change(screen.getByLabelText('Сколько принято'), { target: { value: '150' } });
-    expect(screen.getByText(/В брак уйдёт: 50/)).toBeInTheDocument();
+    expect(screen.getByText(/Останется неразобранным: 50/)).toBeInTheDocument();
+    expect(screen.queryByText(/В брак уйдёт/)).toBeNull();
+  });
+
+  /** Брак вводится ЯВНО и уезжает той же транзакцией, что и принятое */
+  it('брак вводится числом и пишется вместе с принятым', async () => {
+    renderCard();
+    fireEvent.change(screen.getByLabelText('Сколько принято'), { target: { value: '180' } });
+    fireEvent.change(screen.getByLabelText('Сколько брака'), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: /Подтвердить приёмку/ }));
+
+    await waitFor(() => expect(receiveSubcontract).toHaveBeenCalled());
+    expect(receiveSubcontract).toHaveBeenCalledWith('sc1', expect.objectContaining({
+      accepted: 180, defect: 20,
+    }));
+  });
+
+  it('принято и брак больше вернувшегося — приёмку не подтвердить', () => {
+    renderCard();
+    fireEvent.change(screen.getByLabelText('Сколько принято'), { target: { value: '180' } });
+    fireEvent.change(screen.getByLabelText('Сколько брака'), { target: { value: '50' } });
+    expect(screen.getByRole('button', { name: /Подтвердить приёмку/ })).toBeDisabled();
   });
 
   it('принятая задача полей ввода не показывает', () => {

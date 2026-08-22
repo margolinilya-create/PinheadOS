@@ -678,9 +678,34 @@ export interface SubcontractingSlice {
    */
   applySubcontractAction: (
     id: string,
-    action: { phase: string; move: 'send' | 'return' | null },
-    input?: { qty?: number | string; movedOn?: string | null; comment?: string | null },
+    action: {
+      phase: string;
+      move: 'send' | 'return' | 'defect' | null;
+      /** Действие задаёт объём работы у подрядчика (правка 22.08, п. 3.8) */
+      asksInWork?: boolean;
+    },
+    input?: {
+      qty?: number | string;
+      /** Сколько единиц подрядчик делает — отдельно от физической передачи */
+      inWorkQty?: number | string;
+      movedOn?: string | null;
+      comment?: string | null;
+    },
   ) => Promise<boolean>;
+  /**
+   * Приёмка подряда складом ОДНИМ действием: принято и брак — две записи
+   * журнала в одной транзакции (`erp_subcontract_receive`).
+   *
+   * Раздельные вставки означали бы окно, в котором принято уже записано,
+   * а брак ещё нет, — и правда о партии на экране неполная. Тем же приёмом
+   * устроена приёмка материала.
+   */
+  receiveSubcontract: (id: string, input: {
+    accepted: number | string;
+    defect?: number | string;
+    movedOn?: string | null;
+    comment?: string | null;
+  }) => Promise<boolean>;
   updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
 
   /**

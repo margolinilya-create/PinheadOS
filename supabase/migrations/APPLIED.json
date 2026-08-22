@@ -1226,6 +1226,13 @@
       "files": [
         "20260822130000_erp_material_accept_idempotent.sql"
       ]
+    },
+    {
+      "version": "20260822173552",
+      "name": "erp_subcontract_qty_split",
+      "files": [
+        "20260823100000_erp_subcontract_qty_split.sql"
+      ]
     }
   ]
 }
