@@ -3,35 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!--
-      Начертания — ровно те, что используются.
-
-      Из запроса убран `1,900` (Barlow Condensed, курсивное чёрное): курсив
-      в проекте встречается четыре раза и весь — на основном шрифте (Inter),
-      у которого курсив и не загружался. То есть отдельный файл ехал на каждой
-      загрузке ради начертания, которое не применяет ни одно правило.
-
-      Стили шрифтов больше не блокируют рендер. `display=swap` уже стоял,
-      значит текст в любом случае сначала рисуется запасным шрифтом, а потом
-      подменяется, — но пока таблица считалась блокирующей, браузер ЖДАЛ её,
-      прежде чем нарисовать хоть что-то. Приём media=print + onload снимает
-      ожидание, не меняя итоговую картинку: число подмен то же, первый кадр
-      раньше. <noscript> оставляет прежнее поведение там, где нет скриптов.
-    -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-      media="print"
-      onload="this.media='all';this.onload=null"
-    />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="apple-touch-icon" href="/icon-192.png">

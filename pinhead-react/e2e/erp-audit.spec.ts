@@ -169,14 +169,21 @@ test.describe('Список заказов: страницы, сортировк
 test.describe('Уведомления обзора сгруппированы по критичности', () => {
   test('срочная группа развёрнута, у каждой есть подсказка', async ({ page }) => {
     await page.goto('/?studio=0');
-    // Хотя бы одна группа обязана быть, и она обязана объяснять, что делать:
-    // плоский список «Просрочен заказ №…» на 47 строк ничего не объяснял.
+    /**
+     * Хотя бы одна группа обязана быть, и она обязана объяснять, что делать:
+     * плоский список «Просрочен заказ №…» на 47 строк ничего не объяснял.
+     *
+     * Ожидание заголовка обязательно, а условия `if (count > 0)` здесь БОЛЬШЕ
+     * НЕТ. Оно и делало тест бессмысленным: `count` снимался одним вызовом
+     * сразу после `goto`, до отрисовки экрана, и всегда был нулём — проверки
+     * внутри не выполнялись НИ РАЗУ, а тест был зелёным. Замерено: без
+     * ожидания 0 групп, с ожиданием 1.
+     */
+    await expect(page.getByRole('heading', { name: 'Обзор производства' })).toBeVisible();
     const groups = page.locator('details[class*="notifGroup"]');
-    const count = await groups.count();
-    if (count > 0) {
-      await expect(groups.first().locator('summary')).toBeVisible();
-      await expect(groups.first()).toHaveAttribute('open', '');
-    }
+    await expect(groups.first()).toBeVisible();
+    await expect(groups.first().locator('summary')).toBeVisible();
+    await expect(groups.first()).toHaveAttribute('open', '');
   });
 
   test('колокол в шапке ведёт к уведомлениям', async ({ page }) => {

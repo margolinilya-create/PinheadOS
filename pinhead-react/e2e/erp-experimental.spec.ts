@@ -1,5 +1,30 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { installSupabaseMock, buildStages, deptId, FX_CREATED } from './support/mockSupabase';
+
+/**
+ * Переход на ЭКРАН РАЗДЕЛА с ожиданием, что экран смонтирован.
+ *
+ * `page.goto` дожидается загрузки МОДУЛЕЙ, но не инициализации приложения:
+ * сессия и `loadBootstrap` идут после `load`, а экран ленивый. Проверка,
+ * снятая сразу после `goto`, читает оболочку без содержимого — и держится
+ * только на том, что экран обычно успевает. Заголовок раздела рисует сам
+ * экран (`PageHead`), оболочка его не рисует.
+ */
+async function gotoDev(page: Page, url: string) {
+  await page.goto(url);
+  await expect(page.getByRole('heading', { name: 'Экспериментальный цех' })).toBeVisible();
+}
+
+/**
+ * То же для СТРАНИЦЫ РАЗРАБОТКИ (`/experimental/<id>`, правка 22.08, п. 4.11).
+ * Заголовок здесь — название разработки, а не раздела, поэтому ждём первый
+ * заголовок страницы: он появляется вместе с её содержимым.
+ */
+async function gotoDevPage(page: Page, url: string) {
+  await page.goto(url);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+}
 
 /**
  * Экспериментальный цех: задачи вместо фаз (ТЗ заказчика 12.08).
@@ -213,7 +238,7 @@ const tile = (page: import('@playwright/test').Page, label: string) =>
 
 test.describe('Экран разработки: состояния считаются, а не хранятся', () => {
   test('плитки раскладывают разработки по вычисленным состояниям', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await gotoDev(page, '/experimental?studio=0');
     await expect(page.getByRole('heading', { name: 'Экспериментальный цех' })).toBeVisible();
 
     // Ни одно из этих состояний не лежит в БД: они получены из набора задач
@@ -224,7 +249,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('таблица отвечает «почему стоит», а не «на какой фазе»', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0&view=list');
     const row = page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' });
 
     // Готовность — в ЗАДАЧАХ (0 из 1), блокер назван словами
@@ -234,7 +259,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('ноль задач дал бы «—», а не 100 % — здесь готовность честная', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0&view=list');
     // У «Новые» две задачи, ни одна не закрыта
     await expect(
       page.getByRole('row').filter({ hasText: 'Худи оверсайз' }),
@@ -242,7 +267,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('подпись задачи без названия берётся из справочника', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0&view=list');
     // У задач «Новых» своих названий нет — блокер показывает имя из справочника,
     // а не код `patterns`
     const row = page.getByRole('row').filter({ hasText: 'Худи оверсайз' });
@@ -251,7 +276,7 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('фильтр по состоянию живёт в адресе — ссылкой можно поделиться', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0&view=list');
     await tile(page, 'Требуют внимания').first().click();
 
     await expect(page).toHaveURL(/state=attention/);
@@ -259,7 +284,7 @@ test.describe('Экран разработки: состояния считаю�
     await expect(page.getByRole('row').filter({ hasText: 'Худи оверсайз' })).toHaveCount(0);
 
     // Прямой заход по той же ссылке восстанавливает подбор
-    await page.goto('/experimental?studio=0&view=list&state=ready');
+    await gotoDev(page, '/experimental?studio=0&view=list&state=ready');
     await expect(page.getByRole('row').filter({ hasText: 'Футболка freefit' })).toBeVisible();
     await expect(page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' })).toHaveCount(0);
   });
@@ -273,7 +298,7 @@ test.describe('Экран разработки: состояния считаю�
  */
 test.describe('Карточка разработки', () => {
   test('открывается страницей и показывает блокер и следующее действие', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0&view=list');
     await page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' }).click();
 
     await expect(page).toHaveURL(/\/experimental\/dev-block/);
@@ -288,12 +313,12 @@ test.describe('Карточка разработки', () => {
    * вместо запрошенной карточки значит потерять человека на ровном месте.
    */
   test('старая ссылка ?dev= переадресует на страницу', async ({ page }) => {
-    await page.goto('/experimental?studio=0&dev=dev-work');
+    await gotoDev(page, '/experimental?studio=0&dev=dev-work');
     await expect(page).toHaveURL(/\/experimental\/dev-work/);
   });
 
   test('задача, отданная в цех, — только на чтение: её статус ведёт триггер', async ({ page }) => {
-    await page.goto('/experimental/dev-work?studio=0');
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
     const drawer = page.getByRole('main');
     const delegated = drawer.getByRole('row').filter({ hasText: 'Нанесение образца' });
 
@@ -312,7 +337,7 @@ test.describe('Карточка разработки', () => {
   });
 
   test('повторная примерка — новая задача со своим кругом, а не счётчик', async ({ page }) => {
-    await page.goto('/experimental/dev-fit?studio=0');
+    await gotoDevPage(page, '/experimental/dev-fit?studio=0');
     const drawer = page.getByRole('main');
     await expect(
       drawer.getByRole('row').filter({ hasText: 'Повторная примерка' }),
@@ -328,7 +353,7 @@ test.describe('Карточка разработки', () => {
      * «Примерка не принята» заводила жёсткую тройку задач независимо
      * от причины — вышивку перезапускали из-за длины рукава.
      */
-    await page.goto('/experimental/dev-fit?studio=0');
+    await gotoDevPage(page, '/experimental/dev-fit?studio=0');
     const drawer = page.getByRole('main');
     await drawer.getByRole('button', { name: 'Требуется доработка' }).click();
 
@@ -342,7 +367,7 @@ test.describe('Карточка разработки', () => {
   });
 
   test('закрытая разработка не предлагает действий — хранится только исход', async ({ page }) => {
-    await page.goto('/experimental/dev-ready?studio=0');
+    await gotoDevPage(page, '/experimental/dev-ready?studio=0');
     const drawer = page.getByRole('main');
 
     await expect(drawer).toContainText('Готово к серии');
@@ -354,7 +379,7 @@ test.describe('Карточка разработки', () => {
 
   test('«Готово к серии» честно говорит, что заказ на серию заводит менеджер',
     async ({ page }) => {
-      await page.goto('/experimental/dev-work?studio=0');
+      await gotoDevPage(page, '/experimental/dev-work?studio=0');
       const drawer = page.getByRole('main');
       await expect(drawer).toContainText('заказ на серию заводит менеджер');
     });
@@ -369,7 +394,7 @@ test.describe('Карточка разработки', () => {
  */
 test.describe('Доска экспериментального цеха', () => {
   test('пять колонок документа, и «Нанесения» ОДНА', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await gotoDev(page, '/experimental?studio=0');
     /**
      * Ищем ЗАГОЛОВОК КОЛОНКИ — «название + счётчик», а не любое совпадение
      * текста: те же слова стоят в переключателе видов, и проверка «просто
@@ -388,7 +413,7 @@ test.describe('Доска экспериментального цеха', () => 
 
   test('разработка стоит в колонке своего шага, а не там, где её положили',
     async ({ page }) => {
-      await page.goto('/experimental?studio=0');
+      await gotoDev(page, '/experimental?studio=0');
       // Колонка ВЫЧИСЛЯЕТСЯ из задач: у «Ветровки» идут лекала, у «Футболки»
       // зафиксирован исход — она в финальном этапе
       const board = page.locator('section').filter({ hasText: 'Построение лекал' }).first();
@@ -396,7 +421,7 @@ test.describe('Доска экспериментального цеха', () => 
     });
 
   test('вид раздела живёт в адресе — ссылкой можно поделиться', async ({ page }) => {
-    await page.goto('/experimental?studio=0');
+    await gotoDev(page, '/experimental?studio=0');
     await page.getByRole('button', { name: 'Лекала', exact: true }).click();
     await expect(page).toHaveURL(/view=patterns/);
 
@@ -421,7 +446,7 @@ test.describe('Доска экспериментального цеха', () => 
         dictionaries: DICTIONARIES,
         orders: [SAMPLE_ORDER],
       });
-      await page.goto('/experimental?studio=0&view=dtf');
+      await gotoDev(page, '/experimental?studio=0&view=dtf');
       await expect(page.getByText('ЭКС / ОБРАЗЕЦ').first()).toBeVisible();
       await expect(page.getByRole('link', { name: /Открыть/ }).first()).toBeVisible();
     });
@@ -434,7 +459,7 @@ test.describe('Финальный технический пакет', () => {
      * данные не заполнены… система должна показать, какие поля ещё
      * не заполнены». Гейт кнопки — зеркало серверного стража.
      */
-    await page.goto('/experimental/dev-work?studio=0');
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
     const drawer = page.getByRole('main');
     await expect(drawer).toContainText('Не хватает для «Готово к серии»');
     await expect(drawer).toContainText('Техническое название лекал');
