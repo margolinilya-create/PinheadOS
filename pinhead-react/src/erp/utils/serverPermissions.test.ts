@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import {
   functionBody, latestDefining, latestMatching, migration, withoutComments,
 } from './migrations.testutil';
-import { DEFAULT_PERMISSIONS, canActInDept, resolveErpRole } from './permissions';
+import {
+  DEFAULT_PERMISSIONS,
+  DEPT_BOUND_ROLES,
+  canActInDept,
+  resolveErpRole,
+} from './permissions';
 import { ERP_PERMISSIONS } from '../types';
 
 /**
@@ -326,22 +331,39 @@ describe('принадлежность цеху: клиент и сервер о
 
   it('руководство работает во всех цехах', () => {
     for (const role of ['admin', 'director', 'rop']) {
-      expect(canActInDept(role, 'd-sew', 'd-emb')).toBe(true);
+      expect(canActInDept(role, 'director', 'd-sew', 'd-emb')).toBe(true);
     }
     expect(DEPT_SQL).toMatch(/in \('admin', 'director', 'rop'\) then true/);
   });
 
-  it('без привязки к цеху действовать можно везде (fail-open)', () => {
-    // В цехах, где сотрудников ещё не завели, запрет остановил бы производство.
-    // Что именно такому пользователю можно, решает матрица прав, а не цех.
-    expect(canActInDept('production', null, 'd-emb')).toBe(true);
-    expect(DEPT_SQL).toMatch(/my_dept from me\) is null then true/);
+  /**
+   * Пустая привязка разбирается ПО РОЛИ, и обе половины обязаны называть
+   * один и тот же перечень. Строже клиента — цех не может сдать работу
+   * и виноватым выглядит он; мягче — дыра, ради которой всё и правилось.
+   */
+  it('перечень ролей участка на сервере дословно совпадает с клиентским', () => {
+    const body = functionBody(DEPT_SQL, 'erp_can_act_in_dept');
+    const listed = [...body.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    for (const role of DEPT_BOUND_ROLES) {
+      expect(listed, `роль участка ${role} не названа в erp_can_act_in_dept`).toContain(role);
+    }
+  });
+
+  it('сквозная роль без привязки — везде, роль участка — никуда', () => {
+    for (const role of ['manager', 'dispatcher', 'production_head', 'technologist'] as const) {
+      expect(canActInDept('production', role, null, 'd-emb')).toBe(true);
+    }
+    for (const role of DEPT_BOUND_ROLES) {
+      expect(canActInDept('production', role, null, 'd-emb')).toBe(false);
+    }
+    expect(DEPT_SQL).toMatch(/my_dept from me\) is null then/);
+    expect(DEPT_SQL).toMatch(/not in \(/);
   });
 
   it('привязанный сотрудник — только свой цех', () => {
-    expect(canActInDept('production', 'd-sew', 'd-sew')).toBe(true);
-    expect(canActInDept('production', 'd-sew', 'd-emb')).toBe(false);
-    expect(canActInDept('production', 'd-sew', null)).toBe(false);
+    expect(canActInDept('production', 'worker', 'd-sew', 'd-sew')).toBe(true);
+    expect(canActInDept('production', 'worker', 'd-sew', 'd-emb')).toBe(false);
+    expect(canActInDept('production', 'worker', 'd-sew', null)).toBe(false);
     expect(DEPT_SQL).toMatch(/p_dept is not null and \(select my_dept from me\) = p_dept/);
   });
 
@@ -352,7 +374,7 @@ describe('принадлежность цеху: клиент и сервер о
 
   it('клиентский dev-режим серверного соответствия не имеет', () => {
     // `user.id === 'dev'` — локальный автологин, а не роль: на сервере его нет
-    expect(canActInDept('production', 'd-sew', 'd-emb', true)).toBe(true);
+    expect(canActInDept('production', 'worker', 'd-sew', 'd-emb', true)).toBe(true);
     expect(functionBody(DEPT_SQL, 'erp_can_act_in_dept')).not.toMatch(/'dev'/);
   });
 });

@@ -16,6 +16,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { EmployeeRole, ErpPermission } from '../types';
 import {
+  DEPT_BOUND_ROLES,
   FULL_ACCESS_PROFILE_ROLES,
   canActInDept,
   isAllowed,
@@ -43,6 +44,13 @@ export interface ErpAccess {
   role: EmployeeRole;
   /** Цех пользователя (null — привязки нет) */
   myDeptId: string | null;
+  /**
+   * Роль требует привязки к участку, а привязки нет: заведение сотрудника
+   * не закончено. Все действия по этапам при этом закрыты, и интерфейс обязан
+   * СКАЗАТЬ об этом — иначе человек видит пустую очередь без единой кнопки
+   * и читает это как поломку.
+   */
+  needsDeptBinding: boolean;
 }
 
 export function useErpAccess(): ErpAccess {
@@ -62,7 +70,7 @@ export function useErpAccess(): ErpAccess {
     const can = (permission: ErpPermission) =>
       isDev || isAllowed(permissionMatrix, role, permission);
     const canActIn = (departmentId: string | null | undefined) =>
-      canActInDept(user?.role, myDeptId, departmentId, isDev);
+      canActInDept(user?.role, role, myDeptId, departmentId, isDev);
     return {
       can,
       canActIn,
@@ -72,6 +80,10 @@ export function useErpAccess(): ErpAccess {
       isAdmin: isDev || user?.role === 'admin',
       role,
       myDeptId,
+      needsDeptBinding: !isDev
+        && !FULL_ACCESS_PROFILE_ROLES.includes(user?.role ?? '')
+        && !myDeptId
+        && DEPT_BOUND_ROLES.includes(role),
     };
   }, [user?.id, user?.role, myRole, myDeptId, permissionMatrix]);
 }

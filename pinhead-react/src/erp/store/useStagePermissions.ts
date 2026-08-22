@@ -39,6 +39,13 @@ export interface StagePermissions {
   plan: boolean;
   /** Хоть одно действие доступно — рисовать ли блок действий вообще */
   any: boolean;
+  /**
+   * Действий нет ровно потому, что профиль не привязан к участку. Пробрасывается
+   * из `useErpAccess`, чтобы экран задания не поднимал второй хук ради одного
+   * булева и чтобы причина пустого блока действий была названа там же, где он
+   * рисуется.
+   */
+  needsDeptBinding: boolean;
 }
 
 export function useStagePermissions(departmentId: string | null | undefined): StagePermissions {
@@ -61,6 +68,7 @@ export function useStagePermissions(departmentId: string | null | undefined): St
       skip,
       plan,
       any: take || progress || complete || block || defect || skip || plan,
+      needsDeptBinding: access.needsDeptBinding,
     };
   }, [access, departmentId]);
 }

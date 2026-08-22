@@ -18,6 +18,7 @@ import { daysLeft, formatDateShort, stageOverdue } from '../utils/time';
 import { MATERIAL_STATUS_LABELS, STAGE_STATUS_LABELS } from '../types';
 import { supabase } from '../../lib/supabase';
 import styles from '../erp.module.css';
+import DeptBindingNotice from '../components/DeptBindingNotice';
 import { Icon } from '../components/Icon';
 import { StageActionsPanel } from './queue/StageActionsPanel';
 import { useStageActions } from './queue/useStageActions';
@@ -131,6 +132,9 @@ export default function ProductionTask() {
         title={`${deptName}: ${item.product_type}${item.variant ? ` · ${item.variant}` : ''}`}
         sub={`Задание цеха по заказу №${order.bitrix_id || '—'}.`}
       />
+
+      {/* Сюда цех приходит работать: пустой блок действий обязан объясниться */}
+      {perms.needsDeptBinding && <DeptBindingNotice />}
 
       <div className={styles.toolbar}>
         {/*

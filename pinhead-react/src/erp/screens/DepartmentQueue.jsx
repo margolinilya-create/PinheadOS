@@ -26,6 +26,7 @@ import { QueueRow } from './queue/QueueRow';
 import { useStageActions } from './queue/useStageActions';
 import { PlanAddModal } from './plan/PlanAddModal';
 import { Button } from '../components/Button';
+import DeptBindingNotice from '../components/DeptBindingNotice';
 
 /**
  * Экран цеха: рабочая очередь конкретного участка.
@@ -321,6 +322,9 @@ export default function DepartmentQueue() {
           deptHead ? `Руководитель: ${deptHead}.` : null,
         ].filter(Boolean).join(' ')}
       />
+
+      {/* Роль участка без привязки: кнопок не будет, и об этом надо сказать */}
+      {access.needsDeptBinding && <DeptBindingNotice />}
 
       <div className={styles.deptTabsWrap}>
         <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef} onKeyDown={onTabListKeyDown}>

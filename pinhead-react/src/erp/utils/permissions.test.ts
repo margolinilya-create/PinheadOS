@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_PERMISSIONS, canActInDept, isAllowed, resolveErpRole } from './permissions';
+import {
+  DEFAULT_PERMISSIONS,
+  DEPT_BOUND_ROLES,
+  canActInDept,
+  isAllowed,
+  resolveErpRole,
+} from './permissions';
 import type { PermissionMatrix } from './permissions';
 
 describe('resolveErpRole', () => {
@@ -99,8 +105,8 @@ describe('isAllowed', () => {
   });
 
   it('менеджер без привязки к цеху не получает действий над этапами', () => {
-    // Без записи в erp_employees canActInDept пропускает в любой цех — значит
-    // единственная защита здесь матрица: у роли нет ни взятия, ни завершения, ни брака.
+    // Менеджер — сквозная роль, `canActInDept` его без цеха пропускает,
+    // и единственная защита здесь матрица: ни взятия, ни завершения, ни брака.
     for (const p of ['stage.take', 'stage.progress', 'stage.complete', 'stage.defect'] as const) {
       expect(isAllowed(null, 'manager', p)).toBe(false);
     }
@@ -110,23 +116,48 @@ describe('isAllowed', () => {
 
 describe('canActInDept', () => {
   it('dev-режим — везде', () => {
-    expect(canActInDept('production', 'd1', 'd2', true)).toBe(true);
+    expect(canActInDept('production', 'worker', 'd1', 'd2', true)).toBe(true);
   });
 
   it('руководящий состав — в любом цехе', () => {
-    expect(canActInDept('admin', 'd1', 'd2')).toBe(true);
-    expect(canActInDept('director', 'd1', 'd2')).toBe(true);
-    expect(canActInDept('rop', 'd1', 'd2')).toBe(true);
+    expect(canActInDept('admin', 'director', 'd1', 'd2')).toBe(true);
+    expect(canActInDept('director', 'director', 'd1', 'd2')).toBe(true);
+    expect(canActInDept('rop', 'dispatcher', 'd1', 'd2')).toBe(true);
   });
 
   it('привязанный сотрудник — только в своём цехе', () => {
-    expect(canActInDept('production', 'd1', 'd1')).toBe(true);
-    expect(canActInDept('production', 'd1', 'd2')).toBe(false);
-    expect(canActInDept('production', 'd1', null)).toBe(false);
+    expect(canActInDept('production', 'worker', 'd1', 'd1')).toBe(true);
+    expect(canActInDept('production', 'worker', 'd1', 'd2')).toBe(false);
+    expect(canActInDept('production', 'worker', 'd1', null)).toBe(false);
   });
 
-  it('без привязки — в выбранном цехе (legacy-поведение)', () => {
-    expect(canActInDept('production', null, 'd2')).toBe(true);
+  /**
+   * Роль участка без привязки — незаконченное заведение сотрудника, а не
+   * «работает везде». До 22.08 здесь стоял безусловный пропуск, и рабочий
+   * без цеха мог закрывать этапы на всей фабрике: матрица его не держит —
+   * `stage.take`/`complete`/`defect` у роли есть.
+   */
+  it('роль участка без привязки — никуда', () => {
+    for (const role of DEPT_BOUND_ROLES) {
+      expect(canActInDept('production', role, null, 'd2')).toBe(false);
+    }
+  });
+
+  it('сквозная роль без привязки — по-прежнему везде', () => {
+    // Их работа не привязана к участку по смыслу: заказ и производство целиком.
+    for (const role of ['manager', 'dispatcher', 'production_head', 'technologist'] as const) {
+      expect(canActInDept('production', role, null, 'd2')).toBe(true);
+    }
+  });
+
+  it('пилот склада и закупки: без участка кладовщик и закупщик не действуют', () => {
+    // Ровно те роли, которые внедряются первыми. У `purchaser` есть
+    // `stage.take`/`stage.complete`, у `storekeeper` — `stage.block`:
+    // матрица их не останавливает, останавливает привязка.
+    expect(canActInDept('production', 'storekeeper', null, 'd-warehouse')).toBe(false);
+    expect(canActInDept('production', 'purchaser', null, 'd-supply')).toBe(false);
+    expect(canActInDept('production', 'purchaser', 'd-supply', 'd-supply')).toBe(true);
+    expect(canActInDept('production', 'purchaser', 'd-supply', 'd-sewing')).toBe(false);
   });
 });
 
@@ -173,6 +204,6 @@ describe('новые роли: технолог и участки нанесен
   it('роль участка — это не цех: привязку она не заменяет', () => {
     // Роль `dtf` у человека, привязанного к вышивке, не пускает его в чужой цех:
     // цех решает `canActInDept`, а не название роли
-    expect(canActInDept('production', 'd-embroidery', 'd-dtf')).toBe(false);
+    expect(canActInDept('production', 'dtf', 'd-embroidery', 'd-dtf')).toBe(false);
   });
 });
