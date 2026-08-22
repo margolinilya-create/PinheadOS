@@ -71,6 +71,69 @@ export function useAttachmentUploads(scope = 'new') {
     upload(uid, kind, file);
   }, [upload]);
 
+  /**
+   * Скопировать файлы одной строки формы на другую (правка 22.08, п. 5.4).
+   *
+   * Документ перечисляет прикреплённый макет среди того, что копируется
+   * вместе с нанесением, — и это правильно: копируют как раз затем, чтобы
+   * не заводить одно и то же дважды.
+   *
+   * ОБЪЕКТ В БАКЕТЕ КОПИРУЕТСЯ НАСТОЯЩИЙ (`storage.copy`), а не ссылка
+   * на тот же путь. Две строки на один объект означали бы, что удаление
+   * одной уносит файл у другой: уборка за собой (`removeOrphanUpload`)
+   * удаляет ОБЪЕКТ, а не привязку.
+   */
+  const copyOwner = useCallback(async (fromKey, toKey) => {
+    const source = files.filter((f) => f.ownerKey === fromKey && f.state === 'uploaded');
+    for (const f of source) {
+      const uid = crypto.randomUUID();
+      const path = attachmentFilePath(scope, f.kind, uid, f.name);
+      setFiles((arr) => [...arr, {
+        uid, kind: f.kind, itemIndex: f.itemIndex, ownerKey: toKey,
+        name: f.name, file: f.file, state: 'uploading', error: null, path: null,
+      }]);
+      const { error } = await erpQuery(() => supabase.storage
+        .from(BUCKET).copy(f.path, path));
+      setFiles((arr) => arr.map((x) => {
+        if (x.uid !== uid) return x;
+        if (!error) return { ...x, state: 'uploaded', path };
+        return {
+          ...x,
+          state: 'error',
+          error: navigator.onLine === false ? 'нет сети' : translateSupabaseError(error.message),
+        };
+      }));
+    }
+  }, [files, scope]);
+
+  /**
+   * Переставить файл внутри его блока (правка 22.08, п. 5.8).
+   *
+   * ПОРЯДОК В СОСТОЯНИИ И ЕСТЬ ПОРЯДОК В ЗАКАЗЕ: секция `attachments`
+   * payload собирается обходом этого массива, строки вставляются подряд,
+   * и показ сортируется по `created_at`. Отдельной колонки сортировки
+   * заводить не нужно — она стала бы вторым источником правды о порядке.
+   */
+  const moveFile = useCallback((uid, delta) => {
+    setFiles((arr) => {
+      const from = arr.findIndex((f) => f.uid === uid);
+      if (from < 0) return arr;
+      const self = arr[from];
+      // Соседа ищем среди файлов ТОГО ЖЕ блока: в массиве вперемешку лежат
+      // вложения всех позиций, и «соседний по индексу» был бы чужим
+      const sameOwner = arr
+        .map((f, i) => ({ f, i }))
+        .filter(({ f }) => f.ownerKey === self.ownerKey && f.kind === self.kind
+          && f.itemIndex === self.itemIndex);
+      const at = sameOwner.findIndex(({ f }) => f.uid === uid);
+      const to = sameOwner[at + delta]?.i;
+      if (to === undefined) return arr;
+      const next = [...arr];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  }, []);
+
   const retry = useCallback((uid) => {
     setFiles((arr) => {
       const f = arr.find((x) => x.uid === uid);
@@ -118,7 +181,7 @@ export function useAttachmentUploads(scope = 'new') {
    * в секцию `materials`: индекс материала считается по нему, а не по позиции
    * ключа в состоянии, иначе удалённая средняя строка сдвинула бы привязку.
    */
-  const payload = useCallback((rowKeys = []) => files
+  const payload = useCallback((rowKeys = [], noteKeys = []) => files
     .filter((f) => f.state === 'uploaded')
     .map((f) => {
       const at = f.ownerKey === null ? -1 : rowKeys.indexOf(f.ownerKey);
@@ -128,10 +191,28 @@ export function useAttachmentUploads(scope = 'new') {
        * строит секцию `stages` (`createOrder`). Считать его здесь значило бы
        * завести второй порядок этапов рядом с настоящим.
        */
+      /**
+       * Макет нанесения и файл бирки уезжают с КЛЮЧОМ строки формы — по той же
+       * причине, что файл подрядного шага: строк `erp_item_prints`
+       * и `erp_item_labels` на момент выбора файла ещё нет, их создаёт
+       * та же транзакция. Номер внутри позиции проставляет ТОТ ЖЕ код,
+       * который строит секции `prints`/`labels` (`createOrder`).
+       */
       return {
         item_index: f.itemIndex,
         material_index: at >= 0 ? at : null,
         ...(f.kind === 'subcontract' && f.ownerKey ? { stage_key: f.ownerKey } : {}),
+        ...(f.kind === 'print' && f.ownerKey ? { print_key: f.ownerKey } : {}),
+        ...(f.kind === 'label' && f.ownerKey ? { label_key: f.ownerKey } : {}),
+        /**
+         * Изображение заметки адресуется НОМЕРОМ заметки в заказе: заметки
+         * общие для всего заказа, разводить их по позициям не нужно.
+         * Индекс считается по `noteKeys` — тому же порядку, в каком заметки
+         * уедут в секцию `notes`.
+         */
+        ...(f.kind === 'note' && f.ownerKey
+          ? { note_index: noteKeys.indexOf(f.ownerKey) }
+          : {}),
         file_path: f.path,
         file_name: f.name,
         kind: f.kind,
@@ -140,7 +221,11 @@ export function useAttachmentUploads(scope = 'new') {
     // Файл строки закупки, которую человек удалил, в заказ не едет
     .filter((a) => !(a.material_index === null && a.kind === 'purchase'))
     // Файл подрядного шага без ключа привязать не к чему — он не едет
-    .filter((a) => !(a.kind === 'subcontract' && !a.stage_key)),
+    .filter((a) => !(a.kind === 'subcontract' && !a.stage_key))
+    .filter((a) => !(a.kind === 'print' && !a.print_key))
+    .filter((a) => !(a.kind === 'label' && !a.label_key))
+    // Изображение удалённой заметки привязывать не к чему — оно не едет
+    .filter((a) => !(a.kind === 'note' && (a.note_index ?? -1) < 0)),
   [files]);
 
   /** Убрать файлы удалённой строки листа закупки вместе с объектами в бакете */
@@ -155,5 +240,8 @@ export function useAttachmentUploads(scope = 'new') {
   const uploading = useMemo(() => files.some((f) => f.state === 'uploading'), [files]);
   const failed = useMemo(() => files.some((f) => f.state === 'error'), [files]);
 
-  return { files, add, retry, remove, dropItem, dropOwner, payload, uploading, failed };
+  return {
+    files, add, retry, remove, copyOwner, moveFile, dropItem, dropOwner, payload,
+    uploading, failed,
+  };
 }

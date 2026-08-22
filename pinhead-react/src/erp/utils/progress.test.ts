@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { itemProgress, orderProgress, stageQtyProgress } from './progress';
+import {
+  itemProgress, orderProgress, stageCountProgress, stageQtyProgress,
+} from './progress';
 
 const st = (status: string, qty_done = 0) => ({ status, qty_done } as never);
 
@@ -100,5 +102,41 @@ describe('прогресс не считает этапы образца', () =>
     // Ноль в знаменателе — правило проекта: pct 0 при total 0
     const item = { qty: 3, stages: [{ status: 'done' as const, origin: 'experimental' }] };
     expect(itemProgress(item)).toEqual({ done: 0, total: 0, pct: 0 });
+  });
+});
+
+/**
+ * П. 3.11: «1 из 5 этапов завершено» вместо «100/500 шт·этапов».
+ * Величина другая, а не то же число другими словами.
+ */
+describe('счёт этапов', () => {
+  const item = (statuses: string[]) => ({
+    qty: 100,
+    stages: statuses.map((status, i) => ({
+      id: `s${i}`, status, qty_done: 0, qty_rework: 0,
+    })) as never,
+  });
+
+  it('считает закрытые этапы, а не штуки', () => {
+    expect(stageCountProgress(item(['done', 'done', 'in_progress', 'waiting', 'waiting'])))
+      .toEqual({ done: 2, total: 5, pct: 40 });
+  });
+
+  it('пропущенные и этапы образца не участвуют — как в itemProgress', () => {
+    const withSkipped = {
+      qty: 100,
+      stages: [
+        { id: 'a', status: 'done', qty_done: 0, qty_rework: 0 },
+        { id: 'b', status: 'skipped', qty_done: 0, qty_rework: 0 },
+        { id: 'c', status: 'waiting', qty_done: 0, qty_rework: 0, origin: 'experimental' },
+      ] as never,
+    };
+    expect(stageCountProgress(withSkipped)).toEqual({ done: 1, total: 1, pct: 100 });
+  });
+
+  /** Ноль в знаменателе — «неизвестно», а не «готово» (правило проекта) */
+  it('маршрута нет — процент не выдумывается', () => {
+    expect(stageCountProgress({ qty: 100, stages: [] })).toEqual(
+      { done: 0, total: 0, pct: null });
   });
 });

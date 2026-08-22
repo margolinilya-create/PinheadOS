@@ -32,14 +32,16 @@ export const ORDER_SELECT = `
   items:erp_order_items (
     *,
     stages:erp_item_stages (*),
-    prints:erp_item_prints (*)
+    prints:erp_item_prints (*),
+    labels:erp_item_labels (*)
   ),
   materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
-  tz_documents:erp_tz_documents (*)
+  tz_documents:erp_tz_documents (*),
+  notes_list:erp_order_notes (*)
 `;
 
 /**
@@ -72,6 +74,15 @@ export const ORDER_SELECT = `
  *
  * Карточка заказа обязана дозагрузить полный заказ (`loadOne`) — иначе размерная
  * сетка не отрисуется. За этим следит `detailIds` в сторе.
+ *
+ * Бирки (`labels`) и основная ткань (`main_fabric`) — правка 22.08 — в списке
+ * ЕСТЬ по той же причине, что техблок: их читает `screens/queue/TzBlock`,
+ * структурное ТЗ в строке очереди цеха. Колонка, не попавшая сюда, приезжает
+ * `undefined` МОЛЧА, без единой ошибки — на этом в проекте уже ловились
+ * с `executor`.
+ *
+ * Комментариев ВНУТРИ строки выборки быть не может: это текст запроса
+ * PostgREST, а не код (и обратный апостроф в нём закрывает шаблонную строку).
  */
 export const ORDER_LIST_SELECT = `
   *,
@@ -79,7 +90,7 @@ export const ORDER_LIST_SELECT = `
     id, order_id, product_type, variant, qty, production_type,
     branding_methods, branding_on, notes, sort_order,
     subcontract_kind, material_source,
-    fit, trim_material, cutting_note, sewing_note, labels_note,
+    fit, main_fabric, trim_material, cutting_note, sewing_note, labels_note,
     packaging, packaging_size, sticker_place, marking_place, packaging_note,
     stages:erp_item_stages (
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
@@ -88,14 +99,16 @@ export const ORDER_LIST_SELECT = `
       queue_position, cycle, origin,
       executor, contractor, operation
     ),
-    prints:erp_item_prints (*)
+    prints:erp_item_prints (*),
+    labels:erp_item_labels (*)
   ),
   materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
-  tz_documents:erp_tz_documents (*)
+  tz_documents:erp_tz_documents (*),
+  notes_list:erp_order_notes (*)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */

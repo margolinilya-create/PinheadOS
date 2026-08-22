@@ -87,3 +87,29 @@ export function orderProgress(order: { items?: ProgressItem[] }): QtyProgress {
   }
   return { done, total, pct: pct(done, total) };
 }
+
+/**
+ * ЭТАПЫ СЧИТАЮТСЯ ШТУКАМИ ЭТАПОВ (правка заказчика 22.08, п. 3.11).
+ *
+ * «Формат 100/500 шт:этапов и похожие значения плохо читаются для обычного
+ * пользователя. Лучше показывать прогресс этапов в понятной форме, например
+ * 1 из 5 этапов завершено, 20 процентов».
+ *
+ * Величина ДРУГАЯ, а не то же число другими словами: «шт·этапов» — это сумма
+ * изделий по всем этапам маршрута, а здесь — сколько этапов закрыто целиком.
+ * Обе честны, но на вопрос «далеко ли до конца» отвечает вторая, и её же
+ * человек может проверить глазами по списку этапов.
+ *
+ * Пропущенные и этапы образца не считаются — тем же отбором, что `itemProgress`:
+ * два разных представления одного маршрута обязаны говорить об одном наборе.
+ */
+export function stageCountProgress(item: ProgressItem): {
+  done: number; total: number; pct: number | null;
+} {
+  const relevant = (item.stages ?? []).filter(
+    (s) => s.status !== 'skipped' && s.origin !== 'experimental');
+  const done = relevant.filter((s) => s.status === 'done').length;
+  const total = relevant.length;
+  // Ноль в знаменателе — «неизвестно», а не «готово»: правило проекта
+  return { done, total, pct: total > 0 ? pct(done, total) : null };
+}

@@ -3,20 +3,27 @@ import type { Page } from '@playwright/test';
 import { installSupabaseMock, buildStages, deptId, FX_CREATED } from './support/mockSupabase';
 
 /**
- * Переход на экран разработки с ожиданием, что экран СМОНТИРОВАН.
+ * Переход на ЭКРАН РАЗДЕЛА с ожиданием, что экран смонтирован.
  *
- * `page.goto` разрешается по `load`, а экран приезжает ленивым чанком
- * (`lazyScreen`) уже после — на холодном dev-сервере первая компиляция модуля
- * занимает секунды. Проверки строк при этом перепроверяются лишь 5 секунд
- * и не всегда это переживают: тест падал 4 прогона из 5 сразу после того,
- * как весь набор ускорился (шрифты перестали ждать CDN).
- *
- * Ожидание уже стояло у ОДНОГО теста из шести — остальные держались
- * на удаче.
+ * `page.goto` дожидается загрузки МОДУЛЕЙ, но не инициализации приложения:
+ * сессия и `loadBootstrap` идут после `load`, а экран ленивый. Проверка,
+ * снятая сразу после `goto`, читает оболочку без содержимого — и держится
+ * только на том, что экран обычно успевает. Заголовок раздела рисует сам
+ * экран (`PageHead`), оболочка его не рисует.
  */
 async function gotoDev(page: Page, url: string) {
   await page.goto(url);
   await expect(page.getByRole('heading', { name: 'Экспериментальный цех' })).toBeVisible();
+}
+
+/**
+ * То же для СТРАНИЦЫ РАЗРАБОТКИ (`/experimental/<id>`, правка 22.08, п. 4.11).
+ * Заголовок здесь — название разработки, а не раздела, поэтому ждём первый
+ * заголовок страницы: он появляется вместе с её содержимым.
+ */
+async function gotoDevPage(page: Page, url: string) {
+  await page.goto(url);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
 /**
@@ -232,6 +239,7 @@ const tile = (page: import('@playwright/test').Page, label: string) =>
 test.describe('Экран разработки: состояния считаются, а не хранятся', () => {
   test('плитки раскладывают разработки по вычисленным состояниям', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0');
+    await expect(page.getByRole('heading', { name: 'Экспериментальный цех' })).toBeVisible();
 
     // Ни одно из этих состояний не лежит в БД: они получены из набора задач
     for (const label of ['Новые', 'В работе', 'Требуют внимания', 'На примерке', 'Готовы к серии']) {
@@ -282,21 +290,49 @@ test.describe('Экран разработки: состояния считаю�
   });
 });
 
+/**
+ * Карточка разработки — СТРАНИЦА, а не боковая шторка (правка заказчика
+ * 22.08, п. 4.11): «для такого количества информации это неудобно».
+ * Поэтому здесь больше нет `getByRole('dialog')` — содержимое живёт
+ * прямо на странице `/experimental/<id>`.
+ */
 test.describe('Карточка разработки', () => {
-  test('открывается в адресе и показывает блокер и следующее действие', async ({ page }) => {
+  test('открывается страницей и показывает блокер и следующее действие', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0&view=list');
     await page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' }).click();
 
-    await expect(page).toHaveURL(/dev=dev-block/);
-    const drawer = page.getByRole('dialog');
-    await expect(drawer).toContainText('Текущий блокер');
-    await expect(drawer).toContainText('нет решения по цвету подкладки');
-    await expect(drawer).toContainText('Следующее действие');
+    await expect(page).toHaveURL(/\/experimental\/dev-block/);
+    const card = page.getByRole('main');
+    await expect(card).toContainText('Текущий блокер');
+    await expect(card).toContainText('нет решения по цвету подкладки');
+    await expect(card).toContainText('Следующее действие');
+  });
+
+  /**
+   * Ссылки на шторку живут в переписке и закладках — молча показать список
+   * вместо запрошенной карточки значит потерять человека на ровном месте.
+   */
+  test('старая ссылка ?dev= переадресует на страницу', async ({ page }) => {
+    /**
+     * ЕДИНСТВЕННЫЙ переход БЕЗ `gotoDev`, и это осознанно: здесь проверяется
+     * САМА ПЕРЕАДРЕСАЦИЯ, а экран раздела — промежуточное состояние, которого
+     * может не быть вовсе. Ожидание его заголовка сделало бы тест зависимым
+     * от того, успел ли список отрисоваться до редиректа: локально успевал
+     * (223 теста зелёные), на раннере CI — нет.
+     *
+     * Обе проверки ниже ПЕРЕПРОВЕРЯЕМЫЕ (`expect(page)`, `expect(locator)`),
+     * поэтому своего ожидания им не нужно: адрес — что редирект случился,
+     * заголовок — что страница действительно смонтирована, а не просто
+     * сменился URL.
+     */
+    await page.goto('/experimental?studio=0&dev=dev-work');
+    await expect(page).toHaveURL(/\/experimental\/dev-work/);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
   test('задача, отданная в цех, — только на чтение: её статус ведёт триггер', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&dev=dev-work');
-    const drawer = page.getByRole('dialog');
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    const drawer = page.getByRole('main');
     const delegated = drawer.getByRole('row').filter({ hasText: 'Нанесение образца' });
 
     await expect(delegated).toContainText('Передано в цех: ДТФ');
@@ -314,8 +350,8 @@ test.describe('Карточка разработки', () => {
   });
 
   test('повторная примерка — новая задача со своим кругом, а не счётчик', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&dev=dev-fit');
-    const drawer = page.getByRole('dialog');
+    await gotoDevPage(page, '/experimental/dev-fit?studio=0');
+    const drawer = page.getByRole('main');
     await expect(
       drawer.getByRole('row').filter({ hasText: 'Повторная примерка' }),
     ).toContainText('круг 2');
@@ -330,8 +366,8 @@ test.describe('Карточка разработки', () => {
      * «Примерка не принята» заводила жёсткую тройку задач независимо
      * от причины — вышивку перезапускали из-за длины рукава.
      */
-    await gotoDev(page, '/experimental?studio=0&dev=dev-fit');
-    const drawer = page.getByRole('dialog');
+    await gotoDevPage(page, '/experimental/dev-fit?studio=0');
+    const drawer = page.getByRole('main');
     await drawer.getByRole('button', { name: 'Требуется доработка' }).click();
 
     await drawer.getByRole('checkbox', { name: 'Лекала' }).check();
@@ -344,8 +380,8 @@ test.describe('Карточка разработки', () => {
   });
 
   test('закрытая разработка не предлагает действий — хранится только исход', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&dev=dev-ready');
-    const drawer = page.getByRole('dialog');
+    await gotoDevPage(page, '/experimental/dev-ready?studio=0');
+    const drawer = page.getByRole('main');
 
     await expect(drawer).toContainText('Готово к серии');
     await expect(drawer).toContainText('лекала утверждены');
@@ -356,8 +392,8 @@ test.describe('Карточка разработки', () => {
 
   test('«Готово к серии» честно говорит, что заказ на серию заводит менеджер',
     async ({ page }) => {
-      await gotoDev(page, '/experimental?studio=0&dev=dev-work');
-      const drawer = page.getByRole('dialog');
+      await gotoDevPage(page, '/experimental/dev-work?studio=0');
+      const drawer = page.getByRole('main');
       await expect(drawer).toContainText('заказ на серию заводит менеджер');
     });
 });
@@ -436,8 +472,8 @@ test.describe('Финальный технический пакет', () => {
      * данные не заполнены… система должна показать, какие поля ещё
      * не заполнены». Гейт кнопки — зеркало серверного стража.
      */
-    await gotoDev(page, '/experimental?studio=0&dev=dev-work');
-    const drawer = page.getByRole('dialog');
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    const drawer = page.getByRole('main');
     await expect(drawer).toContainText('Не хватает для «Готово к серии»');
     await expect(drawer).toContainText('Техническое название лекал');
     await expect(drawer).toContainText('Фото образца');

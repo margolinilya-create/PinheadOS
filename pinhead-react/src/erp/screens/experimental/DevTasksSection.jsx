@@ -173,17 +173,30 @@ function TaskRow({
   );
 }
 
+/**
+ * `allTasks` — ПОЛНЫЙ список задач разработки, а `tasks` — та группа, которую
+ * рисует этот экземпляр (правка 22.08, п. 4.7: этапные и дополнительные задачи
+ * показываются раздельно).
+ *
+ * Разделять их обязательно: `taskGroup` и `taskWaitingReason` разрешают
+ * `depends_on`, и по подмножеству зависимость из другой группы выглядела бы
+ * несуществующей — задача молча считалась бы готовой.
+ */
 export function DevTasksSection({
-  tasks, typeNames, deptNames, onUpdate, onSend, onBlock, canManage,
+  tasks, allTasks, typeNames, deptNames, onUpdate, onSend, onBlock, canManage,
+  emptyText,
 }) {
   const list = useMemo(
     () => [...(tasks ?? [])].sort((a, b) => a.sort_order - b.sort_order), [tasks]);
+  const all = useMemo(
+    () => [...(allTasks ?? tasks ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    [allTasks, tasks]);
 
   if (list.length === 0) {
     return (
       <p className={styles.subText}>
-        Задач пока нет. Разработка не обязана проходить одинаковые пять этапов —
-        добавьте только те задачи, которые нужны этому изделию.
+        {emptyText ?? `Задач пока нет. Разработка не обязана проходить одинаковые
+          пять этапов — добавьте только те задачи, которые нужны этому изделию.`}
       </p>
     );
   }
@@ -205,7 +218,7 @@ export function DevTasksSection({
             <TaskRow
               key={t.id}
               task={t}
-              all={list}
+              all={all}
               typeNames={typeNames}
               deptNames={deptNames}
               onUpdate={onUpdate}

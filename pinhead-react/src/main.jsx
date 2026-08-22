@@ -3,10 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
-import { useStore } from './store/useStore'
 import { useAuthStore, watchAuthState } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
-import { FEATURES } from './config/features'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
 import { isNetworkFailure } from './utils/i18n'
 
@@ -36,18 +34,9 @@ window.addEventListener('unhandledrejection', (event) => {
 useAuthStore.getState().init().catch(() => {});
 watchAuthState();
 
-// Order Studio-специфичное: черновик и каталоги грузим только при включённом флаге
-if (FEATURES.orderStudio) {
-  const draft = localStorage.getItem('pinhead_draft');
-  if (draft) {
-    try {
-      useStore.getState().restoreFromDraft(JSON.parse(draft));
-    } catch {
-      localStorage.removeItem('pinhead_draft');
-    }
-  }
-  useStore.getState().loadCatalogs().catch(() => {});
-}
+// Черновик визарда и каталоги Order Studio запускает САМ РАЗДЕЛ
+// (`orderstudio/OrderStudioApp`): здесь их инициализация тянула его стор,
+// `src/data` и `utils/pricing` во входной чанк — при выключенном флаге тоже.
 
 const router = createBrowserRouter([
   { path: '*', Component: App },

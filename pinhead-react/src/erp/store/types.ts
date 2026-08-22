@@ -26,7 +26,9 @@ import type {
   ErpAttachmentKind,
   ErpOrder,
   ErpOrderAttachment,
+  ErpOrderDraft,
   ErpOrderItem,
+  ErpOrderNote,
   DevOutcome,
   DevTaskStatus,
   ErpExperimental,
@@ -113,6 +115,13 @@ export interface ErpOrderFull extends ErpOrder {
   warehouse_tasks?: ErpWarehouseTask[];
   /** ТЗ в PDF: все версии всех групп заказа. Документ принадлежит позиции */
   tz_documents?: ErpTzDocument[];
+  /**
+   * Заметки к заказу (правка 22.08, п. 5.8). Алиас `notes_list`, а не `notes`:
+   * колонка `erp_orders.notes` уже занята свободным комментарием заказа,
+   * и одно имя на два разных смысла — верный способ однажды затереть одно
+   * другим.
+   */
+  notes_list?: ErpOrderNote[];
 }
 
 /**
@@ -136,6 +145,12 @@ export interface ReportDefectOptions {
 }
 
 export interface NewPrintInput {
+  /**
+   * Ключ строки формы (правка 22.08, п. 5.2). По нему макет находит своё
+   * нанесение: строки `erp_item_prints` в момент выбора файла ещё нет.
+   * В payload сервера ключ не едет — только номер внутри позиции.
+   */
+  key?: string;
   method: BrandingMethod;
   fabric?: string;
   zone?: string;
@@ -143,6 +158,15 @@ export interface NewPrintInput {
   height_mm?: number | null;
   offset_note?: string;
   pantone?: string;
+  comment?: string;
+}
+
+export interface NewLabelInput {
+  /** Ключ строки формы — по нему файл бирки находит свою строку */
+  key?: string;
+  label_type?: string;
+  place?: string;
+  size?: string;
   comment?: string;
 }
 
@@ -156,6 +180,8 @@ export interface NewOrderItemInput {
   notes?: string;
   size_grid?: SizeGridRow[] | null;
   prints?: NewPrintInput[];
+  /** Бирки позиции (правка 22.08, п. 5.3) — повторяемый блок, как нанесения */
+  labels?: NewLabelInput[];
   /** Подряд (волна 4.2): тип и источник материалов — для production_type='outsource' */
   subcontract_kind?: 'finished_product' | 'operation';
   material_source?: SubcontractMaterialSource;
@@ -169,6 +195,8 @@ export interface NewOrderItemInput {
    * «не заполняли» неотличимым от «заполнили пустым».
    */
   fit?: string;
+  /** Основное полотно — отдельно от отделочного (правка 22.08, п. 5.1) */
+  main_fabric?: string;
   trim_material?: string;
   cutting_note?: string;
   sewing_note?: string;
@@ -186,6 +214,25 @@ export interface NewOrderItemInput {
    * `formItemRoute`, и правило «правка или расчёт» остаётся в одном месте.
    */
   route?: RouteGroup[];
+}
+
+/**
+ * Черновики формы создания заказа (правка 22.08, п. 5.5).
+ *
+ * Их несколько и они В БАЗЕ: прежний единственный ключ localStorage
+ * не давал вести два заказа параллельно и не переживал смену устройства.
+ */
+export interface OrderDraftsSlice {
+  orderDrafts: ErpOrderDraft[];
+  orderDraftsLoaded: boolean;
+  orderDraftsError: string | null;
+  loadOrderDrafts: () => Promise<void>;
+  /** `id === null` — создать новый; возвращает строку или null при отказе */
+  saveOrderDraft: (
+    id: string | null, title: string | null, payload: unknown,
+  ) => Promise<ErpOrderDraft | null>;
+  deleteOrderDraft: (id: string) => Promise<boolean>;
+  orderDraftById: (id: string) => ErpOrderDraft | null;
 }
 
 /**
@@ -258,6 +305,15 @@ export interface NewOrderInput {
    * получает готовые строки, а не заводит их заново.
    */
   materials?: NewOrderMaterialInput[];
+  /**
+   * Заметки к заказу (правка 22.08, п. 5.8) — то, что нельзя разложить
+   * по структурным полям. Изображения приезжают вложениями с `note_index`.
+   *
+   * Имя `notes_list`, а не `notes`: `notes` у заказа уже занято свободным
+   * комментарием, и одно имя на два разных смысла однажды затрёт одно
+   * другим. В payload RPC секция называется `notes` — там она одна.
+   */
+  notes_list?: { seq: number; text: string | null }[];
   /**
    * ТЗ в PDF: файлы уже загружены в бакет, RPC вставляет их одной транзакцией
    * с заказом — «создать заказ без ТЗ» невозможно даже при сбое.
@@ -678,9 +734,34 @@ export interface SubcontractingSlice {
    */
   applySubcontractAction: (
     id: string,
-    action: { phase: string; move: 'send' | 'return' | null },
-    input?: { qty?: number | string; movedOn?: string | null; comment?: string | null },
+    action: {
+      phase: string;
+      move: 'send' | 'return' | 'defect' | null;
+      /** Действие задаёт объём работы у подрядчика (правка 22.08, п. 3.8) */
+      asksInWork?: boolean;
+    },
+    input?: {
+      qty?: number | string;
+      /** Сколько единиц подрядчик делает — отдельно от физической передачи */
+      inWorkQty?: number | string;
+      movedOn?: string | null;
+      comment?: string | null;
+    },
   ) => Promise<boolean>;
+  /**
+   * Приёмка подряда складом ОДНИМ действием: принято и брак — две записи
+   * журнала в одной транзакции (`erp_subcontract_receive`).
+   *
+   * Раздельные вставки означали бы окно, в котором принято уже записано,
+   * а брак ещё нет, — и правда о партии на экране неполная. Тем же приёмом
+   * устроена приёмка материала.
+   */
+  receiveSubcontract: (id: string, input: {
+    accepted: number | string;
+    defect?: number | string;
+    movedOn?: string | null;
+    comment?: string | null;
+  }) => Promise<boolean>;
   updateSubcontractOp: (id: string, patch: Partial<ErpSubcontractOp>) => Promise<boolean>;
 
   /**
@@ -1060,6 +1141,7 @@ export type ErpStore = BootstrapSlice &
   WarehouseSlice &
   ProcurementSlice &
   SubcontractingSlice &
+  OrderDraftsSlice &
   EmployeesSlice &
   InvitesSlice &
   PermissionsSlice &

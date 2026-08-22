@@ -30,19 +30,28 @@ import { factoryToday } from '../../../utils/date';
  * когда задача склада переходит в `accepted`. Клиент не пишет ни счётчики,
  * ни фазу — у обеих величин ровно один писатель.
  *
- * НЕДОСТАЧА НЕ ХРАНИТСЯ: «передано − вернулось» и «вернулось − принято»
- * выводятся из журнала (`subcontractShortfall`). Вторая пара счётчиков рядом
- * с журналом означала бы двух писателей одного числа.
+ * НЕДОСТАЧА НЕ ХРАНИТСЯ: «передано − вернулось» выводится из журнала
+ * (`subcontractShortfall`). Вторая пара счётчиков рядом с журналом означала бы
+ * двух писателей одного числа.
+ *
+ * А ВОТ БРАК ТЕПЕРЬ ВВОДИТСЯ ЯВНО (правка 22.08, п. 3.9). Раньше он
+ * ВЫЧИТАЛСЯ — «всё, что вернулось и не принято». Пока приёмка не проведена,
+ * это ноль принятых и весь тираж «браком»: экран объявлял браком партию,
+ * которую ещё никто не смотрел. Теперь склад распределяет вернувшееся сам,
+ * и обе величины уезжают ОДНОЙ транзакцией (`erp_subcontract_receive`):
+ * между двумя отдельными записями была бы минута, в которую принято уже
+ * посчитано, а брак ещё нет.
  */
 export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
-  const { subcontracting, addSubcontractMove } = useErpStore(useShallow((s) => ({
+  const { subcontracting, receiveSubcontract } = useErpStore(useShallow((s) => ({
     subcontracting: s.subcontracting,
-    addSubcontractMove: s.addSubcontractMove,
+    receiveSubcontract: s.receiveSubcontract,
   })));
   const departments = useErpStore(useShallow((s) => s.departments));
 
   const accepted = task.status === 'accepted';
   const [qty, setQty] = useState('');
+  const [defectQty, setDefectQty] = useState('');
   const [movedOn, setMovedOn] = useState(factoryToday());
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
@@ -68,9 +77,10 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
   const returned = Number(sub?.qty_returned ?? 0);
   const already = Number(sub?.qty_accepted ?? 0);
   const shortfall = subcontractShortfall(sub);
-  /** Сколько ещё можно принять: вернулось минус уже принятое */
-  const acceptable = Math.max(0, returned - already);
+  /** Сколько ещё нужно разобрать: вернулось минус принятое и брак */
+  const acceptable = shortfall.awaitingAccept;
   const next = stage && item ? nextRouteStage(item, stage) : null;
+  const left = acceptable - Number(qty || 0) - Number(defectQty || 0);
 
   const confirm = async () => {
     setSaving(true);
@@ -78,10 +88,16 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
      * Порядок важен: сначала журнал (он приращает `qty_done` этапа), потом
      * закрытие задачи. Обратный порядок закрыл бы приёмку, не посчитав
      * принятое, — и следующий этап открылся бы на пустом месте.
+     *
+     * Принято и брак идут ОДНИМ вызовом: две отдельные записи оставили бы
+     * окно, в котором `qty_done` этапа уже вырос, а брак ещё не отмечен.
      */
-    if (sub && Number(qty) > 0) {
-      const ok = await addSubcontractMove(sub.id, {
-        kind: 'accept', qty: Number(qty), movedOn, comment,
+    if (sub && (Number(qty) > 0 || Number(defectQty) > 0)) {
+      const ok = await receiveSubcontract(sub.id, {
+        accepted: Number(qty) || 0,
+        defect: Number(defectQty) || 0,
+        movedOn,
+        comment,
       });
       if (!ok) { setSaving(false); return; }
     }
@@ -113,8 +129,13 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
           {' · '}подрядчик: <strong>{stage?.contractor || sub?.contractor || '—'}</strong>
         </div>
         <div className={styles.subText}>
-          Передано: <strong>{sent}</strong> · вернулось: <strong>{returned}</strong>
+          {/* «Количество в работе» и «физически передано» — разные величины:
+              на материалах подрядчика мы не передаём ничего (п. 3.8) */}
+          В работе: <strong>{sub?.qty_in_work ?? item?.qty ?? '—'}</strong>
+          {sent > 0 ? ` · физически передано: ${sent}` : ''}
+          {' · '}вернулось: <strong>{returned}</strong>
           {already > 0 ? ` · уже принято: ${already}` : ''}
+          {shortfall.defect > 0 ? ` · брак: ${shortfall.defect}` : ''}
           {shortfall.lost > 0 && (
             <span className={`${styles.chip} ${styles.chipBlocked}`}>
               не вернулось: {shortfall.lost}
@@ -149,6 +170,21 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
                 style={{ maxWidth: 110 }}
               />
             </label>
+            {/* Брак вводится ЯВНО и здесь же: только приёмка знает, что
+                из вернувшегося годно, а что нет (п. 3.9) */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Брак, шт</span>
+              <input
+                type="number"
+                min="0"
+                className={styles.input}
+                value={defectQty}
+                onChange={(e) => setDefectQty(e.target.value.replace('-', ''))}
+                placeholder="0"
+                aria-label="Сколько брака"
+                style={{ maxWidth: 110 }}
+              />
+            </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Дата приёмки</span>
               <DateField
@@ -170,12 +206,26 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
             </label>
           </div>
 
-          {/* Брак и недостача не вводятся руками: они СЧИТАЮТСЯ из журнала —
-              вернулось минус принято и передано минус вернулось */}
-          {Number(qty) > 0 && Number(qty) < returned - already && (
+          {/*
+            Остаток НЕ объявляется браком сам — это и было главной претензией
+            документа. Он просто остаётся неразобранным: приёмку можно провести
+            частями, а брак отметить, когда его посчитают.
+          */}
+          {left > 0 && (
             <div className={styles.subText}>
-              В брак уйдёт: {returned - already - Number(qty)} шт —
-              их можно вернуть подрядчику на переделку в разделе «Подряд».
+              Останется неразобранным: {left} шт — их можно принять или
+              отметить браком позже, приёмка закроется по факту.
+            </div>
+          )}
+          {left < 0 && (
+            <div className={styles.subText} data-invalid="true">
+              Принято и брак вместе больше, чем вернулось ({acceptable} шт).
+            </div>
+          )}
+          {shortfall.defect > 0 && (
+            <div className={styles.subText}>
+              Отмечено браком: {shortfall.defect} шт — их можно вернуть
+              подрядчику на переделку в разделе «Подряд».
             </div>
           )}
 
@@ -194,13 +244,13 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
 
           <Button
             variant="primary"
-            disabled={saving || !(Number(qty) > 0)}
+            disabled={saving || !(Number(qty) > 0 || Number(defectQty) > 0) || left < 0}
             loading={saving}
             onClick={confirm}
           >
             Подтвердить приёмку
           </Button>
-          {!(Number(qty) > 0) && (
+          {!(Number(qty) > 0 || Number(defectQty) > 0) && (
             <div className={styles.subText} style={{ marginTop: 4 }}>
               Укажите, сколько изделий принято: это число открывает следующий этап.
             </div>

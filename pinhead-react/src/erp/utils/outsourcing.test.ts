@@ -9,6 +9,7 @@ import {
   ordersWithOutsourcing,
   outsourcedStages,
   stageLabel,
+  stageLocation,
   subcontractShortfall,
 } from './outsourcing';
 import type { ErpItemStage } from '../types';
@@ -193,29 +194,105 @@ describe('подпись этапа', () => {
 });
 
 /**
- * Расхождение считается из журнала, а не хранится: вторая пара счётчиков
- * рядом с ним дала бы двух писателей одной величины — на этом в проекте
- * уже ловились с `qty_received` у материалов.
+ * Расхождение: недостача считается, брак ХРАНИТСЯ.
+ *
+ * Правка 22.08 (п. 3.9). Раньше брак выводился как «вернулось − принято»,
+ * и сразу после возврата, до всякой приёмки, экран объявлял браком весь
+ * тираж. Теперь непринятое — это `awaitingAccept`, а браком становится
+ * только то, что человек отметил явно (журнальные записи `defect`,
+ * их сумму ведёт триггер в `qty_defect`).
  */
 describe('subcontractShortfall', () => {
-  it('потери — передали, но не вернулось; брак — вернулось, но не приняли', () => {
-    expect(subcontractShortfall({ qty_sent: 100, qty_returned: 95, qty_accepted: 90 }))
-      .toEqual({ lost: 5, defect: 5 });
+  /** ГЛАВНЫЙ СЛУЧАЙ ДОКУМЕНТА: «передано 200, вернулось 200, принято 0» */
+  it('до приёмки непринятое — НЕ брак, а ожидание приёмки', () => {
+    expect(subcontractShortfall({ qty_sent: 200, qty_returned: 200, qty_accepted: 0 }))
+      .toEqual({ lost: 0, awaitingAccept: 200, defect: 0 });
+  });
+
+  it('брак берётся из отмеченного, а не из разницы', () => {
+    expect(subcontractShortfall({
+      qty_sent: 100, qty_returned: 95, qty_accepted: 90, qty_defect: 3,
+    })).toEqual({ lost: 5, awaitingAccept: 2, defect: 3 });
   });
 
   it('полный проход без расхождений даёт нули', () => {
     expect(subcontractShortfall({ qty_sent: 50, qty_returned: 50, qty_accepted: 50 }))
-      .toEqual({ lost: 0, defect: 0 });
+      .toEqual({ lost: 0, awaitingAccept: 0, defect: 0 });
   });
 
-  /** Приняли больше, чем вернулось, — ошибка ввода; «−3 брака» было бы враньём */
+  /** Приняли больше, чем вернулось, — ошибка ввода; «−3» было бы враньём */
   it('отрицательных значений не показывает', () => {
     expect(subcontractShortfall({ qty_sent: 10, qty_returned: 12, qty_accepted: 15 }))
-      .toEqual({ lost: 0, defect: 0 });
+      .toEqual({ lost: 0, awaitingAccept: 0, defect: 0 });
+  });
+
+  /**
+   * П. 3.8: на материалах подрядчика мы не передаём ничего, и «не вернулось
+   * 200» было бы неправдой — недостачи там не существует по построению.
+   */
+  it('на материалах подрядчика недостача не считается', () => {
+    expect(subcontractShortfall({
+      material_source: 'contractor', qty_sent: 0, qty_returned: 0, qty_accepted: 0,
+    }).lost).toBe(0);
+    expect(subcontractShortfall({
+      material_source: 'pinhead', qty_sent: 200, qty_returned: 0, qty_accepted: 0,
+    }).lost).toBe(200);
   });
 
   it('пустая карточка не роняет расчёт', () => {
-    expect(subcontractShortfall(null)).toEqual({ lost: 0, defect: 0 });
-    expect(subcontractShortfall({})).toEqual({ lost: 0, defect: 0 });
+    expect(subcontractShortfall(null)).toEqual({ lost: 0, awaitingAccept: 0, defect: 0 });
+    expect(subcontractShortfall({})).toEqual({ lost: 0, awaitingAccept: 0, defect: 0 });
+  });
+});
+
+/**
+ * «Где заказ сейчас» отвечает по ФАКТУ ПЕРЕДАЧИ, а не по маршруту
+ * (правка 22.08, пп. 3.6–3.7).
+ */
+describe('stageLocation', () => {
+  const outStage = stage({
+    id: 's2', status: 'ready', sort_order: 20, contractor: 'ООО Варка',
+    executor: 'contractor', department_id: 'dOut',
+  });
+  const item = {
+    qty: 100,
+    stages: [
+      stage({ id: 's1', status: 'done', sort_order: 10 }),
+      outStage,
+    ],
+  };
+
+  /** Пока передача не зафиксирована, изделия физически у нас */
+  it('до передачи — у Pinhead, даже если подрядчик уже назван', () => {
+    expect(stageLocation(item, outStage, 'materials_ready')).toBe('У Pinhead · готово к передаче');
+    expect(stageLocation(item, outStage, 'planned')).toBe('У Pinhead · готово к передаче');
+  });
+
+  it('после передачи — у подрядчика, по имени', () => {
+    expect(stageLocation(item, outStage, 'at_contractor')).toBe('У подрядчика: ООО Варка');
+  });
+
+  it('после возврата — вернулось в Pinhead и ждёт приёмки', () => {
+    expect(stageLocation(item, outStage, 'returned')).toBe('Вернулось в Pinhead · ожидает приёмки');
+  });
+
+  /**
+   * П. 3.7: у будущего этапа стояло «У нас: Подряд» — название участка вместо
+   * состояния. Такой ответ создаёт ложное впечатление, что заказ уже где-то
+   * физически находится.
+   */
+  it('будущий этап — «Запланировано», а не место', () => {
+    const pending = stage({ ...outStage, status: 'waiting' });
+    const waiting = {
+      qty: 100,
+      stages: [stage({ id: 's1', status: 'in_progress', sort_order: 10 }), pending],
+    };
+    expect(stageLocation(waiting, pending, 'planned'))
+      .toBe('Запланировано · ждёт предыдущий этап');
+  });
+
+  it('закрытый этап говорит, что работа ушла дальше', () => {
+    expect(stageLocation(item, stage({ ...outStage, status: 'done' }), 'closed'))
+      .toBe('Передано дальше по маршруту');
   });
 });

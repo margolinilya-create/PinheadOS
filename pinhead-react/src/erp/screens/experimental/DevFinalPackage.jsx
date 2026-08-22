@@ -158,8 +158,14 @@ export function DevFinalPackage({
   };
 
   return (
-    <section>
-      <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+    /**
+     * ИТОГ РАЗРАБОТКИ, А НЕ ЕЩЁ ОДИН ОПЕРАЦИОННЫЙ БЛОК (правка 22.08, п. 4.17):
+     * «сам финальный пакет нужно визуально отделить от текущих задач
+     * и текущего этапа». Поэтому он в собственной рамке, а не идёт сплошным
+     * потоком следом за формой добавления задачи.
+     */
+    <section className={styles.tzBlock} style={{ marginTop: 16 }}>
+      <h3 className={styles.queueGroupTitle}>
         Финальный технический пакет
         {' '}
         <span className={`${styles.chip} ${missing.length === 0 ? styles.chipReady : styles.chipNeutral}`}>

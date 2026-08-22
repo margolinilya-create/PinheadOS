@@ -1226,6 +1226,57 @@
       "files": [
         "20260822130000_erp_material_accept_idempotent.sql"
       ]
+    },
+    {
+      "version": "20260822173552",
+      "name": "erp_subcontract_qty_split",
+      "files": [
+        "20260823100000_erp_subcontract_qty_split.sql"
+      ]
+    },
+    {
+      "version": "20260822181321",
+      "name": "erp_item_fabric_labels_prints",
+      "files": [
+        "20260823110000_erp_item_fabric_labels_prints.sql"
+      ]
+    },
+    {
+      "version": "20260822181523",
+      "name": "erp_create_order_labels_prints",
+      "files": [
+        "20260823120000_erp_create_order_labels_prints.sql"
+      ]
+    },
+    {
+      "version": "20260822182827",
+      "name": "erp_order_drafts",
+      "files": [
+        "20260823130000_erp_order_drafts.sql"
+      ]
+    },
+    {
+      "version": "20260822184640",
+      "name": "erp_order_notes",
+      "files": [
+        "20260823140000_erp_order_notes.sql"
+      ]
+    },
+    {
+      "version": "20260822184816",
+      "name": "erp_create_order_notes",
+      "files": [
+        "20260823150000_erp_create_order_notes.sql"
+      ],
+      "note": "к базе применена перегенерация функции из её же pg_get_functiondef (правило «подлинный текст»); файл несёт полный текст получившейся функции"
+    },
+    {
+      "version": "20260822195404",
+      "name": "erp_attachment_kinds_print_label_note",
+      "files": [
+        "20260823160000_erp_attachment_kinds_print_label_note.sql"
+      ],
+      "note": "найдено проверкой на живой базе: виды print/label/note были только в ErpAttachmentKind, CHECK отвечал 23514 и ронял создание заказа целиком. Сторож — attachmentKinds.test.ts"
     }
   ]
 }

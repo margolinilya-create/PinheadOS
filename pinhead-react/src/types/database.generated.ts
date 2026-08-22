@@ -608,6 +608,47 @@ export type Database = {
           },
         ]
       }
+      erp_item_labels: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          item_id: string
+          label_type: string | null
+          place: string | null
+          seq: number
+          size: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          label_type?: string | null
+          place?: string | null
+          seq?: number
+          size?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          label_type?: string | null
+          place?: string | null
+          seq?: number
+          size?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_item_labels_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_item_prints: {
         Row: {
           comment: string | null
@@ -768,6 +809,7 @@ export type Database = {
           accept_status: string
           author: string | null
           author_id: string | null
+          client_key: string | null
           comment: string | null
           created_at: string
           id: string
@@ -781,6 +823,7 @@ export type Database = {
           accept_status?: string
           author?: string | null
           author_id?: string | null
+          client_key?: string | null
           comment?: string | null
           created_at?: string
           id?: string
@@ -794,6 +837,7 @@ export type Database = {
           accept_status?: string
           author?: string | null
           author_id?: string | null
+          client_key?: string | null
           comment?: string | null
           created_at?: string
           id?: string
@@ -992,8 +1036,11 @@ export type Database = {
           id: string
           item_id: string | null
           kind: string
+          label_id: string | null
           material_id: string | null
+          note_id: string | null
           order_id: string
+          print_id: string | null
           stage_id: string | null
           uploaded_by: string | null
         }
@@ -1005,8 +1052,11 @@ export type Database = {
           id?: string
           item_id?: string | null
           kind?: string
+          label_id?: string | null
           material_id?: string | null
+          note_id?: string | null
           order_id: string
+          print_id?: string | null
           stage_id?: string | null
           uploaded_by?: string | null
         }
@@ -1018,8 +1068,11 @@ export type Database = {
           id?: string
           item_id?: string | null
           kind?: string
+          label_id?: string | null
           material_id?: string | null
+          note_id?: string | null
           order_id?: string
+          print_id?: string | null
           stage_id?: string | null
           uploaded_by?: string | null
         }
@@ -1039,6 +1092,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "erp_order_attachments_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_labels"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "erp_order_attachments_material_id_fkey"
             columns: ["material_id"]
             isOneToOne: false
@@ -1046,10 +1106,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "erp_order_attachments_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_notes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "erp_order_attachments_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_attachments_print_id_fkey"
+            columns: ["print_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_prints"
             referencedColumns: ["id"]
           },
           {
@@ -1141,6 +1215,33 @@ export type Database = {
           },
         ]
       }
+      erp_order_drafts: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          payload: Json
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          payload: Json
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       erp_order_items: {
         Row: {
           branding_methods: string[]
@@ -1150,6 +1251,7 @@ export type Database = {
           fit: string | null
           id: string
           labels_note: string | null
+          main_fabric: string | null
           marking_place: string | null
           material_source: string | null
           notes: string | null
@@ -1177,6 +1279,7 @@ export type Database = {
           fit?: string | null
           id?: string
           labels_note?: string | null
+          main_fabric?: string | null
           marking_place?: string | null
           material_source?: string | null
           notes?: string | null
@@ -1204,6 +1307,7 @@ export type Database = {
           fit?: string | null
           id?: string
           labels_note?: string | null
+          main_fabric?: string | null
           marking_place?: string | null
           material_source?: string | null
           notes?: string | null
@@ -1226,6 +1330,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "erp_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_order_notes: {
+        Row: {
+          author: string | null
+          created_at: string
+          id: string
+          order_id: string
+          seq: number
+          text: string | null
+          updated_at: string
+        }
+        Insert: {
+          author?: string | null
+          created_at?: string
+          id?: string
+          order_id: string
+          seq?: number
+          text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author?: string | null
+          created_at?: string
+          id?: string
+          order_id?: string
+          seq?: number
+          text?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_order_notes_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
@@ -1699,6 +1841,8 @@ export type Database = {
           planned_date: string | null
           qty: number | null
           qty_accepted: number
+          qty_defect: number
+          qty_in_work: number | null
           qty_returned: number
           qty_sent: number
           responsible: string | null
@@ -1731,6 +1875,8 @@ export type Database = {
           planned_date?: string | null
           qty?: number | null
           qty_accepted?: number
+          qty_defect?: number
+          qty_in_work?: number | null
           qty_returned?: number
           qty_sent?: number
           responsible?: string | null
@@ -1763,6 +1909,8 @@ export type Database = {
           planned_date?: string | null
           qty?: number | null
           qty_accepted?: number
+          qty_defect?: number
+          qty_in_work?: number | null
           qty_returned?: number
           qty_sent?: number
           responsible?: string | null
@@ -2322,6 +2470,22 @@ export type Database = {
       erp_is_manager: { Args: never; Returns: boolean }
       erp_is_member: { Args: never; Returns: boolean }
       erp_local_date: { Args: never; Returns: string }
+      erp_material_accept: {
+        Args: {
+          p_accept_status: string
+          p_actor?: string
+          p_client_key?: string
+          p_comment?: string
+          p_fact_article?: string
+          p_fact_color?: string
+          p_fact_name?: string
+          p_invoice?: string
+          p_material_id: string
+          p_qty?: number
+          p_received_on?: string
+        }
+        Returns: Json
+      }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
       erp_pkg_list_filled: {
         Args: { p_key: string; p_pkg: Json }
@@ -2575,6 +2739,7 @@ export type Database = {
           p_moved_on?: string
           p_phase: string
           p_qty?: number
+          p_qty_in_work?: number
         }
         Returns: {
           comment: string | null
@@ -2597,6 +2762,58 @@ export type Database = {
           planned_date: string | null
           qty: number | null
           qty_accepted: number
+          qty_defect: number
+          qty_in_work: number | null
+          qty_returned: number
+          qty_sent: number
+          responsible: string | null
+          return_dept: string | null
+          returned_date: string | null
+          send_plan_date: string | null
+          sent_date: string | null
+          stage_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_subcontracting"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_subcontract_receive: {
+        Args: {
+          p_accepted: number
+          p_author?: string
+          p_comment?: string
+          p_defect?: number
+          p_id: string
+          p_moved_on?: string
+        }
+        Returns: {
+          comment: string | null
+          contractor: string | null
+          cost: number | null
+          created_at: string
+          delay_comment: string | null
+          id: string
+          item_id: string | null
+          material_source: string
+          materials_note: string | null
+          materials_qty: string | null
+          materials_sent_on: string | null
+          op_type: string
+          operation: string
+          order_id: string
+          paid_amount: number | null
+          payment_status: string
+          phase: string
+          planned_date: string | null
+          qty: number | null
+          qty_accepted: number
+          qty_defect: number
+          qty_in_work: number | null
           qty_returned: number
           qty_sent: number
           responsible: string | null
@@ -2777,4 +2994,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

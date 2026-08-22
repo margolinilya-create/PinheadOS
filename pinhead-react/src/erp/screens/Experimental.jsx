@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { FilterBar } from '../components/FilterBar';
 import { Badge } from '../components/Badge';
-import { Drawer } from '../components/Drawer';
 import { Pagination } from '../components/Pagination';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { DateField } from '../components/DateField';
@@ -32,7 +31,6 @@ import {
 import { DEV_OUTCOME_LABELS } from '../types';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
-import { DevCard } from './experimental/DevCard';
 import { DevBoard } from './experimental/DevBoard';
 import { DevViews } from './experimental/DevViews';
 import styles from '../erp.module.css';
@@ -107,12 +105,14 @@ const STATE_VARIANT = {
 };
 
 export default function Experimental() {
+  /**
+   * Действий над самой разработкой здесь больше НЕТ: они уехали на страницу
+   * карточки вместе со шторкой (правка 22.08, п. 4.11). Экран остался списком
+   * и доской — и грузит ровно то, что ему для этого нужно.
+   */
   const {
     orders, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, loadExperimental,
-    createExperimental, updateExperimental,
-    addDevTasks, updateDevTask, sendDevTaskToDept, closeExperimental,
-    approveSample, uploadDevFile, deleteDevFile,
+    experimental, experimentalLoaded, loadExperimental, createExperimental,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -124,16 +124,10 @@ export default function Experimental() {
       experimentalLoaded: s.experimentalLoaded,
       loadExperimental: s.loadExperimental,
       createExperimental: s.createExperimental,
-      updateExperimental: s.updateExperimental,
-      addDevTasks: s.addDevTasks,
-      updateDevTask: s.updateDevTask,
-      sendDevTaskToDept: s.sendDevTaskToDept,
-      closeExperimental: s.closeExperimental,
-      approveSample: s.approveSample,
-      uploadDevFile: s.uploadDevFile,
-      deleteDevFile: s.deleteDevFile,
     })),
   );
+  const navigate = useNavigate();
+  const location = useLocation();
 
   /**
    * Разработку ведёт технолог — под правом `experimental.manage`. Гейт стоит
@@ -149,6 +143,12 @@ export default function Experimental() {
   // а ссылкой на отфильтрованный список можно поделиться
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => devFiltersFromParams(params), [params]);
+  /**
+   * СТАРЫЙ АДРЕС `?dev=<id>` — БОКОВАЯ ШТОРКА, КОТОРОЙ БОЛЬШЕ НЕТ (п. 4.11).
+   * Ссылки на неё живут в переписке и закладках, поэтому параметр не забыт,
+   * а ПЕРЕАДРЕСУЕТ на страницу разработки. Молча показать список вместо
+   * запрошенной карточки — это потерять человека на ровном месте.
+   */
   const openId = params.get('dev');
   /**
    * Вид раздела — в адресе, как и остальной контекст списка. QUERY, а не
@@ -166,27 +166,42 @@ export default function Experimental() {
     });
   }, [setParams]);
 
+  /**
+   * Перенос `dev` между наборами параметров больше не нужен: открытая
+   * разработка — отдельная страница, и на списке этого параметра не бывает
+   * дольше одного редиректа.
+   */
   const setFilters = useCallback((next) => {
-    setParams((prev) => {
-      const out = new URLSearchParams(devFiltersToParams(next));
-      const dev = prev.get('dev');
-      if (dev) out.set('dev', dev);
-      return out;
-    });
+    setParams(new URLSearchParams(devFiltersToParams(next)));
   }, [setParams]);
 
+  /**
+   * ОТКРЫТИЕ РАЗРАБОТКИ — ПЕРЕХОД НА СТРАНИЦУ (правка 22.08, п. 4.11).
+   * Боковой шторки больше нет: «для такого количества информации это
+   * неудобно». Контекст списка (вид, фильтры, страница) уезжает в `state.from`
+   * в том же формате, что ключ `useScrollRestore` (`pathname + search`), —
+   * иначе возврат потеряет и подбор, и позицию прокрутки.
+   */
   const openDev = useCallback((id) => {
-    setParams((prev) => {
-      const out = new URLSearchParams(prev);
-      if (id) out.set('dev', id); else out.delete('dev');
-      return out;
+    if (!id) return;
+    navigate(`/experimental/${id}`, {
+      state: { from: `${location.pathname}${location.search}` },
     });
-  }, [setParams]);
+  }, [navigate, location.pathname, location.search]);
 
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [newOrderId, setNewOrderId] = useState('');
+
+  /**
+   * Переадресация со старой ссылки на шторку. `replace`, а не `push`: запись
+   * истории про исчезнувшую поверхность вернула бы человека сюда же по «Назад»
+   * и снова переадресовала — то есть «Назад» перестал бы работать вовсе.
+   */
+  useEffect(() => {
+    if (openId) navigate(`/experimental/${openId}`, { replace: true });
+  }, [openId, navigate]);
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => {
@@ -217,9 +232,6 @@ export default function Experimental() {
   const safePage = Math.min(page, pageCount);
   const pageRows = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Открытая разработка берётся свежей из стора: после действий она меняется
-  const open = openId ? rows.find((r) => r.dev.id === openId) ?? null : null;
-  const openOrder = open ? orders.find((o) => o.id === open.dev.order_id) ?? null : null;
 
   /**
    * Позиции-образцы без разработки. Показываем СПИСОК, а не заводим их пачкой:
@@ -550,29 +562,6 @@ export default function Experimental() {
         </>
       )}
 
-      {open && (
-        <Drawer
-          onClose={() => openDev(null)}
-          title={open.dev.tech_name || 'Разработка'}
-          subtitle={`№${open.dev.order?.bitrix_id || '—'} · ${open.dev.order?.title || ''}`}
-          badge={<Badge variant={STATE_VARIANT[open.state]}>{DEV_STATE_LABELS[open.state]}</Badge>}
-        >
-          <DevCard
-            dev={open.dev}
-            order={openOrder}
-            departments={departments}
-            canManage={canManage}
-            onUpdate={updateExperimental}
-            onAddTasks={(rows_) => addDevTasks(open.dev.id, rows_)}
-            onUpdateTask={updateDevTask}
-            onSendTask={sendDevTaskToDept}
-            onClose={closeExperimental}
-            onApproveSample={approveSample}
-            onUploadFile={uploadDevFile}
-            onRemoveFile={deleteDevFile}
-          />
-        </Drawer>
-      )}
     </>
   );
 }

@@ -227,6 +227,12 @@ export interface ErpOrderItem {
    * документу: Изделие → Цвет → Крой → Размер → Количество.
    */
   fit?: string | null;
+  /**
+   * Основное полотно (правка 22.08, п. 5.1). Отдельно от `trim_material`:
+   * у изделия бывает и основная ткань, и отделочная, а одно поле на двоих
+   * означает, что цех прочитает половину.
+   */
+  main_fabric?: string | null;
   trim_material?: string | null;
   cutting_note?: string | null;
   sewing_note?: string | null;
@@ -594,6 +600,20 @@ export interface ErpSubcontractOp {
   qty_returned?: number;
   qty_accepted?: number;
   /**
+   * Брак, отмеченный ЯВНО (правка 22.08, п. 3.9). Тоже сумма журнала —
+   * писателя у неё ровно один, триггер `erp_subcontract_moves_rollup`.
+   */
+  qty_defect?: number;
+  /**
+   * Сколько единиц подрядчик должен произвести (правка 22.08, п. 3.8).
+   *
+   * ОТДЕЛЬНО ОТ `qty_sent`, и это главное в правке: подрядчик, печатающий
+   * 200 штук на СВОЁМ материале, не получает от нас ничего — «передано 0,
+   * в работе 200» это нормальное состояние, а не недостача. Величина
+   * не приращается журналом: это решение менеджера при запуске работы.
+   */
+  qty_in_work?: number | null;
+  /**
    * Поля подрядного этапа из документа 20.08. Заполняются В МАРШРУТЕ, одним
    * движением с выбором исполнителя «Подрядчик»: разносить их по двум экранам
    * значит гарантировать, что половина останется пустой.
@@ -703,11 +723,25 @@ export type ErpAttachmentKind =
   /** Лист закупки, приложенный менеджером при создании заказа (правки 20.08) */
   | 'purchase_list'
   /**
+   * Файлы ПОДРЯДНОГО ЭТАПА (правки 20.08): их отдают подрядчику. Не `tech`
+   * у позиции — адресат другой, и подрядных этапов у позиции бывает несколько;
+   * привязка идёт через `stage_id`.
+   */
+  | 'subcontract'
+  /**
    * Финальный технический пакет разработки (правки 20.08). Файлы привязаны
    * к РАЗРАБОТКЕ (`experimental_id`), а не к позиции: лекала и техпаспорт
    * описывают модель, а не тот заказ, из которого она вышла.
    */
-  | 'dev_pattern' | 'dev_passport' | 'dev_photo';
+  | 'dev_pattern' | 'dev_passport' | 'dev_photo'
+  /**
+   * Макет КОНКРЕТНОГО нанесения и файл КОНКРЕТНОЙ бирки (правка 22.08,
+   * пп. 5.2–5.3). До неё макеты лежали общей кучей вида `tech` у позиции,
+   * и при трёх-четырёх нанесениях цех сам угадывал, какой к какому относится.
+   */
+  | 'print' | 'label'
+  /** Изображение заметки к заказу (правка 22.08, п. 5.8) */
+  | 'note';
 
 export interface ErpOrderAttachment {
   id: string;
@@ -726,6 +760,15 @@ export interface ErpOrderAttachment {
    * фото образца. NULL — обычное вложение заказа.
    */
   experimental_id?: string | null;
+  /**
+   * Нанесение или бирка, которой принадлежит файл (правка 22.08, пп. 5.2–5.3).
+   * Связь именно со строкой, а не «где-то у позиции»: по каждому нанесению
+   * должно быть однозначно видно, какой макет использовать.
+   */
+  print_id?: string | null;
+  label_id?: string | null;
+  /** Заметка к заказу, которой принадлежит изображение (правка 22.08) */
+  note_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -1059,13 +1102,23 @@ export const SUBCONTRACT_PAYMENT_LABELS: Record<SubcontractPaymentStatus, string
   paid: 'Оплачено',
 };
 
-/** Перемещение по подряду: передали / вернулось / приняли */
-export type SubcontractMoveKind = 'send' | 'return' | 'accept';
+/**
+ * Перемещение по подряду: передали / вернулось / приняли / брак.
+ *
+ * `defect` заведён правкой 22.08 (п. 3.9). До неё брак ВЫВОДИЛСЯ как
+ * «вернулось − принято», и сразу после возврата экран показывал «брак: 200»
+ * при том, что изделия просто ещё не проходили приёмку. Брак обязан
+ * появляться только после того, как человек ЯВНО отметил количество, —
+ * значит у него должна быть своя запись журнала, как у всех остальных
+ * количеств подряда.
+ */
+export type SubcontractMoveKind = 'send' | 'return' | 'accept' | 'defect';
 
 export const SUBCONTRACT_MOVE_LABELS: Record<SubcontractMoveKind, string> = {
   send: 'Передано подрядчику',
   return: 'Вернулось от подрядчика',
   accept: 'Принято складом',
+  defect: 'Отмечено браком',
 };
 
 export interface ErpSubcontractMove {
@@ -1360,7 +1413,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type' | 'route_operation';
+  | 'experimental_task_type' | 'route_operation' | 'label_type';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1370,6 +1423,7 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   unit: 'Единицы измерения',
   experimental_task_type: 'Задачи разработки',
   route_operation: 'Операции маршрута',
+  label_type: 'Типы бирок',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -1383,6 +1437,8 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
     'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
   route_operation:
     'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
+  label_type:
+    'Подсказки в блоке «Бирки» позиции заказа (размерник, составник, брендовая, по уходу).',
 };
 
 export interface ErpDictionaryItem {
@@ -1450,6 +1506,69 @@ export interface ErpItemPrint {
   special: string | null;
   comment: string | null;
   created_at: string;
+}
+
+/**
+ * Бирка позиции (правка 22.08, п. 5.3).
+ *
+ * ПОВТОРЯЕМЫЙ БЛОК, как нанесения: в заказе обычно размерник, составник,
+ * брендовая и бирка по уходу, у каждой своё расположение и макет. Раньше
+ * всё это лежало в ОДНОМ текстовом поле `labels_note` — оно осталось
+ * в схеме ради заведённых заказов и показывается как «старое поле»,
+ * пока не опустеет.
+ *
+ * Макет бирки — вложение с `label_id`, тем же приёмом, что макет нанесения.
+ */
+export interface ErpItemLabel {
+  id: string;
+  item_id: string;
+  seq: number;
+  /** Код из справочника `label_type`; ввод свободный */
+  label_type: string | null;
+  place: string | null;
+  size: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+/**
+ * Черновик формы создания заказа (правка 22.08, п. 5.5).
+ *
+ * ЭТО НЕ ЗАКАЗ. Снимок формы в JSON, своя таблица, никакой связи
+ * с `erp_orders`: заказ со статусом «черновик» потребовал бы фильтра
+ * в полутора десятках производственных поверхностей, и один забытый фильтр
+ * отправил бы незаконченный заказ в цех.
+ */
+export interface ErpOrderDraft {
+  id: string;
+  author_id: string;
+  /** Название заказа или № сделки — то, по чему человек узнаёт черновик */
+  title: string | null;
+  payload: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Заметка к заказу (правка 22.08, п. 5.8).
+ *
+ * То, что НЕЛЬЗЯ разложить по структурным полям: фото фурнитуры, референсы,
+ * пояснения по биркам, нестандартные инструкции. Структурные поля она
+ * не заменяет — документ говорит это прямо, иначе заметки станут свалкой,
+ * из которой цех будет вычитывать ТЗ.
+ *
+ * Принадлежит ЗАКАЗУ, а не позиции. Изображения — вложения с `note_id`
+ * и видом `note`: у каждого своя подпись, поэтому картинка привязана
+ * к конкретной заметке.
+ */
+export interface ErpOrderNote {
+  id: string;
+  order_id: string;
+  seq: number;
+  text: string | null;
+  author: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type MaterialRole =

@@ -247,14 +247,31 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
    * складской гейт и фиксацию брака.
    */
   applySubcontractAction: async (id, action, input = {}) => {
+    /**
+     * Журнальная запись пишется, ТОЛЬКО если количество названо (правка 22.08,
+     * п. 3.8). У запуска работы на материалах подрядчика передавать нечего:
+     * `p_kind = null` двигает фазу и объём работы, не трогая количеств.
+     * Слать `send` с нулём нельзя — сервер отвечает 22023, и человек получил бы
+     * отказ на действии, которое документ называет нормальным сценарием.
+     */
+    const moveQty = Number(input.qty);
+    const writesMove = Boolean(action.move) && moveQty > 0;
+    const inWork = Number(input.inWorkQty);
     const { data, error } = await erpQuery(() => supabase.rpc('erp_subcontract_apply', {
       p_id: id,
       p_phase: action.phase,
-      p_kind: action.move,
-      p_qty: action.move ? Number(input.qty) : null,
+      p_kind: writesMove ? action.move : null,
+      p_qty: writesMove ? moveQty : null,
       p_moved_on: input.movedOn || factoryToday(),
       p_comment: input.comment?.trim() || null,
       p_author: currentActor(),
+      /**
+       * Абсолютное значение, а не приращение, и это осознанно: объём работы
+       * у подрядчика — РЕШЕНИЕ менеджера заказа, а не сумма фактов, поэтому
+       * журнала у него нет. Догрузка партии присылает уже сложенное значение
+       * (текущее + добавка) — форма считает его от того, что видит человек.
+       */
+      p_qty_in_work: action.asksInWork && inWork > 0 ? inWork : null,
     }));
     if (error || !data) {
       erpError('Не удалось записать действие по подряду', error);
@@ -268,6 +285,44 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
      */
     const row = data as ErpSubcontractOp;
     if (row.order_id) await get().loadOne(row.order_id);
+    return true;
+  },
+
+  /**
+   * Приёмка подряда складом: принято и брак ОДНОЙ транзакцией
+   * (`erp_subcontract_receive`).
+   *
+   * ПОЧЕМУ НЕ ДВА `addSubcontractMove`. Приёмка распределяет вернувшуюся
+   * партию — «принято X, брак Y». Между двумя независимыми вставками
+   * существует момент, когда принято уже записано, а брак ещё нет: экран
+   * в этот момент показывает неполную правду о партии, и триггер уже
+   * успел приростить `qty_done` этапа. Правило проекта — действие
+   * из нескольких записей идёт одной транзакцией.
+   *
+   * Фазу здесь не двигаем: `erp_subcontracting` UPDATE гейтится
+   * `order.manage`, а приёмку делает склад. Счётчики и закрытие этапа
+   * ведёт триггер журнала — то есть всё нужное происходит.
+   */
+  receiveSubcontract: async (id, input) => {
+    const accepted = Number(input.accepted) || 0;
+    const defect = Number(input.defect) || 0;
+    if (accepted <= 0 && defect <= 0) {
+      toast.error('Укажите принятое количество или брак');
+      return false;
+    }
+    const { error } = await erpQuery(() => supabase.rpc('erp_subcontract_receive', {
+      p_id: id,
+      p_accepted: accepted,
+      p_defect: defect,
+      p_moved_on: input.movedOn || factoryToday(),
+      p_comment: input.comment?.trim() || null,
+      p_author: currentActor(),
+    }));
+    if (error) {
+      erpError('Приёмка не записана', error);
+      return false;
+    }
+    await get().loadSubcontracting();
     return true;
   },
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import {deptShortName} from '../../data/departments';
@@ -13,13 +14,13 @@ import {
   emptyPurchaseRow,
   isPurchaseRowEmpty,
   effectiveQty,
-  EMPTY_PRINT,
+  emptyPrint,
   emptyOrderForm,
   gridToPayload,
   isFormEmpty,
   isItemEmpty,
   loadOrderDraft,
-  saveOrderDraft,
+  normalizeDraft,
   validateOrderForm,
 } from '../../utils/orderForm';
 import { factoryToday } from '../../../utils/date';
@@ -43,6 +44,7 @@ import styles from '../../erp.module.css';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { PurchaseListSection } from './create/PurchaseListSection';
+import { NotesSection } from './create/NotesSection';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
 import { Button } from '../../components/Button';
@@ -69,7 +71,20 @@ function buildTzItems(items, routes, deptByCode) {
 }
 
 
-export function CreateOrderModal({ onClose }) {
+/**
+ * НЕСКОЛЬКО НЕЗАВИСИМЫХ ЧЕРНОВИКОВ (правка заказчика 22.08, п. 5.5).
+ *
+ * Раньше черновик был ОДИН, в localStorage, и «Новый заказ» при наличии
+ * незапущенного заказа восстанавливал предыдущий — параллельно подготовить
+ * два заказа было нельзя. Теперь черновики живут в базе, у каждого свой id,
+ * и форма правит РОВНО ТОТ, с которым её открыли: `draftId = null` — чистая
+ * форма, строка заводится при первом автосохранении.
+ *
+ * Локальный черновик прежней версии переносится в базу один раз, при первом
+ * открытии чистой формы: человек мог начать заказ вчера, и терять его работу
+ * ради чистоты нельзя.
+ */
+export function CreateOrderModal({ onClose, draftId = null }) {
   const createOrder = useErpStore((s) => s.createOrder);
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
@@ -109,7 +124,25 @@ export function CreateOrderModal({ onClose }) {
   }, []);
   // Дата запуска по умолчанию — сегодня; черновик восстанавливается из localStorage
   const initialLaunch = useMemo(() => factoryToday(), []);
-  const [restoredDraft] = useState(() => loadOrderDraft());
+  const { drafts, saveDraftRow, deleteDraftRow } = useErpStore(useShallow((s) => ({
+    drafts: s.orderDrafts,
+    saveDraftRow: s.saveOrderDraft,
+    deleteDraftRow: s.deleteOrderDraft,
+  })));
+  /**
+   * Открытый черновик берётся ОДИН РАЗ, при монтировании: дальше форма — сама
+   * себе источник правды, и перечитывание строки из стора после каждого
+   * автосохранения затирало бы то, что человек печатает прямо сейчас.
+   */
+  const [restoredDraft] = useState(() => {
+    if (draftId) {
+      const row = drafts.find((d) => d.id === draftId);
+      return row?.payload ? normalizeDraft(row.payload) : null;
+    }
+    // Разовый перенос локального черновика прежней версии
+    return loadOrderDraft();
+  });
+  const [rowId, setRowId] = useState(draftId);
   const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
   /**
@@ -118,6 +151,12 @@ export function CreateOrderModal({ onClose }) {
    * Строки уезжают в заказ той же транзакцией (секция `materials` RPC).
    */
   const [purchase, setPurchase] = useState(() => restoredDraft?.purchase ?? []);
+  /**
+   * Заметки к заказу (правка 22.08, п. 5.8). Уровня ЗАКАЗА, а не позиции,
+   * и живут в черновике вместе с формой: File-объекты в них не попадают —
+   * изображения держит `useAttachmentUploads`, как и остальные вложения.
+   */
+  const [notes, setNotes] = useState(() => restoredDraft?.notes ?? []);
   /**
    * Вложения блоков: упаковка, техблок, лист закупки (правки заказчика 16.08 —
    * документ требует файлы в шести местах). File-объекты живут ОТДЕЛЬНО от
@@ -278,6 +317,43 @@ export function CreateOrderModal({ onClose }) {
     attach.dropItem(i);
   };
 
+  /**
+   * Копия позиции (п. 5.7). Ключи нанесений и бирок ПЕРЕСОЗДАЮТСЯ: по ним
+   * файлы находят свою строку, и общий ключ отдал бы копии чужой макет.
+   * Файлы копируются следом — по новым ключам и настоящими объектами
+   * в бакете, а не ссылкой на тот же путь.
+   */
+  const copyItem = (i) => {
+    const src = items[i];
+    if (!src) return;
+    const prints = (src.prints ?? []).map((p) => ({ ...p, key: crypto.randomUUID() }));
+    const labels = (src.labels ?? []).map((l) => ({ ...l, key: crypto.randomUUID() }));
+    setItems((arr) => [...arr, { ...src, route: undefined, prints, labels }]);
+    // Макеты и файлы бирок копируются вместе со строками (п. 5.4): копируют
+    // затем, чтобы не заводить одно и то же дважды
+    (src.prints ?? []).forEach((p, j) => attach.copyOwner(p.key, prints[j].key));
+    (src.labels ?? []).forEach((l, j) => attach.copyOwner(l.key, labels[j].key));
+  };
+
+  /**
+   * Копирование ОДНОГО нанесения из другой позиции (п. 5.4): «в одной сделке
+   * могут быть футболка и свитшот с полностью одинаковыми нанесениями».
+   * Копируются ВСЕ семь полей документа, включая прикреплённый макет.
+   * После копирования данные правятся независимо от источника.
+   */
+  const copyPrint = (targetIndex, sourceIndex, printIndex) => {
+    const src = items[sourceIndex]?.prints?.[printIndex];
+    if (!src) return;
+    const copy = { ...src, key: crypto.randomUUID() };
+    setItems((arr) => arr.map((it, idx) => (idx === targetIndex
+      ? { ...it, has_branding: true, prints: [...it.prints, copy] }
+      : it)));
+    // Документ перечисляет «прикреплённый макет» среди копируемого (п. 5.4):
+    // объект в бакете копируется настоящий, иначе удаление одной строки
+    // унесло бы файл у другой
+    attach.copyOwner(src.key, copy.key);
+  };
+
   /** Кнопка удаления нанесения стоит вплотную к полям «В, мм»/«Ш, мм» — спрашиваем, если не пустое */
   const removePrint = async (i, pi) => {
     const print = items[i]?.prints?.[pi];
@@ -298,7 +374,7 @@ export function CreateOrderModal({ onClose }) {
 
   // Аккордеон-секции: все раскрыты по умолчанию
   const [open, setOpen] = useState({
-    main: true, items: true, extra: true, tz: true,
+    main: true, items: true, extra: true, tz: true, notes: false,
     /**
      * Лист закупки РАЗВЁРНУТ (правки 20.08). Он был свёрнут, пока внутри лежали
      * необязательные строки. Теперь там обязательное решение — приложить лист
@@ -339,20 +415,64 @@ export function CreateOrderModal({ onClose }) {
   const err = (key) => fieldErrors[key];
   const inputCls = (key) => (err(key) ? `${styles.input} ${styles.inputError}` : styles.input);
 
-  // Автосейв черновика (debounce 500 мс); пустая форма — черновик удаляется
+  /**
+   * Автосейв черновика (debounce 500 мс) — теперь В БАЗУ.
+   *
+   * Пустая форма строки не заводит вовсе: иначе каждое открытие «Нового
+   * заказа» оставляло бы пустой черновик, и список превратился бы в мусор.
+   * Уже заведённый черновик, который вычистили до пустого, удаляется —
+   * это и есть отказ от него.
+   *
+   * `rowId` держим в ref рядом с состоянием: два автосохранения подряд
+   * с `null` завели бы ДВА черновика на один заказ.
+   *
+   * ТЕЛО ЦЕЛИКОМ В `try/catch`: это async-функция внутри `setTimeout`, то есть
+   * её отказ никто не ждёт и он всплывает необработанным. Сообщать не о чем —
+   * слайс уже показал причину через `erpError`, а вторая полоса каждые 500 мс
+   * на потерянной связи превратила бы форму в мигалку. Молчит здесь ТОЛЬКО
+   * фоновое сохранение: сам заказ создаётся кнопкой и об ошибках говорит.
+   */
+  const rowIdRef = useRef(draftId);
+  useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
   useEffect(() => {
-    const t = setTimeout(() => {
-      if (isFormEmpty(form, items, initialLaunch) && purchase.every(isPurchaseRowEmpty)) {
-        clearOrderDraft();
-      } else {
-        saveOrderDraft(form, items, purchase);
+    const t = setTimeout(async () => {
+      try {
+        const empty = isFormEmpty(form, items, initialLaunch)
+          && purchase.every(isPurchaseRowEmpty);
+        if (empty) {
+          if (rowIdRef.current) {
+            const id = rowIdRef.current;
+            rowIdRef.current = null;
+            setRowId(null);
+            await deleteDraftRow(id);
+          }
+          // Локальный черновик прежней версии убираем вместе с переносом
+          clearOrderDraft();
+          return;
+        }
+        const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
+        const row = await saveDraftRow(
+          rowIdRef.current, title, { form, items, purchase, notes });
+        if (row && !rowIdRef.current) {
+          rowIdRef.current = row.id;
+          setRowId(row.id);
+        }
+        if (row) clearOrderDraft();
+      } catch {
+        // см. комментарий выше: черновик — фон, форма продолжает работать
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [form, items, purchase, initialLaunch]);
+  }, [form, items, purchase, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
 
-  const resetDraft = () => {
+  const resetDraft = async () => {
     clearOrderDraft();
+    if (rowIdRef.current) {
+      const id = rowIdRef.current;
+      rowIdRef.current = null;
+      setRowId(null);
+      await deleteDraftRow(id);
+    }
     setForm(emptyOrderForm(initialLaunch));
     setItems([{ ...EMPTY_ITEM }]);
     setPurchase([]);
@@ -379,7 +499,7 @@ export function CreateOrderModal({ onClose }) {
     });
     closingRef.current = false;
     if (ok) {
-      saveOrderDraft(form, items, purchase);
+      // Автосейв уже записал состояние в базу; здесь только выходим
       onClose();
     }
   };
@@ -400,7 +520,7 @@ export function CreateOrderModal({ onClose }) {
         ? {
             ...it,
             has_branding: on,
-            prints: on && it.prints.length === 0 ? [{ ...EMPTY_PRINT }] : it.prints,
+            prints: on && it.prints.length === 0 ? [emptyPrint()] : it.prints,
           }
         : it));
 
@@ -507,6 +627,15 @@ export function CreateOrderModal({ onClose }) {
      */
     const purchaseRows = purchase.filter((r) => !isPurchaseRowEmpty(r) && r.name.trim());
     const purchaseKeys = purchaseRows.map((r) => r.key);
+    /**
+     * Ключи заметок В ТОМ ЖЕ ПОРЯДКЕ, в каком они уедут в секцию `notes`:
+     * по ним изображение находит свою заметку. Отбор здесь обязан совпадать
+     * с отбором в самой секции — иначе подпись уедет к соседней картинке.
+     */
+    const noteKeys = notes
+      .filter((n) => n.text.trim() || attach.files.some(
+        (f) => f.ownerKey === n.key && f.state === 'uploaded'))
+      .map((n) => n.key);
     const materials = purchaseRows
       .map((r) => {
         const idx = r.item_index === null ? null : formToPayloadIndex.get(r.item_index);
@@ -530,7 +659,17 @@ export function CreateOrderModal({ onClose }) {
       materials,
       // Вложения блоков: упаковка, техблок, лист закупки. Файлы уже в бакете —
       // грузятся при выборе, RPC только привязывает их одной транзакцией
-      attachments: attach.payload(purchaseKeys),
+      attachments: attach.payload(purchaseKeys, noteKeys),
+      /**
+       * Заметки к заказу (п. 5.8). Совсем пустая не едет: человек мог нажать
+       * «+ Заметка» и передумать — то же правило, что у строк листа закупки
+       * и бирок. Изображение без текста заметкой является: подпись
+       * необязательна, а фото само по себе несёт смысл.
+       */
+      notes_list: notes
+        .filter((n) => n.text.trim() || attach.files.some(
+          (f) => f.ownerKey === n.key && f.state === 'uploaded'))
+        .map((n, i) => ({ seq: i + 1, text: n.text.trim() || null })),
       tz_required: true,
       // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
       tz: { documents: tzDocuments, assignments: [] },
@@ -562,6 +701,8 @@ export function CreateOrderModal({ onClose }) {
           // хранит '' и «не заполняли» становится неотличимо от «заполнили
           // пустым» — а по этому различию считается, показывать ли блок цеху.
           fit: it.fit.trim() || undefined,
+          // Основная ткань — отдельным полем (правка 22.08, п. 5.1)
+          main_fabric: it.main_fabric.trim() || undefined,
           trim_material: it.trim_material.trim() || undefined,
           cutting_note: it.cutting_note.trim() || undefined,
           sewing_note: it.sewing_note.trim() || undefined,
@@ -595,6 +736,9 @@ export function CreateOrderModal({ onClose }) {
           branding_on: it.branding_on,
           size_grid: gridToPayload(it.size_grid),
           prints: prints.map((p) => ({
+            // Ключ уезжает в стор, а не на сервер: по нему макет находит
+            // своё нанесение, пока строки `erp_item_prints` ещё не существует
+            key: p.key,
             method: p.method,
             zone: p.zone.trim() || undefined,
             width_mm: Number(p.width_mm) || null,
@@ -603,6 +747,21 @@ export function CreateOrderModal({ onClose }) {
             pantone: p.pantone.trim() || undefined,
             comment: p.comment.trim() || undefined,
           })),
+          /**
+           * Бирки позиции (правка 22.08, п. 5.3). Совсем пустая строка
+           * не едет: человек мог нажать «+ Бирка» и передумать — тем же
+           * правилом отбрасываются пустые строки листа закупки.
+           */
+          labels: (it.labels ?? [])
+            .filter((l) => l.label_type.trim() || l.place.trim()
+              || l.size.trim() || l.comment.trim())
+            .map((l) => ({
+              key: l.key,
+              label_type: l.label_type.trim() || undefined,
+              place: l.place.trim() || undefined,
+              size: l.size.trim() || undefined,
+              comment: l.comment.trim() || undefined,
+            })),
         };
       }),
     });
@@ -618,6 +777,8 @@ export function CreateOrderModal({ onClose }) {
     }
     if (created) {
       clearOrderDraft();
+      // Черновик отработал: заказ создан, держать его снимок больше незачем
+      if (rowIdRef.current) await deleteDraftRow(rowIdRef.current);
       toast.success(`Заказ «${created.title}» создан, маршрут построен`);
       onClose();
     }
@@ -813,12 +974,29 @@ export function CreateOrderModal({ onClose }) {
             setPrint={setPrint}
             removeItem={removeItem}
             removePrint={removePrint}
+            allItems={items}
+            onCopyPrint={copyPrint}
           />
         ))}
-        <div>
+        <div className={styles.checkRow}>
           <Button variant="secondary" onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}>
             + Добавить позицию
           </Button>
+          {/*
+            КОПИРОВАНИЕ ПОЗИЦИИ (правка 22.08, п. 5.7): «если несколько позиций
+            одинаковые или почти одинаковые, можно предусмотреть Копировать
+            данные из позиции». Заказ из четырёх подрядных изделий иначе
+            заполняется четырежды вручную.
+
+            Маршрут в копию НЕ переносится: он пересчитается по новым данным,
+            а перенесённая правка означала бы, что человек утвердил маршрут,
+            которого не видел.
+          */}
+          {items.length > 0 && (
+            <Button variant="ghost" onClick={() => copyItem(items.length - 1)}>
+              Копировать последнюю позицию
+            </Button>
+          )}
         </div>
         </FormSection>
 
@@ -857,6 +1035,16 @@ export function CreateOrderModal({ onClose }) {
           notRequired={form.purchase_required === false}
           onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
         />
+        </FormSection>
+
+        <FormSection
+          id="order-section-notes"
+          title="Заметки к заказу"
+          summary={notes.length > 0 ? `${notes.length}` : 'нет'}
+          open={open.notes}
+          onToggle={() => toggleSection('notes')}
+        >
+          <NotesSection notes={notes} setNotes={setNotes} attach={attach} />
         </FormSection>
 
         <FormSection
