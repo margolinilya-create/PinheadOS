@@ -9,7 +9,7 @@ import { buildQueueEntries } from '../../utils/queueEntries';
 import { mondayOf, summarize, weekDates } from '../../utils/planDay';
 import { PlanTaskCard } from '../plan/PlanTaskCard';
 import { PlanSlotDrawer } from '../plan/PlanSlotDrawer';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { percentLabel } from '../../utils/format';
 
 /**

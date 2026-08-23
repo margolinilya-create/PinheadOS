@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Приёмка готовой продукции с производства (правки заказчика 10.08, волна 3.4).

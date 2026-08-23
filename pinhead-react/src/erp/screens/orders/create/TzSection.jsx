@@ -1,6 +1,6 @@
 import { PdfPick } from './FormParts';
 import { Icon } from '../../../components/Icon';
-import styles from '../../../erp.module.css';
+import styles from '../../../styles';
 import { Button } from '../../../components/Button';
 
 /**

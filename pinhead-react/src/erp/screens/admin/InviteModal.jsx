@@ -10,7 +10,7 @@ import { Icon } from '../../components/Icon';
 import { EMPLOYEE_ROLE_LABELS } from '../../types';
 import { ROLE_LABELS, ALL_ROLES } from '../../../data/roles';
 import { inviteUrl } from '../../utils/invite';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Приглашение сотрудника ссылкой.

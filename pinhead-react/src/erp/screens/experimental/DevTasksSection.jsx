@@ -9,7 +9,7 @@ import {
   isDelegated, taskGroup, taskLabel, taskWaitingReason,
 } from '../../utils/experimentalTasks';
 import { formatDateShort } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Доска задач разработки — ОСНОВНОЙ рабочий блок карточки (ТЗ п.13).

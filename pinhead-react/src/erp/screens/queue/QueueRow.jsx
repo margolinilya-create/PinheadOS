@@ -6,7 +6,7 @@ import { stageQtyProgress } from '../../utils/progress';
 import { STAGE_STATUS_LABELS } from '../../types';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';

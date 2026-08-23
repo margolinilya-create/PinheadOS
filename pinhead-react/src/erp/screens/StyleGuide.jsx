@@ -9,7 +9,7 @@ import { Icon } from '../components/Icon';
 import { ICONS } from '../components/icons';
 import { useTheme } from '../../hooks/useTheme';
 import { dueLabel, dueLabelCompact, OVERDUE_BUCKET_SHORT, percentLabel } from '../utils/format';
-import styles from '../erp.module.css';
+import styles from '../styles';
 
 /**
  * Витрина дизайн-системы ERP — за флагом `styleguide` (?styleguide=1).

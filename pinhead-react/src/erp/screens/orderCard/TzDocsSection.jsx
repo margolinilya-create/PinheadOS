@@ -13,7 +13,7 @@ import {
   missingTzMessage,
   missingTzItems,
 } from '../../utils/tz';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Button } from '../../components/Button';
 
 /**

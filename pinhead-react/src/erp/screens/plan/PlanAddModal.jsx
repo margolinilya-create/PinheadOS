@@ -12,7 +12,7 @@ import { matchesOrderQuery } from '../../utils/orderSearch';
 import { remainingQty } from '../../utils/planQueue';
 import { stageQtyProgress } from '../../utils/progress';
 import { deptShortName } from '../../data/departments';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Button } from '../../components/Button';
 
 /**

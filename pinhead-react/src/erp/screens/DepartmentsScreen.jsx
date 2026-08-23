@@ -6,7 +6,7 @@ import { Icon } from '../components/Icon';
 import { toast } from '../../store/useToastStore';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';

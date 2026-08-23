@@ -7,7 +7,7 @@ import { Button } from '../../components/Button';
 import { Drawer } from '../../components/Drawer';
 import { matchByName, skuDraftFromDev } from '../../utils/skuFromDev';
 import { DEV_ATTACHMENT_KINDS } from '../../utils/finalPackage';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * ФОРМА СВЕРКИ «МОДЕЛЬ → КАТАЛОГ SKU» (решение заказчика 21.08).

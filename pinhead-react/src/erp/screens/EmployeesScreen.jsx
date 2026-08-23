@@ -10,7 +10,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { EmployeeCard } from './admin/EmployeeCard';
 import { LooseEmployeeCard } from './admin/LooseEmployeeCard';

@@ -487,6 +487,19 @@ test.describe('Загрузка цехов (/load)', () => {
     ).toBeVisible();
   });
 
+  /**
+   * Полоса обязана говорить, КУДА идти. Срок ставится в карточке заказа,
+   * и без списка человек остаётся с задачей «найди сам среди пятнадцати».
+   */
+  test('полоса ведёт в заказы, у которых нет срока', async ({ page }) => {
+    await page.goto('/load?studio=0');
+    await expect(page.getByText(/Загрузка не рассчитывается/)).toBeVisible();
+    const link = page.getByRole('link', { name: /без срока/ }).first();
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(/\/orders\/[\w-]+/);
+  });
+
   test('появилась хоть одна плановая дата — полосы больше нет', async ({ page }) => {
     // Иначе предупреждение висело бы всегда и перестало что-либо значить
     await installSupabaseMock(page, { orders: [PLANNED_ORDER] });

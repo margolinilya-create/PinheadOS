@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { defaultPlannedEnd } from '../../utils/stagePlan';
 import { Drawer } from '../../components/Drawer';
 import { Button } from '../../components/Button';
 import { Field } from '../../components/Field';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { PhotoAttach } from './PhotoAttach';
 
 /**
@@ -20,7 +21,7 @@ import { PhotoAttach } from './PhotoAttach';
  * не закрывается и введённое не теряется.
  */
 export function DefectWizard({
-  entry, deptShortById, problemTypes = [], busy = false, onSubmit, onClose,
+  entry, deptShortById, normDaysByDept, problemTypes = [], busy = false, onSubmit, onClose,
 }) {
   const { order, item, stage } = entry;
 
@@ -34,6 +35,18 @@ export function DefectWizard({
   const [cause, setCause] = useState('other');
   const [supplier, setSupplier] = useState('');
   const [planned, setPlanned] = useState('');
+  /**
+   * План завершения ПЕРЕДЕЛКИ — у этапа, который сейчас переоткроется.
+   *
+   * До 23.08 возврат брака переводил этап в `in_progress`, не спрашивая
+   * дату вовсе: форма «Взять в работу» её требует, а этот путь шёл мимо неё.
+   * Такой этап выпадал из контроля сроков целиком — просрочка этапа считается
+   * по `planned_end`, а «Загрузка цехов» строится из него же.
+   *
+   * Подстановка — общая с формой «Взять в работу» (`defaultPlannedEnd`):
+   * своя копия правила предлагала бы другую дату в соседнем окне.
+   */
+  const [reworkPlan, setReworkPlan] = useState('');
   const [material, setMaterial] = useState('');
   const [contractor, setContractor] = useState('');
   const [operation, setOperation] = useState('');
@@ -41,6 +54,23 @@ export function DefectWizard({
   const showProcurement = needsMaterial || target === 'procurement';
   const showSubcontract = target === 'subcontractor';
   const otherStages = item.stages.filter((s) => s.id !== stage.id && s.status !== 'skipped');
+
+  /**
+   * Кто примет переделку. Спец-цели («устранить здесь», закупка, подрядчик)
+   * оставляют работу на ТЕКУЩЕМ этапе — ровно так же их разбирает `reportDefect`
+   * (`receiver = targetStage ?? stage`). Второе прочтение этого правила
+   * разошлось бы с первым молча: план уехал бы не тому этапу.
+   */
+  const receiver = otherStages.find((s) => s.id === target) ?? stage;
+  const suggestedPlan = defaultPlannedEnd({
+    plannedEnd: receiver.planned_end,
+    normDays: normDaysByDept?.get(receiver.department_id) ?? null,
+    dueDate: order.due_date,
+  });
+  // Поле показывает предложение, пока человек не выбрал своё: получатель
+  // меняется вместе с «Где устранять», и хранить дефолт в состоянии значило бы
+  // оставить дату от прежнего выбора
+  const planValue = reworkPlan || suggestedPlan;
 
   const qtyNum = Number(qty);
   const qtyError = qty !== '' && !(qtyNum > 0)
@@ -59,6 +89,7 @@ export function DefectWizard({
       cause,
       supplier: supplier.trim() || null,
       plannedDate: planned || null,
+      reworkPlannedEnd: planValue,
       materialName: material.trim() || null,
       subcontractOperation: operation.trim() || null,
       contractor: contractor.trim() || null,
@@ -156,6 +187,20 @@ export function DefectWizard({
               />
             </>
           )}
+
+          {/*
+            План завершения ПЕРЕДЕЛКИ. Этап сейчас переоткроется в работу,
+            и без даты он выпадает из контроля сроков целиком: просрочка этапа
+            считается по `planned_end`, «Загрузка цехов» строится из него же.
+            Форма «Взять в работу» дату требует — этот путь шёл мимо неё.
+          */}
+          <Field
+            label="План завершения переделки"
+            type="date"
+            hint={`Кто делает: ${deptShortById?.get(receiver.department_id) || 'текущий этап'}`}
+            value={planValue}
+            onChange={(e) => setReworkPlan(e.target.value)}
+          />
 
           <label className={styles.checkLabel}>
             {/* При «На закупку» поля материала уже показаны — чекбокс обязан

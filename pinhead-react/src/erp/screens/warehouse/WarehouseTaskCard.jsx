@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Задача склада карточкой вместо строки таблицы — компактная раскладка

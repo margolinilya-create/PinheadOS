@@ -26,7 +26,7 @@ import { pluralize } from '../../utils/i18n';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { BoardCardMobile } from './board/BoardCardMobile';
 import { STAGE_STATUS_LABELS } from '../types';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { dueLabelCompact } from '../utils/format';
 import { Button } from '../components/Button';

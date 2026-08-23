@@ -2,7 +2,7 @@ import { formatDateShort, daysLeft } from '../../utils/time';
 import { itemProgress } from '../../utils/progress';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 import { OrderLink } from '../../components/OrderLink';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { dueLabelCompact } from '../../utils/format';
 

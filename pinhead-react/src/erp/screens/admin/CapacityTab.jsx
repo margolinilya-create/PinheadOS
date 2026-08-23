@@ -8,7 +8,7 @@ import {
   dailyCapacity, monthCapacityReport, monthDates, monthLabel, workingDays,
 } from '../../utils/capacity';
 import { percentLabel } from '../../utils/format';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Мощность производства (правки заказчика 10.08, волна 2).

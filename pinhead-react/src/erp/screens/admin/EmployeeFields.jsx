@@ -1,6 +1,6 @@
 import { deptShortName } from '../../data/departments';
 import { EMPLOYEE_ROLE_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Поля сотрудника — ПО ОДНОЙ реализации на элемент.

@@ -9,7 +9,7 @@ import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../types';
 import { useOrderDetail } from '../orderCard/useOrderDetail';
 import { AttachmentList } from '../../components/AttachmentList';
 import { materialAttachments } from '../../utils/attachments';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Лист закупки для печати (правки заказчика 16.08, п. 15).

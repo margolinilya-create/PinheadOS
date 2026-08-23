@@ -7,7 +7,7 @@ import { pluralize } from '../../../utils/i18n';
 import { formatDateShort, procurementSla } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
 import { KIND_LABELS, SOURCE_LABELS, STATUS_VARIANT } from './purchaseLabels';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Содержимое колонок закупочной строки — ПО ОДНОЙ реализации на элемент.

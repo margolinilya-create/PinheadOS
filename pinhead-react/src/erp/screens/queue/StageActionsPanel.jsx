@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useDictionary } from '../../store/useDictionary';
-import { shiftIsoDate, stageOverdue } from '../../utils/time';
+import { stageOverdue } from '../../utils/time';
+import { defaultPlannedEnd } from '../../utils/stagePlan';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
 import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import { confirmDefectRollback } from '../../utils/stageDefect';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { DateField } from '../../components/DateField';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';
@@ -15,7 +16,6 @@ import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
 import { StageReportForm } from '../../components/StageReportForm';
-import { factoryToday } from '../../../utils/date';
 
 /**
  * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
@@ -68,6 +68,17 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
     useShallow((s) => s.departments.find((d) => d.id === stage.department_id)?.norm_days ?? null),
   );
   /**
+   * Нормативы ВСЕХ участков — мастеру брака: получателем переделки может быть
+   * любой этап позиции, и подставлять ему норматив текущего цеха было бы
+   * неправдой. Селектор отдаёт примитивы в Map, поэтому `useShallow` здесь
+   * не спасает — мемоизуем список и строим карту рядом.
+   */
+  const departments = useErpStore(useShallow((s) => s.departments));
+  const normDaysByDept = useMemo(
+    () => new Map(departments.map((d) => [d.id, d.norm_days ?? null])),
+    [departments],
+  );
+  /**
    * Схема отчёта участка. Пусто — участок отчёта не требует, и остаётся прежнее
    * поле «сколько сделано»: fail-open, потому что цех не должен остаться без
    * способа сдать работу из-за незаполненной настройки.
@@ -92,10 +103,9 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   // План завершения по умолчанию: норматив участка, иначе срок клиента (не «сегодня» —
   // иначе этап с дальним сроком мгновенно становился «просрочен» на следующий день, ERP-04).
   const [startDate, setStartDate] = useState(
-    stage.planned_end
-      || (normDays > 0 ? shiftIsoDate(null, normDays) : null)
-      || order.due_date
-      || factoryToday(),
+    () => defaultPlannedEnd({
+      plannedEnd: stage.planned_end, normDays, dueDate: order.due_date,
+    }),
   );
   /**
    * Пустое поле, а НЕ преднабранный остаток. Раньше здесь стоял
@@ -367,6 +377,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
         <DefectWizard
           entry={entry}
           deptShortById={deptShortById}
+          normDaysByDept={normDaysByDept}
           problemTypes={problemTypes}
           busy={busy}
           onSubmit={submitDefect}

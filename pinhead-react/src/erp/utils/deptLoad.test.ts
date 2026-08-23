@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, it, expect } from 'vitest';
-import { buildDeptLoad, loadDays, weekStart } from './deptLoad';
+import { buildDeptLoad, loadDays, ordersWithoutPlan, weekStart } from './deptLoad';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -178,5 +178,42 @@ describe('неделя загрузки в поясе UTC+3', () => {
 
   it('loadDays не сдвигает даты на сутки назад', () => {
     expect(loadDays('2026-08-10', 3)).toEqual(['2026-08-10', '2026-08-11', '2026-08-12']);
+  });
+});
+
+/**
+ * Куда идти проставлять срок. Полоса «загрузка не рассчитывается» без списка
+ * заказов оставляет человека с задачей «найди сам среди пятнадцати».
+ */
+describe('ordersWithoutPlan', () => {
+  const ord = (id: string, stages: any[], status = 'active') =>
+    ({ id, status, items: [{ id: `${id}-i`, qty: 10, stages }], materials: [] }) as any;
+
+  it('собирает только заказы с открытыми этапами без даты', () => {
+    const rows = ordersWithoutPlan([
+      ord('a', [stage('d1', null), stage('d2', null)]),
+      ord('b', [stage('d1', '2026-09-01')]),
+      ord('c', [stage('d1', null, 'done')]),
+    ]);
+    expect(rows.map((r) => r.order.id)).toEqual(['a']);
+    expect(rows[0].unplanned).toBe(2);
+  });
+
+  it('сортирует по числу этапов без даты — начинать с крупного', () => {
+    const rows = ordersWithoutPlan([
+      ord('small', [stage('d1', null)]),
+      ord('big', [stage('d1', null), stage('d2', null), stage('d3', null)]),
+    ]);
+    expect(rows.map((r) => r.order.id)).toEqual(['big', 'small']);
+  });
+
+  it('подряд не считается: срок подрядчику ставят в его карточке', () => {
+    const contractor = { ...stage('d2', null), executor: 'contractor' };
+    const rows = ordersWithoutPlan([ord('a', [contractor])]);
+    expect(rows).toEqual([]);
+  });
+
+  it('архивный заказ в список не идёт', () => {
+    expect(ordersWithoutPlan([ord('a', [stage('d1', null)], 'archived')])).toEqual([]);
   });
 });

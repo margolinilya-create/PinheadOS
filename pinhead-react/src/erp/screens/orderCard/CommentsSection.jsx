@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Skeleton } from '../../../components/shared/Skeleton';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { fmtTs } from './format';
 import { Button } from '../../components/Button';
 

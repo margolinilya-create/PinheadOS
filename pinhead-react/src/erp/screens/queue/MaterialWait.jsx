@@ -7,7 +7,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';
 

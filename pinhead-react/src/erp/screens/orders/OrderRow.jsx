@@ -10,7 +10,7 @@ import {
   ORDER_STATUS_LABELS,
   STAGE_STATUS_LABELS,
 } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 import { formatDateCell } from '../../utils/format';

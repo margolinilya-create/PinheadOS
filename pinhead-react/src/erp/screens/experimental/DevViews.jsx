@@ -11,7 +11,7 @@ import { DEV_STAGE_LABELS, devStageQueue, experimentalEntries } from '../../util
 import { taskGroup, taskLabel, taskWaitingReason } from '../../utils/experimentalTasks';
 import { missingFinalPackage } from '../../utils/finalPackage';
 import { formatDateShort } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Внутренние представления экспериментального цеха (правки заказчика 20.08).

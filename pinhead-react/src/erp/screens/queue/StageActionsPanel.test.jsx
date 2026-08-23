@@ -230,8 +230,56 @@ describe('StageActionsPanel — мастер брака', () => {
       materialName: null,
       subcontractOperation: null,
       contractor: null,
+      /*
+       * СОСТАВ РАСШИРЕН 23.08 — осознанно. Возврат брака переводит этап
+       * в работу, и до этой правки он делал это, не спрашивая план завершения
+       * вовсе: такой этап выпадал из контроля сроков целиком. Поле идёт
+       * с подстановкой (`defaultPlannedEnd`), поэтому в payload оно НЕ пустое
+       * даже когда человек ничего не трогал: у фикстуры нет ни норматива,
+       * ни срока заказа, значит предлагается сегодня.
+       *
+       * `plannedDate` рядом — ДРУГОЕ поле: срок замены материала в задаче
+       * закупщику. Их легко перепутать, поэтому оба стоят в одном ожидании.
+       */
+      reworkPlannedEnd: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     });
     expect(photo).toBeNull();
+  });
+
+  /**
+   * План переделки принадлежит ЭТАПУ-ПОЛУЧАТЕЛЮ, а не тому, кто нашёл брак.
+   *
+   * `reportDefect` разбирает это как `receiver = targetStage ?? stage`, и
+   * второе прочтение того же правила в форме разошлось бы с первым молча:
+   * дата уехала бы не тому этапу, и «Загрузка цехов» показала бы работу
+   * не в том цехе.
+   */
+  it('план переделки спрашивается и уходит вместе с браком', async () => {
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Перекроить' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
+
+    const plan = screen.getByLabelText('План завершения переделки');
+    expect(plan, 'до 23.08 возврат брака дату не спрашивал вовсе').toBeInTheDocument();
+    fireEvent.change(plan, { target: { value: '2026-09-10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'В переделку' }));
+
+    await waitFor(() => expect(handlers.onDefect).toHaveBeenCalledTimes(1));
+    const [, payload] = handlers.onDefect.mock.calls[0];
+    expect(payload.reworkPlannedEnd).toBe('2026-09-10');
+  });
+
+  it('подпись поля называет ЦЕХ-получателя — он меняется вместе с «Где устранять»', async () => {
+    fireEvent.change(screen.getByLabelText(/Сколько штук в брак/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Причина брака/), { target: { value: 'Брак кроя' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
+
+    fireEvent.change(screen.getByLabelText('Где устранять'), { target: { value: 's2' } });
+    // Подсказку `Field` рисует отдельным элементом и связывает через
+    // aria-describedby — берём её по этой связи, а не по обёртке разметки
+    const field = screen.getByLabelText('План завершения переделки');
+    const hintId = field.getAttribute('aria-describedby');
+    expect(document.getElementById(hintId)).toHaveTextContent('Кто делает: Закрой');
   });
 
   it('возврат подрядчику: операция и контрагент попадают в payload', async () => {

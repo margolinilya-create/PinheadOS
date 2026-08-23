@@ -8,7 +8,7 @@ import {
   ERP_PERMISSIONS,
   ERP_PERMISSION_LABELS,
 } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 
 /**

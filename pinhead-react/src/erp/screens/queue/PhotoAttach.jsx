@@ -1,5 +1,5 @@
 import { Icon } from '../../components/Icon';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /** Кнопка «прикрепить фото» (камера на планшете/телефоне) */
 export function PhotoAttach({ file, onFile, label }) {

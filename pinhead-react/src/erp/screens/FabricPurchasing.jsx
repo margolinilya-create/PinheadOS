@@ -35,7 +35,7 @@ import {
   PROCUREMENT_KIND_LABELS,
   PROCUREMENT_STATUS_LABELS,
 } from '../types';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';

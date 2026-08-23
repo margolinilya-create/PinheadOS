@@ -10,7 +10,7 @@ import { toast } from '../../../store/useToastStore';
 import { confirm } from '../../../store/useConfirmStore';
 import { formatDateShort } from '../../utils/time';
 import { needsDeviationReason, planRemaining } from '../../utils/planCard';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Button } from '../../components/Button';
 
 /**

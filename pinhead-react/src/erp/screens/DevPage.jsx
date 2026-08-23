@@ -15,7 +15,7 @@ import { DEV_STAGE_LABELS, devBoardColumn, devStageStates } from '../utils/exper
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevCard } from './experimental/DevCard';
-import styles from '../erp.module.css';
+import styles from '../styles';
 
 /**
  * ПОЛНОЭКРАННАЯ КАРТОЧКА РАЗРАБОТКИ (правка заказчика 22.08, п. 4.11).

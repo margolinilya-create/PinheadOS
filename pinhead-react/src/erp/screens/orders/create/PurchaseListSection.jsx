@@ -4,7 +4,7 @@ import { Button } from '../../../components/Button';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { FieldError } from './FormParts';
-import styles from '../../../erp.module.css';
+import styles from '../../../styles';
 
 /**
  * Лист закупки — ФАЙЛ менеджера (правки заказчика 20.08).

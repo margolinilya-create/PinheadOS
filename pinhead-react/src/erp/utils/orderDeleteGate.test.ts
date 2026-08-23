@@ -64,15 +64,22 @@ describe('удаление заказа: гейт интерфейса = пол�
     expect(access).not.toMatch(/isAdmin:.*FULL_ACCESS_PROFILE_ROLES/);
   });
 
+  /*
+   * Само удаление уехало в `orderWriteSlice` (запись по заказу — доменный
+   * слайс, оболочке она не нужна), а сбор путей остался рядом с чтением:
+   * `orderFilePaths` живёт в `ordersSlice` и экспортируется. Сторож читает
+   * ОБА файла — привязка к одному имени сторожила бы файл, а не правило.
+   */
   it('клиент отличает «0 строк» от успеха — иначе отказ выглядит зелёным', () => {
-    const slice = src('erp/store/slices/ordersSlice.ts');
+    const slice = src('erp/store/slices/orderWriteSlice.ts');
     // `.select(...)` после delete — единственный способ узнать, что удалилось
     expect(slice).toMatch(/\.from\('erp_orders'\)\.delete\(\)\.eq\('id', id\)\.select\(/);
     expect(slice).toMatch(/data\.length === 0/);
   });
 
   it('файлы заказа убираются из бакета — сироты копились именно так', () => {
-    const slice = src('erp/store/slices/ordersSlice.ts');
+    const slice = src('erp/store/slices/ordersSlice.ts')
+      + src('erp/store/slices/orderWriteSlice.ts');
     // Пути собираются ДО удаления: обе таблицы уедут каскадом
     expect(slice).toMatch(/erp_tz_documents/);
     expect(slice).toMatch(/erp_order_attachments/);

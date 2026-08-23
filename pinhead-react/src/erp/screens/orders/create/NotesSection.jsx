@@ -1,7 +1,7 @@
 import { Button } from '../../../components/Button';
 import { Icon } from '../../../components/Icon';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
-import styles from '../../../erp.module.css';
+import styles from '../../../styles';
 
 /**
  * ЗАМЕТКИ К ЗАКАЗУ (правка заказчика 22.08, п. 5.8).

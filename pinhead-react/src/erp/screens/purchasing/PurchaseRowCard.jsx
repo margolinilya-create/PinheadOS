@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import {
   ArticleField, CostValue, EtaField, ManagerNote, MaterialCell, OrderCell,
   OrderedOnField, PlanField, PriceField, QtyOrderedField,

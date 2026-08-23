@@ -15,7 +15,7 @@ import {
   SUBCONTRACT_PAYMENT_LABELS,
 } from '../../types';
 import { onTabListKeyDown } from '../../utils/tabs';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
 import { confirm } from '../../../store/useConfirmStore';

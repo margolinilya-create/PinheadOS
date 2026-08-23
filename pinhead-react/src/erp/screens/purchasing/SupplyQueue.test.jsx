@@ -104,10 +104,36 @@ describe('очередь закупки', () => {
     await waitFor(() => expect(h.onClose).toHaveBeenCalled());
   });
 
-  it('«Взять в работу» зовёт действие по заказу', async () => {
+  /**
+   * «Взять в работу» СПРАШИВАЕТ СРОК — с 23.08.
+   *
+   * До этого кнопка переводила этапы закупки в работу молча, и такой этап
+   * выпадал из контроля сроков целиком: просрочка этапа считается
+   * по `planned_end`, «Загрузка цехов» строится из него же. Форма цеха
+   * дату требует, а этот путь шёл мимо неё — одна из двух найденных дыр.
+   */
+  it('«Взять в работу» спрашивает план завершения и передаёт его', async () => {
     const h = renderQueue([order()]);
     fireEvent.click(screen.getByRole('button', { name: 'Взять в работу' }));
-    await waitFor(() => expect(h.onTake).toHaveBeenCalledWith('o1'));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+
+    const { prompt } = useConfirmStore.getState();
+    expect(prompt?.type, 'нативный календарь — лучший тач-ввод на планшете').toBe('date');
+    expect(prompt?.required, 'пустая дата оставила бы этап без срока').toBe(true);
+    expect(prompt?.initialValue, 'поле открывается с предложением, а не пустым')
+      .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    answerDialog('2026-09-01');
+    await waitFor(() => expect(h.onTake).toHaveBeenCalledWith('o1', '2026-09-01'));
+  });
+
+  it('отказ от диалога не берёт закупку в работу', async () => {
+    const h = renderQueue([order()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Взять в работу' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(false);
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(false));
+    expect(h.onTake).not.toHaveBeenCalled();
   });
 
   it('взятая в работу закупка помечена статусом', () => {

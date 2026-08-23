@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { deptShortName } from '../data/departments';
-import styles from '../erp.module.css';
+import styles from '../styles';
 
 /**
  * Загрузка ОДНОГО цеха карточкой — компактная раскладка (планшет и телефон).

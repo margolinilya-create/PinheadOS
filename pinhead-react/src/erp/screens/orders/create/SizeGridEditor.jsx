@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SIZE_PRESETS, SIZE_PRESET_LABELS, gridTotal, toggleSize } from '../../../utils/orderForm';
 import { Icon } from '../../../components/Icon';
-import styles from '../../../erp.module.css';
+import styles from '../../../styles';
 import { Button } from '../../../components/Button';
 
 /**

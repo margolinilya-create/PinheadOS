@@ -142,6 +142,12 @@ export interface ReportDefectOptions {
   /** target='subcontractor': операция и контрагент для создаваемой операции подряда */
   subcontractOperation?: string | null;
   contractor?: string | null;
+  /**
+   * План завершения ПЕРЕДЕЛКИ у этапа-получателя (`plannedDate` — это другое:
+   * срок замены материала в задаче закупщику). Возврат брака переводит этап
+   * в работу, и без даты он выпадает из контроля сроков целиком.
+   */
+  reworkPlannedEnd?: string | null;
 }
 
 export interface NewPrintInput {
@@ -427,8 +433,6 @@ export interface OrdersSlice {
   showDemoOrders: boolean;
   /** Переключить показ демо и перезагрузить списки (доступно admin/director) */
   setShowDemoOrders: (value: boolean) => Promise<void>;
-  /** Пометить заказ тестовым / снять пометку */
-  setOrderDemo: (id: string, value: boolean) => Promise<boolean>;
 
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
@@ -457,27 +461,6 @@ export interface OrdersSlice {
 
   /** Перезагрузка одного заказа тем же вложенным select (upsert в стор) */
   loadOne: (orderId: string) => Promise<ErpOrderFull | null>;
-  createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
-  updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
-  /**
-   * Отгрузка готового заказа: status → done_* (по сроку клиента),
-   * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
-   */
-  /**
-   * Сформировать PDF листа закупки (правки 16.08, п. 15). Считает и кладёт файл
-   * СЕРВЕР: документ требует, чтобы система делала это сама, а PDF-библиотека
-   * в клиенте стоила бы 100–200 кБ при оболочке на 97 % бюджета.
-   */
-  generatePurchaseListPdf: (orderId: string) => Promise<boolean>;
-  shipOrder: (orderId: string) => Promise<boolean>;
-  deleteOrder: (id: string) => Promise<boolean>;
-  /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
-  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
-  loadOrderEvents: (orderId: string) => Promise<ErpStageEvent[] | null>;
-  loadOrderAudit: (orderId: string) => Promise<ErpOrderAuditRow[] | null>;
-  uploadOrderPreview: (orderId: string, file: File) => Promise<boolean>;
-  loadComments: (orderId: string) => Promise<ErpOrderComment[] | null>;
-  addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
 }
 
 /** Этапы: смена статуса, частичная готовность, брак/переделка, план дат */
@@ -624,7 +607,12 @@ export interface MaterialsSlice {
    * Взять закупку по заказу в работу — все её открытые этапы разом.
    * Без этого у закупки нет состояния «этим уже занимаются».
    */
-  takeSupply: (orderId: string) => Promise<boolean>;
+  /**
+   * Взять закупку заказа в работу. `plannedEnd` — план завершения: этап
+   * переходит в `in_progress`, и без даты он выпадает из контроля сроков
+   * (просрочка этапа и «Загрузка цехов» считаются по `planned_end`).
+   */
+  takeSupply: (orderId: string, plannedEnd?: string | null) => Promise<boolean>;
   /**
    * Закрыть закупку по заказу ЯВНЫМ действием, с комментарием.
    *
@@ -1134,8 +1122,38 @@ export interface PlanSlice {
 }
 
 /** Полный контракт ERP-стора — пересечение доменных слайсов */
+
+/**
+ * Запись по заказу — доменный слайс `orderWriteSlice`.
+ * Список читает оболочка, а ПИШЕТ только ленивый экран: почему это
+ * разделено, написано в шапке самого слайса.
+ */
+export interface OrderWriteSlice {
+  /** Пометить заказ тестовым / снять пометку */
+  setOrderDemo: (id: string, value: boolean) => Promise<boolean>;
+  createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
+  updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
+  /**
+   * Сформировать PDF листа закупки (правки 16.08, п. 15). Считает и кладёт файл
+   * СЕРВЕР: документ требует, чтобы система делала это сама, а PDF-библиотека
+   * в клиенте стоила бы 100–200 кБ при оболочке на 97 % бюджета.
+   */
+  generatePurchaseListPdf: (orderId: string) => Promise<boolean>;
+  /**
+   * Отгрузка готового заказа: status → done_* (по сроку клиента),
+   * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
+   */
+  shipOrder: (orderId: string) => Promise<boolean>;
+  deleteOrder: (id: string) => Promise<boolean>;
+  /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
+  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
+  uploadOrderPreview: (orderId: string, file: File) => Promise<boolean>;
+  addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
+}
+
 export type ErpStore = BootstrapSlice &
   OrdersSlice &
+  OrderWriteSlice &
   StagesSlice &
   MaterialsSlice &
   WarehouseSlice &

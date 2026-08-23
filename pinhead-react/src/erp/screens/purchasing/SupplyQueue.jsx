@@ -10,13 +10,14 @@ import { pluralize } from '../../../utils/i18n';
 import { purchaseListFile } from '../../utils/attachments';
 import { supabase } from '../../../lib/supabase';
 import { daysLeft } from '../../utils/time';
+import { defaultPlannedEnd } from '../../utils/stagePlan';
 import { dueLabelCompact } from '../../utils/format';
 import {
   openSupplyStages,
   supplyMaterialSummary,
   supplyState,
 } from '../../utils/supply';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Очередь закупки — заказы, у которых этап «Закупка» ещё не закрыт.
@@ -71,7 +72,7 @@ function MaterialsCell({ summary }) {
   );
 }
 
-function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial }) {
+function SupplyRow({ order, supplyDeptId, supplyNormDays, perms, onTake, onClose, onAddMaterial }) {
   const [busy, setBusy] = useState(false);
   const stages = useMemo(
     () => openSupplyStages(order, supplyDeptId), [order, supplyDeptId]);
@@ -86,7 +87,39 @@ function SupplyRow({ order, supplyDeptId, perms, onTake, onClose, onAddMaterial 
     try { await fn(); } finally { setBusy(false); }
   };
 
-  const take = () => run(() => onTake(order.id));
+  /**
+   * Взять закупку в работу — СО СРОКОМ.
+   *
+   * Раньше кнопка переводила этапы в `in_progress` молча, и такой этап
+   * выпадал из контроля сроков целиком: просрочка этапа считается
+   * по `planned_end`, «Загрузка цехов» строится из него же. Форма цеха
+   * «Взять в работу» дату требует — этот путь шёл мимо неё.
+   *
+   * Спрашивается общим диалогом проекта (`confirmWithInput` с полем-датой),
+   * а не своей формой рядом с кнопкой: второй механизм подтверждения
+   * разошёлся бы с первым в первую же правку. Подстановка — общая
+   * с формой цеха (`defaultPlannedEnd`).
+   */
+  const take = () => run(async () => {
+    const { ok, value } = await confirmWithInput({
+      title: 'Взять закупку в работу?',
+      message: stages.length === 1
+        ? 'Этап закупки перейдёт в работу.'
+        : `Все ${stages.length} этапов закупки перейдут в работу.`,
+      confirmLabel: 'Взять в работу',
+      prompt: {
+        label: 'План завершения закупки',
+        type: 'date',
+        required: true,
+        initialValue: defaultPlannedEnd({
+          plannedEnd: stages[0]?.planned_end,
+          normDays: supplyNormDays,
+          dueDate: order.due_date,
+        }),
+      },
+    });
+    if (ok) await onTake(order.id, value);
+  });
 
   /**
    * Закрытие закупки. Материалы на месте — обычное подтверждение; всё
@@ -254,6 +287,7 @@ export function SupplyQueue({ orders, supplyDept, onTake, onClose, onAddMaterial
                   key={o.id}
                   order={o}
                   supplyDeptId={supplyDept.id}
+                  supplyNormDays={supplyDept.norm_days ?? null}
                   perms={perms}
                   onTake={onTake}
                   onClose={onClose}

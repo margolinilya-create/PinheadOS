@@ -19,7 +19,7 @@ import {
   FG_RECEIPT_STATUS_LABELS,
   SUBCONTRACT_RECEIPT_STATUS_LABELS,
 } from '../types';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
 import { FgReceiptCard } from './warehouse/FgReceiptCard';
 import { MarkingCard } from './warehouse/MarkingCard';

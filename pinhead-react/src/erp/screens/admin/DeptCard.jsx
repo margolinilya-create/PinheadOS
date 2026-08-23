@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import {
   DeptFlags, DeptName, GateKinds, HeadSelect, NormDaysInput, ResultFieldsCell, SortOrderInput,
 } from './DeptFields';

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { DeptSelect, EmployeeRoleSelect, RoleSelect } from './EmployeeFields';
 
 /**

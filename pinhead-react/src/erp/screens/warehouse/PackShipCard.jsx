@@ -1,7 +1,7 @@
 import { formatDateShort } from '../../utils/time';
 import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
 import { PACK_SHIP_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Button } from '../../components/Button';
 
 /**

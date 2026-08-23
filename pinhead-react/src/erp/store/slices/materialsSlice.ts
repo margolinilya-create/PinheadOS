@@ -306,7 +306,7 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
   },
 
-  takeSupply: async (orderId) => {
+  takeSupply: async (orderId, plannedEnd = null) => {
     const order = get().orders.find((o) => o.id === orderId);
     const supplyDept = findSupplyDept(get().departments);
     if (!order || !supplyDept) {
@@ -324,6 +324,14 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
         { message: 'нечего брать: этапы уже в работе или заблокированы' });
     }
     for (const st of toTake) {
+      /*
+       * План завершения пишется ДО статуса — тем же порядком, что в форме цеха
+       * (`useStageActions.onStart`): там он работает потому, что серверный
+       * страж пропускает `planned_end` под правом взятия в работу. Пустая
+       * дата ничего не пишет: закупку берут и из мест, где спросить некого
+       * (действие вызывается и из тестов, и из старого бандла).
+       */
+      if (plannedEnd) await get().setStagePlan(st.id, { planned_end: plannedEnd });
       const ok = await get().setStageStatus(st.id, 'in_progress', {
         comment: 'Закупка взята в работу',
       });

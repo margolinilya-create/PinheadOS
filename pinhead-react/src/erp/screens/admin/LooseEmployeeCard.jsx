@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import InlineEdit from '../../components/InlineEdit';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { DeptSelect, EmployeeRoleSelect } from './EmployeeFields';
 
 /**

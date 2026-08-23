@@ -3,7 +3,7 @@ import { Icon } from '../../components/Icon';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS, PROCUREMENT_STATUS_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { ButtonLink } from '../../components/Button';
 
 /**

@@ -1,5 +1,5 @@
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 
 /**

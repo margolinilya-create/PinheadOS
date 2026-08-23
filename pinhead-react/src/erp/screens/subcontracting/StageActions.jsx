@@ -5,7 +5,7 @@ import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { availableActions } from '../../utils/subcontractFlow';
 import { factoryToday } from '../../../utils/date';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Движение подрядной операции — ДЕЙСТВИЯ, а не выбор состояния.

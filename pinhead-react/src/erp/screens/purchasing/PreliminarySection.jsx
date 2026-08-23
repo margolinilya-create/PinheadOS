@@ -7,7 +7,7 @@ import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Предварительная закупка до запуска заказа (правки заказчика 16.08, п. 17).

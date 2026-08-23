@@ -8,7 +8,7 @@ import {
   PACKAGING_LABELS,
   STICKERS_LABELS,
 } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { fmt, fmtTs } from './format';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';

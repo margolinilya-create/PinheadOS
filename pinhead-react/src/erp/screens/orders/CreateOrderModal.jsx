@@ -38,7 +38,7 @@ import {
   PACKAGING_LABELS,
   STICKERS_LABELS,
 } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 // Секции и примитивы формы вынесены в ./create/ — модалка осталась композицией
 import { FormSection, FieldError } from './create/FormParts';

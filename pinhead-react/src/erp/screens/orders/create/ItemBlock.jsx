@@ -8,7 +8,7 @@ import {
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
 } from '../../../types';
-import styles from '../../../erp.module.css';
+import styles from '../../../styles';
 import { Button } from '../../../components/Button';
 import { RouteFields, RouteIssues } from '../../../components/RouteFields';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
