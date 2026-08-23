@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { installSupabaseMock } from './support/mockSupabase';
+import { installSupabaseMock, buildStages } from './support/mockSupabase';
 
 /**
  * Планшет цеха (проект `tablet`, 768×1024, hasTouch).
@@ -114,6 +114,59 @@ const WH_ORDER = {
   }],
 };
 
+/**
+ * Заказ с ПОДРЯДНЫМ этапом и карточкой подрядчика при нём.
+ *
+ * Свой заказ, а не правка базовых четырёх: те держат визуальные эталоны
+ * и счётчики очередей, и добавленный подрядный этап сдвинул бы чужие проверки.
+ */
+const SUB_ORDER = {
+  id: 'tab-sub', bitrix_id: '90311', title: 'Худи планшет-подряд',
+  customer: 'ООО «Ромашка»', manager: 'Анна',
+  launch_date: '2026-07-16', due_date: '2026-07-30', buffer_days: 1,
+  priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'none', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  attachments: [],
+  materials: [],
+  warehouse_tasks: [],
+  items: [{
+    id: 'tab-sub-i1', order_id: 'tab-sub', product_type: 'Худи', variant: 'оверсайз',
+    qty: 150, production_type: 'sewing', branding_methods: ['dtf'], branding_on: 'cut',
+    notes: null, size_grid: null, sort_order: 0,
+    subcontract_kind: null, material_source: 'pinhead',
+    fit: null, main_fabric: null, trim_material: null,
+    cutting_note: null, sewing_note: null, labels_note: null,
+    packaging: 'inherit', packaging_size: null, sticker_place: null,
+    marking_place: null, packaging_note: null,
+    created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+    prints: [], labels: [],
+    stages: buildStages('tab-sub-i1', [
+      { code: 'cutting', status: 'done', qty_done: 150 },
+      {
+        code: 'dtf', status: 'in_progress', deps: [0],
+        executor: 'contractor', contractor: 'ИП Петров', operation: 'Варка',
+      },
+      { code: 'sewing', status: 'waiting', deps: [1] },
+    ]),
+  }],
+};
+
+/** Карточка подрядчика ПРИ этапе — связь через `stage_id` */
+const SUB_CARD = {
+  id: 'tab-sub-op1', order_id: 'tab-sub', item_id: 'tab-sub-i1',
+  stage_id: 'tab-sub-i1-st2', department_id: null, return_dept: null,
+  op_type: 'operation', operation: 'Варка', contractor: 'ИП Петров',
+  phase: 'at_contractor', status: 'at_contractor', payment_status: 'unpaid',
+  material_source: 'pinhead', cycle: 0,
+  qty_in_work: 150, qty_sent: 150, qty_returned: 0, qty_accepted: 0, qty_defect: 0,
+  sent_date: '2026-07-19', planned_date: '2026-07-24', returned_date: null,
+  cost: null, responsible: null, comment: null,
+  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+};
+
 /** Ширина документа не превышает экран — то, что и ломала широкая таблица */
 async function expectNoHorizontalScroll(page: import('@playwright/test').Page) {
   const overflow = await page.evaluate(
@@ -196,6 +249,55 @@ test.describe('Оболочка на планшете', () => {
       const box = await actions.nth(i).boundingBox();
       if (!box) continue;
       expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
+/**
+ * «Подряд» на планшете (доделка next steps сессии 36).
+ *
+ * Таблица здесь из ДЕСЯТИ колонок, и кнопка «Этап» — та, которой раскрывают
+ * действия по подрядной операции, — стоит последней. Ниже 1024px она уезжала
+ * за край экрана, то есть до действий было не добраться вовсе. Тот же дефект,
+ * который до этого чинили у склада и закупки.
+ */
+test.describe('Подряд на планшете', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, { orders: [SUB_ORDER], subcontracting: [SUB_CARD] });
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
+
+  test('подрядные этапы рисуются карточками, а не таблицей из десяти колонок', async ({ page }) => {
+    await page.goto('/subcontracting?studio=0');
+    const card = page.getByRole('article', { name: /^Подряд:/ }).first();
+    await expect(card).toBeVisible();
+    await expect(page.getByRole('table')).toHaveCount(0);
+  });
+
+  test('страница не прокручивается по горизонтали', async ({ page }) => {
+    await page.goto('/subcontracting?studio=0');
+    await expect(page.getByRole('article', { name: /^Подряд:/ }).first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('главное действие видно целиком и не мельче 44px', async ({ page }) => {
+    await page.goto('/subcontracting?studio=0');
+    // Ради этой кнопки на экран и приходят: она раскрывает действия этапа
+    const open = page.getByRole('button', { name: /^Этап · принято/ }).first();
+    await expect(open).toBeVisible();
+    const viewport = page.viewportSize()!;
+    const box = await open.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('подписи полей стоят явно — без шапки таблицы «150» ничего не значит', async ({ page }) => {
+    await page.goto('/subcontracting?studio=0');
+    const card = page.getByRole('article', { name: /^Подряд:/ }).first();
+    await expect(card).toBeVisible();
+    for (const label of ['В работе', 'Операция', 'Подрядчик', 'Где заказ сейчас']) {
+      await expect(card.getByText(label, { exact: true })).toBeVisible();
     }
   });
 });

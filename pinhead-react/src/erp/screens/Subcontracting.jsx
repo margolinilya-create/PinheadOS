@@ -8,7 +8,7 @@ import { StageIndicator } from '../components/StageIndicator';
 import { OrderLink } from '../components/OrderLink';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { formatDateShort, subcontractOverdue } from '../utils/time';
+import { subcontractOverdue } from '../utils/time';
 import { deptShortName } from '../data/departments';
 import {
   SUBCONTRACT_PHASE_LABELS,
@@ -19,7 +19,14 @@ import {
 import { SUBCONTRACT_PHASE_FLOW, subcontractPhase } from '../utils/subcontractPhase';
 import { subcontractView } from '../utils/subcontractFlow';
 import { StageDetails } from './subcontracting/StageDetails';
-import { outsourcedStages, nextRouteStage, stageLabel, stageLocation } from '../utils/outsourcing';
+import { StageRowCard } from './subcontracting/StageRowCard';
+import {
+  DatesCell, ItemCell, LocationCell, NextStageCell, OperationCell,
+  OrderCell, StateCell, WorkQtyCell,
+} from './subcontracting/StageFields';
+import { SUBCONTRACT_LABELS } from './subcontracting/subcontractLabels';
+import { useCompactLayout } from '../layout/useCompactLayout';
+import { outsourcedStages, nextRouteStage } from '../utils/outsourcing';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import styles from '../erp.module.css';
 import { DateField } from '../components/DateField';
@@ -106,6 +113,8 @@ export default function Subcontracting() {
   const [query, setQuery] = useState('');
   const [openRow, setOpenRow] = useState(null);
   const today = factoryToday();
+  /** Планшет цеха и телефон: карточки вместо таблицы из десяти колонок */
+  const compact = useCompactLayout();
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!subcontractingLoaded) loadSubcontracting(); }, [subcontractingLoaded, loadSubcontracting]);
@@ -213,14 +222,72 @@ export default function Subcontracting() {
         <EmptyResult query={query.trim()} onReset={() => setQuery('')} />
       )}
 
-      {shown.length > 0 && (
+      {/*
+        КОМПАКТНАЯ РАСКЛАДКА (планшет цеха). Таблица здесь из десяти колонок,
+        и кнопка «Этап» — та, ради которой на экран приходят, — стоит последней:
+        ниже 1024px она уезжала за край. Содержимое обеих раскладок общее
+        (`StageFields`), различается только обёртка.
+      */}
+      {shown.length > 0 && compact && (
+        <div className={styles.dataCardList}>
+          {shown.map(({ order, item, stage, sub, view }) => {
+            const overdue = subcontractOverdue(
+              sub?.planned_date, sub?.returned_date, view.stored, today);
+            const next = nextRouteStage(item, stage);
+            const open = openRow === stage.id;
+            return (
+              <div key={stage.id}>
+                <StageRowCard
+                  order={order}
+                  item={item}
+                  stage={stage}
+                  sub={sub}
+                  view={view}
+                  next={next}
+                  phase={view.display}
+                  delayed={overdue && view.stored !== 'returned'}
+                  phaseChipClass={PHASE_CHIP[view.display]}
+                  deptName={deptNameById.get(stage.department_id)}
+                  nextDeptName={next && deptNameById.get(next.department_id)}
+                  overdue={overdue}
+                  canManage={canManage}
+                  open={open}
+                  onToggle={() => setOpenRow(open ? null : stage.id)}
+                  onUpdate={updateSubcontractOp}
+                />
+                {open && sub && (
+                  <StageDetails
+                    order={order}
+                    item={item}
+                    stage={stage}
+                    sub={sub}
+                    view={view}
+                    canManage={canManage}
+                    deptById={deptById}
+                    deptNameById={deptNameById}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {shown.length > 0 && !compact && (
         <ScrollHintBox className={styles.tableWrap} wrapClassName={styles.scrollHintGapTop} label="Подрядные этапы">
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Заказ</th><th>Изделие</th><th>В работе</th><th>Операция</th>
-                <th>Подрядчик</th><th>Где заказ сейчас</th><th>Сроки</th>
-                <th>Следующий этап</th><th>Состояние и оплата</th><th>Этап</th>
+                <th>{SUBCONTRACT_LABELS.order}</th>
+                <th>{SUBCONTRACT_LABELS.item}</th>
+                <th>{SUBCONTRACT_LABELS.qty}</th>
+                <th>{SUBCONTRACT_LABELS.operation}</th>
+                <th>{SUBCONTRACT_LABELS.contractor}</th>
+                <th>{SUBCONTRACT_LABELS.location}</th>
+                <th>{SUBCONTRACT_LABELS.dates}</th>
+                <th>{SUBCONTRACT_LABELS.next}</th>
+                <th>{SUBCONTRACT_LABELS.state}</th>
+                <th>{SUBCONTRACT_LABELS.stage}</th>
               </tr>
             </thead>
             <tbody>
@@ -233,98 +300,45 @@ export default function Subcontracting() {
                 const open = openRow === stage.id;
                 return [
                   <tr key={stage.id}>
-                    <td>
-                      <OrderLink orderId={order.id}>
-                        <strong>№{order.bitrix_id || '—'}</strong>
-                      </OrderLink>
-                      <div className={styles.cellSub} title={order.title || undefined}>
-                        {order.title || '—'}
-                      </div>
-                    </td>
-                    <td>
-                      {item.product_type}
-                      {item.variant && <div className={styles.subText}>{item.variant}</div>}
-                    </td>
+                    <td><OrderCell order={order} /></td>
+                    <td><ItemCell item={item} /></td>
                     <td className={styles.progressCell}>
-                      {/* Количество В РАБОТЕ у подрядчика, а не тираж позиции:
-                          на материалах подрядчика мы не передаём ничего,
-                          но работа у него есть (п. 3.8) */}
-                      {view.inWorkQty || item.qty || '—'}
-                      {/* «Швейка закончила 150 → в подряде появляется
-                          Варка — Готово к передаче — 150 шт» (документ) */}
-                      {view.readyQty > 0 && (
-                        <div className={styles.subText}>
-                          к передаче: {view.readyQty}
-                        </div>
-                      )}
+                      <WorkQtyCell item={item} view={view} />
                     </td>
                     <td>
-                      <strong>{stageLabel(stage, deptNameById.get(stage.department_id) || '—')}</strong>
-                      <div className={styles.subText}>
-                        {/* Цех у подрядного этапа означает «чей это участок
-                            ответственности» — куда работа вернётся */}
-                        участок: {deptNameById.get(stage.department_id) || '—'}
-                        {sub && ` · ${SUBCONTRACT_MATERIAL_SOURCE_LABELS[sub.material_source]}`}
-                      </div>
+                      <OperationCell
+                        stage={stage}
+                        sub={sub}
+                        deptName={deptNameById.get(stage.department_id)}
+                      />
                     </td>
                     <td>{stage.contractor || '—'}</td>
-                    <td className={styles.subText}>{stageLocation(item, stage, view.display)}</td>
+                    <td><LocationCell item={item} stage={stage} view={view} /></td>
                     <td>
-                      <div className={styles.subText}>
-                        передан: {formatDateShort(sub?.sent_date) || '—'}
-                      </div>
-                      <label className={overdue ? styles.overdue : styles.subText}>
-                        возврат план:{' '}
-                        <DateField
-                          showFormatHint={false}
-                          disabled={!canManage || !sub}
-                          value={sub?.planned_date || ''}
-                          onChange={(v) => sub && updateSubcontractOp(sub.id, { planned_date: v || null })}
-                          aria-label={`Плановая дата возврата ${stage.id}`}
-                          style={{ maxWidth: 130 }}
-                        />
-                      </label>
+                      <DatesCell
+                        stage={stage}
+                        sub={sub}
+                        overdue={overdue}
+                        canManage={canManage}
+                        onUpdate={updateSubcontractOp}
+                      />
                     </td>
                     <td>
-                      {next ? (
-                        <>
-                          <strong>{stageLabel(next, deptNameById.get(next.department_id) || '—')}</strong>
-                          <div className={styles.subText}>{STAGE_STATUS_LABELS[next.status]}</div>
-                        </>
-                      ) : (
-                        /* Последний этап маршрута: дальше упаковка и отгрузка,
-                           а не «заказ готов» — это решает склад */
-                        <span className={styles.subText}>последний этап маршрута</span>
-                      )}
+                      <NextStageCell
+                        next={next}
+                        deptName={next && deptNameById.get(next.department_id)}
+                      />
                     </td>
                     <td>
-                      <span className={`${styles.chip} ${styles[delayed ? 'chipBlocked' : PHASE_CHIP[phase]]}`}>
-                        {delayed ? 'Задержка' : SUBCONTRACT_PHASE_LABELS[phase]}
-                      </span>
-                      <div className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[stage.status]]}`}>
-                        этап: {STAGE_STATUS_LABELS[stage.status]}
-                      </div>
-                      {/*
-                        Селекта фазы здесь БОЛЬШЕ НЕТ. Им можно было поставить
-                        «Завершено», не передав и не приняв ни одной штуки:
-                        счётчики этапа приращает только журнал, и заказ
-                        оставался стоять при зелёном состоянии на экране.
-                        Движение — действия в раскрытой строке.
-                      */}
-                      {sub && (
-                        <select
-                          className={`${styles.select} ${styles.inputXs}`}
-                          value={sub.payment_status || 'unpaid'}
-                          disabled={!canManage}
-                          onChange={(e) => updateSubcontractOp(sub.id, { payment_status: e.target.value })}
-                          aria-label={`Оплата ${stage.id}`}
-                          style={{ marginTop: 4 }}
-                        >
-                          {Object.entries(SUBCONTRACT_PAYMENT_LABELS).map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
-                          ))}
-                        </select>
-                      )}
+                      <StateCell
+                        stage={stage}
+                        sub={sub}
+                        phase={phase}
+                        delayed={delayed}
+                        phaseChipClass={PHASE_CHIP[phase]}
+                        canManage={canManage}
+                        onUpdate={updateSubcontractOp}
+                      />
                     </td>
                     <td>
                       {sub ? (
