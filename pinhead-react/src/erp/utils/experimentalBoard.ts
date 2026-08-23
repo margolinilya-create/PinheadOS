@@ -78,6 +78,20 @@ export function devStageOfTask(taskType: string | null | undefined): DevStage | 
 export type DevLane =
   'waiting' | 'awaiting_materials' | 'ready' | 'in_progress' | 'blocked' | 'done' | 'skipped';
 
+/**
+ * Подпись действия «завершить» ПО ИМЕНИ ЭТАПА (правка 23.08, п. 7):
+ * «Завершить лекала», «Завершить крой», «Завершить нанесения»,
+ * «Завершить пошив». Живёт рядом с `DEV_STAGE_LABELS`, а не в компоненте:
+ * вторая таблица названий разошлась бы с первой в первую же правку.
+ */
+export const DEV_STAGE_COMPLETE_LABELS: Record<DevStage, string> = {
+  patterns: 'Завершить лекала',
+  cutting: 'Завершить крой',
+  branding: 'Завершить нанесения',
+  sewing: 'Завершить пошив',
+  final: 'Завершить этап',
+};
+
 export const DEV_LANE_TITLES: Record<DevLane, string> = {
   waiting: 'Ожидает',
   awaiting_materials: 'Ожидает материалы',
@@ -303,7 +317,21 @@ export interface DevStageAction {
  */
 export function devStageAction(state: DevStageState): DevStageAction {
   if (state.lane === 'done') return { key: null, label: '', reason: 'Этап завершён' };
-  if (state.lane === 'skipped') return { key: null, label: '', reason: 'Этап пропущен' };
+  if (state.lane === 'skipped') {
+    /**
+     * «Не требуется» ≠ «Пропущен» (п. 7). Необязательный этап нанесений,
+     * которого у этой разработки нет вовсе, не пропускали — его не было
+     * в плане, и после кроя карточка уйдёт сразу в пошив. Слово «пропущен»
+     * читалось бы как «работу не сделали».
+     */
+    return {
+      key: null,
+      label: '',
+      reason: state.stage === 'branding' && state.tasks.length === 0
+        ? 'Не требуется — будет пропущен автоматически'
+        : 'Этап пропущен',
+    };
+  }
   if (state.tasks.length === 0) {
     return {
       key: null,
@@ -323,7 +351,7 @@ export function devStageAction(state: DevStageState): DevStageAction {
    * действие, а не выполняем.
    */
   if (state.lane === 'in_progress') {
-    return { key: 'complete', label: 'Завершить этап', reason: null };
+    return { key: 'complete', label: DEV_STAGE_COMPLETE_LABELS[state.stage], reason: null };
   }
   return { key: 'start', label: 'Начать работу', reason: null };
 }
@@ -386,4 +414,70 @@ export function devBoardColumn(
   if (dev.outcome || dev.sample_approved_at) return 'final';
   const open = states.find((s) => s.lane !== 'done' && s.lane !== 'skipped');
   return open?.stage ?? 'final';
+}
+
+/**
+ * PROGRESS-STEPPER МАРШРУТА РАЗРАБОТКИ (правка 23.08, п. 7).
+ *
+ * «В верхней части полноэкранной карточки показать понятный progress-stepper:
+ * Лекала → Крой → Нанесения → Пошив → Финальный этап. У каждого этапа
+ * визуально показывать состояние: завершён / в работе / ожидает / пропущен.
+ * Маршрут должен быть понятен с первого экрана без необходимости искать
+ * действие внизу карточки».
+ *
+ * Узлы считаются ИЗ ТЕХ ЖЕ `devStageStates`, что рисуют доску: «пользователь
+ * должен одинаково понимать текущий этап на канбане и внутри карточки».
+ * Второй таблицы состояний здесь нет и быть не должно.
+ */
+export interface DevStepNode {
+  key: DevStage;
+  label: string;
+  sub: string;
+  state: 'done' | 'active' | 'blocked' | 'skipped' | undefined;
+  lineDone: boolean;
+  title: string;
+}
+
+export function devRouteSteps(
+  states: readonly DevStageState[],
+  currentStage: DevStage,
+): DevStepNode[] {
+  return states.map((st, i) => {
+    const skippedOptional = st.lane === 'skipped'
+      && st.stage === 'branding' && st.tasks.length === 0;
+    const isCurrent = st.stage === currentStage;
+    /**
+     * «В работе» — это ТЕКУЩИЙ шаг, а не только `in_progress` задач: шаг,
+     * до которого дошла разработка, но работу в котором ещё не начали,
+     * с точки зрения маршрута всё равно текущий. Иначе stepper показывал бы
+     * «ожидает» у всех пяти шагов сразу — и не отвечал бы, где разработка.
+     */
+    const state: DevStepNode['state'] = st.lane === 'done'
+      ? 'done'
+      : st.lane === 'blocked'
+        ? 'blocked'
+        : st.lane === 'skipped'
+          ? 'skipped'
+          : isCurrent ? 'active' : undefined;
+    const sub = st.lane === 'done'
+      ? 'Завершено'
+      : st.lane === 'blocked'
+        ? (st.waitingReason ?? 'С проблемой')
+        : skippedOptional
+          ? 'Не требуется'
+          : st.lane === 'skipped'
+            ? 'Пропущено'
+            : isCurrent
+              ? (st.lane === 'in_progress' ? 'В работе' : (st.waitingReason ?? 'Можно начинать'))
+              : 'Ожидает';
+    return {
+      key: st.stage,
+      label: DEV_STAGE_LABELS[st.stage],
+      sub,
+      state,
+      // Соединитель закрашен, когда ПРЕДЫДУЩИЙ шаг пройден или не требовался
+      lineDone: i > 0 && (states[i - 1].lane === 'done' || states[i - 1].lane === 'skipped'),
+      title: `${DEV_STAGE_LABELS[st.stage]}: ${sub}`,
+    };
+  });
 }

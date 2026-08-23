@@ -7,6 +7,7 @@ import {
   devBoardColumn,
   devStageOfTask,
   devStageAction,
+  devRouteSteps,
   devStageQueue,
   devStageStates,
   experimentalEntries,
@@ -309,5 +310,115 @@ describe('devStageAction', () => {
   it('закрытый и пропущенный шаги действий не предлагают', () => {
     expect(devStageAction(stateOf({ lane: 'done' })).key).toBeNull();
     expect(devStageAction(stateOf({ lane: 'skipped' })).key).toBeNull();
+  });
+});
+
+/**
+ * PROGRESS-STEPPER МАРШРУТА (правка заказчика 23.08, п. 7).
+ *
+ * Документ: «У каждого этапа визуально показывать состояние: завершён /
+ * в работе / ожидает / пропущен… Если нанесения не нужны, этап помечается
+ * „Не требуется"/„Пропущен" и после завершения кроя карточка автоматически
+ * переходит сразу в „Пошив"».
+ *
+ * Сторожим то, что нельзя увидеть глазами на одном экране: состояние
+ * КАЖДОГО шага, а не только текущего, и отличие «не требуется» от
+ * «пропущено» — первое про план, второе про несделанную работу.
+ */
+describe('devRouteSteps — маршрут разработки сверху карточки', () => {
+  const stepsFor = (tasks: ErpExperimentalTask[]) => {
+    const states = devStageStates({ dev: dev(), tasks });
+    return devRouteSteps(states, devBoardColumn(states, dev()));
+  };
+  const byKey = (steps: ReturnType<typeof devRouteSteps>, key: string) =>
+    steps.find((s) => s.key === key)!;
+
+  it('пять шагов документа, в его порядке', () => {
+    expect(stepsFor([task({ id: 'p' })]).map((s) => s.key)).toEqual(DEV_STAGE_ORDER);
+  });
+
+  it('состояние есть у КАЖДОГО шага, а не только у текущего', () => {
+    const steps = stepsFor([
+      task({ id: 'p', task_type: 'patterns', status: 'done' }),
+      task({ id: 'c', task_type: 'cutting', status: 'in_progress' }),
+      task({ id: 's', task_type: 'sample', status: 'todo' }),
+    ]);
+    expect(byKey(steps, 'patterns').sub).toBe('Завершено');
+    expect(byKey(steps, 'cutting').sub).toBe('В работе');
+    expect(byKey(steps, 'sewing').sub).toBe('Ожидает');
+    // Ни один шаг не остаётся без подписи — иначе stepper молчит о половине пути
+    expect(steps.every((s) => s.sub.length > 0)).toBe(true);
+  });
+
+  /**
+   * «Не требуется» ≠ «Пропущено». Первое — про план (нанесений у этой
+   * разработки нет вовсе), второе — про работу, которую не сделали.
+   * Слово «пропущено» на необязательном этапе читалось бы как упрёк.
+   */
+  it('нанесения без задач помечены «Не требуется», а не «Пропущено»', () => {
+    const steps = stepsFor([
+      task({ id: 'p', task_type: 'patterns', status: 'done' }),
+      task({ id: 'c', task_type: 'cutting', status: 'in_progress' }),
+    ]);
+    const branding = byKey(steps, 'branding');
+    expect(branding.state).toBe('skipped');
+    expect(branding.sub).toBe('Не требуется');
+  });
+
+  it('пройденный шаг закрашивает соединитель следующего', () => {
+    const steps = stepsFor([
+      task({ id: 'p', task_type: 'patterns', status: 'done' }),
+      task({ id: 'c', task_type: 'cutting', status: 'in_progress' }),
+    ]);
+    expect(byKey(steps, 'cutting').lineDone).toBe(true);
+    expect(byKey(steps, 'patterns').lineDone).toBe(false); // у первого шага линии нет
+  });
+
+  it('текущий шаг помечен активным, закрытый — завершённым', () => {
+    const steps = stepsFor([
+      task({ id: 'p', task_type: 'patterns', status: 'done' }),
+      task({ id: 'c', task_type: 'cutting', status: 'todo' }),
+    ]);
+    expect(byKey(steps, 'patterns').state).toBe('done');
+    expect(byKey(steps, 'cutting').state).toBe('active');
+  });
+});
+
+describe('подпись действия — по имени этапа (п. 7)', () => {
+  it('«Завершить крой», а не «Завершить этап»', () => {
+    const states = devStageStates({
+      dev: dev(),
+      tasks: [
+        task({ id: 'p', task_type: 'patterns', status: 'done' }),
+        task({ id: 'c', task_type: 'cutting', status: 'in_progress' }),
+      ],
+    });
+    const cutting = states.find((s) => s.stage === 'cutting')!;
+    expect(devStageAction(cutting).label).toBe('Завершить крой');
+  });
+
+  it('у лекал и пошива — свои названия', () => {
+    const label = (stage: string, tasks: ErpExperimentalTask[]) => {
+      const st = devStageStates({ dev: dev(), tasks }).find((s) => s.stage === stage)!;
+      return devStageAction(st).label;
+    };
+    expect(label('patterns', [task({ id: 'p', task_type: 'patterns', status: 'in_progress' })]))
+      .toBe('Завершить лекала');
+    expect(label('sewing', [
+      task({ id: 'p', task_type: 'patterns', status: 'done' }),
+      task({ id: 's', task_type: 'sample', status: 'in_progress' }),
+    ])).toBe('Завершить пошив');
+  });
+
+  it('необязательные нанесения объясняют, что будут пропущены сами', () => {
+    const states = devStageStates({
+      dev: dev(),
+      tasks: [
+        task({ id: 'p', task_type: 'patterns', status: 'done' }),
+        task({ id: 'c', task_type: 'cutting', status: 'in_progress' }),
+      ],
+    });
+    const branding = states.find((s) => s.stage === 'branding')!;
+    expect(devStageAction(branding).reason).toMatch(/Не требуется/);
   });
 });

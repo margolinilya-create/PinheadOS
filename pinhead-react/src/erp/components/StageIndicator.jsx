@@ -19,8 +19,13 @@ import { Icon } from './Icon';
  * (`utils/experimentalTasks.devState`). После удаления `ExperimentalCard.jsx`
  * вид остался без единого вызова, и держал его только собственный тест.
  *
- * Узел: `{ key, label, count?, icon?, state?, title?, lineDone? }`,
- * где `state` — 'done' | 'active' | 'blocked' | undefined.
+ * Узел: `{ key, label, sub?, count?, icon?, state?, title?, lineDone? }`,
+ * где `state` — 'done' | 'active' | 'blocked' | 'skipped' | undefined.
+ *
+ * `sub` и `skipped` добавлены правкой 23.08 (п. 7) для маршрута разработки:
+ * документ требует показывать у каждого этапа его состояние словами
+ * («Завершено», «В работе», «Не требуется») и дату. Это РАСШИРЕНИЕ
+ * существующего вида, а не четвёртый вид: вопрос тот же — «где сейчас».
  */
 
 function DotsNodes({ nodes }) {
@@ -30,6 +35,7 @@ function DotsNodes({ nodes }) {
       n.state === 'done' && styles.stepperDotDone,
       n.state === 'active' && styles.stepperDotActive,
       n.state === 'blocked' && styles.stepperDotBlocked,
+      n.state === 'skipped' && styles.stepperDotSkipped,
     ].filter(Boolean).join(' ');
     return (
       <span key={n.key} className={styles.stepperItem} role="listitem">
@@ -39,7 +45,16 @@ function DotsNodes({ nodes }) {
         <span className={dotCls} title={n.title} aria-label={n.title}>
           {n.state === 'done' ? <Icon name="check" size={12} /> : i + 1}
         </span>
-        <span className={styles.stepperLabel}>{n.label}</span>
+        {n.sub ? (
+          /* Название и состояние — колонкой: в строке они читались бы
+             как два разных шага маршрута */
+          <span className={styles.stepperText}>
+            <span className={styles.stepperLabel}>{n.label}</span>
+            <span className={styles.stepperSub}>{n.sub}</span>
+          </span>
+        ) : (
+          <span className={styles.stepperLabel}>{n.label}</span>
+        )}
       </span>
     );
   });

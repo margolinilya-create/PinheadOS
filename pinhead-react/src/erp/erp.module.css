@@ -1207,6 +1207,20 @@
    стадии маршрута нельзя жертвовать, а --color-warning на белом это 2.15:1. */
 .stepperDotActive { border-color: var(--color-warning); color: var(--color-warning-ink); box-shadow: 0 0 0 4px var(--bg-warning); }
 .stepperDotBlocked { border-color: var(--color-error); color: var(--color-error-ink); }
+/* Пропущенный/не требующийся шаг — приглушён, но читаем: он часть маршрута,
+   и «его здесь нет» отличается от «его не было в плане» (правка 23.08, п. 7) */
+.stepperDotSkipped { border-style: dashed; color: var(--text-dim); }
+/* Состояние шага словами под его названием: «Завершено · 19.08», «В работе».
+   Документ требует показывать состояние каждого этапа, а не только текущего */
+.stepperText { display: flex; flex-direction: column; gap: 1px; margin: 0 8px 0 6px; }
+/* Внутри колонки боковые отступы задаёт она сама — иначе они удвоятся */
+.stepperText .stepperLabel, .stepperText .stepperSub { margin: 0; }
+.stepperSub {
+  margin: 0 8px 0 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 .stepperLabel {
   margin: 0 8px 0 6px;
   font-size: 11px;
