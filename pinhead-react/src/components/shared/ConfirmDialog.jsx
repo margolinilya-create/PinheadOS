@@ -24,7 +24,7 @@ export default function ConfirmDialog({
   confirmLabel = 'Подтвердить',
   cancelLabel = 'Отмена',
   variant = 'default',
-  /** { label, placeholder, required } — поле ввода вместо window.prompt() */
+  /** { label, placeholder, required, type, initialValue } — поле вместо window.prompt() */
   prompt = null,
   onConfirm,
   onCancel,
@@ -32,7 +32,10 @@ export default function ConfirmDialog({
   const ref = useFocusTrap(open, onCancel);
   // Поле чистится перемонтированием по nonce из стора (см. ConfirmDialogHost),
   // а не сбросом в эффекте — иначе прошлый комментарий подставился бы в новый перенос
-  const [value, setValue] = useState('');
+  // Начальное значение приходит из стора и работает по той же механике:
+  // диалог перемонтируется по `nonce`, поэтому предложение подставляется
+  // при каждом открытии, а не один раз за жизнь приложения
+  const [value, setValue] = useState(prompt?.initialValue || '');
 
   if (!open) return null;
   const blocked = Boolean(prompt?.required) && !value.trim();
@@ -55,6 +58,7 @@ export default function ConfirmDialog({
             <span className={styles.promptLabel}>{prompt.label}</span>
             <input
               className={styles.promptInput}
+              type={prompt.type || 'text'}
               value={value}
               placeholder={prompt.placeholder || ''}
               autoFocus

@@ -204,7 +204,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
   reportDefect: async (stageId, opts) => {
     const {
       qty, reason, target = 'current', needsMaterial = false,
-      cause = 'other', supplier = null, plannedDate = null,
+      cause = 'other', supplier = null, plannedDate = null, reworkPlannedEnd = null,
       materialName = null, requiredQty = null,
       subcontractOperation = null, contractor = null,
     } = opts;
@@ -369,6 +369,19 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
 
     // Аудит: событие на получателе (целевой этап, если есть)
     const receiver = targetStage ?? stage;
+
+    /**
+     * План завершения ПЕРЕДЕЛКИ — получателю, и ПОСЛЕ успешной записи брака.
+     *
+     * Отдельным запросом, а не внутри RPC, и это осознанно: правило «действие
+     * из нескольких записей — одна транзакция» защищает ВЕЛИЧИНЫ, которые
+     * могут разъехаться (счётчики этапа). План — намерение: не записался, и
+     * этап остался без даты, то есть ровно в том состоянии, в каком он был
+     * до 23.08. Порядок обратный `onStart` (там план пишется до статуса)
+     * именно поэтому: здесь неудача основного действия не должна оставлять
+     * дату у этапа, который никуда не переоткрылся.
+     */
+    if (reworkPlannedEnd) await get().setStagePlan(receiver.id, { planned_end: reworkPlannedEnd });
     logStageEvent({
       stage_id: receiver.id,
       order_id: order.id,

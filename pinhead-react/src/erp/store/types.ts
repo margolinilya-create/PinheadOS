@@ -142,6 +142,12 @@ export interface ReportDefectOptions {
   /** target='subcontractor': операция и контрагент для создаваемой операции подряда */
   subcontractOperation?: string | null;
   contractor?: string | null;
+  /**
+   * План завершения ПЕРЕДЕЛКИ у этапа-получателя (`plannedDate` — это другое:
+   * срок замены материала в задаче закупщику). Возврат брака переводит этап
+   * в работу, и без даты он выпадает из контроля сроков целиком.
+   */
+  reworkPlannedEnd?: string | null;
 }
 
 export interface NewPrintInput {
@@ -624,7 +630,12 @@ export interface MaterialsSlice {
    * Взять закупку по заказу в работу — все её открытые этапы разом.
    * Без этого у закупки нет состояния «этим уже занимаются».
    */
-  takeSupply: (orderId: string) => Promise<boolean>;
+  /**
+   * Взять закупку заказа в работу. `plannedEnd` — план завершения: этап
+   * переходит в `in_progress`, и без даты он выпадает из контроля сроков
+   * (просрочка этапа и «Загрузка цехов» считаются по `planned_end`).
+   */
+  takeSupply: (orderId: string, plannedEnd?: string | null) => Promise<boolean>;
   /**
    * Закрыть закупку по заказу ЯВНЫМ действием, с комментарием.
    *
