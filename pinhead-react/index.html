@@ -11,6 +11,38 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://pinhead-os.vercel.app/">
     <meta name="theme-color" content="#2B2BF0">
+
+    <!--
+      Соединение с Supabase прогревается ЗАРАНЕЕ.
+
+      `main.jsx` зовёт `useAuthStore.init()` сразу, то есть первый запрос уходит
+      сейчас же после исполнения входного чанка — а DNS + TCP + TLS до чужого
+      домена к этому моменту ещё не начинались. На цеховом Wi-Fi это сотни
+      миллисекунд, которые полностью параллелятся с загрузкой кода, если сказать
+      браузеру о домене заранее.
+
+      Адрес подставляет Vite из окружения (`htmlEnvHook`), хардкодить нельзя:
+      у превью и прода разные проекты Supabase. `crossorigin` обязателен —
+      запросы к Supabase идут с CORS, без него прогреется не то соединение,
+      и второе придётся открывать заново.
+    -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
+
+    <!--
+      Шрифт основного текста — единственный, который нужен ЛЮБОМУ экрану
+      с первой миллисекунды вёрстки. Кириллица и латиница разными файлами
+      (`unicode-range`), и нужны обе: интерфейс русский, но цифры, пунктуация
+      и коды заказов латинские.
+
+      `crossorigin` обязателен и здесь, хотя файл со своего домена: без него
+      preload и настоящий запрос шрифта считаются разными, и файл скачивается
+      ДВАЖДЫ — ровно противоположный эффект. Barlow Condensed и Roboto Mono
+      не предзагружаем: первый нужен только латинским заголовкам, второй —
+      таблицам ниже первого экрана.
+    -->
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/inter-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+
     <title>Pinhead Order Studio</title>
   </head>
   <body>

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+import { registerAppReset } from './appReset';
 import { toast } from './useToastStore';
 import type { Order, OrderStatus, StatusColors } from '../types/order';
 
@@ -351,3 +352,23 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
     return filtered;
   },
 }));
+
+/**
+ * Сброс при выходе и потере сессии — ЧЕРЕЗ РЕЕСТР, а не из `useAuthStore`.
+ *
+ * Тот импортировал этот стор напрямую ради двух `setState` — и тянул весь
+ * стор Order Studio (заказы, каталоги, номера) во ВХОДНОЙ чанк, который
+ * грузится каждому, включая цех, где раздел выключен флагом. Ровно тот же
+ * дефект, что был у `resetErpStore` до заведения `store/appReset`, и тот же,
+ * что нашли 23.08 в `main.jsx` со стартом визарда.
+ *
+ * Регистрация на уровне модуля означает: не открывали Order Studio в этой
+ * сессии — стор не загружен, и сбрасывать нечего. Это не обходной путь,
+ * а точное описание положения дел.
+ */
+registerAppReset(() => {
+  useOrdersStore.setState({
+    orders: [], loading: false, hasMore: true, loadingMore: false,
+    lastCreatedAt: null, filter: 'all', search: '',
+  });
+});

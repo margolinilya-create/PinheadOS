@@ -2,9 +2,9 @@ import React, { useEffect, Suspense } from 'react'
 import './styles/index.css'
 import styles from './App.module.css'
 import { useShallow } from 'zustand/react/shallow'
+import AuthScreen from './components/auth/AuthScreen'
 import { useAuthStore } from './store/useAuthStore'
 import ErrorBoundary from './components/shared/ErrorBoundary'
-import AuthScreen from './components/auth/AuthScreen'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import { FEATURES } from './config/features'
@@ -148,6 +148,16 @@ function App() {
     }
     return (
       <>
+        {/*
+          * Форма входа СТАТИЧЕСКАЯ, и это решение, а не недосмотр.
+          *
+          * Ленивой она была ровно один заход: экономия ~3 кБ во входном чанке
+          * против правила «пустой экран загрузки — только на первичную проверку
+          * сессии». Правило сторожит `App.test.jsx`, и он сразу покраснел:
+          * при промахе прогрева (приватный режим, очищенное хранилище,
+          * первый визит) человек упирается в «Загрузка…» вместо формы — то есть
+          * ровно в тот симптом, из-за которого правило и появилось.
+          */}
         <AuthScreen />
         <GlobalHosts />
       </>

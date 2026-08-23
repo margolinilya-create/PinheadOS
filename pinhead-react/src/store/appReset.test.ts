@@ -104,13 +104,21 @@ describe('входной чанк не тянет ERP-стор', () => {
    *
    * `App.jsx` в списке не случайно: он монтирует оба раздела и однажды
    * «на секунду» уже мог бы получить сюда прямой импорт.
+   *
+   * ТРЕТИЙ СЛУЧАЙ ОДНОГО ЖАНРА, найден 23.08. Первая версия этого правила
+   * ловила `store/useStore` и `../data`, но НЕ `useOrdersStore` — а его
+   * статически тянул `useAuthStore` ради двух `setState` при выходе. То есть
+   * дыра осталась открытой в тот же день, когда правило писалось: список имён
+   * не переживает следующего имени. Сброс теперь регистрируется в реестре
+   * (`registerAppReset` внутри самого `useOrdersStore`), как это давно делает
+   * ERP-стор, а перечисление здесь покрывает ОБА стора раздела.
    */
   it('ни один файл входа не импортирует стор Order Studio статически', () => {
     const guilty = entrySideFiles()
-      .filter((f) => !/[\\/]store[\\/](useStore|slices)/.test(f))
+      .filter((f) => !/[\\/]store[\\/](useStore|useOrdersStore|slices)/.test(f))
       .filter((file) => {
         const src = readFileSync(file, 'utf8');
-        return /^\s*import\s[^;]*from\s+'[^']*(store\/useStore|\.\.?\/data')/m.test(src);
+        return /^\s*import\s[^;]*from\s+'[^']*(store\/useStore|store\/useOrdersStore|\.\/useOrdersStore|\.\.?\/data')/m.test(src);
       });
     expect(guilty, `Эти файлы втягивают Order Studio во вход: ${guilty.join(', ')}. `
       + 'Раздел за флагом стартует сам — см. orderstudio/OrderStudioApp.')

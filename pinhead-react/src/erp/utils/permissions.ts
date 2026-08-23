@@ -10,7 +10,9 @@
  */
 
 import type { EmployeeRole, ErpPermission } from '../types';
-import { ERP_PERMISSIONS } from '../types';
+// Импорт ИЗ МОДУЛЯ-ЛИСТА, а не из `../types` через реэкспорт: реэкспорт
+// втянул бы весь чанк словарей подписей обратно в критический путь
+import { ERP_PERMISSIONS } from '../permissionKeys';
 
 /** Роли профиля Order Studio с полным доступом ко всем цехам */
 export const FULL_ACCESS_PROFILE_ROLES = ['admin', 'director', 'rop'];
