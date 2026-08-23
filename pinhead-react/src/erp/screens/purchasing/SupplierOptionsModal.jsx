@@ -5,7 +5,7 @@ import InlineEdit from '../../components/InlineEdit';
 import { confirm } from '../../../store/useConfirmStore';
 import { SUPPLIER_OPTION_LABELS } from '../../types';
 import { Icon } from '../../components/Icon';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
 

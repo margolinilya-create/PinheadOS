@@ -156,7 +156,15 @@ describe('удаление учётной записи', () => {
  * такие проверки там, где node-глобали разрешены.
  */
 describe('стили карточки пользователя объявлены', () => {
-  const CSS = readFileSync(join(process.cwd(), 'src/erp/erp.module.css'), 'utf8');
+  /*
+   * ОБА модуля раздела: 23.08 CSS разделён на `erp.module.css` (нужен
+   * и оболочке) и `screens.module.css` (только экранам, едет их чанком).
+   * Экраны импортируют агрегатор `erp/styles.js`, поэтому для них это
+   * по-прежнему один набор классов — а сторож, привязанный к одному имени
+   * файла, сторожил бы файл, а не правило.
+   */
+  const CSS = readFileSync(join(process.cwd(), 'src/erp/erp.module.css'), 'utf8')
+    + readFileSync(join(process.cwd(), 'src/erp/screens.module.css'), 'utf8');
   const JSX = readFileSync(
     join(process.cwd(), 'src/erp/screens/admin/UserModal.jsx'), 'utf8',
   );
@@ -168,7 +176,7 @@ describe('стили карточки пользователя объявлен�
     expect(used.length).toBeGreaterThan(5);
   });
 
-  it.each(used)('.%s объявлен в erp.module.css', (cls) => {
+  it.each(used)('.%s объявлен в CSS раздела', (cls) => {
     expect(CSS).toMatch(new RegExp(`\\.${cls}[\\s,{:]`));
   });
 });

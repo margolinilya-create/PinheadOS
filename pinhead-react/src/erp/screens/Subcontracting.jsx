@@ -28,7 +28,7 @@ import { SUBCONTRACT_LABELS } from './subcontracting/subcontractLabels';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { outsourcedStages, nextRouteStage } from '../utils/outsourcing';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { DateField } from '../components/DateField';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';

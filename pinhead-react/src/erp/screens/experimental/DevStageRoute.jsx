@@ -7,7 +7,7 @@ import {
 } from '../../utils/experimentalBoard';
 import { isDelegated, isTaskReady, taskLabel } from '../../utils/experimentalTasks';
 import { confirm } from '../../../store/useConfirmStore';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /** Дорожка шага → вид бейджа: те же слова, что на доске */
 const LANE_VARIANT = {

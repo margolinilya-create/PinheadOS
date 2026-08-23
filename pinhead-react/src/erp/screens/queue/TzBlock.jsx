@@ -5,7 +5,7 @@ import {
   MATERIAL_STATUS_LABELS,
 } from '../../types';
 import { hasPackaging, itemPackaging, packagingLabel, stickersLabel } from '../../utils/packaging';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';

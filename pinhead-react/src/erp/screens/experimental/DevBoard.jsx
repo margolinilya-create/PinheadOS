@@ -13,7 +13,7 @@ import {
 import { currentBlocker, nextAction, taskLabel } from '../../utils/experimentalTasks';
 import { dueLabelCompact } from '../../utils/format';
 import { daysLeft } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Доска экспериментального цеха по этапам (правки заказчика 20.08).

@@ -15,7 +15,7 @@ import { buildDeptLoad, loadDays, ordersWithoutPlan, weekStart } from '../utils/
 import { weekdayShort } from '../utils/format';
 import { addDays, factoryToday, parseIsoDate } from '../../utils/date';
 import { deptShortName } from '../data/departments';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { ProductionTabs } from '../components/ProductionTabs';
 import { OrderLink } from '../components/OrderLink';
 

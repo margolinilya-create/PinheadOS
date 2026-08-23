@@ -4,7 +4,7 @@ import { Drawer } from '../../components/Drawer';
 import { Button } from '../../components/Button';
 import { Field } from '../../components/Field';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { PhotoAttach } from './PhotoAttach';
 
 /**

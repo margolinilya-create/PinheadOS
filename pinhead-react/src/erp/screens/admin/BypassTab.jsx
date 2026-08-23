@@ -8,7 +8,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { formatDateTimeShort } from '../../utils/format';
 import { BYPASS_KINDS, BYPASS_KIND_HINTS, BYPASS_KIND_LABELS } from '../../types';
 import { activeBypasses } from '../../utils/bypass';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Аварийный режим: временно снять блокирующую проверку.

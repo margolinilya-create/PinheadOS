@@ -36,7 +36,7 @@ import { DevBoard } from './experimental/DevBoard';
 import { DevRowCard } from './experimental/DevRowCard';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
-import styles from '../erp.module.css';
+import styles from '../styles';
 
 /**
  * Экспериментальный цех — разработка изделий (ТЗ заказчика 12.08).

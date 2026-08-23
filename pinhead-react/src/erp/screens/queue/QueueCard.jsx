@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
 import { OrderLink } from '../../components/OrderLink';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { Lightbox } from './Lightbox';
 import { StageActionsPanel } from './StageActionsPanel';

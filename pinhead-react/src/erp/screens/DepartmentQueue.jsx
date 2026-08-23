@@ -19,7 +19,7 @@ import { applyStageFilters, filtersFromParams, filtersToParams } from '../utils/
 import { deptShortName, isProductionDept } from '../data/departments';
 import { pluralize } from '../../utils/i18n';
 import { onTabListKeyDown } from '../utils/tabs';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { Icon } from '../components/Icon';
 import { QueueCard } from './queue/QueueCard';
 import { QueueRow } from './queue/QueueRow';

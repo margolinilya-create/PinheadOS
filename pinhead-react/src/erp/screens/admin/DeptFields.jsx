@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import {
   EMPLOYEE_ROLE_LABELS, MATERIAL_KIND_LABELS, RESULT_FIELD_TARGET_LABELS,
 } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Поля участка — ПО ОДНОЙ реализации на элемент.

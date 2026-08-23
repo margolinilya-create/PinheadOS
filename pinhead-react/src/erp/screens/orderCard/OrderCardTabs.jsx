@@ -1,5 +1,5 @@
 import { onTabListKeyDown } from '../../utils/tabs';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Вкладки карточки заказа: Позиции · ТЗ · Материалы · Файлы · Комментарии · История.

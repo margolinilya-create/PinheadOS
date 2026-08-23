@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import { confirm } from '../../../store/useConfirmStore';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';

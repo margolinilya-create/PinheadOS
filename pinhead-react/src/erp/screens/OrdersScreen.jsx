@@ -14,7 +14,7 @@ import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
 import { ORDER_STATUS_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { OrderRow } from './orders/OrderRow';

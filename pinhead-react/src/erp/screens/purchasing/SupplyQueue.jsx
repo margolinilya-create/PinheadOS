@@ -17,7 +17,7 @@ import {
   supplyMaterialSummary,
   supplyState,
 } from '../../utils/supply';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Очередь закупки — заказы, у которых этап «Закупка» ещё не закрыт.

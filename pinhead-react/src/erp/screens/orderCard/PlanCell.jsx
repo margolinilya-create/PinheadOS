@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { useErpAccess } from '../../store/useErpAccess';
 import { fmt } from './format';

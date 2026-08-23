@@ -7,7 +7,7 @@ import { DateField } from '../../components/DateField';
 import { AttachmentList } from '../../components/AttachmentList';
 import { confirm } from '../../../store/useConfirmStore';
 import { formatDateShort } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Служебные блоки подрядного этапа: файлы · материалы · стоимость · даты ·

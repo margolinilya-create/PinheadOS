@@ -1,6 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import { Icon } from '../../components/Icon';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 const ATTACH_KIND_LABEL = { preview: 'Превью', attachment: 'Вложение' };
 

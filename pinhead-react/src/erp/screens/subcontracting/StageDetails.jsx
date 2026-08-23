@@ -6,7 +6,7 @@ import { StageActions } from './StageActions';
 import {
   MoveJournal, StageFilesBlock, MaterialsBlock, CostBlock, HandoffBlock,
 } from './MoveJournal';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Раскрытая карточка подрядного этапа (правки заказчика 22.08, пп. 3.2–3.4).

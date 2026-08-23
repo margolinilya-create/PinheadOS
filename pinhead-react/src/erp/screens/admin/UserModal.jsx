@@ -10,7 +10,7 @@ import { Field } from '../../components/Field';
 import { EMPLOYEE_ROLE_LABELS } from '../../types';
 import { ROLE_LABELS, ALL_ROLES } from '../../../data/roles';
 import { validatePassword } from '../../../utils/validate';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Карточка учётной записи: завести, переименовать, сменить пароль и адрес,

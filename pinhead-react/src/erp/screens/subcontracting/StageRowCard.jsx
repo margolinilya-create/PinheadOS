@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Button } from '../../components/Button';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import {
   DatesCell, ItemCell, LocationCell, NextStageCell, OperationCell,
   OrderCell, StateCell, WorkQtyCell,

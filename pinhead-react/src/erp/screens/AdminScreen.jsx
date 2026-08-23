@@ -10,7 +10,7 @@ import { BypassTab } from './admin/BypassTab';
 import { CapacityTab } from './admin/CapacityTab';
 import { useErpAccess } from '../store/useErpAccess';
 import { onTabListKeyDown } from '../utils/tabs';
-import styles from '../erp.module.css';
+import styles from '../styles';
 
 const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
 

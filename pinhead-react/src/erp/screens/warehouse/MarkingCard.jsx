@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import { MARKING_STATUS_LABELS } from '../../types';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { DateField } from '../../components/DateField';
 import { Button } from '../../components/Button';
 

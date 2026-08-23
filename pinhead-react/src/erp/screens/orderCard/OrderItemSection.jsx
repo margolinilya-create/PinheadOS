@@ -9,7 +9,7 @@ import {
   BRANDING_METHOD_LABELS,
 } from '../../types';
 import { RouteProgress } from '../../components/RouteProgress';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { StageStepper } from './StageStepper';
 import { PlanCell } from './PlanCell';
 import { fmtTs } from './format';

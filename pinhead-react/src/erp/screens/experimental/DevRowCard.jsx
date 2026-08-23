@@ -6,7 +6,7 @@ import {
   DEV_STATE_LABELS, currentBlocker, devReadiness, nextAction, taskLabel,
 } from '../../utils/experimentalTasks';
 import { formatDateShort } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Разработка карточкой вместо строки таблицы — компактная раскладка

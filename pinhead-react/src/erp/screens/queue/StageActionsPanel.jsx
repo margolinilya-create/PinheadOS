@@ -8,7 +8,7 @@ import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
 import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import { confirmDefectRollback } from '../../utils/stageDefect';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { DateField } from '../../components/DateField';
 import { PhotoAttach } from './PhotoAttach';
 import { TzBlock } from './TzBlock';

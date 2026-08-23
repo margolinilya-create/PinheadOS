@@ -6,7 +6,7 @@ import { daysLeft, formatDateShort } from '../../utils/time';
 import {
   PLAN_STATE_CHIP, PLAN_STATE_LABELS, planCardState, planOverdue, planRemaining,
 } from '../../utils/planCard';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { dueLabelCompact } from '../../utils/format';
 import { Button, ButtonLink } from '../../components/Button';
 

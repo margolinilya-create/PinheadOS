@@ -4,7 +4,7 @@ import { SUBCONTRACT_RECEIPT_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../ty
 import { useErpStore } from '../../store/useErpStore';
 import { nextRouteStage, stageLabel, subcontractShortfall } from '../../utils/outsourcing';
 import { deptShortName } from '../../data/departments';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { AttachmentPicker } from '../../components/AttachmentPicker';

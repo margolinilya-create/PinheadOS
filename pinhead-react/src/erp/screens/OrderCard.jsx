@@ -14,7 +14,7 @@ import {
   PACKAGING_LABELS,
   STICKERS_LABELS,
 } from '../types';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
 import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';

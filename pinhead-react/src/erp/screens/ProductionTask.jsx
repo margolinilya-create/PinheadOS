@@ -17,7 +17,7 @@ import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import { daysLeft, formatDateShort, stageOverdue } from '../utils/time';
 import { MATERIAL_STATUS_LABELS, STAGE_STATUS_LABELS } from '../types';
 import { supabase } from '../../lib/supabase';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import DeptBindingNotice from '../components/DeptBindingNotice';
 import { Icon } from '../components/Icon';
 import { StageActionsPanel } from './queue/StageActionsPanel';

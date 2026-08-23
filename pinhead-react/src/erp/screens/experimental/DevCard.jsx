@@ -27,7 +27,7 @@ import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
 import { DevFinalPackage } from './DevFinalPackage';
 import { DevToSku } from './DevToSku';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Карточка разработки (ТЗ заказчика 12.08, п.12–14).

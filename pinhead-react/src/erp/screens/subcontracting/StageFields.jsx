@@ -9,7 +9,7 @@ import {
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import { formatDateShort } from '../../utils/time';
 import { stageLabel, stageLocation } from '../../utils/outsourcing';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Содержимое колонок подрядного этапа — ПО ОДНОЙ реализации на элемент.

@@ -1,5 +1,5 @@
 import { daysLeft, formatDateShort } from '../../utils/time';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 import { dueLabelCompact } from '../../utils/format';
 
 /**

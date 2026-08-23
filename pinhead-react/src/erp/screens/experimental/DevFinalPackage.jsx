@@ -7,7 +7,7 @@ import { toast } from '../../../store/useToastStore';
 import {
   DEV_ATTACHMENT_KINDS, finalPackageProgress, missingFinalPackage,
 } from '../../utils/finalPackage';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Финальный технический пакет разработки (правки заказчика 20.08).

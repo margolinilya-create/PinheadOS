@@ -3,7 +3,7 @@ import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { deptShortName } from '../../data/departments';
 import { toast } from '../../../store/useToastStore';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Передача задачи разработки в цех (ТЗ п.14).

@@ -6,7 +6,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import {
   REWORK_AREAS, REWORK_AREA_LABELS, reworkPlan,
 } from '../../utils/experimentalTasks';
-import styles from '../../erp.module.css';
+import styles from '../../styles';
 
 /**
  * Проверка образца (правки заказчика 20.08).

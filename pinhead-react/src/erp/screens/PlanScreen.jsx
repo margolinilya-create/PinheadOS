@@ -22,7 +22,7 @@ import { capacityReport } from '../utils/capacity';
 import { PlanTaskCard } from './plan/PlanTaskCard';
 import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
-import styles from '../erp.module.css';
+import styles from '../styles';
 import { percentLabel, weekdayName } from '../utils/format';
 import { Button } from '../components/Button';
 import { ProductionTabs } from '../components/ProductionTabs';
