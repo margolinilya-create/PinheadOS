@@ -44,3 +44,29 @@ export function defaultPlannedEnd(
   if (normDays && normDays > 0) return shiftIsoDate(today, normDays);
   return dueDate || today;
 }
+
+/** Открытые этапы: закрытые и пропущенные плана уже не ждут */
+const OPEN_STATUSES = new Set(['waiting', 'ready', 'in_progress', 'blocked']);
+
+/**
+ * Сколько ОТКРЫТЫХ этапов идут без плановой даты.
+ *
+ * Считается для одного набора этапов — позиции или заказа. Отвечает
+ * на вопрос «сколько работы выпало из контроля сроков»: у такого этапа
+ * не считается ни просрочка, ни загрузка цеха, и до 23.08 это состояние
+ * было у 100 % открытых этапов, то есть не выделяло ничего.
+ *
+ * Подрядные этапы считаются наравне с нашими: срок подрядчику нужен так же.
+ */
+export function unplannedStages<T extends { status: string; planned_end?: string | null }>(
+  stages: readonly T[] | null | undefined,
+): { total: number; unplanned: number } {
+  let total = 0;
+  let unplanned = 0;
+  for (const st of stages ?? []) {
+    if (!OPEN_STATUSES.has(st.status)) continue;
+    total += 1;
+    if (!st.planned_end) unplanned += 1;
+  }
+  return { total, unplanned };
+}

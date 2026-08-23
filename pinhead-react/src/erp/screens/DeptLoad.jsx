@@ -11,12 +11,13 @@ import { useCompactLayout } from '../layout/useCompactLayout';
 import { useErpStore } from '../store/useErpStore';
 import { CapacityBar } from '../components/CapacityBar';
 import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
-import { buildDeptLoad, loadDays, weekStart } from '../utils/deptLoad';
+import { buildDeptLoad, loadDays, ordersWithoutPlan, weekStart } from '../utils/deptLoad';
 import { weekdayShort } from '../utils/format';
 import { addDays, factoryToday, parseIsoDate } from '../../utils/date';
 import { deptShortName } from '../data/departments';
 import styles from '../erp.module.css';
 import { ProductionTabs } from '../components/ProductionTabs';
+import { OrderLink } from '../components/OrderLink';
 
 /**
  * Загрузка цехов по дням — сетка «цех × день» из плановых дат этапов.
@@ -80,6 +81,14 @@ export default function DeptLoad() {
   const nothingPlanned = totals.planned === 0 && totals.unplanned > 0;
 
   /**
+   * Куда идти проставлять. Полоса «загрузка не рассчитывается» без этого
+   * списка оставляет человека с задачей «найди сам среди полутора десятков
+   * заказов» — а срок ставится в карточке заказа, колонкой «План».
+   * Показываем пять самых крупных: полный список это сам раздел «Заказы».
+   */
+  const unplannedOrders = useMemo(() => ordersWithoutPlan(orders), [orders]);
+
+  /**
    * Две РАЗНЫЕ величины на одном экране, и их нельзя складывать.
    *
    * Полоса сверху — изделия против общей мощности фабрики. Сетка ниже — сколько
@@ -140,6 +149,20 @@ export default function DeptLoad() {
           Дату этапа проставляют в карточке заказа (колонка «План») или при взятии
           работы в цех; до этого сетка ниже показывает прочерки, а весь объём
           попадает в колонку «Без плана».
+          {unplannedOrders.length > 0 && (
+            <div className={styles.checkRow} style={{ marginTop: 8 }}>
+              {unplannedOrders.slice(0, 5).map(({ order, unplanned }) => (
+                <OrderLink key={order.id} orderId={order.id}>
+                  №{order.bitrix_id} · {unplanned} без срока
+                </OrderLink>
+              ))}
+              {unplannedOrders.length > 5 && (
+                <Link to="/orders" className={styles.widgetLink}>
+                  ещё {unplannedOrders.length - 5} →
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       )}
 

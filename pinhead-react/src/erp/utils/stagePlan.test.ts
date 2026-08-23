@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultPlannedEnd } from './stagePlan';
+import { defaultPlannedEnd, unplannedStages } from './stagePlan';
 
 /**
  * Тесты дат идут в поясе заказчика — правило проекта: в UTC-контейнере сдвиг
@@ -46,5 +46,31 @@ describe('defaultPlannedEnd', () => {
     // Аргумент обязан влиять на ВСЕ ступени: иначе тест проверяет одно,
     // а в цеху работает другое
     expect(defaultPlannedEnd({ normDays: 2 }, '2026-12-30')).toBe('2027-01-01');
+  });
+});
+
+describe('unplannedStages', () => {
+  const st = (status: string, planned: string | null = null) =>
+    ({ status, planned_end: planned });
+
+  it('считает только открытые этапы', () => {
+    expect(unplannedStages([
+      st('waiting'), st('in_progress'), st('done'), st('skipped'),
+    ])).toEqual({ total: 2, unplanned: 2 });
+  });
+
+  it('этап с датой в недостающие не идёт', () => {
+    expect(unplannedStages([st('waiting', '2026-09-01'), st('ready')]))
+      .toEqual({ total: 2, unplanned: 1 });
+  });
+
+  it('закрытый этап без даты ничего не значит — план ему уже не нужен', () => {
+    expect(unplannedStages([st('done'), st('skipped')]))
+      .toEqual({ total: 0, unplanned: 0 });
+  });
+
+  it('пустой и отсутствующий набор не роняют расчёт', () => {
+    expect(unplannedStages([])).toEqual({ total: 0, unplanned: 0 });
+    expect(unplannedStages(null)).toEqual({ total: 0, unplanned: 0 });
   });
 });

@@ -13,6 +13,7 @@
 
 import { addDays, mondayOfWeek } from '../../utils/date';
 import { isOutsourced } from './outsourcing';
+import { unplannedStages } from './stagePlan';
 import type { ErpDepartment } from '../types';
 import type { ErpOrderFull } from '../store/types';
 
@@ -152,4 +153,32 @@ export function buildDeptLoad(
   );
 
   return { rows: visible, maxCell, totals };
+}
+
+/**
+ * Заказы, у которых есть открытые этапы без плановой даты.
+ *
+ * Нужны «Загрузке цехов»: полоса «загрузка не рассчитывается» без указания,
+ * ГДЕ проставлять срок, оставляет человека с задачей «найди сам среди
+ * пятнадцати заказов». Отсортированы по числу незапланированных этапов —
+ * начинать имеет смысл с самого крупного.
+ *
+ * Считает `unplannedStages` — та же функция, что показывает счётчик
+ * в карточке заказа: два прочтения «что такое этап без плана» разошлись бы.
+ */
+export function ordersWithoutPlan(orders: ErpOrderFull[]): {
+  order: ErpOrderFull; unplanned: number;
+}[] {
+  const out: { order: ErpOrderFull; unplanned: number }[] = [];
+  for (const order of orders) {
+    if (order.status !== 'active') continue;
+    let unplanned = 0;
+    for (const item of order.items) {
+      // Подряд исключаем той же проверкой, что и сетка выше: срок подрядчику
+      // ставят в карточке подряда, а не колонкой «План» производства
+      unplanned += unplannedStages(item.stages.filter((st) => !isOutsourced(st))).unplanned;
+    }
+    if (unplanned > 0) out.push({ order, unplanned });
+  }
+  return out.sort((a, b) => b.unplanned - a.unplanned);
 }

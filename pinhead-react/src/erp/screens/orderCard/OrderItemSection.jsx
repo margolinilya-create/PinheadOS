@@ -17,9 +17,14 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { RouteEditor } from '../../components/RouteEditor';
 import { isOutsourced } from '../../utils/outsourcing';
 import { Button } from '../../components/Button';
+import { unplannedStages } from '../../utils/stagePlan';
+import { pluralize } from '../../../utils/i18n';
 
 /** Блок одной позиции заказа: лента этапов, размерная сетка, нанесения, таблица этапов */
 export function OrderItemSection({ item, order, deptById, deptNameById, events, onSavePlan }) {
+  // Сколько открытых этапов позиции идут без срока — считает утилита,
+  // потому что то же число нужно и на «Загрузке цехов»
+  const plan = unplannedStages(item.stages);
   /**
    * Конструктор монтируется ТОЛЬКО открытым и размонтируется при закрытии.
    *
@@ -103,6 +108,21 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
           ))}
         </div>
       )}
+      {/*
+        Сколько работы позиции идёт БЕЗ срока.
+        Плановую дату ставит человек, и до 23.08 её не было ни у одного
+        открытого этапа на проде — то есть контроль сроков не работал вовсе,
+        а экран об этом молчал: колонка «План» просто показывала прочерки,
+        и отличить «не задано» от «не нужно» было нельзя.
+      */}
+      {plan.unplanned > 0 && (
+        <div className={styles.warnBox} role="status">
+          Без плановой даты: {plan.unplanned} {pluralize(plan.unplanned, 'этап', 'этапа', 'этапов')}
+          {' '}из {plan.total}. Такой этап не попадает ни в просрочку, ни в «Загрузку цехов» —
+          срок задаётся в колонке «План» ниже.
+        </div>
+      )}
+
       <ScrollHintBox className={styles.tableWrap} label="Размерная сетка">
         <table className={styles.table}>
           <thead>
