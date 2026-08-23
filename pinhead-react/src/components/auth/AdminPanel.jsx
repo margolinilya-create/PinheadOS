@@ -17,6 +17,8 @@ import { SkeletonTable } from '../shared/Skeleton';
  * со своим чанком, поэтому нужные файлы импортирует тот, кто их использует.
  * Компонент ленивый в обоих местах — в оболочку это не попадает.
  */
+/* Тот же порядок, что у OrderStudioApp: forms-buttons перед остальными */
+import '../../styles/forms-buttons.css'
 import '../../styles/wizard.css'
 import '../../styles/extras-zones.css'
 import '../../styles/kanban.css'

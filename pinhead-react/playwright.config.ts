@@ -5,16 +5,43 @@ export default defineConfig({
   // {projectName} обязателен: desktop и mobile снимают разные вьюпорты,
   // общий файл эталона делал mobile-прогон вечно красным.
   snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}-{projectName}{ext}',
-  webServer: {
-    // Order Studio заархивирован за флагом; e2e-спеки визарда гоняем с включённым флагом.
-    // VITE_DEV_AUTOLOGIN=1 — прогон идёт против замоканного Supabase, настоящей сессии
-    // нет и быть не может. Автологин с 10.08.2026 включается только явно: раньше он
-    // срабатывал у любого, кто запустил `npm run dev`, и молча маскировал отсутствие
-    // сессии на боевой базе (см. комментарий в src/store/useAuthStore.ts).
-    command: 'VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
-  },
+  webServer: [
+    {
+      // Order Studio заархивирован за флагом; e2e-спеки визарда гоняем с включённым флагом.
+      // VITE_DEV_AUTOLOGIN=1 — прогон идёт против замоканного Supabase, настоящей сессии
+      // нет и быть не может. Автологин с 10.08.2026 включается только явно: раньше он
+      // срабатывал у любого, кто запустил `npm run dev`, и молча маскировал отсутствие
+      // сессии на боевой базе (см. комментарий в src/store/useAuthStore.ts).
+      command: 'VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npm run dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: true,
+    },
+    {
+      /*
+       * СОБРАННОЕ приложение — единственная среда, где существует service
+       * worker: `setupServiceWorker` регистрирует его только при
+       * `import.meta.env.PROD`, потому что кеширующий worker поверх модулей
+       * Vite с горячей заменой сломал бы разработку. Следствие: против
+       * dev-сервера офлайн-открытие не проверяется НИКАК, и без этого сервера
+       * worker уехал бы на планшеты вообще без покрытия.
+       *
+       * Своя папка сборки: `dist` читает `bundle:budget`, и класть туда
+       * сборку с включённым dev-автологином нельзя.
+       */
+      command: 'VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npx vite build --outDir dist-e2e'
+        + ' && npx vite preview --outDir dist-e2e --port 4173 --strictPort',
+      url: 'http://localhost:4173',
+      /*
+       * `reuseExistingServer` здесь ЗАПРЕЩЁН, в отличие от dev-сервера выше.
+       * Dev подхватывает правки сам, а preview раздаёт папку, собранную один
+       * раз: оставшийся с прошлого раза сервер прогонял бы спеки против
+       * ПРЕЖНЕГО кода — зелёный результат при непроверенной правке, ровно тот
+       * класс отказа, ради которого сторожа и пишутся.
+       */
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
   use: {
     baseURL: 'http://localhost:5173',
     screenshot: 'on',
@@ -27,8 +54,19 @@ export default defineConfig({
     {
       name: 'desktop',
       use: { viewport: { width: 1280, height: 800 } },
-      // Мобильная разметка на 1280px не рендерится — спек проверял бы пустоту
-      testIgnore: [/erp-mobile\.spec\.ts/, /erp-tablet\.spec\.ts/],
+      // Мобильная разметка на 1280px не рендерится — спек проверял бы пустоту.
+      // offline идёт против собранного приложения на другом порту
+      testIgnore: [/erp-mobile\.spec\.ts/, /erp-tablet\.spec\.ts/, /offline\.spec\.ts/],
+    },
+    {
+      /*
+       * Офлайн-открытие: единственный проект, который ходит в СОБРАННОЕ
+       * приложение (порт 4173). В dev-режиме service worker не регистрируется
+       * вовсе, поэтому здесь и только здесь он вообще существует.
+       */
+      name: 'offline',
+      use: { baseURL: 'http://localhost:4173', viewport: { width: 1280, height: 800 } },
+      testMatch: [/offline\.spec\.ts/],
     },
     {
       // Планшет цеха — основное рабочее устройство, и до 29.07.2026 он не был
@@ -71,6 +109,8 @@ export default defineConfig({
         // экран рисовал ту же таблицу из шести колонок. Исключение выглядело
         // обоснованным, а покрытия не было ни на одной ширине.
         /erp-warehouse\.spec\.ts/,
+        // offline ходит в собранное приложение и от ширины не зависит
+        /offline\.spec\.ts/,
       ],
     },
   ],

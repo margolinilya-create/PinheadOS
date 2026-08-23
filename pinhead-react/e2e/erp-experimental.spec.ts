@@ -27,6 +27,36 @@ async function gotoDevPage(page: Page, url: string) {
 }
 
 /**
+ * Строка списка разработок — НЕЗАВИСИМО ОТ РАСКЛАДКИ.
+ *
+ * На десктопе это строка таблицы, ниже 1024px — карточка (`DevRowCard`):
+ * с 23.08 у экрана две раскладки. Проверки ниже про СОДЕРЖИМОЕ (готовность
+ * из задач, названный блокер, фильтр в адресе), а не про разметку, — значит
+ * верны на обеих ширинах, и привязка к `role="row"` просто выключила бы их
+ * на телефоне вместо того, чтобы что-то поймать.
+ */
+function devRow(page: Page, name: string) {
+  return page.getByRole('row').filter({ hasText: name })
+    .or(page.getByRole('article').filter({ hasText: name }));
+}
+
+/**
+ * Открыть разработку из списка.
+ *
+ * В таблице открывает клик по строке, в карточке — отдельная кнопка: на
+ * планшете палец задевает карточку при прокрутке, и «переход по касанию»
+ * уводил бы с экрана без спроса. Разница осознанная, поэтому и здесь
+ * две ветки, а не одна.
+ */
+async function openDev(page: Page, name: string) {
+  const row = devRow(page, name);
+  await expect(row).toBeVisible();
+  const open = row.getByRole('button', { name: 'Открыть разработку' });
+  if (await open.count()) await open.click();
+  else await row.click();
+}
+
+/**
  * Экспериментальный цех: задачи вместо фаз (ТЗ заказчика 12.08).
  *
  * ЧТО ЭТО СТОРОЖИТ. Прежняя модель была цепочкой из пяти фаз, и заказчик назвал
@@ -250,7 +280,7 @@ test.describe('Экран разработки: состояния считаю�
 
   test('таблица отвечает «почему стоит», а не «на какой фазе»', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0&view=list');
-    const row = page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' });
+    const row = devRow(page, 'Бомбер двухслойный');
 
     // Готовность — в ЗАДАЧАХ (0 из 1), блокер назван словами
     await expect(row).toContainText('0 / 1');
@@ -261,16 +291,14 @@ test.describe('Экран разработки: состояния считаю�
   test('ноль задач дал бы «—», а не 100 % — здесь готовность честная', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0&view=list');
     // У «Новые» две задачи, ни одна не закрыта
-    await expect(
-      page.getByRole('row').filter({ hasText: 'Худи оверсайз' }),
-    ).toContainText('0 / 2');
+    await expect(devRow(page, 'Худи оверсайз')).toContainText('0 / 2');
   });
 
   test('подпись задачи без названия берётся из справочника', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0&view=list');
     // У задач «Новых» своих названий нет — блокер показывает имя из справочника,
     // а не код `patterns`
-    const row = page.getByRole('row').filter({ hasText: 'Худи оверсайз' });
+    const row = devRow(page, 'Худи оверсайз');
     await expect(row).toContainText('Лекала');
     await expect(row).not.toContainText('patterns');
   });
@@ -290,13 +318,13 @@ test.describe('Экран разработки: состояния считаю�
      * дефект. Адрес перепроверяется сам и ждёт настоящей перерисовки.
      */
     await expect(page, 'клик по фильтру сбросил выбранный вид').toHaveURL(/view=list/);
-    await expect(page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' })).toBeVisible();
-    await expect(page.getByRole('row').filter({ hasText: 'Худи оверсайз' })).toHaveCount(0);
+    await expect(devRow(page, 'Бомбер двухслойный')).toBeVisible();
+    await expect(devRow(page, 'Худи оверсайз')).toHaveCount(0);
 
     // Прямой заход по той же ссылке восстанавливает подбор
     await gotoDev(page, '/experimental?studio=0&view=list&state=ready');
-    await expect(page.getByRole('row').filter({ hasText: 'Футболка freefit' })).toBeVisible();
-    await expect(page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' })).toHaveCount(0);
+    await expect(devRow(page, 'Футболка freefit')).toBeVisible();
+    await expect(devRow(page, 'Бомбер двухслойный')).toHaveCount(0);
   });
 });
 
@@ -309,7 +337,7 @@ test.describe('Экран разработки: состояния считаю�
 test.describe('Карточка разработки', () => {
   test('открывается страницей и показывает блокер и следующее действие', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0&view=list');
-    await page.getByRole('row').filter({ hasText: 'Бомбер двухслойный' }).click();
+    await openDev(page, 'Бомбер двухслойный');
 
     await expect(page).toHaveURL(/\/experimental\/dev-block/);
     const card = page.getByRole('main');

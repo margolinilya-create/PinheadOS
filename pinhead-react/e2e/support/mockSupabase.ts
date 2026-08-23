@@ -49,6 +49,14 @@ type StageSpec = {
   code: string;
   status: 'waiting' | 'ready' | 'in_progress' | 'done' | 'skipped' | 'blocked';
   qty_done?: number;
+  /**
+   * Подрядность ЭТАПА. Читается всегда по `executor === 'contractor'`, никогда
+   * по коду участка: этапы, заведённые до 21.08, стоят на реальном цехе,
+   * и отбор по коду вернул бы их в очередь этого цеха.
+   */
+  executor?: 'internal' | 'contractor';
+  contractor?: string;
+  operation?: string;
   /** Индексы этапов этой же позиции (depends_on по id) */
   deps?: number[];
   /**
@@ -79,6 +87,9 @@ export function buildStages(itemId: string, specs: StageSpec[]) {
     block_reason: null,
     notes: null,
     sort_order: (i + 1) * 10,
+    executor: s.executor ?? 'internal',
+    contractor: s.contractor ?? null,
+    operation: s.operation ?? null,
     created_at: CREATED,
     updated_at: CREATED,
   }));
@@ -468,6 +479,25 @@ export type MockExtras = {
   experimental?: unknown[];
   /** Значения справочников — приезжают пакетом оболочки */
   dictionaries?: unknown[];
+  /**
+   * Карточки подрядчика при этапах (`erp_subcontracting`).
+   *
+   * Приезжают ДВУМЯ путями, как и разработки: пакетом оболочки и отдельным
+   * запросом `loadSubcontracting`. Мок обязан повторять оба — иначе экран
+   * «Подряд» показывал бы «подрядных этапов нет» при заполненной таблице,
+   * то есть проверялся бы не тот путь, по которому ходит прод.
+   */
+  subcontracting?: unknown[];
+  /**
+   * Сотрудники и учётные записи админки (`erp_employees` + `profiles`).
+   *
+   * Списки разные и в базе, и на экране: профиль это учётная запись с ролью
+   * и статусом, `erp_employees` — цеховая надстройка над ним ЛИБО работник
+   * без логина вовсе. Экран показывает их двумя таблицами, поэтому и здесь
+   * два ключа: набор, где всё связано, не дал бы проверить нижнюю таблицу.
+   */
+  employees?: unknown[];
+  profiles?: unknown[];
 };
 
 type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
@@ -481,6 +511,12 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
       // Разработки приезжают и пакетом оболочки, и этим запросом — на проде
       // это один и тот же набор, и мок обязан повторять именно так
       return extra.experimental ?? [];
+    case 'erp_subcontracting':
+      return extra.subcontracting ?? [];
+    case 'erp_employees':
+      return extra.employees ?? [];
+    case 'profiles':
+      return extra.profiles ?? [];
     case 'erp_orders': {
       const all = [...ORDERS, ...((extra.orders ?? []) as typeof ORDERS)] as unknown as OrderFx[];
       const idFilter = params.get('id');
@@ -556,7 +592,7 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
         departments: departmentsFx,
         permissions: [],       // пусто → клиент падает на DEFAULT_PERMISSIONS
         dictionaries: extra.dictionaries ?? [],
-        subcontracting: [],
+        subcontracting: extra.subcontracting ?? [],
         // Пакет оболочки ставит `experimentalLoaded: true`, поэтому экран
         // разработки берёт данные ОТСЮДА и второго запроса не делает.
         // Мок, отдающий здесь пусто, показывал бы «Разработок пока нет»

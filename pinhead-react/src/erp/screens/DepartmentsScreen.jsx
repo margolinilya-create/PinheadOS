@@ -2,12 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { PageHead } from '../components/PageHead';
-import InlineEdit from '../components/InlineEdit';
 import { Icon } from '../components/Icon';
 import { toast } from '../../store/useToastStore';
-import {
-  EMPLOYEE_ROLE_LABELS, MATERIAL_KIND_LABELS, RESULT_FIELD_TARGET_LABELS,
-} from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import styles from '../erp.module.css';
@@ -15,9 +11,11 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { Button } from '../components/Button';
-
-/** Виды материалов для настройки «участок ждёт материал» (порядок = порядок чекбоксов) */
-const GATE_KINDS = Object.entries(MATERIAL_KIND_LABELS);
+import { useCompactLayout } from '../layout/useCompactLayout';
+import { DeptCard } from './admin/DeptCard';
+import {
+  DeptFlags, DeptName, GateKinds, HeadSelect, NormDaysInput, ResultFieldsCell, SortOrderInput,
+} from './admin/DeptFields';
 
 /**
  * Справочник производственных участков (правки 11 и 12): создание, переименование,
@@ -64,6 +62,7 @@ export default function DepartmentsScreen({ embedded = false }) {
       updateDepartment: s.updateDepartment,
     })),
   );
+  const compact = useCompactLayout();
   const [draft, setDraft] = useState('');
   const [showHidden, setShowHidden] = useState(false);
 
@@ -214,7 +213,30 @@ export default function DepartmentsScreen({ embedded = false }) {
           эффект `if (!loaded) loadAll()` второй раз не срабатывает. */}
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="участки" />}
       {!loaded && !loadError && <TableSkeleton rows={6} label="Загрузка участков" />}
-      {loaded && visible.length > 0 && (
+      {/* Планшет и телефон: карточки вместо таблицы из девяти колонок —
+          колонка действия стояла последней и уезжала за край экрана */}
+      {loaded && visible.length > 0 && compact && (
+        <div className={styles.dataCardList}>
+          {visible.map((d) => (
+            <DeptCard
+              key={d.id}
+              dept={d}
+              headCandidates={headCandidates(d.id)}
+              onRename={(name) => updateDepartment(d.id, { name })}
+              onSortOrder={(v) => updateDepartment(d.id, { sort_order: v })}
+              onToggleProduction={(next) => toggleProduction(d, next)}
+              onToggleBranding={(next) => updateDepartment(d.id, { is_branding: next })}
+              onToggleGateKind={(kind, on) => toggleGateKind(d, kind, on)}
+              onSaveResultFields={(fields) => updateDepartment(d.id, { result_fields: fields })}
+              onHead={(id) => updateDepartment(d.id, { head_employee_id: id })}
+              onNormDays={(v) => updateDepartment(d.id, { norm_days: v })}
+              onToggleActive={() => toggleActive(d)}
+            />
+          ))}
+        </div>
+      )}
+
+      {loaded && visible.length > 0 && !compact && (
       <ScrollHintBox className={styles.tableWrap} label="Участки производства">
         <table className={styles.table}>
           <thead>
@@ -229,69 +251,27 @@ export default function DepartmentsScreen({ embedded = false }) {
             {visible.map((d) => (
               <tr key={d.id} style={d.active ? undefined : { opacity: 0.5 }}>
                 <td>
-                  <InlineEdit
-                    value={d.name}
-                    ariaLabel={`Название участка ${d.name}`}
-                    onSave={(v) => updateDepartment(d.id, { name: (v || '').trim() || d.name })}
+                  <DeptName
+                    dept={d}
+                    onRename={(name) => updateDepartment(d.id, { name })}
                   />
-                  {!d.active && <span className={styles.subText}> · отключён</span>}
                 </td>
                 <td className={styles.subText}>{d.code}</td>
                 <td>
-                  <input
-                    type="number"
-                    step="10"
-                    className={`${styles.input} ${styles.inputSm}`}
-                    defaultValue={d.sort_order}
-                    aria-label={`Порядок участка ${d.name}`}
-                    style={{ maxWidth: 80 }}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value);
-                      if (Number.isFinite(v) && v !== d.sort_order) updateDepartment(d.id, { sort_order: v });
-                    }}
+                  <SortOrderInput
+                    dept={d}
+                    onChange={(v) => updateDepartment(d.id, { sort_order: v })}
                   />
                 </td>
                 <td>
-                  {/* Производственный участок: своя очередь, колонка в канбане, требует ТЗ.
-                      Раньше набор был захардкожен, и новый цех не появлялся нигде. */}
-                  <label className={styles.checkLabel}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(d.is_production)}
-                      aria-label={`Участок ${d.name} — производственный (своя очередь и канбан)`}
-                      onChange={(e) => toggleProduction(d, e.target.checked)}
-                    />
-                    производственный
-                  </label>
-                  <label className={styles.checkLabel}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(d.is_branding)}
-                      aria-label={`Участок ${d.name} — этап брендирования`}
-                      onChange={(e) => updateDepartment(d.id, { is_branding: e.target.checked })}
-                    />
-                    нанесение
-                  </label>
+                  <DeptFlags
+                    dept={d}
+                    onToggleProduction={(next) => toggleProduction(d, next)}
+                    onToggleBranding={(next) => updateDepartment(d.id, { is_branding: next })}
+                  />
                 </td>
                 <td>
-                  {/* Какие материалы блокируют запуск этапа этого участка.
-                      Раньше карта была константой в коде (ткань → закрой,
-                      фурнитура и бирки → швейка), и участок, заведённый здесь,
-                      под материальный гейт не попадал вовсе. Пусто = не гейтится. */}
-                  {GATE_KINDS.map(([kind, label]) => (
-                    <label key={kind} className={styles.checkLabel}>
-                      <input
-                        type="checkbox"
-                        checked={(d.gate_material_kinds ?? []).includes(kind)}
-                        aria-label={`Участок ${d.name} ждёт материал: ${label}`}
-                        onChange={(e) => toggleGateKind(d, kind, e.target.checked)}
-                      />
-                      {label}
-                    </label>
-                  ))}
-                  {(d.gate_material_kinds ?? []).length === 0 && (
-                    <div className={styles.subText}>не гейтится</div>
-                  )}
+                  <GateKinds dept={d} onToggle={(kind, on) => toggleGateKind(d, kind, on)} />
                 </td>
                 <td>
                   {/*
@@ -301,36 +281,22 @@ export default function DepartmentsScreen({ embedded = false }) {
                     заведённому здесь. Пусто — отчёт не требуется, и цех сдаёт
                     работу прежним полем «сколько сделано».
                   */}
-                  <ResultFieldsCell dept={d} onSave={(fields) => updateDepartment(d.id, { result_fields: fields })} />
+                  <ResultFieldsCell
+                    dept={d}
+                    onSave={(fields) => updateDepartment(d.id, { result_fields: fields })}
+                  />
                 </td>
                 <td>
-                  <select
-                    className={styles.select}
-                    value={d.head_employee_id || ''}
-                    aria-label={`Руководитель участка ${d.name}`}
-                    onChange={(e) => updateDepartment(d.id, { head_employee_id: e.target.value || null })}
-                  >
-                    <option value="">Не назначен</option>
-                    {headCandidates(d.id).map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.full_name} · {EMPLOYEE_ROLE_LABELS[e.role] || e.role}
-                      </option>
-                    ))}
-                  </select>
+                  <HeadSelect
+                    dept={d}
+                    candidates={headCandidates(d.id)}
+                    onChange={(id) => updateDepartment(d.id, { head_employee_id: id })}
+                  />
                 </td>
                 <td>
-                  <input
-                    type="number"
-                    min="0"
-                    className={`${styles.input} ${styles.inputSm}`}
-                    defaultValue={d.norm_days ?? ''}
-                    placeholder="—"
-                    aria-label={`Норматив участка ${d.name}, дней`}
-                    style={{ maxWidth: 70 }}
-                    onBlur={(e) => {
-                      const v = e.target.value === '' ? null : Number(e.target.value);
-                      if (v !== (d.norm_days ?? null)) updateDepartment(d.id, { norm_days: v });
-                    }}
+                  <NormDaysInput
+                    dept={d}
+                    onChange={(v) => updateDepartment(d.id, { norm_days: v })}
                   />
                 </td>
                 <td>
@@ -356,86 +322,5 @@ export default function DepartmentsScreen({ embedded = false }) {
         />
       )}
     </>
-  );
-}
-
-/**
- * Схема отчёта участка (правки заказчика 10.08, P2).
- *
- * Правится текстом, по строке на поле: `код | подпись | единица | назначение | *`.
- * Формы с восемью инпутами на строку таблицы здесь быть не может — колонок и так
- * восемь, — а JSON руками в проде набирают с опечатками, которые тихо ломают
- * форму цеха. Текстовый формат читается глазами и проверяется при сохранении.
- */
-function ResultFieldsCell({ dept, onSave }) {
-  const fields = Array.isArray(dept.result_fields) ? dept.result_fields : [];
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState('');
-  const [error, setError] = useState('');
-
-  const toText = (list) => list
-    .map((f) => [f.code, f.label, f.unit || '', f.target, f.required ? '*' : ''].join(' | '))
-    .join('\n');
-
-  const open = () => { setText(toText(fields)); setError(''); setEditing(true); };
-
-  const save = () => {
-    const parsed = [];
-    for (const raw of text.split('\n')) {
-      const line = raw.trim();
-      if (!line) continue;
-      const [code, label, unit, target, req] = line.split('|').map((p) => p.trim());
-      if (!code || !label || !target) {
-        setError(`Строка «${line}»: нужны код, подпись и назначение`);
-        return;
-      }
-      if (!RESULT_FIELD_TARGET_LABELS[target]) {
-        setError(`Назначение «${target}» неизвестно. Допустимые: ${Object.keys(RESULT_FIELD_TARGET_LABELS).join(', ')}`);
-        return;
-      }
-      parsed.push({ code, label, unit: unit || null, target, required: req === '*' });
-    }
-    onSave(parsed);
-    setEditing(false);
-  };
-
-  if (!editing) {
-    return (
-      <>
-        {fields.length === 0
-          ? <div className={styles.subText}>отчёт не требуется</div>
-          : (
-            <div className={styles.subText}>
-              {fields.map((f) => f.label + (f.required ? ' *' : '')).join(', ')}
-            </div>
-          )}
-        <Button variant="ghost" onClick={open} aria-label={`Настроить отчёт участка ${dept.name}`}>
-          Настроить
-        </Button>
-      </>
-    );
-  }
-
-  return (
-    <div className={styles.stack}>
-      <textarea
-        className={styles.input}
-        rows={Math.max(3, fields.length + 1)}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        aria-label={`Поля отчёта участка ${dept.name}`}
-        placeholder="cut | Скроено | шт | qty_good | *"
-      />
-      <span className={styles.queueReason}>
-        Формат строки: код | подпись | единица | назначение | * (обязательное).
-        Назначения: {Object.entries(RESULT_FIELD_TARGET_LABELS)
-          .map(([k, v]) => `${k} — ${v}`).join('; ')}.
-      </span>
-      {error && <span className={styles.overdue}>{error}</span>}
-      <div className={styles.queueActions}>
-        <Button variant="primary" onClick={save}>Сохранить</Button>
-        <Button variant="ghost" onClick={() => setEditing(false)}>Отмена</Button>
-      </div>
-    </div>
   );
 }

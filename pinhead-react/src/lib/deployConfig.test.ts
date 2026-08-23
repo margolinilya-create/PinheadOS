@@ -105,6 +105,42 @@ describe('раздача статики на Vercel', () => {
   });
 
   /**
+   * Service worker и CSP.
+   *
+   * Политика сейчас в режиме отчёта (`-Report-Only`), поэтому недостающая
+   * директива ничего не ломает — и ровно поэтому её легко не заметить.
+   * В блокирующем режиме `worker-src` по умолчанию наследуется от
+   * `default-src 'self'`… но только если директива не переопределена скриптом:
+   * ставим её ЯВНО, чтобы перевод политики в блокирующий режим не выключил
+   * офлайн-открытие МОЛЧА — а именно молча оно и выключилось бы, потому что
+   * регистрация worker'а падает в собственный `catch` и приложение работает
+   * как ни в чём не бывало.
+   */
+  it('CSP разрешает service worker со своего домена', () => {
+    const catchAll = config().headers?.find((h) => h.source === '/(.*)');
+    const csp = catchAll?.headers.find((x) => x.key.toLowerCase().startsWith('content-security-policy'));
+    expect(csp, 'CSP пропала из vercel.json').toBeDefined();
+    expect(csp!.value, 'без worker-src регистрация sw.js отвалится молча')
+      .toContain("worker-src 'self'");
+  });
+
+  /**
+   * `sw.js` длинного кеша получать НЕ должен: это единственный файл, через
+   * который до устройства доходят изменения самого механизма кеширования.
+   * Он лежит в корне, то есть под общим правилом без Cache-Control —
+   * тест закрепляет, что его туда не перенесли.
+   */
+  it('sw.js не попадает под правила длинного кеша', () => {
+    for (const rule of config().headers ?? []) {
+      const cc = rule.headers.find((x) => x.key.toLowerCase() === 'cache-control');
+      if (!cc || !/max-age=\d{5,}/.test(cc.value)) continue;
+      expect(new RegExp(rule.source).test('/sw.js'),
+        `правило "${rule.source}" вешает долгий кеш на /sw.js — worker перестанет обновляться`)
+        .toBe(false);
+    }
+  });
+
+  /**
    * СТОРОЖ ПАРНОГО УСЛОВИЯ. Пока rewrite ловит `/assets/`, отсутствующий чанк
    * отвечает 200 с HTML — и `immutable` выше превращается из оптимизации
    * в ловушку. Эти два правила нельзя разъединять.

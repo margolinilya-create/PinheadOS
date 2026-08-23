@@ -6,6 +6,8 @@ import { Button } from '../components/Button';
 import { EmptyState, LoadFailed } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { DeptLoadCard } from './DeptLoadCard';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { useErpStore } from '../store/useErpStore';
 import { CapacityBar } from '../components/CapacityBar';
 import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
@@ -48,16 +50,34 @@ export default function DeptLoad() {
   );
 
   const today = factoryToday();
+  /** Планшет цеха: сетка из десяти колонок не помещается — карточка на цех */
+  const compact = useCompactLayout();
   const [start, setStart] = useState(() => weekStart(factoryToday()));
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
 
   const days = useMemo(() => loadDays(start, 7), [start]);
-  const { rows, maxCell } = useMemo(
+  const { rows, maxCell, totals } = useMemo(
     () => buildDeptLoad(orders, departments, days, today),
     [orders, departments, days, today],
   );
+
+  /**
+   * Ни у одного открытого этапа нет плановой даты — считать здесь нечего,
+   * и сказать это надо прямо.
+   *
+   * Без полосы экран выглядит рабочим и НЕПРАВДИВЫМ: строки цехов есть
+   * (их держат этапы без плана), семь колонок стоят прочерками, и это
+   * читается как «загрузка нулевая» — то есть как ответ, тогда как ответа
+   * нет. Пустое состояние ниже в такой ситуации не показывается вовсе.
+   *
+   * На проде 22.08 так и было: 43 открытых этапа, плановой даты нет ни
+   * у одного. Причина не в невнимательности — дату пишет только форма
+   * «Взять в работу», то есть в момент запуска этапа, а `waiting` этапы
+   * (будущее, ради которого экран и заведён) её не получают никогда.
+   */
+  const nothingPlanned = totals.planned === 0 && totals.unplanned > 0;
 
   /**
    * Две РАЗНЫЕ величины на одном экране, и их нельзя складывать.
@@ -113,6 +133,16 @@ export default function DeptLoad() {
       {!loaded && !loadError && <TableSkeleton />}
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="загрузку цехов" />}
 
+      {loaded && nothingPlanned && (
+        <div className={styles.warnBox} role="status">
+          <strong>Загрузка не рассчитывается: плановых дат нет ни у одного открытого этапа</strong>
+          {' '}({totals.unplanned} шт). Листать недели бессмысленно — там будет то же самое.
+          Дату этапа проставляют в карточке заказа (колонка «План») или при взятии
+          работы в цех; до этого сетка ниже показывает прочерки, а весь объём
+          попадает в колонку «Без плана».
+        </div>
+      )}
+
       {loaded && rows.length === 0 && (
         <EmptyState
           icon="calendar"
@@ -122,7 +152,27 @@ export default function DeptLoad() {
         />
       )}
 
-      {loaded && rows.length > 0 && (
+      {/*
+        КОМПАКТНАЯ РАСКЛАДКА (планшет цеха). Сетка «цех × семь дней + две
+        сводные колонки» на 768px не помещается: карточка на цех с лентой
+        недели внутри укладывается даже в 375px.
+      */}
+      {loaded && rows.length > 0 && compact && (
+        <div className={styles.dataCardList}>
+          {rows.map((row) => (
+            <DeptLoadCard
+              key={row.dept.id}
+              row={row}
+              days={days}
+              dayLabel={dayLabel}
+              today={today}
+              maxCell={maxCell}
+            />
+          ))}
+        </div>
+      )}
+
+      {loaded && rows.length > 0 && !compact && (
         <ScrollHintBox className={styles.tableWrap} label="Загрузка цехов по дням">
           <table className={styles.table}>
             <thead>

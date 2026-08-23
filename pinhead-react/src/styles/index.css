@@ -22,14 +22,21 @@
 /*      .page-tabs, .empty-state, .kanban-page, .sku-table.    */
 /*  Vite кладёт такой CSS в чанк импортёра, а не в оболочку.   */
 /*                                                            */
+/*  С 23.08 туда же уехал и forms-buttons.css — но НЕ целиком:     */
+/*  базовый вид полей, кольца фокуса и две кнопки экранов входа    */
+/*  остались глобальными (forms-base.css). Причины перечислены     */
+/*  в шапке того файла: две из трёх — тихие поломки (поля ERP      */
+/*  берут `width: 100%` именно оттуда, а `:focus-visible` — это     */
+/*  доступность всего приложения).                                 */
+/*                                                            */
 /*  Module map:                                               */
 /*    layout        — app shell, header, nav                  */
-/*    forms-buttons — fields, toggles, labels, items, summary  */
+/*    forms-base    — поля, кольца фокуса, кнопки входа       */
 /*    auth          — login / register / стена доступа        */
 /*    utils         — модалки, тосты, скелетоны, палитра      */
 /*                    команд, подсказки онбординга           */
 /* ═══════════════════════════════════════════════════════════ */
 @import './layout.css';
-@import './forms-buttons.css';
+@import './forms-base.css';
 @import './auth.css';
 @import './utils.css';

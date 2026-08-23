@@ -1,0 +1,122 @@
+/* ═══════════════════════════════════════════ */
+/* FORMS BASE — то, что нужно ВСЕМ разделам    */
+/* ═══════════════════════════════════════════ */
+/*
+ * Здесь ровно то, без чего ломается интерфейс ЗА ПРЕДЕЛАМИ Order Studio:
+ * базовый вид полей, кольца фокуса и две кнопки экранов входа. Остальное
+ * (визард, конфигуратор бирок, карточки позиций, итоги, семейство .btn-*)
+ * уехало в `forms-buttons.css`, который импортируют сами потребители.
+ *
+ * ПОЧЕМУ НЕ ВЫНЕСЛИ ФАЙЛ ЦЕЛИКОМ, хотя раздел ERP не использует из него
+ * ни одного класса. Три причины, каждая из которых — тихая поломка:
+ *
+ *  1. Поля. `width: 100%` полям ERP даёт именно этот блок: свой
+ *     `.input` в `erp.module.css` ширину не задаёт вовсе (а составные
+ *     селекторы `.input.qtyCellInput` заведены, чтобы её ПЕРЕБИВАТЬ).
+ *     Уехал бы файл — все поля раздела съёжились бы до авторазмера.
+ *  2. Кольца фокуса. `:focus-visible` — правило доступности на всё
+ *     приложение; в чанке Order Studio оно перестало бы существовать
+ *     для тех, кто открыл только «Производство». Заметно это лишь
+ *     глазами и с клавиатуры — то есть не заметно.
+ *  3. Экраны входа (`AuthScreen`, `JoinScreen`, `NewPasswordScreen`)
+ *     СТАТИЧНЫ — они во входном чанке и по правилу проекта ленивыми
+ *     быть не могут. Их `.btn-accent`/`.btn-secondary`, импортированные
+ *     из них же, приехали бы в тот же входной чанк: экономия ноль.
+ */
+
+/* ── Global Input Standard — 4 states ── */
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+textarea,
+select {
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  background: var(--card);
+  color: var(--text);
+  outline: none;
+  transition: border-color 150ms ease-out;
+  width: 100%;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border: 1.5px solid var(--accent);
+}
+input.error,
+textarea.error,
+select.error {
+  border: 1.5px solid var(--signal);
+}
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  border-color: var(--border);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+  input, textarea, select { transition: none; }
+}
+
+/* ── Focus-visible rings ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Кнопки экранов входа ─────────────────────────────────────────────
+   Только эти два варианта: остальное семейство (.btn, .btn-primary,
+   .btn-danger, .btn-ghost, .btn-icon, .pe-btn) живёт в Order Studio,
+   а в ERP кнопки — примитив `erp/components/Button`.
+
+   Базовые свойства .btn-accent продублированы из общего правила
+   `.btn-next, .btn-prev, .btn-accent` осознанно: переезжать вместе
+   с «предыдущим/следующим шагом» визарда ему некуда, а тянуть ради
+   пяти строк весь блок навигации визарда — тем более. ── */
+.btn-accent {
+  padding: 14px var(--space-2xl); font-family: var(--font-body); font-size: 11px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer;
+  border: none; border-right: 1px solid var(--border-light);
+  transition: background 150ms ease-out, transform 100ms ease-out;
+  background: var(--accent); color: var(--white); border-color: var(--accent);
+}
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-accent:active:not(:disabled) { transform: scale(0.97); }
+
+.btn-secondary {
+  background: var(--card); color: var(--text-dim);
+  border: none; padding: 10px 20px; font-size: 13px; font-weight: 500;
+  font-family: var(--font-body); border-radius: var(--radius-sm);
+  cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface); }
+.btn-secondary:active:not(:disabled) { transform: scale(0.97); }
+.btn-secondary:disabled,
+.btn-secondary.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* Тач-цели: те же пороги, что у остального семейства в forms-buttons.css */
+@media (max-width: 768px) {
+  .btn-secondary, .btn-accent { min-height: 48px; }
+}
+@media (pointer: coarse) {
+  .btn-secondary, .btn-accent { min-height: 44px; }
+}

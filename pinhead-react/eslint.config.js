@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // dist-e2e — сборка для офлайн-спека (`playwright.config.ts`): линтовать
+  // минифицированный вывод бессмысленно, а без игнора он даёт 347 ошибок
+  globalIgnores(['dist', 'dist-e2e']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

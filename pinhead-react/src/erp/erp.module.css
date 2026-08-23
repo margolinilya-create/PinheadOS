@@ -2463,6 +2463,31 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 /* Сегодняшняя колонка выделена, чтобы не считать дни глазами */
 .loadToday { color: var(--accent); }
 
+/* ── Загрузка цеха карточкой (планшет) ─────────────────────────────────────
+   Сетка «цех × семь дней + две сводные колонки» на 768px не помещается
+   и уезжала за край. Карточка на ЦЕХ, а внутри — лента из семи дней: семь
+   ячеек по ~44px укладываются и в 375px, поэтому горизонтальной прокрутки
+   не остаётся вовсе. Числа те же и считаются тем же кодом. */
+.loadWeek {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 8px 0;
+}
+.loadDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  position: relative;
+  min-height: 44px;
+  justify-content: center;
+}
+.loadDayLabel { font-size: 10px; color: var(--text-dim); position: relative; }
+
 /* Ячейка/строка «иконка + текст» */
 .cellWithIcon { display: inline-flex; align-items: center; gap: 6px; }
 /* Шеврон раскрытия: развёрнутое состояние — стрелка вверх */

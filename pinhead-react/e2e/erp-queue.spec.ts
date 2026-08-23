@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { installSupabaseMock } from './support/mockSupabase';
+import { installSupabaseMock, buildStages } from './support/mockSupabase';
 
 /**
  * Волна 1 «Ядро диспетчера»: постоянное меню цехов, компактная очередь из трёх
@@ -470,4 +470,55 @@ test.describe('Загрузка цехов (/load)', () => {
     await page.getByRole('button', { name: 'Сегодня' }).click();
     await expect(period).toBeVisible();
   });
+
+  /**
+   * «Планов нет ни у чего» экран обязан называть вслух.
+   *
+   * Строки цехов есть и без единой плановой даты — их держат этапы без плана, —
+   * поэтому пустое состояние не показывается вовсе: человек видит семь колонок
+   * прочерков и читает это как «загрузка нулевая». На проде 22.08 было ровно
+   * так: 43 открытых этапа, плановой даты нет ни у одного.
+   */
+  test('без единой плановой даты экран говорит, что загрузка не считается', async ({ page }) => {
+    await page.goto('/load?studio=0');
+    await expect(page.getByRole('heading', { name: 'Загрузка цехов' })).toBeVisible();
+    await expect(
+      page.getByText(/Загрузка не рассчитывается: плановых дат нет ни у одного открытого этапа/),
+    ).toBeVisible();
+  });
+
+  test('появилась хоть одна плановая дата — полосы больше нет', async ({ page }) => {
+    // Иначе предупреждение висело бы всегда и перестало что-либо значить
+    await installSupabaseMock(page, { orders: [PLANNED_ORDER] });
+    await page.goto('/load?studio=0');
+    await expect(page.getByRole('heading', { name: 'Загрузка цехов' })).toBeVisible();
+    await expect(page.getByText(/Загрузка не рассчитывается/)).toHaveCount(0);
+  });
 });
+
+/** Заказ с плановыми датами этапов — базовые фикстуры их не несут */
+const PLANNED_ORDER = {
+  id: 'ord-planned', bitrix_id: '90777', title: 'Заказ с планом',
+  customer: 'ООО «Ромашка»', manager: 'Анна',
+  launch_date: '2026-07-16', due_date: '2026-07-30', buffer_days: 1,
+  priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'none', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  attachments: [], materials: [], warehouse_tasks: [],
+  items: [{
+    id: 'ord-planned-i1', order_id: 'ord-planned', product_type: 'Футболка', variant: null,
+    qty: 50, production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+    notes: null, size_grid: null, sort_order: 0,
+    subcontract_kind: null, material_source: 'pinhead',
+    fit: null, main_fabric: null, trim_material: null,
+    cutting_note: null, sewing_note: null, labels_note: null,
+    packaging: 'inherit', packaging_size: null, sticker_place: null,
+    marking_place: null, packaging_note: null,
+    created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+    prints: [], labels: [],
+    stages: buildStages('ord-planned-i1', [{ code: 'cutting', status: 'waiting' }])
+      .map((st) => ({ ...st, planned_start: '2026-07-21', planned_end: '2026-07-22' })),
+  }],
+};
