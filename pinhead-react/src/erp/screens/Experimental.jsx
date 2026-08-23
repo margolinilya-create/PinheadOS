@@ -24,6 +24,7 @@ import {
   devFiltersFromParams,
   devFiltersToParams,
   hasActiveDevFilters,
+  devFilterParamKeys,
 } from '../utils/filterExperimental';
 import {
   currentBlocker, devReadiness, nextAction, taskLabel,
@@ -167,12 +168,30 @@ export default function Experimental() {
   }, [setParams]);
 
   /**
-   * Перенос `dev` между наборами параметров больше не нужен: открытая
-   * разработка — отдельная страница, и на списке этого параметра не бывает
-   * дольше одного редиректа.
+   * ФИЛЬТРЫ МЕНЯЮТ ТОЛЬКО СВОИ КЛЮЧИ, остальное в адресе не трогают.
+   *
+   * Здесь стояло `setParams(new URLSearchParams(devFiltersToParams(next)))` —
+   * то есть ПОЛНАЯ замена набора. Любой клик по фильтру сбрасывал `view`,
+   * и человек, выбравший «Список», при первом же нажатии на плитку состояния
+   * оказывался на доске: вид молча прыгал.
+   *
+   * Тест на это был («фильтр по состоянию живёт в адресе»), но проходил четыре
+   * раза из пяти: он успевал снять ассерт со СТАРОГО кадра, до перерисовки
+   * с новыми параметрами. Падал — когда не успевал, то есть когда видел
+   * настоящее поведение. Ровно тот жанр, что уже описан в CLAUDE.md про
+   * одноразовые проверки.
+   *
+   * Ключи фильтров снимаются поимённо (`devFilterParamKeys`), а не «всё,
+   * кроме известного»: белый список чужого пришлось бы дополнять при каждом
+   * новом параметре экрана, и однажды его забыли бы — вернув ту же ошибку.
    */
   const setFilters = useCallback((next) => {
-    setParams(new URLSearchParams(devFiltersToParams(next)));
+    setParams((prev) => {
+      const out = new URLSearchParams(prev);
+      for (const key of devFilterParamKeys()) out.delete(key);
+      for (const [key, value] of Object.entries(devFiltersToParams(next))) out.set(key, value);
+      return out;
+    });
   }, [setParams]);
 
   /**

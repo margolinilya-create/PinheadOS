@@ -2,6 +2,7 @@ import { Component } from 'react';
 // eslint-disable-next-line no-unused-vars
 import styles from './ErrorBoundary.module.css';
 import { reportError } from '../../lib/errorReport';
+import { isChunkLoadError, UPDATE_TITLE, UPDATE_MESSAGE } from '../../lib/appUpdate';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -17,7 +18,9 @@ export default class ErrorBoundary extends Component {
     console.error('[ErrorBoundary]', error, info?.componentStack);
     // Консоль остаётся для разработки, но о белом экране в цеху по ней
     // не узнать: отчёт уходит наружу, если приёмник настроен (C7 аудита).
-    reportError(error, 'render', info?.componentStack);
+    // Устаревшая вкладка после выкатки в отчёт не идёт: наблюдаемость должна
+    // показывать поломки, а не наши же деплои.
+    if (!isChunkLoadError(error)) reportError(error, 'render', info?.componentStack);
   }
 
   handleReload = () => {
@@ -30,6 +33,14 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      /**
+       * Ленивый экран, чей чанк исчез после выкатки, — не поломка приложения,
+       * а устаревшая вкладка (планшет в цеху держат открытым сутками).
+       * Общий текст «Что-то пошло не так» читается там как «программа
+       * сломалась», хотя лечится одной кнопкой. Перезагружаем только
+       * по нажатию: в соседней форме может быть набранное.
+       */
+      const isUpdate = isChunkLoadError(this.state.error);
       // Локальный фолбэк (напр. один экран внутри оболочки ERP): полноэкранный
       // блок ниже разорвал бы layout, поэтому владелец даёт свой.
       const { fallback } = this.props;
@@ -57,14 +68,14 @@ export default class ErrorBoundary extends Component {
             width: '90%',
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>⚠</div>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>{isUpdate ? '⟳' : '⚠'}</div>
             <h2 style={{
               fontSize: 18,
               fontFamily: 'var(--font-display, Barlow Condensed, sans-serif)',
               fontWeight: 600,
               marginBottom: 8,
             }}>
-              Что-то пошло не так
+              {isUpdate ? UPDATE_TITLE : 'Что-то пошло не так'}
             </h2>
             <p style={{
               fontSize: 13,
@@ -72,7 +83,9 @@ export default class ErrorBoundary extends Component {
               marginBottom: 20,
               lineHeight: 1.5,
             }}>
-              {this.state.error?.message || 'Произошла непредвиденная ошибка'}
+              {isUpdate
+                ? UPDATE_MESSAGE
+                : (this.state.error?.message || 'Произошла непредвиденная ошибка')}
             </p>
             <button
               onClick={this.handleReload}
@@ -87,7 +100,7 @@ export default class ErrorBoundary extends Component {
                 cursor: 'pointer',
               }}
             >
-              Перезагрузить
+              {isUpdate ? 'Обновить' : 'Перезагрузить'}
             </button>
           </div>
         </div>

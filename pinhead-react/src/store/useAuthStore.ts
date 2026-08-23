@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { storageClearAll } from '../lib/storage';
 import { toast } from './useToastStore';
 import { runAppResets } from './appReset';
-import { useOrdersStore } from './useOrdersStore';
 import { networkFailureMessage, translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus, Profile } from '../types/auth';
 
@@ -477,10 +476,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     if (get().user?.id === 'dev') return;
     storageClearAll();
     runAppResets();
-    useOrdersStore.setState({
-      orders: [], loading: false, hasMore: true, loadingMore: false,
-      lastCreatedAt: null, filter: 'all', search: '',
-    });
     set({
       user: null,
       profileStatus: 'no_profile' as ProfileStatus,
@@ -529,10 +524,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
        * (выборку RLS уже от чужого имени), его цех и его бейджи.
        */
       runAppResets();
-      useOrdersStore.setState({
-        orders: [], loading: false, hasMore: true, loadingMore: false,
-        lastCreatedAt: null, filter: 'all', search: '',
-      });
       set({
         user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
         awaitingEmailConfirm: null, resetSentTo: null, passwordRecovery: false,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 /**
@@ -82,6 +83,62 @@ describe('шрифты', () => {
     expect(referenced.length).toBeGreaterThan(0);
     for (const file of referenced) {
       expect(present, `нет файла public/fonts/${file}`).toContain(file);
+    }
+  });
+
+  /**
+   * ДУБЛИ ФАЙЛОВ — то, чего не видит ни один другой тест.
+   *
+   * До 23.08 в `public/fonts` лежало двенадцать файлов, из которых пять были
+   * побайтовыми копиями: Inter и Roboto Mono вариативные, Google отдаёт для
+   * 400/500/600 ОДИН файл, а скрипт скачивания сохранил его трижды. 185 кБ
+   * из 348 — больше, чем весь собственный код оболочки, и браузер эти копии
+   * реально качал: интерфейс использует все три веса одновременно.
+   *
+   * Сверка по содержимому, а не по именам: следующий раз файлы назовут иначе.
+   */
+  it('в public/fonts нет побайтовых дублей', () => {
+    const byHash = new Map<string, string[]>();
+    for (const file of readdirSync(FONT_DIR).filter((f) => f.endsWith('.woff2'))) {
+      const hash = createHash('md5').update(readFileSync(join(FONT_DIR, file))).digest('hex');
+      byHash.set(hash, [...(byHash.get(hash) ?? []), file]);
+    }
+    const dupes = [...byHash.values()].filter((files) => files.length > 1);
+    expect(dupes, `одинаковые файлы шрифтов:\n${dupes.map((d) => d.join(' = ')).join('\n')}`)
+      .toEqual([]);
+  });
+
+  /**
+   * Потолок веса. Шрифты не проходят через сборку, поэтому `bundle-budget`
+   * их не видит вовсе — а весят они больше, чем любой чанк кода.
+   * 170 кБ оставляют запас к нынешним 158 и ловят как возврат дубля,
+   * так и добавление четвёртого семейства «на минутку».
+   */
+  it('шрифты вместе весят не больше 170 кБ', () => {
+    const total = readdirSync(FONT_DIR)
+      .filter((f) => f.endsWith('.woff2'))
+      .reduce((sum, f) => sum + statSync(join(FONT_DIR, f)).size, 0);
+    expect(total, `${Math.round(total / 1024)} кБ в public/fonts`).toBeLessThanOrEqual(170_000);
+  });
+
+  /**
+   * `crossorigin` У PRELOAD ШРИФТА — не украшение.
+   *
+   * Шрифты запрашиваются в анонимном режиме CORS ДАЖЕ со своего домена. Без
+   * `crossorigin` браузер считает предзагрузку и настоящий запрос разными,
+   * и файл скачивается ДВАЖДЫ — то есть подсказка, поставленная ради скорости,
+   * делает ровно обратное. Ошибка тихая: на глаз всё работает.
+   */
+  it('preload шрифта объявлен правильно и ведёт на существующий файл', () => {
+    const links = [...INDEX_HTML.matchAll(/<link[^>]*rel="preload"[^>]*>/g)].map((m) => m[0]);
+    const fonts = links.filter((l) => l.includes('as="font"'));
+    expect(fonts.length, 'preload шрифта пропал из index.html').toBeGreaterThan(0);
+    const present = new Set(readdirSync(FONT_DIR));
+    for (const link of fonts) {
+      expect(link, `нет crossorigin — файл скачается дважды: ${link}`).toContain('crossorigin');
+      const href = /href="\/fonts\/([^"]+)"/.exec(link)?.[1];
+      expect(href, `preload без href на /fonts/: ${link}`).toBeTruthy();
+      expect(present, `preload ведёт на несуществующий public/fonts/${href}`).toContain(href!);
     }
   });
 

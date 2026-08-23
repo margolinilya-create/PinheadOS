@@ -1295,48 +1295,15 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
 // --- Матрица прав (ядро правки 11) ------------------------------------------
 
 /**
- * Что роль вправе делать. Ограничение «только свой цех» — отдельная проверка
- * по привязке erp_employees.department_id, матрицей не отменяется.
+ * Перечисление прав переехало в `./permissionKeys` — его импортирует ОБОЛОЧКА,
+ * и тянуть ради него весь этот файл со словарями подписей незачем
+ * (см. комментарий там). Здесь остаётся реэкспорт: экранный код по-прежнему
+ * берёт `ErpPermission` и `ERP_PERMISSIONS` из `types`.
  */
-export type ErpPermission =
-  | 'stage.take'              // взять задание в работу (закрепить за собой)
-  | 'stage.progress'          // записать фактически выполненное количество
-  | 'stage.complete'          // завершить этап
-  | 'stage.block'             // сообщить о проблеме / снять блокировку
-  | 'stage.defect'            // оформить брак / переделку
-  | 'stage.priority'          // менять приоритет заданий в очереди
-  | 'stage.move_department'   // переносить задание между цехами на канбане
-  | 'order.manage'            // создавать и редактировать заказы
-  | 'tz.manage'               // загружать и заменять ТЗ позиции
-  | 'material.receive'        // отмечать поступление материала (приёмка)
-  | 'plan.manage'             // ставить и менять производственный план
-  | 'plan.fact'               // вносить факт, брак и проблему по задаче плана
-  | 'catalog.edit'            // редактировать справочники
-  | 'bypass.manage'           // аварийно снимать блокировки и возвращать их
-  | 'experimental.manage'     // вести разработку образцов и отправлять их в цеха
-  /**
-   * Двигать складские задачи: приёмка материалов, маркировка, приёмка готовой
-   * продукции, упаковка и отгрузка. Заведено решением заказчика 10.08 — прежде
-   * задачи склада принимали запись от любого участника, и швея могла отметить
-   * продукцию принятой (а это открывает упаковку) и отгрузить её.
-   * `material.receive` для этого не годился: маркировка и упаковка — не приёмка.
-   */
-  | 'warehouse.manage'
-  /**
-   * Приглашать сотрудников ссылкой — то есть заводить человека сразу с ролью
-   * и цехом. Действие раздаёт права, поэтому гейтится ПРАВОМ, а не ролью
-   * учётной записи: роль-исключение означала бы расхождение с сервером
-   * (`isPrivileged` это admin + director + РОП, а `is_admin()` — только admin),
-   * а на таком расхождении в проекте уже ловились.
-   */
-  | 'staff.invite';
+import type { ErpPermission } from './permissionKeys';
 
-export const ERP_PERMISSIONS: ErpPermission[] = [
-  'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
-  'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
-  'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
-  'bypass.manage', 'experimental.manage', 'staff.invite',
-];
+export type { ErpPermission } from './permissionKeys';
+export { ERP_PERMISSIONS } from './permissionKeys';
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'stage.take': 'Брать задания в работу',
