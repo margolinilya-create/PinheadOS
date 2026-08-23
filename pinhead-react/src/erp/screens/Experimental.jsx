@@ -33,6 +33,8 @@ import { DEV_OUTCOME_LABELS } from '../types';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevBoard } from './experimental/DevBoard';
+import { DevRowCard } from './experimental/DevRowCard';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
 import styles from '../erp.module.css';
 
@@ -228,6 +230,8 @@ export default function Experimental() {
   }, [experimentalLoaded, loadExperimental]);
 
   const today = factoryToday();
+  /** Планшет: список из шести колонок не помещается — карточки */
+  const compact = useCompactLayout();
   const rows = useMemo(() => buildDevRows(experimental, today), [experimental, today]);
   /**
    * Материалы по заказам — их спрашивает гейт кроя: «крой можно начать только
@@ -505,7 +509,39 @@ export default function Experimental() {
         />
       )}
 
-      {experimentalLoaded && visible.length > 0 && view === 'list' && (
+      {/*
+        КОМПАКТНАЯ РАСКЛАДКА (планшет). Шесть колонок, из которых «Текущий
+        блокер» и «Состояние» несут по две строки, ниже 1024px уезжали за край —
+        вместе с ответом на вопрос, ради которого на экран и приходят.
+      */}
+      {experimentalLoaded && visible.length > 0 && view === 'list' && compact && (
+        <>
+          <div className={styles.dataCardList}>
+            {pageRows.map(({ dev, tasks, state }) => (
+              <DevRowCard
+                key={dev.id}
+                dev={dev}
+                tasks={tasks}
+                state={state}
+                stateVariant={STATE_VARIANT[state]}
+                typeNames={typeNames}
+                today={today}
+                onOpen={openDev}
+              />
+            ))}
+          </div>
+          <Pagination
+            page={safePage}
+            pageCount={pageCount}
+            total={visible.length}
+            pageSize={pageSize}
+            onPage={setPage}
+            onPageSize={(n) => { setPageSize(n); setPage(1); }}
+          />
+        </>
+      )}
+
+      {experimentalLoaded && visible.length > 0 && view === 'list' && !compact && (
         <>
           <ScrollHintBox className={styles.tableWrap} label="Разработки">
             <table className={styles.table}>

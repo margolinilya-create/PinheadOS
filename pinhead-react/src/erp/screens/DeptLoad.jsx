@@ -6,6 +6,8 @@ import { Button } from '../components/Button';
 import { EmptyState, LoadFailed } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { ScrollHintBox } from '../components/ScrollHintBox';
+import { DeptLoadCard } from './DeptLoadCard';
+import { useCompactLayout } from '../layout/useCompactLayout';
 import { useErpStore } from '../store/useErpStore';
 import { CapacityBar } from '../components/CapacityBar';
 import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
@@ -48,6 +50,8 @@ export default function DeptLoad() {
   );
 
   const today = factoryToday();
+  /** Планшет цеха: сетка из десяти колонок не помещается — карточка на цех */
+  const compact = useCompactLayout();
   const [start, setStart] = useState(() => weekStart(factoryToday()));
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
@@ -122,7 +126,27 @@ export default function DeptLoad() {
         />
       )}
 
-      {loaded && rows.length > 0 && (
+      {/*
+        КОМПАКТНАЯ РАСКЛАДКА (планшет цеха). Сетка «цех × семь дней + две
+        сводные колонки» на 768px не помещается: карточка на цех с лентой
+        недели внутри укладывается даже в 375px.
+      */}
+      {loaded && rows.length > 0 && compact && (
+        <div className={styles.dataCardList}>
+          {rows.map((row) => (
+            <DeptLoadCard
+              key={row.dept.id}
+              row={row}
+              days={days}
+              dayLabel={dayLabel}
+              today={today}
+              maxCell={maxCell}
+            />
+          ))}
+        </div>
+      )}
+
+      {loaded && rows.length > 0 && !compact && (
         <ScrollHintBox className={styles.tableWrap} label="Загрузка цехов по дням">
           <table className={styles.table}>
             <thead>

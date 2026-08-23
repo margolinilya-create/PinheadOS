@@ -488,6 +488,16 @@ export type MockExtras = {
    * то есть проверялся бы не тот путь, по которому ходит прод.
    */
   subcontracting?: unknown[];
+  /**
+   * Сотрудники и учётные записи админки (`erp_employees` + `profiles`).
+   *
+   * Списки разные и в базе, и на экране: профиль это учётная запись с ролью
+   * и статусом, `erp_employees` — цеховая надстройка над ним ЛИБО работник
+   * без логина вовсе. Экран показывает их двумя таблицами, поэтому и здесь
+   * два ключа: набор, где всё связано, не дал бы проверить нижнюю таблицу.
+   */
+  employees?: unknown[];
+  profiles?: unknown[];
 };
 
 type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
@@ -503,6 +513,10 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
       return extra.experimental ?? [];
     case 'erp_subcontracting':
       return extra.subcontracting ?? [];
+    case 'erp_employees':
+      return extra.employees ?? [];
+    case 'profiles':
+      return extra.profiles ?? [];
     case 'erp_orders': {
       const all = [...ORDERS, ...((extra.orders ?? []) as typeof ORDERS)] as unknown as OrderFx[];
       const idFilter = params.get('id');
