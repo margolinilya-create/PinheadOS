@@ -1277,6 +1277,14 @@
         "20260823160000_erp_attachment_kinds_print_label_note.sql"
       ],
       "note": "найдено проверкой на живой базе: виды print/label/note были только в ErpAttachmentKind, CHECK отвечал 23514 и ронял создание заказа целиком. Сторож — attachmentKinds.test.ts"
+    },
+    {
+      "version": "20260823214022",
+      "name": "erp_pack_ship_three_statuses",
+      "files": [
+        "20260823214022_erp_pack_ship_three_statuses.sql"
+      ],
+      "note": "к базе применён тот же текст, но без длинных пояснений — обоснование целиком живёт в файле репозитория. Оба серверных писателя pack_ship пересозданы из их же pg_get_functiondef (правило «подлинный текст»)"
     }
   ]
 }

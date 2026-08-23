@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  functionBody, latestDefining, withoutComments, withoutJsComments,
+} from './migrations.testutil';
 
 /**
  * Гейт упаковки читает ФАЗУ подряда, а не строку статуса.
@@ -183,5 +187,43 @@ describe('приёмка подряда складом проходит стра
     const perms = GUARD.indexOf("v_take     := public.erp_has_permission('stage.take')");
     expect(guarded).toBeLessThan(bypass);
     expect(bypass).toBeLessThan(perms);
+  });
+});
+
+/**
+ * СТАРТОВЫЙ СТАТУС «Упаковки и отгрузки» (правка 23.08, п. 4).
+ *
+ * Писателей у задачи ТРИ: два серверных триггера и клиентский путь подряда
+ * «под ключ» (`subcontractingSlice` — там производственных этапов нет вовсе,
+ * и триггер не сработает никогда). Забытый писатель не роняет ничего: он
+ * заводит задачу в статусе, которого интерфейс больше не знает, — карточка
+ * выходит без единой кнопки, и заказ встаёт на складе молча.
+ *
+ * Сторож требует, чтобы КАЖДЫЙ писатель ставил `packing`, и чтобы снятые
+ * статусы не вернулись ни в одного из них.
+ */
+describe('стартовый статус упаковки — один на всех писателей', () => {
+  const SLICE = withoutJsComments(
+    readFileSync(resolve(__dirname, '../store/slices/subcontractingSlice.ts'), 'utf8'),
+  );
+
+  it('оба серверных писателя заводят задачу «На упаковке»', () => {
+    for (const [name, body] of [['derive', DERIVE], ['fg_accepted', FG_ACCEPTED]] as const) {
+      const at = body.indexOf("'pack_ship'");
+      expect(at, `${name}: писателя pack_ship нет вовсе`).toBeGreaterThan(-1);
+      expect(body.slice(at, at + 40), name).toMatch(/'pack_ship',\s*'packing'/);
+    }
+  });
+
+  it('клиентский писатель (подряд «под ключ») ставит тот же статус', () => {
+    expect(SLICE).toMatch(/'pack_ship',\s*'packing'/);
+  });
+
+  it('снятые статусы не вернулись ни к одному писателю', () => {
+    // `awaiting_receipt` остаётся живым у subcontract_receipt — поэтому
+    // проверяем его в СОСЕДСТВЕ с pack_ship, а не по всему тексту
+    for (const body of [DERIVE, FG_ACCEPTED, SLICE]) {
+      expect(body).not.toMatch(/'pack_ship',\s*'(awaiting_receipt|accepted|packed)'/);
+    }
   });
 });

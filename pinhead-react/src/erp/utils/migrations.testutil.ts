@@ -60,3 +60,22 @@ export function functionBody(sql: string, fn: string): string {
   const close = sql.indexOf('$$', open + 2);
   return sql.slice(open, close);
 }
+
+/**
+ * Исходник JS/TS без комментариев — тот же приём, что `withoutComments`,
+ * но для клиентского кода: она снимает только строки `--` и на JavaScript
+ * не действует.
+ *
+ * Нужен ровно там же — в проверках «этого здесь больше нет»: объяснение,
+ * ПОЧЕМУ правила не стало, содержит те же слова, что и само правило. На этом
+ * уже падал сторож приёмок (`materialReceipts.test.ts`), и оба падения были
+ * ложными; когда приём понадобился второй раз (стартовый статус упаковки),
+ * копия функции рядом означала бы две реализации одного правила.
+ */
+export function withoutJsComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('//'))
+    .join('\n');
+}
