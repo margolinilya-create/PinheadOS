@@ -7,6 +7,7 @@ import { useAuthStore, watchAuthState } from './store/useAuthStore'
 import { toast } from './store/useToastStore'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
 import { handlePossibleUpdate } from './lib/appUpdate'
+import { setupServiceWorker } from './lib/serviceWorker'
 import { isNetworkFailure } from './utils/i18n'
 
 // Ошибки вне React (события, таймеры, промисы) до ErrorBoundary не доходят.
@@ -78,6 +79,15 @@ if (hasStoredSession()) import('./erp/ErpApp').catch(() => {});
 // в любой момент, и до этой подписки приложение узнавало об этом только отказами RLS.
 useAuthStore.getState().init().catch(() => {});
 watchAuthState();
+
+/*
+ * Офлайн-ОТКРЫТИЕ приложения (не офлайн-работа: данные живут в Supabase).
+ * Планшет в цеху теряет Wi-Fi, а система выгружает его вкладку — возврат
+ * к ней это навигация, и без worker'а она даёт системную страницу «нет
+ * соединения» при полностью скачанном приложении. Подробности и границы —
+ * в `public/sw.js`, аварийный выключатель — адрес `?sw=off`.
+ */
+setupServiceWorker();
 
 // Черновик визарда и каталоги Order Studio запускает САМ РАЗДЕЛ
 // (`orderstudio/OrderStudioApp`): здесь их инициализация тянула его стор,
