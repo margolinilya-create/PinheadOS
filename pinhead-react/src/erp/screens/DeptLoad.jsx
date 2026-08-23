@@ -58,10 +58,26 @@ export default function DeptLoad() {
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
 
   const days = useMemo(() => loadDays(start, 7), [start]);
-  const { rows, maxCell } = useMemo(
+  const { rows, maxCell, totals } = useMemo(
     () => buildDeptLoad(orders, departments, days, today),
     [orders, departments, days, today],
   );
+
+  /**
+   * Ни у одного открытого этапа нет плановой даты — считать здесь нечего,
+   * и сказать это надо прямо.
+   *
+   * Без полосы экран выглядит рабочим и НЕПРАВДИВЫМ: строки цехов есть
+   * (их держат этапы без плана), семь колонок стоят прочерками, и это
+   * читается как «загрузка нулевая» — то есть как ответ, тогда как ответа
+   * нет. Пустое состояние ниже в такой ситуации не показывается вовсе.
+   *
+   * На проде 22.08 так и было: 43 открытых этапа, плановой даты нет ни
+   * у одного. Причина не в невнимательности — дату пишет только форма
+   * «Взять в работу», то есть в момент запуска этапа, а `waiting` этапы
+   * (будущее, ради которого экран и заведён) её не получают никогда.
+   */
+  const nothingPlanned = totals.planned === 0 && totals.unplanned > 0;
 
   /**
    * Две РАЗНЫЕ величины на одном экране, и их нельзя складывать.
@@ -116,6 +132,16 @@ export default function DeptLoad() {
 
       {!loaded && !loadError && <TableSkeleton />}
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="загрузку цехов" />}
+
+      {loaded && nothingPlanned && (
+        <div className={styles.warnBox} role="status">
+          <strong>Загрузка не рассчитывается: плановых дат нет ни у одного открытого этапа</strong>
+          {' '}({totals.unplanned} шт). Листать недели бессмысленно — там будет то же самое.
+          Дату этапа проставляют в карточке заказа (колонка «План») или при взятии
+          работы в цех; до этого сетка ниже показывает прочерки, а весь объём
+          попадает в колонку «Без плана».
+        </div>
+      )}
 
       {loaded && rows.length === 0 && (
         <EmptyState

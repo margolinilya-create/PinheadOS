@@ -45,6 +45,22 @@ export interface DeptLoad {
   rows: LoadRow[];
   /** Максимум по всем ячейкам — шкала заливки */
   maxCell: number;
+  /**
+   * Сколько ОТКРЫТЫХ этапов вообще несут плановую дату, а сколько нет —
+   * по всем цехам и БЕЗ оглядки на видимую неделю.
+   *
+   * Зачем отдельно от `rows`. Строка цеха попадает в сетку и тогда, когда
+   * у него одни лишь этапы без плана, — экран рисует семь колонок прочерков
+   * и заполненную колонку «Без плана». Это читается как «загрузка нулевая»,
+   * хотя означает противоположное: планов нет НИ У ЧЕГО, и листать недели
+   * бессмысленно — там будет то же самое. Пустое состояние экрана при этом
+   * не показывается вовсе (строки-то есть).
+   *
+   * Считать по видимой неделе нельзя: этап, запланированный на следующую,
+   * запланирован — и сказать «дат нет ни у одного этапа» было бы неправдой.
+   * То же правило, что у очереди «Не запланировано» в плане производства.
+   */
+  totals: { planned: number; unplanned: number };
 }
 
 /**
@@ -76,6 +92,7 @@ export function buildDeptLoad(
   today: string,
 ): DeptLoad {
   const dayIndex = new Map(days.map((d, i) => [d, i]));
+  const totals = { planned: 0, unplanned: 0 };
   const rows = new Map<string, LoadRow>();
   for (const dept of departments) {
     rows.set(dept.id, {
@@ -100,6 +117,10 @@ export function buildDeptLoad(
 
         const left = Math.max((item.qty ?? 0) - (stage.qty_done ?? 0), 0);
         const planned = stage.planned_end;
+
+        // Считаем ДО отбора по видимой неделе: вопрос «планируют ли вообще»
+        // границ периода не имеет
+        if (planned) totals.planned += 1; else totals.unplanned += 1;
 
         if (!planned) {
           row.unplanned.qty += left;
@@ -130,5 +151,5 @@ export function buildDeptLoad(
     0,
   );
 
-  return { rows: visible, maxCell };
+  return { rows: visible, maxCell, totals };
 }

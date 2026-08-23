@@ -115,7 +115,51 @@ describe('buildDeptLoad', () => {
   });
 
   it('пустые данные не роняют расчёт', () => {
-    expect(buildDeptLoad([], DEPTS, DAYS, TODAY)).toEqual({ rows: [], maxCell: 0 });
+    expect(buildDeptLoad([], DEPTS, DAYS, TODAY))
+      .toEqual({ rows: [], maxCell: 0, totals: { planned: 0, unplanned: 0 } });
+  });
+});
+
+/**
+ * «Планов нет ни у чего» против «на этой неделе пусто».
+ *
+ * Экран обязан их различать: в первом случае листать недели бессмысленно,
+ * во втором — осмысленно. На проде 22.08 было ровно первое (43 открытых
+ * этапа, плановой даты нет ни у одного), и экран показывал строки цехов
+ * с семью прочерками — то есть выглядел рабочим и отвечал неправду.
+ */
+describe('totals: планируют ли вообще', () => {
+  it('ни одной плановой даты — planned = 0', () => {
+    const { totals, rows } = buildDeptLoad(
+      [order(10, [stage('d1', null), stage('d2', null)])], DEPTS, DAYS, TODAY,
+    );
+    expect(totals).toEqual({ planned: 0, unplanned: 2 });
+    // Строки при этом ЕСТЬ — их держат этапы без плана, поэтому пустое
+    // состояние экрана не показывается и полоса обязана быть отдельной
+    expect(rows).toHaveLength(2);
+  });
+
+  it('план на другую неделю — это ЗАПЛАНИРОВАНО, а не «дат нет»', () => {
+    const { totals } = buildDeptLoad(
+      [order(10, [stage('d1', '2026-09-15')])], DEPTS, DAYS, TODAY,
+    );
+    expect(totals).toEqual({ planned: 1, unplanned: 0 });
+  });
+
+  it('просроченный план тоже считается планом', () => {
+    const { totals } = buildDeptLoad(
+      [order(10, [stage('d1', '2026-07-01')])], DEPTS, DAYS, TODAY,
+    );
+    expect(totals).toEqual({ planned: 1, unplanned: 0 });
+  });
+
+  it('закрытые этапы и подряд в счёт не идут', () => {
+    const closed = stage('d1', null, 'done');
+    const contractor = { ...stage('d2', null), executor: 'contractor' };
+    const { totals } = buildDeptLoad(
+      [order(10, [closed, contractor, stage('d3', null)])], DEPTS, DAYS, TODAY,
+    );
+    expect(totals).toEqual({ planned: 0, unplanned: 1 });
   });
 });
 
