@@ -452,6 +452,8 @@
   padding: 48px 24px;
 }
 .stubIcon { font-size: 34px; margin-bottom: 10px; }
+/* Пояснение под заголовком заглушки — второй строкой и тише основного текста */
+.stubText { font-size: var(--type-body-sm); color: var(--text-dim); margin-top: 4px; }
 .stubPhase {
   display: inline-block;
   margin-top: 14px;
@@ -2264,6 +2266,15 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 }
 .fileCard:hover { border-color: var(--accent); }
 .fileThumb { width: 100%; height: 88px; object-fit: cover; border-radius: 6px; background: var(--surface); }
+/* Заглушка вместо превью: файл не картинка либо картинка не загрузилась.
+   Габариты те же, что у `.fileThumb`, — иначе плитка прыгает */
+.fileThumbStub {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 88px; border-radius: 6px;
+  background: var(--surface); color: var(--text-dim);
+}
+/* Блок нанесений позиции: отбит от таблицы этапов выше */
+.thumbStubBlock { margin-top: 12px; }
 .fileName { font-size: 12px; color: var(--text-mid); word-break: break-word; }
 
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
@@ -2447,6 +2458,15 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
 .wizActions > * { flex: 1; }
 /* Вертикальная стопка полей мастера */
 .stack { display: flex; flex-direction: column; gap: 10px; }
+/*
+  Плотный стек — тот же столбец с меньшим зазором. Используется в тринадцати
+  местах (списки нанесений, журнал подряда, действия этапа, заметки заказа),
+  и всё это время класса НЕ СУЩЕСТВОВАЛО: `styles.stackTight` отдавал
+  undefined, разметка получала `className={undefined}`, и блоки шли без
+  зазора вовсе. Ни один тест такого не видит — падать нечему, меняется
+  только вид. Нашёл сторож `stylesResolve.test.ts`.
+*/
+.stackTight { composes: stack; gap: 6px; }
 
 /* ─── Загрузка цехов (сетка «цех × день») ─── */
 .loadPeriod { font-weight: 600; font-size: 13px; }
