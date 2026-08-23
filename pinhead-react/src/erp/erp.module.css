@@ -532,6 +532,11 @@
 .thSortArrow { opacity: 0.45; font-size: 11px; }
 .thSorted .thSortArrow { opacity: 1; color: var(--accent); }
 .table tr:last-child td { border-bottom: none; }
+/* Выбранная строка списка-навигации (мастер-деталь раздела «Закупка»,
+   правка 23.08, п. 1). Объявлена ЗДЕСЬ, рядом со своей базой `.table td`:
+   специфичность у них равна, спор решает порядок, а между CSS-чанками
+   порядка не существует. */
+.rowSelected td { background: var(--bg-info); }
 
 /* ─── Статус-чипы ───
    11.5px — осознанное исключение из правила «мелкий текст ≥12px»: это не текст

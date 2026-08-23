@@ -133,7 +133,7 @@ test.describe('Очередь закупки (правка 12.08)', () => {
   test('заказ БЕЗ материалов виден и говорит об этом прямо', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
 
-    const block = page.getByRole('heading', { name: /В работе у закупки/ });
+    const block = page.getByRole('heading', { name: /Заказы в закупке/ });
     await expect(block).toBeVisible();
 
     // Это и есть дефект: раньше такого заказа не было ни на одном экране
@@ -150,7 +150,10 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     // три одинаковые строки с одним и тем же списком материалов
     const rows = supplyRow(page, 'Платки тест закупка');
     await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText('1 позиция');
+    // Число позиций в закупке переехало в карточку вместе с работой (п. 1.1):
+    // в списке остались только ключевые поля навигации
+    await rows.first().getByRole('button', { name: 'Открыть' }).click();
+    await expect(page.getByText(/1 позиция в закупке/)).toBeVisible();
   });
 
   test('состояние закупки различает «ожидает» и «в работе»', async ({ page }) => {
@@ -160,15 +163,46 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     await expect(supplyRow(page, 'Худи корпоратив')).toContainText('В работе');
   });
 
-  test('материалы показаны счётом «на месте из всего»', async ({ page }) => {
+  test('материалы показаны прогрессом «N из M»', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
-    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('1 из 2 на месте');
+    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('1 из 2');
+  });
+
+  /**
+   * РАБОЧИХ ДЕЙСТВИЙ В СПИСКЕ НЕТ (п. 1.2): «не держать россыпью в общем
+   * списке — они доступны после открытия конкретной закупки». Сторожим
+   * отсутствие поимённо: вернувшаяся кнопка восстановила бы вторую рабочую
+   * зону молча.
+   */
+  test('список — только навигация, действия в карточке', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const row = supplyRow(page, 'Платки тест закупка');
+    for (const name of ['Печать', '+ Материал', 'Взять в работу', 'Завершить закупку']) {
+      await expect(row.getByRole('button', { name })).toHaveCount(0);
+    }
+    await expect(row.getByRole('button', { name: 'Открыть' })).toBeVisible();
+  });
+
+  /** Сводка статусов видна сразу, без прокрутки к таблице (п. 1.3) */
+  test('карточка закупки открывается со сводкой статусов', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await supplyRow(page, 'Платки тест закупка')
+      .getByRole('button', { name: 'Открыть' }).click();
+    // Выбор живёт в адресе — ссылкой на закупку можно поделиться
+    await expect(page).toHaveURL(/supply=/);
+    // Ищем именно ПЛИТКИ сводки: «Пришло» и «В пути» есть ещё и среди
+    // чипов-фильтров таблицы, которая лежит в той же карточке
+    const tiles = page.locator('[class*="kpiCardLabel"]');
+    for (const label of ['Всего материалов', 'Не заказано', 'Заказано', 'В пути', 'Пришло', 'Проблемы']) {
+      await expect(tiles.filter({ hasText: new RegExp(`^${label}$`) })).toBeVisible();
+    }
   });
 
   test('досрочное закрытие требует причины — иначе этап закрыт молча', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
-    const row = supplyRow(page, 'Платки тест закупка');
-    await row.getByRole('button', { name: 'Закупка завершена' }).click();
+    await supplyRow(page, 'Платки тест закупка')
+      .getByRole('button', { name: 'Открыть' }).click();
+    await page.getByRole('button', { name: 'Завершить закупку' }).click();
 
     // У заказа нет ни одного материала → закрытие досрочное и с объяснением
     const dialog = page.getByRole('dialog');

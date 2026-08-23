@@ -207,8 +207,25 @@ test.describe('Склад на планшете', () => {
 });
 
 test.describe('Закупка на планшете', () => {
-  test('строки рисуются карточками, обе группы полей названы', async ({ page }) => {
+  /**
+   * С правки 23.08 (п. 1) экран — мастер-деталь: строки материалов живут
+   * в карточке ВЫБРАННОГО заказа, поэтому её сначала надо открыть. Список
+   * сверху остаётся навигацией на любой ширине.
+   */
+  const openFirst = async (page) => {
     await page.goto('/purchasing?studio=0');
+    // В планшетной фикстуре открытых этапов закупки нет — заказы лежат
+    // в свёрнутом блоке «Завершённые» (п. 1.6): история остаётся достижимой.
+    // Ждём блок ЯВНО: `count()` до загрузки данных вернул бы ноль, клика
+    // не было бы вовсе, и упал бы уже следующий шаг — на пустом экране
+    const summary = page.locator('summary').filter({ hasText: 'Завершённые закупки' });
+    await expect(summary).toBeVisible();
+    await summary.click();
+    await page.getByRole('button', { name: 'Открыть' }).first().click();
+  };
+
+  test('строки рисуются карточками, обе группы полей названы', async ({ page }) => {
+    await openFirst(page);
     const card = page.getByRole('article', { name: /^Закупка:/ }).first();
     await expect(card).toBeVisible();
     // Разделение ролей — требование документа, и смену раскладки оно переживает
@@ -217,7 +234,7 @@ test.describe('Закупка на планшете', () => {
   });
 
   test('страница не прокручивается по горизонтали', async ({ page }) => {
-    await page.goto('/purchasing?studio=0');
+    await openFirst(page);
     await expect(page.getByRole('article', { name: /^Закупка:/ }).first()).toBeVisible();
     await expectNoHorizontalScroll(page);
   });

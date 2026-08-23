@@ -88,10 +88,19 @@ export interface SupplyMaterialSummary {
   inTransit: number;
   /** Сколько пришло или зарезервировано со склада */
   arrived: number;
+  /** Сколько ещё не оформлено закупщиком (документ 23.08, п. 1.3) */
+  notOrdered: number;
+  /**
+   * Позиции с проблемой: план прихода прошёл, а материал не на месте, либо
+   * у закупаемой строки нет планового количества (без него приёмка на складе
+   * не сверится, и закупка не закроется автоматически никогда).
+   */
+  problems: ErpMaterial[];
 }
 
 export function supplyMaterialSummary(
   materials: readonly ErpMaterial[] | null | undefined,
+  today: string | null = null,
 ): SupplyMaterialSummary {
   const list = materials ?? [];
   const settled = list.filter(isMaterialSettled).length;
@@ -115,6 +124,23 @@ export function supplyMaterialSummary(
     inTransit: list.filter(
       (m) => m.status === 'ordered' || m.status === 'in_transit' || m.status === 'partial').length,
     arrived: list.filter((m) => m.status === 'received' || m.status === 'reserved').length,
+    notOrdered: list.length - list.filter(
+      (m) => (m.qty_ordered != null && m.qty_ordered > 0) || Boolean(m.ordered_on)).length,
+    /**
+     * «Проблемы или просрочено» из сводки карточки (п. 1.3). Считается ЗДЕСЬ,
+     * а не на экране: величина закупочная, и вторая её реализация рядом
+     * с таблицей разошлась бы с плиткой молча — обе «работают», просто
+     * считают разное.
+     *
+     * `today` передаётся аргументом, а не берётся из `Date`: календарный день
+     * в проекте даёт `utils/date`, а чистая функция не должна зависеть
+     * от часов машины (правило тестов дат).
+     */
+    problems: list.filter((m) => {
+      if (isMaterialSettled(m)) return false;
+      if (m.source === 'purchase' && (m.qty_expected == null || m.qty_expected <= 0)) return true;
+      return Boolean(today && m.eta_date && m.eta_date < today);
+    }),
   };
 }
 

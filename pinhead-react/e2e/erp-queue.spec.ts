@@ -177,10 +177,35 @@ test.describe('Производственный канбан (правка 4)', 
   });
 });
 
+/**
+ * Открыть карточку закупки первого доступного заказа.
+ *
+ * С правки 23.08 (п. 1) экран — мастер-деталь: материалы живут в карточке
+ * ВЫБРАННОГО заказа. Часть фикстур не имеет открытых этапов закупки, и там
+ * заказы лежат в свёрнутом блоке «Завершённые» (п. 1.6).
+ *
+ * Заголовок списка дожидаемся ЯВНО: он рисуется только по `loaded`, и без
+ * этого `count()` ниже отработал бы на ещё пустом экране — клика не было бы
+ * вовсе, а упал бы уже следующий шаг.
+ */
+async function openPurchaseCard(page: import('@playwright/test').Page) {
+  await expect(page.getByRole('heading', { name: /Заказы в закупке/ })).toBeVisible();
+  const archive = page.locator('summary').filter({ hasText: 'Завершённые закупки' });
+  if (await archive.count()) await archive.first().click();
+  await page.getByRole('button', { name: 'Открыть' }).first().click();
+}
+
 test.describe('Показатели закупки (правки 10 и 14)', () => {
-  test('плитка показателя фильтрует список и сбрасывается', async ({ page }) => {
+  /**
+   * ПЛИТОК-ПОКАЗАТЕЛЕЙ ЭКРАНА БОЛЬШЕ НЕТ (правка 23.08, п. 1.3): они были
+   * вторым видом того же фильтра, что чипы, и тем самым «общим статусом
+   * материалов ниже по экрану», на который жалуется документ. Фильтр остался
+   * чипами, статус переехал в сводку карточки — проверяется в `erp-supply`.
+   */
+  test('фильтр таблицы живёт чипами и сбрасывается', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
-    await expect(page.getByRole('button', { name: /Всего строк/ })).toBeVisible();
+    await openPurchaseCard(page);
+    await expect(page.getByRole('button', { name: /Всего строк/ })).toHaveCount(0);
     await page.getByRole('button', { name: /Ожидается/ }).first().click();
     await expect(page.getByText(/Фильтр: Ожидается/)).toBeVisible();
     await page.getByRole('button', { name: 'Сбросить фильтр' }).click();
@@ -282,6 +307,8 @@ test.describe('Админка: права и справочники (правк�
 test.describe('Варианты поставщиков в закупке (правка 10)', () => {
   test('ячейка поставщика открывает сравнение вариантов', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
+    // Таблица материалов живёт в карточке выбранного заказа (правка 23.08, п. 1)
+    await openPurchaseCard(page);
     const cell = page.getByRole('button', { name: /не выбран|вариант/ }).first();
     await expect(cell).toBeVisible();
     await cell.click();
