@@ -1,56 +1,22 @@
 /* ═══════════════════════════════════════════ */
 /* FORMS, BUTTONS, ITEMS, SUMMARY             */
 /* ═══════════════════════════════════════════ */
+/*
+ * ФАЙЛ ORDER STUDIO: импортируют `orderstudio/OrderStudioApp` и ленивая
+ * `components/auth/AdminPanel`, а НЕ глобальный `styles/index.css`.
+ * Раздел стоит за выключенным флагом, и его визард, конфигуратор бирок,
+ * карточки позиций и итоги ехали каждому, кто открыл только «Производство».
+ *
+ * То немногое отсюда, что нужно всем разделам (базовый вид полей, кольца
+ * фокуса, две кнопки экранов входа), осталось глобальным — `forms-base.css`.
+ * Прежде чем переносить что-то ОТСЮДА туда или обратно, посмотрите
+ * список причин в шапке того файла: две из трёх — тихие поломки.
+ */
 
-/* ── Global Input Standard — 4 states ── */
-input[type="text"],
-input[type="email"],
-input[type="tel"],
-input[type="number"],
-input[type="password"],
-input[type="search"],
-textarea,
-select {
-  border: 0.5px solid var(--border-mid);
-  border-radius: var(--radius-sm);
-  padding: 9px 12px;
-  font-size: 13px;
-  font-family: var(--font-body);
-  background: var(--card);
-  color: var(--text);
-  outline: none;
-  transition: border-color 150ms ease-out;
-  width: 100%;
-}
-input:focus,
-textarea:focus,
-select:focus {
-  border: 1.5px solid var(--accent);
-}
-input.error,
-textarea.error,
-select.error {
-  border: 1.5px solid var(--signal);
-}
 .input-error-msg {
   font-size: 11px;
   color: var(--signal);
   margin-top: var(--space-xs);
-}
-input:disabled,
-textarea:disabled,
-select:disabled {
-  background: var(--surface);
-  color: var(--text-dim);
-  cursor: not-allowed;
-  border-color: var(--border);
-}
-input::placeholder,
-textarea::placeholder {
-  color: var(--text-dim);
-}
-@media (prefers-reduced-motion: reduce) {
-  input, textarea, select { transition: none; }
 }
 
 /* ── Details Form ── */
@@ -367,17 +333,8 @@ textarea::placeholder {
 /* ── Disabled (generic) ── */
 .btn:disabled,
 .btn.disabled      { opacity: .35; cursor: not-allowed; pointer-events: none; transform: none; }
-/* ── Secondary Button — 4 states ── */
-.btn-secondary {
-  background: var(--card); color: var(--text-dim);
-  border: none; padding: 10px 20px; font-size: 13px; font-weight: 500;
-  font-family: var(--font-body); border-radius: var(--radius-sm);
-  cursor: pointer; transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
-}
-.btn-secondary:hover:not(:disabled) { background: var(--surface); }
-.btn-secondary:active:not(:disabled) { transform: scale(0.97); }
-.btn-secondary:disabled,
-.btn-secondary.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+/* ── .btn-secondary объявлен глобально (styles/forms-base.css): им пользуются
+   экраны входа, а они статичны и в этот чанк не заглядывают ── */
 /* ── Ghost Button — transparent with border ── */
 .btn-ghost {
   background: transparent; color: var(--text);
@@ -390,15 +347,14 @@ textarea::placeholder {
 .btn-ghost:disabled,
 .btn-ghost.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 /* ── Legacy aliases — use .btn + variant instead ── */
-.btn-next, .btn-prev, .btn-accent {
+.btn-next, .btn-prev {
   padding: 14px var(--space-2xl); font-family: var(--font-body); font-size: 11px;
   font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer;
   border: none; border-right: 1px solid var(--border-light);
   transition: background 150ms ease-out, transform 100ms ease-out;
 }
-.btn-accent           { background: var(--accent); color: var(--white); border-color: var(--accent); }
-.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-accent:active:not(:disabled) { transform: scale(0.97); }
+/* .btn-accent — в `styles/forms-base.css` вместе со своей базой: его
+   используют экраны входа, а они живут вне этого чанка */
 .btn-next             { background: var(--accent); color: var(--white); }
 .btn-next:hover:not(:disabled)  { background: var(--accent-hover); color: var(--white); }
 .btn-next:active:not(:disabled) { transform: scale(0.97); }
@@ -494,31 +450,17 @@ textarea::placeholder {
 .price-line-urgent .name { color: var(--color-error); font-weight: 600; }
 .price-line-urgent .amount { color: var(--color-error); font-weight: 700; }
 /* ── PriceBreakdown component — moved to PriceBreakdown.module.css ── */
-/* ── Focus-visible rings ── */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-button:focus-visible,
-a:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 
 /* ── Mobile touch targets ── */
 @media (max-width: 768px) {
-  .btn-primary, .btn-secondary, .btn-danger, .btn-ghost,
-  .btn-next, .btn-prev, .btn-accent {
+  .btn-primary, .btn-danger, .btn-ghost, .btn-next, .btn-prev {
     min-height: 48px;
   }
 }
 
 /* ── Touch targets ≥44px на тач-устройствах (pointer: coarse) ── */
 @media (pointer: coarse) {
-  .btn-primary, .btn-secondary, .btn-danger, .btn-ghost,
-  .btn-next, .btn-prev, .btn-accent {
+  .btn-primary, .btn-danger, .btn-ghost, .btn-next, .btn-prev {
     min-height: 44px;
   }
   .btn-icon { width: 44px; height: 44px; }

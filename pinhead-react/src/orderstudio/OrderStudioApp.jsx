@@ -8,6 +8,10 @@ import styles from '../App.module.css'
  * Оболочка ERP не использует из этих файлов ни одного класса.
  * Vite кладёт CSS ленивого чанка вместе с ним.
  */
+/* forms-buttons ПЕРВЫМ среди файлов раздела: он и был первым в прежнем
+   `styles/index.css`, а его правила перебиваются последующими той же
+   специфичностью — порядок внутри чанка держит это как раньше */
+import '../styles/forms-buttons.css'
 import '../styles/wizard.css'
 import '../styles/garment.css'
 import '../styles/extras-zones.css'
