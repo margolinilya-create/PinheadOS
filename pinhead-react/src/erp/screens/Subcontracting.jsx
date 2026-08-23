@@ -16,7 +16,7 @@ import {
   SUBCONTRACT_MATERIAL_SOURCE_LABELS,
   STAGE_STATUS_LABELS,
 } from '../types';
-import { SUBCONTRACT_PHASE_FLOW, subcontractPhase } from '../utils/subcontractPhase';
+import { SUBCONTRACT_PHASE_FLOW } from '../utils/subcontractPhase';
 import { subcontractView } from '../utils/subcontractFlow';
 import { StageDetails } from './subcontracting/StageDetails';
 import { StageRowCard } from './subcontracting/StageRowCard';
@@ -178,15 +178,19 @@ export default function Subcontracting() {
     return FUNNEL_STEPS.map((s) => ({ ...s, count: counts[s.key] || 0 }));
   }, [rows]);
 
-  /**
-   * Операции подряда, не привязанные к маршруту, — заказы, заведённые до этой
-   * правки. Блок временный и исчезает сам, когда опустеет; убирать колонки
-   * `op_type`/`return_dept` из схемы можно только после этого.
+  /*
+   * ОПЕРАЦИЙ БЕЗ МАРШРУТА ЗДЕСЬ БОЛЬШЕ НЕТ (правка 23.08, п. 5).
+   *
+   * Блок описывал не работу подрядчика, а состояние миграции: заказы,
+   * заведённые до перехода на подрядные этапы. Заказчик — «оставить их
+   * только в админском/техническом контуре, но не в рабочем интерфейсе
+   * подряда», — и он переехал в админку (`admin/LegacySubcontractTab`),
+   * где вкладка заводится только при наличии таких записей.
+   *
+   * Сами записи НЕ удалены: правило проекта запрещает снимать legacy, пока
+   * блок совместимости не опустел, а у них своя ветка возврата
+   * (`return_dept` → этап). На 23.08 их четыре.
    */
-  const legacy = useMemo(
-    () => subcontracting.filter((s) => !s.stage_id),
-    [subcontracting],
-  );
 
   return (
     <>
@@ -385,28 +389,6 @@ export default function Subcontracting() {
         </ScrollHintBox>
       )}
 
-      {legacy.length > 0 && (
-        <details className={styles.matSection}>
-          <summary>
-            Операции подряда без маршрута — {legacy.length}
-          </summary>
-          <p className={styles.subText}>
-            Заказы, заведённые до перехода на подрядные этапы: связи с маршрутом
-            у них нет, и следующий этап после возврата система не откроет.
-            Маршрут таким заказам задаётся в карточке — вкладка «Позиции» →
-            «Изменить маршрут».
-          </p>
-          <ul className={styles.stackTight}>
-            {legacy.map((op) => (
-              <li key={op.id} className={styles.subText}>
-                №{op.order?.bitrix_id || '—'} · {op.order?.title || '—'} · {op.operation}
-                {op.contractor ? ` · ${op.contractor}` : ''}
-                {' · '}{SUBCONTRACT_PHASE_LABELS[subcontractPhase(op)]}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
     </>
   );
 }

@@ -266,3 +266,21 @@ export function stageLocation(
   if (cur && cur.id !== stage.id) return 'Запланировано · ждёт предыдущий этап';
   return 'У Pinhead · готово к передаче';
 }
+
+/**
+ * Есть ли операции подряда БЕЗ связи с маршрутом (`stage_id is null`).
+ *
+ * Это заказы, заведённые до перехода на подрядные этапы (сессия 32): следующий
+ * этап после возврата система им не откроет, маршрут задаётся вручную. Под них
+ * заводится вкладка технического контура в админке (правка 23.08, п. 5) —
+ * и заводится ТОЛЬКО пока они есть: пустая вкладка врала бы о наличии работы.
+ *
+ * Живёт здесь, а не рядом с вкладкой: `react-refresh/only-export-components`
+ * не пускает не-компоненты в файл компонента, и это то же правило, по которому
+ * отдельно вынесены `purchaseLabels` и `subcontractLabels`.
+ */
+export function hasLegacySubcontracts(
+  rows: readonly { stage_id?: string | null }[] | null | undefined,
+): boolean {
+  return (rows ?? []).some((s) => !s.stage_id);
+}
