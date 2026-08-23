@@ -44,24 +44,41 @@ import DeptBindingNotice from '../components/DeptBindingNotice';
  */
 
 /**
- * Заголовки блоков очереди (порядок = порядок отображения из требования).
- * «Ожидают материалы» отделены от общего «Ожидает» правкой менеджера 2026-08-03:
- * «ждём ткань» и «швейка ещё не сдала» требуют разных решений, и в общей куче
- * понять, что цех стоит из-за снабжения, было нельзя.
+ * Заголовки блоков очереди; порядок ключей = порядок на экране.
+ *
+ * ПОРЯДОК ЗАДАН ПРАВКОЙ 23.08 (п. 3): «Готово к запуску → В работе → Ожидает
+ * → Ожидают материалы (свёрнуто) → Завершено недавно (свёрнуто)». Главный
+ * принцип документа — «в верхней части очереди всегда находятся заказы,
+ * с которыми цех может работать сейчас; блокирующие ожидания уходят ниже».
+ *
+ * Раньше «Ожидают материалы» стояли ВТОРЫМИ и раскрытыми: позиции, с которыми
+ * работать нельзя, занимали основную часть экрана.
+ *
+ * Граница между двумя ожиданиями — ПРИЧИНА, а не цех (`isSupplyWait`
+ * в `utils/supply`): «Ожидает» — незавершённый предыдущий цех или ТЗ,
+ * «Ожидают материалы» — снабжение. У закроя ожидание почти всегда
+ * снабженческое, поэтому «Ожидает» там пуст и не рисуется вовсе — экран
+ * получает одну свёрнутую группу внизу, как требует п. 2.
  */
 const GROUP_TITLES = {
-  in_progress: 'В работе',
-  awaiting_materials: (
-    <span className={styles.cellWithIcon}><Icon name="box" size={16} />Ожидают материалы</span>
-  ),
   ready: 'Готово к запуску',
+  in_progress: 'В работе',
   waiting: (
     <span className={styles.cellWithIcon}><Icon name="clock" size={16} />Ожидает</span>
+  ),
+  awaiting_materials: (
+    <span className={styles.cellWithIcon}><Icon name="box" size={16} />Ожидают материалы</span>
   ),
   done: (
     <span className={styles.cellWithIcon}><Icon name="check" size={16} />Завершено недавно</span>
   ),
 };
+
+/**
+ * Группы, свёрнутые при первом открытии страницы (пп. 2.3 и 3.5).
+ * Обе — про работу, которую сейчас начать нельзя.
+ */
+const COLLAPSED_BY_DEFAULT = new Set(['awaiting_materials', 'done']);
 
 export default function DepartmentQueue() {
   const {
@@ -96,7 +113,21 @@ export default function DepartmentQueue() {
 
   // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
   const [reworkByStage, setReworkByStage] = useState({});
-  const [showDone, setShowDone] = useState(false);
+  /**
+   * Какие свёрнутые группы человек раскрыл вручную (пп. 2.3 и 3.5).
+   *
+   * Состояние держится за СЕАНС экрана и не пишется в localStorage: «Ожидают
+   * материалы» сворачиваются при первом открытии страницы именно затем, чтобы
+   * верх очереди занимала работа, которую можно начать сейчас. Запомненное
+   * «раскрыто» вернуло бы тот же экран, на который жалуется документ, — и
+   * вернуло бы молча, у одного человека на одном планшете.
+   */
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+  const toggleGroup = (key) => setExpandedGroups((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   // Вид запоминается на устройстве: цех обычно работает в одном и том же
   const [view, setView] = useState(() => localStorage.getItem('erp_queue_view') || 'queue');
   const switchView = (v) => { setView(v); localStorage.setItem('erp_queue_view', v); };
@@ -211,9 +242,13 @@ export default function DepartmentQueue() {
     [entries, filters],
   );
 
-  /** Три блока требования + свёрнутое «Завершено недавно» */
+  /**
+   * Раскладка по группам. Порядок НА ЭКРАНЕ задаёт `GROUP_TITLES` (по нему
+   * идёт обход), здесь ключи перечислены в том же порядке — чтобы два места
+   * не расходились при чтении.
+   */
   const groups = useMemo(() => {
-    const g = { in_progress: [], awaiting_materials: [], ready: [], waiting: [], done: [] };
+    const g = { ready: [], in_progress: [], waiting: [], awaiting_materials: [], done: [] };
     for (const e of visible) {
       if (e.group === 'done') g.done.push(e);
       else if (e.group === 'in_progress') g.in_progress.push(e);
@@ -441,14 +476,16 @@ export default function DepartmentQueue() {
       {dept && loaded && view === 'queue' && Object.entries(GROUP_TITLES).map(([key, title]) => {
         const list = groups[key];
         if (!list || list.length === 0) return null;
-        const collapsed = key === 'done' && !showDone;
+        const collapsible = COLLAPSED_BY_DEFAULT.has(key);
+        const open = expandedGroups.has(key);
+        const collapsed = collapsible && !open;
         return (
           <section key={key} style={{ marginBottom: 'var(--space-lg, 20px)' }}>
             <h2 className={styles.queueGroupTitle}>
               {title} <span className={styles.subText}>({list.length})</span>
-              {key === 'done' && (
-                <Button variant="ghost" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>
-                  {showDone ? 'Свернуть' : 'Показать'}
+              {collapsible && (
+                <Button variant="ghost" aria-expanded={open} onClick={() => toggleGroup(key)}>
+                  {open ? 'Свернуть' : 'Показать'}
                 </Button>
               )}
             </h2>

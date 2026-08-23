@@ -139,3 +139,50 @@ export function ordersAwaitingSupply<T extends OrderLike & { status: string }>(
   return orders.filter(
     (o) => o.status === 'active' && openSupplyStages(o, supply.id).length > 0);
 }
+
+/**
+ * СНАБЖЕНЧЕСКОЕ ЛИ ЭТО ОЖИДАНИЕ (правки заказчика 23.08, пп. 2 и 3).
+ *
+ * ЗАДАЧА, КОТОРУЮ РЕШАЕТ ФУНКЦИЯ. Документ требует ПРОТИВОПОЛОЖНОГО для двух
+ * цехов на одном экране: у закроя «Ожидает» и «Ожидают материалы» объединить
+ * («нет отдельного верхнеуровневого блока»), у швейки — оставить разными
+ * («не объединять этот блок с обычным Ожидает»). Поцеховой настройки здесь
+ * быть не может: правило проекта запрещает держать в коде константы вида
+ * «ткань → закрой», а настройка в админке — это переключатель, о котором
+ * через месяц никто не вспомнит.
+ *
+ * РАЗРЕШЕНИЕ: делим не по цеху, а по ПРИЧИНЕ, и обе формулировки документа
+ * оказываются одним правилом.
+ *   · снабжение — нет материалов, идёт закупка на замену, или блокирует этап
+ *     НЕпроизводственного участка закупки;
+ *   · производство — ждём предыдущий ЦЕХ или ТЗ.
+ *
+ * У закроя ожидание почти всегда снабженческое («Закупка: ещё не завершено»
+ * приходит именно отсюда — этап `cutting` зависит от этапа `supply`), поэтому
+ * группа «Ожидает» остаётся пустой и не рисуется вовсе: на экране одна
+ * свёрнутая группа внизу, как и просит п. 2. У швейки наполнены обе, и они
+ * разведены ровно по границе из п. 3: «Ожидает» — незавершённый закрой, ДТФ,
+ * вышивка; «Ожидают материалы» — не хватает ткани, бирки, молнии.
+ *
+ * Участок закупки определяется ЧЕРЕЗ СПРАВОЧНИК (`findSupplyDept`), а не по
+ * коду на месте: код `supply` живёт в этом файле ровно один раз.
+ */
+export function isSupplyWait(input: {
+  /** Материалы, которых не хватает этапу */
+  missingMaterials: readonly ErpMaterial[];
+  /** Этап ждёт закупку материала на замену (`erp_procurement_tasks`) */
+  awaitingProcurement: boolean;
+  /** Проверяемый этап и все этапы позиции — чтобы пройти по `depends_on` */
+  stage: Pick<ErpItemStage, 'depends_on'>;
+  itemStages: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[];
+  supplyDeptId: string | null | undefined;
+}): boolean {
+  if (input.missingMaterials.length > 0) return true;
+  if (input.awaitingProcurement) return true;
+  if (!input.supplyDeptId) return false;
+  const byId = new Map(input.itemStages.map((s) => [s.id, s]));
+  return (input.stage.depends_on ?? []).some((id) => {
+    const dep = byId.get(id);
+    return !!dep && !CLOSED.has(dep.status) && dep.department_id === input.supplyDeptId;
+  });
+}

@@ -900,6 +900,30 @@ a.cellTitle:hover { color: var(--accent); }
   font-size: 12px;
 }
 .matWaitCompact { margin-top: 6px; }
+/* Блок свёрнут по умолчанию (правка 23.08, п. 2.4): раскрытый на всю ширину,
+   он занимал основную часть экрана у задания, которое нельзя начать. Причину
+   ожидания при этом показывает компактный маркер в самой карточке. */
+.matWaitBlock { margin-top: 6px; }
+.matWaitBlock > summary {
+  cursor: pointer;
+  padding: 4px 0;
+  /* ≥44px на тач-экранах — общий список интерактивных классов ведётся в
+     erp.module.css, здесь высота задаётся самому элементу раскрытия */
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+.matWaitBlock[open] > summary { margin-bottom: 2px; }
+.matWaitBlock > summary::marker { color: var(--color-warning); }
+/* Внутри свёртки список уже отбит рамкой самого блока — верхний отступ лишний */
+.matWaitBlock > .matWaitList { margin-top: 0; }
+/* ≥44px на тач-экранах. Правило стоит рядом со своим классом, а не в общем
+   списке `erp.module.css`: тот список — другой CSS-модуль, и класс отсюда
+   в нём не разрешится вовсе. Тем же приёмом живёт `.rowToggle` ниже. */
+@media (pointer: coarse) {
+
+  .matWaitBlock > summary { min-height: 44px; }
+}
 .matWaitRow {
   display: flex;
   flex-wrap: wrap;

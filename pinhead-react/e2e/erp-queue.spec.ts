@@ -49,6 +49,16 @@ test.describe('Навигация ERP (правки 1 и 13)', () => {
 });
 
 test.describe('Рабочая очередь цеха (правки 2, 3, 9)', () => {
+  /**
+   * ПОРЯДОК БЛОКОВ (правка 23.08, п. 3): «Готово к запуску → В работе →
+   * Ожидает → Ожидают материалы (свёрнуто) → Завершено недавно (свёрнуто)».
+   * Главный принцип документа — «в верхней части очереди всегда находятся
+   * заказы, с которыми цех может работать сейчас».
+   *
+   * Сравниваются ФАКТИЧЕСКИ найденные заголовки: у цеха без единого
+   * ожидающего задания группы «Ожидает» не будет вовсе, и требовать её
+   * значило бы сторожить фикстуру, а не правило.
+   */
   test('очередь показывает блоки в порядке требования', async ({ page }) => {
     await page.goto('/queue/cutting?studio=0');
     await expect(page.locator('[class*="queueRow"]').first()).toBeVisible();
@@ -56,14 +66,57 @@ test.describe('Рабочая очередь цеха (правки 2, 3, 9)', (
     await expect(headings.first()).toBeVisible();
     const titles = (await headings.allTextContents())
       .map((t) => t.replace(/\s+/g, ' ').trim());
-    // Сначала что делается, потом что запускать, потом что ждёт (правка 2)
-    const seq = ['В работе', 'Готово к запуску', 'Ожидает']
+    const seq = ['Готово к запуску', 'В работе', 'Ожидает', 'Ожидают материалы', 'Завершено недавно']
       .map((t) => titles.findIndex((x) => x.includes(t)))
       .filter((i) => i >= 0);
     expect(seq.length).toBeGreaterThan(0);
     expect([...seq].sort((a, b) => a - b)).toEqual(seq);
-    // «Завершено недавно» — четвёртым и свёрнуто
     expect(titles.some((t) => t.includes('Завершено недавно'))).toBe(true);
+  });
+
+  /**
+   * Обе группы ожидания свёрнуты при ПЕРВОМ открытии (пп. 2.3 и 3.5):
+   * «Ожидают материалы» — заголовок, счётчик и действие «Показать».
+   *
+   * Сторожим именно СВЁРНУТОСТЬ, а не наличие кнопки: кнопка была бы на месте
+   * и у раскрытого блока, а жалоба документа ровно про то, что он раскрыт
+   * и занимает основную часть экрана.
+   */
+  test('«Ожидают материалы» свёрнуты при первом открытии', async ({ page }) => {
+    await installSupabaseMock(page, { orders: [SUPPLY_WAIT_ORDER] });
+    await page.goto('/queue/cutting?studio=0');
+    const heading = page.getByRole('heading', { level: 2 })
+      .filter({ hasText: 'Ожидают материалы' });
+    const toggle = heading.getByRole('button');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toHaveText('Показать');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(toggle).toHaveText('Свернуть');
+  });
+
+  /**
+   * ГРАНИЦА ДВУХ ОЖИДАНИЙ, ради которой всё и переделано (пп. 2 и 3).
+   *
+   * Незакрытая ЗАКУПКА — снабжение, а не производство: у закроя ожидание
+   * почти всегда такое, поэтому группа «Ожидает» остаётся пустой, и на экране
+   * оказывается ОДНА свёрнутая группа ожидания внизу — ровно то, что просит
+   * п. 2 («нет отдельного верхнеуровневого блока „Ожидают материалы"»),
+   * без единой поцеховой настройки.
+   */
+  test('ожидание закупки — снабжение, и у закроя группа ожидания одна', async ({ page }) => {
+    await installSupabaseMock(page, { orders: [SUPPLY_WAIT_ORDER] });
+    await page.goto('/queue/cutting?studio=0');
+    const headings = page.getByRole('heading', { level: 2 });
+    await expect(headings.first()).toBeVisible();
+    const titles = (await headings.allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim());
+    expect(titles.some((t) => t.includes('Ожидают материалы'))).toBe(true);
+    // Именно ОДНА: «Ожидает» без своих заданий не рисуется вовсе
+    expect(titles.filter((t) => t.trim().startsWith('Ожидает'))).toEqual([]);
+    // Причина не потерялась — она в карточке задания
+    await page.getByRole('heading', { level: 2 })
+      .filter({ hasText: 'Ожидают материалы' }).getByRole('button').click();
+    await expect(page.getByText('Закупка: ещё не завершено').first()).toBeVisible();
   });
 
   test('строка очереди показывает заказ, срок, статус и готовность', async ({ page }) => {
@@ -508,6 +561,40 @@ test.describe('Загрузка цехов (/load)', () => {
     await expect(page.getByText(/Загрузка не рассчитывается/)).toHaveCount(0);
   });
 });
+
+/**
+ * Заказ, у которого закрой ждёт ЗАКУПКУ. Базовые четыре фикстуры такого
+ * не несут, а дописывать в них нельзя: они держат visual-эталоны и счётчики
+ * очередей.
+ */
+const SUPPLY_WAIT_ORDER = {
+  id: 'ord-supply', bitrix_id: '90888', title: 'Заказ ждёт закупку',
+  customer: 'ООО «Ромашка»', manager: 'Анна',
+  launch_date: '2026-07-16', due_date: '2026-08-30', buffer_days: 1,
+  priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'none', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  attachments: [], materials: [], warehouse_tasks: [],
+  items: [{
+    id: 'ord-supply-i1', order_id: 'ord-supply', product_type: 'Футболка', variant: null,
+    qty: 50, production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+    notes: null, size_grid: null, sort_order: 0,
+    subcontract_kind: null, material_source: 'pinhead',
+    fit: null, main_fabric: null, trim_material: null,
+    cutting_note: null, sewing_note: null, labels_note: null,
+    packaging: 'inherit', packaging_size: null, sticker_place: null,
+    marking_place: null, packaging_note: null,
+    created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+    prints: [], labels: [],
+    // Закупка ещё идёт, закрой зависит от неё — «Закупка: ещё не завершено»
+    stages: buildStages('ord-supply-i1', [
+      { code: 'supply', status: 'in_progress' },
+      { code: 'cutting', status: 'waiting', deps: [0] },
+    ]),
+  }],
+};
 
 /** Заказ с плановыми датами этапов — базовые фикстуры их не несут */
 const PLANNED_ORDER = {

@@ -5,6 +5,7 @@ import {
 import { stageMissingTz } from './tz';
 import { bypassFor, isBypassed, materialsAfterBypass } from './bypass';
 import { isOutsourced } from './outsourcing';
+import { findSupplyDept, isSupplyWait } from './supply';
 
 /**
  * Задания производства как плоский список: этап позиции + вычисленная группа
@@ -14,13 +15,20 @@ import { isOutsourced } from './outsourcing';
  * очередь и канбан считали группы каждый по-своему и расходились в деталях
  * (например, канбан не показывал причину ожидания).
  *
- * Группы: awaiting_materials — не хватает материалов (со списком, правка менеджера
- * 2026-08-03); ready — можно запускать; in_progress — взято в работу; waiting —
- * ждёт предыдущий этап, ТЗ или закупку (с причиной); blocked — ручная блокировка
- * цехом (со своей причиной); done — завершено.
+ * Группы: awaiting_materials — ждём СНАБЖЕНИЕ; ready — можно запускать;
+ * in_progress — взято в работу; waiting — ждём ПРОИЗВОДСТВО (предыдущий цех
+ * или ТЗ, с причиной); blocked — ручная блокировка цехом (со своей причиной);
+ * done — завершено.
  *
- * Ожидание материалов вынесено из `waiting` намеренно: «ждём ткань» и «швейка ещё
- * не сдала» требуют разных решений руководителя, и в общей куче их было не разделить.
+ * ГРАНИЦА МЕЖДУ ДВУМЯ ОЖИДАНИЯМИ — ПРИЧИНА, А НЕ ЦЕХ (правки 23.08, пп. 2 и 3).
+ * Считает её `isSupplyWait` (`utils/supply`), и там же объяснено, почему это
+ * единственный способ исполнить оба пункта документа сразу: у закроя они
+ * требуют объединить ожидания, у швейки — оставить разными, а экран очереди
+ * один на все участки.
+ *
+ * До 23.08 в `awaiting_materials` попадала только нехватка материалов, а
+ * «Закупка: ещё не завершено» оставалась в `waiting` — из-за этого у закроя
+ * и было ДВЕ группы ожидания об одном и том же снабжении.
  */
 export function buildQueueEntries(
   orders,
@@ -29,6 +37,8 @@ export function buildQueueEntries(
 ) {
   const deptById = new Map(departments.map((d) => [d.id, d]));
   const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+  // Участок закупки — из справочника: код `supply` живёт только в utils/supply
+  const supplyDeptId = findSupplyDept(departments)?.id ?? null;
   const list = [];
 
   for (const order of orders) {
@@ -74,10 +84,21 @@ export function buildQueueEntries(
           if (!ready) {
             reason = waitingReason(
               stage, item.stages, itemMaterials, deptNameById, dept, awaitProc, noTz);
-            // Ожидание материалов — своя группа: список нужен карточке, чтобы
-            // показать чего именно ждут, ETA и ответственного
+            // Список нужен карточке — показать, чего именно ждут, ETA и ответственного
             missingMaterials = missingMaterialsForStage(itemMaterials, dept);
-            if (missingMaterials.length > 0) group = 'awaiting_materials';
+            /**
+             * Ожидание снабжения — своя группа: «ждём ткань» и «швейка ещё
+             * не сдала» требуют разных решений руководителя. Внутрь входит
+             * и ожидание самой закупки — до 23.08 оно оставалось в `waiting`
+             * и давало закрою две группы об одном и том же.
+             */
+            if (isSupplyWait({
+              missingMaterials,
+              awaitingProcurement: awaitProc,
+              stage,
+              itemStages: item.stages ?? [],
+              supplyDeptId,
+            })) group = 'awaiting_materials';
           }
         }
 
