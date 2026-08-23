@@ -147,6 +147,18 @@ export function devFiltersFromParams(params: URLSearchParams): DevFilters {
   return out;
 }
 
+/**
+ * Все ключи адреса, которыми владеют фильтры.
+ *
+ * Нужен тому, кто пишет фильтры В СУЩЕСТВУЮЩИЙ адрес: снять свои ключи
+ * и поставить новые, не трогая чужие (`view`, `studio`, `page`). Полная
+ * замена набора однажды уже сбрасывала выбранный вид на доску при каждом
+ * клике по фильтру.
+ */
+export function devFilterParamKeys(): string[] {
+  return [...TEXTS, 'problem', 'state', 'sort'];
+}
+
 export function devFiltersToParams(filters: DevFilters): Record<string, string> {
   const out: Record<string, string> = {};
   for (const key of TEXTS) {
