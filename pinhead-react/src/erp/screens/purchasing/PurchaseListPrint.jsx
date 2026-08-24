@@ -9,6 +9,7 @@ import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../types';
 import { useOrderDetail } from '../orderCard/useOrderDetail';
 import { AttachmentList } from '../../components/AttachmentList';
 import { materialAttachments } from '../../utils/attachments';
+import { PURCHASE_FIELD_LABELS } from './purchaseLabels';
 import styles from '../../styles';
 
 /**
@@ -130,7 +131,7 @@ export default function PurchaseListPrint() {
                 <th>Цвет</th>
                 <th>Тип</th>
                 <th>Роль</th>
-                <th>Нужно</th>
+                <th>{PURCHASE_FIELD_LABELS.qtyExpected}</th>
                 <th>Комментарий менеджера</th>
               </tr>
             </thead>

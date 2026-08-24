@@ -6,6 +6,7 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { daysLeft } from '../../utils/time';
 import { dueLabelCompact } from '../../utils/format';
 import {
+  SUPPLY_STATE_BADGE,
   openSupplyStages,
   supplyMaterialSummary,
   supplyState,
@@ -34,13 +35,6 @@ import styles from '../../styles';
  * (`PurchaseCard`), включая подтверждения. Второго места, где «Завершить
  * закупку» спрашивает своё, больше нет.
  */
-
-/** Подпись и вид состояния закупки по заказу */
-const STATE = {
-  blocked: { label: 'Заблокировано', variant: 'blocked' },
-  taken: { label: 'В работе', variant: 'progress' },
-  open: { label: 'Ожидает', variant: 'waiting' },
-};
 
 /**
  * Прогресс материалов: «3 из 7» и небольшая шкала (п. 1.1).
@@ -95,7 +89,9 @@ function SupplyRow({ order, supplyDeptId, today, selected, onSelect }) {
       <td>{dueLabelCompact(left)}</td>
       <td className={styles.supplyMaterials}><MaterialsCell summary={summary} /></td>
       <td>
-        <Badge variant={STATE[state].variant}>{STATE[state].label}</Badge>
+        <Badge variant={SUPPLY_STATE_BADGE[state].variant}>
+          {SUPPLY_STATE_BADGE[state].label}
+        </Badge>
       </td>
       <td>
         <Button
@@ -110,24 +106,41 @@ function SupplyRow({ order, supplyDeptId, today, selected, onSelect }) {
   );
 }
 
-export function SupplyQueue({ orders, supplyDept, today, selectedId, onSelect }) {
+/**
+ * @param title  заголовок блока; `null` — не рисовать вовсе. Архив завершённых
+ *   закупок монтирует этот же список внутрь своего `<details>`, и собственный
+ *   заголовок оказывался ВТОРЫМ «Заказы в закупке» подряд (правка 24.08, п. 2:
+ *   «не дублировать внутри архива заголовок»).
+ * @param emptyText  текст пустого состояния: у активной очереди и у архива
+ *   «пусто» значит разное.
+ * @param label  имя области для клавиатуры и скринридера. Задаётся ОТДЕЛЬНО
+ *   от заголовка: раскрытый архив держит на экране вторую такую же таблицу,
+ *   и два одинаковых имени сделали бы их неразличимыми — и для человека,
+ *   и для локатора спеки.
+ */
+export function SupplyQueue({
+  orders, supplyDept, today, selectedId, onSelect,
+  title = 'Заказы в закупке',
+  label = 'Заказы в закупке',
+  emptyText = 'Заказов, ожидающих закупки, нет — все этапы «Закупка» закрыты.',
+}) {
   if (!supplyDept) return null;
 
   return (
     <section style={{ marginBottom: 20 }}>
-      <div className={styles.toolbar}>
-        <h2 className={styles.queueGroupTitle}>
-          Заказы в закупке
-          {orders.length > 0 && <> · {orders.length}</>}
-        </h2>
-      </div>
+      {title && (
+        <div className={styles.toolbar}>
+          <h2 className={styles.queueGroupTitle}>
+            {title}
+            {orders.length > 0 && <> · {orders.length}</>}
+          </h2>
+        </div>
+      )}
 
       {orders.length === 0 ? (
-        <div className={styles.emptyState}>
-          Заказов, ожидающих закупки, нет — все этапы «Закупка» закрыты.
-        </div>
+        <div className={styles.emptyState}>{emptyText}</div>
       ) : (
-        <ScrollHintBox className={styles.tableWrap} label="Заказы в закупке">
+        <ScrollHintBox className={styles.tableWrap} label={label}>
           <table className={styles.table}>
             <thead>
               <tr>

@@ -12,6 +12,7 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
 import {
   DEV_STATE_LABELS,
@@ -34,6 +35,10 @@ import { DevBoard } from './experimental/DevBoard';
 import { DevRowCard } from './experimental/DevRowCard';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
+import { DevDeptQueue } from './experimental/DevDeptQueue';
+import { DevBrandingPicker } from './experimental/DevBrandingPicker';
+import { DEV_BRANDING_DEPT_CODE } from '../utils/experimentalBoard';
+import { experimentalDeptEntries } from '../utils/experimentalQueue';
 import styles from '../styles';
 
 /**
@@ -74,9 +79,14 @@ const STATE_TILES = [
  * Вид — в QUERY, а не подпутём: `canOpenScreen` перечисляет ИСКЛЮЧЕНИЯ
  * и открывает незнакомый путь, поэтому `/experimental/dtf` был бы доступен
  * всем, включая цех без права.
+ *
+ * ВИД «ОЧЕРЕДЬ УЧАСТКА» добавлен правкой 24.08 (п. 4.1): экспериментальный цех
+ * стал участком маршрута, и его этапы обязаны быть видны. Участок
+ * непроизводственный, то есть общие поверхности его вырезают, — без этого вида
+ * заказ, дошедший до шага ЭКС, не показывался бы нигде.
  */
 const VIEWS = [
-  'board', 'list',
+  'board', 'queue', 'list',
   'patterns', 'cutting',
   'silkscreen', 'dtf', 'embroidery', 'dtg',
   'sewing', 'final',
@@ -84,6 +94,7 @@ const VIEWS = [
 
 const VIEW_LABELS = {
   board: 'Доска по этапам',
+  queue: 'Очередь участка',
   list: 'Все разработки',
   patterns: 'Лекала',
   cutting: 'Крой',
@@ -100,6 +111,15 @@ const QUEUE_VIEWS = new Set([
   'patterns', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'dtg', 'sewing', 'final',
 ]);
 
+/**
+ * Виды, которые ПОДЧИНЯЮТСЯ фильтрам списка. Их ровно два, и перечислены они
+ * положительно, а не как «всё, кроме очередей»: очередь участка (п. 4.1)
+ * фильтрам тоже не подчиняется, и отрицательный список пришлось бы дополнять
+ * при каждом новом виде — однажды его забыли бы, и человек увидел бы
+ * «под фильтры ничего не подошло» там, где фильтры ни при чём.
+ */
+const FILTERED_VIEWS = new Set(['board', 'list']);
+
 const STATE_VARIANT = {
   new: 'neutral', in_progress: 'progress', attention: 'blocked',
   fitting: 'waiting', ready: 'ready',
@@ -113,7 +133,8 @@ export default function Experimental() {
    */
   const {
     orders, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, loadExperimental,
+    experimental, experimentalLoaded, loadExperimental, updateExperimental,
+    addDevTasks, sendDevTaskToDept,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -124,17 +145,78 @@ export default function Experimental() {
       experimental: s.experimental,
       experimentalLoaded: s.experimentalLoaded,
       loadExperimental: s.loadExperimental,
+      updateExperimental: s.updateExperimental,
+      addDevTasks: s.addDevTasks,
+      sendDevTaskToDept: s.sendDevTaskToDept,
     })),
   );
   const navigate = useNavigate();
   const location = useLocation();
 
-  /*
-   * Права здесь больше не спрашиваются: единственным действием этого экрана
-   * было создание разработки, и оно снято правкой 23.08 (п. 6). Гейт
-   * `experimental.manage` остался там, где ведут саму разработку, —
-   * на странице карточки (`screens/DevPage`).
+  /**
+   * ПРАВО ВЕРНУЛОСЬ ВМЕСТЕ С ДЕЙСТВИЕМ (правка 24.08, п. 4.2). После правки
+   * 23.08 экран действий не имел вовсе, и гейт был снят честно. Теперь
+   * технолог двигает карточки по колонкам прямо здесь, а RLS `erp_experimental`
+   * стоит на `experimental.manage` — без клиентского гейта получилось бы
+   * запрещённое «кнопка есть, действие падает».
    */
+  const { can } = useErpAccess();
+  const canManage = can('experimental.manage');
+
+  /**
+   * ВХОД В «НАНЕСЕНИЯ» СПРАШИВАЕТ ВИДЫ (п. 4.3), остальные переносы — нет.
+   * Состояние держит намерение: «человек тащит карточку туда-то, ждём ответа».
+   */
+  const [brandingFor, setBrandingFor] = useState(null);
+
+  const moveDevStage = useCallback((devId, stage) => {
+    if (stage === 'branding') {
+      setBrandingFor(devId);
+      return Promise.resolve(true);
+    }
+    return updateExperimental(devId, { board_stage: stage });
+  }, [updateExperimental]);
+
+  /**
+   * Перенос + заведение задач нанесения.
+   *
+   * ПОРЯДОК ОСОЗНАННЫЙ: сначала колонка, потом задачи. Перенос — то, что человек
+   * нажал, и он обязан состояться; при сбое на задачах карточка стоит
+   * в «Нанесениях» с пустой дорожкой «Ожидает» — состояние видимое и поправимое.
+   * Обратный порядок дал бы задачи в цехах при карточке, оставшейся в «Крое»:
+   * работа идёт, а на доске её нет.
+   *
+   * Одной транзакцией это не делается и не должно: `erp_experimental_add_tasks`
+   * заводит задачи атомарно сам, а отправка в цех — отдельное действие
+   * над каждой задачей, у которого свои права и свой отказ.
+   */
+  const confirmBranding = useCallback(async (types) => {
+    const devId = brandingFor;
+    setBrandingFor(null);
+    if (!devId) return;
+    /**
+     * НИ ОДНОГО ВИДА — ЗНАЧИТ ШАГ ПРОПУСКАЮТ (п. 4.2: «если нанесения не нужны,
+     * технолог переносит карточку сразу из Кроя в Пошив»). Оставить карточку
+     * в пустых «Нанесениях» значило бы завести стоянку, из которой человека
+     * никто не позовёт: автопереход считает закрытие задач, а их нет.
+     */
+    if (types.length === 0) {
+      await updateExperimental(devId, { board_stage: 'sewing' });
+      return;
+    }
+    const ok = await updateExperimental(devId, { board_stage: 'branding' });
+    if (!ok) return;
+
+    const created = await addDevTasks(
+      devId,
+      types.map((t, i) => ({ task_type: t, sort_order: 100 + i * 10 })),
+    );
+    for (const task of created ?? []) {
+      const dept = departments.find(
+        (d) => d.code === DEV_BRANDING_DEPT_CODE[task.task_type]);
+      if (dept) await sendDevTaskToDept(task.id, { department_id: dept.id });
+    }
+  }, [brandingFor, updateExperimental, addDevTasks, sendDevTaskToDept, departments]);
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
     () => new Map((typeDict ?? []).map((d) => [d.code, d.name])), [typeDict]);
@@ -246,6 +328,21 @@ export default function Experimental() {
   }, [rows]);
 
   const visible = useMemo(() => applyDevFilters(rows, filters), [rows, filters]);
+
+  /**
+   * ЗАДАНИЯ УЧАСТКА СЧИТАЮТСЯ ОТДЕЛЬНО ОТ РАЗРАБОТОК (правка 24.08, п. 4.1).
+   *
+   * Это разные сущности: разработка (`erp_experimental`) заводится на позицию-
+   * образец, а этап участка стоит в маршруте ЛЮБОГО заказа. Переключатель видов
+   * рисовался по числу разработок — то есть у фабрики без единой разработки
+   * до очереди участка было бы не добраться, и заказ встал бы молча. Ровно тот
+   * отказ, ради которого написан `routeReachable.test.ts`.
+   */
+  const deptQueueCount = useMemo(
+    () => experimentalDeptEntries(orders, departments).length,
+    [orders, departments],
+  );
+  const hasAnything = rows.length > 0 || deptQueueCount > 0;
 
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -391,7 +488,7 @@ export default function Experimental() {
         </div>
       )}
 
-      {experimentalLoaded && rows.length > 0 && (
+      {experimentalLoaded && hasAnything && (
         <ScrollHintBox className={styles.toolbar} label="Представления раздела">
           {VIEWS.map((v) => (
             <button
@@ -413,21 +510,39 @@ export default function Experimental() {
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="разработки" />}
       {!experimentalLoaded && !loadError && <TableSkeleton rows={5} label="Загрузка разработок" />}
 
-      {experimentalLoaded && rows.length === 0 && (
+      {/* «Разработок нет» — не ответ для очереди участка: там свой пустой текст,
+          и он говорит про этапы маршрута, а не про разработки */}
+      {experimentalLoaded && rows.length === 0 && view !== 'queue' && (
         <EmptyState
           icon="flask"
           title="Разработок пока нет"
-          text="Выберите позицию-образец в панели выше и заведите разработку. Набор задач выбирается под изделие — одинаковых пяти этапов больше нет."
+          text="Разработка появляется из заказа: заведите позицию-образец при создании заказа. Набор задач выбирается под изделие — одинаковых пяти этапов больше нет."
         />
       )}
 
       {/* Пустой подбор — сообщение СПИСКА и доски: внутренние очереди фильтрами
           не гейтятся и о них ничего не знают */}
-      {experimentalLoaded && !QUEUE_VIEWS.has(view)
+      {experimentalLoaded && FILTERED_VIEWS.has(view)
         && rows.length > 0 && visible.length === 0 && (
         <EmptyResult onReset={() => setFilters({ ...EMPTY_DEV_FILTERS })}>
           Под фильтры ничего не подошло. Всего разработок: {rows.length}.
         </EmptyResult>
+      )}
+
+      {brandingFor && (
+        <DevBrandingPicker
+          existing={(experimental.find((e) => e.id === brandingFor)?.tasks ?? [])
+            .map((t) => t.task_type)}
+          departments={departments}
+          onConfirm={confirmBranding}
+          onCancel={() => setBrandingFor(null)}
+        />
+      )}
+
+      {/* Очередь участка читает ЭТАПЫ маршрута и от разработок не зависит
+          вовсе — поэтому и рисуется по `loaded`, а не по `experimentalLoaded` */}
+      {loaded && view === 'queue' && (
+        <DevDeptQueue orders={orders} departments={departments} />
       )}
 
       {/* Внутренние очереди читают ВСЕ разработки, а не отфильтрованный
@@ -451,6 +566,8 @@ export default function Experimental() {
           onOpen={openDev}
           materialsByOrder={materialsByOrder}
           typeNames={typeNames}
+          canManage={canManage}
+          onMoveStage={moveDevStage}
         />
       )}
 

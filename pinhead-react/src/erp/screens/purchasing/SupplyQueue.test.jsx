@@ -28,7 +28,7 @@ function order(patch = {}) {
   };
 }
 
-function renderQueue(orders, { selectedId = null } = {}) {
+function renderQueue(orders, { selectedId = null, ...rest } = {}) {
   const onSelect = vi.fn();
   render(
     <MemoryRouter>
@@ -38,6 +38,7 @@ function renderQueue(orders, { selectedId = null } = {}) {
         today="2026-08-23"
         selectedId={selectedId}
         onSelect={onSelect}
+        {...rest}
       />
     </MemoryRouter>,
   );
@@ -110,5 +111,33 @@ describe('очередь закупки — навигация', () => {
       expect(within(row).queryByRole('button', { name }), name).toBeNull();
       expect(within(row).queryByRole('link', { name }), name).toBeNull();
     }
+  });
+});
+
+/**
+ * АРХИВ ЗАВЕРШЁННЫХ ЗАКУПОК (правка заказчика 24.08, п. 2).
+ *
+ * Тот же список монтируется внутрь `<details>` внизу страницы закупки.
+ * Оба сторожа проверяют то, на что жаловался заказчик, и оба падают
+ * на прежнем коде: заголовок рисовался безусловно, а `supplyState([])`
+ * отдавал `open` и подписывал каждую архивную строку «Ожидает».
+ */
+describe('очередь закупки — вложенный архив', () => {
+  it('со своим заголовком архив не рисует второй «Заказы в закупке»', () => {
+    renderQueue([order()], { title: null });
+    expect(screen.queryByRole('heading', { name: /Заказы в закупке/ })).toBeNull();
+    // Сам список при этом на месте — снят только заголовок
+    expect(screen.getByText(/№4821/)).toBeInTheDocument();
+  });
+
+  it('заказ без открытых этапов закупки помечен «Завершено», а не «Ожидает»', () => {
+    renderQueue([order({ items: [{ id: 'i1', stages: [stage({ status: 'done' })] }] })]);
+    expect(screen.getByText('Завершено')).toBeInTheDocument();
+    expect(screen.queryByText('Ожидает')).toBeNull();
+  });
+
+  it('пустой архив говорит о себе своими словами', () => {
+    renderQueue([], { title: null, emptyText: 'Завершённых закупок нет.' });
+    expect(screen.getByText('Завершённых закупок нет.')).toBeInTheDocument();
   });
 });

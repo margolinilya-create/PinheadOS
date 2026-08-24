@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-08-22",
+  "capturedAt": "2026-08-24",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -1285,6 +1285,38 @@
         "20260823214022_erp_pack_ship_three_statuses.sql"
       ],
       "note": "к базе применён тот же текст, но без длинных пояснений — обоснование целиком живёт в файле репозитория. Оба серверных писателя pack_ship пересозданы из их же pg_get_functiondef (правило «подлинный текст»)"
+    },
+    {
+      "version": "20260824163953",
+      "name": "erp_dev_package_optional_sku",
+      "files": [
+        "20260824163953_erp_dev_package_optional_sku.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_dev_package_guard пересоздан из его же pg_get_functiondef (сверен с репозиторием — совпал)"
+    },
+    {
+      "version": "20260824174548",
+      "name": "erp_dev_board_stage",
+      "files": [
+        "20260824174548_erp_dev_board_stage.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260824185639",
+      "name": "erp_dev_task_files",
+      "files": [
+        "20260824185639_erp_dev_task_files.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260824191611",
+      "name": "erp_subcontract_send_task",
+      "files": [
+        "20260824191611_erp_subcontract_send_task.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_warehouse_task_derive пересоздана из её же pg_get_functiondef (сверена с базой — совпала), добавлена одна ветка"
     }
   ]
 }

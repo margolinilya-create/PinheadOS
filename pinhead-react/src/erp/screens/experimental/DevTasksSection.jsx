@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AttachmentList } from '../../components/AttachmentList';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { confirm } from '../../../store/useConfirmStore';
 import { DEV_TASK_STATUS_LABELS } from '../../types';
 import {
   isDelegated, taskGroup, taskLabel, taskWaitingReason,
@@ -43,8 +45,77 @@ const NEXT_STATUS = {
   blocked: [{ to: 'in_progress', label: 'Снять блокировку' }],
 };
 
+/**
+ * Файлы одной задачи (п. 4.4). Свой маленький компонент, а не разметка внутри
+ * строки: у него собственное состояние загрузки, и держать его в строке значит
+ * перерисовывать её целиком на каждый выбор файла.
+ */
+function TaskFiles({ task, files, canManage, onUpload, onRemove, name }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const mine = (files ?? []).filter((f) => f.task_id === task.id);
+
+  const pick = async (e) => {
+    const chosen = [...(e.target.files ?? [])];
+    e.target.value = '';
+    if (chosen.length === 0) return;
+    setBusy(true);
+    for (const file of chosen) await onUpload(task.id, file);
+    setBusy(false);
+  };
+
+  const remove = async (att) => {
+    const ok = await confirm({
+      title: 'Снять файл?',
+      message: `«${att.file_name || 'файл'}» будет удалён вместе с самим файлом.`,
+      confirmLabel: 'Снять',
+      variant: 'danger',
+    });
+    if (ok) await onRemove(att.id);
+  };
+
+  return (
+    <div className={styles.attachBlock}>
+      <div className={styles.checkRow}>
+        <span className={styles.fieldLabel}>Файлы</span>
+        {mine.length === 0 && <span className={styles.subText}>не приложены</span>}
+        {canManage && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="paperclip"
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+          >
+            {busy ? 'Загрузка…' : 'Приложить'}
+          </Button>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        onChange={pick}
+        aria-label={`Файл к задаче «${name}»`}
+        style={{ display: 'none' }}
+      />
+      <AttachmentList files={mine} />
+      {canManage && mine.length > 0 && (
+        <div className={styles.checkRow}>
+          {mine.map((f) => (
+            <Button key={f.id} variant="ghost" size="sm" onClick={() => remove(f)}>
+              ✕ {f.file_name || 'файл'}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({
   task, all, typeNames, deptNames, onUpdate, onSend, onBlock, canManage,
+  files, onUploadFile, onRemoveFile,
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -160,6 +231,23 @@ function TaskRow({
                 />
               </label>
             </div>
+            {/*
+              ФАЙЛ ПРИ НЕОБХОДИМОСТИ (правка 24.08, п. 4.4). Блок стоит внутри
+              РАСКРЫТОЙ строки, а не в общем списке вложений разработки: файл
+              относится к одной задаче («фото пробного нанесения»), и сваленный
+              в общую кучу он перестаёт отвечать на вопрос, к чему он.
+            */}
+            {onUploadFile && (
+              <TaskFiles
+                task={task}
+                files={files}
+                canManage={canManage}
+                onUpload={onUploadFile}
+                onRemove={onRemoveFile}
+                name={taskLabel(task, typeNames)}
+              />
+            )}
+
             {delegated && (
               <p className={styles.subText}>
                 Задача выполняется в цехе. Её статус ведёт само задание —
@@ -182,15 +270,31 @@ function TaskRow({
  * `depends_on`, и по подмножеству зависимость из другой группы выглядела бы
  * несуществующей — задача молча считалась бы готовой.
  */
+/** Задача закрыта: сделана или отменена */
+const CLOSED_STATUS = new Set(['done', 'cancelled']);
+
 export function DevTasksSection({
   tasks, allTasks, typeNames, deptNames, onUpdate, onSend, onBlock, canManage,
-  emptyText,
+  emptyText, files, onUploadFile, onRemoveFile,
 }) {
   const list = useMemo(
     () => [...(tasks ?? [])].sort((a, b) => a.sort_order - b.sort_order), [tasks]);
   const all = useMemo(
     () => [...(allTasks ?? tasks ?? [])].sort((a, b) => a.sort_order - b.sort_order),
     [allTasks, tasks]);
+
+  /**
+   * АКТИВНЫЕ И ЗАВЕРШЁННЫЕ — ОТДЕЛЬНО (правка 24.08, п. 4.4: «отдельно
+   * показывать активные и завершённые задачи»). Разработка живёт неделями,
+   * задач набирается два десятка, и закрытые вытесняли работу вниз экрана:
+   * список отвечал на вопрос «что было», а нужен ответ «что делать».
+   *
+   * Завершённые СВЁРНУТЫ, но их видно и число известно: спрятанные насовсем,
+   * они бы стали недостижимой историей — той самой, ради которой документ
+   * и просит «историю изменений и доработок сохранять внутри карточки».
+   */
+  const active = useMemo(() => list.filter((t) => !CLOSED_STATUS.has(t.status)), [list]);
+  const closed = useMemo(() => list.filter((t) => CLOSED_STATUS.has(t.status)), [list]);
 
   if (list.length === 0) {
     return (
@@ -201,8 +305,8 @@ export function DevTasksSection({
     );
   }
 
-  return (
-    <ScrollHintBox className={styles.tableWrap} label="Задачи разработки">
+  const table = (rows, label) => (
+    <ScrollHintBox className={styles.tableWrap} label={label}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -214,7 +318,7 @@ export function DevTasksSection({
           </tr>
         </thead>
         <tbody>
-          {list.map((t) => (
+          {rows.map((t) => (
             <TaskRow
               key={t.id}
               task={t}
@@ -225,10 +329,34 @@ export function DevTasksSection({
               onSend={onSend}
               onBlock={onBlock}
               canManage={canManage}
+              files={files}
+              onUploadFile={onUploadFile}
+              onRemoveFile={onRemoveFile}
             />
           ))}
         </tbody>
       </table>
     </ScrollHintBox>
+  );
+
+  return (
+    <>
+      {/* Подпись группы видна, а не только у скринридера (референс 24.08):
+          рядом стоит свёрнутый блок завершённых, и без заголовка непонятно,
+          что раскрытая таблица — именно активные */}
+      {active.length > 0 ? (
+        <>
+          <div className={styles.fieldLabel}>Активные задачи ({active.length})</div>
+          {table(active, 'Активные задачи')}
+        </>
+      ) : <p className={styles.subText}>Активных задач нет — всё закрыто.</p>}
+
+      {closed.length > 0 && (
+        <details className={styles.matSection}>
+          <summary>Завершённые задачи ({closed.length})</summary>
+          {table(closed, 'Завершённые задачи')}
+        </details>
+      )}
+    </>
   );
 }

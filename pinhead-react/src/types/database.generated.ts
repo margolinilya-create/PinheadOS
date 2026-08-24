@@ -364,6 +364,7 @@ export type Database = {
       }
       erp_experimental: {
         Row: {
+          board_stage: string | null
           closed_at: string | null
           comment: string | null
           constructor: string | null
@@ -393,6 +394,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          board_stage?: string | null
           closed_at?: string | null
           comment?: string | null
           constructor?: string | null
@@ -422,6 +424,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          board_stage?: string | null
           closed_at?: string | null
           comment?: string | null
           constructor?: string | null
@@ -1042,6 +1045,7 @@ export type Database = {
           order_id: string
           print_id: string | null
           stage_id: string | null
+          task_id: string | null
           uploaded_by: string | null
         }
         Insert: {
@@ -1058,6 +1062,7 @@ export type Database = {
           order_id: string
           print_id?: string | null
           stage_id?: string | null
+          task_id?: string | null
           uploaded_by?: string | null
         }
         Update: {
@@ -1074,6 +1079,7 @@ export type Database = {
           order_id?: string
           print_id?: string | null
           stage_id?: string | null
+          task_id?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
@@ -1131,6 +1137,13 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_experimental_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -2348,6 +2361,7 @@ export type Database = {
       }
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
+      erp_dev_branding_task_types: { Args: never; Returns: string[] }
       erp_experimental_add_tasks: {
         Args: { p_experimental_id: string; p_tasks: Json }
         Returns: {
@@ -2386,6 +2400,7 @@ export type Database = {
           p_tech_name?: string
         }
         Returns: {
+          board_stage: string | null
           closed_at: string | null
           comment: string | null
           constructor: string | null
@@ -2487,6 +2502,7 @@ export type Database = {
         Returns: Json
       }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
+      erp_pkg_flag: { Args: { p_key: string; p_pkg: Json }; Returns: boolean }
       erp_pkg_list_filled: {
         Args: { p_key: string; p_pkg: Json }
         Returns: boolean

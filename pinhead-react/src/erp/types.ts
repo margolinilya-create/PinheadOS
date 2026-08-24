@@ -58,9 +58,18 @@ export type WarehouseOpType =
 
 /** Тип задачи склада (волна 4 + правка 4.2.1): заказ проходит склад несколько раз */
 export type WarehouseTaskType =
-  | 'material_receipt' | 'marking' | 'fg_receipt' | 'pack_ship' | 'subcontract_receipt';
+  | 'material_receipt' | 'marking' | 'fg_receipt' | 'pack_ship'
+  /**
+   * ПЕРЕДАЧА подрядчику (правка 24.08, п. 3: «каждый новый выход к подрядчику
+   * должен проходить через складскую передачу… заказ не может получить статус
+   * "У подрядчика", пока склад не зафиксировал фактическую передачу»).
+   * Зеркальная половина приёмки: раньше была только вторая.
+   */
+  | 'subcontract_send'
+  | 'subcontract_receipt';
 /** Статусы задач склада по типам */
 export type MaterialReceiptStatus = 'awaiting' | 'accepted';
+export type SubcontractSendStatus = 'awaiting' | 'sent';
 export type MarkingStatus = 'new' | 'in_progress' | 'issued';
 /**
  * «Упаковка и отгрузка» — ТРИ статуса и два действия (правка 23.08, п. 4).
@@ -737,6 +746,13 @@ export type ErpAttachmentKind =
    */
   | 'subcontract'
   /**
+   * Файл ЗАДАЧИ разработки (правка 24.08, п. 4.4: «название, комментарий,
+   * ответственный, срок, статус и файл при необходимости»). Привязан к задаче
+   * (`task_id`), а не к разработке целиком: задач у неё десяток, и «фото
+   * пробного нанесения» относится к одной из них.
+   */
+  | 'dev_task'
+  /**
    * Финальный технический пакет разработки (правки 20.08). Файлы привязаны
    * к РАЗРАБОТКЕ (`experimental_id`), а не к позиции: лекала и техпаспорт
    * описывают модель, а не тот заказ, из которого она вышла.
@@ -768,6 +784,12 @@ export interface ErpOrderAttachment {
    * фото образца. NULL — обычное вложение заказа.
    */
   experimental_id?: string | null;
+  /**
+   * Задача разработки, к которой приложен файл (правка 24.08, п. 4.4).
+   * Заполняется ВМЕСТЕ с `experimental_id`: по нему работают политики
+   * и уборка файлов при удалении разработки.
+   */
+  task_id?: string | null;
   /**
    * Нанесение или бирка, которой принадлежит файл (правка 22.08, пп. 5.2–5.3).
    * Связь именно со строкой, а не «где-то у позиции»: по каждому нанесению
@@ -801,7 +823,23 @@ export interface DevFinalPackage {
   features?: string | null;
   finishes?: string | null;
   limits?: string | null;
-  /** Ссылка на лекала — альтернатива файлу («файл ИЛИ ссылка» из документа) */
+  /**
+   * Комментарии и особенности производства — «при необходимости» (п. 4.5),
+   * то есть поле есть, а обязательным не считается.
+   */
+  production_notes?: string | null;
+  /**
+   * Идёт ли модель в каталог SKU (переключатель финального этапа, п. 4.6).
+   * От него зависит, обязательны ли поля карточки SKU ниже; читается
+   * через `wantsSkuCard`, а не по месту.
+   */
+  add_to_sku?: boolean | null;
+  /**
+   * Ссылка на лекала. С правки 24.08 НЕ спрашивается и не проверяется («поле
+   * „Файл лекал или ссылка" не нужно»), но остаётся в типе: на проде она
+   * заполнена у двух разработок, и показ на чтение обязан работать.
+   * @deprecated ввода больше нет
+   */
   pattern_link?: string | null;
   /** Все утверждённые ткани, а не только ткань образца */
   fabrics?: string[] | null;
@@ -835,6 +873,15 @@ export interface ErpExperimental {
   sample_approved_at?: string | null;
   sample_approved_by?: string | null;
   sample_approved_note?: string | null;
+  /**
+   * Колонка канбана, поставленная технологом ВРУЧНУЮ (правка 24.08, п. 4.2:
+   * «технолог сам вручную перетаскивает карточку… автоматическое движение
+   * по основным этапам не нужно»). `null` — не двигали, и колонка считается
+   * из задач по-прежнему. Значения — зеркало `DevStage` и CHECK
+   * `erp_experimental_board_stage_check`; разрешает вопрос читателям
+   * `utils/experimentalBoard.devBoardColumn`, а не каждый по месту.
+   */
+  board_stage?: string | null;
   /**
    * Финальный технический пакет (правки 20.08). В колонки вынесено то, что
    * ищут и показывают в списке; карточка SKU, ткани, нанесения и модификации
@@ -989,6 +1036,7 @@ export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
   marking: 'Выпуск маркировки',
   fg_receipt: 'Приёмка готовой продукции',
   pack_ship: 'Упаковка и отгрузка',
+  subcontract_send: 'Передача подрядчику',
   subcontract_receipt: 'Приёмка продукции от подрядчика',
 };
 
@@ -996,6 +1044,16 @@ export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
 export const FG_RECEIPT_STATUS_LABELS: Record<FgReceiptStatus, string> = {
   awaiting: 'Ожидает приёмки',
   accepted: 'Принято на склад',
+};
+
+/**
+ * Передача подрядчику: ждём отгрузки со склада — передано (п. 3).
+ * Двух статусов достаточно: «сколько именно отдали» хранит журнал перемещений,
+ * а не статус задачи.
+ */
+export const SUBCONTRACT_SEND_STATUS_LABELS: Record<SubcontractSendStatus, string> = {
+  awaiting: 'Ожидает передачи',
+  sent: 'Передано подрядчику',
 };
 
 export const SUBCONTRACT_RECEIPT_STATUS_LABELS: Record<SubcontractReceiptStatus, string> = {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
 import { DateField } from '../../components/DateField';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import { ReadOnlyFieldset } from '../../components/ReadOnlyFieldset';
@@ -18,15 +18,19 @@ import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
-  DEV_STAGE_LABELS, cuttingGate, cuttingWaitLabel, devBoardColumn, devRouteSteps, devStageStates,
+  DEV_STAGE_LABELS, cuttingGate, devBoardColumn, devRouteSteps, devStageStates,
   devStageOfTask, extraTasks,
 } from '../../utils/experimentalBoard';
+import { wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
 import { DevFinalPackage } from './DevFinalPackage';
 import { DevToSku } from './DevToSku';
+import { DevCardTabs } from './DevCardTabs';
+import { DevAside } from './DevAside';
+import { DevFilesTab } from './DevFilesTab';
 import styles from '../../styles';
 
 /**
@@ -44,6 +48,20 @@ import styles from '../../styles';
  *    заводит новые задачи с новым кругом;
  *  · автосоздания производственного заказа при «Готово к серии» (п.9) —
  *    решение заказчика: заказ заводит менеджер.
+ *
+ * ВКЛАДКИ И ПРАВАЯ КОЛОНКА (референс заказчика 24.08). Карточка была одной
+ * простынёй: поля, маршрут, две таблицы задач, форма, приёмка образца,
+ * история доработок, пакет из двенадцати полей и перенос в каталог — подряд.
+ *
+ * Раскладка взята с референса, СПОСОБ ОТКРЫТИЯ — нет: там карточка нарисована
+ * боковой панелью, а 16.08 заказчик решил обратное («для такого количества
+ * информации боковая панель неудобна»), и шторки в проекте не осталось нигде.
+ * Возвращать её значит завести вторую поверхность с тем же содержимым — то,
+ * от чего ушли и в заказе, и здесь. Берём то, что решает названную проблему:
+ * вкладки и постоянную справку справа.
+ *
+ * ВКЛАДКА ПО УМОЛЧАНИЮ — «Задачи», как на референсе: в карточку приходят
+ * работать, а не читать поля.
  */
 
 function AddTaskForm({ typeItems, onAdd, tasks }) {
@@ -133,7 +151,10 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
         </label>
       )}
       <div className={styles.modalActions}>
-        <Button variant="primary" disabled={busy} onClick={submit}>+ Добавить задачу</Button>
+        {/* Подпись сабмита отличается от подписи кнопки, которая эту форму
+            раскрывает: две кнопки «+ Добавить задачу» на одном экране —
+            это «нажал и ничего не произошло» у того, кто попал в первую */}
+        <Button variant="primary" disabled={busy} onClick={submit}>Создать задачу</Button>
       </div>
     </div>
   );
@@ -192,6 +213,15 @@ export function DevCard({
     itemId: dev.item_id,
     materials: order?.materials ?? [],
   });
+  /**
+   * Позиция заказа, которую разрабатывают. Нужна справке справа: изделие
+   * и размерный ряд описывает ЗАКАЗ, у разработки своих полей для них нет
+   * и заводить их значило бы держать два ответа на один вопрос.
+   */
+  const item = useMemo(
+    () => (order?.items ?? []).find((it) => it.id === dev.item_id) ?? null,
+    [order, dev.item_id],
+  );
 
   const shops = useMemo(
     () => (departments ?? []).filter((d) => d.active && isProductionDept(d)),
@@ -280,6 +310,15 @@ export function DevCard({
   };
 
   /**
+   * Файл к задаче (правка 24.08, п. 4.4). Идёт тем же путём, что файлы
+   * финального пакета, — различается одна колонка (`taskId`). Второй загрузчик
+   * рядом означал бы две реализации привязки, уборки сироты и пути в бакете.
+   */
+  const uploadTaskFile = (taskId, file) => onUploadFile({
+    devId: dev.id, orderId: dev.order_id, kind: 'dev_task', file, taskId,
+  });
+
+  /**
    * Доработка нового круга. Состав задач считает `reworkPlan` по ВЫБРАННЫМ
    * областям (правки 20.08): прежняя жёсткая тройка `rework → sample → fitting`
    * перезапускала вышивку из-за длины рукава и не перезапускала крой вовсе.
@@ -321,6 +360,38 @@ export function DevCard({
   const fittingTask = tasks.find(
     (t) => t.task_type === 'fitting' && t.status !== 'done' && t.status !== 'cancelled');
 
+  /**
+   * Активная вкладка — в адресе (`?tab=`), тем же приёмом, что в карточке
+   * заказа: ссылку на разработку шлют коллегам, и «посмотри финальный пакет»
+   * должно открываться сразу нужной панелью. `replace`, чтобы переключение
+   * не забивало историю: «Назад» обязан вернуть к списку разработок,
+   * а не пройти шесть вкладок.
+   */
+  const [params, setParams] = useSearchParams();
+  const activeCount = tasks.filter(
+    (t) => t.status !== 'done' && t.status !== 'cancelled').length;
+  const files = dev.attachments ?? [];
+  // Без useMemo: шесть литералов на рендер дешевле, чем сравнение зависимостей,
+  // а `tasks`/`attachments` и так пересобираются каждый раз (`dev.tasks ?? []`)
+  const tabs = [
+    { id: 'tasks', label: 'Задачи', count: activeCount },
+    { id: 'info', label: 'Информация' },
+    { id: 'files', label: 'Файлы', count: files.length },
+    { id: 'rework', label: 'История доработок', count: history.length },
+    { id: 'package', label: 'Финальный пакет' },
+    { id: 'sku', label: 'SKU' },
+  ];
+  const requested = params.get('tab');
+  const tab = tabs.some((t) => t.id === requested) ? requested : 'tasks';
+  const selectTab = (id) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (id === 'tasks') next.delete('tab'); else next.set('tab', id);
+    return next;
+  }, { replace: true });
+
+  /** Форма новой задачи раскрывается кнопкой — как на референсе */
+  const [addOpen, setAddOpen] = useState(false);
+
   return (
     <section className={styles.matSection}>
       <div className={styles.matSectionHead}>
@@ -361,306 +432,343 @@ export function DevCard({
         nodes={devRouteSteps(stageStates, currentStage)}
       />
 
-      {/* Две строки, ради которых заказчик и переделывает раздел: почему стоит
-          и что делать дальше. Они видны ВСЕГДА, а не на отдельной вкладке */}
-      {!dev.outcome && (
-        <div className={styles.tzBlock}>
-          <div>
-            <span className={styles.fieldLabel}>Текущий блокер</span>
-            <div>
-              {blocker
-                ? <><Icon name="alert" size={13} /> {taskLabel(blocker, typeNames)}
-                  {blocker.blocked_reason ? ` — ${blocker.blocked_reason}` : ''}</>
-                : <span className={styles.subText}>нет — работа идёт</span>}
-            </div>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <span className={styles.fieldLabel}>Следующее действие</span>
-            <div>{action || <span className={styles.subText}>—</span>}</div>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <span className={styles.fieldLabel}>Материалы</span>
-            <div>
-              {materialGate.missing.length === 0 ? (
-                <span className={`${styles.chip} ${styles.chipReady}`}>
-                  приняты складом — крой не ждёт материал
-                </span>
-              ) : (
-                <span className={`${styles.chip} ${styles.chipWaiting}`}>
-                  {cuttingWaitLabel('materials', materialGate.missing)}
-                </span>
-              )}
-              {/* Лекала не ждут материал — единственное исключение документа,
-                  и сказать об этом надо там же, где человек видит ожидание */}
-              <div className={styles.subText}>
-                Построение лекал идёт независимо от прихода материалов.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DevCardTabs tabs={tabs} active={tab} onSelect={selectTab} />
 
+      <div className={styles.devLayout}>
+        <div
+          className={styles.devMain}
+          id="dev-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`dev-tab-${tab}`}
+          tabIndex={-1}
+        >
       <ReadOnlyFieldset
         canManage={canManage}
         note="Только просмотр: разработку ведёт технолог."
       >
-        <div className={styles.formGrid}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Название изделия</span>
-            <input
-              className={styles.input}
-              defaultValue={dev.tech_name || ''}
-              onBlur={(e) => {
-                const v = e.target.value.trim() || null;
-                if (v !== (dev.tech_name || null)) onUpdate(dev.id, { tech_name: v });
-              }}
-              aria-label="Название изделия"
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Тип разработки</span>
-            <input
-              className={styles.input}
-              defaultValue={dev.dev_type || ''}
-              placeholder="Кастомный заказ / своя линейка"
-              onBlur={(e) => {
-                const v = e.target.value.trim() || null;
-                if (v !== (dev.dev_type || null)) onUpdate(dev.id, { dev_type: v });
-              }}
-              aria-label="Тип разработки"
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Конструктор</span>
-            <input
-              className={styles.input}
-              defaultValue={dev.constructor || ''}
-              onBlur={(e) => {
-                const v = e.target.value.trim() || null;
-                if (v !== (dev.constructor || null)) onUpdate(dev.id, { constructorName: v });
-              }}
-              aria-label="Конструктор"
-            />
-          </label>
-          <label className={styles.field}>
-            {/* «Проработчик» — подпись заказчика; код колонки `technologist`
-                не переименовывается (правило проекта про коды ролей) */}
-            <span className={styles.fieldLabel}>Проработчик</span>
-            <input
-              className={styles.input}
-              defaultValue={dev.technologist || ''}
-              onBlur={(e) => {
-                const v = e.target.value.trim() || null;
-                if (v !== (dev.technologist || null)) onUpdate(dev.id, { technologist: v });
-              }}
-              aria-label="Проработчик"
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Срок разработки</span>
-            <DateField
-              value={dev.due_date || ''}
-              onChange={(v) => onUpdate(dev.id, { due_date: v || null })}
-              aria-label="Срок разработки"
-            />
-            {!dev.due_date && order?.due_date && (
-              <span className={styles.subText}>
-                не задан — считается по сроку заказа {formatDateShort(order.due_date)}
-              </span>
-            )}
-          </label>
-          <label className={`${styles.field} ${styles.fieldWide}`}>
-            <span className={styles.fieldLabel}>Комментарий</span>
-            <textarea
-              className={styles.input}
-              rows={2}
-              defaultValue={dev.comment || ''}
-              onBlur={(e) => {
-                const v = e.target.value.trim() || null;
-                if (v !== (dev.comment || null)) onUpdate(dev.id, { comment: v });
-              }}
-              aria-label="Комментарий к разработке"
-            />
-          </label>
-        </div>
-
-        {/*
-          ДВА БЛОКА, А НЕ ОДИН СПИСОК (правка 22.08, п. 4.7). Верхний двигает
-          разработку по канбану, нижний — внутренний список работ технолога.
-          Раньше они лежали вперемешку, и понять, какая задача что делает,
-          было нельзя: отсюда и ощущение, что доска спорит со списком.
-        */}
-        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
-          Основной маршрут разработки
-        </h3>
-        <p className={styles.subText}>
-          Эти этапы двигают разработку по доске. Состояние считается из задач —
-          перетаскивать карточку не нужно.
-        </p>
-        <DevStageRoute
-          states={stageStates}
-          currentStage={currentStage}
-          tasks={tasks}
-          typeNames={typeNames}
-          onUpdateTask={updateTask}
-          canManage={canManage}
-        />
-
-        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
-          Задачи этапов
-        </h3>
-        <DevTasksSection
-          tasks={stageTaskList}
-          allTasks={tasks}
-          typeNames={typeNames}
-          deptNames={deptNames}
-          onUpdate={updateTask}
-          onSend={sendTask}
-          onBlock={blockTask}
-          canManage={canManage}
-        />
-
-        <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
-          Дополнительные задачи
-        </h3>
-        <p className={styles.subText}>
-          Внутренние работы технолога: доработать рукав, подобрать ткань,
-          проверить молнию. Колонок на доске они не создают.
-        </p>
-        <DevTasksSection
-          tasks={extra}
-          allTasks={tasks}
-          typeNames={typeNames}
-          deptNames={deptNames}
-          onUpdate={updateTask}
-          onSend={sendTask}
-          onBlock={blockTask}
-          canManage={canManage}
-          emptyText="Дополнительных задач нет — добавьте, если нужна работа вне основных этапов."
-        />
-
-        {sendFor && (
-          <DevSendToDept
-            task={sendFor}
-            taskName={taskLabel(sendFor, typeNames)}
-            departments={shops}
-            onSend={onSendTask}
-            onCancel={() => setSendFor(null)}
-          />
+        {/* ─── Информация: поля самой разработки ─── */}
+        {tab === 'info' && (
+          <div className={styles.formGrid}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Название изделия</span>
+              <input
+                className={styles.input}
+                defaultValue={dev.tech_name || ''}
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== (dev.tech_name || null)) onUpdate(dev.id, { tech_name: v });
+                }}
+                aria-label="Название изделия"
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Тип разработки</span>
+              <input
+                className={styles.input}
+                defaultValue={dev.dev_type || ''}
+                placeholder="Кастомный заказ / своя линейка"
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== (dev.dev_type || null)) onUpdate(dev.id, { dev_type: v });
+                }}
+                aria-label="Тип разработки"
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Конструктор</span>
+              <input
+                className={styles.input}
+                defaultValue={dev.constructor || ''}
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== (dev.constructor || null)) onUpdate(dev.id, { constructorName: v });
+                }}
+                aria-label="Конструктор"
+              />
+            </label>
+            <label className={styles.field}>
+              {/* «Проработчик» — подпись заказчика; код колонки `technologist`
+                  не переименовывается (правило проекта про коды ролей) */}
+              <span className={styles.fieldLabel}>Проработчик</span>
+              <input
+                className={styles.input}
+                defaultValue={dev.technologist || ''}
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== (dev.technologist || null)) onUpdate(dev.id, { technologist: v });
+                }}
+                aria-label="Проработчик"
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Срок разработки</span>
+              <DateField
+                value={dev.due_date || ''}
+                onChange={(v) => onUpdate(dev.id, { due_date: v || null })}
+                aria-label="Срок разработки"
+              />
+              {!dev.due_date && order?.due_date && (
+                <span className={styles.subText}>
+                  не задан — считается по сроку заказа {formatDateShort(order.due_date)}
+                </span>
+              )}
+            </label>
+            <label className={`${styles.field} ${styles.fieldWide}`}>
+              <span className={styles.fieldLabel}>Комментарий</span>
+              <textarea
+                className={styles.input}
+                rows={2}
+                defaultValue={dev.comment || ''}
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== (dev.comment || null)) onUpdate(dev.id, { comment: v });
+                }}
+                aria-label="Комментарий к разработке"
+              />
+            </label>
+          </div>
         )}
 
-        {!dev.outcome && (
+        {/* ─── Задачи: маршрут, две группы задач, приёмка образца ─── */}
+        {tab === 'tasks' && (
           <>
-            <DevSampleCheck
-              dev={dev}
+            {/*
+              ДВА БЛОКА, А НЕ ОДИН СПИСОК (правка 22.08, п. 4.7). Верхний двигает
+              разработку по канбану, нижний — внутренний список работ технолога.
+              Раньше они лежали вперемешку, и понять, какая задача что делает,
+              было нельзя: отсюда и ощущение, что доска спорит со списком.
+            */}
+            <h3 className={styles.queueGroupTitle}>Основной маршрут разработки</h3>
+            <p className={styles.subText}>
+              Эти этапы двигают разработку по доске. Колонку канбана ставит
+              технолог вручную — расчёт показывает, что с работой.
+            </p>
+            <DevStageRoute
+              states={stageStates}
+              currentStage={currentStage}
               tasks={tasks}
-              onApprove={(note) => onApproveSample(dev.id, note)}
-              onRework={startRework}
+              typeNames={typeNames}
+              onUpdateTask={updateTask}
+              canManage={canManage}
             />
 
-            {/* История доработок — прямое требование документа. Круг считает
-                сервер по ТИПУ задачи, поэтому номер стоит у каждой задачи,
-                а не у группы: там он верен */}
-            {history.length > 0 && (
-              <>
-                <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
-                  История доработок
-                </h3>
-                <ul className={styles.subText}>
-                  {history.map((t) => (
-                    <li key={t.id}>
-                      {taskLabel(t, typeNames)} · круг {t.cycle}
-                      {t.done_on ? ` · ${formatDateShort(t.done_on)}` : ''}
-                      {t.comment ? ` — ${t.comment}` : ''}
-                      {t.result ? ` → ${t.result}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </>
+            <div className={styles.matSectionHead} style={{ marginTop: 16 }}>
+              <h3 className={styles.queueGroupTitle}>Задачи этапов</h3>
+              {/*
+                Кнопка стоит в шапке блока задач (референс 24.08), а не формой
+                внизу страницы: форма, развёрнутая всегда, отодвигала работу —
+                а приходят сюда к задачам, а не к их заведению.
+              */}
+              {!dev.outcome && canManage && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setAddOpen((v) => !v)}
+                  aria-expanded={addOpen}
+                >
+                  + Добавить задачу
+                </Button>
+              )}
+            </div>
+            {addOpen && !dev.outcome && (
+              <AddTaskForm typeItems={typeNames} tasks={tasks} onAdd={addTasks} />
             )}
-
-            <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>Добавить задачу</h3>
-            <AddTaskForm typeItems={typeNames} tasks={tasks} onAdd={addTasks} />
-
-            <DevFinalPackage
-              dev={dev}
-              attachments={dev.attachments ?? []}
+            <DevTasksSection
+              tasks={stageTaskList}
+              allTasks={tasks}
+              typeNames={typeNames}
+              deptNames={deptNames}
+              onUpdate={updateTask}
+              onSend={sendTask}
+              onBlock={blockTask}
               canManage={canManage}
-              onUpdate={onUpdate}
-              onUpload={(kind, file) => onUploadFile({
-                devId: dev.id, orderId: dev.order_id, kind, file,
-              })}
+              files={files}
+              onUploadFile={uploadTaskFile}
               onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
-              onReady={() => closeDev('ready_for_serial')}
             />
 
             <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
-              Другой итог разработки
+              Дополнительные задачи
             </h3>
-            <div className={styles.queueActions}>
-              {Object.entries(DEV_OUTCOME_LABELS)
-                // «Готово к серии» живёт в блоке пакета: там же видно, чего
-                // не хватает. Кнопка в общем ряду обходила бы этот перечень
-                .filter(([code]) => code !== 'ready_for_serial')
-                .map(([code, label]) => (
-                  <Button key={code} variant="ghost" onClick={() => closeDev(code)}>
-                    {label}
-                  </Button>
-                ))}
-            </div>
             <p className={styles.subText}>
-              Незаконченная разработка закрывается незаконченной: финального
-              пакета такие исходы не требуют.
+              Внутренние работы технолога: доработать рукав, подобрать ткань,
+              проверить молнию. Колонок на доске они не создают.
             </p>
+            <DevTasksSection
+              tasks={extra}
+              allTasks={tasks}
+              typeNames={typeNames}
+              deptNames={deptNames}
+              onUpdate={updateTask}
+              onSend={sendTask}
+              onBlock={blockTask}
+              canManage={canManage}
+              files={files}
+              onUploadFile={uploadTaskFile}
+              onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
+              emptyText="Дополнительных задач нет — добавьте, если нужна работа вне основных этапов."
+            />
+
+            {sendFor && (
+              <DevSendToDept
+                task={sendFor}
+                taskName={taskLabel(sendFor, typeNames)}
+                departments={shops}
+                onSend={onSendTask}
+                onCancel={() => setSendFor(null)}
+              />
+            )}
+
+            {/* Приёмка образца — ДЕЙСТВИЕ по текущей работе, поэтому она здесь,
+                а не в истории доработок: история отвечает на «что уже было» */}
+            {!dev.outcome && (
+              <DevSampleCheck
+                dev={dev}
+                tasks={tasks}
+                onApprove={(note) => onApproveSample(dev.id, note)}
+                onRework={startRework}
+              />
+            )}
           </>
         )}
 
-        {dev.outcome && (
-          <p className={styles.subText}>
-            Разработка закрыта{dev.closed_at ? ` ${formatDateShort(dev.closed_at)}` : ''}
-            {dev.outcome_comment ? `: ${dev.outcome_comment}` : ''}.
-          </p>
+        {/* ─── Файлы: сводный реестр вложений разработки ─── */}
+        {tab === 'files' && (
+          <DevFilesTab files={files} tasks={tasks} typeNames={typeNames} />
         )}
 
-        {/*
-          ПЕРЕНОС В КАТАЛОГ SKU (решение заказчика 21.08). Документ обещает,
-          что «при следующем заказе этой модели экспериментальный цех повторно
-          не требуется» — но пока пакет лежит только здесь, менеджер повторного
-          заказа о нём не знает: он открывает визард, модели там нет, и заводит
-          разработку заново. Кнопка появляется у готовой к серии разработки
-          и исчезает после переноса: второй артикул той же модели — это два
-          источника правды о ней.
-        */}
-        {dev.outcome === 'ready_for_serial' && (
-          <div style={{ marginTop: 12 }}>
-            {dev.sku_code ? (
-              <span className={`${styles.chip} ${styles.chipDone}`}>
-                В каталоге SKU: {dev.sku_code}
-              </span>
-            ) : (
+        {/* ─── История доработок ───
+            Прямое требование документа. Круг считает СЕРВЕР по типу задачи,
+            поэтому номер стоит у каждой задачи, а не у группы: группа «Круг 1»
+            не содержала бы половины своей же работы и врала бы убедительно. */}
+        {tab === 'rework' && (
+          history.length > 0 ? (
+            <ul className={styles.subText}>
+              {history.map((t) => (
+                <li key={t.id}>
+                  {taskLabel(t, typeNames)} · круг {t.cycle}
+                  {t.done_on ? ` · ${formatDateShort(t.done_on)}` : ''}
+                  {t.comment ? ` — ${t.comment}` : ''}
+                  {t.result ? ` → ${t.result}` : ''}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={styles.subText}>
+              Доработок не было: образец либо ещё не смотрели, либо приняли
+              с первого круга.
+            </p>
+          )
+        )}
+
+        {/* ─── Финальный пакет и исход разработки ─── */}
+        {tab === 'package' && (
+          <>
+            {!dev.outcome ? (
               <>
-                <Button
-                  variant="primary"
-                  icon="box"
-                  disabled={!canManage}
-                  onClick={() => setToSkuOpen(true)}
-                >
-                  Перенести модель в каталог SKU
-                </Button>
-                <p className={styles.subText} style={{ marginTop: 4 }}>
-                  Артикул опишет модель числами прайса — код, категорию и цену
-                  пошива спросим в форме: пакет их не содержит.
+                <DevFinalPackage
+                  dev={dev}
+                  attachments={files}
+                  canManage={canManage}
+                  onUpdate={onUpdate}
+                  onUpload={(kind, file) => onUploadFile({
+                    devId: dev.id, orderId: dev.order_id, kind, file,
+                  })}
+                  onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
+                  onReady={() => closeDev('ready_for_serial')}
+                />
+
+                <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
+                  Другой итог разработки
+                </h3>
+                <div className={styles.queueActions}>
+                  {Object.entries(DEV_OUTCOME_LABELS)
+                    // «Готово к серии» живёт в блоке пакета: там же видно, чего
+                    // не хватает. Кнопка в общем ряду обходила бы этот перечень
+                    .filter(([code]) => code !== 'ready_for_serial')
+                    .map(([code, label]) => (
+                      <Button key={code} variant="ghost" onClick={() => closeDev(code)}>
+                        {label}
+                      </Button>
+                    ))}
+                </div>
+                <p className={styles.subText}>
+                  Незаконченная разработка закрывается незаконченной: финального
+                  пакета такие исходы не требуют.
                 </p>
               </>
+            ) : (
+              <p className={styles.subText}>
+                Разработка закрыта{dev.closed_at ? ` ${formatDateShort(dev.closed_at)}` : ''}
+                {dev.outcome_comment ? `: ${dev.outcome_comment}` : ''}.
+              </p>
             )}
-          </div>
+          </>
+        )}
+
+        {/* ─── SKU ───
+            ПЕРЕНОС В КАТАЛОГ (решение заказчика 21.08). Документ обещает, что
+            «при следующем заказе этой модели экспериментальный цех повторно
+            не требуется» — но пока пакет лежит только здесь, менеджер повторного
+            заказа о нём не знает: открывает визард, модели там нет, и заводит
+            разработку заново. Повторный перенос запрещён: второй артикул той же
+            модели — два источника правды о ней.
+
+            ПРЕДЛАГАЕТСЯ ТОЛЬКО ПРИ ВКЛЮЧЁННОМ ПЕРЕКЛЮЧАТЕЛЕ (правка 24.08,
+            п. 4.6): пакет без карточки SKU не содержит ни описания, ни ценовой
+            вилки — звать в форму, которую нечем заполнить, незачем.
+
+            Вкладка при этом есть ВСЕГДА и объясняет, чего не хватает. Прятать
+            её значит оставить вопрос «а модель-то в каталоге?» без ответа —
+            и человек пойдёт искать её в визарде. */}
+        {tab === 'sku' && (
+          dev.sku_code ? (
+            <span className={`${styles.chip} ${styles.chipDone}`}>
+              В каталоге SKU: {dev.sku_code}
+            </span>
+          ) : dev.outcome === 'ready_for_serial' && wantsSkuCard(dev) ? (
+            <>
+              <Button
+                variant="primary"
+                icon="box"
+                disabled={!canManage}
+                onClick={() => setToSkuOpen(true)}
+              >
+                Перенести модель в каталог SKU
+              </Button>
+              <p className={styles.subText} style={{ marginTop: 4 }}>
+                Артикул опишет модель числами прайса — код, категорию и цену
+                пошива спросим в форме: пакет их не содержит.
+              </p>
+            </>
+          ) : (
+            <p className={styles.subText}>
+              {wantsSkuCard(dev)
+                ? `Модель отмечена для каталога. Перенос станет доступен, когда
+                   разработка завершится с исходом «Готово к серии».`
+                : `Модель в каталог не идёт: переключатель «Добавить модель
+                   в каталог SKU» во вкладке «Финальный пакет» выключен.`}
+            </p>
+          )
         )}
       </ReadOnlyFieldset>
+        </div>
+
+        <DevAside
+          dev={dev}
+          item={item}
+          blocker={blocker}
+          action={action}
+          materialGate={materialGate}
+          files={files}
+          typeNames={typeNames}
+          onShowFiles={() => selectTab('files')}
+        />
+      </div>
 
       {toSkuOpen && (
         <DevToSku
           dev={dev}
-          attachments={dev.attachments ?? []}
+          attachments={files}
           onClose={() => setToSkuOpen(false)}
         />
       )}

@@ -776,6 +776,57 @@ describe('useErpStore — материал со склада / авто-закр
     expect(supplyStage().status).toBe('in_progress');
   });
 
+  /**
+   * СТАТУС «ЗАКАЗАНО» СТАВИТСЯ ПО ФАКТУ (правка заказчика 24.08, п. 1:
+   * «статус „Заказано" должен появляться только после фактического оформления
+   * заказа поставщику»).
+   *
+   * Правило живёт в `utils/materialStatus` и покрыто там же; здесь сторожится
+   * то, чего чистая функция не видит: что её зовут ОБА писателя закупочной
+   * строки — вставка и правка, — и что в базу уходит именно посчитанный статус.
+   * Забытый писатель не роняет ничего: он просто оставляет материал
+   * «Не заказано» после оформления, и разойдётся это молча.
+   */
+  it('addMaterial с количеством и датой заказа вставляется уже «Заказано»', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'purchase', status: 'pending',
+      qty_ordered: 110, ordered_on: '2026-08-24',
+    } as any);
+    const row = h.insertCalls.find((c) => c.table === 'erp_materials')?.row as any;
+    expect(row.status).toBe('ordered');
+  });
+
+  it('addMaterial без даты заказа остаётся «Не заказано»', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'purchase', status: 'pending',
+      qty_ordered: 110,
+    } as any);
+    const row = h.insertCalls.find((c) => c.table === 'erp_materials')?.row as any;
+    expect(row.status).toBe('pending');
+  });
+
+  it('updateMaterial: дата заказа поверх количества переводит в «Заказано»', async () => {
+    seedSupply([mat({ source: 'purchase', status: 'pending', qty_ordered: 110 })]);
+    await useErpStore.getState().updateMaterial('m1', { ordered_on: '2026-08-24' });
+    // В базу уходит ТОТ ЖЕ патч, что лёг на экран, — одним запросом
+    const patch = h.updateCalls.find((c) => c.table === 'erp_materials')?.patch as any;
+    expect(patch.status).toBe('ordered');
+    expect(useErpStore.getState().orders[0].materials[0].status).toBe('ordered');
+  });
+
+  it('updateMaterial: правка принятого материала его не откатывает', async () => {
+    // Иначе цена, вписанная после приёмки, стёрла бы приёмку саму
+    seedSupply([mat({
+      source: 'purchase', status: 'received', qty_ordered: 110, ordered_on: '2026-08-24',
+    })]);
+    await useErpStore.getState().updateMaterial('m1', { price_per_unit: 500 });
+    const patch = h.updateCalls.find((c) => c.table === 'erp_materials')?.patch as any;
+    expect(patch.status).toBeUndefined();
+    expect(useErpStore.getState().orders[0].materials[0].status).toBe('received');
+  });
+
   it('confirmStockMaterial → reserved + закрывает закупку', async () => {
     seedSupply([mat({ status: 'pending' })]);
     const ok = await useErpStore.getState().confirmStockMaterial('m1');
@@ -1510,6 +1561,107 @@ describe('число запросов: оболочка и карточка за
     expect(st.permissionsLoaded && st.dictionariesLoaded
       && st.subcontractingLoaded && st.experimentalLoaded && st.myDeptLoaded).toBe(true);
   });
+
+  /**
+   * ЗАПОЗДАВШИЙ ПАКЕТ НЕ ЗАТИРАЕТ ПРАВКУ ЧЕЛОВЕКА (найдено падением e2e 24.08).
+   *
+   * Разработки приезжают ДВУМЯ путями — пакетом оболочки и своим `load*`
+   * у экрана, — и оба стартуют при открытии раздела. Экран отрисовался
+   * от своего запроса, человек нажал кнопку, пакет прилетел следом и поставил
+   * снимок ДО правки: карточка молча вернулась назад. В e2e это выглядело
+   * как «иногда перенос не срабатывает», то есть как флака, — а было гонкой.
+   */
+  it('пакет оболочки не затирает раздел, наполненный другим путём', async () => {
+    // Исходное состояние задаётся явно: общий `beforeEach` флаги разделов
+    // не сбрасывает, и тест зависел бы от порядка соседей
+    useErpStore.setState({
+      experimental: [], experimentalLoaded: false, bootstrapLoaded: false,
+    });
+    h.rpcResult = {
+      data: {
+        departments: [dept], permissions: [], dictionaries: [],
+        subcontracting: [], experimental: [{ id: 'e1', board_stage: null }],
+        my_employee: null,
+      },
+      error: null,
+    };
+    const started = useErpStore.getState().loadBootstrap();
+    // Пока пакет летит, экран успел загрузить своё И человек успел править
+    useErpStore.setState({
+      experimental: [{ id: 'e1', board_stage: 'sewing' }] as never,
+      experimentalLoaded: true,
+    });
+    await started;
+
+    expect(
+      useErpStore.getState().experimental[0].board_stage,
+      'пакет вернул карточку в прежнюю колонку — правка человека потеряна',
+    ).toBe('sewing');
+  });
+
+  it('повторная загрузка раздел ОБНОВЛЯЕТ — иначе «Повторить» ничего не делает', async () => {
+    // Отличие от предыдущего случая ровно одно: на старте запроса раздел уже
+    // был загружен. Проверять «загружено ли сейчас» здесь недостаточно —
+    // на этом первая версия починки и сломала кнопку повтора
+    useErpStore.setState({
+      experimental: [{ id: 'stale' }] as never,
+      experimentalLoaded: true,
+      bootstrapLoaded: false,
+    });
+    h.rpcResult = {
+      data: {
+        departments: [dept], permissions: [], dictionaries: [],
+        subcontracting: [], experimental: [{ id: 'fresh' }], my_employee: null,
+      },
+      error: null,
+    };
+    await useErpStore.getState().loadBootstrap();
+    expect(useErpStore.getState().experimental[0].id).toBe('fresh');
+  });
+
+  /**
+   * ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ГОНКИ. Затирает тот, кто пришёл ВТОРЫМ, — а вторым
+   * бывает любой из двух: на CI под нагрузкой пакет оболочки успевал ответить
+   * первым, и снимок ДО правки ставил уже свой загрузчик экрана. Починка
+   * одного писателя оставляет дефект ровно наполовину, и половина эта
+   * воспроизводится тем же способом — медленной машиной.
+   */
+  it.each([
+    ['разработка', 'erp_experimental', 'experimental', 'experimentalLoaded',
+      () => useErpStore.getState().loadExperimental()],
+    ['подряд', 'erp_subcontracting', 'subcontracting', 'subcontractingLoaded',
+      () => useErpStore.getState().loadSubcontracting()],
+  ] as const)('запоздавший загрузчик раздела «%s» не затирает правку человека',
+    async (_name, table, field, flag, load) => {
+      useErpStore.setState({ [field]: [], [flag]: false } as never);
+      h.tableData = { [table]: [{ id: 'x1', board_stage: null, phase: 'planned' }] };
+
+      const started = load();
+      // Пока запрос летит, раздел наполнил другой путь И человек успел править
+      useErpStore.setState({
+        [field]: [{ id: 'x1', board_stage: 'sewing', phase: 'at_contractor' }],
+        [flag]: true,
+      } as never);
+      await started;
+
+      const row = (useErpStore.getState() as never as Record<string, { phase: string }[]>)[field][0];
+      expect(row.phase, 'запоздавший ответ вернул раздел к снимку до правки').toBe('at_contractor');
+    });
+
+  it.each([
+    ['разработка', 'erp_experimental', 'experimental', 'experimentalLoaded',
+      () => useErpStore.getState().loadExperimental()],
+    ['подряд', 'erp_subcontracting', 'subcontracting', 'subcontractingLoaded',
+      () => useErpStore.getState().loadSubcontracting()],
+  ] as const)('повторная загрузка раздела «%s» обновляет — «Повторить» работает',
+    async (_name, table, field, flag, load) => {
+      // Отличие ровно одно: на старте запроса раздел УЖЕ был загружен
+      useErpStore.setState({ [field]: [{ id: 'stale' }], [flag]: true } as never);
+      h.tableData = { [table]: [{ id: 'fresh' }] };
+      await load();
+      const row = (useErpStore.getState() as never as Record<string, { id: string }[]>)[field][0];
+      expect(row.id).toBe('fresh');
+    });
 
   it('loadAll после бутстрапа НЕ перезапрашивает цеха', async () => {
     useErpStore.setState({ departments: [dept] as never });

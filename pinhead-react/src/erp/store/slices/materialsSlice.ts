@@ -12,6 +12,7 @@ import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
 import { findSupplyDept, openSupplyStages, supplyMaterialSummary } from '../../utils/supply';
+import { autoOrderedStatus } from '../../utils/materialStatus';
 
 /** Точечный патч массива вариантов поставщика у материала (не трогая остальные заказы) */
 function patchSuppliersIn(
@@ -93,9 +94,26 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
   },
 
   addMaterial: async (orderId, material) => {
+    /**
+     * «Заказано» ставится ПО ФАКТУ и здесь тоже (правка 24.08, п. 1): заводя
+     * строку, закупщик часто уже разговаривал с поставщиком и заполняет
+     * количество и дату сразу. Оба писателя статуса — вставка и правка —
+     * зовут одну функцию: вторая копия правила разошлась бы с первой молча,
+     * и «Заказано» значило бы разное в зависимости от того, каким путём
+     * строка появилась.
+     */
+    const withStatus = {
+      ...material,
+      ...(autoOrderedStatus({
+        source: material.source ?? 'purchase',
+        status: material.status ?? 'pending',
+        qty_ordered: material.qty_ordered ?? null,
+        ordered_on: material.ordered_on ?? null,
+      }) ? { status: 'ordered' as const } : {}),
+    };
     const { data, error } = await erpQuery(() => supabase
       .from('erp_materials')
-      .insert({ ...material, order_id: orderId })
+      .insert({ ...withStatus, order_id: orderId })
       .select());
     const row = data?.[0] as ErpMaterial | undefined;
     if (error || !row) {
@@ -111,8 +129,23 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return row;
   },
 
-  updateMaterial: async (id, patch) => {
+  updateMaterial: async (id, rawPatch) => {
     const prev = get().orders;
+    /**
+     * Статус «Заказано» — производная от «Количество к заказу» и «Дата заказа»
+     * (правка 24.08, п. 1), и считается она ЗДЕСЬ, в единственном писателе
+     * закупочных полей. В компоненте её держать нельзя: инлайн-правку рисуют
+     * две раскладки (таблица и карточка планшета), и вторая копия правила —
+     * ровно тот случай, на котором проект уже ловился.
+     */
+    const current = prev
+      .flatMap((o) => o.materials)
+      .find((m) => m.id === id);
+    const patch = { ...rawPatch };
+    if (current) {
+      const next = { ...current, ...patch };
+      if (autoOrderedStatus(next)) patch.status = 'ordered';
+    }
     set((s) => ({
       orders: s.orders.map((o) => ({
         ...o,

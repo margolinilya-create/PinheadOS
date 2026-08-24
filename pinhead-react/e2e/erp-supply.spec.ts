@@ -217,6 +217,97 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     await expect(dialog.getByRole('button', { name: 'Завершить' })).toBeEnabled();
   });
 
+  /**
+   * АРХИВ ЗАВЕРШЁННЫХ ЗАКУПОК (правка заказчика 24.08, п. 2).
+   *
+   * Жалоба была тройная: завершённые заказы «раскрыты и мешают», внутри
+   * архива второй раз стоит заголовок «Заказы в закупке», а статус у них
+   * «Ожидает». Unit-стороже проверяют список и `supplyState`; здесь —
+   * то, чего они не видят: что блок стоит ПОСЛЕ рабочей области экрана
+   * и что раскрытый архив не заводит второй такой же заголовок.
+   */
+  test('архив свёрнут, стоит после рабочей области и не дублирует заголовок',
+    async ({ page }) => {
+      await page.goto('/purchasing?studio=0');
+      const active = page.getByRole('heading', { name: /Заказы в закупке/ });
+      await expect(active).toBeVisible();
+
+      const archive = page.locator('details').filter({ hasText: 'Завершённые закупки' }).first();
+      // Свёрнут по умолчанию: содержимое в аккессибилити-дерево не попадает
+      await expect(archive.getByRole('button', { name: 'Открыть' })).toHaveCount(0);
+
+      // Внизу страницы: заголовок активной очереди выше архива по документу
+      const order = await active.evaluate(
+        (el, arc) => el.compareDocumentPosition(arc!) & Node.DOCUMENT_POSITION_FOLLOWING,
+        await archive.elementHandle(),
+      );
+      expect(order, 'архив обязан стоять ниже рабочей области').toBeGreaterThan(0);
+
+      await archive.locator('summary').click();
+      await expect(archive.getByRole('button', { name: 'Открыть' }).first()).toBeVisible();
+      // Второго «Заказы в закупке» не появилось — ни заголовком, ни именем области
+      await expect(active).toHaveCount(1);
+      await expect(page.getByRole('region', { name: 'Заказы в закупке' })).toHaveCount(1);
+    });
+
+  test('завершённая закупка помечена «Завершено», а не «Ожидает»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const archive = page.locator('details').filter({ hasText: 'Завершённые закупки' }).first();
+    await archive.locator('summary').click();
+    const rows = page.getByRole('region', { name: 'Завершённые закупки' }).getByRole('row');
+    // Шапка таблицы тоже строка — берём первую с кнопкой «Открыть»
+    const row = rows.filter({ has: page.getByRole('button', { name: 'Открыть' }) }).first();
+    await expect(row).toContainText('Завершено');
+    await expect(row).not.toContainText('Ожидает');
+  });
+
+  /**
+   * КОЛИЧЕСТВО К ЗАКАЗУ ПОДСТАВЛЯЕТСЯ ИЗ ПЛАНОВОГО (правка заказчика 24.08,
+   * п. 1: «сделать автоматическую подстановку количества из „План, кол-во"
+   * с возможностью ручной правки»). Обычно заказывают ровно столько, сколько
+   * просили, и вводить одно и то же число дважды закупщик не должен.
+   *
+   * Проверяется ОБА направления, потому что дефект бывает с двух сторон:
+   * подстановки нет вовсе — или она перебивает уже введённое руками.
+   */
+  test('«Количество к заказу» едет за плановым, пока его не правили руками',
+    async ({ page }) => {
+      await page.goto('/purchasing?studio=0');
+      // Форма живёт в карточке ВЫБРАННОГО заказа (мастер-деталь с правки 23.08):
+      // строку заводят конкретному заказу, а не в общий реестр
+      await supplyRow(page, 'Худи корпоратив')
+        .getByRole('button', { name: 'Открыть' }).click();
+      await page.getByRole('button', { name: '+ Материал' }).click();
+
+      const modal = page.getByRole('dialog', { name: 'Новая закупка' });
+      const plan = modal.getByLabel('Нужно количество');
+      const ordered = modal.getByLabel('Количество к заказу');
+
+      await plan.fill('100');
+      await expect(ordered).toHaveValue('100');
+
+      // Ручная правка — и подстановка отступает: «110 при плане 100» это
+      // исключение, которое вводят, а не собирают заново
+      await ordered.fill('110');
+      await plan.fill('120');
+      await expect(ordered).toHaveValue('110');
+    });
+
+  /**
+   * СТАТУС «ЗАКАЗАНО» НЕ ВЫБИРАЕТСЯ (тот же п. 1): он ставится по факту —
+   * заполненным количеством к заказу и датой заказа. Пункт остаётся видимым,
+   * но недоступным: исчезнувшая строка списка читается как поломка.
+   */
+  test('«Заказано» в списке статусов виден, но недоступен', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await supplyRow(page, 'Худи корпоратив')
+      .getByRole('button', { name: 'Открыть' }).click();
+    const select = page.getByLabel(/^Статус /).first();
+    await expect(select).toBeVisible();
+    await expect(select.getByRole('option', { name: /^Заказано/ })).toBeDisabled();
+    await expect(select.getByRole('option', { name: 'В пути' })).toBeEnabled();
+  });
+
   test('бейдж «Закупка» в меню считает заказы, ждущие закупки', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     const link = page.getByRole('complementary').getByRole('link', { name: /Закупка/ });

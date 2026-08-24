@@ -321,6 +321,7 @@ export function activeOrdersCount(orders: ErpOrderFull[]): number {
  */
 const WAREHOUSE_TERMINAL: Record<string, string> = {
   material_receipt: 'accepted',
+  subcontract_send: 'sent',
   subcontract_receipt: 'accepted',
   fg_receipt: 'accepted',
   marking: 'issued',

@@ -18,6 +18,7 @@ import {
   WAREHOUSE_TASK_TYPE_LABELS, MARKING_STATUS_LABELS, PACK_SHIP_STATUS_LABELS,
   FG_RECEIPT_STATUS_LABELS,
   SUBCONTRACT_RECEIPT_STATUS_LABELS,
+  SUBCONTRACT_SEND_STATUS_LABELS,
 } from '../types';
 import styles from '../styles';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
@@ -25,6 +26,7 @@ import { FgReceiptCard } from './warehouse/FgReceiptCard';
 import { MarkingCard } from './warehouse/MarkingCard';
 import { PackShipCard } from './warehouse/PackShipCard';
 import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
+import { SendToContractorCard } from './warehouse/SendToContractorCard';
 import { WarehouseTaskCard } from './warehouse/WarehouseTaskCard';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
@@ -38,7 +40,8 @@ import { useErpAccess } from '../store/useErpAccess';
  */
 
 const TYPE_ICON = {
-  material_receipt: 'inbox', subcontract_receipt: 'truck', marking: 'tag',
+  material_receipt: 'inbox', subcontract_send: 'externalLink',
+  subcontract_receipt: 'truck', marking: 'tag',
   fg_receipt: 'checkCircle', pack_ship: 'box',
 };
 /**
@@ -48,19 +51,23 @@ const TYPE_ICON = {
  * что именно горит. Соответствие сторожит `warehouseTaskTypes.test.ts`.
  */
 const TERMINAL = {
-  material_receipt: 'accepted', subcontract_receipt: 'accepted', marking: 'issued',
+  material_receipt: 'accepted', subcontract_send: 'sent',
+  subcontract_receipt: 'accepted', marking: 'issued',
   fg_receipt: 'accepted', pack_ship: 'shipped',
 };
-// Порядок в списке повторяет ход заказа: материалы → подряд → маркировка →
-// приёмка готовой продукции → упаковка
+// Порядок в списке повторяет ход заказа: материалы → передача подрядчику →
+// приёмка подряда → маркировка → приёмка готовой продукции → упаковка.
+// Передача стоит ПЕРЕД приёмкой: сначала отдаём, потом забираем (п. 3)
 const TYPE_ORDER = {
-  material_receipt: 0, subcontract_receipt: 1, marking: 2, fg_receipt: 3, pack_ship: 4,
+  material_receipt: 0, subcontract_send: 1, subcontract_receipt: 2,
+  marking: 3, fg_receipt: 4, pack_ship: 5,
 };
 const RECEIPT_LABELS = { awaiting: 'Ожидает приёмки', accepted: 'Принято', awaiting_receipt: 'Ожидает приёмки' };
 
 const TABS = [
   { key: 'all', label: 'Все' },
   { key: 'material_receipt', label: 'Приёмка материалов' },
+  { key: 'subcontract_send', label: 'Передача подрядчику' },
   { key: 'subcontract_receipt', label: 'Приёмка подряда' },
   { key: 'marking', label: 'Маркировка' },
   { key: 'fg_receipt', label: 'Приёмка ГП' },
@@ -71,6 +78,7 @@ function taskStatusLabel(task) {
   switch (task.task_type) {
     case 'marking': return MARKING_STATUS_LABELS[task.status] ?? task.status;
     case 'pack_ship': return PACK_SHIP_STATUS_LABELS[task.status] ?? task.status;
+    case 'subcontract_send': return SUBCONTRACT_SEND_STATUS_LABELS[task.status] ?? task.status;
     case 'subcontract_receipt': return SUBCONTRACT_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
     case 'fg_receipt': return FG_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
     default: return RECEIPT_LABELS[task.status] ?? task.status;
@@ -412,6 +420,13 @@ export default function Warehouse() {
                 order={open.order}
                 task={open.task}
                 onAccept={acceptMaterial}
+              />
+            )}
+            {open.task.task_type === 'subcontract_send' && (
+              <SendToContractorCard
+                order={open.order}
+                task={open.task}
+                onAdvance={advanceWarehouseTask}
               />
             )}
             {open.task.task_type === 'subcontract_receipt' && (

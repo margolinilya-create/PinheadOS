@@ -4,6 +4,7 @@ import { Button } from '../../../components/Button';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { FieldError } from './FormParts';
+import { PURCHASE_FIELD_LABELS } from '../../purchasing/purchaseLabels';
 import styles from '../../../styles';
 
 /**
@@ -92,7 +93,7 @@ function PurchaseRow({ r, ri, items, attach, setRow, removeRow, err, inputCls })
           </select>
         </label>
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>Нужно количество *</span>
+          <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyExpected} *</span>
           <input
             type="number"
             min="0"

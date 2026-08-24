@@ -5,7 +5,7 @@ import {
   OrderedOnField, PlanField, PriceField, QtyOrderedField,
   ReceivedValue, ResponsibleField, StatusCell, StatusControl, SupplierCell,
 } from './PurchaseFields';
-import { PURCHASE_GROUPS } from './purchaseLabels';
+import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS } from './purchaseLabels';
 
 /**
  * Строка закупки карточкой вместо строки таблицы — компактная раскладка
@@ -38,7 +38,9 @@ function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock
             <span><MaterialCell m={m} /></span>
           </span>
           <span className={styles.dataCardField}>
-            <span className={styles.dataCardFieldLabel}>Нужно</span>
+            <span className={styles.dataCardFieldLabel}>
+              {PURCHASE_FIELD_LABELS.qtyExpected}
+            </span>
             <PlanField m={m} onUpdate={onUpdate} />
           </span>
           <span className={styles.dataCardField}>
@@ -60,7 +62,9 @@ function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock
             <ArticleField m={m} onUpdate={onUpdate} />
           </span>
           <span className={styles.dataCardField}>
-            <span className={styles.dataCardFieldLabel}>Заказано</span>
+            <span className={styles.dataCardFieldLabel}>
+              {PURCHASE_FIELD_LABELS.qtyOrdered}
+            </span>
             <QtyOrderedField m={m} onUpdate={onUpdate} />
           </span>
           <span className={styles.dataCardField}>

@@ -13,7 +13,9 @@ import {
   OrderedOnField, PlanField, PriceField, QtyOrderedField, ReceivedValue,
   ResponsibleField, StatusCell, StatusControl, SupplierCell,
 } from './purchasing/PurchaseFields';
-import { KIND_LABELS, PURCHASE_GROUPS, SOURCE_LABELS } from './purchasing/purchaseLabels';
+import {
+  KIND_LABELS, PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, SOURCE_LABELS,
+} from './purchasing/purchaseLabels';
 import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
@@ -113,7 +115,21 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   const trapRef = useFocusTrap(true, onClose);
   const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
   const [saving, setSaving] = useState(false);
+  /**
+   * Правил ли человек «Количество к заказу» сам. Пока нет — оно едет за
+   * плановым (правка 24.08, п. 1: «автоматическая подстановка количества
+   * из „План, кол-во" с возможностью ручной правки»). Признак нужен именно
+   * такой: сравнение значений объявило бы ручную правку подстановкой всякий
+   * раз, когда закупщик заказал ровно столько, сколько просили.
+   */
+  const [qtyOrderedTouched, setQtyOrderedTouched] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  /** Плановое количество тянет за собой количество к заказу, пока его не правили */
+  const setExpected = (value) => set({
+    qty_expected: value,
+    ...(qtyOrderedTouched ? {} : { qty_ordered: value }),
+  });
 
   const submit = async () => {
     if (!form.order_id) { toast.error('Выберите заказ'); return; }
@@ -129,7 +145,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
      * автоматически (`supply.missingPlan`), то есть строка просто застрянет.
      */
     if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
-      toast.error('Укажите плановое количество'); return;
+      toast.error(`Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»`); return;
     }
     setSaving(true);
     const row = await onAdd(form.order_id, {
@@ -178,26 +194,6 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
             <span className={styles.fieldLabel}>Артикул</span>
             <input className={styles.input} value={form.article} onChange={(e) => set({ article: e.target.value })} aria-label="Артикул" />
           </label>
-          {/* Факт закупщика (документ 20.08, п. 4). Заводя строку, он уже знает,
-              сколько заказал и когда: спрашивать это потом отдельным заходом
-              значит гарантировать, что поле останется пустым */}
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Заказано</span>
-            <input
-              type="number" min="0" step="any" className={styles.input}
-              value={form.qty_ordered}
-              onChange={(e) => set({ qty_ordered: e.target.value.replace('-', '') })}
-              aria-label="Сколько заказано"
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Дата заказа</span>
-            <DateField
-              value={form.ordered_on}
-              onChange={(v) => set({ ordered_on: v })}
-              aria-label="Дата заказа"
-            />
-          </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Источник</span>
             <select className={styles.select} value={form.source} onChange={(e) => set({ source: e.target.value })} aria-label="Источник">
@@ -216,13 +212,18 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               aria-label="Поставщик"
             />
           </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyExpected}</span>
+            <input
+              type="number" min="0" step="0.01" className={styles.input}
+              value={form.qty_expected}
+              onChange={(e) => setExpected(e.target.value)}
+              aria-label={PURCHASE_FIELD_LABELS.qtyExpected}
+            />
+          </label>
           {/* Единица — метка, а не коэффициент: «кг» стояло в подписи жёстко,
               и ткань в метрах, бирки в штуках и упаковка в пачках подписывались
               килограммами. Пересчёта между единицами система не делает */}
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>План, кол-во</span>
-            <input type="number" min="0" step="0.01" className={styles.input} value={form.qty_expected} onChange={(e) => set({ qty_expected: e.target.value })} aria-label="Плановое количество" />
-          </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Единица</span>
             <input
@@ -234,6 +235,38 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               aria-label="Единица измерения"
             />
             <DictionaryDatalist id="erp-units" kind="unit" />
+          </label>
+          {/*
+            ФАКТ ЗАКУПЩИКА (документ 20.08, п. 4; правка 24.08, п. 1). Заводя
+            строку, он часто уже знает, сколько заказывает и когда: спрашивать
+            это потом отдельным заходом значит гарантировать, что поле
+            останется пустым. Количество подставляется из планового и правится
+            руками — обычно заказывают ровно столько, сколько просили, а «110
+            при плане 100» это исключение, которое надо ввести, а не собрать
+            заново.
+
+            Статус здесь не спрашивается вовсе: «Заказано» ставится по этим
+            двум полям (`utils/materialStatus`).
+          */}
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyOrdered}</span>
+            <input
+              type="number" min="0" step="any" className={styles.input}
+              value={form.qty_ordered}
+              onChange={(e) => {
+                setQtyOrderedTouched(true);
+                set({ qty_ordered: e.target.value.replace('-', '') });
+              }}
+              aria-label={PURCHASE_FIELD_LABELS.qtyOrdered}
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Дата заказа</span>
+            <DateField
+              value={form.ordered_on}
+              onChange={(v) => set({ ordered_on: v })}
+              aria-label="Дата заказа"
+            />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Цена за единицу</span>
@@ -459,24 +492,6 @@ export default function FabricPurchasing() {
         />
       )}
 
-      {/*
-        Завершённые закупки — свёрнуты («архив по умолчанию скрыт», п. 1.6).
-        Тот же список-навигация: выбор открывает ту же карточку, и история
-        по заказу остаётся достижимой целиком.
-      */}
-      {loaded && doneOrders.length > 0 && (
-        <details className={styles.matSection}>
-          <summary>Завершённые закупки — {doneOrders.length}</summary>
-          <SupplyQueue
-            orders={doneOrders}
-            supplyDept={supplyDept}
-            today={today}
-            selectedId={selectedOrder?.id ?? null}
-            onSelect={selectOrder}
-          />
-        </details>
-      )}
-
       {/* Предварительная закупка (п. 17): исключение при сжатых сроках,
           поэтому блок свёрнут и стоит ПОСЛЕ очереди участка — она отвечает
           на вопрос «что делать сейчас» */}
@@ -590,7 +605,12 @@ export default function FabricPurchasing() {
                 <tr>
                   <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
                   <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
-                  <SortableTh sortKey="plan" sort={sort} onSort={sortBy} label="План">Нужно</SortableTh>
+                  <SortableTh
+                    sortKey="plan" sort={sort} onSort={sortBy}
+                    label={PURCHASE_FIELD_LABELS.qtyExpected}
+                  >
+                    {PURCHASE_FIELD_LABELS.qtyExpected}
+                  </SortableTh>
                   <th>Комментарий менеджера</th>
                   <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
                   <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
@@ -598,7 +618,7 @@ export default function FabricPurchasing() {
                       заказано · цена за единицу · фактическая стоимость закупки ·
                       дата заказа · плановая дата прихода». Колонки в БД были
                       с 16.08, но не выведены НИ В ОДИН экран */}
-                  <th>Заказано</th>
+                  <th>{PURCHASE_FIELD_LABELS.qtyOrdered}</th>
                   <th>Цена за ед.</th>
                   <th>Стоимость</th>
                   <th>Дата заказа</th>
@@ -705,6 +725,31 @@ export default function FabricPurchasing() {
           onAdd={addMaterial}
           onClose={() => setAdding(false)}
         />
+      )}
+
+      {/*
+        ЗАВЕРШЁННЫЕ ЗАКУПКИ — ВНИЗУ СТРАНИЦЫ И СВЁРНУТЫ (правка 24.08, п. 2:
+        «внизу страницы оставить компактный блок „Завершённые закупки (N)"
+        с кнопкой „Показать"»). Прежде блок стоял сразу под активной очередью,
+        то есть между ней и рабочей карточкой закупки.
+
+        Заголовок вложенному списку НЕ передаётся: свой у него дублировал бы
+        «Заказы в закупке» внутри архива — ровно то, на что жалоба.
+      */}
+      {loaded && doneOrders.length > 0 && (
+        <details className={styles.matSection}>
+          <summary>Завершённые закупки ({doneOrders.length})</summary>
+          <SupplyQueue
+            orders={doneOrders}
+            supplyDept={supplyDept}
+            today={today}
+            selectedId={selectedOrder?.id ?? null}
+            onSelect={selectOrder}
+            title={null}
+            label="Завершённые закупки"
+            emptyText="Завершённых закупок нет."
+          />
+        </details>
       )}
 
       {optionsFor && (() => {

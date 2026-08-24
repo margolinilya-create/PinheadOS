@@ -6,7 +6,9 @@ import { OrderLink } from '../../components/OrderLink';
 import { pluralize } from '../../../utils/i18n';
 import { formatDateShort, procurementSla } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
-import { KIND_LABELS, SOURCE_LABELS, STATUS_VARIANT } from './purchaseLabels';
+import {
+  KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
+} from './purchaseLabels';
 import styles from '../../styles';
 
 /**
@@ -58,7 +60,7 @@ export function PlanField({ m, onUpdate }) {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (m.qty_expected ?? null)) onUpdate(m.id, { qty_expected: v });
       }}
-      aria-label={`План ${m.name}`} style={{ maxWidth: 80 }}
+      aria-label={`${PURCHASE_FIELD_LABELS.qtyExpected}: ${m.name}`} style={{ maxWidth: 80 }}
     />
   );
 }
@@ -120,7 +122,7 @@ export function QtyOrderedField({ m, onUpdate }) {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (m.qty_ordered ?? null)) onUpdate(m.id, { qty_ordered: v });
       }}
-      aria-label={`Сколько заказано ${m.name}`} style={{ maxWidth: 90 }}
+      aria-label={`${PURCHASE_FIELD_LABELS.qtyOrdered}: ${m.name}`} style={{ maxWidth: 90 }}
     />
   );
 }
@@ -211,7 +213,16 @@ export function StatusCell({ m }) {
   );
 }
 
-/** Действие: подтверждение наличия со склада либо смена статуса */
+/**
+ * Действие: подтверждение наличия со склада либо смена статуса.
+ *
+ * «ЗАКАЗАНО» ИЗ СПИСКА НЕ ВЫБИРАЕТСЯ (правка заказчика 24.08, п. 1): статус
+ * ставится по факту оформления — заполненными «Количество к заказу» и «Дата
+ * заказа» (`utils/materialStatus`). Пункт остаётся видимым и подписанным,
+ * а не исчезает: пропавшая строка читается как поломка списка, и человек ищет
+ * её вместо того, чтобы заполнить два поля рядом. Уже заказанный материал
+ * показывает своё значение — иначе селект открылся бы пустым.
+ */
 export function StatusControl({ m, onConfirmStock, onSetStatus }) {
   if (m.source === 'stock' && m.status === 'pending') {
     return <Button variant="secondary" onClick={() => onConfirmStock(m.id)}>Наличие</Button>;
@@ -222,7 +233,14 @@ export function StatusControl({ m, onConfirmStock, onSetStatus }) {
       onChange={(e) => onSetStatus(m, e.target.value)}
       aria-label={`Статус ${m.name}`}
     >
-      {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => {
+        const auto = v === 'ordered' && m.status !== 'ordered';
+        return (
+          <option key={v} value={v} disabled={auto}>
+            {auto ? `${l} — по дате заказа` : l}
+          </option>
+        );
+      })}
     </select>
   );
 }
