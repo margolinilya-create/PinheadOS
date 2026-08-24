@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PurchaseRowCard } from './PurchaseRowCard';
-import { PURCHASE_GROUPS } from './purchaseLabels';
+import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS } from './purchaseLabels';
 
 /**
  * Строка закупки на планшете.
@@ -65,8 +65,10 @@ describe('строка закупки карточкой (планшет)', () =
 
   it('несёт все поля таблицы, и каждое подписано', () => {
     /**
-     * Вместе с шапкой таблицы исчезают названия колонок: «110» без слова
-     * «Заказано» ничего не значит. Подписи ставятся явно.
+     * Вместе с шапкой таблицы исчезают названия колонок: «110» без подписи
+     * ничего не значит. Подписи ставятся явно — и БЕРУТСЯ ИЗ ОБЩЕГО МОДУЛЯ
+     * (правка 24.08, п. 1): вписанные сюда словами, они молча разошлись бы
+     * с таблицей при первом же переименовании.
      */
     const { container } = renderCard();
     /**
@@ -77,10 +79,23 @@ describe('строка закупки карточкой (планшет)', () =
     const labels = [...container.querySelectorAll('[class*="dataCardFieldLabel"]')]
       .map((el) => el.textContent);
     expect(labels).toEqual([
-      'Материал', 'Нужно', 'Комментарий менеджера',
-      'Поставщик', 'Артикул', 'Заказано', 'Цена за ед.', 'Стоимость',
+      'Материал', PURCHASE_FIELD_LABELS.qtyExpected, 'Комментарий менеджера',
+      'Поставщик', 'Артикул', PURCHASE_FIELD_LABELS.qtyOrdered, 'Цена за ед.', 'Стоимость',
       'Дата заказа', 'План прихода', 'Приход', 'Ответственный',
     ]);
+  });
+
+  /**
+   * «Заказано» — про НАМЕРЕНИЕ, а не про свершившееся (правка заказчика
+   * 24.08, п. 1). Слово стояло вплотную к статусу «Заказано», который
+   * означает уже оформленный заказ, и различить их было нечем.
+   */
+  it('количество к заказу подписано намерением, а не фактом', () => {
+    const { container } = renderCard();
+    const labels = [...container.querySelectorAll('[class*="dataCardFieldLabel"]')]
+      .map((el) => el.textContent);
+    expect(labels).toContain('Количество к заказу');
+    expect(labels).not.toContain('Заказано');
   });
 
   it('стоимость СЧИТАЕТСЯ, а не вводится', () => {
@@ -91,7 +106,7 @@ describe('строка закупки карточкой (планшет)', () =
 
   it('правка уходит наверх только при изменившемся значении', () => {
     renderCard();
-    const plan = screen.getByLabelText('План Футер 3-нитка');
+    const plan = screen.getByLabelText(`${PURCHASE_FIELD_LABELS.qtyExpected}: Футер 3-нитка`);
 
     // То же значение — записи нет
     fireEvent.blur(plan, { target: { value: '100' } });
@@ -112,6 +127,29 @@ describe('строка закупки карточкой (планшет)', () =
     renderCard();
     fireEvent.click(screen.getByTitle('Варианты поставщиков: Футер 3-нитка'));
     expect(onOpenOptions).toHaveBeenCalledWith({ material: MATERIAL, order: ORDER });
+  });
+
+  /**
+   * «ЗАКАЗАНО» ИЗ СПИСКА НЕ ВЫБИРАЕТСЯ (правка заказчика 24.08, п. 1). Селект
+   * стоял рядом с «Количество к заказу» и «Дата заказа» и ничего о них не знал:
+   * материал объявлялся заказанным при обоих пустых полях, и слово переставало
+   * что-либо значить. Пункт остаётся ВИДИМЫМ и подписанным — исчезнувшая строка
+   * читается как поломка списка.
+   */
+  it('«Заказано» видно, но не выбирается — его ставит факт оформления', () => {
+    renderCard();
+    const ordered = screen.getByRole('option', { name: /^Заказано/ });
+    expect(ordered).toBeDisabled();
+    expect(ordered.textContent).toMatch(/по дате заказа/);
+    // Остальные статусы закупщик по-прежнему ставит сам, включая откат назад
+    expect(screen.getByRole('option', { name: 'Не заказано' })).toBeEnabled();
+    expect(screen.getByRole('option', { name: 'В пути' })).toBeEnabled();
+  });
+
+  it('уже заказанный материал показывает своё значение, а не пустой селект', () => {
+    renderCard({ ...MATERIAL, status: 'ordered', ordered_on: '2026-08-24' });
+    expect(screen.getByLabelText('Статус Футер 3-нитка')).toHaveValue('ordered');
+    expect(screen.getByRole('option', { name: 'Заказано' })).toBeEnabled();
   });
 
   it('материал со склада предлагает подтвердить наличие, а не менять статус', () => {

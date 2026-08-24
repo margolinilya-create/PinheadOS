@@ -776,6 +776,57 @@ describe('useErpStore — материал со склада / авто-закр
     expect(supplyStage().status).toBe('in_progress');
   });
 
+  /**
+   * СТАТУС «ЗАКАЗАНО» СТАВИТСЯ ПО ФАКТУ (правка заказчика 24.08, п. 1:
+   * «статус „Заказано" должен появляться только после фактического оформления
+   * заказа поставщику»).
+   *
+   * Правило живёт в `utils/materialStatus` и покрыто там же; здесь сторожится
+   * то, чего чистая функция не видит: что её зовут ОБА писателя закупочной
+   * строки — вставка и правка, — и что в базу уходит именно посчитанный статус.
+   * Забытый писатель не роняет ничего: он просто оставляет материал
+   * «Не заказано» после оформления, и разойдётся это молча.
+   */
+  it('addMaterial с количеством и датой заказа вставляется уже «Заказано»', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'purchase', status: 'pending',
+      qty_ordered: 110, ordered_on: '2026-08-24',
+    } as any);
+    const row = h.insertCalls.find((c) => c.table === 'erp_materials')?.row as any;
+    expect(row.status).toBe('ordered');
+  });
+
+  it('addMaterial без даты заказа остаётся «Не заказано»', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'purchase', status: 'pending',
+      qty_ordered: 110,
+    } as any);
+    const row = h.insertCalls.find((c) => c.table === 'erp_materials')?.row as any;
+    expect(row.status).toBe('pending');
+  });
+
+  it('updateMaterial: дата заказа поверх количества переводит в «Заказано»', async () => {
+    seedSupply([mat({ source: 'purchase', status: 'pending', qty_ordered: 110 })]);
+    await useErpStore.getState().updateMaterial('m1', { ordered_on: '2026-08-24' });
+    // В базу уходит ТОТ ЖЕ патч, что лёг на экран, — одним запросом
+    const patch = h.updateCalls.find((c) => c.table === 'erp_materials')?.patch as any;
+    expect(patch.status).toBe('ordered');
+    expect(useErpStore.getState().orders[0].materials[0].status).toBe('ordered');
+  });
+
+  it('updateMaterial: правка принятого материала его не откатывает', async () => {
+    // Иначе цена, вписанная после приёмки, стёрла бы приёмку саму
+    seedSupply([mat({
+      source: 'purchase', status: 'received', qty_ordered: 110, ordered_on: '2026-08-24',
+    })]);
+    await useErpStore.getState().updateMaterial('m1', { price_per_unit: 500 });
+    const patch = h.updateCalls.find((c) => c.table === 'erp_materials')?.patch as any;
+    expect(patch.status).toBeUndefined();
+    expect(useErpStore.getState().orders[0].materials[0].status).toBe('received');
+  });
+
   it('confirmStockMaterial → reserved + закрывает закупку', async () => {
     seedSupply([mat({ status: 'pending' })]);
     const ok = await useErpStore.getState().confirmStockMaterial('m1');

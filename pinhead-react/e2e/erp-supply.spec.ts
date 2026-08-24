@@ -261,6 +261,53 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     await expect(row).not.toContainText('Ожидает');
   });
 
+  /**
+   * КОЛИЧЕСТВО К ЗАКАЗУ ПОДСТАВЛЯЕТСЯ ИЗ ПЛАНОВОГО (правка заказчика 24.08,
+   * п. 1: «сделать автоматическую подстановку количества из „План, кол-во"
+   * с возможностью ручной правки»). Обычно заказывают ровно столько, сколько
+   * просили, и вводить одно и то же число дважды закупщик не должен.
+   *
+   * Проверяется ОБА направления, потому что дефект бывает с двух сторон:
+   * подстановки нет вовсе — или она перебивает уже введённое руками.
+   */
+  test('«Количество к заказу» едет за плановым, пока его не правили руками',
+    async ({ page }) => {
+      await page.goto('/purchasing?studio=0');
+      // Форма живёт в карточке ВЫБРАННОГО заказа (мастер-деталь с правки 23.08):
+      // строку заводят конкретному заказу, а не в общий реестр
+      await supplyRow(page, 'Худи корпоратив')
+        .getByRole('button', { name: 'Открыть' }).click();
+      await page.getByRole('button', { name: '+ Материал' }).click();
+
+      const modal = page.getByRole('dialog', { name: 'Новая закупка' });
+      const plan = modal.getByLabel('Нужно количество');
+      const ordered = modal.getByLabel('Количество к заказу');
+
+      await plan.fill('100');
+      await expect(ordered).toHaveValue('100');
+
+      // Ручная правка — и подстановка отступает: «110 при плане 100» это
+      // исключение, которое вводят, а не собирают заново
+      await ordered.fill('110');
+      await plan.fill('120');
+      await expect(ordered).toHaveValue('110');
+    });
+
+  /**
+   * СТАТУС «ЗАКАЗАНО» НЕ ВЫБИРАЕТСЯ (тот же п. 1): он ставится по факту —
+   * заполненным количеством к заказу и датой заказа. Пункт остаётся видимым,
+   * но недоступным: исчезнувшая строка списка читается как поломка.
+   */
+  test('«Заказано» в списке статусов виден, но недоступен', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await supplyRow(page, 'Худи корпоратив')
+      .getByRole('button', { name: 'Открыть' }).click();
+    const select = page.getByLabel(/^Статус /).first();
+    await expect(select).toBeVisible();
+    await expect(select.getByRole('option', { name: /^Заказано/ })).toBeDisabled();
+    await expect(select.getByRole('option', { name: 'В пути' })).toBeEnabled();
+  });
+
   test('бейдж «Закупка» в меню считает заказы, ждущие закупки', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     const link = page.getByRole('complementary').getByRole('link', { name: /Закупка/ });
