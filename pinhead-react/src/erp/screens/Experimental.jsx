@@ -34,6 +34,8 @@ import { DevBoard } from './experimental/DevBoard';
 import { DevRowCard } from './experimental/DevRowCard';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
+import { DevDeptQueue } from './experimental/DevDeptQueue';
+import { experimentalDeptEntries } from '../utils/experimentalQueue';
 import styles from '../styles';
 
 /**
@@ -74,9 +76,14 @@ const STATE_TILES = [
  * Вид — в QUERY, а не подпутём: `canOpenScreen` перечисляет ИСКЛЮЧЕНИЯ
  * и открывает незнакомый путь, поэтому `/experimental/dtf` был бы доступен
  * всем, включая цех без права.
+ *
+ * ВИД «ОЧЕРЕДЬ УЧАСТКА» добавлен правкой 24.08 (п. 4.1): экспериментальный цех
+ * стал участком маршрута, и его этапы обязаны быть видны. Участок
+ * непроизводственный, то есть общие поверхности его вырезают, — без этого вида
+ * заказ, дошедший до шага ЭКС, не показывался бы нигде.
  */
 const VIEWS = [
-  'board', 'list',
+  'board', 'queue', 'list',
   'patterns', 'cutting',
   'silkscreen', 'dtf', 'embroidery', 'dtg',
   'sewing', 'final',
@@ -84,6 +91,7 @@ const VIEWS = [
 
 const VIEW_LABELS = {
   board: 'Доска по этапам',
+  queue: 'Очередь участка',
   list: 'Все разработки',
   patterns: 'Лекала',
   cutting: 'Крой',
@@ -99,6 +107,15 @@ const VIEW_LABELS = {
 const QUEUE_VIEWS = new Set([
   'patterns', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'dtg', 'sewing', 'final',
 ]);
+
+/**
+ * Виды, которые ПОДЧИНЯЮТСЯ фильтрам списка. Их ровно два, и перечислены они
+ * положительно, а не как «всё, кроме очередей»: очередь участка (п. 4.1)
+ * фильтрам тоже не подчиняется, и отрицательный список пришлось бы дополнять
+ * при каждом новом виде — однажды его забыли бы, и человек увидел бы
+ * «под фильтры ничего не подошло» там, где фильтры ни при чём.
+ */
+const FILTERED_VIEWS = new Set(['board', 'list']);
 
 const STATE_VARIANT = {
   new: 'neutral', in_progress: 'progress', attention: 'blocked',
@@ -247,6 +264,21 @@ export default function Experimental() {
 
   const visible = useMemo(() => applyDevFilters(rows, filters), [rows, filters]);
 
+  /**
+   * ЗАДАНИЯ УЧАСТКА СЧИТАЮТСЯ ОТДЕЛЬНО ОТ РАЗРАБОТОК (правка 24.08, п. 4.1).
+   *
+   * Это разные сущности: разработка (`erp_experimental`) заводится на позицию-
+   * образец, а этап участка стоит в маршруте ЛЮБОГО заказа. Переключатель видов
+   * рисовался по числу разработок — то есть у фабрики без единой разработки
+   * до очереди участка было бы не добраться, и заказ встал бы молча. Ровно тот
+   * отказ, ради которого написан `routeReachable.test.ts`.
+   */
+  const deptQueueCount = useMemo(
+    () => experimentalDeptEntries(orders, departments).length,
+    [orders, departments],
+  );
+  const hasAnything = rows.length > 0 || deptQueueCount > 0;
+
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageRows = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -391,7 +423,7 @@ export default function Experimental() {
         </div>
       )}
 
-      {experimentalLoaded && rows.length > 0 && (
+      {experimentalLoaded && hasAnything && (
         <ScrollHintBox className={styles.toolbar} label="Представления раздела">
           {VIEWS.map((v) => (
             <button
@@ -413,21 +445,29 @@ export default function Experimental() {
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="разработки" />}
       {!experimentalLoaded && !loadError && <TableSkeleton rows={5} label="Загрузка разработок" />}
 
-      {experimentalLoaded && rows.length === 0 && (
+      {/* «Разработок нет» — не ответ для очереди участка: там свой пустой текст,
+          и он говорит про этапы маршрута, а не про разработки */}
+      {experimentalLoaded && rows.length === 0 && view !== 'queue' && (
         <EmptyState
           icon="flask"
           title="Разработок пока нет"
-          text="Выберите позицию-образец в панели выше и заведите разработку. Набор задач выбирается под изделие — одинаковых пяти этапов больше нет."
+          text="Разработка появляется из заказа: заведите позицию-образец при создании заказа. Набор задач выбирается под изделие — одинаковых пяти этапов больше нет."
         />
       )}
 
       {/* Пустой подбор — сообщение СПИСКА и доски: внутренние очереди фильтрами
           не гейтятся и о них ничего не знают */}
-      {experimentalLoaded && !QUEUE_VIEWS.has(view)
+      {experimentalLoaded && FILTERED_VIEWS.has(view)
         && rows.length > 0 && visible.length === 0 && (
         <EmptyResult onReset={() => setFilters({ ...EMPTY_DEV_FILTERS })}>
           Под фильтры ничего не подошло. Всего разработок: {rows.length}.
         </EmptyResult>
+      )}
+
+      {/* Очередь участка читает ЭТАПЫ маршрута и от разработок не зависит
+          вовсе — поэтому и рисуется по `loaded`, а не по `experimentalLoaded` */}
+      {loaded && view === 'queue' && (
+        <DevDeptQueue orders={orders} departments={departments} />
       )}
 
       {/* Внутренние очереди читают ВСЕ разработки, а не отфильтрованный

@@ -551,6 +551,88 @@ test.describe('Доска экспериментального цеха', () => 
     });
 });
 
+/**
+ * ЭКСПЕРИМЕНТАЛЬНЫЙ ЦЕХ КАК УЧАСТОК МАРШРУТА (правка заказчика 24.08, п. 4.1).
+ *
+ * «Когда заказ доходит до этого шага, он появляется в очереди
+ * экспериментального цеха». Участок непроизводственный, то есть вырезан из
+ * ВСЕХ общих поверхностей: без собственной очереди этап не виден нигде,
+ * и заказ встаёт молча — так 12.08 встали 33 заказа с этапом закупки.
+ *
+ * Заказ СВОЙ: базовые четыре держат visual-эталоны и счётчики соседних спек.
+ */
+const ROUTE_ORDER = {
+  id: 'ord-x', bitrix_id: '55400', title: 'Серия: бомбер',
+  manager: 'Пётр', launch_date: '2026-07-14', due_date: '2026-08-30',
+  buffer_days: 1, priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'none', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: FX_CREATED, updated_at: FX_CREATED,
+  items: [{
+    id: 'ord-x-i1', order_id: 'ord-x', product_type: 'Бомбер', variant: null,
+    qty: 50, production_type: 'sewing', branding_methods: [], branding_on: 'cut',
+    notes: null, size_grid: null, sort_order: 10,
+    created_at: FX_CREATED, updated_at: FX_CREATED,
+    // Участок ЭКС стоит В СЕРЕДИНЕ маршрута обычного заказа — ровно так,
+    // как описывает документ: «можно поставить в любое нужное место»
+    stages: buildStages('ord-x-i1', [
+      { code: 'cutting', status: 'done' },
+      { code: 'experimental', status: 'ready', deps: [0] },
+      { code: 'sewing', status: 'waiting', deps: [1] },
+    ]),
+    prints: [],
+  }],
+  materials: [],
+  attachments: [],
+};
+
+test.describe('Участок «Экспериментальный цех» в маршруте (п. 4.1)', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, {
+      experimental: EXPERIMENTAL,
+      dictionaries: DICTIONARIES,
+      orders: [ROUTE_ORDER],
+    });
+  });
+
+  test('этап серийного заказа виден в очереди участка', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0&view=queue');
+    const main = page.getByRole('main');
+    await expect(main).toContainText('№55400');
+    await expect(main).toContainText('Бомбер');
+    // Готов к работе: закрой сдан, значит участок может брать
+    await expect(main).toContainText('Готово к работе');
+  });
+
+  test('строка ведёт на страницу задания — работают там же, где всегда',
+    async ({ page }) => {
+      await gotoDev(page, '/experimental?studio=0&view=queue');
+      const row = page.getByRole('row').filter({ hasText: '№55400' });
+      await expect(row.getByRole('link', { name: 'Открыть' })).toBeVisible();
+    });
+
+  /**
+   * Сторож против самого коварного отказа: очередь участка есть, но до неё
+   * не добраться. Переключатель видов рисовался по числу РАЗРАБОТОК, а этап
+   * участка от них не зависит вовсе — у фабрики без единой разработки заказ
+   * снова стал бы невидимым.
+   */
+  test('до очереди участка можно добраться и без единой разработки',
+    async ({ page }) => {
+      await installSupabaseMock(page, {
+        experimental: [],
+        dictionaries: DICTIONARIES,
+        orders: [ROUTE_ORDER],
+      });
+      await gotoDev(page, '/experimental?studio=0');
+      const views = page.getByRole('button', { name: 'Очередь участка' });
+      await expect(views).toBeVisible();
+      await views.click();
+      await expect(page.getByRole('main')).toContainText('№55400');
+    });
+});
+
 test.describe('Финальный технический пакет', () => {
   test('завершение закрыто и НАЗЫВАЕТ, чего не хватает', async ({ page }) => {
     /**

@@ -95,6 +95,11 @@ const OWN_SCREEN: Record<string, string> = {
   // и раздел строит строки ИЗ ЭТАПОВ (`outsourcedStages`), а не из реестра —
   // именно из-за реестра раздел когда-то и был тупиком
   outsource: 'erp/screens/Subcontracting.jsx',
+  // Экспериментальный цех как участок маршрута (правка 24.08, п. 4.1):
+  // вид «Очередь участка» в его разделе. Читает ЭТАПЫ, а не разработки —
+  // это разные сущности, и экран, показывающий разработки, снова спрятал бы
+  // заказ целиком
+  experimental: 'erp/screens/experimental/DevDeptQueue.jsx',
 };
 
 describe('до каждого этапа маршрута можно добраться', () => {
@@ -131,7 +136,7 @@ describe('до каждого этапа маршрута можно добра�
       if (PRODUCTION.has(code)) continue;
       const src = readFileSync(join(SRC, screen), 'utf8');
       expect(
-        /openSupplyStages|buildQueueEntries|outsourcedStages/.test(src),
+        /openSupplyStages|buildQueueEntries|outsourcedStages|experimentalDeptEntries/.test(src),
         `${screen} не читает этапы — заказ без сопутствующих данных снова пропадёт`,
       ).toBe(true);
     }
