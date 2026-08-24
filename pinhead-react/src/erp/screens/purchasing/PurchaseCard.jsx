@@ -9,7 +9,12 @@ import { supabase } from '../../../lib/supabase';
 import { pluralize } from '../../../utils/i18n';
 import { purchaseListFile } from '../../utils/attachments';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
-import { openSupplyStages, supplyMaterialSummary, supplyState } from '../../utils/supply';
+import {
+  SUPPLY_STATE_BADGE,
+  openSupplyStages,
+  supplyMaterialSummary,
+  supplyState,
+} from '../../utils/supply';
 import styles from '../../styles';
 
 /**
@@ -38,12 +43,6 @@ const TILES = [
   { key: 'arrived', label: 'Пришло', icon: 'checkCircle', cls: 'kpiIconOk' },
   { key: 'problems', label: 'Проблемы', icon: 'alert', cls: 'kpiIconDanger' },
 ];
-
-const STATE = {
-  blocked: { label: 'Заблокировано', variant: 'blocked' },
-  taken: { label: 'В работе', variant: 'progress' },
-  open: { label: 'Ожидает', variant: 'waiting' },
-};
 
 export function PurchaseCard({
   order, supplyDept, perms, today,
@@ -139,11 +138,15 @@ export function PurchaseCard({
             {' · '}{order.title}
           </div>
           <div className={styles.subText}>
-            {stages.length} {pluralize(stages.length, 'позиция', 'позиции', 'позиций')} в закупке
+            {state === 'done'
+              ? 'закупка завершена, открытых этапов нет'
+              : `${stages.length} ${pluralize(stages.length, 'позиция', 'позиции', 'позиций')} в закупке`}
             {order.manager ? ` · менеджер: ${order.manager}` : ''}
           </div>
         </div>
-        <Badge variant={STATE[state].variant}>{STATE[state].label}</Badge>
+        <Badge variant={SUPPLY_STATE_BADGE[state].variant}>
+          {SUPPLY_STATE_BADGE[state].label}
+        </Badge>
       </div>
 
       <div className={styles.queueActions}>
@@ -178,7 +181,12 @@ export function PurchaseCard({
             Взять в работу
           </Button>
         )}
-        {perms.complete && (
+        {/*
+          У ЗАВЕРШЁННОЙ ЗАКУПКИ ЗАВЕРШАТЬ НЕЧЕГО (правка 24.08, п. 2). Карточка
+          открывается и из архива, а открытых этапов там ноль: кнопка звала бы
+          закрыть пустой список — «действие есть, а работы нет».
+        */}
+        {perms.complete && state !== 'done' && (
           <Button variant="primary" disabled={busy} onClick={close}>
             Завершить закупку
           </Button>

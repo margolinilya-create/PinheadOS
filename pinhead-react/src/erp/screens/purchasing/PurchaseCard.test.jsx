@@ -180,6 +180,23 @@ describe('карточка закупки — действия', () => {
     expect(screen.getByRole('button', { name: '+ Материал' })).toBeInTheDocument();
   });
 
+  /**
+   * КАРТОЧКА ОТКРЫВАЕТСЯ И ИЗ АРХИВА (правка 24.08, п. 2), а там открытых
+   * этапов закупки нет вовсе. Прежде это ломалось трижды: бейдж читал
+   * `undefined.variant` и ронял ВЕСЬ экран, «Взять в работу» предлагалось
+   * на закрытой закупке, а шапка сообщала «0 позиций в закупке».
+   */
+  it('завершённая закупка: статус, без действий и без «0 позиций»', () => {
+    renderCard(order({ items: [{ id: 'i1', stages: [stage({ status: 'done' })] }] }));
+    expect(screen.getByText('Завершено')).toBeInTheDocument();
+    expect(screen.getByText(/закупка завершена/)).toBeInTheDocument();
+    expect(screen.queryByText(/0 позиций/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Взять в работу' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Завершить закупку' })).toBeNull();
+    // Материалы и история по заказу остаются достижимыми — ради этого архив и есть
+    expect(screen.getByRole('button', { name: '+ Материал' })).toBeInTheDocument();
+  });
+
   it('считает открытые этапы заказа, а не все подряд', () => {
     renderCard(order({ items: [
       { id: 'i1', stages: [stage({ id: 'a' })] },

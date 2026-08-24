@@ -459,24 +459,6 @@ export default function FabricPurchasing() {
         />
       )}
 
-      {/*
-        Завершённые закупки — свёрнуты («архив по умолчанию скрыт», п. 1.6).
-        Тот же список-навигация: выбор открывает ту же карточку, и история
-        по заказу остаётся достижимой целиком.
-      */}
-      {loaded && doneOrders.length > 0 && (
-        <details className={styles.matSection}>
-          <summary>Завершённые закупки — {doneOrders.length}</summary>
-          <SupplyQueue
-            orders={doneOrders}
-            supplyDept={supplyDept}
-            today={today}
-            selectedId={selectedOrder?.id ?? null}
-            onSelect={selectOrder}
-          />
-        </details>
-      )}
-
       {/* Предварительная закупка (п. 17): исключение при сжатых сроках,
           поэтому блок свёрнут и стоит ПОСЛЕ очереди участка — она отвечает
           на вопрос «что делать сейчас» */}
@@ -705,6 +687,31 @@ export default function FabricPurchasing() {
           onAdd={addMaterial}
           onClose={() => setAdding(false)}
         />
+      )}
+
+      {/*
+        ЗАВЕРШЁННЫЕ ЗАКУПКИ — ВНИЗУ СТРАНИЦЫ И СВЁРНУТЫ (правка 24.08, п. 2:
+        «внизу страницы оставить компактный блок „Завершённые закупки (N)"
+        с кнопкой „Показать"»). Прежде блок стоял сразу под активной очередью,
+        то есть между ней и рабочей карточкой закупки.
+
+        Заголовок вложенному списку НЕ передаётся: свой у него дублировал бы
+        «Заказы в закупке» внутри архива — ровно то, на что жалоба.
+      */}
+      {loaded && doneOrders.length > 0 && (
+        <details className={styles.matSection}>
+          <summary>Завершённые закупки ({doneOrders.length})</summary>
+          <SupplyQueue
+            orders={doneOrders}
+            supplyDept={supplyDept}
+            today={today}
+            selectedId={selectedOrder?.id ?? null}
+            onSelect={selectOrder}
+            title={null}
+            label="Завершённые закупки"
+            emptyText="Завершённых закупок нет."
+          />
+        </details>
       )}
 
       {optionsFor && (() => {

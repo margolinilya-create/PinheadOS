@@ -59,13 +59,43 @@ export function openSupplyStages(
  * `taken` — закупку уже взяли в работу (хотя бы один этап `in_progress`).
  * `blocked` — этап заблокирован цехом, работать нельзя, пока не снимут.
  */
-export type SupplyState = 'blocked' | 'taken' | 'open';
+export type SupplyState = 'blocked' | 'taken' | 'open' | 'done';
 
 export function supplyState(stages: readonly ErpItemStage[]): SupplyState {
+  /**
+   * ПУСТОЙ СПИСОК — ЭТО «ЗАВЕРШЕНО», А НЕ «ОЖИДАЕТ» (правка 24.08, п. 2).
+   *
+   * Функция принимает ОТКРЫТЫЕ этапы закупки (`openSupplyStages`), поэтому
+   * пустой список означает ровно одно: открытых этапов не осталось. До правки
+   * он падал в `open`, и архив завершённых закупок помечал каждую строку
+   * «Ожидает» — прямая неправда на экране, где заказчик и просил показать
+   * «Завершено».
+   */
+  if (stages.length === 0) return 'done';
   if (stages.some((st) => st.status === 'blocked')) return 'blocked';
   if (stages.some((st) => st.status === 'in_progress')) return 'taken';
   return 'open';
 }
+
+/**
+ * Подпись и вид бейджа состояния — РЯДОМ С САМИМ СОСТОЯНИЕМ.
+ *
+ * Показывают его двое (строка списка и карточка закупки), и до правки 24.08
+ * у каждого была своя таблица. Расхождение вышло молчаливым и мгновенным:
+ * состояние `done` завели в одной копии, вторая на архивном заказе прочитала
+ * `undefined.variant` и уронила ВЕСЬ экран закупки — «Не удалось загрузить
+ * экран». `Record<SupplyState, …>` делает пропуск ошибкой тайпчека, а не
+ * находкой на планшете.
+ */
+export const SUPPLY_STATE_BADGE: Record<
+  SupplyState,
+  { label: string; variant: string }
+> = {
+  blocked: { label: 'Заблокировано', variant: 'blocked' },
+  taken: { label: 'В работе', variant: 'progress' },
+  open: { label: 'Ожидает', variant: 'waiting' },
+  done: { label: 'Завершено', variant: 'ready' },
+};
 
 /** Материал «на месте»: пришёл, зарезервирован со склада или не требуется */
 export function isMaterialSettled(m: Pick<ErpMaterial, 'status'>): boolean {
