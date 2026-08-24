@@ -58,9 +58,18 @@ export type WarehouseOpType =
 
 /** Тип задачи склада (волна 4 + правка 4.2.1): заказ проходит склад несколько раз */
 export type WarehouseTaskType =
-  | 'material_receipt' | 'marking' | 'fg_receipt' | 'pack_ship' | 'subcontract_receipt';
+  | 'material_receipt' | 'marking' | 'fg_receipt' | 'pack_ship'
+  /**
+   * ПЕРЕДАЧА подрядчику (правка 24.08, п. 3: «каждый новый выход к подрядчику
+   * должен проходить через складскую передачу… заказ не может получить статус
+   * "У подрядчика", пока склад не зафиксировал фактическую передачу»).
+   * Зеркальная половина приёмки: раньше была только вторая.
+   */
+  | 'subcontract_send'
+  | 'subcontract_receipt';
 /** Статусы задач склада по типам */
 export type MaterialReceiptStatus = 'awaiting' | 'accepted';
+export type SubcontractSendStatus = 'awaiting' | 'sent';
 export type MarkingStatus = 'new' | 'in_progress' | 'issued';
 /**
  * «Упаковка и отгрузка» — ТРИ статуса и два действия (правка 23.08, п. 4).
@@ -1027,6 +1036,7 @@ export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
   marking: 'Выпуск маркировки',
   fg_receipt: 'Приёмка готовой продукции',
   pack_ship: 'Упаковка и отгрузка',
+  subcontract_send: 'Передача подрядчику',
   subcontract_receipt: 'Приёмка продукции от подрядчика',
 };
 
@@ -1034,6 +1044,16 @@ export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
 export const FG_RECEIPT_STATUS_LABELS: Record<FgReceiptStatus, string> = {
   awaiting: 'Ожидает приёмки',
   accepted: 'Принято на склад',
+};
+
+/**
+ * Передача подрядчику: ждём отгрузки со склада — передано (п. 3).
+ * Двух статусов достаточно: «сколько именно отдали» хранит журнал перемещений,
+ * а не статус задачи.
+ */
+export const SUBCONTRACT_SEND_STATUS_LABELS: Record<SubcontractSendStatus, string> = {
+  awaiting: 'Ожидает передачи',
+  sent: 'Передано подрядчику',
 };
 
 export const SUBCONTRACT_RECEIPT_STATUS_LABELS: Record<SubcontractReceiptStatus, string> = {

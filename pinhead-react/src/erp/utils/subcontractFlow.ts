@@ -40,6 +40,12 @@ export interface SubLike {
   qty_defect?: number | null;
   qty_in_work?: number | null;
   material_source?: string | null;
+  /**
+   * Этап маршрута, при котором стоит операция. Пусто у легаси-строк подряда
+   * «под ключ»: у них складской задачи передачи не будет никогда, и кнопка
+   * запуска остаётся в разделе «Подряд» (правка 24.08, п. 3).
+   */
+  stage_id?: string | null;
 }
 
 export interface SubcontractView {
@@ -63,6 +69,17 @@ export interface SubcontractView {
   awaitingAccept: number;
   /** Брак, отмеченный ЯВНО */
   defect: number;
+  /**
+   * Операция принадлежит ЭТАПУ маршрута (правка 24.08, п. 3). У таких выход
+   * к подрядчику идёт через складскую передачу, и кнопки «Передать в работу»
+   * в разделе «Подряд» больше нет: заказ не может получить статус
+   * «У подрядчика», пока склад не зафиксировал передачу.
+   *
+   * У легаси-операций без этапа (подряд «под ключ», заведённый старой формой)
+   * задачи склада не будет НИКОГДА — триггер висит на этапах. Им кнопка
+   * остаётся, иначе такая операция не запустится вовсе.
+   */
+  hasStage: boolean;
 }
 
 /**
@@ -123,6 +140,13 @@ export function subcontractView(
   return {
     stored, display, readyQty, inWorkQty, contractorMaterials,
     lost, awaitingAccept, defect,
+    /**
+     * Признак берётся из САМОЙ ОПЕРАЦИИ, а не из наличия этапа в аргументах:
+     * этап сюда передают всегда, а связь с ним хранится у операции
+     * (`stage_id`), и легаси-строки её не имеют. Спутать одно с другим значило
+     * бы снять кнопку у операций, которым складской задачи не будет никогда.
+     */
+    hasStage: Boolean(sub?.stage_id),
   };
 }
 
@@ -242,9 +266,19 @@ export const SUBCONTRACT_ACTIONS: Record<SubcontractAction, ActionSpec> = {
  */
 export function availableActions(view: SubcontractView): ActionSpec[] {
   const out: ActionSpec[] = [];
-  const { display, readyQty } = view;
+  const { display, readyQty, hasStage } = view;
   if (display === 'planned' || display === 'materials_ready') {
-    if (readyQty > 0) out.push(SUBCONTRACT_ACTIONS.start);
+    /**
+     * ПЕРЕДАЧУ ФИКСИРУЕТ СКЛАД (правка 24.08, п. 3), поэтому у операции при
+     * ЭТАПЕ кнопки здесь нет: «заказ не может получить статус "У подрядчика",
+     * пока склад не зафиксировал фактическую передачу». Задача передачи
+     * заводится автоматически, как только этап готов принять работу.
+     *
+     * У легаси-операций без этапа кнопка остаётся: задачи склада для них
+     * не будет никогда — триггер висит на этапах, — и снятие кнопки означало бы,
+     * что такую операцию не запустить вовсе.
+     */
+    if (readyQty > 0 && !hasStage) out.push(SUBCONTRACT_ACTIONS.start);
     return out;
   }
   if (display === 'sent' || display === 'at_contractor') {
