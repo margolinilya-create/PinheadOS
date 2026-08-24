@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import {
-  DEV_ATTACHMENT_KINDS, finalPackageProgress, missingFinalPackage,
+  DEV_ATTACHMENT_KINDS, finalPackageProgress, missingFinalPackage, wantsSkuCard,
 } from '../../utils/finalPackage';
 import styles from '../../styles';
 
@@ -23,6 +23,14 @@ import styles from '../../styles';
  *
  * ЧЕГО ЗДЕСЬ НЕТ. Переноса пакета в каталог SKU раздела «ТЗ» — это другой
  * раздел и отдельное решение заказчика; названо вслух и вынесено ему.
+ *
+ * ПРАВКА 24.08 (пп. 4.5, 4.6). Блок разделён на две части: обязательная
+ * техдокументация — и карточка SKU за переключателем «Добавить модель
+ * в каталог SKU». Пока переключатель выключен, полей карточки нет ни на
+ * экране, ни в перечне недостающего: документ прямо разрешает «заполнить
+ * только обязательную техническую документацию и завершить разработку».
+ * Ввод лекал снят целиком («поле „Файл лекал или ссылка" не нужно»);
+ * уже приложенное показывается на чтение — на проде такие файлы есть.
  */
 
 /** Список из текста: строка на значение. Пустые строки отбрасываются */
@@ -102,6 +110,13 @@ export function DevFinalPackage({
   const missing = missingFinalPackage(dev, attachments);
   const progress = finalPackageProgress(dev, attachments);
   const filesOf = (kind) => attachments.filter((a) => a.kind === kind);
+  const wantsSku = wantsSkuCard(dev);
+  /**
+   * Лекала, приложенные до правки 24.08. Ввода больше нет, но и молча прятать
+   * их нельзя: файл, который человек видел приложенным, обязан остаться
+   * на экране, иначе это читается как потеря данных.
+   */
+  const legacyPatterns = filesOf(DEV_ATTACHMENT_KINDS.pattern);
 
   /** Правка поля внутри JSON: объект пишется ЦЕЛИКОМ, точечных апдейтов нет */
   const setPkg = (key, value) => {
@@ -205,60 +220,25 @@ export function DevFinalPackage({
             aria-label="Версия лекал"
           />
         </label>
-        {text('pattern_link', 'Ссылка на лекала', {
-          placeholder: 'если файл лежит вне ERP',
+        {text('production_notes', 'Комментарии и особенности производства', {
+          wide: true,
+          rows: 2,
+          placeholder: 'при необходимости',
         })}
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Цена от</span>
-          <input
-            className={styles.input}
-            type="number"
-            min="0"
-            defaultValue={dev.price_min ?? ''}
-            onBlur={(e) => {
-              const v = e.target.value === '' ? null : Number(e.target.value);
-              if (v !== (dev.price_min ?? null)) onUpdate(dev.id, { price_min: v });
-            }}
-            aria-label="Ценовая вилка от"
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Цена до</span>
-          <input
-            className={styles.input}
-            type="number"
-            min="0"
-            defaultValue={dev.price_max ?? ''}
-            onBlur={(e) => {
-              const v = e.target.value === '' ? null : Number(e.target.value);
-              if (v !== (dev.price_max ?? null)) onUpdate(dev.id, { price_max: v });
-            }}
-            aria-label="Ценовая вилка до"
-          />
-        </label>
       </div>
 
-      <FileBlock
-        label="Файл лекал"
-        kind={DEV_ATTACHMENT_KINDS.pattern}
-        files={filesOf(DEV_ATTACHMENT_KINDS.pattern)}
-        hint="Файл или ссылка — достаточно одного из двух"
-        accept="*/*"
-        canManage={canManage}
-        onUpload={onUpload}
-        onRemove={onRemoveFile}
-      />
       <FileBlock
         label="Технический паспорт"
         kind={DEV_ATTACHMENT_KINDS.passport}
         files={filesOf(DEV_ATTACHMENT_KINDS.passport)}
+        hint="Техпаспорт или техописание"
         accept="application/pdf,image/*"
         canManage={canManage}
         onUpload={onUpload}
         onRemove={onRemoveFile}
       />
       <FileBlock
-        label="Фото образца"
+        label="Фото утверждённого образца"
         kind={DEV_ATTACHMENT_KINDS.photo}
         files={filesOf(DEV_ATTACHMENT_KINDS.photo)}
         hint="Минимум одно; можно несколько"
@@ -268,24 +248,89 @@ export function DevFinalPackage({
         onRemove={onRemoveFile}
       />
 
-      <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>Карточка SKU</h3>
-      <div className={styles.formGrid}>
-        {text('description', 'Описание', { wide: true, rows: 2 })}
-        {text('fit', 'Крой / посадка')}
-        {text('size_row', 'Размерный ряд', { placeholder: 'XS–3XL' })}
-        {text('features', 'Конструктивные особенности', { wide: true, rows: 2 })}
-        {text('finishes', 'Обработки', { wide: true, rows: 2 })}
-        {text('limits', 'Ограничения', { wide: true, rows: 2 })}
-        {list('fabrics', 'Доступные ткани', 'Футер 320\nКулирка 180')}
-        {list('branding', 'Доступные нанесения', 'DTF\nВышивка')}
-        {list('modifications', 'Возможные модификации', 'Длина рукава\nКарманы\nМолния')}
-      </div>
+      {/*
+        ЛЕКАЛА — ТОЛЬКО ПОКАЗ (п. 4.5: «поле „Файл лекал или ссылка" не нужно»).
+        Блок рисуется, лишь пока такие данные есть; у новых разработок его
+        не будет вовсе, и он исчезнет сам, когда старые закроются.
+      */}
+      {(legacyPatterns.length > 0 || pkg.pattern_link) && (
+        <div className={styles.attachBlock}>
+          <span className={styles.fieldLabel}>Лекала (приложены ранее)</span>
+          <span className={styles.subText}>
+            Поле снято из обязательных — показано то, что уже вложено.
+          </span>
+          {pkg.pattern_link && <div className={styles.subText}>{pkg.pattern_link}</div>}
+          <AttachmentList files={legacyPatterns} />
+        </div>
+      )}
+
+      {/*
+        КАРТОЧКА SKU — ПО ЖЕЛАНИЮ (п. 4.6). Выключенный переключатель означает
+        не «поля спрятаны», а «их не спрашивают»: `missingFinalPackage` в этом
+        режиме их не перечисляет, и разработка закрывается техдокументацией.
+      */}
+      <label className={styles.checkRow} style={{ marginTop: 16 }}>
+        <input
+          type="checkbox"
+          checked={wantsSku}
+          disabled={!canManage}
+          onChange={(e) => setPkg('add_to_sku', e.target.checked)}
+        />
+        <span className={styles.fieldLabel}>Добавить модель в каталог SKU</span>
+      </label>
+      <p className={styles.subText}>
+        {wantsSku
+          ? 'Заполните карточку — после завершения модель можно перенести в каталог.'
+          : 'Выключено: достаточно обязательной технической документации.'}
+      </p>
+
+      {wantsSku && (
+        <div className={styles.formGrid}>
+          {text('description', 'Описание', { wide: true, rows: 2 })}
+          {text('fit', 'Крой / посадка')}
+          {text('size_row', 'Размерный ряд', { placeholder: 'XS–3XL' })}
+          {text('features', 'Конструктивные особенности', { wide: true, rows: 2 })}
+          {text('finishes', 'Обработки', { wide: true, rows: 2 })}
+          {text('limits', 'Ограничения', { wide: true, rows: 2 })}
+          {list('fabrics', 'Доступные ткани', 'Футер 320\nКулирка 180')}
+          {list('branding', 'Доступные нанесения', 'DTF\nВышивка')}
+          {list('modifications', 'Возможные модификации', 'Длина рукава\nКарманы\nМолния')}
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Цена от</span>
+            <input
+              className={styles.input}
+              type="number"
+              min="0"
+              defaultValue={dev.price_min ?? ''}
+              onBlur={(e) => {
+                const v = e.target.value === '' ? null : Number(e.target.value);
+                if (v !== (dev.price_min ?? null)) onUpdate(dev.id, { price_min: v });
+              }}
+              aria-label="Ценовая вилка от"
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Цена до</span>
+            <input
+              className={styles.input}
+              type="number"
+              min="0"
+              defaultValue={dev.price_max ?? ''}
+              onBlur={(e) => {
+                const v = e.target.value === '' ? null : Number(e.target.value);
+                if (v !== (dev.price_max ?? null)) onUpdate(dev.id, { price_max: v });
+              }}
+              aria-label="Ценовая вилка до"
+            />
+          </label>
+        </div>
+      )}
 
       {/* Документ требует НАЗВАТЬ недостающее, а не просто закрыть кнопку */}
       {missing.length > 0 ? (
         <div className={styles.tzBlock}>
           <div className={styles.fieldLabel}>
-            <Icon name="alert" size={13} /> Не хватает для «Готово к серии»
+            <Icon name="alert" size={13} /> Не хватает, чтобы завершить разработку
           </div>
           <ul className={styles.subText}>
             {missing.map((m) => <li key={m}>{m}</li>)}
@@ -297,12 +342,19 @@ export function DevFinalPackage({
 
       {canManage && !dev.outcome && (
         <div className={styles.queueActions}>
+          {/*
+            «ЗАВЕРШИТЬ РАЗРАБОТКУ» — слово документа (п. 4.5). Исход при этом
+            остаётся `ready_for_serial`, и подпись рядом его называет: рядом
+            стоят кнопки прочих исходов, тоже завершающих разработку, и одна
+            только «Завершить» была бы от них неотличима.
+          */}
           <Button variant="primary" disabled={missing.length > 0} onClick={ready}>
-            Готово к серии
+            Завершить разработку
           </Button>
           <span className={styles.subText}>
-            Производственный заказ на серию заводит менеджер — автоматически
-            он не создаётся.
+            Разработка закроется как «Готово к серии» и уйдёт из активного
+            канбана. Производственный заказ на серию заводит менеджер —
+            автоматически он не создаётся.
           </span>
         </div>
       )}

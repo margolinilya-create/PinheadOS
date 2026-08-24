@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-08-22",
+  "capturedAt": "2026-08-24",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -1285,6 +1285,14 @@
         "20260823214022_erp_pack_ship_three_statuses.sql"
       ],
       "note": "к базе применён тот же текст, но без длинных пояснений — обоснование целиком живёт в файле репозитория. Оба серверных писателя pack_ship пересозданы из их же pg_get_functiondef (правило «подлинный текст»)"
+    },
+    {
+      "version": "20260824163953",
+      "name": "erp_dev_package_optional_sku",
+      "files": [
+        "20260824163953_erp_dev_package_optional_sku.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_dev_package_guard пересоздан из его же pg_get_functiondef (сверен с репозиторием — совпал)"
     }
   ]
 }

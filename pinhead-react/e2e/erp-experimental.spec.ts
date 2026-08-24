@@ -552,18 +552,46 @@ test.describe('Доска экспериментального цеха', () => 
 });
 
 test.describe('Финальный технический пакет', () => {
-  test('«Готово к серии» закрыто и НАЗЫВАЕТ, чего не хватает', async ({ page }) => {
+  test('завершение закрыто и НАЗЫВАЕТ, чего не хватает', async ({ page }) => {
     /**
      * «Разработку нельзя перевести в "Готово к серии", пока обязательные
      * данные не заполнены… система должна показать, какие поля ещё
      * не заполнены». Гейт кнопки — зеркало серверного стража.
      */
     await gotoDevPage(page, '/experimental/dev-work?studio=0');
-    const drawer = page.getByRole('main');
-    await expect(drawer).toContainText('Не хватает для «Готово к серии»');
-    await expect(drawer).toContainText('Техническое название лекал');
-    await expect(drawer).toContainText('Фото образца');
-    await expect(drawer).toContainText('Ценовая вилка');
-    await expect(drawer.getByRole('button', { name: 'Готово к серии' })).toBeDisabled();
+    const main = page.getByRole('main');
+    await expect(main).toContainText('Не хватает, чтобы завершить разработку');
+    await expect(main).toContainText('Техническое название лекал');
+    await expect(main).toContainText('Фото образца');
+    await expect(main.getByRole('button', { name: 'Завершить разработку' })).toBeDisabled();
+  });
+
+  /**
+   * ПРАВКИ 24.08 (пп. 4.5, 4.6) — то, чего unit-тесты по построению не видят:
+   * что переключатель на живом экране действительно меняет ТРЕБОВАНИЯ,
+   * а не только прячет поля.
+   */
+  test('карточка SKU обязательна ровно при включённом переключателе', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    const main = page.getByRole('main');
+
+    // Выключен: полей карточки нет ни на экране, ни в перечне недостающего
+    await expect(main).not.toContainText('Ценовая вилка');
+    await expect(main.getByLabel('Описание', { exact: true })).toHaveCount(0);
+
+    await main.getByLabel('Добавить модель в каталог SKU').check();
+
+    await expect(main.getByLabel('Описание', { exact: true })).toBeVisible();
+    await expect(main).toContainText('Ценовая вилка');
+    await expect(main).toContainText('Доступные ткани');
+  });
+
+  /** «Поле „Файл лекал или ссылка" не нужно» — ввода нет ни в каком режиме */
+  test('лекала не спрашиваются', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    const main = page.getByRole('main');
+    await expect(main.getByLabel('Ссылка на лекала')).toHaveCount(0);
+    await expect(main.getByLabel('Файл лекал', { exact: true })).toHaveCount(0);
+    await expect(main).not.toContainText('Файл или ссылка на лекала');
   });
 });

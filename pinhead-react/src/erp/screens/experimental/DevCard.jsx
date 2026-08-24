@@ -21,6 +21,7 @@ import {
   DEV_STAGE_LABELS, cuttingGate, cuttingWaitLabel, devBoardColumn, devRouteSteps, devStageStates,
   devStageOfTask, extraTasks,
 } from '../../utils/experimentalBoard';
+import { wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
@@ -631,7 +632,14 @@ export function DevCard({
           и исчезает после переноса: второй артикул той же модели — это два
           источника правды о ней.
         */}
-        {dev.outcome === 'ready_for_serial' && (
+        {/*
+          ПЕРЕНОС ПРЕДЛАГАЕТСЯ ТОЛЬКО ПРИ ВКЛЮЧЁННОМ ПЕРЕКЛЮЧАТЕЛЕ (правка
+          24.08, п. 4.6: «карточка SKU создаётся только по желанию»). Пакет
+          без карточки SKU не содержит ни описания, ни ценовой вилки —
+          предлагать перенос такой модели значит звать в форму, которую
+          нечем заполнить.
+        */}
+        {dev.outcome === 'ready_for_serial' && (wantsSkuCard(dev) || dev.sku_code) && (
           <div style={{ marginTop: 12 }}>
             {dev.sku_code ? (
               <span className={`${styles.chip} ${styles.chipDone}`}>
