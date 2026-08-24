@@ -138,10 +138,71 @@ describe('ответственный по умолчанию', () => {
   it('новая задача получает проработчика разработки', async () => {
     const { onAddTasks } = setup();
 
+    // С правки 24.08 форма раскрывается кнопкой в шапке блока задач:
+    // развёрнутая всегда, она отодвигала вниз саму работу
+    fireEvent.click(screen.getByRole('button', { name: '+ Добавить задачу' }));
     fireEvent.change(screen.getByLabelText('Тип задачи'), { target: { value: 'Примерка' } });
-    fireEvent.click(screen.getByRole('button', { name: /Добавить задачу/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать задачу' }));
 
     await waitFor(() => expect(onAddTasks).toHaveBeenCalled());
     expect(onAddTasks.mock.calls[0][0][0]).toMatchObject({ responsible: 'Иванова' });
+  });
+});
+
+/**
+ * ВКЛАДКИ И ПОСТОЯННАЯ СПРАВКА (референс заказчика 24.08).
+ *
+ * Сторожится не наличие подписей, а два свойства, которые легко потерять
+ * при следующей правке раскладки:
+ *  · «почему стоит» и «что делать дальше» видны на ЛЮБОЙ вкладке — правило
+ *    проекта запрещает прятать их за переключателем;
+ *  · вкладка живёт в адресе, иначе ссылку на финальный пакет не переслать.
+ */
+describe('вкладки карточки', () => {
+  const BLOCKED = {
+    tasks: [task({ status: 'blocked', blocked_reason: 'Нет ткани' })],
+  };
+
+  it('по умолчанию открыты «Задачи» — в карточку приходят работать', () => {
+    setup();
+    expect(screen.getByRole('tab', { name: /Задачи/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Основной маршрут разработки' })).toBeInTheDocument();
+  });
+
+  it('переключение вкладки меняет панель', () => {
+    setup();
+    fireEvent.click(screen.getByRole('tab', { name: /Финальный пакет/ }));
+    expect(screen.getByRole('heading', { name: 'Другой итог разработки' })).toBeInTheDocument();
+    // Панель именно переключилась, а не добавилась ниже
+    expect(screen.queryByRole('heading', { name: 'Основной маршрут разработки' })).toBeNull();
+  });
+
+  it('блокер и следующее действие видны на ЛЮБОЙ вкладке', () => {
+    setup(BLOCKED);
+    const aside = screen.getByRole('complementary', { name: 'Справка по разработке' });
+    expect(aside).toHaveTextContent('Нет ткани');
+
+    fireEvent.click(screen.getByRole('tab', { name: /Финальный пакет/ }));
+    expect(
+      screen.getByRole('complementary', { name: 'Справка по разработке' }),
+      'справка исчезла при переключении вкладки — «почему стоит» спрятано за переключателем',
+    ).toHaveTextContent('Нет ткани');
+  });
+
+  it('панель связана с активной вкладкой для скринридера', () => {
+    setup();
+    const panel = document.getElementById('dev-tabpanel');
+    expect(panel).toHaveAttribute('role', 'tabpanel');
+    expect(panel).toHaveAttribute('aria-labelledby', 'dev-tab-tasks');
+    expect(screen.getByRole('tab', { name: /Задачи/ })).toHaveAttribute('aria-controls', 'dev-tabpanel');
+  });
+
+  /**
+   * `id` вкладок не должны совпадать с вкладками карточки заказа: два набора
+   * с одинаковыми `id` — невалидный DOM и порванная связь панели со вкладкой.
+   */
+  it('вкладки несут свой префикс id', () => {
+    setup();
+    expect(screen.getByRole('tab', { name: /^Информация/ })).toHaveAttribute('id', 'dev-tab-info');
   });
 });

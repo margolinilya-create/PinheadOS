@@ -1346,3 +1346,59 @@ a.cellTitle:hover { color: var(--accent); }
   gap: 4px;
   margin-top: 2px;
 }
+
+/*
+  ДВЕ КОЛОНКИ КАРТОЧКИ РАЗРАБОТКИ (референс заказчика 24.08): рабочая область
+  с вкладками слева, постоянная справка справа.
+
+  Правая колонка НЕ вкладка и не может ею стать: там живут блокер, следующее
+  действие и материалы — «почему стоит» и «что делать дальше», а правило
+  проекта требует, чтобы они были видны ВСЕГДА. Спрятать их за переключателем
+  значит показать проблему только тому, кто угадал вкладку.
+
+  Порядок в разметке — main, потом aside: на узком экране колонки
+  схлопываются в одну, и работа обязана идти первой, а справка следом.
+  Поэтому здесь `grid` без перестановки, а не `order`.
+*/
+.devLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: var(--space-md);
+  align-items: start;
+}
+.devMain { min-width: 0; }
+.devAside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Справка едет вместе с длинной таблицей задач: карточка разработки —
+     самый прокручиваемый экран раздела, и блокер, уехавший за верхний край,
+     перестаёт отвечать на вопрос, ради которого он там стоит */
+  position: sticky;
+  top: 8px;
+}
+.devAsideCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 10px 12px;
+}
+.devAsideCardWarn {
+  border-color: var(--color-warning);
+  background: var(--bg-warning);
+}
+.devAsideRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+.devAsideRow > span:last-child { text-align: right; overflow-wrap: anywhere; }
+
+@media (max-width: 1024px) {
+
+  /* Ниже планшета две колонки не помещаются: справка уходит под работу
+     и перестаёт липнуть — на узком экране липкий блок съедает высоту */
+  .devLayout { grid-template-columns: 1fr; }
+  .devAside { position: static; }
+}

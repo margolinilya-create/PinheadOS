@@ -341,9 +341,15 @@ export function DevTasksSection({
 
   return (
     <>
-      {active.length > 0
-        ? table(active, 'Активные задачи')
-        : <p className={styles.subText}>Активных задач нет — всё закрыто.</p>}
+      {/* Подпись группы видна, а не только у скринридера (референс 24.08):
+          рядом стоит свёрнутый блок завершённых, и без заголовка непонятно,
+          что раскрытая таблица — именно активные */}
+      {active.length > 0 ? (
+        <>
+          <div className={styles.fieldLabel}>Активные задачи ({active.length})</div>
+          {table(active, 'Активные задачи')}
+        </>
+      ) : <p className={styles.subText}>Активных задач нет — всё закрыто.</p>}
 
       {closed.length > 0 && (
         <details className={styles.matSection}>

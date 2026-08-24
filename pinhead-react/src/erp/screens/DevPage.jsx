@@ -45,12 +45,14 @@ export default function DevPage() {
   const location = useLocation();
 
   const {
-    orders, departments, loaded, loadError, loadAll,
+    orders, detailIds, loadOne, departments, loaded, loadError, loadAll,
     experimental, experimentalLoaded, loadExperimental,
     updateExperimental, addDevTasks, updateDevTask, sendDevTaskToDept,
     closeExperimental, approveSample, uploadDevFile, deleteDevFile,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
+    detailIds: s.detailIds,
+    loadOne: s.loadOne,
     departments: s.departments,
     loaded: s.loaded,
     loadError: s.loadError,
@@ -82,6 +84,23 @@ export default function DevPage() {
     () => (dev ? (orders ?? []).find((o) => o.id === dev.order_id) ?? null : null),
     [orders, dev],
   );
+
+  /**
+   * ПОЛНЫЙ ЗАКАЗ ДОЗАГРУЖАЕТСЯ, как и в карточке заказа: справка разработки
+   * показывает размерный ряд, а `items.size_grid` намеренно выброшен
+   * из списочной выборки (`ORDER_LIST_SELECT`) — она едет по всем заказам.
+   * Без дозагрузки строка молча стояла бы пустой при заполненных данных:
+   * ровно тот отказ, от которого в проекте сторож `orderSelect.test.ts`.
+   *
+   * Проверка идёт по `detailIds`, а не по «есть ли заказ в сторе»: он там
+   * есть всегда — списочный, без сетки.
+   */
+  const orderId = dev?.order_id ?? null;
+  const hasDetail = orderId ? detailIds.includes(orderId) : true;
+  useEffect(() => {
+    if (!loaded || hasDetail || !orderId) return;
+    loadOne(orderId);
+  }, [loaded, hasDetail, orderId, loadOne]);
 
   /** Куда вернуться: ссылка принесла контекст списка (фильтры, вид, страница) */
   const back = location.state?.from || '/experimental';

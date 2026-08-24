@@ -27,6 +27,22 @@ async function gotoDevPage(page: Page, url: string) {
 }
 
 /**
+ * Открыть вкладку карточки разработки (референс 24.08).
+ *
+ * Карточка перестала быть одной простынёй: поля, задачи, файлы, история,
+ * финальный пакет и SKU разведены по вкладкам. Проверки ниже — про
+ * СОДЕРЖИМОЕ, поэтому им нужен переход, а не переписывание.
+ *
+ * Ждём смены панели, а не просто кликаем: `aria-selected` меняется тем же
+ * рендером, что и содержимое, и проверка после него не снимет старый кадр.
+ */
+async function openDevTab(page: Page, name: string) {
+  const tab = page.getByRole('tab', { name: new RegExp(name) });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
+
+/**
  * Строка списка разработок — НЕЗАВИСИМО ОТ РАСКЛАДКИ.
  *
  * На десктопе это строка таблицы, ниже 1024px — карточка (`DevRowCard`):
@@ -356,10 +372,16 @@ test.describe('Карточка разработки', () => {
     await openDev(page, 'Бомбер двухслойный');
 
     await expect(page).toHaveURL(/\/experimental\/dev-block/);
-    const card = page.getByRole('main');
-    await expect(card).toContainText('Текущий блокер');
-    await expect(card).toContainText('нет решения по цвету подкладки');
-    await expect(card).toContainText('Следующее действие');
+    /**
+     * С референса 24.08 блокер и следующее действие живут в постоянной справке
+     * справа, а подпись блока — «Блокеры». Проверяем именно её область: то же
+     * самое, найденное где угодно на странице, прошло бы и в случае, когда
+     * справка исчезла, а текст остался в шапке.
+     */
+    const aside = page.getByRole('complementary', { name: 'Справка по разработке' });
+    await expect(aside).toContainText('Блокеры');
+    await expect(aside).toContainText('нет решения по цвету подкладки');
+    await expect(aside).toContainText('Следующее действие');
   });
 
   /**
@@ -480,18 +502,29 @@ test.describe('Карточка разработки', () => {
     await gotoDevPage(page, '/experimental/dev-ready?studio=0');
     const drawer = page.getByRole('main');
 
+    // Исход виден в шапке карточки — на любой вкладке
     await expect(drawer).toContainText('Готово к серии');
-    await expect(drawer).toContainText('лекала утверждены');
     // Ни формы добавления задач, ни кнопок исхода: разработка закрыта
     await expect(drawer.getByRole('button', { name: '+ Добавить задачу' })).toHaveCount(0);
-    await expect(drawer).not.toContainText('Текущий блокер');
+    /**
+     * Справки «почему стоит» у закрытой разработки нет вовсе: работа кончилась,
+     * и «следующее действие» превратилось бы в прочерк. Проверяем ОТСУТСТВИЕ
+     * области, а не текста: текст мог бы не совпасть по другой причине.
+     */
+    await expect(
+      page.getByRole('complementary', { name: 'Справка по разработке' })
+        .getByText('Блокеры'),
+    ).toHaveCount(0);
+
+    await openDevTab(page, 'Финальный пакет');
+    await expect(drawer).toContainText('лекала утверждены');
   });
 
   test('«Готово к серии» честно говорит, что заказ на серию заводит менеджер',
     async ({ page }) => {
       await gotoDevPage(page, '/experimental/dev-work?studio=0');
-      const drawer = page.getByRole('main');
-      await expect(drawer).toContainText('заказ на серию заводит менеджер');
+      await openDevTab(page, 'Финальный пакет');
+      await expect(page.getByRole('main')).toContainText('заказ на серию заводит менеджер');
     });
 });
 
@@ -755,6 +788,7 @@ test.describe('Финальный технический пакет', () => {
      * не заполнены». Гейт кнопки — зеркало серверного стража.
      */
     await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await openDevTab(page, 'Финальный пакет');
     const main = page.getByRole('main');
     await expect(main).toContainText('Не хватает, чтобы завершить разработку');
     await expect(main).toContainText('Техническое название лекал');
@@ -769,6 +803,7 @@ test.describe('Финальный технический пакет', () => {
    */
   test('карточка SKU обязательна ровно при включённом переключателе', async ({ page }) => {
     await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await openDevTab(page, 'Финальный пакет');
     const main = page.getByRole('main');
 
     // Выключен: полей карточки нет ни на экране, ни в перечне недостающего
@@ -785,9 +820,61 @@ test.describe('Финальный технический пакет', () => {
   /** «Поле „Файл лекал или ссылка" не нужно» — ввода нет ни в каком режиме */
   test('лекала не спрашиваются', async ({ page }) => {
     await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await openDevTab(page, 'Финальный пакет');
     const main = page.getByRole('main');
     await expect(main.getByLabel('Ссылка на лекала')).toHaveCount(0);
     await expect(main.getByLabel('Файл лекал', { exact: true })).toHaveCount(0);
     await expect(main).not.toContainText('Файл или ссылка на лекала');
+  });
+});
+
+/**
+ * ВКЛАДКИ КАРТОЧКИ РАЗРАБОТКИ (референс заказчика 24.08).
+ *
+ * Unit-тесты проверяют раскладку и связи ARIA; здесь — то, чего они по
+ * построению не видят: живёт ли вкладка в АДРЕСЕ (ссылку на финальный пакет
+ * шлют коллегам) и переживает ли она перезагрузку страницы.
+ */
+test.describe('Вкладки карточки разработки', () => {
+  test('вкладка живёт в адресе и переживает перезагрузку', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await openDevTab(page, 'Финальный пакет');
+    await expect(page).toHaveURL(/tab=package/);
+
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('tab', { name: /Финальный пакет/ }),
+      'после перезагрузки открылась другая вкладка — ссылка не работает',
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  /**
+   * Вкладка по умолчанию адрес НЕ засоряет: `?tab=tasks` в ссылке — это
+   * лишний параметр, который потом придётся объяснять. Тот же приём,
+   * что в карточке заказа.
+   */
+  test('возврат на «Задачи» убирает параметр из адреса', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await openDevTab(page, 'Файлы');
+    await expect(page).toHaveURL(/tab=files/);
+    await openDevTab(page, 'Задачи');
+    await expect(page).not.toHaveURL(/tab=/);
+  });
+
+  /**
+   * Главное свойство раскладки: «почему стоит» и «что делать дальше» видны
+   * на ЛЮБОЙ вкладке. Спрятать их за переключателем значит показать проблему
+   * только тому, кто угадал вкладку.
+   */
+  test('справка с блокером видна на любой вкладке', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-block?studio=0');
+    const aside = page.getByRole('complementary', { name: 'Справка по разработке' });
+    await expect(aside).toContainText('нет решения по цвету подкладки');
+
+    await openDevTab(page, 'Финальный пакет');
+    await expect(aside).toContainText('нет решения по цвету подкладки');
+    await openDevTab(page, 'История доработок');
+    await expect(aside).toContainText('нет решения по цвету подкладки');
   });
 });
