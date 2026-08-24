@@ -587,6 +587,67 @@ const ROUTE_ORDER = {
   attachments: [],
 };
 
+test.describe('Канбан ЭКС: колонку ставит человек (п. 4.2)', () => {
+  /**
+   * «Ответственный за проработку технолог сам вручную перетаскивает карточку
+   * между колонками. Автоматическое движение по основным этапам не нужно».
+   *
+   * ЧЕГО ЭТОТ СТОРОЖ НЕ ПРОВЕРЯЕТ — сказано вслух: сам жест HTML5-drag он
+   * не воспроизводит. Проверяется путь, которым пользуются на планшете
+   * и с клавиатуры (кнопки «‹ ›»), и он зовёт РОВНО ТУ ЖЕ функцию переноса,
+   * что обработчик броска. Смысл броска покрыт unit-тестами `devMoveIntent`.
+   */
+  const card = (page: import('@playwright/test').Page, name: string) =>
+    page.getByRole('listitem').filter({ hasText: name });
+
+  /**
+   * Колонка ищется по ЗАГОЛОВКУ, а не по тексту внутри: названия всех пяти
+   * шагов стоят ещё и в индикаторе пути КАЖДОЙ карточки, и поиск по тексту
+   * находил все секции разом.
+   */
+  const column = (page: import('@playwright/test').Page, title: string) =>
+    page.locator('section')
+      .filter({ has: page.locator('header').filter({ hasText: title }) });
+
+  test('карточка переезжает в соседнюю колонку и остаётся там', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+
+    // Расчёт по задачам ставит эту разработку на «Построение лекал»
+    await expect(column(page, 'Построение лекал')).toContainText('Ветровка на молнии');
+
+    await card(page, 'Ветровка на молнии')
+      .getByRole('button', { name: 'Перенести в «Крой»' }).click();
+
+    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
+    await expect(column(page, 'Построение лекал')).not.toContainText('Ветровка на молнии');
+  });
+
+  /**
+   * «Нанесения не являются обязательным этапом. Если нанесения не нужны,
+   * технолог переносит карточку сразу из Кроя в Пошив». Особого механизма
+   * это не требует — достаточно того, что колонку ставит человек.
+   */
+  test('через «Нанесения» можно перешагнуть', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка на молнии');
+    // Каждый шаг подтверждается: цепочка кликов подряд проверяла бы, что
+    // Playwright успевает, а не что перенос работает
+    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
+    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+    await expect(column(page, 'Нанесения')).toContainText('Ветровка на молнии');
+    await item.getByRole('button', { name: 'Перенести в «Пошив»' }).click();
+    await expect(column(page, 'Пошив')).toContainText('Ветровка на молнии');
+  });
+
+  test('на краю доски кнопка гаснет, а не исчезает', async ({ page }) => {
+    // Пропадающий элемент сдвигает соседний под палец
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка на молнии');
+    await expect(item.getByRole('button', { name: 'Левее колонок нет' })).toBeDisabled();
+  });
+});
+
 test.describe('Участок «Экспериментальный цех» в маршруте (п. 4.1)', () => {
   test.beforeEach(async ({ page }) => {
     await installSupabaseMock(page, {

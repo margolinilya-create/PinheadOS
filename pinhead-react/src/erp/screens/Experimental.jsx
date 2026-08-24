@@ -12,6 +12,7 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
 import {
   DEV_STATE_LABELS,
@@ -130,7 +131,7 @@ export default function Experimental() {
    */
   const {
     orders, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, loadExperimental,
+    experimental, experimentalLoaded, loadExperimental, updateExperimental,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -141,17 +142,25 @@ export default function Experimental() {
       experimental: s.experimental,
       experimentalLoaded: s.experimentalLoaded,
       loadExperimental: s.loadExperimental,
+      updateExperimental: s.updateExperimental,
     })),
   );
   const navigate = useNavigate();
   const location = useLocation();
 
-  /*
-   * Права здесь больше не спрашиваются: единственным действием этого экрана
-   * было создание разработки, и оно снято правкой 23.08 (п. 6). Гейт
-   * `experimental.manage` остался там, где ведут саму разработку, —
-   * на странице карточки (`screens/DevPage`).
+  /**
+   * ПРАВО ВЕРНУЛОСЬ ВМЕСТЕ С ДЕЙСТВИЕМ (правка 24.08, п. 4.2). После правки
+   * 23.08 экран действий не имел вовсе, и гейт был снят честно. Теперь
+   * технолог двигает карточки по колонкам прямо здесь, а RLS `erp_experimental`
+   * стоит на `experimental.manage` — без клиентского гейта получилось бы
+   * запрещённое «кнопка есть, действие падает».
    */
+  const { can } = useErpAccess();
+  const canManage = can('experimental.manage');
+  const moveDevStage = useCallback(
+    (devId, stage) => updateExperimental(devId, { board_stage: stage }),
+    [updateExperimental],
+  );
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
     () => new Map((typeDict ?? []).map((d) => [d.code, d.name])), [typeDict]);
@@ -491,6 +500,8 @@ export default function Experimental() {
           onOpen={openDev}
           materialsByOrder={materialsByOrder}
           typeNames={typeNames}
+          canManage={canManage}
+          onMoveStage={moveDevStage}
         />
       )}
 

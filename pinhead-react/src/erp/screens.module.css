@@ -1332,3 +1332,17 @@ a.cellTitle:hover { color: var(--accent); }
   padding-bottom: 2px;
 }
 .groupHead + .groupHead { border-left: 1px solid var(--border-light); padding-left: 10px; }
+/*
+  Ряд кнопок переноса карточки между колонками канбана ЭКС (правка 24.08,
+  п. 4.2). Имя НЕ начинается с `.kanbanCard`, хотя ряд и живёт внутри неё:
+  такое имя читается как уточнение базового класса, а тот объявлен
+  в `erp.module.css` — между чанками порядок не гарантирован, и сторож
+  `stylesResolve.test.ts` справедливо на это ругается. Это отдельная вещь
+  доски ЭКС, и называется она соответственно; оболочке доска не нужна.
+*/
+.devMoveRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 2px;
+}

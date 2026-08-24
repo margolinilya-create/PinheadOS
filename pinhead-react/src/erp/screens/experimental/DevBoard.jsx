@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { OrderLink } from '../../components/OrderLink';
 import { StageIndicator } from '../../components/StageIndicator';
@@ -10,9 +11,13 @@ import {
   devBoardColumn,
   devStageStates,
 } from '../../utils/experimentalBoard';
+import {
+  DEV_MOVE_REFUSAL_TEXT, devMoveIntent, devMoveLabel, neighbourStage,
+} from '../../utils/devBoardMove';
 import { currentBlocker, nextAction, taskLabel } from '../../utils/experimentalTasks';
 import { dueLabelCompact } from '../../utils/format';
 import { daysLeft } from '../../utils/time';
+import { toast } from '../../../store/useToastStore';
 import styles from '../../styles';
 
 /**
@@ -22,15 +27,44 @@ import styles from '../../styles';
  * сейчас выглядит общий производственный борд… Разработка перемещается между
  * этапами по мере выполнения работ».
  *
- * ПЕРЕТАСКИВАНИЯ ЗДЕСЬ НЕТ, и это не упущение. На общем борде карточку тянут,
- * потому что у этапа есть записываемый статус; здесь колонка ВЫЧИСЛЯЕТСЯ
- * из задач, и перетаскивание означало бы либо ложь (карточка уехала, а работа
- * нет), либо возврат хранимой фазы, которую убрали 12.08. Разработка
- * переезжает потому, что закрылась задача.
+ * КАРТОЧКУ ДВИГАЕТ ЧЕЛОВЕК (правка заказчика 24.08, п. 4.2): «ответственный
+ * за проработку технолог сам вручную перетаскивает карточку между колонками.
+ * Автоматическое движение по основным этапам не нужно». Колонка стала хранимой
+ * (`board_stage`), и перетаскивание пишет именно её; расчёт по задачам остался
+ * ответом на другой вопрос — он питает дорожки внутри колонки и узлы пути.
+ *
+ * У ПЕРЕТАСКИВАНИЯ ЕСТЬ КЛАВИАТУРНАЯ АЛЬТЕРНАТИВА — правило проекта, и здесь
+ * оно вдвойне уместно: на планшете палец задевает соседние колонки при
+ * прокрутке, а кнопки «‹ ›» переносят ровно на шаг.
+ *
+ * КАРТОЧКА — `div`, А НЕ `button`. Внутри неё живут ссылка на заказ и кнопки
+ * переноса; кнопка внутри кнопки и ссылка внутри кнопки — невалидная разметка,
+ * и браузеры разбирают её по-разному. Роль и клавиатура сделаны руками, ровно
+ * как у карточки общего борда.
  */
 
 /** Дорожки в порядке борда: сначала то, что стоит, потом то, что идёт */
 const LANES = ['blocked', 'awaiting_materials', 'waiting', 'ready', 'in_progress', 'done'];
+
+/**
+ * Дорожка карточки внутри её колонки.
+ *
+ * ФОЛБЭК ОБЯЗАТЕЛЕН, И НАШЁЛСЯ ОН ПАДЕНИЕМ (правка 24.08, п. 4.2). Пока колонку
+ * считал расчёт, он выбирал первый НЕ закрытый и НЕ пропущенный шаг — на дорожку
+ * `skipped` карточка не попадала никогда, и её отсутствия в `LANES` никто
+ * не замечал. Теперь колонку ставит человек: технолог переносит карточку
+ * в «Нанесения», у которых задач ещё нет, шаг помечен `skipped` — и карточка
+ * исчезала с доски целиком. Счётчик колонки при этом показывал единицу,
+ * то есть экран сообщал «карточка здесь» и не рисовал её.
+ *
+ * `waiting` — не заглушка, а точное описание: работа на шаге ещё не заведена,
+ * и разработка её ждёт. Ровно в этом состоянии её и застаёт выбор видов
+ * нанесения (п. 4.3).
+ */
+function laneOf(row, stage) {
+  const lane = row.states.find((s) => s.stage === stage)?.lane;
+  return LANES.includes(lane) ? lane : 'waiting';
+}
 
 const LANE_CHIP = {
   blocked: 'chipBlocked',
@@ -41,7 +75,7 @@ const LANE_CHIP = {
   done: 'chipDone',
 };
 
-function DevBoardCard({ row, onOpen }) {
+function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, onDragEnd }) {
   const { dev, tasks, states, column, typeNames } = row;
   const state = states.find((s) => s.stage === column);
   // Подписи задач берутся из справочника: без него человек читает код
@@ -52,12 +86,28 @@ function DevBoardCard({ row, onOpen }) {
   const left = daysLeft(due);
   const overdue = left !== null && left < 0 && !dev.outcome;
 
+  const movable = canManage && !dev.outcome;
+  const prev = neighbourStage(column, -1);
+  const next = neighbourStage(column, 1);
+
   return (
-    <button
-      type="button"
-      className={styles.kanbanCard}
+    <div
+      className={[styles.kanbanCard, dragging && styles.kanbanCardDragging]
+        .filter(Boolean).join(' ')}
+      draggable={movable}
+      onDragStart={(e) => onDragStart(e, row)}
+      onDragEnd={onDragEnd}
       onClick={() => onOpen(dev.id)}
-      aria-label={`Открыть разработку ${dev.tech_name || dev.order?.title || ''}`}
+      role="listitem"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        // Enter/Space на вложенной ссылке или кнопке отдаём ей самой
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        onOpen(dev.id);
+      }}
+      aria-label={`Разработка ${dev.tech_name || dev.order?.title || ''}`}
     >
       <div className={styles.kanbanCardHead}>
         <OrderLink orderId={dev.order_id} onClick={(e) => e.stopPropagation()}>
@@ -112,12 +162,93 @@ function DevBoardCard({ row, onOpen }) {
           lineDone: s.lane === 'done' || s.lane === 'skipped',
         }))}
       />
-    </button>
+
+      {/*
+        КЛАВИАТУРНАЯ (И ПАЛЬЦЕВАЯ) АЛЬТЕРНАТИВА ПЕРЕТАСКИВАНИЮ. Кнопка на краю
+        списка гасится, а не исчезает: пропадающий элемент сдвигает соседний
+        под палец, и человек нажимает не то, что видел.
+      */}
+      {movable && (
+        <div className={styles.devMoveRow} onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!prev}
+            aria-label={prev ? devMoveLabel(prev) : 'Левее колонок нет'}
+            onClick={() => prev && onMove(row, prev)}
+          >
+            ‹
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!next}
+            aria-label={next ? devMoveLabel(next) : 'Правее колонок нет'}
+            onClick={() => next && onMove(row, next)}
+          >
+            ›
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
-export function DevBoard({ rows, today, onOpen, materialsByOrder, typeNames }) {
+export function DevBoard({
+  rows, today, onOpen, materialsByOrder, typeNames, onMoveStage, canManage = false,
+}) {
   const { ref } = useScrollHints();
+  /**
+   * Перетаскиваемая карточка живёт в ref, а не в состоянии: обработчик `drop`
+   * колонки читает её синхронно, и лишняя перерисовка между `dragstart`
+   * и `drop` успела бы обнулить значение. `dragId` в состоянии нужен только
+   * для вида — им подсвечивается сама карточка.
+   */
+  const dragRef = useRef(null);
+  const [dragId, setDragId] = useState(null);
+  const [overStage, setOverStage] = useState(null);
+
+  const startDrag = useCallback((e, row) => {
+    dragRef.current = row;
+    setDragId(row.dev.id);
+    // `effectAllowed` + данные обязательны: без них Firefox не начинает жест
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.dev.id);
+  }, []);
+
+  const endDrag = useCallback(() => {
+    dragRef.current = null;
+    setDragId(null);
+    setOverStage(null);
+  }, []);
+
+  /**
+   * Перенос — ОДНО место на бросок и на кнопки. Отказ называет причину:
+   * молча не сработавшее перетаскивание человек повторяет ещё трижды,
+   * прежде чем решить, что сайт сломан.
+   */
+  const move = useCallback(async (row, to) => {
+    const intent = devMoveIntent({
+      from: row.column,
+      to,
+      outcome: row.dev.outcome,
+      canManage,
+    });
+    if (!intent.ok) {
+      // «Карточка уже здесь» — не ошибка, а обычный исход броска мимо
+      if (intent.reason !== 'same') toast.error(DEV_MOVE_REFUSAL_TEXT[intent.reason]);
+      return;
+    }
+    await onMoveStage?.(row.dev.id, intent.to);
+  }, [canManage, onMoveStage]);
+
+  const dropOn = useCallback((e, stage) => {
+    const row = dragRef.current;
+    endDrag();
+    if (!row) return;
+    e.preventDefault();
+    move(row, stage);
+  }, [endDrag, move]);
 
   const columns = useMemo(() => {
     const prepared = rows.map(({ dev, tasks }) => {
@@ -134,10 +265,7 @@ export function DevBoard({ rows, today, onOpen, materialsByOrder, typeNames }) {
       stage,
       lanes: LANES.map((lane) => ({
         lane,
-        rows: prepared.filter(
-          (r) => r.column === stage
-            && (r.states.find((s) => s.stage === stage)?.lane ?? 'waiting') === lane,
-        ),
+        rows: prepared.filter((r) => r.column === stage && laneOf(r, stage) === lane),
       })).filter((l) => l.rows.length > 0),
       total: prepared.filter((r) => r.column === stage).length,
     }));
@@ -146,7 +274,20 @@ export function DevBoard({ rows, today, onOpen, materialsByOrder, typeNames }) {
   return (
     <div className={styles.kanbanBoard} ref={ref}>
       {columns.map((col) => (
-        <section key={col.stage} className={styles.kanbanCol}>
+        <section
+          key={col.stage}
+          className={[styles.kanbanCol, overStage === col.stage && styles.kanbanColDroppable]
+            .filter(Boolean).join(' ')}
+          /* `preventDefault` на dragOver обязателен — без него браузер
+             не считает область принимающей и `drop` не приходит вовсе */
+          onDragOver={(e) => {
+            if (!dragRef.current) return;
+            e.preventDefault();
+            setOverStage(col.stage);
+          }}
+          onDragLeave={() => setOverStage((s) => (s === col.stage ? null : s))}
+          onDrop={(e) => dropOn(e, col.stage)}
+        >
           {/* Разметка колонки — та же, что у общего борда: «по тому же
               принципу» из документа означает и то, как это выглядит */}
           <header className={styles.kanbanColHead}>
@@ -162,7 +303,16 @@ export function DevBoard({ rows, today, onOpen, materialsByOrder, typeNames }) {
                 {DEV_LANE_TITLES[l.lane]} · {l.rows.length}
               </div>
               {l.rows.map((r) => (
-                <DevBoardCard key={r.dev.id} row={r} onOpen={onOpen} />
+                <DevBoardCard
+                  key={r.dev.id}
+                  row={r}
+                  onOpen={onOpen}
+                  onMove={move}
+                  canManage={canManage}
+                  dragging={dragId === r.dev.id}
+                  onDragStart={startDrag}
+                  onDragEnd={endDrag}
+                />
               ))}
             </div>
           ))}
