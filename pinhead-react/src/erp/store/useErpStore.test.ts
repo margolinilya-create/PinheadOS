@@ -1619,6 +1619,50 @@ describe('число запросов: оболочка и карточка за
     expect(useErpStore.getState().experimental[0].id).toBe('fresh');
   });
 
+  /**
+   * ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ГОНКИ. Затирает тот, кто пришёл ВТОРЫМ, — а вторым
+   * бывает любой из двух: на CI под нагрузкой пакет оболочки успевал ответить
+   * первым, и снимок ДО правки ставил уже свой загрузчик экрана. Починка
+   * одного писателя оставляет дефект ровно наполовину, и половина эта
+   * воспроизводится тем же способом — медленной машиной.
+   */
+  it.each([
+    ['разработка', 'erp_experimental', 'experimental', 'experimentalLoaded',
+      () => useErpStore.getState().loadExperimental()],
+    ['подряд', 'erp_subcontracting', 'subcontracting', 'subcontractingLoaded',
+      () => useErpStore.getState().loadSubcontracting()],
+  ] as const)('запоздавший загрузчик раздела «%s» не затирает правку человека',
+    async (_name, table, field, flag, load) => {
+      useErpStore.setState({ [field]: [], [flag]: false } as never);
+      h.tableData = { [table]: [{ id: 'x1', board_stage: null, phase: 'planned' }] };
+
+      const started = load();
+      // Пока запрос летит, раздел наполнил другой путь И человек успел править
+      useErpStore.setState({
+        [field]: [{ id: 'x1', board_stage: 'sewing', phase: 'at_contractor' }],
+        [flag]: true,
+      } as never);
+      await started;
+
+      const row = (useErpStore.getState() as never as Record<string, { phase: string }[]>)[field][0];
+      expect(row.phase, 'запоздавший ответ вернул раздел к снимку до правки').toBe('at_contractor');
+    });
+
+  it.each([
+    ['разработка', 'erp_experimental', 'experimental', 'experimentalLoaded',
+      () => useErpStore.getState().loadExperimental()],
+    ['подряд', 'erp_subcontracting', 'subcontracting', 'subcontractingLoaded',
+      () => useErpStore.getState().loadSubcontracting()],
+  ] as const)('повторная загрузка раздела «%s» обновляет — «Повторить» работает',
+    async (_name, table, field, flag, load) => {
+      // Отличие ровно одно: на старте запроса раздел УЖЕ был загружен
+      useErpStore.setState({ [field]: [{ id: 'stale' }], [flag]: true } as never);
+      h.tableData = { [table]: [{ id: 'fresh' }] };
+      await load();
+      const row = (useErpStore.getState() as never as Record<string, { id: string }[]>)[field][0];
+      expect(row.id).toBe('fresh');
+    });
+
   it('loadAll после бутстрапа НЕ перезапрашивает цеха', async () => {
     useErpStore.setState({ departments: [dept] as never });
     h.tableData = { erp_orders: [row] };

@@ -19,7 +19,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
+import { arrivedLate, currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontractPhase';
@@ -177,6 +177,9 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   subcontractingLoaded: false,
 
   loadSubcontracting: async () => {
+    // Снимок ДО ожидания — им отличается запоздавший ответ от повторной
+    // загрузки. Объяснение целиком — у `arrivedLate` в `store/shared`
+    const before = get().subcontractingLoaded;
     const { data, error } = await erpQuery(() => supabase
       .from('erp_subcontracting')
       /**
@@ -191,6 +194,12 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
       toast.error('Не удалось загрузить операции подряда');
       return;
     }
+    /**
+     * Пакет оболочки успел наполнить раздел, пока летел этот ответ — значит
+     * он несёт снимок ДО правки, сделанной человеком между двумя запросами.
+     * Раздел приезжает двумя дорогами так же, как разработка.
+     */
+    if (arrivedLate(before, get().subcontractingLoaded)) return;
     set({ subcontracting: (data ?? []) as ErpSubcontractOp[], subcontractingLoaded: true });
   },
 

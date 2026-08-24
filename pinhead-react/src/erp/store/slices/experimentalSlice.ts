@@ -15,7 +15,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
+import { arrivedLate, currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import { attachmentFilePath } from '../../utils/storageKey';
 import { TZ_BUCKET } from '../../types';
@@ -52,6 +52,9 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
   experimentalLoaded: false,
 
   loadExperimental: async () => {
+    // Снимок ДО ожидания — им отличается запоздавший ответ от повторной
+    // загрузки. Объяснение целиком — у `arrivedLate` в `store/shared`
+    const before = get().experimentalLoaded;
     const { data, error } = await erpQuery(() => supabase
       .from('erp_experimental')
       .select(EXP_SELECT)
@@ -60,6 +63,12 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       erpError('Не удалось загрузить экспериментальный цех', error);
       return;
     }
+    /**
+     * Пакет оболочки успел наполнить раздел, пока этот запрос летел, — и мог
+     * успеть человек. Ставить снимок поверх правки значит вернуть карточку
+     * назад молча.
+     */
+    if (arrivedLate(before, get().experimentalLoaded)) return;
     // Задачи внутри разработки — в порядке доски, а не в порядке вставки
     const rows = (data ?? []) as ErpExperimental[];
     for (const row of rows) {
