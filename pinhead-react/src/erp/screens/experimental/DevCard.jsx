@@ -281,6 +281,15 @@ export function DevCard({
   };
 
   /**
+   * Файл к задаче (правка 24.08, п. 4.4). Идёт тем же путём, что файлы
+   * финального пакета, — различается одна колонка (`taskId`). Второй загрузчик
+   * рядом означал бы две реализации привязки, уборки сироты и пути в бакете.
+   */
+  const uploadTaskFile = (taskId, file) => onUploadFile({
+    devId: dev.id, orderId: dev.order_id, kind: 'dev_task', file, taskId,
+  });
+
+  /**
    * Доработка нового круга. Состав задач считает `reworkPlan` по ВЫБРАННЫМ
    * областям (правки 20.08): прежняя жёсткая тройка `rework → sample → fitting`
    * перезапускала вышивку из-за длины рукава и не перезапускала крой вовсе.
@@ -519,6 +528,9 @@ export function DevCard({
           onSend={sendTask}
           onBlock={blockTask}
           canManage={canManage}
+          files={dev.attachments ?? []}
+          onUploadFile={uploadTaskFile}
+          onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
         />
 
         <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
@@ -537,6 +549,9 @@ export function DevCard({
           onSend={sendTask}
           onBlock={blockTask}
           canManage={canManage}
+          files={dev.attachments ?? []}
+          onUploadFile={uploadTaskFile}
+          onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
           emptyText="Дополнительных задач нет — добавьте, если нужна работа вне основных этапов."
         />
 

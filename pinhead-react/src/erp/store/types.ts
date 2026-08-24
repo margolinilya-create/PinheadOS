@@ -1032,6 +1032,8 @@ export interface ExperimentalSlice {
     orderId: string;
     kind: ErpAttachmentKind;
     file: File;
+    /** Задача, к которой приложен файл (п. 4.4). Пусто — файл всей разработки */
+    taskId?: string | null;
   }) => Promise<boolean>;
 
   /** Снять файл пакета (техпаспорт вышел новой версией, фото переснято) */

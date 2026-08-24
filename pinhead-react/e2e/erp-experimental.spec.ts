@@ -441,8 +441,19 @@ test.describe('Карточка разработки', () => {
     await expect(
       drawer.getByRole('row').filter({ hasText: 'Повторная примерка' }),
     ).toContainText('круг 2');
-    // Первый круг остался в истории — в этом и смысл новой строки
-    await expect(drawer.getByRole('row').filter({ hasText: 'Доработка: дно +2 см' })).toBeVisible();
+
+    /**
+     * Первый круг остался в истории — в этом и смысл новой строки. С правки
+     * 24.08 (п. 4.4) закрытые задачи живут в своём свёрнутом блоке: «отдельно
+     * показывать активные и завершённые». Раскрываем его явно — история обязана
+     * быть достижимой, а не просто существовать в разметке.
+     */
+    const doneBlock = drawer.locator('details')
+      .filter({ hasText: 'Завершённые задачи' }).first();
+    await doneBlock.locator('summary').click();
+    await expect(
+      doneBlock.getByRole('row').filter({ hasText: 'Доработка: дно +2 см' }),
+    ).toBeVisible();
   });
 
   test('доработка спрашивает ОБЛАСТИ и называет последствия', async ({ page }) => {
