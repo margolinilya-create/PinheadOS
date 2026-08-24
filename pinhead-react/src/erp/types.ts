@@ -62,8 +62,16 @@ export type WarehouseTaskType =
 /** Статусы задач склада по типам */
 export type MaterialReceiptStatus = 'awaiting' | 'accepted';
 export type MarkingStatus = 'new' | 'in_progress' | 'issued';
-export type PackShipStatus =
-  | 'awaiting_receipt' | 'accepted' | 'packing' | 'packed' | 'ready_to_ship' | 'shipped';
+/**
+ * «Упаковка и отгрузка» — ТРИ статуса и два действия (правка 23.08, п. 4).
+ *
+ * Прежние `awaiting_receipt`/`accepted` были недостижимы: задача заводится
+ * под условием `erp_can_pack_ship`, а та требует принятой приёмки ГП — то есть
+ * задача рождается уже принятой, и кнопки под этими статусами повторяли
+ * отдельную задачу «Приёмка ГП». `packed` и `ready_to_ship` означали одно
+ * событие. Схлопнуто миграцией 20260823170000 вместе с обоими писателями.
+ */
+export type PackShipStatus = 'packing' | 'ready_to_ship' | 'shipped';
 /** Приёмка готовой продукции от подрядчика (правка 4.2.1) */
 export type SubcontractReceiptStatus = 'awaiting_receipt' | 'accepted';
 /**
@@ -1002,10 +1010,7 @@ export const MARKING_STATUS_LABELS: Record<MarkingStatus, string> = {
 };
 
 export const PACK_SHIP_STATUS_LABELS: Record<PackShipStatus, string> = {
-  awaiting_receipt: 'Ожидает приёмки',
-  accepted: 'Принято',
   packing: 'На упаковке',
-  packed: 'Упаковано',
   ready_to_ship: 'Готово к отгрузке',
   shipped: 'Отгружено',
 };

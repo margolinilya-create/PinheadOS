@@ -18,7 +18,7 @@ import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
-  DEV_STAGE_LABELS, cuttingGate, cuttingWaitLabel, devBoardColumn, devStageStates,
+  DEV_STAGE_LABELS, cuttingGate, cuttingWaitLabel, devBoardColumn, devRouteSteps, devStageStates,
   devStageOfTask, extraTasks,
 } from '../../utils/experimentalBoard';
 import { DevStageRoute } from './DevStageRoute';
@@ -348,23 +348,17 @@ export function DevCard({
         </div>
       </div>
 
+      {/*
+        Progress-stepper маршрута (правка 23.08, п. 7): пять этапов, у каждого
+        видно состояние словами. Узлы считает `devRouteSteps` — из тех же
+        `devStageStates`, что рисуют доску: два ответа на один вопрос
+        разошлись бы. Сборка узлов стояла ЗДЕСЬ и состояний не показывала:
+        у всех шагов, кроме текущего и закрытых, вид был одинаковый.
+      */}
       <StageIndicator
         variant="dots"
         label="Путь разработки"
-        nodes={stageStates.map((st) => ({
-          key: st.stage,
-          label: DEV_STAGE_LABELS[st.stage],
-          title: st.waitingReason
-            ? `${DEV_STAGE_LABELS[st.stage]}: ${st.waitingReason}`
-            : DEV_STAGE_LABELS[st.stage],
-          // Пропущенный шаг НЕ помечается галочкой: она означает «выполнено»,
-          // а у образца без печати нанесения не было вовсе. Линия при этом
-          // идёт дальше — путь на нём не обрывается
-          state: st.stage === currentStage
-            ? (st.lane === 'blocked' ? 'blocked' : 'active')
-            : (st.lane === 'done' ? 'done' : undefined),
-          lineDone: st.lane === 'done' || st.lane === 'skipped',
-        }))}
+        nodes={devRouteSteps(stageStates, currentStage)}
       />
 
       {/* Две строки, ради которых заказчик и переделывает раздел: почему стоит

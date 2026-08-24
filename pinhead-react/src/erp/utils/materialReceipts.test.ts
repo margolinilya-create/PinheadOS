@@ -30,29 +30,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  functionBody, latestDefining, latestMatching, withoutComments,
+  functionBody, latestDefining, latestMatching, withoutComments, withoutJsComments,
 } from './migrations.testutil';
 
 const ACCEPT_SQL = latestDefining('erp_material_accept');
 const ROLLUP_SQL = latestDefining('erp_material_receipts_rollup');
 const src = (p: string) => readFileSync(join(process.cwd(), 'src/erp', p), 'utf8');
 
-/**
- * Исходник без комментариев JS.
- *
- * `withoutComments` из `migrations.testutil` снимает только SQL-строки `--`
- * и на JavaScript не действует. А проверки «этого здесь больше нет» ловятся
- * именно комментарием: объяснение, ПОЧЕМУ правила не стало, содержит те же
- * слова, что и само правило. На этом первая версия сторожа и упала — оба
- * падения были ложными.
- */
-function withoutJsComments(text: string): string {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => !line.trimStart().startsWith('//'))
-    .join('\n');
-}
 const WAREHOUSE_SLICE = src('store/slices/warehouseSlice.ts');
 const MATERIALS_SLICE = src('store/slices/materialsSlice.ts');
 const RECEIPT_CARD = src('screens/warehouse/MaterialReceiptCard.jsx');

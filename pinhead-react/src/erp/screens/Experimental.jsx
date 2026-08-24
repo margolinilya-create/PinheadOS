@@ -12,9 +12,7 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
-import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
-import { toast } from '../../store/useToastStore';
 import {
   DEV_STATE_LABELS,
   EMPTY_DEV_FILTERS,
@@ -115,7 +113,7 @@ export default function Experimental() {
    */
   const {
     orders, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, loadExperimental, createExperimental,
+    experimental, experimentalLoaded, loadExperimental,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -126,18 +124,17 @@ export default function Experimental() {
       experimental: s.experimental,
       experimentalLoaded: s.experimentalLoaded,
       loadExperimental: s.loadExperimental,
-      createExperimental: s.createExperimental,
     })),
   );
   const navigate = useNavigate();
   const location = useLocation();
 
-  /**
-   * Разработку ведёт технолог — под правом `experimental.manage`. Гейт стоит
-   * и на сервере; без права экран остаётся на ЧТЕНИЕ: видеть, что делается
-   * с образцом, полезно и цеху, и менеджеру заказа.
+  /*
+   * Права здесь больше не спрашиваются: единственным действием этого экрана
+   * было создание разработки, и оно снято правкой 23.08 (п. 6). Гейт
+   * `experimental.manage` остался там, где ведут саму разработку, —
+   * на странице карточки (`screens/DevPage`).
    */
-  const canManage = useErpAccess().can('experimental.manage');
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
     () => new Map((typeDict ?? []).map((d) => [d.code, d.name])), [typeDict]);
@@ -213,7 +210,6 @@ export default function Experimental() {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [newOrderId, setNewOrderId] = useState('');
 
   /**
    * Переадресация со старой ссылки на шторку. `replace`, а не `push`: запись
@@ -256,35 +252,22 @@ export default function Experimental() {
   const pageRows = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
 
 
-  /**
-   * Позиции-образцы без разработки. Показываем СПИСОК, а не заводим их пачкой:
-   * массовое создание дало бы полсотни пустых разработок, то есть мусор.
+  /*
+   * РУЧНОГО СОЗДАНИЯ РАЗРАБОТКИ ЗДЕСЬ НЕТ (правка заказчика 23.08, п. 6).
+   *
+   * «Разработка должна появляться в экспериментальном цехе только из
+   * соответствующей сделки/заказа». Единственный писатель — `createOrder`
+   * (`store/slices/orderWriteSlice`): он заводит разработку на КАЖДУЮ
+   * позицию-образец той же операцией, что и заказ.
+   *
+   * Вместе с селектом снят и блок «позиций-образцов без разработки: N».
+   * Он был компенсацией дефекта, которого больше нет: автосоздание падало
+   * 42501 МОЛЧА (у менеджера не было `experimental.manage`), и заказ-образец
+   * оставался без разработки — 15 из 21 на боевой базе. Право расширено,
+   * а отказ теперь называет себя через `erpError`. На 23.08 позиций без
+   * разработки НОЛЬ, то есть блок совместимости пуст — правило проекта
+   * разрешает снимать legacy именно с этого момента.
    */
-  const availableItems = useMemo(() => {
-    const taken = new Set(experimental.map((e) => e.item_id).filter(Boolean));
-    const out = [];
-    for (const o of orders) {
-      if (o.status !== 'active') continue;
-      for (const it of o.items ?? []) {
-        if (it.production_type !== 'samples' || taken.has(it.id)) continue;
-        out.push({ order: o, item: it });
-      }
-    }
-    return out;
-  }, [orders, experimental]);
-
-  const addDev = async () => {
-    if (!newOrderId) { toast.error('Выберите позицию-образец'); return; }
-    const found = availableItems.find(({ item }) => item.id === newOrderId);
-    if (!found) return;
-    const row = await createExperimental(found.order.id, {
-      item_id: found.item.id,
-      tech_name: found.item.variant
-        ? `${found.item.product_type} · ${found.item.variant}`
-        : found.item.product_type,
-    });
-    if (row) { setNewOrderId(''); openDev(row.id); }
-  };
 
   const set = (patch) => { setFilters({ ...filters, ...patch }); setPage(1); };
 
@@ -322,24 +305,6 @@ export default function Experimental() {
         onSearch={(v) => set({ q: v })}
         searchPlaceholder="Поиск: изделие, заказ, № сделки"
         searchLabel="Поиск по разработкам"
-        right={canManage && (
-          <>
-            <select
-              className={styles.select}
-              value={newOrderId}
-              onChange={(e) => setNewOrderId(e.target.value)}
-              aria-label="Позиция-образец для разработки"
-            >
-              <option value="">Позиция-образец…</option>
-              {availableItems.map(({ order, item }) => (
-                <option key={item.id} value={item.id}>
-                  №{order.bitrix_id || '—'} · {item.product_type}
-                </option>
-              ))}
-            </select>
-            <Button variant="primary" onClick={addDev}>+ Разработка</Button>
-          </>
-        )}
       >
         <button
           type="button"
@@ -423,26 +388,6 @@ export default function Experimental() {
               ))}
             </select>
           </label>
-        </div>
-      )}
-
-      {/*
-        Позиции-образцы без разработки. Раньше о них было не узнать: авто-создание
-        при заведении заказа падало 42501 молча (у менеджера нет `experimental.manage`),
-        и заказ-образец оставался без разработки — 15 из 21 на боевой базе.
-        Право расширено, но старые позиции сами не появятся; массово заводить их
-        нельзя — вышли бы пустые карточки, то есть мусор.
-      */}
-      {experimentalLoaded && canManage && availableItems.length > 0 && (
-        <div className={styles.toolbar} style={{ marginTop: -8 }}>
-          <span className={`${styles.chip} ${styles.chipWaiting}`}>
-            <Icon name="alert" size={13} />
-            {' '}
-            Позиций-образцов без разработки: {availableItems.length}
-          </span>
-          <span className={styles.subText}>
-            Выберите в списке справа те, которые ещё актуальны.
-          </span>
         </div>
       )}
 

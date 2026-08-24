@@ -104,7 +104,15 @@ describe('buildQueueEntries — группы', () => {
     expect(groups(buildQueueEntries([order()], DEPTS))).toEqual(['ready']);
   });
 
-  it('незавершённая зависимость держит этап в waiting с именем предыдущего цеха', () => {
+  /**
+   * ГРАНИЦА ДВУХ ОЖИДАНИЙ — ПРИЧИНА, А НЕ ЦЕХ (правки 23.08, пп. 2 и 3).
+   *
+   * Незакрытая ЗАКУПКА — снабжение, поэтому этап уходит в «Ожидают материалы»
+   * вместе с нехваткой материалов. До 23.08 он лежал в `waiting`, и у закроя
+   * получались ДВЕ группы ожидания об одном и том же снабжении — ровно то,
+   * на что жалуется п. 2. Причина при этом не меняется ни на слово.
+   */
+  it('незавершённая закупка — это ожидание СНАБЖЕНИЯ', () => {
     const o = order({
       items: [{ id: 'it1', qty: 100, stages: [
         stage({ id: 's-sup', department_id: 'd-sup', status: 'in_progress' }),
@@ -112,8 +120,27 @@ describe('buildQueueEntries — группы', () => {
       ] }],
     });
     const list = buildQueueEntries([o], DEPTS, { departmentId: 'd-cut' });
-    expect(groups(list)).toEqual(['waiting']);
+    expect(groups(list)).toEqual(['awaiting_materials']);
     expect(list[0].reason).toBe('Закупка: ещё не завершено');
+  });
+
+  /**
+   * Обратная половина того же правила, и она важнее прямой: незакрытый
+   * ПРОИЗВОДСТВЕННЫЙ цех остаётся в «Ожидает». Именно этого требует п. 3
+   * для швейки — «Ожидает» про закрой, ДТФ и вышивку, «Ожидают материалы»
+   * про ткань и фурнитуру. Съедь эта граница — швейка получила бы ровно тот
+   * экран, который документ просит разделить.
+   */
+  it('незавершённый производственный цех оставляет этап в «Ожидает»', () => {
+    const o = order({
+      items: [{ id: 'it1', qty: 100, stages: [
+        stage({ id: 's-cut', department_id: 'd-cut', status: 'in_progress' }),
+        stage({ id: 's-sew', department_id: 'd-sew', depends_on: ['s-cut'] }),
+      ] }],
+    });
+    const list = buildQueueEntries([o], DEPTS, { departmentId: 'd-sew' });
+    expect(groups(list)).toEqual(['waiting']);
+    expect(list[0].reason).toBe('Закройный цех: ещё не завершено');
   });
 
   it('done и in_progress остаются своими статусами и причины не получают', () => {
@@ -215,12 +242,13 @@ describe('buildQueueEntries — гейт материалов', () => {
 });
 
 describe('buildQueueEntries — гейт закупки', () => {
-  it('открытая задача закупки на этап держит его', () => {
+  it('открытая задача закупки на этап держит его — как ожидание снабжения', () => {
     const o = order({
       procurement_tasks: [{ id: 'p1', source_stage_id: 's1', status: 'new' }],
     });
     const list = buildQueueEntries([o], DEPTS);
-    expect(groups(list)).toEqual(['waiting']);
+    // Закупка на замену — то же снабжение, что нехватка материалов (правка 23.08)
+    expect(groups(list)).toEqual(['awaiting_materials']);
     expect(list[0].reason).toBe('Ожидает закупку материала на замену');
   });
 

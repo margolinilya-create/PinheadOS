@@ -231,12 +231,15 @@ export function QueueRow({
         </span>
       </div>
 
-      {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} compact />}
-
       {(reason || bypass || (group === 'blocked' && stage.block_reason) || rework || needsAck) && (
         <div className={styles.queueRowNotes}>
-          {/* Причина уже расписана списком материалов — не дублируем её строкой */}
-          {reason && group !== 'awaiting_materials' && (
+          {/*
+            Причина — компактный маркер у ОБЕИХ групп ожидания (правка 23.08,
+            п. 2.4). Прежде в «Ожидают материалы» её заменял развёрнутый разбор
+            на всю ширину; теперь разбор свёрнут внутри `MaterialWait` и стоит
+            ПОСЛЕ причины, а не вместо неё.
+          */}
+          {reason && (
             <span className={styles.queueReason}>
               <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
             </span>
@@ -276,6 +279,8 @@ export function QueueRow({
           )}
         </div>
       )}
+
+      {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} compact />}
 
       {open && (
         <div className={styles.queueRowPanel}>

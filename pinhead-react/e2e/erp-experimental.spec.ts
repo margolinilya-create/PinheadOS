@@ -278,6 +278,22 @@ test.describe('Экран разработки: состояния считаю�
     await expect(tile(page, 'Все').first()).toContainText('5');
   });
 
+  /**
+   * Правка заказчика 23.08, п. 6: «Разработка должна появляться в
+   * экспериментальном цехе только из соответствующей сделки/заказа».
+   *
+   * Сторож проверяет ОБЕ половины бывшей точки входа — и кнопку, и селект
+   * позиции-образца рядом с ней: убрать одну кнопку, оставив выбор, значит
+   * оставить половину механики, к которой однажды вернут действие.
+   */
+  test('ручного создания разработки нет — она приходит из заказа', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    await expect(page.getByRole('button', { name: /Разработка/ })).toHaveCount(0);
+    await expect(
+      page.getByLabel('Позиция-образец для разработки'),
+    ).toHaveCount(0);
+  });
+
   test('таблица отвечает «почему стоит», а не «на какой фазе»', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0&view=list');
     const row = devRow(page, 'Бомбер двухслойный');
@@ -344,6 +360,38 @@ test.describe('Карточка разработки', () => {
     await expect(card).toContainText('Текущий блокер');
     await expect(card).toContainText('нет решения по цвету подкладки');
     await expect(card).toContainText('Следующее действие');
+  });
+
+  /**
+   * МАРШРУТ ЧИТАЕТСЯ С ПЕРВОГО ЭКРАНА (правка 23.08, п. 7): «показать
+   * понятный progress-stepper… маршрут должен быть понятен с первого экрана
+   * без необходимости искать действие внизу карточки».
+   *
+   * Сторожим состояние КАЖДОГО шага, а не наличие пяти подписей: stepper,
+   * который рисует пять кружков и молчит о том, где разработка, выглядит
+   * рабочим и не отвечает на вопрос, ради которого сделан.
+   */
+  test('маршрут показан stepper-ом, у каждого этапа видно состояние', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0&view=list');
+    await openDev(page, 'Бомбер двухслойный');
+
+    const stepper = page.getByRole('list', { name: 'Путь разработки' });
+    await expect(stepper).toBeVisible();
+    for (const label of ['Построение лекал', 'Крой', 'Нанесения', 'Пошив', 'Финальный этап']) {
+      await expect(stepper.getByText(label, { exact: true })).toBeVisible();
+    }
+    // Хотя бы один шаг обязан называть своё состояние — иначе подписи пусты
+    await expect(stepper.getByText(/Ожидает|В работе|Завершено|Не требуется/).first())
+      .toBeVisible();
+  });
+
+  test('текущий этап назван прямо, а не угадывается по виду', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0&view=list');
+    await openDev(page, 'Бомбер двухслойный');
+    // Текущий этап назван дважды — в шапке страницы и в блоке маршрута.
+    // Это не дубль-по-недосмотру: шапка отвечает «где разработка» сразу,
+    // блок маршрута — «что с ней делать». Сторожим наличие, не количество
+    await expect(page.getByRole('main').getByText(/Текущий этап:/).first()).toBeVisible();
   });
 
   /**

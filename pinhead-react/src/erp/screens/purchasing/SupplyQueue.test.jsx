@@ -1,21 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SupplyQueue } from './SupplyQueue';
-import { useConfirmStore } from '../../../store/useConfirmStore';
 
 /**
  * Очередь закупки — блок, которого не было и из-за отсутствия которого
  * заказ с этапом «Закупка» не показывался нигде.
  *
- * Проверяем ровно то, ради чего блок сделан: заказ БЕЗ материалов виден
- * и его можно закрыть; закрытие досрочно требует объяснения; действия
- * гейтятся правами.
+ * С правки 23.08 (п. 1.1) это ТОЛЬКО НАВИГАЦИЯ: ключевые поля и «Открыть».
+ * Действия и их подтверждения переехали в карточку закупки и проверяются
+ * в `PurchaseCard.test.jsx` — здесь сторожим, что второй точки входа
+ * в те же действия не осталось.
  */
-
-vi.mock('../../store/useStagePermissions', () => ({
-  useStagePermissions: () => globalThis.__perms,
-}));
 
 const SUPPLY = { id: 'd-sup', code: 'supply', name: 'Закупка' };
 
@@ -32,30 +28,24 @@ function order(patch = {}) {
   };
 }
 
-function renderQueue(orders, perms = { take: true, complete: true }) {
-  globalThis.__perms = perms;
-  const handlers = { onTake: vi.fn(), onClose: vi.fn(), onAddMaterial: vi.fn() };
+function renderQueue(orders, { selectedId = null } = {}) {
+  const onSelect = vi.fn();
   render(
     <MemoryRouter>
-      <SupplyQueue orders={orders} supplyDept={SUPPLY} {...handlers} />
+      <SupplyQueue
+        orders={orders}
+        supplyDept={SUPPLY}
+        today="2026-08-23"
+        selectedId={selectedId}
+        onSelect={onSelect}
+      />
     </MemoryRouter>,
   );
-  return handlers;
+  return { onSelect };
 }
 
-/** Подтвердить открытый диалог, при необходимости заполнив поле причины */
-function answerDialog(value = '') {
-  const st = useConfirmStore.getState();
-  expect(st.open, 'диалог не открылся').toBe(true);
-  st._close(true, value);
-}
-
-beforeEach(() => {
-  useConfirmStore.setState({ open: false, prompt: null, _resolver: null });
-});
-
-describe('очередь закупки', () => {
-  it('заказ БЕЗ материалов виден и говорит об этом прямо', async () => {
+describe('очередь закупки — навигация', () => {
+  it('заказ БЕЗ материалов виден и говорит об этом прямо', () => {
     // Ровно тот заказ, который раньше исчезал: этап есть, материалов нет
     renderQueue([order()]);
     expect(screen.getByText(/№4821/)).toBeInTheDocument();
@@ -67,12 +57,12 @@ describe('очередь закупки', () => {
     expect(screen.getByText(/Заказов, ожидающих закупки, нет/)).toBeInTheDocument();
   });
 
-  it('показывает, сколько материалов на месте', () => {
+  it('показывает прогресс материалов «N из M» со шкалой', () => {
     renderQueue([order({ materials: [
       { id: 'm1', name: 'Футер', source: 'purchase', status: 'received', qty_expected: 10 },
       { id: 'm2', name: 'Бирки', source: 'purchase', status: 'pending', qty_expected: 5 },
     ] })]);
-    expect(screen.getByText('1 из 2 на месте')).toBeInTheDocument();
+    expect(screen.getByText('1 из 2')).toBeInTheDocument();
   });
 
   it('предупреждает о позициях без планового количества', () => {
@@ -83,90 +73,42 @@ describe('очередь закупки', () => {
     expect(screen.getByText(/без планового кол-ва: 1/)).toBeInTheDocument();
   });
 
-  it('досрочное закрытие требует причины и передаёт её наверх', async () => {
-    const h = renderQueue([order()]);
-    fireEvent.click(screen.getByRole('button', { name: 'Закупка завершена' }));
-    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
-    // Поле причины обязательно — этап закрывается пустым
-    expect(useConfirmStore.getState().prompt?.required).toBe(true);
-    answerDialog('Давальческое сырьё');
-    await waitFor(() => expect(h.onClose).toHaveBeenCalledWith('o1', 'Давальческое сырьё'));
+  it('«Открыть» выбирает заказ, а не уводит с экрана', () => {
+    const { onSelect } = renderQueue([order()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
+    expect(onSelect).toHaveBeenCalledWith('o1');
   });
 
-  it('всё на месте — обычное подтверждение, без поля причины', async () => {
-    const h = renderQueue([order({ materials: [
-      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received', qty_expected: 10 },
-    ] })]);
-    fireEvent.click(screen.getByRole('button', { name: 'Закупка завершена' }));
-    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
-    expect(useConfirmStore.getState().prompt).toBeNull();
-    answerDialog();
-    await waitFor(() => expect(h.onClose).toHaveBeenCalled());
-  });
-
-  /**
-   * «Взять в работу» СПРАШИВАЕТ СРОК — с 23.08.
-   *
-   * До этого кнопка переводила этапы закупки в работу молча, и такой этап
-   * выпадал из контроля сроков целиком: просрочка этапа считается
-   * по `planned_end`, «Загрузка цехов» строится из него же. Форма цеха
-   * дату требует, а этот путь шёл мимо неё — одна из двух найденных дыр.
-   */
-  it('«Взять в работу» спрашивает план завершения и передаёт его', async () => {
-    const h = renderQueue([order()]);
-    fireEvent.click(screen.getByRole('button', { name: 'Взять в работу' }));
-    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
-
-    const { prompt } = useConfirmStore.getState();
-    expect(prompt?.type, 'нативный календарь — лучший тач-ввод на планшете').toBe('date');
-    expect(prompt?.required, 'пустая дата оставила бы этап без срока').toBe(true);
-    expect(prompt?.initialValue, 'поле открывается с предложением, а не пустым')
-      .toMatch(/^\d{4}-\d{2}-\d{2}$/);
-
-    answerDialog('2026-09-01');
-    await waitFor(() => expect(h.onTake).toHaveBeenCalledWith('o1', '2026-09-01'));
-  });
-
-  it('отказ от диалога не берёт закупку в работу', async () => {
-    const h = renderQueue([order()]);
-    fireEvent.click(screen.getByRole('button', { name: 'Взять в работу' }));
-    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
-    useConfirmStore.getState()._close(false);
-    await waitFor(() => expect(useConfirmStore.getState().open).toBe(false));
-    expect(h.onTake).not.toHaveBeenCalled();
+  it('выбранная строка помечена и её кнопка нажата', () => {
+    renderQueue([order()], { selectedId: 'o1' });
+    const btn = screen.getByRole('button', { name: 'Открыт' });
+    expect(btn).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('взятая в работу закупка помечена статусом', () => {
     renderQueue([order({ items: [{ id: 'i1', stages: [stage({ status: 'in_progress' })] }] })]);
     expect(screen.getByText('В работе')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Взять в работу' })).toBeNull();
   });
 
-  it('блокировка перебивает всё и показывает причину', () => {
+  it('блокировка видна статусом', () => {
     renderQueue([order({ items: [{ id: 'i1', stages: [
       stage({ status: 'blocked', block_reason: 'Нет поставщика' }),
     ] }] })]);
     expect(screen.getByText('Заблокировано')).toBeInTheDocument();
-    expect(screen.getByText('Нет поставщика')).toBeInTheDocument();
   });
 
-  it('без прав действий нет, но строка видна', () => {
-    // Менеджеру заказа важно видеть, где стоит его заказ, даже без права работать
-    renderQueue([order()], { take: false, complete: false });
-    expect(screen.getByText(/№4821/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Взять в работу' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Закупка завершена' })).toBeNull();
-    // «+ Материал» остаётся: заведение закупочной строки правом не гейтится
-    expect(screen.getByRole('button', { name: '+ Материал' })).toBeInTheDocument();
-  });
-
-  it('считает открытые этапы заказа, а не все подряд', () => {
-    renderQueue([order({ items: [
-      { id: 'i1', stages: [stage({ id: 'a' })] },
-      { id: 'i2', stages: [stage({ id: 'b' })] },
-      { id: 'i3', stages: [stage({ id: 'c', status: 'done' })] },
-    ] })]);
+  /**
+   * ГЛАВНЫЙ СТОРОЖ ЭТОГО ФАЙЛА (п. 1.2): «рабочие действия не держать
+   * россыпью в общем списке». Проверяется ОТСУТСТВИЕ — а значит, стоит
+   * перечислить их поимённо: пропущенная кнопка вернулась бы молча,
+   * и на экране снова оказались бы две рабочие зоны.
+   */
+  it('рабочих действий в списке нет — они в карточке', () => {
+    renderQueue([order()]);
     const row = screen.getByText(/№4821/).closest('tr');
-    expect(within(row).getByText('2 позиции')).toBeInTheDocument();
+    for (const name of ['Печать', '+ Материал', 'Взять в работу', 'Закупка завершена', 'Завершить закупку']) {
+      expect(within(row).queryByRole('button', { name }), name).toBeNull();
+      expect(within(row).queryByRole('link', { name }), name).toBeNull();
+    }
   });
 });

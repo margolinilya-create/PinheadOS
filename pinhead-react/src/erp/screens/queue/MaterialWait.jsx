@@ -91,9 +91,24 @@ export function MaterialWait({ materials, compact = false }) {
     setBusy(null);
   };
 
+  /*
+   * БЛОК СВЁРНУТ ПО УМОЛЧАНИЮ (правка 23.08, п. 2.4): «отдельный большой
+   * оранжевый блок на всю ширину по умолчанию не показывать» — он занимал
+   * основную часть экрана у задания, которое всё равно нельзя начать.
+   * Причина ожидания при этом не теряется: её показывает компактный маркер
+   * в самой карточке, а здесь лежит разбор — чего ждём, от кого и когда.
+   *
+   * Свёртка живёт ЗДЕСЬ, а не у потребителей: их два (строка и карточка
+   * планшета), и две обёртки разошлись бы молча — обе «работают», просто
+   * показывают разное.
+   */
   return (
-    <ul className={`${styles.matWaitList} ${compact ? styles.matWaitCompact : ''}`}>
-      {materials.map((m) => {
+    <details className={styles.matWaitBlock}>
+      <summary className={styles.subText}>
+        Материалы, которых ждём — {materials.length}
+      </summary>
+      <ul className={`${styles.matWaitList} ${compact ? styles.matWaitCompact : ''}`}>
+        {materials.map((m) => {
         const facts = [
           m.color ? `цвет ${m.color}` : null,
           m.qty ? `нужно ${m.qty}` : null,
@@ -133,8 +148,9 @@ export function MaterialWait({ materials, compact = false }) {
               </Button>
             )}
           </li>
-        );
-      })}
-    </ul>
+          );
+        })}
+      </ul>
+    </details>
   );
 }

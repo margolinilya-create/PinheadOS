@@ -532,6 +532,11 @@
 .thSortArrow { opacity: 0.45; font-size: 11px; }
 .thSorted .thSortArrow { opacity: 1; color: var(--accent); }
 .table tr:last-child td { border-bottom: none; }
+/* Выбранная строка списка-навигации (мастер-деталь раздела «Закупка»,
+   правка 23.08, п. 1). Объявлена ЗДЕСЬ, рядом со своей базой `.table td`:
+   специфичность у них равна, спор решает порядок, а между CSS-чанками
+   порядка не существует. */
+.rowSelected td { background: var(--bg-info); }
 
 /* ─── Статус-чипы ───
    11.5px — осознанное исключение из правила «мелкий текст ≥12px»: это не текст
@@ -1202,6 +1207,20 @@
    стадии маршрута нельзя жертвовать, а --color-warning на белом это 2.15:1. */
 .stepperDotActive { border-color: var(--color-warning); color: var(--color-warning-ink); box-shadow: 0 0 0 4px var(--bg-warning); }
 .stepperDotBlocked { border-color: var(--color-error); color: var(--color-error-ink); }
+/* Пропущенный/не требующийся шаг — приглушён, но читаем: он часть маршрута,
+   и «его здесь нет» отличается от «его не было в плане» (правка 23.08, п. 7) */
+.stepperDotSkipped { border-style: dashed; color: var(--text-dim); }
+/* Состояние шага словами под его названием: «Завершено · 19.08», «В работе».
+   Документ требует показывать состояние каждого этапа, а не только текущего */
+.stepperText { display: flex; flex-direction: column; gap: 1px; margin: 0 8px 0 6px; }
+/* Внутри колонки боковые отступы задаёт она сама — иначе они удвоятся */
+.stepperText .stepperLabel, .stepperText .stepperSub { margin: 0; }
+.stepperSub {
+  margin: 0 8px 0 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 .stepperLabel {
   margin: 0 8px 0 6px;
   font-size: 11px;

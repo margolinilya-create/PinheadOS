@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { PreliminarySection } from './purchasing/PreliminarySection';
@@ -24,10 +24,11 @@ import { Icon } from '../components/Icon';
 import { sortRows, useTableSort } from '../utils/tableSort';
 import { useErpStore } from '../store/useErpStore';
 import { OrderLink } from '../components/OrderLink';
-import { orderLinkTarget } from '../utils/orderLink';
 import { toast } from '../../store/useToastStore';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
+import { useStagePermissions } from '../store/useStagePermissions';
 import { SupplyQueue } from './purchasing/SupplyQueue';
+import { PurchaseCard, PurchaseCardEmpty } from './purchasing/PurchaseCard';
 import { findSupplyDept, ordersAwaitingSupply } from '../utils/supply';
 import {
   MATERIAL_STATUS_LABELS,
@@ -270,13 +271,6 @@ const TABS = [
  * клик по всей плитке фильтрует список по её статусу, а если позиция одна —
  * сразу открывает карточку её заказа.
  */
-const KPIS = [
-  { key: 'all', icon: 'orders', cls: '', label: 'Всего строк', hint: 'Показать все закупки без фильтра' },
-  { key: 'awaiting', icon: 'clock', cls: 'kpiIconWarn', label: 'Ожидается', hint: 'Позиции, ожидающие заказа или обработки' },
-  { key: 'transit', icon: 'truck', cls: '', label: 'В пути', hint: 'Отправленные, но ещё не поступившие позиции' },
-  { key: 'arrived', icon: 'checkCircle', cls: 'kpiIconOk', label: 'Пришло', hint: 'Поступившие позиции' },
-  { key: 'overdue', icon: 'alert', cls: 'kpiIconDanger', label: 'Просрочено', hint: 'Просроченные позиции' },
-];
 
 export default function FabricPurchasing() {
   const {
@@ -313,8 +307,9 @@ export default function FabricPurchasing() {
    */
   const isCompact = useCompactLayout();
   const today = factoryToday();
-  const navigate = useNavigate();
-  const location = useLocation();
+  // Контекст экрана — в адресе: выбранный заказ (`?supply=`) переживает возврат
+  // из карточки заказа, и ссылкой на конкретную закупку можно поделиться
+  const [params, setParams] = useSearchParams();
 
   // Смена сортировки возвращает на первую страницу: иначе человек нажимает
   // «по сроку» и остаётся на пятой странице уже другого списка
@@ -332,6 +327,31 @@ export default function FabricPurchasing() {
   const supplyDept = useMemo(() => findSupplyDept(departments), [departments]);
   const supplyOrders = useMemo(
     () => ordersAwaitingSupply(orders, departments), [orders, departments]);
+  /**
+   * Права спрашиваются ПО ДЕЙСТВИЮ и по цеху закупки — так же, как в очереди
+   * цеха. Без прав карточка остаётся на чтение: видеть свою закупку важно
+   * и тому, кто в ней не работает (менеджер заказа).
+   */
+  const supplyPerms = useStagePermissions(supplyDept?.id ?? null);
+
+  /**
+   * ЗАВЕРШЁННЫЕ ЗАКУПКИ (п. 1.5–1.6). Активная очередь показывает только
+   * незакрытое — «после действия „Завершить закупку" заказ автоматически
+   * скрывается из основной рабочей очереди». Но данные не удаляются:
+   * «сохраняются материалы, поставщики, артикулы, количества, цены, даты,
+   * документы, комментарии и история действий».
+   *
+   * Отсюда второй список, СВЁРНУТЫЙ по умолчанию («архив по умолчанию
+   * скрыт»): заказы с заведёнными материалами, у которых открытых этапов
+   * закупки уже нет. Без него материалы закрытых заказов стали бы
+   * недостижимы вовсе — их таблица раньше показывала общим списком.
+   */
+  const doneOrders = useMemo(() => {
+    const openIds = new Set(supplyOrders.map((o) => o.id));
+    return activeOrders.filter((o) => !openIds.has(o.id) && (o.materials?.length ?? 0) > 0);
+  }, [activeOrders, supplyOrders]);
+  const selectableOrders = useMemo(
+    () => [...supplyOrders, ...doneOrders], [supplyOrders, doneOrders]);
 
   /** Плоские закупочные строки {order, material, group} по активным заказам */
   const allRows = useMemo(() => {
@@ -348,9 +368,38 @@ export default function FabricPurchasing() {
     return c;
   }, [allRows]);
 
+  /**
+   * ВЫБРАННЫЙ ЗАКАЗ ЖИВЁТ В АДРЕСЕ (`?supply=`), правка 23.08, п. 1.
+   *
+   * Экран стал мастер-деталью: сверху список-навигация, ниже карточка закупки
+   * выбранного заказа. Состояние такого выбора — контекст списка, а контекст
+   * в проекте живёт в URL: иначе ссылку на конкретную закупку нельзя переслать,
+   * а возврат из карточки заказа открывал бы пустой экран.
+   *
+   * Пропавший из активной очереди заказ (закупку завершили) выбор снимает сам:
+   * карточка закрытой закупки в активном разделе — ровно тот шум, от которого
+   * уходит п. 1.5.
+   */
+  const requestedId = params.get('supply');
+  const selectedOrder = useMemo(
+    () => selectableOrders.find((o) => o.id === requestedId) ?? null,
+    [selectableOrders, requestedId],
+  );
+  const selectOrder = (id) => {
+    setParams((prev) => {
+      const out = new URLSearchParams(prev);
+      if (!id || id === out.get('supply')) out.delete('supply'); else out.set('supply', id);
+      return out;
+    }, { replace: true });
+    setPage(1);
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allRows.filter((r) => {
+      // Карточка показывает материалы ТОЛЬКО своего заказа (п. 1.4): общая
+      // таблица всех заказов и была второй рабочей зоной, на которую жалоба
+      if (selectedOrder && r.order.id !== selectedOrder.id) return false;
       if (tab !== 'all' && r.group !== tab) return false;
       if (!q) return true;
       return r.order.title.toLowerCase().includes(q)
@@ -359,7 +408,7 @@ export default function FabricPurchasing() {
         || (r.m.article || '').toLowerCase().includes(q)
         || (r.m.supplier || '').toLowerCase().includes(q);
     });
-  }, [allRows, tab, query]);
+  }, [allRows, tab, query, selectedOrder]);
 
   // Сортировка идёт ДО пагинации: иначе отсортировалась бы только текущая страница
   const sorted = useMemo(
@@ -389,19 +438,7 @@ export default function FabricPurchasing() {
   /** Сброс подбора для «ничего не найдено» — и поиск, и вкладка сразу */
   const resetFilters = () => { setQuery(''); setTab('all'); setPage(1); };
 
-  /**
-   * Клик по показателю: несколько позиций — список с уже применённым фильтром,
-   * одна — сразу карточка её заказа (правка 14).
-   */
-  const openKpi = (key) => {
-    const rows = key === 'all' ? allRows : allRows.filter((r) => r.group === key);
-    if (rows.length === 1) {
-      navigate(...orderLinkTarget(rows[0].order.id, location));
-      return;
-    }
-    setTab(key);
-    setPage(1);
-  };
+
 
   return (
     <>
@@ -416,10 +453,28 @@ export default function FabricPurchasing() {
         <SupplyQueue
           orders={supplyOrders}
           supplyDept={supplyDept}
-          onTake={takeSupply}
-          onClose={closeSupply}
-          onAddMaterial={(orderId) => setAdding({ orderId })}
+          today={today}
+          selectedId={selectedOrder?.id ?? null}
+          onSelect={selectOrder}
         />
+      )}
+
+      {/*
+        Завершённые закупки — свёрнуты («архив по умолчанию скрыт», п. 1.6).
+        Тот же список-навигация: выбор открывает ту же карточку, и история
+        по заказу остаётся достижимой целиком.
+      */}
+      {loaded && doneOrders.length > 0 && (
+        <details className={styles.matSection}>
+          <summary>Завершённые закупки — {doneOrders.length}</summary>
+          <SupplyQueue
+            orders={doneOrders}
+            supplyDept={supplyDept}
+            today={today}
+            selectedId={selectedOrder?.id ?? null}
+            onSelect={selectOrder}
+          />
+        </details>
       )}
 
       {/* Предварительная закупка (п. 17): исключение при сжатых сроках,
@@ -427,31 +482,29 @@ export default function FabricPurchasing() {
           на вопрос «что делать сейчас» */}
       {loaded && <PreliminarySection orders={orders} />}
 
-      {loaded && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {KPIS.map((k) => {
-            const val = counts[k.key];
-            const active = tab === k.key;
-            return (
-              <button
-                key={k.key}
-                type="button"
-                aria-pressed={active}
-                title={k.hint}
-                className={`${styles.kpiCard} ${styles.kpiCardClickable} ${active ? styles.kpiCardActive : ''}`}
-                onClick={() => openKpi(k.key)}
-              >
-                <span className={`${styles.kpiIcon} ${k.cls ? styles[k.cls] : ''}`}><Icon name={k.icon} size={20} /></span>
-                <span className={styles.kpiBody}>
-                  <span className={styles.kpiCardLabel}>{k.label}</span>
-                  <span className={styles.kpiCardValue}>{val}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/*
+        КАРТОЧКА ЗАКУПКИ выбранного заказа (п. 1). Пока заказ не выбран —
+        подсказка, что делать: пустой экран под списком читался бы как поломка.
+      */}
+      {loaded && !selectedOrder && supplyOrders.length > 0 && <PurchaseCardEmpty />}
 
+      {/*
+        ПЛИТКИ-ПОКАЗАТЕЛИ ЭКРАНА СНЯТЫ (правка 23.08, п. 1.3). Они были вторым
+        видом ТОГО ЖЕ фильтра, что чипы в панели ниже (ключи совпадали
+        до одного), и заодно тем самым «общим статусом материалов ниже
+        по экрану», на который жалуется документ. Статус теперь показывает
+        сводка КАРТОЧКИ выбранного заказа — сразу под шапкой, без прокрутки.
+      */}
+      {loaded && selectedOrder && (
+        <PurchaseCard
+          order={selectedOrder}
+          supplyDept={supplyDept}
+          perms={supplyPerms}
+          today={today}
+          onTake={takeSupply}
+          onClose={closeSupply}
+          onAddMaterial={(orderId) => setAdding({ orderId })}
+        >
       {tab !== 'all' && (
         <div className={styles.toolbar} style={{ marginTop: -8 }}>
           <span className={`${styles.chip} ${styles.chipProgress}`}>
@@ -598,6 +651,8 @@ export default function FabricPurchasing() {
           page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
           onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
         />
+      )}
+        </PurchaseCard>
       )}
 
       {procurementRows.length > 0 && (

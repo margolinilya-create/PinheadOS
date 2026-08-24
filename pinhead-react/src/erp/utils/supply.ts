@@ -88,10 +88,19 @@ export interface SupplyMaterialSummary {
   inTransit: number;
   /** Сколько пришло или зарезервировано со склада */
   arrived: number;
+  /** Сколько ещё не оформлено закупщиком (документ 23.08, п. 1.3) */
+  notOrdered: number;
+  /**
+   * Позиции с проблемой: план прихода прошёл, а материал не на месте, либо
+   * у закупаемой строки нет планового количества (без него приёмка на складе
+   * не сверится, и закупка не закроется автоматически никогда).
+   */
+  problems: ErpMaterial[];
 }
 
 export function supplyMaterialSummary(
   materials: readonly ErpMaterial[] | null | undefined,
+  today: string | null = null,
 ): SupplyMaterialSummary {
   const list = materials ?? [];
   const settled = list.filter(isMaterialSettled).length;
@@ -115,6 +124,23 @@ export function supplyMaterialSummary(
     inTransit: list.filter(
       (m) => m.status === 'ordered' || m.status === 'in_transit' || m.status === 'partial').length,
     arrived: list.filter((m) => m.status === 'received' || m.status === 'reserved').length,
+    notOrdered: list.length - list.filter(
+      (m) => (m.qty_ordered != null && m.qty_ordered > 0) || Boolean(m.ordered_on)).length,
+    /**
+     * «Проблемы или просрочено» из сводки карточки (п. 1.3). Считается ЗДЕСЬ,
+     * а не на экране: величина закупочная, и вторая её реализация рядом
+     * с таблицей разошлась бы с плиткой молча — обе «работают», просто
+     * считают разное.
+     *
+     * `today` передаётся аргументом, а не берётся из `Date`: календарный день
+     * в проекте даёт `utils/date`, а чистая функция не должна зависеть
+     * от часов машины (правило тестов дат).
+     */
+    problems: list.filter((m) => {
+      if (isMaterialSettled(m)) return false;
+      if (m.source === 'purchase' && (m.qty_expected == null || m.qty_expected <= 0)) return true;
+      return Boolean(today && m.eta_date && m.eta_date < today);
+    }),
   };
 }
 
@@ -138,4 +164,51 @@ export function ordersAwaitingSupply<T extends OrderLike & { status: string }>(
   if (!supply) return [];
   return orders.filter(
     (o) => o.status === 'active' && openSupplyStages(o, supply.id).length > 0);
+}
+
+/**
+ * СНАБЖЕНЧЕСКОЕ ЛИ ЭТО ОЖИДАНИЕ (правки заказчика 23.08, пп. 2 и 3).
+ *
+ * ЗАДАЧА, КОТОРУЮ РЕШАЕТ ФУНКЦИЯ. Документ требует ПРОТИВОПОЛОЖНОГО для двух
+ * цехов на одном экране: у закроя «Ожидает» и «Ожидают материалы» объединить
+ * («нет отдельного верхнеуровневого блока»), у швейки — оставить разными
+ * («не объединять этот блок с обычным Ожидает»). Поцеховой настройки здесь
+ * быть не может: правило проекта запрещает держать в коде константы вида
+ * «ткань → закрой», а настройка в админке — это переключатель, о котором
+ * через месяц никто не вспомнит.
+ *
+ * РАЗРЕШЕНИЕ: делим не по цеху, а по ПРИЧИНЕ, и обе формулировки документа
+ * оказываются одним правилом.
+ *   · снабжение — нет материалов, идёт закупка на замену, или блокирует этап
+ *     НЕпроизводственного участка закупки;
+ *   · производство — ждём предыдущий ЦЕХ или ТЗ.
+ *
+ * У закроя ожидание почти всегда снабженческое («Закупка: ещё не завершено»
+ * приходит именно отсюда — этап `cutting` зависит от этапа `supply`), поэтому
+ * группа «Ожидает» остаётся пустой и не рисуется вовсе: на экране одна
+ * свёрнутая группа внизу, как и просит п. 2. У швейки наполнены обе, и они
+ * разведены ровно по границе из п. 3: «Ожидает» — незавершённый закрой, ДТФ,
+ * вышивка; «Ожидают материалы» — не хватает ткани, бирки, молнии.
+ *
+ * Участок закупки определяется ЧЕРЕЗ СПРАВОЧНИК (`findSupplyDept`), а не по
+ * коду на месте: код `supply` живёт в этом файле ровно один раз.
+ */
+export function isSupplyWait(input: {
+  /** Материалы, которых не хватает этапу */
+  missingMaterials: readonly ErpMaterial[];
+  /** Этап ждёт закупку материала на замену (`erp_procurement_tasks`) */
+  awaitingProcurement: boolean;
+  /** Проверяемый этап и все этапы позиции — чтобы пройти по `depends_on` */
+  stage: Pick<ErpItemStage, 'depends_on'>;
+  itemStages: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[];
+  supplyDeptId: string | null | undefined;
+}): boolean {
+  if (input.missingMaterials.length > 0) return true;
+  if (input.awaitingProcurement) return true;
+  if (!input.supplyDeptId) return false;
+  const byId = new Map(input.itemStages.map((s) => [s.id, s]));
+  return (input.stage.depends_on ?? []).some((id) => {
+    const dep = byId.get(id);
+    return !!dep && !CLOSED.has(dep.status) && dep.department_id === input.supplyDeptId;
+  });
 }

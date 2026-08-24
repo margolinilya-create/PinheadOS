@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
+import { formatDateShort } from '../../utils/time';
 import { DEV_TASK_STATUS_LABELS } from '../../types';
 import {
   DEV_LANE_TITLES, DEV_STAGE_LABELS, devStageAction,
 } from '../../utils/experimentalBoard';
 import { isDelegated, isTaskReady, taskLabel } from '../../utils/experimentalTasks';
-import { confirm } from '../../../store/useConfirmStore';
+import { confirmWithInput } from '../../../store/useConfirmStore';
 import styles from '../../styles';
 
 /** Дорожка шага → вид бейджа: те же слова, что на доске */
@@ -65,6 +67,18 @@ export function DevStageRoute({
    * Завершение этапа перечисляет, что именно закроется. Молча закрыть чужие
    * задачи нельзя — правило проекта про необратимые действия: последствия
    * называются текстом до нажатия.
+   *
+   * РЕЗУЛЬТАТ ЭТАПА (правка 23.08, п. 7): «дать отдельный блок „Результат
+   * этапа": описание результата, комментарий, ответственный, дата». Он
+   * спрашивается ЗДЕСЬ, одним действием с завершением, и пишется в поле
+   * `result` каждой закрываемой задачи — туда же, куда его пишет проверка
+   * образца. Отдельная форма рядом с кнопкой была бы вторым механизмом,
+   * который можно не заполнить: правило проекта про необязательный шаг,
+   * которым за полтора месяца не воспользовались ни разу.
+   *
+   * Этап `patterns` этим не задет: техническое название лекал он требует
+   * своим гейтом в `DevCard.updateTask` — оно пишется в колонку финального
+   * пакета, а не в результат задачи.
    */
   const completeStage = async (state) => {
     const rows = movable(state);
@@ -72,16 +86,27 @@ export function DevStageRoute({
       (t) => isDelegated(t) && t.status !== 'done' && t.status !== 'cancelled',
     );
     if (delegated.length > 0) return;
-    const ok = await confirm({
+    const { ok, value } = await confirmWithInput({
       title: `Завершить этап «${DEV_STAGE_LABELS[state.stage]}»?`,
       message: rows.length > 0
         ? `Будут отмечены готовыми: ${rows.map((t) => taskLabel(t, typeNames)).join(', ')}.`
+          + ' После завершения карточка перейдёт к следующему этапу маршрута.'
         : 'Все задачи этапа уже закрыты.',
       confirmLabel: 'Завершить',
+      prompt: {
+        label: 'Результат этапа',
+        placeholder: 'Выкроены все детали, расход в норме, брак не выявлен',
+        // Необязателен: этап без описания завершить всё равно можно —
+        // иначе цех начнёт писать «ок», и поле перестанет что-либо значить
+        required: false,
+      },
     });
     if (!ok) return;
     setBusy(true);
-    for (const t of rows) await onUpdateTask(t.id, { status: 'done' });
+    const result = (value ?? '').trim();
+    for (const t of rows) {
+      await onUpdateTask(t.id, result ? { status: 'done', result } : { status: 'done' });
+    }
     setBusy(false);
   };
 
@@ -101,7 +126,11 @@ export function DevStageRoute({
             style={isCurrent ? undefined : { opacity: 0.75 }}
           >
             <div className={styles.checkRow}>
-              <strong>{DEV_STAGE_LABELS[state.stage]}</strong>
+              {/* «Текущий этап: …» — прямое требование п. 7: маршрут должен
+                  читаться с первого экрана, без поиска действия внизу */}
+              <strong>
+                {isCurrent ? `Текущий этап: ${DEV_STAGE_LABELS[state.stage]}` : DEV_STAGE_LABELS[state.stage]}
+              </strong>
               <Badge variant={LANE_VARIANT[state.lane] ?? 'neutral'}>
                 {DEV_LANE_TITLES[state.lane]}
               </Badge>
@@ -124,6 +153,23 @@ export function DevStageRoute({
                     {taskLabel(t, typeNames)} — {DEV_TASK_STATUS_LABELS[t.status]}
                     {t.responsible ? ` · ${t.responsible}` : ''}
                     {isDelegated(t) ? ' · передано в цех' : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/*
+              Зафиксированный результат ЗАВЕРШЁННОГО этапа виден, а не спрятан
+              в истории: без него блок «Результат этапа» был бы полем, которое
+              заполняют и больше никогда не читают.
+            */}
+            {state.lane === 'done' && (
+              <ul className={styles.stackTight}>
+                {state.tasks.filter((t) => t.result).map((t) => (
+                  <li key={t.id} className={styles.subText}>
+                    <Icon name="check" size={13} /> {t.result}
+                    {t.done_on ? ` · ${formatDateShort(t.done_on)}` : ''}
+                    {t.responsible ? ` · ${t.responsible}` : ''}
                   </li>
                 ))}
               </ul>

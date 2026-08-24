@@ -101,12 +101,19 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
         </span>
       )}
 
-      {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} />}
-      {reason && group !== 'awaiting_materials' && (
+      {/*
+        Причина ожидания — КОМПАКТНЫЙ МАРКЕР, и он есть у обеих групп ожидания
+        (правка 23.08, п. 2.4). Раньше в «Ожидают материалы» вместо строки
+        причины разворачивался блок разбора на всю ширину: у задания, которое
+        всё равно нельзя начать, он занимал основную часть экрана. Теперь
+        сначала причина одной строкой, разбор — свёрнут внутри `MaterialWait`.
+      */}
+      {reason && (
         <div className={styles.queueReason}>
           <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
         </div>
       )}
+      {group === 'awaiting_materials' && <MaterialWait materials={missingMaterials} />}
       {stage.status === 'blocked' && stage.block_reason && (
         <div className={styles.queueReason}>
           <span className={styles.cellWithIcon}><Icon name="ban" size={14} />{stage.block_reason}</span>
