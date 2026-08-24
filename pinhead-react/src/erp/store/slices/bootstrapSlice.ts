@@ -55,6 +55,14 @@ export const bootstrapSlice: StateCreator<ErpStore, [], [], BootstrapSlice> = (s
 
   loadBootstrap: async () => {
     if (get().bootstrapLoaded) return;
+    /**
+     * Снимок ДО ожидания — им отличается «запоздавший ответ» от «повторной
+     * загрузки». См. развёрнутое объяснение у `set` ниже.
+     */
+    const before = {
+      experimental: get().experimentalLoaded,
+      subcontracting: get().subcontractingLoaded,
+    };
     const payload = await cachedQuery<BootstrapPayload | null>(BOOTSTRAP_CACHE_ID, async () => {
       // try/catch, а не только проверка `error`: supabase-js возвращает `error`
       // на ответ сервера, но БРОСАЕТ на сбое до ответа (нет сети, CORS, клиент
@@ -88,16 +96,35 @@ export const bootstrapSlice: StateCreator<ErpStore, [], [], BootstrapSlice> = (s
       (matrix[row.role] ??= {})[row.permission] = row.allowed;
     }
 
+    /**
+     * ЗАПОЗДАВШИЙ ПАКЕТ НЕ ЗАТИРАЕТ ТО, ЧТО ЗАГРУЗИЛОСЬ ПОКА ОН ЛЕТЕЛ
+     * (найдено падением e2e 24.08).
+     *
+     * Разработки и подряд приезжают ДВУМЯ путями: этим пакетом и своим `load*`
+     * у экрана, — и оба стартуют при открытии раздела. Если экран отрисовался
+     * от своего запроса, человек успевает нажать кнопку, а пакет прилетает
+     * следом и ставит СНИМОК ДО правки: карточка молча возвращается назад,
+     * и повторное нажатие выглядит как «сайт не работает». Тот же класс гонки,
+     * от которого у realtime стоит `pendingMutations`.
+     *
+     * Сравнивается состояние ДО и ПОСЛЕ ожидания, а не просто «загружено ли
+     * сейчас»: иначе кнопка «Повторить» перестала бы обновлять эти разделы —
+     * при повторе они уже загружены по определению. Пропускается ровно один
+     * случай: на старте пусто, к ответу — наполнено кем-то другим.
+     */
+    const s = get();
     set({
       departments: payload.departments ?? [],
       permissionMatrix: matrix,
       permissionsLoaded: true,
       dictionaries: payload.dictionaries ?? [],
       dictionariesLoaded: true,
-      subcontracting: payload.subcontracting ?? [],
-      subcontractingLoaded: true,
-      experimental: payload.experimental ?? [],
-      experimentalLoaded: true,
+      ...(s.subcontractingLoaded && !before.subcontracting
+        ? {}
+        : { subcontracting: payload.subcontracting ?? [], subcontractingLoaded: true }),
+      ...(s.experimentalLoaded && !before.experimental
+        ? {}
+        : { experimental: payload.experimental ?? [], experimentalLoaded: true }),
       myDeptId: payload.my_employee?.department_id ?? null,
       myRole: payload.my_employee?.role ?? null,
       myDeptLoaded: true,

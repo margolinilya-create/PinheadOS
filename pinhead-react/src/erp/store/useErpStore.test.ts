@@ -1562,6 +1562,63 @@ describe('число запросов: оболочка и карточка за
       && st.subcontractingLoaded && st.experimentalLoaded && st.myDeptLoaded).toBe(true);
   });
 
+  /**
+   * ЗАПОЗДАВШИЙ ПАКЕТ НЕ ЗАТИРАЕТ ПРАВКУ ЧЕЛОВЕКА (найдено падением e2e 24.08).
+   *
+   * Разработки приезжают ДВУМЯ путями — пакетом оболочки и своим `load*`
+   * у экрана, — и оба стартуют при открытии раздела. Экран отрисовался
+   * от своего запроса, человек нажал кнопку, пакет прилетел следом и поставил
+   * снимок ДО правки: карточка молча вернулась назад. В e2e это выглядело
+   * как «иногда перенос не срабатывает», то есть как флака, — а было гонкой.
+   */
+  it('пакет оболочки не затирает раздел, наполненный другим путём', async () => {
+    // Исходное состояние задаётся явно: общий `beforeEach` флаги разделов
+    // не сбрасывает, и тест зависел бы от порядка соседей
+    useErpStore.setState({
+      experimental: [], experimentalLoaded: false, bootstrapLoaded: false,
+    });
+    h.rpcResult = {
+      data: {
+        departments: [dept], permissions: [], dictionaries: [],
+        subcontracting: [], experimental: [{ id: 'e1', board_stage: null }],
+        my_employee: null,
+      },
+      error: null,
+    };
+    const started = useErpStore.getState().loadBootstrap();
+    // Пока пакет летит, экран успел загрузить своё И человек успел править
+    useErpStore.setState({
+      experimental: [{ id: 'e1', board_stage: 'sewing' }] as never,
+      experimentalLoaded: true,
+    });
+    await started;
+
+    expect(
+      useErpStore.getState().experimental[0].board_stage,
+      'пакет вернул карточку в прежнюю колонку — правка человека потеряна',
+    ).toBe('sewing');
+  });
+
+  it('повторная загрузка раздел ОБНОВЛЯЕТ — иначе «Повторить» ничего не делает', async () => {
+    // Отличие от предыдущего случая ровно одно: на старте запроса раздел уже
+    // был загружен. Проверять «загружено ли сейчас» здесь недостаточно —
+    // на этом первая версия починки и сломала кнопку повтора
+    useErpStore.setState({
+      experimental: [{ id: 'stale' }] as never,
+      experimentalLoaded: true,
+      bootstrapLoaded: false,
+    });
+    h.rpcResult = {
+      data: {
+        departments: [dept], permissions: [], dictionaries: [],
+        subcontracting: [], experimental: [{ id: 'fresh' }], my_employee: null,
+      },
+      error: null,
+    };
+    await useErpStore.getState().loadBootstrap();
+    expect(useErpStore.getState().experimental[0].id).toBe('fresh');
+  });
+
   it('loadAll после бутстрапа НЕ перезапрашивает цеха', async () => {
     useErpStore.setState({ departments: [dept] as never });
     h.tableData = { erp_orders: [row] };

@@ -634,10 +634,52 @@ test.describe('Канбан ЭКС: колонку ставит человек (
     // Playwright успевает, а не что перенос работает
     await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
     await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
+
+    // Вход в «Нанесения» спрашивает виды; ни одного — значит шаг пропускают,
+    // и карточка идёт в «Пошив» ОДНИМ действием, как и просит документ
     await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
-    await expect(column(page, 'Нанесения')).toContainText('Ветровка на молнии');
-    await item.getByRole('button', { name: 'Перенести в «Пошив»' }).click();
+    await page.getByRole('dialog', { name: 'Виды нанесения' })
+      .getByRole('button', { name: /Нанесения не нужны/ }).click();
     await expect(column(page, 'Пошив')).toContainText('Ветровка на молнии');
+    await expect(column(page, 'Нанесения')).not.toContainText('Ветровка на молнии');
+  });
+
+  /**
+   * ВХОД В «НАНЕСЕНИЯ» СПРАШИВАЕТ ВИДЫ (п. 4.3): «система открывает выбор вида
+   * нанесения… в списке должны быть Шелкография, DTF, Вышивка и DTG… разрешить
+   * выбрать один или несколько». Спрашивается ТЕМ ЖЕ действием, что и перенос:
+   * отдельная форма рядом была бы необязательным вторым шагом.
+   */
+  test('перенос в «Нанесения» открывает выбор видов', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка на молнии');
+    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Виды нанесения' });
+    await expect(dialog).toBeVisible();
+    for (const name of ['Шелкография', 'ДТФ', 'Вышивка', 'DTG']) {
+      await expect(dialog.getByLabel(name)).toBeVisible();
+    }
+
+    // Несколько видов сразу — прямое требование документа
+    await dialog.getByLabel('ДТФ').check();
+    await dialog.getByLabel('Вышивка').check();
+    await dialog.getByRole('button', { name: /Перенести и завести 2/ }).click();
+
+    await expect(column(page, 'Нанесения')).toContainText('Ветровка на молнии');
+  });
+
+  test('отмена выбора оставляет карточку на месте', async ({ page }) => {
+    // Диалог — не «уже перенесли, теперь уточните»: отмена отменяет всё
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка на молнии');
+    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
+    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+    await page.getByRole('dialog', { name: 'Виды нанесения' })
+      .getByRole('button', { name: 'Отмена' }).click();
+    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
   });
 
   test('на краю доски кнопка гаснет, а не исчезает', async ({ page }) => {
