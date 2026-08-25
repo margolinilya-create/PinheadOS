@@ -14,7 +14,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { BypassKind, ErpBypass } from '../../types';
-import { currentActor, erpError, erpQuery, erpRead } from '../shared';
+import { currentActor, erpError, erpQuery, erpRead, erpWrite } from '../shared';
 import { useAuthStore } from '../../../store/useAuthStore';
 import type { BypassSlice, ErpStore } from '../types';
 
@@ -84,15 +84,18 @@ export const bypassSlice: StateCreator<ErpStore, [], [], BypassSlice> = (set, ge
       restored_by_id: currentActorId(),
     };
     set((s) => ({ bypasses: s.bypasses.map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
-    const { error } = await erpQuery(() => supabase
+    /**
+     * `erpWrite`: политика UPDATE стоит на праве `bypass.manage`, а отказ RLS
+     * приходит нулём строк, а не ошибкой. Зелёное «проверка возвращена» там,
+     * где снятие продолжает действовать, — худший вид неправды на этом экране:
+     * аварийный режим тем и опасен, что о нём забывают.
+     */
+    const ok = await erpWrite('Проверка не возвращена', () => supabase
       .from('erp_bypasses')
       .update(patch)
-      .eq('id', id));
-    if (error) {
-      set({ bypasses: prev });
-      erpError('Проверка не возвращена', error);
-      return false;
-    }
-    return true;
+      .eq('id', id)
+      .select());
+    if (!ok) set({ bypasses: prev });
+    return ok;
   },
 });

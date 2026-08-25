@@ -24,7 +24,7 @@
 import { isProductionDept } from '../data/departments';
 import type { ProductionDeptLike } from '../data/departments';
 import type { ErpTzDocument } from '../types';
-import { safeFileName, translitAscii } from './storageKey';
+import { safeFileName, translitAscii } from '../../utils/storageKey';
 
 /** Минимальная форма заказа для резолюции ТЗ (чтобы не тянуть весь ErpOrderFull) */
 export interface TzSource {

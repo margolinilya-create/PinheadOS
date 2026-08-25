@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { erpQuery, removeOrphanUpload } from '../store/shared';
 import { toast } from '../../store/useToastStore';
 import { translateSupabaseError } from '../../utils/i18n';
-import { attachmentFilePath } from '../utils/storageKey';
+import { attachmentFilePath } from '../../utils/storageKey';
 
 /**
  * Загрузка вложений заказа: файлы упаковки, техблока и листа закупки

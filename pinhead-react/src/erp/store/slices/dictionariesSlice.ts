@@ -8,7 +8,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { erpQuery, erpWrite } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDictionaryItem } from '../../types';
 import type { DictionariesSlice, ErpStore } from '../types';
@@ -87,13 +87,11 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
     set((s) => ({
       dictionaries: s.dictionaries.map((d) => (d.id === id ? { ...d, ...patch } : d)).sort(byOrder),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_dictionaries').update(patch).eq('id', id));
-    if (error) {
-      set({ dictionaries: prev });
-      toast.error('Не удалось сохранить значение справочника');
-      return false;
-    }
-    return true;
+    // `erp_dictionaries_update` гейтится правом `catalog.edit`: отказ RLS — «0 строк»
+    const ok = await erpWrite('Значение справочника не сохранено', () => supabase
+      .from('erp_dictionaries').update(patch).eq('id', id).select());
+    if (!ok) set({ dictionaries: prev });
+    return ok;
   },
 
   /**
@@ -133,13 +131,35 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
         })
         .sort(byOrder),
     }));
-    const results = await Promise.all([
-      supabase.from('erp_dictionaries').update({ sort_order: b.sort_order }).eq('id', a.id),
-      supabase.from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', b.id),
-    ]);
-    if (results.some((r) => r.error)) {
+    /**
+     * Обе строки — через `erpWrite`: отказ права `catalog.edit` приходит нулём
+     * строк, а не ошибкой, и прежняя проверка `results.some(r => r.error)`
+     * читала его как успешную перестановку.
+     *
+     * Последовательно, а не `Promise.all`: перестановка — это ДВЕ записи,
+     * и при сбое второй первая уже закоммичена. Откатить экран поверх неё
+     * значило бы соврать — у обоих значений остался бы один `sort_order`,
+     * то есть порядок, которого никто не выбирал, а на экране прежний.
+     * Поэтому сначала компенсирующая запись, и только если и она не прошла —
+     * говорим, что в базе осталось.
+     */
+    const okA = await erpWrite('Порядок не изменён', () => supabase
+      .from('erp_dictionaries').update({ sort_order: b.sort_order }).eq('id', a.id).select());
+    if (!okA) {
       set({ dictionaries: prev });
-      toast.error('Не удалось изменить порядок');
+      return false;
+    }
+    const okB = await erpWrite('Порядок не изменён', () => supabase
+      .from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', b.id).select());
+    if (!okB) {
+      // Возвращаем первую строку на место: без этого у двух значений один
+      // и тот же `sort_order`, и справочник показывает их в случайном порядке
+      const restored = await erpWrite('Порядок не восстановлен', () => supabase
+        .from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', a.id).select());
+      set({ dictionaries: prev });
+      if (!restored) {
+        toast.error('Порядок в справочнике мог сбиться — проверьте список');
+      }
       return false;
     }
     return true;

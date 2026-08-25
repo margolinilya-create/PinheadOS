@@ -18,7 +18,9 @@ import { toast } from '../../../store/useToastStore';
 import type { ErpCalendarSlot, ErpPlanComment } from '../../types';
 import { planStatusForFact } from '../../utils/planDay';
 import { factoryToday } from '../../../utils/date';
-import { currentActor, erpError, erpQuery, erpRead, withPending } from '../shared';
+import {
+  currentActor, erpError, erpQuery, erpRead, erpWrite, withPending,
+} from '../shared';
 import type { ErpStore, PlanSlice } from '../types';
 
 /** Точечный патч задачи в списке (остальные сохраняют идентичность) */
@@ -159,16 +161,22 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
     return saved;
   },
 
+  /**
+   * ЕДИНСТВЕННЫЙ писатель задачи дня: правка плана, перенос, снятие из плана,
+   * внесение факта и отметка проблемы — всё идёт сюда.
+   *
+   * Поэтому и `erpWrite`: политика `erp_calendar_slots_update` пускает только
+   * `plan.manage` или `plan.fact`, а у роли без обоих (менеджер, закупщик,
+   * кладовщик) RLS запрещает через `USING` — «0 строк» без ошибки. Пять
+   * действий цеха разом показывали бы успех, не изменив ничего.
+   */
   updatePlanSlot: async (id, patch) => {
     const prev = get().planSlots;
     set({ planSlots: patchSlot(prev, id, patch) });
-    const { error } = await erpQuery(() => withPending(`plan:${id}`, () =>
-      supabase.from('erp_calendar_slots').update(patch).eq('id', id)));
-    if (error) {
-      set({ planSlots: prev });
-      return erpError('План не изменён', error);
-    }
-    return true;
+    const ok = await erpWrite('План не изменён', () => withPending(`plan:${id}`, () =>
+      supabase.from('erp_calendar_slots').update(patch).eq('id', id).select()));
+    if (!ok) set({ planSlots: prev });
+    return ok;
   },
 
   /**

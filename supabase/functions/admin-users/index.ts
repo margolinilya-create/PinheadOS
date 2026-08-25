@@ -222,9 +222,27 @@ async function setEmail(admin: Admin, p: Payload) {
  * - заказы держат удаление: `created_by` объявлен `on delete no action`,
  *   и попытка всё равно упала бы, но уже наполовину — после `auth.users`.
  *   Проверяем ДО, чтобы сообщение называло причину;
- * - `profiles` не связан с `auth.users` внешним ключом вовсе, поэтому строку
- *   профиля убираем ЯВНО. Иначе в списке остаётся человек, которого больше
- *   нет, и «Отключить» на нём ничего не делает.
+ * - `profiles` не связан с `auth.users` внешним ключом вовсе (проверено
+ *   на боевой схеме 25.08: у `profiles` нет НИ ОДНОГО исходящего внешнего
+ *   ключа), поэтому строку профиля убираем ЯВНО. Иначе в списке остаётся
+ *   человек, которого больше нет, и «Отключить» на нём ничего не делает.
+ *
+ * ПОРЯДОК: СНАЧАЛА ДОСТУП, ПОТОМ УБОРКА. Раньше первой шла строка
+ * `erp_employees` — единственная, которая снимает ПРАВА, — а вход закрывался
+ * последним. Любой сбой между ними (обрыв сети, гонка с проверкой заказов)
+ * оставлял человека, который по-прежнему входит, но уже без цеховой роли,
+ * — а это не «меньше прав», а БОЛЬШЕ: без строки `erp_employees`
+ * `erp_role_of_caller()` выводит роль из профиля и делает его МЕНЕДЖЕРОМ
+ * (`order.manage`, `tz.manage`, `stage.block`, `stage.priority`,
+ * `stage.move_department`), причём по всей фабрике — ограничение «только свой
+ * цех» на человека без цеха не действует. Неудавшееся удаление расширяло
+ * права вместо того, чтобы их отнять; это записано в миграции
+ * 20260814090000 и здесь не было учтено.
+ *
+ * Теперь первым идёт `auth.users`: после него человек не войдёт, и любой сбой
+ * уборки оставляет безопасное состояние — видимую в списке строку без учётной
+ * записи. На это удаление ничто не ссылается: внешних ключей на `auth.users`
+ * в схеме нет вовсе (`orders.created_by` смотрит на `profiles`, проверено там же).
  */
 async function deleteUser(admin: Admin, callerId: string, p: Payload) {
   if (!p.user_id) return fail('Не указан пользователь');
@@ -243,15 +261,27 @@ async function deleteUser(admin: Admin, callerId: string, p: Payload) {
     );
   }
 
-  // Строка сотрудника ссылается на профиль `on delete no action` — снимаем первой
+  // 1. Вход. Отсюда и дальше человек в систему не попадёт при любом исходе
+  const { error } = await admin.auth.admin.deleteUser(p.user_id);
+  if (error) return fail(`Не удалось удалить доступ: ${error.message}`, 500);
+
+  // 2. Строка сотрудника: она ссылается на профиль `on delete no action`,
+  //    поэтому снимается перед ним
   const { error: empError } = await admin.from('erp_employees').delete().eq('profile_id', p.user_id);
-  if (empError) return fail('Не удалось убрать сотрудника из цеха', 500);
+  if (empError) {
+    return fail(
+      'Доступ удалён, но сотрудник остался в цехе — уберите его в списке вручную',
+      500,
+    );
+  }
 
   const { error: profileError } = await admin.from('profiles').delete().eq('id', p.user_id);
-  if (profileError) return fail(`Не удалось удалить профиль: ${profileError.message}`, 500);
-
-  const { error } = await admin.auth.admin.deleteUser(p.user_id);
-  if (error) return fail(`Профиль удалён, но доступ остался: ${error.message}`, 500);
+  if (profileError) {
+    return fail(
+      `Доступ удалён, но строка в списке осталась: ${profileError.message}`,
+      500,
+    );
+  }
 
   return json({ ok: true });
 }

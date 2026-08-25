@@ -142,6 +142,31 @@ interface AuthStore {
   isDesigner: () => boolean;
 }
 
+/**
+ * Состояние, которое НЕ ПЕРЕЖИВАЕТ смену человека, — одним объектом.
+ *
+ * Раньше `logout()` и `sessionLost()` перечисляли поля поимённо, каждый свой
+ * набор, и `previewRole` не попал ни в один. Админ смотрел раздел глазами
+ * дизайнера, выходил, на том же планшете входил менеджер — и получал
+ * интерфейс дизайнера: `OrderStudioApp` считает `effectiveRole =
+ * previewRole || user.role`. Снять предпросмотр менеджер не мог, потому что
+ * `RolePreviewBar` рисуется только тем, чья НАСТОЯЩАЯ роль admin/director;
+ * помогала одна F5, о которой надо догадаться.
+ *
+ * Один объект вместо двух перечислений: разойтись ему теперь не с чем.
+ * `error` остаётся за вызывающим — у выхода он пустой, у потерянной сессии
+ * это объяснение, ради которого всё и делается.
+ */
+const CLEARED_ON_SIGN_OUT = {
+  user: null,
+  profileStatus: 'no_profile' as ProfileStatus,
+  loading: false,
+  previewRole: null,
+  awaitingEmailConfirm: null,
+  resetSentTo: null,
+  passwordRecovery: false,
+} as const;
+
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   profileStatus: 'no_profile' as ProfileStatus,
@@ -476,12 +501,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     if (get().user?.id === 'dev') return;
     storageClearAll();
     runAppResets();
-    set({
-      user: null,
-      profileStatus: 'no_profile' as ProfileStatus,
-      error: 'Сессия истекла — войдите заново',
-      loading: false,
-    });
+    set({ ...CLEARED_ON_SIGN_OUT, error: 'Сессия истекла — войдите заново' });
     toast.error('Сессия истекла — войдите заново');
   },
 
@@ -524,10 +544,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
        * (выборку RLS уже от чужого имени), его цех и его бейджи.
        */
       runAppResets();
-      set({
-        user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
-        awaitingEmailConfirm: null, resetSentTo: null, passwordRecovery: false,
-      });
+      set({ ...CLEARED_ON_SIGN_OUT, error: null, signingOut: false });
     }
   },
 
@@ -576,9 +593,22 @@ export function watchAuthState(): () => void {
       return;
     }
 
-    // Вошли в соседней вкладке или токен обновился, а профиля в памяти нет —
-    // подтягиваем, иначе экран останется формой входа при живой сессии.
-    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !store.user) {
+    /**
+     * Вошли в соседней вкладке или обновился токен.
+     *
+     * Условие было `!store.user` — «профиля в памяти нет», — и оно пропускало
+     * случай, ради которого подписка и нужна на общем планшете: в соседней
+     * вкладке вошёл ДРУГОЙ человек. Сессия в localStorage общая, эта вкладка
+     * получала событие и не делала ничего: на экране оставался прежний
+     * пользователь, а запросы уходили уже от нового. Опаснее всего это
+     * в аудите — `currentActor()` подписывал бы чужие действия старым именем.
+     *
+     * Сравниваем ЛИЧНОСТЬ: другой `id` — перечитываем профиль. Тот же id
+     * при живом профиле — ничего не делаем, иначе каждое обновление токена
+     * (раз в час) дёргало бы лишний запрос.
+     */
+    const signedIn = event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED';
+    if (signedIn && session?.user && session.user.id !== store.user?.id) {
       void store.fetchProfile(session.user.id, session.user.email ?? '');
     }
   });

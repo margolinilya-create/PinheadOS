@@ -115,4 +115,34 @@ describe('инвалидация', () => {
     clearQueryCache();
     expect(_cacheSize()).toBe(0);
   });
+
+  /**
+   * НЕУДАЧА НЕ КЭШИРУЕТСЯ.
+   *
+   * `loadOrderBundle` ловит отказ внутри себя, показывает тост и возвращает
+   * `null`. Для кэша это УСПЕШНОЕ разрешение, и `null` ложился на 30 секунд
+   * вместе с меткой времени: следующие полминуты карточка заказа получала его
+   * мгновенно, без запроса и без тоста, а `setEvents(bundle?.events ?? [])`
+   * рисовал пустую историю. Первая попытка честно говорила «не удалось»,
+   * вторая молча утверждала, что истории у заказа нет.
+   */
+  it('null от упавшего фетчера не запоминается', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('данные');
+
+    expect(await cachedQuery('erp:order-detail:9', fetcher)).toBeNull();
+    expect(_cacheSize()).toBe(0);
+
+    // Второе открытие карточки идёт в сеть, а не отдаёт запомненную пустоту
+    expect(await cachedQuery('erp:order-detail:9', fetcher)).toBe('данные');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('удачный ответ по-прежнему кэшируется', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ events: [] });
+    await cachedQuery('erp:order-detail:10', fetcher);
+    await cachedQuery('erp:order-detail:10', fetcher);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });

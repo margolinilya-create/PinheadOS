@@ -291,6 +291,28 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * позже конструирования.
      */
     let cleanupNext: (() => void) | null = null;
+
+    /**
+     * ЭТА ПОДПИСКА УЖЕ СНЯТА — обработчику статуса больше нечего делать.
+     *
+     * `CLOSED` присылает не только разрыв: `removeChannel()` зовёт
+     * `channel.unsubscribe()`, тот триггерит событие `close`, а `subscribe()`
+     * в supabase-js регистрирует на него `callback(CLOSED)`. То есть НАША ЖЕ
+     * отписка приходит сюда как «связь потеряна».
+     *
+     * Порядок в cleanup делал это отказом, а не мелочью: `clearReconnect()`
+     * снимает таймер ПЕРВЫМ, а `removeChannel()` идёт последним — значит
+     * прилетевший следом `CLOSED` видит пустой `reconnectTimer`, проходит
+     * проверку и ставит НОВЫЙ. Через секунду создавался канал с тремя новыми
+     * слушателями окна, а вернувшийся cleanup записывался в `cleanupNext`
+     * уже мёртвого замыкания — позвать его было некому.
+     *
+     * `ErpLayout` размонтируется при выходе и при переключении разделов,
+     * поэтому каждый такой цикл оставлял живую подписку, которая продолжала
+     * дёргать `resyncRealtime()` по возврату фокуса. На общем цеховом планшете
+     * это ровно то, против чего написаны `resetErpStore()` и `storageClearAll()`.
+     */
+    let disposed = false;
     // Уникальное имя канала (паттерн kontora24); события применяются точечно (п.27)
     const forward = (table: string) => (payload: {
       eventType: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -372,6 +394,9 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
        * просто переставал обновляться.
        */
       .subscribe((status: string) => {
+        // Отписались — дальше не наше дело: ни полосы «связь потеряна»,
+        // ни переподключения. Проверка стоит ПЕРВОЙ строкой, до любой ветки
+        if (disposed) return;
         if (status === 'SUBSCRIBED') {
           const wasDown = !get().realtimeLive;
           clearReconnect();
@@ -381,7 +406,21 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
           if (wasDown) void get().resyncRealtime();
           return;
         }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        /**
+         * `CLOSED` ГАСИТ ПРИЗНАК, НО НЕ ЗАПУСКАЕТ ПЕРЕПОДКЛЮЧЕНИЕ.
+         *
+         * Канала действительно больше нет — полоса «данные могли устареть»
+         * обязана появиться. Но единственный `CLOSED`, который мы видим
+         * помимо своей отписки, приходит ИЗНУТРИ переподключения: таймер ниже
+         * зовёт `removeChannel(channel)` и следом создаёт новый канал. Ставить
+         * на такой `CLOSED` ещё один таймер значило бы завести вторую цепочку
+         * переподключений рядом с идущей — тот же зомби, только другим путём.
+         */
+        if (status === 'CLOSED') {
+          set({ realtimeLive: false });
+          return;
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           set({ realtimeLive: false });
           if (reconnectTimer) return;
           const delay = RECONNECT_STEPS_MS[
@@ -412,6 +451,10 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
     }
 
     return () => {
+      // Флаг ставится ПЕРВЫМ: `removeChannel()` ниже присылает `CLOSED`
+      // синхронно, если сокет уже лёг, и обработчик успел бы отработать
+      // до конца этой функции
+      disposed = true;
       if (fullReloadTimer) {
         clearTimeout(fullReloadTimer);
         fullReloadTimer = null;

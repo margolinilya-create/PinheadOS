@@ -6,7 +6,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery, erpError } from '../shared';
+import { erpQuery, erpError, erpWrite } from '../shared';
 import { adminUsers } from '../adminUsers';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDepartment, ErpEmployee } from '../../types';
@@ -78,18 +78,26 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     return true;
   },
 
+  /**
+   * Правка профиля — через `erpWrite`, а не по одному `error`.
+   *
+   * `profiles_update` стоит на `is_admin()`, то есть на профиле с ролью
+   * ровно `admin`. У директора, которого раздел `/admin` пускает наравне
+   * с админом, RLS запрещает через `USING` — а это «обновлено 0 строк»,
+   * а не ошибка. Прежний код читал такой отказ как успех: оптимистичная
+   * правка оставалась на экране, тоста не было, и «Подтвердить» на новом
+   * сотруднике выглядело сработавшим, пока тот продолжал стоять на стене
+   * ожидания. Ни он, ни нажавший причины не узнавали.
+   */
   updateProfile: async (id, patch) => {
     const prev = get().profilesList;
     set((s) => ({
       profilesList: s.profilesList.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     }));
-    const { error } = await erpQuery(() => supabase.from('profiles').update(patch).eq('id', id));
-    if (error) {
-      set({ profilesList: prev });
-      toast.error('Не удалось обновить пользователя');
-      return false;
-    }
-    return true;
+    const ok = await erpWrite('Пользователь не обновлён', () => supabase
+      .from('profiles').update(patch).eq('id', id).select());
+    if (!ok) set({ profilesList: prev });
+    return ok;
   },
 
   /**
@@ -184,18 +192,16 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     return row;
   },
 
+  /** Та же причина, что у `updateProfile`: `erp_employees_update` — тоже `is_admin()` */
   updateEmployee: async (id, patch) => {
     const prev = get().employees;
     set((s) => ({
       employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_employees').update(patch).eq('id', id));
-    if (error) {
-      set({ employees: prev });
-      toast.error('Не удалось обновить сотрудника');
-      return false;
-    }
-    return true;
+    const ok = await erpWrite('Сотрудник не обновлён', () => supabase
+      .from('erp_employees').update(patch).eq('id', id).select());
+    if (!ok) set({ employees: prev });
+    return ok;
   },
 
   createDepartment: async (dept) => {
@@ -214,6 +220,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
     return row;
   },
 
+  /** `erp_departments_update` гейтится правом `catalog.edit` — отказ приходит нулём строк */
   updateDepartment: async (id, patch) => {
     const prev = get().departments;
     set((s) => ({
@@ -221,12 +228,9 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
         .map((d) => (d.id === id ? { ...d, ...patch } : d))
         .sort((a, b) => a.sort_order - b.sort_order),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_departments').update(patch).eq('id', id));
-    if (error) {
-      set({ departments: prev });
-      toast.error('Не удалось сохранить участок');
-      return false;
-    }
-    return true;
+    const ok = await erpWrite('Участок не сохранён', () => supabase
+      .from('erp_departments').update(patch).eq('id', id).select());
+    if (!ok) set({ departments: prev });
+    return ok;
   },
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { itemAttachments, materialAttachments, countItemAttachments } from './attachments';
-import { attachmentFilePath, safeFileName } from './storageKey';
+import { attachmentFilePath, safeFileName } from '../../utils/storageKey';
 
 /**
  * Отбор вложений и ключ объекта в Storage.

@@ -1,6 +1,7 @@
 /* ── Centralized storage utilities ── */
 
 import { supabase } from './supabase';
+import { safeFileName, sanitizeKeyPart, translitAscii } from '../utils/storageKey';
 
 // ── localStorage ──
 
@@ -140,21 +141,41 @@ export function sessionRemove(key: string): void {
 
 const SKU_BUCKET = 'sku-photos';
 
-let _bucketChecked = false;
-async function ensureBucket(): Promise<void> {
-  if (_bucketChecked) return;
-  _bucketChecked = true;
-  const { data } = await supabase.storage.getBucket(SKU_BUCKET);
-  if (!data) {
-    await supabase.storage.createBucket(SKU_BUCKET, { public: true });
-  }
+/*
+ * `ensureBucket()` УДАЛЁН, и это не упрощение.
+ *
+ * Он звал `getBucket` и, не найдя бакета, `createBucket` — а создание бакета
+ * требует `service_role`, которого в браузере нет и быть не может (см.
+ * `supabase/functions/admin-users`). С ключом `anon` вызов не проходил
+ * НИКОГДА, ошибка не проверялась, и всё это стоило лишнего round-trip
+ * на первой загрузке фото.
+ *
+ * Бакет `sku-photos` заведён миграцией и живёт в схеме; если его нет, чинить
+ * это надо миграцией, а не попыткой из клиента, которая молча не срабатывает.
+ */
+
+/**
+ * Ключ фото артикула — ОДНА функция на загрузку и на удаление.
+ *
+ * Ключ строго ASCII: правило общее на весь проект (`utils/storageKey`).
+ * Здесь его собирали руками, и дважды мимо: расширение бралось как
+ * `file.name.split('.').pop()`, что у имени БЕЗ точки отдаёт имя целиком —
+ * фолбэк `|| 'jpg'` не срабатывал никогда, — а код артикула уходил в ключ
+ * вовсе без обеззараживания. Кириллица в ключе это `InvalidKey` от Supabase
+ * и «фото не загрузилось» без единого объяснения.
+ *
+ * Одна функция, а не два выражения рядом: `deleteSkuPhoto` собирает те же
+ * пути, и стоило обеззаразить только загрузку, как удаление перестало бы
+ * находить свои же файлы — молча, потому что `remove` несуществующего пути
+ * ошибкой не считается.
+ */
+export function skuPhotoPath(code: string, index: number, ext: string): string {
+  return `${sanitizeKeyPart(translitAscii(code)) || 'sku'}_${index}.${ext}`;
 }
 
 export async function uploadSkuPhoto(code: string, file: File, index: number = 0): Promise<string | null> {
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `${code}_${index}.${ext}`;
-
-  await ensureBucket();
+  const ext = safeFileName(file.name, 'photo', 'jpg').split('.').pop() as string;
+  const path = skuPhotoPath(code, index, ext);
 
   const { error } = await supabase.storage.from(SKU_BUCKET).upload(path, file, {
     cacheControl: '3600',
@@ -190,7 +211,9 @@ export async function deleteSkuPhoto(code: string): Promise<void> {
   const exts = ['jpg', 'jpeg', 'png', 'webp'];
   const paths: string[] = [];
   for (let i = 0; i < 4; i++) {
-    exts.forEach(ext => paths.push(`${code}_${i}.${ext}`));
+    // Тот же `skuPhotoPath`, что у загрузки: собранный здесь заново, он
+    // разошёлся бы с ней на первом же артикуле с кириллицей в коде
+    exts.forEach((ext) => paths.push(skuPhotoPath(code, i, ext)));
   }
   await supabase.storage.from(SKU_BUCKET).remove(paths);
 }

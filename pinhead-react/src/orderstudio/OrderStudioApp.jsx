@@ -51,10 +51,23 @@ const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
 const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
-// Agentation — dev widget, lazy-loaded (tree-shakes out of prod admin bundle)
-const Agentation = React.lazy(() =>
-  import('agentation').then(m => ({ default: m.Agentation }))
-);
+/**
+ * Agentation — виджет разметки интерфейса, ТОЛЬКО для разработки.
+ *
+ * Комментарий здесь утверждал «tree-shakes out of prod admin bundle», и это
+ * было неправдой дважды. Отсечки по окружению не было вовсе — была отсечка
+ * по роли (`isRealAdmin`), то есть в проде виджет ехал администратору.
+ * И динамический импорт ничего не «вытрясает», он откладывает: в сборке это
+ * отдельный чанк на 42 кБ gzip, который админ скачивал при каждом заходе
+ * в раздел ТЗ. Эндпоинт у пакета по умолчанию localhost, так что в проде
+ * виджет ещё и не соединялся ни с чем.
+ *
+ * `import.meta.env.DEV` — константа сборки, поэтому в проде Vite выбрасывает
+ * и ветку, и сам импорт статически, а не надеется на tree-shaking.
+ */
+const Agentation = import.meta.env.DEV
+  ? React.lazy(() => import('agentation').then(m => ({ default: m.Agentation })))
+  : null;
 
 /**
  * Старт раздела: черновик визарда и каталоги.
@@ -199,7 +212,7 @@ export default function OrderStudioApp({ user }) {
       </Routes>
       </main>
 
-      {isRealAdmin && (
+      {Agentation && isRealAdmin && (
         <Suspense fallback={null}><Agentation /></Suspense>
       )}
 

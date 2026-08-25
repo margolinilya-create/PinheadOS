@@ -41,6 +41,17 @@ export interface CachedOptions<T> {
   ttlMs?: number;
   /** Вызывается, когда фоновое обновление принесло новое значение */
   onRevalidated?: (value: T) => void;
+  /**
+   * Класть ли ответ в кэш. По умолчанию кладётся всё, что не бросило.
+   *
+   * ЗАЧЕМ. Фетчер, который ловит отказ сам и возвращает `null` (так устроен
+   * `loadOrderBundle`), для кэша выглядит УСПЕХОМ — и `null` ложился на 30
+   * секунд вместе с меткой времени. Полминуты карточка заказа получала его
+   * мгновенно, без запроса и без тоста, а `setEvents(bundle?.events ?? [])`
+   * рисовал пустую историю. То есть первая попытка честно говорила
+   * «не удалось», а вторая молча утверждала, что истории у заказа нет.
+   */
+  shouldCache?: (value: T) => boolean;
 }
 
 /**
@@ -51,7 +62,11 @@ export interface CachedOptions<T> {
 export async function cachedQuery<T>(
   key: string,
   fetcher: () => Promise<T>,
-  { ttlMs = DEFAULT_TTL_MS, onRevalidated }: CachedOptions<T> = {},
+  {
+    ttlMs = DEFAULT_TTL_MS,
+    onRevalidated,
+    shouldCache = (value: T) => value != null,
+  }: CachedOptions<T> = {},
 ): Promise<T> {
   const hit = cache.get(key) as Entry<T> | undefined;
   const fresh = hit && now() - hit.at < ttlMs;
@@ -70,7 +85,9 @@ export async function cachedQuery<T>(
 
   const promise = fetcher()
     .then((value) => {
-      cache.set(key, { value, at: now() });
+      // Неудача, пойманная внутри фетчера, кэшу не отдаётся: иначе повторное
+      // открытие в течение TTL показывает пустоту УЖЕ БЕЗ сообщения об ошибке
+      if (shouldCache(value)) cache.set(key, { value, at: now() });
       return value;
     })
     .finally(() => { inflight.delete(key); });

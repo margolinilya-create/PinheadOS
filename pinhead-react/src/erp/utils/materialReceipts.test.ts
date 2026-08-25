@@ -88,12 +88,35 @@ describe('приёмка материала: журнал и статус одн
    */
   it('повтор с тем же ключом не пишет вторую строку журнала', () => {
     const body = withoutComments(functionBody(ACCEPT_SQL, 'erp_material_accept'));
-    expect(body).toMatch(/p_client_key is not null/);
-    expect(body).toMatch(/where client_key = p_client_key/);
-    // Вставка пропускается, а статус позиции всё равно приводится к запрошенному:
-    // повтор обязан оставить систему в том же состоянии, а не в половинчатом
-    expect(body).toMatch(/if p_qty is not null and not v_dup then/);
+    expect(body).toMatch(/on conflict \(client_key\) where client_key is not null do nothing/);
+    // Статус позиции приводится к запрошенному и при повторе: он обязан оставить
+    // систему в том же состоянии, а не в половинчатом
     expect(body).toMatch(/'duplicate'/);
+  });
+
+  /**
+   * ДУБЛЬ ОПРЕДЕЛЯЕТ САМ INSERT, А НЕ ПРЕДВАРИТЕЛЬНАЯ ПРОВЕРКА.
+   *
+   * До 25.08 стояло «проверил и вставил»: `select exists (… where client_key =
+   * p_client_key)`, потом `if not v_dup then insert`. Между этими операторами
+   * нет ни блокировки, ни `on conflict`, поэтому два одновременных вызова
+   * с одним ключом оба видели «дубля нет» и оба вставляли — второй падал 23505.
+   *
+   * Одновременность достижима: `flushQueue()` не защищён от повторного входа,
+   * а зовётся из `resyncRealtime()`, на который подписаны `online`, `focus`
+   * и `visibilitychange` — планшет после сна даёт два подряд. Кладовщик видел
+   * «Отправлено действий: 1» и рядом красное «Не удалось отправить» про ту же
+   * приёмку, которая на самом деле прошла.
+   */
+  it('проверки «а нет ли уже такого ключа» перед вставкой не осталось', () => {
+    const body = withoutComments(functionBody(ACCEPT_SQL, 'erp_material_accept'));
+    expect(
+      body,
+      'вернулась гонка «проверил и вставил»: между select и insert помещается '
+      + 'второй вызов очереди, и он падает 23505 на приёмке, которая прошла',
+    ).not.toMatch(/select exists[\s\S]{0,120}client_key = p_client_key/);
+    // Признак дубля берётся у самого INSERT
+    expect(body).toMatch(/get diagnostics v_rows = row_count;[\s\S]{0,200}v_dup/);
   });
 
   it('ключ уникален на уровне схемы, а не только в коде функции', () => {
@@ -109,8 +132,20 @@ describe('приёмка материала: журнал и статус одн
    * она стала бы вторым путём записи журнала — без идемпотентности.
    */
   it('сигнатуры без ключа не остаётся', () => {
-    expect(ACCEPT_SQL).toMatch(
+    /**
+     * Ищем по ВСЕМ миграциям, а не в последней, определяющей функцию.
+     * Снятие прежней сигнатуры — разовое событие (миграция 20260822130000),
+     * а функция с тех пор пересоздавалась; привязка к «последней» означала бы,
+     * что каждая следующая правка обязана дропать то, чего уже нет.
+     */
+    const dropSql = latestMatching(
+      /drop function if exists public\.erp_material_accept\(/,
+      'снятие сигнатуры erp_material_accept без ключа',
+    );
+    expect(dropSql).toMatch(
       /drop function if exists public\.erp_material_accept\([\s\S]{0,200}\)/);
+    // …и с тех пор её никто не завёл обратно: у действующей функции ключ есть
+    expect(ACCEPT_SQL).toMatch(/p_client_key\s+uuid/);
   });
 
   it('перечень статусов в RPC совпадает с CHECK таблиц', () => {

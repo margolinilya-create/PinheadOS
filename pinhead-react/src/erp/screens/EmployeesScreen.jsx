@@ -20,6 +20,7 @@ import { Button } from '../components/Button';
 import { useErpAccess } from '../store/useErpAccess';
 import { InviteModal } from './admin/InviteModal';
 import { UserModal } from './admin/UserModal';
+import { ReadOnlyFieldset } from '../components/ReadOnlyFieldset';
 
 /**
  * Сотрудники — ЕДИНЫЙ источник с Order Studio (таблица profiles).
@@ -78,9 +79,34 @@ export default function EmployeesScreen({ embedded = false }) {
     [employees],
   );
 
+  /**
+   * УЧЁТНЫЕ ЗАПИСИ ПОКАЗЫВАЕМ ТОЛЬКО АДМИНУ, И ЭТО НЕ ГЕЙТ, А ЧЕСТНОСТЬ.
+   *
+   * `profiles_select` на сервере — `auth.uid() = id OR is_admin()`, где
+   * `is_admin()` требует роль профиля ровно `admin`. Раздел `/admin` при этом
+   * пускает и директора, а у вкладки «Пользователи» гейта не было вовсе.
+   * Директор получал СПИСОК ИЗ ОДНОЙ СТРОКИ — своей собственной, — и ни ошибки,
+   * ни признака, что список урезан: RLS не сообщает о скрытых строках, он их
+   * просто не отдаёт. «Пять сотрудников» превращались в «один», и это выглядело
+   * как правда.
+   *
+   * Ровно тем же `is_admin()` закрыты `profiles_update` и
+   * `erp_employees_update`, поэтому вместе со списком уходят и действия:
+   * подтверждение доступа, отключение, смена роли и привязка к цеху. Показывать
+   * их нельзя — это «кнопка есть, а действие падает», причём падает молча
+   * (RLS запрещает через `USING`, то есть нулём строк).
+   *
+   * Права мы здесь НЕ расширяем: если заказчик решит, что учётные записи ведёт
+   * и директор, правильная правка — перевести три политики с `is_admin()`
+   * на `erp_is_manager()` одной миграцией вместе с этим гейтом.
+   */
+  const canManageAccounts = access.isAdmin;
+
   const profileRows = useMemo(
-    () => profilesList.filter((p) => showInactive || p.active !== false),
-    [profilesList, showInactive],
+    () => (canManageAccounts
+      ? profilesList.filter((p) => showInactive || p.active !== false)
+      : []),
+    [profilesList, showInactive, canManageAccounts],
   );
   const looseEmployees = useMemo(
     () => employees.filter((e) => !e.profile_id && (showInactive || e.active)),
@@ -230,7 +256,8 @@ export default function EmployeesScreen({ embedded = false }) {
         </label>
         <div className={styles.spacer} />
         <span className={styles.subText}>
-          {profileRows.length} с логином · {looseEmployees.length} без логина
+          {canManageAccounts && `${profileRows.length} с логином · `}
+          {looseEmployees.length} без логина
         </span>
         {/* Приглашение раздаёт права, поэтому гейтится правом матрицы,
             а не ролью учётной записи — сервер проверяет ровно это же */}
@@ -262,7 +289,20 @@ export default function EmployeesScreen({ embedded = false }) {
       {!employeesLoaded && !employeesError && (
         <TableSkeleton rows={5} label="Загрузка сотрудников" />
       )}
-      {employeesLoaded && profileRows.length === 0 && looseEmployees.length === 0 && (
+      {/*
+        Отказ обязан назвать себя. Пустое место там, где человек ждёт список,
+        читается как поломка, а список из одной строки — как правда.
+      */}
+      {!canManageAccounts && (
+        <div className={styles.warnBox} role="status">
+          Учётные записи ведёт администратор: список логинов, подтверждение доступа,
+          роли и привязка к цеху закрыты и на сервере, поэтому здесь они не показаны.
+          Вам доступны приглашения и цеховые работники без логина — на чтение.
+        </div>
+      )}
+
+      {employeesLoaded && canManageAccounts
+        && profileRows.length === 0 && looseEmployees.length === 0 && (
         <EmptyState
           icon="users"
           title="Сотрудников нет"
@@ -350,6 +390,16 @@ export default function EmployeesScreen({ embedded = false }) {
         Работники, которые пока не заходят в систему сами. Появится логин — привяжутся к общему списку.
       </p>
 
+      {/*
+        `erp_employees` читают все участники, а правит только `is_admin()` —
+        поэтому список остаётся видимым, а правка гасится целиком. Нативный
+        `fieldset[disabled]` честен для клавиатуры и не забудет ни одного
+        из двух десятков полей, в отличие от `disabled` на каждом.
+      */}
+      <ReadOnlyFieldset
+        canManage={canManageAccounts}
+        note="Правка цеховых работников доступна только администратору."
+      >
       {looseEmployees.length > 0 && compact && (
         <div className={styles.dataCardList}>
           {looseEmployees.map((emp) => (
@@ -427,6 +477,7 @@ export default function EmployeesScreen({ embedded = false }) {
         />
         <Button variant="secondary" type="submit">+ Добавить без логина</Button>
       </form>
+      </ReadOnlyFieldset>
     </>
   );
 }

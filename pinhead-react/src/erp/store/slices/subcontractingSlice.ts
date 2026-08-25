@@ -19,13 +19,15 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { arrivedLate, currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
+import {
+  arrivedLate, currentActor, erpError, erpQuery, erpWrite, removeOrphanUpload,
+} from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontractPhase';
 import type { ErpStore, SubcontractingSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
-import { attachmentFilePath } from '../../utils/storageKey';
+import { attachmentFilePath } from '../../../utils/storageKey';
 import { TZ_BUCKET } from '../../types';
 
 /**
@@ -351,10 +353,11 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
     set((s) => ({
       subcontracting: s.subcontracting.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_subcontracting').update(patch).eq('id', id));
-    if (error) {
+    // Политика UPDATE стоит на `order.manage`, а отказ RLS приходит нулём строк
+    const ok = await erpWrite('Операция подряда не обновлена', () => supabase
+      .from('erp_subcontracting').update(patch).eq('id', id).select());
+    if (!ok) {
       set({ subcontracting: prev });
-      toast.error('Не удалось обновить операцию подряда');
       return false;
     }
     /**

@@ -1,5 +1,16 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+/**
+ * Каждый сетевой вызов идёт через `netQuery` — то же правило, что в ERP.
+ *
+ * `supabase-js` возвращает `error` на ОТВЕТ сервера и БРОСАЕТ, когда ответа
+ * не было (нет сети, CORS, оборванное соединение). Здесь проверялся только
+ * `error`, и на броске ветка `if (!error)` не выполнялась вовсе:
+ * оптимистичная правка не откатывалась, тоста не было, а отклонение промиса
+ * всплывало глобальным обработчиком. Найдено ревизией 25.08 — тот же класс
+ * отказа, ради которого обёртка и появилась в ERP.
+ */
+import { netQuery } from '../lib/netQuery';
 import { useAuthStore } from './useAuthStore';
 import { registerAppReset } from './appReset';
 import { toast } from './useToastStore';
@@ -195,7 +206,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       created_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('orders').insert(row).select();
+    const { data, error } = await netQuery(() => supabase.from('orders').insert(row).select());
     if (!error && data?.[0]) {
       const saved = data[0] as Order;
       set((s) => ({ orders: [saved, ...s.orders] }));
@@ -227,7 +238,8 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       orders: s.orders.map((o) => (o.id === id ? ({ ...o, ...payload } as unknown as Order) : o)),
     }));
 
-    const { data, error } = await supabase.from('orders').update(payload).eq('id', id).select();
+    const { data, error } = await netQuery(() =>
+      supabase.from('orders').update(payload).eq('id', id).select());
     if (!error && data?.[0]) {
       const updated = data[0] as Order;
       set((s) => ({
@@ -254,7 +266,8 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
     set((s) => ({
       orders: s.orders.map((o) => (o.id === id ? { ...o, data: newData } : o)),
     }));
-    const { data, error } = await supabase.from('orders').update({ data: newData }).eq('id', id).select();
+    const { data, error } = await netQuery(() =>
+      supabase.from('orders').update({ data: newData }).eq('id', id).select());
     if (!error && data?.[0]) {
       const updated = data[0] as Order;
       set((s) => ({ orders: s.orders.map((o) => (o.id === id ? updated : o)) }));
@@ -279,7 +292,8 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       orders: s.orders.map((o) => (o.id === id ? { ...o, status } : o)),
     }));
 
-    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+    const { error } = await netQuery(() =>
+      supabase.from('orders').update({ status }).eq('id', id));
     if (error) {
       // Rollback
       if (prevStatus !== null) {
@@ -295,7 +309,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
 
   // Удалить заказ (не optimistic — ждём ответа Supabase)
   deleteOrder: async (id) => {
-    const { error } = await supabase.from('orders').delete().eq('id', id);
+    const { error } = await netQuery(() => supabase.from('orders').delete().eq('id', id));
     if (error) {
       console.error('[deleteOrder] Supabase error:', error);
       toast.error('Не удалось удалить заказ');
@@ -324,7 +338,7 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       created_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('orders').insert(dup).select();
+    const { data, error } = await netQuery(() => supabase.from('orders').insert(dup).select());
     if (!error && data?.[0]) {
       const created = data[0] as Order;
       set((s) => ({ orders: [created, ...s.orders] }));

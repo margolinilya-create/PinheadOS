@@ -14,7 +14,9 @@ import { toast } from '../../../store/useToastStore';
 import { TZ_BUCKET, TZ_MAX_BYTES, TZ_MIME } from '../../types';
 import type { ErpTzDocument } from '../../types';
 import { documentHistory, tzFilePath } from '../../utils/tz';
-import { currentActor, erpError, erpQuery, logStageEvent, removeOrphanUpload } from '../shared';
+import {
+  currentActor, erpError, erpQuery, erpWrite, logStageEvent, removeOrphanUpload,
+} from '../shared';
 import type { ErpOrderFull, ErpStore, TzSlice } from '../types';
 
 /** Точечный патч массива документов заказа (остальные заказы сохраняют идентичность) */
@@ -126,15 +128,23 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
      * если вставка не удалась, поэтому флаг возвращаем прежней версии — иначе цех
      * увидит «ТЗ не назначено» на ровном месте.
      */
-    const { error: clearError } = await erpQuery(() => supabase
-      .from('erp_tz_documents')
-      .update({ is_current: false })
-      .eq('group_id', groupId)
-      .eq('is_current', true));
-    if (clearError) {
-      erpError('Не удалось подготовить замену ТЗ — версия не создана', clearError);
-      return null;
-    }
+    /**
+     * Через `erpWrite`: политика UPDATE `erp_tz_documents` стоит на праве
+     * `tz.manage`, и отказ приходит нулём строк, а не ошибкой. Прежний код
+     * шёл дальше и вставлял новую версию с `is_current: true` — при живом
+     * флаге у старой это 23505, то есть человек получал невнятное нарушение
+     * уникальности вместо «нет права вести ТЗ».
+     */
+    const cleared = await erpWrite(
+      'Не удалось подготовить замену ТЗ — версия не создана',
+      () => supabase
+        .from('erp_tz_documents')
+        .update({ is_current: false })
+        .eq('group_id', groupId)
+        .eq('is_current', true)
+        .select(),
+    );
+    if (!cleared) return null;
 
     const { data, error } = await erpQuery(() => supabase
       .from('erp_tz_documents')
@@ -156,10 +166,11 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
     if (error || !row) {
       // Компенсация: флаг уже снят, а новой версии нет — группа осталась бы без
       // актуального ТЗ, и гейт остановил бы цеха на документе, который никуда не делся.
-      await erpQuery(() => supabase
+      await erpWrite('Прежняя версия ТЗ не восстановлена', () => supabase
         .from('erp_tz_documents')
         .update({ is_current: true })
-        .eq('id', prev.id));
+        .eq('id', prev.id)
+        .select());
       await removeOrphanUpload(TZ_BUCKET, path);
       erpError('Файл загружен, но новая версия ТЗ не создана', error);
       return null;

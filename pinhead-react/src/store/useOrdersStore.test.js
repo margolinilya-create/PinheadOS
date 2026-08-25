@@ -249,3 +249,47 @@ describe('useOrdersStore — duplicateOrder dev-mode', () => {
     expect(capturedRow.created_by).toBeNull();
   });
 });
+
+/**
+ * СЕТЕВОЙ СБОЙ — ЭТО ОТКАЗ, А НЕ ТИШИНА.
+ *
+ * `supabase-js` БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS,
+ * оборванное соединение), и возвращает `error` только на ответ сервера.
+ * До 25.08 здесь проверялся один `error`: на броске ветка `if (!error)`
+ * не выполнялась, оптимистичная правка не откатывалась, тоста не было,
+ * а отклонение промиса всплывало глобальным обработчиком сырым «Load failed».
+ */
+describe('useOrdersStore — обрыв связи', () => {
+  beforeEach(() => {
+    useOrdersStore.setState({ orders: [], loading: false });
+  });
+
+  it('saveOrder возвращает null, а не отклоняется', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockImplementationOnce(() => { throw new TypeError('Load failed'); });
+
+    await expect(useOrdersStore.getState().saveOrder({ total: 0 })).resolves.toBeNull();
+  });
+
+  it('updateOrder откатывает оптимистичную правку', async () => {
+    const before = { id: 'o-1', data: { total: 100 }, total_sum: 100 };
+    useOrdersStore.setState({ orders: [before] });
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockImplementationOnce(() => { throw new TypeError('Load failed'); });
+
+    await expect(useOrdersStore.getState().updateOrder('o-1', { total: 999 }))
+      .resolves.toBeNull();
+    expect(useOrdersStore.getState().orders[0]).toEqual(before);
+  });
+
+  it('patchOrderData откатывает и не роняет промис', async () => {
+    const before = { id: 'o-1', data: { checklist: [] } };
+    useOrdersStore.setState({ orders: [before] });
+    const { supabase } = await import('../lib/supabase');
+    supabase.from.mockImplementationOnce(() => { throw new TypeError('Load failed'); });
+
+    await expect(useOrdersStore.getState().patchOrderData('o-1', { checklist: [1] }))
+      .resolves.toBeNull();
+    expect(useOrdersStore.getState().orders[0]).toEqual(before);
+  });
+});

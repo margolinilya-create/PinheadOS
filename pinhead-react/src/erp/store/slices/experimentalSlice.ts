@@ -15,9 +15,11 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { arrivedLate, currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
+import {
+  arrivedLate, currentActor, erpError, erpQuery, erpWrite, removeOrphanUpload,
+} from '../shared';
 import { toast } from '../../../store/useToastStore';
-import { attachmentFilePath } from '../../utils/storageKey';
+import { attachmentFilePath } from '../../../utils/storageKey';
 import { TZ_BUCKET } from '../../types';
 import type { ErpExperimental, ErpExperimentalTask, ErpOrderAttachment } from '../../types';
 import type { DevTaskInput, ErpStore, ExperimentalSlice } from '../types';
@@ -128,14 +130,16 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       experimental: s.experimental.map(
         (e) => (e.id === id ? (Object.assign({}, e, row) as ErpExperimental) : e)),
     }));
-    const { error } = await erpQuery(() => supabase
-      .from('erp_experimental').update(row).eq('id', id));
-    if (error) {
-      set({ experimental: prev });
-      erpError('Разработка не обновлена', error);
-      return false;
-    }
-    return true;
+    /**
+     * `erpWrite`, а не голый `error`: политика UPDATE `erp_experimental` стоит
+     * на праве `experimental.manage`, а RLS запрещает через `USING` — то есть
+     * отдаёт «0 строк» без ошибки. Правка осталась бы на экране, а карточка
+     * молча вернулась бы к прежнему состоянию следующим чтением.
+     */
+    const ok = await erpWrite('Разработка не обновлена', () => supabase
+      .from('erp_experimental').update(row).eq('id', id).select());
+    if (!ok) set({ experimental: prev });
+    return ok;
   },
 
   /**
@@ -186,14 +190,11 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     }
 
     set((s) => ({ experimental: patchTaskIn(s.experimental, id, (t) => ({ ...t, ...safe })) }));
-    const { error } = await erpQuery(() => supabase
-      .from('erp_experimental_tasks').update(safe).eq('id', id));
-    if (error) {
-      set({ experimental: prev });
-      erpError('Задача не обновлена', error);
-      return false;
-    }
-    return true;
+    // То же право `experimental.manage` и тот же молчаливый отказ нулём строк
+    const ok = await erpWrite('Задача не обновлена', () => supabase
+      .from('erp_experimental_tasks').update(safe).eq('id', id).select());
+    if (!ok) set({ experimental: prev });
+    return ok;
   },
 
   sendDevTaskToDept: async (taskId, input) => {

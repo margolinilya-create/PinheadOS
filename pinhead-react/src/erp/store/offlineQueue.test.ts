@@ -130,3 +130,50 @@ describe('очередь без связи', () => {
     expect(queued()).toEqual([]);
   });
 });
+
+/**
+ * ДВА ОДНОВРЕМЕННЫХ ЗАХОДА — ОДНА ОТПРАВКА, И ВТОРОЙ ЖДЁТ ПЕРВЫЙ.
+ *
+ * `flushQueue` зовётся из `resyncRealtime()`, а на неё подписаны `online`,
+ * `focus` и `visibilitychange`: планшет после сна даёт два события подряд.
+ * Раньше оба захода слали одну и ту же приёмку одновременно — приход
+ * не удваивался (ключ идемпотентности на сервере), но второй получал 23505,
+ * и запись выбрасывалась с красным «Не удалось отправить» ровно про ту
+ * приёмку, которая прошла.
+ *
+ * Ждать, а не пропускать: `resyncRealtime` отдаёт очередь ПЕРЕД чтением,
+ * чтобы человек не увидел состояние без собственных приёмок. Заход,
+ * пропустивший отдачу, пошёл бы читать немедленно.
+ */
+describe('flushQueue: одновременные заходы', () => {
+  beforeEach(() => {
+    clearQueue();
+    vi.clearAllMocks();
+  });
+
+  it('вторая отправка не дублирует запрос и дожидается первой', async () => {
+    enqueue({
+      id: 'k-1', kind: 'material_accept', label: 'Ткань', at: '2026-08-25',
+      args: { p_material_id: 'm-1', p_client_key: 'k-1' },
+    });
+
+    let release: (v: unknown) => void = () => {};
+    const held = new Promise((r) => { release = r; });
+    const { supabase } = await import('../../lib/supabase');
+    vi.mocked(supabase.rpc).mockImplementationOnce(
+      () => held.then(() => ({ data: null, error: null })) as never,
+    );
+
+    const first = flushQueue();
+    const second = flushQueue();
+
+    release(null);
+    const [a, b] = await Promise.all([first, second]);
+
+    // Один запрос на двоих — и оба захода узнали его результат
+    expect(vi.mocked(supabase.rpc)).toHaveBeenCalledTimes(1);
+    expect(a).toBe(1);
+    expect(b).toBe(1);
+    expect(queued()).toHaveLength(0);
+  });
+});

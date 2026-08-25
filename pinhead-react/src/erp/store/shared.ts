@@ -7,7 +7,8 @@
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
+import { translateSupabaseError } from '../../utils/i18n';
+import { netQuery, type NetResult } from '../../lib/netQuery';
 import { reportError } from '../../lib/errorReport';
 import type { ErpStageEvent } from '../types';
 
@@ -17,35 +18,21 @@ export function currentActor(): string {
   return u?.name || u?.email || 'неизвестно';
 }
 
-/** Ответ, который вернёт `erpQuery` — тот же вид, что у supabase-js */
-type ErpResult<T> = { data: T | null; error: { message: string } | null };
-
 /**
  * Сбой ДО ответа сервера читается как обычная ошибка ответа.
  *
- * `supabase-js` возвращает `error`, когда сервер ответил, и БРОСАЕТ, когда ответа
- * не было: нет сети, оборвалось соединение, CORS, клиент не настроен. Проверять
- * только `error` недостаточно, и в сторе это было соблюдено ровно в трёх функциях
- * из шестидесяти. Последствия у каждого экрана свои и одинаково тупиковые:
- * `loadAll` оставляет `loading = true` и `loadError = false` навсегда — а эти
- * флаги общие для десяти экранов, и все они показывают вечный скелетон без
- * кнопки «Повторить»; действие цеха теряет и сообщение, и снятие busy-флага;
- * необработанное отклонение промиса всплывает глобальным обработчиком сырым
- * «Load failed» из WebKit.
+ * Правило и реализация переехали в `lib/netQuery`: ревизия 25.08 нашла тот же
+ * класс отказа в сторе Order Studio (`saveOrder`, `updateOrder`,
+ * `patchOrderData`, `updateStatus` проверяли один `error`), а две копии
+ * обёртки с одним смыслом разошлись бы в первую же правку. Импортировать
+ * `erp/store/*` из общего стора нельзя отдельным правилом — он тянет доменный
+ * чанк во входной, — поэтому общее живёт в `lib/`.
  *
- * Обёртка ничего не решает за вызывающего: она превращает бросок в такой же
- * `{ data: null, error }`, какой пришёл бы от сервера, и дальше работает уже
- * написанная ветка `if (error) …` — с `erpError`, откатом и снятием флагов.
+ * Имя здесь прежнее: `erpQuery` стоит в шестидесяти местах, и переименование
+ * ради переезда было бы правкой, которую никто не просил.
  */
-export async function erpQuery<T>(
-  run: () => PromiseLike<{ data: T; error: { message: string } | null }>,
-): Promise<ErpResult<T>> {
-  try {
-    return await run();
-  } catch (e) {
-    return { data: null, error: { message: networkFailureMessage(e) } };
-  }
-}
+export const erpQuery = netQuery;
+export type ErpResult<T> = NetResult<T>;
 
 /** Пауза перед повтором чтения, оборвавшегося на сети */
 export const READ_RETRY_MS = 800;

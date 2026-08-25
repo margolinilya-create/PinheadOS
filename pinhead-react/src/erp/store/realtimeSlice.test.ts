@@ -18,6 +18,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useErpStore, resetErpStore } from './useErpStore';
+import { RECONNECT_STEPS_MS } from './slices/realtimeSlice';
 import { supabase } from '../../lib/supabase';
 
 /** Последний колбэк, переданный в `.subscribe(...)` — им и двигаем состояние канала */
@@ -151,6 +152,70 @@ describe('subscribeRealtime: разрыв канала и возврат', () =>
     await Promise.resolve();
 
     expect(loadAll).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ОТПИСКА НЕ ДОЛЖНА ВОСКРЕШАТЬ КАНАЛ.
+   *
+   * `removeChannel()` зовёт `unsubscribe()`, тот триггерит событие `close`,
+   * а `subscribe()` в supabase-js регистрирует на него `callback('CLOSED')` —
+   * то есть наша же отписка приходит в обработчик как «связь потеряна».
+   * Раньше он ставил на это таймер переподключения, причём УЖЕ ПОСЛЕ того,
+   * как cleanup снял таймеры и слушателей: через секунду появлялся новый
+   * канал с тремя новыми слушателями окна, а вернувшийся cleanup записывался
+   * в мёртвое замыкание. `ErpLayout` размонтируется при каждом выходе
+   * и при переключении разделов — на общем планшете это подписка, которая
+   * ходит в базу от имени уже вышедшего человека.
+   */
+  it('CLOSED после отписки не создаёт новый канал', async () => {
+    vi.useFakeTimers();
+    const loadAll = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadAll });
+
+    const stop = useErpStore.getState().subscribeRealtime();
+    const channelsBefore = vi.mocked(supabase.channel).mock.calls.length;
+    stop();
+
+    // Ровно то, что присылает supabase-js изнутри removeChannel()
+    statusCb!('CLOSED');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(vi.mocked(supabase.channel).mock.calls.length).toBe(channelsBefore);
+
+    // И слушателей окна новый канал тоже не завёл
+    window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(loadAll).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Тот же `CLOSED` приходит ИЗНУТРИ переподключения — таймер зовёт
+   * `removeChannel(channel)` и следом создаёт новый канал. Вторая цепочка
+   * переподключений рядом с идущей это тот же зомби, только другим путём,
+   * поэтому `CLOSED` гасит признак, но таймера не ставит.
+   */
+  it('CLOSED сам по себе переподключения не запускает', async () => {
+    vi.useFakeTimers();
+    unsubscribe = useErpStore.getState().subscribeRealtime();
+    const channelsBefore = vi.mocked(supabase.channel).mock.calls.length;
+
+    statusCb!('CLOSED');
+    expect(useErpStore.getState().realtimeLive).toBe(false);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(vi.mocked(supabase.channel).mock.calls.length).toBe(channelsBefore);
+  });
+
+  /** А настоящий разрыв по-прежнему поднимает канал заново */
+  it('CHANNEL_ERROR пересоздаёт канал', async () => {
+    vi.useFakeTimers();
+    unsubscribe = useErpStore.getState().subscribeRealtime();
+    const channelsBefore = vi.mocked(supabase.channel).mock.calls.length;
+
+    statusCb!('CHANNEL_ERROR');
+    await vi.advanceTimersByTimeAsync(RECONNECT_STEPS_MS[0] + 50);
+
+    expect(vi.mocked(supabase.channel).mock.calls.length).toBe(channelsBefore + 1);
   });
 });
 

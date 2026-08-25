@@ -135,11 +135,37 @@ describe('удаление учётной записи', () => {
   it('строка профиля убирается явно — каскада на неё нет', () => {
     const fn = CODE.slice(CODE.indexOf('async function deleteUser'));
     expect(fn).toMatch(/from\('profiles'\)\.delete\(\)/);
-    // Сотрудник ссылается на профиль `no action` — он уходит ПЕРВЫМ
+    // Сотрудник ссылается на профиль `no action` — он уходит ПЕРЕД ним
     const emp = fn.indexOf("from('erp_employees').delete()");
     const prof = fn.indexOf("from('profiles').delete()");
     expect(emp).toBeGreaterThan(0);
     expect(prof).toBeGreaterThan(emp);
+  });
+
+  /**
+   * ДОСТУП СНИМАЕТСЯ ПЕРВЫМ — иначе неудавшееся удаление РАСШИРЯЕТ права.
+   *
+   * Раньше первой уходила строка `erp_employees`: она единственная снимает
+   * цеховую роль, а вход закрывался последним. Любой сбой между ними
+   * оставлял человека, который по-прежнему входит, но уже без строки
+   * сотрудника — и `erp_role_of_caller()` выводит роль из профиля, делая его
+   * МЕНЕДЖЕРОМ по всей фабрике (ограничение «только свой цех» на человека
+   * без цеха не действует). Это записано в миграции 20260814090000 и здесь
+   * не было учтено.
+   *
+   * Порядок «сначала доступ» безопасен: внешних ключей на `auth.users`
+   * в схеме нет вовсе, поэтому это удаление ничем не держится.
+   */
+  it('вход закрывается раньше, чем снимается цеховая роль', () => {
+    const fn = CODE.slice(CODE.indexOf('async function deleteUser'));
+    const authDelete = fn.indexOf('auth.admin.deleteUser(p.user_id)');
+    const emp = fn.indexOf("from('erp_employees').delete()");
+    expect(authDelete).toBeGreaterThan(0);
+    expect(
+      emp,
+      'строка сотрудника снимается ДО закрытия входа: сбой между ними оставляет '
+      + 'человека с доступом и без цеховой роли, то есть менеджером всей фабрики',
+    ).toBeGreaterThan(authDelete);
   });
 });
 

@@ -53,10 +53,28 @@ export function useOrderDetail(orderId) {
    * без сетки: данные вроде есть, а поля нет.
    */
   const hasDetail = detailIds.includes(orderId);
+  /**
+   * Признак «уже пробовали» ставится ТОЛЬКО на неудачу.
+   *
+   * Он нужен против вечного повтора у заказа, которого нет или который
+   * не прочитался. Раньше стоял `finally`, то есть формально поднимался
+   * и после успеха — и не ронял дозагрузку лишь по случайности: успешный
+   * `loadOne` меняет стор, `useSyncExternalStore` перерисовывает синхронно,
+   * эффект снимается, и `alive` гасит `setLookedUpFor` РАНЬШЕ, чем тот
+   * успевает выполниться. Проверено прогоном: на `finally` дозагрузка
+   * повторяется так же.
+   *
+   * Держаться этого порядка нельзя — он про то, когда React флашит, а не про
+   * то, чего мы хотим. `then` говорит намерение прямо: неудача запрещает
+   * повтор, успех — нет. Цикла быть не может, потому что успешный `loadOne`
+   * поднимает `detailIds`, а пока признак полноты стоит, эффект не входит.
+   */
   useEffect(() => {
     if (!loaded || hasDetail || lookedUp || !orderId) return undefined;
     let alive = true;
-    loadOne(orderId).finally(() => { if (alive) setLookedUpFor(orderId); });
+    loadOne(orderId).then((row) => {
+      if (alive && !row) setLookedUpFor(orderId);
+    });
     return () => { alive = false; };
   }, [loaded, hasDetail, lookedUp, loadOne, orderId]);
 

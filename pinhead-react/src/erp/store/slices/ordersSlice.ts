@@ -141,12 +141,34 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       set({ loading: false, loadError: true });
       return;
     }
-    set({
+    /**
+     * ПРИЗНАК ПОЛНОТЫ СНИМАЕТСЯ ВМЕСТЕ С ПОЛНЫМИ ДАННЫМИ.
+     *
+     * `loadAll` кладёт заказы по `ORDER_LIST_SELECT`, где у позиции нет
+     * `size_grid` (а у этапа — `notes`). `detailIds` при этом означает
+     * «у этого заказа есть колонки, которых в списочном запросе нет», и,
+     * оставшись поднятым, он превращается в ложь: `useOrderDetail` и `DevPage`
+     * решают по нему, нужна ли дозагрузка, и второй раз её не делают уже
+     * НИКОГДА за сессию.
+     *
+     * Ловилось это так: открыть карточку заказа, свернуть планшет и вернуться.
+     * Возврат фокуса зовёт `resyncRealtime()` → `loadAll()`, и размерная сетка
+     * пропадала с карточки молча — разметка написана как
+     * `{size_grid && size_grid.length > 0 && …}`, то есть блок просто исчезает.
+     * Ни ошибки, ни пустого состояния; читается как «сетку не задавали».
+     *
+     * Снимаем ровно у тех, кого перезаписали: заказ, которого в этом ответе
+     * нет (архивный, открытый по прямой ссылке), полным быть не перестал.
+     */
+    const rows = ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull);
+    const overwritten = new Set(rows.map((o) => o.id));
+    set((s) => ({
       ...(deps.data ? { departments: deps.data as ErpDepartment[] } : {}),
-      orders: ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+      orders: rows,
+      detailIds: s.detailIds.filter((id) => !overwritten.has(id)),
       loading: false,
       loaded: true,
-    });
+    }));
   },
 
   /**
@@ -190,6 +212,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       const paged = new Set(fresh.map((o) => o.id));
       return {
         orders: [...s.orders.filter((o) => !paged.has(o.id)), ...fresh],
+        // Страница архива тоже приходит списочной выборкой и тоже перезаписывает
+        // заказ, открытый по прямой ссылке, — признак полноты снимаем вместе
+        // с данными (см. `loadAll`)
+        detailIds: s.detailIds.filter((id) => !paged.has(id)),
         archiveLoading: false,
         archiveLoaded: true,
         archiveOffset: rows.length,

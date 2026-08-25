@@ -451,6 +451,32 @@ describe('useAuthStore — previewRole', () => {
     expect(useAuthStore.getState().isAdmin()).toBe(true);
     expect(useAuthStore.getState().isProduction()).toBe(false);
   });
+
+  /**
+   * ПРЕДПРОСМОТР РОЛИ НЕ ПЕРЕЖИВАЕТ СМЕНУ ЧЕЛОВЕКА.
+   *
+   * `logout()` и `sessionLost()` перечисляли поля поимённо, каждый свой набор,
+   * и `previewRole` не попал ни в один. Админ смотрел раздел глазами дизайнера,
+   * выходил, на том же цеховом планшете входил менеджер — и получал интерфейс
+   * дизайнера: `OrderStudioApp` считает `effectiveRole = previewRole ||
+   * user.role`. Снять предпросмотр менеджер не мог, потому что
+   * `RolePreviewBar` рисуется только тем, чья НАСТОЯЩАЯ роль admin/director.
+   */
+  it('выход снимает предпросмотр роли', async () => {
+    useAuthStore.setState({ user: { id: '1', role: 'admin' }, previewRole: 'designer' });
+    await useAuthStore.getState().logout();
+    expect(useAuthStore.getState().previewRole).toBeNull();
+  });
+
+  it('потеря сессии снимает предпросмотр роли', () => {
+    useAuthStore.setState({
+      user: { id: '1', role: 'admin' }, previewRole: 'designer', signingOut: false,
+    });
+    useAuthStore.getState().sessionLost();
+    expect(useAuthStore.getState().previewRole).toBeNull();
+    // …и объяснение остаётся: тем сброс и отличается от обычного выхода
+    expect(useAuthStore.getState().error).toBeTruthy();
+  });
 });
 
 describe('useAuthStore — logout', () => {

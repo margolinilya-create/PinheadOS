@@ -134,6 +134,13 @@ export function supplyMaterialSummary(
 ): SupplyMaterialSummary {
   const list = materials ?? [];
   const settled = list.filter(isMaterialSettled).length;
+  /**
+   * «Оформлено» считается ОДИН раз: `notOrdered` — это дополнение к нему,
+   * и второй проход тем же предикатом означал бы две копии определения
+   * «оформлена ли строка». Разойдясь, они дали бы сумму, не равную общему числу позиций.
+   */
+  const ordered = list.filter(
+    (m) => (m.qty_ordered != null && m.qty_ordered > 0) || Boolean(m.ordered_on)).length;
   return {
     total: list.length,
     settled,
@@ -149,13 +156,11 @@ export function supplyMaterialSummary(
      * `ordered` для этого не годится — его ставят и до того, как узнали
      * количество и цену, а документ спрашивает именно «сколько оформлено».
      */
-    ordered: list.filter(
-      (m) => (m.qty_ordered != null && m.qty_ordered > 0) || Boolean(m.ordered_on)).length,
+    ordered,
     inTransit: list.filter(
       (m) => m.status === 'ordered' || m.status === 'in_transit' || m.status === 'partial').length,
     arrived: list.filter((m) => m.status === 'received' || m.status === 'reserved').length,
-    notOrdered: list.length - list.filter(
-      (m) => (m.qty_ordered != null && m.qty_ordered > 0) || Boolean(m.ordered_on)).length,
+    notOrdered: list.length - ordered,
     /**
      * «Проблемы или просрочено» из сводки карточки (п. 1.3). Считается ЗДЕСЬ,
      * а не на экране: величина закупочная, и вторая её реализация рядом

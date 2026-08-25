@@ -1502,6 +1502,58 @@ describe('облегчённый списочный запрос (D2)', () => {
     await useErpStore.getState().loadOne('o-a');
     expect(useErpStore.getState().detailIds.filter((id) => id === 'o-a')).toHaveLength(1);
   });
+
+  /**
+   * ПОЛНОТА ЖИВЁТ РОВНО ДО СЛЕДУЮЩЕГО СПИСОЧНОГО ОТВЕТА.
+   *
+   * `loadAll` заменяет `orders` целиком результатом `ORDER_LIST_SELECT`,
+   * где размерной сетки нет. Признак `detailIds`, оставшийся поднятым, врёт:
+   * карточка решает по нему, нужна ли дозагрузка, и не делает её больше
+   * никогда — блок сетки исчезает молча, потому что разметка написана как
+   * `{size_grid && size_grid.length > 0 && …}`.
+   *
+   * Доходило это до человека так: открыть карточку, свернуть планшет, вернуться.
+   * Возврат фокуса зовёт `resyncRealtime()` → `loadAll()`.
+   */
+  it('loadAll снимает отметку полноты у заказов, которые перезаписал', async () => {
+    h.singleData = { ...row, items: [], materials: [] };
+    await useErpStore.getState().loadOne('o-a');
+    expect(useErpStore.getState().detailIds).toContain('o-a');
+
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+
+    expect(useErpStore.getState().detailIds).not.toContain('o-a');
+  });
+
+  /**
+   * А заказ, которого в списочном ответе НЕ БЫЛО, полным быть не перестал:
+   * архивный, открытый по прямой ссылке, в `loadAll` не попадает вовсе,
+   * и снимать у него признак значило бы гонять лишний запрос на каждом
+   * возврате вкладки.
+   */
+  it('заказ вне списочного ответа отметку сохраняет', async () => {
+    h.singleData = { id: 'o-arch', title: 'Архивный', status: 'done_on_time', items: [], materials: [] };
+    await useErpStore.getState().loadOne('o-arch');
+
+    h.tableData = { erp_departments: [dept], erp_orders: [row] };
+    await useErpStore.getState().loadAll();
+
+    expect(useErpStore.getState().detailIds).toContain('o-arch');
+  });
+
+  /** Страница архива приходит той же списочной выборкой — правило одно */
+  it('loadArchive снимает отметку у перезаписанных заказов', async () => {
+    const archived = { id: 'o-b', title: 'Архивный', status: 'done_on_time', items: [], materials: [] };
+    h.singleData = { ...archived };
+    await useErpStore.getState().loadOne('o-b');
+    expect(useErpStore.getState().detailIds).toContain('o-b');
+
+    h.tableData = { erp_orders: [archived] };
+    await useErpStore.getState().loadArchive();
+
+    expect(useErpStore.getState().detailIds).not.toContain('o-b');
+  });
 });
 
 describe('число запросов: оболочка и карточка заказа (Ф1′)', () => {

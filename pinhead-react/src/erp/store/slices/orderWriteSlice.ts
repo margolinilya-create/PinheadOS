@@ -29,6 +29,7 @@ import { isOrderReadyToShip } from '../../utils/stageUi';
 import { isBypassed } from '../../utils/bypass';
 import { daysLeft } from '../../utils/time';
 import { pluralize } from '../../../utils/i18n';
+import { attachmentFilePath } from '../../../utils/storageKey';
 import type {
   ErpItemStage, ErpOrder, ErpOrderAttachment, ErpOrderStatus,
 } from '../../types';
@@ -362,12 +363,6 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
    * строкой `erp_order_attachments`, и без перечитывания человек увидит его
    * только после F5 — то есть решит, что кнопка не сработала.
    */
-
-  /**
-   * PDF листа закупки. Заказ перечитывается после успеха: файл появляется
-   * строкой `erp_order_attachments`, и без перечитывания человек увидит его
-   * только после F5 — то есть решит, что кнопка не сработала.
-   */
   generatePurchaseListPdf: async (orderId) => {
     const { error } = await withPending(`pdf:${orderId}`, () =>
       invokeFunction('purchase-list-pdf', { order_id: orderId }));
@@ -478,8 +473,17 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
 
 
   uploadOrderPreview: async (orderId, file) => {
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
+    /**
+     * Ключ собирает `utils/storageKey`, а не `file.name.split('.').pop()`.
+     *
+     * У имени БЕЗ точки `split` отдаёт массив из одного элемента, и `pop()`
+     * возвращает имя целиком — фолбэк `|| 'png'` не срабатывал никогда.
+     * Файл «Скан» превращался в ключ `<orderId>/1699.скан`, а Supabase
+     * проверяет ключ регуляркой S3-safe символов, где `\w` без флага `u`,
+     * и на кириллицу отвечает `InvalidKey`. Это тот же отказ, на котором
+     * когда-то не загружалось НИ ОДНО ТЗ, и ради которого модуль и выделен.
+     */
+    const path = attachmentFilePath(orderId, 'preview', String(Date.now()), file.name);
     const { error: upErr } = await erpQuery(() => supabase.storage
       .from('erp-attachments')
       .upload(path, file, { contentType: file.type || 'image/png' }));
@@ -516,8 +520,8 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
 
 
   uploadOrderAttachment: async (orderId, file, note) => {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
+    // Тот же ключ и та же причина, что у превью строкой выше
+    const path = attachmentFilePath(orderId, 'attachment', String(Date.now()), file.name);
     const { error: upErr } = await erpQuery(() => supabase.storage
       .from('erp-attachments')
       .upload(path, file, { contentType: file.type || 'image/jpeg' }));
