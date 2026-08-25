@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-08-24",
+  "capturedAt": "2026-08-25",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -1325,6 +1325,30 @@
         "20260824191611_erp_subcontract_send_task.sql"
       ],
       "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_warehouse_task_derive пересоздана из её же pg_get_functiondef (сверена с базой — совпала), добавлена одна ветка"
+    },
+    {
+      "version": "20260825192607",
+      "name": "erp_stage_guard_route_columns",
+      "files": [
+        "20260825120000_erp_stage_guard_route_columns.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_stage_guard пересоздан из его же pg_get_functiondef, добавлена одна ветка (depends_on/item_id). В базе комментарии тела отсутствовали ещё с выкладки 21.08 — в файле они восстановлены"
+    },
+    {
+      "version": "20260825192628",
+      "name": "erp_material_accept_atomic_key",
+      "files": [
+        "20260825121000_erp_material_accept_atomic_key.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_material_accept пересоздана из её же pg_get_functiondef: снят предварительный select exists, дубль определяет сам INSERT через on conflict do nothing"
+    },
+    {
+      "version": "20260825192641",
+      "name": "baseline_fk_matches_prod",
+      "files": [
+        "20260825122000_baseline_fk_matches_prod.sql"
+      ],
+      "note": "no-op на проде по построению: оба условия проверяют фактическое состояние схемы, и на боевой базе ни одно не выполнилось (у profiles исходящих FK нет, orders_created_by_fkey уже смотрит на profiles). Нужна для реплея на чистое окружение, где baseline создал бы связи, которых в проде нет"
     }
   ]
 }
