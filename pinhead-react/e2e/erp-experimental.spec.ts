@@ -166,6 +166,14 @@ const EXPERIMENTAL = [
         title: 'Нанесение образца', status: 'waiting', sort_order: 20,
         department_id: deptId('dtf'), stage_id: 'ord-a-i1-st3', qty: 2,
       }),
+      // Обычная внутренняя работа технолога — она и есть содержимое блока
+      // «Задачи этапов» после правки 30.08 (п. 3): задачи ключевых этапов
+      // туда больше не попадают, их ведёт «Основной маршрут разработки»
+      task({
+        id: 'dev-work-t3', experimental_id: 'dev-work', task_type: 'other',
+        title: 'Подобрать молнию', status: 'in_progress', responsible: 'Ирина',
+        sort_order: 30,
+      }),
     ],
   },
   {
@@ -453,8 +461,32 @@ test.describe('Карточка разработки', () => {
 
     // А у обычной задачи кнопки на месте — сравнение обязательно, иначе проверка
     // выше прошла бы и на экране, где кнопок нет ни у кого
-    const normal = drawer.getByRole('row').filter({ hasText: 'Лекала базовые' });
+    const normal = drawer.getByRole('row').filter({ hasText: 'Подобрать молнию' });
     await expect(normal.getByRole('button', { name: 'Готово' })).toBeVisible();
+  });
+
+  /**
+   * П. 3 документа 30.08: «блок „Задачи этапов" должен содержать только
+   * дополнительные внутренние задачи». Работа самих этапов видна выше,
+   * в «Основном маршруте разработки», — второй список тех же строк был бы
+   * третьим местом для одного и того же.
+   */
+  test('блок задач не перечисляет задачи ключевых этапов', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    const drawer = page.getByRole('main');
+
+    await expect(drawer.getByRole('row').filter({ hasText: 'Подобрать молнию' }))
+      .toHaveCount(1);
+    await expect(
+      drawer.getByRole('row').filter({ hasText: 'Лекала базовые' }),
+      'задача этапа попала в блок дополнительных — это второй список тех же строк',
+    ).toHaveCount(0);
+    // Сам этап при этом на виду — в маршруте, где ему и место. Локатор
+    // сужен до панели вкладки: то же самое пишет постоянная справка сбоку,
+    // и по всей области совпадений было бы два
+    await expect(
+      drawer.locator('#dev-tabpanel').getByText('Текущий этап: Построение лекал'),
+    ).toBeVisible();
   });
 
   test('повторная примерка — новая задача со своим кругом, а не счётчик', async ({ page }) => {

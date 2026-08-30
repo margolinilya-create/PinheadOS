@@ -128,6 +128,10 @@ const FILTERED_VIEWS = new Set(['board', 'list']);
 const STATE_VARIANT = {
   new: 'neutral', in_progress: 'progress', attention: 'blocked',
   fitting: 'waiting', ready: 'ready',
+  // Переданные на склад (правка 30.08, п. 4). Пропуск здесь не роняет ничего —
+  // Badge получил бы undefined и нарисовался нейтральным, то есть состояние
+  // молча перестало бы отличаться от прочих
+  handed: 'done',
 };
 
 export default function Experimental() {
@@ -364,9 +368,16 @@ export default function Experimental() {
     [orders],
   );
 
+  /**
+   * Счётчики плиток. Ключи берутся ИЗ САМИХ ПЛИТОК, а не перечисляются
+   * повторно: пропущенное состояние давало `undefined + 1`, то есть `NaN`
+   * прямо на плитке. Так и случилось с `handed` (правка 30.08, п. 4) —
+   * список состояний вырос, а этот объект остался прежним.
+   */
   const counts = useMemo(() => {
-    const c = { '': rows.length, new: 0, in_progress: 0, attention: 0, fitting: 0, ready: 0 };
-    for (const r of rows) c[r.state] += 1;
+    const c = Object.fromEntries(STATE_TILES.map((t) => [t.key, 0]));
+    c[''] = rows.length;
+    for (const r of rows) c[r.state] = (c[r.state] ?? 0) + 1;
     return c;
   }, [rows]);
 

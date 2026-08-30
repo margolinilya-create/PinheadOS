@@ -74,8 +74,16 @@ function setup(devPatch = {}) {
   return { onUpdate, onUpdateTask, onAddTasks };
 }
 
-/** Кнопка «Готово» у задачи в работе — в таблице задач этапов */
-const doneButton = () => screen.getAllByRole('button', { name: 'Готово' })[0];
+/**
+ * Задачу этапа закрывает МАРШРУТ (правка 30.08, п. 3): блок «Задачи этапов»
+ * показывает только дополнительные работы технолога, а обязательных задач
+ * этапов больше не создаётся вовсе. Поэтому кнопка здесь — «Завершить лекала»
+ * из «Основного маршрута разработки», а не «Готово» из таблицы задач.
+ */
+const completeStage = (label = 'Завершить лекала') => screen.getByRole('button', { name: label });
+
+/** Первый диалог маршрута — «будут отмечены готовыми…», без ввода */
+const confirmStage = () => confirmWithInput.mockResolvedValueOnce({ ok: true, value: '' });
 
 beforeEach(() => {
   confirmWithInput.mockReset();
@@ -83,22 +91,24 @@ beforeEach(() => {
 
 describe('построение лекал требует результата', () => {
   it('без названия лекал задача не закрывается', async () => {
+    confirmStage();
     confirmWithInput.mockResolvedValue({ ok: false, value: '' });
     const { onUpdate, onUpdateTask } = setup();
 
-    fireEvent.click(doneButton());
+    fireEvent.click(completeStage());
 
-    await waitFor(() => expect(confirmWithInput).toHaveBeenCalled());
+    await waitFor(() => expect(confirmWithInput).toHaveBeenCalledTimes(2));
     expect(onUpdate).not.toHaveBeenCalled();
     // Отказались вводить — задача осталась открытой
     expect(onUpdateTask).not.toHaveBeenCalled();
   });
 
   it('введённое название уходит В РАЗРАБОТКУ — это и есть перенос в пакет', async () => {
+    confirmStage();
     confirmWithInput.mockResolvedValue({ ok: true, value: 'PNHD-T04-FreeFit-v1' });
     const { onUpdate, onUpdateTask } = setup();
 
-    fireEvent.click(doneButton());
+    fireEvent.click(completeStage());
 
     await waitFor(() => expect(onUpdateTask).toHaveBeenCalled());
     expect(onUpdate).toHaveBeenCalledWith('e1', { pattern_tech_name: 'PNHD-T04-FreeFit-v1' });
@@ -110,22 +120,43 @@ describe('построение лекал требует результата', 
   });
 
   it('название уже есть — второй раз не спрашиваем', async () => {
+    confirmStage();
     const { onUpdateTask } = setup({ pattern_tech_name: 'PNHD-T04-v1' });
 
-    fireEvent.click(doneButton());
+    fireEvent.click(completeStage());
 
     await waitFor(() => expect(onUpdateTask).toHaveBeenCalled());
-    expect(confirmWithInput).not.toHaveBeenCalled();
+    // Ровно один диалог — подтверждение самого этапа, без вопроса о названии
+    expect(confirmWithInput).toHaveBeenCalledTimes(1);
   });
 
   /** У задач других типов проверки нет: название описывает лекала */
-  it('другую задачу закрывает без вопросов', async () => {
+  it('другой этап закрывает без вопросов о лекалах', async () => {
+    confirmStage();
+    // Название лекал НЕ задано — проверка привязана к типу задачи, а не
+    // к тому, что поле заполнено
     const { onUpdateTask } = setup({ tasks: [task({ id: 't2', task_type: 'sewing_sample' })] });
 
-    fireEvent.click(doneButton());
+    fireEvent.click(completeStage('Завершить пошив'));
 
     await waitFor(() => expect(onUpdateTask).toHaveBeenCalledWith('t2', { status: 'done' }));
-    expect(confirmWithInput).not.toHaveBeenCalled();
+    expect(confirmWithInput).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * П. 3 документа 30.08: «блок „Задачи этапов" должен содержать только
+ * дополнительные внутренние задачи». Обязательная задача этапа туда
+ * не попадает — иначе рядом с маршрутом снова заведётся второй список
+ * тех же строк.
+ */
+describe('блок задач показывает только дополнительные работы', () => {
+  it('этапная задача в блоке не перечислена', () => {
+    setup();
+    expect(
+      screen.getByText(/Дополнительных задач нет/),
+      'этапная задача попала в блок дополнительных — это второй список тех же строк',
+    ).toBeInTheDocument();
   });
 });
 

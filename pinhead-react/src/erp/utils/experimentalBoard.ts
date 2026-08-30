@@ -204,7 +204,11 @@ export interface DevStageState {
 }
 
 export interface DevBoardInput {
-  dev: Pick<ErpExperimental, 'item_id' | 'outcome'> & { sample_approved_at?: string | null };
+  dev: Pick<ErpExperimental, 'item_id' | 'outcome'> & {
+    sample_approved_at?: string | null;
+    /** Колонка, поставленная человеком, — ею считается «шаг уже пройден» */
+    board_stage?: DevStage | null;
+  };
   tasks: readonly ErpExperimentalTask[];
   /** Материалы ЗАКАЗА разработки — гейт кроя смотрит на них */
   materials?: readonly ErpMaterial[] | null;
@@ -283,8 +287,27 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
     byStage.set(st, [...(byStage.get(st) ?? []), t]);
   }
 
-  const patternsDone = (byStage.get('patterns') ?? []).length > 0
-    && (byStage.get('patterns') ?? []).every((t) => CLOSED.has(t.status));
+  /**
+   * ШАГ, КОТОРЫЙ ЧЕЛОВЕК УЖЕ ПРОШЁЛ РУКАМИ (правка заказчика 30.08, п. 3).
+   *
+   * Обязательных задач этапов больше не создаётся, и у «Построения лекал»
+   * задач обычно НЕТ вовсе. Документ требует: переход «Лекала → Крой»
+   * должен «отметить этап завершённым и перевести карточку в „Крой"» —
+   * а состояние шага считается из задач, которых нет. Без этого признака
+   * исполнялась бы ровно половина требования: карточка переезжает, а маршрут
+   * до конца разработки показывает лекала незакрытыми, и гейт кроя вечно
+   * отвечает «Ожидает лекала».
+   *
+   * Источник правды по-прежнему один: колонку ставит человек
+   * (`board_stage`), а расчёт отвечает на «что с работой».
+   */
+  const manualIdx = DEV_STAGE_ORDER.indexOf(input.dev.board_stage as DevStage);
+  const passedByHand = (stage: DevStage): boolean => manualIdx >= 0
+    && DEV_STAGE_ORDER.indexOf(stage) < manualIdx;
+
+  const patternsDone = passedByHand('patterns')
+    || ((byStage.get('patterns') ?? []).length > 0
+      && (byStage.get('patterns') ?? []).every((t) => CLOSED.has(t.status)));
 
   /** Есть ли работа на шагах ПОСЛЕ указанного — признак «шаг перепрыгнули» */
   const workLater = (stage: DevStage): boolean => {
@@ -319,7 +342,20 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
       return { stage, lane: 'done' as DevLane, tasks: own, waitingReason: null };
     }
     if (own.length === 0) {
-      if (!stageApplies(stage, byStage) || workLater(stage)) {
+      // Нанесений у образца нет вовсе — шаг не пропускали, его не было в плане
+      if (!stageApplies(stage, byStage)) {
+        return { stage, lane: 'skipped' as DevLane, tasks: own, waitingReason: null };
+      }
+      /**
+       * Человек уже перенёс карточку дальше — этап пройден его решением,
+       * и слово «Пропущено» здесь было бы неправдой: у лекал записано
+       * техническое название, то есть работа сделана и зафиксирована.
+       */
+      if (passedByHand(stage)) {
+        return { stage, lane: 'done' as DevLane, tasks: own, waitingReason: null };
+      }
+      // Легаси: у разработки нет задач этого типа вовсе, а дальше работа идёт
+      if (workLater(stage)) {
         return { stage, lane: 'skipped' as DevLane, tasks: own, waitingReason: null };
       }
     }

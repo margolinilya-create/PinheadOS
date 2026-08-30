@@ -180,6 +180,33 @@ describe('состояния шагов', () => {
     expect(laneOf(states, 'cutting')).toBe('skipped');
     expect(devBoardColumn(states, dev())).toBe('sewing');
   });
+
+  /**
+   * П. 3 документа 30.08: переход «Лекала → Крой» обязан «отметить этап
+   * завершённым и перевести карточку в „Крой"». Обязательных задач этапов
+   * больше не создаётся, поэтому без признака «человек прошёл шаг руками»
+   * исполнялась бы ровно половина: карточка переезжает, а лекала до конца
+   * разработки числятся незакрытыми.
+   */
+  it('шаг, пройденный человеком вручную, ЗАВЕРШЁН, а не пропущен', () => {
+    const states = devStageStates({
+      dev: dev({ board_stage: 'cutting' }),
+      tasks: [],
+      materials: [material({ status: 'received', accept_status: 'accepted_full' })],
+    });
+    expect(laneOf(states, 'patterns')).toBe('done');
+    // И гейт кроя больше не отвечает «Ожидает лекала» — иначе крой
+    // не начался бы никогда
+    expect(laneOf(states, 'cutting')).toBe('ready');
+  });
+
+  it('нанесений у образца нет — шаг всё равно «не требуется», а не завершён', () => {
+    const states = devStageStates({
+      dev: dev({ board_stage: 'sewing' }),
+      tasks: [],
+    });
+    expect(laneOf(states, 'branding')).toBe('skipped');
+  });
 });
 
 describe('колонка разработки', () => {

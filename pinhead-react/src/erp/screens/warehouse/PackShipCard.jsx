@@ -3,7 +3,7 @@ import { formatDateShort } from '../../utils/time';
 import { isOrderReadyToShip, shipBlockReason } from '../../utils/stageUi';
 import { shipmentTotals } from '../../utils/shipment';
 import { createAttemptKeeper } from '../../utils/attemptKey';
-import { PACK_SHIP_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
+import { PACK_SHIP_STATUS_LABELS, SHIPPED_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
 import styles from '../../styles';
 import { Button } from '../../components/Button';
 
@@ -100,8 +100,18 @@ export function PackShipCard({ order, task, onAdvance, onShip }) {
           <span className={styles.subText}>Упаковка и отгрузка</span>
           <div><strong>№{order.bitrix_id || '—'} · {order.title}</strong></div>
         </div>
+        {/*
+          СТАТУС НАЗЫВАЕТ И ЧАСТИЧНУЮ ОТГРУЗКУ (правка 30.08, п. 6): «оставить
+          карточку заказа на складе со статусом „Частично отгружено"».
+          Статус задачи об этом не знает — она остаётся `ready_to_ship`, —
+          поэтому подпись берётся у ЗАКАЗА, где её ведёт триггер. Иначе
+          на самом складе, там, где заказ и остаётся, было бы написано
+          «Готово к отгрузке» при уже отданной половине тиража.
+        */}
         <span className={`${styles.chip} ${task.status === 'shipped' ? styles.chipDone : styles.chipProgress}`}>
-          {PACK_SHIP_STATUS_LABELS[task.status]}
+          {order.shipped_status === 'partial' && task.status !== 'shipped'
+            ? SHIPPED_STATUS_LABELS.partial
+            : PACK_SHIP_STATUS_LABELS[task.status]}
         </span>
       </div>
 

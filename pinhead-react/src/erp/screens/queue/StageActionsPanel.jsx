@@ -233,6 +233,10 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               {perms.take && (
                 <Button
                   variant="primary"
+                  /* `loading`, а не только `disabled`: погасшая кнопка без
+                     признака работы читается как «опять не сработало» — ровно
+                     та жалоба, из-за которой правился сам поток (п. 9) */
+                  loading={busy}
                   disabled={busy}
                   onClick={() => run(() => onStart(entry, startDate))}>
                   <Icon name="play" size={14} /> Взять в работу

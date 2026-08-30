@@ -19,7 +19,7 @@ import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
   DEV_STAGE_LABELS, cuttingGate, devBoardColumn, devRouteSteps, devStageStates,
-  devStageOfTask, extraTasks,
+  extraTasks,
 } from '../../utils/experimentalBoard';
 import { wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
@@ -197,7 +197,6 @@ export function DevCard({
   // Без useMemo: обход одного короткого массива, а `tasks` пересобирается
   // на каждый рендер (`dev.tasks ?? []`) — мемоизация тут только мешает
   const extra = extraTasks(tasks);
-  const stageTaskList = tasks.filter((t) => devStageOfTask(t.task_type) !== null);
   /**
    * Статус материалов — обязательный пункт карточки по документу 20.08.
    * Считается ТЕМ ЖЕ гейтом кроя, что и доска: «крой можно начать только когда
@@ -569,30 +568,31 @@ export function DevCard({
                 </Button>
               )}
             </div>
-            {addOpen && !dev.outcome && (
-              <AddTaskForm typeItems={typeNames} tasks={tasks} onAdd={addTasks} />
-            )}
-            <DevTasksSection
-              tasks={stageTaskList}
-              allTasks={tasks}
-              typeNames={typeNames}
-              deptNames={deptNames}
-              onUpdate={updateTask}
-              onSend={sendTask}
-              onBlock={blockTask}
-              canManage={canManage}
-              files={files}
-              onUploadFile={uploadTaskFile}
-              onRemoveFile={(attId) => onRemoveFile(dev.id, attId)}
-            />
+            {/*
+              В БЛОКЕ ТОЛЬКО ДОПОЛНИТЕЛЬНЫЕ ЗАДАЧИ (правка заказчика 30.08,
+              п. 3): «в блоке „Задачи этапов" оставить только дополнительные
+              внутренние задачи экспериментального цеха, которые технолог
+              создаёт вручную при необходимости. Эти задачи не должны
+              дублировать обязательные этапы маршрута».
 
-            <h3 className={styles.queueGroupTitle} style={{ marginTop: 16 }}>
-              Дополнительные задачи
-            </h3>
+              Раньше блоков было ДВА — этапные задачи и рядом отдельно
+              дополнительные, — и первый показывал ровно то, что документ
+              просит убрать. Обязательных задач этапов больше не создаётся
+              (`erp_experimental_create` заводит их пустым списком), а работа
+              самих этапов видна выше, в «Основном маршруте разработки»:
+              второй список тех же строк был бы третьим местом для одного
+              и того же.
+
+              Задачи НАНЕСЕНИЙ при этом никуда не делись — они этапные,
+              их видит очередь цеха, и их состояние показывает маршрут.
+            */}
             <p className={styles.subText}>
               Внутренние работы технолога: доработать рукав, подобрать ткань,
               проверить молнию. Колонок на доске они не создают.
             </p>
+            {addOpen && !dev.outcome && (
+              <AddTaskForm typeItems={typeNames} tasks={tasks} onAdd={addTasks} />
+            )}
             <DevTasksSection
               tasks={extra}
               allTasks={tasks}
