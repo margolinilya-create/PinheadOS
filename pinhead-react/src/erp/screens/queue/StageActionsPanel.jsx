@@ -103,7 +103,12 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   // иначе этап с дальним сроком мгновенно становился «просрочен» на следующий день, ERP-04).
   const [startDate, setStartDate] = useState(
     () => defaultPlannedEnd({
-      plannedEnd: stage.planned_end, normDays, dueDate: order.due_date,
+      plannedEnd: stage.planned_end,
+      normDays,
+      dueDate: order.due_date,
+      // Дата запуска участвует в расчёте срока (правка 30.08, п. 10):
+      // этап не планируется раньше, чем заказ вообще запустится
+      launchDate: order.launch_date,
     }),
   );
   /**

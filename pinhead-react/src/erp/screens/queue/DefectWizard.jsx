@@ -66,6 +66,7 @@ export function DefectWizard({
     plannedEnd: receiver.planned_end,
     normDays: normDaysByDept?.get(receiver.department_id) ?? null,
     dueDate: order.due_date,
+    launchDate: order.launch_date,
   });
   // Поле показывает предложение, пока человек не выбрал своё: получатель
   // меняется вместе с «Где устранять», и хранить дефолт в состоянии значило бы

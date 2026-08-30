@@ -162,6 +162,12 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
                       <span className={styles.subText}>
                         {' '}· {[e.item.product_type, e.item.variant].filter(Boolean).join(' ')}
                         {' '}· {progress.done}/{e.item.qty} шт
+                        {/* Дата запуска (правка 30.08, п. 10): день, с которого
+                            заказ реально идёт. У перенесённого задним числом
+                            заказа он не совпадает с днём заведения, и на какой
+                            день ставить работу — решают, зная это */}
+                        {e.order.launch_date
+                          && ` · запуск ${formatDateShort(e.order.launch_date)}`}
                       </span>
                     </span>
                     {already && <span className={styles.subText}>уже в плане на этот день</span>}

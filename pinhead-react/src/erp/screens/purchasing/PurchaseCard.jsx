@@ -83,6 +83,7 @@ export function PurchaseCard({
           plannedEnd: stages[0]?.planned_end,
           normDays: supplyDept?.norm_days ?? null,
           dueDate: order.due_date,
+          launchDate: order.launch_date,
         }),
       },
     });
