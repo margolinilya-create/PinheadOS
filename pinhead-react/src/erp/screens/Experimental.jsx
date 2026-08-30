@@ -36,8 +36,9 @@ import { DevRowCard } from './experimental/DevRowCard';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
 import { DevDeptQueue } from './experimental/DevDeptQueue';
-import { DevBrandingPicker } from './experimental/DevBrandingPicker';
-import { DEV_BRANDING_DEPT_CODE } from '../utils/experimentalBoard';
+import { DEV_BRANDING_DEPT_CODE, devBrandingFromPrints } from '../utils/experimentalBoard';
+import { devMovePrompt } from '../utils/devBoardMove';
+import { confirmWithInput } from '../../store/useConfirmStore';
 import { experimentalDeptEntries } from '../utils/experimentalQueue';
 import styles from '../styles';
 
@@ -64,6 +65,10 @@ const STATE_TILES = [
   { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention, cls: 'kpiIconDanger' },
   { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting, cls: '' },
   { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready, cls: 'kpiIconOk' },
+  // Переданные на склад (правка 30.08, п. 4) — последними: работа ЭКС по ним
+  // закончена, и вмешательства они не требуют. С доски они уходят, но из
+  // списка нет: это история, а не активная работа
+  { key: 'handed', icon: 'box', label: DEV_STATE_LABELS.handed, cls: '' },
 ];
 
 /**
@@ -164,59 +169,97 @@ export default function Experimental() {
   const canManage = can('experimental.manage');
 
   /**
-   * ВХОД В «НАНЕСЕНИЯ» СПРАШИВАЕТ ВИДЫ (п. 4.3), остальные переносы — нет.
-   * Состояние держит намерение: «человек тащит карточку туда-то, ждём ответа».
+   * ПЕРЕНОС КАРТОЧКИ ПО ЭТАПАМ — единственная точка на доску и кнопки «‹ ›».
+   *
+   * Что тут происходит помимо самой записи колонки:
+   *
+   *  1. «Построение лекал → Крой» спрашивает ТЕХНИЧЕСКОЕ НАЗВАНИЕ ЛЕКАЛ
+   *     (правка 30.08, п. 3). Раньше его требовало закрытие обязательной
+   *     задачи `patterns`, но обязательных задач у этапов больше нет —
+   *     вопрос переехал в сам переход, ОДНИМ окном: документ прямо просит
+   *     не показывать рядом ещё и свободный «Результат этапа». Что именно
+   *     спросить, решает `devMovePrompt`, а не этот компонент: переносят
+   *     карточку из двух мест, и вторая копия условия разошлась бы молча.
+   *
+   *  2. Вход в «Нанесения» берёт виды ИЗ ЗАКАЗА (правка 30.08, п. 2).
+   *     Диалога «Какие нанесения нужны образцу?» больше нет: менеджер уже
+   *     указал их в позиции, и второй ввод того же решения терял исходные
+   *     данные заказа.
    */
-  const [brandingFor, setBrandingFor] = useState(null);
+  const moveDevStage = useCallback(async (devId, stage) => {
+    const dev = experimental.find((e) => e.id === devId);
+    if (!dev) return false;
 
-  const moveDevStage = useCallback((devId, stage) => {
-    if (stage === 'branding') {
-      setBrandingFor(devId);
-      return Promise.resolve(true);
+    const prompt = devMovePrompt(dev.board_stage ?? 'patterns', stage, dev);
+    if (prompt) {
+      const { ok: confirmed, value } = await confirmWithInput({
+        title: prompt.title,
+        message: 'Название сохранится в карточке разработки и в финальном пакете.',
+        confirmLabel: 'Завершить и перенести',
+        prompt: { label: prompt.label, required: true, initialValue: prompt.initialValue },
+      });
+      if (!confirmed) return false;
+      /**
+       * Сперва название, потом колонка. Обратный порядок оставил бы карточку
+       * в «Крое» с незаписанным названием — то есть этап, объявленный
+       * завершённым, без своего результата.
+       */
+      const saved = await updateExperimental(devId, { [prompt.field]: value.trim() });
+      if (!saved) return false;
     }
-    return updateExperimental(devId, { board_stage: stage });
-  }, [updateExperimental]);
 
-  /**
-   * Перенос + заведение задач нанесения.
-   *
-   * ПОРЯДОК ОСОЗНАННЫЙ: сначала колонка, потом задачи. Перенос — то, что человек
-   * нажал, и он обязан состояться; при сбое на задачах карточка стоит
-   * в «Нанесениях» с пустой дорожкой «Ожидает» — состояние видимое и поправимое.
-   * Обратный порядок дал бы задачи в цехах при карточке, оставшейся в «Крое»:
-   * работа идёт, а на доске её нет.
-   *
-   * Одной транзакцией это не делается и не должно: `erp_experimental_add_tasks`
-   * заводит задачи атомарно сам, а отправка в цех — отдельное действие
-   * над каждой задачей, у которого свои права и свой отказ.
-   */
-  const confirmBranding = useCallback(async (types) => {
-    const devId = brandingFor;
-    setBrandingFor(null);
-    if (!devId) return;
+    if (stage !== 'branding') return updateExperimental(devId, { board_stage: stage });
+
     /**
-     * НИ ОДНОГО ВИДА — ЗНАЧИТ ШАГ ПРОПУСКАЮТ (п. 4.2: «если нанесения не нужны,
-     * технолог переносит карточку сразу из Кроя в Пошив»). Оставить карточку
-     * в пустых «Нанесениях» значило бы завести стоянку, из которой человека
-     * никто не позовёт: автопереход считает закрытие задач, а их нет.
+     * Виды нанесений и их порядок — из позиции заказа.
+     *
+     * НАНЕСЕНИЙ НЕТ — ШАГ ПРОПУСКАЕТСЯ (прежнее поведение пустого выбора,
+     * п. 4.2 от 24.08: «если нанесения не нужны, технолог переносит карточку
+     * сразу из Кроя в Пошив»). Оставить карточку в пустых «Нанесениях»
+     * значило бы завести стоянку, из которой человека никто не позовёт:
+     * автопереход считает закрытие задач, а их нет.
      */
+    const item = orders
+      .flatMap((o) => o.items ?? [])
+      .find((it) => it.id === dev.item_id);
+    const types = devBrandingFromPrints(item?.prints);
     if (types.length === 0) {
-      await updateExperimental(devId, { board_stage: 'sewing' });
-      return;
+      return updateExperimental(devId, { board_stage: 'sewing' });
     }
+
+    /**
+     * ПОРЯДОК ОСОЗНАННЫЙ: сначала колонка, потом задачи. Перенос — то, что
+     * человек нажал, и он обязан состояться; при сбое на задачах карточка
+     * стоит в «Нанесениях» с пустой дорожкой «Ожидает» — состояние видимое
+     * и поправимое. Обратный порядок дал бы задачи в цехах при карточке,
+     * оставшейся в «Крое»: работа идёт, а на доске её нет.
+     *
+     * Одной транзакцией это не делается и не должно: `erp_experimental_add_tasks`
+     * заводит задачи атомарно сам, а отправка в цех — отдельное действие
+     * над каждой задачей, у которого свои права и свой отказ.
+     *
+     * Уже заведённые виды не дублируются: повторный вход в «Нанесения»
+     * (например, после отката назад) не должен второй раз слать ту же
+     * работу в цех.
+     */
     const ok = await updateExperimental(devId, { board_stage: 'branding' });
-    if (!ok) return;
+    if (!ok) return false;
+
+    const existing = new Set((dev.tasks ?? []).map((t) => t.task_type));
+    const fresh = types.filter((t) => !existing.has(t));
+    if (fresh.length === 0) return true;
 
     const created = await addDevTasks(
       devId,
-      types.map((t, i) => ({ task_type: t, sort_order: 100 + i * 10 })),
+      fresh.map((t, i) => ({ task_type: t, sort_order: 100 + i * 10 })),
     );
     for (const task of created ?? []) {
       const dept = departments.find(
         (d) => d.code === DEV_BRANDING_DEPT_CODE[task.task_type]);
       if (dept) await sendDevTaskToDept(task.id, { department_id: dept.id });
     }
-  }, [brandingFor, updateExperimental, addDevTasks, sendDevTaskToDept, departments]);
+    return true;
+  }, [experimental, orders, updateExperimental, addDevTasks, sendDevTaskToDept, departments]);
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
     () => new Map((typeDict ?? []).map((d) => [d.code, d.name])), [typeDict]);
@@ -527,16 +570,6 @@ export default function Experimental() {
         <EmptyResult onReset={() => setFilters({ ...EMPTY_DEV_FILTERS })}>
           Под фильтры ничего не подошло. Всего разработок: {rows.length}.
         </EmptyResult>
-      )}
-
-      {brandingFor && (
-        <DevBrandingPicker
-          existing={(experimental.find((e) => e.id === brandingFor)?.tasks ?? [])
-            .map((t) => t.task_type)}
-          departments={departments}
-          onConfirm={confirmBranding}
-          onCancel={() => setBrandingFor(null)}
-        />
       )}
 
       {/* Очередь участка читает ЭТАПЫ маршрута и от разработок не зависит

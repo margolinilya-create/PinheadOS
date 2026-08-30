@@ -39,8 +39,15 @@ const BASE_CHAIN: Record<ProductionType, string[]> = {
   outsource: ['supply'],
 };
 
-/** Метод нанесения → код цеха (null = отдельного цеха нет) */
-const BRANDING_DEPT: Record<BrandingMethod, string | null> = {
+/**
+ * Метод нанесения → код цеха (null = отдельного цеха нет).
+ *
+ * ЭКСПОРТИРУЕТСЯ с 30.08 (п. 2): по этой же карте разработка образца строит
+ * свои задачи нанесения из `erp_item_prints` заказа
+ * (`experimentalBoard.devBrandingFromPrints`). Вторая такая карта означала бы,
+ * что образец и серия однажды поедут разными цехами.
+ */
+export const BRANDING_DEPT: Record<BrandingMethod, string | null> = {
   embroidery: 'embroidery',
   silkscreen: 'silkscreen',
   dtf: 'dtf',

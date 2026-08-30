@@ -87,7 +87,7 @@ export const ORDER_SELECT = `
 export const ORDER_LIST_SELECT = `
   *,
   items:erp_order_items (
-    id, order_id, product_type, variant, qty, production_type,
+    id, order_id, product_type, variant, qty, qty_shipped, production_type,
     branding_methods, branding_on, notes, sort_order,
     subcontract_kind, material_source,
     fit, main_fabric, trim_material, cutting_note, sewing_note, labels_note,
@@ -275,6 +275,53 @@ export function readyOnlyCountFor(
             st, it.stages,
             // Снятая проверка (правки 10.08) обязана считаться ТАК ЖЕ, как в очереди:
             // иначе бейдж цеха разойдётся со списком заданий под ним
+            materialsAfterBypass(materialsForItem(o.materials, it.id), o.id, bypasses), dept,
+            isStageAwaitingProcurement(o.procurement_tasks, st.id),
+            stageMissingTz(o, it.id, dept) && !isBypassed('tz_gate', o.id, bypasses),
+          )
+        ) n += 1;
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * Сколько работ ЖДЁТ своей очереди в цехе — этапы, до которых маршрут ещё
+ * не дошёл (правка заказчика 30.08, п. 7).
+ *
+ * ЗАЧЕМ ОТДЕЛЬНОЕ ЧИСЛО. Бейдж вкладки считал только `ready`, и у цеха,
+ * стоящего раньше в маршруте, там был ноль — при том что работа на него
+ * уже назначена. Документ называет это «цех не видит будущую работу»:
+ * до вкладки человек не доходил, потому что вкладка молчала.
+ *
+ * Считается ДОПОЛНЕНИЕМ к `readyOnlyCountFor`, а не вместо: «можно начать
+ * сейчас» и «придёт позже» — разные решения, и одно число из их суммы
+ * снова сделало бы бейдж бессмысленным. Ровно то же разделение, что
+ * у групп очереди под вкладкой.
+ *
+ * Пересечения с `readyOnlyCountFor` нет по построению: там этап, готовый
+ * к запуску, здесь — не готовый.
+ */
+export function waitingCountFor(
+  orders: ErpOrderFull[],
+  departments: ErpDepartment[],
+  deptCode: string,
+  bypasses: ErpBypass[] = [],
+): number {
+  const dept = departments.find((d) => d.code === deptCode);
+  if (!dept) return 0;
+  let n = 0;
+  for (const o of orders) {
+    if (o.status !== 'active') continue;
+    for (const it of o.items) {
+      for (const st of it.stages) {
+        if (st.department_id !== dept.id) continue;
+        if (isOutsourced(st)) continue;
+        if (st.status !== 'waiting') continue;
+        if (
+          !isStageReady(
+            st, it.stages,
             materialsAfterBypass(materialsForItem(o.materials, it.id), o.id, bypasses), dept,
             isStageAwaitingProcurement(o.procurement_tasks, st.id),
             stageMissingTz(o, it.id, dept) && !isBypassed('tz_gate', o.id, bypasses),

@@ -219,7 +219,6 @@ const { clearQueryCache } = await import('./queryCache');
 const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
 const { REALTIME_DEFER_ATTEMPTS } = await import('./shared');
 const { toast } = await import('../../store/useToastStore');
-const { useAuthStore } = await import('../../store/useAuthStore');
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function seed(stageOverrides: Record<string, unknown> = {}, itemQty = 500) {
@@ -989,15 +988,24 @@ describe('useErpStore — задачи склада (волна 4): advanceWareh
         notes: null, sort_order: 10, stages: [doneStage], prints: [],
       }], materials: [] },
     );
+    /**
+     * ОТГРУЗКА ЧЕРЕЗ ЭТОТ ПУТЬ БОЛЬШЕ НЕ ИДЁТ (правка 30.08, п. 6).
+     *
+     * Она пишет журнал по позициям и закрывает задачу САМА — и только при
+     * полной передаче. Оставь мы прежнюю ветку, у перехода в `shipped` было
+     * бы два писателя, и второй закрывал бы задачу после ЧАСТИЧНОЙ отгрузки:
+     * ровно тот дефект, который правка и устраняет.
+     */
     const ok = await useErpStore.getState().advanceWarehouseTask('wt1', 'shipped');
-    expect(ok).toBe(true);
-    expect(task0()?.status).toBe('shipped');
-    expect(useErpStore.getState().orders[0].status).toMatch(/^done_/);
-    const ops = useErpStore.getState().orders[0].warehouse_ops ?? [];
-    expect(ops.some((o) => o.op_type === 'shipment')).toBe(true);
+    expect(ok).toBe(false);
+    expect(task0()?.status).toBe('ready_to_ship');
+    expect(useErpStore.getState().orders[0].status).toBe('active');
+    // Отказ обязан называть себя, а не молчать
+    expect(toast.error).toHaveBeenCalledWith(
+      'Отгрузка оформляется в карточке задачи: укажите, сколько передано клиенту');
   });
 
-  it('pack_ship →shipped при неготовом заказе: shipOrder блокирует, задача не меняется', async () => {
+  it('pack_ship →shipped отклоняется и при неготовом заказе', async () => {
     const openStage = {
       id: 'st1', item_id: 'it1', department_id: 'd1', depends_on: [], status: 'in_progress',
       qty_done: 0, qty_rework: 0, sort_order: 10, planned_start: null, planned_end: null,
@@ -1237,8 +1245,14 @@ const stageUpdateEvent = (patch: Record<string, unknown> = {}) => ({
   old: null,
 });
 
-describe('shipOrder — отгрузка готового заказа в архив', () => {
-  /** Готовый к отгрузке заказ: единственный этап done; срок — override */
+describe('shipOrder — фактическая передача клиенту (правка 30.08, п. 6)', () => {
+  /**
+   * Отгрузка перестала быть одним UPDATE: журнал по позициям, агрегаты
+   * и архивный статус заказа пишет RPC `erp_ship_order` одной транзакцией,
+   * а количества ведёт триггер. Клиент не считает и не пишет их вовсе —
+   * поэтому и оптимистичного обновления здесь больше нет: угадывать то,
+   * что считает база, значило бы показать одно, а иметь другое.
+   */
   function seedReady(dueDate?: string) {
     seed({ status: 'done' });
     if (dueDate !== undefined) {
@@ -1247,54 +1261,63 @@ describe('shipOrder — отгрузка готового заказа в арх
       }));
     }
   }
+  const shipCall = () => h.rpcCalls.find((c) => c.fn === 'erp_ship_order');
   const getOrder = () => useErpStore.getState().orders[0];
 
-  it('optimistic: status/shipped-поля сразу в сторе, toast об успехе', async () => {
+  it('без строк отгружается весь остаток позиции', async () => {
     seedReady();
+    h.rpcByFn.erp_ship_order = {
+      data: { complete: true, qty_total: 500, qty_shipped: 500 }, error: null,
+    };
     const ok = await useErpStore.getState().shipOrder('o1');
     expect(ok).toBe(true);
-    const o = getOrder();
-    expect(o.status).toBe('done_on_time'); // срока нет → «вовремя»
-    expect(o.shipped_status).toBe('shipped');
-    expect(o.shipped_at).toBeTruthy();
-    expect(o.shipped_by).toBe('u1');
-    const call = h.updateCalls.find((c) => c.table === 'erp_orders');
-    expect(call?.patch).toMatchObject({
-      status: 'done_on_time',
-      shipped_status: 'shipped',
-      shipped_by: 'u1',
-    });
-    expect(toast.success).toHaveBeenCalledWith('Заказ отгружен и перемещён в архив');
+    // Позиция фикстуры — 500 шт, отгружено ещё ничего: остаток и уезжает
+    expect(shipCall()?.args.p_lines).toEqual([{ item_id: 'it1', qty: 500 }]);
+    expect(toast.success).toHaveBeenCalledWith('Заказ отгружен полностью и перемещён в архив');
   });
 
-  it('архивный статус по сроку: просрочен → done_late, раньше срока → done_early', async () => {
-    seedReady('2000-01-01');
-    await useErpStore.getState().shipOrder('o1');
-    expect(getOrder().status).toBe('done_late');
-
-    seedReady('2999-01-01');
-    await useErpStore.getState().shipOrder('o1');
-    expect(getOrder().status).toBe('done_early');
-  });
-
-  it('dev-режим: user.id="dev" — не uuid, shipped_by = null', async () => {
+  it('частичная отгрузка называет остаток и НЕ говорит про архив', async () => {
     seedReady();
-    vi.mocked(useAuthStore.getState).mockReturnValueOnce(
-      { user: { id: 'dev', name: 'Dev' } } as never,
-    );
-    await useErpStore.getState().shipOrder('o1');
-    const call = h.updateCalls.find((c) => c.table === 'erp_orders');
-    expect(call?.patch.shipped_by).toBeNull();
+    h.rpcByFn.erp_ship_order = {
+      data: { complete: false, qty_total: 500, qty_shipped: 200 }, error: null,
+    };
+    const ok = await useErpStore.getState().shipOrder('o1', [{ item_id: 'it1', qty: 200 }]);
+    expect(ok).toBe(true);
+    expect(shipCall()?.args.p_lines).toEqual([{ item_id: 'it1', qty: 200 }]);
+    expect(toast.success).toHaveBeenCalledWith('Отгружено 200 из 500 шт · остаток 300 шт');
   });
 
-  it('rollback при ошибке Supabase + toast.error', async () => {
+  it('ключ идемпотентности уходит на сервер', async () => {
+    // Повтор без ключа удвоил бы отгруженное МОЛЧА: у действия два запроса
+    // не бывает, но оборвавшийся ответ и повторный тап — обычное дело
     seedReady();
-    h.updateError = { message: 'boom' };
+    h.rpcByFn.erp_ship_order = {
+      data: { complete: true, qty_total: 500, qty_shipped: 500 }, error: null,
+    };
+    await useErpStore.getState().shipOrder('o1', null, { clientKey: 'key-1' });
+    expect(shipCall()?.args.p_client_key).toBe('key-1');
+  });
+
+  it('нулевой остаток — запрос не уходит', async () => {
+    seedReady();
+    useErpStore.setState((s) => ({
+      orders: s.orders.map((o) => (o.id === 'o1'
+        ? { ...o, items: o.items.map((it) => ({ ...it, qty_shipped: it.qty })) }
+        : o)) as never,
+    }));
     const ok = await useErpStore.getState().shipOrder('o1');
     expect(ok).toBe(false);
-    const o = getOrder();
-    expect(o.status).toBe('active');
-    expect(o.shipped_at).toBeUndefined();
+    expect(shipCall()).toBeUndefined();
+    expect(toast.error).toHaveBeenCalledWith('Нечего отгружать: остаток по заказу нулевой');
+  });
+
+  it('ошибка Supabase → false, состояние заказа не тронуто, причина названа', async () => {
+    seedReady();
+    h.rpcByFn.erp_ship_order = { data: null, error: { message: 'boom' } };
+    const ok = await useErpStore.getState().shipOrder('o1');
+    expect(ok).toBe(false);
+    expect(getOrder().status).toBe('active');
+    expect(getOrder().shipped_at).toBeUndefined();
     // Причина в тексте: отказ прав, обрыв сети и конфликт больше не выглядят одинаково
     expect(toast.error).toHaveBeenCalledWith('Не удалось отгрузить заказ: boom');
   });
@@ -1304,7 +1327,7 @@ describe('shipOrder — отгрузка готового заказа в арх
     const ok = await useErpStore.getState().shipOrder('o1');
     expect(ok).toBe(false);
     expect(getOrder().status).toBe('active');
-    expect(h.updateCalls).toHaveLength(0);
+    expect(shipCall()).toBeUndefined();
     expect(toast.error).toHaveBeenCalledWith('Заказ ещё не готов к отгрузке');
   });
 
@@ -1315,6 +1338,9 @@ describe('shipOrder — отгрузка готового заказа в арх
 
   it('ставит и снимает pending-ключ order:<id> вокруг await (п.29)', async () => {
     seedReady();
+    h.rpcByFn.erp_ship_order = {
+      data: { complete: true, qty_total: 500, qty_shipped: 500 }, error: null,
+    };
     const p = useErpStore.getState().shipOrder('o1');
     expect(_pendingMutations.has('order:o1')).toBe(true);
     await p;

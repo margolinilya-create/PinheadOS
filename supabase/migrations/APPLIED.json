@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-08-24",
+  "capturedAt": "2026-08-30",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -1317,6 +1317,46 @@
         "20260824191611_erp_subcontract_send_task.sql"
       ],
       "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_warehouse_task_derive пересоздана из её же pg_get_functiondef (сверена с базой — совпала), добавлена одна ветка"
+    },
+    {
+      "version": "20260830142221",
+      "name": "erp_dev_no_default_task",
+      "files": [
+        "20260830120000_erp_dev_no_default_task.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260830142233",
+      "name": "erp_dev_handoff_to_warehouse",
+      "files": [
+        "20260830130000_erp_dev_handoff_to_warehouse.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260830142301",
+      "name": "erp_partial_shipment",
+      "files": [
+        "20260830140000_erp_partial_shipment.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260830142613",
+      "name": "erp_shipment_rollup_guard_pass",
+      "files": [
+        "20260830140000_erp_partial_shipment.sql"
+      ],
+      "note": "ОТДЕЛЬНАЯ ЗАПИСЬ ЖУРНАЛА, но в репозитории тот же файл частичной отгрузки: дефект нашла проверка прав на живой базе уже ПОСЛЕ применения основной миграции — кладовщик не мог отгрузить ничего, потому что rollup правит erp_order_items.qty_shipped, а erp_order_item_guard требует order.manage. Починка (метка транзакции erp.shipment_rollup вокруг update + ветка в страже) — часть той же правки, и разносить её на два файла значило бы, что реплей на чистое окружение на минуту воспроизводит заведомо нерабочее состояние"
+    },
+    {
+      "version": "20260830143512",
+      "name": "erp_order_shipments_item_idx",
+      "files": [
+        "20260830140000_erp_partial_shipment.sql"
+      ],
+      "note": "индекс по item_id дописан в тот же файл частичной отгрузки: rollup на каждой вставке считает sum(qty) по позиции, и отсутствие индекса нашёл advisor сразу после применения. Отдельным файлом это было бы описание системы, которой никогда не существовало"
     }
   ]
 }

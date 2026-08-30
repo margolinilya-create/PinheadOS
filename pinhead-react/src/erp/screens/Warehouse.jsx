@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { orderQty } from '../utils/shipment';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
@@ -113,7 +114,7 @@ function taskSummary(order, task) {
   }
   if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
   if (task.task_type === 'fg_receipt') {
-    const qty = order.items.reduce((sum, it) => sum + (it.qty || 0), 0);
+    const qty = orderQty(order);
     return `${qty} шт с производства`;
   }
   return 'Упаковка и отгрузка';
@@ -136,12 +137,13 @@ function warehouseSortValue({ order, task }, key) {
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask,
+    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask, shipOrder,
     submitWarehouseReport, subcontractingLoaded, loadSubcontracting,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, advanceWarehouseTask: s.advanceWarehouseTask,
+      shipOrder: s.shipOrder,
       submitWarehouseReport: s.submitWarehouseReport,
       subcontractingLoaded: s.subcontractingLoaded,
       loadSubcontracting: s.loadSubcontracting,
@@ -443,7 +445,15 @@ export default function Warehouse() {
               <MarkingCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
             )}
             {open.task.task_type === 'pack_ship' && (
-              <PackShipCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
+              <PackShipCard
+                order={open.order}
+                task={open.task}
+                onAdvance={advanceWarehouseTask}
+                /* Отгрузка идёт своим путём (правка 30.08, п. 6): она пишет
+                   журнал по позициям и сама закрывает задачу при полной
+                   передаче — `advanceWarehouseTask` для неё слишком груб */
+                onShip={shipOrder}
+              />
             )}
           </ReadOnlyFieldset>
         </Drawer>

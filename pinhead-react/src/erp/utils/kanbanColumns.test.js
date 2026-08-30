@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildKanbanColumns } from './kanbanColumns';
 import { EMPTY_FILTERS } from './filterStages';
+import { buildQueueEntries } from './queueEntries';
 
 // Минимальные фикстуры: только поля, которые читает buildKanbanColumns.
 // is_production не задаём: фикстура проверяет и откат на сид-набор кодов
@@ -138,5 +139,59 @@ describe('buildKanbanColumns — дорожка «Ожидают материа�
     const [col] = buildKanbanColumns([o], deps);
     expect(col.awaiting_materials).toEqual([]);
     expect(col.ready.map((e) => e.stage.id)).toEqual(['s1']);
+  });
+});
+
+/**
+ * Правка заказчика 30.08, п. 7: цех обязан видеть будущую работу.
+ *
+ * Дефект был молчаливым: дорожки `waiting` в колонке не существовало, и
+ * `if (col[entry.group])` выбрасывал этап, ждущий предыдущий ЦЕХ, вовсе.
+ * На маршруте «Закупка → Закрой → ДТФ → Пошив» это давало ровно ту картину,
+ * на которую жалуется документ: Закрой (`awaiting_materials`) на доске был,
+ * а ДТФ (`waiting`) не было.
+ *
+ * Сторож сверяет ПЕРЕЧИСЛЕНИЯ, а не список имён: следующая заведённая группа
+ * очереди обязана уронить этот тест, а не тихо исчезнуть с доски.
+ */
+describe('buildKanbanColumns — ни одна группа очереди не теряется', () => {
+  it('этап, ждущий предыдущий цех, попадает в дорожку «Ожидает»', () => {
+    const deps = [dept('d-cut', 'cutting'), dept('d-dtf', 'dtf')];
+    const o = order('o1', [
+      stage('s-cut', 'd-cut', 'waiting'),
+      stage('s-dtf', 'd-dtf', 'waiting', { depends_on: ['s-cut'], sort_order: 1 }),
+    ]);
+    const cols = buildKanbanColumns([o], deps);
+    const dtf = cols.find((c) => c.dept.id === 'd-dtf');
+    expect(dtf.waiting.map((e) => e.stage.id)).toEqual(['s-dtf']);
+    expect(dtf.ready).toEqual([]);
+  });
+
+  it('каждая группа buildQueueEntries имеет дорожку в колонке', () => {
+    // Перечисление против перечисления: список имён пережил бы новую группу,
+    // а этот тест — нет. Группы берутся из самого источника.
+    const deps = [dept('d-cut', 'cutting', true, ['fabric'])];
+    const o = order('o1', [
+      // зависимость обязана существовать и быть НЕзакрытой: у пропавшего
+      // предшественника `isStageReady` считает зависимость выполненной,
+      // и этап уходит в `ready` — фикстура проверяла бы не ту группу
+      stage('s-wait', 'd-cut', 'waiting', { depends_on: ['s-prog'] }),
+      stage('s-ready', 'd-cut', 'waiting', { sort_order: 1 }),
+      stage('s-prog', 'd-cut', 'in_progress', { sort_order: 2 }),
+      stage('s-block', 'd-cut', 'blocked', { sort_order: 3 }),
+      stage('s-done', 'd-cut', 'done', { sort_order: 4 }),
+    ]);
+    const entries = buildQueueEntries([o], deps);
+    const [col] = buildKanbanColumns([o], deps);
+    for (const group of new Set(entries.map((e) => e.group))) {
+      expect(Array.isArray(col[group])).toBe(true);
+    }
+    // и ни один этап не потерян по дороге
+    const onBoard = new Set(
+      Object.entries(col)
+        .filter(([k]) => k !== 'dept')
+        .flatMap(([, list]) => list.map((e) => e.stage.id)),
+    );
+    for (const e of entries) expect(onBoard.has(e.stage.id)).toBe(true);
   });
 });

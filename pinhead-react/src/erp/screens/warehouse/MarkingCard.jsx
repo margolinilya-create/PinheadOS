@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { orderQty } from '../../utils/shipment';
 import { formatDateShort } from '../../utils/time';
 import { MARKING_STATUS_LABELS } from '../../types';
 import styles from '../../styles';
@@ -18,7 +19,7 @@ export function MarkingCard({ order, task, onAdvance }) {
   const [deadline, setDeadline] = useState(task.deadline ?? '');
   const [saving, setSaving] = useState(false);
   const next = NEXT[task.status];
-  const totalQty = order.items.reduce((s, it) => s + (it.qty || 0), 0);
+  const totalQty = orderQty(order);
 
   const advance = async () => {
     if (!next) return;

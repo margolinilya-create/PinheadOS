@@ -20,6 +20,23 @@ import { buildQueueEntries } from './queueEntries';
  * были `waiting` и отбрасывались, то есть заказ, стоящий из-за снабжения,
  * доска не показывала вовсе.
  *
+ * ДОРОЖКА `waiting` ЗАВЕДЕНА 30.08 (правка заказчика, п. 7). До неё
+ * `if (col[entry.group])` выбрасывал такой этап МОЛЧА — без дорожки в
+ * `byDept` группа просто не находилась. Из-за этого доска и очередь
+ * отвечали на «что будет делать цех» по-разному и притом каждая наполовину:
+ * в очереди `waiting` был раскрыт, а `awaiting_materials` свёрнут; на доске
+ * наоборот — `awaiting_materials` показывался, а `waiting` не показывался
+ * вовсе. Заказ по маршруту «Закупка → Закрой → ДТФ → Пошив» был виден
+ * в ДТФ (`waiting`) в очереди, но не на доске, а в Закрое
+ * (`awaiting_materials`) — на доске, но свёрнутым в очереди. Документ
+ * называет это «цех, который стоит раньше в маршруте, не видит будущую
+ * работу»; починка нужна была с ОБЕИХ сторон.
+ *
+ * Отбрасывать группу молча нельзя в принципе: `buildQueueEntries` — единый
+ * источник групп, и любая незаведённая здесь дорожка означает исчезнувшую
+ * работу без единой ошибки. Сторожит `kanbanColumns.test.js` — он сверяет
+ * ПЕРЕЧИСЛЕНИЯ, а не список имён.
+ *
  * Порядок внутри дорожки задаёт сортировка фильтров: по умолчанию — приоритет
  * (queue_position, правка 3), поэтому перетаскивание карточки вверх-вниз внутри
  * колонки меняет её место и здесь. Чистая функция — покрыта юнит-тестами;
@@ -29,15 +46,22 @@ export function buildKanbanColumns(orders, departments, filters = EMPTY_FILTERS,
   const deps = departments.filter((d) => d.active && isProductionDept(d));
   const byDept = new Map(deps.map((d) => [
     d.id,
-    { dept: d, awaiting_materials: [], ready: [], in_progress: [], blocked: [], done: [] },
+    {
+      dept: d,
+      waiting: [],
+      awaiting_materials: [],
+      ready: [],
+      in_progress: [],
+      blocked: [],
+      done: [],
+    },
   ]));
 
   const entries = applyStageFilters(buildQueueEntries(orders, departments, { bypasses }), filters);
   for (const entry of entries) {
     const col = byDept.get(entry.stage.department_id);
     if (!col) continue;
-    // waiting (ждёт предыдущий этап или ТЗ) на доске не показываем — это очередь цеха
-    if (col[entry.group]) col[entry.group].push(entry);
+    col[entry.group].push(entry);
   }
 
   for (const col of byDept.values()) {

@@ -194,9 +194,13 @@ export function nextAction(
  * Порядок веток — приоритет: «требует внимания» перебивает «в работе», потому
  * что отвечает на более срочный вопрос.
  */
-export type DevState = 'ready' | 'attention' | 'fitting' | 'in_progress' | 'new';
+export type DevState =
+  'handed' | 'ready' | 'attention' | 'fitting' | 'in_progress' | 'new';
 
 export const DEV_STATE_LABELS: Record<DevState, string> = {
+  // «Передано на склад» (правка 30.08, п. 4) — работа ЭКС по образцу
+  // закончена, дальше он живёт в складском контуре
+  handed: 'Переданы на склад',
   new: 'Новые',
   in_progress: 'В работе',
   attention: 'Требуют внимания',
@@ -208,10 +212,17 @@ export const DEV_STATE_LABELS: Record<DevState, string> = {
 const FITTING_TYPES: ReadonlySet<string> = new Set(['fitting']);
 
 export function devState(
-  dev: Pick<ErpExperimental, 'outcome' | 'due_date'>,
+  dev: Pick<ErpExperimental, 'outcome' | 'due_date' | 'handed_to_warehouse_at'>,
   tasks: readonly ErpExperimentalTask[],
   today: string = '',
 ): DevState {
+  /**
+   * ПЕРЕДАННЫЙ ОБРАЗЕЦ — ОТДЕЛЬНОЕ СОСТОЯНИЕ, И ОНО ПЕРВОЕ (правка 30.08,
+   * п. 4). Иначе такая разработка навсегда осталась бы «готовой к серии»,
+   * то есть требующей действия, которое уже сделано: документ прямо просит
+   * убрать её из активной работы экспериментального цеха.
+   */
+  if (dev.handed_to_warehouse_at) return 'handed';
   if (dev.outcome) return 'ready';
   const open = (tasks ?? []).filter((t) => !CLOSED.has(t.status));
 

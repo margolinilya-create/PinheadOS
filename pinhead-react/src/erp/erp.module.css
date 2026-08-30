@@ -672,6 +672,12 @@
   color: #fff;
 }
 .deptTab:hover .deptTabHot, .deptTabActive .deptTabHot { background: var(--signal); color: #fff; }
+/*
+  Будущая работа цеха (правка 30.08, п. 7). Намеренно приглушённее «горячего»
+  счётчика: это не повод бросать текущее, а ответ на «что придёт дальше».
+  Наследует вид `.deptTabCount` и меняет только начертание.
+*/
+.deptTabWaiting { font-weight: 400; opacity: 0.85; }
 .overdue { color: var(--color-error-ink); font-weight: 700; }
 .subText { color: var(--text-dim); font-size: 12px; }
 .progressCell {
@@ -837,6 +843,19 @@
 .queueActions :global(.btn-ghost) { flex: 0 0 auto; }
 .queueBlockForm { display: flex; gap: 8px; flex-wrap: wrap; }
 .queueBlockForm .input { flex: 1; min-width: 170px; }
+
+/*
+  План завершения у готового к запуску этапа. Стоит НАД кнопками и виден
+  до нажатия: «Взять в работу» выполняет действие с первого раза, а дата
+  остаётся спрошенной (правка 30.08, п. 9).
+*/
+.queueStartPlan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
 .queueCardHeadText { flex: 1; min-width: 0; }
 
 /* Ссылка-заголовок карточки очереди → карточка заказа */

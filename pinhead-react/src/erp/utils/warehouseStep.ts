@@ -66,8 +66,19 @@ const LABEL: Record<string, string> = {
  */
 export function warehouseStep(order: {
   shipped_at?: string | null;
+  shipped_status?: string | null;
   warehouse_tasks?: ErpWarehouseTask[] | null;
 }): WarehouseStep {
+  /**
+   * ЧАСТИЧНАЯ ОТГРУЗКА — НЕ «ОТГРУЖЕНО» (правка 30.08, п. 6). Проверка идёт
+   * ПЕРЕД `shipped_at` не для красоты: обе величины ведёт одна транзакция,
+   * но `shipped_at` заполняется только при полной отгрузке, и если завтра
+   * его начнут ставить с первой передачи, шаг молча объявил бы заказ
+   * закрытым при неотданном остатке.
+   */
+  if (order.shipped_status === 'partial') {
+    return { state: 'in_progress', label: 'Отгружено частично', shipped: false };
+  }
   if (order.shipped_at) {
     return { state: 'done', label: 'Отгружено', shipped: true };
   }

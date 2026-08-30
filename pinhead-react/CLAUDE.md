@@ -482,6 +482,37 @@ URL: https://pinhead-os.vercel.app
 - `utils/progress.stageCountProgress` — «завершено N из M этапов»
   (сумма по штукам осталась в подсказке)
 
+## Правила сессии 42 (документ 30.08): где что лежит
+
+- Гейт завершения этапа по закупке — `utils/supply.materialsBlockingCompletion`
+  + `stageCompletionBlock` в `utils/stageDone`; зовётся внутри
+  `confirmStageDone`, то есть во всех трёх точках закрытия (очередь цеха,
+  дорожка канбана, чип доски). Сторож `stageDone.test.ts` читает исходники
+  вызывающих: они на JS, и аргументы там тайпчеком не проверяются
+- Остатки отгрузки — `utils/shipment` (`shipmentTotals`, `orderQty`).
+  `orderQty` заменил `items.reduce(...)` в семи файлах; форма частичной
+  отгрузки — `screens/warehouse/PackShipCard`, запись —
+  `orderWriteSlice.shipOrder(orderId, lines, { clientKey })` → RPC
+  `erp_ship_order`. Количества ведёт триггер, клиент их только читает
+- `advanceWarehouseTask` больше НЕ отгружает: у перехода `pack_ship → shipped`
+  один писатель — `erp_ship_order`, и он закрывает задачу сам, только при
+  полной передаче
+- ЭКС: перенос по канбану — `utils/devBoardMove` (`devMoveIntent` — можно ли,
+  `devMovePrompt` — что спросить), единственная точка вызова
+  `Experimental.moveDevStage`. Нанесения образца —
+  `experimentalBoard.devBrandingFromPrints` поверх экспортированной
+  `routes.BRANDING_DEPT`; `DevBrandingPicker` удалён
+- ЭКС: состояние `handed` в `DEV_STATE_LABELS`, доска исключает разработки
+  с `handed_to_warehouse_at`; техническое название лекал видно на чтение
+  в `DevAside`
+- Очередь цеха: `COLLAPSIBLE` (что можно свернуть) и `COLLAPSED_BY_DEFAULT`
+  (что свёрнуто сначала) — разные списки; состояние экрана хранит СВЁРНУТЫЕ
+  группы. Счётчик будущей работы — `orderHelpers.waitingCountFor`, рядом
+  с `readyOnlyCountFor` и отдельным числом на вкладке
+- Канбан: дорожка `waiting` есть и в `utils/kanbanColumns`, и в `LANES`
+  компонента `ErpKanban`. Бросков она не принимает — готовность считается,
+  а не выставляется
+
 ## Правила сессии 41 (документ 24.08): где что лежит
 
 - Закупка: подписи величин — `purchasing/purchaseLabels.PURCHASE_FIELD_LABELS`

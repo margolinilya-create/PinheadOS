@@ -1,4 +1,5 @@
 import { useMemo, useState, memo } from 'react';
+import { orderQty } from '../../utils/shipment';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
@@ -23,7 +24,7 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
   );
-  const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
+  const totalQty = orderQty(order);
   const ready = isOrderReadyToShip(order);
   /**
    * Готовность и ПРАВО отгрузить — разное. Признак «готов к отгрузке»

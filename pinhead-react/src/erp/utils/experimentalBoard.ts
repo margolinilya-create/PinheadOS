@@ -1,6 +1,6 @@
-import type { ErpExperimental, ErpExperimentalTask, ErpMaterial } from '../types';
+import type { BrandingMethod, ErpExperimental, ErpExperimentalTask, ErpMaterial } from '../types';
 import { isTaskReady, taskLabel } from './experimentalTasks';
-import { isMaterialPending, materialsForItem } from './routes';
+import { BRANDING_DEPT, isMaterialPending, materialsForItem } from './routes';
 
 /**
  * Доска экспериментального цеха ПО ЭТАПАМ (правки заказчика 20.08).
@@ -80,10 +80,42 @@ export const DEV_BRANDING_TASK_TYPES = [
 ] as const;
 
 /**
- * Виды, предлагаемые при входе в «Нанесения» (п. 4.3: «в списке должны быть
- * Шелкография, DTF, Вышивка и DTG»). Порядок — как в документе.
+ * НАНЕСЕНИЯ ОБРАЗЦА БЕРУТСЯ ИЗ ЗАКАЗА (правка заказчика 30.08, п. 2).
+ *
+ * Раньше при входе в «Нанесения» спрашивали виды заново
+ * (`DEV_BRANDING_CHOICES` + `DevBrandingPicker`), хотя менеджер уже указал их
+ * при создании заказа — в позиции, вместе с зоной, размерами и пантоном.
+ * Второй ввод того же решения означал ровно то, о чём документ и пишет:
+ * «исходные данные заказа теряются и маршрут можно сформировать повторно
+ * некорректно».
+ *
+ * ПОРЯДОК — `seq` позиции, то есть порядок блоков «Нанесение №N» в форме
+ * заказа. Он же задаёт `sort_order` задач, и он же — «тот же порядок,
+ * который задан в заказе» из документа.
+ *
+ * Карта «метод → участок» переиспользуется из `utils/routes.BRANDING_DEPT` —
+ * той же, по которой строится производственный маршрут. Вторая карта здесь
+ * означала бы, что образец и серия однажды поедут разными цехами.
+ * `heat_transfer` она сводит к `dtf`, а `other` — к `null`: у «прочих» своего
+ * участка нет, их делают внутри швейки, и заводить под них задачу нанесения
+ * нечем.
+ *
+ * Пустой массив — законный ответ: у позиции нет нанесений, и карточке
+ * на этом шаге делать нечего (см. обработку в `Experimental`).
  */
-export const DEV_BRANDING_CHOICES = ['silkscreen', 'dtf', 'embroidery', 'dtg'] as const;
+export function devBrandingFromPrints(
+  prints: readonly { method?: string | null; seq?: number | null }[] | null | undefined,
+): string[] {
+  const ordered = [...(prints ?? [])].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  const out: string[] = [];
+  for (const p of ordered) {
+    const code = p.method ? BRANDING_DEPT[p.method as BrandingMethod] : null;
+    // дедупликация с сохранением порядка: два нанесения одним методом —
+    // одна задача цеху, как и в производственном маршруте
+    if (code && !out.includes(code)) out.push(code);
+  }
+  return out;
+}
 
 /**
  * Вид нанесения → код участка, в чью общую очередь уходит работа

@@ -22,12 +22,11 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
-import { useAuthStore } from '../../../store/useAuthStore';
 import { formItemRoute, linearize, stepPayload } from '../../utils/routeDraft';
 import { invokeFunction } from '../adminUsers';
 import { isOrderReadyToShip } from '../../utils/stageUi';
+import { shipmentTotals } from '../../utils/shipment';
 import { isBypassed } from '../../utils/bypass';
-import { daysLeft } from '../../utils/time';
 import { pluralize } from '../../../utils/i18n';
 import type {
   ErpItemStage, ErpOrder, ErpOrderAttachment, ErpOrderStatus,
@@ -381,7 +380,30 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
   },
 
 
-  shipOrder: async (orderId) => {
+  /**
+   * ФАКТИЧЕСКАЯ ПЕРЕДАЧА КЛИЕНТУ — ЧАСТЯМИ (правка заказчика 30.08, п. 6).
+   *
+   * `lines` — сколько единиц какой позиции отдано ИМЕННО СЕЙЧАС. Не передали
+   * ничего — отгружается весь остаток: это прежнее поведение «Отгрузить»
+   * целиком, и вызывающие, которым частичность не нужна (кнопка в списке
+   * заказов), продолжают звать функцию одним аргументом.
+   *
+   * ЧТО БЫЛО СЛОМАНО. Раньше здесь одним патчем писались `shipped_status`
+   * и АРХИВНЫЙ статус заказа. Экран склада фильтрует по `status = 'active'`,
+   * поэтому первая же отгрузка убирала заказ со склада целиком — вместе
+   * с недоделанными задачами и неотданным остатком. Значение `partial`
+   * в схеме существовало и не записывалось никем.
+   *
+   * Теперь и журнал, и агрегаты, и архивный статус — ОДНА транзакция
+   * (`erp_ship_order`), а в архив заказ уходит только когда отдано всё.
+   * Количества клиент не считает и не пишет: их ведёт триггер, а вторая
+   * реализация арифметики на клиенте однажды разошлась бы с базой.
+   *
+   * Ключ идемпотентности обязателен: у действия два запроса не бывает,
+   * но оборвавшийся ответ и повторный тап — обычное дело на цеховом
+   * Wi-Fi, а повтор без ключа удвоил бы отгруженное МОЛЧА.
+   */
+  shipOrder: async (orderId, lines, opts = {}) => {
     const prev = get().orders;
     const order = prev.find((o) => o.id === orderId);
     if (!order) return false;
@@ -393,36 +415,51 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
      * `isOrderOverdue` тоже спрашивает `isOrderReadyToShip`, и если подставить
      * снятие туда, заказ задним числом перестал бы считаться просроченным.
      * Аварийный выход не должен переписывать отчётность.
+     *
+     * Гейт переживает частичную отгрузку без правок: частичная НЕ меняет
+     * `status`, заказ остаётся `active`, и ранний выход по нему не срабатывает.
      */
     if (!isOrderReadyToShip(order) && !isBypassed('ship_gate', orderId, get().bypasses)) {
       toast.error('Заказ ещё не готов к отгрузке');
       return false;
     }
-    // архивный статус — по сроку клиента (как в ORDER_STATUS_LABELS)
-    const d = daysLeft(order.due_date);
-    const status: ErpOrderStatus =
-      d === null || d === 0 ? 'done_on_time' : d < 0 ? 'done_late' : 'done_early';
-    // dev-режим: user.id 'dev' — не валидный uuid (паттерн useOrdersStore)
-    const userId = useAuthStore.getState().user?.id;
-    const patch: Partial<ErpOrder> = {
-      status,
-      shipped_status: 'shipped',
-      shipped_at: new Date().toISOString(),
-      shipped_by: userId && userId !== 'dev' ? userId : null,
-    };
 
-    // optimistic с rollback + pending-ключ (защита от «старого» realtime)
-    set((s) => ({
-      orders: s.orders.map((o) => (o.id === orderId ? { ...o, ...patch } : o)),
-    }));
-    const { error } = await erpQuery(() => withPending(`order:${orderId}`, () =>
-      supabase.from('erp_orders').update(patch).eq('id', orderId)));
+    const totals = shipmentTotals(order);
+    const payload = (lines ?? totals.lines
+      .filter((l) => l.left > 0)
+      .map((l) => ({ item_id: l.item.id, qty: l.left })))
+      .filter((l) => Number(l.qty) > 0);
+    if (payload.length === 0) {
+      toast.error('Нечего отгружать: остаток по заказу нулевой');
+      return false;
+    }
+
+    const { data, error } = await erpQuery(() => withPending(`order:${orderId}`, () =>
+      supabase.rpc('erp_ship_order', {
+        p_order_id: orderId,
+        p_lines: payload,
+        p_note: opts.note ?? null,
+        p_actor: currentActor(),
+        p_client_key: opts.clientKey ?? null,
+      })));
     if (error) {
-      set({ orders: prev });
       erpError('Не удалось отгрузить заказ', error);
       return false;
     }
-    toast.success('Заказ отгружен и перемещён в архив');
+    /**
+     * Оптимистичного обновления здесь НЕТ намеренно: количества считает
+     * триггер, и угадывать их на клиенте значило бы показать одно, а иметь
+     * в базе другое. Перечитываем заказ — тем же приёмом, что список
+     * сотрудников после заведения учётной записи.
+     */
+    await get().loadOne(orderId);
+
+    const complete = Boolean(data?.complete);
+    const shipped = Number(data?.qty_shipped ?? 0);
+    const total = Number(data?.qty_total ?? 0);
+    toast.success(complete
+      ? 'Заказ отгружен полностью и перемещён в архив'
+      : `Отгружено ${shipped} из ${total} шт · остаток ${Math.max(total - shipped, 0)} шт`);
     return true;
   },
 

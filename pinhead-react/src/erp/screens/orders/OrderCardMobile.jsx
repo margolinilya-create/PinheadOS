@@ -1,4 +1,5 @@
 import { useMemo, memo } from 'react';
+import { orderQty } from '../../utils/shipment';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
@@ -18,7 +19,7 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
   );
-  const totalQty = order.items.reduce((s, it) => s + it.qty, 0);
+  const totalQty = orderQty(order);
   const progress = orderProgress(order);
   const ready = isOrderReadyToShip(order);
   /**

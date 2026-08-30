@@ -99,7 +99,6 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const tzDoc = itemTzDocument(order, item.id);
 
   const [ackText, setAckText] = useState('');
-  const [startMode, setStartMode] = useState(false);
   // План завершения по умолчанию: норматив участка, иначе срок клиента (не «сегодня» —
   // иначе этап с дальним сроком мгновенно становился «просрочен» на следующий день, ERP-04).
   const [startDate, setStartDate] = useState(
@@ -199,12 +198,43 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
       )}
       {showTz && <TzBlock order={order} item={item} />}
 
+      {/*
+        ПЛАН ЗАВЕРШЕНИЯ СТОИТ РЯДОМ С КНОПКОЙ, А НЕ ОТКРЫВАЕТСЯ ЕЮ
+        (правка заказчика 30.08, п. 9).
+
+        Раньше «Взять в работу» лишь показывала эту форму, а работу начинала
+        вторая кнопка «В работу». Со стороны цеха это выглядело ровно так, как
+        описано в документе: «нажал — заказ не перевёлся, пришлось нажимать
+        ещё раз». На планшете форма к тому же раскрывалась ниже видимой части
+        строки, то есть первое нажатие не давало вообще никакого отклика.
+
+        Решение сессии 39 «плановую дату спрашивают ВСЕ входы в работу» при
+        этом сохранено: поле видно ДО нажатия и предзаполнено
+        `defaultPlannedEnd` — тем же правилом, что у возврата брака и запуска
+        закупки. Спрашивать дату и выполнять действие с первого раза
+        не противоречат друг другу, если поле не прячется за кнопкой.
+      */}
+      {perms.take && group === 'ready' && (
+        <label className={`${styles.subText} ${styles.queueStartPlan}`}>
+          План завершения
+          {normDays > 0 && <span> · норматив участка {normDays} дн.</span>}
+          <DateField
+            value={startDate}
+            onChange={setStartDate}
+            aria-label="Плановая дата завершения"
+          />
+        </label>
+      )}
+
       {perms.any && (
         <div className={styles.queueActions}>
-          {group === 'ready' && !startMode && (
+          {group === 'ready' && (
             <>
               {perms.take && (
-                <Button variant="primary" onClick={() => setStartMode(true)}>
+                <Button
+                  variant="primary"
+                  disabled={busy}
+                  onClick={() => run(() => onStart(entry, startDate))}>
                   <Icon name="play" size={14} /> Взять в работу
                 </Button>
               )}
@@ -289,30 +319,6 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               Снять блокировку
             </Button>
           )}
-        </div>
-      )}
-
-      {perms.take && group === 'ready' && startMode && (
-        <div className={styles.queueBlockForm}>
-          <label className={styles.subText}>
-            План завершения
-            {normDays > 0 && <span> · норматив участка {normDays} дн.</span>}
-            <DateField
-              value={startDate}
-              onChange={setStartDate}
-              aria-label="Плановая дата завершения"
-              autoFocus
-            />
-          </label>
-          <Button
-            variant="primary"
-            disabled={busy || !startDate}
-            onClick={() => run(async () => { await onStart(entry, startDate); setStartMode(false); })}>
-            <Icon name="play" size={14} /> В работу
-          </Button>
-          <Button variant="ghost" onClick={() => setStartMode(false)}>
-            Отмена
-          </Button>
         </div>
       )}
 

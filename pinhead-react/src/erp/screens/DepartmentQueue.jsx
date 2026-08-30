@@ -6,7 +6,9 @@ import { QueueSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { QueueFilters } from '../components/QueueFilters';
 import { DeptPlanPanel } from './queue/DeptPlanPanel';
-import { useErpStore, readyOnlyCountFor, overdueUnackCountFor } from '../store/useErpStore';
+import {
+  useErpStore, readyOnlyCountFor, waitingCountFor, overdueUnackCountFor,
+} from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { useStagePermissions } from '../store/useStagePermissions';
 import { useTouchDndPolyfill } from '../components/kanban/useTouchDndPolyfill';
@@ -75,10 +77,31 @@ const GROUP_TITLES = {
 };
 
 /**
- * Группы, свёрнутые при первом открытии страницы (пп. 2.3 и 3.5).
- * Обе — про работу, которую сейчас начать нельзя.
+ * Группы, которые МОЖНО свернуть. Свернуть можно всё, что не является
+ * работой «прямо сейчас»: ожидания и завершённое.
  */
-const COLLAPSED_BY_DEFAULT = new Set(['awaiting_materials', 'done']);
+const COLLAPSIBLE = new Set(['awaiting_materials', 'waiting', 'done']);
+
+/**
+ * Группы, свёрнутые ПРИ ПЕРВОМ ОТКРЫТИИ страницы.
+ *
+ * `awaiting_materials` ОТСЮДА УБРАНА (правка заказчика 30.08, п. 7) —
+ * решение 23.08 «у закроя не выносить ожидание материалов отдельным
+ * верхнеуровневым блоком» отменено самим заказчиком, и вот почему оно
+ * не сработало: у закроя ожидание почти всегда снабженческое, то есть
+ * свёрнутой оказывалась ЕДИНСТВЕННАЯ непустая группа ожидания. Экран
+ * честно показывал «Готово к запуску: 0» и ничего больше — а документ
+ * описывает это как «в Закрое заказ отсутствует до завершения закупки».
+ * Заказ там был, только свёрнутым внизу.
+ *
+ * ДВА СПИСКА, А НЕ ОДИН, И ЭТО НЕ ПЕДАНТИЗМ. Пока список был один, он
+ * отвечал сразу на два вопроса — «свёрнуто ли сначала» и «есть ли кнопка
+ * вообще», — и снятие умолчания молча забрало у группы саму возможность
+ * свернуться. Документ просил ПОКАЗАТЬ работу, а не запретить прятать её.
+ *
+ * `done` остаётся свёрнутой: завершённое — это история, а не работа.
+ */
+const COLLAPSED_BY_DEFAULT = new Set(['done']);
 
 export default function DepartmentQueue() {
   const {
@@ -114,16 +137,23 @@ export default function DepartmentQueue() {
   // Возвраты брака по этапам текущего цеха — для баннера получателю (п.10)
   const [reworkByStage, setReworkByStage] = useState({});
   /**
-   * Какие свёрнутые группы человек раскрыл вручную (пп. 2.3 и 3.5).
+   * Какие группы СВЁРНУТЫ прямо сейчас.
    *
-   * Состояние держится за СЕАНС экрана и не пишется в localStorage: «Ожидают
-   * материалы» сворачиваются при первом открытии страницы именно затем, чтобы
-   * верх очереди занимала работа, которую можно начать сейчас. Запомненное
-   * «раскрыто» вернуло бы тот же экран, на который жалуется документ, — и
-   * вернуло бы молча, у одного человека на одном планшете.
+   * Держим свёрнутые, а не раскрытые (правка 30.08, п. 7). Пока хранились
+   * раскрытые, начальное состояние приходилось выводить из
+   * `COLLAPSED_BY_DEFAULT` в момент отрисовки — и стоило убрать оттуда
+   * группу, как «раскрыта по умолчанию» и «нельзя свернуть» слились в одно.
+   * Множество свёрнутых отвечает ровно на свой вопрос и стартует с умолчания.
+   *
+   * Состояние держится за СЕАНС экрана и не пишется в localStorage:
+   * «Завершено недавно» сворачивается при первом открытии именно затем, чтобы
+   * верх очереди занимала работа. Запомненное «раскрыто» вернуло бы тот же
+   * экран, на который жалуется документ, — и вернуло бы молча, у одного
+   * человека на одном планшете.
    */
-  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
-  const toggleGroup = (key) => setExpandedGroups((prev) => {
+  const [collapsedGroups, setCollapsedGroups] = useState(
+    () => new Set(COLLAPSED_BY_DEFAULT));
+  const toggleGroup = (key) => setCollapsedGroups((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
@@ -219,6 +249,15 @@ export default function DepartmentQueue() {
     const counts = new Map();
     for (const dd of departments) {
       counts.set(dd.code, readyOnlyCountFor(orders, departments, dd.code, bypasses));
+    }
+    return counts;
+  }, [orders, departments, bypasses]);
+
+  /** Будущая работа цеха (этапы, до которых маршрут ещё не дошёл) — правка 30.08, п. 7 */
+  const waitingByDept = useMemo(() => {
+    const counts = new Map();
+    for (const dd of departments) {
+      counts.set(dd.code, waitingCountFor(orders, departments, dd.code, bypasses));
     }
     return counts;
   }, [orders, departments, bypasses]);
@@ -365,6 +404,7 @@ export default function DepartmentQueue() {
         <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef} onKeyDown={onTabListKeyDown}>
           {departments.filter((dd) => dd.active && isProductionDept(dd)).map((dd) => {
             const count = readyByDept.get(dd.code) || 0;
+            const waitingCount = waitingByDept.get(dd.code) || 0;
             const overdueCount = overdueByDept.get(dd.code) || 0;
             const isMine = boundDept?.code === dd.code;
             return (
@@ -387,6 +427,22 @@ export default function DepartmentQueue() {
                     aria-label={`готово к работе: ${count}`}
                   >
                     {count}
+                  </span>
+                )}
+                {/*
+                  Будущая работа цеха (правка 30.08, п. 7) — ОТДЕЛЬНЫМ числом
+                  и приглушённо. Сумма с «готово к запуску» снова сделала бы
+                  бейдж бессмысленным: «можно начать сейчас» и «придёт позже» —
+                  разные решения, и цех, стоящий раньше в маршруте, до правки
+                  видел здесь ноль ровно тогда, когда работа на него назначена.
+                */}
+                {waitingCount > 0 && (
+                  <span
+                    className={`${styles.deptTabCount} ${styles.deptTabWaiting}`}
+                    title="Ожидают своей очереди"
+                    aria-label={`ожидает: ${waitingCount}`}
+                  >
+                    +{waitingCount}
                   </span>
                 )}
                 {overdueCount > 0 && (
@@ -476,9 +532,9 @@ export default function DepartmentQueue() {
       {dept && loaded && view === 'queue' && Object.entries(GROUP_TITLES).map(([key, title]) => {
         const list = groups[key];
         if (!list || list.length === 0) return null;
-        const collapsible = COLLAPSED_BY_DEFAULT.has(key);
-        const open = expandedGroups.has(key);
-        const collapsed = collapsible && !open;
+        const collapsible = COLLAPSIBLE.has(key);
+        const collapsed = collapsible && collapsedGroups.has(key);
+        const open = !collapsed;
         return (
           <section key={key} style={{ marginBottom: 'var(--space-lg, 20px)' }}>
             <h2 className={styles.queueGroupTitle}>
