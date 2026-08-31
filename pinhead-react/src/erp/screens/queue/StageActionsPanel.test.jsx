@@ -106,13 +106,27 @@ describe('StageActionsPanel — действия по группам', () => {
     expect(screen.getByRole('button', { name: /Проблема/ })).toBeInTheDocument();
   });
 
-  it('«Взять в работу» открывает план завершения и передаёт дату', async () => {
+  /**
+   * Правка заказчика 30.08, п. 9. Раньше «Взять в работу» лишь ОТКРЫВАЛА
+   * форму плана, а действие выполняла вторая кнопка «В работу» — со стороны
+   * цеха это выглядело как «нажал, ничего не произошло, нажал ещё раз».
+   * Поле плана осталось (решение сессии 39 «дату спрашивают все входы
+   * в работу»), но стоит рядом с кнопкой и предзаполнено.
+   */
+  it('«Взять в работу» срабатывает С ПЕРВОГО нажатия и передаёт дату', async () => {
     const handlers = renderCard(makeEntry('ready'));
-    fireEvent.click(screen.getByRole('button', { name: /Взять в работу/ }));
     const date = screen.getByLabelText('Плановая дата завершения');
+    expect(date.value).toBeTruthy();   // предзаполнено, а не пусто
     fireEvent.change(date, { target: { value: '2026-08-20' } });
-    fireEvent.click(screen.getByRole('button', { name: /^В работу$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Взять в работу/ }));
     await waitFor(() => expect(handlers.onStart).toHaveBeenCalledWith(expect.objectContaining({ group: 'ready' }), '2026-08-20'));
+    expect(handlers.onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('второй кнопки для взятия в работу больше нет', () => {
+    // Сторож на возврат двухшагового потока: именно он и был дефектом
+    renderCard(makeEntry('ready'));
+    expect(screen.queryByRole('button', { name: /^В работу$/ })).toBeNull();
   });
 
   it('«Проблема» требует текст и передаёт его в onBlock', async () => {

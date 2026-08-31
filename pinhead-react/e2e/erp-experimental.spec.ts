@@ -166,6 +166,14 @@ const EXPERIMENTAL = [
         title: 'Нанесение образца', status: 'waiting', sort_order: 20,
         department_id: deptId('dtf'), stage_id: 'ord-a-i1-st3', qty: 2,
       }),
+      // Обычная внутренняя работа технолога — она и есть содержимое блока
+      // «Задачи этапов» после правки 30.08 (п. 3): задачи ключевых этапов
+      // туда больше не попадают, их ведёт «Основной маршрут разработки»
+      task({
+        id: 'dev-work-t3', experimental_id: 'dev-work', task_type: 'other',
+        title: 'Подобрать молнию', status: 'in_progress', responsible: 'Ирина',
+        sort_order: 30,
+      }),
     ],
   },
   {
@@ -453,8 +461,32 @@ test.describe('Карточка разработки', () => {
 
     // А у обычной задачи кнопки на месте — сравнение обязательно, иначе проверка
     // выше прошла бы и на экране, где кнопок нет ни у кого
-    const normal = drawer.getByRole('row').filter({ hasText: 'Лекала базовые' });
+    const normal = drawer.getByRole('row').filter({ hasText: 'Подобрать молнию' });
     await expect(normal.getByRole('button', { name: 'Готово' })).toBeVisible();
+  });
+
+  /**
+   * П. 3 документа 30.08: «блок „Задачи этапов" должен содержать только
+   * дополнительные внутренние задачи». Работа самих этапов видна выше,
+   * в «Основном маршруте разработки», — второй список тех же строк был бы
+   * третьим местом для одного и того же.
+   */
+  test('блок задач не перечисляет задачи ключевых этапов', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    const drawer = page.getByRole('main');
+
+    await expect(drawer.getByRole('row').filter({ hasText: 'Подобрать молнию' }))
+      .toHaveCount(1);
+    await expect(
+      drawer.getByRole('row').filter({ hasText: 'Лекала базовые' }),
+      'задача этапа попала в блок дополнительных — это второй список тех же строк',
+    ).toHaveCount(0);
+    // Сам этап при этом на виду — в маршруте, где ему и место. Локатор
+    // сужен до панели вкладки: то же самое пишет постоянная справка сбоку,
+    // и по всей области совпадений было бы два
+    await expect(
+      drawer.locator('#dev-tabpanel').getByText('Текущий этап: Построение лекал'),
+    ).toBeVisible();
   });
 
   test('повторная примерка — новая задача со своим кругом, а не счётчик', async ({ page }) => {
@@ -631,7 +663,71 @@ const ROUTE_ORDER = {
   attachments: [],
 };
 
+/**
+ * СВОЙ ЗАКАЗ ДЛЯ ПЕРЕНОСОВ ПО КАНБАНУ ЭКС.
+ *
+ * У всех четырёх базовых заказов материалы стоят `received` БЕЗ приёмки
+ * складом, то есть материальный гейт у них закрыт — и правка 30.08 (п. 1)
+ * законно не выпускает карточку с «Построения лекал». Это отдельный сторож
+ * ниже; переносам же нужен заказ, у которого материал на месте.
+ *
+ * `reserved` («Доступен со склада») — самый короткий путь к «материал годен»:
+ * он не требует ещё и `accept_status`.
+ *
+ * Нанесение у позиции ОДНО (шелкография): именно из него, а не из вопроса
+ * человеку, строится маршрут нанесений образца.
+ */
+const MOVE_ORDER = {
+  id: 'ord-mv', bitrix_id: '55500', title: 'Образец: ветровка',
+  manager: 'Пётр', launch_date: '2026-07-14', due_date: '2026-08-30',
+  buffer_days: 1, priority: 0, status: 'active', shipped_status: 'not_shipped',
+  delivered_at: null, shipped_at: null, shipped_by: null, notes: null,
+  packaging: 'none', packaging_note: null, stickers: 'none', stickers_note: null,
+  no_chestny_znak: false, created_by: null,
+  created_at: FX_CREATED, updated_at: FX_CREATED,
+  items: [{
+    id: 'ord-mv-i1', order_id: 'ord-mv', product_type: 'Ветровка', variant: 'образец',
+    qty: 2, production_type: 'samples', branding_methods: ['silkscreen'], branding_on: 'cut',
+    notes: null, size_grid: null, sort_order: 10,
+    created_at: FX_CREATED, updated_at: FX_CREATED,
+    stages: [],
+    prints: [{
+      id: 'ord-mv-p1', item_id: 'ord-mv-i1', seq: 1, method: 'silkscreen',
+      fabric: null, zone: 'Грудь', width_mm: 100, height_mm: 100,
+      offset_note: null, pantone: null, special: null, comment: null,
+      created_at: FX_CREATED,
+    }],
+  }],
+  materials: [{
+    id: 'ord-mv-m1', order_id: 'ord-mv', item_id: null, kind: 'fabric',
+    name: 'Плащёвка', source: 'stock', qty: '10 м',
+    status: 'reserved', eta_date: null, received_at: FX_CREATED, notes: null,
+    created_at: FX_CREATED, updated_at: FX_CREATED,
+  }],
+  attachments: [],
+};
+
+/** Разработка на этом заказе: задач нет вовсе — их больше не создаётся (п. 3) */
+const MOVE_DEV = {
+  ...base,
+  id: 'dev-move',
+  order_id: 'ord-mv',
+  item_id: 'ord-mv-i1',
+  tech_name: 'Ветровка образец',
+  technologist: 'Ирина',
+  order: { title: 'Образец: ветровка', bitrix_id: '55500', due_date: '2026-08-30' },
+  tasks: [],
+};
+
 test.describe('Канбан ЭКС: колонку ставит человек (п. 4.2)', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, {
+      experimental: [...EXPERIMENTAL, MOVE_DEV],
+      dictionaries: DICTIONARIES,
+      orders: [MOVE_ORDER],
+    });
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
   /**
    * «Ответственный за проработку технолог сам вручную перетаскивает карточку
    * между колонками. Автоматическое движение по основным этапам не нужно».
@@ -653,83 +749,94 @@ test.describe('Канбан ЭКС: колонку ставит человек (
     page.locator('section')
       .filter({ has: page.locator('header').filter({ hasText: title }) });
 
-  test('карточка переезжает в соседнюю колонку и остаётся там', async ({ page }) => {
+  /**
+   * ПЕРЕХОД «ЛЕКАЛА → КРОЙ» СПРАШИВАЕТ ТЕХНИЧЕСКОЕ НАЗВАНИЕ ЛЕКАЛ
+   * (правка заказчика 30.08, п. 3): «открыть одно окно подтверждения
+   * с обязательным полем „Техническое название лекал". Отдельный ввод
+   * свободного текста „Результат этапа" не показывать».
+   *
+   * Раньше название требовало ЗАКРЫТИЕ обязательной задачи `patterns`, но
+   * таких задач больше не создаётся — вопрос переехал в сам переход.
+   */
+  test('переход «Лекала → Крой» просит техническое название лекал', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0');
+    await expect(column(page, 'Построение лекал')).toContainText('Ветровка образец');
 
-    // Расчёт по задачам ставит эту разработку на «Построение лекал»
-    await expect(column(page, 'Построение лекал')).toContainText('Ветровка на молнии');
-
-    await card(page, 'Ветровка на молнии')
+    await card(page, 'Ветровка образец')
       .getByRole('button', { name: 'Перенести в «Крой»' }).click();
 
-    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
-    await expect(column(page, 'Построение лекал')).not.toContainText('Ветровка на молнии');
-  });
-
-  /**
-   * «Нанесения не являются обязательным этапом. Если нанесения не нужны,
-   * технолог переносит карточку сразу из Кроя в Пошив». Особого механизма
-   * это не требует — достаточно того, что колонку ставит человек.
-   */
-  test('через «Нанесения» можно перешагнуть', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0');
-    const item = card(page, 'Ветровка на молнии');
-    // Каждый шаг подтверждается: цепочка кликов подряд проверяла бы, что
-    // Playwright успевает, а не что перенос работает
-    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
-    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
-
-    // Вход в «Нанесения» спрашивает виды; ни одного — значит шаг пропускают,
-    // и карточка идёт в «Пошив» ОДНИМ действием, как и просит документ
-    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
-    await page.getByRole('dialog', { name: 'Виды нанесения' })
-      .getByRole('button', { name: /Нанесения не нужны/ }).click();
-    await expect(column(page, 'Пошив')).toContainText('Ветровка на молнии');
-    await expect(column(page, 'Нанесения')).not.toContainText('Ветровка на молнии');
-  });
-
-  /**
-   * ВХОД В «НАНЕСЕНИЯ» СПРАШИВАЕТ ВИДЫ (п. 4.3): «система открывает выбор вида
-   * нанесения… в списке должны быть Шелкография, DTF, Вышивка и DTG… разрешить
-   * выбрать один или несколько». Спрашивается ТЕМ ЖЕ действием, что и перенос:
-   * отдельная форма рядом была бы необязательным вторым шагом.
-   */
-  test('перенос в «Нанесения» открывает выбор видов', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0');
-    const item = card(page, 'Ветровка на молнии');
-    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
-    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
-
-    const dialog = page.getByRole('dialog', { name: 'Виды нанесения' });
+    const dialog = page.getByRole('dialog', { name: /Завершить построение лекал/ });
     await expect(dialog).toBeVisible();
-    for (const name of ['Шелкография', 'ДТФ', 'Вышивка', 'DTG']) {
-      await expect(dialog.getByLabel(name)).toBeVisible();
-    }
+    // Ровно ОДНО поле: свободного «Результата этапа» рядом быть не должно
+    await expect(dialog.getByLabel('Техническое название лекал')).toBeVisible();
+    await expect(dialog.getByLabel('Результат этапа')).toHaveCount(0);
 
-    // Несколько видов сразу — прямое требование документа
-    await dialog.getByLabel('ДТФ').check();
-    await dialog.getByLabel('Вышивка').check();
-    await dialog.getByRole('button', { name: /Перенести и завести 2/ }).click();
+    await dialog.getByLabel('Техническое название лекал').fill('PNHD-W12-v1');
+    await dialog.getByRole('button', { name: /Завершить и перенести/ }).click();
 
-    await expect(column(page, 'Нанесения')).toContainText('Ветровка на молнии');
+    await expect(column(page, 'Крой')).toContainText('Ветровка образец');
+    await expect(column(page, 'Построение лекал')).not.toContainText('Ветровка образец');
   });
 
-  test('отмена выбора оставляет карточку на месте', async ({ page }) => {
-    // Диалог — не «уже перенесли, теперь уточните»: отмена отменяет всё
+  test('отмена окна оставляет карточку на месте', async ({ page }) => {
+    // Окно — не «уже перенесли, теперь уточните»: отмена отменяет всё
     await gotoDev(page, '/experimental?studio=0');
-    const item = card(page, 'Ветровка на молнии');
-    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
-    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
-    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
-    await page.getByRole('dialog', { name: 'Виды нанесения' })
+    await card(page, 'Ветровка образец')
+      .getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    await page.getByRole('dialog', { name: /Завершить построение лекал/ })
       .getByRole('button', { name: 'Отмена' }).click();
-    await expect(column(page, 'Крой')).toContainText('Ветровка на молнии');
+    await expect(column(page, 'Построение лекал')).toContainText('Ветровка образец');
+  });
+
+  /**
+   * ЗАКУПКА ДЕРЖИТ ВЫХОД С ЛЕКАЛ (правка заказчика 30.08, п. 1): «пока закупка
+   * по заказу не завершена и материал не подтверждён как полученный,
+   * заблокировать перевод карточки с этапа лекал на следующие производственные
+   * этапы… на карточке отображать плашку „Ожидаем материал"».
+   *
+   * У «Ветровки на молнии» материалы стоят `received` без приёмки складом —
+   * то есть ровно «пришло, но склад не подтвердил».
+   */
+  test('с «Лекал» не выпускает, пока материал не принят складом', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    const blocked = card(page, 'Ветровка на молнии');
+    // Причина видна ДО действия, а не только в тосте после
+    await expect(blocked).toContainText('Ожидаем материал');
+
+    await blocked.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    // Тосты живут в общем live-регионе `role="status"` (Toast.jsx)
+    await expect(page.getByRole('status')).toContainText('Ожидаем материал');
+    await expect(column(page, 'Построение лекал')).toContainText('Ветровка на молнии');
+    await expect(column(page, 'Крой')).not.toContainText('Ветровка на молнии');
+  });
+
+  /**
+   * НАНЕСЕНИЯ БЕРУТСЯ ИЗ ЗАКАЗА (правка заказчика 30.08, п. 2): «убрать окно
+   * „Какие нанесения нужны образцу?"… маршрут брать только из данных заказа».
+   *
+   * У позиции `ord-a-i1` заведено нанесение «Шелкография» — карточка уходит
+   * в «Нанесения» БЕЗ единого вопроса.
+   */
+  test('переход в «Нанесения» не спрашивает виды — они из заказа', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка образец');
+    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    const dialog = page.getByRole('dialog', { name: /Завершить построение лекал/ });
+    await dialog.getByLabel('Техническое название лекал').fill('PNHD-W12-v1');
+    await dialog.getByRole('button', { name: /Завершить и перенести/ }).click();
+    await expect(column(page, 'Крой')).toContainText('Ветровка образец');
+
+    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+
+    // Ни одного диалога: прежний выбор видов снят целиком
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
   });
 
   test('на краю доски кнопка гаснет, а не исчезает', async ({ page }) => {
     // Пропадающий элемент сдвигает соседний под палец
     await gotoDev(page, '/experimental?studio=0');
-    const item = card(page, 'Ветровка на молнии');
+    const item = card(page, 'Ветровка образец');
     await expect(item.getByRole('button', { name: 'Левее колонок нет' })).toBeDisabled();
   });
 });

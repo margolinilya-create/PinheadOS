@@ -372,6 +372,7 @@ export type Database = {
           dev_type: string | null
           due_date: string | null
           final_package: Json
+          handed_to_warehouse_at: string | null
           has_3d: boolean
           id: string
           item_id: string | null
@@ -402,6 +403,7 @@ export type Database = {
           dev_type?: string | null
           due_date?: string | null
           final_package?: Json
+          handed_to_warehouse_at?: string | null
           has_3d?: boolean
           id?: string
           item_id?: string | null
@@ -432,6 +434,7 @@ export type Database = {
           dev_type?: string | null
           due_date?: string | null
           final_package?: Json
+          handed_to_warehouse_at?: string | null
           has_3d?: boolean
           id?: string
           item_id?: string | null
@@ -1275,6 +1278,7 @@ export type Database = {
           product_type: string
           production_type: string
           qty: number
+          qty_shipped: number
           sewing_note: string | null
           size_grid: Json | null
           sort_order: number
@@ -1303,6 +1307,7 @@ export type Database = {
           product_type: string
           production_type?: string
           qty: number
+          qty_shipped?: number
           sewing_note?: string | null
           size_grid?: Json | null
           sort_order?: number
@@ -1331,6 +1336,7 @@ export type Database = {
           product_type?: string
           production_type?: string
           qty?: number
+          qty_shipped?: number
           sewing_note?: string | null
           size_grid?: Json | null
           sort_order?: number
@@ -1381,6 +1387,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "erp_order_notes_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_order_shipments: {
+        Row: {
+          author: string | null
+          author_id: string | null
+          client_key: string | null
+          created_at: string
+          id: string
+          item_id: string
+          note: string | null
+          order_id: string
+          qty: number
+          shipped_on: string
+        }
+        Insert: {
+          author?: string | null
+          author_id?: string | null
+          client_key?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          note?: string | null
+          order_id: string
+          qty: number
+          shipped_on?: string
+        }
+        Update: {
+          author?: string | null
+          author_id?: string | null
+          client_key?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          note?: string | null
+          order_id?: string
+          qty?: number
+          shipped_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_order_shipments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_shipments_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
@@ -2362,6 +2422,10 @@ export type Database = {
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
       erp_dev_branding_task_types: { Args: never; Returns: string[] }
+      erp_ensure_subcontract_send: {
+        Args: { p_stage: string }
+        Returns: undefined
+      }
       erp_experimental_add_tasks: {
         Args: { p_experimental_id: string; p_tasks: Json }
         Returns: {
@@ -2408,6 +2472,7 @@ export type Database = {
           dev_type: string | null
           due_date: string | null
           final_package: Json
+          handed_to_warehouse_at: string | null
           has_3d: boolean
           id: string
           item_id: string | null
@@ -2547,6 +2612,16 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      erp_ship_order: {
+        Args: {
+          p_actor?: string
+          p_client_key?: string
+          p_lines: Json
+          p_note?: string
+          p_order_id: string
+        }
+        Returns: Json
       }
       erp_sku_from_dev: {
         Args: { p_dev: string; p_sku: Json }

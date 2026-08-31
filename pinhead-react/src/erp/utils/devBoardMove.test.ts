@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEV_MOVE_REFUSAL_TEXT, devMoveIntent, devMoveLabel, neighbourStage,
+  DEV_MOVE_REFUSAL_TEXT, devMoveIntent, devMoveLabel, neighbourStage, devMovePrompt,
 } from './devBoardMove';
 import { DEV_STAGE_ORDER, devBoardColumn, isDevStage } from './experimentalBoard';
 import type { DevStageState } from './experimentalBoard';
@@ -125,5 +125,66 @@ describe('клавиатурная альтернатива перетаскив
 
   it('подпись действия называет колонку словами', () => {
     expect(devMoveLabel('sewing')).toBe('Перенести в «Пошив»');
+  });
+});
+
+/**
+ * Закупка держит ВЫХОД с лекал (правка заказчика 30.08, п. 1).
+ *
+ * Документ требует двух вещей сразу: построение лекал идёт ПАРАЛЛЕЛЬНО
+ * закупке («это текущая правильная логика и её нужно сохранить»), но
+ * перевести карточку дальше нельзя, пока материал не подтверждён складом.
+ * Поэтому блокируется переход, а не сам этап.
+ */
+describe('devMoveIntent — материалы держат выход с лекал', () => {
+  const base = { canManage: true, outcome: null };
+
+  it('вперёд с лекал при незакрытой закупке — отказ с причиной', () => {
+    for (const to of ['cutting', 'branding', 'sewing', 'final']) {
+      expect(devMoveIntent({ ...base, from: 'patterns', to, materialsPending: true }))
+        .toEqual({ ok: false, reason: 'materials' });
+    }
+  });
+
+  it('материалы приняты — переход разрешён', () => {
+    expect(devMoveIntent({ ...base, from: 'patterns', to: 'cutting', materialsPending: false }))
+      .toEqual({ ok: true, to: 'cutting' });
+  });
+
+  it('назад двигать можно всегда: ошибку колонкой надо уметь откатить', () => {
+    expect(devMoveIntent({ ...base, from: 'cutting', to: 'patterns', materialsPending: true }))
+      .toEqual({ ok: true, to: 'patterns' });
+  });
+
+  it('на других этапах материалы переход не держат', () => {
+    // Гейт документа — про выход с лекал; дальше материал уже в работе
+    expect(devMoveIntent({ ...base, from: 'cutting', to: 'sewing', materialsPending: true }))
+      .toEqual({ ok: true, to: 'sewing' });
+  });
+
+  it('у отказа есть текст', () => {
+    expect(DEV_MOVE_REFUSAL_TEXT.materials).toContain('Ожидаем материал');
+  });
+});
+
+/**
+ * Одно окно на переходе «Лекала → Крой» (правка заказчика 30.08, п. 3).
+ * Обязательных задач у этапов больше нет, и вопрос о техническом названии
+ * лекал переехал из закрытия задачи в сам переход.
+ */
+describe('devMovePrompt', () => {
+  it('переход «Лекала → Крой» требует техническое название лекал', () => {
+    const p = devMovePrompt('patterns', 'cutting', { pattern_tech_name: null });
+    expect(p?.field).toBe('pattern_tech_name');
+    expect(p?.label).toBe('Техническое название лекал');
+  });
+
+  it('название уже записано — повторно не спрашиваем', () => {
+    expect(devMovePrompt('patterns', 'cutting', { pattern_tech_name: 'PNHD-v1' })).toBeNull();
+  });
+
+  it('остальные переходы ничего не спрашивают', () => {
+    expect(devMovePrompt('cutting', 'sewing', { pattern_tech_name: null })).toBeNull();
+    expect(devMovePrompt('patterns', 'sewing', { pattern_tech_name: null })).toBeNull();
   });
 });

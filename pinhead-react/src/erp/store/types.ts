@@ -1145,7 +1145,16 @@ export interface OrderWriteSlice {
    * Отгрузка готового заказа: status → done_* (по сроку клиента),
    * shipped_status → shipped, shipped_at/shipped_by. Заказ уходит в архив.
    */
-  shipOrder: (orderId: string) => Promise<boolean>;
+  /**
+   * Фактическая передача клиенту (правка 30.08, п. 6). `lines` — что отдано
+   * СЕЙЧАС; без них отгружается весь остаток (прежнее поведение «Отгрузить»
+   * целиком). `clientKey` — ключ идемпотентности повторной отправки.
+   */
+  shipOrder: (
+    orderId: string,
+    lines?: { item_id: string; qty: number }[] | null,
+    opts?: { note?: string | null; clientKey?: string | null },
+  ) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
   uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;

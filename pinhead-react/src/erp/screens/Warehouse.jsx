@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { orderQty } from '../utils/shipment';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
@@ -19,6 +20,7 @@ import {
   FG_RECEIPT_STATUS_LABELS,
   SUBCONTRACT_RECEIPT_STATUS_LABELS,
   SUBCONTRACT_SEND_STATUS_LABELS,
+  SHIPPED_STATUS_LABELS,
 } from '../types';
 import styles from '../styles';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
@@ -74,10 +76,18 @@ const TABS = [
   { key: 'pack_ship', label: 'Упаковка/отгрузка' },
 ];
 
-function taskStatusLabel(task) {
+function taskStatusLabel(task, order) {
   switch (task.task_type) {
     case 'marking': return MARKING_STATUS_LABELS[task.status] ?? task.status;
-    case 'pack_ship': return PACK_SHIP_STATUS_LABELS[task.status] ?? task.status;
+    /**
+     * Частичная отгрузка называется в СТРОКЕ СПИСКА тоже (правка 30.08, п. 6):
+     * статус задачи о ней не знает (она остаётся `ready_to_ship`), а склад
+     * ищет заказ именно здесь. Подпись берётся у заказа — её ведёт триггер.
+     */
+    case 'pack_ship':
+      return order?.shipped_status === 'partial' && task.status !== 'shipped'
+        ? SHIPPED_STATUS_LABELS.partial
+        : (PACK_SHIP_STATUS_LABELS[task.status] ?? task.status);
     case 'subcontract_send': return SUBCONTRACT_SEND_STATUS_LABELS[task.status] ?? task.status;
     case 'subcontract_receipt': return SUBCONTRACT_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
     case 'fg_receipt': return FG_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
@@ -113,7 +123,7 @@ function taskSummary(order, task) {
   }
   if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
   if (task.task_type === 'fg_receipt') {
-    const qty = order.items.reduce((sum, it) => sum + (it.qty || 0), 0);
+    const qty = orderQty(order);
     return `${qty} шт с производства`;
   }
   return 'Упаковка и отгрузка';
@@ -128,7 +138,7 @@ function warehouseSortValue({ order, task }, key) {
     case 'type': return WAREHOUSE_TASK_TYPE_LABELS[task.task_type];
     case 'order': return order.bitrix_id || order.title;
     case 'summary': return taskSummary(order, task);
-    case 'status': return taskStatusLabel(task);
+    case 'status': return taskStatusLabel(task, order);
     case 'deadline': return task.deadline;
     default: return null;
   }
@@ -136,12 +146,13 @@ function warehouseSortValue({ order, task }, key) {
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask,
+    orders, loaded, loadError, loadAll, acceptMaterial, advanceWarehouseTask, shipOrder,
     submitWarehouseReport, subcontractingLoaded, loadSubcontracting,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, advanceWarehouseTask: s.advanceWarehouseTask,
+      shipOrder: s.shipOrder,
       submitWarehouseReport: s.submitWarehouseReport,
       subcontractingLoaded: s.subcontractingLoaded,
       loadSubcontracting: s.loadSubcontracting,
@@ -346,7 +357,7 @@ export default function Warehouse() {
               orderNo={order.bitrix_id}
               orderTitle={order.title}
               summary={taskSummary(order, task)}
-              statusLabel={taskStatusLabel(task)}
+              statusLabel={taskStatusLabel(task, order)}
               statusVariant={taskVariant(task)}
               deadline={formatDateShort(task.deadline)}
               onOpen={() => setOpenId(task.id)}
@@ -379,7 +390,7 @@ export default function Warehouse() {
                     </td>
                     <td>№{order.bitrix_id || '—'}<div className={styles.cellSub} title={order.title}>{order.title}</div></td>
                     <td>{taskSummary(order, task)}</td>
-                    <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task)}</Badge></td>
+                    <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task, order)}</Badge></td>
                     <td>{formatDateShort(task.deadline) || '—'}</td>
                     <td>
                       <Button
@@ -409,7 +420,7 @@ export default function Warehouse() {
           onClose={() => setOpenId(null)}
           title={`${WAREHOUSE_TASK_TYPE_LABELS[open.task.task_type]}`}
           subtitle={`№${open.order.bitrix_id || '—'} · ${open.order.title}`}
-          badge={<Badge variant={taskVariant(open.task)}>{taskStatusLabel(open.task)}</Badge>}
+          badge={<Badge variant={taskVariant(open.task)}>{taskStatusLabel(open.task, open.order)}</Badge>}
         >
           <ReadOnlyFieldset
             canManage={canManageWarehouse}
@@ -443,7 +454,15 @@ export default function Warehouse() {
               <MarkingCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
             )}
             {open.task.task_type === 'pack_ship' && (
-              <PackShipCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
+              <PackShipCard
+                order={open.order}
+                task={open.task}
+                onAdvance={advanceWarehouseTask}
+                /* Отгрузка идёт своим путём (правка 30.08, п. 6): она пишет
+                   журнал по позициям и сама закрывает задачу при полной
+                   передаче — `advanceWarehouseTask` для неё слишком груб */
+                onShip={shipOrder}
+              />
             )}
           </ReadOnlyFieldset>
         </Drawer>

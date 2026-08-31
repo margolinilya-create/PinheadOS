@@ -8,6 +8,7 @@ import { deptShortName } from '../data/departments';
 import { buildKanbanColumns } from '../utils/kanbanColumns';
 import { kanbanDropIntent, ALLOWED_LANE_DROP } from '../utils/kanbanDrop';
 import { confirmStageDone } from '../utils/stageDone';
+import { materialsForItem } from '../utils/routes';
 import { analyzeStageMove, moveConfirmMessage } from '../utils/stageMove';
 import styles from '../erp.module.css';
 import { KanbanCard } from './kanban/KanbanCard';
@@ -37,16 +38,23 @@ import { useScrollHints } from '../../hooks/useScrollHints';
  *
  * СВЕРХУ ТО, С ЧЕМ МОЖНО РАБОТАТЬ СЕЙЧАС (правка 23.08, п. 3 — тот же принцип,
  * что в очереди цеха): «Готово к работе» → «В работе» → «С проблемой» →
- * «Ожидают материалы» → «Завершено». До 23.08 «Ожидают материалы» стояли
- * ПЕРВЫМИ, и позиции, которые нельзя начать, занимали верх каждой колонки.
+ * ожидания → «Завершено». До 23.08 ожидания стояли ПЕРВЫМИ, и позиции,
+ * которые нельзя начать, занимали верх каждой колонки.
  *
  * «С проблемой» — своя дорожка (правка менеджера 2026-08-03): раньше ручные
  * блокировки подмешивались в «Готово к работе», и понять, что цех стоит,
  * было нельзя.
+ *
+ * `waiting` добавлена правкой 30.08 (п. 7). До неё доска не показывала этап,
+ * ждущий предыдущий ЦЕХ, вовсе — а это ровно та «будущая работа», которую
+ * документ просит показать цеху заранее. Перечисление обязано совпадать
+ * с группами `buildQueueEntries`: пропущенная здесь дорожка означает работу,
+ * исчезнувшую с доски без единой ошибки.
  */
-const LANES = ['ready', 'in_progress', 'blocked', 'awaiting_materials', 'done'];
+const LANES = ['ready', 'in_progress', 'blocked', 'waiting', 'awaiting_materials', 'done'];
 
 const LANE_TITLES = {
+  waiting: 'Ожидает',
   awaiting_materials: 'Ожидают материалы',
   ready: 'Готово к работе',
   in_progress: 'В работе',
@@ -202,6 +210,9 @@ export default function ErpKanban({ filters }) {
         qty: dragged.item.qty,
         allStages: dragged.item.stages,
         deptNameById,
+        // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха
+        materials: materialsForItem(dragged.order.materials, dragged.item.id),
+        dept: departments.find((d) => d.id === dragged.stage.department_id),
       });
       if (!ok) return;
       await setStageStatus(dragged.stage.id, 'done', { qty_done: dragged.item.qty });

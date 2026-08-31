@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { orderQty } from '../utils/shipment';
 import { Link, useLocation } from 'react-router-dom';
 import { OrderLink } from '../components/OrderLink';
 import { useShallow } from 'zustand/react/shallow';
@@ -167,7 +168,7 @@ export default function ErpDashboard() {
         order: o,
         product: o.items[0]?.product_type || '—',
         stage: currentStageName(o, deptById),
-        qty: o.items.reduce((s, it) => s + (it.qty || 0), 0),
+        qty: orderQty(o),
         status: orderStatus(o),
       }));
 

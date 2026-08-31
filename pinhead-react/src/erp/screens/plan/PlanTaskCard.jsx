@@ -32,6 +32,17 @@ export function PlanTaskCard({
   const remaining = planRemaining(slot);
   const due = order?.due_date ?? null;
   const d = daysLeft(due);
+  /**
+   * ДАТА ЗАПУСКА В ПРОИЗВОДСТВЕННОМ ПЛАНЕ (правка 30.08, п. 10): «Выбранную
+   * дату использовать как фактическую дату запуска заказа… и для отображения
+   * в производственном плане». Показывается только когда она НЕ сегодняшняя:
+   * у обычного заказа запуск и есть день заведения, и печатать его на каждой
+   * карточке значило бы добавить шум ради полноты. А вот заказ, перенесённый
+   * в ERP задним числом, идёт с чужой даты — и планировщик обязан это видеть,
+   * не открывая карточку заказа.
+   */
+  const launch = order?.launch_date && order.launch_date !== today
+    ? order.launch_date : null;
   const tzDoc = order && item ? itemTzDocument(order, item.id) : null;
 
   return (
@@ -96,6 +107,9 @@ export function PlanTaskCard({
           <span className={`${styles.chip} ${styles.chipBlocked}`} title={slot.problem_note || ''}>
             <Icon name="alert" size={12} /> проблема
           </span>
+        )}
+        {launch && (
+          <span className={styles.subText}>запуск {formatDateShort(launch)}</span>
         )}
         {due && (
           <span className={d !== null && d < 0 ? styles.overdue : styles.subText}>

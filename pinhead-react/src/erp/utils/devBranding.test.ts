@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
 import {
-  DEV_BRANDING_CHOICES,
   DEV_BRANDING_DEPT_CODE,
   DEV_BRANDING_TASK_TYPES,
+  devBrandingFromPrints,
 } from './experimentalBoard';
 
 /**
@@ -23,18 +23,48 @@ const TYPES = latestDefining('erp_dev_branding_task_types');
 const ADVANCE = latestDefining('erp_dev_branding_advance');
 
 describe('перечень видов нанесения', () => {
-  it('документ называет ровно четыре вида для выбора', () => {
-    // «В списке должны быть Шелкография, DTF, Вышивка и DTG»
-    expect([...DEV_BRANDING_CHOICES]).toEqual(['silkscreen', 'dtf', 'embroidery', 'dtg']);
+  /**
+   * ВИДЫ БЕРУТСЯ ИЗ ЗАКАЗА (правка заказчика 30.08, п. 2). Прежний список
+   * выбора (`DEV_BRANDING_CHOICES`) и диалог «Какие нанесения нужны образцу?»
+   * сняты: менеджер уже указал нанесения в позиции, и второй ввод того же
+   * решения терял исходные данные заказа.
+   */
+  it('порядок задач — порядок нанесений в заказе', () => {
+    expect(devBrandingFromPrints([
+      { method: 'dtf', seq: 2 },
+      { method: 'embroidery', seq: 1 },
+    ])).toEqual(['embroidery', 'dtf']);
+  });
+
+  it('термоперенос идёт в тот же цех, что и DTF, «прочее» — никуда', () => {
+    // Карта та же, по которой строится производственный маршрут: своя копия
+    // означала бы, что образец и серия однажды поедут разными цехами
+    expect(devBrandingFromPrints([{ method: 'heat_transfer', seq: 1 }])).toEqual(['dtf']);
+    expect(devBrandingFromPrints([{ method: 'other', seq: 1 }])).toEqual([]);
+  });
+
+  it('одинаковые методы не дублируют задачу цеху', () => {
+    expect(devBrandingFromPrints([
+      { method: 'dtf', seq: 1 }, { method: 'dtf', seq: 2 },
+    ])).toEqual(['dtf']);
+  });
+
+  it('нанесений нет — пустой список (карточка уйдёт в «Пошив»)', () => {
+    expect(devBrandingFromPrints([])).toEqual([]);
+    expect(devBrandingFromPrints(null)).toEqual([]);
   });
 
   /**
-   * Автопереход учитывает ВСЕ нанесения, а не только предлагаемые четыре:
-   * задача сублимации, заведённая руками через «Добавить задачу», иначе
-   * повисла бы незамеченной, и карточка не вышла бы из «Нанесений» никогда.
+   * Автопереход учитывает ВСЕ нанесения, а не только те, что приезжают
+   * из заказа: задача сублимации, заведённая руками через «Добавить задачу»,
+   * иначе повисла бы незамеченной, и карточка не вышла бы из «Нанесений»
+   * никогда.
    */
-  it('автопереход считает больше типов, чем предлагает выбор', () => {
-    for (const type of DEV_BRANDING_CHOICES) {
+  it('автопереход считает больше типов, чем приходит из заказа', () => {
+    for (const type of devBrandingFromPrints([
+      { method: 'silkscreen', seq: 1 }, { method: 'dtf', seq: 2 },
+      { method: 'embroidery', seq: 3 }, { method: 'dtg', seq: 4 },
+    ])) {
       expect(DEV_BRANDING_TASK_TYPES).toContain(type);
     }
     expect(DEV_BRANDING_TASK_TYPES).toContain('sublimation');
@@ -55,8 +85,12 @@ describe('перечень видов нанесения', () => {
    * в один: молчаливое совпадение имён — не правило, и первое переименование
    * участка отправило бы задачу в никуда без единой ошибки.
    */
-  it('у каждого предлагаемого вида есть участок', () => {
-    for (const type of DEV_BRANDING_CHOICES) {
+  it('у каждого вида, приходящего из заказа, есть участок', () => {
+    for (const type of devBrandingFromPrints([
+      { method: 'silkscreen', seq: 1 }, { method: 'dtf', seq: 2 },
+      { method: 'embroidery', seq: 3 }, { method: 'dtg', seq: 4 },
+      { method: 'heat_transfer', seq: 5 },
+    ])) {
       expect(DEV_BRANDING_DEPT_CODE[type], type).toBeTruthy();
     }
     // Сублимации участка нет — её отправляют обычной формой, выбирая цех руками

@@ -914,8 +914,18 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Дата запуска</span>
+            {/*
+              `min` ЗДЕСЬ НЕТ СОЗНАТЕЛЬНО (правка заказчика 30.08, п. 10).
+              Заказ, фактически запущенный раньше, переносят в ERP задним
+              числом, и календарь, не дающий выбрать прошедший день, делал
+              такой перенос невозможным вовсе. Дата запуска — ФАКТ, а не
+              намерение; системная дата создания записи от неё не зависит
+              (`created_at` ставит база).
+
+              У «Срока клиента» ниже `min` остаётся: срок в прошлом —
+              это ошибка ввода, а не перенос.
+            */}
             <DateField
-              min={initialLaunch}
               className={inputCls('launch_date')}
               value={form.launch_date}
               onChange={(v) => setForm({ ...form, launch_date: v })}

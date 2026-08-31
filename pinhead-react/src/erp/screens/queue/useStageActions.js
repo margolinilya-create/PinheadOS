@@ -3,7 +3,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { currentActor } from '../../store/shared';
 import { deptShortName } from '../../data/departments';
-import { confirmStageDone } from '../../utils/stageDone';
+import { confirmStageDone, stageCompletionBlock } from '../../utils/stageDone';
+import { materialsForItem } from '../../utils/routes';
 import { confirmWithInput } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 
@@ -51,12 +52,26 @@ export function useStageActions() {
   );
   const dependentDeptNames = useMemo(() => dependentDeptNamesFactory(deptNameById), [deptNameById]);
 
-  /** Взять в работу: план завершения + закрепление за исполнителем */
+  /**
+   * Взять в работу: закрепление за исполнителем + план завершения.
+   *
+   * ПОРЯДОК ЗАПИСЕЙ ОБРАТНЫЙ ПРЕЖНЕМУ (правка заказчика 30.08, п. 9).
+   * Раньше первым уходил план, и падение второго запроса оставляло дату
+   * у этапа, который никуда не запустился, — а рабочий видел, что «ничего
+   * не произошло». Теперь главное действие идёт первым, а план пишется
+   * только после его успеха: то же правило, что у возврата брака — план
+   * это НАМЕРЕНИЕ, и неудача не должна оставлять его у незапущенного этапа.
+   *
+   * Неудача самого плана взятие в работу не отменяет и тостом не кричит:
+   * причину уже назвал `erpError` слайса, а этап в работе — состояние
+   * верное. Дату можно поставить в карточке заказа.
+   */
   const onStart = useCallback(async (entry, plannedEnd) => {
-    if (plannedEnd) await setStagePlan(entry.stage.id, { planned_end: plannedEnd });
     const ok = await setStageStatus(entry.stage.id, 'in_progress', { assignee: currentActor() });
-    if (ok) toast.success(`Взято в работу: ${entry.item.product_type || 'позиция'} · ${entry.item.qty} шт`);
-    return ok;
+    if (!ok) return false;
+    if (plannedEnd) await setStagePlan(entry.stage.id, { planned_end: plannedEnd });
+    toast.success(`Взято в работу: ${entry.item.product_type || 'позиция'} · ${entry.item.qty} шт`);
+    return true;
   }, [setStagePlan, setStageStatus]);
 
   /**
@@ -71,6 +86,9 @@ export function useStageActions() {
       qty: entry.item.qty,
       allStages: entry.item.stages,
       deptNameById,
+      // Гейт закупки (правка 30.08, п. 5): материалы ПОЗИЦИИ и цех этапа
+      materials: materialsForItem(entry.order.materials, entry.item.id),
+      dept: departments.find((d) => d.id === entry.stage.department_id),
     });
     if (!ok) return false;
     const saved = await setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty });
@@ -83,10 +101,37 @@ export function useStageActions() {
         : `Этап завершён: ${entry.item.qty} шт`);
     }
     return saved;
-  }, [setStageStatus, deptNameById, dependentDeptNames]);
+  }, [setStageStatus, deptNameById, dependentDeptNames, departments]);
 
-  /** «Частично» — накопительный прогресс qty_done += N */
+  /**
+   * «Частично» — накопительный прогресс qty_done += N.
+   *
+   * ГЕЙТ ЗАКУПКИ СТОИТ И ЗДЕСЬ (правка 30.08, п. 5), и это не перестраховка:
+   * `erp_stage_report_progress` при `qty_done >= qty` САМ ставит этапу
+   * `status = 'done'`. То есть «Записать результат» на весь остаток —
+   * четвёртый путь закрытия этапа, и без гейта закрой закрывался бы при
+   * неприехавшей ткани ровно так же, как через «Завершить этап», только
+   * молча. Комментарий в `StageActionsPanel` это давно признаёт («кнопка
+   * молча делала то же, что „Завершить этап“»), но гейт туда не доходил.
+   *
+   * Проверяем ТОЛЬКО когда запись реально добирает тираж: частичная сдача
+   * при неприехавшем материале законна — цех отчитывается за то, что сделал.
+   */
   const onProgress = useCallback(async (entry, qty) => {
+    const closesStage = (entry.stage.qty_done ?? 0) + qty >= entry.item.qty;
+    if (closesStage) {
+      const blocked = stageCompletionBlock({
+        stage: entry.stage,
+        qty: entry.item.qty,
+        allStages: entry.item.stages,
+        materials: materialsForItem(entry.order.materials, entry.item.id),
+        dept: departments.find((d) => d.id === entry.stage.department_id),
+      });
+      if (blocked) {
+        toast.error(blocked);
+        return false;
+      }
+    }
     const ok = await reportProgress(entry.stage.id, qty);
     if (ok) {
       const done = (entry.stage.qty_done ?? 0) + qty;
@@ -98,7 +143,7 @@ export function useStageActions() {
         : `Записано ${qty} шт · этап закрыт`);
     }
     return ok;
-  }, [reportProgress]);
+  }, [reportProgress, departments]);
 
   const onBlock = useCallback(async (entry, reason, photo) => {
     let photoOk = false;

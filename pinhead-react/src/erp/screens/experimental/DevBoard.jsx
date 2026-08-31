@@ -8,6 +8,7 @@ import {
   DEV_LANE_TITLES,
   DEV_STAGE_LABELS,
   DEV_STAGE_ORDER,
+  cuttingGate,
   devBoardColumn,
   devStageStates,
 } from '../../utils/experimentalBoard';
@@ -76,7 +77,7 @@ const LANE_CHIP = {
 };
 
 function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, onDragEnd }) {
-  const { dev, tasks, states, column, typeNames } = row;
+  const { dev, tasks, states, column, typeNames, materialGate } = row;
   const state = states.find((s) => s.stage === column);
   // Подписи задач берутся из справочника: без него человек читает код
   // (`начать patterns`) — то же правило, что в строке списка
@@ -137,6 +138,24 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
       {state?.waitingReason && (
         <span className={`${styles.chip} ${styles[LANE_CHIP[state.lane]]}`}>
           {state.waitingReason}
+        </span>
+      )}
+      {/*
+        «ОЖИДАЕМ МАТЕРИАЛ» НА ЛЕКАЛАХ (правка заказчика 30.08, п. 1).
+
+        До правки материальный чип рисовался только у колонки «Крой» — там,
+        где материал нужен физически. Но держит он теперь и ВЫХОД с лекал,
+        а блокировка без видимой причины читается как поломка: человек тянет
+        карточку, она не двигается, и объяснение появляется только тостом
+        после попытки. Плашка отвечает на «почему стоит» ДО действия.
+
+        Только на «Лекалах»: в «Крое» ту же причину уже называет
+        `state.waitingReason` выше, и два одинаковых чипа подряд — это
+        не усиление сигнала, а шум.
+      */}
+      {column === 'patterns' && materialGate && !materialGate.open && (
+        <span className={`${styles.chip} ${styles.chipWaiting}`}>
+          Ожидаем материал
         </span>
       )}
       {action && <div className={styles.cellSub}>{action}</div>}
@@ -233,6 +252,8 @@ export function DevBoard({
       to,
       outcome: row.dev.outcome,
       canManage,
+      // Закупка держит выход с лекал (правка 30.08, п. 1)
+      materialsPending: !row.materialGate.open,
     });
     if (!intent.ok) {
       // «Карточка уже здесь» — не ошибка, а обычный исход броска мимо
@@ -251,16 +272,35 @@ export function DevBoard({
   }, [endDrag, move]);
 
   const columns = useMemo(() => {
-    const prepared = rows.map(({ dev, tasks }) => {
-      const states = devStageStates({
-        dev,
-        tasks,
-        materials: materialsByOrder?.get(dev.order_id) ?? [],
+    /**
+     * ПЕРЕДАННЫЕ НА СКЛАД УХОДЯТ С ДОСКИ (правка заказчика 30.08, п. 4):
+     * «убрать карточку из активной колонки „Финальный этап"». Работа
+     * экспериментального цеха по такому образцу закончена — дальше он живёт
+     * в складском контуре, и место в «Финальном этапе» он занимал бы
+     * бессрочно.
+     *
+     * Из СПИСКА разработок они при этом не исчезают: там есть плитка
+     * «Переданы на склад», и это история, которую документ просит хранить.
+     * Доска отвечает на «что делать», список — на «что было».
+     */
+    const prepared = rows
+      .filter(({ dev }) => !dev.handed_to_warehouse_at)
+      .map(({ dev, tasks }) => {
+        const materials = materialsByOrder?.get(dev.order_id) ?? [];
+        const states = devStageStates({ dev, tasks, materials });
+        /**
+         * Ждём ли материал (правка 30.08, п. 1). `patternsDone: true` отсекает
+         * лекальную половину гейта — нас интересует ровно материальная: она
+         * держит ВЫХОД с лекал, а сами лекала идут параллельно закупке.
+         */
+        const materialGate = cuttingGate({
+          patternsDone: true, itemId: dev.item_id, materials,
+        });
+        return {
+          dev, tasks, states, materialGate,
+          column: devBoardColumn(states, dev), today, typeNames,
+        };
       });
-      return {
-        dev, tasks, states, column: devBoardColumn(states, dev), today, typeNames,
-      };
-    });
     return DEV_STAGE_ORDER.map((stage) => ({
       stage,
       lanes: LANES.map((lane) => ({

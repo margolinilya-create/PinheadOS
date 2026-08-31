@@ -21,10 +21,17 @@ import {
  * всегда, карточка SKU — только когда модель идёт в каталог.
  */
 
-/** Только техдокументация: разработка без карточки SKU (переключатель выключен) */
+/**
+ * Только техдокументация: разработка без карточки SKU (переключатель выключен).
+ *
+ * `sample_approved_at` здесь с правки 30.08 (п. 4): «разработку считать
+ * завершённой после того, как ОБРАЗЕЦ ОТШИТ и внесена техдокументация» —
+ * условий два, и фикстура «пакет собран» обязана нести оба.
+ */
 const DOCS = {
   pattern_tech_name: 'PH-HOODIE-01',
   pattern_version: 'v1.2',
+  sample_approved_at: '2026-08-28T10:00:00Z',
 };
 
 /** Полная карточка SKU поверх техдокументации */
@@ -90,6 +97,25 @@ describe('чего не хватает, чтобы завершить разра
     expect(isFinalPackageReady(FULL, FILES)).toBe(true);
   });
 
+  /**
+   * П. 4 документа 30.08: условий завершения ДВА, и первое — образец.
+   * До правки проверялось только второе: разработку закрывали, ни разу
+   * не собрав образец, а складская задача «Приёмка готовой продукции»
+   * заводилась автоматически — склад начинал ждать вещь, которой нет.
+   */
+  it('непроверенный образец держит завершение, даже когда пакет собран', () => {
+    const dev = { ...DOCS, sample_approved_at: null };
+    expect(missingFinalPackage(dev, FILES)).toEqual(['Образец отшит и проверен']);
+    expect(isFinalPackageReady(dev, FILES)).toBe(false);
+  });
+
+  it('фото образца за проверку не считается — это разные вопросы', () => {
+    // Файл прикладывают и к незаконченной работе; «Фото образца» отвечает
+    // на «вошло ли изображение в техпакет», а не на «собран ли образец»
+    const dev = { ...DOCS, sample_approved_at: null };
+    expect(missingFinalPackage(dev, FILES)).toContain('Образец отшит и проверен');
+  });
+
   it('пустая разработка перечисляет ВСЁ, а не первое попавшееся', () => {
     // Документ: «система должна показать, какие поля ещё не заполнены» —
     // множественное число здесь существенно, иначе человек ходит по кругу
@@ -99,6 +125,7 @@ describe('чего не хватает, чтобы завершить разра
     expect(missing).toContain('Фото образца');
     expect(missing).toContain('Доступные ткани');
     expect(missing).toContain('Ценовая вилка');
+    expect(missing).toContain('Образец отшит и проверен');
     expect(missing.length).toBeGreaterThan(10);
   });
 
@@ -138,8 +165,8 @@ describe('чего не хватает, чтобы завершить разра
    * подтверждения, что всё готово.
    */
   it('прогресс считается той же функцией и в том же режиме', () => {
-    expect(finalPackageProgress(DOCS, FILES)).toEqual({ done: 4, total: 4 });
-    expect(finalPackageProgress(FULL, FILES)).toEqual({ done: 11, total: 11 });
+    expect(finalPackageProgress(DOCS, FILES)).toEqual({ done: 5, total: 5 });
+    expect(finalPackageProgress(FULL, FILES)).toEqual({ done: 12, total: 12 });
     expect(finalPackageProgress({}, []).done).toBe(0);
   });
 
@@ -169,7 +196,8 @@ describe('серверный страж повторяет клиентский 
   });
 
   it('спрашивает те же поля, что и клиент', () => {
-    for (const field of ['pattern_tech_name', 'pattern_version', 'price_min', 'price_max']) {
+    for (const field of ['sample_approved_at', 'pattern_tech_name', 'pattern_version',
+      'price_min', 'price_max']) {
       expect(GUARD).toContain(`new.${field}`);
     }
     for (const key of ['description', 'fit', 'size_row', 'fabrics', 'branding', 'modifications']) {

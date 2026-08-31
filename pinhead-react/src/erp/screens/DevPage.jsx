@@ -191,4 +191,8 @@ export default function DevPage() {
 const STATE_VARIANT = {
   new: 'neutral', in_progress: 'progress', attention: 'blocked',
   fitting: 'waiting', ready: 'ready',
+  // Переданные на склад (правка 30.08, п. 4). Пропуск здесь не роняет ничего —
+  // Badge получил бы undefined и нарисовался нейтральным, то есть состояние
+  // молча перестало бы отличаться от прочих
+  handed: 'done',
 };

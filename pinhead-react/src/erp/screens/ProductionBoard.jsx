@@ -11,7 +11,9 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { OrderLink } from '../components/OrderLink';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { isStageReady, waitingReason, materialsForItem } from '../utils/routes';
+import {
+  isStageReady, waitingReason, materialsForItem, isStageAwaitingProcurement,
+} from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import {
   applyStageFilters, EMPTY_FILTERS, filtersFromParams, filtersToParams, hasActiveFilters,
@@ -61,9 +63,22 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
 
   // waiting в БД, но зависимости выполнены → показываем как «готов к работе»
   const noTz = stageMissingTz(order, item.id, dept);
+  /**
+   * ЗАКУПКА НА ЗАМЕНУ СЧИТАЕТСЯ И ЗДЕСЬ (правка 30.08, п. 7).
+   *
+   * Раньше в обе функции жёстко уходил `blockedByProcurement = false`, тогда
+   * как `buildQueueEntries` считает его настоящим `isStageAwaitingProcurement`.
+   * Из-за этого этап, ждущий дозакупку после брака, на доске горел «готов
+   * к работе» и его чип был кликабелен, а в очереди того же цеха он стоял
+   * в ожидании. Документ требует, чтобы все поверхности отвечали одинаково;
+   * расхождение здесь было ровно того же класса, что потерянная дорожка.
+   */
+  const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
   const effectiveReady =
     stage.status === 'waiting' &&
-    isStageReady(stage, allStages, materialsForItem(order.materials, item.id), dept, false, noTz);
+    isStageReady(
+      stage, allStages, materialsForItem(order.materials, item.id), dept, awaitProc, noTz,
+    );
   const displayStatus = effectiveReady ? 'ready' : stage.status;
 
   const reason =
@@ -71,7 +86,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
       ? waitingReason(
           stage, allStages, materialsForItem(order.materials, item.id),
           new Map([...deptById].map(([id, d]) => [id, d.name])),
-          dept, false, noTz,
+          dept, awaitProc, noTz,
         )
       : null;
 
@@ -96,7 +111,7 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
       title={title}
       aria-label={title}
       disabled={!clickable}
-      onClick={() => clickable && onAdvance(stage, NEXT_STATUS[displayStatus], item)}
+      onClick={() => clickable && onAdvance(stage, NEXT_STATUS[displayStatus], item, order)}
     >
       {dept ? deptShortName(dept.code, dept.name) : '?'}
       {displayStatus === 'done' && <Icon name="check" size={12} />}
@@ -208,7 +223,7 @@ export default function ProductionBoard() {
     />
   );
 
-  const onAdvance = async (stage, nextStatus, item) => {
+  const onAdvance = async (stage, nextStatus, item, order) => {
     if (nextStatus !== 'done') {
       await setStageStatus(stage.id, nextStatus);
       return;
@@ -216,6 +231,9 @@ export default function ProductionBoard() {
     // Чип пишет весь тираж — при незакрытом остатке спрашиваем, как в очереди цеха
     const ok = await confirmStageDone({
       stage, qty: item.qty, allStages: item.stages, deptNameById,
+      // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха
+      materials: materialsForItem(order.materials, item.id),
+      dept: deptById.get(stage.department_id),
     });
     if (!ok) return;
     await setStageStatus(stage.id, 'done', { qty_done: item.qty });

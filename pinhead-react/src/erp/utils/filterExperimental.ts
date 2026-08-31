@@ -129,7 +129,17 @@ export function hasActiveDevFilters(filters: DevFilters): boolean {
 const TEXTS = ['q', 'constructorName', 'developer', 'owner', 'devType',
   'dueFrom', 'dueTo'] as const;
 
-const STATE_VALUES: DevState[] = ['new', 'in_progress', 'attention', 'fitting', 'ready'];
+/**
+ * Значения состояния, принимаемые из адреса.
+ *
+ * ПЕРЕЧИСЛЕНИЕ ЗАВОДИТСЯ ЦЕЛИКОМ. `handed` (правка 30.08, п. 4) сюда сперва
+ * не попал, и плитка «Переданы на склад» молча не работала: значение
+ * отбрасывалось при разборе адреса, фильтр возвращался в «Все» — ровно
+ * та же беда, что у вида справочника, забытого в `KINDS`.
+ */
+const STATE_VALUES: DevState[] = [
+  'new', 'in_progress', 'attention', 'fitting', 'ready', 'handed',
+];
 const SORT_VALUES: DevSort[] = ['due', 'readiness', 'created'];
 
 export function devFiltersFromParams(params: URLSearchParams): DevFilters {

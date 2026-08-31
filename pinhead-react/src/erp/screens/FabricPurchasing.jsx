@@ -98,7 +98,7 @@ function statusGroup(m, today) {
 
 const EMPTY_MAT = {
   order_id: '', kind: 'fabric', name: '', source: 'purchase', supplier: '',
-  color: '', article: '', qty: '', qty_expected: '', unit: '', price_per_unit: '', eta_date: '',
+  color: '', article: '', qty: '', unit: '', price_per_unit: '', eta_date: '',
   // Факт закупщика (документ 20.08, п. 4): сколько заказал и когда
   qty_ordered: '', ordered_on: '',
 };
@@ -115,21 +115,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   const trapRef = useFocusTrap(true, onClose);
   const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
   const [saving, setSaving] = useState(false);
-  /**
-   * Правил ли человек «Количество к заказу» сам. Пока нет — оно едет за
-   * плановым (правка 24.08, п. 1: «автоматическая подстановка количества
-   * из „План, кол-во" с возможностью ручной правки»). Признак нужен именно
-   * такой: сравнение значений объявило бы ручную правку подстановкой всякий
-   * раз, когда закупщик заказал ровно столько, сколько просили.
-   */
-  const [qtyOrderedTouched, setQtyOrderedTouched] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
-
-  /** Плановое количество тянет за собой количество к заказу, пока его не правили */
-  const setExpected = (value) => set({
-    qty_expected: value,
-    ...(qtyOrderedTouched ? {} : { qty_ordered: value }),
-  });
 
   const submit = async () => {
     if (!form.order_id) { toast.error('Выберите заказ'); return; }
@@ -141,18 +127,30 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
      * ДО разговора с поставщиком — и раньше её нельзя было завести вовсе,
      * не выдумав дату.
      *
-     * Плановое количество обязательным остаётся: без него закупка не закроется
+     * Количество обязательным остаётся: без него закупка не закроется
      * автоматически (`supply.missingPlan`), то есть строка просто застрянет.
      */
-    if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
-      toast.error(`Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»`); return;
+    if (form.source === 'purchase' && (!form.qty_ordered || Number(form.qty_ordered) <= 0)) {
+      toast.error(`Укажите «${PURCHASE_FIELD_LABELS.qtyOrdered}»`); return;
     }
     setSaving(true);
+    /**
+     * ОДНО ПОЛЕ КОЛИЧЕСТВА (правка заказчика 30.08, п. 8). «Нужное количество»
+     * и «Количество к заказу» в этой форме отвечали на один вопрос: строку
+     * заводит сам закупщик, и планировать себе же ему нечего — второе поле
+     * ехало за первым подстановкой и правилось хорошо если раз на сотню строк.
+     *
+     * `qty_expected` при этом ОБЯЗАН быть записан: это знаменатель приёмки
+     * на складе и условие автозакрытия закупки (`supply.missingPlan`).
+     * Строка без него не закроется автоматически НИКОГДА — поэтому убрано
+     * поле, а не величина.
+     */
+    const qtyOrdered = Number(form.qty_ordered);
     const row = await onAdd(form.order_id, {
       kind: form.kind, name: form.name.trim(), source: form.source,
       supplier: form.supplier.trim() || null, color: form.color.trim() || null,
       article: form.article.trim() || null, qty: form.qty.trim() || null,
-      qty_expected: form.qty_expected === '' ? null : Number(form.qty_expected),
+      qty_expected: form.qty_ordered === '' ? null : qtyOrdered,
       unit: form.unit.trim() || null,
       price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
       eta_date: form.eta_date || null,
@@ -212,15 +210,6 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               aria-label="Поставщик"
             />
           </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyExpected}</span>
-            <input
-              type="number" min="0" step="0.01" className={styles.input}
-              value={form.qty_expected}
-              onChange={(e) => setExpected(e.target.value)}
-              aria-label={PURCHASE_FIELD_LABELS.qtyExpected}
-            />
-          </label>
           {/* Единица — метка, а не коэффициент: «кг» стояло в подписи жёстко,
               и ткань в метрах, бирки в штуках и упаковка в пачках подписывались
               килограммами. Пересчёта между единицами система не делает */}
@@ -240,23 +229,20 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
             ФАКТ ЗАКУПЩИКА (документ 20.08, п. 4; правка 24.08, п. 1). Заводя
             строку, он часто уже знает, сколько заказывает и когда: спрашивать
             это потом отдельным заходом значит гарантировать, что поле
-            останется пустым. Количество подставляется из планового и правится
-            руками — обычно заказывают ровно столько, сколько просили, а «110
-            при плане 100» это исключение, которое надо ввести, а не собрать
-            заново.
+            останется пустым.
 
-            Статус здесь не спрашивается вовсе: «Заказано» ставится по этим
-            двум полям (`utils/materialStatus`).
+            Это ЕДИНСТВЕННОЕ поле количества формы (правка 30.08, п. 8) —
+            им же заполняется `qty_expected` в `submit`.
+
+            Статус здесь не спрашивается вовсе: «Заказано» ставится по этому
+            полю и дате заказа (`utils/materialStatus`).
           */}
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyOrdered}</span>
             <input
               type="number" min="0" step="any" className={styles.input}
               value={form.qty_ordered}
-              onChange={(e) => {
-                setQtyOrderedTouched(true);
-                set({ qty_ordered: e.target.value.replace('-', '') });
-              }}
+              onChange={(e) => set({ qty_ordered: e.target.value.replace('-', '') })}
               aria-label={PURCHASE_FIELD_LABELS.qtyOrdered}
             />
           </label>

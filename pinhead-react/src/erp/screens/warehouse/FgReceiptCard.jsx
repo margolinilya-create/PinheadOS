@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { orderQty } from '../../utils/shipment';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import styles from '../../styles';
@@ -17,7 +18,7 @@ import styles from '../../styles';
  */
 export function FgReceiptCard({ order, task, onSubmit }) {
   const expected = useMemo(
-    () => order.items.reduce((sum, it) => sum + (it.qty || 0), 0),
+    () => orderQty(order),
     [order],
   );
   const [good, setGood] = useState('');

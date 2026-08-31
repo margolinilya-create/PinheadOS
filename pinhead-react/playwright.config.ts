@@ -1,5 +1,31 @@
 import { defineConfig } from '@playwright/test';
 
+/**
+ * ФИКТИВНЫЕ КЛЮЧИ SUPABASE ДЛЯ E2E — ЧАСТЬ КОНФИГА, А НЕ ЛОКАЛЬНЫЙ ФАЙЛ.
+ *
+ * `lib/supabase.ts` проверяет переменные НА УРОВНЕ МОДУЛЯ, до React. Без них
+ * приложение не стартует вовсе, и Playwright видит пустой `<div id="root">`:
+ * падает ВЕСЬ прогон, каждым локатором сразу, с сообщением «element(s)
+ * not found». Отказ читается как тринадцать сломанных спек, а не как
+ * «нет настройки», — и однажды уже стоил часа поисков не в том месте.
+ *
+ * Ключи брались из `.env`, которого НЕТ В ГИТЕ (и правильно — там боевые
+ * значения): свежая машина, чистый клон или пересозданный контейнер
+ * означали полностью красный e2e. Здесь они фиктивные по существу: сеть
+ * Supabase перехвачена `e2e/support/mockSupabase`, до настоящего проекта
+ * ни один запрос не доходит.
+ *
+ * Переменные окружения процесса у Vite СИЛЬНЕЕ файла `.env`, и это здесь
+ * не побочный эффект, а свойство: даже на машине с боевым `.env` прогон
+ * не может уйти на живой проект.
+ *
+ * Сторожит `src/lib/e2eEnv.test.ts` (в `src/`, а не в `e2e/`: vitest
+ * исключает `e2e/**` целиком) — забытая у одного из двух серверов строка
+ * вернула бы ровно тот же белый экран, только на половине прогона.
+ */
+const MOCK_SUPABASE_ENV = 'VITE_SUPABASE_URL=https://e2e.invalid'
+  + ' VITE_SUPABASE_ANON_KEY=e2e-anon-key';
+
 export default defineConfig({
   testDir: './e2e',
   // {projectName} обязателен: desktop и mobile снимают разные вьюпорты,
@@ -12,7 +38,7 @@ export default defineConfig({
       // нет и быть не может. Автологин с 10.08.2026 включается только явно: раньше он
       // срабатывал у любого, кто запустил `npm run dev`, и молча маскировал отсутствие
       // сессии на боевой базе (см. комментарий в src/store/useAuthStore.ts).
-      command: 'VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npm run dev',
+      command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npm run dev`,
       url: 'http://localhost:5173',
       reuseExistingServer: true,
     },
@@ -28,7 +54,8 @@ export default defineConfig({
        * Своя папка сборки: `dist` читает `bundle:budget`, и класть туда
        * сборку с включённым dev-автологином нельзя.
        */
-      command: 'VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npx vite build --outDir dist-e2e'
+      command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1`
+        + ' npx vite build --outDir dist-e2e'
         + ' && npx vite preview --outDir dist-e2e --port 4173 --strictPort',
       url: 'http://localhost:4173',
       /*
