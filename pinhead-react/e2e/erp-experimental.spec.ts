@@ -804,8 +804,16 @@ test.describe('Канбан ЭКС: колонку ставит человек (
     await expect(blocked).toContainText('Ожидаем материал');
 
     await blocked.getByRole('button', { name: 'Перенести в «Крой»' }).click();
-    // Тосты живут в общем live-регионе `role="status"` (Toast.jsx)
-    await expect(page.getByRole('status')).toContainText('Ожидаем материал');
+    /*
+     * Регион тостов адресуется ПО ИМЕНИ. Безымянный `getByRole('status')`
+     * совпадал ещё и с полосой «Обновляем данные…» (`StaleDataBar` объявляет
+     * ту же роль), и проверка падала strict mode violation ровно тогда, когда
+     * в этот момент шло переподключение realtime, — то есть выглядела флакой,
+     * а была неоднозначностью разметки. Фильтр по ожидаемому тексту эту
+     * неоднозначность бы спрятал и заодно сделал проверку тавтологией.
+     */
+    await expect(page.getByRole('status', { name: 'Оповещения' }))
+      .toContainText('Ожидаем материал');
     await expect(column(page, 'Построение лекал')).toContainText('Ветровка на молнии');
     await expect(column(page, 'Крой')).not.toContainText('Ветровка на молнии');
   });
