@@ -13,6 +13,7 @@
     "seed:sql": "node scripts/generate-seed-sql.js",
     "audit": "node scripts/audit-guidebook.js",
     "bundle:budget": "node scripts/bundle-budget.mjs",
+    "migrations:verify": "node scripts/verify-migrations.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "e2e": "playwright test",
     "e2e:update": "playwright test --update-snapshots",
