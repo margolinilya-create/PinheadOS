@@ -118,6 +118,7 @@ export default function DeptLoad() {
       <ProductionTabs />
 
       <CapacityBar
+        loading={!capacityLoaded}
         report={isCurrentWeek ? monthReport : weekReport}
         periodLabel={isCurrentWeek ? monthLabel(today) : periodLabel}
         hint="Изделия активных заказов со сроком сдачи в периоде против общей мощности. Сетка ниже считает другое — обязательства цехов по дням, где одно изделие попадает в несколько строк."

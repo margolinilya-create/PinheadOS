@@ -273,7 +273,11 @@ export default function ErpDashboard() {
           {/* Загрузка производства против общей мощности (правки заказчика 10.08).
               Стоит над блоками цехов сознательно: «влезаем ли мы в месяц» —
               вопрос раньше, чем «какой цех занят сильнее». */}
-          <CapacityBar report={data.capacity} periodLabel={monthLabel(today)} />
+          <CapacityBar
+            report={data.capacity}
+            periodLabel={monthLabel(today)}
+            loading={!capacityLoaded}
+          />
 
           {/* Заказы в работе / Задачи по цехам / Дедлайны */}
           <div className={`${styles.dashRow} ${styles.dashRow3}`}>

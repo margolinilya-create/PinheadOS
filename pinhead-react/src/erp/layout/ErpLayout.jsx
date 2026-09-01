@@ -15,6 +15,8 @@ import {
 } from '../store/useErpStore';
 import { ordersWithOutsourcing } from '../utils/outsourcing';
 import { setFeature } from '../../config/features';
+import { storageGet, storageSet } from '../../lib/storage';
+import { deptsSettled } from '../store/shared';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
@@ -28,13 +30,14 @@ export default function ErpLayout({ user, children }) {
   const navigate = useNavigate();
   const search = useErpSearch((s) => s.query);
   const setSearch = useErpSearch((s) => s.setQuery);
-  const { orders, departments, myDeptId, experimental, bypasses } = useErpStore(
+  const { orders, departments, myDeptId, experimental, bypasses, bootstrapLoaded } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       myDeptId: s.myDeptId,
       experimental: s.experimental,
       bypasses: s.bypasses,
+      bootstrapLoaded: s.bootstrapLoaded,
     })),
   );
 
@@ -136,6 +139,36 @@ export default function ErpLayout({ user, children }) {
     [orders, departments, bypasses],
   );
 
+  /**
+   * Резерв места под меню цехов, пока не приехал состав участков.
+   *
+   * До этого группа «Цеха» просто отсутствовала, а потом вставлялась целиком —
+   * ≈315px разметки между «Мой цех» и «Операции», то есть пункт меню уходил
+   * из-под пальца через доли секунды после появления экрана.
+   *
+   * Запоминается ОДНО ЧИСЛО — сколько строк рисовать, — и берётся оно из уже
+   * отфильтрованного списка: непроизводственных участков в справочнике больше,
+   * чем производственных, и `departments.length` зарезервировал бы вдвое лишнее.
+   * Правило «список участков — из данных» не нарушено: ни одного кода участка
+   * и ни одного решения о видимости отсюда не выводится, это высота места.
+   *
+   * Читается в рендере, а не в эффекте: эффект выполняется ПОСЛЕ первой
+   * отрисовки, то есть после того самого кадра, ради которого всё делается.
+   */
+  const deptsReady = deptsSettled(departments, bootstrapLoaded);
+  const reserveRows = useMemo(() => {
+    if (deptsReady) return 0;
+    const saved = Number(storageGet('erp_dept_rows'));
+    if (!Number.isFinite(saved) || saved <= 0) return 0;
+    // Битое значение не должно нарисовать сотню строк
+    return Math.min(Math.round(saved), 12);
+  }, [deptsReady]);
+
+  useEffect(() => {
+    if (!deptsReady || deptItems.length === 0) return;
+    storageSet('erp_dept_rows', deptItems.length);
+  }, [deptsReady, deptItems.length]);
+
   return (
     <div className={styles.shell}>
       {/* Сайдбар — до 20+ ссылок, и клавиатурный пользователь проходил их заново
@@ -143,6 +176,7 @@ export default function ErpLayout({ user, children }) {
       <a href="#main-content" className={appStyles.skipLink}>Перейти к содержимому</a>
       <Sidebar
         isAdmin={isAdmin}
+        reserveRows={reserveRows}
         counts={counts}
         deptItems={deptItems}
         collapsed={collapsed}

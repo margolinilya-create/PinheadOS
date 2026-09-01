@@ -5,7 +5,8 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { PageHead } from '../components/PageHead';
 import { Icon } from '../components/Icon';
-import { KanbanSkeleton } from '../components/ErpSkeletons';
+import { PlanBoardSkeleton } from './plan/PlanBoardSkeleton';
+import { deptsSettled } from '../store/shared';
 import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { isProductionDept, deptShortName } from '../data/departments';
@@ -42,9 +43,10 @@ import { ProductionTabs } from '../components/ProductionTabs';
 export default function PlanScreen() {
   const {
     orders, departments, loaded, loadError, loadAll,
-    planSlots, planLoaded, planLoading, planLoadError, loadPlan, movePlanSlot, planComments,
+    planSlots, planLoaded, planLoadError, loadPlan, movePlanSlot, planComments,
     capacity, capacityLoaded, loadSettings,
     plannedStageIds, plannedAheadLoaded, loadPlannedAhead, bypasses,
+    bootstrapLoaded,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     departments: s.departments,
@@ -53,8 +55,8 @@ export default function PlanScreen() {
     loadAll: s.loadAll,
     planSlots: s.planSlots,
     planLoaded: s.planLoaded,
-    planLoading: s.planLoading,
     planLoadError: s.planLoadError,
+    bootstrapLoaded: s.bootstrapLoaded,
     loadPlan: s.loadPlan,
     movePlanSlot: s.movePlanSlot,
     planComments: s.planComments,
@@ -196,6 +198,15 @@ export default function PlanScreen() {
     await movePlanSlot(dragged.slot.id, date);
   };
 
+  /**
+   * Панель готова показывать содержимое, а не скелетон.
+   *
+   * Три источника, и ни один не заменяет другой: слоты недели, заказы
+   * и состав участков. `deptsSettled` — общий предикат раздела: он же снимает
+   * резерв места в меню цехов и в ряду вкладок.
+   */
+  const ready = planLoaded && loaded && deptsSettled(departments, bootstrapLoaded);
+
   if (loadError && !loaded) return <LoadFailed onRetry={loadAll} what="производственный план" />;
   if (planLoadError) {
     return <LoadFailed onRetry={() => loadPlan(dates[0], dates[dates.length - 1])} what="план недели" />;
@@ -210,6 +221,7 @@ export default function PlanScreen() {
       <ProductionTabs />
 
       <CapacityBar
+        loading={!capacityLoaded}
         report={weekCapacity}
         periodLabel={`неделя ${formatDateShort(dates[0])} — ${formatDateShort(dates[dates.length - 1])}`}
         hint="Изделия активных заказов со сроком сдачи на этой неделе против доступной мощности. Раскладка ниже — работа цехов, её штуки с этим числом не складываются."
@@ -258,9 +270,19 @@ export default function PlanScreen() {
       </div>
 
       <div id="plan-tabpanel" role="tabpanel">
-      {!planLoaded && planLoading && <KanbanSkeleton />}
+      {/*
+        Готовность панели — ТРИ условия, и каждое своё: `planLoaded` отвечает
+        за слоты, `loaded` — за заказы, `deptsSettled` — за состав участков.
+        Пока стоял один `planLoaded`, между ответом слотов и приездом цехов
+        экран рисовал полноценный, но НЕПРАВДИВЫЙ кадр: сводка сообщала, что
+        ничего не запланировано, а очередь — «Не запланировано (0)», хотя
+        цехов ещё не было вовсе. Гейт на `planLoading` вдобавок давал лишнюю
+        ступень «пусто → скелетон»: `loadPlan` зовётся из эффекта, и первый
+        кадр панели был пустым.
+      */}
+      {!ready && <PlanBoardSkeleton days={dates.length} deptCode={deptCode} />}
 
-      {planLoaded && deptCode === 'all' && (
+      {ready && deptCode === 'all' && (
         <AllDeptsSummary
           depts={productionDepts}
           slots={enriched}
@@ -271,7 +293,7 @@ export default function PlanScreen() {
         />
       )}
 
-      {planLoaded && deptCode !== 'all' && (
+      {ready && deptCode !== 'all' && (
         <ScrollHintBox className={styles.planBoardWrap} label="Недельный план цеха">
           <div className={styles.planBoard}>
             {dates.map((date, i) => {
@@ -357,7 +379,7 @@ export default function PlanScreen() {
         </ScrollHintBox>
       )}
 
-      {planLoaded && deptCode !== 'all' && visible.length === 0 && (
+      {ready && deptCode !== 'all' && visible.length === 0 && (
         <EmptyState
           title="На эту неделю задач нет"
           text={canManage
@@ -368,7 +390,7 @@ export default function PlanScreen() {
 
       {/* Очередь «Не запланировано» — прямое требование документа. Стоит НАД
           отклонениями: сначала разложить работу, потом разбирать сорванное. */}
-      {planLoaded && (
+      {ready && (
         <UnplannedQueue
           entries={unplanned}
           deptNameById={deptNameById}
@@ -386,7 +408,7 @@ export default function PlanScreen() {
       )}
 
       {/* Отклонения: то, что руководителю разбирать вручную */}
-      {planLoaded && weekDeviations.length > 0 && (
+      {ready && weekDeviations.length > 0 && (
         <section className={styles.planDeviations}>
           <h3 className={styles.queueGroupTitle}>
             Требуют решения ({weekDeviations.length})

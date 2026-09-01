@@ -398,7 +398,7 @@ export default function DepartmentQueue() {
       />
 
       {/* Роль участка без привязки: кнопок не будет, и об этом надо сказать */}
-      {access.needsDeptBinding && <DeptBindingNotice />}
+      {myDeptLoaded && access.needsDeptBinding && <DeptBindingNotice />}
 
       <div className={styles.deptTabsWrap}>
         <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef} onKeyDown={onTabListKeyDown}>
@@ -470,7 +470,11 @@ export default function DepartmentQueue() {
       {/* Второй вид того же экрана, а не отдельный адрес: цех и так живёт здесь,
           а два экрана про одну работу разошлись бы фильтрами и привычками.
           aria-pressed, а не role=tab: панель одна, вкладочного паттерна нет */}
-      {dept && loaded && (
+      {/* Гейт по `deptCode`, а не по `dept && loaded`: переключатель вида живёт
+          в localStorage и адресе и НИ заказов, НИ справочника цехов не читает.
+          Ожидание второго запроса ради обвязки и давало часть тех 126px, на
+          которые уезжало содержимое экрана. */}
+      {deptCode && (
         <div className={styles.toolbar}>
           <div role="group" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
             <button
@@ -493,17 +497,17 @@ export default function DepartmentQueue() {
 
       {dept && loaded && view === 'plan' && <DeptPlanPanel dept={dept} />}
 
-      {dept && loaded && view === 'queue' && (
+      {deptCode && view === 'queue' && (
         <QueueFilters
           filters={filters}
           onChange={setFilters}
           assignees={assignees}
           showDept={false}
-          right={(
+          right={loaded ? (
             <span className={styles.subText}>
               {visible.length} {pluralize(visible.length, 'задание', 'задания', 'заданий')}
             </span>
-          )}
+          ) : null}
         />
       )}
 
@@ -523,8 +527,8 @@ export default function DepartmentQueue() {
         <div className={styles.emptyState}>Выберите свой цех выше — выбор запомнится.</div>
       )}
 
-      {dept && !perms.inDept && (
-        <div className={styles.queueReason} style={{ marginBottom: 'var(--space-md, 14px)' }}>
+      {dept && loaded && !perms.inDept && (
+        <div className={styles.queueReason} style={{ marginBottom: 'var(--space-md)' }}>
           <Icon name="eye" size={14} /> Это не ваш цех — только просмотр. Ваш цех: {boundDept ? deptShortName(boundDept.code, boundDept.name) : '—'}.
         </div>
       )}
@@ -536,7 +540,7 @@ export default function DepartmentQueue() {
         const collapsed = collapsible && collapsedGroups.has(key);
         const open = !collapsed;
         return (
-          <section key={key} style={{ marginBottom: 'var(--space-lg, 20px)' }}>
+          <section key={key} style={{ marginBottom: 'var(--space-lg)' }}>
             <h2 className={styles.queueGroupTitle}>
               {title} <span className={styles.subText}>({list.length})</span>
               {collapsible && (

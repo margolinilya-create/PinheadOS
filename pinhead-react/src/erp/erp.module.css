@@ -333,6 +333,14 @@
 .navLink:hover { background: var(--surface); color: var(--text); }
 .navLinkActive,
 .navLinkActive:hover { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+/* Место строки участка, пока состав цехов не приехал. Через composes, а не своей
+   высотой: в DOM окажутся оба класса, и переопределение под (pointer: coarse)
+   ниже по файлу применится к заглушке само — захардкоженные 38px промахнулись бы
+   ровно на планшете, ради которого резерв и делается. */
+.navLinkGhost {
+  composes: navLink;
+  cursor: default;
+}
 .navIcon {
   width: 20px;
   flex-shrink: 0;
@@ -628,7 +636,7 @@
   border: none;
   border-right: 1px solid var(--border-light);
   padding: 0 16px;
-  min-height: 46px;
+  min-height: var(--dept-tab-h);
   /* Отличия от .labelCaps: мельче, разрядка шире, цвет активнее — это вкладка */
   font-size: 11px;
   letter-spacing: 1.2px;
@@ -1308,7 +1316,9 @@
   .input, .select { min-height: 44px; }
   .inputSm { min-height: 44px; }
   .inputXs { min-height: 44px; }
-  .deptTab { min-height: 48px; }
+  /* .deptTab: высота из токена --dept-tab-h (index.css), он же переопределён
+     под (pointer: coarse) там же — второе число здесь развело бы вкладку
+     и резерв места под её ряд. Тач-размер остаётся 48px. */
   .themeToggle { min-width: 44px; min-height: 44px; }
   /* Кнопки-чипы: быстрые фильтры цеха, переключатель вида, чипы этапов на плане.
      Статус-чипы (не кнопки) остаются мелкими — по ним не нажимают. */
