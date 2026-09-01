@@ -934,6 +934,34 @@ test.describe('Канбан ЭКС: колонку ставит человек (
     await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
   });
 
+  /**
+   * НАНЕСЕНИЕ ДЕЛАЕТ ОБЩИЙ ЦЕХ (правка 01.09, вторая итерация, п. 1): «пока
+   * вышивка, DTF или шелкография не закрыта соответствующим цехом, переход
+   * с Нанесений на следующий этап должен быть заблокирован».
+   *
+   * У «Ветровки образец» после входа в «Нанесения» заводится задача
+   * шелкографии и уходит в цех — то есть висит незакрытой.
+   */
+  test('с «Нанесений» не выпускает, пока цех не закрыл работу', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка образец');
+    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    const dialog = page.getByRole('dialog', { name: /Завершить построение лекал/ });
+    await dialog.getByLabel('Техническое название лекал').fill('PNHD-W12-v1');
+    await dialog.getByRole('button', { name: /Завершить и перенести/ }).click();
+    await card(page, 'Ветровка образец')
+      .getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+    await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
+
+    await card(page, 'Ветровка образец')
+      .getByRole('button', { name: 'Перенести в «Пошив»' }).click();
+
+    await expect(page.getByRole('status', { name: 'Оповещения' }))
+      .toContainText('Нанесение ещё не завершено цехом');
+    await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
+    await expect(column(page, 'Пошив')).not.toContainText('Ветровка образец');
+  });
+
   test('на краю доски кнопка гаснет, а не исчезает', async ({ page }) => {
     // Пропадающий элемент сдвигает соседний под палец
     await gotoDev(page, '/experimental?studio=0');
@@ -1026,6 +1054,22 @@ test.describe('Финальный технический пакет', () => {
   });
 
   /** «Поле „Файл лекал или ссылка" не нужно» — ввода нет ни в каком режиме */
+  /**
+   * ПАКЕТ ВИДЕН НА СВОЁМ ШАГЕ (правка 01.09, вторая итерация, п. 5): «после
+   * перехода на Финальный этап пропала карточка финального пакета».
+   *
+   * Форма никуда не девалась — на шаге стояла серая строка «Задач этапа нет»,
+   * и она читалась как «работы здесь нет вовсе».
+   */
+  test('на шаге «Финальный этап» видно, чего не хватает пакету', async ({ page }) => {
+    await gotoDevPage(page, '/experimental/dev-ready?studio=0');
+    const main = page.getByRole('main');
+    await expect(main).toContainText('Финальный пакет: собрано');
+    await expect(main).toContainText('Технический паспорт');
+    // Приглашение «заведите работу этого этапа» на финале больше не показывается
+    await expect(main).not.toContainText('Задач этапа нет');
+  });
+
   test('лекала не спрашиваются', async ({ page }) => {
     await gotoDevPage(page, '/experimental/dev-work?studio=0');
     await openDevTab(page, 'Финальный пакет');

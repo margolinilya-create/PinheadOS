@@ -155,9 +155,11 @@ describe('маршрут проходится целиком — по каждо
       expected: [['supply'], ['dtf']],
     },
     {
-      name: 'образец — тот же маршрут, что пошив',
+      // ВТО у образца нет (правка 01.09, вторая итерация, п. 4): цепочка
+      // `samples` была копией `sewing`, и ВТО доставалось образцу заодно
+      name: 'образец — как пошив, но без ВТО',
       input: { productionType: 'samples' },
-      expected: [['supply'], ['cutting'], ['sewing'], ['vto']],
+      expected: [['supply'], ['cutting'], ['sewing']],
     },
     {
       name: 'подряд, материал Pinhead — закупка есть',

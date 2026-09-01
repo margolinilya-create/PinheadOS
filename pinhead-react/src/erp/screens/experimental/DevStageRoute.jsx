@@ -8,6 +8,7 @@ import {
   DEV_LANE_TITLES, DEV_STAGE_LABELS, devStageAction,
 } from '../../utils/experimentalBoard';
 import { isDelegated, isTaskReady, taskLabel } from '../../utils/experimentalTasks';
+import { finalPackageProgress, missingFinalPackage } from '../../utils/finalPackage';
 import { confirmWithInput } from '../../../store/useConfirmStore';
 import styles from '../../styles';
 
@@ -45,8 +46,43 @@ const LANE_VARIANT = {
  * `erp_experimental_task_sync`, и запись отсюда была бы вторым писателем
  * одной колонки.
  */
+/**
+ * Работа финального этапа — сборка технического пакета.
+ *
+ * Собран целиком — говорим это прямо и ведём к кнопке завершения: пустое место
+ * на закрытом шаге читалось бы как «ещё что-то нужно».
+ */
+function FinalPackageWork({ dev, attachments, onOpen }) {
+  const missing = missingFinalPackage(dev, attachments);
+  const progress = finalPackageProgress(dev, attachments);
+  return (
+    <div className={styles.stackTight}>
+      <div className={styles.subText}>
+        Финальный пакет: собрано {progress.done} из {progress.total}
+      </div>
+      {missing.length > 0 ? (
+        <ul className={styles.stackTight}>
+          {missing.map((m) => (
+            <li key={m} className={styles.subText}>· {m}</li>
+          ))}
+        </ul>
+      ) : (
+        <div className={styles.subText}>
+          <Icon name="check" size={13} /> Пакет собран — разработку можно завершать.
+        </div>
+      )}
+      {onOpen && (
+        <Button variant="secondary" size="sm" onClick={onOpen}>
+          {missing.length > 0 ? 'Собрать финальный пакет' : 'Открыть финальный пакет'}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function DevStageRoute({
   states, currentStage, tasks, typeNames, onUpdateTask, canManage,
+  dev, attachments, onOpenPackage,
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -208,7 +244,32 @@ export function DevStageRoute({
                     статус ведёт само задание.
                   </span>
                 )}
-                {!action.key && delegated.length === 0 && action.reason && (
+                {/*
+                  ФИНАЛЬНЫЙ ПАКЕТ ВИДЕН НА СВОЁМ ШАГЕ (правка заказчика 01.09,
+                  вторая итерация, п. 5): «после перехода на Финальный этап
+                  пропала карточка финального пакета… на Финальном этапе должна
+                  появляться работа по финальному пакету».
+
+                  Форма пакета никуда не девалась — она на вкладке «Финальный
+                  пакет». Пропало другое: на самом шаге стояла серая строка
+                  «Задач этапа нет — заведите работу этого этапа», и она
+                  читается как «работы здесь нет вовсе». Показываем ту же
+                  работу словами: чего не хватает и сколько собрано.
+
+                  ВТОРОЙ ФОРМЫ НЕ ЗАВОДИТСЯ. Перечень считает `utils/finalPackage`
+                  — та же функция, что питает кнопку «Завершить разработку»
+                  и серверного стража `erp_dev_package_guard`; человек читает
+                  один список в трёх местах, а не три разных.
+                */}
+                {state.stage === 'final' && dev && (
+                  <FinalPackageWork
+                    dev={dev}
+                    attachments={attachments}
+                    onOpen={onOpenPackage}
+                  />
+                )}
+                {state.stage !== 'final'
+                  && !action.key && delegated.length === 0 && action.reason && (
                   <span className={styles.subText}>{action.reason}</span>
                 )}
               </div>

@@ -45,11 +45,22 @@ describe('buildRoute — типы производства (лист «Марш�
     expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
   });
 
-  it('Образцы: закуп → закрой → швейка → ВТО (эксперим. цех — отдельный модуль)', () => {
+  /**
+   * ВТО У ОБРАЗЦА НЕТ (правка заказчика 01.09, п. 4). Цепочка `samples` была
+   * копией `sewing`, и ВТО доставалось образцу заодно. У серии оно осталось —
+   * сторож ниже это и проверяет, иначе правка «у образца нет» однажды
+   * прочиталась бы как «нет нигде».
+   */
+  it('Образцы: закуп → закрой → швейка, БЕЗ ВТО', () => {
     const route = buildRoute({ productionType: 'samples', brandingMethods: [], brandingOn: 'cut' });
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing', 'vto'],
+      ['supply', 'cutting', 'sewing'],
     );
+  });
+
+  it('у серии ВТО остаётся', () => {
+    const route = buildRoute({ productionType: 'sewing', brandingMethods: [], brandingOn: 'cut' });
+    expect(route.map((r) => r.departmentCode)).toContain('vto');
   });
 });
 

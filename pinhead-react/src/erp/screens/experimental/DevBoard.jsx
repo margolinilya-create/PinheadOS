@@ -223,7 +223,7 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
 
 export function DevBoard({
   rows, today, onOpen, materialsByOrder, supplyOpenByOrder, brandingByItem,
-  typeNames, onMoveStage, canManage = false,
+  brandingOpenByDev, typeNames, onMoveStage, canManage = false,
 }) {
   const { ref } = useScrollHints();
   /**
@@ -265,6 +265,8 @@ export function DevBoard({
       materialsPending: !row.materialGate.open,
       // Нанесения обязательны, если они указаны в заказе (правка 01.09, п. 2)
       hasBranding: row.hasBranding,
+      // …и пока цех их не закрыл, дальше «Нанесений» карточка не идёт (п. 1)
+      brandingOpen: row.brandingOpen,
     });
     if (!intent.ok) {
       // «Карточка уже здесь» — не ошибка, а обычный исход броска мимо
@@ -313,6 +315,8 @@ export function DevBoard({
         });
         return {
           dev, tasks, states, materialGate, hasBranding,
+          // Общий цех ещё не закрыл нанесение — с шага «Нанесения» не выпускаем
+          brandingOpen: brandingOpenByDev?.get(dev.id) === true,
           column: devBoardColumn(states, dev), today, typeNames,
         };
       });
@@ -324,7 +328,8 @@ export function DevBoard({
       })).filter((l) => l.rows.length > 0),
       total: prepared.filter((r) => r.column === stage).length,
     }));
-  }, [rows, today, materialsByOrder, supplyOpenByOrder, brandingByItem, typeNames]);
+  }, [rows, today, materialsByOrder, supplyOpenByOrder, brandingByItem,
+    brandingOpenByDev, typeNames]);
 
   return (
     <div className={styles.kanbanBoard} ref={ref}>

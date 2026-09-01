@@ -36,8 +36,11 @@ import { DevRowCard } from './experimental/DevRowCard';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
 import { DevDeptQueue } from './experimental/DevDeptQueue';
-import { DEV_BRANDING_DEPT_CODE, devBrandingFromPrints } from '../utils/experimentalBoard';
+import {
+  DEV_BRANDING_DEPT_CODE, DEV_BRANDING_TASK_TYPES, devBrandingFromPrints,
+} from '../utils/experimentalBoard';
 import { devMovePrompt } from '../utils/devBoardMove';
+import { devOwnStageToClose, devStageRemainder } from '../utils/devOwnStage';
 import { confirmWithInput } from '../../store/useConfirmStore';
 import { experimentalDeptEntries } from '../utils/experimentalQueue';
 import { findSupplyDept, openSupplyStages } from '../utils/supply';
@@ -144,7 +147,7 @@ export default function Experimental() {
   const {
     orders, departments, loaded, loadError, loadAll,
     experimental, experimentalLoaded, loadExperimental, updateExperimental,
-    addDevTasks, sendDevTaskToDept,
+    addDevTasks, sendDevTaskToDept, reportProgress,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -158,6 +161,7 @@ export default function Experimental() {
       updateExperimental: s.updateExperimental,
       addDevTasks: s.addDevTasks,
       sendDevTaskToDept: s.sendDevTaskToDept,
+      reportProgress: s.reportProgress,
     })),
   );
   const navigate = useNavigate();
@@ -191,11 +195,37 @@ export default function Experimental() {
    *     указал их в позиции, и второй ввод того же решения терял исходные
    *     данные заказа.
    */
+  /**
+   * СОБСТВЕННЫЙ ЭТАП ЗАКРЫВАЕТСЯ САМИМ ПЕРЕНОСОМ (правка 01.09, вторая
+   * итерация, п. 3): «технолог вручную переносит карточку вперёд, система
+   * автоматически считает предыдущий собственный этап завершённым».
+   *
+   * Отдельного подтверждения документ не хочет прямым текстом («отдельных
+   * отчётов о завершении Кроя, Пошива и других этапов не нужно, мы специально
+   * от этого ушли»), поэтому здесь нет ни диалога, ни формы.
+   *
+   * Счётчик пишется ПРИРАЩЕНИЕМ на сервере (правило проекта): `reportProgress`
+   * зовёт `erp_stage_report_progress`, а та сама ставит `done`, когда тираж
+   * добран. Абсолют с клиента был бы потерянным обновлением.
+   */
+  const closeOwnStage = useCallback(async (dev, from) => {
+    const order = orders.find((o) => o.id === dev.order_id);
+    const item = (order?.items ?? []).find((it) => it.id === dev.item_id);
+    if (!item) return;
+    const target = devOwnStageToClose({ from, stages: item.stages, departments });
+    if (!target) return;
+    const rest = devStageRemainder(target, item.qty);
+    if (rest > 0) {
+      await reportProgress(target.id, rest, { comment: 'Этап закрыт переносом карточки ЭКС' });
+    }
+  }, [orders, departments, reportProgress]);
+
   const moveDevStage = useCallback(async (devId, stage) => {
     const dev = experimental.find((e) => e.id === devId);
     if (!dev) return false;
+    const from = dev.board_stage ?? 'patterns';
 
-    const prompt = devMovePrompt(dev.board_stage ?? 'patterns', stage, dev);
+    const prompt = devMovePrompt(from, stage, dev);
     if (prompt) {
       const { ok: confirmed, value } = await confirmWithInput({
         title: prompt.title,
@@ -212,6 +242,15 @@ export default function Experimental() {
       const saved = await updateExperimental(devId, { [prompt.field]: value.trim() });
       if (!saved) return false;
     }
+
+    /**
+     * ПОРЯДОК ОБЯЗАТЕЛЕН: сначала закрыть покидаемый собственный этап, потом
+     * писать колонку и заводить работу нанесений. Этап нанесения в маршруте
+     * зависит от кроя (`depends_on = ['cutting']`) и до его закрытия стоит
+     * в `waiting` — цех такой работы не видит. Обратный порядок привязал бы
+     * задачу разработки к невидимому этапу, и «Нанесения» встали бы молча.
+     */
+    await closeOwnStage(dev, from);
 
     if (stage !== 'branding') return updateExperimental(devId, { board_stage: stage });
 
@@ -264,7 +303,8 @@ export default function Experimental() {
       if (dept) await sendDevTaskToDept(task.id, { department_id: dept.id });
     }
     return true;
-  }, [experimental, orders, updateExperimental, addDevTasks, sendDevTaskToDept, departments]);
+  }, [experimental, orders, updateExperimental, addDevTasks, sendDevTaskToDept,
+    departments, closeOwnStage]);
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
     () => new Map((typeDict ?? []).map((d) => [d.code, d.name])), [typeDict]);
@@ -393,6 +433,24 @@ export default function Experimental() {
    * которой сам вход в колонку берёт виды нанесений: второй копии правила
    * «что считается нанесением образца» не появляется.
    */
+  /**
+   * ОБЩИЙ ЦЕХ ЕЩЁ РАБОТАЕТ (правка 01.09, вторая итерация, п. 1). Формула
+   * дословно та же, что у серверного автоперехода `erp_dev_branding_advance`:
+   * задача нанесения вне ('done','cancelled'). Статус задачи ведёт триггер
+   * от статуса ЭТАПА, поэтому это и есть «цех фактически закрыл», а не
+   * отдельное мнение доски.
+   */
+  const brandingOpenByDev = useMemo(
+    () => new Map(experimental.map((dev) => [
+      dev.id,
+      (dev.tasks ?? []).some(
+        (t) => DEV_BRANDING_TASK_TYPES.includes(t.task_type)
+          && t.status !== 'done' && t.status !== 'cancelled',
+      ),
+    ])),
+    [experimental],
+  );
+
   const brandingByItem = useMemo(() => {
     const map = new Map();
     for (const o of orders) {
@@ -646,6 +704,7 @@ export default function Experimental() {
           materialsByOrder={materialsByOrder}
           supplyOpenByOrder={supplyOpenByOrder}
           brandingByItem={brandingByItem}
+          brandingOpenByDev={brandingOpenByDev}
           typeNames={typeNames}
           canManage={canManage}
           onMoveStage={moveDevStage}

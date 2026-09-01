@@ -564,6 +564,9 @@ export function DevCard({
               typeNames={typeNames}
               onUpdateTask={updateTask}
               canManage={canManage}
+              dev={dev}
+              attachments={files}
+              onOpenPackage={() => selectTab('package')}
             />
 
             <div className={styles.matSectionHead} style={{ marginTop: 16 }}>

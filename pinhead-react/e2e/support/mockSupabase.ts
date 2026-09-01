@@ -600,8 +600,67 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
  * вместо цехов и держалось только на запасном пути в `loadAll`. То есть e2e
  * проверял НЕ ТОТ путь, по которому ходит прод.
  */
+/**
+ * Задачи разработки, заведённые ПО ХОДУ прогона.
+ *
+ * МОК ОБЯЗАН УМЕТЬ ТО, ЧТО УМЕЕТ КЛИЕНТ (правило проекта). Раньше
+ * `erp_experimental_add_tasks` и `erp_experimental_task_send` попадали
+ * в `default: null`, и вход карточки в «Нанесения» в e2e не заводил НИ ОДНОЙ
+ * задачи: колонка менялась, работа в цех не уезжала, а `sendDevTaskToDept`
+ * молча отвечал ошибкой. Проверить «пока цех не закрыл — дальше нельзя» было
+ * попросту нечем, потому что незакрытых задач не существовало.
+ *
+ * Состояние держится здесь, а не в фикстуре: `task_send` получает только id
+ * задачи, а `patchTaskIn` в сторе ЗАМЕНЯЕТ строку целиком — вернув огрызок,
+ * мок стёр бы `task_type`, и задача выпала бы из всех подсчётов.
+ */
+const createdTasks = new Map<string, Record<string, unknown>>();
+
 function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
   switch (fn) {
+    case 'erp_experimental_add_tasks': {
+      const devId = String(body.p_experimental_id ?? '');
+      const list = (body.p_tasks ?? []) as Record<string, unknown>[];
+      return list.map((t, i) => {
+        const row = {
+          id: `mock-task-${createdTasks.size + i}`,
+          experimental_id: devId,
+          title: null,
+          responsible: null,
+          due_date: null,
+          status: 'todo',
+          blocked_reason: null,
+          depends_on: [],
+          cycle: 0,
+          sort_order: 100,
+          qty: null,
+          comment: null,
+          result: null,
+          department_id: null,
+          stage_id: null,
+          done_on: null,
+          created_at: FX_CREATED,
+          updated_at: FX_CREATED,
+          ...t,
+        };
+        createdTasks.set(String(row.id), row);
+        return row;
+      });
+    }
+    case 'erp_experimental_task_send': {
+      const id = String(body.p_task_id ?? '');
+      const prev = createdTasks.get(id) ?? { id };
+      // Ровно то, что делает серверная функция: задача уходит в цех и ждёт его
+      const row = {
+        ...prev,
+        department_id: body.p_department_id ?? null,
+        stage_id: `mock-stage-${id}`,
+        qty: body.p_qty ?? (prev as { qty?: unknown }).qty ?? null,
+        status: 'waiting',
+      };
+      createdTasks.set(id, row);
+      return row;
+    }
     case 'erp_bootstrap':
       return {
         departments: departmentsFx,
