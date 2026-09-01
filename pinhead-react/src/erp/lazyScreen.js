@@ -21,9 +21,22 @@ import { lazy } from 'react';
 let domainReady = null;
 
 function ensureDomainSlices() {
-  domainReady ??= import('./store/domainSlices').then((m) => {
-    m.attachDomainSlices();
-  });
+  /*
+   * ОТКЛОНЁННЫЙ ПРОМИС НЕ КЭШИРУЕМ. `??=` присваивает только при null, поэтому
+   * неудачная загрузка оставалась в переменной НАВСЕГДА: каждый следующий вызов
+   * возвращал тот же отклонённый промис, и кнопка «Повторить» на экране отказа
+   * не могла сработать в принципе — лечила только перезагрузка страницы.
+   * Ровно этот отказ и виден после выкатки: чанк доменных слайсов не доехал
+   * один раз, а экран остался сломанным до F5.
+   */
+  domainReady ??= import('./store/domainSlices')
+    .then((m) => {
+      m.attachDomainSlices();
+    })
+    .catch((err) => {
+      domainReady = null;
+      throw err;
+    });
   return domainReady;
 }
 

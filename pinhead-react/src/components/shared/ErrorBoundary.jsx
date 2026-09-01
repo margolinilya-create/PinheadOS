@@ -43,10 +43,17 @@ export default class ErrorBoundary extends Component {
       const isUpdate = isChunkLoadError(this.state.error);
       // Локальный фолбэк (напр. один экран внутри оболочки ERP): полноэкранный
       // блок ниже разорвал бы layout, поэтому владелец даёт свой.
+      //
+      // `isUpdate` уходит В ФОЛБЭК третьим аргументом, а не остаётся здесь:
+      // до этого свой фолбэк перебивал распознавание устаревшей вкладки
+      // целиком, и оболочка ERP — ровно та поверхность, ради которой
+      // `lib/appUpdate` и написан («планшет в цеху держат открытым сутками»), —
+      // советовала «проверьте связь». Связь при этом в порядке, а «Повторить»
+      // не помогает: файла по старому адресу больше нет.
       const { fallback } = this.props;
       if (fallback) {
         return typeof fallback === 'function'
-          ? fallback(this.state.error, this.handleReset)
+          ? fallback(this.state.error, this.handleReset, { isUpdate })
           : fallback;
       }
       return (

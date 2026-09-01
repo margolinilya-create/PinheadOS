@@ -94,6 +94,45 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('Child content')).toBeInTheDocument();
   });
 
+  /**
+   * Свой фолбэк НЕ должен глотать признак «вкладка устарела».
+   *
+   * ДЕФЕКТ, РАДИ КОТОРОГО НАПИСАН. `isChunkLoadError` считался, но при наличии
+   * своего фолбэка выбрасывался, и оболочка ERP — ровно та поверхность, ради
+   * которой `lib/appUpdate` и написан («планшет в цеху держат открытым
+   * сутками») — на исчезнувший после выкатки чанк отвечала «Проверьте связь
+   * и попробуйте ещё раз». Связь при этом в порядке, а повтор просит файл,
+   * которого по старому адресу больше нет: совет вредный, а не просто неточный.
+   */
+  it('фолбэк получает признак устаревшей вкладки третьим аргументом', () => {
+    function Chunk() {
+      throw new Error(
+        'Failed to fetch dynamically imported module: /assets/domainSlices-CPH-CwXL.js',
+      );
+    }
+    render(
+      <ErrorBoundary fallback={(error, reset, { isUpdate } = {}) => (
+        <div>{isUpdate ? 'вышло обновление' : 'проверьте связь'}</div>
+      )}>
+        <Chunk />
+      </ErrorBoundary>
+    );
+    expect(screen.getByText('вышло обновление')).toBeInTheDocument();
+  });
+
+  it('обычная поломка признаком обновления НЕ помечается', () => {
+    // Отрицательная половина важнее положительной: «обновите страницу» на
+    // упавшем ПОСЛЕ загрузки экране — вредный совет, перезагрузка не поможет
+    render(
+      <ErrorBoundary fallback={(error, reset, { isUpdate } = {}) => (
+        <div>{isUpdate ? 'вышло обновление' : 'проверьте связь'}</div>
+      )}>
+        <ThrowingChild shouldThrow />
+      </ErrorBoundary>
+    );
+    expect(screen.getByText('проверьте связь')).toBeInTheDocument();
+  });
+
   it('calls window.location.reload on button click', () => {
     const reloadMock = vi.fn();
     Object.defineProperty(window, 'location', {
