@@ -480,7 +480,12 @@ export interface StagesSlice {
    * Частичная готовность: qty_done += qty; при qty_done >= qty позиции
    * этап закрывается (done), иначе остаётся in_progress с прогрессом «300/500».
    */
-  reportProgress: (stageId: string, qty: number) => Promise<boolean>;
+  reportProgress: (
+    stageId: string,
+    qty: number,
+    /** Подпись события журнала; по умолчанию «Частичная готовность» */
+    opts?: { comment?: string },
+  ) => Promise<boolean>;
   /** Брак: пользователь выбирает этап устранения; при необходимости — задача закупки */
   /**
    * Отчёт цеха по схеме участка (правки 10.08, P2): журнал + приращение

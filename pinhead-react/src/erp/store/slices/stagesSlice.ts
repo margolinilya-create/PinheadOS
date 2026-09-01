@@ -80,7 +80,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return true;
   },
 
-  reportProgress: async (stageId, qty) => {
+  reportProgress: async (stageId, qty, opts) => {
     const prev = get().orders;
     const found = findStage(prev, stageId);
     if (!found || !(qty > 0)) return false;
@@ -127,7 +127,12 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       to_status: row?.status ?? (after >= total ? 'done' : stage.status),
       qty_done: credited,
       qty_rework: null,
-      comment: `Частичная готовность: ${after}/${total}`,
+      /**
+       * Подпись задаётся вызывающим, когда действие не «частичная готовность»:
+       * автозакрытие переносом карточки ЭКС (правка 01.09, п. 3) пишет тот же
+       * журнал, и слово «частичная» там было бы неправдой.
+       */
+      comment: opts?.comment ?? `Частичная готовность: ${after}/${total}`,
     });
     return true;
   },

@@ -271,6 +271,45 @@ describe('devMoveIntent — последовательность этапов', 
   });
 });
 
+/**
+ * НАНЕСЕНИЕ ДЕЛАЕТ ОБЩИЙ ЦЕХ (правка 01.09, вторая итерация, п. 1).
+ *
+ * «Если нанесение выполняется обычным производственным цехом, экспериментальный
+ * цех должен ждать его фактического завершения. Пока вышивка, DTF или
+ * шелкография не закрыта соответствующим цехом, переход с Нанесений
+ * на следующий этап должен быть заблокирован».
+ */
+describe('devMoveIntent — нанесения держит цех', () => {
+  const base = {
+    canManage: true, outcome: null, materialsPending: false, hasBranding: true,
+  } as const;
+
+  it('цех ещё не закрыл — вперёд нельзя', () => {
+    expect(devMoveIntent({ ...base, from: 'branding', to: 'sewing', brandingOpen: true }))
+      .toEqual({ ok: false, reason: 'branding' });
+  });
+
+  it('цех закрыл — можно', () => {
+    expect(devMoveIntent({ ...base, from: 'branding', to: 'sewing', brandingOpen: false }))
+      .toEqual({ ok: true, to: 'sewing' });
+  });
+
+  it('назад можно и при незакрытом цехе: ошибку колонкой надо уметь откатить', () => {
+    expect(devMoveIntent({ ...base, from: 'branding', to: 'cutting', brandingOpen: true }))
+      .toEqual({ ok: true, to: 'cutting' });
+  });
+
+  it('держится ВЫХОД, а не вход: попасть в «Нанесения» карточка обязана', () => {
+    // Иначе работа в цех не уедет вовсе — задачи заводит сам вход в колонку
+    expect(devMoveIntent({ ...base, from: 'cutting', to: 'branding', brandingOpen: true }))
+      .toEqual({ ok: true, to: 'branding' });
+  });
+
+  it('у отказа есть текст, и он называет цех', () => {
+    expect(DEV_MOVE_REFUSAL_TEXT.branding).toMatch(/цех/i);
+  });
+});
+
 describe('devStagePath — путь конкретной разработки', () => {
   it('стоянка стоит в пути, только пока есть чего ждать', () => {
     expect(devStagePath({ materialsPending: true, hasBranding: true }))
