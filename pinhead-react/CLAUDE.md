@@ -489,6 +489,19 @@ URL: https://pinhead-os.vercel.app
 - `utils/progress.stageCountProgress` — «завершено N из M этапов»
   (сумма по штукам осталась в подсказке)
 
+## Правила сессии 44 (отказ ленивого экрана): где что лежит
+
+- `ensureDomainSlices` (`erp/lazyScreen.js`) сбрасывает `domainReady` в `catch`:
+  отклонённый промис кэшировать нельзя, иначе «Повторить» бессильна навсегда.
+  Сторож — `erp/lazyScreen.test.js` (проверяет ПОВЕДЕНИЕ второй попытки,
+  а не наличие `catch` в тексте модуля)
+- `ErrorBoundary` передаёт фолбэку третий аргумент `{ isUpdate }`
+  (`isChunkLoadError` из `lib/appUpdate`). Без него свой фолбэк глотал
+  распознавание устаревшей вкладки целиком
+- `ScreenOutdated` — в `erp/components/ErpStates`, рядом с `LoadFailed`.
+  Текст из общих `UPDATE_TITLE`/`UPDATE_MESSAGE`, действие — «Обновить
+  страницу», а не «Повторить». Выбирает между ними фолбэк в `ErpApp`
+
 ## Правила сессии 44 (устойчивость раскладки): где что лежит
 
 - `deptsSettled(departments, bootstrapLoaded)` — `store/shared.ts`, рядом

@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
 import { ScreenSkeleton } from './components/ErpSkeletons';
-import { LoadFailed } from './components/ErpStates';
+import { LoadFailed, ScreenOutdated } from './components/ErpStates';
 import { Icon } from './components/Icon';
 import { FEATURES } from '../config/features';
 import { useErpAccess } from './store/useErpAccess';
@@ -125,8 +125,11 @@ export default function ErpApp({ user }) {
           в другой раздел пересоздаёт границу — экран восстанавливается сам. */}
       <ErrorBoundary
         key={pathname}
-        fallback={(error, reset) => (
-          <LoadFailed what={`экран (${error?.message || 'непредвиденная ошибка'})`} onRetry={reset} />
+        fallback={(error, reset, { isUpdate } = {}) => (isUpdate
+          // Устаревшая вкладка после выкатки — не поломка приложения и не отказ
+          // связи: чанк экрана исчез по своему адресу. «Повторить» здесь бессилен
+          ? <ScreenOutdated />
+          : <LoadFailed what={`экран (${error?.message || 'непредвиденная ошибка'})`} onRetry={reset} />
         )}
       >
         <Suspense fallback={<ScreenSkeleton />}>

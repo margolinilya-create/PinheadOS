@@ -1,5 +1,6 @@
 import { Icon } from './Icon';
 import { Button } from './Button';
+import { UPDATE_TITLE, UPDATE_MESSAGE } from '../../lib/appUpdate';
 import styles from './States.module.css';
 
 /**
@@ -36,6 +37,31 @@ export function LoadFailed({ onRetry, what = 'данные' }) {
           <Button variant="secondary" icon="refresh" onClick={onRetry}>Повторить</Button>
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * Вкладка открыта со старой версией: чанк экрана исчез после выкатки.
+ *
+ * Это НЕ отказ связи, и совет «проверьте связь и повторите» здесь вредный:
+ * связь в порядке, а повтор просит файл, которого по старому адресу больше нет.
+ * Планшет в цеху держат открытым сутками — именно там этот отказ и наступает.
+ *
+ * Перезагружаем ТОЛЬКО по нажатию: в соседней форме может быть набран отчёт
+ * по этапу или количество в приёмке, и молчаливый reload съел бы набранное.
+ * Слова — общие с глобальной границей (`lib/appUpdate`), чтобы одно и то же
+ * событие не описывалось в проекте двумя разными текстами.
+ */
+export function ScreenOutdated({ onReload = () => window.location.reload() }) {
+  return (
+    <div className={`${styles.state} ${styles.error}`} role="alert">
+      <span className={`${styles.icon} ${styles.iconError}`}><Icon name="refresh" size={30} /></span>
+      <span className={styles.title}>{UPDATE_TITLE}</span>
+      <span className={styles.text}>{UPDATE_MESSAGE}</span>
+      <span className={styles.action}>
+        <Button variant="primary" icon="refresh" onClick={onReload}>Обновить страницу</Button>
+      </span>
     </div>
   );
 }
