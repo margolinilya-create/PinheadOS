@@ -35,15 +35,39 @@ import { BRANDING_DEPT, isMaterialPending, materialsForItem } from './routes';
  * технолог тащит карточку из «Кроя» в «Пошив», и это и есть решение.
  */
 
-/** Пять шагов документа, в порядке прохождения */
-export type DevStage = 'patterns' | 'cutting' | 'branding' | 'sewing' | 'final';
+/**
+ * Шаги доски, в порядке прохождения.
+ *
+ * ── «ОЖИДАЕТ МАТЕРИАЛЫ» — ШАГ, А НЕ ДОРОЖКА (правка заказчика 01.09, п. 1) ──
+ *
+ * «Если по заказу есть закупка и материал ещё не получен, система должна
+ * разрешить перенести карточку только в „Ожидает материалы". Сразу в Крой
+ * перенести нельзя».
+ *
+ * Дорожка `awaiting_materials` внутри колонки существует с волны материального
+ * гейта и отвечает на вопрос «что с работой». Здесь спрашивают другое: КУДА
+ * технолог вправе перенести карточку. До 01.09 ответ был «никуда» — выход
+ * с лекал при незавершённой закупке блокировался целиком, и готовые лекала
+ * стояли в одной колонке с недоделанными.
+ *
+ * КЛЮЧ `materials`, А НЕ `awaiting_materials`: последнее уже занято дорожкой,
+ * и одноимённые колонка с дорожкой читались бы как одно и то же в двух разных
+ * перечислениях — а отвечают они на разные вопросы.
+ *
+ * ШАГ НЕОБЯЗАТЕЛЬНЫЙ: заказ без закупки (или с уже принятым материалом) идёт
+ * «Лекала → Крой» напрямую, документ разрешает это прямым текстом. Какие шаги
+ * применимы к конкретной разработке, считает `devStagePath` в `devBoardMove`.
+ */
+export type DevStage =
+  'patterns' | 'materials' | 'cutting' | 'branding' | 'sewing' | 'final';
 
 export const DEV_STAGE_ORDER: DevStage[] = [
-  'patterns', 'cutting', 'branding', 'sewing', 'final',
+  'patterns', 'materials', 'cutting', 'branding', 'sewing', 'final',
 ];
 
 export const DEV_STAGE_LABELS: Record<DevStage, string> = {
   patterns: 'Построение лекал',
+  materials: 'Ожидает материалы',
   cutting: 'Крой',
   branding: 'Нанесения',
   sewing: 'Пошив',
@@ -173,6 +197,11 @@ export type DevLane =
  */
 export const DEV_STAGE_COMPLETE_LABELS: Record<DevStage, string> = {
   patterns: 'Завершить лекала',
+  // Задач у ожидания материалов не бывает, и `devStageAction` не предлагает
+  // здесь ничего: шаг заканчивается переносом карточки, а не действием.
+  // Подпись всё равно объявлена — `Record<DevStage, …>` не терпит пропуска,
+  // и это ровно та проверка, ради которой тип записан полным.
+  materials: 'Материалы получены',
   cutting: 'Завершить крой',
   branding: 'Завершить нанесения',
   sewing: 'Завершить пошив',
@@ -212,6 +241,18 @@ export interface DevBoardInput {
   tasks: readonly ErpExperimentalTask[];
   /** Материалы ЗАКАЗА разработки — гейт кроя смотрит на них */
   materials?: readonly ErpMaterial[] | null;
+  /** У заказа есть незакрытый этап участка «Закупка» (правка 01.09, п. 1) */
+  supplyOpen?: boolean;
+  /**
+   * В ПОЗИЦИИ ЗАКАЗА указаны нанесения (правка 01.09, п. 2).
+   *
+   * До 01.09 применимость «Нанесений» считалась по ЗАДАЧАМ, а задачи заводятся
+   * только при входе в колонку: до входа шаг числился пропущенным, и запрет
+   * «из Кроя нельзя сразу в Пошив, если в заказе есть нанесения» опереть было
+   * не на что. Признак берётся оттуда же, откуда виды нанесений образца, —
+   * из `prints` позиции (`devBrandingFromPrints`).
+   */
+  hasBranding?: boolean;
 }
 
 /**
@@ -224,16 +265,29 @@ export interface DevBoardInput {
  * `isMaterialPending`) — то есть одно и то же правило «материал годен», а не
  * его копия. Годным материал считается там же, где и в производстве: пришёл
  * и принят складом, зарезервирован со склада или не требуется.
+ *
+ * УСЛОВИЙ ДВА (правка заказчика 01.09, п. 1): «система должна разрешать это
+ * только после того, как ЗАКУПКА ЗАВЕРШЕНА и МАТЕРИАЛ ПОЛУЧЕН». Это не одно
+ * и то же, и разойтись они могут в обе стороны: у заказа бывает открытый этап
+ * закупки при нуле строк материалов (закупщик ещё не завёл их — на проде таких
+ * заказов девять), и бывает закрытая закупка при материале, который ждёт
+ * приёмки складом. Признак «этап закупки открыт» приходит параметром
+ * (`supplyOpen`) по той же причине, по какой сюда не тянется `isStageReady`:
+ * считать его умеет `utils/supply.openSupplyStages`, и второй копии этого
+ * правила здесь заводить нельзя. Закупка, которая не требуется вовсе, этапа
+ * не имеет по построению — `supplyOpen` там `false` сам собой.
  */
 export function cuttingGate(input: {
   patternsDone: boolean;
   itemId?: string | null;
   materials?: readonly ErpMaterial[] | null;
+  /** У заказа есть незакрытый этап участка «Закупка» */
+  supplyOpen?: boolean;
 }): { open: boolean; wait: CuttingWait; missing: ErpMaterial[] } {
   const mine = materialsForItem(
     (input.materials ?? []) as ErpMaterial[], input.itemId ?? null);
   const missing = mine.filter(isMaterialPending);
-  const noMaterials = missing.length > 0;
+  const noMaterials = missing.length > 0 || input.supplyOpen === true;
   const wait: CuttingWait = !input.patternsDone && noMaterials
     ? 'both'
     : !input.patternsDone
@@ -244,31 +298,57 @@ export function cuttingGate(input: {
   return { open: wait === null, wait, missing };
 }
 
-/** Подпись гейта кроя. Лекала называем ПЕРВЫМИ: этим ЭКС управляет сам */
+/**
+ * Подпись гейта кроя. Лекала называем ПЕРВЫМИ: этим ЭКС управляет сам.
+ *
+ * `supplyOpen` нужен здесь ради ЧЕСТНОСТИ ОТКАЗА. Заказ с открытой закупкой
+ * и ещё не заведёнными строками материалов держит крой, но перечислять нечего,
+ * и без этого признака человек читал бы «Ожидает материалы» ни о чём — то есть
+ * не понимал бы, кого ждать и кому звонить.
+ */
 export function cuttingWaitLabel(
   wait: CuttingWait,
   missing: readonly ErpMaterial[] = [],
+  supplyOpen = false,
 ): string | null {
   if (wait === null) return null;
   const names = missing.map((m) => m.name).filter(Boolean).join(', ');
   if (wait === 'patterns') return 'Ожидает лекала';
-  const mat = names ? `Ожидает материалы: ${names}` : 'Ожидает материалы';
+  const mat = names
+    ? `Ожидает материалы: ${names}`
+    : (supplyOpen ? 'Ожидает закупку: она ещё не завершена' : 'Ожидает материалы');
   return wait === 'materials' ? mat : `Ожидает лекала и ${mat.toLowerCase()}`;
 }
 
 /** Применим ли шаг к этой разработке */
-function stageApplies(stage: DevStage, byStage: Map<DevStage, ErpExperimentalTask[]>): boolean {
+function stageApplies(
+  stage: DevStage,
+  byStage: Map<DevStage, ErpExperimentalTask[]>,
+  ctx: { hasBranding: boolean; materialsHold: boolean; standsHere: boolean },
+): boolean {
   /**
-   * «Нанесения» применимы, только если задача нанесения ЕСТЬ. У образца без
-   * печати эта колонка не должна вечно светиться ожиданием: документ добавляет
-   * нанесения по потребности («если образцу нужна вышивка»).
+   * «Нанесения» применимы, если задача нанесения ЕСТЬ ИЛИ они указаны
+   * в позиции заказа. У образца без печати эта колонка не должна вечно
+   * светиться ожиданием: документ добавляет нанесения по потребности
+   * («если образцу нужна вышивка»). А вот у образца, которому печать
+   * заказана, шаг обязателен ещё ДО того, как заведена первая задача, —
+   * иначе «нельзя из Кроя сразу в Пошив» не на что опереть (правка 01.09,
+   * п. 2).
    */
-  if (stage === 'branding') return (byStage.get('branding') ?? []).length > 0;
+  if (stage === 'branding') {
+    return ctx.hasBranding || (byStage.get('branding') ?? []).length > 0;
+  }
+  /**
+   * «Ожидает материалы» — шаг стоянки: он применим, пока материалы держат
+   * либо пока карточка на нём стоит. Заказ, где ждать нечего, идёт мимо,
+   * и шаг читается «не требовался», а не «пропущен».
+   */
+  if (stage === 'materials') return ctx.materialsHold || ctx.standsHere;
   return true;
 }
 
 /**
- * Состояния всех пяти шагов.
+ * Состояния всех шагов доски.
  *
  * ЛОВУШКА, РАДИ КОТОРОЙ ЭТО НАПИСАНО ТАК. Наивное «колонка — первый шаг
  * с незакрытой задачей» ломается дважды: разработка с готовыми лекалами
@@ -317,6 +397,24 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
     );
   };
 
+  /**
+   * Материальный гейт считается ОДИН РАЗ на всю разработку: его читают два
+   * шага — «Ожидает материалы» (как причину стоянки) и «Крой» (как запрет
+   * начинать). Два вызова разошлись бы ровно в тот день, когда у одного
+   * из них забыли бы аргумент.
+   */
+  const materialGate = cuttingGate({
+    patternsDone: true,
+    itemId: input.dev.item_id,
+    materials: input.materials,
+    supplyOpen: input.supplyOpen,
+  });
+  const stageCtx = {
+    hasBranding: input.hasBranding === true,
+    materialsHold: !materialGate.open,
+    standsHere: input.dev.board_stage === 'materials',
+  };
+
   return DEV_STAGE_ORDER.map((stage) => {
     const own = byStage.get(stage) ?? [];
     const gate = stage === 'cutting'
@@ -324,8 +422,34 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
         patternsDone,
         itemId: input.dev.item_id,
         materials: input.materials,
+        supplyOpen: input.supplyOpen,
       })
       : null;
+
+    /**
+     * ШАГ «ОЖИДАЕТ МАТЕРИАЛЫ» — СВОЯ ВЕТКА, И СТОИТ ОНА ВЫШЕ ОБЩИХ (правка
+     * 01.09, п. 1). Задач у него не бывает никогда, поэтому общий разбор
+     * увёл бы его в `workLater` — «шаг перепрыгнули», — хотя перепрыгивать
+     * там нечего: это стоянка, а не работа.
+     */
+    if (stage === 'materials') {
+      if (!stageApplies(stage, byStage, stageCtx)) {
+        return { stage, lane: 'skipped' as DevLane, tasks: own, waitingReason: null };
+      }
+      if (passedByHand(stage)) {
+        return { stage, lane: 'done' as DevLane, tasks: own, waitingReason: null };
+      }
+      return materialGate.open
+        // Материалы приехали — стоянка кончилась, карточку пора двигать в «Крой»
+        ? { stage, lane: 'ready' as DevLane, tasks: own, waitingReason: null }
+        : {
+          stage,
+          lane: 'awaiting_materials' as DevLane,
+          tasks: own,
+          waitingReason: cuttingWaitLabel(
+            'materials', materialGate.missing, input.supplyOpen === true),
+        };
+    }
 
     // Порядок веток — приоритет: сначала то, что требует решения
     const blocked = own.find((t) => t.status === 'blocked');
@@ -343,7 +467,7 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
     }
     if (own.length === 0) {
       // Нанесений у образца нет вовсе — шаг не пропускали, его не было в плане
-      if (!stageApplies(stage, byStage)) {
+      if (!stageApplies(stage, byStage, stageCtx)) {
         return { stage, lane: 'skipped' as DevLane, tasks: own, waitingReason: null };
       }
       /**
@@ -364,7 +488,8 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
         stage,
         lane: (gate.wait === 'patterns' ? 'waiting' : 'awaiting_materials') as DevLane,
         tasks: own,
-        waitingReason: cuttingWaitLabel(gate.wait, gate.missing),
+        waitingReason: cuttingWaitLabel(
+          gate.wait, gate.missing, input.supplyOpen === true),
       };
     }
     /**
@@ -594,8 +719,17 @@ export function devRouteSteps(
   currentStage: DevStage,
 ): DevStepNode[] {
   return states.map((st, i) => {
+    /**
+     * «НЕ ТРЕБУЕТСЯ» ≠ «ПРОПУЩЕНО». Необязательный шаг, которого у этой
+     * разработки не было в плане вовсе, не пропускали: слово «пропущено»
+     * читалось бы как «работу не сделали». Таких шага два — нанесения
+     * у образца без печати и стоянка «Ожидает материалы» у заказа, где
+     * ждать нечего. Перечислены поимённо: у обычного шага без задач
+     * (легаси-разработка, работа ушла вперёд) «Пропущено» — правда.
+     */
     const skippedOptional = st.lane === 'skipped'
-      && st.stage === 'branding' && st.tasks.length === 0;
+      && (st.stage === 'branding' || st.stage === 'materials')
+      && st.tasks.length === 0;
     const isCurrent = st.stage === currentStage;
     /**
      * «В работе» — это ТЕКУЩИЙ шаг, а не только `in_progress` задач: шаг,

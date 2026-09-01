@@ -40,6 +40,7 @@ import { DEV_BRANDING_DEPT_CODE, devBrandingFromPrints } from '../utils/experime
 import { devMovePrompt } from '../utils/devBoardMove';
 import { confirmWithInput } from '../../store/useConfirmStore';
 import { experimentalDeptEntries } from '../utils/experimentalQueue';
+import { findSupplyDept, openSupplyStages } from '../utils/supply';
 import styles from '../styles';
 
 /**
@@ -369,6 +370,40 @@ export default function Experimental() {
   );
 
   /**
+   * ЗАКУПКА ЗАКАЗА ЕЩЁ ОТКРЫТА — второе условие входа в «Крой» (правка 01.09,
+   * п. 1: «система должна разрешать это только после того, как закупка
+   * завершена И материал получен»). Условия действительно разные: у заказа
+   * бывает открытый этап закупки при нуле строк материалов, и бывает закрытая
+   * закупка при материале, который ждёт приёмки складом.
+   *
+   * Считаем теми же функциями, что бейдж меню и экран закупки: правило
+   * «закупка по заказу» живёт в `utils/supply` и только там. Заказ с отметкой
+   * «Закупка не требуется» этапа не имеет вовсе — он попадает сюда `false`
+   * по построению, а не по отдельной ветке.
+   */
+  const supplyOpenByOrder = useMemo(() => {
+    const supplyDept = findSupplyDept(departments);
+    return new Map(orders.map(
+      (o) => [o.id, openSupplyStages(o, supplyDept?.id).length > 0]));
+  }, [orders, departments]);
+
+  /**
+   * ЕСТЬ ЛИ У ПОЗИЦИИ НАНЕСЕНИЯ — от этого зависит, обязателен ли шаг
+   * «Нанесения» (правка 01.09, п. 2). Берём той же `devBrandingFromPrints`,
+   * которой сам вход в колонку берёт виды нанесений: второй копии правила
+   * «что считается нанесением образца» не появляется.
+   */
+  const brandingByItem = useMemo(() => {
+    const map = new Map();
+    for (const o of orders) {
+      for (const it of o.items ?? []) {
+        map.set(it.id, devBrandingFromPrints(it.prints).length > 0);
+      }
+    }
+    return map;
+  }, [orders]);
+
+  /**
    * Счётчики плиток. Ключи берутся ИЗ САМИХ ПЛИТОК, а не перечисляются
    * повторно: пропущенное состояние давало `undefined + 1`, то есть `NaN`
    * прямо на плитке. Так и случилось с `handed` (правка 30.08, п. 4) —
@@ -609,6 +644,8 @@ export default function Experimental() {
           today={today}
           onOpen={openDev}
           materialsByOrder={materialsByOrder}
+          supplyOpenByOrder={supplyOpenByOrder}
+          brandingByItem={brandingByItem}
           typeNames={typeNames}
           canManage={canManage}
           onMoveStage={moveDevStage}

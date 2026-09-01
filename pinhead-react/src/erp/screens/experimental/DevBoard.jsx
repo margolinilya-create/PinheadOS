@@ -13,7 +13,7 @@ import {
   devStageStates,
 } from '../../utils/experimentalBoard';
 import {
-  DEV_MOVE_REFUSAL_TEXT, devMoveIntent, devMoveLabel, neighbourStage,
+  devMoveIntent, devMoveLabel, devMoveRefusalText, neighbourStage,
 } from '../../utils/devBoardMove';
 import { currentBlocker, nextAction, taskLabel } from '../../utils/experimentalTasks';
 import { dueLabelCompact } from '../../utils/format';
@@ -88,8 +88,16 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
   const overdue = left !== null && left < 0 && !dev.outcome;
 
   const movable = canManage && !dev.outcome;
-  const prev = neighbourStage(column, -1);
-  const next = neighbourStage(column, 1);
+  /**
+   * Соседний шаг считается ПО ПУТИ ЭТОЙ разработки, а не по общему порядку
+   * колонок (правка 01.09): у заказа без нанесений «›» из «Кроя» обязана вести
+   * в «Пошив», а не в шаг, которого у образца нет. Контекст тот же, что
+   * у `devMoveIntent`, — иначе кнопка предлагала бы ход, который тут же
+   * отклоняется.
+   */
+  const moveCtx = { materialsPending: !materialGate?.open, hasBranding: row.hasBranding };
+  const prev = neighbourStage(column, -1, moveCtx);
+  const next = neighbourStage(column, 1, moveCtx);
 
   return (
     <div
@@ -214,7 +222,8 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
 }
 
 export function DevBoard({
-  rows, today, onOpen, materialsByOrder, typeNames, onMoveStage, canManage = false,
+  rows, today, onOpen, materialsByOrder, supplyOpenByOrder, brandingByItem,
+  typeNames, onMoveStage, canManage = false,
 }) {
   const { ref } = useScrollHints();
   /**
@@ -252,12 +261,14 @@ export function DevBoard({
       to,
       outcome: row.dev.outcome,
       canManage,
-      // Закупка держит выход с лекал (правка 30.08, п. 1)
+      // Закупка держит вход в крой (правка 30.08, п. 1; уточнена 01.09, п. 1)
       materialsPending: !row.materialGate.open,
+      // Нанесения обязательны, если они указаны в заказе (правка 01.09, п. 2)
+      hasBranding: row.hasBranding,
     });
     if (!intent.ok) {
       // «Карточка уже здесь» — не ошибка, а обычный исход броска мимо
-      if (intent.reason !== 'same') toast.error(DEV_MOVE_REFUSAL_TEXT[intent.reason]);
+      if (intent.reason !== 'same') toast.error(devMoveRefusalText(intent));
       return;
     }
     await onMoveStage?.(row.dev.id, intent.to);
@@ -287,17 +298,21 @@ export function DevBoard({
       .filter(({ dev }) => !dev.handed_to_warehouse_at)
       .map(({ dev, tasks }) => {
         const materials = materialsByOrder?.get(dev.order_id) ?? [];
-        const states = devStageStates({ dev, tasks, materials });
+        const supplyOpen = supplyOpenByOrder?.get(dev.order_id) === true;
+        const hasBranding = brandingByItem?.get(dev.item_id) === true;
+        const states = devStageStates({
+          dev, tasks, materials, supplyOpen, hasBranding,
+        });
         /**
-         * Ждём ли материал (правка 30.08, п. 1). `patternsDone: true` отсекает
-         * лекальную половину гейта — нас интересует ровно материальная: она
-         * держит ВЫХОД с лекал, а сами лекала идут параллельно закупке.
+         * Держат ли материалы (правка 30.08, п. 1; уточнена 01.09, п. 1).
+         * `patternsDone: true` отсекает лекальную половину гейта — нас
+         * интересует ровно материальная: сами лекала идут параллельно закупке.
          */
         const materialGate = cuttingGate({
-          patternsDone: true, itemId: dev.item_id, materials,
+          patternsDone: true, itemId: dev.item_id, materials, supplyOpen,
         });
         return {
-          dev, tasks, states, materialGate,
+          dev, tasks, states, materialGate, hasBranding,
           column: devBoardColumn(states, dev), today, typeNames,
         };
       });
@@ -309,7 +324,7 @@ export function DevBoard({
       })).filter((l) => l.rows.length > 0),
       total: prepared.filter((r) => r.column === stage).length,
     }));
-  }, [rows, today, materialsByOrder, typeNames]);
+  }, [rows, today, materialsByOrder, supplyOpenByOrder, brandingByItem, typeNames]);
 
   return (
     <div className={styles.kanbanBoard} ref={ref}>

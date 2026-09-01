@@ -11,7 +11,10 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { DEV_STATE_LABELS } from '../utils/filterExperimental';
 import { devState, nextAction, currentBlocker } from '../utils/experimentalTasks';
-import { DEV_STAGE_LABELS, devBoardColumn, devStageStates } from '../utils/experimentalBoard';
+import {
+  DEV_STAGE_LABELS, devBoardColumn, devBrandingFromPrints, devStageStates,
+} from '../utils/experimentalBoard';
+import { findSupplyDept, openSupplyStages } from '../utils/supply';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevCard } from './experimental/DevCard';
@@ -125,7 +128,17 @@ export default function DevPage() {
   const tasks = dev.tasks ?? [];
   const today = factoryToday();
   const state = devState(dev, tasks, today);
-  const stageStates = devStageStates({ dev, tasks, materials: order?.materials ?? [] });
+  // Контекст шагов тот же, что у доски (правка 01.09): открыта ли закупка
+  // заказа и есть ли у позиции нанесения. Иначе страница и доска показывали бы
+  // разный маршрут одной разработки
+  const stageStates = devStageStates({
+    dev,
+    tasks,
+    materials: order?.materials ?? [],
+    supplyOpen: openSupplyStages(order, findSupplyDept(departments)?.id).length > 0,
+    hasBranding: devBrandingFromPrints(
+      (order?.items ?? []).find((it) => it.id === dev.item_id)?.prints).length > 0,
+  });
   const stage = devBoardColumn(stageStates, dev);
   const blocker = currentBlocker(tasks, new Map(), today);
 
