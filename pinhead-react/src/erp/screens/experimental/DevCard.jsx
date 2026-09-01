@@ -18,9 +18,10 @@ import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
-  DEV_STAGE_LABELS, cuttingGate, devBoardColumn, devRouteSteps, devStageStates,
-  extraTasks,
+  DEV_STAGE_LABELS, cuttingGate, devBoardColumn, devBrandingFromPrints,
+  devRouteSteps, devStageStates, extraTasks,
 } from '../../utils/experimentalBoard';
+import { findSupplyDept, openSupplyStages } from '../../utils/supply';
 import { wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
@@ -184,8 +185,21 @@ export function DevCard({
    * что уже выполнено, что сейчас в работе и что ещё осталось». Считается тем
    * же `devStageStates`, что и доска: два ответа на один вопрос разошлись бы.
    */
+  /**
+   * Контекст шагов — тот же, что у доски (правка 01.09): открыта ли закупка
+   * заказа и есть ли у позиции нанесения. Без него карточка показывала бы
+   * маршрут, отличный от доски, — два ответа на один вопрос.
+   */
+  const supplyOpen = useMemo(
+    () => openSupplyStages(order, findSupplyDept(departments)?.id).length > 0,
+    [order, departments]);
   const stageStates = devStageStates({
-    dev, tasks, materials: order?.materials ?? [],
+    dev,
+    tasks,
+    materials: order?.materials ?? [],
+    supplyOpen,
+    hasBranding: devBrandingFromPrints(
+      (order?.items ?? []).find((it) => it.id === dev.item_id)?.prints).length > 0,
   });
   const currentStage = devBoardColumn(stageStates, dev);
   /**
@@ -211,6 +225,7 @@ export function DevCard({
     patternsDone: patternsDone && tasks.some((t) => t.task_type === 'patterns'),
     itemId: dev.item_id,
     materials: order?.materials ?? [],
+    supplyOpen,
   });
   /**
    * Позиция заказа, которую разрабатывают. Нужна справке справа: изделие

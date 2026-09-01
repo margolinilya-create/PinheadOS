@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEV_MOVE_REFUSAL_TEXT, devMoveIntent, devMoveLabel, neighbourStage, devMovePrompt,
+  DEV_MOVE_REFUSAL_TEXT, devMoveIntent, devMoveLabel, devMovePrompt,
+  devMoveRefusalText, devStagePath, neighbourStage,
 } from './devBoardMove';
 import { DEV_STAGE_ORDER, devBoardColumn, isDevStage } from './experimentalBoard';
 import type { DevStageState } from './experimentalBoard';
@@ -21,6 +22,8 @@ import type { DevStageState } from './experimentalBoard';
 /** Состояния шагов: «лекала закрыты, крой идёт» — расчёт дал бы «Крой» */
 const STATES = [
   { stage: 'patterns', lane: 'done' },
+  // Ждать нечего — стоянка «Ожидает материалы» этой разработке не требовалась
+  { stage: 'materials', lane: 'skipped' },
   { stage: 'cutting', lane: 'in_progress' },
   { stage: 'branding', lane: 'waiting' },
   { stage: 'sewing', lane: 'waiting' },
@@ -68,7 +71,7 @@ describe('колонка: ручное намерение перебивает �
 
   it('перечень шагов — зеркало CHECK базы', () => {
     expect(DEV_STAGE_ORDER).toEqual(
-      ['patterns', 'cutting', 'branding', 'sewing', 'final']);
+      ['patterns', 'materials', 'cutting', 'branding', 'sewing', 'final']);
   });
 });
 
@@ -112,8 +115,29 @@ describe('намерение переноса', () => {
 
 describe('клавиатурная альтернатива перетаскиванию', () => {
   it('соседние шаги — влево и вправо', () => {
-    expect(neighbourStage('cutting', -1)).toBe('patterns');
-    expect(neighbourStage('cutting', 1)).toBe('branding');
+    const ctx = { hasBranding: true };
+    expect(neighbourStage('cutting', -1, ctx)).toBe('patterns');
+    expect(neighbourStage('cutting', 1, ctx)).toBe('branding');
+  });
+
+  /**
+   * СОСЕД БЕРЁТСЯ ИЗ ПУТИ ЭТОЙ разработки (правка 01.09). Прежде кнопки ходили
+   * по общему порядку колонок, и «перенести сразу через шаг» клавиатурой было
+   * не исполнить — требование выполнялось только мышью.
+   */
+  it('неприменимый шаг кнопки перешагивают сами', () => {
+    // Нанесений в заказе нет — «›» из «Кроя» ведёт прямо в «Пошив»
+    expect(neighbourStage('cutting', 1, { hasBranding: false })).toBe('sewing');
+    // Ждать нечего — стоянка «Ожидает материалы» из пути выпадает
+    expect(neighbourStage('patterns', 1, { materialsPending: false })).toBe('cutting');
+    expect(neighbourStage('patterns', 1, { materialsPending: true })).toBe('materials');
+  });
+
+  it('карточка на выпавшем из пути шаге всё равно двигается дальше', () => {
+    // Материал приехал, пока карточка стояла в «Ожидает материалы»: шаг
+    // из пути ушёл, но кнопка обязана вести в «Крой», а не в начало доски
+    expect(neighbourStage('materials', 1, { materialsPending: false })).toBe('cutting');
+    expect(neighbourStage('materials', -1, { materialsPending: false })).toBe('patterns');
   });
 
   it('на краях дальше некуда — null, а не заворот', () => {
@@ -129,24 +153,45 @@ describe('клавиатурная альтернатива перетаскив
 });
 
 /**
- * Закупка держит ВЫХОД с лекал (правка заказчика 30.08, п. 1).
+ * Закупка держит ВХОД В КРОЙ (правка 30.08, п. 1 → правка 01.09, п. 1).
  *
- * Документ требует двух вещей сразу: построение лекал идёт ПАРАЛЛЕЛЬНО
- * закупке («это текущая правильная логика и её нужно сохранить»), но
- * перевести карточку дальше нельзя, пока материал не подтверждён складом.
- * Поэтому блокируется переход, а не сам этап.
+ * Документ 30.08 требовал двух вещей сразу: построение лекал идёт ПАРАЛЛЕЛЬНО
+ * закупке («это текущая правильная логика и её нужно сохранить»), но перевести
+ * карточку дальше нельзя, пока материал не подтверждён складом. Тогда это
+ * выражалось запретом ВЫХОДА с лекал, и готовые лекала стояли в одной колонке
+ * с недоделанными.
+ *
+ * Документ 01.09 даёт ожиданию собственную колонку: «система должна разрешить
+ * перенести карточку только в „Ожидает материалы". Сразу в Крой перенести
+ * нельзя».
  */
-describe('devMoveIntent — материалы держат выход с лекал', () => {
+describe('devMoveIntent — закупка держит вход в крой', () => {
   const base = { canManage: true, outcome: null };
 
-  it('вперёд с лекал при незакрытой закупке — отказ с причиной', () => {
+  it('с лекал при незакрытой закупке разрешён ТОЛЬКО «Ожидает материалы»', () => {
+    expect(devMoveIntent({
+      ...base, from: 'patterns', to: 'materials', materialsPending: true,
+    })).toEqual({ ok: true, to: 'materials' });
+
     for (const to of ['cutting', 'branding', 'sewing', 'final']) {
       expect(devMoveIntent({ ...base, from: 'patterns', to, materialsPending: true }))
         .toEqual({ ok: false, reason: 'materials' });
     }
   });
 
-  it('материалы приняты — переход разрешён', () => {
+  it('со стоянки в крой — только после приёмки', () => {
+    expect(devMoveIntent({
+      ...base, from: 'materials', to: 'cutting', materialsPending: true,
+    })).toEqual({ ok: false, reason: 'materials' });
+
+    expect(devMoveIntent({
+      ...base, from: 'materials', to: 'cutting', materialsPending: false,
+    })).toEqual({ ok: true, to: 'cutting' });
+  });
+
+  it('материалы приняты — карточка идёт с лекал прямо в крой', () => {
+    // Стоянка необязательна: «если материал уже получен… карточку можно сразу
+    // переносить в Крой»
     expect(devMoveIntent({ ...base, from: 'patterns', to: 'cutting', materialsPending: false }))
       .toEqual({ ok: true, to: 'cutting' });
   });
@@ -157,13 +202,86 @@ describe('devMoveIntent — материалы держат выход с лек
   });
 
   it('на других этапах материалы переход не держат', () => {
-    // Гейт документа — про выход с лекал; дальше материал уже в работе
+    // Гейт стоит на ВХОДЕ в крой; карточку, которая прошла его раньше,
+    // заново приехавшая закупка не запирает — работа физически идёт
     expect(devMoveIntent({ ...base, from: 'cutting', to: 'sewing', materialsPending: true }))
       .toEqual({ ok: true, to: 'sewing' });
   });
 
   it('у отказа есть текст', () => {
-    expect(DEV_MOVE_REFUSAL_TEXT.materials).toContain('Ожидаем материал');
+    expect(DEV_MOVE_REFUSAL_TEXT.materials).toContain('Ожидает материалы');
+  });
+});
+
+/**
+ * ПЕРЕСКОК ОБЯЗАТЕЛЬНОГО ШАГА (правка заказчика 01.09, п. 2).
+ *
+ * «Свободное ручное движение оставляем, но система должна блокировать попытку
+ * перескочить обязательный этап»: с лекал нельзя сразу в нанесения, из кроя
+ * при заказанных нанесениях — сразу в пошив, из нанесений — в финальный этап
+ * мимо пошива.
+ */
+describe('devMoveIntent — последовательность этапов', () => {
+  const base = { canManage: true, outcome: null, materialsPending: false };
+
+  it('с лекал сразу в нанесения нельзя — сначала крой', () => {
+    expect(devMoveIntent({ ...base, from: 'patterns', to: 'branding', hasBranding: true }))
+      .toEqual({ ok: false, reason: 'sequence', expected: 'cutting' });
+  });
+
+  it('нанесения в заказе есть — из кроя сразу в пошив нельзя', () => {
+    expect(devMoveIntent({ ...base, from: 'cutting', to: 'sewing', hasBranding: true }))
+      .toEqual({ ok: false, reason: 'sequence', expected: 'branding' });
+  });
+
+  it('нанесений в заказе нет — крой ведёт прямо в пошив', () => {
+    // Тот самый «пропуск нанесений» из документа 24.08: шаг не пропускают,
+    // его нет в пути этой разработки
+    expect(devMoveIntent({ ...base, from: 'cutting', to: 'sewing', hasBranding: false }))
+      .toEqual({ ok: true, to: 'sewing' });
+  });
+
+  it('из нанесений в финальный этап мимо пошива нельзя', () => {
+    expect(devMoveIntent({ ...base, from: 'branding', to: 'final', hasBranding: true }))
+      .toEqual({ ok: false, reason: 'sequence', expected: 'sewing' });
+  });
+
+  it('шаг за шагом — проходит весь путь', () => {
+    const steps = [
+      ['patterns', 'materials', true],
+      ['materials', 'cutting', false],
+      ['cutting', 'branding', false],
+      ['branding', 'sewing', false],
+      ['sewing', 'final', false],
+    ] as const;
+    for (const [from, to, pending] of steps) {
+      expect(devMoveIntent({
+        ...base, from, to, materialsPending: pending, hasBranding: true,
+      }), `${from} → ${to}`).toEqual({ ok: true, to });
+    }
+  });
+
+  it('отказ НАЗЫВАЕТ пропущенный шаг', () => {
+    // «Через этап перескочить нельзя» без имени не говорит, что делать
+    const refusal = devMoveIntent({
+      ...base, from: 'cutting', to: 'sewing', hasBranding: true,
+    });
+    expect(devMoveRefusalText(refusal)).toContain('Нанесения');
+    expect(devMoveRefusalText({ ok: true, to: 'sewing' })).toBeNull();
+  });
+});
+
+describe('devStagePath — путь конкретной разработки', () => {
+  it('стоянка стоит в пути, только пока есть чего ждать', () => {
+    expect(devStagePath({ materialsPending: true, hasBranding: true }))
+      .toEqual(['patterns', 'materials', 'cutting', 'branding', 'sewing', 'final']);
+    expect(devStagePath({ materialsPending: false, hasBranding: true }))
+      .toEqual(['patterns', 'cutting', 'branding', 'sewing', 'final']);
+  });
+
+  it('нанесения — по потребности заказа', () => {
+    expect(devStagePath({ hasBranding: false }))
+      .toEqual(['patterns', 'cutting', 'sewing', 'final']);
   });
 });
 
@@ -179,12 +297,25 @@ describe('devMovePrompt', () => {
     expect(p?.label).toBe('Техническое название лекал');
   });
 
+  /**
+   * Правка 01.09, п. 1: «технолог двигает карточку с Построения лекал. Система
+   * просит техническое название лекал». У заказа с незавершённой закупкой
+   * карточка уходит в «Ожидает материалы», и привязка вопроса к одному «Крою»
+   * пропускала бы его у большинства разработок.
+   */
+  it('уход в «Ожидает материалы» спрашивает то же самое', () => {
+    expect(devMovePrompt('patterns', 'materials', { pattern_tech_name: null })?.field)
+      .toBe('pattern_tech_name');
+  });
+
   it('название уже записано — повторно не спрашиваем', () => {
     expect(devMovePrompt('patterns', 'cutting', { pattern_tech_name: 'PNHD-v1' })).toBeNull();
+    expect(devMovePrompt('patterns', 'materials', { pattern_tech_name: 'PNHD-v1' })).toBeNull();
   });
 
   it('остальные переходы ничего не спрашивают', () => {
     expect(devMovePrompt('cutting', 'sewing', { pattern_tech_name: null })).toBeNull();
-    expect(devMovePrompt('patterns', 'sewing', { pattern_tech_name: null })).toBeNull();
+    // Возврат назад — не завершение работы, спрашивать нечего
+    expect(devMovePrompt('materials', 'patterns', { pattern_tech_name: null })).toBeNull();
   });
 });

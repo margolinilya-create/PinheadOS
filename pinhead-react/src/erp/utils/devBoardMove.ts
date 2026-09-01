@@ -20,8 +20,13 @@ export type DevMoveRefusal =
   | 'forbidden'
   /** Бросили туда же, откуда взяли */
   | 'same'
-  /** Закупка не завершена — с лекал дальше нельзя (правка 30.08, п. 1) */
-  | 'materials';
+  /**
+   * Закупка не завершена: дальше «Ожидает материалы» карточка не идёт
+   * (правка 30.08, п. 1; переформулирована правкой 01.09, п. 1)
+   */
+  | 'materials'
+  /** Через обязательный шаг перескочить нельзя (правка 01.09, п. 2) */
+  | 'sequence';
 
 export interface DevMoveInput {
   from: DevStage;
@@ -31,17 +36,25 @@ export interface DevMoveInput {
   /** `experimental.manage` у текущего человека */
   canManage: boolean;
   /**
-   * Материалы позиции не приехали (тот же расчёт, что у гейта кроя —
-   * `cuttingGate(...).wait` про материалы). Считается ВНЕ функции, чтобы
-   * правило «материал годен» осталось одним на весь раздел, а не появилось
-   * второй копией здесь.
+   * Материалы позиции не приехали ИЛИ закупка заказа ещё не закрыта — тот же
+   * расчёт, что у гейта кроя (`cuttingGate(...).open === false`). Считается
+   * ВНЕ функции, чтобы правило «материал годен» осталось одним на весь раздел,
+   * а не появилось второй копией здесь.
    */
   materialsPending?: boolean;
+  /**
+   * В позиции заказа указаны нанесения. Тогда «Нанесения» — обязательный шаг,
+   * и из «Кроя» сразу в «Пошив» нельзя (правка 01.09, п. 2). Признак берётся
+   * из `prints` позиции (`devBrandingFromPrints`) — там же, откуда виды
+   * нанесений берёт сам вход в колонку.
+   */
+  hasBranding?: boolean;
 }
 
 export type DevMoveResult =
   | { ok: true; to: DevStage }
-  | { ok: false; reason: DevMoveRefusal };
+  /** `expected` — шаг, который обязан быть следующим; есть только у `sequence` */
+  | { ok: false; reason: DevMoveRefusal; expected?: DevStage };
 
 /**
  * Порядок проверок — от самого общего запрета к частному, чтобы отказ называл
@@ -53,26 +66,90 @@ export function devMoveIntent(input: DevMoveInput): DevMoveResult {
   if (outcome) return { ok: false, reason: 'closed' };
   if (!isStage(to)) return { ok: false, reason: 'same' };
   if (to === from) return { ok: false, reason: 'same' };
+  if (!isForward(from, to)) {
+    /**
+     * НАЗАД ДВИГАТЬ МОЖНО ВСЕГДА: человек, ошибшийся колонкой, обязан иметь
+     * возможность откатиться. Документ 01.09 запрещает перескакивать вперёд
+     * («нельзя пойти дальше, когда для этого ещё не выполнены обязательные
+     * условия»), про возврат он не говорит ничего, а запрет на возврат
+     * означал бы, что промах пальцем исправляет администратор.
+     */
+    return { ok: true, to };
+  }
   /**
-   * ЗАКУПКА ДЕРЖИТ ВЫХОД С ЛЕКАЛ (правка заказчика 30.08, п. 1).
+   * ЗАКУПКА ДЕРЖИТ ВХОД В КРОЙ (правка 30.08, п. 1 → правка 01.09, п. 1).
    *
-   * Блокируется именно ВЫХОД, а не сам этап: документ прямо требует, чтобы
-   * построение лекал шло ПАРАЛЛЕЛЬНО закупке — это «текущая правильная
-   * логика, её нужно сохранить». Запрет на вход в `patterns` сломал бы
-   * ровно то, что просили не трогать.
+   * До 01.09 держался ВЫХОД С ЛЕКАЛ: карточка стояла в «Построении лекал»
+   * вместе с уже сделанной работой. Теперь у ожидания своя колонка, и запрет
+   * сместился ровно на шаг — «Ожидает материалы» стал единственным
+   * разрешённым ходом вперёд, а всё, что за ним, закрыто до приёмки. Само
+   * построение лекал по-прежнему идёт ПАРАЛЛЕЛЬНО закупке: это «текущая
+   * правильная логика, её нужно сохранить».
    *
-   * Назад двигать можно всегда: человек, ошибшийся колонкой, обязан иметь
-   * возможность откатиться, а материалов это не касается.
+   * Гейт стоит на ВХОДЕ в крой, поэтому карточку, которая уже прошла его
+   * раньше, он не держит: заново приехавшая закупка (доработка, замена ткани)
+   * не должна запирать работу, которая физически идёт.
    */
-  if (from === 'patterns' && materialsPending && isForward(from, to)) {
+  if (materialsPending
+    && stageIndex(from) < stageIndex('cutting')
+    && stageIndex(to) >= stageIndex('cutting')) {
     return { ok: false, reason: 'materials' };
   }
+  /**
+   * ПЕРЕСКОК ОБЯЗАТЕЛЬНОГО ШАГА (правка 01.09, п. 2). Вперёд — только
+   * на следующий ПРИМЕНИМЫЙ шаг: «с Построения лекал нельзя сразу перенести
+   * карточку в Нанесения», «если в заказе есть нанесения, из Кроя нельзя
+   * сразу перейти в Пошив», «из Нанесений нельзя перейти сразу в Финальный
+   * этап, минуя Пошив».
+   *
+   * Неприменимый шаг из пути выпадает, поэтому «пропуск нанесений» у образца
+   * без печати работает по-прежнему и по-прежнему без единой строки особого
+   * кода — он просто не стоит на пути.
+   */
+  const expected = nextStage(from, devStagePath(input));
+  if (expected && to !== expected) return { ok: false, reason: 'sequence', expected };
   return { ok: true, to };
+}
+
+/**
+ * ПУТЬ КОНКРЕТНОЙ РАЗРАБОТКИ — применимые шаги в порядке прохождения.
+ *
+ * Одна функция отвечает и на «куда можно шагнуть» (`devMoveIntent`), и на «что
+ * предлагают кнопки ‹ ›» (`neighbourStage`). Два перечисления разошлись бы,
+ * и клавиатура повела бы себя иначе, чем мышь, — а правило проекта требует
+ * от клавиатурной альтернативы ровно того же, что делает перетаскивание.
+ */
+export function devStagePath(input: {
+  hasBranding?: boolean;
+  materialsPending?: boolean;
+}): DevStage[] {
+  return DEV_STAGE_ORDER.filter((s) => {
+    // Стоянка нужна, только пока есть чего ждать
+    if (s === 'materials') return input.materialsPending === true;
+    // Нанесения — по потребности заказа, а не по факту заведённых задач
+    if (s === 'branding') return input.hasBranding === true;
+    return true;
+  });
+}
+
+/** Следующий применимый шаг после `from`; `null` — дальше некуда */
+function nextStage(from: DevStage, path: readonly DevStage[]): DevStage | null {
+  /**
+   * Считаем ПО ИНДЕКСУ В ОБЩЕМ ПОРЯДКЕ, а не `path.indexOf(from)`: карточка
+   * стоит и на шаге, который в пути уже неприменим, — например в «Ожидает
+   * материалы» после того, как материал приняли. Поиск по пути дал бы там
+   * −1 и предложил бы первый шаг доски.
+   */
+  return path.find((s) => stageIndex(s) > stageIndex(from)) ?? null;
+}
+
+function stageIndex(stage: DevStage): number {
+  return DEV_STAGE_ORDER.indexOf(stage);
 }
 
 /** Вперёд ли по маршруту разработки */
 function isForward(from: DevStage, to: DevStage): boolean {
-  return DEV_STAGE_ORDER.indexOf(to) > DEV_STAGE_ORDER.indexOf(from);
+  return stageIndex(to) > stageIndex(from);
 }
 
 function isStage(value: unknown): value is DevStage {
@@ -87,11 +164,21 @@ function isStage(value: unknown): value is DevStage {
  * задевает соседние колонки при прокрутке. Возврат `null` на краю списка
  * означает «дальше некуда» — кнопку в этот момент гасят, а не показывают
  * действие, которое ничего не делает.
+ *
+ * СОСЕД БЕРЁТСЯ ИЗ ПУТИ РАЗРАБОТКИ, а не из общего порядка (правка 01.09).
+ * Этим же снято прежнее ограничение «клавиатурой нельзя перешагнуть»:
+ * у заказа без нанесений «›» из «Кроя» ведёт прямо в «Пошив», потому что шаг
+ * неприменим — а не потому, что его разрешили пропустить.
  */
-export function neighbourStage(stage: DevStage, dir: -1 | 1): DevStage | null {
-  const i = DEV_STAGE_ORDER.indexOf(stage);
-  const next = DEV_STAGE_ORDER[i + dir];
-  return next ?? null;
+export function neighbourStage(
+  stage: DevStage,
+  dir: -1 | 1,
+  ctx: { hasBranding?: boolean; materialsPending?: boolean } = {},
+): DevStage | null {
+  const path = devStagePath(ctx);
+  const forward = path.filter((s) => stageIndex(s) > stageIndex(stage));
+  const back = path.filter((s) => stageIndex(s) < stageIndex(stage));
+  return (dir === 1 ? forward[0] : back[back.length - 1]) ?? null;
 }
 
 /** Подпись действия переноса — для `aria-label` и подтверждений */
@@ -135,7 +222,15 @@ export function devMovePrompt(
   to: DevStage,
   dev: { pattern_tech_name?: string | null },
 ): DevMovePrompt | null {
-  if (from !== 'patterns' || to !== 'cutting') return null;
+  /**
+   * Спрашиваем на ЛЮБОМ ходе вперёд с лекал (правка 01.09, п. 1): «технолог
+   * вручную двигает карточку дальше. При этом система запрашивает техническое
+   * название лекал». Куда именно она поедет — в «Ожидает материалы» или сразу
+   * в «Крой» — решает закупка, а работа на шаге в обоих случаях закончена.
+   * Привязка вопроса к одному «Крою» пропускала бы его у каждого заказа
+   * с незавершённой закупкой, то есть у большинства.
+   */
+  if (from !== 'patterns' || !isForward(from, to)) return null;
   if (dev.pattern_tech_name) return null;
   return {
     field: 'pattern_tech_name',
@@ -154,6 +249,19 @@ export const DEV_MOVE_REFUSAL_TEXT: Record<DevMoveRefusal, string> = {
   closed: 'Разработка закрыта — её колонка определяется исходом.',
   forbidden: 'Нужно право «Разработка образцов», чтобы двигать карточки.',
   same: 'Карточка уже в этой колонке.',
-  materials: 'Ожидаем материал: закупка ещё не завершена. '
-    + 'Лекала можно строить параллельно, а дальше карточка пойдёт после приёмки складом.',
+  materials: 'Закупка ещё не завершена или материал не принят складом. '
+    + 'Карточка может стоять в «Ожидает материалы»; в «Крой» она пойдёт после приёмки.',
+  sequence: 'Через этап перескочить нельзя.',
 };
+
+/**
+ * Текст отказа. Отдельная функция, а не одна таблица, потому что отказ
+ * `sequence` обязан НАЗЫВАТЬ пропущенный шаг: «нельзя перескочить» без имени
+ * не говорит человеку, что делать, а `Record<…, string>` имени не знает.
+ */
+export function devMoveRefusalText(result: DevMoveResult): string | null {
+  if (result.ok) return null;
+  const base = DEV_MOVE_REFUSAL_TEXT[result.reason];
+  if (result.reason !== 'sequence' || !result.expected) return base;
+  return `${base} Следующий шаг — «${DEV_STAGE_LABELS[result.expected]}».`;
+}

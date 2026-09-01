@@ -111,6 +111,32 @@ describe('гейт кроя: лекала И материал', () => {
     });
     expect(g.open).toBe(true);
   });
+
+  /**
+   * Условий в документе 01.09 ДВА: «закупка завершена И материал получен».
+   * Разойтись они могут в обе стороны — у заказа бывает открытый этап закупки
+   * при нуле строк материалов, и закрытая закупка при непринятом материале.
+   */
+  it('открытый этап закупки держит крой сам по себе', () => {
+    const g = cuttingGate({
+      patternsDone: true, itemId: 'i1', materials: [], supplyOpen: true,
+    });
+    expect(g.open).toBe(false);
+    expect(g.wait).toBe('materials');
+    // Перечислять нечего — отказ обязан назвать закупку, иначе он ни о чём
+    expect(cuttingWaitLabel(g.wait, g.missing, true))
+      .toBe('Ожидает закупку: она ещё не завершена');
+  });
+
+  it('закупка закрыта и материал принят — крой открыт', () => {
+    const g = cuttingGate({
+      patternsDone: true,
+      itemId: 'i1',
+      materials: [material({ status: 'received', accept_status: 'accepted_full' })],
+      supplyOpen: false,
+    });
+    expect(g.open).toBe(true);
+  });
 });
 
 describe('состояния шагов', () => {
@@ -229,7 +255,95 @@ describe('колонка разработки', () => {
   });
 
   it('порядок колонок — из документа', () => {
-    expect(DEV_STAGE_ORDER).toEqual(['patterns', 'cutting', 'branding', 'sewing', 'final']);
+    // «Ожидает материалы» между лекалами и кроем — правка 01.09, п. 1
+    expect(DEV_STAGE_ORDER).toEqual(
+      ['patterns', 'materials', 'cutting', 'branding', 'sewing', 'final']);
+  });
+});
+
+/**
+ * ШАГ «ОЖИДАЕТ МАТЕРИАЛЫ» (правка заказчика 01.09, п. 1).
+ *
+ * «Если по заказу есть закупка и материал ещё не получен, система должна
+ * разрешить перенести карточку только в „Ожидает материалы"… Если материал уже
+ * получен, доступен со склада или закупка вообще не требуется, карточку можно
+ * сразу переносить в Крой».
+ */
+describe('шаг «Ожидает материалы»', () => {
+  const accepted = material({ status: 'received', accept_status: 'accepted_full' });
+
+  it('материал держат — шаг ждёт и называет причину', () => {
+    const states = devStageStates({ dev: dev(), tasks: [], materials: [material()] });
+    expect(laneOf(states, 'materials')).toBe('awaiting_materials');
+    expect(states.find((s) => s.stage === 'materials')!.waitingReason)
+      .toContain('Ожидает материалы');
+  });
+
+  it('закупка заказа не закрыта — держит и она, даже без строк материалов', () => {
+    // На проде есть активные заказы с открытым этапом закупки и НУЛЁМ строк
+    // материалов: условий в документе два, и они расходятся в обе стороны
+    const states = devStageStates({
+      dev: dev(), tasks: [], materials: [], supplyOpen: true,
+    });
+    expect(laneOf(states, 'materials')).toBe('awaiting_materials');
+    expect(states.find((s) => s.stage === 'materials')!.waitingReason)
+      .toBe('Ожидает закупку: она ещё не завершена');
+  });
+
+  it('материал приехал — стоянка кончилась, карточку пора двигать', () => {
+    const states = devStageStates({
+      dev: dev({ board_stage: 'materials' }), tasks: [], materials: [accepted],
+    });
+    expect(laneOf(states, 'materials')).toBe('ready');
+  });
+
+  it('ждать нечего — шаг НЕ ТРЕБОВАЛСЯ, а не пропущен', () => {
+    // Заказ без закупки идёт «Лекала → Крой» напрямую: документ разрешает
+    // это прямым текстом, и слово «пропущено» тут читалось бы как «не сделали»
+    const states = devStageStates({
+      dev: dev(), tasks: [], materials: [accepted],
+    });
+    expect(laneOf(states, 'materials')).toBe('skipped');
+  });
+
+  it('шаг, пройденный руками, завершён — даже если материал снова ждут', () => {
+    const states = devStageStates({
+      dev: dev({ board_stage: 'cutting' }), tasks: [], materials: [material()],
+    });
+    expect(laneOf(states, 'materials')).toBe('done');
+  });
+
+  it('работа на следующих шагах стоянку пропущенной НЕ делает', () => {
+    // Ловушка `workLater`: задач у стоянки не бывает никогда, и общий разбор
+    // объявил бы её перепрыгнутой — хотя перепрыгивать там нечего
+    const states = devStageStates({
+      dev: dev({ board_stage: 'materials' }),
+      tasks: [task({ id: 's', task_type: 'sample', status: 'in_progress', sort_order: 40 })],
+      materials: [material()],
+    });
+    expect(laneOf(states, 'materials')).toBe('awaiting_materials');
+  });
+});
+
+/**
+ * Нанесения обязательны, если они указаны в ЗАКАЗЕ (правка 01.09, п. 2).
+ * До правки применимость шага считалась по задачам, а задачи заводятся только
+ * при входе в колонку: до входа шаг числился пропущенным, и запрет «из Кроя
+ * нельзя сразу в Пошив» опереть было не на что.
+ */
+describe('применимость шага «Нанесения»', () => {
+  it('нанесения заказаны — шаг ждёт своей очереди, а не пропущен', () => {
+    const states = devStageStates({
+      dev: dev({ board_stage: 'cutting' }), tasks: [], hasBranding: true,
+    });
+    expect(laneOf(states, 'branding')).not.toBe('skipped');
+  });
+
+  it('нанесений в заказе нет — шаг по-прежнему «не требуется»', () => {
+    const states = devStageStates({
+      dev: dev({ board_stage: 'cutting' }), tasks: [], hasBranding: false,
+    });
+    expect(laneOf(states, 'branding')).toBe('skipped');
   });
 });
 
