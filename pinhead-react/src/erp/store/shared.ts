@@ -237,3 +237,27 @@ export const FULL_RELOAD_DEBOUNCE_MS = 500;
 export function arrivedLate(loadedBefore: boolean, loadedNow: boolean): boolean {
   return !loadedBefore && loadedNow;
 }
+
+/**
+ * Состав участков окончателен — список можно рисовать, место под него
+ * резервировать больше не нужно.
+ *
+ * Один вопрос, три потребителя: сайдбар оболочки, вкладки очереди цеха
+ * и производственный план. До этой функции каждый отвечал на него своим
+ * выражением, и все три ошибались одинаково — путали «данные есть»
+ * с «ответ пришёл».
+ *
+ * ОБЕ половины обязательны, и каждая закрывает свой отказ:
+ *  · `departments.length` — у справочника ДВА писателя (`loadBootstrap`
+ *    и запрос цехов внутри `loadAll`, если их ещё нет). По одному
+ *    `bootstrapLoaded` заглушка висела бы поверх уже приехавшего списка;
+ *  · `bootstrapLoaded` — при отказе RPC слайс ставит флаг с ПУСТЫМИ
+ *    цехами (`bootstrapSlice`: ветка ошибки). По одной длине массива
+ *    заглушка осталась бы навсегда: фантомная пустота вместо меню.
+ */
+export function deptsSettled(
+  departments: readonly unknown[],
+  bootstrapLoaded: boolean,
+): boolean {
+  return departments.length > 0 || bootstrapLoaded;
+}

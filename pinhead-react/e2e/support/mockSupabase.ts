@@ -498,6 +498,21 @@ export type MockExtras = {
    */
   employees?: unknown[];
   profiles?: unknown[];
+  /**
+   * Задержать СОСТАВ УЧАСТКОВ до тех пор, пока спека сама его не отпустит.
+   *
+   * Нужен сторожу раскладки (`erp-cls.spec.ts`): чтобы доказать, что место под
+   * список цехов зарезервировано, надо снять геометрию В СОСТОЯНИИ «данные ещё
+   * не приехали». Задержкой в миллисекундах это не делается — остаётся окно,
+   * в котором пакет успевает ответить до замера, и сторож ЗЕЛЕНЕЕТ НА СЛОМАННОМ
+   * КОДЕ, то есть перестаёт быть сторожем.
+   *
+   * Держит не эндпойнт, а величину: у `departments` ДВА писателя — пакет
+   * оболочки `erp_bootstrap` и отдельная выборка `erp_departments` внутри
+   * `loadAll` (ordersSlice: запрашивает цеха, если их ещё нет). Гейт на одном
+   * RPC состояния «до» не создал бы вовсе — цеха приехали бы вторым путём.
+   */
+  deptsGate?: Promise<void>;
 };
 
 type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
@@ -679,7 +694,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
    * забывается при следующей правке), а отсутствием перекрытия: ветка одна,
    * и выбирает она по пути запроса.
    */
-  await page.route('**/rest/v1/**', (route: Route) => {
+  await page.route('**/rest/v1/**', async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.split('/rest/v1/')[1] ?? '';
 
@@ -687,6 +702,8 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
       const fn = path.slice(4).split('?')[0];
       let payload: Record<string, unknown> = {};
       try { payload = JSON.parse(route.request().postData() ?? '{}'); } catch { /* без тела */ }
+      // Оба писателя состава участков ждут гейт — см. `deptsGate` в MockExtras
+      if (fn === 'erp_bootstrap' && extra.deptsGate) await extra.deptsGate;
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -695,6 +712,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
     }
 
     const table = path.split('?')[0];
+    if (table === 'erp_departments' && extra.deptsGate) await extra.deptsGate;
     const accept = route.request().headers()['accept'] ?? '';
     const single = accept.includes('vnd.pgrst.object');
     const data = dataForTable(table, url.searchParams, extra);

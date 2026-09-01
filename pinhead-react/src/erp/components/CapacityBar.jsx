@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Skeleton } from '../../components/shared/Skeleton';
 import { percentLabel } from '../utils/format';
 import styles from '../erp.module.css';
 
@@ -12,7 +13,7 @@ import styles from '../erp.module.css';
  * пишется как 130 %, а перебор выносится отдельным числом в штуках. Заклампить
  * подпись значило бы спрятать ровно тот случай, ради которого показатель завели.
  */
-export function CapacityBar({ report, periodLabel, hint }) {
+export function CapacityBar({ report, periodLabel, hint, loading = false }) {
   const notSet = report.capacity === null;
   const fill = notSet ? 0 : Math.min(100, report.percent ?? 0);
 
@@ -35,10 +36,18 @@ export function CapacityBar({ report, periodLabel, hint }) {
         )}
       </div>
 
+      {/*
+        Пока настройки не приехали, на месте трека стоит заглушка ЕГО высоты:
+        «мощность загружается» и «мощность не задана» давали одинаковый нуль,
+        и появление полосы сдвигало вниз всю страницу под собой. Величина мала,
+        зато под ней едет весь экран.
+      */}
+      {loading && <Skeleton height={8} radius={4} style={{ margin: '8px 0 6px' }} />}
+
       {/* Полосы нет, пока мощность не задана: пустой трек читается как «загрузка
           ноль», а на деле знаменатель неизвестен — то же правило, по которому
           `percentOf` отдаёт null, а не 100 */}
-      {!notSet && (
+      {!loading && !notSet && (
         <div className={styles.capacityTrack}>
           <span
             className={`${styles.capacityFill} ${report.over > 0 ? styles.capacityFillOver : ''}`}

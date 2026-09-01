@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Icon } from '../components/Icon';
+import { Skeleton } from '../../components/shared/Skeleton';
 import styles from '../erp.module.css';
 import { useErpAccess } from '../store/useErpAccess';
 import { canOpenScreen } from '../utils/screenAccess';
@@ -84,7 +85,7 @@ function NavItem({ item, count, collapsed }) {
 
 export function Sidebar({
   isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse,
-  open = false, onNavigate,
+  open = false, onNavigate, reserveRows = 0,
 }) {
   // Тот же источник, что у маршрутов: пункт, ведущий в отказ, — хуже отсутствия
   const { can } = useErpAccess();
@@ -116,18 +117,35 @@ export function Sidebar({
               {items.map((n) => (
                 <NavItem key={n.to} item={n} count={counts[n.to] || 0} collapsed={collapsed} />
               ))}
-              {/* Цеха — сразу под «Главным»: постоянный список участков с числом заданий */}
-              {g.title === 'Главное' && deptItems.length > 0 && (
+              {/* Цеха — сразу под «Главным»: постоянный список участков с числом заданий.
+                  Пока состав участков не приехал, место под группу РЕЗЕРВИРУЕТСЯ: раньше
+                  она отсутствовала и вставлялась целиком, сдвигая «Операции» и «Настройки»
+                  на ≈315px вниз — пункт уходил из-под пальца уже после появления экрана. */}
+              {g.title === 'Главное' && (deptItems.length > 0 || reserveRows > 0) && (
                 <>
                   <div className={styles.navGroup}>Цеха</div>
-                  {deptItems.map((d) => (
-                    <NavItem
-                      key={d.to}
-                      item={{ to: d.to, label: d.label, icon: d.icon }}
-                      count={d.count}
-                      collapsed={collapsed}
-                    />
-                  ))}
+                  {deptItems.length > 0
+                    ? deptItems.map((d) => (
+                      <NavItem
+                        key={d.to}
+                        item={{ to: d.to, label: d.label, icon: d.icon }}
+                        count={d.count}
+                        collapsed={collapsed}
+                      />
+                    ))
+                    /* Заглушки — <div aria-hidden>, а не ссылки: спеки доступности считают
+                       ссылки в nav, и фантомная ссылка была бы враньём для скринридера.
+                       Класс тот же, что у строки (composes), поэтому переопределение
+                       высоты под (pointer: coarse) применяется к заглушке само —
+                       захардкоженные 38px промахнулись бы ровно на планшете. */
+                    : Array.from({ length: reserveRows }).map((_, i) => (
+                      <div key={i} className={styles.navLinkGhost} aria-hidden="true">
+                        <span className={styles.navIcon}>
+                          <Skeleton width={19} height={19} radius={4} />
+                        </span>
+                        <Skeleton width="55%" height={11} />
+                      </div>
+                    ))}
                 </>
               )}
             </div>

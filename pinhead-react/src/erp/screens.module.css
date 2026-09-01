@@ -160,6 +160,13 @@
   background: var(--card);
 }
 .deptTabs::-webkit-scrollbar { display: none; }
+/* Ряд вкладок держит высоту ДО приезда состава участков: пустой flex-контейнер
+   схлопывался до 2px рамок, и приезд цехов поднимал его до 48px, увозя вниз всё
+   содержимое экрана. Псевдоэлемент нулевой ширины растягивает строку и в
+   заполненном состоянии не делает ничего. min-height на самом .deptTabs
+   не годится: box-sizing глобально border-box, 46px включили бы рамки
+   и остался бы сдвиг ровно на 2px. */
+.deptTabs::before { content: ''; flex: 0 0 0; min-height: var(--dept-tab-h); }
 /* Обёртка вкладок: градиенты-подсказки, что справа/слева есть скрытые вкладки */
 .deptTabsWrap { position: relative; margin: 0 0 18px; }
 .deptTabsWrap .deptTabs { margin: 0; }

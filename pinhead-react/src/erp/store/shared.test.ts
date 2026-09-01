@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { erpQuery, erpRead, networkFailureMessage } from './shared';
+import { deptsSettled, erpQuery, erpRead, networkFailureMessage } from './shared';
 
 /**
  * Сбой ДО ответа сервера.
@@ -105,5 +105,26 @@ describe('erpRead — повтор только сети и только чте�
     });
     expect(calls).toBe(2);
     expect(res.error?.message).toBe('нет связи с сервером');
+  });
+});
+
+/**
+ * Резерв места под состав участков снимается по ОТВЕТУ, а не по данным.
+ *
+ * Обе половины предиката закрывают свой отказ, и обе обязаны быть покрыты —
+ * иначе следующая правка выкинет одну как лишнюю, и вернётся либо заглушка
+ * поверх приехавшего меню, либо фантомная пустота навсегда.
+ */
+describe('deptsSettled — когда место под участки резервировать уже не нужно', () => {
+  it('пусто и ответа не было — состав не окончателен, место резервируем', () => {
+    expect(deptsSettled([], false)).toBe(false);
+  });
+
+  it('цеха принёс второй писатель (loadAll) — резерв снимается, даже если пакет ещё в пути', () => {
+    expect(deptsSettled([{ id: 'dep-cutting' }], false)).toBe(true);
+  });
+
+  it('пакет ОТВЕТИЛ ошибкой — цехов нет, но резерв снимается: иначе заглушка навсегда', () => {
+    expect(deptsSettled([], true)).toBe(true);
   });
 });
