@@ -41,7 +41,8 @@ export const ORDER_SELECT = `
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
   tz_documents:erp_tz_documents (*),
-  notes_list:erp_order_notes (*)
+  notes_list:erp_order_notes (*),
+  developments:erp_experimental!erp_experimental_order_id_fkey (id, item_id, outcome, handed_to_warehouse_at)
 `;
 
 /**
@@ -83,6 +84,12 @@ export const ORDER_SELECT = `
  *
  * Комментариев ВНУТРИ строки выборки быть не может: это текст запроса
  * PostgREST, а не код (и обратный апостроф в нём закрывает шаблонную строку).
+ *
+ * `developments` (правки 02.09, п. 2) — четыре колонки разработки образца.
+ * Их читает гейт отгрузки `isOrderReadyToShip`: у образца в маршруте остаётся
+ * одна закупка, и без них заказ объявлялся бы готовым к отгрузке в начале
+ * разработки. Связь названа ЯВНО (`!erp_experimental_order_id_fkey`) —
+ * у таблицы два внешних ключа, на заказ и на позицию.
  */
 export const ORDER_LIST_SELECT = `
   *,
@@ -108,7 +115,8 @@ export const ORDER_LIST_SELECT = `
   warehouse_ops:erp_warehouse_ops (*),
   warehouse_tasks:erp_warehouse_tasks (*),
   tz_documents:erp_tz_documents (*),
-  notes_list:erp_order_notes (*)
+  notes_list:erp_order_notes (*),
+  developments:erp_experimental!erp_experimental_order_id_fkey (id, item_id, outcome, handed_to_warehouse_at)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */
@@ -126,6 +134,7 @@ export function sortOrderFull(o: ErpOrderFull): ErpOrderFull {
     warehouse_ops: o.warehouse_ops ?? [],
     warehouse_tasks: o.warehouse_tasks ?? [],
     tz_documents: o.tz_documents ?? [],
+    developments: o.developments ?? [],
   };
 }
 

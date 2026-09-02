@@ -721,6 +721,7 @@ function RouteBlock({ it, i, setItem, route, attach }) {
           draft={route}
           onChange={(next) => setItem(i, { route: next })}
           renderStageFiles={stageFiles}
+          productionType={it.production_type}
         />
         <RouteIssues issues={issues} />
         {!hasOutsource && (

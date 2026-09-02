@@ -124,14 +124,33 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       ...(constructorName !== undefined ? { constructor: constructorName } : {}),
     };
 
+    /**
+     * Правка кладётся В ДВА МЕСТА, и это осознанно: `s.experimental` —
+     * список разработок для доски ЭКС, `order.developments` — эмбед, по
+     * которому судит гейт отгрузки (`utils/stageUi.openDevelopments`).
+     * Realtime обновит второй тоже, но своя вкладка не должна ждать событие
+     * с сервера, чтобы увидеть результат собственного нажатия: после
+     * «Завершить разработку» кнопка отгрузки обязана появиться сразу.
+     */
+    const prevOrders = get().orders;
+    const patchOrders = (list: typeof prevOrders) => list.map((o) => (
+      (o.developments ?? []).some((d) => d.id === id)
+        ? {
+          ...o,
+          developments: (o.developments ?? []).map(
+            (d) => (d.id === id ? { ...d, ...row } : d)),
+        }
+        : o));
+
     set((s) => ({
       experimental: s.experimental.map(
         (e) => (e.id === id ? (Object.assign({}, e, row) as ErpExperimental) : e)),
+      orders: patchOrders(s.orders),
     }));
     const { error } = await erpQuery(() => supabase
       .from('erp_experimental').update(row).eq('id', id));
     if (error) {
-      set({ experimental: prev });
+      set({ experimental: prev, orders: prevOrders });
       erpError('Разработка не обновлена', error);
       return false;
     }

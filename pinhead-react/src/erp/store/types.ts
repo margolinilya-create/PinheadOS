@@ -122,6 +122,30 @@ export interface ErpOrderFull extends ErpOrder {
    * другим.
    */
   notes_list?: ErpOrderNote[];
+  /**
+   * Разработки образцов заказа (правки 02.09, п. 2).
+   *
+   * Нужны ГЕЙТУ ОТГРУЗКИ, а не экрану: у образца в маршруте остаётся одна
+   * закупка, и без этого поля `isOrderReadyToShip` объявил бы заказ готовым
+   * сразу после её закрытия — то есть в начале разработки. Приезжают эмбедом
+   * в обеих выборках заказа; поле, не попавшее в выборку, стало бы `undefined`
+   * молча, и гейт открылся бы там, ради чего он и заведён (сторожит
+   * `orderSelect.test.ts`).
+   */
+  developments?: OrderDevelopment[];
+}
+
+/**
+ * Разработка образца глазами заказа: ровно то, что нужно гейту отгрузки.
+ * Полный тип — `ErpExperimental` в `erp/types.ts`; тащить его целиком
+ * в списочную выборку значило бы возить полтора десятка колонок финального
+ * пакета по каждому заказу.
+ */
+export interface OrderDevelopment {
+  id: string;
+  item_id: string | null;
+  outcome: string | null;
+  handed_to_warehouse_at: string | null;
 }
 
 /**

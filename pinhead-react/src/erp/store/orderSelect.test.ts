@@ -60,6 +60,8 @@ describe('списочный запрос заказов', () => {
       'materials:erp_materials', 'attachments:erp_order_attachments',
       'procurement_tasks:erp_procurement_tasks', 'warehouse_ops:erp_warehouse_ops',
       'warehouse_tasks:erp_warehouse_tasks', 'tz_documents:erp_tz_documents',
+      // Правки 02.09, п. 2: гейт отгрузки судит о разработке образца
+      'developments:erp_experimental',
     ]) {
       expect(ORDER_LIST_SELECT, `в списочном нет ${rel}`).toContain(rel);
       expect(ORDER_SELECT, `в полном нет ${rel}`).toContain(rel);
@@ -78,6 +80,29 @@ describe('списочный запрос заказов', () => {
       'cycle', 'origin',
     ]) {
       expect(ORDER_LIST_SELECT, `колонка ${col} нужна списочным экранам`).toContain(col);
+    }
+  });
+
+  /**
+   * ЭМБЕД РАЗРАБОТОК — ГЕЙТ ОТГРУЗКИ, А НЕ УКРАШЕНИЕ (правки 02.09, п. 2).
+   *
+   * После п. 1 маршрут образца — одна закупка, и без этих колонок
+   * `isOrderReadyToShip` объявил бы заказ готовым к отгрузке в начале
+   * разработки. Поле, не попавшее в выборку, приезжает `undefined` МОЛЧА,
+   * а гейт написан fail-open — то есть открылся бы ровно там, ради чего
+   * заведён. На этом классе ошибок проект уже ловился с `executor`.
+   *
+   * Самый вероятный промах — забыть ОДИН из двух запросов: карточка заказа
+   * работала бы, а список молча пропускал гейт. Поэтому проверяются оба.
+   */
+  it('разработки берутся поимённо и с явной связью — в ОБОИХ запросах', () => {
+    for (const [name, sel] of [['списочный', ORDER_LIST_SELECT], ['полный', ORDER_SELECT]] as const) {
+      // Связь названа явно: у erp_experimental два внешних ключа — на заказ
+      // и на позицию, и голое имя таблицы оставило бы выбор PostgREST
+      expect(sel, name).toContain('developments:erp_experimental!erp_experimental_order_id_fkey');
+      // Поимённо: final_package — тяжёлый JSONB, а гейту нужен только исход
+      expect(sel, name).not.toMatch(/developments:erp_experimental[^(]*\(\*\)/);
+      expect(sel, name).toMatch(/developments:erp_experimental[^)]*outcome/);
     }
   });
 

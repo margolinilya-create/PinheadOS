@@ -27,6 +27,22 @@ const FG_ACCEPTED = withoutComments(
 const CAN_PACK = withoutComments(
   latestDefining('erp_can_pack_ship'),
 );
+/**
+ * Задачи готовой продукции переехали из `erp_warehouse_task_derive` в общую
+ * функцию (правки 02.09, п. 2): у них появился ВТОРОЙ повод завестись —
+ * закрытие разработки образца, — а derive висит на смене статуса ЭТАПА
+ * и такого события не видит. Проверки, стоявшие на `DERIVE`, переехали сюда
+ * вместе с кодом; у самого derive осталось утверждение «делегирует,
+ * а не повторяет».
+ */
+const FINISH = withoutComments(
+  functionBody(
+    latestDefining('erp_ensure_order_finish_tasks'), 'erp_ensure_order_finish_tasks',
+  ),
+);
+const GATE_RELEASE = withoutComments(
+  latestDefining('erp_dev_warehouse_gate_release'),
+);
 
 describe('гейт складской упаковки', () => {
   it('смотрит на фазу подряда (через общее условие)', () => {
@@ -40,7 +56,16 @@ describe('гейт складской упаковки', () => {
   });
 
   it('упаковка по-прежнему ждёт закрытия ВСЕХ этапов заказа', () => {
-    expect(DERIVE).toMatch(/s\.status not in \('done','skipped'\)/);
+    expect(FINISH).toMatch(/s\.status not in \('done','skipped'\)/);
+  });
+
+  it('derive ДЕЛЕГИРУЕТ задачи готовой продукции, а не повторяет их', () => {
+    // Копия условия у второго писателя разошлась бы молча: у каждого свой
+    // повод сработать, и заметить расхождение можно только на заказе,
+    // попавшем ровно в разницу
+    expect(DERIVE).toMatch(/erp_ensure_order_finish_tasks\(/);
+    expect(DERIVE).not.toMatch(/'fg_receipt'/);
+    expect(DERIVE).not.toMatch(/'pack_ship'/);
   });
 
   it('приёмка материалов и маркировка остались на своих триггерах', () => {
@@ -78,7 +103,7 @@ describe('приёмка ГП открывает упаковку', () => {
   it('спрашивает те же предусловия, что и основной триггер', () => {
     // Не «повторяет» — именно спрашивает: повтор и был причиной расхождения
     expect(FG_ACCEPTED).toMatch(/erp_can_pack_ship\(/);
-    expect(DERIVE).toMatch(/erp_can_pack_ship\(/);
+    expect(FINISH).toMatch(/erp_can_pack_ship\(/);
   });
 
   it('создаёт упаковку идемпотентно — и БЕЗ on conflict', () => {
@@ -107,7 +132,7 @@ describe('приёмка ГП открывает упаковку', () => {
  */
 describe('предусловия упаковки — одно выражение на всех', () => {
   it('оба триггера спрашивают общую функцию, а не свою копию', () => {
-    expect(DERIVE).toMatch(/erp_can_pack_ship\(/);
+    expect(FINISH).toMatch(/erp_can_pack_ship\(/);
     expect(FG_ACCEPTED).toMatch(/erp_can_pack_ship\(/);
   });
 
@@ -208,7 +233,7 @@ describe('стартовый статус упаковки — один на в�
   );
 
   it('оба серверных писателя заводят задачу «На упаковке»', () => {
-    for (const [name, body] of [['derive', DERIVE], ['fg_accepted', FG_ACCEPTED]] as const) {
+    for (const [name, body] of [['finish', FINISH], ['fg_accepted', FG_ACCEPTED]] as const) {
       const at = body.indexOf("'pack_ship'");
       expect(at, `${name}: писателя pack_ship нет вовсе`).toBeGreaterThan(-1);
       expect(body.slice(at, at + 40), name).toMatch(/'pack_ship',\s*'packing'/);
@@ -222,8 +247,70 @@ describe('стартовый статус упаковки — один на в�
   it('снятые статусы не вернулись ни к одному писателю', () => {
     // `awaiting_receipt` остаётся живым у subcontract_receipt — поэтому
     // проверяем его в СОСЕДСТВЕ с pack_ship, а не по всему тексту
-    for (const body of [DERIVE, FG_ACCEPTED, SLICE]) {
+    for (const body of [FINISH, FG_ACCEPTED, SLICE]) {
       expect(body).not.toMatch(/'pack_ship',\s*'(awaiting_receipt|accepted|packed)'/);
     }
+  });
+});
+
+
+/**
+ * СКЛАДСКАЯ ЦЕПОЧКА ОБРАЗЦА ЖДЁТ КНОПКУ «ЗАВЕРШИТЬ РАЗРАБОТКУ» (правки 02.09,
+ * п. 2).
+ *
+ * До правки триггер про разработку не знал вовсе: закрылся последний этап —
+ * завёл приёмку готовой продукции. На проде это видно дословно: заказ
+ * «Тест экс цех 2» стоял `done` с принятой приёмкой ГП и отгруженной упаковкой,
+ * а его разработка — в «Пошиве» с пустым исходом.
+ *
+ * ВТОРОЙ ПИСАТЕЛЬ ПРОВЕРЯЕТСЯ ОТДЕЛЬНО, и это главное здесь. Гейт снимается
+ * закрытием РАЗРАБОТКИ, а derive висит на смене статуса ЭТАПА — к этому моменту
+ * этапы закрыты, и событий от них больше не будет. Без триггера на
+ * `erp_experimental` разработка, закрытая любым исходом кроме «готово к серии»,
+ * оставила бы заказ без приёмки ГП НАВСЕГДА: гейт превратился бы из починки
+ * в тупик. Та же причина, по которой 10.08 завели `erp_warehouse_fg_accepted`.
+ */
+describe('складские задачи образца ждут закрытия разработки', () => {
+  it('задачи готовой продукции гейтятся общим предикатом', () => {
+    expect(FINISH).toMatch(/erp_order_has_open_dev\(/);
+  });
+
+  it('гейт — РАННИЙ ВЫХОД, то есть накрывает и приёмку ГП, и упаковку', () => {
+    const gate = FINISH.indexOf('erp_order_has_open_dev(');
+    const fg = FINISH.indexOf("'fg_receipt'");
+    const pack = FINISH.indexOf("'pack_ship'");
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(fg);
+    expect(gate).toBeLessThan(pack);
+  });
+
+  it('приёмка материалов и маркировка гейтом НЕ накрыты', () => {
+    // Приёмка закупленного идёт параллельно построению лекал — шаг 3
+    // эталонного маршрута образца; маркировка к разработке отношения не имеет
+    const supply = DERIVE.indexOf("v_code = 'supply'");
+    const done = DERIVE.indexOf("if new.status = 'done' then");
+    expect(supply).toBeGreaterThan(-1);
+    expect(supply).toBeLessThan(done);
+    expect(DERIVE).not.toMatch(/erp_order_has_open_dev/);
+  });
+
+  it('маркировка не заводится позиции-образцу', () => {
+    expect(DERIVE).toMatch(/v_prod_type is distinct from 'samples'/);
+  });
+
+  it('второй писатель существует, ловит ЛЮБОЙ исход и висит AFTER', () => {
+    expect(GATE_RELEASE).toMatch(/erp_ensure_order_finish_tasks\(/);
+    // Любой исход, а не только «готово к серии»: иначе «Отменено» запирает заказ
+    expect(GATE_RELEASE).toMatch(/old\.outcome is not null or new\.outcome is null/);
+    expect(GATE_RELEASE).not.toMatch(/ready_for_serial/);
+    // AFTER, а не BEFORE: в BEFORE `outcome` в таблице ещё старый, и предикат
+    // счёл бы разработку открытой ровно в тот момент, ради которого снимается
+    expect(GATE_RELEASE).toMatch(/after update of outcome on public\.erp_experimental/);
+  });
+
+  it('новая триггерная функция закрыта для REST', () => {
+    expect(GATE_RELEASE).toMatch(
+      /revoke execute on function public\.erp_dev_warehouse_gate_release\(\)\s*\n?\s*from public, anon, authenticated/,
+    );
   });
 });

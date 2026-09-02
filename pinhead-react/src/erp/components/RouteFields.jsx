@@ -252,7 +252,31 @@ function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
   );
 }
 
-export function RouteFields({ draft, onChange, renderStageFiles = null }) {
+/**
+ * ПОДСКАЗКА У ПОЗИЦИИ-ОБРАЗЦА (правки заказчика 02.09, п. 1).
+ *
+ * Расчётный маршрут образца состоит из одной закупки, и без объяснения это
+ * читается как «маршрут не посчитался». Строка называет, где идёт остальная
+ * работа, — то же решение, что у пустых состояний экранов: «работы нет»
+ * и «работа в другом месте» обязаны различаться словами.
+ *
+ * ЗАПРЕТА НЕТ (решение владельца): правка человека сильнее расчёта — правило
+ * проекта, и конструктор по-прежнему предлагает все участки. Подсказка
+ * объясняет умолчание, а не отбирает возможность.
+ */
+function SampleRouteNotice() {
+  return (
+    <p className={styles.subText}>
+      Крой, пошив и финальный этап образца ведёт экспериментальный цех — в маршрут
+      они не входят. В обычные цеха у образца уходят только нанесения, и задачу
+      туда отправляет технолог, переводя карточку в этап «Нанесения».
+    </p>
+  );
+}
+
+export function RouteFields({
+  draft, onChange, renderStageFiles = null, productionType = null,
+}) {
   const departments = useErpStore(useShallow((s) => s.departments));
   /**
    * Предлагаем только участки, у которых ЕСТЬ ПОВЕРХНОСТЬ с их открытыми
@@ -280,6 +304,7 @@ export function RouteFields({ draft, onChange, renderStageFiles = null }) {
   return (
     <>
       <DictionaryDatalist kind="route_operation" id="erp-route-operations" />
+      {productionType === 'samples' && <SampleRouteNotice />}
 
       <ol className={styles.routeSteps}>
         {draft.map((group, gi) => {
