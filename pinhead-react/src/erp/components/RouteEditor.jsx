@@ -118,7 +118,7 @@ export function RouteEditor({ item, orderId, onDone }) {
 
   return (
     <div className={styles.routeEditor}>
-      <RouteFields draft={draft} onChange={setDraft} />
+      <RouteFields draft={draft} onChange={setDraft} productionType={item.production_type} />
       <RouteIssues issues={issues} />
 
       <div className={styles.routeEditorFoot}>

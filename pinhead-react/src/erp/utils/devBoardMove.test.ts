@@ -352,9 +352,48 @@ describe('devMovePrompt', () => {
     expect(devMovePrompt('patterns', 'materials', { pattern_tech_name: 'PNHD-v1' })).toBeNull();
   });
 
-  it('остальные переходы ничего не спрашивают', () => {
-    expect(devMovePrompt('cutting', 'sewing', { pattern_tech_name: null })).toBeNull();
-    // Возврат назад — не завершение работы, спрашивать нечего
+  it('остальные переходы ничего не спрашивают, ПОКА название записано', () => {
+    expect(devMovePrompt('cutting', 'sewing', { pattern_tech_name: 'PNHD-v1' })).toBeNull();
+    expect(devMovePrompt('sewing', 'final', { pattern_tech_name: 'PNHD-v1' })).toBeNull();
+    // Возврат назад — не завершение работы, спрашивать нечего даже при пустом
     expect(devMovePrompt('materials', 'patterns', { pattern_tech_name: null })).toBeNull();
+    expect(devMovePrompt('final', 'sewing', { pattern_tech_name: null })).toBeNull();
+  });
+
+  /**
+   * ВОПРОС ЗАДАЁТСЯ ПО СОСТОЯНИЮ ПОЛЯ, А НЕ ПО МЕСТУ (правки 02.09, п. 4).
+   *
+   * Прежнее условие `from === 'patterns'` держалось на допущении, что карточка
+   * обязательно пройдёт этот шаг вперёд руками. Допущение отказало: шаг-источник
+   * `moveDevStage` берёт из ХРАНИМОЙ колонки, а доска рисует вычисленную —
+   * и разработка, у которой первый ручной перенос сделан позже, вопроса
+   * не получала никогда. На проде такая нашлась: карточка в «Финальном этапе»
+   * с пустым названием, то есть п. 4 документа («не вводить повторно»)
+   * исполнялся ровно наоборот — вводить приходилось ПЕРВЫЙ раз, и в финале.
+   */
+  it('пустое название спрашивается на любом ходе вперёд', () => {
+    for (const [from, to] of [
+      ['materials', 'cutting'], ['cutting', 'branding'],
+      ['branding', 'sewing'], ['sewing', 'final'],
+    ] as const) {
+      expect(
+        devMovePrompt(from, to, { pattern_tech_name: null })?.field,
+        `${from} → ${to}`,
+      ).toBe('pattern_tech_name');
+    }
+  });
+
+  /**
+   * Заголовок и кнопка обязаны описывать факт: «Завершить построение лекал»
+   * на переходе «Крой → Нанесения» — неправда, лекала там давно позади.
+   */
+  it('вне «Лекал» окно говорит о пропущенном результате, а не о завершении шага', () => {
+    const fromPatterns = devMovePrompt('patterns', 'cutting', { pattern_tech_name: null });
+    expect(fromPatterns?.title).toBe('Завершить построение лекал');
+    expect(fromPatterns?.confirmLabel).toBe('Завершить и перенести');
+
+    const later = devMovePrompt('cutting', 'branding', { pattern_tech_name: null });
+    expect(later?.title).toBe('Техническое название лекал не записано');
+    expect(later?.confirmLabel).toBe('Записать и перенести');
   });
 });

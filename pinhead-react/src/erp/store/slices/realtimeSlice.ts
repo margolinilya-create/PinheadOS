@@ -48,7 +48,7 @@ function clearReconnect() {
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
 type ChildKey =
   | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
-  | 'tz_documents';
+  | 'tz_documents' | 'developments';
 const TABLE_TO_CHILD: Record<string, ChildKey> = {
   erp_materials: 'materials',
   erp_procurement_tasks: 'procurement_tasks',
@@ -176,6 +176,30 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * перезагрузки руками. Это ровно тот дефект, который чинится всей волной.
      */
     if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_tasks') {
+      /**
+       * ЭМБЕД РАЗРАБОТКИ В ЗАКАЗЕ — ВТОРАЯ КОПИЯ ТЕХ ЖЕ СТРОК (правки 02.09).
+       *
+       * `loadExperimental()` перечитывает `s.experimental`, а гейт отгрузки
+       * (`utils/stageUi.openDevelopments`) судит по `order.developments` —
+       * эмбеду, который приезжает с самим заказом. Без этой строки кладовщик
+       * в открытой вкладке продолжал бы видеть «разработка не завершена»
+       * после того, как её завершили, и кнопка отгрузки не появилась бы
+       * до перезагрузки руками.
+       *
+       * Патч стоит ЗДЕСЬ, а не в `TABLE_TO_CHILD`: та ветка выше и делает
+       * `return` — доска ЭКС перестала бы обновляться вовсе.
+       */
+      if (ev.table === 'erp_experimental') {
+        const orderId = (row.order_id ?? null) as string | null;
+        if (orderId && get().orders.some((o) => o.id === orderId)) {
+          set((st) => ({
+            orders: st.orders.map((o) => (o.id === orderId
+              ? upsertChildRow(
+                o, 'developments', row as Record<string, unknown>, id, ev.eventType)
+              : o)),
+          }));
+        }
+      }
       if (get().experimentalLoaded) void get().loadExperimental();
       return;
     }

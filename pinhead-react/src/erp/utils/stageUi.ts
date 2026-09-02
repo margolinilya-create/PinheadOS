@@ -22,6 +22,16 @@ export interface OrderShipReadiness {
   status: string;
   items: ShipReadinessItem[];
   materials?: ErpMaterial[];
+  /**
+   * Разработки образцов заказа (правки 02.09, п. 2). Приезжают эмбедом
+   * в обеих выборках заказа — см. `store/orderHelpers`.
+   *
+   * ОТСУТСТВИЕ КЛЮЧА ЧИТАЕТСЯ КАК «РАЗРАБОТОК НЕТ», и это осознанный fail-open,
+   * тот же, что у гейта ТЗ: заказ, приехавший старым бандлом или собранный
+   * в фикстуре без этого поля, обязан отгружаться как раньше. Иначе одна
+   * забытая фикстура сделала бы неотгружаемым весь склад.
+   */
+  developments?: { outcome?: string | null }[];
 }
 
 /** Позиция глазами гейта отгрузки: этапы + признаки «производится вне цехов» */
@@ -34,18 +44,47 @@ export interface ShipReadinessItem {
 /**
  * Позиция, у которой производственного маршрута нет ПО ПРАВИЛУ, а не по ошибке.
  *
- * `BASE_CHAIN.outsource` состоит из одного `supply`, и `buildItemRoute` вырезает его,
- * когда материал даёт подрядчик, — маршрут выходит пустым, и это верно: всю работу
- * ведёт подрядчик, она живёт в `erp_subcontracting`, а не в этапах. `no_product`
- * (только нанесение) тоже может остаться без этапов, если метод нанесения не имеет
- * своего цеха (`other` — пришив внутри швейки).
+ * Оснований три, и они разные:
  *
- * Раньше `isOrderReadyToShip` отвечал `false` на любой заказ без этапов, а склад
- * отгружает только через него — такой заказ невозможно было закрыть вообще никогда,
- * и кладовщик получал отказ без объяснимой причины.
+ * · `outsource` — `BASE_CHAIN.outsource` состоит из одного `supply`,
+ *   и `buildItemRoute` вырезает его, когда материал даёт подрядчик. Всю работу
+ *   ведёт подрядчик, она живёт в `erp_subcontracting`, а не в этапах.
+ * · `no_product` (только нанесение) — метод нанесения может не иметь своего
+ *   цеха (`other` — пришив внутри швейки).
+ * · `samples` (правки 02.09, п. 1) — работу ведёт ЭКСПЕРИМЕНТАЛЬНЫЙ ЦЕХ, и она
+ *   живёт в `erp_experimental`: доска разработки и её задачи. В маршруте
+ *   у образца остаётся одна закупка, а при отметке «Закупка не требуется» —
+ *   не остаётся вообще ничего.
+ *
+ * ПОЧЕМУ `samples` ЗДЕСЬ ОБЯЗАТЕЛЕН. Раньше `isOrderReadyToShip` отвечал `false`
+ * на любой заказ без этапов, а склад отгружает только через него — такой заказ
+ * невозможно было закрыть вообще никогда, и кладовщик получал отказ без
+ * объяснимой причины. Ради этого функция и появилась. Правка 02.09 завела бы
+ * ровно такой тупик заново: образец без закупки получает пустой маршрут,
+ * а `shipBlockReason` отправил бы кладовщика к диспетчеру «чинить маршрут»,
+ * которого не должно быть.
+ *
+ * Это не «отпускает» образец: пустой маршрут перестаёт запирать заказ,
+ * а незавершённая разработка держит его отдельной проверкой ниже.
  */
-function isExternallyProduced(item: ShipReadinessItem): boolean {
-  return item.production_type === 'outsource' || item.production_type === 'no_product';
+function hasNoRouteByDesign(item: ShipReadinessItem): boolean {
+  return item.production_type === 'outsource'
+    || item.production_type === 'no_product'
+    || item.production_type === 'samples';
+}
+
+/**
+ * Незавершённые разработки заказа: исход ещё не проставлен.
+ *
+ * ИСХОД, А НЕ `handed_to_warehouse_at`. Разработка, закрытая не «готово
+ * к серии» (забракована, ушла в доработку, передана в основной цех), на склад
+ * не передаётся вовсе — гейт по факту передачи запер бы такой заказ навсегда.
+ * Ровно та же граница стоит на сервере (`erp_order_has_open_dev`), и это
+ * не совпадение: два выражения одного правила разошлись бы, а расхождение тут
+ * означает «кнопка есть, действие падает».
+ */
+export function openDevelopments(order: OrderShipReadiness): { outcome?: string | null }[] {
+  return (order.developments ?? []).filter((d) => !d.outcome);
 }
 
 /**
@@ -71,8 +110,10 @@ export function isOrderReadyToShip(order: OrderShipReadiness): boolean {
   const stages = order.items.flatMap((it) => it.stages);
   // Пустой маршрут допустим, только если ВСЕ позиции производятся вне цехов.
   // Иначе этапов нет по ошибке (маршрут не материализовался) — отгружать нельзя.
-  if (stages.length === 0 && !order.items.every(isExternallyProduced)) return false;
+  if (stages.length === 0 && !order.items.every(hasNoRouteByDesign)) return false;
   if (!stages.every((s) => s.status === 'done' || s.status === 'skipped')) return false;
+  // Разработка образца ещё идёт — готовой продукции у заказа нет (правки 02.09)
+  if (openDevelopments(order).length > 0) return false;
   return shipBlockingMaterials(order).length === 0;
 }
 
@@ -85,7 +126,7 @@ export function shipBlockReason(order: OrderShipReadiness): string | null {
   if (order.status !== 'active') return null;
   if (order.items.length === 0) return 'В заказе нет позиций';
   const stages = order.items.flatMap((it) => it.stages);
-  if (stages.length === 0 && !order.items.every(isExternallyProduced)) {
+  if (stages.length === 0 && !order.items.every(hasNoRouteByDesign)) {
     // Причина должна подсказывать действие: пустой маршрут у производственной
     // позиции — это сбой материализации при создании, чинится диспетчером,
     // а не кладовщиком.
@@ -95,6 +136,19 @@ export function shipBlockReason(order: OrderShipReadiness): string | null {
   const open = stages.filter((s) => s.status !== 'done' && s.status !== 'skipped');
   if (open.length > 0) {
     return `Не завершены этапы: ${open.length}`;
+  }
+
+  /**
+   * Разработка образца называется ПОСЛЕ этапов: пока цех не сдал работу,
+   * человеку нужно знать про цех, а не про технолога. И причина обязана
+   * подсказывать действие — кнопка живёт в другом разделе, и без прямого
+   * указания кладовщик пойдёт искать её на складе.
+   */
+  const devs = openDevelopments(order);
+  if (devs.length > 0) {
+    return devs.length > 1
+      ? `Не завершены разработки образцов: ${devs.length} — закройте их кнопкой «Завершить разработку» в экспериментальном цехе`
+      : 'Разработка образца не завершена — закройте её кнопкой «Завершить разработку» в экспериментальном цехе';
   }
 
   const blocking = shipBlockingMaterials(order);

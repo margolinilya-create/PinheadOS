@@ -101,7 +101,7 @@ export function DevDeptQueue({ orders, departments }) {
               <td>
                 {item.product_type}
                 {/* Образец помечен и здесь — строка та же, что видит общий цех */}
-                {stage.origin === 'sample' && (
+                {stage.origin === 'experimental' && (
                   <span className={`${styles.chip} ${styles.chipNeutral}`}>ЭКС / ОБРАЗЕЦ</span>
                 )}
               </td>

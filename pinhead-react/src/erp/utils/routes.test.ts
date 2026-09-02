@@ -46,21 +46,53 @@ describe('buildRoute — типы производства (лист «Марш�
   });
 
   /**
-   * ВТО У ОБРАЗЦА НЕТ (правка заказчика 01.09, п. 4). Цепочка `samples` была
-   * копией `sewing`, и ВТО доставалось образцу заодно. У серии оно осталось —
-   * сторож ниже это и проверяет, иначе правка «у образца нет» однажды
-   * прочиталась бы как «нет нигде».
+   * ОБРАЗЕЦ ШЬЁТСЯ ВНУТРИ ЭКС (правки заказчика 02.09, пп. 1 и 3): в маршруте
+   * позиции остаётся одна закупка, крой и пошив ведёт доска разработки.
+   * До 02.09 цепочка заводила `cutting` и `sewing` НАСТОЯЩИМИ этапами обычных
+   * цехов — из-за этого один образец был виден и в ЭКС, и в «Закрое».
+   *
+   * ВТО у образца нет с 01.09; у серии осталось — это проверяет сторож ниже,
+   * иначе правка «у образца нет» однажды прочиталась бы как «нет нигде».
    */
-  it('Образцы: закуп → закрой → швейка, БЕЗ ВТО', () => {
+  it('Образец: только закупка — крой и пошив ведёт ЭКС', () => {
     const route = buildRoute({ productionType: 'samples', brandingMethods: [], brandingOn: 'cut' });
-    expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing'],
-    );
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
   });
+
+  /**
+   * НАНЕСЕНИЯ ОБРАЗЦА В МАРШРУТ НЕ ПОПАДАЮТ НИ ПРИ КАКОМ НАБОРЕ. Их заводит
+   * `erp_experimental_task_send` в момент, когда технолог переводит карточку
+   * в шаг «Нанесения» (п. 3 документа, шаги 5–6). Перебираем оба значения
+   * `brandingOn`: `cut` и `finished` идут в `buildRoute` разными ветками,
+   * и починка одной оставила бы вторую открытой.
+   */
+  it.each(['cut', 'finished'] as const)(
+    'Образец: нанесения (%s) не заводятся маршрутом',
+    (on) => {
+      const route = buildRoute({
+        productionType: 'samples',
+        brandingMethods: ['silkscreen', 'embroidery', 'dtf'],
+        brandingOn: on,
+      });
+      expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
+    },
+  );
 
   it('у серии ВТО остаётся', () => {
     const route = buildRoute({ productionType: 'sewing', brandingMethods: [], brandingOn: 'cut' });
     expect(route.map((r) => r.departmentCode)).toContain('vto');
+  });
+
+  /**
+   * Зеркальный сторож: правка касается ТОЛЬКО образца. Серия с теми же
+   * нанесениями обязана получить их в маршрут — иначе «у образца не заводим»
+   * однажды прочиталось бы как «не заводим никому».
+   */
+  it('у серии нанесения в маршруте остаются', () => {
+    const route = buildRoute({
+      productionType: 'sewing', brandingMethods: ['silkscreen'], brandingOn: 'cut',
+    });
+    expect(route.map((r) => r.departmentCode)).toContain('silkscreen');
   });
 });
 
