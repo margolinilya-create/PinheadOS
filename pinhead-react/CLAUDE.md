@@ -1069,6 +1069,26 @@ URL: https://pinhead-os.vercel.app
   (офлайн, отказ прав, конфликт). Плоский `toast.error('Не удалось …')` делает
   42501 от стража неотличимым от обрыва сети
 
+## Правила сессии 45 (аудит 02.09): где что лежит
+
+- Паритет edge-функций с продом — `supabase/functions/DEPLOYED.json` (снимок:
+  слаг, версия, `verify_jwt`, каталог, обязательная заметка),
+  `npm run functions:verify` (`scripts/verify-functions.mjs`) и сторож
+  `src/erp/utils/functionsParity.test.ts`. Порядок после КАЖДОЙ выкладки
+  функции: выложить → положить исходник в `supabase/functions/<slug>/` →
+  поднять `version` в снимке → `npm run functions:verify`
+- Общий код серверных функций — `supabase/functions/_shared/`. Оттуда берут
+  шрифт обе PDF-функции (`purchase-list-pdf`, `tz-pdf`), и правила кириллицы
+  проверяются в `purchasePdfFunction.test.ts` ПО ЭТОМУ файлу, а не по `index.ts`
+- `tz-pdf` выкачена и работает, но КЛИЕНТ ЕЁ НЕ ЗОВЁТ (все ТЗ загружаются
+  руками). Подключение — v2.0 роудмапа; вызывать так же, как лист закупки,
+  через `invokeFunction` в `orderWriteSlice`
+- Статус заказа `done` («Сдан») — отгружен, срок не задавали. НЕ синоним
+  `done_on_time`. Заводится `erp_ship_order`; сторож — `orderDoneStatus.test.ts`
+- Срок клиента обязателен (`validateOrderForm`), помечен звёздочкой в форме.
+  Тестовая форма, не заполняющая его, блокирует сабмит — в `CreateOrderModal.test.jsx`
+  это делает `fillRequired()` датой, посчитанной от СЕГОДНЯ, а не константой
+
 ## Не трогать без тестов
 - utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
 - store/slices/ — 796 тестов зависят от них
@@ -1079,9 +1099,10 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test      # 1788 unit тестов (Vitest)
+npm run test      # 3479 unit тестов / 185 файлов (Vitest)
 npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
-npm run e2e       # E2E (Playwright, 11 файлов, 96 сценариев desktop + 13 mobile).
+npm run e2e       # E2E (Playwright, 31 спека, 322 сценария в пяти проектах:
+                  # desktop · tablet · mobile · offline · perf).
                   # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
                   # вместо временного конфига проще разложить ожидаемые пути
                   # из имеющихся бинарников:

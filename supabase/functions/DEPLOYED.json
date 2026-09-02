@@ -1,0 +1,55 @@
+{
+  "_": [
+    "Снимок edge-функций боевого проекта pinhead-os-v2 (glhwbktsokphgksdvcxj).",
+    "",
+    "ЗАЧЕМ. Дисциплина «репозиторий = прод» была выстроена только для миграций",
+    "(APPLIED.json + migrations:verify). Для edge-функций её не было вовсе, и",
+    "аудит 02.09.2026 нашёл дрейф в трёх функциях из четырёх: tz-pdf выкачена",
+    "и работает, а исходника в репозитории не было; purchase-list-pdf в проде",
+    "версии 2 (переведена на общий _shared/pdfFont.ts), а в репозитории лежала",
+    "версия 1 со своей копией загрузки шрифта; domain-events-dispatcher остался",
+    "от снесённой итерации redesign/v2 и в репозитории отсутствует.",
+    "",
+    "ОТПЕЧАТОК СЧИТАЕТСЯ ПО ПАРАМ «слаг@версия», а не по списку слагов. Именно",
+    "версия ловит второй случай: слаги совпадали, а код разошёлся. Снимок,",
+    "сверяющий только состав, объявил бы прод и репозиторий сошедшимися.",
+    "",
+    "ПОРЯДОК ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ ФУНКЦИИ: выложить → положить исходник",
+    "в supabase/functions/<slug>/ → поднять version здесь → npm run functions:verify."
+  ],
+  "capturedAt": "2026-09-02",
+  "project": "pinhead-os-v2 (glhwbktsokphgksdvcxj)",
+  "sharedDirs": ["_shared"],
+  "orphanCeiling": 1,
+  "functions": [
+    {
+      "slug": "admin-users",
+      "version": 1,
+      "verifyJwt": true,
+      "dir": "admin-users",
+      "note": "Единственная из четырёх, что совпадала с репозиторием на 02.09. Держит service_role для Admin API GoTrue, гейт — is_admin() от лица вызывающего."
+    },
+    {
+      "slug": "purchase-list-pdf",
+      "version": 2,
+      "verifyJwt": true,
+      "dir": "purchase-list-pdf",
+      "note": "Версия 2 перевела загрузку шрифта на общий _shared/pdfFont.ts; в репозитории до 02.09 лежала версия 1 со своей копией. Восстановлена из прода."
+    },
+    {
+      "slug": "tz-pdf",
+      "version": 1,
+      "verifyJwt": true,
+      "dir": "tz-pdf",
+      "note": "Генератор ТЗ-PDF: выкачен 17.08.2026, работает, гейт erp_is_member. Исходника в репозитории не было вовсе; клиент функцию пока не вызывает — подключение в v2.0. Восстановлен из прода 02.09."
+    },
+    {
+      "slug": "domain-events-dispatcher",
+      "version": 2,
+      "verifyJwt": false,
+      "dir": null,
+      "orphan": true,
+      "note": "ПОДЛЕЖИТ УДАЛЕНИЮ. Остаток итерации redesign/v2: миграция 20260716120000 снесла её таблицы (domain_events, piecework_*, order_tech_cards) и расписание cron, но edge-функцию SQL снять не может, и шага «снять функцию» в чеклисте не было. Открыта БЕЗ ТОКЕНА (verify_jwt: false) и внутри поднимает service_role; сейчас каждый вызов падает — таблиц нет. Удаляется только через дашборд: Functions → domain-events-dispatcher → Delete. После удаления убрать эту запись и опустить orphanCeiling до 0."
+    }
+  ]
+}

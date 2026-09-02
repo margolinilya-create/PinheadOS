@@ -16,6 +16,16 @@ const SRC = readFileSync(
   'utf8',
 );
 
+/**
+ * Общий модуль шрифта: с версии 2 функции загрузка живёт здесь, а не внутри
+ * `index.ts`. Его же импортирует `tz-pdf` — правила кириллицы у обеих одни,
+ * и проверять их надо там, где они написаны.
+ */
+const SHARED_FONT = readFileSync(
+  join(process.cwd(), '../supabase/functions/_shared/pdfFont.ts'),
+  'utf8',
+);
+
 describe('purchase-list-pdf: гейт и права', () => {
   /**
    * Личность берётся из ТОКЕНА, а не из тела запроса. Иначе достаточно прислать
@@ -52,19 +62,24 @@ describe('purchase-list-pdf: гейт и права', () => {
 
 describe('purchase-list-pdf: кириллица и хранение', () => {
   /**
-   * Четырнадцать стандартных шрифтов PDF кодируют текст в WinAnsi и кириллицы
-   * не знают вообще. Без встроенного TTF и явного `fontkit` документ выходит
-   * пустым или мусорным — причём МОЛЧА, и заметно это только глазами.
+   * ЗАГРУЗКА ШРИФТА ПЕРЕЕХАЛА В `_shared/pdfFont.ts` (версия 2 функции,
+   * восстановлена из прода аудитом 02.09.2026 — в репозитории до этого лежала
+   * версия 1 со своей копией `loadFont`). Сторож переехал следом: он живёт
+   * там же, где источник правды, иначе продолжил бы проверять текст, которого
+   * в работающей функции больше нет, и зеленел бы впустую. Ровно это уже
+   * случалось со сторожем шрифтов, когда `@font-face` уехал из `index.html`
+   * в `index.css`.
    */
   it('шрифт с кириллицей встраивается через fontkit', () => {
     expect(SRC).toMatch(/registerFontkit\(fontkit\)/);
-    expect(SRC).toMatch(/embedFont\(await loadFont\(\)/);
-    expect(SRC).toMatch(/DejaVuSans\.ttf/);
+    expect(SRC).toMatch(/embedFont\(await loadPdfFont\(\)/);
+    expect(SRC).toMatch(/from '\.\.\/_shared\/pdfFont\.ts'/);
+    expect(SHARED_FONT).toMatch(/DejaVuSans\.ttf/);
   });
 
   /** Сбой шрифта — отказ всей операции, а не «сделаем без кириллицы» */
   it('несостоявшийся шрифт роняет сборку, а не молчит', () => {
-    expect(SRC).toMatch(/throw new Error\(`шрифт не загрузился/);
+    expect(SHARED_FONT).toMatch(/throw new Error\(`шрифт не загрузился/);
   });
 
   /**

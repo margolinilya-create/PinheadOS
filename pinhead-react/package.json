@@ -14,6 +14,7 @@
     "audit": "node scripts/audit-guidebook.js",
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "migrations:verify": "node scripts/verify-migrations.mjs",
+    "functions:verify": "node scripts/verify-functions.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "e2e": "playwright test",
     "e2e:update": "playwright test --update-snapshots",

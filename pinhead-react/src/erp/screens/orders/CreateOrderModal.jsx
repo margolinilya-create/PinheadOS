@@ -936,7 +936,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
             <FieldError id="err-order-launch" text={err('launch_date')} />
           </label>
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Срок клиента</span>
+            <span className={styles.fieldLabel}>Срок клиента *</span>
             <DateField
               min={initialLaunch}
               className={inputCls('due_date')}

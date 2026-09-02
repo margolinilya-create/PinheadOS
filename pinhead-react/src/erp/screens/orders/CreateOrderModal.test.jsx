@@ -64,6 +64,17 @@ function setup() {
  * заказ создать нельзя. Здесь она нужна, чтобы проверки ТЗ проверяли ТЗ,
  * а не спотыкались о лист закупки.
  */
+/**
+ * Срок клиента — заведомо будущая дата, посчитанная от СЕГОДНЯ, а не константа:
+ * с 02.09.2026 поле обязательно (`validateOrderForm`), и зашитая дата однажды
+ * оказалась бы в прошлом, превратив весь этот файл в загадочно красный.
+ */
+function futureDue() {
+  const d = new Date();
+  d.setDate(d.getDate() + 90);
+  return d.toISOString().slice(0, 10);
+}
+
 function fillRequired() {
   fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
     target: { value: 'BOX39 футболки' },
@@ -72,6 +83,9 @@ function fillRequired() {
     target: { value: 'Футболка' },
   });
   fireEvent.change(screen.getByLabelText(/Кол-во/), { target: { value: '100' } });
+  fireEvent.change(screen.getByLabelText(/Срок клиента/), {
+    target: { value: futureDue() },
+  });
   fireEvent.click(screen.getByLabelText('Закупка не требуется'));
 }
 

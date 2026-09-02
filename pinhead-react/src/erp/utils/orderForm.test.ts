@@ -205,8 +205,18 @@ describe('validateOrderForm', () => {
    * (документ: «если не выполнено ни одно условие — заказ создать нельзя»),
    * и без этого поля каждая проверка ниже спотыкалась бы о лист закупки
    * вместо того, что она проверяет.
+   *
+   * С 02.09 туда же входит срок клиента — по той же причине: он стал
+   * обязательным, и без него каждая проверка ниже спотыкалась бы о него.
+   * Значение заведомо позже `today` и позже даты запуска, чтобы не задевать
+   * две другие проверки срока.
    */
-  const okForm = { ...emptyOrderForm(today), title: 'Заказ', purchase_required: false };
+  const okForm = {
+    ...emptyOrderForm(today),
+    title: 'Заказ',
+    purchase_required: false,
+    due_date: '2026-08-17',
+  };
 
   it('пустое название — ошибка с привязкой к полю', () => {
     const v = validateOrderForm({ ...okForm, title: '  ' }, [item({ product_type: 'ф', qty: '1' })], today);
@@ -268,6 +278,23 @@ describe('validateOrderForm', () => {
     );
     expect(v2.errors.item_1_product_type).toBe('Укажите изделие');
     expect(v2.missing).toContain('Изделие (поз. 2)');
+  });
+
+  /**
+   * СРОК ОБЯЗАТЕЛЕН (аудит 02.09.2026). До этой правки поле было
+   * необязательным, и на проде срок стоял у 6 из 28 активных заказов —
+   * слепыми становились просрочка заказа, подстановка плановой даты этапа
+   * и закрытие заказа (`erp_ship_order` объявлял такой заказ сданным вовремя).
+   */
+  it('срок клиента не указан — ошибка, и это missing, а не invalid', () => {
+    const v = validateOrderForm(
+      { ...okForm, due_date: '' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.errors.due_date).toBe('Укажите срок клиента');
+    expect(v.missing).toContain('Срок клиента');
+    expect(v.invalid).not.toContain('Срок клиента');
   });
 
   it('срок клиента в прошлом — ошибка', () => {
