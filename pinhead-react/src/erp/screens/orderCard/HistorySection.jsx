@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import { deptShortName } from '../../data/departments';
 import {
-  ORDER_STATUS_LABELS,
+  orderStatusLabel,
   SHIPPED_STATUS_LABELS,
   STAGE_STATUS_LABELS,
   PACKAGING_LABELS,
@@ -86,7 +86,7 @@ function auditValue(field, v) {
   // Статус этапа — своя машина состояний, а не статус заказа. Раньше поле
   // называлось одинаково у обоих, и подмена лейбла была бы незаметной.
   if (field === 'stage.status') return STAGE_STATUS_LABELS[v] || v;
-  if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
+  if (field === 'status') return orderStatusLabel(v);
   if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
   if (field === 'packaging') return PACKAGING_LABELS[v] || v;
   if (field === 'stickers') return STICKERS_LABELS[v] || v;

@@ -6,7 +6,7 @@ import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
 import { orderProgress } from '../../utils/progress';
 import { OrderLink } from '../../components/OrderLink';
 import { hasOpenProcurement } from '../../utils/routes';
-import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
+import { orderStatusLabel, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
@@ -58,7 +58,7 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
           </span>
         ) : (
           <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-            {ORDER_STATUS_LABELS[order.status]}
+            {orderStatusLabel(order.status)}
           </span>
         )}
         {order.shipped_at && (

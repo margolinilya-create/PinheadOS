@@ -11,7 +11,7 @@ import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
 import { daysLeft, formatDateShort, isUrgent } from '../utils/time';
 import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
-import { ORDER_STATUS_LABELS } from '../types';
+import { orderStatusLabel } from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import styles from '../styles';
@@ -293,7 +293,7 @@ export default function OrdersScreen() {
       case 'due': return o.due_date || null;
       // Готовность — то же вычисление, что рисует чип: сортировка «по статусу»
       // должна собирать вместе строки с одинаковой подписью
-      case 'status': return isOrderReadyToShip(o) ? 'Готов к отгрузке' : ORDER_STATUS_LABELS[o.status];
+      case 'status': return isOrderReadyToShip(o) ? 'Готов к отгрузке' : orderStatusLabel(o.status);
       default: return null;
     }
   };

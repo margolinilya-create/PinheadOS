@@ -8,7 +8,7 @@ import { hasOpenProcurement } from '../../utils/routes';
 import {
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
-  ORDER_STATUS_LABELS,
+  orderStatusLabel,
   STAGE_STATUS_LABELS,
 } from '../../types';
 import styles from '../../styles';
@@ -86,7 +86,7 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
             </span>
           ) : (
             <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
-              {ORDER_STATUS_LABELS[order.status]}
+              {orderStatusLabel(order.status)}
             </span>
           )}
           {hasOpenProcurement(order.procurement_tasks) && (

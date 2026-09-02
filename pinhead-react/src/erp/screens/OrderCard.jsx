@@ -8,7 +8,7 @@ import { Icon } from '../components/Icon';
 import { formatDateShort } from '../utils/time';
 import { orderProgress } from '../utils/progress';
 import {
-  ORDER_STATUS_LABELS,
+  orderStatusLabel,
   SHIPPED_STATUS_LABELS,
   MATERIAL_STATUS_LABELS,
   PACKAGING_LABELS,
@@ -176,7 +176,7 @@ export default function OrderCard() {
         <div className={styles.queueThumbStub} style={{ marginBottom: 10 }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось"><Icon name="image" size={22} /></div>
       )}
       <div className={styles.toolbar}>
-        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{ORDER_STATUS_LABELS[order.status]}</span>
+        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{orderStatusLabel(order.status)}</span>
         {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}><Icon name="checkCircle" size={13} /> Готов к отгрузке</span>}
         <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
         {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}

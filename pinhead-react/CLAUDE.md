@@ -1085,6 +1085,11 @@ URL: https://pinhead-os.vercel.app
   через `invokeFunction` в `orderWriteSlice`
 - Статус заказа `done` («Сдан») — отгружен, срок не задавали. НЕ синоним
   `done_on_time`. Заводится `erp_ship_order`; сторож — `orderDoneStatus.test.ts`
+- Подпись статуса заказа — `orderStatusLabel` (`erp/types.ts`, рядом с самой
+  таблицей), НЕ `ORDER_STATUS_LABELS[…]` напрямую: между миграцией и приездом
+  бандла есть окно, в котором база отдаёт значение, которого выложенный код
+  не знает, и прямое чтение рисует пустоту. Исключение одно — `DictionariesTab`,
+  он показывает таблицу целиком. Сторож — `utils/orderStatusLabel.test.ts`
 - Срок клиента обязателен (`validateOrderForm`), помечен звёздочкой в форме.
   Тестовая форма, не заполняющая его, блокирует сабмит — в `CreateOrderModal.test.jsx`
   это делает `fillRequired()` датой, посчитанной от СЕГОДНЯ, а не константой
