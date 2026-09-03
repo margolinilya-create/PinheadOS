@@ -9,6 +9,7 @@ import { buildKanbanColumns } from '../utils/kanbanColumns';
 import { kanbanDropIntent, ALLOWED_LANE_DROP } from '../utils/kanbanDrop';
 import { confirmStageDone } from '../utils/stageDone';
 import { materialsForItem } from '../utils/routes';
+import { materialsAfterBypass } from '../utils/bypass';
 import { analyzeStageMove, moveConfirmMessage } from '../utils/stageMove';
 import styles from '../erp.module.css';
 import { KanbanCard } from './kanban/KanbanCard';
@@ -210,8 +211,14 @@ export default function ErpKanban({ filters }) {
         qty: dragged.item.qty,
         allStages: dragged.item.stages,
         deptNameById,
-        // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха
-        materials: materialsForItem(dragged.order.materials, dragged.item.id),
+        // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха.
+        // Аварийное снятие учитывается и здесь (правка 03.09): иначе диалог
+        // откажет раньше, чем писатель, который снятие уже уважает.
+        materials: materialsAfterBypass(
+          materialsForItem(dragged.order.materials, dragged.item.id),
+          dragged.order.id,
+          bypasses,
+        ),
         dept: departments.find((d) => d.id === dragged.stage.department_id),
       });
       if (!ok) return;
@@ -219,10 +226,18 @@ export default function ErpKanban({ filters }) {
     }
   };
 
-  /** Отпустили над чужой колонкой: перенос задания в другой цех */
-  const onColumnDrop = async (dept) => {
-    const dragged = dragRef.current;
-    onDragEnd();
+  /**
+   * Перенос задания в другой цех.
+   *
+   * Вынесен из обработчика броска (правка 03.09), чтобы у переноса появился
+   * КЛАВИАТУРНЫЙ путь. До этого `moveStageToDepartment` имел РОВНО ОДНОГО
+   * вызывающего — `onColumnDrop`, — то есть операция была доступна только
+   * мышью или пальцем: менеджер с правом `stage.move_department`, работающий
+   * с клавиатуры, не мог выполнить её нигде (WCAG 2.1.1). Enter/Space
+   * на карточке открывает заказ, и это не альтернатива переносу.
+   */
+  const moveStageTo = async (entry, dept) => {
+    const dragged = entry;
     if (!dragged || dragged.stage.department_id === dept.id) return;
     if (!access.canDo('stage.move_department', dragged.stage.department_id)) {
       toast.error('Нет права переносить задания между цехами');
@@ -260,6 +275,25 @@ export default function ErpKanban({ filters }) {
     });
     if (!ok) return;
     await moveStageToDepartment(dragged.stage.id, dept.id, { comment: value || null });
+  };
+
+  /** Отпустили над чужой колонкой */
+  const onColumnDrop = async (dept) => {
+    const dragged = dragRef.current;
+    onDragEnd();
+    if (dragged) await moveStageTo(dragged, dept);
+  };
+
+  /**
+   * Соседний цех для клавиатурного переноса. Ходим по СОСЕДЯМ — тем же
+   * приёмом, что кнопки «‹ ›» на доске ЭКС и в производственном плане:
+   * колонки идут в порядке маршрута, и «вернуть назад» / «передать дальше»
+   * это ровно те два случая, ради которых перенос и делают.
+   */
+  const neighbourDept = (entry, dir) => {
+    const i = columns.findIndex((c) => c.dept.id === entry.stage.department_id);
+    if (i < 0) return null;
+    return columns[i + dir]?.dept ?? null;
   };
 
   return (
@@ -337,6 +371,11 @@ export default function ErpKanban({ filters }) {
                       dragging={drag?.entry.stage.id === entry.stage.id}
                       dropBefore={dropAt?.id === entry.stage.id && dropAt.before}
                       dropAfter={dropAt?.id === entry.stage.id && !dropAt.before}
+                      /* Клавиатурный перенос между цехами (правка 03.09) */
+                      canMoveDept={access.canDo('stage.move_department', dept.id)}
+                      prevDept={neighbourDept(entry, -1)}
+                      nextDept={neighbourDept(entry, 1)}
+                      onMoveDept={(target) => moveStageTo(entry, target)}
                     />
                   ))}
                   {/* Прочерк только когда дорожка развёрнута (идёт перетаскивание):

@@ -55,7 +55,7 @@ function OrderReadiness({ order }) {
 export default function OrderCard() {
   const { orderId } = useParams();
   const {
-    order, notFound, loaded, loadError, loadAll,
+    order, notFound, loaded, loadError, loadAll, detailError, retryDetail,
     events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
     deptById, deptNameById, stageById, departments,
@@ -108,6 +108,20 @@ export default function OrderCard() {
   const requested = params.get('tab');
   const tab = tabs.some((t) => t.id === requested) ? requested : 'items';
 
+  /**
+   * Сбой ТОЧЕЧНОЙ загрузки заказа (правка 03.09). Раньше он попадал в ветку
+   * «Заказ не найден»: `loadOne` отдаёт `null` и при отказе сети, и при
+   * отсутствии записи. Менеджер кидал ссылку в чат, коллега читал «не найден»
+   * и делал вывод, что заказ удалили.
+   */
+  if (detailError && !order) {
+    return (
+      <>
+        <PageHead title="Заказ" />
+        <LoadFailed onRetry={retryDetail} what="заказ" />
+      </>
+    );
+  }
   if (notFound) {
     return (
       <>
@@ -281,7 +295,19 @@ export default function OrderCard() {
                 })}
               </div>
             ) : (
-              <div className={styles.subText}>Материалы по этому заказу не закупаются.</div>
+              /*
+                «Строк закупки пока нет», а не «Материалы по этому заказу
+                не закупаются» (правка 03.09). Прежний текст утверждал
+                РЕШЕНИЕ, которого никто не принимал: пустой список означает
+                и «закупщик ещё не завёл строки». Настоящее решение живёт
+                в `purchase_required`, и печатная форма листа закупки называет
+                этот случай верно — расхождение было только здесь.
+              */
+              <div className={styles.subText}>
+                {order.purchase_required === false
+                  ? 'Закупка по заказу не требуется — отметил менеджер.'
+                  : 'Строк закупки пока нет.'}
+              </div>
             )}
           </section>
         )}

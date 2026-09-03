@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useToastStore, toast } from './useToastStore';
+import { useToastStore, toast, toastTtl } from './useToastStore';
 
 beforeEach(() => {
   useToastStore.setState({ toasts: [] });
@@ -98,16 +98,35 @@ describe('useToastStore — повторы не копятся', () => {
   });
 
   it('повтор продлевает жизнь сообщению, а не оставляет старый таймер', () => {
+    /**
+     * Времена берутся из ЭКСПОРТИРОВАННЫХ констант, а не вписаны числами
+     * (правка 03.09): у отказа своё время жизни, и тест с зашитой тройкой
+     * секунд ломался при первой же правке величины, ничего не сказав
+     * о самом свойстве — «повтор продлевает».
+     */
+    const ttl = toastTtl('error');
     useToastStore.getState().add('Нет связи с сервером', 'error');
-    vi.advanceTimersByTime(2500);
+    vi.advanceTimersByTime(ttl - 500);
     useToastStore.getState().add('Нет связи с сервером', 'error');
 
     // По старому таймеру полоса ушла бы через 500 мс — но сообщение только что повторилось
     vi.advanceTimersByTime(1000);
     expect(useToastStore.getState().toasts).toHaveLength(1);
 
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(ttl);
     expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it('отказ висит дольше успеха — его нужно успеть прочитать', () => {
+    expect(toastTtl('error')).toBeGreaterThan(toastTtl('success'));
+    // Предупреждение — тоже сообщение, которое нельзя пропустить
+    expect(toastTtl('warning')).toBe(toastTtl('error'));
+
+    useToastStore.getState().add('Готово', 'success');
+    useToastStore.getState().add('Не удалось', 'error');
+    vi.advanceTimersByTime(toastTtl('success') + 1);
+    // Успех ушёл, отказ ещё виден
+    expect(useToastStore.getState().toasts.map((t) => t.type)).toEqual(['error']);
   });
 
   it('разные сообщения и разные типы остаются раздельными', () => {

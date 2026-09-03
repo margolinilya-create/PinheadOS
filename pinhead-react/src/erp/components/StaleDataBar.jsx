@@ -36,13 +36,26 @@ export default function StaleDataBar() {
    * что лежит в localStorage.
    */
   const waiting = queued().length;
+  const quiet = realtimeLive && !realtimeResyncing && waiting === 0;
 
-  if (realtimeLive && !realtimeResyncing && waiting === 0) return null;
-
+  /**
+   * РЕГИОН СМОНТИРОВАН ВСЕГДА, ДАЖЕ ПУСТОЙ (правка 03.09).
+   *
+   * Раньше компонент возвращал `null`, пока всё в порядке, и появлялся вместе
+   * с сообщением. Скринридер отслеживает ИЗМЕНЕНИЯ ВНУТРИ уже существующего
+   * live-региона; регион, добавленный в DOM вместе с содержимым, он
+   * не объявляет вовсе (WCAG 4.1.3). То есть потеря связи — единственное
+   * сообщение, ради которого полоса и сделана, — не озвучивалась.
+   *
+   * Правило записано в проекте с волны 03.08 и исполнено ровно в одном месте
+   * (`components/shared/Toast.jsx`); здесь его не было. Пустой `<div>` ничего
+   * не занимает и не рисуется — класс навешивается только при сообщении.
+   */
   return (
     // `role="status"`, а не `alert`: это сообщение о состоянии экрана, а не
     // о происшествии — скринридер прочитает его, не перебивая работу
-    <div className={styles.warnBox} role="status">
+    <div className={quiet ? undefined : styles.warnBox} role="status">
+      {quiet ? null : <>
       {realtimeResyncing
         ? 'Обновляем данные…'
         : realtimeLive
@@ -62,6 +75,7 @@ export default function StaleDataBar() {
           </Button>
         </>
       )}
+      </>}
     </div>
   );
 }

@@ -21,6 +21,8 @@ const LANE_VARIANT = {
   blocked: 'blocked',
   done: 'ready',
   skipped: 'skipped',
+  // «Не требуется» выглядит как пропущенный — но называется честно
+  not_applicable: 'skipped',
 };
 
 /**

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
+import { LoadFailed } from '../../components/ErpStates';
 import { Button } from '../../components/Button';
 import { factoryToday } from '../../../utils/date';
 import {
@@ -23,10 +24,13 @@ import styles from '../../styles';
  * последствия которой видны только на другом экране, правится вслепую.
  */
 export function CapacityTab() {
-  const { capacity, capacityLoaded, loadSettings, saveCapacity, orders } = useErpStore(
+  const {
+    capacity, capacityLoaded, capacityError, loadSettings, saveCapacity, orders,
+  } = useErpStore(
     useShallow((s) => ({
       capacity: s.capacity,
       capacityLoaded: s.capacityLoaded,
+      capacityError: s.capacityError,
       loadSettings: s.loadSettings,
       saveCapacity: s.saveCapacity,
       orders: s.orders,
@@ -46,6 +50,12 @@ export function CapacityTab() {
 
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
 
+  /**
+   * Отказ загрузки называется прямо (правка 03.09). Слайс при ошибке ставит
+   * `capacityLoaded = true` с ЗАПАСНЫМ значением мощности — форма показывала
+   * его как сохранённое, и «Сохранить» записало бы запасное значение поверх
+   * настоящего, никем не глядя.
+   */
   const units = edit?.units
     ?? (capacity.monthly_units === null ? '' : String(capacity.monthly_units));
   const perWeek = edit?.perWeek ?? String(capacity.work_days_per_week);
@@ -73,6 +83,10 @@ export function CapacityTab() {
     draft.monthly_units !== capacity.monthly_units
     || draft.work_days_per_week !== capacity.work_days_per_week
   );
+
+  if (capacityError) {
+    return <LoadFailed onRetry={loadSettings} what="настройки производства" />;
+  }
 
   const submit = async () => {
     setBusy(true);

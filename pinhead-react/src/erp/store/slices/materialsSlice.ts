@@ -358,15 +358,19 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     }
     for (const st of toTake) {
       /*
-       * План завершения пишется ДО статуса — тем же порядком, что в форме цеха
-       * (`useStageActions.onStart`): там он работает потому, что серверный
-       * страж пропускает `planned_end` под правом взятия в работу. Пустая
-       * дата ничего не пишет: закупку берут и из мест, где спросить некого
-       * (действие вызывается и из тестов, и из старого бандла).
+       * ПЛАН — В ТОМ ЖЕ ЗАПРОСЕ, ЧТО СТАТУС (правка 03.09).
+       *
+       * Прежний комментарий утверждал, что страж пропускает `planned_end`
+       * под правом взятия в работу. Пропускает — но ТОЛЬКО когда дата меняется
+       * той же строкой, что переводит этап в `in_progress`
+       * (`erp_stage_guard`: `new.status = 'in_progress' and old.status is
+       * distinct from 'in_progress'`). Отдельный запрос под исключение
+       * не подпадает и требует `order.manage`, которого у закупщика нет
+       * (проверено на проде: `allowed = false`). То есть дата не записывалась.
        */
-      if (plannedEnd) await get().setStagePlan(st.id, { planned_end: plannedEnd });
       const ok = await get().setStageStatus(st.id, 'in_progress', {
         comment: 'Закупка взята в работу',
+        ...(plannedEnd ? { planned_end: plannedEnd } : {}),
       });
       // Первый же отказ (нет права, чужой цех) — дальше не идём: остальные
       // этапы упрутся в то же самое, а серия тостов ничего не добавит

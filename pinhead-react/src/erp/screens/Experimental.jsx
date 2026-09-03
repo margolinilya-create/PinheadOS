@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
@@ -146,7 +146,7 @@ export default function Experimental() {
    */
   const {
     orders, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, loadExperimental, updateExperimental,
+    experimental, experimentalLoaded, experimentalError, loadExperimental, updateExperimental,
     addDevTasks, sendDevTaskToDept, reportProgress,
   } = useErpStore(
     useShallow((s) => ({
@@ -157,6 +157,7 @@ export default function Experimental() {
       loadAll: s.loadAll,
       experimental: s.experimental,
       experimentalLoaded: s.experimentalLoaded,
+      experimentalError: s.experimentalError,
       loadExperimental: s.loadExperimental,
       updateExperimental: s.updateExperimental,
       addDevTasks: s.addDevTasks,
@@ -661,8 +662,20 @@ export default function Experimental() {
         </ScrollHintBox>
       )}
 
-      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="разработки" />}
-      {!experimentalLoaded && !loadError && <TableSkeleton rows={5} label="Загрузка разработок" />}
+      {/*
+        ОТКАЗ РАЗРАБОТОК — СВОЙ ФЛАГ (правка 03.09). Здесь стоял `loadError`,
+        то есть флаг ЗАКАЗОВ: упади загрузка разработок при живых заказах —
+        и скелетон висел бы вечно, потому что `experimentalLoaded` при отказе
+        не поднимался, а эффект `if (!loaded) load()` второй раз не срабатывает.
+        Выходом была только перезагрузка страницы.
+      */}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="заказы" />}
+      {experimentalError && !experimentalLoaded && (
+        <LoadFailed onRetry={loadExperimental} what="разработки" />
+      )}
+      {!experimentalLoaded && !experimentalError && !loadError && (
+        <TableSkeleton rows={5} label="Загрузка разработок" />
+      )}
 
       {/* «Разработок нет» — не ответ для очереди участка: там свой пустой текст,
           и он говорит про этапы маршрута, а не про разработки */}
@@ -776,7 +789,23 @@ export default function Experimental() {
                       onClick={() => openDev(dev.id)}
                     >
                       <td>
-                        <strong>{dev.tech_name || 'Без названия'}</strong>
+                        {/*
+                          ССЫЛКА, А НЕ ТОЛЬКО КЛИК ПО СТРОКЕ (правка 03.09).
+                          У `<tr>` не было ни `tabIndex`, ни обработчика клавиш,
+                          ни фокусируемого содержимого — реестр разработок
+                          не открывался с клавиатуры вовсе (WCAG 2.1.1), а для
+                          завершённых он единственный путь: доска ЭКС их
+                          не показывает. Ссылка сохраняет Ctrl+клик и «открыть
+                          в новой вкладке», кнопка бы их потеряла.
+                        */}
+                        <Link
+                          to={`/experimental/${dev.id}`}
+                          state={{ from: `${location.pathname}${location.search}` }}
+                          className={styles.queueCardTitleLink}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <strong>{dev.tech_name || 'Без названия'}</strong>
+                        </Link>
                         <div className={styles.cellSub}>
                           №{dev.order?.bitrix_id || '—'} · {dev.order?.title || ''}
                         </div>

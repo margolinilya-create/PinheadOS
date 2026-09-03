@@ -5,6 +5,7 @@ import { ButtonLink } from '../../components/Button';
 import { EmptyResult } from '../../components/ErpStates';
 import { OrderLink } from '../../components/OrderLink';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { useCompactLayout } from '../../layout/useCompactLayout';
 import { experimentalDept, experimentalDeptEntries } from '../../utils/experimentalQueue';
 import { dueLabelCompact } from '../../utils/format';
 import { daysLeft } from '../../utils/time';
@@ -56,6 +57,7 @@ const GROUP_LABELS = {
 
 export function DevDeptQueue({ orders, departments }) {
   const location = useLocation();
+  const isCompact = useCompactLayout();
   const dept = useMemo(() => experimentalDept(departments), [departments]);
   const entries = useMemo(
     () => experimentalDeptEntries(orders, departments), [orders, departments]);
@@ -75,6 +77,62 @@ export function DevDeptQueue({ orders, departments }) {
         Открытых заданий на участке нет. Заказ появляется здесь, когда доходит
         до шага «Экспериментальный цех», поставленного в маршрут при создании.
       </EmptyResult>
+    );
+  }
+
+  /*
+    КОМПАКТНАЯ РАСКЛАДКА (правка 03.09). Шесть колонок, действие «Открыть» —
+    последнее: на планшете кнопка, ради которой на экран и приходят, уезжала
+    за правый край. Приём 22.08 доехал до очереди цеха, склада и закупки,
+    но не до очереди участка ЭКС.
+  */
+  if (isCompact) {
+    return (
+      /* `role="list"` обязателен: `aria-label` на голом `<div>` не читается
+         вовсе, и имя области терялось бы именно в компактной раскладке.
+         Десктопная половина несёт имя через `ScrollHintBox`. */
+      <div className={styles.dataCardList} role="list" aria-label="Очередь участка">
+        {entries.map(({ order, item, stage, group, reason }) => (
+          <div key={stage.id} className={styles.dataCard} role="listitem">
+            <div className={styles.dataCardHead}>
+              <OrderLink orderId={order.id} className={styles.dataCardTitle}>
+                №{order.bitrix_id || '—'} · {order.title}
+              </OrderLink>
+              <Badge variant={GROUP_VARIANT[group]}>
+                {GROUP_LABELS[group] ?? group}
+              </Badge>
+            </div>
+            {reason && <div className={styles.cellSub}>{reason}</div>}
+            <div className={styles.dataCardFields}>
+              <span className={styles.dataCardField}>
+                <span className={styles.dataCardFieldLabel}>Изделие</span>
+                <span>
+                  {item.product_type}
+                  {stage.origin === 'experimental' && (
+                    <span className={`${styles.chip} ${styles.chipNeutral}`}>ЭКС / ОБРАЗЕЦ</span>
+                  )}
+                </span>
+              </span>
+              <span className={styles.dataCardField}>
+                <span className={styles.dataCardFieldLabel}>Тираж</span>
+                <span>{stage.qty_done ?? 0} / {item.qty}</span>
+              </span>
+              <span className={styles.dataCardField}>
+                <span className={styles.dataCardFieldLabel}>Срок</span>
+                <span>{dueLabelCompact(daysLeft(order.due_date))}</span>
+              </span>
+            </div>
+            <ButtonLink
+              to={`/task/${stage.id}`}
+              state={{ from: `${location.pathname}${location.search}` }}
+              variant="primary"
+              block
+            >
+              Открыть задание
+            </ButtonLink>
+          </div>
+        ))}
+      </div>
     );
   }
 

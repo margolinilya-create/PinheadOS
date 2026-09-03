@@ -3,8 +3,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { currentActor } from '../../store/shared';
 import { deptShortName } from '../../data/departments';
-import { confirmStageDone, stageCompletionBlock } from '../../utils/stageDone';
+import { confirmStageDone } from '../../utils/stageDone';
 import { materialsForItem } from '../../utils/routes';
+import { materialsAfterBypass } from '../../utils/bypass';
 import { confirmWithInput } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 
@@ -33,13 +34,13 @@ function dependentDeptNamesFactory(deptNameById) {
 
 export function useStageActions() {
   const {
-    departments, setStageStatus, setStagePlan, reportProgress, reportDefect,
-    uploadOrderAttachment, ackStageOverdue,
+    departments, setStageStatus, reportProgress, reportDefect,
+    uploadOrderAttachment, ackStageOverdue, bypasses,
   } = useErpStore(
     useShallow((s) => ({
       departments: s.departments,
+      bypasses: s.bypasses,
       setStageStatus: s.setStageStatus,
-      setStagePlan: s.setStagePlan,
       reportProgress: s.reportProgress,
       reportDefect: s.reportDefect,
       uploadOrderAttachment: s.uploadOrderAttachment,
@@ -67,12 +68,33 @@ export function useStageActions() {
    * верное. Дату можно поставить в карточке заказа.
    */
   const onStart = useCallback(async (entry, plannedEnd) => {
-    const ok = await setStageStatus(entry.stage.id, 'in_progress', { assignee: currentActor() });
+    /**
+     * ПЛАН УХОДИТ ОДНИМ ЗАПРОСОМ СО СТАТУСОМ (правка 03.09), и это не
+     * оптимизация — до неё он не записывался у цеха ВООБЩЕ.
+     *
+     * `erp_stage_guard` требует на `planned_end` право `order.manage`
+     * и делает РОВНО ОДНО исключение: переход в `in_progress` из другого
+     * статуса, при неизменном `planned_start` и праве `stage.take`. Отдельный
+     * второй запрос под это исключение не подпадает — к его моменту этап уже
+     * `in_progress`, то есть `old.status` не отличается от нового.
+     *
+     * На проде `order.manage` нет НИ У ОДНОЙ цеховой роли (проверено:
+     * worker, foreman, dtf, silkscreen, embroidery, dtg, storekeeper,
+     * purchaser, technologist — у всех `allowed = false`). Значит форма
+     * «Взять в работу» просила у рабочего дату, а сервер эту дату отклонял;
+     * этап оставался без `planned_end`, то есть невидимым в «Загрузке цехов»
+     * и никогда не просроченным. Прежний порядок «сначала статус, потом план»
+     * защищал НАМЕРЕНИЕ (правка 30.08, п. 9) — но защищать было нечего:
+     * второй запрос не проходил. Одна запись сохраняет и намерение, и дату.
+     */
+    const ok = await setStageStatus(entry.stage.id, 'in_progress', {
+      assignee: currentActor(),
+      ...(plannedEnd ? { planned_end: plannedEnd } : {}),
+    });
     if (!ok) return false;
-    if (plannedEnd) await setStagePlan(entry.stage.id, { planned_end: plannedEnd });
     toast.success(`Взято в работу: ${entry.item.product_type || 'позиция'} · ${entry.item.qty} шт`);
     return true;
-  }, [setStagePlan, setStageStatus]);
+  }, [setStageStatus]);
 
   /**
    * «Готово» без числа — закрыть этап целиком.
@@ -86,8 +108,12 @@ export function useStageActions() {
       qty: entry.item.qty,
       allStages: entry.item.stages,
       deptNameById,
-      // Гейт закупки (правка 30.08, п. 5): материалы ПОЗИЦИИ и цех этапа
-      materials: materialsForItem(entry.order.materials, entry.item.id),
+      // Гейт закупки (правка 30.08, п. 5): материалы ПОЗИЦИИ и цех этапа.
+      // Аварийное снятие учитывается и здесь (правка 03.09) — писатель его
+      // уважает, и диалог не должен отказывать раньше, чем система запретит
+      materials: materialsAfterBypass(
+        materialsForItem(entry.order.materials, entry.item.id), entry.order.id, bypasses,
+      ),
       dept: departments.find((d) => d.id === entry.stage.department_id),
     });
     if (!ok) return false;
@@ -101,37 +127,19 @@ export function useStageActions() {
         : `Этап завершён: ${entry.item.qty} шт`);
     }
     return saved;
-  }, [setStageStatus, deptNameById, dependentDeptNames, departments]);
+  }, [setStageStatus, deptNameById, dependentDeptNames, departments, bypasses]);
 
   /**
    * «Частично» — накопительный прогресс qty_done += N.
    *
-   * ГЕЙТ ЗАКУПКИ СТОИТ И ЗДЕСЬ (правка 30.08, п. 5), и это не перестраховка:
-   * `erp_stage_report_progress` при `qty_done >= qty` САМ ставит этапу
-   * `status = 'done'`. То есть «Записать результат» на весь остаток —
-   * четвёртый путь закрытия этапа, и без гейта закрой закрывался бы при
-   * неприехавшей ткани ровно так же, как через «Завершить этап», только
-   * молча. Комментарий в `StageActionsPanel` это давно признаёт («кнопка
-   * молча делала то же, что „Завершить этап“»), но гейт туда не доходил.
-   *
-   * Проверяем ТОЛЬКО когда запись реально добирает тираж: частичная сдача
-   * при неприехавшем материале законна — цех отчитывается за то, что сделал.
+   * ГЕЙТ ЗАКУПКИ ЗДЕСЬ БОЛЬШЕ НЕ ДУБЛИРУЕТСЯ (правка 03.09). Он переехал
+   * к писателю — `stagesSlice.completionBlockFor`, — потому что путей записи,
+   * закрывающих этап, оказалось не три, а больше: отчёт по схеме участка
+   * (`submitStageReport`) шёл мимо всех трёх перечисленных вручную. Копия
+   * правила у кнопки означала, что каждый новый путь нужно вспомнить;
+   * у писателя его нельзя не пройти.
    */
   const onProgress = useCallback(async (entry, qty) => {
-    const closesStage = (entry.stage.qty_done ?? 0) + qty >= entry.item.qty;
-    if (closesStage) {
-      const blocked = stageCompletionBlock({
-        stage: entry.stage,
-        qty: entry.item.qty,
-        allStages: entry.item.stages,
-        materials: materialsForItem(entry.order.materials, entry.item.id),
-        dept: departments.find((d) => d.id === entry.stage.department_id),
-      });
-      if (blocked) {
-        toast.error(blocked);
-        return false;
-      }
-    }
     const ok = await reportProgress(entry.stage.id, qty);
     if (ok) {
       const done = (entry.stage.qty_done ?? 0) + qty;
@@ -143,7 +151,7 @@ export function useStageActions() {
         : `Записано ${qty} шт · этап закрыт`);
     }
     return ok;
-  }, [reportProgress, departments]);
+  }, [reportProgress]);
 
   const onBlock = useCallback(async (entry, reason, photo) => {
     let photoOk = false;

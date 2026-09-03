@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import InlineEdit from '../../components/InlineEdit';
+import { LoadFailed } from '../../components/ErpStates';
 import { Icon } from '../../components/Icon';
 import {
   DICTIONARY_HINTS,
@@ -228,9 +229,10 @@ function StatusesList() {
 }
 
 export function DictionariesTab() {
-  const { dictionariesLoaded, loadDictionaries } = useErpStore(
+  const { dictionariesLoaded, dictionariesError, loadDictionaries } = useErpStore(
     useShallow((s) => ({
       dictionariesLoaded: s.dictionariesLoaded,
+      dictionariesError: s.dictionariesError,
       loadDictionaries: s.loadDictionaries,
     })),
   );
@@ -239,6 +241,16 @@ export function DictionariesTab() {
   useEffect(() => {
     if (!dictionariesLoaded) loadDictionaries();
   }, [dictionariesLoaded, loadDictionaries]);
+
+  /**
+   * Отказ загрузки называется прямо (правка 03.09). Для ЭКРАНОВ справочник —
+   * подсказка, и fail-open там верен: без него работают на свободном вводе.
+   * Но на вкладке РЕДАКТИРОВАНИЯ пустой список читается как «значений нет»,
+   * и админ заводит второй раз то, что уже заведено.
+   */
+  if (dictionariesError) {
+    return <LoadFailed onRetry={loadDictionaries} what="справочники" />;
+  }
 
   return (
     <>

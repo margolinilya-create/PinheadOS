@@ -3,6 +3,7 @@ import { Icon } from '../components/Icon';
 import { Skeleton } from '../../components/shared/Skeleton';
 import styles from '../erp.module.css';
 import { useErpAccess } from '../store/useErpAccess';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { canOpenScreen } from '../utils/screenAccess';
 
 /**
@@ -34,7 +35,8 @@ const GROUPS = [
        * человек, стоящий на вкладке «План», видел бы меню без подсветки.
        */
       { to: '/board', label: 'Производство', icon: 'board', match: ['/plan', '/load'] },
-      { to: '/queue', label: 'Мой цех', icon: 'queue', end: true },
+      // Считается `readyOnlyCountFor` — ТОЛЬКО готовые к запуску
+      { to: '/queue', label: 'Мой цех', icon: 'queue', end: true, countLabel: 'Готово к запуску' },
     ],
   },
   {
@@ -57,8 +59,18 @@ const GROUPS = [
   },
 ];
 
-/** Пункт навигации со счётчиком заданий */
-function NavItem({ item, count, collapsed }) {
+/**
+ * Пункт навигации со счётчиком заданий.
+ *
+ * `countLabel` — что ИМЕННО посчитано, и он обязателен потому, что в одном
+ * сайдбаре живут ДВА разных счёта одного и того же цеха (правка 03.09):
+ * «Мой цех» показывает `readyOnlyCountFor` (только готовые к запуску),
+ * а пункт цеха в группе «Цеха» — `readyCountFor` (готовые ПЛЮС взятые
+ * в работу). Оба подписывались одинаково — «Активных задач: N», — и человек
+ * видел у своего участка два разных числа с одной и той же подписью,
+ * не имея ни одного способа понять, какое из них про что.
+ */
+function NavItem({ item, count, collapsed, countLabel = 'Активных задач' }) {
   const { pathname } = useLocation();
   // Пункт-раздел подсвечивается и на своих вкладках (см. `match` в GROUPS)
   const matched = item.match?.some((m) => pathname === m || pathname.startsWith(`${m}/`));
@@ -75,7 +87,7 @@ function NavItem({ item, count, collapsed }) {
       <span className={styles.navIcon}><Icon name={item.icon} size={19} /></span>
       <span className={styles.navLabel}>{item.label}</span>
       {count > 0 && (
-        <span className={styles.navBadge} aria-label={`Активных задач: ${count}`}>
+        <span className={styles.navBadge} aria-label={`${countLabel}: ${count}`}>
           {count}
         </span>
       )}
@@ -89,8 +101,20 @@ export function Sidebar({
 }) {
   // Тот же источник, что у маршрутов: пункт, ведущий в отказ, — хуже отсутствия
   const { can } = useErpAccess();
+  /**
+   * ВЫЕЗЖАЮЩЕЕ МЕНЮ — ЛОВУШКА ФОКУСА И ESCAPE (правка 03.09).
+   *
+   * Ниже 760px сайдбар это оверлей поверх экрана. Фокус в него не переносился,
+   * Escape не закрывал, а весь фон оставался в порядке табуляции: открытое
+   * меню для клавиатуры просто не существовало, зато сквозь него можно было
+   * протабать на закрытый им экран (WCAG 2.4.3). Ловушка ставится ТОЛЬКО
+   * когда меню открыто как оверлей: в обычной раскладке сайдбар — часть
+   * страницы, и запирать в нём фокус было бы дефектом, а не починкой.
+   */
+  const trapRef = useFocusTrap(open, onNavigate);
   return (
     <aside
+      ref={trapRef}
       className={[
         styles.sidebar,
         collapsed ? styles.sidebarCollapsed : '',
@@ -115,7 +139,13 @@ export function Sidebar({
             <div key={g.title}>
               <div className={styles.navGroup}>{g.title}</div>
               {items.map((n) => (
-                <NavItem key={n.to} item={n} count={counts[n.to] || 0} collapsed={collapsed} />
+                <NavItem
+                  key={n.to}
+                  item={n}
+                  count={counts[n.to] || 0}
+                  collapsed={collapsed}
+                  countLabel={n.countLabel}
+                />
               ))}
               {/* Цеха — сразу под «Главным»: постоянный список участков с числом заданий.
                   Пока состав участков не приехал, место под группу РЕЗЕРВИРУЕТСЯ: раньше
@@ -131,6 +161,8 @@ export function Sidebar({
                         item={{ to: d.to, label: d.label, icon: d.icon }}
                         count={d.count}
                         collapsed={collapsed}
+                        /* `readyCountFor` — готовые к запуску И уже взятые в работу */
+                        countLabel="Заданий в очереди"
                       />
                     ))
                     /* Заглушки — <div aria-hidden>, а не ссылки: спеки доступности считают

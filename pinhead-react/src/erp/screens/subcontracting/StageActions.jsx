@@ -44,6 +44,8 @@ export function StageActions({ op, view, canManage }) {
   const [movedOn, setMovedOn] = useState(factoryToday());
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
+  /** Ключ выполняющегося действия — гасит именно ту кнопку, по которой нажали */
+  const [running, setRunning] = useState(null);
 
   const actions = availableActions(view);
   if (!canManage) {
@@ -75,6 +77,9 @@ export function StageActions({ op, view, canManage }) {
   };
 
   const run = async (spec) => {
+    // Какое именно действие выполняется — своё состояние (правка 03.09).
+    // См. комментарий у `loading` ниже: без него кнопка не гасла вовсе.
+    setRunning(spec.key);
     setSaving(true);
     /**
      * Догрузка партии присылает СУММУ: объём работы — величина менеджера,
@@ -90,6 +95,7 @@ export function StageActions({ op, view, canManage }) {
       comment,
     });
     setSaving(false);
+    setRunning(null);
     if (ok) setOpen(null);
   };
 
@@ -107,7 +113,19 @@ export function StageActions({ op, view, canManage }) {
             variant={i === 0 ? 'primary' : 'secondary'}
             size="sm"
             onClick={() => (needsForm(spec) ? start(spec) : run(spec))}
-            loading={saving && open?.key === spec.key}
+            /**
+             * ПРИЗНАК ЗАНЯТОСТИ — СВОЙ, А НЕ ВЫВЕДЕННЫЙ ИЗ `open` (правка 03.09).
+             *
+             * Было `saving && open?.key === spec.key`. У действий БЕЗ формы
+             * `start()` не вызывается, `open` остаётся `null`, и выражение
+             * всегда false: кнопка не гасла и не блокировалась вовсе. Два тапа
+             * по планшету за 300 мс = два вызова `erp_subcontract_apply`,
+             * то есть ДВЕ записи в журнал перемещений — а он приращает
+             * `qty_done` подрядного этапа. Это не мигание индикатора,
+             * это удвоенное количество в производстве.
+             */
+            loading={saving && (running === spec.key || open?.key === spec.key)}
+            disabled={saving}
           >
             {spec.label}
           </Button>

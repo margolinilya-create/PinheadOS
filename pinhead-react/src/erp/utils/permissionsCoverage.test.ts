@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { latestDefining, latestMatching } from './migrations.testutil';
+import { latestDefining, latestMatching, withoutJsComments } from './migrations.testutil';
 import { ERP_PERMISSIONS, ERP_PERMISSION_LABELS, EMPLOYEE_ROLE_LABELS } from '../types';
 import { DEFAULT_PERMISSIONS } from './permissions';
+import { SCREEN_ACCESS } from './screenAccess';
 import type { EmployeeRole } from '../types';
 
 /**
@@ -50,7 +51,17 @@ const DECLARATIONS = [
   /export const ERP_PERMISSION_LABELS[\s\S]*?\};/,
   /export const DEFAULT_PERMISSIONS[\s\S]*?\n\};/,
 ];
-const USAGE_SOURCE = DECLARATIONS.reduce((acc, re) => acc.replace(re, ''), APP_SOURCE);
+/**
+ * Комментарии снимаются ДО поиска гейтов: в этом проекте объяснение, ПОЧЕМУ
+ * право где-то не проверяется, содержит те же слова, что и сама проверка.
+ * Тот же приём, что у `materialReceipts.test.ts`.
+ */
+const USAGE_SOURCE = withoutJsComments(
+  DECLARATIONS.reduce((acc, re) => acc.replace(re, ''), APP_SOURCE),
+);
+
+/** Права, гейтящие раздел целиком: `canOpenScreen` читает эту таблицу */
+const SCREEN_ACCESS_PERMISSIONS = new Set<string>(Object.values(SCREEN_ACCESS).flat());
 
 describe('право не бывает декоративным', () => {
   it.each(ERP_PERMISSIONS)('%s засеяно миграцией', (permission) => {
@@ -58,8 +69,29 @@ describe('право не бывает декоративным', () => {
   });
 
   it.each(ERP_PERMISSIONS)('%s что-то выключает в коде', (permission) => {
-    // Ищем применение: can('право'), canDo('право', …), erp_has_permission('право')
-    expect(USAGE_SOURCE).toContain(`'${permission}'`);
+    /**
+     * Ищем ВЫЗОВ, а не упоминание.
+     *
+     * Здесь стояло `toContain("'право'")` по всем исходникам без деклараций —
+     * и это сторож, зелёный на сломанном коде: строка права встречается
+     * в комментариях (их в проекте много и они длинные), в подписи отказа,
+     * в тексте документации рядом. Сними ВСЕ настоящие гейты — тест остался бы
+     * зелёным, потому что про право написано словами.
+     *
+     * Теперь нужно одно из двух: вызов `can('право')` / `canDo('право', …)`
+     * (комментарии сняты, поэтому упоминание в прозе не считается) либо
+     * запись в таблице `SCREEN_ACCESS` — она гейтит и меню, и маршрут через
+     * `canOpenScreen`, то есть тоже настоящий гейт.
+     */
+    const called = new RegExp(
+      `\\b(?:can|canDo|canAny)\\(\\s*'${permission.replace('.', '\\.')}'`,
+    ).test(USAGE_SOURCE);
+    const gatesScreen = SCREEN_ACCESS_PERMISSIONS.has(permission);
+    expect(
+      called || gatesScreen,
+      `${permission}: нет ни вызова can()/canDo(), ни записи в SCREEN_ACCESS — `
+      + 'право декоративное, галочка в админке ничего не меняет',
+    ).toBe(true);
   });
 
   it.each(ERP_PERMISSIONS)('%s имеет подпись на русском', (permission) => {

@@ -83,6 +83,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   archiveHasMore: false,
   archiveOffset: 0,
   detailIds: [],
+  detailError: null,
   showDemoOrders: readShowDemo(),
 
   setShowDemoOrders: async (value) => {
@@ -291,10 +292,16 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .eq('id', orderId)
       .maybeSingle());
     if (error) {
+      // Сбой ОТЛИЧАЕТСЯ от «такого заказа нет»: экран покажет «Не удалось
+      // загрузить · Повторить», а не «Заказ не найден» (правка 03.09)
+      set({ detailError: error.message });
       erpError('Не удалось загрузить заказ', error);
       return null;
     }
-    if (!data) return null;
+    if (!data) {
+      set({ detailError: null });
+      return null;
+    }
     const full = sortOrderFull(data as ErpOrderFull);
     set((s) => ({
       orders: s.orders.some((o) => o.id === full.id)
@@ -302,6 +309,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
         : [full, ...s.orders],
       // Отмечаем, что у этого заказа есть колонки, которых нет в списочном запросе
       detailIds: s.detailIds.includes(full.id) ? s.detailIds : [...s.detailIds, full.id],
+      detailError: null,
     }));
     return full;
   },

@@ -28,10 +28,20 @@ function awaitsAcceptance(m: ErpMaterial): boolean {
   return m.accept_status !== 'accepted_full' && m.accept_status !== 'accepted_partial';
 }
 
-/** Значимые статусы задач → строка истории склада (прочие переходы историю не пишут) */
+/**
+ * Значимые статусы задач → строка истории склада (прочие переходы её не пишут).
+ *
+ * КЛЮЧ `packed` УБРАН, ВМЕСТО НЕГО `ready_to_ship` (правка 03.09). Статус
+ * `packed` схлопнут миграцией `20260823214022` (у упаковки осталось три
+ * статуса: `packing | ready_to_ship | shipped`), а `shipped` через
+ * `advanceWarehouseTask` теперь запрещён явно — его пишет `erp_ship_order`.
+ * То есть из трёх ключей работал один, и переход «упаковано» не попадал
+ * в историю склада НИ РАЗУ, хотя подпись `WAREHOUSE_OP_LABELS.packaging`
+ * для него так и осталась.
+ */
 const OP_FOR_STATUS: Record<string, WarehouseOpType> = {
   issued: 'marking',
-  packed: 'packaging',
+  ready_to_ship: 'packaging',
   shipped: 'shipment',
 };
 

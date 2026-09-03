@@ -37,7 +37,7 @@ import { Button } from '../components/Button';
 
 export default function OrdersScreen() {
   const {
-    orders, departments, loading, loaded, loadError, loadAll, deleteOrder, shipOrder,
+    orders, departments, loaded, loadError, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
     showDemoOrders, setShowDemoOrders, setOrderDemo,
   } = useErpStore(
@@ -47,7 +47,6 @@ export default function OrdersScreen() {
       setShowDemoOrders: s.setShowDemoOrders,
       setOrderDemo: s.setOrderDemo,
       departments: s.departments,
-      loading: s.loading,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
@@ -354,10 +353,13 @@ export default function OrdersScreen() {
 
       <div className={styles.toolbar}>
         <div role="group" aria-label="Фильтр заказов" className={styles.filterRow}>
+          {/* Не `role="tab"`: полного таб-паттерна тут нет (нет `tablist`,
+              `tabpanel`, `aria-controls` и roving tabindex), а половина хуже
+              обычных кнопок — правило проекта. Состояние несёт `aria-pressed`,
+              как у соседних фильтров ниже. */}
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === 'active'}
+            aria-pressed={tab === 'active'}
             className={`${styles.chip} ${styles.chipBtn} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
                         onClick={() => setTab('active')}
           >
@@ -365,8 +367,7 @@ export default function OrdersScreen() {
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === 'archive'}
+            aria-pressed={tab === 'archive'}
             className={`${styles.chip} ${styles.chipBtn} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
                         onClick={() => setTab('archive')}
           >
@@ -514,7 +515,10 @@ export default function OrdersScreen() {
       )}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="заказы" />}
-      {!loadError && loading && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
+      {/* Скелетон на `!loaded && !loadError`, а НЕ на `loading` (правка 03.09):
+          на первом кадре `loading` ещё false, и экран успевал моргнуть пустотой
+          — правило UX-2 требует ровно обратного порядка */}
+      {!loadError && !loaded && <TableSkeleton rows={6} label="Загрузка заказов" />}
       {loaded && tab === 'archive' && !archiveLoaded && (
         <TableSkeleton rows={4} label="Загрузка архива" />
       )}

@@ -141,6 +141,14 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
    * защищает от гонки с realtime, но не от повторного тапа. На медленном цеховом
    * Wi-Fi рабочий не получал обратной связи, что тап засчитан, и жал ещё раз.
    */
+  /**
+   * `busy` гасит кнопки на время запроса — двойной тап был закрыт и раньше.
+   * ЧЕГО НЕ ХВАТАЛО (правка 03.09): видимого «выполняется». `loading` стоял
+   * только у «Взять в работу» (единственной кнопки с формой), а пять
+   * остальных действий просто ГАСЛИ. На планшете по цеховому Wi-Fi это
+   * читается как «нажал — ничего не произошло, кнопка сломалась»: ровно то,
+   * против чего в этом же файле стоит комментарий про немую блокировку.
+   */
   const [busy, setBusy] = useState(false);
   const run = async (fn) => {
     if (busy) return false;
@@ -185,7 +193,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           />
           <Button
             variant="secondary"
-            disabled={!ackText.trim()}
+            loading={busy}
+            disabled={busy || !ackText.trim()}
             onClick={() => { onAckOverdue(stage.id, ackText.trim()); setAckText(''); }}>
             Сохранить
           </Button>
@@ -277,6 +286,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   <Button
                     variant="secondary"
                     icon="plus"
+                    loading={busy}
                     disabled={busy || !(Number(doneQty) > 0)}
                     onClick={() => run(async () => {
                       await onProgress(entry, Math.max(1, Number(doneQty) || 0));
@@ -288,7 +298,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 </>
               ))}
               {perms.complete && (
-                <Button variant="primary" disabled={busy} onClick={() => run(() => onDone(entry))}>
+                <Button variant="primary" loading={busy} disabled={busy} onClick={() => run(() => onDone(entry))}>
                   <Icon name="check" size={14} /> Завершить этап
                 </Button>
               )}
@@ -310,7 +320,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     решение принимает тот, кто ведёт заказ, а не цех.
                   */}
                   {perms.skip && (
-                    <Button variant="ghost" disabled={busy} onClick={() => run(() => onSkip(entry))}>
+                    <Button variant="ghost" loading={busy} disabled={busy} onClick={() => run(() => onSkip(entry))}>
                       <Icon name="chevronRight" size={14} /> Пропустить этап
                     </Button>
                   )}
@@ -324,7 +334,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             </Button>
           )}
           {group === 'blocked' && perms.block && (
-            <Button variant="secondary" disabled={busy} onClick={() => run(() => onUnblock(entry))}>
+            <Button variant="secondary" loading={busy} disabled={busy} onClick={() => run(() => onUnblock(entry))}>
               Снять блокировку
             </Button>
           )}
@@ -372,6 +382,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           <PhotoAttach file={blockPhoto} onFile={setBlockPhoto} label="Фото (необязательно)" />
           <Button
             variant="danger"
+            loading={busy}
             disabled={busy || !blockText.trim()}
             onClick={() => run(async () => {
               await onBlock(entry, blockText.trim(), blockPhoto);

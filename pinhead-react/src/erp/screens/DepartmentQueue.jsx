@@ -29,6 +29,7 @@ import { useStageActions } from './queue/useStageActions';
 import { PlanAddModal } from './plan/PlanAddModal';
 import { Button } from '../components/Button';
 import DeptBindingNotice from '../components/DeptBindingNotice';
+import { storageGetRaw, storageSetRaw } from '../../lib/storage';
 
 /**
  * Экран цеха: рабочая очередь конкретного участка.
@@ -159,8 +160,8 @@ export default function DepartmentQueue() {
     return next;
   });
   // Вид запоминается на устройстве: цех обычно работает в одном и том же
-  const [view, setView] = useState(() => localStorage.getItem('erp_queue_view') || 'queue');
-  const switchView = (v) => { setView(v); localStorage.setItem('erp_queue_view', v); };
+  const [view, setView] = useState(() => storageGetRaw('erp_queue_view') || 'queue');
+  const switchView = (v) => { setView(v); storageSetRaw('erp_queue_view', v); };
   const [drag, setDrag] = useState(null);   // перетаскиваемая строка
   const [dropAt, setDropAt] = useState(null); // { id, before } — куда встанет
 
@@ -196,9 +197,9 @@ export default function DepartmentQueue() {
   );
 
   // Цех берём из маршрута; /queue без кода — привязанный цех, иначе последний выбранный
-  const deptCode = routeDept || boundDept?.code || localStorage.getItem('erp_my_dept') || '';
+  const deptCode = routeDept || boundDept?.code || storageGetRaw('erp_my_dept') || '';
   const selectDept = (code) => {
-    localStorage.setItem('erp_my_dept', code);
+    storageSetRaw('erp_my_dept', code);
     navigate(`/queue/${code}`);
   };
 
@@ -551,14 +552,24 @@ export default function DepartmentQueue() {
             </h2>
             {!collapsed && (isCompact ? (
               <div className={styles.queueGrid}>
-                {list.map((entry) => (
+                {list.map((entry, i) => (
                   <QueueCard
                     key={entry.stage.id}
                     entry={entry}
+                    index={i}
                     perms={perms}
                     rework={reworkByStage[entry.stage.id] || null}
                     deptShortById={deptShortById}
                     actions={actions}
+                    /* Приоритет и постановка в план работают и на планшете
+                       (правка 03.09): раньше эти пропсы получала только
+                       десктопная строка, и на тач-устройстве право
+                       `stage.priority` применить было нечем */
+                    canReorder={canReorder && entry.group !== 'done'}
+                    canMoveUp={i > 0}
+                    canMoveDown={i < list.length - 1}
+                    onMove={(dir) => moveInQueue(list, entry, dir)}
+                    onPlan={setPlanFor}
                   />
                 ))}
               </div>

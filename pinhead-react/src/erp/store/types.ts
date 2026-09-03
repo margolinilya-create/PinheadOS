@@ -442,6 +442,16 @@ export interface OrdersSlice {
    * без размерной сетки.
    */
   detailIds: string[];
+  /**
+   * Отказ ТОЧЕЧНОЙ загрузки (`loadOne`/`findOrderIdByStage`), иначе null.
+   *
+   * Заведён аудитом 03.09: обе функции возвращали `null` и при «нет такой
+   * строки», и при сбое сети, а экран трактовал `null` как «не найдено».
+   * Человек по ссылке из чата читал «Заказ не найден» / «Задание не найдено
+   * или было удалено» — то есть «запись удалили» вместо «связь оборвалась» —
+   * и шёл выяснять к диспетчеру.
+   */
+  detailError: string | null;
 
   /**
    * Показывать ли тестовые заказы (`is_demo`). По умолчанию нет.
@@ -728,6 +738,16 @@ export interface ProcurementSlice {
 export interface SubcontractingSlice {
   subcontracting: ErpSubcontractOp[];
   subcontractingLoaded: boolean;
+  /**
+   * Сообщение об отказе загрузки, иначе null.
+   *
+   * Заведено аудитом 03.09: без флага экран не мог отличить «ещё едет»
+   * от «не приехало», и правило проекта «ошибка → скелетон → пусто»
+   * исполнялось на треть. Скелетон висел на `!loaded`, а `loaded` при
+   * отказе не поднимается — то есть экран грузился ВЕЧНО, а эффект
+   * `if (!loaded) load()` второй раз не срабатывает: выход только F5.
+   */
+  subcontractingError: string | null;
   /** Подряд: список операций у подрядчиков (join заголовок заказа) */
   loadSubcontracting: () => Promise<void>;
   createSubcontractOp: (
@@ -879,6 +899,16 @@ export interface PermissionsSlice {
   /** null — матрица ещё не загружена (действуют DEFAULT_PERMISSIONS) */
   permissionMatrix: PermissionMatrix | null;
   permissionsLoaded: boolean;
+  /**
+   * Сообщение об отказе загрузки, иначе null.
+   *
+   * Заведено аудитом 03.09: без флага экран не мог отличить «ещё едет»
+   * от «не приехало», и правило проекта «ошибка → скелетон → пусто»
+   * исполнялось на треть. Скелетон висел на `!loaded`, а `loaded` при
+   * отказе не поднимается — то есть экран грузился ВЕЧНО, а эффект
+   * `if (!loaded) load()` второй раз не срабатывает: выход только F5.
+   */
+  permissionsError: string | null;
   loadPermissions: () => Promise<void>;
   /** Переключить право роли из редактора матрицы в админке */
   setRolePermission: (
@@ -892,6 +922,16 @@ export interface PermissionsSlice {
 export interface DictionariesSlice {
   dictionaries: ErpDictionaryItem[];
   dictionariesLoaded: boolean;
+  /**
+   * Сообщение об отказе загрузки, иначе null.
+   *
+   * Заведено аудитом 03.09: без флага экран не мог отличить «ещё едет»
+   * от «не приехало», и правило проекта «ошибка → скелетон → пусто»
+   * исполнялось на треть. Скелетон висел на `!loaded`, а `loaded` при
+   * отказе не поднимается — то есть экран грузился ВЕЧНО, а эффект
+   * `if (!loaded) load()` второй раз не срабатывает: выход только F5.
+   */
+  dictionariesError: string | null;
   loadDictionaries: () => Promise<void>;
   /** Код значения генерируется из названия, порядок — в конец списка вида */
   createDictionaryItem: (
@@ -916,6 +956,16 @@ export interface DictionariesSlice {
 export interface BypassSlice {
   bypasses: ErpBypass[];
   bypassesLoaded: boolean;
+  /**
+   * Сообщение об отказе загрузки, иначе null.
+   *
+   * Заведено аудитом 03.09: без флага экран не мог отличить «ещё едет»
+   * от «не приехало», и правило проекта «ошибка → скелетон → пусто»
+   * исполнялось на треть. Скелетон висел на `!loaded`, а `loaded` при
+   * отказе не поднимается — то есть экран грузился ВЕЧНО, а эффект
+   * `if (!loaded) load()` второй раз не срабатывает: выход только F5.
+   */
+  bypassesError: string | null;
   loadBypasses: () => Promise<void>;
   /** Снять проверку: причина обязательна, `orderId = null` — для всей системы */
   createBypass: (
@@ -937,6 +987,16 @@ export interface BypassSlice {
 export interface SettingsSlice {
   capacity: CapacitySettings;
   capacityLoaded: boolean;
+  /**
+   * Сообщение об отказе загрузки, иначе null.
+   *
+   * Заведено аудитом 03.09: без флага экран не мог отличить «ещё едет»
+   * от «не приехало», и правило проекта «ошибка → скелетон → пусто»
+   * исполнялось на треть. Скелетон висел на `!loaded`, а `loaded` при
+   * отказе не поднимается — то есть экран грузился ВЕЧНО, а эффект
+   * `if (!loaded) load()` второй раз не срабатывает: выход только F5.
+   */
+  capacityError: string | null;
   loadSettings: () => Promise<void>;
   /** Сохранить мощность; право — `plan.manage`, как у самого плана */
   saveCapacity: (next: CapacitySettings) => Promise<boolean>;
@@ -994,6 +1054,16 @@ export interface DevTaskInput {
 export interface ExperimentalSlice {
   experimental: ErpExperimental[];
   experimentalLoaded: boolean;
+  /**
+   * Сообщение об отказе загрузки, иначе null.
+   *
+   * Заведено аудитом 03.09: без флага экран не мог отличить «ещё едет»
+   * от «не приехало», и правило проекта «ошибка → скелетон → пусто»
+   * исполнялось на треть. Скелетон висел на `!loaded`, а `loaded` при
+   * отказе не поднимается — то есть экран грузился ВЕЧНО, а эффект
+   * `if (!loaded) load()` второй раз не срабатывает: выход только F5.
+   */
+  experimentalError: string | null;
   loadExperimental: () => Promise<void>;
   createExperimental: (
     orderId: string,

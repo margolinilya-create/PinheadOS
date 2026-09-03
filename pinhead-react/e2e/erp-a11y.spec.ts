@@ -136,23 +136,57 @@ test.describe('Клавиатура', () => {
 });
 
 test.describe('Формы и объявления', () => {
-  test('у каждого видимого поля есть доступное имя', async ({ page }) => {
-    await gotoScreen(page, '/orders?studio=0');
-    const inputs = page.locator('input:visible, select:visible');
-    const n = await inputs.count();
-    expect(n).toBeGreaterThan(0);
-    for (let i = 0; i < n; i += 1) {
-      const el = inputs.nth(i);
-      const name = await el.evaluate((node) => {
-        const byLabel = node.closest('label')?.textContent?.trim();
-        return node.getAttribute('aria-label')
-          || node.getAttribute('placeholder')
-          || byLabel
-          || '';
-      });
-      expect(name.length, `поле №${i + 1} без доступного имени`).toBeGreaterThan(0);
-    }
-  });
+  /**
+   * ПЛЕЙСХОЛДЕР ИМЕНЕМ НЕ СЧИТАЕТСЯ, и экранов больше одного.
+   *
+   * Прежняя редакция принимала `placeholder` за доступное имя и проверяла один
+   * экран из пятнадцати. Плейсхолдер исчезает, как только человек начал вводить,
+   * и вернуться к вопросу «что это за поле» уже нельзя (WCAG 3.3.2); полагаться
+   * на него — значит объявить проверенным ровно то, что проверять и надо.
+   *
+   * Экраны перечислены те, где формы и фильтры есть на самом видном месте.
+   */
+  const FIELD_SCREENS = [
+    ['Заказы', '/orders?studio=0'],
+    ['Очередь цеха', '/queue/cutting?studio=0'],
+    ['Закупка', '/purchasing?studio=0'],
+    ['Склад', '/warehouse?studio=0'],
+    ['План производства', '/plan?studio=0'],
+    ['Админка', '/admin?studio=0'],
+  ];
+
+  for (const [name, url] of FIELD_SCREENS) {
+    test(`${name}: у каждого видимого поля есть доступное имя`, async ({ page }) => {
+      await gotoScreen(page, url);
+      const inputs = page.locator('input:visible, select:visible, textarea:visible');
+      const n = await inputs.count();
+      expect(n, 'полей не найдено — проверка сторожила бы пустоту').toBeGreaterThan(0);
+      const nameless: string[] = [];
+      for (let i = 0; i < n; i += 1) {
+        const el = inputs.nth(i);
+        const accessible = await el.evaluate((node) => {
+          const byIds = (ids: string | null) => (ids ?? '')
+            .split(/\s+/).filter(Boolean)
+            .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+            .join(' ')
+            .trim();
+          const forLabel = node.id
+            ? document.querySelector(`label[for="${CSS.escape(node.id)}"]`)?.textContent?.trim()
+            : '';
+          return node.getAttribute('aria-label')?.trim()
+            || byIds(node.getAttribute('aria-labelledby'))
+            || forLabel
+            || node.closest('label')?.textContent?.trim()
+            || node.getAttribute('title')?.trim()
+            || '';
+        });
+        if (!accessible) {
+          nameless.push(await el.evaluate((node) => node.outerHTML.slice(0, 120)));
+        }
+      }
+      expect(nameless, `поля без доступного имени:\n${nameless.join('\n')}`).toEqual([]);
+    });
+  }
 
   test('тосты объявляются вспомогательным технологиям', async ({ page }) => {
     await gotoScreen(page, '/orders?studio=0');

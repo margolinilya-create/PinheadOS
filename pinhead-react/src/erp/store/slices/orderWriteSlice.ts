@@ -31,7 +31,9 @@ import { pluralize } from '../../../utils/i18n';
 import type {
   ErpItemStage, ErpOrder, ErpOrderAttachment, ErpOrderStatus,
 } from '../../types';
-import { currentActor, erpError, erpQuery, removeOrphanUpload, withPending } from '../shared';
+import {
+  currentActor, erpError, erpQuery, erpWrite, removeOrphanUpload, withPending,
+} from '../shared';
 import { invalidate } from '../queryCache';
 import { ORDER_SELECT } from '../orderHelpers';
 import { orderBundleKey, orderFilePaths } from './ordersSlice';
@@ -346,11 +348,16 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
     set((s) => ({
       orders: s.orders.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }));
-    const { error } = await erpQuery(() => withPending(`order:${id}`, () =>
-      supabase.from('erp_orders').update(patch).eq('id', id)));
-    if (error) {
+    /**
+     * `erpWrite` (правка 03.09). `erp_orders` UPDATE стоит на `erp_is_member()`,
+     * а колонки разбирает страж `erp_order_guard` — он бросает 42501, и это
+     * видно. Но отказ самой ПОЛИТИКИ приходит «нулём строк» без ошибки,
+     * и инлайн-правка заказа показывала бы сохранённым то, что не сохранено.
+     */
+    const ok = await erpWrite('Не удалось обновить заказ', () => withPending(`order:${id}`, () =>
+      supabase.from('erp_orders').update(patch).eq('id', id).select()));
+    if (!ok) {
       set({ orders: prev });
-      erpError('Не удалось обновить заказ', error);
       return false;
     }
     return true;

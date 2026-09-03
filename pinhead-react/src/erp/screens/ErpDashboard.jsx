@@ -10,7 +10,11 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed } from '../components/ErpStates';
 import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
-import { isStageReady, hasOpenProcurement, materialsForItem } from '../utils/routes';
+import {
+  isStageReady, hasOpenProcurement, materialsForItem, isStageAwaitingProcurement,
+} from '../utils/routes';
+import { materialsAfterBypass, isBypassed } from '../utils/bypass';
+import { scrollIntoViewSafely } from '../utils/scrollIntoViewSafely';
 import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/stageUi';
 import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
@@ -67,8 +71,10 @@ function orderStatus(order) {
 export default function ErpDashboard() {
   const {
     orders, departments, loaded, loadError, loadAll, capacity, capacityLoaded, loadSettings,
+    bypasses,
   } = useErpStore(
     useShallow((s) => ({
+      bypasses: s.bypasses,
       orders: s.orders,
       departments: s.departments,
       loaded: s.loaded,
@@ -97,7 +103,7 @@ export default function ErpDashboard() {
   const location = useLocation();
   useEffect(() => {
     if (loaded && location.hash === '#notifications') {
-      document.getElementById('notifications')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scrollIntoViewSafely(document.getElementById('notifications'), { block: 'start' });
     }
   }, [loaded, location.hash]);
 
@@ -145,9 +151,25 @@ export default function ErpDashboard() {
           if (!slot) continue;
           if (stage.status === 'in_progress') slot.inProgress += 1;
           else if (stage.status === 'blocked') slot.blocked += 1;
+          /**
+           * ГОТОВНОСТЬ СЧИТАЕТСЯ ТАК ЖЕ, КАК В ОЧЕРЕДИ И НА ДОСКЕ (правка 03.09).
+           *
+           * Здесь жёстко уходил `blockedByProcurement = false`. Ровно это чинили
+           * 30.08 на доске производства — и комментарий там прямо говорит
+           * «раньше в ОБЕ функции уходил false», — но до виджета «Загрузка
+           * цехов» починка не доехала: этап, ждущий дозакупку после брака,
+           * на обзоре числился готовым, а в очереди того же цеха стоял
+           * в ожидании. Аварийные снятия учитываются по той же причине.
+           */
           else if (stage.status === 'waiting' && isStageReady(
-            stage, item.stages, materialsForItem(order.materials, item.id), slot.dept, false,
-            stageMissingTz(order, item.id, slot.dept))) {
+            stage, item.stages,
+            materialsAfterBypass(
+              materialsForItem(order.materials, item.id), order.id, bypasses,
+            ),
+            slot.dept,
+            isStageAwaitingProcurement(order.procurement_tasks, stage.id),
+            stageMissingTz(order, item.id, slot.dept)
+              && !isBypassed('tz_gate', order.id, bypasses))) {
             slot.ready += 1;
           }
         }
@@ -189,7 +211,7 @@ export default function ErpDashboard() {
       noticeGroups: groupNotices(notifications),
       capacity: monthCapacityReport(orders, today, capacity),
     };
-  }, [orders, departments, capacity, today]);
+  }, [orders, departments, capacity, today, bypasses]);
 
   // Число для шапки виджета: сумма срочных групп, а не всех уведомлений
   const urgent = urgentCount(data.noticeGroups);

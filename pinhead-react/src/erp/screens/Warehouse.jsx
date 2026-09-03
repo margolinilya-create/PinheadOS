@@ -34,6 +34,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { ReadOnlyFieldset } from '../components/ReadOnlyFieldset';
 import { useErpAccess } from '../store/useErpAccess';
+import { useScrollRestore } from '../../hooks/useScrollRestore';
 
 /**
  * Склад (редизайн): таблица задач (KPI + вкладки по типу + пагинация); детали и действия
@@ -192,6 +193,12 @@ export default function Warehouse() {
   };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  /**
+   * Позиция прокрутки при возврате из карточки (правка 03.09). Приём был
+   * у списка заказов, доски и очереди цеха и НЕ доехал сюда: человек уходил
+   * в заказ из середины длинного списка и возвращался в его начало.
+   */
+  useScrollRestore(loaded);
   /**
    * Карточки подрядчика нужны приёмке подряда: сколько передано, сколько
    * вернулось, кто подрядчик. Реестр ленивый — без этой загрузки склад

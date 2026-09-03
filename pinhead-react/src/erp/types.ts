@@ -268,6 +268,17 @@ export interface ErpOrderItem {
    * это тоже читается как «как в заказе».
    */
   packaging?: ItemPackagingType | null;
+  /**
+   * Размер пакета, место стикера и место маркировки (документ 16.08, п. 1).
+   * Колонки есть в БД с 16.08, форма создания их пишет, `ORDER_LIST_SELECT` их
+   * просит, а `TzBlock` показывает цеху — но в типе их не было, и сверка
+   * `types/schema.test.ts` этого не видела: она проверяла только «нет ли
+   * в типе лишнего». Переименуй такую колонку миграция — тайпчек промолчал бы,
+   * а поле ТЗ опустело бы у цеха.
+   */
+  packaging_size?: string | null;
+  sticker_place?: string | null;
+  marking_place?: string | null;
   packaging_note?: string | null;
   created_at: string;
   updated_at: string;

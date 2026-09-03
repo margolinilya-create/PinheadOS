@@ -49,7 +49,7 @@ export default function DevPage() {
 
   const {
     orders, detailIds, loadOne, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, loadExperimental,
+    experimental, experimentalLoaded, experimentalError, loadExperimental,
     updateExperimental, addDevTasks, updateDevTask, sendDevTaskToDept,
     closeExperimental, approveSample, uploadDevFile, deleteDevFile,
   } = useErpStore(useShallow((s) => ({
@@ -62,6 +62,7 @@ export default function DevPage() {
     loadAll: s.loadAll,
     experimental: s.experimental,
     experimentalLoaded: s.experimentalLoaded,
+      experimentalError: s.experimentalError,
     loadExperimental: s.loadExperimental,
     updateExperimental: s.updateExperimental,
     addDevTasks: s.addDevTasks,
@@ -108,8 +109,18 @@ export default function DevPage() {
   /** Куда вернуться: ссылка принесла контекст списка (фильтры, вид, страница) */
   const back = location.state?.from || '/experimental';
 
-  if (loadError && !experimentalLoaded) {
+  /**
+   * Условие смешивало флаги ДВУХ доменов: `loadError` — про заказы,
+   * `experimentalLoaded` — про разработки (правка 03.09). При живых заказах
+   * и упавших разработках карточка замирала на скелетоне навсегда.
+   */
+  if (experimentalError && !experimentalLoaded) {
     return <LoadFailed onRetry={loadExperimental} what="разработку" />;
+  }
+  // Заказы — второй источник этой страницы (размерный ряд живёт в `size_grid`,
+  // которого нет в списочной выборке), и их отказ тоже надо назвать
+  if (loadError && !loaded) {
+    return <LoadFailed onRetry={loadAll} what="заказ" />;
   }
   if (!experimentalLoaded) {
     return <TableSkeleton rows={6} label="Загрузка разработки" />;

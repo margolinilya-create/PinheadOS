@@ -30,6 +30,7 @@ function currentActorId(): string | null {
 export const settingsSlice: StateCreator<ErpStore, [], [], SettingsSlice> = (set) => ({
   capacity: { ...DEFAULT_CAPACITY },
   capacityLoaded: false,
+  capacityError: null,
 
   loadSettings: async () => {
     const { data, error } = await erpRead(() => supabase
@@ -38,13 +39,14 @@ export const settingsSlice: StateCreator<ErpStore, [], [], SettingsSlice> = (set
       .eq('key', CAPACITY_SETTINGS_KEY)
       .maybeSingle());
     if (error) {
-      set({ capacityLoaded: true });
+      set({ capacityLoaded: true, capacityError: error.message });
       erpError('Не удалось загрузить настройки производства', error);
       return;
     }
     set({
       capacity: parseCapacitySettings((data as { value?: unknown } | null)?.value),
       capacityLoaded: true,
+      capacityError: null,
     });
   },
 

@@ -179,14 +179,20 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
         nodes={states.map((s) => ({
           key: s.stage,
           label: '',
-          title: DEV_STAGE_LABELS[s.stage],
+          // Состояние — ЧАСТЬЮ ИМЕНИ (правка 03.09): у точки теперь есть роль,
+          // и её имя читается вслух. Без слова состояние передавалось бы
+          // только цветом, а «Путь разработки» звучал как «1 2 3 4 5 6»
+          title: [DEV_STAGE_LABELS[s.stage], DEV_LANE_TITLES[s.lane]]
+            .filter(Boolean).join(' · '),
           // Пропущенный шаг НЕ помечается галочкой: она означает «выполнено»,
           // а у образца без печати нанесения не было вовсе. Линия при этом
           // идёт дальше — путь на нём не обрывается
           state: s.stage === column
             ? (s.lane === 'blocked' ? 'blocked' : 'active')
             : (s.lane === 'done' ? 'done' : undefined),
-          lineDone: s.lane === 'done' || s.lane === 'skipped',
+          // Линия идёт дальше и через шаг, которого не было в плане:
+          // путь на нём не обрывается
+          lineDone: s.lane === 'done' || s.lane === 'skipped' || s.lane === 'not_applicable',
         }))}
       />
 

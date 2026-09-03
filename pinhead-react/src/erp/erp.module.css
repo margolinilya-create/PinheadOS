@@ -25,7 +25,19 @@
   --border-mid: #D1D5DB;
   --text: #111827;
   --text-mid: #4B5563;
-  --text-dim: #6B7280;
+  /* Было #6B7280 — 4.39:1 на --surface и 4.47:1 на --bg при норме 4.5 для
+     12–13px (аудит 03.09, пересчёт по WCAG 2.x). Затемнено до минимального
+     значения, проходящего AA на ВСЕХ трёх поверхностях: 4.68 / 4.76 / 5.15.
+     Сторожит матрица «текст × поверхность» по блоку .shell в contrast.test.ts —
+     до 03.09 она читала только index.css и палитру раздела не видела вовсе. */
+  --text-dim: #666E7B;
+  /* Граница ПОЛЯ ВВОДА и вторичной кнопки — не текст, норма 3:1 (WCAG 1.4.11).
+     Прежняя --border #E5E7EB давала 1.24:1, и это была единственная граница:
+     фон поля (--card #fff) отличается от фона страницы (--bg #F5F6F8) на 1.04.
+     На цеховом планшете под ярким светом не было видно, куда печатать.
+     Отдельный токен, а не общий --border: рамки карточек и таблиц к элементам
+     управления не относятся, и перекрашивать их незачем. */
+  --border-control: #868E9B;
   --color-success: #10A34A;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
@@ -52,7 +64,13 @@
   /* Был не переопределён и подтягивался чёрным (#0A0A0A) из index.css — 29 мест
      рисовали чёрную рамку рядом с карточками редизайна на светло-серой */
   --border: #E5E7EB;
-  --text-muted: #6B7280;
+  /* Тот же расчёт, что у --text-dim: это его алиас по смыслу */
+  --text-muted: #666E7B;
+  /* Заливка опасного действия. --color-error #EF4444 под белым текстом даёт
+     3.76:1 при 12–14px — ниже AA. Отдельный токен: --color-error остаётся
+     для точек, рамок и чипов, где он не несёт белого текста. */
+  --btn-danger-bg: #DC2626;
+  --btn-danger-fg: #ffffff;
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
 }
 :global(html[data-theme='dark']) .shell {
@@ -94,6 +112,13 @@
   --color-cyan-ink:    #22D3EE;
   --border: #242B39;
   --text-muted: #9AA3B3;
+  /* Тёмная тема: текстовые токены проходят AA и так (5.19–8.44), правятся
+     только НЕтекстовые. Рамка контролов #313A4C давала 1.51:1 на карточке. */
+  --border-control: #66748C;
+  /* В тёмной теме --color-error светлый (#F87171), и белый текст на нём —
+     2.77:1. Заливка опасной кнопки берётся своим токеном. */
+  --btn-danger-bg: #B91C1C;
+  --btn-danger-fg: #ffffff;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
@@ -601,7 +626,7 @@
    у класса не осталось. */
 .input, .select {
   padding: 9px 11px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text);
@@ -821,6 +846,16 @@
 .queueCardBlocked { border-left-color: var(--color-error); }
 .queueCardUrgent { border-color: var(--color-error); }
 .queueCardHead { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+/* Приоритет очереди и постановка в план на планшете (правка 03.09). Объявлен
+   ЗДЕСЬ, а не в screens.module.css: имя начинается с `.queueCard`, и правило
+   проекта (сторож `stylesResolve.test.ts`) требует держать уточнения базового
+   класса в одном чанке с ним — между чанками порядка не существует. */
+.queueCardOrder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .queueCardTitle {
   font-family: var(--font-display);
   font-size: 18px;
@@ -1408,7 +1443,16 @@
 .kpiCard:hover { border-color: var(--border-mid); }
 /* Плитка-кнопка (склад): сбрасываем внешний вид кнопки, выравниваем текст */
 button.kpiCard { text-align: left; font: inherit; cursor: pointer; width: 100%; }
-button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-light); }
+/* Нажатая плитка-фильтр: подсветка ЛОЖИТСЯ НА ФОН КАРТОЧКИ, а не заменяет его.
+   `background: var(--accent-light)` (полупрозрачный акцент) убирал `--card`
+   целиком, и подсветка смешивалась с фоном СТРАНИЦЫ: композит выходил
+   #e4eaf7 вместо #eef3fd, и подпись плитки давала 4.26:1 при норме 4.5.
+   Поймано axe 03.09 — глазами такая разница не видна вовсе. Градиент из двух
+   одинаковых стопов — стандартный приём наложения слоя поверх своего фона. */
+button.kpiCard[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: linear-gradient(var(--accent-light), var(--accent-light)), var(--card);
+}
 /* Показатель как быстрый фильтр/переход (правка 14): кликабельна вся плитка */
 .kpiCardClickable {
   width: 100%;
@@ -1788,6 +1832,15 @@ button.kpiCard[aria-pressed='true'] { border-color: var(--accent); background: v
   opacity: 0.6;
 }
 .kanbanLaneEmpty .kanbanLaneTitle { margin-bottom: 0; }
+/* Кнопки переноса в соседний цех на карточке канбана (правка 03.09).
+   Класс объявлен здесь: имя начинается с `.kanbanCard`, а уточнения базового
+   класса обязаны жить в одном чанке с ним (сторож `stylesResolve.test.ts`). */
+.kanbanCardMove {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
 
 /* ─── Загрузка производства против общей мощности (правки заказчика 10.08) ───
    Одна полоса на трёх экранах: обзор, план, загрузка цехов. Заливка упирается

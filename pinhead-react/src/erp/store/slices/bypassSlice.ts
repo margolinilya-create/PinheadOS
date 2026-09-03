@@ -14,7 +14,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type { BypassKind, ErpBypass } from '../../types';
-import { currentActor, erpError, erpQuery, erpRead } from '../shared';
+import { currentActor, erpError, erpQuery, erpRead, erpWrite } from '../shared';
 import { useAuthStore } from '../../../store/useAuthStore';
 import type { BypassSlice, ErpStore } from '../types';
 
@@ -27,6 +27,7 @@ function currentActorId(): string | null {
 export const bypassSlice: StateCreator<ErpStore, [], [], BypassSlice> = (set, get) => ({
   bypasses: [],
   bypassesLoaded: false,
+  bypassesError: null,
 
   loadBypasses: async () => {
     const { data, error } = await erpRead(() => supabase
@@ -41,11 +42,11 @@ export const bypassSlice: StateCreator<ErpStore, [], [], BypassSlice> = (set, ge
        * состояние — значит всё разрешено») открыло бы производство настежь
        * из-за обрыва связи.
        */
-      set({ bypassesLoaded: true });
+      set({ bypassesLoaded: true, bypassesError: error.message });
       erpError('Не удалось загрузить аварийные отключения', error);
       return;
     }
-    set({ bypasses: (data ?? []) as ErpBypass[], bypassesLoaded: true });
+    set({ bypasses: (data ?? []) as ErpBypass[], bypassesLoaded: true, bypassesError: null });
   },
 
   createBypass: async (kind: BypassKind, orderId: string | null, reason: string) => {
@@ -84,13 +85,25 @@ export const bypassSlice: StateCreator<ErpStore, [], [], BypassSlice> = (set, ge
       restored_by_id: currentActorId(),
     };
     set((s) => ({ bypasses: s.bypasses.map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
-    const { error } = await erpQuery(() => supabase
+    /**
+     * ЧЕРЕЗ `erpWrite`, А НЕ ГОЛЫМ `update` (правка 03.09).
+     *
+     * RLS на UPDATE запрещает через `USING`, то есть отдаёт «обновлено
+     * 0 строк» БЕЗ ошибки. Прежний код смотрел только на `error` и показывал
+     * зелёное «Проверка возвращена», хотя `restored_at` менялся лишь в сторе:
+     * аварийно снятый гейт оставался снятым, а руководитель был уверен, что
+     * вернул его. До перезагрузки страницы это никак не проявлялось.
+     *
+     * Цена здесь выше обычной: снятая проверка — это работающее производство
+     * без материалов или без ТЗ, и «вернул» тут должно означать вернул.
+     */
+    const ok = await erpWrite('Проверка не возвращена', () => supabase
       .from('erp_bypasses')
       .update(patch)
-      .eq('id', id));
-    if (error) {
+      .eq('id', id)
+      .select());
+    if (!ok) {
       set({ bypasses: prev });
-      erpError('Проверка не возвращена', error);
       return false;
     }
     return true;

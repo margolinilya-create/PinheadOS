@@ -1,5 +1,6 @@
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
+import { ScrollHintBox } from './ScrollHintBox';
 
 /**
  * Индикатор стадий — единственная реализация на оба вида в ERP.
@@ -28,6 +29,17 @@ import { Icon } from './Icon';
  * существующего вида, а не четвёртый вид: вопрос тот же — «где сейчас».
  */
 
+/**
+ * `title` узла — ЭТО ЕГО ДОСТУПНОЕ ИМЯ, и состояние должно быть в нём.
+ *
+ * До правки 03.09 `aria-label` висел на голом `<span>` без роли — такой
+ * атрибут вспомогательные технологии игнорируют (WCAG 4.1.2), — а состояние
+ * передавалось вдобавок только классом, то есть цветом (WCAG 1.4.1).
+ * Теперь у точки `role="img"`, и её имя читается; состояние в имя кладёт
+ * вызывающий, потому что только он знает, каким словом его назвать
+ * (карточка заказа — «Завершён», доска ЭКС — «завершено»). Автоматическая
+ * дописка словом дублировала бы то, что уже сказано в `title`.
+ */
 function DotsNodes({ nodes }) {
   return nodes.map((n, i) => {
     const dotCls = [
@@ -42,7 +54,13 @@ function DotsNodes({ nodes }) {
         {i > 0 && (
           <span className={`${styles.stepperLine} ${n.lineDone ? styles.stepperLineDone : ''}`} />
         )}
-        <span className={dotCls} title={n.title} aria-label={n.title}>
+        {/* `role="img"` обязателен: без роли `aria-label` на `<span>` не читается */}
+        <span
+          className={dotCls}
+          title={n.title}
+          role="img"
+          aria-label={n.title || n.label}
+        >
           {n.state === 'done' ? <Icon name="check" size={12} /> : i + 1}
         </span>
         {n.sub ? (
@@ -87,9 +105,17 @@ export function StageIndicator({ variant, nodes, title, label }) {
     );
   }
 
+  /*
+   * Лента точек шире экрана на планшете и телефоне (`overflow-x: auto`),
+   * а внутри неё нет ни одного фокусируемого элемента — с клавиатуры такую
+   * область не прокрутить вовсе (WCAG 2.1.1). Это работа `ScrollHintBox`:
+   * он ставит `tabIndex` ровно тогда, когда прокручивать есть что, и заодно
+   * показывает, что справа осталось содержимое. Своя копия правила здесь
+   * означала бы второе место, где решается один и тот же вопрос.
+   */
   return (
-    <div className={styles.stepper} role="list" aria-label={label}>
+    <ScrollHintBox className={styles.stepper} role="list" label={label}>
       <DotsNodes nodes={nodes} />
-    </div>
+    </ScrollHintBox>
   );
 }

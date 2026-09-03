@@ -28,16 +28,16 @@ import type { ErpStore } from './types';
  * в имени прошла бы молча — поле просто не попало бы в стор.
  */
 type DomainState = Pick<ErpStore,
-  | 'subcontracting' | 'subcontractingLoaded'
+  | 'subcontracting' | 'subcontractingLoaded' | 'subcontractingError'
   | 'preliminary' | 'preliminaryLoaded'
   | 'employees' | 'profilesList' | 'employeesLoaded' | 'employeesError'
   | 'invites' | 'invitesLoaded'
   | 'myDeptId' | 'myRole' | 'myDeptLoaded'
-  | 'dictionaries' | 'dictionariesLoaded'
-  | 'experimental' | 'experimentalLoaded'
+  | 'dictionaries' | 'dictionariesLoaded' | 'dictionariesError'
+  | 'experimental' | 'experimentalLoaded' | 'experimentalError'
   | 'planSlots' | 'planComments' | 'planLoaded' | 'planLoading' | 'planLoadError'
   | 'plannedStageIds' | 'plannedAheadLoaded'
-  | 'capacity' | 'capacityLoaded'
+  | 'capacity' | 'capacityLoaded' | 'capacityError'
   | 'orderDrafts' | 'orderDraftsLoaded' | 'orderDraftsError'
 >;
 
@@ -45,6 +45,7 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   // subcontractingSlice
   subcontracting: [],
   subcontractingLoaded: false,
+  subcontractingError: null,
   // orderDraftsSlice — черновики формы создания заказа (правка 22.08, п. 5.5)
   orderDrafts: [],
   orderDraftsLoaded: false,
@@ -71,9 +72,11 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   // dictionariesSlice
   dictionaries: [],
   dictionariesLoaded: false,
+  dictionariesError: null,
   // experimentalSlice
   experimental: [],
   experimentalLoaded: false,
+  experimentalError: null,
   // planSlice
   planSlots: [],
   planComments: [],
@@ -85,6 +88,7 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   // settingsSlice
   capacity: DEFAULT_CAPACITY,
   capacityLoaded: false,
+  capacityError: null,
 };
 
 /**

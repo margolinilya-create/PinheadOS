@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { EmptyState, LoadFailed } from '../../components/ErpStates';
-import { KanbanSkeleton } from '../../components/ErpSkeletons';
+import { PlanBoardSkeleton } from '../plan/PlanBoardSkeleton';
 import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { buildQueueEntries } from '../../utils/queueEntries';
@@ -26,7 +26,7 @@ import { percentLabel } from '../../utils/format';
  */
 export function DeptPlanPanel({ dept }) {
   const {
-    orders, departments, bypasses, planSlots, planLoaded, planLoading, planLoadError, loadPlan,
+    orders, departments, bypasses, planSlots, planLoaded, planLoadError, loadPlan,
     planComments,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
@@ -88,7 +88,20 @@ export function DeptPlanPanel({ dept }) {
   if (planLoadError) {
     return <LoadFailed onRetry={() => loadPlan(dates[0], dates[dates.length - 1])} what="план цеха" />;
   }
-  if (!planLoaded && planLoading) return <KanbanSkeleton />;
+  /**
+   * СКЕЛЕТОН НА `!planLoaded`, А НЕ НА `planLoading` (правка 03.09).
+   *
+   * На первом кадре `planLoading` ещё false — эффект загрузки только
+   * запускается, — и выполнялась ветка ниже: бригадир читал «Руководитель
+   * производства ещё не поставил цеху задачи». Это утверждение о работе
+   * ДРУГОГО ЧЕЛОВЕКА, сделанное до получения данных, и оно же ровно то,
+   * из-за чего правило UX-2 требует вешать скелетон на `loaded`.
+   *
+   * `PlanBoardSkeleton`, а не `KanbanSkeleton`: скелетон обязан повторять
+   * финальную раскладку. Здесь она — блоки `PlanTaskCard`, а не колонки
+   * канбана по 290px; чужая разметка это не скелетон, а мигание.
+   */
+  if (!planLoaded) return <PlanBoardSkeleton />;
 
   if (mine.length === 0) {
     return (

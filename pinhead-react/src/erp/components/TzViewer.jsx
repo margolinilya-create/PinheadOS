@@ -23,9 +23,26 @@ function TzFullscreen({ doc, url, onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  /**
+   * ЛОВУШКА ФОКУСА — НА КОРНЕ ДИАЛОГА, А НЕ НА ПАНЕЛИ КНОПОК (правка 03.09).
+   *
+   * `ref={trapRef}` стоял на `tzFullscreenBar`, то есть ловушка охватывала три
+   * кнопки, а сам `<iframe>` с документом оставался ВНЕ её. Tab циклился по
+   * «В новой вкладке» → «Скачать» → «Закрыть» и обратно, и до просмотрщика
+   * добраться с клавиатуры было нельзя вовсе: PDF не пролистать и не прочитать.
+   * Ровно тот случай, когда ловушка фокуса исключает то, ради чего открыт
+   * диалог (WCAG 2.1.1). Обходные пути — «Скачать» и «В новой вкладке» —
+   * существовали, но это выход ИЗ приложения, а не работа в нём.
+   */
   return (
-    <div className={styles.tzFullscreen} role="dialog" aria-modal="true" aria-label={tzCaption(doc)}>
-      <div className={styles.tzFullscreenBar} ref={trapRef}>
+    <div
+      className={styles.tzFullscreen}
+      role="dialog"
+      aria-modal="true"
+      aria-label={tzCaption(doc)}
+      ref={trapRef}
+    >
+      <div className={styles.tzFullscreenBar}>
         <strong className={styles.tzFullscreenName}>{tzCaption(doc)}</strong>
         <div className={styles.spacer} />
         <ButtonLink href={url} target="_blank" rel="noreferrer" variant="ghost">В новой вкладке ↗</ButtonLink>
@@ -34,7 +51,19 @@ function TzFullscreen({ doc, url, onClose }) {
           <span className={styles.cellWithIcon}><Icon name="x" size={15} />Закрыть</span>
         </Button>
       </div>
-      <iframe src={url} title={`ТЗ: ${tzCaption(doc)}`} className={styles.tzFullscreenFrame} />
+      {/*
+        `tabIndex={0}` — ЧАСТЬ ТОЙ ЖЕ ПОЧИНКИ. Ловушка фокуса ищет остановки
+        селектором `a[href], button, textarea, input, select, [tabindex]`,
+        и `iframe` в него не входит: перенести ref на корень было необходимо,
+        но недостаточно — просмотрщик всё равно не стал бы остановкой Tab.
+        Явный `tabIndex` делает его ею и позволяет листать PDF с клавиатуры.
+      */}
+      <iframe
+        src={url}
+        title={`ТЗ: ${tzCaption(doc)}`}
+        className={styles.tzFullscreenFrame}
+        tabIndex={0}
+      />
     </div>
   );
 }
@@ -75,7 +104,7 @@ export function TzViewer({ doc, compact = false, badge = null, actions = null })
         {doc.note ? ` · ${doc.note}` : ''}
       </div>
       {inline && (
-        <iframe src={url} title={`ТЗ: ${tzCaption(doc)}`} className={styles.tzFrame} />
+        <iframe src={url} title={`ТЗ: ${tzCaption(doc)}`} className={styles.tzFrame} tabIndex={0} />
       )}
       {full && <TzFullscreen doc={doc} url={url} onClose={() => setFull(false)} />}
     </div>

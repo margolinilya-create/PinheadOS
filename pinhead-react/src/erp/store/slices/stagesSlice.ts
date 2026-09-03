@@ -18,9 +18,70 @@ import {
 } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
-import { erpError, erpQuery, logStageEvent, withPending } from '../shared';
+import { stageCompletionBlock } from '../../utils/stageDone';
+import { materialsForItem } from '../../utils/routes';
+import { materialsAfterBypass } from '../../utils/bypass';
+import { defaultPlannedEnd } from '../../utils/stagePlan';
+import {
+  currentActor, erpError, erpQuery, erpWrite, logStageEvent, withPending,
+} from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
+
+/**
+ * ГЕЙТ ЗАВЕРШЕНИЯ ЭТАПА ЖИВЁТ У ПИСАТЕЛЯ, А НЕ У КНОПОК.
+ *
+ * До 03.09 проверка «закупка не завершена» (правка 30.08, п. 5) стояла в трёх
+ * местах интерфейса — `confirmStageDone` у кнопки «Завершить этап» и копия
+ * в `onProgress`, — и сторож перечислял вызывающих РУКАМИ. Четвёртый путь
+ * в этот список не попал: «Записать результат» у участка с настроенной схемой
+ * отчёта (`erp_departments.result_fields`) идёт мимо, прямо в
+ * `erp_stage_submit_report`, а тот сам ставит `status='done'`, когда `qty_done`
+ * добирает тираж.
+ *
+ * Цена была не теоретическая: схема отчёта засеяна миграцией
+ * `20260810190000` в том числе `cutting` и `sewing` — РОВНО тем двум участкам,
+ * у которых непустой `gate_material_kinds` (`20260803120000`). То есть гейт был
+ * мёртв именно там, ради чего написан: закрой закрывал этап при неприехавшей
+ * ткани и открывал швейке тираж, которого физически нет.
+ *
+ * Поэтому правило проверяется здесь — у каждой записи, которая может закрыть
+ * этап. Пятый путь получит его сам, а не в тот день, когда кто-то вспомнит
+ * дописать его в список. Диалог с последствиями (`confirmStageDone`) остаётся
+ * в интерфейсе: он объясняет человеку, а не сторожит.
+ */
+function completionBlockFor(
+  store: ErpStore,
+  found: NonNullable<ReturnType<typeof findStage>>,
+  addedGood: number,
+): string | null {
+  const { stage, item, order } = found;
+  // Проверяем ТОЛЬКО когда запись реально добирает тираж: частичная сдача при
+  // неприехавшем материале законна — цех отчитывается за то, что сделал.
+  if ((stage.qty_done ?? 0) + addedGood < item.qty) return null;
+  return stageCompletionBlock({
+    stage,
+    qty: item.qty,
+    allStages: item.stages,
+    /**
+     * АВАРИЙНОЕ СНЯТИЕ ДЕЙСТВУЕТ И НА ЗАКРЫТИЕ ЭТАПА (правка 03.09).
+     *
+     * Гейт завершения появился 30.08, аварийный режим — 10.08, и связать их
+     * забыли: `materialsAfterBypass` звали только сборщики гейта ВХОДА
+     * (`queueEntries`, `shipOrder`). Получалось, что директор снимает
+     * проверку, цех видит «Проверка снята вручную» и берёт задание в работу —
+     * а закрыть его всё равно не может. Аварийный режим существует ровно для
+     * того случая, когда проверка держит работу из-за ошибки в системе;
+     * половина выхода — это не выход.
+     */
+    materials: materialsAfterBypass(
+      materialsForItem(order.materials, item.id),
+      order.id,
+      store.bypasses,
+    ),
+    dept: store.departments.find((d) => d.id === stage.department_id),
+  });
+}
 
 /**
  * Патч этапа для `erp_stage_apply_defect`: счётчики ПРИРАЩЕНИЕМ, статус либо явный,
@@ -55,15 +116,74 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     if (status === 'in_progress' && !found?.stage.started_at) {
       patch.started_at = new Date().toISOString();
     }
+    /**
+     * ИСПОЛНИТЕЛЬ И ПЛАН — У КАЖДОГО ВХОДА В РАБОТУ (правка 03.09).
+     *
+     * Оба правила записаны в проекте («исполнитель проставляется при взятии
+     * в работу», «плановую дату спрашивают ВСЕ входы»), но исполняла их РОВНО
+     * ОДНА форма — «Взять в работу» в очереди цеха. Диспетчер, переносящий
+     * карточку на канбане в «В работе», и чип на доске производства писали
+     * голый статус, и этап оставался без обоих полей.
+     *
+     * Цена видна не там, где действие: этап без `planned_end` не попадает
+     * в «Загрузку цехов» (она строится из плановых дат), никогда не считается
+     * просроченным (`stageOverdue`) и не попадает в колокол
+     * (`overdueUnackCountFor`). Связать пропажу задания из загрузки с жестом
+     * на канбане невозможно.
+     *
+     * Здесь, у писателя, а не в двух экранах: третий вход получил бы правило
+     * сам. Явные значения из `extra` сильнее — форма очереди по-прежнему
+     * спрашивает дату у человека, и её ответ не перетирается расчётом.
+     */
+    if (status === 'in_progress' && found) {
+      if (!('assignee' in fields)) patch.assignee = currentActor();
+      /**
+       * Условие ДОСЛОВНО повторяет исключение в `erp_stage_guard`: плановые
+       * даты требуют `order.manage`, КРОМЕ перехода в `in_progress` из другого
+       * статуса при неизменном `planned_start` и праве `stage.take`. Напиши мы
+       * план у этапа, уже стоящего в работе, — рабочий получил бы 42501 там,
+       * где интерфейс ничего не запрещал.
+       */
+      if (!('planned_end' in fields)
+        && !found.stage.planned_end
+        && found.stage.status !== 'in_progress') {
+        const dept = get().departments.find((d) => d.id === found.stage.department_id);
+        patch.planned_end = defaultPlannedEnd({
+          plannedEnd: found.stage.planned_end,
+          normDays: dept?.norm_days,
+          dueDate: found.order.due_date,
+          launchDate: found.order.launch_date,
+        });
+      }
+    }
     if (status === 'done') patch.finished_at = new Date().toISOString();
+
+    /**
+     * Закрытие целиком проходит гейт закупки. Участок без
+     * `gate_material_kinds` не гейтится вовсе (fail-open), поэтому
+     * автозакрытие самой закупки и складских шагов этим не задето.
+     */
+    if (status === 'done' && found) {
+      const blocked = completionBlockFor(get(), found, extra.qty_done ?? found.item.qty);
+      if (blocked) {
+        toast.error(blocked);
+        return false;
+      }
+    }
 
     // optimistic с rollback (нетронутые заказы сохраняют идентичность)
     set((s) => ({ orders: patchStageIn(s.orders, stageId, patch) }));
-    const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(patch).eq('id', stageId)));
-    if (error) {
+    /**
+     * `erpWrite` (правка 03.09): RLS на UPDATE запрещает через `USING`, то есть
+     * отдаёт «0 строк» БЕЗ ошибки, и прежняя проверка только `error` показывала
+     * зелёное «этап обновлён» там, где в базе не изменилось ничего. Ошибку прав
+     * от СТРАЖА видно и так (он бросает 42501), а вот отказ ПОЛИТИКИ — нет.
+     * Тот же случай — этап, удалённый конструктором маршрута в соседней вкладке.
+     */
+    const ok = await erpWrite('Этап не обновлён', () => withPending(`stage:${stageId}`, () =>
+      supabase.from('erp_item_stages').update(patch).eq('id', stageId).select()));
+    if (!ok) {
       set({ orders: prev });
-      erpError('Этап не обновлён', error);
       return false;
     }
     if (found) {
@@ -88,6 +208,14 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
 
     const total = item.qty;
     const before = stage.qty_done ?? 0;
+
+    // `erp_stage_report_progress` при `qty_done >= qty` САМ ставит `done` —
+    // значит запись на весь остаток это закрытие этапа, и гейт нужен здесь.
+    const progressBlocked = completionBlockFor(get(), found, qty);
+    if (progressBlocked) {
+      toast.error(progressBlocked);
+      return false;
+    }
 
     // Оптимистичная картинка — как раньше; ИСТИНУ считает сервер.
     // Абсолют с клиента терял результат: два планшета в одном цехе читали
@@ -168,6 +296,18 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const comment = (input.comment ?? '').trim();
     if ((defect > 0 || rework > 0) && !comment) {
       toast.error('Отклонение нужно объяснить — заполните комментарий');
+      return false;
+    }
+
+    /**
+     * ЧЕТВЁРТЫЙ ПУТЬ ЗАКРЫТИЯ ЭТАПА, и до 03.09 единственный без гейта.
+     * `erp_stage_submit_report` сам ставит `done`, когда `qty_done` добирает
+     * тираж, а схема отчёта засеяна закрою и швейке — то есть обоим участкам
+     * с материальным гейтом.
+     */
+    const reportBlocked = completionBlockFor(get(), found, good);
+    if (reportBlocked) {
+      toast.error(reportBlocked);
       return false;
     }
 
@@ -442,7 +582,18 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       .select('item:erp_order_items (order_id)')
       .eq('id', stageId)
       .maybeSingle());
-    if (error || !data) return null;
+    if (error) {
+      // Отказ называет себя (правка 03.09): прежде он проглатывался молча,
+      // и рабочий по ссылке на задание читал «Задание не найдено или было
+      // удалено» — про запись, которая на месте
+      set({ detailError: error.message });
+      erpError('Не удалось загрузить задание', error);
+      return null;
+    }
+    if (!data) {
+      set({ detailError: null });
+      return null;
+    }
     const item = (data as { item?: { order_id?: string } | null }).item;
     return item?.order_id ?? null;
   },
@@ -684,7 +835,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const prev = get().orders;
     set((s) => ({ orders: patchStageIn(s.orders, stageId, plan) }));
     const { error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
-      supabase.from('erp_item_stages').update(plan).eq('id', stageId)));
+      supabase.from('erp_item_stages').update(plan).eq('id', stageId).select()));
     if (error) {
       set({ orders: prev });
       erpError('План этапа не сохранён', error);

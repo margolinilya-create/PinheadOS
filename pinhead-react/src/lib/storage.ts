@@ -14,6 +14,39 @@ export function storageGet<T = unknown>(key: string, defaultValue: T | null = nu
   }
 }
 
+/**
+ * СЫРАЯ строка без `JSON.parse` — и это не дубль `storageGet`.
+ *
+ * Половина ключей ERP хранит именно строки: `'1'`/`'0'` у свёрнутого сайдбара,
+ * `'queue'`/`'plan'` у вида кабинета цеха, код участка у выбранного цеха.
+ * `storageGet` разбирает значение как JSON, и на `queue` он бросает, молча
+ * возвращая дефолт — то есть прямая замена одного на другой сломала бы
+ * запомненные настройки, ничего об этом не сказав.
+ *
+ * Заведено аудитом 03.09: до него интерфейс ходил в `localStorage` напрямую,
+ * без try/catch, тогда как стор свои обращения защищал. Обращение в теле
+ * компонента (`ErpLayout` читает свёрнутость в инициализаторе `useState`)
+ * исполняется при ОТРИСОВКЕ, и запрет доступа к хранилищу — приватный режим,
+ * политика устройства, переполнение — ронял всю оболочку белым экраном.
+ */
+export function storageGetRaw(key: string, defaultValue: string | null = null): string | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? defaultValue : raw;
+  } catch {
+    return defaultValue;
+  }
+}
+
+/** Записать сырую строку (пара к `storageGetRaw`) */
+export function storageSetRaw(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // приватный режим или переполнение — настройка живёт до перезагрузки
+  }
+}
+
 export function storageSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));

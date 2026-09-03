@@ -48,7 +48,7 @@ function clearReconnect() {
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
 type ChildKey =
   | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
-  | 'tz_documents' | 'developments';
+  | 'tz_documents' | 'developments' | 'items';
 const TABLE_TO_CHILD: Record<string, ChildKey> = {
   erp_materials: 'materials',
   erp_procurement_tasks: 'procurement_tasks',
@@ -56,6 +56,19 @@ const TABLE_TO_CHILD: Record<string, ChildKey> = {
   erp_warehouse_tasks: 'warehouse_tasks',
   // ТЗ: замена файла должна долетать до открытого задания цеха
   erp_tz_documents: 'tz_documents',
+  /**
+   * ПОЗИЦИИ ЗАКАЗА (правка 03.09). Их `qty_shipped` ведёт триггер отгрузки,
+   * а событие `erp_orders` UPDATE обрабатывается мержем полей ЗАКАЗА и массив
+   * `items` не трогает вовсе. Из-за этого после частичной отгрузки второй
+   * кладовщик в своей вкладке продолжал видеть прежний остаток к отгрузке
+   * (`utils/shipment.shipmentTotals` считает по `items`) — и мог отдать его
+   * второй раз. От повтора спасал только ключ идемпотентности, а он привязан
+   * к одной попытке одного устройства.
+   *
+   * Слияние безопасно: существующая строка патчится полями события
+   * (`{ ...r, ...row }`), то есть вложенные `stages` сохраняются.
+   */
+  erp_order_items: 'items',
 };
 
 /**
@@ -175,6 +188,41 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * открытая карточка разработки показывала бы старое состояние до
      * перезагрузки руками. Это ровно тот дефект, который чинится всей волной.
      */
+    /**
+     * СЛОТЫ ПРОИЗВОДСТВЕННОГО ПЛАНА (правка 03.09).
+     *
+     * Патчим массив, а не перечитываем: `loadPlan(from, to)` требует диапазон,
+     * а стор его не помнит. Вставку принимаем только в пределах уже
+     * загруженных дат — иначе на экране недели появилась бы карточка чужой
+     * недели, а «Мой цех» показал бы её в общем списке. За пределами
+     * диапазона данные подтянет обычная загрузка при следующем открытии.
+     */
+    if (ev.table === 'erp_calendar_slots') {
+      if (!get().planLoaded) return;
+      const slots = get().planSlots;
+      const known = slots.some((s2) => s2.id === id);
+      if (ev.eventType === 'DELETE') {
+        set({ planSlots: slots.filter((s2) => s2.id !== id) });
+        return;
+      }
+      if (known) {
+        set({
+          planSlots: slots.map((s2) => (s2.id === id
+            ? { ...s2, ...(row as Record<string, unknown>) } : s2)),
+        });
+        return;
+      }
+      const date = (row.work_date ?? null) as string | null;
+      const dates = slots.map((s2) => s2.work_date);
+      if (!date || dates.length === 0) return;
+      const from = dates.reduce((a, b) => (a < b ? a : b));
+      const to = dates.reduce((a, b) => (a > b ? a : b));
+      if (date >= from && date <= to) {
+        set({ planSlots: [...slots, row as never] });
+      }
+      return;
+    }
+
     if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_tasks') {
       /**
        * ЭМБЕД РАЗРАБОТКИ В ЗАКАЗЕ — ВТОРАЯ КОПИЯ ТЕХ ЖЕ СТРОК (правки 02.09).
@@ -389,6 +437,21 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_bypasses' },
         forward('erp_bypasses'),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_order_items' },
+        forward('erp_order_items'),
+      )
+      /**
+       * Производственный план: план ставит руководитель, факт вносит цех —
+       * двое разных людей на одной доске. Без подписки каждый видел только
+       * свои записи до перезагрузки страницы.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_calendar_slots' },
+        forward('erp_calendar_slots'),
       )
       /**
        * Обработчик статуса. Его здесь не было вовсе, и это главный пробел

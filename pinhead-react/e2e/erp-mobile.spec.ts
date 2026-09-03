@@ -203,3 +203,37 @@ test.describe('План производства на телефоне', () => {
       .toHaveAttribute('aria-current', 'page');
   });
 });
+
+/**
+ * ПОДСКАЗКА ПРОКРУТКИ У РЯДА, ПРИЕХАВШЕГО ПОЗЖЕ ПЕРВОГО КАДРА.
+ *
+ * Ряд вкладок цехов существует с первой отрисовки, но ПУСТОЙ: сами вкладки
+ * приезжают с `erp_bootstrap`. Пока хук замерял один раз и следил только
+ * за детьми, которые были в тот момент (то есть ни за кем), подсказка
+ * не появлялась НИКОГДА — а вместе с ней и `tabIndex` у прокручиваемой
+ * области (WCAG 2.1.1). На тёплом моке это не воспроизводится: данные
+ * приходят раньше отрисовки, поэтому держим их гейтом, как в `erp-cls`.
+ *
+ * Нашлось это прогоном CI: там ряд с `scrollWidth 722` при `clientWidth 353`
+ * рисовался без градиента, и визуальный эталон расходился на 177 пикселей.
+ */
+test.describe('Подсказка прокрутки не зависит от того, когда приехали данные', () => {
+  test('вкладки цехов приехали после первого кадра — градиент справа есть', async ({ page }) => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    await installSupabaseMock(page, { deptsGate: gate });
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('h1')).toBeVisible();
+
+    // Ряд уже нарисован, но пуст: прокручивать нечего, подсказки быть не должно
+    release();
+    await page.waitForSelector('[role="tablist"][aria-label="Выбор цеха"] [role="tab"]');
+
+    const row = page.locator('[role="tablist"][aria-label="Выбор цеха"]');
+    // Ряд действительно переполнен — иначе сторож проверял бы пустоту
+    const overflow = await row.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow, 'ряд вкладок обязан быть шире экрана — иначе нечего сторожить')
+      .toBeGreaterThan(50);
+    await expect(page.locator('[class*="deptTabsFadeR"]')).toHaveCount(1);
+  });
+});

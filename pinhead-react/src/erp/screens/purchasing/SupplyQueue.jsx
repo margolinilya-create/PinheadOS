@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useCompactLayout } from '../../layout/useCompactLayout';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -106,6 +107,61 @@ function SupplyRow({ order, supplyDeptId, today, selected, onSelect }) {
   );
 }
 
+
+/**
+ * Та же строка КАРТОЧКОЙ — компактная (цеховая) раскладка (правка 03.09).
+ *
+ * У очереди закупки шесть колонок, и «Открыть» — последняя: на планшете
+ * кнопка, ради которой на экран и приходят, уезжала за правый край. Ровно тот
+ * дефект, который 22.08 чинили у остальных экранов закупки и склада, — сюда
+ * приём не доехал, хотя «Закупка» входит в пилот.
+ *
+ * Подписи полей ставятся ЯВНО: вместе с шапкой таблицы исчезают названия
+ * колонок, и «3 из 7» без слова «Материалы» ничего не значит.
+ */
+function SupplyCard({ order, supplyDeptId, today, selected, onSelect }) {
+  const stages = useMemo(
+    () => openSupplyStages(order, supplyDeptId), [order, supplyDeptId]);
+  const summary = useMemo(
+    () => supplyMaterialSummary(order.materials, today), [order.materials, today]);
+  const state = supplyState(stages);
+  const left = daysLeft(order.due_date);
+
+  return (
+    <div className={`${styles.dataCard} ${selected ? styles.rowSelected : ''}`} role="listitem">
+      <div className={styles.dataCardHead}>
+        <span className={styles.dataCardTitle}>
+          №{order.bitrix_id || '—'} · {order.title}
+        </span>
+        <Badge variant={SUPPLY_STATE_BADGE[state].variant}>
+          {SUPPLY_STATE_BADGE[state].label}
+        </Badge>
+      </div>
+      {order.manager && (
+        <div className={styles.subText}>менеджер: {order.manager}</div>
+      )}
+      <div className={styles.dataCardFields}>
+        <span className={styles.dataCardField}>
+          <span className={styles.dataCardFieldLabel}>Срок</span>
+          <span>{dueLabelCompact(left)}</span>
+        </span>
+        <span className={styles.dataCardField}>
+          <span className={styles.dataCardFieldLabel}>Материалы</span>
+          <span className={styles.supplyMaterials}><MaterialsCell summary={summary} /></span>
+        </span>
+      </div>
+      <Button
+        variant={selected ? 'secondary' : 'primary'}
+        block
+        aria-pressed={selected}
+        onClick={() => onSelect(order.id)}
+      >
+        {selected ? 'Открыт' : 'Открыть закупку'}
+      </Button>
+    </div>
+  );
+}
+
 /**
  * @param title  заголовок блока; `null` — не рисовать вовсе. Архив завершённых
  *   закупок монтирует этот же список внутрь своего `<details>`, и собственный
@@ -124,6 +180,7 @@ export function SupplyQueue({
   label = 'Заказы в закупке',
   emptyText = 'Заказов, ожидающих закупки, нет — все этапы «Закупка» закрыты.',
 }) {
+  const isCompact = useCompactLayout();
   if (!supplyDept) return null;
 
   return (
@@ -139,6 +196,23 @@ export function SupplyQueue({
 
       {orders.length === 0 ? (
         <div className={styles.emptyState}>{emptyText}</div>
+      ) : isCompact ? (
+        /* `role="list"` обязателен: `aria-label` на голом `<div>` вспомогательные
+           технологии игнорируют, и имя области пропадало бы ровно на планшете —
+           там, где список и читают. Десктопная половина имя несёт через
+           `ScrollHintBox` (`role="region"`). */
+        <div className={styles.dataCardList} role="list" aria-label={label}>
+          {orders.map((o) => (
+            <SupplyCard
+              key={o.id}
+              order={o}
+              supplyDeptId={supplyDept.id}
+              today={today}
+              selected={o.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
       ) : (
         <ScrollHintBox className={styles.tableWrap} label={label}>
           <table className={styles.table}>
