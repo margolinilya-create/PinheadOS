@@ -40,7 +40,8 @@ function Probe({ scrollWidth, clientWidth, scrollLeft = 0 }) {
         Object.defineProperty(el, 'scrollWidth', { value: scrollWidth, configurable: true });
         Object.defineProperty(el, 'clientWidth', { value: clientWidth, configurable: true });
         Object.defineProperty(el, 'scrollLeft', { value: scrollLeft, configurable: true });
-        ref.current = el;
+        // `ref` — колбэк: узел может появиться позже монтирования
+        ref(el);
       }}
     >
       <span>содержимое</span>
@@ -123,7 +124,7 @@ describe('useScrollHints — подсказка видна с первого к�
             Object.defineProperty(node, 'clientWidth', { value: 375, configurable: true });
             Object.defineProperty(node, 'scrollLeft', { value: 0, configurable: true });
             Object.defineProperty(node, 'scrollWidth', { value: sizes.scrollWidth, configurable: true });
-            ref.current = node;
+            ref(node);
           }}
         >
           <span data-testid="right2">{hints.right ? 'есть' : 'нет'}</span>
@@ -146,5 +147,108 @@ describe('useScrollHints — подсказка видна с первого к�
     host2.remove();
     if (prev) Object.defineProperty(document, 'fonts', prev);
     else delete document.fonts;
+  });
+
+  /**
+   * БЛОК ПОЯВЛЯЕТСЯ ПОЗЖЕ МОНТИРОВАНИЯ — и это не редкий случай.
+   *
+   * Ряда вкладок цехов нет, пока не приехал `erp_bootstrap`. Пока `ref` был
+   * обычным `useRef`, а эффект стоял на пустых зависимостях, он выходил
+   * на первой строке (`ref.current === null`) и НЕ ЗАПУСКАЛСЯ ПОВТОРНО:
+   * ни замера, ни слушателей, ни наблюдателя размеров. Подсказка не
+   * появлялась вовсе — вместе с ней и `tabIndex` у `ScrollHintBox`,
+   * то есть область оставалась недостижимой с клавиатуры.
+   *
+   * Локально это не воспроизводится: мок отвечает раньше первой отрисовки.
+   * Поймал прогон CI — ряд с `scrollWidth 722` при `clientWidth 353` рисовался
+   * без градиента.
+   */
+  it('прокручиваемый блок, появившийся после первого кадра, получает подсказку', async () => {
+    const host2 = document.createElement('div');
+    document.body.appendChild(host2);
+    const root2 = createRoot(host2);
+    function Late({ ready }) {
+      const { ref, hints } = useScrollHints();
+      return (
+        <div>
+          <span data-testid="late">{hints.right ? 'есть' : 'нет'}</span>
+          {ready && (
+            <div
+              ref={(node) => {
+                if (!node) return;
+                Object.defineProperty(node, 'scrollWidth', { value: 722, configurable: true });
+                Object.defineProperty(node, 'clientWidth', { value: 353, configurable: true });
+                Object.defineProperty(node, 'scrollLeft', { value: 0, configurable: true });
+                ref(node);
+              }}
+            >
+              <span>вкладки</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    flushSync(() => root2.render(<Late ready={false} />));
+    // Первый кадр: данных ещё нет, блока нет — подсказки быть не может
+    expect(host2.querySelector('[data-testid="late"]').textContent).toBe('нет');
+
+    // Приехал `erp_bootstrap` — ряд вкладок отрисовался и переполнен
+    flushSync(() => root2.render(<Late ready />));
+    await new Promise((r) => { setTimeout(r, 0); });
+    expect(host2.querySelector('[data-testid="late"]').textContent).toBe('есть');
+
+    flushSync(() => root2.unmount());
+    host2.remove();
+  });
+
+  /**
+   * ДЕТИ ПОЯВЛЯЮТСЯ ПОЗЖЕ — а `ResizeObserver` следит за ЭЛЕМЕНТАМИ.
+   *
+   * Настоящий случай из CI: ряд вкладок цехов нарисован с первого кадра,
+   * но пуст — вкладки приезжают с `erp_bootstrap`. Ширина самого ряда при
+   * этом не меняется (он и так во всю строку), меняется только `scrollWidth`,
+   * и наблюдатель размеров молчит: подписан он был на детей, которых
+   * в момент замера не существовало.
+   */
+  it('вкладки, добавленные в уже существующий ряд, включают подсказку', async () => {
+    const host2 = document.createElement('div');
+    document.body.appendChild(host2);
+    const root2 = createRoot(host2);
+    const sizes = { scrollWidth: 353 };
+    function LateChildren({ tabs }) {
+      const { ref, hints } = useScrollHints();
+      return (
+        <div>
+          <span data-testid="kids">{hints.right ? 'есть' : 'нет'}</span>
+          <div
+            ref={(node) => {
+              if (!node) return;
+              Object.defineProperty(node, 'clientWidth', { value: 353, configurable: true });
+              Object.defineProperty(node, 'scrollLeft', { value: 0, configurable: true });
+              Object.defineProperty(node, 'scrollWidth', {
+                get: () => sizes.scrollWidth, configurable: true,
+              });
+              ref(node);
+            }}
+          >
+            {tabs.map((t) => <span key={t}>{t}</span>)}
+          </div>
+        </div>
+      );
+    }
+    flushSync(() => root2.render(<LateChildren tabs={[]} />));
+    expect(host2.querySelector('[data-testid="kids"]').textContent).toBe('нет');
+
+    // Приехал `erp_bootstrap`: вкладки вставлены, строка стала шире экрана
+    sizes.scrollWidth = 722;
+    flushSync(() => root2.render(
+      <LateChildren tabs={['Закрой', 'Шелкография', 'ДТФ', 'Вышивка']} />,
+    ));
+    // MutationObserver отрабатывает микрозадачей
+    await new Promise((r) => { setTimeout(r, 0); });
+    expect(host2.querySelector('[data-testid="kids"]').textContent).toBe('есть');
+
+    flushSync(() => root2.unmount());
+    host2.remove();
   });
 });
