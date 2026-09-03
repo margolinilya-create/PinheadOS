@@ -51,10 +51,13 @@ const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
 const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
-// Agentation — dev widget, lazy-loaded (tree-shakes out of prod admin bundle)
-const Agentation = React.lazy(() =>
-  import('agentation').then(m => ({ default: m.Agentation }))
-);
+/*
+ * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
+ * смонтированный один раз в `GlobalHosts` (`App.jsx`). Здесь он висел под
+ * гейтом `isRealAdmin` и без проверки режима сборки, то есть 42 кБ gzip
+ * инструмента разработки уезжали в прод (находка аудита 29.07, раздел D5:
+ * комментарий «tree-shakes out of prod» коду не соответствовал).
+ */
 
 /**
  * Старт раздела: черновик визарда и каталоги.
@@ -198,10 +201,6 @@ export default function OrderStudioApp({ user }) {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </main>
-
-      {isRealAdmin && (
-        <Suspense fallback={null}><Agentation /></Suspense>
-      )}
 
       {blocker.state === 'blocked' && (
         <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">

@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
-    "agentation": "^2.2.1",
+    "agentation": "^3.0.2",
     "chart.js": "^4.5.1",
     "mobile-drag-drop": "^3.0.0-rc.0",
     "qrcode": "^1.5.4",
