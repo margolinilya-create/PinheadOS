@@ -88,4 +88,63 @@ describe('useScrollHints — подсказка видна с первого к�
     // Иначе градиент мигал бы на каждом округлении ширины
     expect(firstFrame(<Probe scrollWidth={376} clientWidth={375} />).right).toBe('нет');
   });
+
+  /**
+   * ШРИФТ ПРИЕЗЖАЕТ ПОЗЖЕ ПЕРВОГО КАДРА, И ЭТО МЕНЯЕТ ОТВЕТ.
+   *
+   * У всех начертаний проекта `font-display: swap`: первый кадр рисуется
+   * запасным шрифтом, настоящий подменяет его и меняет ширину текста.
+   * Замер, сделанный до подмены, отвечает про другую строку — и остаётся
+   * таким навсегда, если наблюдатель размеров не сработал.
+   *
+   * Так и было: в CI ряд вкладок цехов считал себя непрокручиваемым при
+   * обрезанной седьмой вкладке, а локально, со шрифтами в кеше, подсказка
+   * появлялась — визуальный эталон расходился на 177 пикселей ровно там.
+   */
+  it('после загрузки шрифтов подсказка пересчитывается', async () => {
+    let resolveFonts;
+    const ready = new Promise((r) => { resolveFonts = r; });
+    const prev = Object.getOwnPropertyDescriptor(document, 'fonts');
+    Object.defineProperty(document, 'fonts', { value: { ready }, configurable: true });
+
+    // Первый кадр — запасной шрифт: строка помещается, подсказки нет
+    const sizes = { scrollWidth: 375 };
+    let el;
+    const host2 = document.createElement('div');
+    document.body.appendChild(host2);
+    const root2 = createRoot(host2);
+    function FontProbe() {
+      const { ref, hints } = useScrollHints();
+      return (
+        <div
+          ref={(node) => {
+            if (!node) return;
+            el = node;
+            Object.defineProperty(node, 'clientWidth', { value: 375, configurable: true });
+            Object.defineProperty(node, 'scrollLeft', { value: 0, configurable: true });
+            Object.defineProperty(node, 'scrollWidth', { value: sizes.scrollWidth, configurable: true });
+            ref.current = node;
+          }}
+        >
+          <span data-testid="right2">{hints.right ? 'есть' : 'нет'}</span>
+        </div>
+      );
+    }
+    flushSync(() => root2.render(<FontProbe />));
+    expect(host2.querySelector('[data-testid="right2"]').textContent).toBe('нет');
+
+    // Приехал настоящий шрифт — строка стала шире контейнера
+    sizes.scrollWidth = 800;
+    Object.defineProperty(el, 'scrollWidth', { value: 800, configurable: true });
+    resolveFonts();
+    // Ждём МАКРОзадачу: перерисовка от `.then(update)` идёт вне `act()`,
+    // и микрозадачи для неё недостаточно
+    await new Promise((r) => { setTimeout(r, 0); });
+    expect(host2.querySelector('[data-testid="right2"]').textContent).toBe('есть');
+
+    flushSync(() => root2.unmount());
+    host2.remove();
+    if (prev) Object.defineProperty(document, 'fonts', prev);
+    else delete document.fonts;
+  });
 });
