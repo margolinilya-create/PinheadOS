@@ -21,7 +21,7 @@
  * Запуск: npm run bundle:budget (после npm run build).
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -260,6 +260,41 @@ for (const { f, size } of [...shellJs.rows, ...shellCss.rows]) {
 for (const name of FORBIDDEN_IN_SHELL) {
   const hit = [...shell.js, ...shell.css].find((f) => f.includes(name));
   if (hit) fail(`${name} попал в оболочку (${hit}) — проверьте manualChunks в vite.config.js`);
+}
+
+/**
+ * Инструмента разработки в прод-сборке нет ВОВСЕ — ни чанком, ни встроенным.
+ *
+ * Виджет визуальной обратной связи (agentation.com) стоит за
+ * `import.meta.env.DEV`, который Vite подставляет литералом: условие
+ * сворачивается в ложь, и вместе с мёртвой веткой выбрасывается
+ * `import('agentation')`. До 03.09 гарды не было вовсе — 42 кБ gzip
+ * инструмента уезжали в прод (аудит 29.07, раздел D5).
+ *
+ * ПОЧЕМУ НЕ ЧЕРЕЗ МАНИФЕСТ. Ленивый импорт даёт отдельную запись, и её
+ * было бы видно; а вот СТАТИЧЕСКИЙ импорт Rollup вклеивает в чанк
+ * импортёра, не заводя записи вообще — то есть проверка по манифесту
+ * пропустила бы ровно тот случай, который дороже всего. Поэтому ищем след
+ * в самих файлах: `data-agentation-root` — атрибут, которым виджет метит
+ * собственный корень (по нему он исключает себя из попадания курсора),
+ * то есть строковый литерал, переживающий минификацию. Проверено мутацией:
+ * со снятым гейтом код виджета уехал во ВХОДНОЙ чанк `index-*.js`, и страж
+ * это поймал.
+ */
+const DEV_TOOL_MARKER = 'data-agentation-root';
+const assetsDir = join(DIST, 'assets');
+if (existsSync(assetsDir)) {
+  const leaked = readdirSync(assetsDir)
+    .filter((f) => f.endsWith('.js'))
+    .filter((f) => readFileSync(join(assetsDir, f), 'utf8').includes(DEV_TOOL_MARKER));
+  if (leaked.length) {
+    fail(
+      `виджет разработки agentation попал в сборку (${leaked.join(', ')}) — `
+      + 'он обязан оставаться за `import.meta.env.DEV`, см. components/shared/DevAnnotations.jsx',
+    );
+  } else {
+    console.log('✓ виджет разработки agentation в сборку не попал');
+  }
 }
 
 console.log(

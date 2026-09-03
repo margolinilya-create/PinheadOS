@@ -518,6 +518,25 @@ URL: https://pinhead-os.vercel.app
   ждут его ОБА писателя состава участков: ветка `rpc/erp_bootstrap`
   и таблица `erp_departments`
 
+## Правила сессии 46 (Agentation): где что лежит
+
+- Виджет визуальной обратной связи (agentation.com) — `components/shared/
+  DevAnnotations.jsx`, смонтирован ОДИН раз в `GlobalHosts` (`App.jsx`),
+  то есть работает и в ERP, и в Order Studio, и на экранах входа
+- Гейт — `import.meta.env.DEV && import.meta.env.VITE_AGENTATION !== '0'`.
+  `lazy()` стоит ЗА тернарником, а не в теле компонента: только так
+  сворачивание константы уносит вместе с мёртвой веткой и
+  `import('agentation')`. Адрес MCP-сервера — `VITE_AGENTATION_ENDPOINT`,
+  по умолчанию `http://localhost:4747` (порт из `.mcp.json`)
+- Сторожа ТРИ, и ни один не покрывает остальные: `DevAnnotations.test.jsx`
+  (поведение и передача `endpoint`), `DevAnnotations.sources.test.ts`
+  (единственность точки монтирования — обход исходников, `.ts` из-за
+  `no-undef` на `process` в `.jsx`), `scripts/bundle-budget.mjs` (следа
+  в `dist/assets` нет вовсе). Плюс `lib/e2eEnv.test.ts` — что dev-сервер
+  Playwright поднимается с `VITE_AGENTATION=0`
+- Пакет в `devDependencies`. `npm run e2e` тулбар не рисует — иначе он
+  попадает в визуальные эталоны и под сканер доступности
+
 ## Правила сессии 45 (документ 02.09): где что лежит
 
 - Маршрут образца — `utils/routes.ts`: `BASE_CHAIN.samples = ['supply']`

@@ -38,7 +38,15 @@ export default defineConfig({
       // нет и быть не может. Автологин с 10.08.2026 включается только явно: раньше он
       // срабатывал у любого, кто запустил `npm run dev`, и молча маскировал отсутствие
       // сессии на боевой базе (см. комментарий в src/store/useAuthStore.ts).
-      command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1 npm run dev`,
+      // VITE_AGENTATION=0 — тулбар визуальной обратной связи (agentation.com)
+      // рисуется поверх страницы и включён в dev по умолчанию. Здесь он
+      // выключен: иначе чужая панель попадает в визуальные эталоны продукта
+      // и под сканер доступности, а её следующая версия молча перекрашивает
+      // эталон, к продукту отношения не имеющий. Второму серверу флаг
+      // не нужен — там прод-сборка, и виджета в ней нет по построению
+      // (`import.meta.env.DEV` ложь → ветка и её чанк выброшены).
+      command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1`
+        + ' VITE_AGENTATION=0 npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: true,
     },

@@ -7,6 +7,7 @@ import { useAuthStore } from './store/useAuthStore'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
+import DevAnnotations from './components/shared/DevAnnotations'
 import { FEATURES } from './config/features'
 import { JOIN_PATH } from './erp/utils/invite'
 
@@ -31,11 +32,19 @@ function LoadingScreen() {
   );
 }
 
+/**
+ * Хосты, нужные на любом экране. `DevAnnotations` (визуальная обратная связь
+ * агенту, agentation.com) стоит ЗДЕСЬ, а не в оболочке раздела: замечание
+ * одинаково нужно и в «Производстве», и в Order Studio, и на экранах входа,
+ * а две точки монтирования — это два условия показа, которые разъедутся.
+ * В прод-сборке компонент вырождается в `null` вместе со своим чанком.
+ */
 function GlobalHosts() {
   return (
     <>
       <ToastContainer />
       <ConfirmDialogHost />
+      <DevAnnotations />
     </>
   );
 }
