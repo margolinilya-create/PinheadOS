@@ -4,24 +4,23 @@ import { act, render, screen } from '@testing-library/react';
 /**
  * Сторож виджета визуальной обратной связи (agentation.com).
  *
- * ЧТО ЛОВИТСЯ. Ровно тот дефект, ради устранения которого виджет сюда
- * и переехал: до правки он висел в `OrderStudioApp` без единой проверки
- * режима сборки, пакет стоял в `dependencies`, и 42 кБ gzip инструмента
- * разработки уезжали в прод (аудит 29.07, раздел D5). Возврат этого
- * состояния не роняет ни сборку, ни один функциональный тест — он просто
- * добавляет вес тем, у кого его быть не должно, а увидеть это глазами
- * нельзя. Значит, проверять обязана машина.
+ * ЧТО ЛОВИТСЯ. Виджет с 03.09 работает и в проде (решение владельца), но
+ * не для всех и не так же, как в dev, — а разница здесь ровно та, что стоит
+ * денег и трафика:
+ *  · в проде его видят только admin/director. Рабочий цеха аннотаций
+ *    не пишет, но за чанк платил бы трафиком на планшете по цеховому Wi-Fi;
+ *  · в проде адрес MCP-сервера НЕ передаётся: сервер локальный и с боевой
+ *    страницы недостижим, а переданный адрес дал бы каждому админу висящий
+ *    опрос мёртвого хоста, ошибки в консоли и поток CSP-репортов;
+ *  · в dev — всем и с адресом: там за экраном разработчик.
+ * Ни одно из трёх не роняет ни сборку, ни функциональный тест — они просто
+ * тихо меняют то, что скачивает и видит чужой человек. Значит, машина.
  *
- * Три разные вещи, и ни одна не покрывает остальные:
- *  · ПОВЕДЕНИЕ — в прод-режиме компонент не рисует ничего;
- *  · ПОЛНОТА — виджету передан адрес MCP-сервера (без него замечание
- *    доходит только до буфера обмена, то есть интеграции нет, а выглядит
- *    она сделанной);
  * Ещё две проверки живут в других местах, и это не разбросанность:
  *  · ЕДИНСТВЕННОСТЬ точки монтирования — `DevAnnotations.sources.test.ts`
  *    (обход исходников требует node-глобалей, а в `.jsx` их ловит ESLint);
- *  · отсутствие чанка в САМОЙ СБОРКЕ — `scripts/bundle-budget.mjs`: здесь
- *    `import.meta.env` подставляет Vitest, и о том, что выбросил Rollup,
+ *  · виджет остаётся ЛЕНИВЫМ чанком — `scripts/bundle-budget.mjs`: здесь
+ *    `import.meta.env` подставляет Vitest, и о том, что сделал Rollup,
  *    отсюда судить нельзя.
  */
 
@@ -42,9 +41,15 @@ vi.mock('agentation', () => {
   };
 });
 
-/** Модуль читает окружение НА УРОВНЕ МОДУЛЯ — значит импорт после подмены */
-async function mount() {
+/**
+ * Модуль читает окружение НА УРОВНЕ МОДУЛЯ — значит импорт после подмены.
+ * Стор берём из того же свежего реестра, иначе `setState` уйдёт в другой
+ * инстанс, и компонент прочитает пустого пользователя.
+ */
+async function mount(role) {
   vi.resetModules();
+  const { useAuthStore } = await import('../../store/useAuthStore');
+  if (role) useAuthStore.setState({ user: { id: 'u1', role } });
   const { default: DevAnnotations } = await import('./DevAnnotations');
   return render(<DevAnnotations />);
 }
@@ -69,39 +74,54 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe('DevAnnotations — виджет визуальной обратной связи', () => {
-  it('в прод-сборке не рисует ничего и даже не грузит пакет', async () => {
-    vi.stubEnv('DEV', false);
-    const { container } = await mount();
-    await settle();
-    expect(loads.current, 'чанк виджета вообще не должен запрашиваться').toBe(0);
-    expect(container).toBeEmptyDOMElement();
-  });
-
+describe('DevAnnotations — виджет обратной связи', () => {
   it('выключается VITE_AGENTATION=0 — этим e2e убирает тулбар из эталонов', async () => {
-    vi.stubEnv('DEV', true);
     vi.stubEnv('VITE_AGENTATION', '0');
-    const { container } = await mount();
+    const { container } = await mount('admin');
     await settle();
     expect(loads.current).toBe(0);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('в dev рисуется и получает адрес MCP-сервера', async () => {
+  it('в dev рисуется любой роли и получает адрес MCP-сервера', async () => {
     vi.stubEnv('DEV', true);
-    vi.stubEnv('VITE_AGENTATION', '');
-    await mount();
+    // Роль цеха: в dev за экраном разработчик, и подменённая роль
+    // не должна отбирать у него инструмент
+    await mount('production');
     await screen.findByTestId('agentation-widget');
-    // Без `endpoint` замечание уезжает только в буфер обмена, и MCP-сервер
-    // (`.mcp.json` → agentation-mcp server) не увидит его никогда
     expect(widgetProps.current?.endpoint).toBe('http://localhost:4747');
   });
 
-  it('адрес переопределяется VITE_AGENTATION_ENDPOINT (сервер на другом порту)', async () => {
-    vi.stubEnv('DEV', true);
-    vi.stubEnv('VITE_AGENTATION_ENDPOINT', 'http://localhost:8080');
-    await mount();
+  it('в проде виден admin/director — но БЕЗ адреса: сервер локальный', async () => {
+    vi.stubEnv('DEV', false);
+    await mount('admin');
     await screen.findByTestId('agentation-widget');
-    expect(widgetProps.current?.endpoint).toBe('http://localhost:8080');
+    // Переданный адрес на боевой странице — это висящий опрос недостижимого
+    // хоста, ошибки в консоли и CSP-репорты у каждого админа
+    expect(widgetProps.current?.endpoint).toBeUndefined();
+  });
+
+  it('в проде рабочему цеха не показывается и не грузится', async () => {
+    vi.stubEnv('DEV', false);
+    const { container } = await mount('production');
+    await settle();
+    expect(loads.current, 'цеховой планшет не должен платить за чанк').toBe(0);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('в проде без пользователя (экран входа) не показывается', async () => {
+    vi.stubEnv('DEV', false);
+    const { container } = await mount(null);
+    await settle();
+    expect(loads.current).toBe(0);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('адрес переопределяется VITE_AGENTATION_ENDPOINT — в том числе в проде', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_AGENTATION_ENDPOINT', 'https://agentation.example');
+    await mount('director');
+    await screen.findByTestId('agentation-widget');
+    expect(widgetProps.current?.endpoint).toBe('https://agentation.example');
   });
 });

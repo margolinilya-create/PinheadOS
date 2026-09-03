@@ -39,12 +39,12 @@ export default defineConfig({
       // срабатывал у любого, кто запустил `npm run dev`, и молча маскировал отсутствие
       // сессии на боевой базе (см. комментарий в src/store/useAuthStore.ts).
       // VITE_AGENTATION=0 — тулбар визуальной обратной связи (agentation.com)
-      // рисуется поверх страницы и включён в dev по умолчанию. Здесь он
-      // выключен: иначе чужая панель попадает в визуальные эталоны продукта
-      // и под сканер доступности, а её следующая версия молча перекрашивает
-      // эталон, к продукту отношения не имеющий. Второму серверу флаг
-      // не нужен — там прод-сборка, и виджета в ней нет по построению
-      // (`import.meta.env.DEV` ложь → ветка и её чанк выброшены).
+      // рисуется поверх страницы. Здесь он выключен: иначе чужая панель
+      // попадает в визуальные эталоны продукта и под сканер доступности,
+      // а её следующая версия молча перекрашивает эталон, к продукту
+      // отношения не имеющий. Флаг нужен ОБОИМ серверам: с 03.09 виджет
+      // работает и в прод-сборке (admin/director), а оба сервера поднимаются
+      // с `VITE_DEV_AUTOLOGIN=1`, то есть под админом.
       command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1`
         + ' VITE_AGENTATION=0 npm run dev',
       url: 'http://localhost:5173',
@@ -63,6 +63,7 @@ export default defineConfig({
        * сборку с включённым dev-автологином нельзя.
        */
       command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=1 VITE_DEV_AUTOLOGIN=1`
+        + ' VITE_AGENTATION=0'
         + ' npx vite build --outDir dist-e2e'
         + ' && npx vite preview --outDir dist-e2e --port 4173 --strictPort',
       url: 'http://localhost:4173',

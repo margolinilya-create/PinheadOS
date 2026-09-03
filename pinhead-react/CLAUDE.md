@@ -520,22 +520,25 @@ URL: https://pinhead-os.vercel.app
 
 ## Правила сессии 46 (Agentation): где что лежит
 
-- Виджет визуальной обратной связи (agentation.com) — `components/shared/
-  DevAnnotations.jsx`, смонтирован ОДИН раз в `GlobalHosts` (`App.jsx`),
-  то есть работает и в ERP, и в Order Studio, и на экранах входа
-- Гейт — `import.meta.env.DEV && import.meta.env.VITE_AGENTATION !== '0'`.
-  `lazy()` стоит ЗА тернарником, а не в теле компонента: только так
-  сворачивание константы уносит вместе с мёртвой веткой и
-  `import('agentation')`. Адрес MCP-сервера — `VITE_AGENTATION_ENDPOINT`,
-  по умолчанию `http://localhost:4747` (порт из `.mcp.json`)
-- Сторожа ТРИ, и ни один не покрывает остальные: `DevAnnotations.test.jsx`
-  (поведение и передача `endpoint`), `DevAnnotations.sources.test.ts`
-  (единственность точки монтирования — обход исходников, `.ts` из-за
-  `no-undef` на `process` в `.jsx`), `scripts/bundle-budget.mjs` (следа
-  в `dist/assets` нет вовсе). Плюс `lib/e2eEnv.test.ts` — что dev-сервер
-  Playwright поднимается с `VITE_AGENTATION=0`
-- Пакет в `devDependencies`. `npm run e2e` тулбар не рисует — иначе он
-  попадает в визуальные эталоны и под сканер доступности
+- Виджет обратной связи (agentation.com, версия 3.0.2) —
+  `components/shared/DevAnnotations.jsx`, смонтирован ОДИН раз
+  в `GlobalHosts` (`App.jsx`): работает и в ERP, и в Order Studio,
+  и на экранах входа. Пакет в `dependencies` — он едет в прод-сборку
+- Кому видно: в dev — всем, в проде — `admin`/`director` (`PROD_ROLES`,
+  роль настоящая, не `previewRole`). Общий выключатель — `VITE_AGENTATION=0`
+- `lazy()` обязателен: чанк 92,6 кБ gzip приезжает после первой отрисовки
+  и только тому, кому виджет показан. Статический импорт добавил бы 91 кБ
+  gzip в критический путь КАЖДОМУ — сторожит `scripts/bundle-budget.mjs`
+- Адрес MCP-сервера (`ENDPOINT`) передаётся только в dev либо явным
+  `VITE_AGENTATION_ENDPOINT`. В проде адреса НЕТ намеренно: сервер локальный,
+  и переданный адрес дал бы висящий опрос недостижимого хоста и CSP-репорты
+- Сторожа ЧЕТЫРЕ: `DevAnnotations.test.jsx` (кому видно и с каким адресом),
+  `DevAnnotations.sources.test.ts` (единственность точки монтирования —
+  `.ts` из-за `no-undef` на `process` в `.jsx`), `scripts/bundle-budget.mjs`
+  (виджет не в критическом пути), `lib/e2eEnv.test.ts` (`VITE_AGENTATION=0`
+  у ОБОИХ серверов Playwright — оба поднимаются админом)
+- `npm run e2e` тулбар не рисует: иначе он попадает в визуальные эталоны,
+  под сканер доступности и в замеры раскладки `erp-cls`
 
 ## Правила сессии 45 (документ 02.09): где что лежит
 
