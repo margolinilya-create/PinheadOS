@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
+import { LoadFailed } from '../../components/ErpStates';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
@@ -23,10 +24,13 @@ import styles from '../../styles';
  * и превращается в тихо отключённый контроль.
  */
 export function BypassTab() {
-  const { bypasses, bypassesLoaded, loadBypasses, createBypass, restoreBypass, orders } = useErpStore(
+  const {
+    bypasses, bypassesLoaded, bypassesError, loadBypasses, createBypass, restoreBypass, orders,
+  } = useErpStore(
     useShallow((s) => ({
       bypasses: s.bypasses,
       bypassesLoaded: s.bypassesLoaded,
+      bypassesError: s.bypassesError,
       loadBypasses: s.loadBypasses,
       createBypass: s.createBypass,
       restoreBypass: s.restoreBypass,
@@ -85,7 +89,20 @@ export function BypassTab() {
         Снятие видно всем, попадает в журнал и действует, пока его не вернут.
       </p>
 
-      {active.length === 0 ? (
+      {/*
+        «ВСЕ ПРОВЕРКИ ДЕЙСТВУЮТ» — ЭТО УТВЕРЖДЕНИЕ, А НЕ ЗАГЛУШКА (правка 03.09).
+        Экран отвечает ровно на вопрос «не снята ли где-то проверка», и до
+        загрузки он отвечал «нет» — не зная. При отказе загрузки отвечал так же
+        и навсегда: fail-open ставит `bypassesLoaded = true` даже при ошибке,
+        то есть пустой список неотличим от «не привезли».
+      */}
+      {bypassesError && (
+        <LoadFailed onRetry={loadBypasses} what="снятые проверки" />
+      )}
+      {!bypassesLoaded && !bypassesError && (
+        <p className={styles.subText}>Проверяем, не снята ли где-то блокировка…</p>
+      )}
+      {bypassesLoaded && !bypassesError && active.length === 0 ? (
         <p className={styles.subText}>Все проверки действуют.</p>
       ) : (
         <div className={styles.matSection}>

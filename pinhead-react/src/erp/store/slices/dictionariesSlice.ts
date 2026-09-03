@@ -8,7 +8,7 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { erpQuery } from '../shared';
+import { erpQuery, erpWrite } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpDictionaryItem } from '../../types';
 import type { DictionariesSlice, ErpStore } from '../types';
@@ -37,6 +37,7 @@ const byOrder = (a: ErpDictionaryItem, b: ErpDictionaryItem) =>
 export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice> = (set, get) => ({
   dictionaries: [],
   dictionariesLoaded: false,
+  dictionariesError: null,
 
   loadDictionaries: async () => {
     const { data, error } = await erpQuery(() => supabase
@@ -45,13 +46,16 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
       .order('kind')
       .order('sort_order'));
     if (error) {
-      // Справочники — подсказки, а не гейт: без них экраны работают на свободном вводе
-      set({ dictionariesLoaded: true });
+      // Справочники — подсказки, а не гейт: без них экраны работают на свободном
+      // вводе. Отказ запоминаем для ВКЛАДКИ справочников в админке (правка 03.09):
+      // там пустой список читается как «значений нет», хотя их просто не привезли
+      set({ dictionariesLoaded: true, dictionariesError: error.message });
       return;
     }
     set({
       dictionaries: (data ?? []) as ErpDictionaryItem[],
       dictionariesLoaded: true,
+      dictionariesError: null,
     });
   },
 
@@ -133,13 +137,38 @@ export const dictionariesSlice: StateCreator<ErpStore, [], [], DictionariesSlice
         })
         .sort(byOrder),
     }));
-    const results = await Promise.all([
-      supabase.from('erp_dictionaries').update({ sort_order: b.sort_order }).eq('id', a.id),
-      supabase.from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', b.id),
-    ]);
-    if (results.some((r) => r.error)) {
+    /**
+     * ПО ОЧЕРЕДИ И ЧЕРЕЗ `erpWrite` (правка 03.09). Было три дефекта в четырёх
+     * строках:
+     *
+     *  1. голые вызовы мимо `erpQuery` — в офлайне supabase-js БРОСАЕТ,
+     *     и `Promise.all` реджектился необработанным: busy-состояние
+     *     вызывающего не снималось вовсе;
+     *  2. проверялся только `error`, а RLS `catalog.edit` запрещает через
+     *     `USING`, то есть отдаёт «0 строк» БЕЗ ошибки — «порядок изменён»
+     *     было неправдой;
+     *  3. при успехе первой записи и сбое второй интерфейс откатывался
+     *     ПОВЕРХ уже закоммиченной первой, и в базе у двух значений
+     *     оставался одинаковый `sort_order`.
+     *
+     * Поэтому: сначала одна запись, и только после её подтверждения вторая;
+     * если упала вторая — возвращаем первую на место компенсирующей записью,
+     * а не откатом экрана (правило проекта о действии из двух записей).
+     */
+    const firstOk = await erpWrite('Порядок не изменён', () => supabase
+      .from('erp_dictionaries').update({ sort_order: b.sort_order }).eq('id', a.id).select());
+    if (!firstOk) {
       set({ dictionaries: prev });
-      toast.error('Не удалось изменить порядок');
+      return false;
+    }
+    const secondOk = await erpWrite('Порядок не изменён', () => supabase
+      .from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', b.id).select());
+    if (!secondOk) {
+      // Компенсирующая запись: без неё у двух значений останется один и тот же
+      // порядок, и список начнёт «прыгать» при каждой перезагрузке
+      await erpQuery(() => supabase
+        .from('erp_dictionaries').update({ sort_order: a.sort_order }).eq('id', a.id));
+      set({ dictionaries: prev });
       return false;
     }
     return true;

@@ -149,3 +149,71 @@ describe.each(['light', 'dark'] as const)('чипы статусов ERP — %s'
     ).toBeGreaterThanOrEqual(AA);
   });
 });
+
+/**
+ * ТЕКСТ НА ПОВЕРХНОСТЯХ САМОЙ ПАЛИТРЫ РАЗДЕЛА (аудит 03.09).
+ *
+ * Матрица «текст × поверхность» выше читает `themeBlock()`, то есть
+ * `index.css`. А раздел «Производство» переопределяет и текстовые токены,
+ * и поверхности — и провал жил ровно там: `--text-dim` = `#6B7280` давал
+ * 4.39:1 на `--surface` и 4.47:1 на `--bg` при норме 4.5. Сторож, написанный
+ * ИМЕННО ради этого класса дефектов, не видел его по построению: чипы он
+ * проверял, обычный текст на обычном фоне — нет.
+ */
+describe.each(['light', 'dark'] as const)('контраст текста палитры ERP — %s', (theme) => {
+  const block = shellBlock(theme);
+  const color = (name: string) => resolve(block, tokenValue(block, name));
+
+  it.each(['text', 'text-mid', 'text-dim', 'text-muted'])(
+    '--%s проходит AA на всех поверхностях .shell',
+    (text) => {
+      const fg = color(text);
+      const failures = ['bg', 'card', 'surface']
+        .map((s2) => ({ surface: s2, ratio: contrast(fg, color(s2)) }))
+        .filter((r) => r.ratio < AA)
+        .map((r) => `--${r.surface}: ${r.ratio.toFixed(2)}`);
+      expect(failures, `--${text} (${fg}) ниже ${AA}:1 на ${failures.join(', ')}`).toEqual([]);
+    },
+  );
+});
+
+/**
+ * НЕТЕКСТОВЫЙ КОНТРАСТ: границы элементов управления (WCAG 1.4.11, норма 3:1).
+ *
+ * Поле ввода отличается от фона страницы фоном на 1.04:1 — значит его рамка
+ * и есть единственная граница. Прежняя `--border` `#E5E7EB` давала 1.24:1:
+ * на цеховом планшете под ярким светом не видно, куда печатать. Проверка
+ * заведена вместе с токеном `--border-control`.
+ */
+const NON_TEXT_AA = 3;
+
+describe.each(['light', 'dark'] as const)('границы элементов управления ERP — %s', (theme) => {
+  const block = shellBlock(theme);
+  const color = (name: string) => resolve(block, tokenValue(block, name));
+
+  it.each(['card', 'bg', 'surface'])('--border-control различима на --%s', (surface) => {
+    const ratio = contrast(color('border-control'), color(surface));
+    expect(
+      ratio,
+      `--border-control (${color('border-control')}) на --${surface} даёт ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(NON_TEXT_AA);
+  });
+});
+
+/**
+ * ЗАЛИВКА ОПАСНОЙ КНОПКИ ПОД СВОИМ ТЕКСТОМ.
+ *
+ * `.danger` красился `--color-error` под белым: 3.76:1 в светлой теме и 2.77:1
+ * в тёмной (там токен светлый) — обе ниже AA. Пара вынесена в собственные
+ * токены, и проверяется она как пара, а не по отдельности.
+ */
+describe.each(['light', 'dark'] as const)('кнопка опасного действия — %s', (theme) => {
+  const block = shellBlock(theme);
+  const color = (name: string) => resolve(block, tokenValue(block, name));
+
+  it('текст на заливке проходит AA', () => {
+    const ratio = contrast(color('btn-danger-fg'), color('btn-danger-bg'));
+    expect(ratio, `${color('btn-danger-fg')} на ${color('btn-danger-bg')} даёт ${ratio.toFixed(2)}:1`)
+      .toBeGreaterThanOrEqual(AA);
+  });
+});

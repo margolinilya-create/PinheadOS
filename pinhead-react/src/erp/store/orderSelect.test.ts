@@ -25,6 +25,23 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Настоящие колонки `erp_item_stages` — из машинного снимка схемы
+ * (`types/database.generated.ts`), тем же разбором, что в `types/schema.test.ts`.
+ * Свежесть снимка сторожит тот тест; здесь он нужен как справочник «что вообще
+ * бывает колонкой», чтобы отсеять обращения к полям других объектов.
+ */
+const STAGE_COLUMNS = (() => {
+  const generated = readFileSync(join(SRC, 'types/database.generated.ts'), 'utf8');
+  const start = generated.indexOf('      erp_item_stages: {');
+  if (start < 0) throw new Error('erp_item_stages нет в снимке схемы');
+  const rowStart = generated.indexOf('Row: {', start);
+  const cols = [...generated.slice(rowStart, generated.indexOf('        }', rowStart))
+    .matchAll(/^\s{10}(\w+)[?]?:/gm)].map((m) => m[1]);
+  if (cols.length < 15) throw new Error('разбор снимка схемы дал подозрительно мало колонок');
+  return new Set(cols);
+})();
+
 /** Экраны и утилиты, работающие по ВСЕМУ массиву заказов из списочного запроса */
 const LIST_CONSUMERS = [
   'erp/utils/queueEntries.js',
@@ -124,14 +141,17 @@ describe('списочный запрос заказов', () => {
       try { src = readFileSync(file, 'utf8'); } catch { continue; }
       for (const m of src.matchAll(/\b(?:stage|st|s)\.([a-z_]{3,})\b/g)) stageFields.add(m[1]);
     }
-    // Отсекаем то, что не является колонкой (методы, поля других объектов)
-    const COLUMNS = new Set([
-      'id', 'item_id', 'department_id', 'depends_on', 'status', 'qty_done', 'qty_rework',
-      'planned_start', 'planned_end', 'started_at', 'finished_at', 'assignee',
-      'block_reason', 'notes', 'sort_order', 'created_at', 'updated_at',
-      'overdue_comment', 'overdue_ack_at', 'queue_position',
-    ]);
-    const used = [...stageFields].filter((f) => COLUMNS.has(f));
+    /**
+     * Что считать колонкой — берём ИЗ СХЕМЫ, а не из списка руками.
+     *
+     * Здесь стоял белый список из двадцати имён, и `executor` в него не попал —
+     * та самая колонка, на которой проект уже ловился 16.08 («колонка, добавленная
+     * в `erp_item_stages`, попадает в ORDER_LIST_SELECT тем же коммитом»).
+     * Убери её из запроса — сторож промолчал бы, отсев подряда перестал бы
+     * работать, и подрядные задания вернулись бы в очередь цеха без единой ошибки.
+     * Список, который надо не забыть пополнить, забывают пополнять.
+     */
+    const used = [...stageFields].filter((f) => STAGE_COLUMNS.has(f));
     expect(used.length).toBeGreaterThan(8); // сторож не сторожит пустоту
 
     for (const col of used) {
@@ -140,6 +160,53 @@ describe('списочный запрос заказов', () => {
         `списочные экраны читают stage.${col}, но его нет в ORDER_LIST_SELECT — поле станет undefined молча`,
       ).toBe(true);
     }
+  });
+
+  /**
+   * СПЛОШНАЯ проверка, а не по списку потребителей.
+   *
+   * Проверка выше ищет обращения `stage.X` в перечисленных файлах — и список
+   * этот тоже написан руками. `stage.executor` читает `utils/outsourcing.ts`,
+   * которого в списке нет: удаление `executor` из запроса проходило мимо ОБОИХ
+   * фильтров — и белого списка колонок, и списка потребителей. А цена ровно та,
+   * что записана правилом от 16.08: `executor` приезжает `undefined`, отсев
+   * подряда молча перестаёт работать, и подрядные задания возвращаются
+   * в очередь чужого цеха.
+   *
+   * Поэтому вопрос поставлен наоборот: не «читает ли кто-то колонку», а
+   * «есть ли в запросе КАЖДАЯ колонка этапа». Исключения перечислены поимённо
+   * и с причиной — забыть пополнить такой список нельзя, новая колонка валит
+   * тест сразу.
+   */
+  const STAGE_COLUMNS_NOT_ASKED: Record<string, string> = {
+    // Этап показывают в списках по статусу и счётчикам; момент вставки строки
+    // не читает ни один экран, а этапов в списке сотни
+    created_at: 'момент вставки строки не читает ни один списочный экран',
+    // Заметка этапа видна только в карточке заказа, а она грузит ORDER_SELECT
+    notes: 'заметка этапа читается только в карточке заказа (полный select)',
+  };
+
+  it('каждая колонка erp_item_stages либо в списочном запросе, либо в списке исключений', () => {
+    const stagesBlock = ORDER_LIST_SELECT.slice(
+      ORDER_LIST_SELECT.indexOf('stages:erp_item_stages ('),
+      ORDER_LIST_SELECT.indexOf(')', ORDER_LIST_SELECT.indexOf('stages:erp_item_stages (')),
+    );
+    const asked = new Set(
+      stagesBlock.replace('stages:erp_item_stages (', '').split(',')
+        .map((c) => c.trim()).filter((c) => /^\w+$/.test(c)),
+    );
+    const missing = [...STAGE_COLUMNS].filter(
+      (c) => !asked.has(c) && !(c in STAGE_COLUMNS_NOT_ASKED),
+    );
+    expect(
+      missing,
+      `колонки этапа нет в ORDER_LIST_SELECT: ${missing.join(', ')} — она приедет `
+      + 'undefined молча. Либо добавьте в запрос, либо впишите в STAGE_COLUMNS_NOT_ASKED с причиной',
+    ).toEqual([]);
+
+    // Исключение, которое перестало быть исключением, — это протухший список
+    const stale = Object.keys(STAGE_COLUMNS_NOT_ASKED).filter((c) => asked.has(c));
+    expect(stale, `эти колонки уже в запросе: ${stale.join(', ')}`).toEqual([]);
   });
 
   it('walk находит исходники (иначе список потребителей мог протухнуть)', () => {

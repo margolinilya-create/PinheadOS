@@ -22,6 +22,7 @@ import { ordersAwaitingSupply } from '../utils/supply';
 import { isOutsourced } from '../utils/outsourcing';
 import type { ErpBypass, ErpDepartment, ErpItemStage } from '../types';
 import type { ErpOrderFull } from './types';
+import { storageGetRaw } from '../../lib/storage';
 
 /**
  * ПОЛНЫЙ заказ: позиции+этапы+принты, материалы, вложения, задачи закупки.
@@ -461,7 +462,7 @@ export function withNewWorkToast(
   apply: () => void | Promise<unknown>,
 ): Promise<void> {
   const myDept =
-    typeof localStorage !== 'undefined' ? localStorage.getItem('erp_my_dept') : null;
+    storageGetRaw('erp_my_dept');
   const before = myDept
     ? readyCountFor(get().orders, get().departments, myDept, get().bypasses ?? [])
     : 0;

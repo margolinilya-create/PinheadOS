@@ -16,8 +16,26 @@ interface ToastStore {
   remove: (id: number) => void;
 }
 
-/** Сколько сообщение живёт на экране */
+/**
+ * Сколько сообщение живёт на экране.
+ *
+ * У ОТКАЗА времени больше, чем у успеха (правка 03.09, решение владельца).
+ * Три секунды одинаково для обоих — это ровно то время, за которое рабочий
+ * не успевает поднять голову от изделия: успех он и так видит по изменившемуся
+ * экрану, а отказ — ЕДИНСТВЕННЫЙ канал, которым `erpError` объясняет причину
+ * (нет прав, обрыв связи, конфликт). Пропущенное сообщение об отказе означает
+ * «нажал — ничего не произошло», и человек нажимает ещё раз.
+ *
+ * Предупреждение живёт столько же, сколько ошибка: «Блокировка записана,
+ * но фото не загрузилось» — это тоже то, что нужно успеть прочитать.
+ */
 export const TOAST_TTL_MS = 3000;
+export const TOAST_ERROR_TTL_MS = 8000;
+
+/** Время жизни по типу сообщения */
+export function toastTtl(type: ToastType): number {
+  return type === 'success' ? TOAST_TTL_MS : TOAST_ERROR_TTL_MS;
+}
 
 /**
  * Идентификатор — счётчик, а не `Date.now()`.
@@ -32,13 +50,13 @@ let nextId = 0;
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
 export const useToastStore = create<ToastStore>((set, get) => {
-  const scheduleRemoval = (id: number) => {
+  const scheduleRemoval = (id: number, type: ToastType) => {
     const prev = timers.get(id);
     if (prev) clearTimeout(prev);
     timers.set(id, setTimeout(() => {
       timers.delete(id);
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
-    }, TOAST_TTL_MS));
+    }, toastTtl(type)));
   };
 
   return {
@@ -60,12 +78,12 @@ export const useToastStore = create<ToastStore>((set, get) => {
         set((s) => ({
           toasts: s.toasts.map((t) => (t.id === same.id ? { ...t, count: t.count + 1 } : t)),
         }));
-        scheduleRemoval(same.id);
+        scheduleRemoval(same.id, type);
         return;
       }
       const id = (nextId += 1);
       set((s) => ({ toasts: [...s.toasts, { id, message, type, count: 1 }] }));
-      scheduleRemoval(id);
+      scheduleRemoval(id, type);
     },
 
     remove: (id) => {

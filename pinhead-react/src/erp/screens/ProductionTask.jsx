@@ -38,9 +38,14 @@ import { ButtonLink } from '../components/Button';
  */
 export default function ProductionTask() {
   const { stageId } = useParams();
-  const { orders, departments, loaded, loadError, loadAll, findOrderIdByStage } = useErpStore(
+  const {
+    orders, departments, loaded, loadError, loadAll, findOrderIdByStage, myDeptLoaded,
+    detailError,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
+      myDeptLoaded: s.myDeptLoaded,
+      detailError: s.detailError,
       departments: s.departments,
       loaded: s.loaded,
       loadError: s.loadError,
@@ -66,7 +71,14 @@ export default function ProductionTask() {
     findOrderIdByStage(stageId).then((id) => {
       if (!alive) return;
       if (id) setResolvedOrderId(id);
-      else setNotFound(true);
+      /**
+       * «Не найдено» — только когда сервер ОТВЕТИЛ и этапа действительно нет
+       * (правка 03.09). При сбое запроса функция тоже отдавала `null`,
+       * и рабочий по ссылке на задание читал «Задание не найдено или было
+       * удалено» — про задание, которое на месте. Отказ теперь виден
+       * во флаге `detailError` и показывается «Не удалось загрузить».
+       */
+      else if (!useErpStore.getState().detailError) setNotFound(true);
     });
     return () => { alive = false; };
   }, [loaded, found, resolvedOrderId, notFound, findOrderIdByStage, stageId]);
@@ -94,6 +106,15 @@ export default function ProductionTask() {
   }
   if (!loaded) return <ScreenSkeleton />;
   if (!found) {
+    // Сбой резолва этапа — отдельная ветка, с кнопкой повтора
+    if (detailError && !notFound) {
+      return (
+        <>
+          <PageHead title="Производственное задание" />
+          <LoadFailed onRetry={() => { setNotFound(false); loadAll(); }} what="задание" />
+        </>
+      );
+    }
     // Диплинк на задание архивного заказа: резолвим его отдельным запросом —
     // до ответа показываем скелетон, а не текст «Загружаем…» (правило DESIGN.md)
     if (!notFound) return <ScreenSkeleton />;
@@ -107,6 +128,7 @@ export default function ProductionTask() {
 
   const { order, item, stage } = found;
   const dept = deptById.get(stage.department_id);
+  const itemMaterials = materialsForItem(order.materials, item.id);
   const deptName = dept ? deptShortName(dept.code, dept.name) : 'Цех';
   const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
   const noTz = stageMissingTz(order, item.id, dept);
@@ -133,8 +155,14 @@ export default function ProductionTask() {
         sub={`Задание цеха по заказу №${order.bitrix_id || '—'}.`}
       />
 
-      {/* Сюда цех приходит работать: пустой блок действий обязан объясниться */}
-      {perms.needsDeptBinding && <DeptBindingNotice />}
+      {/*
+        Сюда цех приходит работать: пустой блок действий обязан объясниться.
+        Но ЖДЁМ БУТСТРАП (правка 03.09): до него `resolveErpRole` отдаёт
+        `worker`, а он в `DEPT_BOUND_ROLES` — и нормально заведённому рабочему
+        полсекунды показывали, что его профиль не настроен. В очереди цеха это
+        условие уже стоит, сюда не доехало.
+      */}
+      {myDeptLoaded && perms.needsDeptBinding && <DeptBindingNotice />}
 
       <div className={styles.toolbar}>
         {/*
@@ -204,9 +232,17 @@ export default function ProductionTask() {
             <dd>{stage.assignee || <span className={styles.subText}>не закреплено</span>}</dd>
             <dt>Материал</dt>
             <dd>
-              {(order.materials ?? []).length > 0 ? (
+              {/*
+                МАТЕРИАЛЫ ЭТОЙ ПОЗИЦИИ, А НЕ ВСЕГО ЗАКАЗА (правка 03.09).
+                Здесь перечислялся `order.materials` целиком, тогда как гейты
+                рядом считают через `materialsForItem`. В заказе из трёх
+                изделий швея видела ткань чужого изделия и делала по ней вывод
+                о своей готовности; пустой список при этом подписан
+                «Материалы не ожидаются» — то есть утверждением.
+              */}
+              {itemMaterials.length > 0 ? (
                 <ul className={styles.tzMatList}>
-                  {order.materials.map((m) => (
+                  {itemMaterials.map((m) => (
                     <li key={m.id}>
                       {m.name}{m.color ? ` · ${m.color}` : ''}
                       <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>

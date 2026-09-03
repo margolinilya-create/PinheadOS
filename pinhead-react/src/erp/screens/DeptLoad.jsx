@@ -217,7 +217,15 @@ export default function DeptLoad() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.dept.id}>
-                  <td><strong>{deptShortName(row.dept.code, row.dept.name)}</strong></td>
+                  {/*
+                    `th scope="row"` — это МАТРИЦА «цех × день» (правка 03.09).
+                    Пока здесь стоял `<td>`, скринридер читал ячейку как
+                    «Ср 22.07, 40», без названия цеха: заголовок строки
+                    не связывался с её ячейками, и таблица 7×7 была нечитаема
+                    (WCAG 1.3.1). Колонки такой проблемы не имели — `<th>`
+                    внутри `<thead>` получает `scope="col"` по умолчанию.
+                  */}
+                  <th scope="row"><strong>{deptShortName(row.dept.code, row.dept.name)}</strong></th>
                   {row.cells.map((cell) => (
                     <td
                       key={cell.date}

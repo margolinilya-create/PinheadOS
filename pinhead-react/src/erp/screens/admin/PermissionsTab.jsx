@@ -10,6 +10,8 @@ import {
 } from '../../types';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { LoadFailed } from '../../components/ErpStates';
+import { TableSkeleton } from '../../components/ErpSkeletons';
 
 /**
  * Матрица прав «право × роль» (правка 11) — редактируется руководством,
@@ -47,10 +49,13 @@ const LOCKED_ROLES = {
 };
 
 export function PermissionsTab() {
-  const { permissionMatrix, permissionsLoaded, loadPermissions, setRolePermission } = useErpStore(
+  const {
+    permissionMatrix, permissionsLoaded, permissionsError, loadPermissions, setRolePermission,
+  } = useErpStore(
     useShallow((s) => ({
       permissionMatrix: s.permissionMatrix,
       permissionsLoaded: s.permissionsLoaded,
+      permissionsError: s.permissionsError,
       loadPermissions: s.loadPermissions,
       setRolePermission: s.setRolePermission,
     })),
@@ -59,6 +64,27 @@ export function PermissionsTab() {
   useEffect(() => {
     if (!permissionsLoaded) loadPermissions();
   }, [permissionsLoaded, loadPermissions]);
+
+  /**
+   * ОТКАЗ ЗАГРУЗКИ НЕ ПОКАЗЫВАЕТСЯ ДЕФОЛТАМИ (правка 03.09).
+   *
+   * `isAllowed` при пустой матрице по построению падает на
+   * `DEFAULT_PERMISSIONS` — и это верно для ПРОВЕРКИ права (fail-safe:
+   * пока матрица не приехала, цех работает по запасным значениям).
+   * Но здесь РЕДАКТОР: та же подстановка рисовала правдоподобную матрицу,
+   * которой нет в базе, ничего об этом не говорила, и переключение галочки
+   * шло поверх вымысла. Админ видел право у роли, снятое на сервере,
+   * а цех получал 42501 на кнопке, которая по матрице разрешена.
+   *
+   * Экран настроек — худшее место для правдоподобно неверных данных,
+   * поэтому здесь отказ называется прямо, и матрица не рисуется вовсе.
+   */
+  if (permissionsError) {
+    return <LoadFailed onRetry={loadPermissions} what="матрицу прав" />;
+  }
+  if (!permissionsLoaded) {
+    return <TableSkeleton rows={8} label="Загрузка матрицы прав" />;
+  }
 
   return (
     <>

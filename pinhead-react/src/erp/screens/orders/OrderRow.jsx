@@ -36,15 +36,15 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
 
   return (
     <>
+      {/* `aria-expanded` на <tr> НЕ ставим: у роли `row` обычной таблицы этого
+          атрибута нет (он есть только у строки `treegrid`), и скринридер
+          получает противоречивую разметку. Состояние раскрытия несёт кнопка
+          в первой ячейке — она же делает жест доступным с клавиатуры. */}
       <tr
         className={styles.rowClickable}
         onClick={() => setOpen(!open)}
-        aria-expanded={open}
       >
         <td>
-          {/* aria-expanded был объявлен, а раскрыть строку с клавиатуры нельзя:
-              у <tr> нет tabIndex и обработчика клавиш. Кнопка в первой ячейке
-              делает жест доступным, не превращая всю строку в кнопку. */}
           <button
             type="button"
             className={styles.rowToggle}

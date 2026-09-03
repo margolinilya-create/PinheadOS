@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
+import { confirm } from '../../store/useConfirmStore';
 import { useErpSearch } from '../store/useErpSearch';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -15,7 +16,7 @@ import {
 } from '../store/useErpStore';
 import { ordersWithOutsourcing } from '../utils/outsourcing';
 import { setFeature } from '../../config/features';
-import { storageGet, storageSet } from '../../lib/storage';
+import { storageGet, storageSet, storageGetRaw, storageSetRaw } from '../../lib/storage';
 import { deptsSettled } from '../store/shared';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
 import { Sidebar } from './Sidebar';
@@ -43,12 +44,12 @@ export default function ErpLayout({ user, children }) {
 
   // Сворачивание сайдбара (persist); на узких экранах — по умолчанию свёрнут
   const [collapsed, setCollapsed] = useState(() => {
-    const saved = localStorage.getItem('erp_sidebar_collapsed');
+    const saved = storageGetRaw('erp_sidebar_collapsed');
     if (saved != null) return saved === '1';
     return typeof window !== 'undefined' && window.innerWidth < 900;
   });
   useEffect(() => {
-    localStorage.setItem('erp_sidebar_collapsed', collapsed ? '1' : '0');
+    storageSetRaw('erp_sidebar_collapsed', collapsed ? '1' : '0');
   }, [collapsed]);
 
   // Ниже 760px сайдбар — выезжающий оверлей (см. erp.module.css): постоянная
@@ -89,7 +90,7 @@ export default function ErpLayout({ user, children }) {
 
   const myCode = useMemo(() => {
     const bound = departments.find((d) => d.id === myDeptId);
-    return bound?.code || localStorage.getItem('erp_my_dept') || '';
+    return bound?.code || storageGetRaw('erp_my_dept') || '';
   }, [departments, myDeptId]);
 
   // Счётчики активных задач по разделам (из уже загруженных данных стора)
@@ -218,15 +219,26 @@ export default function ErpLayout({ user, children }) {
           </div>
           <div className={styles.spacer} />
 
+          {/*
+            Счётчик просрочек ВХОДИТ в доступное имя кнопки (правка 03.09).
+            `aria-label="Уведомления"` перекрывал содержимое целиком, включая
+            число внутри: единственный глобальный индикатор «что горит»
+            не озвучивался вовсе. В сайдбаре та же задача решена верно —
+            имя даёт сам бейдж внутри ссылки (`Sidebar.jsx`).
+          */}
           <button
             type="button"
             className={styles.iconBtn}
             title="Уведомления"
-            aria-label="Уведомления"
+            aria-label={overdueCount > 0
+              ? `Уведомления: просрочено ${overdueCount}`
+              : 'Уведомления'}
             onClick={() => navigate('/#notifications')}
           >
             <Icon name="bell" size={19} />
-            {overdueCount > 0 && <span className={styles.iconDot}>{overdueCount}</span>}
+            {overdueCount > 0 && (
+              <span className={styles.iconDot} aria-hidden="true">{overdueCount}</span>
+            )}
           </button>
 
           <button
@@ -259,18 +271,41 @@ export default function ErpLayout({ user, children }) {
             <div className={styles.userRole}>{user?.role}</div>
           </div>
 
+          {/*
+            ВЫХОД ПЕРЕСПРАШИВАЕТ (правка 03.09). Это иконка в ряду из пяти
+            одинаковых по размеру, и на цеховом планшете промах пальцем стоил
+            сессии посреди смены: следующий человек должен был знать логин
+            и пароль, а набранное в открытых формах терялось. Действие
+            дешёвое по коду и дорогое по последствиям — ровно тот случай,
+            когда подтверждение уместно.
+          */}
           <button
             type="button"
             className={styles.iconBtn}
             title="Выйти"
             aria-label="Выйти"
-            onClick={() => useAuthStore.getState().logout()}
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Выйти из системы?',
+                message: 'Несохранённые правки в открытых формах будут потеряны.',
+                confirmLabel: 'Выйти',
+              });
+              if (ok) useAuthStore.getState().logout();
+            }}
           >
             <Icon name="power" size={19} />
           </button>
         </header>
 
-        <main className={styles.main} id="main-content">
+        {/*
+          `tabIndex={-1}` — чтобы skip-link ДЕЙСТВИТЕЛЬНО переносил фокус
+          (правка 03.09). Chrome и Firefox двигают фокус по фрагменту сами,
+          а WebKit исторически — нет, и на iPad, с которого идёт пилот,
+          «Перейти к содержимому» прокручивал страницу, оставляя фокус
+          на самой ссылке: следующий Tab возвращал в начало сайдбара.
+          Спека проверяла только видимость цели, а не перенос фокуса.
+        */}
+        <main className={styles.main} id="main-content" tabIndex={-1}>
           {/* Разрыв канала виден на ЛЮБОМ экране: устареть может любой */}
           <StaleDataBar />
           {children}

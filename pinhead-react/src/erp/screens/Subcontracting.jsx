@@ -33,6 +33,7 @@ import { DateField } from '../components/DateField';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
+import { useScrollRestore } from '../../hooks/useScrollRestore';
 
 /**
  * Подряд — ЭТАПЫ МАРШРУТА, отданные подрядчику (правки заказчика 16.08, блок 2).
@@ -90,7 +91,7 @@ const FUNNEL_STEPS = SUBCONTRACT_PHASE_FLOW.map((key) => ({
 export default function Subcontracting() {
   const {
     orders, departments, loaded, loadError, loadAll,
-    subcontracting, subcontractingLoaded, loadSubcontracting, updateSubcontractOp,
+    subcontracting, subcontractingLoaded, subcontractingError, loadSubcontracting, updateSubcontractOp,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -100,6 +101,7 @@ export default function Subcontracting() {
       loadAll: s.loadAll,
       subcontracting: s.subcontracting,
       subcontractingLoaded: s.subcontractingLoaded,
+      subcontractingError: s.subcontractingError,
       loadSubcontracting: s.loadSubcontracting,
       updateSubcontractOp: s.updateSubcontractOp,
     })),
@@ -117,6 +119,12 @@ export default function Subcontracting() {
   const compact = useCompactLayout();
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  /**
+   * Позиция прокрутки при возврате из карточки (правка 03.09). Приём был
+   * у списка заказов, доски и очереди цеха и НЕ доехал сюда: человек уходил
+   * в заказ из середины длинного списка и возвращался в его начало.
+   */
+  useScrollRestore(loaded);
   useEffect(() => { if (!subcontractingLoaded) loadSubcontracting(); }, [subcontractingLoaded, loadSubcontracting]);
 
   const deptById = useMemo(
@@ -212,6 +220,12 @@ export default function Subcontracting() {
       </div>
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="подрядные этапы" />}
+      {/* Реестр подряда — свои данные и свой отказ (правка 03.09): без флага
+          строки рисовались с `sub = null`, то есть «Запланировано» и пустые
+          числа у ВСЕХ операций разом — экран выглядел рабочим и врал */}
+      {subcontractingError && !subcontractingLoaded && (
+        <LoadFailed onRetry={loadSubcontracting} what="карточки подрядчиков" />
+      )}
       {/* Скелетона здесь не было: пока заказы едут, экран показывал пустоту,
           неотличимую от «подрядных этапов нет» (правило UX-2) */}
       {!loaded && !loadError && <TableSkeleton rows={5} label="Загрузка подрядных этапов" />}

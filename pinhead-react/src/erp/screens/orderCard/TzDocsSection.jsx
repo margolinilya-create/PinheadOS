@@ -191,7 +191,17 @@ export function TzMissingBanner({ order, departments }) {
     return (
       <div className={styles.queueReason}>
         <Icon name="orders" size={14} /> Заказ заведён до внедрения ТЗ в PDF — гейт к нему не применяется.
-        {access.can('tz.manage') && (
+        {/*
+          ПРАВО `order.manage`, А НЕ `tz.manage` (правка 03.09, решение владельца).
+          `tz_required` — колонка ЗАКАЗА, и серверный страж `erp_order_guard`
+          держит её в одном блоке со сроком, менеджером и упаковкой, то есть
+          под `order.manage`. Кнопка же стояла под `tz.manage`, а это право
+          есть у технолога, у которого `order.manage` нет: он видел кнопку,
+          нажимал — и получал 42501, а оптимистичная правка откатывалась.
+          Классическое «кнопка есть, действие падает»; гейт интерфейса обязан
+          совпадать со стражем ЗНАЧЕНИЕМ.
+        */}
+        {access.can('order.manage') && (
           <>
             {' '}
             <Button variant="ghost" onClick={() => setTzRequired(order.id, true)}>

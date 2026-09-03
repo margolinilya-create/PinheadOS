@@ -4,6 +4,7 @@ import { AttachmentList } from '../../components/AttachmentList';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
+import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { confirm } from '../../../store/useConfirmStore';
 import { DEV_TASK_STATUS_LABELS } from '../../types';
@@ -133,8 +134,24 @@ function TaskRow({
 
   return (
     <>
-      <tr className={styles.rowClickable} onClick={() => setOpen((v) => !v)}>
+      <tr className={styles.rowClickable} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <td>
+          {/*
+            Кнопка раскрытия в первой ячейке (правка 03.09) — тем же приёмом,
+            что в `orders/OrderRow`. Строка раскрывалась ТОЛЬКО кликом: у `<tr>`
+            нет ни `tabIndex`, ни обработчика клавиш, а внутри раскрытой части
+            три редактируемых поля (ответственный, срок, комментарий). С
+            клавиатуры они были недостижимы вовсе (WCAG 2.1.1).
+          */}
+          <button
+            type="button"
+            className={styles.rowToggle}
+            aria-expanded={open}
+            aria-label={`${open ? 'Свернуть' : 'Развернуть'} задачу: ${taskLabel(task, typeNames)}`}
+            onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+          >
+            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
+          </button>
           <strong>{taskLabel(task, typeNames)}</strong>
           {task.cycle > 0 && (
             // Повторная примерка — новая строка со своим кругом, а не счётчик

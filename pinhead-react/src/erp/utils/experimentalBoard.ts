@@ -187,7 +187,8 @@ export function devStageOfTask(taskType: string | null | undefined): DevStage | 
 
 /** Дорожка внутри колонки — те же группы, что на общем производственном борде */
 export type DevLane =
-  'waiting' | 'awaiting_materials' | 'ready' | 'in_progress' | 'blocked' | 'done' | 'skipped';
+  'waiting' | 'awaiting_materials' | 'ready' | 'in_progress' | 'blocked' | 'done'
+  | 'skipped' | 'not_applicable';
 
 /**
  * Подпись действия «завершить» ПО ИМЕНИ ЭТАПА (правка 23.08, п. 7):
@@ -216,6 +217,17 @@ export const DEV_LANE_TITLES: Record<DevLane, string> = {
   blocked: 'С проблемой',
   done: 'Завершено',
   skipped: 'Пропущено',
+  /**
+   * «НЕ ТРЕБУЕТСЯ» ≠ «ПРОПУЩЕНО» (правка 03.09).
+   *
+   * Шаг, которого у этой разработки не было в плане (нанесений у образца без
+   * печати, стоянка у заказа без закупки), помечался `skipped`, и человек
+   * читал «Пропущено» — то есть «работу не сделали». Свой же комментарий
+   * в `devStageStates` говорил обратное: «шаг не пропускали, его не было
+   * в плане». Правило проекта записано с 23.08, но исполнялось только
+   * в тексте причины и только для нанесений — бейдж продолжал врать.
+   */
+  not_applicable: 'Не требуется',
 };
 
 const CLOSED = new Set(['done', 'cancelled']);
@@ -434,7 +446,7 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
      */
     if (stage === 'materials') {
       if (!stageApplies(stage, byStage, stageCtx)) {
-        return { stage, lane: 'skipped' as DevLane, tasks: own, waitingReason: null };
+        return { stage, lane: 'not_applicable' as DevLane, tasks: own, waitingReason: null };
       }
       if (passedByHand(stage)) {
         return { stage, lane: 'done' as DevLane, tasks: own, waitingReason: null };
@@ -468,7 +480,7 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
     if (own.length === 0) {
       // Нанесений у образца нет вовсе — шаг не пропускали, его не было в плане
       if (!stageApplies(stage, byStage, stageCtx)) {
-        return { stage, lane: 'skipped' as DevLane, tasks: own, waitingReason: null };
+        return { stage, lane: 'not_applicable' as DevLane, tasks: own, waitingReason: null };
       }
       /**
        * Человек уже перенёс карточку дальше — этап пройден его решением,
@@ -565,7 +577,7 @@ export interface DevStageAction {
  */
 export function devStageAction(state: DevStageState): DevStageAction {
   if (state.lane === 'done') return { key: null, label: '', reason: 'Этап завершён' };
-  if (state.lane === 'skipped') {
+  if (state.lane === 'skipped' || state.lane === 'not_applicable') {
     /**
      * «Не требуется» ≠ «Пропущен» (п. 7). Необязательный этап нанесений,
      * которого у этой разработки нет вовсе, не пропускали — его не было
@@ -683,7 +695,9 @@ export function devBoardColumn(
   // Не двигали руками — прежний расчёт, дословно. Заведённые раньше
   // разработки в момент выкладки не прыгают: `board_stage` у них пуст
   if (dev.sample_approved_at) return 'final';
-  const open = states.find((s) => s.lane !== 'done' && s.lane !== 'skipped');
+  const open = states.find((s) => s.lane !== 'done'
+    && s.lane !== 'skipped'
+    && s.lane !== 'not_applicable');
   return open?.stage ?? 'final';
 }
 
@@ -727,9 +741,15 @@ export function devRouteSteps(
      * ждать нечего. Перечислены поимённо: у обычного шага без задач
      * (легаси-разработка, работа ушла вперёд) «Пропущено» — правда.
      */
-    const skippedOptional = st.lane === 'skipped'
-      && (st.stage === 'branding' || st.stage === 'materials')
-      && st.tasks.length === 0;
+    /**
+     * ПЕРЕЧИСЛЕНИЕ ПО ИМЕНАМ БОЛЬШЕ НЕ НУЖНО (правка 03.09). Здесь стоял
+     * список «branding или materials без задач» — то есть правило «шага
+     * не было в плане» выражалось в ДВУХ местах: тут словами и в
+     * `devStageStates` дорожкой `skipped`. Теперь дорожка называется
+     * `not_applicable`, и смысл несёт она сама: третий такой шаг попадёт
+     * в правило без правки этого списка.
+     */
+    const notApplicable = st.lane === 'not_applicable';
     const isCurrent = st.stage === currentStage;
     /**
      * «В работе» — это ТЕКУЩИЙ шаг, а не только `in_progress` задач: шаг,
@@ -741,14 +761,14 @@ export function devRouteSteps(
       ? 'done'
       : st.lane === 'blocked'
         ? 'blocked'
-        : st.lane === 'skipped'
+        : (st.lane === 'skipped' || notApplicable)
           ? 'skipped'
           : isCurrent ? 'active' : undefined;
     const sub = st.lane === 'done'
       ? 'Завершено'
       : st.lane === 'blocked'
         ? (st.waitingReason ?? 'С проблемой')
-        : skippedOptional
+        : notApplicable
           ? 'Не требуется'
           : st.lane === 'skipped'
             ? 'Пропущено'
@@ -761,7 +781,9 @@ export function devRouteSteps(
       sub,
       state,
       // Соединитель закрашен, когда ПРЕДЫДУЩИЙ шаг пройден или не требовался
-      lineDone: i > 0 && (states[i - 1].lane === 'done' || states[i - 1].lane === 'skipped'),
+      lineDone: i > 0 && (states[i - 1].lane === 'done'
+        || states[i - 1].lane === 'skipped'
+        || states[i - 1].lane === 'not_applicable'),
       title: `${DEV_STAGE_LABELS[st.stage]}: ${sub}`,
     };
   });

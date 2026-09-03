@@ -139,6 +139,16 @@ describe('гейт кроя: лекала И материал', () => {
   });
 });
 
+/**
+ * ДОРОЖКА «НЕ ТРЕБУЕТСЯ» (`not_applicable`) — правка 03.09.
+ *
+ * Названия проверок ниже говорили «не требуется, а не пропущено» с 23.08,
+ * а утверждали `lane === 'skipped'`, подпись которого — «Пропущено».
+ * Слово, которое читал человек на доске ЭКС, расходилось с тем, что
+ * проверяли эти же тесты. Теперь дорожка называет состояние сама, а список
+ * имён шагов («branding или materials без задач») из `devRouteSteps` убран
+ * за ненадобностью.
+ */
 describe('состояния шагов', () => {
   it('лекала НЕ ждут материал — это единственное исключение документа', () => {
     const states = devStageStates({
@@ -187,7 +197,7 @@ describe('состояния шагов', () => {
 
   it('колонка «Нанесения» не светится у образца без печати', () => {
     const states = devStageStates({ dev: dev(), tasks: [task({ id: 'p' })] });
-    expect(laneOf(states, 'branding')).toBe('skipped');
+    expect(laneOf(states, 'branding')).toBe('not_applicable');
   });
 
   it('шаг, который перепрыгнули, помечен пропущенным', () => {
@@ -231,7 +241,7 @@ describe('состояния шагов', () => {
       dev: dev({ board_stage: 'sewing' }),
       tasks: [],
     });
-    expect(laneOf(states, 'branding')).toBe('skipped');
+    expect(laneOf(states, 'branding')).toBe('not_applicable');
   });
 });
 
@@ -303,7 +313,7 @@ describe('шаг «Ожидает материалы»', () => {
     const states = devStageStates({
       dev: dev(), tasks: [], materials: [accepted],
     });
-    expect(laneOf(states, 'materials')).toBe('skipped');
+    expect(laneOf(states, 'materials')).toBe('not_applicable');
   });
 
   it('шаг, пройденный руками, завершён — даже если материал снова ждут', () => {
@@ -336,14 +346,14 @@ describe('применимость шага «Нанесения»', () => {
     const states = devStageStates({
       dev: dev({ board_stage: 'cutting' }), tasks: [], hasBranding: true,
     });
-    expect(laneOf(states, 'branding')).not.toBe('skipped');
+    expect(laneOf(states, 'branding')).not.toBe('not_applicable');
   });
 
   it('нанесений в заказе нет — шаг по-прежнему «не требуется»', () => {
     const states = devStageStates({
       dev: dev({ board_stage: 'cutting' }), tasks: [], hasBranding: false,
     });
-    expect(laneOf(states, 'branding')).toBe('skipped');
+    expect(laneOf(states, 'branding')).toBe('not_applicable');
   });
 });
 

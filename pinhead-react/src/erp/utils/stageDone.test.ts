@@ -144,26 +144,50 @@ describe('stageCompletionBlock — закупка держит завершен�
 });
 
 /**
- * Сторож на ВЫЗЫВАЮЩИХ. `materials`/`dept` объявлены обязательными, но все
- * три точки закрытия этапа живут в .jsx/.js — тайпчек там аргументы
- * не проверяет, и забытый вызывающий молча закрывал бы этап мимо гейта.
- * Поэтому проверяем исходники.
+ * Сторож на ВЫЗЫВАЮЩИХ ДИАЛОГА. `materials`/`dept` объявлены обязательными,
+ * но все точки живут в .jsx/.js — тайпчек там аргументы не проверяет.
+ *
+ * ЧЕМ ОН БЫЛ ДО 03.09. Список путей вёлся РУКАМИ, и в нём было три строки
+ * при четырёх путях закрытия:
+ * «Записать результат» у участка со схемой отчёта шёл в `submitStageReport`
+ * мимо всего. Само правило теперь живёт у писателей
+ * (`stagesSlice.completionBlockFor`), и сторожит его `store/stageCompletionGate.test.ts`
+ * ПОВЕДЕНИЕМ — снимите проверку у любого писателя, и он краснеет; пятый путь
+ * пройдёт через тех же писателей и вписывать его никуда не нужно.
+ *
+ * Здесь остаётся проверка ТЕКСТА диалога: он объясняет человеку последствия
+ * до действия, и аргументы ему нужны те же самые.
  */
 describe('confirmStageDone — гейт подключён во всех точках закрытия', () => {
-  const CALLERS = [
-    'screens/queue/useStageActions.js',
-    'components/ErpKanban.jsx',
-    'screens/ProductionBoard.jsx',
-  ];
-
   it('каждая точка передаёт материалы позиции и цех этапа', async () => {
-    const { readFileSync } = await import('node:fs');
+    const { readdirSync, readFileSync, statSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const { dirname, join } = await import('node:path');
     const erpRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-    for (const rel of CALLERS) {
-      const src = readFileSync(join(erpRoot, rel), 'utf8');
+    /**
+     * Вызывающие ИЩУТСЯ, а не перечисляются. Список из трёх путей пришлось бы
+     * пополнять руками — а сторож, который надо не забыть пополнить, забывают
+     * пополнить: ровно так «Записать результат» четвёртым путём прошёл мимо
+     * гейта. Ищем сам вызов по всем исходникам раздела.
+     */
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const entry of readdirSync(dir)) {
+        const p = join(dir, entry);
+        if (statSync(p).isDirectory()) walk(p, out);
+        else if (/\.(ts|tsx|js|jsx)$/.test(entry) && !/\.test\./.test(entry)) out.push(p);
+      }
+      return out;
+    };
+    const callers = walk(erpRoot).filter(
+      (f) => readFileSync(f, 'utf8').includes('confirmStageDone({'),
+    );
+    expect(callers.length, 'вызовов confirmStageDone не найдено — сторож сторожит пустоту')
+      .toBeGreaterThanOrEqual(3);
+
+    for (const file of callers) {
+      const rel = file.slice(erpRoot.length + 1);
+      const src = readFileSync(file, 'utf8');
       const call = src.slice(src.indexOf('confirmStageDone({'));
       const body = call.slice(0, call.indexOf('});'));
       expect(body, `${rel}: не передаёт materials`).toContain('materials:');
@@ -171,6 +195,12 @@ describe('confirmStageDone — гейт подключён во всех точ�
       // именно материалы ПОЗИЦИИ, а не весь заказ: иначе гейт считал бы
       // чужие строки закупки
       expect(body, `${rel}: материалы не отобраны по позиции`).toContain('materialsForItem(');
+      /**
+       * Аварийное снятие учитывается и в ДИАЛОГЕ (правка 03.09). Писатель его
+       * уважает; если диалог не будет — он откажет раньше, и человек увидит
+       * отказ там, где система уже разрешила. Половина выхода — не выход.
+       */
+      expect(body, `${rel}: не учитывает аварийное снятие`).toContain('materialsAfterBypass(');
     }
   });
 });

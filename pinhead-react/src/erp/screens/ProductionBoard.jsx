@@ -19,6 +19,7 @@ import {
   applyStageFilters, EMPTY_FILTERS, filtersFromParams, filtersToParams, hasActiveFilters,
 } from '../utils/filterStages';
 import { buildQueueEntries } from '../utils/queueEntries';
+import { materialsAfterBypass, isBypassed } from '../utils/bypass';
 import { confirmStageDone } from '../utils/stageDone';
 import { isProductionDept, deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
@@ -33,6 +34,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { dueLabelCompact } from '../utils/format';
 import { Button } from '../components/Button';
 import { ProductionTabs } from '../components/ProductionTabs';
+import { storageGetRaw, storageSetRaw } from '../../lib/storage';
 
 /**
  * Производственный план — мастер-таблица (аналог 1_Производственный_план).
@@ -57,12 +59,32 @@ const NEXT_PERMISSION = {
   in_progress: 'stage.complete',
 };
 
-function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
+/** Чип, которым нельзя двигать статус (компактная раскладка) */
+const NEVER_ADVANCE = () => false;
+
+function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance, bypasses }) {
   const dept = deptById.get(stage.department_id);
   const allStages = item.stages;
 
+  /**
+   * АВАРИЙНЫЕ СНЯТИЯ УЧИТЫВАЮТСЯ И ЗДЕСЬ (правка 03.09).
+   *
+   * `buildQueueEntries` получает `bypasses` и потому в очереди цеха задание
+   * с аварийно снятой проверкой стоит «Готово к работе» с пометкой «Проверка
+   * снята вручную». Чип на доске считал готовность СВОИМ вызовом
+   * `isStageReady` без снятий — и тот же этап показывал «Ожидает» серым
+   * и некликабельным. Диспетчер, ради которого снятие и делали, двинуть
+   * работу с доски не мог.
+   *
+   * Это ровно тот же класс, что расхождение по дозакупке двумя абзацами ниже:
+   * вторая копия правила, отвечающая иначе, чем первая.
+   */
+  const gateMaterials = materialsAfterBypass(
+    materialsForItem(order.materials, item.id), order.id, bypasses,
+  );
   // waiting в БД, но зависимости выполнены → показываем как «готов к работе»
-  const noTz = stageMissingTz(order, item.id, dept);
+  const noTz = stageMissingTz(order, item.id, dept)
+    && !isBypassed('tz_gate', order.id, bypasses);
   /**
    * ЗАКУПКА НА ЗАМЕНУ СЧИТАЕТСЯ И ЗДЕСЬ (правка 30.08, п. 7).
    *
@@ -77,14 +99,14 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
   const effectiveReady =
     stage.status === 'waiting' &&
     isStageReady(
-      stage, allStages, materialsForItem(order.materials, item.id), dept, awaitProc, noTz,
+      stage, allStages, gateMaterials, dept, awaitProc, noTz,
     );
   const displayStatus = effectiveReady ? 'ready' : stage.status;
 
   const reason =
     displayStatus === 'waiting' || displayStatus === 'blocked'
       ? waitingReason(
-          stage, allStages, materialsForItem(order.materials, item.id),
+          stage, allStages, gateMaterials,
           new Map([...deptById].map(([id, d]) => [id, d.name])),
           dept, awaitProc, noTz,
         )
@@ -121,13 +143,12 @@ function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance }) {
 
 export default function ProductionBoard() {
   const {
-    orders, departments, loading, loaded, loadError, loadAll, setStageStatus,
+    orders, departments, loaded, loadError, loadAll, setStageStatus,
     archiveLoaded, loadArchive, bypasses,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
-      loading: s.loading,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
@@ -140,8 +161,8 @@ export default function ProductionBoard() {
   const access = useErpAccess();
   const isCompact = useCompactLayout();
   const [onlyActive, setOnlyActive] = useState(true);
-  const [view, setView] = useState(() => localStorage.getItem('erp_board_view') || 'table');
-  const switchView = (v) => { setView(v); localStorage.setItem('erp_board_view', v); };
+  const [view, setView] = useState(() => storageGetRaw('erp_board_view') || 'table');
+  const switchView = (v) => { setView(v); storageSetRaw('erp_board_view', v); };
 
   // Поиск, фильтры и сортировка — общие с очередью цеха, состояние в URL (правки 4 и 9)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -210,16 +231,29 @@ export default function ProductionBoard() {
     [access],
   );
 
-  /** Чип этапа — общий для таблицы и мобильной карточки */
-  const renderStage = (st, order, item) => (
+  /**
+   * Чип этапа. `interactive` — можно ли им двигать статус.
+   *
+   * НА КОМПАКТНОЙ РАСКЛАДКЕ ЧИПЫ ТОЛЬКО ПОКАЗЫВАЮТ СОСТОЯНИЕ (правка 03.09).
+   * Это обещал комментарий в `BoardCardMobile` с самого её появления —
+   * «менять статус тычком пальца по 25-пиксельной пилюле в списке из сотни
+   * позиций не сценарий», — но сюда передавался тот же кликабельный чип,
+   * и тап переводил этап `ready → in_progress` без подтверждения, назначая
+   * исполнителя. Комментарий описывал намерение, а не код.
+   *
+   * Для действий на планшете есть очередь цеха и страница задания — там у них
+   * полноразмерные кнопки и формы.
+   */
+  const renderStage = (st, order, item, interactive = true) => (
     <StageChip
       key={st.id}
       stage={st}
       item={item}
       order={order}
       deptById={deptById}
+      bypasses={bypasses}
       onAdvance={onAdvance}
-      allowAdvance={allowAdvance}
+      allowAdvance={interactive ? allowAdvance : NEVER_ADVANCE}
     />
   );
 
@@ -231,8 +265,9 @@ export default function ProductionBoard() {
     // Чип пишет весь тираж — при незакрытом остатке спрашиваем, как в очереди цеха
     const ok = await confirmStageDone({
       stage, qty: item.qty, allStages: item.stages, deptNameById,
-      // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха
-      materials: materialsForItem(order.materials, item.id),
+      // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха.
+      // Аварийное снятие учитывается и здесь (правка 03.09)
+      materials: materialsAfterBypass(materialsForItem(order.materials, item.id), order.id, bypasses),
       dept: deptById.get(stage.department_id),
     });
     if (!ok) return;
@@ -316,7 +351,8 @@ export default function ProductionBoard() {
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="производственный план" />}
       {/* Скелетон по виду: в канбан-виде появится доска, а не таблица */}
-      {!loadError && loading && !loaded && (
+      {/* `!loaded && !loadError`, а не `loading` — см. правило UX-2 */}
+      {!loadError && !loaded && (
         view === 'kanban'
           ? <KanbanSkeleton />
           : <TableSkeleton rows={6} label="Загрузка производственного плана" />
@@ -346,7 +382,7 @@ export default function ProductionBoard() {
               key={item.id}
               order={order}
               item={item}
-              renderStage={(st) => renderStage(st, order, item)}
+              renderStage={(st) => renderStage(st, order, item, false)}
             />
           ))}
         </div>

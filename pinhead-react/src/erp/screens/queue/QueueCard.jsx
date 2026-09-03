@@ -9,13 +9,16 @@ import { Lightbox } from './Lightbox';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
-import { ButtonLink } from '../../components/Button';
+import { Button, ButtonLink } from '../../components/Button';
 
 /**
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
  * Действия и формы общие со строкой и страницей задания (StageActionsPanel).
  */
-export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
+export function QueueCard({
+  entry, perms, rework, deptShortById, actions,
+  index = 0, canReorder = false, canMoveUp = false, canMoveDown = false, onMove, onPlan,
+}) {
   const location = useLocation();
   const { order, item, stage, reason, group, missingMaterials } = entry;
   const overdue = stageOverdue(stage.planned_end, stage.status);
@@ -157,6 +160,60 @@ export function QueueCard({ entry, perms, rework, deptShortById, actions }) {
             />
           </div>
           <span className={styles.progressCell}>{qtyDone}/{item.qty}</span>
+        </div>
+      )}
+
+      {/*
+        ПРИОРИТЕТ ОЧЕРЕДИ И ПОСТАНОВКА В ПЛАН — И НА ПЛАНШЕТЕ (правка 03.09).
+        Обе возможности жили ТОЛЬКО в `QueueRow`, то есть в десктопной
+        раскладке. А `useCompactLayout` — это `max-width: 1024px` ИЛИ
+        `pointer: coarse`, значит на любом цеховом планшете рисуется эта
+        карточка, и ни перетащить (карточки не draggable), ни нажать ↑/↓
+        (кнопок не было) было нельзя. Право `stage.priority` оказалось
+        недостижимо на ОСНОВНОМ рабочем устройстве, а комментарий в `QueueRow`
+        при этом называл эти же кнопки «клавиатурной и ТАЧ-альтернативой»
+        перетаскиванию — альтернатива жила в раскладке, которой на тач-экране
+        не бывает.
+      */}
+      {(canReorder || (perms.plan && group === 'ready' && onPlan)) && (
+        <div className={styles.queueCardOrder}>
+          {canReorder && (
+            <>
+              <span className={styles.subText}>Приоритет {index + 1}</span>
+              <button
+                type="button"
+                className={styles.moveBtn}
+                disabled={!canMoveUp}
+                aria-label={`Поднять приоритет: ${order.title}`}
+                title="Поднять приоритет"
+                onClick={() => onMove?.(-1)}
+              >
+                <Icon name="arrowUp" size={16} />
+              </button>
+              <button
+                type="button"
+                className={styles.moveBtn}
+                disabled={!canMoveDown}
+                aria-label={`Опустить приоритет: ${order.title}`}
+                title="Опустить приоритет"
+                onClick={() => onMove?.(1)}
+              >
+                <Icon name="arrowDown" size={16} />
+              </button>
+            </>
+          )}
+          {perms.plan && group === 'ready' && onPlan && (
+            <Button
+              variant="secondary"
+              aria-label="Поставить в план"
+              title="Поставить задание в план на день"
+              onClick={() => onPlan(entry)}
+            >
+              <span className={styles.cellWithIcon}>
+                <Icon name="calendar" size={15} />В план
+              </span>
+            </Button>
+          )}
         </div>
       )}
 

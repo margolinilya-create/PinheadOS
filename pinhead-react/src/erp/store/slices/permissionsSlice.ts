@@ -17,21 +17,32 @@ import type { ErpStore, PermissionsSlice } from '../types';
 export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> = (set, get) => ({
   permissionMatrix: null,
   permissionsLoaded: false,
+  permissionsError: null,
 
   loadPermissions: async () => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_role_permissions')
       .select('role, permission, allowed'));
     if (error) {
-      // Работаем на дефолтах — молча, чтобы не пугать цех на каждом заходе
-      set({ permissionsLoaded: true });
+      /**
+       * Fail-open для ЦЕХА остаётся: работаем на дефолтах молча, чтобы
+       * не пугать рабочего на каждом заходе. Но отказ теперь ЗАПОМИНАЕТСЯ —
+       * его читает редактор матрицы в админке (правка 03.09).
+       *
+       * Причина: `isAllowed` при пустой матрице падает на `DEFAULT_PERMISSIONS`,
+       * и вкладка «Права» рисовала правдоподобную матрицу, которой нет в базе.
+       * Админ видел галочку у права, снятого на сервере, делал вывод «право
+       * есть» — а цех получал 42501 на кнопке, которая по матрице разрешена.
+       * Экран настроек — худшее место для правдоподобно неверных данных.
+       */
+      set({ permissionsLoaded: true, permissionsError: error.message });
       return;
     }
     const matrix: PermissionMatrix = {};
     for (const row of (data ?? []) as ErpRolePermission[]) {
       (matrix[row.role] ??= {})[row.permission] = row.allowed;
     }
-    set({ permissionMatrix: matrix, permissionsLoaded: true });
+    set({ permissionMatrix: matrix, permissionsLoaded: true, permissionsError: null });
   },
 
   setRolePermission: async (role, permission, allowed) => {

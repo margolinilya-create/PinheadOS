@@ -55,9 +55,12 @@
 }
 .ghost:hover:not(:disabled) { background: var(--surface); color: var(--text); }
 
+/* Заливка своим токеном: --color-error под белым даёт 3.76:1 в светлой теме
+   и 2.77:1 в тёмной (там он светлый) — обе ниже AA. Токен объявлен в палитре
+   .shell и в index.css; --color-error остаётся точкам, рамкам и чипам. */
 .danger {
-  background: var(--color-error);
-  color: #fff;
+  background: var(--btn-danger-bg);
+  color: var(--btn-danger-fg);
 }
 .danger:hover:not(:disabled) { filter: brightness(0.94); }
 
@@ -86,9 +89,14 @@
 @keyframes btnSpin {
   to { transform: rotate(360deg); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .spinner { animation-duration: 2s; }
-}
+/* ПРАВИЛО СНЯТО КАК МЁРТВОЕ (аудит 03.09).
+   Здесь стояло `@media (prefers-reduced-motion: reduce) { .spinner
+   { animation-duration: 2s } }` — «крутить медленнее». Оно не работало
+   ни разу: глобальный `*`-блок в `styles/utils.css` идёт с `!important`
+   (единственное задокументированное исключение из запрета) и всегда
+   выигрывает, то есть спиннер при сниженной анимации ОСТАНОВЛЕН, а не
+   замедлен. Правило, которое ничего не делает, хуже отсутствующего:
+   оно утверждает, что случай учтён. */
 
 /* Правило ≥44px на тач-экранах цехов (см. общий список в erp.module.css —
    у отдельного CSS-модуля своя область, поэтому свой медиазапрос) */

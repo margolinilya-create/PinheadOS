@@ -48,6 +48,7 @@ import { NotesSection } from './create/NotesSection';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
 import { Button } from '../../components/Button';
+import { scrollIntoViewSafely } from '../../utils/scrollIntoViewSafely';
 
 /**
  * Позиции с их производственными этапами — те, кому нужно ТЗ, и цеха, которые
@@ -547,7 +548,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       }));
       requestAnimationFrame(() => {
         const el = document.querySelector('[data-invalid="true"]');
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrollIntoViewSafely(el, { block: 'center' });
         if (typeof el?.focus === 'function') el.focus({ preventScroll: true });
       });
       return;

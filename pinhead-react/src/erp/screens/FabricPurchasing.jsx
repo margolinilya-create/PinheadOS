@@ -42,6 +42,7 @@ import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
+import { useScrollRestore } from '../../hooks/useScrollRestore';
 
 /**
  * Закупка (редизайн): плоская таблица закупочных строк по всем активным заказам
@@ -335,6 +336,12 @@ export default function FabricPurchasing() {
   const sortBy = (key) => { toggleSort(key); setPage(1); };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  /**
+   * Позиция прокрутки при возврате из карточки (правка 03.09). Приём был
+   * у списка заказов, доски и очереди цеха и НЕ доехал сюда: человек уходил
+   * в заказ из середины длинного списка и возвращался в его начало.
+   */
+  useScrollRestore(loaded);
 
   const activeOrders = useMemo(() => orders.filter((o) => o.status === 'active'), [orders]);
 
@@ -464,6 +471,24 @@ export default function FabricPurchasing() {
       <PageHead title="Закупка" sub="Работа с материалами и поставщиками." />
       <DictionaryDatalist kind="supplier" id="erp-suppliers-table" />
 
+      {/*
+        ОШИБКА И СКЕЛЕТОН — НА ВЕРХНЕМ УРОВНЕ ЭКРАНА (правка 03.09).
+        Раньше обе строки стояли ВНУТРИ `<PurchaseCard>`, то есть под условием
+        `loaded && selectedOrder`. Отступ у них был сброшен к левому краю,
+        и выглядели они верхнеуровневыми; комментарий рядом уверял, что
+        правило UX-2 соблюдено. Оно и было соблюдено — в тексте, но не
+        в дереве: `loadError && !loaded` внутри блока, требующего `loaded`,
+        недостижимо по построению.
+        Цена: закупщик по цеховому Wi-Fi видел один заголовок «Закупка» —
+        и навсегда, потому что `if (!loaded) loadAll()` второй раз
+        не срабатывает, а кнопки «Повторить» на экране не существовало.
+        Заодно была недостижима кнопка «+ Новая закупка».
+      */}
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="закупку" />}
+      {/* Скелетон — на `!loaded && !loadError`, а не на `loading`: при сбое
+          `loading` уже false, и экран замирал бы навсегда (правило UX-2) */}
+      {!loadError && !loaded && <TableSkeleton rows={8} label="Загрузка закупки" />}
+
       {/* Очередь участка идёт ПЕРВОЙ: это ответ на вопрос «что делать сейчас».
           Таблица закупочных строк ниже — справочник состояний, и до 12.08
           она была единственным содержимым экрана, из-за чего заказ без
@@ -506,158 +531,153 @@ export default function FabricPurchasing() {
           onClose={closeSupply}
           onAddMaterial={(orderId) => setAdding({ orderId })}
         >
-      {tab !== 'all' && (
-        <div className={styles.toolbar} style={{ marginTop: -8 }}>
-          <span className={`${styles.chip} ${styles.chipProgress}`}>
-            Фильтр: {TABS.find((t) => t.key === tab)?.label}
-          </span>
-          <Button variant="ghost" onClick={() => setTab('all')}>
-            Сбросить фильтр
-          </Button>
-        </div>
-      )}
+        {tab !== 'all' && (
+          <div className={styles.toolbar} style={{ marginTop: -8 }}>
+            <span className={`${styles.chip} ${styles.chipProgress}`}>
+              Фильтр: {TABS.find((t) => t.key === tab)?.label}
+            </span>
+            <Button variant="ghost" onClick={() => setTab('all')}>
+              Сбросить фильтр
+            </Button>
+          </div>
+        )}
 
-      <FilterBar
-        search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
-        searchPlaceholder="Поиск: заказ, № сделки, материал, артикул, поставщик"
-        searchLabel="Поиск по закупке"
-        right={<Button variant="primary" onClick={() => setAdding(true)}>+ Новая закупка</Button>}
-      >
-        {TABS.map((f) => (
-          <button
-            key={f.key} type="button" aria-pressed={tab === f.key}
-            className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => { setTab(f.key); setPage(1); }}
-          >
-            {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
-          </button>
-        ))}
-      </FilterBar>
-
-      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="закупку" />}
-      {/* Скелетон — на `!loaded && !loadError`, а не на `loading`: при сбое
-          `loading` уже false, и экран замирал бы навсегда (правило UX-2) */}
-      {!loadError && !loaded && <TableSkeleton rows={8} label="Загрузка закупки" />}
-
-      {/* «Закупать нечего» и «подбор всё отсеял» — разные ответы: в первом
-          случае человеку нечего сбрасывать, во втором сброс и есть выход */}
-      {loaded && filtered.length === 0 && allRows.length === 0 && (
-        <EmptyState
-          icon="inbox"
-          title="Закупочных строк нет"
-          text="Лист закупки задаёт менеджер при создании заказа. Отдельную позицию можно завести кнопкой «Новая закупка»."
-        />
-      )}
-      {loaded && filtered.length === 0 && allRows.length > 0 && (
-        <EmptyResult query={query.trim()} onReset={resetFilters} resetLabel="Сбросить всё" />
-      )}
-
-      {loaded && filtered.length > 0 && isCompact && (
-        <div className={styles.dataCardList}>
-          {pageRows.map(({ order, m }) => (
-            <PurchaseRowCard
-              key={m.id}
-              order={order}
-              m={m}
-              onUpdate={updateMaterial}
-              onOpenOptions={setOptionsFor}
-              onConfirmStock={confirmStockMaterial}
-              onSetStatus={setStatus}
-            />
+        <FilterBar
+          search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
+          searchPlaceholder="Поиск: заказ, № сделки, материал, артикул, поставщик"
+          searchLabel="Поиск по закупке"
+          right={<Button variant="primary" onClick={() => setAdding(true)}>+ Новая закупка</Button>}
+        >
+          {TABS.map((f) => (
+            <button
+              key={f.key} type="button" aria-pressed={tab === f.key}
+              className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
+                          onClick={() => { setTab(f.key); setPage(1); }}
+            >
+              {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
+            </button>
           ))}
-        </div>
-      )}
+        </FilterBar>
 
-      {loaded && filtered.length > 0 && !isCompact && (
-        <>
-          <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
-            <table className={styles.table}>
-              <thead>
-                {/*
-                  Две группы колонок — прямое требование документа (п. 12):
-                  «в интерфейсе закупки необходимо визуально разделить исходный
-                  запрос и данные закупщика». Слева то, что задал менеджер при
-                  создании заказа, справа то, что закупщик выясняет и вносит сам.
-                  Пока группы не были названы, обе роли писали в общую строку,
-                  и «нужно было 100 м → закупили 110» показать было нечем.
-                */}
-                {/* colSpan считаются по колонкам ниже: 4 + 11 = 15. Стояло
-                    4 + 10 — группа «Факт» была на колонку короче строки,
-                    и её разделитель не доходил до «Действия» */}
-                <tr className={styles.groupHeadRow}>
-                  <th className={styles.groupHead} colSpan={4}>{PURCHASE_GROUPS[0].label}</th>
-                  <th className={styles.groupHead} colSpan={11}>{PURCHASE_GROUPS[1].label}</th>
-                </tr>
-                <tr>
-                  <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
-                  <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
-                  <SortableTh
-                    sortKey="plan" sort={sort} onSort={sortBy}
-                    label={PURCHASE_FIELD_LABELS.qtyExpected}
-                  >
-                    {PURCHASE_FIELD_LABELS.qtyExpected}
-                  </SortableTh>
-                  <th>Комментарий менеджера</th>
-                  <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
-                  <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
-                  {/* Факт закупщика (документ 20.08, п. 4): «сколько фактически
-                      заказано · цена за единицу · фактическая стоимость закупки ·
-                      дата заказа · плановая дата прихода». Колонки в БД были
-                      с 16.08, но не выведены НИ В ОДИН экран */}
-                  <th>{PURCHASE_FIELD_LABELS.qtyOrdered}</th>
-                  <th>Цена за ед.</th>
-                  <th>Стоимость</th>
-                  <th>Дата заказа</th>
-                  <th>План прихода</th>
-                  <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
-                  <th>Ответственный</th>
-                  <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
-                  <th>Действие</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Содержимое ячеек — из PurchaseFields, теми же элементами,
-                    что рисует карточка планшета. Две реализации инлайн-правки
-                    разошлись бы молча: обе «работают», просто пишут по-разному */}
-                {pageRows.map(({ order, m }) => (
-                  <tr key={m.id}>
-                    <td><OrderCell order={order} /></td>
-                    <td><MaterialCell m={m} /></td>
-                    <td><PlanField m={m} onUpdate={updateMaterial} /></td>
-                    <td><ManagerNote m={m} /></td>
-                    <td><SupplierCell m={m} order={order} onOpenOptions={setOptionsFor} /></td>
-                    <td><ArticleField m={m} onUpdate={updateMaterial} /></td>
-                    <td><QtyOrderedField m={m} onUpdate={updateMaterial} /></td>
-                    <td><PriceField m={m} onUpdate={updateMaterial} /></td>
-                    <td className={styles.progressCell}><CostValue m={m} /></td>
-                    <td><OrderedOnField m={m} onUpdate={updateMaterial} /></td>
-                    <td><EtaField m={m} onUpdate={updateMaterial} /></td>
-                    <td><ReceivedValue m={m} /></td>
-                    <td><ResponsibleField m={m} onUpdate={updateMaterial} /></td>
-                    <td><StatusCell m={m} /></td>
-                    <td>
-                      <StatusControl
-                        m={m}
-                        onConfirmStock={confirmStockMaterial}
-                        onSetStatus={setStatus}
-                      />
-                    </td>
+        {/* «Закупать нечего» и «подбор всё отсеял» — разные ответы: в первом
+            случае человеку нечего сбрасывать, во втором сброс и есть выход */}
+        {loaded && filtered.length === 0 && allRows.length === 0 && (
+          <EmptyState
+            icon="inbox"
+            title="Закупочных строк нет"
+            text="Лист закупки задаёт менеджер при создании заказа. Отдельную позицию можно завести кнопкой «Новая закупка»."
+          />
+        )}
+        {loaded && filtered.length === 0 && allRows.length > 0 && (
+          <EmptyResult query={query.trim()} onReset={resetFilters} resetLabel="Сбросить всё" />
+        )}
+
+        {loaded && filtered.length > 0 && isCompact && (
+          <div className={styles.dataCardList}>
+            {pageRows.map(({ order, m }) => (
+              <PurchaseRowCard
+                key={m.id}
+                order={order}
+                m={m}
+                onUpdate={updateMaterial}
+                onOpenOptions={setOptionsFor}
+                onConfirmStock={confirmStockMaterial}
+                onSetStatus={setStatus}
+              />
+            ))}
+          </div>
+        )}
+
+        {loaded && filtered.length > 0 && !isCompact && (
+          <>
+            <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
+              <table className={styles.table}>
+                <thead>
+                  {/*
+                    Две группы колонок — прямое требование документа (п. 12):
+                    «в интерфейсе закупки необходимо визуально разделить исходный
+                    запрос и данные закупщика». Слева то, что задал менеджер при
+                    создании заказа, справа то, что закупщик выясняет и вносит сам.
+                    Пока группы не были названы, обе роли писали в общую строку,
+                    и «нужно было 100 м → закупили 110» показать было нечем.
+                  */}
+                  {/* colSpan считаются по колонкам ниже: 4 + 11 = 15. Стояло
+                      4 + 10 — группа «Факт» была на колонку короче строки,
+                      и её разделитель не доходил до «Действия» */}
+                  <tr className={styles.groupHeadRow}>
+                    <th className={styles.groupHead} colSpan={4}>{PURCHASE_GROUPS[0].label}</th>
+                    <th className={styles.groupHead} colSpan={11}>{PURCHASE_GROUPS[1].label}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollHintBox>
-        </>
-      )}
+                  <tr>
+                    <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
+                    <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
+                    <SortableTh
+                      sortKey="plan" sort={sort} onSort={sortBy}
+                      label={PURCHASE_FIELD_LABELS.qtyExpected}
+                    >
+                      {PURCHASE_FIELD_LABELS.qtyExpected}
+                    </SortableTh>
+                    <th>Комментарий менеджера</th>
+                    <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
+                    <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
+                    {/* Факт закупщика (документ 20.08, п. 4): «сколько фактически
+                        заказано · цена за единицу · фактическая стоимость закупки ·
+                        дата заказа · плановая дата прихода». Колонки в БД были
+                        с 16.08, но не выведены НИ В ОДИН экран */}
+                    <th>{PURCHASE_FIELD_LABELS.qtyOrdered}</th>
+                    <th>Цена за ед.</th>
+                    <th>Стоимость</th>
+                    <th>Дата заказа</th>
+                    <th>План прихода</th>
+                    <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
+                    <th>Ответственный</th>
+                    <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
+                    <th>Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Содержимое ячеек — из PurchaseFields, теми же элементами,
+                      что рисует карточка планшета. Две реализации инлайн-правки
+                      разошлись бы молча: обе «работают», просто пишут по-разному */}
+                  {pageRows.map(({ order, m }) => (
+                    <tr key={m.id}>
+                      <td><OrderCell order={order} /></td>
+                      <td><MaterialCell m={m} /></td>
+                      <td><PlanField m={m} onUpdate={updateMaterial} /></td>
+                      <td><ManagerNote m={m} /></td>
+                      <td><SupplierCell m={m} order={order} onOpenOptions={setOptionsFor} /></td>
+                      <td><ArticleField m={m} onUpdate={updateMaterial} /></td>
+                      <td><QtyOrderedField m={m} onUpdate={updateMaterial} /></td>
+                      <td><PriceField m={m} onUpdate={updateMaterial} /></td>
+                      <td className={styles.progressCell}><CostValue m={m} /></td>
+                      <td><OrderedOnField m={m} onUpdate={updateMaterial} /></td>
+                      <td><EtaField m={m} onUpdate={updateMaterial} /></td>
+                      <td><ReceivedValue m={m} /></td>
+                      <td><ResponsibleField m={m} onUpdate={updateMaterial} /></td>
+                      <td><StatusCell m={m} /></td>
+                      <td>
+                        <StatusControl
+                          m={m}
+                          onConfirmStock={confirmStockMaterial}
+                          onSetStatus={setStatus}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollHintBox>
+          </>
+        )}
 
-      {/* Пагинация одна на обе раскладки: страница и её размер — свойство
-          подбора, а не таблицы */}
-      {loaded && filtered.length > 0 && (
-        <Pagination
-          page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
-          onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
-        />
-      )}
+        {/* Пагинация одна на обе раскладки: страница и её размер — свойство
+            подбора, а не таблицы */}
+        {loaded && filtered.length > 0 && (
+          <Pagination
+            page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
+            onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
+          />
+        )}
         </PurchaseCard>
       )}
 

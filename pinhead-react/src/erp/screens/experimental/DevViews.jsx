@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
 import { ButtonLink } from '../../components/Button';
 import { EmptyResult } from '../../components/ErpStates';
@@ -83,7 +83,23 @@ function OwnQueue({ rows, stage, typeNames, onOpen }) {
                 onClick={() => onOpen(row.dev.id)}
               >
                 <td>
-                  <strong>{row.dev.tech_name || 'Без названия'}</strong>
+                  {/*
+                    ССЫЛКА В ПЕРВОЙ ЯЧЕЙКЕ (правка 03.09). Строка открывалась
+                    ТОЛЬКО кликом по `<tr>`: ни `tabIndex`, ни обработчика
+                    клавиш, ни единого фокусируемого элемента внутри — с
+                    клавиатуры разработку было не открыть вовсе (WCAG 2.1.1).
+                    Доска не выручала: `DevBoard` исключает завершённые
+                    (`handed_to_warehouse_at`, `outcome`), то есть к ним пути
+                    не было совсем. Именно ссылка, а не кнопка: это переход,
+                    и Ctrl+клик с «открыть в новой вкладке» должны работать.
+                  */}
+                  <Link
+                    to={`/experimental/${row.dev.id}`}
+                    className={styles.queueCardTitleLink}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <strong>{row.dev.tech_name || 'Без названия'}</strong>
+                  </Link>
                   <div className={styles.cellSub}>
                     №{row.dev.order?.bitrix_id || '—'} · {row.dev.order?.title || ''}
                   </div>
@@ -219,7 +235,13 @@ function FinalQueue({ rows, onOpen }) {
             return (
               <tr key={dev.id} className={styles.rowClickable} onClick={() => onOpen(dev.id)}>
                 <td>
-                  <strong>{dev.tech_name || 'Без названия'}</strong>
+                  <Link
+                    to={`/experimental/${dev.id}`}
+                    className={styles.queueCardTitleLink}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <strong>{dev.tech_name || 'Без названия'}</strong>
+                  </Link>
                   <div className={styles.cellSub}>
                     №{dev.order?.bitrix_id || '—'} · {dev.order?.title || ''}
                   </div>

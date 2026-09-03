@@ -50,6 +50,7 @@ function patchTaskIn(
 export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice> = (set, get) => ({
   experimental: [],
   experimentalLoaded: false,
+  experimentalError: null,
 
   loadExperimental: async () => {
     // Снимок ДО ожидания — им отличается запоздавший ответ от повторной
@@ -60,6 +61,13 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       .select(EXP_SELECT)
       .order('created_at', { ascending: false }));
     if (error) {
+      /**
+       * Флаг отказа (правка 03.09). Без него `experimentalLoaded` оставался
+       * false, скелетон висел ВЕЧНО, а эффект `if (!loaded) load()` второй раз
+       * не срабатывает — выход был только F5. Экран теперь показывает
+       * «Не удалось загрузить» с кнопкой «Повторить».
+       */
+      set({ experimentalError: error.message });
       erpError('Не удалось загрузить экспериментальный цех', error);
       return;
     }
@@ -74,7 +82,7 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     for (const row of rows) {
       row.tasks = [...(row.tasks ?? [])].sort((a, b) => a.sort_order - b.sort_order);
     }
-    set({ experimental: rows, experimentalLoaded: true });
+    set({ experimental: rows, experimentalLoaded: true, experimentalError: null });
   },
 
   /**

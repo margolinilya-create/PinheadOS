@@ -991,8 +991,12 @@ test.describe('Участок «Экспериментальный цех» в �
   test('строка ведёт на страницу задания — работают там же, где всегда',
     async ({ page }) => {
       await gotoDev(page, '/experimental?studio=0&view=queue');
-      const row = page.getByRole('row').filter({ hasText: '№55400' });
-      await expect(row.getByRole('link', { name: 'Открыть' })).toBeVisible();
+      /* Ниже 1024px очередь участка рисуется карточками (правка 03.09):
+         локатор по `row` там нашёл бы пустоту, и спека молча перестала бы
+         проверять мобильную половину. Строка ИЛИ карточка. */
+      const row = page.getByRole('row').filter({ hasText: '№55400' })
+        .or(page.getByRole('listitem').filter({ hasText: '№55400' }));
+      await expect(row.getByRole('link', { name: /^Открыть/ })).toBeVisible();
     });
 
   /**

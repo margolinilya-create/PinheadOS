@@ -20,9 +20,26 @@ export default function InlineEdit({
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
+  const btnRef = useRef(null);
+  /**
+   * ВОЗВРАТ ФОКУСА НА КНОПКУ ПОСЛЕ ПРАВКИ (правка 03.09).
+   *
+   * `<input>` размонтируется на сохранении и на Escape, и фокус улетал
+   * в `<body>` — следующий Tab начинал обход страницы заново. В карточке
+   * заказа таких правок десяток, то есть клавиатурный пользователь после
+   * каждой возвращался в начало (WCAG 2.4.3).
+   *
+   * Возвращаем только когда правку закрыл сам человек, а не потеря фокуса
+   * (`onBlur` — он ушёл дальше сам, и тянуть его назад было бы хуже).
+   */
+  const returnFocus = useRef(false);
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus();
+    if (editing) { inputRef.current?.focus(); return; }
+    if (returnFocus.current) {
+      returnFocus.current = false;
+      btnRef.current?.focus();
+    }
   }, [editing]);
 
   const start = () => {
@@ -45,6 +62,7 @@ export default function InlineEdit({
     return (
       <button
         type="button"
+        ref={btnRef}
         className={styles.inlineEditBtn}
         onClick={start}
         title={disabled ? undefined : 'Нажмите, чтобы изменить'}
@@ -73,8 +91,12 @@ export default function InlineEdit({
         // Гасим события: контейнер карточки слушает Escape через useFocusTrap и
         // закрывал бы всю панель вместо отмены правки одного поля. Enter — чтобы
         // не всплыл до формы и не отправил её.
-        if (e.key === 'Enter') { e.stopPropagation(); commit(); }
-        if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+        if (e.key === 'Enter') { e.stopPropagation(); returnFocus.current = true; commit(); }
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          returnFocus.current = true;
+          setEditing(false);
+        }
       }}
     />
   );

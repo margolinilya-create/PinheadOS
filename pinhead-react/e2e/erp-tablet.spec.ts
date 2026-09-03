@@ -224,6 +224,36 @@ test.describe('Закупка на планшете', () => {
     await page.getByRole('button', { name: 'Открыть' }).first().click();
   };
 
+  /**
+   * ОЧЕРЕДЬ ЗАКУПКИ — тоже карточками (правка 03.09).
+   *
+   * Приём 22.08 доехал до таблицы материалов (`PurchaseRowCard`), но не до
+   * списка заказов над ней: шесть колонок, «Открыть» последняя — кнопка,
+   * ради которой на экран и приходят, уезжала за правый край. Проверяем
+   * на той ширине, на которой этим и пользуются.
+   */
+  test('очередь заказов рисуется карточками, действие во всю ширину и ≥44px', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const archive = page.locator('summary').filter({ hasText: 'Завершённые закупки' });
+    await expect(archive).toBeVisible();
+    await archive.click();
+
+    // Имя области несёт `role="list"`: на голом div `aria-label` не читается
+    const list = page.getByRole('list', { name: 'Завершённые закупки' });
+    await expect(list).toBeVisible();
+    const card = list.getByRole('listitem').first();
+    await expect(card).toBeVisible();
+    // Подписи полей стоят явно: без шапки таблицы «через 8 дн.» ни о чём
+    await expect(card).toContainText('Срок');
+    await expect(card).toContainText('Материалы');
+
+    const open = card.getByRole('button', { name: /^Открыть/ });
+    const box = await open.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  });
+
   test('строки рисуются карточками, обе группы полей названы', async ({ page }) => {
     await openFirst(page);
     const card = page.getByRole('article', { name: /^Закупка:/ }).first();

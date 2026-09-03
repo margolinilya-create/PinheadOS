@@ -19,7 +19,9 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { arrivedLate, currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
+import {
+  arrivedLate, currentActor, erpError, erpQuery, erpWrite, removeOrphanUpload,
+} from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpSubcontractOp } from '../../types';
 import { subcontractPhase, subcontractPhasePatch } from '../../utils/subcontractPhase';
@@ -175,6 +177,7 @@ async function applySubcontractTransition(get: () => ErpStore, op: ErpSubcontrac
 export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingSlice> = (set, get) => ({
   subcontracting: [],
   subcontractingLoaded: false,
+  subcontractingError: null,
 
   loadSubcontracting: async () => {
     // Снимок ДО ожидания — им отличается запоздавший ответ от повторной
@@ -191,7 +194,18 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
       .select('*, order:erp_orders (title, bitrix_id), moves:erp_subcontract_moves (*)')
       .order('created_at', { ascending: false }));
     if (error) {
-      toast.error('Не удалось загрузить операции подряда');
+      /**
+       * `erpError`, а не плоский тост (правка 03.09): он называет ПРИЧИНУ —
+       * отказ прав, обрыв связи, конфликт. Плоское «Не удалось загрузить»
+       * делало 42501 неотличимым от офлайна.
+       *
+       * Флаг отказа нужен экрану: без него `subcontractingLoaded` оставался
+       * false, и раздел висел на скелетоне, а строки, которые всё же
+       * рисовались, показывали `sub = null` — «Запланировано» и пустые числа
+       * у всех операций разом.
+       */
+      set({ subcontractingError: error.message });
+      erpError('Не удалось загрузить операции подряда', error);
       return;
     }
     /**
@@ -200,7 +214,11 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
      * Раздел приезжает двумя дорогами так же, как разработка.
      */
     if (arrivedLate(before, get().subcontractingLoaded)) return;
-    set({ subcontracting: (data ?? []) as ErpSubcontractOp[], subcontractingLoaded: true });
+    set({
+      subcontracting: (data ?? []) as ErpSubcontractOp[],
+      subcontractingLoaded: true,
+      subcontractingError: null,
+    });
   },
 
   createSubcontractOp: async (op) => {
@@ -351,10 +369,24 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
     set((s) => ({
       subcontracting: s.subcontracting.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     }));
-    const { error } = await erpQuery(() => supabase.from('erp_subcontracting').update(patch).eq('id', id));
-    if (error) {
+    /**
+     * ЧЕРЕЗ `erpWrite` (правка 03.09), и здесь это критично вдвойне.
+     *
+     * RLS `erp_subcontracting_update` требует `order.manage` и запрещает через
+     * `USING` — то есть отдаёт «0 строк» БЕЗ ошибки. Прежний код смотрел
+     * только на `error`, возвращал `true` и шёл дальше, в
+     * `applySubcontractTransition`, которая ЗАВОДИТ задачу склада (приёмку
+     * подряда или упаковку) либо открывает этап цеха. В базе фазы нет,
+     * а задача есть: на складе появлялась приёмка партии, которая всё ещё
+     * у подрядчика.
+     *
+     * Побочный эффект перехода теперь наступает только после подтверждённой
+     * записи — иначе это эффект от события, которого не было.
+     */
+    const ok = await erpWrite('Операция подряда не обновлена', () => supabase
+      .from('erp_subcontracting').update(patch).eq('id', id).select());
+    if (!ok) {
       set({ subcontracting: prev });
-      toast.error('Не удалось обновить операцию подряда');
       return false;
     }
     /**

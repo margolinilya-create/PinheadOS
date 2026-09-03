@@ -53,6 +53,7 @@ export function useOrderDetail(orderId) {
    * без сетки: данные вроде есть, а поля нет.
    */
   const hasDetail = detailIds.includes(orderId);
+  const detailError = useErpStore((s) => s.detailError);
   useEffect(() => {
     if (!loaded || hasDetail || lookedUp || !orderId) return undefined;
     let alive = true;
@@ -134,7 +135,23 @@ export function useOrderDetail(orderId) {
   }, [order]);
 
   return {
-    order, loaded, loadError, loadAll, notFound: loaded && !order && lookedUp,
+    order,
+    loaded,
+    loadError,
+    loadAll,
+    detailError,
+    /**
+     * Повтор ТОЧЕЧНОЙ загрузки. Эффект выше второй раз не сработает —
+     * `lookedUpFor` уже проставлен, — поэтому кнопке «Повторить» нужен
+     * собственный путь, иначе единственным выходом остаётся F5.
+     */
+    retryDetail: () => loadOne(orderId),
+    /**
+     * «Не найдено» — ТОЛЬКО когда сервер ответил и записи действительно нет
+     * (правка 03.09). При сбое запроса `loadOne` тоже отдаёт `null`, и раньше
+     * этого хватало, чтобы объявить заказ удалённым.
+     */
+    notFound: loaded && !order && lookedUp && !detailError,
     events, audit, comments, preview, previewError, setPreviewErrorFor,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
     deptById, deptNameById, stageById, departments,

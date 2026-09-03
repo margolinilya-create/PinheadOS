@@ -13,8 +13,13 @@ import styles from '../erp.module.css';
  * `tabIndex` ставится ТОЛЬКО когда есть что прокручивать: прокручиваемая область
  * обязана быть достижима с клавиатуры (WCAG 2.1.1), но вешать лишнюю остановку
  * табуляции на блок, который целиком помещается на экране, — шум для навигации.
+ *
+ * `role` переопределяет роль прокручиваемого блока. Нужен там, где у содержимого
+ * УЖЕ есть своя семантика: у ленты этапов дети объявлены `listitem`, и подмена
+ * контейнера на `region` оставила бы их без списка-родителя (WCAG 1.3.1).
+ * Без параметра поведение прежнее: `region`, когда задан `label`.
  */
-export function ScrollHintBox({ className, children, label, wrapClassName }) {
+export function ScrollHintBox({ className, children, label, wrapClassName, role }) {
   const { ref, hints } = useScrollHints();
   const scrollable = hints.left || hints.right;
   return (
@@ -26,7 +31,7 @@ export function ScrollHintBox({ className, children, label, wrapClassName }) {
       <div
         className={className}
         ref={ref}
-        role={label ? 'region' : undefined}
+        role={role ?? (label ? 'region' : undefined)}
         aria-label={label}
         tabIndex={scrollable ? 0 : undefined}
       >

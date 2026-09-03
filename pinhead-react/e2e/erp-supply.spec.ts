@@ -124,10 +124,27 @@ test.beforeEach(async ({ page }) => {
  * пройти на строке ТАБЛИЦЫ МАТЕРИАЛОВ, то есть на том самом реестре, из-за
  * которого заказ без материалов и был невидим.
  */
-const supplyRow = (page: import('@playwright/test').Page, title: string) =>
-  page.getByRole('region', { name: 'Заказы в закупке' })
-    .getByRole('row')
-    .filter({ hasText: title });
+/**
+ * Строка очереди закупки — В ЛЮБОЙ РАСКЛАДКЕ.
+ *
+ * С правки 03.09 ниже 1024px (и на тач-экране) список рисуется карточками:
+ * шесть колонок с «Открыть» последней уезжали за правый край планшета.
+ * Локатор по `row` после этого находил бы пустоту, то есть спека молча
+ * перестала бы проверять мобильную половину — а гонится она и там.
+ * Поэтому берём объединение: строка таблицы ИЛИ карточка списка.
+ */
+const supplyList = (page: import('@playwright/test').Page, label: string) =>
+  page.getByRole('region', { name: label }).or(page.getByRole('list', { name: label }));
+
+const supplyRow = (
+  page: import('@playwright/test').Page,
+  title: string,
+  label = 'Заказы в закупке',
+) => supplyList(page, label).getByRole('row').filter({ hasText: title })
+  .or(supplyList(page, label).getByRole('listitem').filter({ hasText: title }));
+
+/** «Открыть» в таблице, «Открыть закупку» в карточке: подпись без шапки полнее */
+const OPEN = { name: /^Открыть/ };
 
 test.describe('Очередь закупки (правка 12.08)', () => {
   test('заказ БЕЗ материалов виден и говорит об этом прямо', async ({ page }) => {
@@ -152,7 +169,7 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     await expect(rows).toHaveCount(1);
     // Число позиций в закупке переехало в карточку вместе с работой (п. 1.1):
     // в списке остались только ключевые поля навигации
-    await rows.first().getByRole('button', { name: 'Открыть' }).click();
+    await rows.first().getByRole('button', OPEN).click();
     await expect(page.getByText(/1 позиция в закупке/)).toBeVisible();
   });
 
@@ -180,14 +197,14 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     for (const name of ['Печать', '+ Материал', 'Взять в работу', 'Завершить закупку']) {
       await expect(row.getByRole('button', { name })).toHaveCount(0);
     }
-    await expect(row.getByRole('button', { name: 'Открыть' })).toBeVisible();
+    await expect(row.getByRole('button', OPEN)).toBeVisible();
   });
 
   /** Сводка статусов видна сразу, без прокрутки к таблице (п. 1.3) */
   test('карточка закупки открывается со сводкой статусов', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     await supplyRow(page, 'Платки тест закупка')
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', OPEN).click();
     // Выбор живёт в адресе — ссылкой на закупку можно поделиться
     await expect(page).toHaveURL(/supply=/);
     // Ищем именно ПЛИТКИ сводки: «Пришло» и «В пути» есть ещё и среди
@@ -201,7 +218,7 @@ test.describe('Очередь закупки (правка 12.08)', () => {
   test('досрочное закрытие требует причины — иначе этап закрыт молча', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     await supplyRow(page, 'Платки тест закупка')
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', OPEN).click();
     await page.getByRole('button', { name: 'Завершить закупку' }).click();
 
     // У заказа нет ни одного материала → закрытие досрочное и с объяснением
@@ -234,7 +251,7 @@ test.describe('Очередь закупки (правка 12.08)', () => {
 
       const archive = page.locator('details').filter({ hasText: 'Завершённые закупки' }).first();
       // Свёрнут по умолчанию: содержимое в аккессибилити-дерево не попадает
-      await expect(archive.getByRole('button', { name: 'Открыть' })).toHaveCount(0);
+      await expect(archive.getByRole('button', OPEN)).toHaveCount(0);
 
       // Внизу страницы: заголовок активной очереди выше архива по документу
       const order = await active.evaluate(
@@ -244,19 +261,20 @@ test.describe('Очередь закупки (правка 12.08)', () => {
       expect(order, 'архив обязан стоять ниже рабочей области').toBeGreaterThan(0);
 
       await archive.locator('summary').click();
-      await expect(archive.getByRole('button', { name: 'Открыть' }).first()).toBeVisible();
+      await expect(archive.getByRole('button', OPEN).first()).toBeVisible();
       // Второго «Заказы в закупке» не появилось — ни заголовком, ни именем области
       await expect(active).toHaveCount(1);
-      await expect(page.getByRole('region', { name: 'Заказы в закупке' })).toHaveCount(1);
+      await expect(supplyList(page, 'Заказы в закупке')).toHaveCount(1);
     });
 
   test('завершённая закупка помечена «Завершено», а не «Ожидает»', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     const archive = page.locator('details').filter({ hasText: 'Завершённые закупки' }).first();
     await archive.locator('summary').click();
-    const rows = page.getByRole('region', { name: 'Завершённые закупки' }).getByRole('row');
+    const rows = supplyList(page, 'Завершённые закупки').getByRole('row')
+      .or(supplyList(page, 'Завершённые закупки').getByRole('listitem'));
     // Шапка таблицы тоже строка — берём первую с кнопкой «Открыть»
-    const row = rows.filter({ has: page.getByRole('button', { name: 'Открыть' }) }).first();
+    const row = rows.filter({ has: page.getByRole('button', OPEN) }).first();
     await expect(row).toContainText('Завершено');
     await expect(row).not.toContainText('Ожидает');
   });
@@ -281,7 +299,7 @@ test.describe('Очередь закупки (правка 12.08)', () => {
       // Форма живёт в карточке ВЫБРАННОГО заказа (мастер-деталь с правки 23.08):
       // строку заводят конкретному заказу, а не в общий реестр
       await supplyRow(page, 'Худи корпоратив')
-        .getByRole('button', { name: 'Открыть' }).click();
+        .getByRole('button', OPEN).click();
       await page.getByRole('button', { name: '+ Материал' }).click();
 
       const modal = page.getByRole('dialog', { name: 'Новая закупка' });
@@ -300,7 +318,7 @@ test.describe('Очередь закупки (правка 12.08)', () => {
   test('«Заказано» в списке статусов виден, но недоступен', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     await supplyRow(page, 'Худи корпоратив')
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', OPEN).click();
     const select = page.getByLabel(/^Статус /).first();
     await expect(select).toBeVisible();
     await expect(select.getByRole('option', { name: /^Заказано/ })).toBeDisabled();

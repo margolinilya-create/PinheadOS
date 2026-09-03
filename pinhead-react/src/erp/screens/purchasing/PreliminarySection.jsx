@@ -4,6 +4,8 @@ import { useErpStore } from '../../store/useErpStore';
 import { MATERIAL_KIND_LABELS } from '../../types';
 import { Button } from '../../components/Button';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { useCompactLayout } from '../../layout/useCompactLayout';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
@@ -30,6 +32,7 @@ import styles from '../../styles';
 const EMPTY = { kind: 'fabric', name: '', color: '', qty_expected: '', unit: '', notes: '' };
 
 export function PreliminarySection({ orders }) {
+  const isCompact = useCompactLayout();
   const {
     preliminary, preliminaryLoaded, loadPreliminary,
     addPreliminaryMaterial, attachPreliminaryToOrder,
@@ -153,7 +156,59 @@ export function PreliminarySection({ orders }) {
 
       {preliminary.length === 0 ? (
         <p className={styles.subText}>Предварительных закупок нет.</p>
+      ) : isCompact ? (
+        /*
+          КОМПАКТНАЯ РАСКЛАДКА (правка 03.09). Шесть колонок, и последняя —
+          действие «Привязать к заказу». На планшете оно уезжало за край,
+          а таблица не была обёрнута даже в `ScrollHintBox`: горизонтальной
+          прокрутки с подсказкой края здесь не было ВООБЩЕ, в отличие
+          от остальных таблиц раздела.
+        */
+        <div className={styles.dataCardList}>
+          {preliminary.map((m) => (
+            <div key={m.id} className={styles.dataCard}>
+              <div className={styles.dataCardHead}>
+                <span className={styles.dataCardTitle}>{m.name}</span>
+                <span className={styles.subText}>
+                  {MATERIAL_KIND_LABELS[m.kind] || m.kind}
+                </span>
+              </div>
+              <div className={styles.dataCardFields}>
+                <span className={styles.dataCardField}>
+                  <span className={styles.dataCardFieldLabel}>Цвет</span>
+                  <span>{m.color || '—'}</span>
+                </span>
+                <span className={styles.dataCardField}>
+                  <span className={styles.dataCardFieldLabel}>Количество</span>
+                  <span>{m.qty_expected ?? '—'}{m.unit ? ` ${m.unit}` : ''}</span>
+                </span>
+                <span className={styles.dataCardField}>
+                  <span className={styles.dataCardFieldLabel}>Заведена</span>
+                  <span>{formatDateShort(m.created_at) || '—'}</span>
+                </span>
+                <span className={styles.dataCardField}>
+                  <span className={styles.dataCardFieldLabel}>Комментарий</span>
+                  <span>{m.notes || '—'}</span>
+                </span>
+              </div>
+              <select
+                className={styles.select}
+                value=""
+                onChange={(e) => attach(m, e.target.value)}
+                aria-label={`Привязать «${m.name}» к заказу`}
+              >
+                <option value="">Привязать к заказу…</option>
+                {activeOrders.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    №{o.bitrix_id || '—'} · {o.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
       ) : (
+        <ScrollHintBox className={styles.tableWrap} label="Предварительные закупки">
         <table className={styles.table}>
           <thead>
             <tr>
@@ -195,6 +250,7 @@ export function PreliminarySection({ orders }) {
             ))}
           </tbody>
         </table>
+        </ScrollHintBox>
       )}
 
       <DictionaryDatalist kind="unit" id="erp-units" />

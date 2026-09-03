@@ -4,7 +4,13 @@ import { orderPreviewUrl } from '../../store/useErpStore';
 import { OrderLink } from '../OrderLink';
 import { orderLinkTarget } from '../../utils/orderLink';
 import { daysLeft, formatTimeIn } from '../../utils/time';
-import styles from '../../erp.module.css';
+/**
+ * Агрегатор, а не `erp.module.css` напрямую (правка 03.09): кнопкам переноса
+ * нужен `.moveBtn`, объявленный в `screens.module.css`. Прямой импорт одного
+ * модуля дал бы `styles.moveBtn === undefined` — класс молча не применился бы,
+ * и кнопки поехали бы без вёрстки. Ровно это и поймал `stylesResolve.test.ts`.
+ */
+import styles from '../../styles';
 import { Icon } from '../Icon';
 import { dueLabelCompact, formatDayMonth } from '../../utils/format';
 
@@ -29,6 +35,7 @@ function DeadlineDot({ due }) {
  */
 export function KanbanCard({
   entry, onDragStart, onDragEnd, onDragOverCard, dragging, dropBefore, dropAfter,
+  canMoveDept = false, prevDept = null, nextDept = null, onMoveDept,
 }) {
   const { order, item, stage, group } = entry;
   const [imgError, setImgError] = useState(false);
@@ -67,6 +74,44 @@ export function KanbanCard({
       role="listitem"
       aria-label={`${order.title}: ${item.product_type}, ${item.qty} шт`}
     >
+      {/*
+        КЛАВИАТУРНЫЙ ПЕРЕНОС МЕЖДУ ЦЕХАМИ (правка 03.09).
+        Перенос был доступен ТОЛЬКО перетаскиванием: `moveStageToDepartment`
+        имел одного вызывающего — обработчик броска. Менеджер с правом
+        `stage.move_department`, работающий с клавиатуры, не мог выполнить
+        операцию нигде (WCAG 2.1.1). Кнопки ходят по СОСЕДНИМ цехам — тем же
+        приёмом, что «‹ ›» на доске ЭКС и в плане; дальний перенос
+        по-прежнему делается перетаскиванием.
+      */}
+      {canMoveDept && (prevDept || nextDept) && (
+        <div className={styles.kanbanCardMove}>
+          <button
+            type="button"
+            className={styles.moveBtn}
+            disabled={!prevDept}
+            aria-label={prevDept
+              ? `Перенести в «${prevDept.name}»: ${order.title}`
+              : 'Перенести в предыдущий цех'}
+            title={prevDept ? `Перенести в «${prevDept.name}»` : undefined}
+            onClick={(e) => { e.stopPropagation(); if (prevDept) onMoveDept?.(prevDept); }}
+          >
+            <Icon name="arrowLeft" size={14} />
+          </button>
+          <button
+            type="button"
+            className={styles.moveBtn}
+            disabled={!nextDept}
+            aria-label={nextDept
+              ? `Перенести в «${nextDept.name}»: ${order.title}`
+              : 'Перенести в следующий цех'}
+            title={nextDept ? `Перенести в «${nextDept.name}»` : undefined}
+            onClick={(e) => { e.stopPropagation(); if (nextDept) onMoveDept?.(nextDept); }}
+          >
+            <Icon name="arrowRight" size={14} />
+          </button>
+        </div>
+      )}
+
       <div className={styles.kanbanCardHead}>
         {preview && !imgError && (
           <img

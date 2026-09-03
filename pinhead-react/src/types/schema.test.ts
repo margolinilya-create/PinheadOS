@@ -117,6 +117,19 @@ describe('ORDER_LIST_SELECT просит только существующие �
     helpers.indexOf('`;', helpers.indexOf('export const ORDER_LIST_SELECT')),
   );
 
+  /** Колонки позиции, перечисленные в списочном запросе */
+  function askedItemColumns(): string[] {
+    const itemsBlock = listSelect.slice(
+      listSelect.indexOf('items:erp_order_items ('),
+      listSelect.indexOf('stages:erp_item_stages ('),
+    );
+    return itemsBlock
+      .replace('items:erp_order_items (', '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => /^\w+$/.test(c));
+  }
+
   it('колонки этапа в списочном запросе есть в erp_item_stages', () => {
     const stagesBlock = listSelect.slice(
       listSelect.indexOf('stages:erp_item_stages ('),
@@ -134,17 +147,48 @@ describe('ORDER_LIST_SELECT просит только существующие �
   });
 
   it('колонки позиции в списочном запросе есть в erp_order_items', () => {
-    const itemsBlock = listSelect.slice(
-      listSelect.indexOf('items:erp_order_items ('),
-      listSelect.indexOf('stages:erp_item_stages ('),
-    );
-    const asked = itemsBlock
-      .replace('items:erp_order_items (', '')
-      .split(',')
-      .map((c) => c.trim())
-      .filter((c) => /^\w+$/.test(c));
+    const asked = askedItemColumns();
     const cols = new Set(columnsOf('erp_order_items'));
     const missing = asked.filter((c) => !cols.has(c));
     expect(missing, `нет в erp_order_items: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * ВТОРАЯ СТОРОНА СВЕРКИ, и без неё первая ловит половину.
+   *
+   * Проверки выше односторонние: «в ручном типе нет лишнего» и «в запросе нет
+   * несуществующего». Колонка, которую запрос ПРИВОЗИТ, а тип не описывает,
+   * не нарушала ни одну из них — и три таких прожили с 16.08:
+   * `packaging_size`, `sticker_place`, `marking_place`. Поля заполняет
+   * менеджер, ТЗ показывает их цеху (`queue/TzBlock`), но для `tsc` их
+   * не существует: файл на `.jsx`, и опечатка или переименование в миграции
+   * дали бы пустое поле в ТЗ без единой ошибки.
+   *
+   * Проверяем именно то, что ЗАПРОШЕНО: колонок в таблице больше, чем нужно
+   * клиенту, и требовать типизации всей схемы значило бы требовать лишнего.
+   */
+  it('каждая запрошенная колонка позиции описана в ErpOrderItem', () => {
+    const typed = new Set(fieldsOf('ErpOrderItem'));
+    const untyped = askedItemColumns().filter((c) => !typed.has(c));
+    expect(
+      untyped,
+      `ORDER_LIST_SELECT везёт колонки, которых нет в ErpOrderItem: ${untyped.join(', ')} — `
+      + 'для tsc их не существует, и переименование в миграции пройдёт молча',
+    ).toEqual([]);
+  });
+
+  it('каждая запрошенная колонка этапа описана в ErpItemStage', () => {
+    const stagesBlock = listSelect.slice(
+      listSelect.indexOf('stages:erp_item_stages ('),
+      listSelect.indexOf(')', listSelect.indexOf('stages:erp_item_stages (')),
+    );
+    const asked = stagesBlock
+      .replace('stages:erp_item_stages (', '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => /^\w+$/.test(c));
+    const typed = new Set(fieldsOf('ErpItemStage'));
+    const untyped = asked.filter((c) => !typed.has(c));
+    expect(untyped, `нет в ErpItemStage: ${untyped.join(', ')}`).toEqual([]);
   });
 });
