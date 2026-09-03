@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * Подсказки горизонтальной прокрутки: есть ли невидимый контент
@@ -7,6 +7,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *   const { ref, hints } = useScrollHints();
  *   <div ref={ref}>…</div>
  *   {hints.right && <div className="fadeR" />}
+ *
+ * ЗАМЕР ИДЁТ В `useLayoutEffect`, а не в `useEffect` (правка 03.09).
+ * Обычный эффект выполняется ПОСЛЕ отрисовки: первый кадр рисуется без
+ * градиента, второй — с ним. Человек видит это как подмигивание края
+ * (та же семья дефектов, что резерв места под поздний `erp_bootstrap`),
+ * а визуальный эталон — как гонку: CI поймал полосу вкладок цехов БЕЗ
+ * градиента, локальный прогон — С ним, и снимок расходился на 177 пикселей
+ * в одном и том же месте, ничего при этом не сломав. Замер до отрисовки
+ * делает первый кадр окончательным и снимает обе беды разом.
+ *
+ * `tabIndex` у `ScrollHintBox` считается из тех же `hints`, то есть
+ * прокручиваемая область становится достижимой с клавиатуры сразу,
+ * а не через кадр.
  */
 export function useScrollHints() {
   const ref = useRef(null);
@@ -20,7 +33,7 @@ export function useScrollHints() {
     setHints((h) => (h.left === left && h.right === right ? h : { left, right }));
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     update();
