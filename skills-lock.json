@@ -10,6 +10,12 @@
       "source": "testdino-hq/playwright-skill",
       "sourceType": "github",
       "computedHash": "f4ca78eed719b36537cc09cac79bfabc754557a3e325c3948afe311eb4dd1d40"
+    },
+    "ruflo": {
+      "source": "ruvnet/ruflo",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "02b70b5543b1c72136dee6ce3b255c88d75981f1f55b0fb8f1f7bb01d1672fb6"
     }
   }
 }
