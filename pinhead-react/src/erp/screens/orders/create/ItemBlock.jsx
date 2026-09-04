@@ -111,7 +111,7 @@ export function ItemBlock({
           <FieldError id={`err-item-${i}-qty`} text={err(`item_${i}_qty`)} />
         </label>
       )}
-      <div className={styles.field}>
+      <div className={`${styles.field} ${styles.fieldFull}`}>
         <span className={styles.fieldLabel}>Тип производства</span>
         {/*
           «Подряд» ТИПОМ ПРОИЗВОДСТВА БОЛЬШЕ НЕ ВЫБИРАЕТСЯ (правки 20.08):

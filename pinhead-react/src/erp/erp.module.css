@@ -652,6 +652,11 @@
 .input.searchInput { min-width: 260px; }
 .input.qtySmallInput { max-width: 84px; flex: 0 0 auto; }
 .fieldWide { grid-column: span 2; }
+/* Группа, занимающая строку сетки целиком. Нужна там, где поле — не поле,
+   а ряд плиток («Тип производства» в позиции заказа): в колонке 150px его
+   пять кнопок встают лесенкой. Соседка `.fieldWide` даёт две колонки —
+   ряду плиток этого мало. */
+.fieldFull { grid-column: 1 / -1; }
 .modalTitle {
   font-size: 26px;
 }
@@ -1001,7 +1006,6 @@
   white-space: nowrap;
   border: 0;
 }
-.addMatRow .input:nth-child(2) { flex: 1; min-width: 200px; }
 
 /* ─── Карточка записи вместо строки таблицы (компактная раскладка) ───
    Вид один на все списки раздела: заказы, задачи склада, строки закупки.
@@ -1291,7 +1295,6 @@
 }
 .stepperLine { width: 26px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 8px; }
 .stepperLineDone { background: var(--color-success); }
-.commentForm .input { flex: 1; }
 
 /* Миниатюра макета — 40px в строке заказа, 48px в очереди (.queueThumb).
    Радиус из токена, а не литералом: было 5px против var(--radius-sm). */
@@ -1334,7 +1337,6 @@
   .topbar :global(.btn) { padding: 0 12px; }
   .cardGrid { grid-template-columns: 1fr; }
   .fieldWide { grid-column: 1 / -1; }
-  .itemRow > :global(.btn-ghost) { justify-self: end; }
   .queueCardHead { flex-wrap: wrap; }
 
   /* Ширины полей формы: строки нанесений и размерной сетки — в колонку/2 колонки */
@@ -1342,8 +1344,10 @@
   .input.colorInput { width: 100%; flex: 1 1 100%; }
   .input.pantoneInput { width: 100%; }
   .input.printZoneInput, .input.printNoteInput { min-width: 0; }
-  .mmLabel .input.mmInput { width: 100%; flex: 1; }
-  .printRow > :global(.btn-ghost) { justify-self: end; }
+  /* Уточнение СВОЕГО класса: `.mmInput` объявлен выше, в этом же модуле.
+     Квалификатор `.mmLabel` снят — он из `screens.module.css`, а класс
+     другого модуля здесь становится чужим хешем (см. шапку файла). */
+  .input.mmInput { width: 100%; flex: 1; }
 }
 
 @media (pointer: coarse) {

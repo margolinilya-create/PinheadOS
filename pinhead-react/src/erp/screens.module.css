@@ -367,6 +367,12 @@
   margin-bottom: 10px;
 }
 .addMatRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Поле ввода растягивается на свободное место. Правило жило в `erp.module.css`
+   как `.addMatRow .input:nth-child(2)` — и не работало ВОВСЕ: `.addMatRow`
+   объявлен здесь, а упоминание в соседнем модуле давало ему другой хеш,
+   который агрегатор и отдавал разметке. Половина про `.input` выражена
+   селектором элемента: класс соседнего модуля отсюда не адресуется. */
+.addMatRow input:nth-child(2) { flex: 1; min-width: 200px; }
 @media (max-width: 768px) {
 
   .itemRow { grid-template-columns: 1fr 1fr; }
@@ -421,6 +427,9 @@
 }
 .commentMeta { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
 .commentForm { display: flex; gap: 8px; }
+/* Поле сообщения занимает строку, кнопка — по содержимому. Переехало
+   из `erp.module.css` (`.commentForm .input`) по той же причине. */
+.commentForm > input { flex: 1; }
 
 /* ─── Плитки и drop-zone (волна 3) ─── */
 .tileRow { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -600,6 +609,12 @@ a.cellTitle:hover { color: var(--accent); }
   .printRow > * { grid-column: 1 / -1; min-width: 0; }
   .printRow > .mmLabel { grid-column: auto; }
   .mmLabel { display: flex; }
+  /* Кнопка удаления прижимается вправо. Оба правила переехали из
+     `erp.module.css`: `.itemRow` и `.printRow` объявлены здесь, и там они
+     получали чужой хеш. Половина про кнопку — `:global`, она адресуется
+     из любого модуля. */
+  .itemRow > :global(.btn-ghost) { justify-self: end; }
+  .printRow > :global(.btn-ghost) { justify-self: end; }
 }
 
 
