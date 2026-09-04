@@ -1435,3 +1435,13 @@ a.cellTitle:hover { color: var(--accent); }
    потом ЧТО. Переносятся вместе, если места мало. */
 .nowHead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .nowWhere { font-weight: 600; white-space: nowrap; }
+
+/* Главный ответ вкладки «Аварийный режим»: система в норме. Набран как ответ,
+   а не как примечание — 12px `subText` ставил его вровень со строкой загрузки. */
+.bypassOk {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0; padding: 12px 14px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  background: var(--bg-success); color: var(--color-success-ink);
+  font-size: var(--type-body); font-weight: 600;
+}
