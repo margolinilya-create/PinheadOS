@@ -16,6 +16,8 @@ import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
 import { StageReportForm } from '../../components/StageReportForm';
+import { useStageMove } from '../../hooks/useStageMove';
+import { deptShortName } from '../../data/departments';
 
 /**
  * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
@@ -54,6 +56,11 @@ function DictionaryChips({ items, onPick, label }) {
  */
 export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz = true }) {
   const { order, item, stage, group } = entry;
+  /** Перенос в другой цех — та же функция, что у канбана (§2.5) */
+  const { moveStageTo, canMove, targetsFor } = useStageMove();
+  const canMoveDept = canMove(stage);
+  const moveTargets = useMemo(() => targetsFor(stage), [targetsFor, stage]);
+  const [moveTo, setMoveTo] = useState('');
   const {
     onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip, onAckOverdue,
   } = actions;
@@ -337,6 +344,41 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 </>
               )}
             </>
+          )}
+          {/*
+            ПЕРЕНОС В ДРУГОЙ ЦЕХ ЖИВЁТ И ЗДЕСЬ (§2.5 обхода 04.09). Раньше
+            `moveStageToDepartment` звал только канбан, а вид доски по умолчанию
+            — таблица: диспетчер, увидевший затор в очереди участка, обязан был
+            уйти на доску и переключить вид. Логика та же самая
+            (`hooks/useStageMove`) — подтверждение с последствиями и
+            обязательная причина при возврате назад; второй реализации нет.
+          */}
+          {canMoveDept && moveTargets.length > 0 && (
+            <span className={styles.checkRow}>
+              <select
+                className={styles.select}
+                value={moveTo}
+                onChange={(e) => setMoveTo(e.target.value)}
+                aria-label="Перенести задание в другой цех"
+              >
+                <option value="">— перенести в цех —</option>
+                {moveTargets.map((d) => (
+                  <option key={d.id} value={d.id}>{deptShortName(d.code, d.name)}</option>
+                ))}
+              </select>
+              <Button
+                variant="ghost"
+                loading={busy}
+                disabled={busy || !moveTo}
+                onClick={() => run(async () => {
+                  const dept = moveTargets.find((d) => d.id === moveTo);
+                  if (dept) await moveStageTo(entry, dept);
+                  setMoveTo('');
+                })}
+              >
+                <Icon name="arrowRight" size={14} /> Перенести
+              </Button>
+            </span>
           )}
           {group === 'done' && perms.defect && !defectMode && (
             <Button variant="ghost" onClick={() => setDefectMode(true)}>

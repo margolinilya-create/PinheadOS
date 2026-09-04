@@ -19,6 +19,7 @@ import type {
   ErpEmployee,
   ErpInvite,
   ErpPermission,
+  ErpRolePermission,
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
@@ -898,6 +899,12 @@ export interface InvitesSlice {
 export interface PermissionsSlice {
   /** null — матрица ещё не загружена (действуют DEFAULT_PERMISSIONS) */
   permissionMatrix: PermissionMatrix | null;
+  /**
+   * Последние правки матрицы — «кто трогал права недавно» (§5 обхода 04.09).
+   * Не журнал: строка одна на пару «роль × право», значит виден ПОСЛЕДНИЙ
+   * писатель каждой пары, а не история. Так и подписано на экране.
+   */
+  permissionTrail: ErpRolePermission[];
   permissionsLoaded: boolean;
   /**
    * Сообщение об отказе загрузки, иначе null.

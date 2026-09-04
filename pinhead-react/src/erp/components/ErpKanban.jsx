@@ -2,15 +2,13 @@ import { useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { confirmWithInput } from '../../store/useConfirmStore';
-import { toast } from '../../store/useToastStore';
 import { deptShortName } from '../data/departments';
 import { buildKanbanColumns } from '../utils/kanbanColumns';
 import { kanbanDropIntent, ALLOWED_LANE_DROP } from '../utils/kanbanDrop';
 import { confirmStageDone } from '../utils/stageDone';
 import { materialsForItem } from '../utils/routes';
 import { materialsAfterBypass } from '../utils/bypass';
-import { analyzeStageMove, moveConfirmMessage } from '../utils/stageMove';
+import { useStageMove } from '../hooks/useStageMove';
 import styles from '../erp.module.css';
 import { KanbanCard } from './kanban/KanbanCard';
 import { useTouchDndPolyfill } from './kanban/useTouchDndPolyfill';
@@ -74,7 +72,7 @@ const EDGE_PX = 72;
 const EDGE_STEP = 24;
 
 export default function ErpKanban({ filters }) {
-  const { orders, departments, bypasses, setStageStatus, reorderStageQueue, moveStageToDepartment } =
+  const { orders, departments, bypasses, setStageStatus, reorderStageQueue } =
     useErpStore(
       useShallow((s) => ({
         orders: s.orders,
@@ -82,10 +80,10 @@ export default function ErpKanban({ filters }) {
         bypasses: s.bypasses,
         setStageStatus: s.setStageStatus,
         reorderStageQueue: s.reorderStageQueue,
-        moveStageToDepartment: s.moveStageToDepartment,
       })),
     );
   const access = useErpAccess();
+  const { moveStageTo: moveStageTo_ } = useStageMove();
   const [drag, setDrag] = useState(null);        // { entry, deptId, group }
   const [overLane, setOverLane] = useState(null); // `${deptId}:${lane}`
   const [dropAt, setDropAt] = useState(null);     // { id, before } — место вставки
@@ -229,53 +227,13 @@ export default function ErpKanban({ filters }) {
   /**
    * Перенос задания в другой цех.
    *
-   * Вынесен из обработчика броска (правка 03.09), чтобы у переноса появился
-   * КЛАВИАТУРНЫЙ путь. До этого `moveStageToDepartment` имел РОВНО ОДНОГО
-   * вызывающего — `onColumnDrop`, — то есть операция была доступна только
-   * мышью или пальцем: менеджер с правом `stage.move_department`, работающий
-   * с клавиатуры, не мог выполнить её нигде (WCAG 2.1.1). Enter/Space
-   * на карточке открывает заказ, и это не альтернатива переносу.
+   * Реализация уехала в `hooks/useStageMove` (§2.5 обхода 04.09): до этого
+   * `moveStageToDepartment` звал ТОЛЬКО канбан, а вид доски по умолчанию —
+   * таблица, и диспетчер, увидевший затор в очереди участка, обязан был уйти
+   * сюда и переключить вид. Теперь ту же функцию зовёт и панель действий
+   * задания; текст подтверждения и обязательная причина живут в одном месте.
    */
-  const moveStageTo = async (entry, dept) => {
-    const dragged = entry;
-    if (!dragged || dragged.stage.department_id === dept.id) return;
-    if (!access.canDo('stage.move_department', dragged.stage.department_id)) {
-      toast.error('Нет права переносить задания между цехами');
-      return;
-    }
-
-    const plan = analyzeStageMove({
-      stage: dragged.stage,
-      item: dragged.item,
-      targetDeptId: dept.id,
-      targetDeptName: dept.name,
-      deptNameById,
-    });
-    if (!plan.allowed) {
-      toast.error(plan.issues[0]?.text || 'Перенос невозможен');
-      return;
-    }
-
-    const sourceName = deptNameById.get(dragged.stage.department_id) || 'цех';
-    const targetName = deptShortName(dept.code, dept.name);
-    // Возврат назад и пропуск этапов заказчик просил сопровождать комментарием —
-    // спрашиваем его прямо в диалоге подтверждения, одним шагом
-    const { ok, value } = await confirmWithInput({
-      title: `Перенести заказ в «${dept.name}»?`,
-      message: moveConfirmMessage(plan, sourceName, targetName),
-      confirmLabel: 'Перенести',
-      variant: plan.requiresComment ? 'danger' : undefined,
-      prompt: plan.requiresComment
-        ? {
-            label: 'Причина переноса (попадёт в историю заказа)',
-            placeholder: 'напр. брак на предыдущем этапе',
-            required: true,
-          }
-        : undefined,
-    });
-    if (!ok) return;
-    await moveStageToDepartment(dragged.stage.id, dept.id, { comment: value || null });
-  };
+  const moveStageTo = (entry, dept) => moveStageTo_(entry, dept);
 
   /** Отпустили над чужой колонкой */
   const onColumnDrop = async (dept) => {

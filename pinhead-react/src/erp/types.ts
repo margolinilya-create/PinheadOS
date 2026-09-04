@@ -1467,6 +1467,14 @@ export interface ErpRolePermission {
   permission: ErpPermission;
   allowed: boolean;
   updated_at: string;
+  /**
+   * Кто последним менял это право (§5 обхода 04.09). Ставит триггер
+   * `erp_role_permission_touch` из `auth.uid()` — клиент прислал бы что угодно,
+   * а вопрос «кто снял галочку» про личность, а не про поле формы.
+   * `null` у строк, записанных сидами миграций (service_role): выдуманный
+   * автор был бы хуже пустоты.
+   */
+  updated_by?: string | null;
 }
 
 // --- Справочники админки (правка 12) ----------------------------------------
