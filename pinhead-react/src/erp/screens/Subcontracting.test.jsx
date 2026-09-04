@@ -93,14 +93,18 @@ describe('Подряд', () => {
     expect(cells[1]).toHaveTextContent('Худи');
     expect(cells[2]).toHaveTextContent('100');
     // Подпись этапа — ОПЕРАЦИЯ, а не имя цеха: цех означает, куда работа вернётся
+    // Операция и подрядчик — одна ячейка (обход 04.09): это ответ на один
+    // вопрос, «что и кем делается», а десять колонок уводили действие за край
     expect(cells[3]).toHaveTextContent('Сублимация');
     expect(cells[3]).toHaveTextContent('участок: ДТФ');
-    expect(cells[4]).toHaveTextContent('ИП Иванов');
+    expect(cells[3]).toHaveTextContent('ИП Иванов');
   });
 
   it('«где заказ сейчас» отвечает у подрядчика он или у нас', () => {
     setup();
-    expect(within(row()).getAllByRole('cell')[5]).toHaveTextContent('У подрядчика: ИП Иванов');
+    // «Где сейчас» и «Следующий этап» живут в одной ячейке: оба про то,
+    // где заказ, только в разное время
+    expect(within(row()).getAllByRole('cell')[4]).toHaveTextContent('У подрядчика: ИП Иванов');
   });
 
   /**
@@ -109,7 +113,7 @@ describe('Подряд', () => {
    */
   it('следующий этап маршрута назван прямо — «вернулось» не значит «готово»', () => {
     setup();
-    expect(within(row()).getAllByRole('cell')[7]).toHaveTextContent('Швейка');
+    expect(within(row()).getAllByRole('cell')[4]).toHaveTextContent('Швейка');
   });
 
   it('у последнего подрядного этапа сказано, что он последний', () => {
@@ -122,7 +126,7 @@ describe('Подряд', () => {
         }],
       }],
     });
-    expect(within(row()).getAllByRole('cell')[7]).toHaveTextContent('последний этап маршрута');
+    expect(within(row()).getAllByRole('cell')[4]).toHaveTextContent('последний этап маршрута');
   });
 
   /**

@@ -201,7 +201,15 @@ export default function Subcontracting() {
         sub="Этапы маршрута, отданные подрядчикам: где заказ сейчас и что дальше."
       />
 
-      <StageIndicator variant="funnel" title="Подрядные этапы по фазам" nodes={funnel} />
+      {/*
+        Воронка — сводка по РАБОТЕ, и при её отсутствии она девять раз пишет
+        ноль над словами «Подрядных этапов нет» (обход 04.09). Пустая сводка
+        занимает первый экран и ничего не сообщает; список ниже отвечает
+        то же самое одной строкой.
+      */}
+      {rows.length > 0 && (
+        <StageIndicator variant="funnel" title="Подрядные этапы по фазам" nodes={funnel} />
+      )}
 
       <div className={styles.toolbar}>
         <SearchInput
@@ -294,10 +302,8 @@ export default function Subcontracting() {
                 <th>{SUBCONTRACT_LABELS.item}</th>
                 <th>{SUBCONTRACT_LABELS.qty}</th>
                 <th>{SUBCONTRACT_LABELS.operation}</th>
-                <th>{SUBCONTRACT_LABELS.contractor}</th>
                 <th>{SUBCONTRACT_LABELS.location}</th>
                 <th>{SUBCONTRACT_LABELS.dates}</th>
-                <th>{SUBCONTRACT_LABELS.next}</th>
                 <th>{SUBCONTRACT_LABELS.state}</th>
                 <th>{SUBCONTRACT_LABELS.stage}</th>
               </tr>
@@ -305,10 +311,10 @@ export default function Subcontracting() {
             <tbody>
               {shown.map(({ order, item, stage, sub, view }) => {
                 const phase = view.display;
+                const next = nextRouteStage(item, stage);
                 const overdue = subcontractOverdue(
                   sub?.planned_date, sub?.returned_date, view.stored, today);
                 const delayed = overdue && view.stored !== 'returned';
-                const next = nextRouteStage(item, stage);
                 const open = openRow === stage.id;
                 return [
                   <tr key={stage.id}>
@@ -317,15 +323,33 @@ export default function Subcontracting() {
                     <td className={styles.progressCell}>
                       <WorkQtyCell item={item} view={view} />
                     </td>
+                    {/*
+                      ОПЕРАЦИЯ И ПОДРЯДЧИК — ОДНА ЯЧЕЙКА (обход 04.09):
+                      это ответ на один вопрос, «что и кем делается», а десять
+                      колонок на 1280px уводили за правый край «Состояние»
+                      и «Этап» — ту самую кнопку, ради которой на экран приходят.
+                    */}
                     <td>
                       <OperationCell
                         stage={stage}
                         sub={sub}
                         deptName={deptNameById.get(stage.department_id)}
                       />
+                      <div className={styles.subText}>{stage.contractor || '—'}</div>
                     </td>
-                    <td>{stage.contractor || '—'}</td>
-                    <td><LocationCell item={item} stage={stage} view={view} /></td>
+                    {/*
+                      ГДЕ СЕЙЧАС И ЧТО ДАЛЬШЕ — ОДНА ЯЧЕЙКА. «Следующий этап»
+                      требует документ 20.08 («вернулось» ≠ «готово»), поэтому
+                      колонка не снимается, а объединяется с местоположением:
+                      оба отвечают на «где заказ», только в разное время.
+                    */}
+                    <td>
+                      <LocationCell item={item} stage={stage} view={view} />
+                      <NextStageCell
+                        next={next}
+                        deptName={next && deptNameById.get(next.department_id)}
+                      />
+                    </td>
                     <td>
                       <DatesCell
                         stage={stage}
@@ -333,12 +357,6 @@ export default function Subcontracting() {
                         overdue={overdue}
                         canManage={canManage}
                         onUpdate={updateSubcontractOp}
-                      />
-                    </td>
-                    <td>
-                      <NextStageCell
-                        next={next}
-                        deptName={next && deptNameById.get(next.department_id)}
                       />
                     </td>
                     <td>
