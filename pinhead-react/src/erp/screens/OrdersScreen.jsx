@@ -34,10 +34,11 @@ import { Pagination } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
 import { sortRows, nextSortState } from '../utils/tableSort';
 import { Button } from '../components/Button';
+import { buildOrderNow } from '../utils/orderNow';
 
 export default function OrdersScreen() {
   const {
-    orders, departments, loaded, loadError, loadAll, deleteOrder, shipOrder,
+    orders, departments, bypasses, loaded, loadError, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
     showDemoOrders, setShowDemoOrders, setOrderDemo,
   } = useErpStore(
@@ -47,6 +48,9 @@ export default function OrdersScreen() {
       setShowDemoOrders: s.setShowDemoOrders,
       setOrderDemo: s.setOrderDemo,
       departments: s.departments,
+      // Аварийно снятые проверки: «Сейчас» обязано показывать ту же готовность,
+      // что видит цех, иначе список объявит стоящим запущенный заказ
+      bypasses: s.bypasses,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
@@ -118,14 +122,25 @@ export default function OrdersScreen() {
   const filter = ['ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
   const toggleFilter = (name) => patchParams({ filter: filter === name ? '' : name });
   // Счётчики чипов — та же логика, что у KPI-плиток дашборда (активные заказы)
+  /**
+   * «СЕЙЧАС» — где заказ и почему он стоит. Считается ПАЧКОЙ на весь список:
+   * внутри обход всех этапов всех заказов, и вызов на строку означал бы этот
+   * обход столько раз, сколько строк на странице.
+   */
+  const nowByOrder = useMemo(
+    () => buildOrderNow(orders, departments, { bypasses }),
+    [orders, departments, bypasses],
+  );
+
   const counts = useMemo(() => {
     const active = orders.filter((o) => o.status === 'active');
     return {
       ready: active.filter((o) => isOrderReadyToShip(o)).length,
       urgent: active.filter((o) => isUrgent(o.due_date)).length,
       overdue: active.filter((o) => isOrderOverdue(o, daysLeft(o.due_date))).length,
+      stopped: active.filter((o) => nowByOrder.get(o.id)?.stopped).length,
     };
-  }, [orders]);
+  }, [orders, nowByOrder]);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -187,9 +202,13 @@ export default function OrdersScreen() {
       if (filter === 'ready') return isOrderReadyToShip(o);
       if (filter === 'urgent') return isUrgent(o.due_date);
       if (filter === 'overdue') return isOrderOverdue(o, daysLeft(o.due_date));
+      // «Стоит» — производство не может продолжать: проблема цеха, нехватка
+      // материалов или ожидание предыдущего этапа. Признак тот же, что рисует
+      // колонка «Сейчас», второго определения «стоит» в разделе нет
+      if (filter === 'stopped') return Boolean(nowByOrder.get(o.id)?.stopped);
       return true;
     }),
-    [orders, tab, filter],
+    [orders, tab, filter, nowByOrder],
   );
 
   const filtered = useMemo(() => {
@@ -377,6 +396,14 @@ export default function OrdersScreen() {
             <>
               <button
                 type="button"
+                aria-pressed={filter === 'stopped'}
+                className={`${styles.chip} ${styles.chipBtn} ${filter === 'stopped' ? styles.chipWaiting : styles.chipNeutral}`}
+                onClick={() => toggleFilter('stopped')}
+              >
+                <Icon name="ban" size={13} /> Стоит ({counts.stopped})
+              </button>
+              <button
+                type="button"
                 aria-pressed={filter === 'ready'}
                 className={`${styles.chip} ${styles.chipBtn} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
                                 onClick={() => toggleFilter('ready')}
@@ -546,6 +573,7 @@ export default function OrdersScreen() {
               key={o.id}
               order={o}
               departments={departments}
+              now={nowByOrder.get(o.id)}
               onDelete={onDelete}
               canDelete={canDelete}
               onShip={canShip ? onShip : null}
@@ -566,6 +594,9 @@ export default function OrdersScreen() {
                 <SortableTh sortKey="qty" sort={sort} onSort={sortBy}>Кол-во</SortableTh>
                 <SortableTh sortKey="created" sort={sort} onSort={sortBy}>Создан</SortableTh>
                 <SortableTh sortKey="due" sort={sort} onSort={sortBy}>Срок клиента</SortableTh>
+                {/* «Сейчас» — где заказ и почему стоит; «Статус» отвечает
+                    про сам заказ (активен/сдан), а не про его работу */}
+                <th>Сейчас</th>
                 <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
                 <th aria-label="Действия" />
               </tr>
@@ -576,6 +607,7 @@ export default function OrdersScreen() {
                   key={o.id}
                   order={o}
                   departments={departments}
+                  now={nowByOrder.get(o.id)}
                   onDelete={onDelete}
                   canDelete={canDelete}
                   onShip={canShip ? onShip : null}

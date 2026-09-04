@@ -1424,3 +1424,14 @@ a.cellTitle:hover { color: var(--accent); }
   .devLayout { grid-template-columns: 1fr; }
   .devAside { position: static; }
 }
+
+/* Ячейка «Сейчас» списка заказов: чип состояния, участок и причина простоя.
+   Ширину не задаём — колонка делит место с остальными, а причина переносится
+   по словам: обрезать её многоточием значит спрятать ровно то, ради чего
+   колонка и заведена. */
+.nowCell { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-width: 280px; }
+.nowCell > * { min-width: 0; }
+/* Участок и состояние — одной строкой и в порядке чтения: сначала ГДЕ,
+   потом ЧТО. Переносятся вместе, если места мало. */
+.nowHead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nowWhere { font-weight: 600; white-space: nowrap; }
