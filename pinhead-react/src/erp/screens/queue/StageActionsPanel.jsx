@@ -265,9 +265,18 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           )}
           {group === 'in_progress' && (
             <>
+              {/*
+                ИЕРАРХИЯ ДЕЙСТВИЙ (обход 04.09). «Записать результат» —
+                ежедневное действие цеха, «Завершить этап» — необратимое
+                и на весь тираж. Главной кнопкой стояло ВТОРОЕ: самая заметная
+                цель на экране закрывала этап, а сдача дневной выработки
+                выглядела второстепенной. Правило то же, что у опасных действий
+                в остальном разделе — обычная работа впереди, необратимая
+                рядом и спокойнее.
+              */}
               {perms.progress && (hasReportSchema ? (
                 !reportMode && (
-                  <Button variant="secondary" icon="plus" onClick={() => setReportMode(true)}>
+                  <Button variant="primary" icon="plus" onClick={() => setReportMode(true)}>
                     Записать результат
                   </Button>
                 )
@@ -284,7 +293,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     aria-label={`Сколько сделано, шт (осталось ${remaining} из ${item.qty})`}
                   />
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     icon="plus"
                     loading={busy}
                     disabled={busy || !(Number(doneQty) > 0)}
@@ -298,7 +307,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 </>
               ))}
               {perms.complete && (
-                <Button variant="primary" loading={busy} disabled={busy} onClick={() => run(() => onDone(entry))}>
+                <Button variant="secondary" loading={busy} disabled={busy} onClick={() => run(() => onDone(entry))}>
                   <Icon name="check" size={14} /> Завершить этап
                 </Button>
               )}
