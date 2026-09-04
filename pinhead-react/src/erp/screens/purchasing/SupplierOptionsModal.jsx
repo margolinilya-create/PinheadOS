@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import InlineEdit from '../../components/InlineEdit';
 import { confirm } from '../../../store/useConfirmStore';
 import { SUPPLIER_OPTION_LABELS } from '../../types';
 import { Icon } from '../../components/Icon';
+import { Modal } from '../../components/Modal';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
@@ -28,8 +28,6 @@ const EMPTY = { supplier: '', price: '', availability: '', lead_days: '', min_ba
 
 export function SupplierOptionsModal({ material, order, actions, onClose }) {
   // aria-modal обещает скринридеру, что фон скрыт, но Tab уводил фокус в таблицу
-  // под оверлеем, а Escape не закрывал. За этим ещё и удаление варианта поставщика.
-  const trapRef = useFocusTrap(true, onClose);
   const { addSupplierOption, updateSupplierOption, selectSupplierOption, deleteSupplierOption } = actions;
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -82,16 +80,7 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
   });
 
   return (
-    <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
-      <div
-        ref={trapRef}
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Поставщики: ${material.name}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-      <div className={styles.modalTitle}>Поставщики: {material.name}</div>
+    <Modal title={`Поставщики: ${material.name}`} onClose={onClose}>
       <div className={styles.subText}>
         Заказ №{order?.bitrix_id || '—'}{material.article ? ` · артикул ${material.article}` : ''}
       </div>
@@ -251,7 +240,6 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
       <div className={styles.modalActions}>
         <Button variant="ghost" onClick={onClose}>Закрыть</Button>
       </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

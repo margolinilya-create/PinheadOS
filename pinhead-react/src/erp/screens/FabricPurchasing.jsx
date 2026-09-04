@@ -4,7 +4,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { PreliminarySection } from './purchasing/PreliminarySection';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { PurchaseRowCard } from './purchasing/PurchaseRowCard';
@@ -38,6 +37,8 @@ import {
   PROCUREMENT_KIND_LABELS,
   PROCUREMENT_STATUS_LABELS,
 } from '../types';
+import { Modal } from '../components/Modal';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
@@ -117,8 +118,6 @@ const EMPTY_MAT = {
  * единственный вход в модалку идёт из карточки, то есть приходит заполненным.
  */
 function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
-  // Без трапа Tab уходил под оверлей, а Escape не закрывал — при объявленном aria-modal
-  const trapRef = useFocusTrap(true, onClose);
   const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
   const [saving, setSaving] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -169,9 +168,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   };
 
   return (
-    <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
-      <div ref={trapRef} className={styles.modal} role="dialog" aria-modal="true" aria-label="Новая закупка" onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalTitle}>Новая закупка</div>
+    <Modal title="Новая закупка" onClose={onClose}>
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Заказ</span>
@@ -278,8 +275,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
           <Button variant="ghost" onClick={onClose}>Отмена</Button>
           <Button variant="primary" disabled={saving} onClick={submit}>Добавить</Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -590,13 +586,12 @@ export default function FabricPurchasing() {
           */
         >
           {TABS.map((f) => (
-            <button
-              key={f.key} type="button" aria-pressed={tab === f.key}
-              className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-                          onClick={() => { setTab(f.key); setPage(1); }}
-            >
+            <FilterChip
+            key={f.key} active={tab === f.key}
+            onClick={() => { setTab(f.key); setPage(1); }}
+          >
               {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
-            </button>
+          </FilterChip>
           ))}
         </FilterBar>
 

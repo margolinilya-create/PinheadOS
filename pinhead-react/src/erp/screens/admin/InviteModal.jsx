@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
-import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { Button } from '../../components/Button';
@@ -10,6 +9,7 @@ import { Icon } from '../../components/Icon';
 import { EMPLOYEE_ROLE_LABELS } from '../../types';
 import { ROLE_LABELS, ALL_ROLES } from '../../../data/roles';
 import { inviteUrl } from '../../utils/invite';
+import { Modal } from '../../components/Modal';
 import styles from '../../styles';
 
 /**
@@ -44,7 +44,6 @@ const EMPTY = {
 };
 
 export function InviteModal({ onClose }) {
-  const trapRef = useFocusTrap(true, onClose);
   const {
     departments, profilesList, invites, invitesLoaded, loadInvites, createInvite, revokeInvite,
   } = useErpStore(useShallow((s) => ({
@@ -135,16 +134,7 @@ export function InviteModal({ onClose }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
-      <div
-        ref={trapRef}
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Пригласить сотрудника"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={styles.modalTitle}>Пригласить сотрудника</div>
+    <Modal title="Пригласить сотрудника" onClose={onClose}>
         <div className={styles.subText}>
           Роль и цех уезжают в саму ссылку: человек перейдёт по ней, задаст пароль
           и сразу начнёт работать. Письма не отправляются — ссылку передайте сами.
@@ -267,7 +257,6 @@ export function InviteModal({ onClose }) {
             </ul>
           </details>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

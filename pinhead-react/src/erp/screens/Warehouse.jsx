@@ -22,6 +22,7 @@ import {
   SUBCONTRACT_SEND_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
 } from '../types';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
 import { FgReceiptCard } from './warehouse/FgReceiptCard';
@@ -321,13 +322,12 @@ export default function Warehouse() {
         )}
       >
         {TABS.map((f) => (
-          <button
-            key={f.key} type="button" aria-pressed={tab === f.key}
-            className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => { setTab(f.key); setPage(1); }}
+          <FilterChip
+            key={f.key} active={tab === f.key}
+            onClick={() => { setTab(f.key); setPage(1); }}
           >
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
-          </button>
+          </FilterChip>
         ))}
       </FilterBar>
 

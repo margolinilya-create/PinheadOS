@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -90,5 +90,39 @@ describe('CSS-токены', () => {
       unknown,
       `токена нет — браузер отбрасывает объявление молча:\n${unknown.join('\n')}`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * §4.4 обхода 04.09: «мелкий текст ≥12px» записан в `docs/DESIGN.md` как
+ * правило проекта — и нарушался ДВАДЦАТЬ ШЕСТЬ раз, включая текст ошибки поля
+ * и заголовки дорожек канбана (10px). Правило без сторожа живёт ровно до
+ * следующей правки: те же 90 фолбэков `var(--token, X)` копились так же.
+ *
+ * Порог применяется к CSS РАЗДЕЛА, а не ко всему проекту: у Order Studio
+ * своя типографика (uppercase-язык), и переписывать её этим правилом
+ * значило бы поменять вид половины интерфейса ради чужой нормы.
+ */
+describe('мелкий текст не мельче 12px', () => {
+  const ERP_CSS = [
+    'src/erp/erp.module.css',
+    'src/erp/screens.module.css',
+    'src/erp/components/Field.module.css',
+    'src/erp/components/Button.module.css',
+    'src/erp/components/States.module.css',
+  ];
+
+  it('ни одного объявления font-size ниже 12px', () => {
+    const bad: string[] = [];
+    for (const rel of ERP_CSS) {
+      const file = join(process.cwd(), rel);
+      if (!existsSync(file)) continue;
+      const css = withoutComments(readFileSync(file, 'utf8'));
+      css.split('\n').forEach((line, i) => {
+        const m = /font-size:\s*(\d+(?:\.\d+)?)px/.exec(line);
+        if (m && Number(m[1]) < 12) bad.push(`${rel}:${i + 1} — ${m[1]}px`);
+      });
+    }
+    expect(bad, bad.join('\n')).toEqual([]);
   });
 });
