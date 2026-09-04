@@ -550,6 +550,40 @@ URL: https://pinhead-os.vercel.app
   свой `deadline` либо срок заказа с подписью. Статус приёмки материала
   выводится из чисел, пока человек не тронул селект (`MaterialReceiptCard`)
 
+## Правила сессии 49, вторая половина (обход 04.09): где что лежит
+
+- Перенос этапа в другой цех — `erp/hooks/useStageMove` (`moveStageTo`,
+  `canMove`, `targetsFor`). Зовут `ErpKanban` и `StageActionsPanel`; вторая
+  реализация подтверждения и обязательной причины запрещена
+- Перенос карточки разработки — `erp/hooks/useDevStageMove` (`moveDevStage`,
+  `requestMove` с гейтом `devMoveIntent`). Зовут `Experimental` и `DevPage`.
+  Порядок «закрыть свой этап → записать колонку → завести нанесения»
+  повторять на второй поверхности нельзя
+- Матрица прав — `admin/PermissionsTab`: `PERMISSION_GROUPS` (пять групп
+  + фолбэк «Прочее»), отмена последней правки в состоянии экрана, блок
+  «Кто менял права» из `permissionTrail` (последний писатель каждой пары,
+  не история). Автора ставит триггер `erp_role_permission_touch`
+  (`20260904193031`) + свой revoke (`20260904194006`)
+- Схема отчёта участка — `admin/DeptFields.ResultFieldsCell`: строка полей
+  с селектом назначения, проверка при сохранении та же
+- Приёмка подряда: `p_returned` у `erp_subcontract_receive`
+  (`20260904203307`, прежняя сигнатура снята явно), поле «Вернулось сейчас»
+  в `warehouse/SubcontractReceiptCard` — показывается, пока `qty_sent >
+  qty_returned`
+- Примитивы: `components/Modal` (импортирует АГРЕГАТОР `../styles` —
+  `.modal`/`.modalOverlay` живут в `screens.module.css`; id для
+  `aria-labelledby` из `useId`) и `components/FilterChip`. Сторож —
+  `components/primitives.test.ts`: окно с `aria-modal` либо примитив, либо
+  ловит фокус само (список своих оболочек — с причинами); чип, чей ВИД
+  зависит от состояния, обязан нести `aria-pressed` либо `aria-expanded`
+- Порог мелкого текста — сторож в `src/styles/tokens.test.ts` по CSS раздела
+- Словарь состояний виден в двух местах: секция «Словарь состояний»
+  на `/styleguide` и вкладка «Статусы» в справочниках (`entity` у группы;
+  оплата подряда без `entity` намеренно)
+- Два числа факта дня: «по этапу всего» на `plan/PlanTaskCard`,
+  «В плане на сегодня» в `queue/StageActionsPanel` (читает `planSlots`
+  из стора)
+
 ## Правила сессии 47 (аудит ERP 03.09): где что лежит
 
 - Гейт завершения этапа — `store/slices/stagesSlice.completionBlockFor`; зовут
