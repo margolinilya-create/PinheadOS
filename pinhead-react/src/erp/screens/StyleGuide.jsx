@@ -100,7 +100,7 @@ export default function StyleGuide() {
       </Section>
 
       <Section title="Ступени просрочки" note="Решение заказчика 03.08.2026: одно число «просрочено: 47» не отвечает на вопрос «что делать сейчас».">
-        <Badge variant="ready">{OVERDUE_BUCKET_SHORT.none}</Badge>
+        <Badge variant="done">{OVERDUE_BUCKET_SHORT.none}</Badge>
         <Badge variant="waiting">{OVERDUE_BUCKET_SHORT.week}</Badge>
         <Badge variant="blocked">{OVERDUE_BUCKET_SHORT.month}</Badge>
         <Badge variant="neutral">{OVERDUE_BUCKET_SHORT.stale}</Badge>

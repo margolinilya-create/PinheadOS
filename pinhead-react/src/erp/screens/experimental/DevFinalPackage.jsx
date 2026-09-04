@@ -183,7 +183,7 @@ export function DevFinalPackage({
       <h3 className={styles.queueGroupTitle}>
         Финальный технический пакет
         {' '}
-        <span className={`${styles.chip} ${missing.length === 0 ? styles.chipReady : styles.chipNeutral}`}>
+        <span className={`${styles.chip} ${missing.length === 0 ? styles.chipDone : styles.chipNeutral}`}>
           {progress.done} / {progress.total}
         </span>
       </h3>

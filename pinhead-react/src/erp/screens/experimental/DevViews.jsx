@@ -259,7 +259,7 @@ function FinalQueue({ rows, onOpen }) {
                 </td>
                 <td>
                   {missing.length === 0
-                    ? <Badge variant="ready">пакет заполнен</Badge>
+                    ? <Badge variant="done">пакет заполнен</Badge>
                     : <span className={styles.subText}>{missing.join(', ')}</span>}
                 </td>
               </tr>

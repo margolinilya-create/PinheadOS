@@ -37,7 +37,7 @@ function TzDocRow({ doc, onRemove, onRetry }) {
         </span>
       )}
       {doc.state === 'uploaded' && (
-        <span className={`${styles.chip} ${styles.chipReady}`} role="status">
+        <span className={`${styles.chip} ${styles.chipDone}`} role="status">
           <Icon name="checkCircle" size={13} /> ТЗ загружено
         </span>
       )}

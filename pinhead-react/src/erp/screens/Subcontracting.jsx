@@ -34,6 +34,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
+import { statusChipClass } from '../utils/statusUi';
 
 /**
  * Подряд — ЭТАПЫ МАРШРУТА, отданные подрядчику (правки заказчика 16.08, блок 2).
@@ -64,17 +65,10 @@ import { useScrollRestore } from '../../hooks/useScrollRestore';
  * сущность, ради устранения которой всё и переделывалось.
  */
 
-const PHASE_CHIP = {
-  planned: 'chipNeutral',
-  materials_ready: 'chipReady',
-  sent: 'chipProgress',
-  at_contractor: 'chipProgress',
-  ready_at_contractor: 'chipProgress',
-  returned: 'chipWaiting',
-  rework: 'chipBlocked',
-  accepted: 'chipReady',
-  closed: 'chipSkipped',
-};
+/** Цвет фазы — из словаря раздела; своей таблицы здесь больше нет */
+const PHASE_CHIP = Object.fromEntries(
+  Object.keys(SUBCONTRACT_PHASE_LABELS).map((p) => [p, statusChipClass('subcontractPhase', p)]),
+);
 
 const FUNNEL_STEPS = SUBCONTRACT_PHASE_FLOW.map((key) => ({
   key, label: SUBCONTRACT_PHASE_LABELS[key],

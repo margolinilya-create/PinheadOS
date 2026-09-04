@@ -119,7 +119,7 @@ export function DevAside({
             <span className={styles.fieldLabel}>Материалы</span>
             <div>
               {materialGate.missing.length === 0 ? (
-                <span className={`${styles.chip} ${styles.chipReady}`}>
+                <span className={`${styles.chip} ${styles.chipDone}`}>
                   приняты складом
                 </span>
               ) : (

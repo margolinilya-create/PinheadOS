@@ -426,7 +426,7 @@ export function DevCard({
             Готовность {readiness.total > 0 ? `${readiness.done} / ${readiness.total}` : '—'}
           </span>
           {dev.outcome && (
-            <Badge variant={dev.outcome === 'ready_for_serial' ? 'ready' : 'neutral'}>
+            <Badge variant={dev.outcome === 'ready_for_serial' ? 'done' : 'neutral'}>
               {DEV_OUTCOME_LABELS[dev.outcome]}
             </Badge>
           )}

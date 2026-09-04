@@ -609,7 +609,12 @@
   font-family: inherit;
 }
 .chipWaiting  { background: var(--bg-warning); color: var(--color-warning-ink); }
-.chipReady    { background: var(--bg-success); color: var(--color-success-ink); }
+/* «Можно начинать» — БИРЮЗОВЫЙ, а не зелёный. Раньше объявление совпадало
+   с .chipDone до символа, и на доске «Готов к работе» отличался от «Готово»
+   одним лишь текстом — при том, что это противоположные концы шкалы.
+   Пара уже есть в палитре и уже проверена на контраст (contrast.test.ts);
+   декоративным вариантом `cyan` не пользовался ни один вызов. */
+.chipReady    { background: var(--bg-cyan); color: var(--color-cyan-ink); }
 .chipProgress { background: var(--bg-info); color: var(--color-info-ink); }
 .chipInfo     { background: var(--bg-info); color: var(--color-info-ink); }
 .chipDone     { background: var(--bg-success); color: var(--color-success-ink); }

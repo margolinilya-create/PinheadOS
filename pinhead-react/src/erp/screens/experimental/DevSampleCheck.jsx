@@ -62,7 +62,7 @@ export function DevSampleCheck({ dev, tasks, onApprove, onRework }) {
   if (dev.sample_approved_at) {
     return (
       <div className={styles.tzBlock}>
-        <span className={`${styles.chip} ${styles.chipReady}`}>
+        <span className={`${styles.chip} ${styles.chipDone}`}>
           <Icon name="checkCircle" size={13} /> Образец утверждён
         </span>
         {dev.sample_approved_note && (

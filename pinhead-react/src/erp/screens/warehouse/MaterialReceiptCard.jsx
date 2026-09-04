@@ -6,6 +6,7 @@ import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';
+import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
 
 /**
  * Задача склада «Приёмка материалов» (правка 4.1.3): сравнение План↔Факт по каждому материалу.
@@ -18,13 +19,13 @@ const KIND_LABELS = {
   fabric: 'Ткань', hardware: 'Фурнитура', labels: 'Бирки/этикетки', packaging: 'Упаковка', other: 'Прочее',
 };
 
-const ACCEPT_CHIP = {
-  accepted_full: 'chipReady',
-  accepted_partial: 'chipProgress',
-  shortage: 'chipBlocked',
-  mismatch: 'chipBlocked',
-  rejected: 'chipBlocked',
-};
+/** Цвет итога приёмки — из словаря раздела */
+/* Ключи берутся у СЛОВАРЯ, а не у подписей: сторож `materialReceipts.test.ts`
+   считает обращения к `MATERIAL_ACCEPT_LABELS` — их ровно одно, единственный
+   селект статуса приёмки, и вторая ссылка выглядела бы вторым селектом. */
+const ACCEPT_CHIP = Object.fromEntries(
+  Object.keys(STATUS_VARIANT.materialAccept).map((a) => [a, statusChipClass('materialAccept', a)]),
+);
 
 /** Материал ждёт приёмки: пришёл, но склад ещё не провёл (или отклонил) приёмку */
 function awaitsAcceptance(m) {

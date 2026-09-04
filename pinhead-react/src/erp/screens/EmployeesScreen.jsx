@@ -31,7 +31,7 @@ import { UserModal } from './admin/UserModal';
 function statusChip(p) {
   if (p.active === false) return { cls: 'chipBlocked', label: 'Отключён' };
   if (!p.approved) return { cls: 'chipProgress', label: 'Ждёт подтверждения' };
-  return { cls: 'chipReady', label: 'Активен' };
+  return { cls: 'chipDone', label: 'Активен' };
 }
 
 export default function EmployeesScreen({ embedded = false }) {
