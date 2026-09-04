@@ -520,6 +520,12 @@ export type MockExtras = {
    * `loadAll` (ordersSlice: запрашивает цеха, если их ещё нет). Гейт на одном
    * RPC состояния «до» не создал бы вовсе — цеха приехали бы вторым путём.
    */
+  /**
+   * Строка `erp_employees` вызывающего: роль и привязка к участку. Ею
+   * определяется посадочная по роли (`utils/landing`) и цеховые гейты —
+   * без неё клиент считает, что роль с сервера не приехала.
+   */
+  myEmployee?: unknown;
   deptsGate?: Promise<void>;
 };
 
@@ -680,7 +686,13 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
         // Мок, отдающий здесь пусто, показывал бы «Разработок пока нет»
         // при заполненной таблице — то есть проверял бы не тот путь
         experimental: extra.experimental ?? [],
-        my_employee: null,     // без привязки к цеху, как у диспетчера
+        /**
+         * Сотрудник вызывающего. По умолчанию `null` — «роль с сервера
+         * не приехала», как у dev-админа без строки в `erp_employees`.
+         * Спека, которой нужна цеховая роль (посадочная по роли, гейты
+         * по участку), передаёт своего через `myEmployee`.
+         */
+        my_employee: extra.myEmployee ?? null,
       };
     case 'erp_order_detail': {
       void body;

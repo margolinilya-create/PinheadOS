@@ -1,4 +1,4 @@
-import { useEffect, Suspense } from 'react';
+import { useCallback, useEffect, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
@@ -8,6 +8,7 @@ import { Icon } from './components/Icon';
 import { FEATURES } from '../config/features';
 import { useErpAccess } from './store/useErpAccess';
 import { canOpenScreen } from './utils/screenAccess';
+import { useRoleLanding } from './hooks/useRoleLanding';
 import { ensureDomainSlices, lazyScreen } from './lazyScreen';
 import styles from './erp.module.css';
 
@@ -117,7 +118,8 @@ export default function ErpApp({ user }) {
    */
   usePrefetchScreens();
   const { can } = useErpAccess();
-  const canOpen = (path) => canOpenScreen(can, path);
+  const canOpen = useCallback((path) => canOpenScreen(can, path), [can]);
+  useRoleLanding(canOpen);
 
   return (
     <ErpLayout user={user}>
