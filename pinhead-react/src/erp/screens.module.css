@@ -1445,3 +1445,16 @@ a.cellTitle:hover { color: var(--accent); }
   background: var(--bg-success); color: var(--color-success-ink);
   font-size: var(--type-body); font-weight: 600;
 }
+
+/* Полоса «Сейчас» в шапке карточки заказа: где заказ и почему стоит.
+   Стоит ВНЕ вкладок — вопрос, с которым в карточку заходят, не должен
+   зависеть от того, какую вкладку человек угадал. */
+.orderNowBar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 0; padding: 10px 12px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+/* Остановленный заказ подсвечен рамкой, а не только словом: строка одна
+   на все состояния, и без признака «стоит» она читается как справка. */
+.orderNowBar[data-stopped] { border-color: var(--color-warning); background: var(--bg-warning); }

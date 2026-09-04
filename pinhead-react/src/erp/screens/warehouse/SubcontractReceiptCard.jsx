@@ -5,6 +5,8 @@ import { useErpStore } from '../../store/useErpStore';
 import { nextRouteStage, stageLabel, subcontractShortfall } from '../../utils/outsourcing';
 import { deptShortName } from '../../data/departments';
 import styles from '../../styles';
+import { useErpAccess } from '../../store/useErpAccess';
+import { canOpenScreen } from '../../utils/screenAccess';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { AttachmentPicker } from '../../components/AttachmentPicker';
@@ -43,6 +45,8 @@ import { factoryToday } from '../../../utils/date';
  * посчитано, а брак ещё нет.
  */
 export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
+  const { can } = useErpAccess();
+  const canOpenSubcontracting = canOpenScreen(can, '/subcontracting');
   const { subcontracting, receiveSubcontract } = useErpStore(useShallow((s) => ({
     subcontracting: s.subcontracting,
     receiveSubcontract: s.receiveSubcontract,
@@ -222,10 +226,14 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
               Принято и брак вместе больше, чем вернулось ({acceptable} шт).
             </div>
           )}
+          {/* Совет ведёт туда, куда пустят: раздел «Подряд» открыт под
+              `order.manage`, которого у кладовщика нет (обход 04.09) */}
           {shortfall.defect > 0 && (
             <div className={styles.subText}>
-              Отмечено браком: {shortfall.defect} шт — их можно вернуть
-              подрядчику на переделку в разделе «Подряд».
+              Отмечено браком: {shortfall.defect} шт — их
+              {canOpenSubcontracting
+                ? ' можно вернуть подрядчику на переделку в разделе «Подряд».'
+                : ' возвращает подрядчику на переделку менеджер заказа, в разделе «Подряд».'}
             </div>
           )}
 

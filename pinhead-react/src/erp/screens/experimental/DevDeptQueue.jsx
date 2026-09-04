@@ -114,7 +114,7 @@ export function DevDeptQueue({ orders, departments }) {
                 </span>
               </span>
               <span className={styles.dataCardField}>
-                <span className={styles.dataCardFieldLabel}>Тираж</span>
+                <span className={styles.dataCardFieldLabel}>Сделано</span>
                 <span>{stage.qty_done ?? 0} / {item.qty}</span>
               </span>
               <span className={styles.dataCardField}>
@@ -143,7 +143,7 @@ export function DevDeptQueue({ orders, departments }) {
           <tr>
             <th>Заказ</th>
             <th>Изделие</th>
-            <th>Тираж</th>
+            <th>Сделано</th>
             <th>Срок</th>
             <th>Состояние</th>
             <th>Задание</th>

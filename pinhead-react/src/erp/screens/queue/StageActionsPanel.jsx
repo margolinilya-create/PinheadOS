@@ -165,9 +165,10 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const submitDefect = (payload, photo) => run(async () => {
     // Возврат переоткрывает и промежуточные этапы — рабочий видел только
     // «Вернуть: Швейка» и не знал, что откатятся ещё ВТО и Печать
+    const targetStage = item.stages.find((s2) => s2.id === payload.target) ?? null;
     const ok = await confirmDefectRollback({
       stage,
-      targetStage: item.stages.find((s2) => s2.id === payload.target) ?? null,
+      targetStage,
       allStages: item.stages,
       deptNameById: deptShortById,
       qty: payload.qty,

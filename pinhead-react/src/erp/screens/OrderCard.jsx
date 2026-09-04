@@ -15,6 +15,8 @@ import {
   STICKERS_LABELS,
 } from '../types';
 import styles from '../styles';
+import { Badge } from '../components/Badge';
+import { buildOrderNow } from '../utils/orderNow';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
 import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
@@ -68,6 +70,18 @@ export default function OrderCard() {
    * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
    */
   const canManageOrder = useErpAccess().can('order.manage');
+
+  /**
+   * «Сейчас» для шапки. Тот же расчёт, что рисует колонку списка заказов:
+   * второй ответ об одном состоянии однажды разошёлся бы с первым.
+   * Аварийно снятые проверки учитываются — карточка обязана показывать
+   * ту же готовность, что видит цех.
+   */
+  const bypasses = useErpStore((st) => st.bypasses);
+  const now = useMemo(
+    () => (order ? buildOrderNow([order], departments, { bypasses }).get(order.id) : null),
+    [order, departments, bypasses],
+  );
   const generatePurchaseListPdf = useErpStore((st) => st.generatePurchaseListPdf);
   /**
    * Локальный флаг занятости, а не общий `pending`: сборка PDF идёт секунды
@@ -204,6 +218,26 @@ export default function OrderCard() {
         )}
         {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipWaiting}`}>Без Честного знака</span>}
       </div>
+
+      {/*
+        «СЕЙЧАС» В ШАПКЕ (обход 04.09). Шапка несла номер, клиента, менеджера,
+        даты и чипы упаковки, а текущий этап и причина простоя лежали в таблице
+        этапов ТРЕТЬИМ экраном — под готовностью, размерной сеткой и нанесениями.
+        В карточку заходят именно с этим вопросом, и он обязан быть виден
+        до первой прокрутки и на ЛЮБОЙ вкладке. Величина считается тем же
+        `utils/orderNow`, что рисует колонку списка: два ответа об одном
+        состоянии однажды разошлись бы.
+      */}
+      {now && (
+        <div className={styles.orderNowBar} data-stopped={now.stopped || undefined}>
+          <span className={styles.fieldLabel}>Сейчас</span>
+          <span className={styles.nowHead}>
+            <span className={styles.nowWhere}>{now.where}</span>
+            <Badge variant={now.variant}>{now.what}</Badge>
+          </span>
+          {now.why && <span className={styles.subText}>{now.why}</span>}
+        </div>
+      )}
 
       {/* Уведомления и баннер ТЗ — ВНЕ вкладок: это «почему заказ стоит»,
           и прятать его за переключателем значит показывать проблему только
