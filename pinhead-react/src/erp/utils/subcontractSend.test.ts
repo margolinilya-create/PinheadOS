@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
+import { functionBody, latestDefining, latestMatching, withoutComments } from './migrations.testutil';
 import { availableActions, subcontractView } from './subcontractFlow';
 import { WAREHOUSE_TASK_TYPE_LABELS } from '../types';
 import type { ErpItemStage } from '../types';
@@ -109,6 +109,33 @@ describe('серверная половина: кто и когда заводи
    */
   it('исполняется от владельца', () => {
     expect(ENSURE).toMatch(/security definer/i);
+  });
+
+  /**
+   * ...И РОВНО ПОЭТОМУ ЧЕРЕЗ REST ЕЁ ЗВАТЬ НЕЛЬЗЯ. `definer` без внутренней
+   * проверки прав — это гейт вставки складской задачи (`warehouse.manage` /
+   * `order.manage`), обойдённый по имени функции. Проверено на живой базе
+   * 04.09: рабочий получал 42501 на прямой вставке и успешно создавал ту же
+   * задачу вызовом `/rest/v1/rpc/erp_ensure_subcontract_send`.
+   *
+   * Гейт ВНУТРИ функции здесь запрещён: он закрыл бы и цеховой путь — тот
+   * самый отказ, ради предотвращения которого она и сделана `definer`.
+   * Оба законных вызывающих сами `security definer`, поэтому при их вызове
+   * `current_user` — владелец функции, и отзыв у `authenticated` их не касается.
+   *
+   * Комментарии снимаются намеренно: объяснение выше содержит слово `grant`
+   * ровно в том виде, отсутствие которого проверяется.
+   */
+  it('EXECUTE отозван у authenticated — через REST функция недостижима', () => {
+    const grants = withoutComments(latestMatching(
+      /execute on function public\.erp_ensure_subcontract_send/,
+      'гранты erp_ensure_subcontract_send',
+    ));
+    expect(grants).toMatch(
+      /revoke\s+execute\s+on\s+function\s+public\.erp_ensure_subcontract_send\(uuid\)\s+from\s+public,\s*anon,\s*authenticated/,
+    );
+    // И обратного гранта в той же миграции нет — иначе отзыв был бы декорацией
+    expect(grants).not.toMatch(/grant\s+execute\s+on\s+function\s+public\.erp_ensure_subcontract_send/);
   });
 
   it('оба писателя зовут ОДНУ функцию, а не повторяют условие', () => {
