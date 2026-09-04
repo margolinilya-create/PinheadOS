@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useDictionary } from '../../store/useDictionary';
 import { stageOverdue } from '../../utils/time';
+import { factoryToday } from '../../../utils/date';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
@@ -61,6 +62,11 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const canMoveDept = canMove(stage);
   const moveTargets = useMemo(() => targetsFor(stage), [targetsFor, stage]);
   const [moveTo, setMoveTo] = useState('');
+  /** Задача дневного плана этого этапа на сегодня — если руководитель её ставил */
+  const todaySlot = useErpStore(useShallow((st) => (st.planSlots ?? []).find(
+    (sl) => sl.stage_id === stage.id
+      && sl.work_date === factoryToday()
+      && sl.status !== 'cancelled') ?? null));
   const {
     onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip, onAckOverdue,
   } = actions;
@@ -246,6 +252,25 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             aria-label="Плановая дата завершения"
           />
         </label>
+      )}
+
+      {/*
+        ПЛАН НА СЕГОДНЯ РЯДОМ С ФАКТОМ ЭТАПА (Б3 обхода 04.09, половина,
+        доступная интерфейсу).
+        Один результат вводится в ДВУХ местах и это разные числа: здесь
+        «Записать результат» приращает `erp_item_stages.qty_done`, а форма
+        плана пишет АБСОЛЮТ за день в `erp_calendar_slots.qty_done`. Связки
+        между ними нет ни триггером, ни расчётом — то есть цех, отчитавшийся
+        тут, в плане остаётся «факт 0». Выбор модели за владельцем
+        (§10.2 отчёта); пока величины две, обе обязаны быть видны на ОБЕИХ
+        поверхностях, иначе расхождение молчит.
+      */}
+      {todaySlot && (
+        <p className={styles.queueReason}>
+          В плане на сегодня: {todaySlot.qty_planned} план · {todaySlot.qty_done ?? 0} факт.
+          {' '}
+          Это отдельное число — оно не считается из того, что вы запишете здесь.
+        </p>
       )}
 
       {perms.any && (
