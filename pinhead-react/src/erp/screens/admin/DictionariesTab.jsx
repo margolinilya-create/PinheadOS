@@ -16,6 +16,7 @@ import {
   SUBCONTRACT_PAYMENT_LABELS,
 } from '../../types';
 import { onTabListKeyDown } from '../../utils/tabs';
+import { statusChipClass } from '../../utils/statusUi';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
@@ -50,16 +51,29 @@ const KINDS = [
 ];
 
 /** Статусы системы — только для чтения */
+/**
+ * `entity` — ключ словаря состояний (`utils/statusUi`). С ним чип рисуется
+ * тем же цветом, каким этот статус видит цех.
+ *
+ * §4.5 обхода 04.09: вкладка рисовала ВСЕ статусы серым, то есть отвечала
+ * на «как это называется» и молчала о том, что цвет вообще что-то значит.
+ * А это единственное место, где статусы перечислены подряд, — то есть
+ * готовая документация словаря, если её не обесцвечивать.
+ *
+ * Оплата подряда `entity` не имеет намеренно: в словаре её нет, потому что
+ * она не участвует ни в одном производственном переходе (правило 10.08),
+ * и придумывать ей цвет значило бы объявить её состоянием работы.
+ */
 const STATUS_GROUPS = [
-  { title: 'Этап производства', labels: STAGE_STATUS_LABELS },
-  { title: 'Заказ', labels: ORDER_STATUS_LABELS },
-  { title: 'Материал', labels: MATERIAL_STATUS_LABELS },
-  { title: 'Упаковка и отгрузка', labels: PACK_SHIP_STATUS_LABELS },
-  { title: 'Задача закупки', labels: PROCUREMENT_STATUS_LABELS },
+  { title: 'Этап производства', labels: STAGE_STATUS_LABELS, entity: 'stage' },
+  { title: 'Заказ', labels: ORDER_STATUS_LABELS, entity: 'order' },
+  { title: 'Материал', labels: MATERIAL_STATUS_LABELS, entity: 'material' },
+  { title: 'Упаковка и отгрузка', labels: PACK_SHIP_STATUS_LABELS, entity: 'packShip' },
+  { title: 'Задача закупки', labels: PROCUREMENT_STATUS_LABELS, entity: 'procurement' },
   // Подряд ведётся ФАЗОЙ (волна 3.5). Устаревший список статусов показывать
   // нельзя: админ читал бы значения, которые давно ничем не управляют.
-  { title: 'Подряд: фаза', labels: SUBCONTRACT_PHASE_LABELS },
-  { title: 'Подряд: оплата', labels: SUBCONTRACT_PAYMENT_LABELS },
+  { title: 'Подряд: фаза', labels: SUBCONTRACT_PHASE_LABELS, entity: 'subcontractPhase' },
+  { title: 'Подряд: оплата', labels: SUBCONTRACT_PAYMENT_LABELS, entity: null },
 ];
 
 function DictionaryList({ kind }) {
@@ -210,17 +224,28 @@ function StatusesList() {
       <div className={styles.queueReason} style={{ marginBottom: 12 }}>
         Статусы — часть маршрутной логики: они зашиты в ограничения базы и в переходы
         производства, склада и подряда. Переименовать их из админки нельзя — это доработка
-        кода. Список здесь для справки.
+        кода. Список здесь для справки — и он же показывает, каким цветом каждое
+        состояние видит цех: цвет берётся из того же словаря
+        (<code>utils/statusUi</code>), которым раскрашены экраны.
       </div>
       {STATUS_GROUPS.map((g) => (
         <section key={g.title} className={styles.matSection}>
           <div className={styles.matSectionHead}><strong>{g.title}</strong></div>
           <div className={styles.checkRow}>
             {Object.entries(g.labels).map(([code, label]) => (
-              <span key={code} className={`${styles.chip} ${styles.chipNeutral}`} title={code}>
+              <span
+                key={code}
+                className={`${styles.chip} ${styles[g.entity
+                  ? statusChipClass(g.entity, code)
+                  : 'chipNeutral']}`}
+                title={code}
+              >
                 {label}
               </span>
             ))}
+          </div>
+          <div className={styles.subText}>
+            {Object.keys(g.labels).join(' · ')}
           </div>
         </section>
       ))}

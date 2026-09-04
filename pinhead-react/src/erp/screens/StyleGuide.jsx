@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PageHead } from '../components/PageHead';
 import { Button, ButtonLink } from '../components/Button';
 import { Badge } from '../components/Badge';
+import { STATUS_VARIANT, VARIANT_CHIP_CLASS } from '../utils/statusUi';
 import { Field } from '../components/Field';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
@@ -26,7 +27,13 @@ import styles from '../styles';
  * Не раздел ERP: в меню не показывается, по умолчанию выключена.
  */
 
-const BADGE_VARIANTS = ['ready', 'progress', 'waiting', 'blocked', 'done', 'neutral'];
+/**
+ * §4.5 обхода 04.09: витрина показывала ШЕСТЬ вариантов `Badge` из
+ * одиннадцати — то есть половину палитры состояний. Список был вписан
+ * руками и отстал от словаря; теперь берётся ИЗ НЕГО, и следующий вариант
+ * появится здесь сам.
+ */
+const BADGE_VARIANTS = Object.keys(VARIANT_CHIP_CLASS);
 const BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'danger'];
 const SIZES = ['sm', 'md', 'lg'];
 
@@ -93,10 +100,31 @@ export default function StyleGuide() {
         ))}
       </Section>
 
-      <Section title="Статусы" note="Один и тот же смысл — один и тот же вариант на всех экранах.">
+      <Section title="Статусы" note="Один и тот же смысл — один и тот же вариант на всех экранах. Список — из словаря `utils/statusUi`, а не вписан руками.">
         {BADGE_VARIANTS.map((v) => (
           <Badge key={v} variant={v}>{v}</Badge>
         ))}
+      </Section>
+
+      {/*
+        СЛОВАРЬ СОСТОЯНИЙ ЦЕЛИКОМ — витрина как документация (§4.5).
+        Пока его не было видно, «Готов к работе» и «Готово» различались только
+        текстом, и семь копий карт цветов разъезжались молча. Здесь виден
+        и смысл (какое слово), и вид (какой цвет) — и всё из одного места.
+      */}
+      <Section title="Словарь состояний" note="Сущность × статус → слово и цвет. Ровно то, что рисуют экраны.">
+        <div className={styles.stack}>
+          {Object.keys(STATUS_VARIANT).map((entity) => (
+            <div key={entity}>
+              <div className={styles.subText}><code>{entity}</code></div>
+              <div className={styles.checkRow}>
+                {Object.keys(STATUS_VARIANT[entity]).map((code) => (
+                  <Badge key={code} entity={entity} status={code} title={code} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Section title="Ступени просрочки" note="Решение заказчика 03.08.2026: одно число «просрочено: 47» не отвечает на вопрос «что делать сейчас».">

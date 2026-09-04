@@ -205,6 +205,32 @@ export default function ProductionTask() {
         )}
       </div>
 
+      {/*
+        ТЗ И ДЕЙСТВИЯ — ПЕРВЫМИ (§6.2 обхода 04.09, блокер Б4).
+        Страница задания монтирует ту же панель, что строка очереди, и своей
+        роли не имела: очередь отвечает «что взять следующим», страница —
+        «работаю над этим». Отвечать на второй вопрос она начинала третьим
+        экраном: сверху лежали справка «Задание» и «Маршрут и прогресс»,
+        а ТЗ и кнопки — под ними. На 768×1024, ради которых пилот и запущен,
+        это прокрутка до того, ради чего сюда пришли.
+        Справка не убрана — она уехала ВНИЗ: к ней возвращаются глазами,
+        а работают выше.
+      */}
+      <section className={styles.matSection}>
+        <div className={styles.matSectionHead}><strong>ТЗ и действия</strong></div>
+        {!perms.inDept && (
+          <div className={`${styles.queueReason} ${styles.cellWithIcon}`}>
+            <Icon name="eye" size={14} />Это не ваш цех — только просмотр.
+          </div>
+        )}
+        <StageActionsPanel
+          entry={entry}
+          perms={perms}
+          deptShortById={deptShortById}
+          actions={actions}
+        />
+      </section>
+
       <div className={styles.taskGrid}>
         <section className={styles.matSection}>
           <div className={styles.matSectionHead}><strong>Задание</strong></div>
@@ -274,21 +300,6 @@ export default function ProductionTask() {
           />
         </section>
       </div>
-
-      <section className={styles.matSection}>
-        <div className={styles.matSectionHead}><strong>ТЗ и действия</strong></div>
-        {!perms.inDept && (
-          <div className={`${styles.queueReason} ${styles.cellWithIcon}`}>
-            <Icon name="eye" size={14} />Это не ваш цех — только просмотр.
-          </div>
-        )}
-        <StageActionsPanel
-          entry={entry}
-          perms={perms}
-          deptShortById={deptShortById}
-          actions={actions}
-        />
-      </section>
 
       <section className={styles.matSection}>
         <div className={styles.matSectionHead}><strong>Файлы</strong></div>
