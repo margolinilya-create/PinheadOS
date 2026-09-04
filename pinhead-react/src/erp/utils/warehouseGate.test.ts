@@ -69,8 +69,27 @@ describe('гейт складской упаковки', () => {
   });
 
   it('приёмка материалов и маркировка остались на своих триггерах', () => {
-    expect(DERIVE).toMatch(/v_code = 'supply' and new\.status = 'done'/);
+    expect(DERIVE).toMatch(/v_code = 'supply' and new\.status in \('in_progress', 'done'\)/);
     expect(DERIVE).toMatch(/v_code = 'sewing' and new\.status = 'in_progress'/);
+  });
+
+  /**
+   * Б5 обхода 04.09. Приёмка материалов заводилась ТОЛЬКО при закрытии
+   * закупки, а материалы приходят по частям: весь период поставок кладовщику
+   * некуда было записать приход — единственный путь лежал через чужой экран
+   * «Материал поступил» в очереди цеха. На живой базе так стояло пять
+   * активных заказов.
+   *
+   * `done` из условия НЕ убран: закупка закрывается и минуя `in_progress`
+   * (досрочно с причиной, автозакрытием по материалам «со склада»), и такой
+   * заказ остался бы без задачи вовсе. Дубль сторожит `not exists`.
+   */
+  it('приёмка материалов заводится с началом закупки, а не только с её концом', () => {
+    const cond = /v_code = 'supply' and new\.status in \('in_progress', 'done'\)/;
+    expect(DERIVE).toMatch(cond);
+    const branch = DERIVE.slice(DERIVE.search(cond));
+    expect(branch).toMatch(/insert into erp_warehouse_tasks[\s\S]{0,200}'material_receipt'/);
+    expect(branch).toMatch(/where not exists \(/);
   });
 
   /**

@@ -232,8 +232,16 @@ function gateKindsFor(dept: MaterialGateDept | null | undefined): string[] {
   return dept?.gate_material_kinds ?? [];
 }
 
+/**
+ * Минимум материала, по которому судят о его годности. Ужать сигнатуру
+ * до двух колонок понадобилось, когда правило переехало в единственное
+ * место: `utils/supply.isMaterialSettled` выводится из него же, а фикстуры
+ * закупки полного материала не строят.
+ */
+export type MaterialReadiness = Pick<ErpMaterial, 'status' | 'accept_status'>;
+
 /** Приёмка склада завершена приёмкой (полностью/частично) — материал годен в производство */
-function materialAccepted(m: ErpMaterial): boolean {
+function materialAccepted(m: MaterialReadiness): boolean {
   return m.accept_status === 'accepted_full' || m.accept_status === 'accepted_partial';
 }
 
@@ -247,11 +255,11 @@ function materialAccepted(m: ErpMaterial): boolean {
  * ровно по тому же правилу, что и запуск этапа: раньше отгрузка считала любой
  * `received` годным и пропускала заказ с непринятым/отказанным материалом.
  */
-export function isMaterialPending(m: ErpMaterial): boolean {
+export function isMaterialPending(m: MaterialReadiness): boolean {
   return materialPending(m);
 }
 
-function materialPending(m: ErpMaterial): boolean {
+function materialPending(m: MaterialReadiness): boolean {
   if (m.status === 'not_needed' || m.status === 'reserved') return false;
   if (m.status === 'received') return !materialAccepted(m);
   return true;

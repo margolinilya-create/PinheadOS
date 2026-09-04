@@ -101,14 +101,34 @@ describe('stageCompletionBlock — закупка держит завершен�
     expect(msg).toContain('Закупка не завершена');
   });
 
-  it('«Пришло», «Доступен со склада» и «Не требуется» не блокируют', () => {
+  it('«Доступен со склада» и «Не требуется» не блокируют', () => {
     // Решение заказчика: буквальное «любой статус кроме Пришло/Доступен»
     // включило бы `not_needed`, и заказ с такой строкой не закрылся бы никогда
-    for (const status of ['received', 'reserved', 'not_needed'] as MaterialStatus[]) {
+    for (const status of ['reserved', 'not_needed'] as MaterialStatus[]) {
       expect(stageCompletionBlock({
         stage: { id: 's-cut', qty_done: 100 }, qty: 100, allStages: stages,
         materials: [mat({ status })], dept: cut,
       })).toBeNull();
+    }
+  });
+
+  /**
+   * «ПРИШЛО» ГОДИТСЯ ТОЛЬКО С ПРИЁМКОЙ (обход 04.09). `erp_material_accept`
+   * ставит `received` при ЛЮБОМ исходе — и при недостаче, и при отказе, —
+   * поэтому проверка по одному статусу закрывала этап на материале, который
+   * тот же цех не смог бы ВЗЯТЬ в работу: гейт запуска вердикт спрашивает
+   * с 22.07. На боевой базе так закрылся закрой заказа 60448 — целиком,
+   * при трёх непринятых позициях.
+   */
+  it('«Пришло» блокирует, пока склад не оформил приёмку', () => {
+    const block = (accept: string | null) => stageCompletionBlock({
+      stage: { id: 's-cut', qty_done: 100 }, qty: 100, allStages: stages,
+      materials: [mat({ status: 'received', accept_status: accept } as never)], dept: cut,
+    });
+    expect(block('accepted_full')).toBeNull();
+    expect(block('accepted_partial')).toBeNull();
+    for (const bad of ['shortage', 'mismatch', 'rejected', null]) {
+      expect(block(bad)).toContain('Закупка не завершена');
     }
   });
 

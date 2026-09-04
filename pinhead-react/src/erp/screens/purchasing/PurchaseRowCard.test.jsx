@@ -57,6 +57,44 @@ beforeEach(() => {
 });
 
 describe('строка закупки карточкой (планшет)', () => {
+  /**
+   * ОБРАТНАЯ СВЯЗЬ СКЛАД → ЗАКУПКА (обход 04.09). Приёмка ставит
+   * `status = 'received'` при ЛЮБОМ исходе, поэтому строка показывала «Пришло»
+   * и при недостаче, и при пересорте, и при прямом отказе. Кладовщик записывал
+   * расхождение и комментарий — закупщик не видел ни того, ни другого.
+   *
+   * Проверяется карточка, потому что вердикт рисует общий `StatusCell`: он же
+   * стоит в ячейке таблицы, и второй его копии в проекте нет.
+   */
+  it('вердикт склада и комментарий кладовщика видны в строке', () => {
+    renderCard({
+      ...MATERIAL, status: 'received', accept_status: 'shortage',
+      qty_received: 40, accept_comment: 'пришло на две трети рулона меньше',
+    });
+    expect(screen.getByText('Недостача')).toBeInTheDocument();
+    expect(screen.getByText(/пришло на две трети/)).toBeInTheDocument();
+    // Принято — против плана: одно «40» не отвечает, довезли или нет
+    expect(screen.getByText('40 из 100 м')).toBeInTheDocument();
+  });
+
+  it('пересорт называет, что привезли на самом деле', () => {
+    renderCard({
+      ...MATERIAL, status: 'received', accept_status: 'mismatch',
+      qty_received: 100, fact_name: 'Футер 2-нитка', fact_color: 'графит',
+    });
+    expect(screen.getByText('Пересорт')).toBeInTheDocument();
+    expect(screen.getByText(/Футер 2-нитка · графит/)).toBeInTheDocument();
+  });
+
+  it('полная приёмка вердикта не рисует — сообщать не о чем', () => {
+    renderCard({
+      ...MATERIAL, status: 'received', accept_status: 'accepted_full', qty_received: 100,
+    });
+    for (const label of ['Недостача', 'Пересорт', 'Склад не принял', 'Принято частично']) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
   it('обе группы полей названы — разделение ролей переживает смену раскладки', () => {
     renderCard();
     expect(screen.getByText(PURCHASE_GROUPS[0].label)).toBeInTheDocument();

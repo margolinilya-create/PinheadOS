@@ -150,9 +150,19 @@ describe('гейт завершения этапа: ни один писател
     expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
   });
 
-  it('материал на месте — этап закрывается', async () => {
-    seed({ materials: [{ ...PENDING_FABRIC, status: 'received' }] });
+  it('материал пришёл И ПРИНЯТ складом — этап закрывается', async () => {
+    seed({ materials: [{ ...PENDING_FABRIC, status: 'received', accept_status: 'accepted_full' }] });
     expect(await s().submitStageReport('st1', { qtyGood: 100 })).toBe(true);
+  });
+
+  /**
+   * Один `received` не годится (обход 04.09): приёмка ставит его при любом
+   * исходе, включая недостачу и отказ. Гейт запуска цеха вердикт спрашивает
+   * с 22.07 — здесь та же формула, а не вторая её копия.
+   */
+  it('материал пришёл, но склад его не принял — этап НЕ закрывается', async () => {
+    seed({ materials: [{ ...PENDING_FABRIC, status: 'received', accept_status: 'shortage' }] });
+    expect(await s().submitStageReport('st1', { qtyGood: 100 })).toBe(false);
   });
 });
 

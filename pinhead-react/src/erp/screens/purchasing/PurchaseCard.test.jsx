@@ -73,7 +73,8 @@ describe('карточка закупки — сводка', () => {
 
   it('считает, что оформлено, что в пути и что пришло', () => {
     renderCard(order({ materials: [
-      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received', qty_expected: 10, qty_ordered: 10 },
+      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received',
+        accept_status: 'accepted_full', qty_expected: 10, qty_ordered: 10 },
       { id: 'm2', name: 'Бирки', source: 'purchase', status: 'in_transit', qty_expected: 5, qty_ordered: 5 },
       { id: 'm3', name: 'Молния', source: 'purchase', status: 'pending', qty_expected: 7 },
     ] }));
@@ -118,7 +119,9 @@ describe('карточка закупки — действия', () => {
 
   it('всё на месте — обычное подтверждение, без поля причины', async () => {
     const h = renderCard(order({ materials: [
-      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received', qty_expected: 10 },
+      // Приёмка обязательна: с 04.09 один `received` «на месте» не означает
+      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received',
+        accept_status: 'accepted_full', qty_expected: 10 },
     ] }));
     fireEvent.click(screen.getByRole('button', { name: 'Завершить закупку' }));
     await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
