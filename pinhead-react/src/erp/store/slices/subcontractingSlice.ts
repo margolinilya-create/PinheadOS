@@ -343,14 +343,25 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
   receiveSubcontract: async (id, input) => {
     const accepted = Number(input.accepted) || 0;
     const defect = Number(input.defect) || 0;
-    if (accepted <= 0 && defect <= 0) {
-      toast.error('Укажите принятое количество или брак');
+    /**
+     * ВОЗВРАТ ПИШЕТ СКЛАД, А НЕ ТОЛЬКО МЕНЕДЖЕР (§3.5 обхода 04.09).
+     * Карточка приёмки считает доступное как «вернулось − принято − брак»,
+     * и при неотмеченном возврате там ноль: склад, к которому партия
+     * физически приехала, отметить её приход не мог. Возврат уходит ТЕМ ЖЕ
+     * вызовом — партия приехала, её пересчитали, и оба факта попадают
+     * в журнал одной транзакцией. Разделять нельзя по той же причине,
+     * по которой 22.08 свели «принято» и «брак».
+     */
+    const returned = Number(input.returned) || 0;
+    if (accepted <= 0 && defect <= 0 && returned <= 0) {
+      toast.error('Укажите принятое количество, брак или возврат');
       return false;
     }
     const { error } = await erpQuery(() => supabase.rpc('erp_subcontract_receive', {
       p_id: id,
       p_accepted: accepted,
       p_defect: defect,
+      p_returned: returned,
       p_moved_on: input.movedOn || factoryToday(),
       p_comment: input.comment?.trim() || null,
       p_author: currentActor(),

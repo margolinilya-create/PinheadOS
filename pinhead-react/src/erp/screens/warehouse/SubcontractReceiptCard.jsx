@@ -58,6 +58,7 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
   const [defectQty, setDefectQty] = useState('');
   const [movedOn, setMovedOn] = useState(factoryToday());
   const [comment, setComment] = useState('');
+  const [returnQty, setReturnQty] = useState('');
   const [saving, setSaving] = useState(false);
 
   /** Операция подряда этой задачи: у задачи есть этап, у этапа — спутник */
@@ -82,7 +83,14 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
   const already = Number(sub?.qty_accepted ?? 0);
   const shortfall = subcontractShortfall(sub);
   /** Сколько ещё нужно разобрать: вернулось минус принятое и брак */
-  const acceptable = shortfall.awaitingAccept;
+  /**
+   * Сколько ещё нужно разобрать. Возврат, введённый прямо здесь, входит
+   * в остаток сразу: иначе поле «Принято» упиралось бы в ноль ровно в тот
+   * момент, когда партию только что приняли физически.
+   */
+  const acceptable = shortfall.awaitingAccept + (Number(returnQty) || 0);
+  /** Сколько ещё у подрядчика: передано минус вернувшееся */
+  const undelivered = Math.max(sent - returned, 0);
   const next = stage && item ? nextRouteStage(item, stage) : null;
   const left = acceptable - Number(qty || 0) - Number(defectQty || 0);
 
@@ -96,10 +104,11 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
      * Принято и брак идут ОДНИМ вызовом: две отдельные записи оставили бы
      * окно, в котором `qty_done` этапа уже вырос, а брак ещё не отмечен.
      */
-    if (sub && (Number(qty) > 0 || Number(defectQty) > 0)) {
+    if (sub && (Number(qty) > 0 || Number(defectQty) > 0 || Number(returnQty) > 0)) {
       const ok = await receiveSubcontract(sub.id, {
         accepted: Number(qty) || 0,
         defect: Number(defectQty) || 0,
+        returned: Number(returnQty) || 0,
         movedOn,
         comment,
       });
@@ -161,6 +170,31 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
       ) : (
         <>
           <div className={styles.addMatRow}>
+            {/*
+              ВОЗВРАТ ОТМЕЧАЕТ СКЛАД (§3.5 обхода 04.09). Раньше это делал
+              менеджер, и до его отметки поле «Принято» упиралось в ноль:
+              доступное считается как «вернулось − принято − брак». То есть
+              склад, к которому партия физически приехала, не мог записать
+              её приход — на живой базе так и стоит операция с переданными
+              4670 и нулевым возвратом.
+              Поле показывается, только пока что-то ещё у подрядчика:
+              разобранной партии возвращать нечего.
+            */}
+            {undelivered > 0 && (
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Вернулось сейчас, шт</span>
+                <input
+                  type="number"
+                  min="0"
+                  className={styles.input}
+                  value={returnQty}
+                  onChange={(e) => setReturnQty(e.target.value.replace('-', ''))}
+                  placeholder={String(undelivered)}
+                  aria-label="Сколько вернулось от подрядчика"
+                  style={{ maxWidth: 130 }}
+                />
+              </label>
+            )}
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Принято, шт</span>
               <input

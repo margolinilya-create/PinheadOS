@@ -797,6 +797,12 @@ export interface SubcontractingSlice {
   receiveSubcontract: (id: string, input: {
     accepted: number | string;
     defect?: number | string;
+    /**
+     * Сколько партия физически привезла (§3.5 обхода 04.09). До 04.09 возврат
+     * фиксировал только менеджер, и склад ждал его, чтобы принять то, что уже
+     * стоит на складе.
+     */
+    returned?: number | string;
     movedOn?: string | null;
     comment?: string | null;
   }) => Promise<boolean>;
