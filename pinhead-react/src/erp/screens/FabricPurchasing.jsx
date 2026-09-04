@@ -388,11 +388,13 @@ export default function FabricPurchasing() {
     return rows;
   }, [activeOrders, today]);
 
-  const counts = useMemo(() => {
-    const c = { all: allRows.length, awaiting: 0, transit: 0, arrived: 0, overdue: 0 };
-    for (const r of allRows) c[r.group] += 1;
-    return c;
-  }, [allRows]);
+  /**
+   * Счётчики чипов считают ТО ЖЕ, что показывает таблица под ними (обход 04.09).
+   * Они считались по строкам ВСЕХ заказов, а таблица с 23.08 показывает
+   * материалы одного выбранного: человек видел «Ожидают 7», нажимал и получал
+   * две строки. Объявление и `countRows` стоят ниже выбора заказа — иначе
+   * счётчик снова считал бы не то, что видно.
+   */
 
   /**
    * ВЫБРАННЫЙ ЗАКАЗ ЖИВЁТ В АДРЕСЕ (`?supply=`), правка 23.08, п. 1.
@@ -411,6 +413,26 @@ export default function FabricPurchasing() {
     () => selectableOrders.find((o) => o.id === requestedId) ?? null,
     [selectableOrders, requestedId],
   );
+  /**
+   * ЕДИНСТВЕННЫЙ ЗАКАЗ В ОЧЕРЕДИ ОТКРЫВАЕТСЯ САМ (обход 04.09). Экран
+   * встречал закупщика двумя строками и подсказкой «Выберите заказ в списке
+   * выше», хотя выбирать было не из чего: первый экран не показывал работу,
+   * а требовал лишнего действия перед ней. Выбор пишется в адрес тем же
+   * `replace`, что и ручной, — ссылку по-прежнему можно переслать, а история
+   * не засоряется.
+   *
+   * Только при ОДНОМ заказе: при двух и более выбор — это решение человека,
+   * и открывать за него первый попавшийся значит показывать чужую работу.
+   */
+  useEffect(() => {
+    if (!loaded || requestedId || supplyOrders.length !== 1) return;
+    setParams((prev) => {
+      const out = new URLSearchParams(prev);
+      out.set('supply', supplyOrders[0].id);
+      return out;
+    }, { replace: true });
+  }, [loaded, requestedId, supplyOrders, setParams]);
+
   const selectOrder = (id) => {
     setParams((prev) => {
       const out = new URLSearchParams(prev);
@@ -419,6 +441,13 @@ export default function FabricPurchasing() {
     }, { replace: true });
     setPage(1);
   };
+
+  const counts = useMemo(() => {
+    const rows = selectedOrder ? allRows.filter((r) => r.order.id === selectedOrder.id) : allRows;
+    const c = { all: rows.length, awaiting: 0, transit: 0, arrived: 0, overdue: 0 };
+    for (const r of rows) c[r.group] += 1;
+    return c;
+  }, [allRows, selectedOrder]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

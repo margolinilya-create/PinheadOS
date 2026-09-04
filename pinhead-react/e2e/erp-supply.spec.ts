@@ -146,6 +146,32 @@ const supplyRow = (
 /** «Открыть» в таблице, «Открыть закупку» в карточке: подпись без шапки полнее */
 const OPEN = { name: /^Открыть/ };
 
+/**
+ * ЕДИНСТВЕННЫЙ ЗАКАЗ ОТКРЫВАЕТСЯ САМ (обход 04.09).
+ *
+ * Экран встречал закупщика подсказкой «Выберите заказ в списке выше» даже
+ * тогда, когда выбирать было не из чего: первый экран не показывал работу,
+ * а требовал лишнего действия перед ней.
+ *
+ * Своя фикстура из ОДНОГО заказа: базовые две — это как раз тот случай,
+ * когда выбирать должен человек, и на них правило нечем нарушить.
+ */
+test.describe('Закупка: единственный заказ', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, { orders: [ORDER_PARTIAL] });
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
+
+  test('карточка закупки открыта сразу, без лишнего выбора', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await expect(page.getByRole('heading', { name: 'Закупка' })).toBeVisible();
+
+    // Выбор виден в адресе — ссылку по-прежнему можно переслать
+    await expect.poll(() => new URL(page.url()).searchParams.get('supply')).toBeTruthy();
+    await expect(page.getByText('Выберите заказ в списке выше')).toHaveCount(0);
+  });
+});
+
 test.describe('Очередь закупки (правка 12.08)', () => {
   test('заказ БЕЗ материалов виден и говорит об этом прямо', async ({ page }) => {
     await page.goto('/purchasing?studio=0');

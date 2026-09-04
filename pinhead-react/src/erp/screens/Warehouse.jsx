@@ -274,38 +274,14 @@ export default function Warehouse() {
     <>
       <PageHead title="Склад" sub="Приёмка материалов, приёмка подряда, маркировка, упаковка и отгрузка." />
 
-      {loaded && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {[
-            { key: 'all', icon: 'orders', cls: '', label: 'Все задачи', val: counts.all },
-            { key: 'material_receipt', icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
-            { key: 'subcontract_receipt', icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
-            { key: 'marking', icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
-            // Плитки «Приёмка ГП» здесь не было вовсе, хотя вкладка есть:
-            // тип задачи заведён во всех остальных местах, а на этом экране
-            // его не видно ни счётчиком, ни плиткой
-            { key: 'fg_receipt', icon: 'inbox', cls: styles.kpiIconViolet, label: 'Приёмка ГП', val: counts.fg_receipt },
-            { key: 'pack_ship', icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
-          ].map((k) => (
-            // Плитка кликабельна целиком и фильтрует список — как в закупке
-            // (правило DESIGN.md). Раньше это были неинтерактивные <div>.
-            <button
-              key={k.label}
-              type="button"
-              className={styles.kpiCard}
-              aria-pressed={tab === k.key}
-              onClick={() => { setTab(tab === k.key ? 'all' : k.key); setPage(1); }}
-            >
-              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={20} /></span>
-              <span className={styles.kpiBody}>
-                <span className={styles.kpiCardLabel}>{k.label}</span>
-                <span className={styles.kpiCardValue}>{k.val}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      {/*
+        ПЛИТКИ-ПОКАЗАТЕЛИ СНЯТЫ (обход 04.09). Тот же фильтр был нарисован
+        дважды: шесть плиток и под ними те же шесть чипов с теми же ключами —
+        ровно дубль, снятый в закупке решением заказчика 23.08. Он и разошёлся
+        сам с собой: тип «Передача подрядчику» у чипов был, у плиток — нет,
+        то есть один и тот же фильтр предлагал разные наборы. Счётчики
+        остались при чипах, где им и место.
+      */}
       <FilterBar
         search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
         searchPlaceholder="Поиск: заказ, № сделки, изделие, материал" searchLabel="Поиск задач склада"

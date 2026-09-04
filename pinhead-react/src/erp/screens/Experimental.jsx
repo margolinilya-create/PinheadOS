@@ -60,19 +60,20 @@ import styles from '../styles';
  */
 
 /** Плитки-состояния в порядке срочности: сначала то, где нужно вмешаться */
-const STATE_TILES = [
+/* Состояния разработки для отбора: рисуются чипами в тулбаре (обход 04.09) */
+const STATE_FILTERS = [
   // «Все», а не «Все разработки»: так теперь называется ВИД раздела (документ
   // 20.08), и две одинаковые подписи рядом означали бы два разных действия
-  { key: '', icon: 'orders', label: 'Все', cls: '' },
-  { key: 'new', icon: 'plus', label: DEV_STATE_LABELS.new, cls: '' },
-  { key: 'in_progress', icon: 'flask', label: DEV_STATE_LABELS.in_progress, cls: '' },
-  { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention, cls: 'kpiIconDanger' },
-  { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting, cls: '' },
-  { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready, cls: 'kpiIconOk' },
+  { key: '', icon: 'orders', label: 'Все' },
+  { key: 'new', icon: 'plus', label: DEV_STATE_LABELS.new },
+  { key: 'in_progress', icon: 'flask', label: DEV_STATE_LABELS.in_progress },
+  { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention },
+  { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting },
+  { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready },
   // Переданные на склад (правка 30.08, п. 4) — последними: работа ЭКС по ним
   // закончена, и вмешательства они не требуют. С доски они уходят, но из
   // списка нет: это история, а не активная работа
-  { key: 'handed', icon: 'box', label: DEV_STATE_LABELS.handed, cls: '' },
+  { key: 'handed', icon: 'box', label: DEV_STATE_LABELS.handed },
 ];
 
 /**
@@ -476,7 +477,7 @@ export default function Experimental() {
    * список состояний вырос, а этот объект остался прежним.
    */
   const counts = useMemo(() => {
-    const c = Object.fromEntries(STATE_TILES.map((t) => [t.key, 0]));
+    const c = Object.fromEntries(STATE_FILTERS.map((t) => [t.key, 0]));
     c[''] = rows.length;
     for (const r of rows) c[r.state] = (c[r.state] ?? 0) + 1;
     return c;
@@ -530,34 +531,31 @@ export default function Experimental() {
         sub="Разработка изделия: набор нужных задач, параллельная работа, циклы доработки и финальное решение. Работа образца в цехе видна в очереди самого цеха."
       />
 
-      {experimentalLoaded && rows.length > 0 && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {STATE_TILES.map((t) => (
-            <button
-              key={t.key || 'all'}
-              type="button"
-              className={styles.kpiCard}
-              aria-pressed={filters.state === t.key}
-              onClick={() => set({ state: filters.state === t.key ? '' : t.key })}
-            >
-              <span className={`${styles.kpiIcon} ${t.cls ? styles[t.cls] : ''}`}>
-                <Icon name={t.icon} size={20} />
-              </span>
-              <span className={styles.kpiBody}>
-                <span className={styles.kpiCardLabel}>{t.label}</span>
-                <span className={styles.kpiCardValue}>{counts[t.key]}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      {/*
+        СОСТОЯНИЯ — ЧИПАМИ, А НЕ ПЛИТКАМИ (обход 04.09). Семь плиток по 90px
+        плюс поиск, фильтры и одиннадцать чипов видов отодвигали доску —
+        «главный экран» раздела по документу — на y≈520 из 800: в первый
+        экран попадала одна колонка и половина карточки. Плитки и чипы делают
+        здесь одну работу (отбор), и двух видов у одной работы быть не должно;
+        счётчики никуда не делись, они при чипах.
+      */}
       <FilterBar
         search={filters.q}
         onSearch={(v) => set({ q: v })}
         searchPlaceholder="Поиск: изделие, заказ, № сделки"
         searchLabel="Поиск по разработкам"
       >
+        {experimentalLoaded && rows.length > 0 && STATE_FILTERS.map((t) => (
+          <button
+            key={t.key || 'all'}
+            type="button"
+            aria-pressed={filters.state === t.key}
+            className={`${styles.chip} ${styles.chipBtn} ${filters.state === t.key ? styles.chipProgress : styles.chipNeutral}`}
+            onClick={() => set({ state: filters.state === t.key ? '' : t.key })}
+          >
+            <Icon name={t.icon} size={13} /> {t.label} {counts[t.key] > 0 && <b>{counts[t.key]}</b>}
+          </button>
+        ))}
         <button
           type="button"
           aria-pressed={filters.problem}
