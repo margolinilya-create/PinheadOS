@@ -271,6 +271,21 @@ export default function DepartmentQueue() {
     return counts;
   }, [orders, departments]);
 
+  /**
+   * Подпись к числам ряда вкладок: перечисляет ровно те, что сейчас видны.
+   * «Готово к запуску» стоит всегда — это главное число вкладки; остальные
+   * появляются вместе со своими бейджами.
+   */
+  const tabLegend = useMemo(() => {
+    const anyWaiting = [...waitingByDept.values()].some((n) => n > 0);
+    const anyOverdue = [...overdueByDept.values()].some((n) => n > 0);
+    if (!anyWaiting && !anyOverdue) return null;
+    const parts = ['число — готово к запуску'];
+    if (anyWaiting) parts.push('+N — ожидают своей очереди');
+    if (anyOverdue) parts.push('⏱ — необработанные просрочки');
+    return `У цеха: ${parts.join(' · ')}`;
+  }, [waitingByDept, overdueByDept]);
+
   /** Все задания цеха с группой и причиной ожидания — до фильтров */
   const entries = useMemo(
     () => (dept ? buildQueueEntries(orders, departments, { departmentId: dept.id, bypasses }) : []),
@@ -355,6 +370,19 @@ export default function DepartmentQueue() {
       to > 0 ? without[to - 1] : null,
       to < without.length ? without[to] : null,
     );
+  };
+
+  /**
+   * «В начало очереди» — ОДИН запрос вместо N (§3.1 обхода 04.09).
+   * Соседний `moveInQueue` двигает на одну позицию, и поднять шестое задание
+   * на первое стоило пять тапов по цели, которая после каждого уезжает
+   * из-под пальца. Правило вставки то же самое, что у первой позиции
+   * в `reorderStageQueue`: «до первого из остальных».
+   */
+  const moveToTop = async (list, entry) => {
+    const rest = list.map((e) => e.stage.id).filter((id) => id !== entry.stage.id);
+    if (rest.length === 0) return;
+    await reorderStageQueue(entry.stage.id, null, rest[0]);
   };
 
   const onDrop = async (list) => {
@@ -467,6 +495,18 @@ export default function DepartmentQueue() {
         {tabHints.left && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeL}`} aria-hidden="true" />}
         {tabHints.right && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeR}`} aria-hidden="true" />}
       </div>
+      {/*
+        ЧТО ЗНАЧАТ ЧИСЛА У ЦЕХА — СКАЗАНО ВИДИМЫМ ТЕКСТОМ (§2.7 обхода 04.09).
+        Смысл каждого объяснял `title`, а на планшете его нет: у сенсорного
+        экрана наведения не существует, и «+2» рядом с «4» не читалось никак.
+        Скринридер при этом получал `aria-label` — то есть слабее всех был
+        зрячий человек с планшетом, ради которого пилот и запущен.
+        Подпись общая на ряд, а не текст в каждой вкладке: во вкладке он
+        утроил бы её ширину, а ряд и так прокручивается.
+        Показывается, только когда есть что объяснять — постоянная строка
+        служебного текста над рабочей областью это шум.
+      */}
+      {tabLegend && <p className={styles.subText}>{tabLegend}</p>}
 
       {/* Второй вид того же экрана, а не отдельный адрес: цех и так живёт здесь,
           а два экрана про одну работу разошлись бы фильтрами и привычками.
@@ -569,6 +609,7 @@ export default function DepartmentQueue() {
                     canMoveUp={i > 0}
                     canMoveDown={i < list.length - 1}
                     onMove={(dir) => moveInQueue(list, entry, dir)}
+                    onMoveTop={() => moveToTop(list, entry)}
                     onPlan={setPlanFor}
                   />
                 ))}
@@ -598,6 +639,7 @@ export default function DepartmentQueue() {
                     canMoveUp={i > 0}
                     canMoveDown={i < list.length - 1}
                     onMove={(dir) => moveInQueue(list, entry, dir)}
+                    onMoveTop={() => moveToTop(list, entry)}
                     onPlan={setPlanFor}
                   />
                 ))}

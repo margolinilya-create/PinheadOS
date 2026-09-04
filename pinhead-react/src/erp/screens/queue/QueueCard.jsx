@@ -18,7 +18,7 @@ import { Badge } from '../../components/Badge';
  */
 export function QueueCard({
   entry, perms, rework, deptShortById, actions,
-  index = 0, canReorder = false, canMoveUp = false, canMoveDown = false, onMove, onPlan,
+  index = 0, canReorder = false, canMoveUp = false, canMoveDown = false, onMove, onMoveTop, onPlan,
 }) {
   const location = useLocation();
   const { order, item, stage, reason, group, missingMaterials } = entry;
@@ -191,6 +191,24 @@ export function QueueCard({
           {canReorder && (
             <>
               <span className={styles.subText}>Приоритет {index + 1}</span>
+              {/*
+                  «В НАЧАЛО» ОДНИМ ДЕЙСТВИЕМ (§3.1 обхода 04.09). Один тап ↑ —
+                  одна позиция и один запрос, и после каждого карточка меняет
+                  место: поднять шестое задание на первое стоило пять тапов
+                  по уезжающей из-под пальца цели. А просят обычно именно это —
+                  «сделай следующим», а не «сдвинь на одну».
+                */}
+                <button
+                  type="button"
+                  className={styles.moveBtn}
+                  disabled={!canMoveUp}
+                  aria-label={`В начало очереди: ${order.title}`}
+                  title="В начало очереди"
+                  onClick={() => onMoveTop?.()}
+                >
+                  <Icon name="chevronUp" size={14} />
+                  <Icon name="chevronUp" size={14} style={{ marginLeft: -9 }} />
+                </button>
               <button
                 type="button"
                 className={styles.moveBtn}

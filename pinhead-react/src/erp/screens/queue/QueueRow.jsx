@@ -25,7 +25,7 @@ export function QueueRow({
   entry, index, perms, canReorder, rework, deptShortById, actions,
   dragging, dropBefore, dropAfter,
   onDragStart, onDragEnd, onDragOverRow,
-  canMoveUp, canMoveDown, onMove, onPlan,
+  canMoveUp, canMoveDown, onMove, onMoveTop, onPlan,
 }) {
   const { order, item, stage, reason, group, missingMaterials, bypass } = entry;
   const location = useLocation();
@@ -78,6 +78,23 @@ export function QueueRow({
               создавал неявную колонку, из-за которой строка выезжала за край. */}
           {canReorder && (
           <span className={styles.queueRowMoveBtns}>
+            {/*
+              «В НАЧАЛО» ОДНИМ ДЕЙСТВИЕМ (§3.1 обхода 04.09). Один тап ↑ —
+              одна позиция и один запрос, и после каждого карточка меняет
+              место: поднять шестое задание на первое стоило пять тапов
+              по уезжающей из-под пальца цели. А просят обычно именно это —
+              «сделай следующим», а не «сдвинь на одну».
+            */}
+            <button
+              type="button"
+              className={styles.moveBtn}
+              disabled={!canMoveUp}
+              aria-label={`В начало очереди: ${order.title}`}
+              title="В начало очереди"
+              onClick={() => onMoveTop?.()}
+            >
+              <Icon name="arrowUpToLine" size={14} />
+            </button>
             <button
               type="button"
               className={styles.moveBtn}
