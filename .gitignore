@@ -17,3 +17,12 @@ test-results/
 .claude/helpers/*.db
 .hive-mind/
 memory.db
+
+# Ruflo local secrets and runtime data
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+# Векторная БД памяти ruflo — пишется в корень, весит мегабайты
+ruvector.db
