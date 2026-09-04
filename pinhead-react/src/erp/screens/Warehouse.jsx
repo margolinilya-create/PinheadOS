@@ -131,6 +131,34 @@ function taskSummary(order, task) {
 }
 
 /**
+ * СРОК ЗАДАЧИ — СВОЙ ЛИБО СРОК ЗАКАЗА (§3.4 обхода 04.09).
+ *
+ * Колонка «Срок» читала только `erp_warehouse_tasks.deadline`, а его не ставит
+ * никто: на боевой базе он пуст у ВСЕХ 84 задач, включая маркировку, где поле
+ * ввода есть. Колонка стояла прочерками, а величина, по которой склад
+ * действительно расставляет приоритет, — срок сдачи ЗАКАЗА — не показывалась
+ * нигде. Собственный срок сильнее: он для того и заводится, чтобы отличаться
+ * от заказного; `own` отвечает, чей срок показан, — иначе две разные величины
+ * в одной колонке неразличимы.
+ */
+function taskDeadline(order, task) {
+  if (task.deadline) return { date: task.deadline, own: true };
+  return { date: order.due_date ?? null, own: false };
+}
+
+/**
+ * Подпись срока: чужой срок обязан назвать себя. Одна на обе раскладки —
+ * вторая копия разошлась бы молча, а «28.07» без пояснения читается как
+ * срок самой задачи.
+ */
+function deadlineLabel(order, task) {
+  const { date, own } = taskDeadline(order, task);
+  if (!date) return '';
+  const text = formatDateShort(date);
+  return own ? text : `${text} · срок заказа`;
+}
+
+/**
  * Значение колонки для сортировки — то же, что видно в ячейке.
  * Срок сортируется по ISO-строке даты: она уже лексикографически монотонна.
  */
@@ -140,7 +168,7 @@ function warehouseSortValue({ order, task }, key) {
     case 'order': return order.bitrix_id || order.title;
     case 'summary': return taskSummary(order, task);
     case 'status': return taskStatusLabel(task, order);
-    case 'deadline': return task.deadline;
+    case 'deadline': return taskDeadline(order, task).date;
     default: return null;
   }
 }
@@ -342,7 +370,7 @@ export default function Warehouse() {
               summary={taskSummary(order, task)}
               statusLabel={taskStatusLabel(task, order)}
               statusVariant={taskVariant(task)}
-              deadline={formatDateShort(task.deadline)}
+              deadline={deadlineLabel(order, task)}
               onOpen={() => setOpenId(task.id)}
             />
           ))}
@@ -374,7 +402,7 @@ export default function Warehouse() {
                     <td>№{order.bitrix_id || '—'}<div className={styles.cellSub} title={order.title}>{order.title}</div></td>
                     <td>{taskSummary(order, task)}</td>
                     <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task, order)}</Badge></td>
-                    <td>{formatDateShort(task.deadline) || '—'}</td>
+                    <td>{deadlineLabel(order, task) || '—'}</td>
                     <td>
                       <Button
                         variant="secondary"

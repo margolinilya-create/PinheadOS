@@ -169,3 +169,34 @@ describe('«Склад»: раскладка планшета', () => {
     expect(card).toHaveTextContent('№4821');
   });
 });
+
+/**
+ * §3.4 обхода 04.09: колонка «Срок» читала только `erp_warehouse_tasks.deadline`,
+ * а его не ставит НИКТО — на боевой базе он пуст у всех 84 задач, включая
+ * маркировку, где поле ввода есть. Колонка стояла прочерками, а величина,
+ * по которой склад расставляет приоритет, — срок сдачи ЗАКАЗА — не была видна
+ * нигде. Показывается в ОБЕИХ раскладках: подпись живёт в одном месте.
+ */
+describe('Склад — срок задачи', () => {
+  const withoutOwn = {
+    ...ORDER, due_date: '2026-08-15',
+    warehouse_tasks: [{ ...ORDER.warehouse_tasks[0], deadline: null }],
+  };
+
+  it.each([
+    ['планшет (карточки)', true],
+    ['десктоп (таблица)', false],
+  ])('%s: своего срока нет — показан срок заказа и назван', (_n, compact) => {
+    mockCompact(compact);
+    setStore({ orders: [withoutOwn] });
+    renderScreen();
+    expect(screen.getByText(/срок заказа/)).toBeInTheDocument();
+  });
+
+  it('свой срок задачи сильнее и чужим не подписан', () => {
+    mockCompact(false);
+    setStore({ orders: [{ ...withoutOwn, warehouse_tasks: [ORDER.warehouse_tasks[0]] }] });
+    renderScreen();
+    expect(screen.queryByText(/срок заказа/)).not.toBeInTheDocument();
+  });
+});

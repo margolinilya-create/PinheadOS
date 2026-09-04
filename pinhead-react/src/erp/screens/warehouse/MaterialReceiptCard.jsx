@@ -52,7 +52,21 @@ function AcceptBlock({ material: m, onAccept }) {
   const received = m.qty_received ?? '';
   const [qty, setQty] = useState('');
   const [invoice, setInvoice] = useState('');
-  const [status, setStatus] = useState(m.accept_status ?? 'accepted_full');
+  /**
+   * СТАТУС ВЫВОДИТСЯ ИЗ ЧИСЕЛ, ПОКА ЧЕЛОВЕК НЕ СКАЗАЛ ИНАЧЕ (§3.4 обхода 04.09).
+   *
+   * Селект стоял со значением «Принято полностью» ПО УМОЛЧАНИЮ, то есть
+   * приёмка 60 из 120 уезжала полной, если про него забыли. Проект от таких
+   * статусов уже ушёл дважды — в подряде и в закупке («статус ставится
+   * ПО ФАКТУ, а не выбирается рядом с ним»), а здесь он остался.
+   *
+   * Арифметика различает только «план закрыт» и «не закрыт». «Пересорт»
+   * и «Не принято» из чисел не выводятся вовсе — это суждение кладовщика,
+   * поэтому селект остаётся, но перестаёт предлагать неправду: тронул —
+   * ведёт человек, не тронул — ведут числа.
+   */
+  const [statusTouched, setStatusTouched] = useState(false);
+  const [manualStatus, setManualStatus] = useState(m.accept_status ?? 'accepted_full');
   const [comment, setComment] = useState(m.accept_comment ?? '');
   const [saving, setSaving] = useState(false);
   /**
@@ -80,6 +94,15 @@ function AcceptBlock({ material: m, onAccept }) {
   const shortfall = Number.isFinite(expected) && expected > 0 && totalAfter < expected
     ? Math.round((expected - totalAfter) * 100) / 100
     : 0;
+  /**
+   * Что говорят числа. План неизвестен — судить не о чем, и тогда предложение
+   * остаётся прежним («Принято полностью»): выдумывать частичность там, где
+   * нет знаменателя, значит врать в другую сторону.
+   */
+  const derivedStatus = Number.isFinite(expected) && expected > 0 && shortfall > 0
+    ? 'accepted_partial'
+    : 'accepted_full';
+  const status = statusTouched ? manualStatus : derivedStatus;
   const claimsFull = status === 'accepted_full';
   const needsComment = status !== 'accepted_full' && status !== 'accepted_partial';
   /**
@@ -121,7 +144,11 @@ function AcceptBlock({ material: m, onAccept }) {
       fact_article: factArticle.trim() || null,
     });
     setSaving(false);
-    if (ok) { attempt.current.reset(); setQty(''); setInvoice(''); }
+    if (ok) {
+      attempt.current.reset(); setQty(''); setInvoice('');
+      // Следующий приход — новые числа: предложение считается заново
+      setStatusTouched(false);
+    }
   };
 
   return (
@@ -207,6 +234,22 @@ function AcceptBlock({ material: m, onAccept }) {
             <span className={styles.subText}> · план закрыт</span>
           )}
         </span>
+        {/*
+          СЛЕДСТВИЕ ВВЕДЁННОГО ЧИСЛА — ОДНОЙ ФРАЗОЙ (вайрфрейм §6.5). Кладовщик
+          вводит «сколько пришло сейчас», а решение принимает по ИТОГУ: строка
+          показывает итог и то, к чему он приводит, до нажатия кнопки. Раньше
+          итог приходилось складывать в уме — план в таблице выше, принятое
+          в другой строке, а статус выбирался рядом ни с чем.
+        */}
+        {Number.isFinite(expected) && expected > 0 && (
+          <span className={styles.queueReason}>
+            ⇒ будет принято {totalAfter} из {expected}{m.unit ? ` ${m.unit}` : ''}
+            {shortfall > 0
+              ? <span className={styles.overdue}> — не хватает {shortfall}</span>
+              : ' — план закрыт'}
+            {!statusTouched && ` → ${MATERIAL_ACCEPT_LABELS[derivedStatus]}`}
+          </span>
+        )}
         <div className={styles.planFormRow}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>
@@ -221,7 +264,7 @@ function AcceptBlock({ material: m, onAccept }) {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Что приехало</span>
             <select className={styles.select} value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => { setStatusTouched(true); setManualStatus(e.target.value); }}
               aria-label={`Статус приёмки ${m.name}`}>
               {Object.entries(MATERIAL_ACCEPT_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
