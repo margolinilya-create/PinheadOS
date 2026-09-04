@@ -14,16 +14,23 @@
 }
 .required { color: var(--color-error); margin-left: 2px; }
 
+/* ОДИН КОНТРОЛ ВВОДА НА РАЗДЕЛ (обход 04.09).
+   Примитив разошёлся с `.input` (erp.module.css) по трём объявлениям сразу:
+   рамка `--border-mid` (1,47:1) против `--border-control`, высота 36 против 40,
+   скругление `--radius-md` против `--radius-sm`. Решение владельца 03.09
+   о границах, проходящих AA (1.4.11), доехало до `.input` и не доехало сюда —
+   а это ОДИН и тот же элемент интерфейса, просто заведённый дважды.
+   Значения приведены к `.input`; размер шрифта — токеном, а не литералом. */
 .control {
   width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border-mid);
-  border-radius: var(--radius-md);
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
 }
 /* textarea растёт по содержимому — фиксированная высота ей не нужна */
 textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }

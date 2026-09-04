@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
@@ -89,6 +89,21 @@ export default function PlanScreen() {
   const [openSlot, setOpenSlot] = useState(null);
   const [addTo, setAddTo] = useState(null); // { date, deptId }
   const [drag, setDrag] = useState(null);
+
+  /**
+   * Колонка «сегодня»: доска шире экрана, и на планшете текущий день
+   * оставался за правым краем — экран открывался на понедельнике, когда
+   * работа идёт в четверг. Прокрутка только ГОРИЗОНТАЛЬНАЯ и внутри своего
+   * контейнера: `block: 'nearest'` не даёт странице прыгнуть по вертикали.
+   */
+  const todayRef = useRef(null);
+  useEffect(() => {
+    const el = todayRef.current;
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+    } catch { /* старый браузер — остаёмся на понедельнике, это не поломка */ }
+  }, [monday, deptCode]);
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
@@ -293,6 +308,13 @@ export default function PlanScreen() {
         />
       )}
 
+      {/*
+        ТЕКУЩИЙ ДЕНЬ ПОПАДАЕТ В ВИД (обход 04.09). Колонка дня — 300px, доска
+        прокручивается по горизонтали, и на планшете «сегодня» оставалось
+        за правым краем: экран открывался на понедельнике, а работа шла
+        в четверг. Прокрутка ГОРИЗОНТАЛЬНАЯ и внутри своего контейнера —
+        `block: 'nearest'` не даёт странице прыгнуть по вертикали.
+      */}
       {ready && deptCode !== 'all' && (
         <ScrollHintBox className={styles.planBoardWrap} label="Недельный план цеха">
           <div className={styles.planBoard}>
@@ -302,6 +324,7 @@ export default function PlanScreen() {
               return (
                 <section
                   key={date}
+                  ref={date === today ? todayRef : undefined}
                   className={`${styles.planDay} ${date === today ? styles.planDayToday : ''}`}
                   onDragOver={(e) => { if (drag) e.preventDefault(); }}
                   onDrop={(e) => { e.preventDefault(); onDrop(date); }}
