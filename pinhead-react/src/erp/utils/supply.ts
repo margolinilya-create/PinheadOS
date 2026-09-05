@@ -138,14 +138,26 @@ export function isMaterialSettled(m: MaterialReadiness): boolean {
  * приехало), и закупка по нему закрывается. Закупщику он всё равно нужен —
  * остаток кто-то обязан довезти.
  */
-export type MaterialAcceptanceIssue = 'rejected' | 'mismatch' | 'shortage' | 'partial';
+export type MaterialAcceptanceIssue =
+  'rejected' | 'mismatch' | 'shortage' | 'partial' | 'not_accepted';
 
 export function materialAcceptanceIssue(
-  m: Pick<ErpMaterial, 'accept_status' | 'qty_expected' | 'qty_received'>,
+  m: Pick<ErpMaterial, 'status' | 'accept_status' | 'qty_expected' | 'qty_received'>,
 ): MaterialAcceptanceIssue | null {
   if (m.accept_status === 'rejected') return 'rejected';
   if (m.accept_status === 'mismatch') return 'mismatch';
   if (m.accept_status === 'shortage') return 'shortage';
+  /**
+   * «ПРИШЛО, НО ПРИЁМКИ НЕ БЫЛО» — тоже ответ закупщику (обзор правок 04.09).
+   * Без этой ветки строка показывала чип «Пришло», а прогресс закупки над ней
+   * — «0 из 2»: с 04.09 материал считается на месте только с приёмкой, и два
+   * места на одном экране говорили разное. Молчание тут хуже расхождения:
+   * закупщик видит «Пришло» и не понимает, чего ещё ждут.
+   *
+   * Не то же, что `rejected`: склад ничего не отверг — он просто ещё
+   * не пересчитывал. Поэтому свой код и своя подпись.
+   */
+  if (m.status === 'received' && m.accept_status == null) return 'not_accepted';
   if (m.accept_status !== 'accepted_partial') return null;
   /**
    * Числа приезжают из PostgREST СТРОКАМИ (`numeric` → `"42"`), поэтому
@@ -163,6 +175,7 @@ export const ACCEPTANCE_ISSUE_LABELS: Record<MaterialAcceptanceIssue, string> = 
   mismatch: 'Пересорт',
   shortage: 'Недостача',
   partial: 'Принято частично',
+  not_accepted: 'Ждёт приёмки складом',
 };
 
 /**

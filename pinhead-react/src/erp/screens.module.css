@@ -628,6 +628,22 @@ a.cellTitle:hover { color: var(--accent); }
    style={{ alignSelf: 'end', minHeight: 40 }} — и minHeight перебивал
    @media (pointer: coarse), оставляя на планшете 40px вместо 44. */
 .checkLabelEnd { align-self: end; }
+
+/* ─── Строка схемы отчёта участка (admin/DeptFields) ───
+   Своя строка, а не `.planFormRow`: шесть полей на строку не помещаются
+   в одну линию даже в диалоге на 900px, и без разделителя три строки полей
+   сливаются в сплошную стену подписей — где кончается одно поле и начинается
+   следующее, прочитать нельзя. Остальным формам раздела разделитель не нужен:
+   там строка одна. */
+.resultFieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+.resultFieldRow:last-of-type { border-bottom: none; }
 @media (pointer: coarse) {
 
   .tile { min-height: 44px; }

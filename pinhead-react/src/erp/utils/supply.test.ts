@@ -156,6 +156,22 @@ describe('сводка по материалам заказа', () => {
       expect(materialAcceptanceIssue(material({ accept_status: 'shortage' }))).toBe('shortage');
     });
 
+    /**
+     * Обзор правок 04.09: строка показывала чип «Пришло», а прогресс закупки
+     * над ней — «0 из 2»: с этого дня материал считается на месте только
+     * с приёмкой. Два места на одном экране говорили разное, и молчание
+     * здесь хуже расхождения.
+     */
+    it('пришло, но приёмки не было — свой код, а не «отказ»', () => {
+      expect(materialAcceptanceIssue(material({ status: 'received' }))).toBe('not_accepted');
+      // Отказ склада — другое: он пересчитал и не принял
+      expect(materialAcceptanceIssue(material({ status: 'received', accept_status: 'rejected' })))
+        .toBe('rejected');
+      // Не пришло — ждать приёмки нечего
+      expect(materialAcceptanceIssue(material({ status: 'ordered' }))).toBeNull();
+      expect(materialAcceptanceIssue(material({ status: 'reserved' }))).toBeNull();
+    });
+
     it('полная приёмка вопросов не оставляет', () => {
       expect(materialAcceptanceIssue(material({
         accept_status: 'accepted_full', qty_expected: 42, qty_received: 42,
