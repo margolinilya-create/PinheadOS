@@ -8,7 +8,7 @@
   min-width: 0;
 }
 .label {
-  font-size: 12px;
+  font-size: var(--type-label);
   font-weight: 500;
   color: var(--text-mid);
 }
@@ -33,7 +33,7 @@
   font-size: var(--type-body-sm);
 }
 /* textarea растёт по содержимому — фиксированная высота ей не нужна */
-textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
+textarea.control { padding: var(--space-sm) 10px; min-height: 72px; resize: vertical; }
 .control::placeholder { color: var(--text-muted); }
 .control:focus-visible {
   outline: none;
@@ -45,9 +45,9 @@ textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
 .invalid { border-color: var(--color-error); }
 .invalid:focus-visible { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--color-error); }
 
-.hint { font-size: 12px; color: var(--text-dim); }
+.hint { font-size: var(--type-label); color: var(--text-dim); }
 /* ink, а не заливочный --color-error: 11.5px давали 3.76:1 при норме 4.5 */
-.error { font-size: 12px; color: var(--color-error-ink); font-weight: 500; }
+.error { font-size: var(--type-label); color: var(--color-error-ink); font-weight: 500; }
 
 /* Правило ≥44px на тач-экранах цехов */
 @media (pointer: coarse) {
