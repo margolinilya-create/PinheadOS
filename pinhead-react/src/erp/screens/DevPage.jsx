@@ -11,13 +11,9 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { DEV_STATE_LABELS } from '../utils/filterExperimental';
 import { devState, nextAction, currentBlocker } from '../utils/experimentalTasks';
-import {
-  cuttingGate,
-  DEV_BRANDING_TASK_TYPES,
-  DEV_STAGE_LABELS, devBoardColumn, devBrandingFromPrints, devStageStates,
-} from '../utils/experimentalBoard';
-import { findSupplyDept, openSupplyStages } from '../utils/supply';
+import { DEV_STAGE_LABELS } from '../utils/experimentalBoard';
 import { neighbourStage } from '../utils/devBoardMove';
+import { devContext } from '../utils/devContext';
 import { useDevStageMove } from '../hooks/useDevStageMove';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
@@ -143,21 +139,18 @@ export default function DevPage() {
     );
   }
 
-  const tasks = dev.tasks ?? [];
   const today = factoryToday();
+  /**
+   * Контекст шагов тот же, что у доски (правка 01.09): открыта ли закупка
+   * заказа, есть ли у позиции нанесения, готовы ли лекала. Считает
+   * `devContext` — та же реализация, которой пользуется смонтированная ниже
+   * `DevCard`: до 05.09 страница и карточка считали это порознь из одних
+   * и тех же данных, и одна из формул успела разойтись (см. `devBrandingOpen`).
+   */
+  const {
+    tasks, stage, materialsPending, hasBranding, brandingOpen,
+  } = devContext(dev, order, departments);
   const state = devState(dev, tasks, today);
-  // Контекст шагов тот же, что у доски (правка 01.09): открыта ли закупка
-  // заказа и есть ли у позиции нанесения. Иначе страница и доска показывали бы
-  // разный маршрут одной разработки
-  const stageStates = devStageStates({
-    dev,
-    tasks,
-    materials: order?.materials ?? [],
-    supplyOpen: openSupplyStages(order, findSupplyDept(departments)?.id).length > 0,
-    hasBranding: devBrandingFromPrints(
-      (order?.items ?? []).find((it) => it.id === dev.item_id)?.prints).length > 0,
-  });
-  const stage = devBoardColumn(stageStates, dev);
   const blocker = currentBlocker(tasks, new Map(), today);
 
   /**
@@ -172,23 +165,11 @@ export default function DevPage() {
    * тут же отклоняется.
    */
   /**
-   * «Материалы держат крой» — тот же `cuttingGate`, что у доски и у карточки:
-   * `devStageStates` отдаёт МАССИВ шагов, и читать из него `.materials.open`
-   * нельзя — получится `undefined`, то есть «держат всегда».
+   * «Материалы держат крой» — тот же `cuttingGate`, что у доски и у карточки;
+   * приезжает из `devContext` выше. Напоминание, зачем он вообще отдельным
+   * значением: `devStageStates` отдаёт МАССИВ шагов, и читать из него
+   * `.materials.open` нельзя — получится `undefined`, то есть «держат всегда».
    */
-  const patternsDone = tasks.some((t) => t.task_type === 'patterns')
-    && tasks.filter((t) => t.task_type === 'patterns')
-      .every((t) => t.status === 'done' || t.status === 'cancelled');
-  const materialsPending = !cuttingGate({
-    patternsDone,
-    itemId: dev.item_id,
-    materials: order?.materials ?? [],
-    supplyOpen: openSupplyStages(order, findSupplyDept(departments)?.id).length > 0,
-  }).open;
-  const hasBranding = devBrandingFromPrints(
-    (order?.items ?? []).find((it) => it.id === dev.item_id)?.prints).length > 0;
-  const brandingOpen = (dev.tasks ?? []).some(
-    (t) => DEV_BRANDING_TASK_TYPES.includes(t.task_type) && t.status !== 'done');
   const moveCtx = { materialsPending, hasBranding };
   const prevStage = neighbourStage(stage, -1, moveCtx);
   const nextStage = neighbourStage(stage, 1, moveCtx);

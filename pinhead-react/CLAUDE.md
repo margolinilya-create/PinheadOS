@@ -555,6 +555,18 @@ URL: https://pinhead-os.vercel.app
 - Перенос этапа в другой цех — `erp/hooks/useStageMove` (`moveStageTo`,
   `canMove`, `targetsFor`). Зовут `ErpKanban` и `StageActionsPanel`; вторая
   реализация подтверждения и обязательной причины запрещена
+- Контекст одной разработки — `erp/utils/devContext` (`devContext(dev, order,
+  departments)`): закупка заказа, нанесения позиции, готовность лекал,
+  состояния шагов, колонка, материальный гейт. Зовут `DevPage` и `DevCard`,
+  которую та же страница и монтирует, — до 05.09 обе считали это порознь.
+  Не хук: страница делает четыре ранних возврата, а расчёт чистый и в стор
+  не ходит. Доска (`Experimental` + `DevBoard`) сюда НЕ переводится — там
+  величины считаются пачкой, а гейт спрашивается с `patternsDone: true`
+- «Нанесения ещё открыты» — `experimentalBoard.devBrandingOpen(tasks)`, одна
+  формула на доску, страницу и карточку, дословно как серверная
+  `erp_dev_branding_advance`: статус вне ('done','cancelled'). Копия
+  на странице проверяла только `!== 'done'`. Сторож — `devBranding.test.ts`,
+  включая обход исходников против четвёртой копии
 - Перенос карточки разработки — `erp/hooks/useDevStageMove` (`moveDevStage`,
   `requestMove` с гейтом `devMoveIntent`). Зовут `Experimental` и `DevPage`.
   Порядок «закрыть свой этап → записать колонку → завести нанесения»

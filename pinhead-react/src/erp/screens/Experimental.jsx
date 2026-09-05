@@ -37,7 +37,7 @@ import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
 import { DevDeptQueue } from './experimental/DevDeptQueue';
 import {
-  DEV_BRANDING_DEPT_CODE, DEV_BRANDING_TASK_TYPES, devBrandingFromPrints,
+  DEV_BRANDING_DEPT_CODE, devBrandingFromPrints, devBrandingOpen,
 } from '../utils/experimentalBoard';
 import { useDevStageMove } from '../hooks/useDevStageMove';
 import { experimentalDeptEntries } from '../utils/experimentalQueue';
@@ -341,20 +341,17 @@ export default function Experimental() {
    * «что считается нанесением образца» не появляется.
    */
   /**
-   * ОБЩИЙ ЦЕХ ЕЩЁ РАБОТАЕТ (правка 01.09, вторая итерация, п. 1). Формула
-   * дословно та же, что у серверного автоперехода `erp_dev_branding_advance`:
-   * задача нанесения вне ('done','cancelled'). Статус задачи ведёт триггер
-   * от статуса ЭТАПА, поэтому это и есть «цех фактически закрыл», а не
-   * отдельное мнение доски.
+   * ОБЩИЙ ЦЕХ ЕЩЁ РАБОТАЕТ (правка 01.09, вторая итерация, п. 1). Формула —
+   * `devBrandingOpen`, дословно та же, что у серверного автоперехода
+   * `erp_dev_branding_advance`: задача нанесения вне ('done','cancelled').
+   * Статус задачи ведёт триггер от статуса ЭТАПА, поэтому это и есть «цех
+   * фактически закрыл», а не отдельное мнение доски.
+   *
+   * До 05.09 формула была выражением ЗДЕСЬ, а страница разработки держала
+   * свою копию — и копия успела разойтись (`!== 'done'` без `'cancelled'`).
    */
   const brandingOpenByDev = useMemo(
-    () => new Map(experimental.map((dev) => [
-      dev.id,
-      (dev.tasks ?? []).some(
-        (t) => DEV_BRANDING_TASK_TYPES.includes(t.task_type)
-          && t.status !== 'done' && t.status !== 'cancelled',
-      ),
-    ])),
+    () => new Map(experimental.map((dev) => [dev.id, devBrandingOpen(dev.tasks)])),
     [experimental],
   );
 
