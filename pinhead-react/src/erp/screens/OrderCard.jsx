@@ -28,7 +28,7 @@ import { useOrderDetail } from './orderCard/useOrderDetail';
 import { Button, ButtonLink } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { OrderCardTabs } from './orderCard/OrderCardTabs';
+import { Tabs, TabPanel } from '../components/Tabs';
 import { TzBlock } from './queue/TzBlock';
 
 /** Готовность заказа в штуках по этапам — знаменатель поясняется в подписи */
@@ -245,7 +245,9 @@ export default function OrderCard() {
       <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
       <TzMissingBanner order={order} departments={departments} />
 
-      <OrderCardTabs
+      <Tabs
+        idPrefix="order"
+        label="Разделы карточки заказа"
         tabs={tabs}
         active={tab}
         onSelect={(id) => setParams((prev) => {
@@ -255,7 +257,7 @@ export default function OrderCard() {
         }, { replace: true })}
       />
 
-      <div id="order-tabpanel" role="tabpanel" aria-labelledby={`order-tab-${tab}`} tabIndex={-1}>
+      <TabPanel idPrefix="order" active={tab}>
         {tab === 'items' && (
           <>
             {/* Готовность заказа в штуках по этапам. Жила только в боковой карточке,
@@ -353,7 +355,7 @@ export default function OrderCard() {
         {tab === 'history' && (
           <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />
         )}
-      </div>
+      </TabPanel>
     </>
   );
 }

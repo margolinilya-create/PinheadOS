@@ -20,7 +20,7 @@ import { buildQueueEntries } from '../utils/queueEntries';
 import { applyStageFilters, filtersFromParams, filtersToParams } from '../utils/filterStages';
 import { deptShortName, isProductionDept } from '../data/departments';
 import { pluralize } from '../../utils/i18n';
-import { onTabListKeyDown } from '../utils/tabs';
+import { Tabs, TabPanel } from '../components/Tabs';
 import styles from '../styles';
 import { Icon } from '../components/Icon';
 import { QueueCard } from './queue/QueueCard';
@@ -430,68 +430,70 @@ export default function DepartmentQueue() {
       {myDeptLoaded && access.needsDeptBinding && <DeptBindingNotice />}
 
       <div className={styles.deptTabsWrap}>
-        <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" ref={tabsRef} onKeyDown={onTabListKeyDown}>
-          {departments.filter((dd) => dd.active && isProductionDept(dd)).map((dd) => {
+        {/* Подпись вкладки здесь СВОЯ: короткое имя участка, звезда «ваш цех»
+            и до трёх счётчиков с разными классами и разными `aria-label`.
+            Поэтому `label` у примитива — узел, а не строка: три числа отвечают
+            на три разных вопроса, и сводить их в один счётчик нельзя. */}
+        <Tabs
+          idPrefix="queue"
+          label="Выбор цеха"
+          listRef={tabsRef}
+          active={deptCode}
+          onSelect={selectDept}
+          tabs={departments.filter((dd) => dd.active && isProductionDept(dd)).map((dd) => {
             const count = readyByDept.get(dd.code) || 0;
             const waitingCount = waitingByDept.get(dd.code) || 0;
             const overdueCount = overdueByDept.get(dd.code) || 0;
             const isMine = boundDept?.code === dd.code;
-            return (
-              <button
-                key={dd.code}
-                type="button"
-                role="tab"
-                id={`queue-tab-${dd.code}`}
-                aria-controls="queue-tabpanel"
-                aria-selected={deptCode === dd.code}
-                tabIndex={deptCode === dd.code ? 0 : -1}
-                className={`${styles.deptTab} ${deptCode === dd.code ? styles.deptTabActive : ''}`}
-                onClick={() => selectDept(dd.code)}
-              >
-                {deptShortName(dd.code, dd.name)}
-                {isMine && <Icon name="star" size={13} title="Ваш цех" />}
-                {count > 0 && (
-                  <span
-                    className={`${styles.deptTabCount} ${styles.deptTabHot}`}
-                    aria-label={`готово к работе: ${count}`}
-                  >
-                    {count}
-                  </span>
-                )}
-                {/*
-                  Будущая работа цеха (правка 30.08, п. 7) — ОТДЕЛЬНЫМ числом
-                  и приглушённо. Сумма с «готово к запуску» снова сделала бы
-                  бейдж бессмысленным: «можно начать сейчас» и «придёт позже» —
-                  разные решения, и цех, стоящий раньше в маршруте, до правки
-                  видел здесь ноль ровно тогда, когда работа на него назначена.
-                */}
-                {waitingCount > 0 && (
-                  <span
-                    className={`${styles.deptTabCount} ${styles.deptTabWaiting}`}
-                    title="Ожидают своей очереди"
-                    aria-label={`ожидает: ${waitingCount}`}
-                  >
-                    +{waitingCount}
-                  </span>
-                )}
-                {overdueCount > 0 && (
-                  // Класс, а не инлайн-фон: инлайн менял только заливку, текст
-                  // оставался серым (--text-mid на красном ≈ 2:1) — и самый срочный
-                  // сигнал экрана читался хуже всего
-                  <span
-                    className={`${styles.deptTabCount} ${styles.deptTabOverdue}`}
-                    title="Необработанные просрочки"
-                    aria-label={`просрочено: ${overdueCount}`}
-                  >
-                    <span className={styles.cellWithIcon}>
-                      <Icon name="clock" size={12} />{overdueCount}
+            return {
+              id: dd.code,
+              label: (
+                <>
+                  {deptShortName(dd.code, dd.name)}
+                  {isMine && <Icon name="star" size={13} title="Ваш цех" />}
+                  {count > 0 && (
+                    <span
+                      className={`${styles.deptTabCount} ${styles.deptTabHot}`}
+                      aria-label={`готово к работе: ${count}`}
+                    >
+                      {count}
                     </span>
-                  </span>
-                )}
-              </button>
-            );
+                  )}
+                  {/*
+                    Будущая работа цеха (правка 30.08, п. 7) — ОТДЕЛЬНЫМ числом
+                    и приглушённо. Сумма с «готово к запуску» снова сделала бы
+                    бейдж бессмысленным: «можно начать сейчас» и «придёт позже» —
+                    разные решения, и цех, стоящий раньше в маршруте, до правки
+                    видел здесь ноль ровно тогда, когда работа на него назначена.
+                  */}
+                  {waitingCount > 0 && (
+                    <span
+                      className={`${styles.deptTabCount} ${styles.deptTabWaiting}`}
+                      title="Ожидают своей очереди"
+                      aria-label={`ожидает: ${waitingCount}`}
+                    >
+                      +{waitingCount}
+                    </span>
+                  )}
+                  {overdueCount > 0 && (
+                    // Класс, а не инлайн-фон: инлайн менял только заливку, текст
+                    // оставался серым (--text-mid на красном ≈ 2:1) — и самый срочный
+                    // сигнал экрана читался хуже всего
+                    <span
+                      className={`${styles.deptTabCount} ${styles.deptTabOverdue}`}
+                      title="Необработанные просрочки"
+                      aria-label={`просрочено: ${overdueCount}`}
+                    >
+                      <span className={styles.cellWithIcon}>
+                        <Icon name="clock" size={12} />{overdueCount}
+                      </span>
+                    </span>
+                  )}
+                </>
+              ),
+            };
           })}
-        </div>
+        />
         {tabHints.left && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeL}`} aria-hidden="true" />}
         {tabHints.right && <div className={`${styles.deptTabsFade} ${styles.deptTabsFadeR}`} aria-hidden="true" />}
       </div>
@@ -556,12 +558,7 @@ export default function DepartmentQueue() {
           Прежнее условие `dept && loading && !loaded` было невыполнимо в принципе
           (departments и loaded: true пишутся одним set), поэтому цех при загрузке
           и при обрыве связи читал «Выберите свой цех» и решал, что заданий нет. */}
-      <div
-        id="queue-tabpanel"
-        role="tabpanel"
-        aria-labelledby={deptCode ? `queue-tab-${deptCode}` : undefined}
-        tabIndex={-1}
-      >
+      <TabPanel idPrefix="queue" active={deptCode}>
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задания цеха" />}
       {!loadError && !loaded && <QueueSkeleton />}
       {loaded && !dept && (
@@ -666,7 +663,7 @@ export default function DepartmentQueue() {
           </EmptyResult>
         )
       )}
-      </div>
+      </TabPanel>
 
       {planFor && (
         <PlanAddModal

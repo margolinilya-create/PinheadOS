@@ -28,7 +28,7 @@ import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
 import { DevFinalPackage } from './DevFinalPackage';
 import { DevToSku } from './DevToSku';
-import { DevCardTabs } from './DevCardTabs';
+import { Tabs, TabPanel } from '../../components/Tabs';
 import { DevAside } from './DevAside';
 import { DevFilesTab } from './DevFilesTab';
 import styles from '../../styles';
@@ -428,16 +428,16 @@ export function DevCard({
         nodes={devRouteSteps(stageStates, currentStage)}
       />
 
-      <DevCardTabs tabs={tabs} active={tab} onSelect={selectTab} />
+      <Tabs
+        idPrefix="dev"
+        label="Разделы карточки разработки"
+        tabs={tabs}
+        active={tab}
+        onSelect={selectTab}
+      />
 
       <div className={styles.devLayout}>
-        <div
-          className={styles.devMain}
-          id="dev-tabpanel"
-          role="tabpanel"
-          aria-labelledby={`dev-tab-${tab}`}
-          tabIndex={-1}
-        >
+        <TabPanel idPrefix="dev" active={tab} className={styles.devMain}>
       <ReadOnlyFieldset
         canManage={canManage}
         note="Только просмотр: разработку ведёт технолог."
@@ -751,7 +751,7 @@ export function DevCard({
           )
         )}
       </ReadOnlyFieldset>
-        </div>
+        </TabPanel>
 
         <DevAside
           dev={dev}

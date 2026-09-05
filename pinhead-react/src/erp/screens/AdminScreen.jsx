@@ -12,8 +12,7 @@ import { LegacySubcontractTab } from './admin/LegacySubcontractTab';
 import { hasLegacySubcontracts } from '../utils/outsourcing';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
-import { onTabListKeyDown } from '../utils/tabs';
-import styles from '../styles';
+import { Tabs, TabPanel } from '../components/Tabs';
 
 const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
 
@@ -68,25 +67,15 @@ export default function AdminScreen() {
         title="Админка"
         sub="Общая для обоих режимов: пользователи и права, цеха, справочники, заказы Order Studio."
       />
-      <div className={styles.deptTabs} role="tablist" aria-label="Разделы админки" onKeyDown={onTabListKeyDown}>
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            id={`admin-tab-${t.id}`}
-            aria-controls="admin-tabpanel"
-            aria-selected={tab === t.id}
-            tabIndex={tab === t.id ? 0 : -1}
-            className={`${styles.deptTab} ${tab === t.id ? styles.deptTabActive : ''}`}
-            onClick={() => setParams({ tab: t.id }, { replace: true })}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        idPrefix="admin"
+        label="Разделы админки"
+        tabs={tabs}
+        active={tab}
+        onSelect={(id) => setParams({ tab: id }, { replace: true })}
+      />
 
-      <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} tabIndex={-1}>
+      <TabPanel idPrefix="admin" active={tab}>
       {tab === 'users' && <EmployeesScreen embedded />}
       {tab === 'roles' && <PermissionsTab />}
       {tab === 'depts' && <DepartmentsScreen embedded />}
@@ -99,7 +88,7 @@ export default function AdminScreen() {
           <AdminPanel ordersOnly />
         </Suspense>
       )}
-      </div>
+      </TabPanel>
     </>
   );
 }

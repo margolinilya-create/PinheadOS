@@ -1374,7 +1374,6 @@
   .sidebarBrand { min-height: 44px; }
   .pageBtn { min-width: 44px; min-height: 44px; }
   .drawerClose { width: 44px; height: 44px; }
-  .drawerTab { min-height: 44px; }
   .inlineEditBtn { min-height: 44px; }
   .thSortBtn { min-height: 44px; }
 }
@@ -1660,19 +1659,10 @@ button.kpiCard[aria-pressed='true'] {
   border-radius: var(--radius-md); color: var(--text-mid); font-size: 16px;
 }
 .drawerClose:hover { background: var(--surface); }
-.drawerTabs {
-  display: flex; gap: 4px; padding: 0 12px;
-  border-bottom: 1px solid var(--border-light);
-  overflow-x: auto; scrollbar-width: none;
-}
-.drawerTabs::-webkit-scrollbar { display: none; }
-.drawerTab {
-  padding: 10px 12px; border: none; background: none; cursor: pointer;
-  font: inherit; font-size: 13px; color: var(--text-mid);
-  border-bottom: 2px solid transparent; white-space: nowrap;
-}
-.drawerTab:hover { color: var(--text); }
-.drawerTabActive { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+/* Правил `.drawerTabs`/`.drawerTab`/`.drawerTabActive` здесь больше нет:
+   вкладочная ветка `Drawer` удалена 05.09 как мёртвая (см. её JSDoc).
+   Класс, оставшийся без единого носителя, — то же осиротевшее правило,
+   что и примитив без вызывающих. */
 .drawerBody { flex: 1; overflow-y: auto; padding: 16px 18px; }
 .drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 

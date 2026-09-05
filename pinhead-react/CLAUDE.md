@@ -589,6 +589,14 @@ URL: https://pinhead-os.vercel.app
   (`20260904203307`, прежняя сигнатура снята явно), поле «Вернулось сейчас»
   в `warehouse/SubcontractReceiptCard` — показывается, пока `qty_sent >
   qty_returned`
+- Вкладки страницы — `components/Tabs` (`Tabs` + `TabPanel`, обе половины
+  связи из одного `idPrefix`). Шесть мест писали таб-паттерн от руки, включая
+  две побайтово одинаковые обёртки (`OrderCardTabs`/`DevCardTabs` — удалены),
+  и у `PlanScreen` половина связи уже потерялась. `label` вкладки — УЗЕЛ:
+  у очереди цеха там звезда и три счётчика с разными `aria-label`.
+  Переключатели ВИДА сюда не идут — у них нет панелей, это `aria-pressed`.
+  Сторож — `components/Tabs.test.ts` (роли объявляет только примитив;
+  исключение одно — `utils/tabs`, сама клавиатурная половина)
 - Примитивы: `components/Modal` (импортирует АГРЕГАТОР `../styles` —
   `.modal`/`.modalOverlay` живут в `screens.module.css`; id для
   `aria-labelledby` из `useId`) и `components/FilterChip`. Сторож —

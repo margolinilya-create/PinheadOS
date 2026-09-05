@@ -15,7 +15,7 @@ import {
   SUBCONTRACT_PHASE_LABELS,
   SUBCONTRACT_PAYMENT_LABELS,
 } from '../../types';
-import { onTabListKeyDown } from '../../utils/tabs';
+import { Tabs, TabPanel } from '../../components/Tabs';
 import { statusChipClass } from '../../utils/statusUi';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
@@ -279,39 +279,22 @@ export function DictionariesTab() {
 
   return (
     <>
-      <div className={styles.deptTabs} role="tablist" aria-label="Справочники" onKeyDown={onTabListKeyDown}>
-        {KINDS.map((k) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            id={`dict-tab-${k}`}
-            aria-controls="dict-tabpanel"
-            aria-selected={kind === k}
-            tabIndex={kind === k ? 0 : -1}
-            className={`${styles.deptTab} ${kind === k ? styles.deptTabActive : ''}`}
-            onClick={() => setKind(k)}
-          >
-            {DICTIONARY_LABELS[k]}
-          </button>
-        ))}
-        <button
-          type="button"
-          role="tab"
-          id="dict-tab-statuses"
-          aria-controls="dict-tabpanel"
-          aria-selected={kind === 'statuses'}
-          tabIndex={kind === 'statuses' ? 0 : -1}
-          className={`${styles.deptTab} ${kind === 'statuses' ? styles.deptTabActive : ''}`}
-          onClick={() => setKind('statuses')}
-        >
-          Статусы
-        </button>
-      </div>
+      {/* «Статусы» — такая же вкладка, а не кнопка рядом с рядом вкладок:
+          она читается только (`StatusesList`), но переключает ту же панель */}
+      <Tabs
+        idPrefix="dict"
+        label="Справочники"
+        tabs={[
+          ...KINDS.map((k) => ({ id: k, label: DICTIONARY_LABELS[k] })),
+          { id: 'statuses', label: 'Статусы' },
+        ]}
+        active={kind}
+        onSelect={setKind}
+      />
 
-      <div id="dict-tabpanel" role="tabpanel" aria-labelledby={`dict-tab-${kind}`} tabIndex={-1}>
+      <TabPanel idPrefix="dict" active={kind}>
         {kind === 'statuses' ? <StatusesList /> : <DictionaryList key={kind} kind={kind} />}
-      </div>
+      </TabPanel>
     </>
   );
 }
