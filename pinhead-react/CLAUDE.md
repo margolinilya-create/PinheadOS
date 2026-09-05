@@ -597,6 +597,13 @@ URL: https://pinhead-os.vercel.app
   Переключатели ВИДА сюда не идут — у них нет панелей, это `aria-pressed`.
   Сторож — `components/Tabs.test.ts` (роли объявляет только примитив;
   исключение одно — `utils/tabs`, сама клавиатурная половина)
+- Чипы: `components/FilterChip` — ПЕРЕКЛЮЧАТЕЛЬ (`aria-pressed`; `expanded`
+  переводит его в раскрытие, `tone` даёт закрытый набор цветов включённого
+  состояния — у списка заказов «Просрочено» красный, «Стоит» янтарный).
+  `components/DictionaryChips` — ПОДСКАЗКА справочника: дописывает значение
+  и никогда не «нажата», `aria-pressed` на ней был бы ложью. Связку
+  `chip + chipBtn` собирают только они; исключение одно и поимённо —
+  чип этапа на доске (это ДЕЙСТВИЕ с цветом от статуса и `disabled`)
 - Примитивы: `components/Modal` (импортирует АГРЕГАТОР `../styles` —
   `.modal`/`.modalOverlay` живут в `screens.module.css`; id для
   `aria-labelledby` из `useId`) и `components/FilterChip`. Сторож —

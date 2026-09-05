@@ -14,6 +14,7 @@ import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
 import { ORDER_STATUS_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
@@ -376,56 +377,42 @@ export default function OrdersScreen() {
               `tabpanel`, `aria-controls` и roving tabindex), а половина хуже
               обычных кнопок — правило проекта. Состояние несёт `aria-pressed`,
               как у соседних фильтров ниже. */}
-          <button
-            type="button"
-            aria-pressed={tab === 'active'}
-            className={`${styles.chip} ${styles.chipBtn} ${tab === 'active' ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => setTab('active')}
-          >
+          <FilterChip active={tab === 'active'} onClick={() => setTab('active')}>
             Активные ({orders.filter((o) => o.status === 'active').length})
-          </button>
-          <button
-            type="button"
-            aria-pressed={tab === 'archive'}
-            className={`${styles.chip} ${styles.chipBtn} ${tab === 'archive' ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => setTab('archive')}
-          >
+          </FilterChip>
+          <FilterChip active={tab === 'archive'} onClick={() => setTab('archive')}>
             Архив{archiveLoaded ? ` (${orders.filter((o) => o.status !== 'active').length})` : ''}
-          </button>
+          </FilterChip>
           {tab === 'active' && (
             <>
-              <button
-                type="button"
-                aria-pressed={filter === 'stopped'}
-                className={`${styles.chip} ${styles.chipBtn} ${filter === 'stopped' ? styles.chipWaiting : styles.chipNeutral}`}
+              {/* Цвет включённого чипа — тот же, каким подписано состояние
+                  в самих строках списка: «Стоит» янтарный, «Готовы» зелёный,
+                  «Просрочено» красный. Общий синий снял бы связь
+                  «фильтр ↔ то, что он отбирает». */}
+              <FilterChip
+                active={filter === 'stopped'} tone="waiting"
                 onClick={() => toggleFilter('stopped')}
               >
                 <Icon name="ban" size={13} /> Стоит ({counts.stopped})
-              </button>
-              <button
-                type="button"
-                aria-pressed={filter === 'ready'}
-                className={`${styles.chip} ${styles.chipBtn} ${filter === 'ready' ? styles.chipReady : styles.chipNeutral}`}
-                                onClick={() => toggleFilter('ready')}
+              </FilterChip>
+              <FilterChip
+                active={filter === 'ready'} tone="ready"
+                onClick={() => toggleFilter('ready')}
               >
                 <Icon name="checkCircle" size={13} /> Готовы к отгрузке ({counts.ready})
-              </button>
-              <button
-                type="button"
-                aria-pressed={filter === 'urgent'}
-                className={`${styles.chip} ${styles.chipBtn} ${filter === 'urgent' ? styles.chipProgress : styles.chipNeutral}`}
-                                onClick={() => toggleFilter('urgent')}
+              </FilterChip>
+              <FilterChip
+                active={filter === 'urgent'}
+                onClick={() => toggleFilter('urgent')}
               >
                 <Icon name="clock" size={13} /> Срок ≤ 3 дней ({counts.urgent})
-              </button>
-              <button
-                type="button"
-                aria-pressed={filter === 'overdue'}
-                className={`${styles.chip} ${styles.chipBtn} ${filter === 'overdue' ? styles.chipBlocked : styles.chipNeutral}`}
-                                onClick={() => toggleFilter('overdue')}
+              </FilterChip>
+              <FilterChip
+                active={filter === 'overdue'} tone="blocked"
+                onClick={() => toggleFilter('overdue')}
               >
                 <Icon name="clock" size={13} /> Просрочено ({counts.overdue})
-              </button>
+              </FilterChip>
             </>
           )}
         </div>

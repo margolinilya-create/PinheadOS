@@ -42,6 +42,7 @@ import {
 import { useDevStageMove } from '../hooks/useDevStageMove';
 import { experimentalDeptEntries } from '../utils/experimentalQueue';
 import { findSupplyDept, openSupplyStages } from '../utils/supply';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 
 /**
@@ -441,33 +442,24 @@ export default function Experimental() {
         searchLabel="Поиск по разработкам"
       >
         {experimentalLoaded && rows.length > 0 && STATE_FILTERS.map((t) => (
-          <button
+          <FilterChip
             key={t.key || 'all'}
-            type="button"
-            aria-pressed={filters.state === t.key}
-            className={`${styles.chip} ${styles.chipBtn} ${filters.state === t.key ? styles.chipProgress : styles.chipNeutral}`}
+            active={filters.state === t.key}
             onClick={() => set({ state: filters.state === t.key ? '' : t.key })}
           >
             <Icon name={t.icon} size={13} /> {t.label} {counts[t.key] > 0 && <b>{counts[t.key]}</b>}
-          </button>
+          </FilterChip>
         ))}
-        <button
-          type="button"
-          aria-pressed={filters.problem}
+        <FilterChip
+          active={Boolean(filters.problem)}
           title="Есть заблокированная задача"
-          className={`${styles.chip} ${styles.chipBtn} ${filters.problem ? styles.chipProgress : styles.chipNeutral}`}
           onClick={() => set({ problem: !filters.problem })}
         >
           <Icon name="ban" size={13} /> С проблемой
-        </button>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          className={`${styles.chip} ${styles.chipBtn} ${expanded ? styles.chipProgress : styles.chipNeutral}`}
-          onClick={() => setExpanded((v) => !v)}
-        >
+        </FilterChip>
+        <FilterChip expanded={expanded} onClick={() => setExpanded((v) => !v)}>
           Фильтры <Icon name="chevronDown" size={13} className={expanded ? styles.chevronUp : undefined} />
-        </button>
+        </FilterChip>
         {hasActiveDevFilters(filters) && (
           <Button variant="ghost" onClick={() => setFilters({ ...EMPTY_DEV_FILTERS })}>
             Сбросить
@@ -539,18 +531,11 @@ export default function Experimental() {
       {experimentalLoaded && hasAnything && (
         <ScrollHintBox className={styles.toolbar} label="Представления раздела">
           {VIEWS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              // Переключатель вида — кнопки с `aria-pressed`, а не `role="tab"`:
-              // половина таб-паттерна хуже, чем обычные кнопки (правило проекта)
-              aria-pressed={view === v}
-              className={`${styles.chip} ${styles.chipBtn} ${
-                view === v ? styles.chipProgress : styles.chipNeutral}`}
-              onClick={() => setView(v)}
-            >
+            /* Переключатель вида — чип с `aria-pressed`, а не `role="tab"`:
+               половина таб-паттерна хуже обычных кнопок (правило проекта) */
+            <FilterChip key={v} active={view === v} onClick={() => setView(v)}>
               {VIEW_LABELS[v]}
-            </button>
+            </FilterChip>
           ))}
         </ScrollHintBox>
       )}

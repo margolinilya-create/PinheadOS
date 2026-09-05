@@ -21,6 +21,7 @@ import { applyStageFilters, filtersFromParams, filtersToParams } from '../utils/
 import { deptShortName, isProductionDept } from '../data/departments';
 import { pluralize } from '../../utils/i18n';
 import { Tabs, TabPanel } from '../components/Tabs';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { Icon } from '../components/Icon';
 import { QueueCard } from './queue/QueueCard';
@@ -519,21 +520,13 @@ export default function DepartmentQueue() {
           которые уезжало содержимое экрана. */}
       {deptCode && (
         <div className={styles.toolbar}>
-          <div role="group" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
-            <button
-              type="button" aria-pressed={view === 'queue'}
-              className={`${styles.chip} ${styles.chipBtn} ${view === 'queue' ? styles.chipProgress : styles.chipNeutral}`}
-              onClick={() => switchView('queue')}
-            >
+          <div role="group" aria-label="Вид" className={styles.filterRow}>
+            <FilterChip active={view === 'queue'} onClick={() => switchView('queue')}>
               <Icon name="queue" size={13} /> Очередь
-            </button>
-            <button
-              type="button" aria-pressed={view === 'plan'}
-              className={`${styles.chip} ${styles.chipBtn} ${view === 'plan' ? styles.chipProgress : styles.chipNeutral}`}
-              onClick={() => switchView('plan')}
-            >
+            </FilterChip>
+            <FilterChip active={view === 'plan'} onClick={() => switchView('plan')}>
               <Icon name="calendar" size={13} /> План
-            </button>
+            </FilterChip>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import styles from '../erp.module.css';
 import { Icon } from './Icon';
 import { DateField } from './DateField';
 import { Button } from '../components/Button';
+import { FilterChip } from './FilterChip';
 
 /**
  * Общая панель фильтров производственных заданий (правка 9) — очередь цеха,
@@ -34,16 +35,14 @@ export function QueueFilters({
   const active = hasActiveFilters(filters);
 
   const toggleChip = (key, label, title) => (
-    <button
+    <FilterChip
       key={key}
-      type="button"
-      aria-pressed={filters[key]}
+      active={Boolean(filters[key])}
       title={title}
-      className={`${styles.chip} ${styles.chipBtn} ${filters[key] ? styles.chipProgress : styles.chipNeutral}`}
-            onClick={() => set({ [key]: !filters[key] })}
+      onClick={() => set({ [key]: !filters[key] })}
     >
       {label}
-    </button>
+    </FilterChip>
   );
 
   return (
@@ -62,11 +61,9 @@ export function QueueFilters({
           выбирается ниже, в раскрытых фильтрах: это уже разбор, а не сигнал.
           Одно поле, два уровня подробности — как «Готово к запуску» и «Статус».
         */}
-        <button
-          type="button"
-          aria-pressed={Boolean(filters.overdue)}
+        <FilterChip
+          active={Boolean(filters.overdue)}
           title="Просроченные по сроку клиента или по плану этапа. Уточнить вид — в фильтрах ниже"
-          className={`${styles.chip} ${styles.chipBtn} ${filters.overdue ? styles.chipProgress : styles.chipNeutral}`}
           onClick={() => set({ overdue: filters.overdue ? '' : 'any' })}
         >
           <Icon name="clock" size={13} />
@@ -74,7 +71,7 @@ export function QueueFilters({
           {filters.overdue && filters.overdue !== 'any'
             ? OVERDUE_FILTER_LABELS[filters.overdue]
             : 'Просрочено'}
-        </button>
+        </FilterChip>
         {toggleChip(
           'problem',
           <><Icon name="ban" size={13} /> С проблемой</>,
@@ -88,25 +85,18 @@ export function QueueFilters({
           Второй вариант отбора («Только серия») живёт в раскрытых фильтрах —
           чип отвечает на частый вопрос, селект на редкий.
         */}
-        <button
-          type="button"
-          aria-pressed={filters.origin === 'experimental'}
+        <FilterChip
+          active={filters.origin === 'experimental'}
           title="Только нанесения и работы по разработкам экспериментального цеха"
-          className={`${styles.chip} ${styles.chipBtn} ${filters.origin === 'experimental' ? styles.chipProgress : styles.chipNeutral}`}
           onClick={() => set({ origin: filters.origin === 'experimental' ? '' : 'experimental' })}
         >
           <Icon name="flask" size={13} />
           {' '}
           Только образцы
-        </button>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          className={`${styles.chip} ${styles.chipBtn} ${expanded ? styles.chipProgress : styles.chipNeutral}`}
-                    onClick={() => setExpanded((v) => !v)}
-        >
+        </FilterChip>
+        <FilterChip expanded={expanded} onClick={() => setExpanded((v) => !v)}>
           Фильтры <Icon name="chevronDown" size={13} className={expanded ? styles.chevronUp : undefined} />
-        </button>
+        </FilterChip>
         {active && (
           <Button variant="ghost" onClick={() => onChange({ ...EMPTY_FILTERS })}>
             Сбросить

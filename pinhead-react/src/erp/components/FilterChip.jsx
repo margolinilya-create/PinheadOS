@@ -13,13 +13,45 @@ import styles from '../erp.module.css';
  * обычной кнопки (записанное правило проекта). Чипы — независимые
  * переключатели, а не вкладки одной панели.
  */
-export function FilterChip({ active = false, onClick, children, label }) {
+/**
+ * ЦВЕТ ВКЛЮЧЁННОГО ЧИПА — ЗАКРЫТЫЙ НАБОР, а не свободный className.
+ *
+ * У списка заказов активный цвет несёт смысл: «Просрочено» красный,
+ * «Стоит» янтарный, «Готовы к отгрузке» зелёный — тот же цвет, каким эти
+ * состояния подписаны в самих строках. Механический перенос на общий синий
+ * перекрасил бы их и снял бы связь «фильтр ↔ то, что он отбирает».
+ *
+ * Именно поэтому параметр, а не проброс класса: свободный `className` вернул бы
+ * ровно ту россыпь копий, ради которой примитив и заведён.
+ */
+const TONE = {
+  progress: 'chipProgress',
+  waiting: 'chipWaiting',
+  ready: 'chipReady',
+  blocked: 'chipBlocked',
+};
+
+export function FilterChip({
+  active = false, onClick, children, label, title, tone = 'progress',
+  /**
+   * РАСКРЫВАЮЩИЙ, А НЕ ПЕРЕКЛЮЧАЮЩИЙ. Кнопка «Фильтры», открывающая
+   * дополнительный блок, — не переключатель состояния, и `aria-pressed`
+   * на ней означал бы неправду: скринридер объявил бы «нажато», хотя
+   * ничего не включено. Вид у неё тот же, поведение другое — поэтому
+   * параметр, а не второй компонент.
+   */
+  expanded,
+}) {
+  const isOn = expanded === undefined ? active : expanded;
   return (
     <button
       type="button"
-      aria-pressed={active}
+      aria-pressed={expanded === undefined ? active : undefined}
+      aria-expanded={expanded}
       aria-label={label}
-      className={`${styles.chip} ${styles.chipBtn} ${active ? styles.chipProgress : styles.chipNeutral}`}
+      title={title}
+      className={`${styles.chip} ${styles.chipBtn} ${
+        isOn ? styles[TONE[tone] ?? TONE.progress] : styles.chipNeutral}`}
       onClick={onClick}
     >
       {children}

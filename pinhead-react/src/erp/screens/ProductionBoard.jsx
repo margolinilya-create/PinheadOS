@@ -29,6 +29,7 @@ import { pluralize } from '../../utils/i18n';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { BoardCardMobile } from './board/BoardCardMobile';
 import { STAGE_STATUS_LABELS } from '../types';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { dueLabelCompact } from '../utils/format';
@@ -286,21 +287,13 @@ export default function ProductionBoard() {
         {/* Не tablist: панели с role="tabpanel" нет, aria-controls нет, стрелочной
             навигации нет — объявлять паттерн вкладок наполовину хуже, чем не
             объявлять. Это переключатель, и aria-pressed описывает его честно. */}
-        <div role="group" aria-label="Вид" style={{ display: 'flex', gap: 6 }}>
-          <button
-            type="button" aria-pressed={view === 'table'}
-            className={`${styles.chip} ${styles.chipBtn} ${view === 'table' ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => switchView('table')}
-          >
+        <div role="group" aria-label="Вид" className={styles.filterRow}>
+          <FilterChip active={view === 'table'} onClick={() => switchView('table')}>
             <Icon name="queue" size={13} /> Таблица
-          </button>
-          <button
-            type="button" aria-pressed={view === 'kanban'}
-            className={`${styles.chip} ${styles.chipBtn} ${view === 'kanban' ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => switchView('kanban')}
-          >
+          </FilterChip>
+          <FilterChip active={view === 'kanban'} onClick={() => switchView('kanban')}>
             <Icon name="board" size={13} /> Канбан
-          </button>
+          </FilterChip>
         </div>
         {view === 'table' && (
           <label className={styles.checkLabel}>

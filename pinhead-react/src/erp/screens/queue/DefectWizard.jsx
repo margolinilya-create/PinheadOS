@@ -3,6 +3,7 @@ import { defaultPlannedEnd } from '../../utils/stagePlan';
 import { Drawer } from '../../components/Drawer';
 import { Button } from '../../components/Button';
 import { Field } from '../../components/Field';
+import { DictionaryChips } from '../../components/DictionaryChips';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import styles from '../../styles';
 import { PhotoAttach } from './PhotoAttach';
@@ -128,20 +129,11 @@ export function DefectWizard({
             autoFocus
           />
           {/* Чип ДОПИСЫВАЕТ причину к набранному тексту, а не затирает его */}
-          {problemTypes.length > 0 && (
-            <div className={styles.checkRow} role="group" aria-label="Типы проблем">
-              {problemTypes.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
-                  onClick={() => setReason((t) => (t.trim() ? `${t.trim()}, ${d.name}` : d.name))}
-                >
-                  {d.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <DictionaryChips
+            items={problemTypes}
+            label="Типы проблем"
+            onPick={(name) => setReason((t) => (t.trim() ? `${t.trim()}, ${name}` : name))}
+          />
           <Field
             label="Причина брака"
             as="textarea"

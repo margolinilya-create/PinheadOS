@@ -86,9 +86,41 @@ describe('примитивы раздела', () => {
     expect(bad, bad.join('\n')).toEqual([]);
   });
 
-  it('FilterChip и Modal существуют и экспортируются', () => {
+  /**
+   * ПРИМИТИВ, КОТОРЫЙ НЕ ПРИНЯЛИ, — ЭТО НЕ ПРИМИТИВ.
+   *
+   * `FilterChip` завели 04.09 со словами «связка повторялась двадцать один
+   * раз» — и приняли её РОВНО В ДВУХ местах. Девятнадцать копий продолжали
+   * жить рядом с примитивом, то есть проблема осталась целиком, а выглядела
+   * решённой: компонент есть, комментарий написан.
+   *
+   * Прежний сторож (выше) проверял лишь «объявлено ли состояние», то есть
+   * защищал копию, а не запрещал её. Этот запрещает: связку `chip + chipBtn`
+   * собирают только примитивы.
+   */
+  it('связку chip+chipBtn собирают только примитивы', () => {
+    /**
+     * ИСКЛЮЧЕНИЕ ОДНО И ПОИМЁННО. Чип этапа на доске — не переключатель
+     * и не подсказка: он ДЕЙСТВИЕ (клик двигает статус), цвет берёт
+     * из статуса, а не из «включён/выключен», и умеет `disabled`.
+     * Примитив на один вызов с уникальным поведением — церемония.
+     */
+    const ALLOWED = [
+      'src/erp/components/FilterChip.jsx',
+      'src/erp/components/DictionaryChips.jsx',
+      'src/erp/screens/ProductionBoard.jsx',
+    ];
+    const offenders = FILES
+      .filter((f) => f.src.includes('styles.chipBtn'))
+      .map((f) => f.rel)
+      .filter((rel) => !ALLOWED.includes(rel));
+    expect(offenders, `${offenders.join(', ')} — соберите чип примитивом`).toEqual([]);
+  });
+
+  it('примитивы существуют и экспортируются', () => {
     const names = FILES.map((f) => f.rel);
     expect(names).toContain('src/erp/components/Modal.jsx');
     expect(names).toContain('src/erp/components/FilterChip.jsx');
+    expect(names).toContain('src/erp/components/DictionaryChips.jsx');
   });
 });

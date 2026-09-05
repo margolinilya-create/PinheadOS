@@ -16,32 +16,10 @@ import { TzBlock } from './TzBlock';
 import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
+import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { useStageMove } from '../../hooks/useStageMove';
 import { deptShortName } from '../../data/departments';
-
-/**
- * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
- * Значение ДОПИСЫВАЕТСЯ к уже набранному, а не затирает его: рабочий мог
- * напечатать половину причины, нажать чип и потерять текст.
- */
-function DictionaryChips({ items, onPick, label }) {
-  if (items.length === 0) return null;
-  return (
-    <div className={styles.checkRow} role="group" aria-label={label}>
-      {items.map((d) => (
-        <button
-          key={d.id}
-          type="button"
-          className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
-          onClick={() => onPick(d.name)}
-        >
-          {d.name}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /**
  * Действия цеха над заданием: «Взять в работу», «Записать результат», «Проблема»,
