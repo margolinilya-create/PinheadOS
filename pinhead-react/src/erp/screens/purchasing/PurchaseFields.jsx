@@ -6,6 +6,7 @@ import { OrderLink } from '../../components/OrderLink';
 import { pluralize } from '../../../utils/i18n';
 import { formatDateShort, procurementSla } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
+import { ACCEPTANCE_ISSUE_LABELS, materialAcceptanceIssue } from '../../utils/supply';
 import {
   KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
 } from './purchaseLabels';
@@ -174,7 +175,19 @@ export function EtaField({ m, onUpdate }) {
 
 /** Приход ведёт журнал приёмок — здесь только чтение */
 export function ReceivedValue({ m }) {
-  if (m.qty_received != null) return `${m.qty_received}${m.unit ? ` ${m.unit}` : ''}`;
+  /**
+   * ПРИНЯТО ПОКАЗЫВАЕТСЯ ПРОТИВ ПЛАНА (обход 04.09). Одно «40» не отвечает
+   * на вопрос закупщика — довезли или нет; «40 из 42» отвечает. План здесь
+   * уже есть в соседней колонке, но в компактной карточке колонок нет,
+   * а именно с планшета с закупкой и работают.
+   */
+  if (m.qty_received != null) {
+    const unit = m.unit ? ` ${m.unit}` : '';
+    const need = Number(m.qty_expected ?? 0);
+    return need > 0
+      ? `${m.qty_received} из ${m.qty_expected}${unit}`
+      : `${m.qty_received}${unit}`;
+  }
   return m.received_at ? formatDateShort(m.received_at) : '—';
 }
 
@@ -196,12 +209,36 @@ export function ResponsibleField({ m, onUpdate }) {
   );
 }
 
-/** Статус подписью + отметка SLA закупки */
+/**
+ * Статус подписью + вердикт склада + отметка SLA закупки.
+ *
+ * ВЕРДИКТ СКЛАДА ЖИВЁТ ЗДЕСЬ, ПОТОМУ ЧТО ЗДЕСЬ ЕГО ЖДУТ (обход 04.09).
+ * Приёмка ставит `status = 'received'` при ЛЮБОМ исходе — и при недостаче,
+ * и при пересорте, и при отказе, — поэтому строка закупки показывала
+ * «Пришло» одинаково во всех случаях. Кладовщик записывал расхождение
+ * и комментарий, а закупщик не видел ни того, ни другого: обратной связи
+ * склад → закупка не было вовсе.
+ *
+ * Компонент один на таблицу и на карточку планшета — второй экземпляр
+ * вердикта разошёлся бы с первым молча.
+ */
 export function StatusCell({ m }) {
   const sla = m.source === 'purchase' ? procurementSla(m.created_at, m.status) : null;
+  const issue = materialAcceptanceIssue(m);
+  /** Что фактически привезли — спрашивается только при пересорте */
+  const fact = [m.fact_name, m.fact_article, m.fact_color].filter(Boolean).join(' · ');
   return (
     <>
       <Badge variant={STATUS_VARIANT[m.status] || 'neutral'}>{MATERIAL_STATUS_LABELS[m.status]}</Badge>
+      {issue && (
+        <div className={styles.subText}>
+          <span className={styles.cellWithIcon}>
+            <Icon name="alert" size={13} /> {ACCEPTANCE_ISSUE_LABELS[issue]}
+          </span>
+          {issue === 'mismatch' && fact && <div>привезли: {fact}</div>}
+          {m.accept_comment && <div>«{m.accept_comment}»</div>}
+        </div>
+      )}
       {sla && (
         <div className={styles.subText}>
           {sla === 'overdue'

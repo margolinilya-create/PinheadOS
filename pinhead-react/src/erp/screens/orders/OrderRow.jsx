@@ -12,13 +12,14 @@ import {
   STAGE_STATUS_LABELS,
 } from '../../types';
 import styles from '../../styles';
+import { Badge } from '../../components/Badge';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 import { formatDateCell } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
-function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
+function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, onToggleDemo }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -79,6 +80,24 @@ function OrderRowBase({ order, departments, onDelete, canDelete, onShip, onToggl
         <td>{totalQty}</td>
         <td>{formatDateShort(order.created_at) || '—'}</td>
         <td><DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} /></td>
+        {/*
+          «СЕЙЧАС» — где заказ и почему стоит (обход 04.09). Колонка «Статус»
+          справа отвечает про сам заказ («В работе» у десяти строк из
+          одиннадцати), а на вопрос, с которым менеджер и приходит в список,
+          не отвечала вовсе: за ним приходилось открывать карточку и листать
+          до таблицы этапов.
+        */}
+        <td className={styles.nowCell}>
+          {now && (
+            <>
+              <span className={styles.nowHead}>
+                <span className={styles.nowWhere} title={now.where}>{now.where}</span>
+                <Badge variant={now.variant}>{now.what}</Badge>
+              </span>
+              {now.why && <div className={styles.subText} title={now.why}>{now.why}</div>}
+            </>
+          )}
+        </td>
         <td>
           {ready ? (
             <span className={`${styles.chip} ${styles.chipReady}`}>

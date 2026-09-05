@@ -131,7 +131,7 @@ export function TzDocsSection({ order, item, deptById }) {
                     <span className={`${styles.chip} ${styles.chipNeutral}`}>общее ТЗ заказа</span>
                   )}
                   {effective?.group_id === doc.group_id && (
-                    <span className={`${styles.chip} ${styles.chipReady}`}>цеха работают по нему</span>
+                    <span className={`${styles.chip} ${styles.chipDone}`}>цеха работают по нему</span>
                   )}
                 </>
               )}

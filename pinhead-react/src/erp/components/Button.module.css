@@ -13,7 +13,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -65,8 +65,8 @@
 .danger:hover:not(:disabled) { filter: brightness(0.94); }
 
 /* ─── Размеры ─── */
-.sm { min-height: 30px; padding: 0 10px; font-size: 12px; }
-.lg { min-height: 46px; padding: 0 18px; font-size: 14px; }
+.sm { min-height: 30px; padding: 0 10px; font-size: var(--type-label); }
+.lg { min-height: 46px; padding: 0 18px; font-size: var(--type-body); }
 
 /* Только иконка — квадрат по высоте размера */
 .iconOnly { padding: 0; width: 36px; }

@@ -4,7 +4,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { PreliminarySection } from './purchasing/PreliminarySection';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { PurchaseRowCard } from './purchasing/PurchaseRowCard';
@@ -38,6 +37,8 @@ import {
   PROCUREMENT_KIND_LABELS,
   PROCUREMENT_STATUS_LABELS,
 } from '../types';
+import { Modal } from '../components/Modal';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
@@ -47,7 +48,9 @@ import { useScrollRestore } from '../../hooks/useScrollRestore';
 /**
  * Закупка (редизайн): плоская таблица закупочных строк по всем активным заказам
  * (KPI-плитки + фильтр по статусу + пагинация), инлайн-правки план/цвет/артикул/статус,
- * «Новая закупка» — модалка добавления материала. Дозакупки/замены — секцией ниже.
+ * «+ Материал» в карточке выбранного заказа — модалка добавления материала
+ * (второй, глобальный вход снят 04.09: заказ уже выбран в мастер-детали).
+ * Дозакупки/замены — секцией ниже.
  * Бизнес-логика (addMaterial/updateMaterial/confirmStockMaterial/procurement) не менялась.
  */
 
@@ -110,10 +113,11 @@ const EMPTY_MAT = {
  * `orderId` предвыбирает заказ: из очереди закупки материал заводят конкретному
  * заказу, и заставлять искать его в списке из полусотни — лишний шаг ровно там,
  * где человек уже сказал, о каком заказе речь.
+ *
+ * Селект заказа остаётся: он показывает, КУДА уедет строка, — а с 04.09
+ * единственный вход в модалку идёт из карточки, то есть приходит заполненным.
  */
 function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
-  // Без трапа Tab уходил под оверлей, а Escape не закрывал — при объявленном aria-modal
-  const trapRef = useFocusTrap(true, onClose);
   const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
   const [saving, setSaving] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -164,9 +168,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   };
 
   return (
-    <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
-      <div ref={trapRef} className={styles.modal} role="dialog" aria-modal="true" aria-label="Новая закупка" onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalTitle}>Новая закупка</div>
+    <Modal title="Новая закупка" onClose={onClose}>
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Заказ</span>
@@ -273,8 +275,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
           <Button variant="ghost" onClick={onClose}>Отмена</Button>
           <Button variant="primary" disabled={saving} onClick={submit}>Добавить</Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -388,11 +389,13 @@ export default function FabricPurchasing() {
     return rows;
   }, [activeOrders, today]);
 
-  const counts = useMemo(() => {
-    const c = { all: allRows.length, awaiting: 0, transit: 0, arrived: 0, overdue: 0 };
-    for (const r of allRows) c[r.group] += 1;
-    return c;
-  }, [allRows]);
+  /**
+   * Счётчики чипов считают ТО ЖЕ, что показывает таблица под ними (обход 04.09).
+   * Они считались по строкам ВСЕХ заказов, а таблица с 23.08 показывает
+   * материалы одного выбранного: человек видел «Ожидают 7», нажимал и получал
+   * две строки. Объявление и `countRows` стоят ниже выбора заказа — иначе
+   * счётчик снова считал бы не то, что видно.
+   */
 
   /**
    * ВЫБРАННЫЙ ЗАКАЗ ЖИВЁТ В АДРЕСЕ (`?supply=`), правка 23.08, п. 1.
@@ -411,6 +414,26 @@ export default function FabricPurchasing() {
     () => selectableOrders.find((o) => o.id === requestedId) ?? null,
     [selectableOrders, requestedId],
   );
+  /**
+   * ЕДИНСТВЕННЫЙ ЗАКАЗ В ОЧЕРЕДИ ОТКРЫВАЕТСЯ САМ (обход 04.09). Экран
+   * встречал закупщика двумя строками и подсказкой «Выберите заказ в списке
+   * выше», хотя выбирать было не из чего: первый экран не показывал работу,
+   * а требовал лишнего действия перед ней. Выбор пишется в адрес тем же
+   * `replace`, что и ручной, — ссылку по-прежнему можно переслать, а история
+   * не засоряется.
+   *
+   * Только при ОДНОМ заказе: при двух и более выбор — это решение человека,
+   * и открывать за него первый попавшийся значит показывать чужую работу.
+   */
+  useEffect(() => {
+    if (!loaded || requestedId || supplyOrders.length !== 1) return;
+    setParams((prev) => {
+      const out = new URLSearchParams(prev);
+      out.set('supply', supplyOrders[0].id);
+      return out;
+    }, { replace: true });
+  }, [loaded, requestedId, supplyOrders, setParams]);
+
   const selectOrder = (id) => {
     setParams((prev) => {
       const out = new URLSearchParams(prev);
@@ -419,6 +442,13 @@ export default function FabricPurchasing() {
     }, { replace: true });
     setPage(1);
   };
+
+  const counts = useMemo(() => {
+    const rows = selectedOrder ? allRows.filter((r) => r.order.id === selectedOrder.id) : allRows;
+    const c = { all: rows.length, awaiting: 0, transit: 0, arrived: 0, overdue: 0 };
+    for (const r of rows) c[r.group] += 1;
+    return c;
+  }, [allRows, selectedOrder]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -546,16 +576,22 @@ export default function FabricPurchasing() {
           search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
           searchPlaceholder="Поиск: заказ, № сделки, материал, артикул, поставщик"
           searchLabel="Поиск по закупке"
-          right={<Button variant="primary" onClick={() => setAdding(true)}>+ Новая закупка</Button>}
+          /*
+            «+ НОВАЯ ЗАКУПКА» СНЯТА (§3.3 обхода 04.09): два входа в одну
+            модалку. Глобальная кнопка спрашивала заказ селектом из полусотни,
+            хотя заказ уже выбран в мастер-детали — с 23.08 экран устроен так,
+            что закупщик сначала открывает заказ, а потом работает по нему.
+            Остался вход В КАРТОЧКЕ («+ Материал»), где заказ известен и его
+            не надо называть второй раз.
+          */
         >
           {TABS.map((f) => (
-            <button
-              key={f.key} type="button" aria-pressed={tab === f.key}
-              className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-                          onClick={() => { setTab(f.key); setPage(1); }}
-            >
+            <FilterChip
+            key={f.key} active={tab === f.key}
+            onClick={() => { setTab(f.key); setPage(1); }}
+          >
               {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
-            </button>
+          </FilterChip>
           ))}
         </FilterBar>
 

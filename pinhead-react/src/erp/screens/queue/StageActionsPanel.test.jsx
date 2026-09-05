@@ -359,3 +359,23 @@ describe('StageActionsPanel — мастер брака', () => {
     expect(handlers.onDefect).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * ИЕРАРХИЯ ДЕЙСТВИЙ (обход 04.09). «Завершить этап» необратимо и пишет весь
+ * тираж, «Записать результат» — обычная дневная сдача. Главной кнопкой стояло
+ * ПЕРВОЕ: самая заметная цель на экране закрывала этап.
+ *
+ * Проверяется КЛАССОМ варианта, а не наличием кнопок: обе были на месте
+ * и раньше — вопрос в том, какая из них выглядит главной.
+ */
+describe('иерархия действий этапа в работе', () => {
+  it('главная кнопка — «Записать результат», а не «Завершить этап»', () => {
+    renderCard(makeEntry('in_progress'));
+    const progress = screen.getByRole('button', { name: /Записать результат/ });
+    const complete = screen.getByRole('button', { name: /Завершить этап/ });
+    // Классы CSS-модуля в тестах — прокси-заглушки с именем ключа
+    expect(progress.className).toMatch(/primary/);
+    expect(complete.className).not.toMatch(/primary/);
+    expect(complete.className).toMatch(/secondary/);
+  });
+});

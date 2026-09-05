@@ -2,9 +2,9 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { AttachmentList } from '../../components/AttachmentList';
 import { taskLabel } from '../../utils/experimentalTasks';
-import { cuttingWaitLabel } from '../../utils/experimentalBoard';
 import { formatDateCell, formatDateTimeShort } from '../../utils/format';
 import styles from '../../styles';
+import { Badge } from '../../components/Badge';
 
 /**
  * Правая колонка карточки разработки (референс заказчика 24.08).
@@ -117,15 +117,21 @@ export function DevAside({
 
           <div style={{ marginTop: 8 }}>
             <span className={styles.fieldLabel}>Материалы</span>
+            {/*
+              ПЕРЕЧЕНЬ МАТЕРИАЛОВ — НЕ ЧИП (обход 04.09). `.chip` объявлен
+              `white-space: nowrap`, и список из трёх позиций вылезал за правый
+              край карточки справки. Чип годится для СЛОВА состояния, а не для
+              перечисления; здесь короткое слово и перечень отдельной строкой,
+              которая переносится.
+            */}
             <div>
               {materialGate.missing.length === 0 ? (
-                <span className={`${styles.chip} ${styles.chipReady}`}>
-                  приняты складом
-                </span>
+                <Badge variant="done">приняты складом</Badge>
               ) : (
-                <span className={`${styles.chip} ${styles.chipWaiting}`}>
-                  {cuttingWaitLabel('materials', materialGate.missing)}
-                </span>
+                <>
+                  <Badge variant="waiting">ожидает материалы</Badge>
+                  <div className={styles.subText}>{materialGate.missing.join(', ')}</div>
+                </>
               )}
               {/* Единственное исключение документа, и сказать о нём надо там же,
                   где человек видит ожидание */}

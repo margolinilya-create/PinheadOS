@@ -44,6 +44,23 @@ function declaredClasses(cssPath: string): Set<string> {
   return out;
 }
 
+/**
+ * Классы, ЛОКАЛЬНЫЕ для модуля: то же, что `declaredClasses`, но без
+ * содержимого `:global(...)`. Глобальное имя (`btn-ghost`) хеша не получает
+ * и адресуется из любого модуля — в пересечения оно не идёт.
+ */
+function localClasses(cssPath: string): Set<string> {
+  const css = withoutComments(readFileSync(cssPath, 'utf8'))
+    .replace(/:global\s*\([^)]*\)/g, ' ');
+  const out = new Set<string>();
+  for (const m of css.matchAll(/([^{}]+)\{/g)) {
+    const selector = m[1];
+    if (selector.includes('@')) continue;
+    for (const c of selector.matchAll(/\.([a-zA-Z][\w-]*)/g)) out.add(c[1]);
+  }
+  return out;
+}
+
 /** Файлы кода раздела (без тестов) */
 function sourceFiles(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -98,7 +115,7 @@ function collect(file: string): Usage | null {
 }
 
 /**
- * Разделение на два модуля держится на четырёх правилах, и каждое куплено
+ * Разделение на два модуля держится на пяти правилах, и каждое куплено
  * падением. Тесты ниже сторожат их, потому что нарушение любого — тихая
  * потеря вида, которую не видит ни typecheck, ни функциональный тест.
  */
@@ -148,6 +165,38 @@ describe('границы между erp.module.css и screens.module.css', () =>
       }
     }
     expect(wrong, 'между чанками порядок не гарантирован:\n' + wrong.join('\n')).toEqual([]);
+  });
+
+  /**
+   * ГЛАВНЫЙ вопрос разделения, которого сторожу не хватало: не «объявлен ли
+   * класс хотя бы в одном модуле», а «В КАКОЙ ИЗ ДВУХ разрешится обращение».
+   *
+   * Агрегатор отдаёт `base[key] ?? screens[key]`, а CSS Modules экспортируют
+   * ВСЯКОЕ локальное имя, встреченное в селекторе, — в том числе в составном
+   * (`.itemRow > :global(.btn-ghost)`). Значит одного упоминания в
+   * `erp.module.css` довольно, чтобы `base[key]` перестал быть `undefined`
+   * и разметка получила хеш файла, где у класса нет НИ ОДНОГО собственного
+   * объявления: элемент рисуется, ничего не падает, меняется только вид.
+   *
+   * Так и было до 04.09 у пяти классов (`itemRow`, `printRow`, `mmLabel`,
+   * `commentForm`, `addMatRow`): форма создания заказа рисовала поля позиции
+   * по одному в строку вместо сетки, без рамки и отступов. Проверено
+   * в браузере: `styles.itemRow` → `_itemRow_1wv3s_1337`, `display: block`.
+   * Прежние проверки были зелёными по построению — они спрашивали не то.
+   *
+   * Правило: правило О САМОМ КЛАССЕ и всякое правило, УТОЧНЯЮЩЕЕ его, живут
+   * в одном модуле. Нужна половина из соседнего — выражайте её `:global`
+   * или селектором элемента, а не именем чужого класса.
+   */
+  it('ни одно локальное имя класса не встречается в обоих модулях', () => {
+    const inBase = localClasses(AGGREGATE_PARTS[0]);
+    const inScreens = localClasses(AGGREGATE_PARTS[1]);
+    const both = [...inScreens].filter((c) => inBase.has(c)).sort();
+    expect(
+      both,
+      'агрегатор отдаст хеш erp.module.css, и правила screens.module.css '
+      + 'не применятся:\n' + both.map((c) => `.${c}`).join('\n'),
+    ).toEqual([]);
   });
 
   /**

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
@@ -10,7 +10,7 @@ import { deptsSettled } from '../store/shared';
 import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { isProductionDept, deptShortName } from '../data/departments';
-import { onTabListKeyDown } from '../utils/tabs';
+import { Tabs, TabPanel } from '../components/Tabs';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { buildQueueEntries } from '../utils/queueEntries';
@@ -89,6 +89,21 @@ export default function PlanScreen() {
   const [openSlot, setOpenSlot] = useState(null);
   const [addTo, setAddTo] = useState(null); // { date, deptId }
   const [drag, setDrag] = useState(null);
+
+  /**
+   * Колонка «сегодня»: доска шире экрана, и на планшете текущий день
+   * оставался за правым краем — экран открывался на понедельнике, когда
+   * работа идёт в четверг. Прокрутка только ГОРИЗОНТАЛЬНАЯ и внутри своего
+   * контейнера: `block: 'nearest'` не даёт странице прыгнуть по вертикали.
+   */
+  const todayRef = useRef(null);
+  useEffect(() => {
+    const el = todayRef.current;
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+    } catch { /* старый браузер — остаёмся на понедельнике, это не поломка */ }
+  }, [monday, deptCode]);
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
@@ -251,25 +266,22 @@ export default function PlanScreen() {
       </div>
 
       <div className={styles.deptTabsWrap}>
-        <div className={styles.deptTabs} role="tablist" aria-label="Выбор цеха" onKeyDown={onTabListKeyDown}>
-          {[{ code: 'all', name: 'Все цеха' }, ...productionDepts].map((d) => (
-            <button
-              key={d.code}
-              type="button"
-              role="tab"
-              aria-controls="plan-tabpanel"
-              aria-selected={deptCode === d.code}
-              tabIndex={deptCode === d.code ? 0 : -1}
-              className={`${styles.deptTab} ${deptCode === d.code ? styles.deptTabActive : ''}`}
-              onClick={() => setParam({ dept: d.code === 'all' ? null : d.code })}
-            >
-              {d.code === 'all' ? d.name : deptShortName(d.code, d.name)}
-            </button>
-          ))}
-        </div>
+        {/* До 05.09 у кнопок тут не было `id`, а у панели — `aria-labelledby`:
+            связь «вкладка ↔ панель» отсутствовала в обе стороны, хотя пять
+            остальных наборов её ставили. Примитив собирает оба конца сам */}
+        <Tabs
+          idPrefix="plan"
+          label="Выбор цеха"
+          tabs={[{ code: 'all', name: 'Все цеха' }, ...productionDepts].map((d) => ({
+            id: d.code,
+            label: d.code === 'all' ? d.name : deptShortName(d.code, d.name),
+          }))}
+          active={deptCode}
+          onSelect={(code) => setParam({ dept: code === 'all' ? null : code })}
+        />
       </div>
 
-      <div id="plan-tabpanel" role="tabpanel">
+      <TabPanel idPrefix="plan" active={deptCode}>
       {/*
         Готовность панели — ТРИ условия, и каждое своё: `planLoaded` отвечает
         за слоты, `loaded` — за заказы, `deptsSettled` — за состав участков.
@@ -293,6 +305,13 @@ export default function PlanScreen() {
         />
       )}
 
+      {/*
+        ТЕКУЩИЙ ДЕНЬ ПОПАДАЕТ В ВИД (обход 04.09). Колонка дня — 300px, доска
+        прокручивается по горизонтали, и на планшете «сегодня» оставалось
+        за правым краем: экран открывался на понедельнике, а работа шла
+        в четверг. Прокрутка ГОРИЗОНТАЛЬНАЯ и внутри своего контейнера —
+        `block: 'nearest'` не даёт странице прыгнуть по вертикали.
+      */}
       {ready && deptCode !== 'all' && (
         <ScrollHintBox className={styles.planBoardWrap} label="Недельный план цеха">
           <div className={styles.planBoard}>
@@ -302,6 +321,7 @@ export default function PlanScreen() {
               return (
                 <section
                   key={date}
+                  ref={date === today ? todayRef : undefined}
                   className={`${styles.planDay} ${date === today ? styles.planDayToday : ''}`}
                   onDragOver={(e) => { if (drag) e.preventDefault(); }}
                   onDrop={(e) => { e.preventDefault(); onDrop(date); }}
@@ -428,7 +448,7 @@ export default function PlanScreen() {
         </section>
       )}
 
-      </div>
+      </TabPanel>
 
       {openSlot && (
         <PlanSlotDrawer

@@ -9,7 +9,6 @@ import {
   useErpStore,
   readyCountFor,
   readyOnlyCountFor,
-  overdueUnackCountFor,
   openWarehouseTaskCount,
   openProcurementCount,
   activeExperimentalCount,
@@ -19,6 +18,9 @@ import { setFeature } from '../../config/features';
 import { storageGet, storageSet, storageGetRaw, storageSetRaw } from '../../lib/storage';
 import { deptsSettled } from '../store/shared';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
+import { orderNotices } from '../utils/notifications';
+import { orderOverdueDays } from '../utils/stageUi';
+import { daysLeft } from '../utils/time';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
 import StaleDataBar from '../components/StaleDataBar';
@@ -113,17 +115,24 @@ export default function ErpLayout({ user, children }) {
   );
 
   /**
-   * Колокол просрочек. У диспетчера, РОПа и директора привязки к конкретному цеху
-   * обычно нет, и бейдж всегда показывал 0 — единственный глобальный индикатор
-   * «что горит» был мёртв именно для тех, кому адресован. Без своего цеха считаем
-   * по всем производственным участкам.
+   * КОЛОКОЛ СЧИТАЕТ ТО, К ЧЕМУ ВЕДЁТ (обход 04.09).
+   *
+   * Он считал просроченные по `planned_end` ЭТАПЫ (`overdueUnackCountFor`),
+   * а вёл на `/#notifications` — виджет, сгруппированный по срокам ЗАКАЗОВ,
+   * блокировкам и дозакупке. Две разные величины у одного индикатора: на снимке
+   * обзора это видно прямо — KPI «Просрочено 1», колокол пуст. Причина
+   * системная: плановая дата ставится только при взятии в работу, и на проде
+   * она была у 16 этапов из 311, то есть единственный глобальный признак
+   * «что горит» показывал почти всегда ноль.
+   *
+   * Теперь источник один — `orderNotices`, тот же, из которого собран виджет.
    */
-  const overdueCount = useMemo(() => {
-    if (myCode) return overdueUnackCountFor(orders, departments, myCode);
-    return departments
-      .filter((d) => d.active && isProductionDept(d))
-      .reduce((sum, d) => sum + overdueUnackCountFor(orders, departments, d.code), 0);
-  }, [orders, departments, myCode]);
+  const overdueCount = useMemo(
+    () => orders
+      .filter((o) => o.status === 'active')
+      .reduce((sum, o) => sum + orderNotices(o, orderOverdueDays(o, daysLeft(o.due_date))).length, 0),
+    [orders],
+  );
 
   // Постоянное меню цехов (правка 1): участок + число заданий в его очереди
   // (готовые к запуску + уже взятые в работу).
@@ -177,6 +186,10 @@ export default function ErpLayout({ user, children }) {
       <a href="#main-content" className={appStyles.skipLink}>Перейти к содержимому</a>
       <Sidebar
         isAdmin={isAdmin}
+        /* Пункт «Мой цех» ведёт в заглушку, когда цеха нет НИ ОТКУДА:
+           ни привязки сотрудника, ни выбранного на экране очереди участка.
+           `myCode` считает ровно то же, что `/queue` (обход 04.09). */
+        hasMyDept={Boolean(myCode)}
         reserveRows={reserveRows}
         counts={counts}
         deptItems={deptItems}
@@ -230,8 +243,10 @@ export default function ErpLayout({ user, children }) {
             type="button"
             className={styles.iconBtn}
             title="Уведомления"
+            /* Имя называет то, что посчитано: в счёте не одни просрочки,
+               а всё, что требует вмешательства (см. `orderNotices`) */
             aria-label={overdueCount > 0
-              ? `Уведомления: просрочено ${overdueCount}`
+              ? `Уведомления: требуют внимания ${overdueCount}`
               : 'Уведомления'}
             onClick={() => navigate('/#notifications')}
           >

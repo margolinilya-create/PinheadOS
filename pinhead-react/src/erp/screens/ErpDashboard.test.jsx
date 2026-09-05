@@ -122,6 +122,26 @@ describe('ErpDashboard — уведомления сгруппированы п�
     };
   };
 
+  /**
+   * §2.4 обхода 04.09: «что горит» стояло ПОСЛЕДНИМ блоком из семи — полтора
+   * экрана прокрутки на 1280×800 и два с половиной на планшете, притом что
+   * колокол в шапке ведёт именно сюда. Порядок теперь отвечает на вопросы
+   * в том порядке, в каком их задают.
+   *
+   * Сторож смотрит ПОЛОЖЕНИЕ В ДОКУМЕНТЕ, а не наличие блока: наличие было
+   * и до правки. `compareDocumentPosition` — единственный способ спросить
+   * «что выше» у разметки, не завися от классов и раскладки.
+   */
+  it('уведомления стоят выше «Заказов в работе» и «Быстрых действий»', () => {
+    renderDashboard([late('a', 3)]);
+    const notif = document.querySelector('#notifications');
+    const inWork = screen.getByText('Заказы в работе');
+    const quick = screen.getByText('Быстрые действия');
+    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(notif.compareDocumentPosition(inWork) & FOLLOWING).toBeTruthy();
+    expect(notif.compareDocumentPosition(quick) & FOLLOWING).toBeTruthy();
+  });
+
   it('срочная группа развёрнута, давняя — свёрнута со счётчиком', () => {
     renderDashboard([late('a', 3), late('b', 20), late('c', 90)]);
     const week = screen.getByText('Горит: просрочка до недели').closest('details');

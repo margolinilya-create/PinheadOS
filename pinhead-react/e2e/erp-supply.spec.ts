@@ -96,13 +96,27 @@ const ORDER_PARTIAL = {
     {
       id: 'ord-f-m1', order_id: 'ord-f', item_id: null, kind: 'fabric',
       name: 'Футер петля, серый', source: 'purchase', qty: '90 кг',
-      qty_expected: 90, status: 'received', eta_date: null, received_at: FX_CREATED,
+      // Приёмка склада обязательна: с 04.09 один `received` «на месте»
+      // не означает — `erp_material_accept` ставит его при любом исходе
+      qty_expected: 90, status: 'received', accept_status: 'accepted_full',
+      eta_date: null, received_at: FX_CREATED,
       notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
     },
     {
       id: 'ord-f-m2', order_id: 'ord-f', item_id: null, kind: 'labels',
       name: 'Бирки картонные', source: 'purchase', qty: '60 шт',
       qty_expected: 60, status: 'pending', eta_date: '2026-07-25', received_at: null,
+      notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+    },
+    {
+      // Обратная связь склад → закупка (обход 04.09): приёмка ставит
+      // `received` при ЛЮБОМ исходе, и до правки строка показывала «Пришло»
+      // и при недостаче, и при отказе
+      id: 'ord-f-m3', order_id: 'ord-f', item_id: null, kind: 'hardware',
+      name: 'Молния витая', source: 'purchase', qty: '60 шт',
+      qty_expected: 60, qty_received: 45, status: 'received',
+      accept_status: 'shortage', accept_comment: 'привезли 45 из 60',
+      eta_date: null, received_at: FX_CREATED,
       notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
     },
   ],
@@ -146,6 +160,32 @@ const supplyRow = (
 /** «Открыть» в таблице, «Открыть закупку» в карточке: подпись без шапки полнее */
 const OPEN = { name: /^Открыть/ };
 
+/**
+ * ЕДИНСТВЕННЫЙ ЗАКАЗ ОТКРЫВАЕТСЯ САМ (обход 04.09).
+ *
+ * Экран встречал закупщика подсказкой «Выберите заказ в списке выше» даже
+ * тогда, когда выбирать было не из чего: первый экран не показывал работу,
+ * а требовал лишнего действия перед ней.
+ *
+ * Своя фикстура из ОДНОГО заказа: базовые две — это как раз тот случай,
+ * когда выбирать должен человек, и на них правило нечем нарушить.
+ */
+test.describe('Закупка: единственный заказ', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, { orders: [ORDER_PARTIAL] });
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
+
+  test('карточка закупки открыта сразу, без лишнего выбора', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await expect(page.getByRole('heading', { name: 'Закупка' })).toBeVisible();
+
+    // Выбор виден в адресе — ссылку по-прежнему можно переслать
+    await expect.poll(() => new URL(page.url()).searchParams.get('supply')).toBeTruthy();
+    await expect(page.getByText('Выберите заказ в списке выше')).toHaveCount(0);
+  });
+});
+
 test.describe('Очередь закупки (правка 12.08)', () => {
   test('заказ БЕЗ материалов виден и говорит об этом прямо', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
@@ -182,7 +222,26 @@ test.describe('Очередь закупки (правка 12.08)', () => {
 
   test('материалы показаны прогрессом «N из M»', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
-    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('1 из 2');
+    // Три позиции, «на месте» одна: вторая ещё не пришла, третью склад
+    // принял с недостачей — то есть закупка по ней не закончена
+    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('1 из 3');
+  });
+
+  /**
+   * §3.3 обхода 04.09: результат приёмки склада закупщику не был виден НИГДЕ.
+   * Недостача, пересорт, отказ и комментарий кладовщика не показывались
+   * в строке материала и не считались плиткой «Проблемы» — обратной связи
+   * склад → закупка не существовало вовсе.
+   */
+  test('вердикт склада виден в карточке закупки и считается «Проблемой»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0&supply=ord-f');
+    const card = page.getByRole('region', { name: /Закупка по заказу/ })
+      .or(page.locator('main'));
+    await expect(card.getByText('Недостача').first()).toBeVisible();
+    await expect(card.getByText(/привезли 45 из 60/).first()).toBeVisible();
+    // Плитка «Проблемы» — та же величина, что и вердикт: считает `supplyMaterialSummary`
+    const tile = page.getByText('Проблемы', { exact: true }).locator('..');
+    await expect(tile).toContainText('1');
   });
 
   /**

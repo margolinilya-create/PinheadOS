@@ -37,13 +37,12 @@ import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
 import { DevDeptQueue } from './experimental/DevDeptQueue';
 import {
-  DEV_BRANDING_DEPT_CODE, DEV_BRANDING_TASK_TYPES, devBrandingFromPrints,
+  DEV_BRANDING_DEPT_CODE, devBrandingFromPrints, devBrandingOpen,
 } from '../utils/experimentalBoard';
-import { devMovePrompt } from '../utils/devBoardMove';
-import { devOwnStageToClose, devStageRemainder } from '../utils/devOwnStage';
-import { confirmWithInput } from '../../store/useConfirmStore';
+import { useDevStageMove } from '../hooks/useDevStageMove';
 import { experimentalDeptEntries } from '../utils/experimentalQueue';
 import { findSupplyDept, openSupplyStages } from '../utils/supply';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 
 /**
@@ -60,19 +59,20 @@ import styles from '../styles';
  */
 
 /** Плитки-состояния в порядке срочности: сначала то, где нужно вмешаться */
-const STATE_TILES = [
+/* Состояния разработки для отбора: рисуются чипами в тулбаре (обход 04.09) */
+const STATE_FILTERS = [
   // «Все», а не «Все разработки»: так теперь называется ВИД раздела (документ
   // 20.08), и две одинаковые подписи рядом означали бы два разных действия
-  { key: '', icon: 'orders', label: 'Все', cls: '' },
-  { key: 'new', icon: 'plus', label: DEV_STATE_LABELS.new, cls: '' },
-  { key: 'in_progress', icon: 'flask', label: DEV_STATE_LABELS.in_progress, cls: '' },
-  { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention, cls: 'kpiIconDanger' },
-  { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting, cls: '' },
-  { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready, cls: 'kpiIconOk' },
+  { key: '', icon: 'orders', label: 'Все' },
+  { key: 'new', icon: 'plus', label: DEV_STATE_LABELS.new },
+  { key: 'in_progress', icon: 'flask', label: DEV_STATE_LABELS.in_progress },
+  { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention },
+  { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting },
+  { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready },
   // Переданные на склад (правка 30.08, п. 4) — последними: работа ЭКС по ним
   // закончена, и вмешательства они не требуют. С доски они уходят, но из
   // списка нет: это история, а не активная работа
-  { key: 'handed', icon: 'box', label: DEV_STATE_LABELS.handed, cls: '' },
+  { key: 'handed', icon: 'box', label: DEV_STATE_LABELS.handed },
 ];
 
 /**
@@ -146,8 +146,7 @@ export default function Experimental() {
    */
   const {
     orders, departments, loaded, loadError, loadAll,
-    experimental, experimentalLoaded, experimentalError, loadExperimental, updateExperimental,
-    addDevTasks, sendDevTaskToDept, reportProgress,
+    experimental, experimentalLoaded, experimentalError, loadExperimental,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -159,10 +158,6 @@ export default function Experimental() {
       experimentalLoaded: s.experimentalLoaded,
       experimentalError: s.experimentalError,
       loadExperimental: s.loadExperimental,
-      updateExperimental: s.updateExperimental,
-      addDevTasks: s.addDevTasks,
-      sendDevTaskToDept: s.sendDevTaskToDept,
-      reportProgress: s.reportProgress,
     })),
   );
   const navigate = useNavigate();
@@ -209,110 +204,15 @@ export default function Experimental() {
    * зовёт `erp_stage_report_progress`, а та сама ставит `done`, когда тираж
    * добран. Абсолют с клиента был бы потерянным обновлением.
    */
-  const closeOwnStage = useCallback(async (dev, from) => {
-    const order = orders.find((o) => o.id === dev.order_id);
-    const item = (order?.items ?? []).find((it) => it.id === dev.item_id);
-    if (!item) return;
-    const target = devOwnStageToClose({ from, stages: item.stages, departments });
-    if (!target) return;
-    const rest = devStageRemainder(target, item.qty);
-    if (rest > 0) {
-      await reportProgress(target.id, rest, { comment: 'Этап закрыт переносом карточки ЭКС' });
-    }
-  }, [orders, departments, reportProgress]);
+  /**
+   * Перенос карточки уехал в `hooks/useDevStageMove` (§3.6 обхода 04.09):
+   * со СТРАНИЦЫ разработки — основного места работы технолога с 22.08 —
+   * карточку перенести было нельзя, хотя диалоги обещают «перейдёт».
+   * Логика одна на обе поверхности; порядок «закрыть свой этап → записать
+   * колонку → завести нанесения» повторять второй раз нельзя.
+   */
+  const { moveDevStage } = useDevStageMove();
 
-  const moveDevStage = useCallback(async (devId, stage) => {
-    const dev = experimental.find((e) => e.id === devId);
-    if (!dev) return false;
-    const from = dev.board_stage ?? 'patterns';
-
-    const prompt = devMovePrompt(from, stage, dev);
-    if (prompt) {
-      const { ok: confirmed, value } = await confirmWithInput({
-        title: prompt.title,
-        message: 'Название сохранится в карточке разработки и в финальном пакете.',
-        confirmLabel: prompt.confirmLabel,
-        prompt: { label: prompt.label, required: true, initialValue: prompt.initialValue },
-      });
-      if (!confirmed) return false;
-      /**
-       * Сперва название, потом колонка. Обратный порядок оставил бы карточку
-       * в «Крое» с незаписанным названием — то есть этап, объявленный
-       * завершённым, без своего результата.
-       */
-      const saved = await updateExperimental(devId, { [prompt.field]: value.trim() });
-      if (!saved) return false;
-    }
-
-    /**
-     * ПОРЯДОК ОБЯЗАТЕЛЕН — и остаётся обязательным ради РАЗРАБОТОК, ЗАВЕДЁННЫХ
-     * ДО 02.09: сначала закрыть покидаемый собственный этап, потом писать
-     * колонку и заводить работу нанесений. У таких образцов этап нанесения
-     * стоит в маршруте и зависит от кроя (`depends_on = ['cutting']`), то есть
-     * до его закрытия висит в `waiting` — цех такой работы не видит. Обратный
-     * порядок привязал бы задачу разработки к невидимому этапу, и «Нанесения»
-     * встали бы молча.
-     *
-     * У образцов, заведённых после 02.09, собственных этапов маршрута нет
-     * вовсе (`BASE_CHAIN.samples` — одна закупка), и `closeOwnStage` для них
-     * ничего не делает: `devOwnStageToClose` отвечает `null` — «закрывать
-     * нечего», а не «забыли».
-     */
-    await closeOwnStage(dev, from);
-
-    if (stage !== 'branding') return updateExperimental(devId, { board_stage: stage });
-
-    /**
-     * Виды нанесений и их порядок — из позиции заказа.
-     *
-     * НАНЕСЕНИЙ НЕТ — ШАГ ПРОПУСКАЕТСЯ (прежнее поведение пустого выбора,
-     * п. 4.2 от 24.08: «если нанесения не нужны, технолог переносит карточку
-     * сразу из Кроя в Пошив»). Оставить карточку в пустых «Нанесениях»
-     * значило бы завести стоянку, из которой человека никто не позовёт:
-     * автопереход считает закрытие задач, а их нет.
-     */
-    const item = orders
-      .flatMap((o) => o.items ?? [])
-      .find((it) => it.id === dev.item_id);
-    const types = devBrandingFromPrints(item?.prints);
-    if (types.length === 0) {
-      return updateExperimental(devId, { board_stage: 'sewing' });
-    }
-
-    /**
-     * ПОРЯДОК ОСОЗНАННЫЙ: сначала колонка, потом задачи. Перенос — то, что
-     * человек нажал, и он обязан состояться; при сбое на задачах карточка
-     * стоит в «Нанесениях» с пустой дорожкой «Ожидает» — состояние видимое
-     * и поправимое. Обратный порядок дал бы задачи в цехах при карточке,
-     * оставшейся в «Крое»: работа идёт, а на доске её нет.
-     *
-     * Одной транзакцией это не делается и не должно: `erp_experimental_add_tasks`
-     * заводит задачи атомарно сам, а отправка в цех — отдельное действие
-     * над каждой задачей, у которого свои права и свой отказ.
-     *
-     * Уже заведённые виды не дублируются: повторный вход в «Нанесения»
-     * (например, после отката назад) не должен второй раз слать ту же
-     * работу в цех.
-     */
-    const ok = await updateExperimental(devId, { board_stage: 'branding' });
-    if (!ok) return false;
-
-    const existing = new Set((dev.tasks ?? []).map((t) => t.task_type));
-    const fresh = types.filter((t) => !existing.has(t));
-    if (fresh.length === 0) return true;
-
-    const created = await addDevTasks(
-      devId,
-      fresh.map((t, i) => ({ task_type: t, sort_order: 100 + i * 10 })),
-    );
-    for (const task of created ?? []) {
-      const dept = departments.find(
-        (d) => d.code === DEV_BRANDING_DEPT_CODE[task.task_type]);
-      if (dept) await sendDevTaskToDept(task.id, { department_id: dept.id });
-    }
-    return true;
-  }, [experimental, orders, updateExperimental, addDevTasks, sendDevTaskToDept,
-    departments, closeOwnStage]);
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
     () => new Map((typeDict ?? []).map((d) => [d.code, d.name])), [typeDict]);
@@ -442,20 +342,17 @@ export default function Experimental() {
    * «что считается нанесением образца» не появляется.
    */
   /**
-   * ОБЩИЙ ЦЕХ ЕЩЁ РАБОТАЕТ (правка 01.09, вторая итерация, п. 1). Формула
-   * дословно та же, что у серверного автоперехода `erp_dev_branding_advance`:
-   * задача нанесения вне ('done','cancelled'). Статус задачи ведёт триггер
-   * от статуса ЭТАПА, поэтому это и есть «цех фактически закрыл», а не
-   * отдельное мнение доски.
+   * ОБЩИЙ ЦЕХ ЕЩЁ РАБОТАЕТ (правка 01.09, вторая итерация, п. 1). Формула —
+   * `devBrandingOpen`, дословно та же, что у серверного автоперехода
+   * `erp_dev_branding_advance`: задача нанесения вне ('done','cancelled').
+   * Статус задачи ведёт триггер от статуса ЭТАПА, поэтому это и есть «цех
+   * фактически закрыл», а не отдельное мнение доски.
+   *
+   * До 05.09 формула была выражением ЗДЕСЬ, а страница разработки держала
+   * свою копию — и копия успела разойтись (`!== 'done'` без `'cancelled'`).
    */
   const brandingOpenByDev = useMemo(
-    () => new Map(experimental.map((dev) => [
-      dev.id,
-      (dev.tasks ?? []).some(
-        (t) => DEV_BRANDING_TASK_TYPES.includes(t.task_type)
-          && t.status !== 'done' && t.status !== 'cancelled',
-      ),
-    ])),
+    () => new Map(experimental.map((dev) => [dev.id, devBrandingOpen(dev.tasks)])),
     [experimental],
   );
 
@@ -476,7 +373,7 @@ export default function Experimental() {
    * список состояний вырос, а этот объект остался прежним.
    */
   const counts = useMemo(() => {
-    const c = Object.fromEntries(STATE_TILES.map((t) => [t.key, 0]));
+    const c = Object.fromEntries(STATE_FILTERS.map((t) => [t.key, 0]));
     c[''] = rows.length;
     for (const r of rows) c[r.state] = (c[r.state] ?? 0) + 1;
     return c;
@@ -530,51 +427,39 @@ export default function Experimental() {
         sub="Разработка изделия: набор нужных задач, параллельная работа, циклы доработки и финальное решение. Работа образца в цехе видна в очереди самого цеха."
       />
 
-      {experimentalLoaded && rows.length > 0 && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {STATE_TILES.map((t) => (
-            <button
-              key={t.key || 'all'}
-              type="button"
-              className={styles.kpiCard}
-              aria-pressed={filters.state === t.key}
-              onClick={() => set({ state: filters.state === t.key ? '' : t.key })}
-            >
-              <span className={`${styles.kpiIcon} ${t.cls ? styles[t.cls] : ''}`}>
-                <Icon name={t.icon} size={20} />
-              </span>
-              <span className={styles.kpiBody}>
-                <span className={styles.kpiCardLabel}>{t.label}</span>
-                <span className={styles.kpiCardValue}>{counts[t.key]}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      {/*
+        СОСТОЯНИЯ — ЧИПАМИ, А НЕ ПЛИТКАМИ (обход 04.09). Семь плиток по 90px
+        плюс поиск, фильтры и одиннадцать чипов видов отодвигали доску —
+        «главный экран» раздела по документу — на y≈520 из 800: в первый
+        экран попадала одна колонка и половина карточки. Плитки и чипы делают
+        здесь одну работу (отбор), и двух видов у одной работы быть не должно;
+        счётчики никуда не делись, они при чипах.
+      */}
       <FilterBar
         search={filters.q}
         onSearch={(v) => set({ q: v })}
         searchPlaceholder="Поиск: изделие, заказ, № сделки"
         searchLabel="Поиск по разработкам"
       >
-        <button
-          type="button"
-          aria-pressed={filters.problem}
+        {experimentalLoaded && rows.length > 0 && STATE_FILTERS.map((t) => (
+          <FilterChip
+            key={t.key || 'all'}
+            active={filters.state === t.key}
+            onClick={() => set({ state: filters.state === t.key ? '' : t.key })}
+          >
+            <Icon name={t.icon} size={13} /> {t.label} {counts[t.key] > 0 && <b>{counts[t.key]}</b>}
+          </FilterChip>
+        ))}
+        <FilterChip
+          active={Boolean(filters.problem)}
           title="Есть заблокированная задача"
-          className={`${styles.chip} ${styles.chipBtn} ${filters.problem ? styles.chipProgress : styles.chipNeutral}`}
           onClick={() => set({ problem: !filters.problem })}
         >
           <Icon name="ban" size={13} /> С проблемой
-        </button>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          className={`${styles.chip} ${styles.chipBtn} ${expanded ? styles.chipProgress : styles.chipNeutral}`}
-          onClick={() => setExpanded((v) => !v)}
-        >
+        </FilterChip>
+        <FilterChip expanded={expanded} onClick={() => setExpanded((v) => !v)}>
           Фильтры <Icon name="chevronDown" size={13} className={expanded ? styles.chevronUp : undefined} />
-        </button>
+        </FilterChip>
         {hasActiveDevFilters(filters) && (
           <Button variant="ghost" onClick={() => setFilters({ ...EMPTY_DEV_FILTERS })}>
             Сбросить
@@ -646,18 +531,11 @@ export default function Experimental() {
       {experimentalLoaded && hasAnything && (
         <ScrollHintBox className={styles.toolbar} label="Представления раздела">
           {VIEWS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              // Переключатель вида — кнопки с `aria-pressed`, а не `role="tab"`:
-              // половина таб-паттерна хуже, чем обычные кнопки (правило проекта)
-              aria-pressed={view === v}
-              className={`${styles.chip} ${styles.chipBtn} ${
-                view === v ? styles.chipProgress : styles.chipNeutral}`}
-              onClick={() => setView(v)}
-            >
+            /* Переключатель вида — чип с `aria-pressed`, а не `role="tab"`:
+               половина таб-паттерна хуже обычных кнопок (правило проекта) */
+            <FilterChip key={v} active={view === v} onClick={() => setView(v)}>
               {VIEW_LABELS[v]}
-            </button>
+            </FilterChip>
           ))}
         </ScrollHintBox>
       )}

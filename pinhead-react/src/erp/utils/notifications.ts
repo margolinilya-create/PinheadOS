@@ -14,6 +14,8 @@
  * Чистая функция: экран только рисует результат.
  */
 
+import { hasOpenProcurement } from './routes';
+
 import { overdueBucket } from './format';
 
 export type NoticeKind = 'blocked' | 'overdue' | 'procurement';
@@ -96,6 +98,55 @@ const GROUPS: Array<Omit<NoticeGroup, 'items'> & { match: (n: Notice) => boolean
  * по величине — самый давний сверху, потому что решение по нему дороже всего
  * откладывать. Порядок групп фиксирован описанием, а не данными.
  */
+/**
+ * Уведомления по ОДНОМУ заказу — единственное место, где решается, что считать
+ * поводом вмешаться.
+ *
+ * ЗАЧЕМ ВЫНЕСЕНО. Список строился прямо в «Обзоре», а колокол в шапке считал
+ * СВОЮ величину — просроченные по `planned_end` этапы (`overdueUnackCountFor`).
+ * Плановая дата ставится только при взятии в работу, поэтому на проде она была
+ * у 16 этапов из 311: единственный глобальный индикатор «что горит» считал
+ * почти всегда ноль и вёл при этом на виджет, сгруппированный совсем по другому.
+ * На снимке обзора это видно прямо: KPI «Просрочено 1», колокол пуст.
+ *
+ * `lateDays` приходит параметром, а не считается здесь: у вызывающих он уже
+ * есть, а модуль не должен зависеть от «сегодня» (то же правило, что
+ * у `isOrderOverdue`).
+ */
+export function orderNotices(order: NoticeOrder, lateDays: number): Notice[] {
+  const out: Notice[] = [];
+  const num = order.bitrix_id || '—';
+  if (hasOpenProcurement(order.procurement_tasks)) {
+    out.push({
+      id: `p-${order.id}`, orderId: order.id, kind: 'procurement',
+      text: `Дозакупка по заказу №${num}`, sub: order.title ?? '',
+    });
+  }
+  if (lateDays > 0) {
+    out.push({
+      id: `o-${order.id}`, orderId: order.id, kind: 'overdue',
+      text: `Просрочен заказ №${num}`, sub: order.title ?? '', overdueDays: lateDays,
+    });
+  }
+  // Остановленный этап — единственное, что нельзя «подождать»: цех стоит
+  if ((order.items ?? []).some((it) => (it.stages ?? []).some((st) => st.status === 'blocked'))) {
+    out.push({
+      id: `b-${order.id}`, orderId: order.id, kind: 'blocked',
+      text: `Остановлен этап по заказу №${num}`, sub: order.title ?? '',
+    });
+  }
+  return out;
+}
+
+/** Минимум заказа, из которого строятся уведомления */
+export interface NoticeOrder {
+  id: string;
+  title?: string | null;
+  bitrix_id?: string | null;
+  procurement_tasks?: { source_stage_id: string | null; status: string }[] | null;
+  items?: { stages?: { status: string }[] }[] | null;
+}
+
 export function groupNotices(notices: Notice[]): NoticeGroup[] {
   const out: NoticeGroup[] = [];
   for (const g of GROUPS) {

@@ -11,6 +11,9 @@ import { BYPASS_KINDS, BYPASS_KIND_HINTS, BYPASS_KIND_LABELS } from '../../types
 import { activeBypasses } from '../../utils/bypass';
 import styles from '../../styles';
 
+/** Сентинел «вся система» в селекте: в базе это `null`, а пустая строка — «не выбрано» */
+const ALL_ORDERS = 'ALL';
+
 /**
  * Аварийный режим: временно снять блокирующую проверку.
  *
@@ -41,6 +44,11 @@ export function BypassTab() {
   const canManage = access.can('bypass.manage');
 
   const [kind, setKind] = useState(BYPASS_KINDS[0]);
+  /**
+   * Область снятия. Пустая строка — «человек ещё не выбрал», и это НЕ то же
+   * самое, что «вся система»: в базе система обозначена `null`, а до выбора
+   * действие заблокировано.
+   */
   const [orderId, setOrderId] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,8 +69,28 @@ export function BypassTab() {
   );
 
   const submit = async () => {
+    /**
+     * ПОДТВЕРЖДЕНИЕ СТОИТ НА СНЯТИИ, А НЕ ТОЛЬКО НА ВОЗВРАТЕ (обход 04.09).
+     * Было наоборот: возврат проверки — действие безопасное, «стало как
+     * задумано» — спрашивал, а снятие, открывающее производству работу
+     * без материалов или без ТЗ, выполнялось с первого нажатия. Диалог
+     * называет ПОСЛЕДСТВИЕ и область, а не механику: «вся система» —
+     * это все заказы разом, и увидеть это человек обязан до нажатия,
+     * а не в списке снятых после.
+     */
+    const scope = orderId === ALL_ORDERS
+      ? 'ВСЕЙ СИСТЕМЕ — всем заказам разом'
+      : `заказу «${orderTitle(orderId)}»`;
+    const ok = await confirm({
+      title: 'Снять проверку?',
+      message: `${BYPASS_KIND_HINTS[kind]}. Действует по ${scope}. Снятие видно цеху в очереди и остаётся в журнале.`,
+      confirmLabel: 'Снять проверку',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
-    const created = await createBypass(kind, orderId || null, reason);
+    // `null` в базе означает «вся система»; сентинел живёт только в форме
+    const created = await createBypass(kind, orderId === ALL_ORDERS ? null : orderId, reason);
     setBusy(false);
     if (created) {
       setReason('');
@@ -102,8 +130,16 @@ export function BypassTab() {
       {!bypassesLoaded && !bypassesError && (
         <p className={styles.subText}>Проверяем, не снята ли где-то блокировка…</p>
       )}
+      {/*
+        ГЛАВНЫЙ ОТВЕТ ЭКРАНА НАБРАН КАК ГЛАВНЫЙ (обход 04.09). «Все проверки
+        действуют» — то, ради чего сюда и заходят, — стояло 12-м кеглем
+        служебного `subText`, вровень со строкой загрузки. Состояние системы
+        безопасности не бывает примечанием.
+      */}
       {bypassesLoaded && !bypassesError && active.length === 0 ? (
-        <p className={styles.subText}>Все проверки действуют.</p>
+        <p className={styles.bypassOk}>
+          <Icon name="checkCircle" size={16} /> Все проверки действуют
+        </p>
       ) : (
         <div className={styles.matSection}>
           <h3 className={styles.fieldLabel}>Сейчас сняты</h3>
@@ -136,29 +172,52 @@ export function BypassTab() {
           <h3 className={styles.fieldLabel}>Снять проверку</h3>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Что снимаем</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              aria-describedby="bypass-kind-hint"
+            >
               {BYPASS_KINDS.map((k) => (
                 <option key={k} value={k}>{BYPASS_KIND_LABELS[k]}</option>
               ))}
             </select>
-            <span className={styles.queueReason}>{BYPASS_KIND_HINTS[kind]}</span>
           </label>
+          {/*
+            ПОДСКАЗКА ВЫНЕСЕНА ИЗ ЯРЛЫКА (обход 04.09): внутри `<label>` она
+            становилась частью доступного имени поля, и скринридер читал
+            «Что снимаем Цех сможет взять задание, пока склад…» вместо
+            названия поля. Связь — `aria-describedby`: подсказка остаётся
+            прочитанной, но после имени и как описание.
+          */}
+          <p id="bypass-kind-hint" className={styles.queueReason}>{BYPASS_KIND_HINTS[kind]}</p>
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Где</span>
-            <select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
-              <option value="">Вся система</option>
+            {/*
+              ПО УМОЛЧАНИЮ ВЫБОР НЕ СДЕЛАН (обход 04.09). Стояла «Вся система» —
+              самый широкий из возможных вариантов, при том что подсказка рядом
+              советует снимать точечно. Умолчание — это рекомендация, и оно
+              не должно рекомендовать худшее; пустое значение заставляет назвать
+              область явно, а submit заблокирован, пока она не названа.
+            */}
+            <select
+              value={orderId}
+              onChange={(e) => setOrderId(e.target.value)}
+              aria-describedby="bypass-scope-hint"
+            >
+              <option value="">— выберите —</option>
+              <option value={ALL_ORDERS}>Вся система (все заказы)</option>
               {activeOrders.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.title || o.bitrix_id || o.id.slice(0, 8)}
                 </option>
               ))}
             </select>
-            <span className={styles.queueReason}>
-              Один застрявший заказ лучше снимать точечно — остальное производство
-              продолжит работать по обычным правилам.
-            </span>
           </label>
+          <p id="bypass-scope-hint" className={styles.queueReason}>
+            Один застрявший заказ лучше снимать точечно — остальное производство
+            продолжит работать по обычным правилам.
+          </p>
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Причина</span>
@@ -173,7 +232,7 @@ export function BypassTab() {
 
           <Button
             variant="danger"
-            disabled={busy || reason.trim().length === 0}
+            disabled={busy || reason.trim().length === 0 || orderId === ''}
             onClick={submit}
           >
             Снять проверку

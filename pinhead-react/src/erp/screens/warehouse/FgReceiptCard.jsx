@@ -60,7 +60,7 @@ export function FgReceiptCard({ order, task, onSubmit }) {
           <span className={styles.subText}>Приёмка готовой продукции</span>
           <div><strong>№{order.bitrix_id || '—'} · {order.title}</strong></div>
         </div>
-        {done && <span className={`${styles.chip} ${styles.chipReady}`}>Принято на склад</span>}
+        {done && <span className={`${styles.chip} ${styles.chipDone}`}>Принято на склад</span>}
       </div>
 
       <span className={styles.queueReason}>

@@ -22,6 +22,7 @@ import {
   SUBCONTRACT_SEND_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
 } from '../types';
+import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
 import { FgReceiptCard } from './warehouse/FgReceiptCard';
@@ -131,6 +132,34 @@ function taskSummary(order, task) {
 }
 
 /**
+ * СРОК ЗАДАЧИ — СВОЙ ЛИБО СРОК ЗАКАЗА (§3.4 обхода 04.09).
+ *
+ * Колонка «Срок» читала только `erp_warehouse_tasks.deadline`, а его не ставит
+ * никто: на боевой базе он пуст у ВСЕХ 84 задач, включая маркировку, где поле
+ * ввода есть. Колонка стояла прочерками, а величина, по которой склад
+ * действительно расставляет приоритет, — срок сдачи ЗАКАЗА — не показывалась
+ * нигде. Собственный срок сильнее: он для того и заводится, чтобы отличаться
+ * от заказного; `own` отвечает, чей срок показан, — иначе две разные величины
+ * в одной колонке неразличимы.
+ */
+function taskDeadline(order, task) {
+  if (task.deadline) return { date: task.deadline, own: true };
+  return { date: order.due_date ?? null, own: false };
+}
+
+/**
+ * Подпись срока: чужой срок обязан назвать себя. Одна на обе раскладки —
+ * вторая копия разошлась бы молча, а «28.07» без пояснения читается как
+ * срок самой задачи.
+ */
+function deadlineLabel(order, task) {
+  const { date, own } = taskDeadline(order, task);
+  if (!date) return '';
+  const text = formatDateShort(date);
+  return own ? text : `${text} · срок заказа`;
+}
+
+/**
  * Значение колонки для сортировки — то же, что видно в ячейке.
  * Срок сортируется по ISO-строке даты: она уже лексикографически монотонна.
  */
@@ -140,7 +169,7 @@ function warehouseSortValue({ order, task }, key) {
     case 'order': return order.bitrix_id || order.title;
     case 'summary': return taskSummary(order, task);
     case 'status': return taskStatusLabel(task, order);
-    case 'deadline': return task.deadline;
+    case 'deadline': return taskDeadline(order, task).date;
     default: return null;
   }
 }
@@ -274,38 +303,14 @@ export default function Warehouse() {
     <>
       <PageHead title="Склад" sub="Приёмка материалов, приёмка подряда, маркировка, упаковка и отгрузка." />
 
-      {loaded && (
-        <div className={styles.dashKpis} style={{ marginBottom: 16 }}>
-          {[
-            { key: 'all', icon: 'orders', cls: '', label: 'Все задачи', val: counts.all },
-            { key: 'material_receipt', icon: 'inbox', cls: styles.kpiIconWarn, label: 'Приёмка материалов', val: counts.material_receipt },
-            { key: 'subcontract_receipt', icon: 'truck', cls: styles.kpiIconViolet, label: 'Приёмка подряда', val: counts.subcontract_receipt },
-            { key: 'marking', icon: 'tag', cls: '', label: 'Маркировка', val: counts.marking },
-            // Плитки «Приёмка ГП» здесь не было вовсе, хотя вкладка есть:
-            // тип задачи заведён во всех остальных местах, а на этом экране
-            // его не видно ни счётчиком, ни плиткой
-            { key: 'fg_receipt', icon: 'inbox', cls: styles.kpiIconViolet, label: 'Приёмка ГП', val: counts.fg_receipt },
-            { key: 'pack_ship', icon: 'box', cls: styles.kpiIconOk, label: 'Упаковка/отгрузка', val: counts.pack_ship },
-          ].map((k) => (
-            // Плитка кликабельна целиком и фильтрует список — как в закупке
-            // (правило DESIGN.md). Раньше это были неинтерактивные <div>.
-            <button
-              key={k.label}
-              type="button"
-              className={styles.kpiCard}
-              aria-pressed={tab === k.key}
-              onClick={() => { setTab(tab === k.key ? 'all' : k.key); setPage(1); }}
-            >
-              <span className={`${styles.kpiIcon} ${k.cls}`}><Icon name={k.icon} size={20} /></span>
-              <span className={styles.kpiBody}>
-                <span className={styles.kpiCardLabel}>{k.label}</span>
-                <span className={styles.kpiCardValue}>{k.val}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
+      {/*
+        ПЛИТКИ-ПОКАЗАТЕЛИ СНЯТЫ (обход 04.09). Тот же фильтр был нарисован
+        дважды: шесть плиток и под ними те же шесть чипов с теми же ключами —
+        ровно дубль, снятый в закупке решением заказчика 23.08. Он и разошёлся
+        сам с собой: тип «Передача подрядчику» у чипов был, у плиток — нет,
+        то есть один и тот же фильтр предлагал разные наборы. Счётчики
+        остались при чипах, где им и место.
+      */}
       <FilterBar
         search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
         searchPlaceholder="Поиск: заказ, № сделки, изделие, материал" searchLabel="Поиск задач склада"
@@ -317,13 +322,12 @@ export default function Warehouse() {
         )}
       >
         {TABS.map((f) => (
-          <button
-            key={f.key} type="button" aria-pressed={tab === f.key}
-            className={`${styles.chip} ${styles.chipBtn} ${tab === f.key ? styles.chipProgress : styles.chipNeutral}`}
-                        onClick={() => { setTab(f.key); setPage(1); }}
+          <FilterChip
+            key={f.key} active={tab === f.key}
+            onClick={() => { setTab(f.key); setPage(1); }}
           >
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
-          </button>
+          </FilterChip>
         ))}
       </FilterBar>
 
@@ -366,7 +370,7 @@ export default function Warehouse() {
               summary={taskSummary(order, task)}
               statusLabel={taskStatusLabel(task, order)}
               statusVariant={taskVariant(task)}
-              deadline={formatDateShort(task.deadline)}
+              deadline={deadlineLabel(order, task)}
               onOpen={() => setOpenId(task.id)}
             />
           ))}
@@ -398,7 +402,7 @@ export default function Warehouse() {
                     <td>№{order.bitrix_id || '—'}<div className={styles.cellSub} title={order.title}>{order.title}</div></td>
                     <td>{taskSummary(order, task)}</td>
                     <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task, order)}</Badge></td>
-                    <td>{formatDateShort(task.deadline) || '—'}</td>
+                    <td>{deadlineLabel(order, task) || '—'}</td>
                     <td>
                       <Button
                         variant="secondary"

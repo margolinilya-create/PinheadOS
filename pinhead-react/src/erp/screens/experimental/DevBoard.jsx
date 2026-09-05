@@ -20,6 +20,7 @@ import { dueLabelCompact } from '../../utils/format';
 import { daysLeft } from '../../utils/time';
 import { toast } from '../../../store/useToastStore';
 import styles from '../../styles';
+import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
 
 /**
  * Доска экспериментального цеха по этапам (правки заказчика 20.08).
@@ -67,14 +68,10 @@ function laneOf(row, stage) {
   return LANES.includes(lane) ? lane : 'waiting';
 }
 
-const LANE_CHIP = {
-  blocked: 'chipBlocked',
-  awaiting_materials: 'chipWaiting',
-  waiting: 'chipNeutral',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-};
+/** Цвет дорожки — из словаря раздела (`utils/statusUi`, сущность `devLane`) */
+const LANE_CHIP = Object.fromEntries(
+  Object.keys(STATUS_VARIANT.devLane).map((l) => [l, statusChipClass('devLane', l)]),
+);
 
 function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, onDragEnd }) {
   const { dev, tasks, states, column, typeNames, materialGate } = row;

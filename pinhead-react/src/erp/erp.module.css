@@ -61,9 +61,18 @@
   --color-info-ink:    #1D4ED8;
   --color-violet-ink:  #6D28D9;
   --color-cyan-ink:    #0E7490;
-  /* Был не переопределён и подтягивался чёрным (#0A0A0A) из index.css — 29 мест
-     рисовали чёрную рамку рядом с карточками редизайна на светло-серой */
-  --border: #E5E7EB;
+  /* `--border` РАЗДЕЛОМ БОЛЬШЕ НЕ ИСПОЛЬЗУЕТСЯ, и переопределения ему не нужно.
+     История: он подтягивался чёрным (#0A0A0A) из index.css, и 29 мест рисовали
+     чёрную рамку рядом с карточками редизайна. Починка 03.09 переопределила его
+     ЗДЕСЬ — то есть только внутри `.shell`, — и этого мало: `AdminScreen`
+     смонтирован и в Order Studio, вне оболочки, где токен снова становился
+     чёрным. Проверено в браузере 05.09: та же таблица прав давала
+     rgb(229,231,235) в разделе и rgb(10,10,10) в Order Studio.
+
+     Значение переопределения совпадало с `--border-light` в обеих темах, то
+     есть отдельного смысла у токена в разделе не было вовсе. Все 29 мест
+     переведены на `--border-light`, чей глобальный вид (#DCDCDC) от разделового
+     (#E5E7EB) почти не отличается — в отличие от чёрного. */
   /* Тот же расчёт, что у --text-dim: это его алиас по смыслу */
   --text-muted: #666E7B;
   /* Заливка опасного действия. --color-error #EF4444 под белым текстом даёт
@@ -110,7 +119,7 @@
   --color-info-ink:    #60A5FA;
   --color-violet-ink:  #A78BFA;
   --color-cyan-ink:    #22D3EE;
-  --border: #242B39;
+  /* `--border` — см. светлую тему выше: разделом не используется */
   --text-muted: #9AA3B3;
   /* Тёмная тема: текстовые токены проходят AA и так (5.19–8.44), правятся
      только НЕтекстовые. Рамка контролов #313A4C давала 1.51:1 на карточке. */
@@ -144,10 +153,10 @@
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
   height: 60px;
   flex-shrink: 0;
-  padding: 0 24px;
+  padding: 0 var(--space-xl);
   border-bottom: 1px solid var(--border-light);
   background: var(--card);
 }
@@ -157,13 +166,13 @@
   height: 38px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
 }
 .headerSearch:focus-within {
   outline: 2px solid var(--accent);
@@ -202,12 +211,12 @@
   right: -5px;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0 var(--space-xs);
   border-radius: 999px;
   background: var(--color-error);
   color: #fff;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -218,16 +227,16 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-left: 12px;
-  margin-left: 4px;
+  padding-left: var(--space-md);
+  margin-left: var(--space-xs);
   border-left: 1px solid var(--border-light);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
   font-weight: 600;
   color: var(--text);
   line-height: 1.25;
 }
 .userRole {
-  font-size: 11px;
+  font-size: var(--type-label);
   font-weight: 500;
   color: var(--text-dim);
 }
@@ -268,7 +277,7 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--accent);
   transition: background 120ms ease;
   color: #fff;
@@ -291,7 +300,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px;
+  padding: var(--space-sm);
   scrollbar-width: thin;
 }
 /**
@@ -335,7 +344,7 @@
    то есть 2.5:1 при кегле меньше собственного минимума.
    Начертание — из .labelCaps выше, здесь только раскладка. */
 .navGroup {
-  padding: 14px 12px 4px;
+  padding: 14px var(--space-md) var(--space-xs);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -344,10 +353,10 @@
   align-items: center;
   gap: 11px;
   height: 38px;
-  padding: 0 12px;
+  padding: 0 var(--space-md);
   margin: 2px 0;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
   font-weight: 500;
   color: var(--text-mid);
   text-decoration: none;
@@ -377,7 +386,7 @@
 .navBadge {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
   font-weight: 600;
   min-width: 20px;
   height: 18px;
@@ -392,7 +401,7 @@
 .navLinkActive .navBadge { background: var(--accent); color: #fff; }
 .sidebarFooter {
   border-top: 1px solid var(--border-light);
-  padding: 8px;
+  padding: var(--space-sm);
   flex-shrink: 0;
 }
 .collapseBtn {
@@ -401,14 +410,14 @@
   gap: 11px;
   width: 100%;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 var(--space-md);
   border: none;
   background: none;
   cursor: pointer;
   border-radius: var(--radius-md);
   color: var(--text-dim);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--type-label);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -431,8 +440,8 @@
   right: 8px;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
-  font-size: 10px;
+  padding: 0 var(--space-xs);
+  font-size: var(--type-label);
   line-height: 16px;
   text-align: center;
   border-radius: 999px;
@@ -441,7 +450,7 @@
 .main {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 28px 48px;
+  padding: var(--space-xl) 28px var(--space-3xl);
 }
 
 /* ─── Заголовок страницы (wizard-стиль) ─── */
@@ -452,19 +461,19 @@
   line-height: 1.05;
   margin: 0;
 }
-.pageSub { color: var(--text-dim); margin-top: 4px; font-size: var(--type-body-sm); }
+.pageSub { color: var(--text-dim); margin-top: var(--space-xs); font-size: var(--type-body-sm); }
 
 /* ─── Карточки цехов ─── */
 .cardGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-  gap: 12px;
+  gap: var(--space-md);
 }
 .card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
-  padding: 14px 16px;
+  padding: 14px var(--space-lg);
   transition: border-color 150ms ease-out;
 }
 .card:hover { border-color: var(--border-mid); }
@@ -472,7 +481,7 @@
 /* ─── Заглушки ─── */
 /* Пустое состояние — базовый примитив: пунктирная рамка, центр, приглушённый текст */
 .emptyState {
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-light);
   border-radius: var(--radius-md);
   padding: 46px 20px;
   text-align: center;
@@ -482,18 +491,18 @@
 /* Заглушка раздела — тот же примитив, что .emptyState (различались 2px паддинга) */
 .stub, .noAccess {
   composes: emptyState;
-  padding: 48px 24px;
+  padding: var(--space-3xl) var(--space-xl);
 }
 .stubIcon { font-size: 34px; margin-bottom: 10px; }
 /* Пояснение под заголовком заглушки — второй строкой и тише основного текста */
-.stubText { font-size: var(--type-body-sm); color: var(--text-dim); margin-top: 4px; }
+.stubText { font-size: var(--type-body-sm); color: var(--text-dim); margin-top: var(--space-xs); }
 .stubPhase {
   display: inline-block;
   margin-top: 14px;
   padding: 3px 10px;
   border-radius: 999px;
   /* Отличия от .labelCaps: мельче и цветом акцента — это плашка, не подпись */
-  font-size: 10px;
+  font-size: var(--type-label);
   letter-spacing: 1px;
   background: var(--accent-light);
   color: var(--accent);
@@ -502,7 +511,7 @@
 /* ─── Таблицы ─── */
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
 }
@@ -513,15 +522,15 @@
 }
 .table th {
   text-align: left;
-  padding: 10px 12px;
+  padding: 10px var(--space-md);
   /* Отличие от .labelCaps: разрядка шире — шапка таблицы читается построчно */
   letter-spacing: 1.2px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
   white-space: nowrap;
   background: var(--surface);
 }
 .table td {
-  padding: 10px 12px;
+  padding: 10px var(--space-md);
   border-bottom: 1px solid var(--border-light);
   vertical-align: top;
 }
@@ -533,14 +542,14 @@
 .dateHint {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: var(--space-xs);
   font-size: var(--type-label);
 }
 .dateEcho { color: var(--text-dim); font-family: var(--mono); }
 .dateFormatHint { color: var(--text-muted); }
-.datePresets { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.datePresets { display: inline-flex; gap: var(--space-xs); flex-wrap: wrap; }
 
 /* Сортируемый заголовок: кнопка внутри th, чтобы работали фокус и Enter/Space.
    Наследует типографику th целиком — иначе внутри появляется второй кегль. */
@@ -562,7 +571,7 @@
 .thSortBtn:hover { color: var(--text); }
 .thSorted { color: var(--text); }
 /* Стрелка неактивной колонки бледная, но видимая: без неё о сортировке не догадаться */
-.thSortArrow { opacity: 0.45; font-size: 11px; }
+.thSortArrow { opacity: 0.45; font-size: var(--type-label); }
 .thSorted .thSortArrow { opacity: 1; color: var(--accent); }
 .table tr:last-child td { border-bottom: none; }
 /* Выбранная строка списка-навигации (мастер-деталь раздела «Закупка»,
@@ -580,7 +589,7 @@
    который перебивал @media (pointer: coarse) и оставлял поля 30px на планшете */
 .inputXs {
   min-height: 30px;
-  padding: 3px 8px;
+  padding: 3px var(--space-sm);
   font: inherit;
   max-width: 200px;
 }
@@ -592,7 +601,7 @@
   gap: 5px;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: var(--type-label);
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
@@ -609,7 +618,12 @@
   font-family: inherit;
 }
 .chipWaiting  { background: var(--bg-warning); color: var(--color-warning-ink); }
-.chipReady    { background: var(--bg-success); color: var(--color-success-ink); }
+/* «Можно начинать» — БИРЮЗОВЫЙ, а не зелёный. Раньше объявление совпадало
+   с .chipDone до символа, и на доске «Готов к работе» отличался от «Готово»
+   одним лишь текстом — при том, что это противоположные концы шкалы.
+   Пара уже есть в палитре и уже проверена на контраст (contrast.test.ts);
+   декоративным вариантом `cyan` не пользовался ни один вызов. */
+.chipReady    { background: var(--bg-cyan); color: var(--color-cyan-ink); }
 .chipProgress { background: var(--bg-info); color: var(--color-info-ink); }
 .chipInfo     { background: var(--bg-info); color: var(--color-info-ink); }
 .chipDone     { background: var(--bg-success); color: var(--color-success-ink); }
@@ -619,7 +633,7 @@
 .chipDanger   { background: var(--bg-error); color: var(--color-error-ink); }
 .chipViolet   { background: var(--bg-violet); color: var(--color-violet-ink); }
 .chipCyan     { background: var(--bg-cyan); color: var(--color-cyan-ink); }
-.field { display: flex; flex-direction: column; gap: 4px; }
+.field { display: flex; flex-direction: column; gap: var(--space-xs); }
 /* Ярлык поля — 49 употреблений, самый частый мелкий текст формы. 10px нарушали
    собственное правило ≥12px; letter-spacing уменьшен под больший кегль.
    Отличий от .labelCaps нет — начертание целиком оттуда, своих объявлений
@@ -636,7 +650,7 @@
   min-height: 40px;
 }
 .input:focus, .select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-.checkRow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.checkRow { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); align-items: center; }
 
 /* ─── Ширины полей формы заказа (вместо инлайн-стилей — управляются media query).
    Составные селекторы (.input.xxx) — чтобы перебить глобальный
@@ -652,6 +666,11 @@
 .input.searchInput { min-width: 260px; }
 .input.qtySmallInput { max-width: 84px; flex: 0 0 auto; }
 .fieldWide { grid-column: span 2; }
+/* Группа, занимающая строку сетки целиком. Нужна там, где поле — не поле,
+   а ряд плиток («Тип производства» в позиции заказа): в колонке 150px его
+   пять кнопок встают лесенкой. Соседка `.fieldWide` даёт две колонки —
+   ряду плиток этого мало. */
+.fieldFull { grid-column: 1 / -1; }
 .modalTitle {
   font-size: 26px;
 }
@@ -660,17 +679,17 @@
   background: none;
   border: none;
   border-right: 1px solid var(--border-light);
-  padding: 0 16px;
+  padding: 0 var(--space-lg);
   min-height: var(--dept-tab-h);
   /* Отличия от .labelCaps: мельче, разрядка шире, цвет активнее — это вкладка */
-  font-size: 11px;
+  font-size: var(--type-label);
   letter-spacing: 1.2px;
   color: var(--text-mid);
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   transition: background 150ms ease-out, color 150ms ease-out;
   flex-shrink: 0;
 }
@@ -681,13 +700,13 @@
 .deptTabActive .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
 .deptTabCount {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
   min-width: 20px;
   text-align: center;
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   color: var(--text-mid);
 }
 .deptTabOverdue {
@@ -712,17 +731,17 @@
 */
 .deptTabWaiting { font-weight: 400; opacity: 0.85; }
 .overdue { color: var(--color-error-ink); font-weight: 700; }
-.subText { color: var(--text-dim); font-size: 12px; }
+.subText { color: var(--text-dim); font-size: var(--type-label); }
 .progressCell {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--type-label);
   color: var(--text-mid);
   white-space: nowrap;
 }
 .queueGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 /* ─── Компактная очередь: строки вместо крупных карточек (правка 2) ─── */
@@ -735,7 +754,7 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
-  padding: 8px 10px;
+  padding: var(--space-sm) 10px;
 }
 .queueRow:hover { border-color: var(--border-mid); }
 .queueRowDragging { opacity: 0.45; }
@@ -751,7 +770,7 @@
   /* start, а не center: строка со срочной датой и двумя чипами растёт по высоте,
      и при center содержимое разъезжалось по вертикали относительно соседей */
   align-items: start;
-  gap: 10px 12px;
+  gap: 10px var(--space-md);
   min-width: 0;
 }
 /* Grid НЕ обрезает содержимое ячейки: всё, что не влезло в трек, рисуется поверх
@@ -762,9 +781,9 @@
 .queueRowPriority {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--type-label);
   color: var(--text-dim);
 }
 .queueRowTitle {
@@ -780,14 +799,14 @@
 }
 .queueRowQty {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
   font-weight: 600;
   white-space: nowrap;
 }
 /* Дата и просрочка — двумя строками: вместе они шире любой разумной колонки,
    а nowrap в одну строку выносил текст поверх соседней ячейки со статусами */
 .queueRowDue {
-  font-size: 12px;
+  font-size: var(--type-label);
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -796,24 +815,24 @@
 .queueRowStatus {
   display: flex;
   align-items: flex-start;
-  gap: 4px 6px;
+  gap: var(--space-xs) 6px;
   flex-wrap: wrap;
   min-width: 0;
 }
 .queueRowAssignee {
-  font-size: 12px;
+  font-size: var(--type-label);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .queueRowProgress { display: flex; align-items: center; gap: 6px; }
-.queueRowActions { display: flex; align-items: center; gap: 4px; justify-self: end; }
+.queueRowActions { display: flex; align-items: center; gap: var(--space-xs); justify-self: end; }
 .queueRowNotes {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 6px var(--space-md);
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--type-label);
 }
 .queueRowPanel {
   display: flex;
@@ -832,8 +851,8 @@
 }
 
 .queueCard {
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--border);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px;
@@ -853,7 +872,7 @@
 .queueCardOrder {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 .queueCardTitle {
@@ -870,7 +889,7 @@
 }
 .queueQty {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -881,10 +900,10 @@
   border-radius: var(--radius-sm);
   padding: 7px 10px;
 }
-.queueActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.queueActions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 .queueActions :global(.btn) { min-height: 46px; flex: 1; }
 .queueActions :global(.btn-ghost) { flex: 0 0 auto; }
-.queueBlockForm { display: flex; gap: 8px; flex-wrap: wrap; }
+.queueBlockForm { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 .queueBlockForm .input { flex: 1; min-width: 170px; }
 
 /*
@@ -895,9 +914,9 @@
 .queueStartPlan {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-sm);
 }
 .queueCardHeadText { flex: 1; min-width: 0; }
 
@@ -905,7 +924,7 @@
 .queueCardTitleLink {
   color: inherit;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .queueCardTitleLink:hover { color: var(--accent); }
 .queueCardTitleLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -923,7 +942,7 @@
 .tzDocHead {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 .tzDocIcon { font-size: 18px; flex-shrink: 0; }
@@ -954,9 +973,9 @@
 .tzFullscreenBar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-light);
   background: var(--surface);
   flex-wrap: wrap;
 }
@@ -1001,7 +1020,6 @@
   white-space: nowrap;
   border: 0;
 }
-.addMatRow .input:nth-child(2) { flex: 1; min-width: 200px; }
 
 /* ─── Карточка записи вместо строки таблицы (компактная раскладка) ───
    Вид один на все списки раздела: заказы, задачи склада, строки закупки.
@@ -1011,15 +1029,15 @@
    требует такого порядка, и то же правило действует для уточнений. */
 .dataCardList { display: flex; flex-direction: column; gap: 10px; }
 .dataCard {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
-  padding: 12px 14px;
+  padding: var(--space-md) 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-sm);
 }
-.dataCardHead { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.dataCardHead { display: flex; justify-content: space-between; gap: var(--space-sm); align-items: flex-start; }
 .dataCardTitle {
   font-family: var(--font-display);
   font-size: 18px;
@@ -1042,10 +1060,10 @@
 .dataCardRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 8px;
+  gap: var(--space-xs) var(--space-sm);
   align-items: center;
   border-top: 1px dashed var(--border-light);
-  padding-top: 8px;
+  padding-top: var(--space-sm);
 }
 /* Пара «подпись — значение»; на узком экране подписи колонок исчезают
    вместе с шапкой таблицы, и без них число теряет смысл.
@@ -1060,7 +1078,7 @@
 .dataCardFields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px 12px;
+  gap: var(--space-sm) var(--space-md);
   width: 100%;
 }
 
@@ -1075,8 +1093,8 @@
 
   .userChip { display: none; }
   .headerSearch { max-width: none; }
-  .topbar { padding: 0 14px; gap: 8px; }
-  .main { padding: 16px 14px 48px; }
+  .topbar { padding: 0 14px; gap: var(--space-sm); }
+  .main { padding: var(--space-lg) 14px var(--space-3xl); }
   .queueGrid { grid-template-columns: 1fr; }
   .searchInput { flex: 1; min-width: 0; }
   .modalTitle { font-size: 22px; }
@@ -1089,9 +1107,9 @@
 /* ─── Канбан цехов ─── */
 .kanbanBoard {
   display: flex;
-  gap: 12px;
+  gap: var(--space-md);
   overflow-x: auto;
-  padding-bottom: 16px;
+  padding-bottom: var(--space-lg);
   align-items: flex-start;
   scroll-snap-type: x proximity;
   /* Прокрутка доски не «протекает» в страницу — иначе перетаскивание у края
@@ -1108,7 +1126,7 @@
   flex: 0 0 290px;
   scroll-snap-align: start;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
@@ -1129,21 +1147,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
   background: var(--card);
   border-bottom: 2px solid var(--accent);
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: var(--type-label);
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   flex-shrink: 0;
 }
-.kanbanLane { padding: 8px 10px 10px; min-height: 52px; flex-shrink: 0; }
+.kanbanLane { padding: var(--space-sm) 10px 10px; min-height: 52px; flex-shrink: 0; }
 .kanbanLane + .kanbanLane { border-top: 1px dashed var(--border-light); }
 .kanbanLaneTitle {
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -1157,11 +1175,11 @@
 }
 .kanbanLaneOver { background: var(--accent-light); }
 .kanbanLaneDisabled { opacity: 0.45; }
-.kanbanEmpty { color: var(--text-muted); text-align: center; font-size: 12px; padding: 4px 0 2px; }
+.kanbanEmpty { color: var(--text-muted); text-align: center; font-size: var(--type-label); padding: var(--space-xs) 0 2px; }
 
 .kanbanCard {
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 9px 11px;
   margin-bottom: 6px;
@@ -1170,7 +1188,7 @@
   user-select: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 .kanbanCard:active { cursor: grabbing; }
 .kanbanCardDragging { opacity: 0.4; border-style: dashed; }
@@ -1180,7 +1198,7 @@
 .kanbanCardHead {
   display: flex;
   justify-content: space-between;
-  gap: 4px 8px;
+  gap: var(--space-xs) var(--space-sm);
   align-items: baseline;
   flex-wrap: wrap;
   min-width: 0;
@@ -1204,18 +1222,18 @@
 .kanbanCardTitle:hover { color: var(--accent); }
 .kanbanCardFoot {
   display: flex;
-  gap: 4px 10px;
+  gap: var(--space-xs) 10px;
   flex-wrap: wrap;
   min-width: 0;
   align-items: center;
-  font-size: 11.5px;
+  font-size: var(--type-label);
 }
 .kanbanDue {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
   white-space: nowrap;
   color: var(--text-mid);
 }
@@ -1226,20 +1244,20 @@
   appearance: none;
   background: none;
   border: none;
-  padding: 1px 4px;
+  padding: 1px var(--space-xs);
   margin: -1px -4px;
   font: inherit;
   color: inherit;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
-.inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }
+.inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border-light); }
 .inlineEditBtn:disabled { cursor: default; }
 .inlineEditBtn:disabled:hover { background: none; outline: none; }
-.inlineEditPen { font-size: 10px; opacity: 0; transition: opacity 120ms; }
+.inlineEditPen { font-size: var(--type-label); opacity: 0; transition: opacity 120ms; }
 .inlineEditBtn:hover .inlineEditPen { opacity: 0.6; }
 
 /* ─── Степпер этапов ─── */
@@ -1248,7 +1266,7 @@
   align-items: center;
   gap: 0;
   overflow-x: auto;
-  padding: 4px 0 8px;
+  padding: var(--space-xs) 0 var(--space-sm);
 }
 .stepperItem { display: flex; align-items: center; flex-shrink: 0; }
 .stepperDot {
@@ -1257,9 +1275,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: var(--type-label);
   font-weight: 700;
-  border: 2px solid var(--border);
+  border: 2px solid var(--border-light);
   background: var(--card);
   color: var(--text-dim);
   cursor: default;
@@ -1274,24 +1292,23 @@
 .stepperDotSkipped { border-style: dashed; color: var(--text-dim); }
 /* Состояние шага словами под его названием: «Завершено · 19.08», «В работе».
    Документ требует показывать состояние каждого этапа, а не только текущего */
-.stepperText { display: flex; flex-direction: column; gap: 1px; margin: 0 8px 0 6px; }
+.stepperText { display: flex; flex-direction: column; gap: 1px; margin: 0 var(--space-sm) 0 6px; }
 /* Внутри колонки боковые отступы задаёт она сама — иначе они удвоятся */
 .stepperText .stepperLabel, .stepperText .stepperSub { margin: 0; }
 .stepperSub {
-  margin: 0 8px 0 6px;
-  font-size: 10px;
+  margin: 0 var(--space-sm) 0 6px;
+  font-size: var(--type-label);
   color: var(--text-dim);
   white-space: nowrap;
 }
 .stepperLabel {
-  margin: 0 8px 0 6px;
-  font-size: 11px;
+  margin: 0 var(--space-sm) 0 6px;
+  font-size: var(--type-label);
   color: var(--text-mid);
   white-space: nowrap;
 }
-.stepperLine { width: 26px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 8px; }
+.stepperLine { width: 26px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: var(--space-sm); }
 .stepperLineDone { background: var(--color-success); }
-.commentForm .input { flex: 1; }
 
 /* Миниатюра макета — 40px в строке заказа, 48px в очереди (.queueThumb).
    Радиус из токена, а не литералом: было 5px против var(--radius-sm). */
@@ -1309,32 +1326,31 @@
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-light);
   color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
-.fieldError { color: var(--color-error-ink); font-size: 12px; }
+.fieldError { color: var(--color-error-ink); font-size: var(--type-label); }
 /* Предупреждение под полем: не ошибка (заполнено верно), но требует внимания —
    поэтому цвет предупреждения, а не ошибки, и поле НЕ помечается aria-invalid. */
 .fieldHint {
   display: flex;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--space-xs);
   color: var(--color-warning-ink);
-  font-size: 12px;
+  font-size: var(--type-label);
   line-height: 1.35;
 }
 @media (max-width: 480px) {
 
-  .main { padding: 12px 10px 40px; }
+  .main { padding: var(--space-md) 10px 40px; }
   .navLink { padding: 0 10px; gap: 6px; }
-  .topbar :global(.btn) { padding: 0 12px; }
+  .topbar :global(.btn) { padding: 0 var(--space-md); }
   .cardGrid { grid-template-columns: 1fr; }
   .fieldWide { grid-column: 1 / -1; }
-  .itemRow > :global(.btn-ghost) { justify-self: end; }
   .queueCardHead { flex-wrap: wrap; }
 
   /* Ширины полей формы: строки нанесений и размерной сетки — в колонку/2 колонки */
@@ -1342,8 +1358,10 @@
   .input.colorInput { width: 100%; flex: 1 1 100%; }
   .input.pantoneInput { width: 100%; }
   .input.printZoneInput, .input.printNoteInput { min-width: 0; }
-  .mmLabel .input.mmInput { width: 100%; flex: 1; }
-  .printRow > :global(.btn-ghost) { justify-self: end; }
+  /* Уточнение СВОЕГО класса: `.mmInput` объявлен выше, в этом же модуле.
+     Квалификатор `.mmLabel` снят — он из `screens.module.css`, а класс
+     другого модуля здесь становится чужим хешем (см. шапку файла). */
+  .input.mmInput { width: 100%; flex: 1; }
 }
 
 @media (pointer: coarse) {
@@ -1361,11 +1379,9 @@
   .navLink { min-height: 44px; height: auto; }
   .collapseBtn { min-height: 44px; height: auto; }
   .iconBtn { min-width: 44px; min-height: 44px; }
-  .kpiCardClickable { min-height: 44px; }
   .sidebarBrand { min-height: 44px; }
   .pageBtn { min-width: 44px; min-height: 44px; }
   .drawerClose { width: 44px; height: 44px; }
-  .drawerTab { min-height: 44px; }
   .inlineEditBtn { min-height: 44px; }
   .thSortBtn { min-height: 44px; }
 }
@@ -1377,12 +1393,12 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  padding: 12px 16px;
-  margin: 4px 0 14px;
+  padding: var(--space-md) var(--space-lg);
+  margin: var(--space-xs) 0 14px;
 }
 .numStepperTitle {
   display: block;
-  font-size: 11px;
+  font-size: var(--type-label);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-dim);
@@ -1404,36 +1420,36 @@
   width: 26px; height: 26px;
   border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700;
-  border: 2px solid var(--border);
+  font-size: var(--type-label); font-weight: 700;
+  border: 2px solid var(--border-light);
   background: var(--card); color: var(--text-dim);
   flex-shrink: 0;
 }
 .numStepDotActive {
   border-color: var(--accent); background: var(--accent); color: #fff;
 }
-.numStepText { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 8px; }
-.numStepLabel { font-size: 13px; color: var(--text); white-space: nowrap; }
+.numStepText { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 var(--space-sm); }
+.numStepLabel { font-size: var(--type-body-sm); color: var(--text); white-space: nowrap; }
 .numStepCount {
   min-width: 20px; height: 20px; padding: 0 5px;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 10px; font-size: 12px; font-weight: 700;
+  border-radius: 10px; font-size: var(--type-label); font-weight: 700;
   background: var(--surface); color: var(--text-mid);
 }
 .numStepDotActive ~ .numStepText .numStepCount {
   background: var(--bg-info); color: var(--accent);
 }
-.numStepBar { width: 30px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 10px; }
+.numStepBar { width: 30px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: 10px; }
 
 /* Пайплайн фаз эксперим. цеха (`.pipeline`, `.pipeNode*`, `.pipeCount`,
    `.pipeLabel`, `.pipeArrow`) удалён 12.08 вместе с фазовой моделью. */
 
 /* ─── Dashboard (редизайн, по макету) ─── */
-.dash { display: flex; flex-direction: column; gap: 16px; }
+.dash { display: flex; flex-direction: column; gap: var(--space-lg); }
 .dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
 .kpiCard {
   display: flex; align-items: center; gap: 14px;
-  padding: 16px;
+  padding: var(--space-lg);
   background: var(--card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
@@ -1453,67 +1469,71 @@ button.kpiCard[aria-pressed='true'] {
   border-color: var(--accent);
   background: linear-gradient(var(--accent-light), var(--accent-light)), var(--card);
 }
-/* Показатель как быстрый фильтр/переход (правка 14): кликабельна вся плитка */
-.kpiCardClickable {
-  width: 100%;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  transition: border-color 120ms ease, background 120ms ease;
-}
-.kpiCardClickable:hover { border-color: var(--accent); background: var(--accent-light); }
-.kpiCardClickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.kpiCardActive { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/* Правил `.kpiCardClickable` и `.kpiCardActive` здесь больше нет (05.09):
+   НОСИТЕЛЕЙ У НИХ НЕ БЫЛО НИ ОДНОГО. Писались они «правкой 14» под
+   кликабельную плитку показателя, а плитки обзора кликабельны через
+   `<Link className={styles.kpiCard}>` — то есть про эти классы забыли.
+   Доступность от их отсутствия не страдает: кольцо фокуса ссылкам даёт
+   глобальное `a:focus-visible` в `styles/forms-base.css`, а высота плитки
+   (padding 16px + иконка 20px + две строки) и так далеко за 44px.
+   Разница только в подсветке при наведении — акцентная против нейтральной,
+   и это РЕШЕНИЕ О ВИДЕ: вернуть его владелец может одной строкой,
+   а мёртвое правило в файле — то же осиротевшее правило, что `.drawerTab`. */
 .kpiIconOk { background: var(--bg-success); }
 .kpiIconWarn { background: var(--bg-warning); }
 .kpiIconDanger { background: var(--bg-error); }
-.kpiCardLabel { font-size: 12px; color: var(--text-dim); }
+.kpiCardLabel { font-size: var(--type-label); color: var(--text-dim); }
 .kpiCardValue {
   font-family: var(--mono); font-size: 26px; font-weight: 600;
   color: var(--text); line-height: 1.1;
 }
 
-.dashRow { display: grid; gap: 16px; align-items: start; }
+.dashRow { display: grid; gap: var(--space-lg); align-items: start; }
 /* auto-fit вместо фиксированных долей (1.9fr / 0.9fr / 1.15fr).
    Доли задавали ширину независимо от содержимого: «Загрузка цехов» получала
    узкую колонку и оставляла пустоту, а число колонок переключалось разом
    на 1100px — то есть между 1024 и 1100 три виджета жались, а ниже сразу
    разворачивались в один столбец. auto-fit подстраивается сам: сколько
    помещается по 280px, столько и колонок, и отдельный медиазапрос не нужен. */
-.dashRow3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+/* Три виджета в ряд ТОЛЬКО когда каждому хватает места на свою таблицу.
+   При minmax(280px) на 1280px виджету доставалось 338px, а «Заказы в работе» —
+   таблица из шести колонок: колонка «Кол-во» срезалась (обход 04.09). Порог
+   считается от содержимого, а не от числа колонок: 380px — минимум, при котором
+   таблица помещается целиком; ниже ряд сам переходит на две колонки и одну. */
+.dashRow3 { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
 .dashRow2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .widget {
   background: var(--card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  padding: 16px; min-width: 0;
+  padding: var(--space-lg); min-width: 0;
 }
 .widgetHead {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 12px; gap: 8px;
+  margin-bottom: var(--space-md); gap: var(--space-sm);
 }
 /* Заголовок виджета — это <h2>, а не span: страница должна читаться навигацией
    по заголовкам. Сброс полей нужен, потому что браузерный h2 несёт свои. */
 .widgetTitle { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
-.widgetLink { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.widgetLink { font-size: var(--type-label); color: var(--accent); text-decoration: none; white-space: nowrap; }
 
 /* ─── Pagination (редизайн) ─── */
 .pagination {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap; margin-top: 14px;
+  gap: var(--space-md); flex-wrap: wrap; margin-top: 14px;
 }
-.pager { display: flex; align-items: center; gap: 4px; }
+.pager { display: flex; align-items: center; gap: var(--space-xs); }
 .pageBtn {
-  min-width: 32px; height: 32px; padding: 0 8px;
+  min-width: 32px; height: 32px; padding: 0 var(--space-sm);
   border: 1px solid var(--border-light); border-radius: var(--radius-md);
   background: var(--card); color: var(--text-mid);
-  font: inherit; font-size: 13px; cursor: pointer;
+  font: inherit; font-size: var(--type-body-sm); cursor: pointer;
 }
 .pageBtn:hover:not(:disabled) { background: var(--surface); }
 .pageBtn:disabled { opacity: 0.45; cursor: default; }
 .pageBtnActive, .pageBtnActive:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.pageEllipsis { padding: 0 4px; color: var(--text-dim); }
+.pageEllipsis { padding: 0 var(--space-xs); color: var(--text-dim); }
 
 /* ─── FilterBar (редизайн) ─── */
 .filterBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -1524,7 +1544,7 @@ button.kpiCard[aria-pressed='true'] {
   flex-wrap: wrap;
   gap: 10px 14px;
   align-items: flex-end;
-  padding: 12px 14px;
+  padding: var(--space-md) 14px;
   margin: -6px 0 14px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -1554,13 +1574,13 @@ button.kpiCard[aria-pressed='true'] {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 .routeRow {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 5px 8px;
+  padding: 5px var(--space-sm);
   border-radius: var(--radius-sm);
   min-width: 0;
 }
@@ -1574,7 +1594,7 @@ button.kpiCard[aria-pressed='true'] {
 /* Предупреждение внутри формы: переносится по словам, в отличие от чипа —
    чип обрезал список ненайденных тканей краем панели, а прочитать нужно все */
 .warnBox {
-  padding: 8px 10px;
+  padding: var(--space-sm) 10px;
   border-radius: var(--radius-sm);
   background: var(--bg-warning);
   color: var(--color-warning-ink);
@@ -1584,7 +1604,7 @@ button.kpiCard[aria-pressed='true'] {
   line-height: 1.4;
 }
 .routeRowFinal {
-  border-top: 1px dashed var(--border);
+  border-top: 1px dashed var(--border-light);
   margin-top: 2px;
   padding-top: 7px;
 }
@@ -1597,7 +1617,7 @@ button.kpiCard[aria-pressed='true'] {
      в `title`: подсказка даётся для того, что не видно. */
   flex: 1 1 110px;
   min-width: 110px;
-  font-size: 13px;
+  font-size: var(--type-body-sm);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1607,7 +1627,7 @@ button.kpiCard[aria-pressed='true'] {
   flex: 0 0 72px;
   text-align: right;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--type-label);
   color: var(--text-mid);
 }
 /* Полоса маршрута — тот же примитив, что .progressTrack/.progressFill,
@@ -1635,8 +1655,8 @@ button.kpiCard[aria-pressed='true'] {
   animation: erpSlideIn 0.22s ease;
 }
 .drawerHead {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 16px 18px; border-bottom: 1px solid var(--border-light);
+  display: flex; align-items: flex-start; gap: var(--space-md);
+  padding: var(--space-lg) 18px; border-bottom: 1px solid var(--border-light);
 }
 .drawerHeadMain { flex: 1; min-width: 0; }
 .drawerTitle { font-size: 17px; font-weight: 700; color: var(--text); }
@@ -1646,21 +1666,12 @@ button.kpiCard[aria-pressed='true'] {
   border-radius: var(--radius-md); color: var(--text-mid); font-size: 16px;
 }
 .drawerClose:hover { background: var(--surface); }
-.drawerTabs {
-  display: flex; gap: 4px; padding: 0 12px;
-  border-bottom: 1px solid var(--border-light);
-  overflow-x: auto; scrollbar-width: none;
-}
-.drawerTabs::-webkit-scrollbar { display: none; }
-.drawerTab {
-  padding: 10px 12px; border: none; background: none; cursor: pointer;
-  font: inherit; font-size: 13px; color: var(--text-mid);
-  border-bottom: 2px solid transparent; white-space: nowrap;
-}
-.drawerTab:hover { color: var(--text); }
-.drawerTabActive { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-.drawerBody { flex: 1; overflow-y: auto; padding: 16px 18px; }
-.drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
+/* Правил `.drawerTabs`/`.drawerTab`/`.drawerTabActive` здесь больше нет:
+   вкладочная ветка `Drawer` удалена 05.09 как мёртвая (см. её JSDoc).
+   Класс, оставшийся без единого носителя, — то же осиротевшее правило,
+   что и примитив без вызывающих. */
+.drawerBody { flex: 1; overflow-y: auto; padding: var(--space-lg) 18px; }
+.drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: var(--space-xs); }
 
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
@@ -1692,7 +1703,7 @@ button.kpiCard[aria-pressed='true'] {
   .sidebarCollapsed .collapseLabel { display: revert; }
   .sidebarCollapsed .navBadge { position: static; }
   .sidebarCollapsed .navLink,
-  .sidebarCollapsed .collapseBtn { justify-content: flex-start; gap: 11px; padding: 0 12px; }
+  .sidebarCollapsed .collapseBtn { justify-content: flex-start; gap: 11px; padding: 0 var(--space-md); }
   .sidebarScrim {
     position: fixed;
     inset: 0;
@@ -1720,7 +1731,7 @@ button.kpiCard[aria-pressed='true'] {
 .queueRowMoveBtns { display: inline-flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 @media (pointer: coarse) {
 
-  .queueRowMoveBtns { flex-direction: row; gap: 4px; }
+  .queueRowMoveBtns { flex-direction: row; gap: var(--space-xs); }
 }
 
 
@@ -1774,7 +1785,7 @@ button.kpiCard[aria-pressed='true'] {
 .planFormRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: var(--space-sm) var(--space-md);
   align-items: flex-end;
 }
 
@@ -1827,8 +1838,8 @@ button.kpiCard[aria-pressed='true'] {
    у переноса не остаётся видимой цели. */
 .kanbanLaneEmpty {
   min-height: 0;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding-top: var(--space-xs);
+  padding-bottom: var(--space-xs);
   opacity: 0.6;
 }
 .kanbanLaneEmpty .kanbanLaneTitle { margin-bottom: 0; }
@@ -1837,7 +1848,7 @@ button.kpiCard[aria-pressed='true'] {
    класса обязаны жить в одном чанке с ним (сторож `stylesResolve.test.ts`). */
 .kanbanCardMove {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
   justify-content: flex-end;
   margin-bottom: 6px;
 }
@@ -1857,13 +1868,13 @@ button.kpiCard[aria-pressed='true'] {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 6px 12px;
-  font-size: 13px;
+  gap: 6px var(--space-md);
+  font-size: var(--type-body-sm);
 }
 .capacityTrack {
   position: relative;
   height: 8px;
-  margin: 8px 0 6px;
+  margin: var(--space-sm) 0 6px;
   border-radius: 999px;
   background: var(--surface);
   overflow: hidden;
@@ -1897,18 +1908,18 @@ button.kpiCard[aria-pressed='true'] {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 .routeStep {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: var(--space-sm) 10px;
   background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.routeStepHead { display: flex; align-items: center; gap: 8px; }
+.routeStepHead { display: flex; align-items: center; gap: var(--space-sm); }
 /* Номер шага — единственное, что связывает строку конструктора с текстом
    ошибки под ним («Шаг 2: у подрядного этапа не указан подрядчик») */
 .routeStepNo {
@@ -1918,9 +1929,9 @@ button.kpiCard[aria-pressed='true'] {
   width: 22px; height: 22px;
   border-radius: 50%;
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--type-label);
   flex-shrink: 0;
 }
 .routeStepRow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -1933,7 +1944,7 @@ button.kpiCard[aria-pressed='true'] {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 6px 10px;
-  margin: 6px 0 2px 12px;
+  margin: 6px 0 2px var(--space-md);
   padding-left: 10px;
   border-left: 2px solid var(--border-light);
 }
@@ -1941,12 +1952,12 @@ button.kpiCard[aria-pressed='true'] {
   margin: 0;
   padding-left: 18px;
   color: var(--color-error-ink);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
 }
-.routeEditorFoot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.routeEditorFoot { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
 
 /* ─── Вложения блока формы: упаковка, техблок, лист закупки (правки 16.08) ─── */
-.attachBlock { display: flex; flex-direction: column; gap: 4px; }
+.attachBlock { display: flex; flex-direction: column; gap: var(--space-xs); }
 .attachList {
   list-style: none;
   margin: 0;
@@ -1959,7 +1970,7 @@ button.kpiCard[aria-pressed='true'] {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--type-body-sm);
   min-width: 0;
 }
 /* Имя файла режется многоточием, но остаётся читаемым по title: в ключе объекта

@@ -19,11 +19,11 @@
 }
 .iconError { color: var(--color-error); }
 .title {
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 600;
   color: var(--text);
 }
-.text { font-size: 13px; max-width: 44ch; }
+.text { font-size: var(--type-body-sm); max-width: 44ch; }
 .action { margin-top: var(--space-sm); }
 
 /* Ошибка — на светлом красном фоне, чтобы отличалась от «просто пусто» */

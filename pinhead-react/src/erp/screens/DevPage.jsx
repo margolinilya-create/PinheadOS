@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
-import { ButtonLink } from '../components/Button';
+import { Button, ButtonLink } from '../components/Button';
 import { Icon } from '../components/Icon';
 import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
@@ -11,10 +11,10 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { DEV_STATE_LABELS } from '../utils/filterExperimental';
 import { devState, nextAction, currentBlocker } from '../utils/experimentalTasks';
-import {
-  DEV_STAGE_LABELS, devBoardColumn, devBrandingFromPrints, devStageStates,
-} from '../utils/experimentalBoard';
-import { findSupplyDept, openSupplyStages } from '../utils/supply';
+import { DEV_STAGE_LABELS } from '../utils/experimentalBoard';
+import { neighbourStage } from '../utils/devBoardMove';
+import { devContext } from '../utils/devContext';
+import { useDevStageMove } from '../hooks/useDevStageMove';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevCard } from './experimental/DevCard';
@@ -74,6 +74,9 @@ export default function DevPage() {
     deleteDevFile: s.deleteDevFile,
   })));
   const canManage = useErpAccess().can('experimental.manage');
+  // Перенос — та же реализация, что у доски (§3.6): порядок «закрыть свой этап →
+  // записать колонку → завести нанесения» повторять второй раз нельзя
+  const { requestMove } = useDevStageMove();
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   useEffect(() => {
@@ -136,22 +139,49 @@ export default function DevPage() {
     );
   }
 
-  const tasks = dev.tasks ?? [];
   const today = factoryToday();
+  /**
+   * Контекст шагов тот же, что у доски (правка 01.09): открыта ли закупка
+   * заказа, есть ли у позиции нанесения, готовы ли лекала. Считает
+   * `devContext` — та же реализация, которой пользуется смонтированная ниже
+   * `DevCard`: до 05.09 страница и карточка считали это порознь из одних
+   * и тех же данных, и одна из формул успела разойтись (см. `devBrandingOpen`).
+   */
+  const {
+    tasks, stage, materialsPending, hasBranding, brandingOpen,
+  } = devContext(dev, order, departments);
   const state = devState(dev, tasks, today);
-  // Контекст шагов тот же, что у доски (правка 01.09): открыта ли закупка
-  // заказа и есть ли у позиции нанесения. Иначе страница и доска показывали бы
-  // разный маршрут одной разработки
-  const stageStates = devStageStates({
-    dev,
-    tasks,
-    materials: order?.materials ?? [],
-    supplyOpen: openSupplyStages(order, findSupplyDept(departments)?.id).length > 0,
-    hasBranding: devBrandingFromPrints(
-      (order?.items ?? []).find((it) => it.id === dev.item_id)?.prints).length > 0,
-  });
-  const stage = devBoardColumn(stageStates, dev);
   const blocker = currentBlocker(tasks, new Map(), today);
+
+  /**
+   * ПЕРЕНОС КАРТОЧКИ СО СТРАНИЦЫ (§3.6 обхода 04.09). Со страницы разработки
+   * карточку было не перенести вовсе, хотя диалоги переноса обещают «перейдёт»,
+   * а страница с 22.08 — основное место работы технолога: шторку заказчик
+   * отверг, доска отвечает на «что у всех», страница — на «что с этой».
+   *
+   * Соседний шаг считается ПО ПУТИ ЭТОЙ разработки, а не по общему порядку
+   * колонок: у образца без нанесений «Дальше» из «Кроя» ведёт в «Пошив».
+   * Контекст тот же, что у гейта, — иначе кнопка предлагала бы ход, который
+   * тут же отклоняется.
+   */
+  /**
+   * «Материалы держат крой» — тот же `cuttingGate`, что у доски и у карточки;
+   * приезжает из `devContext` выше. Напоминание, зачем он вообще отдельным
+   * значением: `devStageStates` отдаёт МАССИВ шагов, и читать из него
+   * `.materials.open` нельзя — получится `undefined`, то есть «держат всегда».
+   */
+  const moveCtx = { materialsPending, hasBranding };
+  const prevStage = neighbourStage(stage, -1, moveCtx);
+  const nextStage = neighbourStage(stage, 1, moveCtx);
+  const moveTo = (to) => requestMove({
+    devId: dev.id,
+    from: stage,
+    outcome: dev.outcome,
+    canManage,
+    materialsPending,
+    hasBranding,
+    brandingOpen,
+  }, to);
 
   return (
     <>
@@ -182,6 +212,20 @@ export default function DevPage() {
         <span className={styles.subText}>
           Срок: <strong>{dev.due_date ? formatDateShort(dev.due_date) : '—'}</strong>
         </span>
+        {canManage && !dev.outcome && (prevStage || nextStage) && (
+          <span className={styles.checkRow}>
+            {prevStage && (
+              <Button variant="ghost" onClick={() => moveTo(prevStage)}>
+                <Icon name="chevronLeft" size={14} /> {DEV_STAGE_LABELS[prevStage]}
+              </Button>
+            )}
+            {nextStage && (
+              <Button variant="secondary" onClick={() => moveTo(nextStage)}>
+                {DEV_STAGE_LABELS[nextStage]} <Icon name="chevronRight" size={14} />
+              </Button>
+            )}
+          </span>
+        )}
       </div>
       <div className={styles.subText}>
         Следующее действие: {nextAction(dev, tasks, new Map(), today) || '—'}

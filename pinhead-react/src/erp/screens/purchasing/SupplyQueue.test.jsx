@@ -60,7 +60,8 @@ describe('очередь закупки — навигация', () => {
 
   it('показывает прогресс материалов «N из M» со шкалой', () => {
     renderQueue([order({ materials: [
-      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received', qty_expected: 10 },
+      { id: 'm1', name: 'Футер', source: 'purchase', status: 'received',
+        accept_status: 'accepted_full', qty_expected: 10 },
       { id: 'm2', name: 'Бирки', source: 'purchase', status: 'pending', qty_expected: 5 },
     ] })]);
     expect(screen.getByText('1 из 2')).toBeInTheDocument();

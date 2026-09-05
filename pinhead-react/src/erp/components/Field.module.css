@@ -8,25 +8,32 @@
   min-width: 0;
 }
 .label {
-  font-size: 12px;
+  font-size: var(--type-label);
   font-weight: 500;
   color: var(--text-mid);
 }
 .required { color: var(--color-error); margin-left: 2px; }
 
+/* ОДИН КОНТРОЛ ВВОДА НА РАЗДЕЛ (обход 04.09).
+   Примитив разошёлся с `.input` (erp.module.css) по трём объявлениям сразу:
+   рамка `--border-mid` (1,47:1) против `--border-control`, высота 36 против 40,
+   скругление `--radius-md` против `--radius-sm`. Решение владельца 03.09
+   о границах, проходящих AA (1.4.11), доехало до `.input` и не доехало сюда —
+   а это ОДИН и тот же элемент интерфейса, просто заведённый дважды.
+   Значения приведены к `.input`; размер шрифта — токеном, а не литералом. */
 .control {
   width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border-mid);
-  border-radius: var(--radius-md);
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: var(--type-body-sm);
 }
 /* textarea растёт по содержимому — фиксированная высота ей не нужна */
-textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
+textarea.control { padding: var(--space-sm) 10px; min-height: 72px; resize: vertical; }
 .control::placeholder { color: var(--text-muted); }
 .control:focus-visible {
   outline: none;
@@ -38,9 +45,9 @@ textarea.control { padding: 8px 10px; min-height: 72px; resize: vertical; }
 .invalid { border-color: var(--color-error); }
 .invalid:focus-visible { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--color-error); }
 
-.hint { font-size: 11.5px; color: var(--text-dim); }
+.hint { font-size: var(--type-label); color: var(--text-dim); }
 /* ink, а не заливочный --color-error: 11.5px давали 3.76:1 при норме 4.5 */
-.error { font-size: 11.5px; color: var(--color-error-ink); font-weight: 500; }
+.error { font-size: var(--type-label); color: var(--color-error-ink); font-weight: 500; }
 
 /* Правило ≥44px на тач-экранах цехов */
 @media (pointer: coarse) {

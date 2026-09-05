@@ -10,9 +10,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed } from '../components/ErpStates';
 import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
-import {
-  isStageReady, hasOpenProcurement, materialsForItem, isStageAwaitingProcurement,
-} from '../utils/routes';
+import { isStageReady, materialsForItem, isStageAwaitingProcurement } from '../utils/routes';
 import { materialsAfterBypass, isBypassed } from '../utils/bypass';
 import { scrollIntoViewSafely } from '../utils/scrollIntoViewSafely';
 import { stageMissingTz } from '../utils/tz';
@@ -20,7 +18,7 @@ import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/s
 import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
 import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
-import { groupNotices, urgentCount } from '../utils/notifications';
+import { groupNotices, orderNotices, urgentCount } from '../utils/notifications';
 import { CapacityBar } from '../components/CapacityBar';
 import { monthCapacityReport, monthLabel } from '../utils/capacity';
 import { factoryToday } from '../../utils/date';
@@ -128,21 +126,10 @@ export default function ErpDashboard() {
       else if (isUrgent(order.due_date)) dueSoon += 1;
       if (d !== null && d <= 3) burning.push({ order, days: d });
 
-      if (hasOpenProcurement(order.procurement_tasks)) {
-        notifications.push({ id: `p-${order.id}`, orderId: order.id, kind: 'procurement',
-          text: `Дозакупка по заказу №${order.bitrix_id || '—'}`, sub: order.title });
-      }
-      if (lateDays > 0) {
-        notifications.push({ id: `o-${order.id}`, orderId: order.id, kind: 'overdue',
-          text: `Просрочен заказ №${order.bitrix_id || '—'}`, sub: order.title,
-          overdueDays: lateDays });
-        overdueByBucket[overdueBucket(lateDays)] += 1;
-      }
-      // Остановленный этап — единственное, что нельзя «подождать»: цех стоит
-      if (order.items.some((it) => it.stages.some((st) => st.status === 'blocked'))) {
-        notifications.push({ id: `b-${order.id}`, orderId: order.id, kind: 'blocked',
-          text: `Остановлен этап по заказу №${order.bitrix_id || '—'}`, sub: order.title });
-      }
+      // Что считать поводом вмешаться — одно правило на виджет и на колокол
+      // в шапке (`utils/notifications.orderNotices`)
+      notifications.push(...orderNotices(order, lateDays));
+      if (lateDays > 0) overdueByBucket[overdueBucket(lateDays)] += 1;
 
       for (const item of order.items) {
         itemsInWork += 1;
@@ -292,6 +279,72 @@ export default function ErpDashboard() {
             </Link>
           </div>
 
+          {/*
+            «ЧТО ГОРИТ» — СРАЗУ ПОД ПОКАЗАТЕЛЯМИ (§2.4 обхода 04.09).
+
+            Блок стоял ПОСЛЕДНИМ из семи: шесть плиток → полоса мощности →
+            «Заказы в работе» → «Задачи по цехам» → «Ближайшие дедлайны» →
+            «Быстрые действия» → и только потом единственный блок, отвечающий
+            «что делать сейчас». На 1280×800 это полтора экрана прокрутки,
+            на планшете — два с половиной, и колокол в шапке вёл именно сюда.
+
+            Порядок теперь отвечает на вопросы в том порядке, в каком их
+            задают: «всё ли в порядке» (плитки) → «что горит» (здесь) →
+            «влезаем ли в месяц» → «что в работе».
+          */}
+          <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
+            <div className={styles.widgetHead}>
+              <h2 className={styles.widgetTitle}>Уведомления</h2>
+              {urgent > 0 && (
+                <span className={styles.subText}>требуют действия сейчас: {urgent}</span>
+              )}
+            </div>
+            {data.noticeGroups.length === 0 ? (
+              <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
+            ) : (
+              data.noticeGroups.map((g) => (
+                /* Группа — <details>: сворачивание нативное, значит работает
+                   с клавиатуры и читается скринридером без единой строки JS.
+                   Срочные группы открыты (`open`), давняя просрочка свёрнута
+                   со счётчиком: она важна, но это не сегодняшняя работа. */
+                <details key={g.key} className={styles.notifGroup} open={g.open}>
+                  <summary className={styles.notifSummary}>
+                    <span className={`${styles.notifDot} ${styles[`notifDot_${g.tone}`]}`} aria-hidden="true" />
+                    <Icon name={g.icon} size={15} />
+                    <span className={styles.notifGroupTitle}>{g.title}</span>
+                    <span className={styles.notifCount}>{g.items.length}</span>
+                  </summary>
+                  <p className={styles.notifHint}>{g.hint}</p>
+                  {g.items.slice(0, 8).map((n) => (
+                    // Алерт без ссылки — тупик: пользователь читал «Просрочен
+                    // заказ №1042» и шёл искать его руками, хотя id лежит рядом
+                    <OrderLink
+                      key={n.id}
+                      orderId={n.orderId}
+                      className={styles.notifItem}
+                    >
+                      <span className={styles.notifText}>
+                        {n.text}
+                        <span className={styles.notifSub}> · {n.sub}</span>
+                      </span>
+                      {n.overdueDays > 0 && (
+                        <Badge variant={g.tone === 'danger' ? 'blocked' : 'neutral'}>
+                          {n.overdueDays} дн.
+                        </Badge>
+                      )}
+                    </OrderLink>
+                  ))}
+                  {g.items.length > 8 && (
+                    // Никаких тихих лимитов: сколько показано и сколько всего
+                    <Link to="/orders?filter=overdue" className={styles.notifMore}>
+                      Показаны 8 из {g.items.length} → все в списке заказов
+                    </Link>
+                  )}
+                </details>
+              ))
+            )}
+          </div>
+
           {/* Загрузка производства против общей мощности (правки заказчика 10.08).
               Стоит над блоками цехов сознательно: «влезаем ли мы в месяц» —
               вопрос раньше, чем «какой цех занят сильнее». */}
@@ -302,7 +355,14 @@ export default function ErpDashboard() {
           />
 
           {/* Заказы в работе / Задачи по цехам / Дедлайны */}
-          <div className={`${styles.dashRow} ${styles.dashRow3}`}>
+          {/*
+            ТАБЛИЦЕ — СВОЙ РЯД (обход 04.09). «Заказы в работе» стоял третьим
+            в ряду из трёх: на 1280px виджету доставалось ~338px, а таблица
+            в нём шестиколоночная, и «Кол-во» со «Статусом» уезжали за край.
+            Соседи по ряду — списки в две колонки, им ширина не нужна;
+            здесь она и есть содержимое.
+          */}
+          <div className={styles.dashRow}>
             <div className={styles.widget}>
               <div className={styles.widgetHead}>
                 <h2 className={styles.widgetTitle}>Заказы в работе</h2>
@@ -332,7 +392,9 @@ export default function ErpDashboard() {
                 </ScrollHintBox>
               )}
             </div>
+          </div>
 
+          <div className={`${styles.dashRow} ${styles.dashRow2}`}>
             <div className={styles.widget}>
               {/* «Задачи по цехам», а не «Загрузка цехов» (решение заказчика 10.08):
                   блок считает ЭТАПЫ, а экран /load — штуки. Одно слово на две разные
@@ -379,8 +441,8 @@ export default function ErpDashboard() {
             </div>
           </div>
 
-          {/* Быстрые действия / Уведомления */}
-          <div className={`${styles.dashRow} ${styles.dashRow2}`}>
+          {/* Быстрые действия — последними: это ярлыки, а не работа */}
+          <div className={styles.dashRow}>
             <div className={styles.widget}>
               <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Быстрые действия</h2></div>
               <div className={styles.quickGrid}>
@@ -393,58 +455,6 @@ export default function ErpDashboard() {
               </div>
             </div>
 
-            <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
-              <div className={styles.widgetHead}>
-                <h2 className={styles.widgetTitle}>Уведомления</h2>
-                {urgent > 0 && (
-                  <span className={styles.subText}>требуют действия сейчас: {urgent}</span>
-                )}
-              </div>
-              {data.noticeGroups.length === 0 ? (
-                <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
-              ) : (
-                data.noticeGroups.map((g) => (
-                  /* Группа — <details>: сворачивание нативное, значит работает
-                     с клавиатуры и читается скринридером без единой строки JS.
-                     Срочные группы открыты (`open`), давняя просрочка свёрнута
-                     со счётчиком: она важна, но это не сегодняшняя работа. */
-                  <details key={g.key} className={styles.notifGroup} open={g.open}>
-                    <summary className={styles.notifSummary}>
-                      <span className={`${styles.notifDot} ${styles[`notifDot_${g.tone}`]}`} aria-hidden="true" />
-                      <Icon name={g.icon} size={15} />
-                      <span className={styles.notifGroupTitle}>{g.title}</span>
-                      <span className={styles.notifCount}>{g.items.length}</span>
-                    </summary>
-                    <p className={styles.notifHint}>{g.hint}</p>
-                    {g.items.slice(0, 8).map((n) => (
-                      // Алерт без ссылки — тупик: пользователь читал «Просрочен
-                      // заказ №1042» и шёл искать его руками, хотя id лежит рядом
-                      <OrderLink
-                        key={n.id}
-                        orderId={n.orderId}
-                        className={styles.notifItem}
-                      >
-                        <span className={styles.notifText}>
-                          {n.text}
-                          <span className={styles.notifSub}> · {n.sub}</span>
-                        </span>
-                        {n.overdueDays > 0 && (
-                          <Badge variant={g.tone === 'danger' ? 'blocked' : 'neutral'}>
-                            {n.overdueDays} дн.
-                          </Badge>
-                        )}
-                      </OrderLink>
-                    ))}
-                    {g.items.length > 8 && (
-                      // Никаких тихих лимитов: сколько показано и сколько всего
-                      <Link to="/orders?filter=overdue" className={styles.notifMore}>
-                        Показаны 8 из {g.items.length} → все в списке заказов
-                      </Link>
-                    )}
-                  </details>
-                ))
-              )}
-            </div>
           </div>
         </div>
       )}

@@ -18,10 +18,9 @@ import { formatDateShort } from '../../utils/time';
 import { factoryToday } from '../../../utils/date';
 import { StageIndicator } from '../../components/StageIndicator';
 import {
-  DEV_STAGE_LABELS, cuttingGate, devBoardColumn, devBrandingFromPrints,
-  devRouteSteps, devStageStates, extraTasks,
+  DEV_STAGE_LABELS, devRouteSteps, extraTasks,
 } from '../../utils/experimentalBoard';
-import { findSupplyDept, openSupplyStages } from '../../utils/supply';
+import { devContext } from '../../utils/devContext';
 import { wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
@@ -29,7 +28,7 @@ import { DevSendToDept } from './DevSendToDept';
 import { DevSampleCheck } from './DevSampleCheck';
 import { DevFinalPackage } from './DevFinalPackage';
 import { DevToSku } from './DevToSku';
-import { DevCardTabs } from './DevCardTabs';
+import { Tabs, TabPanel } from '../../components/Tabs';
 import { DevAside } from './DevAside';
 import { DevFilesTab } from './DevFilesTab';
 import styles from '../../styles';
@@ -186,22 +185,13 @@ export function DevCard({
    * же `devStageStates`, что и доска: два ответа на один вопрос разошлись бы.
    */
   /**
-   * Контекст шагов — тот же, что у доски (правка 01.09): открыта ли закупка
-   * заказа и есть ли у позиции нанесения. Без него карточка показывала бы
-   * маршрут, отличный от доски, — два ответа на один вопрос.
+   * Контекст шагов — тот же, что у страницы и доски (правка 01.09): открыта ли
+   * закупка заказа и есть ли у позиции нанесения. Считает `devContext` —
+   * ОДИН расчёт на карточку и страницу, которая её монтирует: до 05.09 обе
+   * считали это из одной и той же тройки `dev`/`order`/`departments` порознь.
    */
-  const supplyOpen = useMemo(
-    () => openSupplyStages(order, findSupplyDept(departments)?.id).length > 0,
-    [order, departments]);
-  const stageStates = devStageStates({
-    dev,
-    tasks,
-    materials: order?.materials ?? [],
-    supplyOpen,
-    hasBranding: devBrandingFromPrints(
-      (order?.items ?? []).find((it) => it.id === dev.item_id)?.prints).length > 0,
-  });
-  const currentStage = devBoardColumn(stageStates, dev);
+  const { stageStates, stage: currentStage, materialGate } = devContext(
+    dev, order, departments);
   /**
    * Разделение задач на две группы (п. 4.6): «если внутри разработки создана
    * задача Доработать рукав, на общей доске не должна появляться отдельная
@@ -216,17 +206,9 @@ export function DevCard({
    * Считается ТЕМ ЖЕ гейтом кроя, что и доска: «крой можно начать только когда
    * лекала готовы И материалы физически приняты складом». Второй ответ на тот
    * же вопрос разошёлся бы с первым — а человек читает оба на одном экране.
+   * Отсюда `materialGate` приезжает из `devContext` выше.
    */
-  const patternsDone = tasks
-    .filter((t) => t.task_type === 'patterns')
-    .every((t) => t.status === 'done' || t.status === 'cancelled');
   const [toSkuOpen, setToSkuOpen] = useState(false);
-  const materialGate = cuttingGate({
-    patternsDone: patternsDone && tasks.some((t) => t.task_type === 'patterns'),
-    itemId: dev.item_id,
-    materials: order?.materials ?? [],
-    supplyOpen,
-  });
   /**
    * Позиция заказа, которую разрабатывают. Нужна справке справа: изделие
    * и размерный ряд описывает ЗАКАЗ, у разработки своих полей для них нет
@@ -426,7 +408,7 @@ export function DevCard({
             Готовность {readiness.total > 0 ? `${readiness.done} / ${readiness.total}` : '—'}
           </span>
           {dev.outcome && (
-            <Badge variant={dev.outcome === 'ready_for_serial' ? 'ready' : 'neutral'}>
+            <Badge variant={dev.outcome === 'ready_for_serial' ? 'done' : 'neutral'}>
               {DEV_OUTCOME_LABELS[dev.outcome]}
             </Badge>
           )}
@@ -446,16 +428,16 @@ export function DevCard({
         nodes={devRouteSteps(stageStates, currentStage)}
       />
 
-      <DevCardTabs tabs={tabs} active={tab} onSelect={selectTab} />
+      <Tabs
+        idPrefix="dev"
+        label="Разделы карточки разработки"
+        tabs={tabs}
+        active={tab}
+        onSelect={selectTab}
+      />
 
       <div className={styles.devLayout}>
-        <div
-          className={styles.devMain}
-          id="dev-tabpanel"
-          role="tabpanel"
-          aria-labelledby={`dev-tab-${tab}`}
-          tabIndex={-1}
-        >
+        <TabPanel idPrefix="dev" active={tab} className={styles.devMain}>
       <ReadOnlyFieldset
         canManage={canManage}
         note="Только просмотр: разработку ведёт технолог."
@@ -769,7 +751,7 @@ export function DevCard({
           )
         )}
       </ReadOnlyFieldset>
-        </div>
+        </TabPanel>
 
         <DevAside
           dev={dev}

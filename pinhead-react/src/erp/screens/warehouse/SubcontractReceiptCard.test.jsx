@@ -183,3 +183,40 @@ describe('карточка приёмки подряда', () => {
     expect(screen.getByText(/следующий этап маршрута открыт/)).toBeInTheDocument();
   });
 });
+
+/**
+ * §3.5 обхода 04.09: возврат от подрядчика фиксировал МЕНЕДЖЕР, и до его
+ * отметки склад упирался в ноль — доступное считается как «вернулось −
+ * принято − брак». То есть склад, к которому партия физически приехала,
+ * не мог записать её приход; на живой базе так и стоит операция
+ * с переданными 4670 и нулевым возвратом.
+ */
+describe('приёмка подряда: возврат отмечает склад', () => {
+  const OPEN = { ...SUB, phase: 'at_contractor', qty_returned: 0 };
+  const seedSub = (sub) => useErpStore.setState({ subcontracting: [sub] });
+
+  it('пока партия у подрядчика — есть поле «Вернулось сейчас»', () => {
+    seedSub(OPEN);
+    renderCard();
+    expect(screen.getByLabelText('Сколько вернулось от подрядчика')).toBeInTheDocument();
+  });
+
+  it('возврат уходит тем же вызовом, что приёмка', async () => {
+    seedSub(OPEN);
+    renderCard();
+    fireEvent.change(screen.getByLabelText('Сколько вернулось от подрядчика'), { target: { value: '120' } });
+    fireEvent.change(screen.getByLabelText('Сколько принято'), { target: { value: '115' } });
+    fireEvent.change(screen.getByLabelText('Сколько брака'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Подтвердить приёмку/ }));
+    await waitFor(() => expect(receiveSubcontract).toHaveBeenCalled());
+    expect(receiveSubcontract.mock.calls[0][1]).toMatchObject(
+      { accepted: 115, defect: 5, returned: 120 },
+    );
+  });
+
+  it('всё уже вернулось — поля возврата нет', () => {
+    seedSub({ ...OPEN, qty_returned: 200 });
+    renderCard();
+    expect(screen.queryByLabelText('Сколько вернулось от подрядчика')).not.toBeInTheDocument();
+  });
+});

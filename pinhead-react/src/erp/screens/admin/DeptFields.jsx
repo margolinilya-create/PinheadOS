@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import InlineEdit from '../../components/InlineEdit';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
+import { Modal } from '../../components/Modal';
 import {
   EMPLOYEE_ROLE_LABELS, MATERIAL_KIND_LABELS, RESULT_FIELD_TARGET_LABELS,
 } from '../../types';
@@ -152,82 +154,169 @@ export function NormDaysInput({ dept, onChange }) {
 }
 
 /**
- * Схема отчёта участка (правки заказчика 10.08, P2).
+ * Схема отчёта участка (правки заказчика 10.08, P2; форма — §5 обхода 04.09).
  *
- * Правится текстом, по строке на поле: `код | подпись | единица | назначение | *`.
- * Формы с восемью инпутами на строку таблицы здесь быть не может — колонок и так
- * девять, — а JSON руками в проде набирают с опечатками, которые тихо ломают
- * форму цеха. Текстовый формат читается глазами и проверяется при сохранении.
+ * БЫЛО DSL В `textarea`: строка на поле, `код | подпись | единица | назначение | *`.
+ * Синтаксис ничего не экономит — человек обязан помнить порядок пяти позиций
+ * и коды назначений, а ошибку узнаёт только из красной строки после
+ * «Сохранить».
+ *
+ * НО ДОВОД «ФОРМЫ С ВОСЕМЬЮ ИНПУТАМИ НА СТРОКУ ТАБЛИЦЫ ЗДЕСЬ БЫТЬ НЕ МОЖЕТ»
+ * ОКАЗАЛСЯ ВЕРНЫМ БУКВАЛЬНО. Первая редакция правки 04.09 раскрывала поля
+ * прямо в ячейке — та узкая (колонок девять), и шесть полей строки вставали
+ * СТОЛБИКОМ: три поля дали бы восемнадцать строк вертикали внутри одной
+ * ячейки. Это хуже `textarea`, которую заменяли. Проверено снимком экрана,
+ * а не рассуждением — рассуждение как раз и ошиблось.
+ *
+ * Поэтому редактор уехал в `Modal`: настройка схемы отчёта — отдельная
+ * задача, а не инлайн-правка ячейки, и ширину она берёт свою.
+ *
+ * Теперь строка поля — это строка полей: подпись, код, единица, назначение
+ * селектом (коды больше не надо помнить) и галочка «обязательное». Проверка
+ * осталась ТА ЖЕ и на том же месте — при сохранении: пустая подпись или код
+ * не должны уезжать в форму цеха.
  */
 export function ResultFieldsCell({ dept, onSave }) {
   const fields = Array.isArray(dept.result_fields) ? dept.result_fields : [];
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState('');
+  const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
 
-  const toText = (list) => list
-    .map((f) => [f.code, f.label, f.unit || '', f.target, f.required ? '*' : ''].join(' | '))
-    .join('\n');
+  const open = () => {
+    setRows(fields.map((f) => ({
+      code: f.code ?? '', label: f.label ?? '', unit: f.unit ?? '',
+      target: f.target ?? '', required: Boolean(f.required),
+    })));
+    setError('');
+    setEditing(true);
+  };
 
-  const open = () => { setText(toText(fields)); setError(''); setEditing(true); };
+  const patch = (i, key, value) => setRows(
+    (list) => list.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)),
+  );
 
   const save = () => {
     const parsed = [];
-    for (const raw of text.split('\n')) {
-      const line = raw.trim();
-      if (!line) continue;
-      const [code, label, unit, target, req] = line.split('|').map((p) => p.trim());
-      if (!code || !label || !target) {
-        setError(`Строка «${line}»: нужны код, подпись и назначение`);
+    for (const r of rows) {
+      const code = r.code.trim();
+      const label = r.label.trim();
+      // Совсем пустая строка — не ошибка, а недозаполненный черновик: её
+      // отбрасываем, как отбрасывает пустые строки лист закупки
+      if (!code && !label && !r.target) continue;
+      if (!code || !label || !r.target) {
+        setError(`Поле «${label || code || 'без названия'}»: нужны код, подпись и назначение`);
         return;
       }
-      if (!RESULT_FIELD_TARGET_LABELS[target]) {
-        setError(`Назначение «${target}» неизвестно. Допустимые: ${Object.keys(RESULT_FIELD_TARGET_LABELS).join(', ')}`);
+      if (!RESULT_FIELD_TARGET_LABELS[r.target]) {
+        setError(`Назначение «${r.target}» неизвестно`);
         return;
       }
-      parsed.push({ code, label, unit: unit || null, target, required: req === '*' });
+      parsed.push({
+        code, label, unit: r.unit.trim() || null, target: r.target, required: r.required,
+      });
     }
     onSave(parsed);
     setEditing(false);
   };
 
-  if (!editing) {
-    return (
-      <>
-        {fields.length === 0
-          ? <div className={styles.subText}>отчёт не требуется</div>
-          : (
-            <div className={styles.subText}>
-              {fields.map((f) => f.label + (f.required ? ' *' : '')).join(', ')}
-            </div>
-          )}
-        <Button variant="ghost" onClick={open} aria-label={`Настроить отчёт участка ${dept.name}`}>
-          Настроить
-        </Button>
-      </>
-    );
-  }
-
   return (
-    <div className={styles.stack}>
-      <textarea
-        className={styles.input}
-        rows={Math.max(3, fields.length + 1)}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        aria-label={`Поля отчёта участка ${dept.name}`}
-        placeholder="cut | Скроено | шт | qty_good | *"
-      />
-      <span className={styles.queueReason}>
-        Формат строки: код | подпись | единица | назначение | * (обязательное).
-        Назначения: {Object.entries(RESULT_FIELD_TARGET_LABELS)
-          .map(([k, v]) => `${k} — ${v}`).join('; ')}.
-      </span>
-      {error && <span className={styles.overdue}>{error}</span>}
-      <div className={styles.queueActions}>
-        <Button variant="primary" onClick={save}>Сохранить</Button>
-        <Button variant="ghost" onClick={() => setEditing(false)}>Отмена</Button>
-      </div>
-    </div>
+    <>
+      {fields.length === 0
+        ? <div className={styles.subText}>отчёт не требуется</div>
+        : (
+          <div className={styles.subText}>
+            {fields.map((f) => f.label + (f.required ? ' *' : '')).join(', ')}
+          </div>
+        )}
+      <Button variant="ghost" onClick={open} aria-label={`Настроить отчёт участка ${dept.name}`}>
+        Настроить
+      </Button>
+      {editing && (
+        <Modal title={`Отчёт участка «${dept.name}»`} onClose={() => setEditing(false)}>
+          <p className={styles.queueReason}>
+            Какие числа участок вносит, сдавая работу. Пусто — участок сдаёт одним
+            числом «сколько сделано»: схема не обязательна.
+          </p>
+          <div className={styles.stack}>
+            {rows.length === 0 && (
+              <span className={styles.subText}>
+                Полей нет — участок сдаёт работу одним числом «сколько сделано».
+              </span>
+            )}
+            {rows.map((r, i) => (
+              /* Ключ по индексу тут верен: строки не переупорядочиваются, а удаление
+                 переписывает весь список — стабильного идентификатора у поля нет */
+              <div key={i} className={styles.resultFieldRow}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Подпись</span>
+                  <input
+                    className={`${styles.input} ${styles.inputSm}`} value={r.label}
+                    onChange={(e) => patch(i, 'label', e.target.value)}
+                    aria-label={`Подпись поля ${i + 1}`} placeholder="Скроено" />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Код</span>
+                  <input
+                    className={`${styles.input} ${styles.inputSm}`} value={r.code}
+                    onChange={(e) => patch(i, 'code', e.target.value)}
+                    aria-label={`Код поля ${i + 1}`} placeholder="cut" />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Единица</span>
+                  <input
+                    className={`${styles.input} ${styles.inputSm}`} value={r.unit}
+                    onChange={(e) => patch(i, 'unit', e.target.value)}
+                    aria-label={`Единица поля ${i + 1}`} placeholder="шт" />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Назначение</span>
+                  {/* Селект, а не набранный код: помнить перечисление наизусть
+                      человек не обязан, и опечатка тут ломала форму цеха */}
+                  <select
+                    className={styles.select} value={r.target}
+                    onChange={(e) => patch(i, 'target', e.target.value)}
+                    aria-label={`Назначение поля ${i + 1}`}>
+                    <option value="">— выберите —</option>
+                    {Object.entries(RESULT_FIELD_TARGET_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </label>
+                {/* Инлайновая подпись, а не колонка `.field`: у флажка подпись
+                    стоит РЯДОМ, иначе она висит над пустым местом и читается
+                    как заголовок соседнего поля */}
+                <label className={styles.checkLabel}>
+                  <input
+                    type="checkbox" checked={r.required}
+                    onChange={(e) => patch(i, 'required', e.target.checked)}
+                    aria-label={`Поле ${i + 1} обязательное`} />
+                  обязательное
+                </label>
+                <Button
+                  variant="ghost"
+                  onClick={() => setRows((list) => list.filter((_, idx) => idx !== i))}
+                  aria-label={`Удалить поле ${i + 1}`}>
+                  <Icon name="trash" size={14} />
+                </Button>
+              </div>
+            ))}
+            <div className={styles.queueActions}>
+              <Button
+                variant="secondary"
+                onClick={() => setRows((list) => [
+                  ...list, { code: '', label: '', unit: '', target: '', required: false },
+                ])}>
+                <Icon name="plus" size={14} /> Поле
+              </Button>
+            </div>
+            {error && <span className={styles.overdue}>{error}</span>}
+            <div className={styles.queueActions}>
+              <Button variant="primary" onClick={save}>Сохранить</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>Отмена</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

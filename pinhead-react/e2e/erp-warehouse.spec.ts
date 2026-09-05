@@ -130,18 +130,30 @@ test.describe('Экран склада: задачи доходят до экр�
    * проверка `> 0` всегда ложна, и число открытых задач не показывалось
    * НИКОГДА. Ошибка тихая — экран выглядит рабочим, просто одна цифра пуста.
    */
-  test('«Приёмка ГП» показывает число открытых задач и плиткой, и вкладкой', async ({ page }) => {
+  test('«Приёмка ГП» показывает число открытых задач', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
 
-    // Ровно две точки входа: KPI-плитка и вкладка фильтра. Плитки у этого типа
-    // не было вовсе — вкладка была, а плитка отсутствовала.
-    const both = page.getByRole('button', { name: /Приёмка ГП/ });
-    await expect(both).toHaveCount(2);
+    /*
+     * Точка входа теперь ОДНА (обход 04.09): плитки-показатели сняты — они
+     * были тем же фильтром, нарисованным вторым видом, и успели разойтись
+     * с чипами (тип «Передача подрядчику» был только у чипов). Проверяемое
+     * свойство не изменилось: счётчик показывает число и не показывает NaN.
+     */
+    const chip = page.getByRole('button', { name: /Приёмка ГП/ });
+    await expect(chip).toHaveCount(1);
+    await expect(chip).toContainText('1');
+    await expect(chip).not.toContainText('NaN');
+  });
 
-    for (const el of await both.all()) {
-      await expect(el).toContainText('1');
-      await expect(el).not.toContainText('NaN');
-    }
+  /**
+   * Второй вид того же фильтра не должен вернуться: плитки и чипы отбирают
+   * одно и то же, а два вида у одной работы однажды разъезжаются — здесь
+   * это уже случилось.
+   */
+  test('фильтр типов задач нарисован ровно одним видом', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await expect(page.getByRole('button', { name: /Приёмка материалов/ })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /Упаковка\/отгрузка/ })).toHaveCount(1);
   });
 });
 

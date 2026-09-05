@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SUBCONTRACT_SEND_STATUS_LABELS } from '../../types';
 import { useErpStore } from '../../store/useErpStore';
+import { useErpAccess } from '../../store/useErpAccess';
+import { canOpenScreen } from '../../utils/screenAccess';
 import { SUBCONTRACT_ACTIONS } from '../../utils/subcontractFlow';
 import { stageInputQty } from '../../utils/stageInput';
 import { deptShortName } from '../../data/departments';
@@ -34,6 +36,9 @@ import styles from '../../styles';
  * Кнопка закрывает задачу и двигает фазу, не записывая в журнал ноль.
  */
 export function SendToContractorCard({ order, task, onAdvance }) {
+  // Тот же источник, что у меню и маршрутов: совет обязан вести туда, куда пустят
+  const { can } = useErpAccess();
+  const canOpenSubcontracting = canOpenScreen(can, '/subcontracting');
   const { subcontracting, applySubcontractAction } = useErpStore(useShallow((s) => ({
     subcontracting: s.subcontracting,
     applySubcontractAction: s.applySubcontractAction,
@@ -89,11 +94,20 @@ export function SendToContractorCard({ order, task, onAdvance }) {
   });
 
   if (!sub) {
+    /**
+     * ПОДСКАЗКА НЕ ВЕДЁТ В ЗАКРЫТЫЙ РАЗДЕЛ (обход 04.09). Текст звал кладовщика
+     * «завести подрядчика в разделе „Подряд“», а `/subcontracting` открыт
+     * под `order.manage`, которого у роли `storekeeper` нет: совет упирался
+     * в «Нет доступа», и человек читал это как поломку. Тому, кто раздел
+     * открыть может, совет остаётся прежним; остальным называется тот,
+     * кто это делает.
+     */
     return (
       <div className={styles.tzBlock}>
         <p className={styles.subText}>
-          У этапа нет карточки подрядчика — передавать некому. Заведите
-          подрядчика в разделе «Подряд», и задача заработает.
+          {canOpenSubcontracting
+            ? 'У этапа нет карточки подрядчика — передавать некому. Заведите подрядчика в разделе «Подряд», и задача заработает.'
+            : 'У этапа нет карточки подрядчика — передавать некому. Карточку заводит менеджер заказа в разделе «Подряд»; до этого задача не работает.'}
         </p>
       </div>
     );

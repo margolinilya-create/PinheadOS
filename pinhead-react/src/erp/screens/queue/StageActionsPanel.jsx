@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useDictionary } from '../../store/useDictionary';
 import { stageOverdue } from '../../utils/time';
+import { factoryToday } from '../../../utils/date';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
 import { PROCUREMENT_CAUSE_LABELS } from '../../types';
 import { TzViewer } from '../../components/TzViewer';
@@ -15,30 +16,10 @@ import { TzBlock } from './TzBlock';
 import { DefectWizard } from './DefectWizard';
 import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
+import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
-
-/**
- * Быстрый выбор значения справочника: чипы над полем ввода (правка 12).
- * Значение ДОПИСЫВАЕТСЯ к уже набранному, а не затирает его: рабочий мог
- * напечатать половину причины, нажать чип и потерять текст.
- */
-function DictionaryChips({ items, onPick, label }) {
-  if (items.length === 0) return null;
-  return (
-    <div className={styles.checkRow} role="group" aria-label={label}>
-      {items.map((d) => (
-        <button
-          key={d.id}
-          type="button"
-          className={`${styles.chip} ${styles.chipBtn} ${styles.chipNeutral}`}
-          onClick={() => onPick(d.name)}
-        >
-          {d.name}
-        </button>
-      ))}
-    </div>
-  );
-}
+import { useStageMove } from '../../hooks/useStageMove';
+import { deptShortName } from '../../data/departments';
 
 /**
  * Действия цеха над заданием: «Взять в работу», «Записать результат», «Проблема»,
@@ -54,6 +35,16 @@ function DictionaryChips({ items, onPick, label }) {
  */
 export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz = true }) {
   const { order, item, stage, group } = entry;
+  /** Перенос в другой цех — та же функция, что у канбана (§2.5) */
+  const { moveStageTo, canMove, targetsFor } = useStageMove();
+  const canMoveDept = canMove(stage);
+  const moveTargets = useMemo(() => targetsFor(stage), [targetsFor, stage]);
+  const [moveTo, setMoveTo] = useState('');
+  /** Задача дневного плана этого этапа на сегодня — если руководитель её ставил */
+  const todaySlot = useErpStore(useShallow((st) => (st.planSlots ?? []).find(
+    (sl) => sl.stage_id === stage.id
+      && sl.work_date === factoryToday()
+      && sl.status !== 'cancelled') ?? null));
   const {
     onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip, onAckOverdue,
   } = actions;
@@ -165,9 +156,10 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const submitDefect = (payload, photo) => run(async () => {
     // Возврат переоткрывает и промежуточные этапы — рабочий видел только
     // «Вернуть: Швейка» и не знал, что откатятся ещё ВТО и Печать
+    const targetStage = item.stages.find((s2) => s2.id === payload.target) ?? null;
     const ok = await confirmDefectRollback({
       stage,
-      targetStage: item.stages.find((s2) => s2.id === payload.target) ?? null,
+      targetStage,
       allStages: item.stages,
       deptNameById: deptShortById,
       qty: payload.qty,
@@ -240,6 +232,25 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
         </label>
       )}
 
+      {/*
+        ПЛАН НА СЕГОДНЯ РЯДОМ С ФАКТОМ ЭТАПА (Б3 обхода 04.09, половина,
+        доступная интерфейсу).
+        Один результат вводится в ДВУХ местах и это разные числа: здесь
+        «Записать результат» приращает `erp_item_stages.qty_done`, а форма
+        плана пишет АБСОЛЮТ за день в `erp_calendar_slots.qty_done`. Связки
+        между ними нет ни триггером, ни расчётом — то есть цех, отчитавшийся
+        тут, в плане остаётся «факт 0». Выбор модели за владельцем
+        (§10.2 отчёта); пока величины две, обе обязаны быть видны на ОБЕИХ
+        поверхностях, иначе расхождение молчит.
+      */}
+      {todaySlot && (
+        <p className={styles.queueReason}>
+          В плане на сегодня: {todaySlot.qty_planned} план · {todaySlot.qty_done ?? 0} факт.
+          {' '}
+          Это отдельное число — оно не считается из того, что вы запишете здесь.
+        </p>
+      )}
+
       {perms.any && (
         <div className={styles.queueActions}>
           {group === 'ready' && (
@@ -265,9 +276,18 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           )}
           {group === 'in_progress' && (
             <>
+              {/*
+                ИЕРАРХИЯ ДЕЙСТВИЙ (обход 04.09). «Записать результат» —
+                ежедневное действие цеха, «Завершить этап» — необратимое
+                и на весь тираж. Главной кнопкой стояло ВТОРОЕ: самая заметная
+                цель на экране закрывала этап, а сдача дневной выработки
+                выглядела второстепенной. Правило то же, что у опасных действий
+                в остальном разделе — обычная работа впереди, необратимая
+                рядом и спокойнее.
+              */}
               {perms.progress && (hasReportSchema ? (
                 !reportMode && (
-                  <Button variant="secondary" icon="plus" onClick={() => setReportMode(true)}>
+                  <Button variant="primary" icon="plus" onClick={() => setReportMode(true)}>
                     Записать результат
                   </Button>
                 )
@@ -284,7 +304,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     aria-label={`Сколько сделано, шт (осталось ${remaining} из ${item.qty})`}
                   />
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     icon="plus"
                     loading={busy}
                     disabled={busy || !(Number(doneQty) > 0)}
@@ -298,7 +318,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 </>
               ))}
               {perms.complete && (
-                <Button variant="primary" loading={busy} disabled={busy} onClick={() => run(() => onDone(entry))}>
+                <Button variant="secondary" loading={busy} disabled={busy} onClick={() => run(() => onDone(entry))}>
                   <Icon name="check" size={14} /> Завершить этап
                 </Button>
               )}
@@ -327,6 +347,41 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 </>
               )}
             </>
+          )}
+          {/*
+            ПЕРЕНОС В ДРУГОЙ ЦЕХ ЖИВЁТ И ЗДЕСЬ (§2.5 обхода 04.09). Раньше
+            `moveStageToDepartment` звал только канбан, а вид доски по умолчанию
+            — таблица: диспетчер, увидевший затор в очереди участка, обязан был
+            уйти на доску и переключить вид. Логика та же самая
+            (`hooks/useStageMove`) — подтверждение с последствиями и
+            обязательная причина при возврате назад; второй реализации нет.
+          */}
+          {canMoveDept && moveTargets.length > 0 && (
+            <span className={styles.checkRow}>
+              <select
+                className={styles.select}
+                value={moveTo}
+                onChange={(e) => setMoveTo(e.target.value)}
+                aria-label="Перенести задание в другой цех"
+              >
+                <option value="">— перенести в цех —</option>
+                {moveTargets.map((d) => (
+                  <option key={d.id} value={d.id}>{deptShortName(d.code, d.name)}</option>
+                ))}
+              </select>
+              <Button
+                variant="ghost"
+                loading={busy}
+                disabled={busy || !moveTo}
+                onClick={() => run(async () => {
+                  const dept = moveTargets.find((d) => d.id === moveTo);
+                  if (dept) await moveStageTo(entry, dept);
+                  setMoveTo('');
+                })}
+              >
+                <Icon name="arrowRight" size={14} /> Перенести
+              </Button>
+            </span>
           )}
           {group === 'done' && perms.defect && !defectMode && (
             <Button variant="ghost" onClick={() => setDefectMode(true)}>

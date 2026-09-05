@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { isAllowed } from '../../utils/permissions';
@@ -8,6 +8,8 @@ import {
   ERP_PERMISSIONS,
   ERP_PERMISSION_LABELS,
 } from '../../types';
+import { Button } from '../../components/Button';
+import { formatDateTimeShort } from '../../utils/format';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { LoadFailed } from '../../components/ErpStates';
@@ -43,6 +45,28 @@ const ROLES = [
  * здесь раздала бы право всем неназначенным разом, и заметить это было бы
  * нечем. Права выдаются назначением должности, а не правкой этой колонки.
  */
+/**
+ * ГРУППЫ ПРАВ (§5 обхода 04.09). Семнадцать строк шли сплошным списком
+ * в порядке объявления перечисления, и найти в нём «кто ведёт склад» можно
+ * было только вычитыванием всех семнадцати. Группировка — единственное,
+ * что здесь помогает: ширину таблице не уменьшить, колонок пятнадцать
+ * по числу ролей, и это данные, а не оформление.
+ *
+ * Порядок групп повторяет путь заказа по фабрике: цех → заказ → снабжение
+ * и склад → план → администрирование. Право, не попавшее ни в одну группу,
+ * не теряется — оно уезжает в «Прочее» (сторож на это есть).
+ */
+const PERMISSION_GROUPS = [
+  { title: 'Работа цеха', keys: [
+    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect'] },
+  { title: 'Управление очередью и маршрутом', keys: [
+    'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage'] },
+  { title: 'Снабжение и склад', keys: ['material.receive', 'warehouse.manage'] },
+  { title: 'Планирование', keys: ['plan.manage', 'plan.fact'] },
+  { title: 'Настройка системы', keys: [
+    'catalog.edit', 'experimental.manage', 'bypass.manage', 'staff.invite'] },
+];
+
 const LOCKED_ROLES = {
   director: 'Колонка руководства — не редактируется',
   pending: 'Роль без прав по определению — назначьте человеку должность',
@@ -50,16 +74,59 @@ const LOCKED_ROLES = {
 
 export function PermissionsTab() {
   const {
-    permissionMatrix, permissionsLoaded, permissionsError, loadPermissions, setRolePermission,
+    permissionMatrix, permissionTrail, permissionsLoaded, permissionsError,
+    loadPermissions, setRolePermission, employees,
   } = useErpStore(
     useShallow((s) => ({
       permissionMatrix: s.permissionMatrix,
+      permissionTrail: s.permissionTrail,
       permissionsLoaded: s.permissionsLoaded,
       permissionsError: s.permissionsError,
       loadPermissions: s.loadPermissions,
       setRolePermission: s.setRolePermission,
+      employees: s.employees,
     })),
   );
+
+  /**
+   * ОТМЕНА ПОСЛЕДНЕЙ ПРАВКИ (§5 обхода 04.09). Клик по галочке записывался
+   * мгновенно и отката не имел вовсе: промахнулся в таблице 15×17 — ищи,
+   * где именно. Подтверждение на КАЖДУЮ галочку сделало бы экран
+   * неработоспособным, поэтому отмена, а не вопрос: она называет, что именно
+   * вернёт, и живёт ровно до следующей правки.
+   */
+  const [lastChange, setLastChange] = useState(null);
+
+  const toggle = async (role, permission, allowed) => {
+    const ok = await setRolePermission(role, permission, allowed);
+    if (ok) setLastChange({ role, permission, was: !allowed });
+  };
+
+  const undo = async () => {
+    if (!lastChange) return;
+    const ok = await setRolePermission(lastChange.role, lastChange.permission, lastChange.was);
+    if (ok) setLastChange(null);
+  };
+
+  /** Имя по uuid — из уже загруженного списка сотрудников, второго запроса не заводим */
+  const nameById = useMemo(
+    () => new Map((employees ?? []).filter((e) => e.profile_id).map((e) => [e.profile_id, e.full_name])),
+    [employees],
+  );
+
+  /**
+   * Группы прав + «Прочее»: право, забытое в `PERMISSION_GROUPS`, обязано
+   * остаться видимым. Пропуск в перечислении не роняет ничего — он молча
+   * прячет настройку, и заметить это можно только по жалобе.
+   */
+  const groups = useMemo(() => {
+    const placed = new Set(PERMISSION_GROUPS.flatMap((g) => g.keys));
+    const rest = ERP_PERMISSIONS.filter((p) => !placed.has(p));
+    const known = PERMISSION_GROUPS
+      .map((g) => ({ ...g, keys: g.keys.filter((k) => ERP_PERMISSIONS.includes(k)) }))
+      .filter((g) => g.keys.length > 0);
+    return rest.length > 0 ? [...known, { title: 'Прочее', keys: rest }] : known;
+  }, []);
 
   useEffect(() => {
     if (!permissionsLoaded) loadPermissions();
@@ -113,35 +180,82 @@ export function PermissionsTab() {
               ))}
             </tr>
           </thead>
-          <tbody>
-            {ERP_PERMISSIONS.map((permission) => (
-              <tr key={permission}>
-                <td>
-                  <strong>{ERP_PERMISSION_LABELS[permission]}</strong>
-                  <div className={styles.subText}>{permission}</div>
-                </td>
-                {ROLES.map((role) => {
-                  const checked = isAllowed(permissionMatrix, role, permission);
-                  const lockReason = LOCKED_ROLES[role];
-                  const label = `${ERP_PERMISSION_LABELS[permission]} — ${EMPLOYEE_ROLE_LABELS[role]}`;
-                  return (
-                    <td key={role}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={Boolean(lockReason)}
-                        aria-label={lockReason ? `${label} (не редактируется)` : label}
-                        title={lockReason || label}
-                        onChange={(e) => setRolePermission(role, permission, e.target.checked)}
-                      />
-                    </td>
-                  );
-                })}
+          {groups.map((g) => (
+            <tbody key={g.title}>
+              <tr>
+                <th scope="colgroup" colSpan={ROLES.length + 1} className={styles.labelCaps}>
+                  {g.title}
+                </th>
               </tr>
-            ))}
-          </tbody>
+              {g.keys.map((permission) => (
+                <tr key={permission}>
+                  <td>
+                    <strong>{ERP_PERMISSION_LABELS[permission]}</strong>
+                    <div className={styles.subText}>{permission}</div>
+                  </td>
+                  {ROLES.map((role) => {
+                    const checked = isAllowed(permissionMatrix, role, permission);
+                    const lockReason = LOCKED_ROLES[role];
+                    const label = `${ERP_PERMISSION_LABELS[permission]} — ${EMPLOYEE_ROLE_LABELS[role]}`;
+                    return (
+                      <td key={role}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={Boolean(lockReason)}
+                          aria-label={lockReason ? `${label} (не редактируется)` : label}
+                          title={lockReason || label}
+                          onChange={(e) => toggle(role, permission, e.target.checked)}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          ))}
         </table>
       </ScrollHintBox>
+
+      {lastChange && (
+        <div className={styles.matSectionHead} style={{ marginTop: 10 }}>
+          <span className={styles.queueReason}>
+            Изменено: «{ERP_PERMISSION_LABELS[lastChange.permission]}» у роли «
+            {EMPLOYEE_ROLE_LABELS[lastChange.role]}».
+          </span>
+          <Button variant="secondary" onClick={undo}>
+            <Icon name="undo" size={14} /> Отменить
+          </Button>
+        </div>
+      )}
+
+      {/*
+        СЛЕД ПРАВОК. Не журнал и не выдаётся за него: строка в базе одна
+        на пару «роль × право», поэтому видно ПОСЛЕДНЕГО писателя каждой пары.
+        До 04.09 не было и этого — кто и когда снял право, узнать было негде.
+      */}
+      {permissionTrail.length > 0 && (
+        <div className={styles.matSection}>
+          <h3 className={styles.fieldLabel}>Кто менял права</h3>
+          <p className={styles.subText}>
+            Видно последнее изменение каждого права — полной истории система
+            не ведёт.
+          </p>
+          {permissionTrail.map((r) => (
+            <div key={`${r.role}:${r.permission}`} className={styles.queueReason}>
+              {ERP_PERMISSION_LABELS[r.permission] || r.permission}
+              {' · '}
+              {EMPLOYEE_ROLE_LABELS[r.role] || r.role}
+              {' — '}
+              {r.allowed ? 'выдано' : 'снято'}
+              {', '}
+              {nameById.get(r.updated_by) || 'неизвестно'}
+              {', '}
+              {formatDateTimeShort(r.updated_at)}
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

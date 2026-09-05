@@ -8,13 +8,14 @@ import { OrderLink } from '../../components/OrderLink';
 import { hasOpenProcurement } from '../../utils/routes';
 import { ORDER_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import styles from '../../styles';
+import { Badge } from '../../components/Badge';
 import { Icon } from '../../components/Icon';
 import { DueCell } from './DueCell';
 import { formatDateCell } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
-function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, onToggleDemo }) {
+function OrderCardMobileBase({ order, departments, now, onDelete, canDelete, onShip, onToggleDemo }) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
@@ -51,6 +52,20 @@ function OrderCardMobileBase({ order, departments, onDelete, canDelete, onShip, 
         {order.manager ? ` · ${order.manager}` : ''} · {totalQty} шт
         {order.created_at ? ` · создан ${formatDateShort(order.created_at)}` : ''}
       </div>
+      {/*
+        «СЕЙЧАС» — где заказ и почему стоит. Компактная раскладка получает то же,
+        что таблица: правило, доехавшее до одной раскладки из двух, — половина
+        починки, а на планшете живёт именно эта.
+      */}
+      {now && (
+        <div className={styles.nowCell}>
+          <span className={styles.nowHead}>
+            <span className={styles.nowWhere}>{now.where}</span>
+            <Badge variant={now.variant}>{now.what}</Badge>
+          </span>
+          {now.why && <div className={styles.subText}>{now.why}</div>}
+        </div>
+      )}
       <div className={styles.orderCardMMeta}>
         {ready ? (
           <span className={`${styles.chip} ${styles.chipReady}`}>

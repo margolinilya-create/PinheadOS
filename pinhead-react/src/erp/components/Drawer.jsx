@@ -1,15 +1,23 @@
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { onTabListKeyDown } from '../utils/tabs';
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
 
 /**
  * Правая боковая панель деталей (редизайн). Монтируется родителем только когда открыта
  * (`{open && <Drawer.../>}`). Escape и фокус-трап — в `useFocusTrap` (кнопка «Закрыть» всегда
- * фокусируется первой, фокус заперт внутри). Опциональные вкладки (`tabs` + `activeTab`/`onTab`).
- * Оверлей закрывает по клику, панель — стоп-пропагация.
+ * фокусируется первой, фокус заперт внутри). Оверлей закрывает по клику,
+ * панель — стоп-пропагация.
+ *
+ * ВКЛАДОК ЗДЕСЬ БОЛЬШЕ НЕТ (05.09). Ветка `tabs`/`activeTab`/`onTab` несла
+ * полный таб-паттерн и не вызывалась НИ ОДНИМ из трёх вызывающих
+ * (`DefectWizard`, `DevToSku`, шторка склада) — она осталась от боковой
+ * карточки заказа, убранной 16.08. Её собственный `aria-label` это и выдавал:
+ * «Разделы карточки заказа» в панели, которая заказ уже не показывает.
+ * Тот же жанр, что осиротевший вид `pipeline` у `StageIndicator`: удаляя
+ * экран, проверьте, не остался ли без вызывающих примитив, который звал он.
+ * Вкладки страницы — `components/Tabs`.
  */
-export function Drawer({ onClose, title, subtitle, badge, tabs, activeTab, onTab, children }) {
+export function Drawer({ onClose, title, subtitle, badge, children }) {
   const panelRef = useFocusTrap(true, onClose);
 
   return (
@@ -30,37 +38,7 @@ export function Drawer({ onClose, title, subtitle, badge, tabs, activeTab, onTab
           </div>
           <button type="button" className={styles.drawerClose} onClick={onClose} aria-label="Закрыть"><Icon name="x" size={16} /></button>
         </div>
-        {tabs && tabs.length > 0 && (
-          <div
-            className={styles.drawerTabs}
-            role="tablist"
-            aria-label="Разделы карточки заказа"
-            onKeyDown={onTabListKeyDown}
-          >
-            {tabs.map((t) => (
-              <button
-                key={t.key} type="button" role="tab"
-                id={`drawer-tab-${t.key}`}
-                aria-controls="drawer-tabpanel"
-                aria-selected={activeTab === t.key}
-                tabIndex={activeTab === t.key ? 0 : -1}
-                className={`${styles.drawerTab} ${activeTab === t.key ? styles.drawerTabActive : ''}`}
-                onClick={() => onTab(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
-        <div
-          className={styles.drawerBody}
-          {...(tabs && tabs.length > 0 ? {
-            id: 'drawer-tabpanel',
-            role: 'tabpanel',
-            'aria-labelledby': `drawer-tab-${activeTab}`,
-            tabIndex: -1,
-          } : {})}
-        >
+        <div className={styles.drawerBody}>
           {children}
         </div>
       </div>

@@ -14,15 +14,19 @@ import type { ErpRolePermission } from '../../types';
 import type { PermissionMatrix } from '../../utils/permissions';
 import type { ErpStore, PermissionsSlice } from '../types';
 
+/** Сколько последних правок показывать в админке — не журнал, а «кто трогал недавно» */
+const TRAIL_LIMIT = 10;
+
 export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> = (set, get) => ({
   permissionMatrix: null,
+  permissionTrail: [],
   permissionsLoaded: false,
   permissionsError: null,
 
   loadPermissions: async () => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_role_permissions')
-      .select('role, permission, allowed'));
+      .select('role, permission, allowed, updated_at, updated_by'));
     if (error) {
       /**
        * Fail-open для ЦЕХА остаётся: работаем на дефолтах молча, чтобы
@@ -39,10 +43,29 @@ export const permissionsSlice: StateCreator<ErpStore, [], [], PermissionsSlice> 
       return;
     }
     const matrix: PermissionMatrix = {};
-    for (const row of (data ?? []) as ErpRolePermission[]) {
+    const rows = (data ?? []) as ErpRolePermission[];
+    for (const row of rows) {
       (matrix[row.role] ??= {})[row.permission] = row.allowed;
     }
-    set({ permissionMatrix: matrix, permissionsLoaded: true, permissionsError: null });
+    /**
+     * СЛЕД ПРАВОК МАТРИЦЫ (§5 обхода 04.09). До 04.09 клик по галочке
+     * записывался мгновенно и не оставлял НИКАКОГО следа: кто и когда снял
+     * право, узнать было негде — а это единственная в разделе настройка,
+     * которая молча отключает людям работу.
+     *
+     * Полной истории здесь нет и не подразумевается: строка одна на пару
+     * «роль × право», значит видно последнего писателя, а не все правки.
+     * Так и подписано на экране — половина ответа лучше, чем ничего,
+     * но выдавать её за журнал нельзя.
+     */
+    const trail = rows
+      .filter((r) => r.updated_by)
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+      .slice(0, TRAIL_LIMIT);
+    set({
+      permissionMatrix: matrix, permissionTrail: trail,
+      permissionsLoaded: true, permissionsError: null,
+    });
   },
 
   setRolePermission: async (role, permission, allowed) => {

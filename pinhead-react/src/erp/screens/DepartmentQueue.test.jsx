@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import DepartmentQueue from './DepartmentQueue';
 import { useErpStore } from '../store/useErpStore';
@@ -112,5 +112,67 @@ describe('Очередь цеха — управление приоритето�
     mockLayout(compact);
     renderQueue();
     expect(screen.getAllByRole('button', { name: /Поставить в план/ }).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * §3.1 обхода 04.09: один тап ↑ — одна позиция и один запрос, а после
+   * каждого карточка меняет место. Поднять шестое задание на первое стоило
+   * пять тапов по уезжающей из-под пальца цели, притом что просят обычно
+   * именно «сделай следующим». Кнопка обязана быть в ОБЕИХ раскладках:
+   * прошлый раз (03.09) компактная ветка не получила ни приоритета, ни «В план».
+   */
+  it.each([
+    ['планшет (компактная раскладка)', true],
+    ['десктоп', false],
+  ])('%s: «В начало очереди» — одно действие', async (_name, compact) => {
+    mockLayout(compact);
+    const reorder = vi.fn(async () => true);
+    useErpStore.setState({ reorderStageQueue: reorder });
+    renderQueue();
+    const buttons = screen.getAllByRole('button', { name: /В начало очереди/ });
+    expect(buttons.length).toBeGreaterThan(0);
+    // Второе задание в начало: один запрос, а не «столько, сколько позиций»
+    fireEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(reorder).toHaveBeenCalledTimes(1));
+    expect(reorder.mock.calls[0][1]).toBeNull();
+  });
+});
+
+/**
+ * §2.7 обхода 04.09: у вкладки цеха три разных числа, и смысл каждого объяснял
+ * `title`. На планшете наведения не существует — «+2» рядом с «4» не читалось
+ * никак, при том что скринридер получал `aria-label`: слабее всех оказывался
+ * зрячий человек с планшетом, ради которого пилот и запущен.
+ *
+ * Подпись показывается, только когда есть что объяснять: постоянная строка
+ * служебного текста над рабочей областью — шум.
+ */
+describe('Очередь цеха — числа у вкладки названы видимым текстом', () => {
+  it('пока у цеха только «готово к запуску» — подписи нет', () => {
+    // Оба этапа фикстуры `waiting` без предшественников, то есть готовы
+    useErpStore.setState({
+      orders: [{
+        ...ORDER,
+        items: [{ ...ORDER.items[0], stages: [ORDER.items[0].stages[0]] }],
+      }],
+    });
+    renderQueue();
+    expect(screen.queryByText(/У цеха:/)).not.toBeInTheDocument();
+  });
+
+  it('появилось ожидание очереди — подпись объясняет «+N»', () => {
+    const [first, second] = ORDER.items[0].stages;
+    useErpStore.setState({
+      orders: [{
+        ...ORDER,
+        items: [{
+          ...ORDER.items[0],
+          // Второй этап ждёт первого — это и есть «+N» на вкладке
+          stages: [first, { ...second, depends_on: [first.id] }],
+        }],
+      }],
+    });
+    renderQueue();
+    expect(screen.getByText(/ожидают своей очереди/)).toBeInTheDocument();
   });
 });

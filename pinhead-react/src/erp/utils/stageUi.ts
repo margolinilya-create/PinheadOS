@@ -4,18 +4,21 @@
  * Прогресс считается в штуках — см. utils/progress.ts (правка 7).
  */
 
+import { STAGE_STATUS_LABELS } from '../types';
 import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
 import { isMaterialPending } from './routes';
+import { statusChipClass } from './statusUi';
 
-/** Статус этапа → класс чипа из erp.module.css */
-export const STAGE_CHIP_CLASS: Record<StageStatus, string> = {
-  waiting: 'chipWaiting',
-  ready: 'chipReady',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  skipped: 'chipSkipped',
-  blocked: 'chipBlocked',
-};
+/**
+ * Статус этапа → класс чипа. ВЫВОДИТСЯ из словаря состояний
+ * (`utils/statusUi`), а не повторяет его: своя таблица цветов рядом с чужой —
+ * это и есть то расхождение, ради которого словарь заведён. Константа
+ * оставлена ради семи вызывающих, собирающих имя класса строкой.
+ */
+export const STAGE_CHIP_CLASS: Record<StageStatus, string> = Object.fromEntries(
+  (Object.keys(STAGE_STATUS_LABELS) as StageStatus[])
+    .map((s) => [s, statusChipClass('stage', s)]),
+) as Record<StageStatus, string>;
 
 /** Минимум заказа, по которому судим о готовности к отгрузке */
 export interface OrderShipReadiness {

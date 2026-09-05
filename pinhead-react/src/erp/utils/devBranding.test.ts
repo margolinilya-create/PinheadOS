@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   DEV_BRANDING_DEPT_CODE,
   DEV_BRANDING_TASK_TYPES,
   devBrandingFromPrints,
+  devBrandingOpen,
 } from './experimentalBoard';
 
 /**
@@ -142,5 +145,66 @@ describe('серверный переход «Нанесения» → «Пош�
     // обязан быть свой отзыв, и отзывать нужно `from public, anon`
     expect(ADVANCE).toMatch(
       /revoke execute on function public\.erp_dev_branding_advance\(\) from public, anon/);
+  });
+});
+
+/**
+ * «ОБЩИЙ ЦЕХ ЕЩЁ НЕ ЗАКРЫЛ НАНЕСЕНИЯ» — ОДНА ФОРМУЛА НА ВСЕХ ЧИТАТЕЛЕЙ.
+ *
+ * Читателей три: доска (`Experimental.brandingOpenByDev`), страница разработки
+ * и — через `devContext` — её карточка. До 05.09 формула была выражением
+ * на месте у первых двух, и вторая копия успела разойтись: страница проверяла
+ * только `!== 'done'` и считала ОТМЕНЁННУЮ задачу нанесения незакрытой.
+ * Один и тот же образец на доске выпускался в «Пошив», а на своей странице —
+ * нет; ни один тест этого не видел, потому что каждая половина «работала».
+ */
+describe('нанесения ещё открыты', () => {
+  const task = (over: Record<string, unknown> = {}) => ({
+    task_type: 'dtf', status: 'in_progress', ...over,
+  });
+
+  it('отменённая задача нанесения закрытой СЧИТАЕТСЯ', () => {
+    // Ровно то, на чём разошлись копии: сервер пишет
+    // `status not in ('done','cancelled')`, а страница знала только 'done'
+    expect(devBrandingOpen([task({ status: 'cancelled' })])).toBe(false);
+    expect(devBrandingOpen([task({ status: 'done' })])).toBe(false);
+    expect(devBrandingOpen([task({ status: 'in_progress' })])).toBe(true);
+  });
+
+  it('чужие типы задач нанесением не считаются', () => {
+    expect(devBrandingOpen([task({ task_type: 'patterns', status: 'todo' })])).toBe(false);
+  });
+
+  it('задач нет — держать нечего', () => {
+    expect(devBrandingOpen([])).toBe(false);
+    expect(devBrandingOpen(null)).toBe(false);
+  });
+
+  /**
+   * СТОРОЖ НА ЧЕТВЁРТУЮ КОПИЮ. Свойство «формула одна» тестом поведения
+   * не выражается: копия отвечает так же ровно до того дня, когда разойдётся.
+   * Поэтому обход исходников — ни один экран не смеет строить это условие
+   * из `DEV_BRANDING_TASK_TYPES` сам.
+   */
+  it('никто не собирает условие заново из перечня типов', () => {
+    const ROOT = resolve(__dirname, '..');
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) { walk(full); continue; }
+        if (!/\.(jsx?|tsx?)$/.test(name) || /\.test\./.test(name)) continue;
+        // Объявление и сама реализация — законные упоминания
+        if (full.endsWith(join('utils', 'experimentalBoard.ts'))) continue;
+        const src = withoutComments(readFileSync(full, 'utf8'));
+        if (!src.includes('DEV_BRANDING_TASK_TYPES')) continue;
+        // Признак самодельного условия: перечень рядом со сравнением статуса
+        if (/DEV_BRANDING_TASK_TYPES[\s\S]{0,200}status/.test(src)) {
+          offenders.push(full.slice(ROOT.length + 1));
+        }
+      }
+    };
+    walk(ROOT);
+    expect(offenders).toEqual([]);
   });
 });

@@ -518,6 +518,116 @@ URL: https://pinhead-os.vercel.app
   ждут его ОБА писателя состава участков: ветка `rpc/erp_bootstrap`
   и таблица `erp_departments`
 
+## Правила сессии 49 (обход 04.09): где что лежит
+
+- Словарь состояний — `erp/utils/statusUi.ts`
+  (`STATUS_VARIANT[сущность][статус] → вариант`, 16 сущностей) + `statusUi`
+  и `statusChipClass`. `Badge` принимает `entity`/`status`; локальные карты
+  классов ВЫВОДЯТСЯ из словаря, своих таблиц цветов рядом быть не должно
+- Посадочная по роли — `erp/utils/landing.ts` + `erp/hooks/useRoleLanding.js`.
+  Решение один раз за загрузку и только при роли С СЕРВЕРА (`myRole`):
+  до бутстрапа `resolveErpRole` отдаёт `worker`
+- «Где заказ сейчас и почему стоит» — `erp/utils/orderNow.ts` (`buildOrderNow`
+  поверх `buildQueueEntries`). Один источник на колонку списка, фильтр «Стоит»
+  и блок в шапке карточки заказа. Конец маршрута даёт ТРИ ответа, не два:
+  «готов к отгрузке», «маршрута нет» и «производство закончено» с причиной
+- «Что требует внимания» — `erp/utils/notifications.orderNotices`: одна функция
+  на колокол оболочки и виджет обзора. Виджет стоит ПОД плитками показателей
+- Годность материала — `erp/utils/routes.isMaterialPending` и ТОЛЬКО она:
+  `supply.isMaterialSettled` выводится из неё (`!isMaterialPending`), серверное
+  зеркало — `erp_stage_completion_block` (`20260904180307`). Вердикт склада
+  для закупки — `supply.materialAcceptanceIssue` + `ACCEPTANCE_ISSUE_LABELS`,
+  показывает общий `purchasing/PurchaseFields.StatusCell`. Сторож —
+  `erp/utils/materialSettled.test.ts`
+- Складская задача приёмки заводится при `supply → in_progress|done`
+  (`20260904181542`): материалы приходят по частям. `MaterialReceiptCard`
+  умеет пустой список — до правки такого состояния не бывало
+- Исполнителя этапа пишет ТОЛЬКО `useStageActions.onTake`; `setStageStatus`
+  ставит `planned_end`, но не `assignee` (сторож `store/stageAssignee.test.ts`)
+- «В начало очереди» — `moveToTop` в `DepartmentQueue`, проп `onMoveTop`
+  у `QueueRow` и `QueueCard`, иконка `arrowUpToLine`
+- Срок задачи склада — `taskDeadline`/`deadlineLabel` в `screens/Warehouse.jsx`:
+  свой `deadline` либо срок заказа с подписью. Статус приёмки материала
+  выводится из чисел, пока человек не тронул селект (`MaterialReceiptCard`)
+
+## Правила сессии 49, вторая половина (обход 04.09): где что лежит
+
+- Перенос этапа в другой цех — `erp/hooks/useStageMove` (`moveStageTo`,
+  `canMove`, `targetsFor`). Зовут `ErpKanban` и `StageActionsPanel`; вторая
+  реализация подтверждения и обязательной причины запрещена
+- Контекст одной разработки — `erp/utils/devContext` (`devContext(dev, order,
+  departments)`): закупка заказа, нанесения позиции, готовность лекал,
+  состояния шагов, колонка, материальный гейт. Зовут `DevPage` и `DevCard`,
+  которую та же страница и монтирует, — до 05.09 обе считали это порознь.
+  Не хук: страница делает четыре ранних возврата, а расчёт чистый и в стор
+  не ходит. Доска (`Experimental` + `DevBoard`) сюда НЕ переводится — там
+  величины считаются пачкой, а гейт спрашивается с `patternsDone: true`
+- «Нанесения ещё открыты» — `experimentalBoard.devBrandingOpen(tasks)`, одна
+  формула на доску, страницу и карточку, дословно как серверная
+  `erp_dev_branding_advance`: статус вне ('done','cancelled'). Копия
+  на странице проверяла только `!== 'done'`. Сторож — `devBranding.test.ts`,
+  включая обход исходников против четвёртой копии
+- Перенос карточки разработки — `erp/hooks/useDevStageMove` (`moveDevStage`,
+  `requestMove` с гейтом `devMoveIntent`). Зовут `Experimental` и `DevPage`.
+  Порядок «закрыть свой этап → записать колонку → завести нанесения»
+  повторять на второй поверхности нельзя
+- Матрица прав — `admin/PermissionsTab`: `PERMISSION_GROUPS` (пять групп
+  + фолбэк «Прочее»), отмена последней правки в состоянии экрана, блок
+  «Кто менял права» из `permissionTrail` (последний писатель каждой пары,
+  не история). Автора ставит триггер `erp_role_permission_touch`
+  (`20260904193031`) + свой revoke (`20260904194006`)
+- Схема отчёта участка — `admin/DeptFields.ResultFieldsCell`: строка полей
+  с селектом назначения, проверка при сохранении та же. Открывается `Modal`,
+  а НЕ раскрывается в ячейке: ячейка таблицы участков узкая, и шесть полей
+  строки вставали там столбиком. Своя строка `.resultFieldRow`
+  (`screens.module.css`), а не `.planFormRow`: шести полям нужен разделитель,
+  иначе три строки сливаются в стену подписей
+- Вердикт склада для закупки — `supply.materialAcceptanceIssue`, ПЯТЬ кодов:
+  пятый `not_accepted` («Ждёт приёмки складом») закрывает расхождение «чип
+  „Пришло“ при прогрессе 0 из 2». Он же попадает в `problems` сводки
+- Приёмка подряда: `p_returned` у `erp_subcontract_receive`
+  (`20260904203307`, прежняя сигнатура снята явно), поле «Вернулось сейчас»
+  в `warehouse/SubcontractReceiptCard` — показывается, пока `qty_sent >
+  qty_returned`
+- Вкладки страницы — `components/Tabs` (`Tabs` + `TabPanel`, обе половины
+  связи из одного `idPrefix`). Шесть мест писали таб-паттерн от руки, включая
+  две побайтово одинаковые обёртки (`OrderCardTabs`/`DevCardTabs` — удалены),
+  и у `PlanScreen` половина связи уже потерялась. `label` вкладки — УЗЕЛ:
+  у очереди цеха там звезда и три счётчика с разными `aria-label`.
+  Переключатели ВИДА сюда не идут — у них нет панелей, это `aria-pressed`.
+  Сторож — `components/Tabs.test.ts` (роли объявляет только примитив;
+  исключение одно — `utils/tabs`, сама клавиатурная половина)
+- Чипы: `components/FilterChip` — ПЕРЕКЛЮЧАТЕЛЬ (`aria-pressed`; `expanded`
+  переводит его в раскрытие, `tone` даёт закрытый набор цветов включённого
+  состояния — у списка заказов «Просрочено» красный, «Стоит» янтарный).
+  `components/DictionaryChips` — ПОДСКАЗКА справочника: дописывает значение
+  и никогда не «нажата», `aria-pressed` на ней был бы ложью. Связку
+  `chip + chipBtn` собирают только они; исключение одно и поимённо —
+  чип этапа на доске (это ДЕЙСТВИЕ с цветом от статуса и `disabled`)
+- Примитивы: `components/Modal` (импортирует АГРЕГАТОР `../styles` —
+  `.modal`/`.modalOverlay` живут в `screens.module.css`; id для
+  `aria-labelledby` из `useId`) и `components/FilterChip`. Сторож —
+  `components/primitives.test.ts`: окно с `aria-modal` либо примитив, либо
+  ловит фокус само (список своих оболочек — с причинами); чип, чей ВИД
+  зависит от состояния, обязан нести `aria-pressed` либо `aria-expanded`
+- `--border` РАЗДЕЛОМ НЕ ИСПОЛЬЗУЕТСЯ: глобально он почти чёрный (#0A0A0A —
+  язык Order Studio), а `AdminScreen` монтируется и вне `.shell`. Рамки
+  раздела — `--border-light`. Сторожа в `src/styles/tokens.test.ts`: порог
+  расхождения `.shell` от глобального значения (200) и запрет носителей
+  `var(--border)` в CSS И в инлайн-стилях
+- Порог мелкого текста — сторож в `src/styles/tokens.test.ts` по CSS раздела;
+  он РАЗВОРАЧИВАЕТ `var(--type-*)` в значение, а не читает только литерал.
+  Там же сторож «литерал, равный значению токена, не пишется» — для `gap`,
+  `padding`, `margin`, `font-size`, `border-radius`. Отступы без токена
+  (10px, 14px, 18px) остаются литералами намеренно: заводить под них токен —
+  решение о дизайн-системе
+- Словарь состояний виден в двух местах: секция «Словарь состояний»
+  на `/styleguide` и вкладка «Статусы» в справочниках (`entity` у группы;
+  оплата подряда без `entity` намеренно)
+- Два числа факта дня: «по этапу всего» на `plan/PlanTaskCard`,
+  «В плане на сегодня» в `queue/StageActionsPanel` (читает `planSlots`
+  из стора)
+
 ## Правила сессии 47 (аудит ERP 03.09): где что лежит
 
 - Гейт завершения этапа — `store/slices/stagesSlice.completionBlockFor`; зовут

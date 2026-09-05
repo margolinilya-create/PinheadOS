@@ -10,6 +10,7 @@ import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
 import { Button, ButtonLink } from '../../components/Button';
+import { Badge } from '../../components/Badge';
 
 /**
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.
@@ -17,7 +18,7 @@ import { Button, ButtonLink } from '../../components/Button';
  */
 export function QueueCard({
   entry, perms, rework, deptShortById, actions,
-  index = 0, canReorder = false, canMoveUp = false, canMoveDown = false, onMove, onPlan,
+  index = 0, canReorder = false, canMoveUp = false, canMoveDown = false, onMove, onMoveTop, onPlan,
 }) {
   const location = useLocation();
   const { order, item, stage, reason, group, missingMaterials } = entry;
@@ -75,6 +76,16 @@ export function QueueCard({
           </div>
         </div>
         <div className={styles.queueDue}>
+          {/*
+            СТАТУС СЛОВОМ, А НЕ ТОЛЬКО ЦВЕТОМ РАМКИ (обход 04.09).
+            Строка очереди рисует чип с подписью (`QueueRow`), а карточка —
+            ту же информацию одной лишь заливкой левого края. Цвет как
+            единственный носитель смысла в разделе уже признан дефектом,
+            и на планшете, где живёт именно эта раскладка, он ещё и попадает
+            под цеховой свет. `display` считается так же, как в строке:
+            готовность к запуску — вывод очереди, а не колонка этапа.
+          */}
+          <Badge entity="stage" status={group === 'ready' ? 'ready' : stage.status} />
           <div className={styles.queueQty}>{item.qty} шт</div>
           {order.due_date && (
             <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
@@ -180,6 +191,24 @@ export function QueueCard({
           {canReorder && (
             <>
               <span className={styles.subText}>Приоритет {index + 1}</span>
+              {/*
+                  «В НАЧАЛО» ОДНИМ ДЕЙСТВИЕМ (§3.1 обхода 04.09). Один тап ↑ —
+                  одна позиция и один запрос, и после каждого карточка меняет
+                  место: поднять шестое задание на первое стоило пять тапов
+                  по уезжающей из-под пальца цели. А просят обычно именно это —
+                  «сделай следующим», а не «сдвинь на одну».
+                */}
+                <button
+                  type="button"
+                  className={styles.moveBtn}
+                  disabled={!canMoveUp}
+                  aria-label={`В начало очереди: ${order.title}`}
+                  title="В начало очереди"
+                  onClick={() => onMoveTop?.()}
+                >
+                  <Icon name="chevronUp" size={14} />
+                  <Icon name="chevronUp" size={14} style={{ marginLeft: -9 }} />
+                </button>
               <button
                 type="button"
                 className={styles.moveBtn}
@@ -217,6 +246,20 @@ export function QueueCard({
         </div>
       )}
 
+      <StageActionsPanel
+        entry={entry}
+        perms={perms}
+        deptShortById={deptShortById}
+        actions={actions}
+      />
+
+      {/*
+        Переход на страницу задания стоит ПОСЛЕ действий, а не между ними
+        (обход 04.09). Раньше эта ссылка разрывала карточку посередине —
+        между приоритетом и ТЗ, — и читалась как ещё одно действие цеха,
+        хотя она про навигацию. Внизу она замыкает карточку и не спорит
+        с главной кнопкой за внимание.
+      */}
       <ButtonLink
         to={`/task/${stage.id}`}
         state={{ from: `${location.pathname}${location.search}` }}
@@ -224,13 +267,6 @@ export function QueueCard({
       >
         Открыть задание ↗
       </ButtonLink>
-
-      <StageActionsPanel
-        entry={entry}
-        perms={perms}
-        deptShortById={deptShortById}
-        actions={actions}
-      />
     </div>
   );
 }

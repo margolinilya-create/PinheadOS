@@ -10,7 +10,7 @@ import { DeptLoadCard } from './DeptLoadCard';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { useErpStore } from '../store/useErpStore';
 import { CapacityBar } from '../components/CapacityBar';
-import { capacityReport, monthCapacityReport, monthLabel } from '../utils/capacity';
+import { capacityReport } from '../utils/capacity';
 import { buildDeptLoad, loadDays, ordersWithoutPlan, weekStart } from '../utils/deptLoad';
 import { weekdayShort } from '../utils/format';
 import { addDays, factoryToday, parseIsoDate } from '../../utils/date';
@@ -96,10 +96,6 @@ export default function DeptLoad() {
    * нанесение, швейку и ВТО, поэтому сумма по цехам в разы больше выпуска.
    * Подписи у обеих сказаны прямым текстом, иначе их неизбежно сложат.
    */
-  const monthReport = useMemo(
-    () => monthCapacityReport(orders, today, capacity),
-    [orders, today, capacity],
-  );
   const weekReport = useMemo(
     () => capacityReport(orders, days, capacity),
     [orders, days, capacity],
@@ -117,10 +113,18 @@ export default function DeptLoad() {
       />
       <ProductionTabs />
 
+      {/*
+        ПОЛОСА ВСЕГДА ПРО ТОТ ПЕРИОД, КОТОРЫЙ ПОКАЗЫВАЕТ ЭКРАН (обход 04.09).
+        Здесь она переключалась скрытым правилом: на текущей неделе считала
+        МЕСЯЦ, на любой другой — неделю. Рядом, на соседней вкладке «План»,
+        та же полоса с тем же заголовком всегда считает неделю — то есть
+        одно и то же название показывало разные величины с разными
+        знаменателями, и заметить подмену было нечем, кроме подписи периода.
+      */}
       <CapacityBar
         loading={!capacityLoaded}
-        report={isCurrentWeek ? monthReport : weekReport}
-        periodLabel={isCurrentWeek ? monthLabel(today) : periodLabel}
+        report={weekReport}
+        periodLabel={periodLabel}
         hint="Изделия активных заказов со сроком сдачи в периоде против общей мощности. Сетка ниже считает другое — обязательства цехов по дням, где одно изделие попадает в несколько строк."
       />
 

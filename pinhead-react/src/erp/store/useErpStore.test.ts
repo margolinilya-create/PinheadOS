@@ -761,10 +761,24 @@ describe('useErpStore — материал со склада / авто-закр
 
   it('addMaterial сразу-готового материала закрывает этап «Закупка» (баг-фикс)', async () => {
     seedSupply();
+    /**
+     * «Сразу готов» — это «доступен со склада»: с 04.09 пришедший материал
+     * (`received`) закупку не закрывает, пока склад не оформил приёмку.
+     * Приёмка ставит `received` при любом исходе, включая отказ, — см.
+     * `utils/supply.isMaterialSettled`.
+     */
     await useErpStore.getState().addMaterial('o1', {
-      kind: 'fabric', name: 'X', source: 'client', status: 'received',
+      kind: 'fabric', name: 'X', source: 'client', status: 'reserved',
     } as any);
     expect(supplyStage().status).toBe('done');
+  });
+
+  it('addMaterial пришедшего, но не принятого складом материала закупку НЕ закрывает', async () => {
+    seedSupply();
+    await useErpStore.getState().addMaterial('o1', {
+      kind: 'fabric', name: 'X', source: 'purchase', status: 'received',
+    } as any);
+    expect(supplyStage().status).toBe('in_progress');
   });
 
   it('addMaterial pending НЕ закрывает закупку', async () => {
@@ -2600,7 +2614,8 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
         items: [{ id: 'it1', order_id: 'o1', stages: [stage] }],
         materials: [{
           id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Футер',
-          source: 'purchase', status: 'received', qty_expected: null,
+          source: 'purchase', status: 'received', accept_status: 'accepted_full',
+          qty_expected: null,
         }],
       }] as any,
       departments: depts as any, loaded: true,
@@ -2623,7 +2638,8 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
         items: [{ id: 'it1', order_id: 'o1', stages: [stage] }],
         materials: [{
           id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Футер',
-          source: 'purchase', status: 'received', qty_expected: 128,
+          source: 'purchase', status: 'received', accept_status: 'accepted_full',
+          qty_expected: 128,
         }],
       }] as any,
       departments: depts as any, loaded: true,

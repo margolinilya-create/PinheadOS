@@ -36,7 +36,13 @@ const GROUPS = [
        */
       { to: '/board', label: 'Производство', icon: 'board', match: ['/plan', '/load'] },
       // Считается `readyOnlyCountFor` — ТОЛЬКО готовые к запуску
-      { to: '/queue', label: 'Мой цех', icon: 'queue', end: true, countLabel: 'Готово к запуску' },
+      /*
+        «Мой цех» — ТОЛЬКО тем, у кого есть привязка к участку (обход 04.09).
+        Пункт показывался всем, включая менеджера и диспетчера, и вёл
+        в заглушку «Выберите свой цех выше»: постоянный пункт меню, ведущий
+        в тупик, читается как поломка, а не как «это не для вас».
+      */
+      { to: '/queue', label: 'Мой цех', icon: 'queue', end: true, countLabel: 'Готово к запуску', needsDept: true },
     ],
   },
   {
@@ -97,7 +103,7 @@ function NavItem({ item, count, collapsed, countLabel = 'Активных зад
 
 export function Sidebar({
   isAdmin, counts = {}, deptItems = [], collapsed, onToggleCollapse,
-  open = false, onNavigate, reserveRows = 0,
+  open = false, onNavigate, reserveRows = 0, hasMyDept = false,
 }) {
   // Тот же источник, что у маршрутов: пункт, ведущий в отказ, — хуже отсутствия
   const { can } = useErpAccess();
@@ -132,7 +138,9 @@ export function Sidebar({
       <nav className={styles.sidebarNav}>
         {GROUPS.map((g) => {
           const items = g.items.filter(
-            (n) => (!n.admin || isAdmin) && canOpenScreen(can, n.to),
+            (n) => (!n.admin || isAdmin)
+              && canOpenScreen(can, n.to)
+              && (!n.needsDept || hasMyDept),
           );
           if (items.length === 0) return null;
           return (

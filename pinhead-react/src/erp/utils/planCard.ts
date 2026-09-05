@@ -10,6 +10,7 @@
 
 import { percentOf } from './format';
 import type { ErpCalendarSlot } from '../types';
+import { statusChipClass } from './statusUi';
 
 export type PlanCardState =
   /** запланировано, работа не начата */
@@ -34,15 +35,11 @@ export const PLAN_STATE_LABELS: Record<PlanCardState, string> = {
   awaiting_materials: 'Ожидает материалы',
 };
 
-/** Класс чипа статуса (совпадает с семантикой статус-чипов ERP) */
-export const PLAN_STATE_CHIP: Record<PlanCardState, string> = {
-  planned: 'chipNeutral',
-  in_progress: 'chipProgress',
-  done: 'chipDone',
-  partial: 'chipWaiting',
-  overdue: 'chipBlocked',
-  awaiting_materials: 'chipWaiting',
-};
+/** Класс чипа состояния — из словаря раздела (`utils/statusUi`) */
+export const PLAN_STATE_CHIP: Record<PlanCardState, string> = Object.fromEntries(
+  (Object.keys(PLAN_STATE_LABELS) as PlanCardState[])
+    .map((s) => [s, statusChipClass('plan', s)]),
+) as Record<PlanCardState, string>;
 
 export interface PlanSlotLike {
   work_date: string;
