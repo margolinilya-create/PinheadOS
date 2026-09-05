@@ -152,7 +152,7 @@ function AcceptBlock({ material: m, onAccept }) {
   };
 
   return (
-    <div style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+    <div style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
       <div className={styles.matSectionHead}>
         <div>
           <strong>{m.name}</strong>

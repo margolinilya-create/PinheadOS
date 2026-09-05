@@ -61,9 +61,18 @@
   --color-info-ink:    #1D4ED8;
   --color-violet-ink:  #6D28D9;
   --color-cyan-ink:    #0E7490;
-  /* Был не переопределён и подтягивался чёрным (#0A0A0A) из index.css — 29 мест
-     рисовали чёрную рамку рядом с карточками редизайна на светло-серой */
-  --border: #E5E7EB;
+  /* `--border` РАЗДЕЛОМ БОЛЬШЕ НЕ ИСПОЛЬЗУЕТСЯ, и переопределения ему не нужно.
+     История: он подтягивался чёрным (#0A0A0A) из index.css, и 29 мест рисовали
+     чёрную рамку рядом с карточками редизайна. Починка 03.09 переопределила его
+     ЗДЕСЬ — то есть только внутри `.shell`, — и этого мало: `AdminScreen`
+     смонтирован и в Order Studio, вне оболочки, где токен снова становился
+     чёрным. Проверено в браузере 05.09: та же таблица прав давала
+     rgb(229,231,235) в разделе и rgb(10,10,10) в Order Studio.
+
+     Значение переопределения совпадало с `--border-light` в обеих темах, то
+     есть отдельного смысла у токена в разделе не было вовсе. Все 29 мест
+     переведены на `--border-light`, чей глобальный вид (#DCDCDC) от разделового
+     (#E5E7EB) почти не отличается — в отличие от чёрного. */
   /* Тот же расчёт, что у --text-dim: это его алиас по смыслу */
   --text-muted: #666E7B;
   /* Заливка опасного действия. --color-error #EF4444 под белым текстом даёт
@@ -110,7 +119,7 @@
   --color-info-ink:    #60A5FA;
   --color-violet-ink:  #A78BFA;
   --color-cyan-ink:    #22D3EE;
-  --border: #242B39;
+  /* `--border` — см. светлую тему выше: разделом не используется */
   --text-muted: #9AA3B3;
   /* Тёмная тема: текстовые токены проходят AA и так (5.19–8.44), правятся
      только НЕтекстовые. Рамка контролов #313A4C давала 1.51:1 на карточке. */
@@ -461,7 +470,7 @@
   gap: var(--space-md);
 }
 .card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px var(--space-lg);
@@ -472,7 +481,7 @@
 /* ─── Заглушки ─── */
 /* Пустое состояние — базовый примитив: пунктирная рамка, центр, приглушённый текст */
 .emptyState {
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-light);
   border-radius: var(--radius-md);
   padding: 46px 20px;
   text-align: center;
@@ -502,7 +511,7 @@
 /* ─── Таблицы ─── */
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
 }
@@ -516,7 +525,7 @@
   padding: 10px var(--space-md);
   /* Отличие от .labelCaps: разрядка шире — шапка таблицы читается построчно */
   letter-spacing: 1.2px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
   white-space: nowrap;
   background: var(--surface);
 }
@@ -697,7 +706,7 @@
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   color: var(--text-mid);
 }
 .deptTabOverdue {
@@ -842,8 +851,8 @@
 }
 
 .queueCard {
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--border);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px;
@@ -966,7 +975,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
   background: var(--surface);
   flex-wrap: wrap;
 }
@@ -1020,7 +1029,7 @@
    требует такого порядка, и то же правило действует для уточнений. */
 .dataCardList { display: flex; flex-direction: column; gap: 10px; }
 .dataCard {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: var(--card);
   padding: var(--space-md) 14px;
@@ -1117,7 +1126,7 @@
   flex: 0 0 290px;
   scroll-snap-align: start;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
@@ -1170,7 +1179,7 @@
 
 .kanbanCard {
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 9px 11px;
   margin-bottom: 6px;
@@ -1245,7 +1254,7 @@
   align-items: center;
   gap: 5px;
 }
-.inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border); }
+.inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border-light); }
 .inlineEditBtn:disabled { cursor: default; }
 .inlineEditBtn:disabled:hover { background: none; outline: none; }
 .inlineEditPen { font-size: var(--type-label); opacity: 0; transition: opacity 120ms; }
@@ -1268,7 +1277,7 @@
   justify-content: center;
   font-size: var(--type-label);
   font-weight: 700;
-  border: 2px solid var(--border);
+  border: 2px solid var(--border-light);
   background: var(--card);
   color: var(--text-dim);
   cursor: default;
@@ -1298,7 +1307,7 @@
   color: var(--text-mid);
   white-space: nowrap;
 }
-.stepperLine { width: 26px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: var(--space-sm); }
+.stepperLine { width: 26px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: var(--space-sm); }
 .stepperLineDone { background: var(--color-success); }
 
 /* Миниатюра макета — 40px в строке заказа, 48px в очереди (.queueThumb).
@@ -1317,7 +1326,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-light);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -1412,7 +1421,7 @@
   border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: var(--type-label); font-weight: 700;
-  border: 2px solid var(--border);
+  border: 2px solid var(--border-light);
   background: var(--card); color: var(--text-dim);
   flex-shrink: 0;
 }
@@ -1430,7 +1439,7 @@
 .numStepDotActive ~ .numStepText .numStepCount {
   background: var(--bg-info); color: var(--accent);
 }
-.numStepBar { width: 30px; height: 2px; background: var(--border); flex-shrink: 0; margin-right: 10px; }
+.numStepBar { width: 30px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: 10px; }
 
 /* Пайплайн фаз эксперим. цеха (`.pipeline`, `.pipeNode*`, `.pipeCount`,
    `.pipeLabel`, `.pipeArrow`) удалён 12.08 вместе с фазовой моделью. */
@@ -1595,7 +1604,7 @@ button.kpiCard[aria-pressed='true'] {
   line-height: 1.4;
 }
 .routeRowFinal {
-  border-top: 1px dashed var(--border);
+  border-top: 1px dashed var(--border-light);
   margin-top: 2px;
   padding-top: 7px;
 }
@@ -1920,7 +1929,7 @@ button.kpiCard[aria-pressed='true'] {
   width: 22px; height: 22px;
   border-radius: 50%;
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   font-family: var(--mono);
   font-size: var(--type-label);
   flex-shrink: 0;

@@ -103,6 +103,94 @@ describe('CSS-токены', () => {
  * своя типографика (uppercase-язык), и переписывать её этим правилом
  * значило бы поменять вид половины интерфейса ради чужой нормы.
  */
+/**
+ * ТОКЕН, МЕНЯЮЩИЙ СМЫСЛ ОТ МЕСТА МОНТИРОВАНИЯ.
+ *
+ * `.shell` переопределяет два десятка токенов под язык раздела «Производство».
+ * Почти все правки — подгонка ОТТЕНКА: `--accent` #2B2BF0 → #2563EB,
+ * `--border-light` #DCDCDC → #E5E7EB. Незаметно и безопасно.
+ *
+ * А `--border` уезжал с #0A0A0A на #E5E7EB — с почти чёрного на светло-серый,
+ * расхождение 665 против 134 у следующего по величине. Это не оттенок, это
+ * ДРУГОЙ СМЫСЛ, и он работал только внутри оболочки: `AdminScreen`
+ * смонтирован ещё и в Order Studio, вне `.shell`, где токен снова становился
+ * чёрным. Проверено в браузере 05.09 — одна и та же таблица прав давала
+ * rgb(229,231,235) в разделе и rgb(10,10,10) в Order Studio: жирная чёрная
+ * рамка вокруг светло-серой таблицы.
+ *
+ * Порог 200 выбран между двумя этими числами: подгонку оттенка он пропускает,
+ * смену смысла — нет. Исключения перечисляются поимённо с причиной, как ратчет
+ * сканера доступности; сейчас их нет.
+ */
+describe('переопределения .shell не меняют СМЫСЛ токена', () => {
+  const MAX_DISTANCE = 200;
+  const KNOWN: string[] = [];
+
+  const rgb = (v: string): [number, number, number] | null => {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v.trim());
+    if (!m) return null;
+    const h = m[1].length === 3 ? [...m[1]].map((c) => c + c).join('') : m[1];
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+  };
+
+  const declarationsIn = (css: string, selector: RegExp) => {
+    const out = new Map<string, string>();
+    for (const block of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!selector.test(block[1].trim())) continue;
+      for (const d of block[2].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+        if (!out.has(d[1])) out.set(d[1], d[2].trim());
+      }
+    }
+    return out;
+  };
+
+  it('ни один токен не уезжает дальше порога', () => {
+    const index = withoutComments(readFileSync(join(process.cwd(), 'src/index.css'), 'utf8'));
+    const erp = withoutComments(readFileSync(join(process.cwd(), 'src/erp/erp.module.css'), 'utf8'));
+    const globals = declarationsIn(index, /^:root$/);
+    const shell = declarationsIn(erp, /\.shell$/);
+
+    const bad: string[] = [];
+    for (const [token, shellValue] of shell) {
+      if (KNOWN.includes(token)) continue;
+      const globalValue = globals.get(token);
+      if (globalValue === undefined) continue;
+      const a = rgb(globalValue);
+      const b = rgb(shellValue);
+      if (!a || !b) continue;
+      const dist = a.reduce((sum, x, i) => sum + Math.abs(x - b[i]), 0);
+      if (dist > MAX_DISTANCE) {
+        bad.push(`${token}: ${globalValue} → ${shellValue} (расхождение ${dist})`);
+      }
+    }
+    expect(bad, bad.join('\n')).toEqual([]);
+  });
+
+  /**
+   * Второй конец того же правила: у `--border` в разделе не осталось носителей,
+   * и вернуть его нельзя — глобальное значение чёрное, а раздел рисуется
+   * и вне `.shell`. Ищется и в CSS, и в ИНЛАЙН-СТИЛЯХ: тридцатый носитель
+   * нашёлся именно в `.jsx`, мимо обхода по CSS.
+   */
+  it('раздел не использует --border ни в CSS, ни в инлайн-стилях', () => {
+    const bad: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) { walk(full); continue; }
+        if (!/\.(css|jsx?|tsx?)$/.test(name) || /\.test\./.test(name)) continue;
+        const src = readFileSync(full, 'utf8');
+        for (const m of src.matchAll(/var\(\s*--border\s*\)/g)) {
+          void m;
+          bad.push(full.slice(process.cwd().length + 1));
+        }
+      }
+    };
+    walk(join(process.cwd(), 'src/erp'));
+    expect([...new Set(bad)], bad.join(', ')).toEqual([]);
+  });
+});
+
 describe('мелкий текст не мельче 12px', () => {
   const ERP_CSS = [
     'src/erp/erp.module.css',
