@@ -80,10 +80,49 @@ function NavItem({ item, count, collapsed, countLabel = 'Активных зад
   const { pathname } = useLocation();
   // Пункт-раздел подсвечивается и на своих вкладках (см. `match` в GROUPS)
   const matched = item.match?.some((m) => pathname === m || pathname.startsWith(`${m}/`));
+  /**
+   * АКТИВНЫЙ ПУНКТ ОБЯЗАН БЫТЬ ВИДЕН.
+   *
+   * Список участков и операций длиннее рабочей высоты панели, а `.sidebarNav`
+   * прокручивается. Открыв «Эксперим. цех» — последний пункт группы «Операции» —
+   * человек видел меню без единой подсветки: активный пункт был ниже видимой
+   * области, из-под подвала торчал только край заливки. То есть навигация
+   * не отвечала на вопрос «где я», ровно тогда, когда это нужнее всего:
+   * на дальнем разделе, куда заходят редко.
+   *
+   * До 06.09 дефект существовал, но не бросался в глаза: невидимой была бледная
+   * подсветка `--accent-light`. Сплошная заливка сделала его очевидным — это
+   * не новая поломка, а проявленная.
+   *
+   * ПРОКРУЧИВАЕТСЯ КОНТЕЙНЕР, А НЕ `scrollIntoView`. Первая редакция звала
+   * `node.scrollIntoView({ block: 'nearest' })` — и сломала клавиатуру:
+   * в Chromium прокрутка сдвигает ТОЧКУ СТАРТА последовательной навигации,
+   * поэтому первый Tab переставал попадать на skip-link и уводил сразу
+   * в середину меню. Причём даже когда прокручивать было нечего: `nearest`
+   * не двигает панель, но точку старта переносит всё равно. Поймал
+   * `erp-a11y.spec.ts` («skip-link — первая остановка Tab»), то есть сторож,
+   * написанный ровно про это.
+   *
+   * Прямая правка `scrollTop` фокуса не касается вовсе и вдобавок честно
+   * ничего не делает, когда пункт и так виден.
+   */
+  const keepVisible = (node) => {
+    // Активность СПРАШИВАЕТСЯ У КЛАССА, который поставил сам NavLink, а не
+    // считается вторым выражением из pathname: два правила «этот пункт
+    // активен» разошлись бы, и подсветка ездила бы отдельно от прокрутки.
+    if (!node?.classList.contains(styles.navLinkActive)) return;
+    const nav = node.closest('nav');
+    if (!nav) return;
+    const area = nav.getBoundingClientRect();
+    const link = node.getBoundingClientRect();
+    if (link.top < area.top) nav.scrollTop -= area.top - link.top;
+    else if (link.bottom > area.bottom) nav.scrollTop += link.bottom - area.bottom;
+  };
   return (
     <NavLink
       to={item.to}
       end={item.end}
+      ref={keepVisible}
       // В свёрнутом виде подпись видна только в подсказке — счётчик тоже туда
       title={collapsed ? `${item.label}${count > 0 ? ` — ${count}` : ''}` : undefined}
       className={({ isActive }) =>

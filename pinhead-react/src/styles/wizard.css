@@ -100,7 +100,7 @@
 }
 .page-header-back:hover { color: var(--black); }
 .page-header-title {
-  font-family: var(--font-display); font-size: 18px; font-weight: 900;
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 2px; color: var(--black);
   margin: 0;
 }

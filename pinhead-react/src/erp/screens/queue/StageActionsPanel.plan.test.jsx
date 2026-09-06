@@ -4,6 +4,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { StageActionsPanel } from './StageActionsPanel';
 import { useErpStore } from '../../store/useErpStore';
 import { attachDomainSlices } from '../../store/domainSlices';
+// Дата дня — утилитами проекта: «сегодня» в UTC расходится с поясом
+// производства с 00:00 до 03:00 по Москве (сторож в utils/date.test.ts)
+import { factoryToday } from '../../../utils/date';
 
 attachDomainSlices();
 
@@ -61,7 +64,7 @@ beforeEach(() => { seed([]); });
 describe('очередь цеха: факт дня и факт этапа — два разных числа', () => {
   it('задача плана на сегодня показана рядом, и сказано, что число отдельное', () => {
     seed([{
-      id: 'sl1', stage_id: 'st1', work_date: new Date().toISOString().slice(0, 10),
+      id: 'sl1', stage_id: 'st1', work_date: factoryToday(),
       qty_planned: 60, qty_done: 0, status: 'planned',
     }]);
     renderPanel();
@@ -77,7 +80,7 @@ describe('очередь цеха: факт дня и факт этапа — д
   /** Задача, снятая с плана, — не план: `status='cancelled'` вместо DELETE */
   it('снятая с плана задача не считается планом', () => {
     seed([{
-      id: 'sl1', stage_id: 'st1', work_date: new Date().toISOString().slice(0, 10),
+      id: 'sl1', stage_id: 'st1', work_date: factoryToday(),
       qty_planned: 60, qty_done: 0, status: 'cancelled',
     }]);
     renderPanel();

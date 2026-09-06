@@ -37,7 +37,7 @@ function inEveryZone(check: () => void): void {
   }
 }
 
-/** Все рабочие файлы проекта: тесты вправе строить даты как угодно — они фиксируют ожидание */
+/** Все рабочие файлы проекта (без тестов) */
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const abs = join(dir, name);
@@ -45,6 +45,16 @@ function sources(dir: string, out: string[] = []): string[] {
     if (!/\.(ts|tsx|js|jsx)$/.test(name)) continue;
     if (/\.test\.(ts|tsx|js|jsx)$/.test(name)) continue;
     out.push(abs);
+  }
+  return out;
+}
+
+/** Только тесты — им нужен свой, более узкий запрет (см. ниже) */
+function testSources(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const abs = join(dir, name);
+    if (statSync(abs).isDirectory()) { testSources(abs, out); continue; }
+    if (/\.test\.(ts|tsx|js|jsx)$/.test(name)) out.push(abs);
   }
   return out;
 }
@@ -243,5 +253,41 @@ describe('в исходниках нет календарных дат из UTC'
       .filter((f) => BAD.test(stripComments(readFileSync(f, 'utf8'))))
       .map((f) => relative(SRC, f));
     expect(hits, `дата из UTC вместо factoryToday()/factoryDate(): ${hits.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * ТЕСТАМ ЭТО ЗАПРЕЩЕНО ТОЖЕ — но по другой причине, и это второй сторож.
+   *
+   * До 06.09 обход `sources()` пропускал тестовые файлы, и рядом стояло
+   * объяснение: «тесты вправе строить даты как угодно — они фиксируют
+   * ожидание». Звучит разумно и оказалось неверно ровно для одного случая,
+   * зато самого частого: тест, который строит СЕГОДНЯШНЮЮ дату в UTC, а
+   * сравнивает с кодом, берущим её в поясе производства.
+   *
+   * Так `StageActionsPanel.plan.test.jsx` был красен КАЖДУЮ НОЧЬ с 00:00 до
+   * 03:00 по Москве: `work_date` фикстуры — вчерашний UTC-день, `localToday()`
+   * компонента — сегодняшний московский, и «В плане на сегодня» не рисовалось.
+   * Обнаружилось случайно, прогоном в 00:20; днём набор зелёный, и найти такое
+   * можно было только застав. Ровно тот же класс, что дефект доски плана,
+   * ради которого этот файл и заведён, — только спрятанный в тесте.
+   *
+   * ПРАВИЛО ТО ЖЕ, ЧТО ДЛЯ РАБОЧЕГО КОДА, а не более мягкое. Первая редакция
+   * этого сторожа запрещала оборот только рядом с `new Date()` — и пропустила
+   * `KanbanBoard.test.jsx`, где «завтра» вычислено строкой выше и нарезано
+   * через переменную. То есть послабление «ну тут же явная дата» немедленно
+   * дало дыру ровно того размера, чтобы в неё пролез третий такой же случай.
+   * Зафиксировать ожидание календарной датой тест по-прежнему вправе —
+   * для этого есть `isoDate()`, и он на две буквы короче.
+   */
+  it('ни один тест не режет календарную дату из ISO-строки', () => {
+    const hits = testSources(SRC)
+      // Свой файл: в нём эти обороты живут регулярными выражениями, а не кодом
+      .filter((f) => !f.endsWith(join('utils', 'date.test.ts')))
+      .filter((f) => BAD.test(stripComments(readFileSync(f, 'utf8'))))
+      .map((f) => relative(SRC, f));
+    expect(
+      hits,
+      `тест строит календарную дату в UTC — он будет красным ночью по Москве: ${hits.join(', ')}`,
+    ).toEqual([]);
   });
 });

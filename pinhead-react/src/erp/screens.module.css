@@ -358,6 +358,21 @@
   padding: 14px;
   margin-bottom: var(--space-md);
 }
+/* Заголовок свёрнутого блока — ОДИН вид на все `details.matSection`.
+   До 06.09 два соседних блока закупки, стоящие друг под другом и одинаковые
+   по роли, были набраны по-разному: у «Предварительных закупок» на summary
+   висел `labelCaps`, у «Завершённых закупок» — ничего. Вид задаётся здесь,
+   а не в разметке: иначе третий такой блок снова получит своё оформление,
+   а четвёртый — ещё одно. */
+.matSection > summary {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  cursor: pointer;
+}
 .matSectionHead {
   display: flex;
   justify-content: space-between;

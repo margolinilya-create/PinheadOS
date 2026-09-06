@@ -140,13 +140,26 @@
   --header-h:       52px;
   --preview-bar-h:  0px;
 
-  /* ── Backgrounds ── */
-  --bg:           #FAFAFA;
-  --bg1:          #F0F0F0;
-  --bg2:          #F0F0F0;
-  --bg3:          #E5E5E5;
+  /* ── Backgrounds ──
+     ТЁПЛЫЕ НЕЙТРАЛИ, СВЕТЛОТА ПРЕЖНЯЯ (06.09).
+
+     Раздел «Производство» с этой правки живёт на тёплой бумаге, а Order Studio
+     и экраны входа оставались холодно-серыми: переключатель в шапке менял
+     не режим работы, а как будто продукт. Нейтрали уведены в тот же тёплый ряд.
+
+     СВЕТЛОТА СОХРАНЕНА НАМЕРЕННО — расхождение ≤0.0012 у каждого токена
+     (#FAFAFA 0.9560 → #FDFAF3 0.9572 и так далее). Отношения контраста
+     считаются по светлоте, значит ни одна пара «текст × поверхность»
+     не сдвинулась: `--text-dim` на `--bg3` как давал 4.56, так и даёт.
+     Это не удача, а условие правки: тон подбирался решением обратной задачи
+     под целевую светлоту, а не на глаз. Сторожат матрицы `contrast.test.ts`;
+     сигнальные цвета не тронуты. */
+  --bg:           #FDFAF3;
+  --bg1:          #F3F0E9;
+  --bg2:          #F3F0E9;
+  --bg3:          #E8E5DE;
   --card:         #ffffff;
-  --surface:      #F5F5F5;
+  --surface:      #F8F5EE;
 
   /* ── Text ── */
   --ink:          #0A0A0A;
@@ -174,8 +187,8 @@
 
   /* ── Borders ── */
   --border:       #0A0A0A;
-  --border-light: #DCDCDC;
-  --border-mid:   #C0C0C0;
+  --border-light: #DFDCD5;
+  --border-mid:   #C3C0B9;
 
   /* ── Brand ── */
   --accent:       #2B2BF0;
@@ -192,7 +205,7 @@
   --signal:       #FF3B30;
   --white:        #ffffff;
   --black:        #0A0A0A;
-  --paper:        #FAFAFA;
+  --paper:        #FDFAF3;
 
   /* ── Semantic ── */
   --color-success: #06a77d;
@@ -308,12 +321,12 @@
 /* DARK THEME                                  */
 /* ═══════════════════════════════════════════ */
 html[data-theme="dark"] {
-  --bg:           #121212;
-  --bg1:          #1E1E1E;
-  --bg2:          #1E1E1E;
-  --bg3:          #2A2A2A;
-  --card:         #1E1E1E;
-  --surface:      #252525;
+  --bg:           #141210;
+  --bg1:          #201D19;
+  --bg2:          #201D19;
+  --bg3:          #2C2822;
+  --card:         #201D19;
+  --surface:      #272420;
 
   --ink:          #E8E8E8;
   --text:         #E8E8E8;
@@ -331,8 +344,8 @@ html[data-theme="dark"] {
   --text-secondary: #BBBBBB;
 
   --border:       #333333;
-  --border-light: #2A2A2A;
-  --border-mid:   #444444;
+  --border-light: #2C2822;
+  --border-mid:   #46423A;
 
   --accent:       #5B5BFF;
   --accent-light: rgba(91,91,255,.1);
@@ -347,7 +360,7 @@ html[data-theme="dark"] {
 
   --white:        #E8E8E8;
   --black:        #121212;
-  --paper:        #181818;
+  --paper:        #1A1714;
 
   --bg-success:   #0a2e1a;
   --bg-error:     #2e0a0a;

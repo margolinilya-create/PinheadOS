@@ -423,7 +423,10 @@ export default function EmployeesScreen({ embedded = false }) {
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           aria-label="Имя нового работника"
-          style={{ minWidth: 240 }}
+          /* 280, а не 240: на 240 собственный плейсхолдер поля не помещался
+             и обрезался посреди слова — «…без логин|». Поле, которое не может
+             показать даже свою подсказку, сообщает не то, что задумано */
+          style={{ minWidth: 280 }}
         />
         <Button variant="secondary" type="submit">+ Добавить без логина</Button>
       </form>

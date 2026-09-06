@@ -88,7 +88,9 @@ export function PreliminarySection({ orders }) {
 
   return (
     <details className={styles.matSection}>
-      <summary className={styles.labelCaps}>
+      {/* Без своего класса: вид заголовка свёрнутого блока задаёт
+          `.matSection > summary` — один на все такие блоки */}
+      <summary>
         Предварительные закупки — {preliminary.length}
       </summary>
       <p className={styles.subText}>
