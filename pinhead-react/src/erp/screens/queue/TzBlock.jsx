@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
+import { isMaterialPending } from '../../utils/routes';
+import { materialStateText } from '../../utils/supply';
 import { formatDateShort } from '../../utils/time';
-import {
-  BRANDING_METHOD_LABELS,
-  MATERIAL_STATUS_LABELS,
-} from '../../types';
+import { BRANDING_METHOD_LABELS } from '../../types';
 import { hasPackaging, itemPackaging, packagingLabel, stickersLabel } from '../../utils/packaging';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
@@ -227,13 +226,15 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
             {(order.materials ?? []).length > 0 ? (
               <ul className={styles.tzMatList}>
                 {order.materials.map((m) => {
-                  const pending = m.status !== 'received' && m.status !== 'not_needed';
+                  /* Та же формула, что у гейта цеха: своя копия расходилась
+                     с ним на `reserved` и на пришедшем без приёмки склада */
+                  const pending = isMaterialPending(m);
                   const eta = pending ? formatDateShort(m.eta_date) : '';
                   return (
                     <li key={m.id}>
                       {m.name}
                       {m.qty ? ` · ${m.qty}` : ''}
-                      <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>
+                      <span className={styles.subText}> — {materialStateText(m)}</span>
                       {pending && (
                         <span className={styles.subText}> · план {eta || 'не указан'}</span>
                       )}

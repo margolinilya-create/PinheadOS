@@ -8,6 +8,7 @@ import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { pluralize } from '../../../utils/i18n';
+import { materialRoleForKind } from '../../utils/materialRole';
 import {
   EMPTY_ITEM,
   clearOrderDraft,
@@ -645,7 +646,8 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           // по заказу, а не теряется вместе с ней: потребность реальна
           item_index: idx === undefined ? null : idx,
           kind: r.kind,
-          role: r.role,
+          // Назначение есть только у ткани: см. `utils/materialRole`
+          role: materialRoleForKind(r.kind, r.role),
           name: r.name.trim(),
           color: r.color.trim() || undefined,
           qty_expected: Number(r.qty_expected) || null,

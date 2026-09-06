@@ -10,13 +10,14 @@ import { orderProgress } from '../utils/progress';
 import {
   ORDER_STATUS_LABELS,
   SHIPPED_STATUS_LABELS,
-  MATERIAL_STATUS_LABELS,
   PACKAGING_LABELS,
   STICKERS_LABELS,
 } from '../types';
 import styles from '../styles';
 import { Badge } from '../components/Badge';
 import { buildOrderNow } from '../utils/orderNow';
+import { isMaterialPending } from '../utils/routes';
+import { materialStateText } from '../utils/supply';
 import { fmt, fmtTs } from './orderCard/format';
 import { OrderItemSection } from './orderCard/OrderItemSection';
 import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
@@ -319,13 +320,19 @@ export default function OrderCard() {
             {order.materials.length > 0 ? (
               <div className={styles.stageChips}>
                 {order.materials.map((m) => {
-                  const pending = m.status !== 'received' && m.status !== 'not_needed';
+                  /* Годность материала считает ОДНА функция — та же, что гейтит
+                     цех (`isMaterialPending`). Здесь стояла своя формула
+                     («не received и не not_needed»), и она расходилась с гейтом
+                     в обе стороны: `reserved` красился «в пути», а пришедший
+                     без приёмки склада — «готов», хотя именно он держит закрой */
+                  const pending = isMaterialPending(m);
                   const eta = pending ? formatDateShort(m.eta_date) : '';
                   return (
                     <span key={m.id} className={`${styles.chip} ${pending ? styles.chipProgress : styles.chipReady}`}>
                       {m.name}
                       {m.supplier ? ` · ${m.supplier}` : ''}
-                      {' · '}{MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                      {' · '}{materialStateText(m)}
+                      {pending && (eta ? ` · план ${eta}` : ' · план не указан')}
                     </span>
                   );
                 })}

@@ -1,4 +1,5 @@
-import type { ErpDepartment, ErpItemStage, ErpMaterial } from '../types';
+import type { ErpDepartment, ErpItemStage, ErpMaterial, MaterialStatus } from '../types';
+import { MATERIAL_STATUS_LABELS } from '../types';
 import { isMaterialPending, type MaterialReadiness } from './routes';
 
 /**
@@ -177,6 +178,30 @@ export const ACCEPTANCE_ISSUE_LABELS: Record<MaterialAcceptanceIssue, string> = 
   partial: 'Принято частично',
   not_accepted: 'Ждёт приёмки складом',
 };
+
+/**
+ * СОСТОЯНИЕ МАТЕРИАЛА ОДНОЙ ФРАЗОЙ — для всех поверхностей, кроме закупки.
+ *
+ * ЗАЧЕМ. `MATERIAL_STATUS_LABELS[m.status]` печатали ПЯТЬ экранов подряд, и все
+ * пять говорили «Пришло» про материал, который с 04.09 держит цех: годным он
+ * считается только с приёмкой склада (`isMaterialPending`). На проде в этом
+ * состоянии стоят пять строк из сорока четырёх. Экран закупки правду сказал
+ * ещё 04.09 отдельной строкой под чипом — но это был ОДИН экран из шести,
+ * а рабочий, который смотрит «почему нельзя начать», приходит на остальные
+ * пять: очередь цеха, страницу задания, карточку заказа, карточку склада.
+ *
+ * ФОРМУЛА ОДНА (`materialAcceptanceIssue`), а РЕНДЕРА два: здесь — фраза
+ * в строку, у закупки — чип с иконкой, комментарием кладовщика и тем, что
+ * фактически привезли. Второй вопрос ставит второе представление, а не вторую
+ * копию правила: то же разделение, что у `dueLabel`/`dueLabelCompact`.
+ */
+export function materialStateText(
+  m: Pick<ErpMaterial, 'status' | 'accept_status' | 'qty_expected' | 'qty_received'>,
+): string {
+  const base = MATERIAL_STATUS_LABELS[m.status as MaterialStatus] || m.status;
+  const issue = materialAcceptanceIssue(m);
+  return issue ? `${base} · ${ACCEPTANCE_ISSUE_LABELS[issue]}` : base;
+}
 
 /**
  * ЧТО МЕШАЕТ ЗАВЕРШИТЬ ЭТАП, ПОКА ЗАКУПКА НЕ ЗАКРЫТА (правка заказчика

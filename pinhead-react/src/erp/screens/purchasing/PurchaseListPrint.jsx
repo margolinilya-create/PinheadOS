@@ -5,7 +5,8 @@ import { LoadFailed } from '../../components/ErpStates';
 import { Button, ButtonLink } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { formatDateShort } from '../../utils/time';
-import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../types';
+import { MATERIAL_KIND_LABELS } from '../../types';
+import { materialRoleLabel } from '../../utils/materialRole';
 import { useOrderDetail } from '../orderCard/useOrderDetail';
 import { AttachmentList } from '../../components/AttachmentList';
 import { materialAttachments } from '../../utils/attachments';
@@ -129,8 +130,8 @@ export default function PurchaseListPrint() {
               <tr>
                 <th>Материал</th>
                 <th>Цвет</th>
-                <th>Тип</th>
-                <th>Роль</th>
+                <th>Вид</th>
+                <th>Назначение</th>
                 <th>{PURCHASE_FIELD_LABELS.qtyExpected}</th>
                 <th>Комментарий менеджера</th>
               </tr>
@@ -141,7 +142,7 @@ export default function PurchaseListPrint() {
                   <td><strong>{m.name}</strong>{m.article ? ` · ${m.article}` : ''}</td>
                   <td>{m.color || '—'}</td>
                   <td>{MATERIAL_KIND_LABELS[m.kind] || m.kind}</td>
-                  <td>{m.role ? (MATERIAL_ROLE_LABELS[m.role] || m.role) : '—'}</td>
+                  <td>{materialRoleLabel(m.role) || '—'}</td>
                   <td className={styles.progressCell}>
                     {m.qty_expected ?? m.qty ?? '—'}{m.unit ? ` ${m.unit}` : ''}
                   </td>

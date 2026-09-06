@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { functionBody, latestDefining, withoutComments, withoutJsComments } from './migrations.testutil';
@@ -63,3 +63,67 @@ describe('«материал на месте» — одна формула', () 
     expect(latestDefining('erp_stage_completion_block')).toContain(tail);
   });
 });
+
+/**
+ * ТА ЖЕ ФОРМУЛА — И НА ЭКРАНЕ, А НЕ ТОЛЬКО В ГЕЙТЕ.
+ *
+ * Гейт свели к одной функции 04.09, а поверхности остались при своих: пять
+ * экранов печатали `MATERIAL_STATUS_LABELS[m.status]` голым и говорили «Пришло»
+ * про материал, который держит цех (на проде — пять строк из сорока четырёх),
+ * а карточка заказа и блок ТЗ ещё и считали «ждём ли материал» ТРЕТЬЕЙ
+ * формулой («не received и не not_needed»). Она расходится с гейтом в обе
+ * стороны: `reserved` красился «в пути», а пришедший без приёмки — «готов».
+ *
+ * Сторожится не текст подписи, а ИСТОЧНИК: подпись берётся у `materialStateText`
+ * (она одна зовёт `materialAcceptanceIssue`), годность — у `isMaterialPending`.
+ */
+describe('состояние материала на экранах берётся из одного источника', () => {
+  /** Экраны, законно печатающие сырую подпись, — с причиной у каждого */
+  const RAW_LABEL_OK: Record<string, string> = {
+    'screens/admin/DictionariesTab.jsx': 'витрина самого словаря: показывает все значения списком',
+    'screens/orderCard/HistorySection.jsx': 'перевод значений аудита: там статус — это записанное прошлое',
+    'screens/purchasing/PurchaseFields.jsx': 'свой рендер: чип + иконка + комментарий кладовщика, формула та же',
+    'screens/FabricPurchasing.jsx': 'ключ сортировки колонки: берётся ровно то, что видно в чипе ячейки',
+  };
+
+  /**
+   * «Ждёт приёмки» — ДРУГОЙ вопрос, а не копия «годен ли в производство».
+   * Заказанный материал производство держит, но складу с ним делать нечего:
+   * он ещё не приехал. Поэтому у карточки склада своя формула, и это
+   * не расхождение.
+   */
+  const OWN_QUESTION_OK: Record<string, string> = {
+    'screens/warehouse/MaterialReceiptCard.jsx': '`awaitsAcceptance` — есть ли работа У СКЛАДА, а не блокирует ли материал цех',
+  };
+
+  function screensUsing(needle: string): string[] {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(process.cwd(), 'src/erp', dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.(jsx|tsx)$/.test(e.name) && withoutJsComments(SRC(rel)).includes(needle)) out.push(rel);
+      }
+    };
+    walk('screens');
+    return out;
+  }
+
+  it('сырую подпись статуса печатают только названные экраны', () => {
+    const raw = screensUsing('MATERIAL_STATUS_LABELS[')
+      .filter((f) => !(f in RAW_LABEL_OK));
+    expect(raw, `подпись мимо materialStateText: ${raw.join(', ')}`).toEqual([]);
+  });
+
+  it('«ждём ли материал» нигде не считается заново', () => {
+    const hand = screensUsing("m.status !== 'received'")
+      .filter((f) => !(f in OWN_QUESTION_OK));
+    expect(hand, `своя формула годности материала: ${hand.join(', ')}`).toEqual([]);
+  });
+
+  it('подпись собирает ровно одна функция, и она спрашивает вердикт склада', () => {
+    const supply = withoutJsComments(SRC('utils/supply.ts'));
+    expect(supply).toMatch(/function materialStateText\([\s\S]*?materialAcceptanceIssue\(m\)/);
+  });
+});
+

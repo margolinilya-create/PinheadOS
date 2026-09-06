@@ -2,6 +2,7 @@ import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { Icon } from '../../../components/Icon';
 import { Button } from '../../../components/Button';
 import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
+import { FABRIC_ROLE_VALUES, kindHasRole } from '../../../utils/materialRole';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { FieldError } from './FormParts';
 import { PURCHASE_FIELD_LABELS } from '../../purchasing/purchaseLabels';
@@ -67,31 +68,35 @@ function PurchaseRow({ r, ri, items, attach, setRow, removeRow, err, inputCls })
           />
         </label>
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>Тип</span>
+          <span className={styles.fieldLabel}>Вид материала</span>
           <select
             className={styles.select}
             value={r.kind}
             onChange={(e) => setRow(r.key, { kind: e.target.value })}
-            aria-label={`Тип материала, подсказка ${ri + 1}`}
+            aria-label={`Вид материала, подсказка ${ri + 1}`}
           >
             {Object.entries(MATERIAL_KIND_LABELS).map(([v, label]) => (
               <option key={v} value={v}>{label}</option>
             ))}
           </select>
         </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Роль в изделии</span>
-          <select
-            className={styles.select}
-            value={r.role}
-            onChange={(e) => setRow(r.key, { role: e.target.value })}
-            aria-label={`Роль материала, подсказка ${ri + 1}`}
-          >
-            {Object.entries(MATERIAL_ROLE_LABELS).map(([v, label]) => (
-              <option key={v} value={v}>{label}</option>
-            ))}
-          </select>
-        </label>
+        {/* Назначение спрашиваем ТОЛЬКО у ткани: у остальных видов оно
+            повторяло бы соседний селект теми же словами (`utils/materialRole`) */}
+        {kindHasRole(r.kind) && (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Назначение ткани</span>
+            <select
+              className={styles.select}
+              value={r.role}
+              onChange={(e) => setRow(r.key, { role: e.target.value })}
+              aria-label={`Назначение ткани, подсказка ${ri + 1}`}
+            >
+              {FABRIC_ROLE_VALUES.map((v) => (
+                <option key={v} value={v}>{MATERIAL_ROLE_LABELS[v]}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyExpected} *</span>
           <input

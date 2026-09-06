@@ -15,7 +15,8 @@ import { stageMissingTz } from '../utils/tz';
 import { stageQtyProgress } from '../utils/progress';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import { daysLeft, formatDateShort, stageOverdue } from '../utils/time';
-import { MATERIAL_STATUS_LABELS, STAGE_STATUS_LABELS } from '../types';
+import { STAGE_STATUS_LABELS } from '../types';
+import { materialStateText } from '../utils/supply';
 import { supabase } from '../../lib/supabase';
 import styles from '../styles';
 import DeptBindingNotice from '../components/DeptBindingNotice';
@@ -271,7 +272,7 @@ export default function ProductionTask() {
                   {itemMaterials.map((m) => (
                     <li key={m.id}>
                       {m.name}{m.color ? ` · ${m.color}` : ''}
-                      <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>
+                      <span className={styles.subText}> — {materialStateText(m)}</span>
                     </li>
                   ))}
                 </ul>

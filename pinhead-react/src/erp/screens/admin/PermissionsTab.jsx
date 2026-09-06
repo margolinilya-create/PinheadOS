@@ -165,7 +165,9 @@ export function PermissionsTab() {
         на вкладке «Пользователи», и права он получает вместе с ней.
       </div>
 
-      <ScrollHintBox className={styles.tableWrap} label="Матрица прав по ролям">
+      <ScrollHintBox
+        className={`${styles.tableWrap} ${styles.matrixWrap}`}
+        label="Матрица прав по ролям">
         <table className={`${styles.table} ${styles.matrixTable}`}>
           <thead>
             <tr>

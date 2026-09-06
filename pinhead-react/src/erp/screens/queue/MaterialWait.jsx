@@ -6,7 +6,7 @@ import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { formatDateShort } from '../../utils/time';
-import { MATERIAL_STATUS_LABELS } from '../../types';
+import { materialStateText } from '../../utils/supply';
 import styles from '../../styles';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';
@@ -119,7 +119,7 @@ export function MaterialWait({ materials, compact = false }) {
             <span className={styles.matWaitName}>
               <Icon name="box" size={14} /> {m.name || 'Без названия'}
               <span className={`${styles.chip} ${styles.chipWaiting}`}>
-                {MATERIAL_STATUS_LABELS[m.status] || m.status}
+                {materialStateText(m)}
               </span>
             </span>
 

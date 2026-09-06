@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { formatDateShort } from '../../utils/time';
-import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
+import { MATERIAL_ACCEPT_LABELS } from '../../types';
+import { materialStateText } from '../../utils/supply';
 import { confirm } from '../../../store/useConfirmStore';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
@@ -156,7 +157,7 @@ function AcceptBlock({ material: m, onAccept }) {
       <div className={styles.matSectionHead}>
         <div>
           <strong>{m.name}</strong>
-          <div className={styles.subText}>{KIND_LABELS[m.kind]} · {MATERIAL_STATUS_LABELS[m.status]}</div>
+          <div className={styles.subText}>{KIND_LABELS[m.kind]} · {materialStateText(m)}</div>
         </div>
         {done && (
           <span className={`${styles.chip} ${styles[ACCEPT_CHIP[m.accept_status]]}`}>
