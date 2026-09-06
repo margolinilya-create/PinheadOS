@@ -7,6 +7,11 @@ import {
   STAGE_STATUS_LABELS,
   PACKAGING_LABELS,
   STICKERS_LABELS,
+  MATERIAL_STATUS_LABELS,
+  MATERIAL_ACCEPT_LABELS,
+  PROCUREMENT_STATUS_LABELS,
+  SUBCONTRACT_PHASE_LABELS,
+  SUBCONTRACT_STATUS_LABELS,
 } from '../../types';
 import styles from '../../styles';
 import { fmt, fmtTs } from './format';
@@ -53,6 +58,11 @@ const AUDIT_FIELD_LABELS = {
   'material.responsible': 'Материал: ответственный',
   'material.name': 'Материал: название',
   'material.kind': 'Материал: вид',
+  // Закупочные величины: до 05.09 журнал их не видел вовсе — «сколько
+  // заказали, когда и почём» не оставляло следа
+  'material.qty_ordered': 'Материал: заказано',
+  'material.ordered_on': 'Материал: дата заказа',
+  'material.price': 'Материал: цена',
 
   'item.qty': 'Позиция: тираж',
   'item.product_type': 'Позиция: изделие',
@@ -65,9 +75,15 @@ const AUDIT_FIELD_LABELS = {
   'procurement.planned_date': 'Закупка: плановая дата',
   'procurement.responsible': 'Закупка: ответственный',
 
-  'subcontract.status': 'Подряд: статус',
+  'subcontract.phase': 'Подряд: этап',
+  'subcontract.status': 'Подряд: этап',
   'subcontract.contractor': 'Подряд: подрядчик',
-  'subcontract.qty': 'Подряд: количество',
+  'subcontract.qty': 'Подряд: в работе',
+  // Суть подряда: сколько отдали, сколько вернулось, сколько брака.
+  // До 05.09 журнал видел только план (`qty`)
+  'subcontract.qty_sent': 'Подряд: передано',
+  'subcontract.qty_returned': 'Подряд: вернулось',
+  'subcontract.qty_defect': 'Подряд: брак',
   'subcontract.planned_date': 'Подряд: плановая дата',
   'subcontract.returned_date': 'Подряд: возвращено',
   'subcontract.delay_comment': 'Подряд: причина задержки',
@@ -80,19 +96,48 @@ const AUDIT_DATE_FIELDS = new Set([
   'subcontract.planned_date', 'subcontract.returned_date',
 ]);
 
+/**
+ * ПОЛЕ АУДИТА → СЛОВАРЬ ЕГО ЗНАЧЕНИЙ.
+ *
+ * До 05.09 переводились только пять полей, а `material.status`,
+ * `material.accept_status`, `subcontract.status` и `procurement.status`
+ * показывались КАК ЕСТЬ. Менеджер читал в истории заказа
+ * «ordered → in_transit» и «sent → received_at_pinhead» — сырые
+ * идентификаторы в русском интерфейсе, 150 записей из 672 на боевой базе.
+ * Подписи при этом всё это время лежали в `types.ts`.
+ *
+ * Таблицей, а не цепочкой `if`: новое поле аудита добавляется одной строкой,
+ * и сторож `historyLabels.test.ts` сверяет её с полями триггеров.
+ */
+const AUDIT_VALUE_LABELS = {
+  // Статус этапа — своя машина состояний, а не статус заказа. Поля называются
+  // одинаково у обоих, и подмена словаря была бы незаметной.
+  'stage.status': STAGE_STATUS_LABELS,
+  status: ORDER_STATUS_LABELS,
+  shipped_status: SHIPPED_STATUS_LABELS,
+  packaging: PACKAGING_LABELS,
+  stickers: STICKERS_LABELS,
+  'material.status': MATERIAL_STATUS_LABELS,
+  'material.accept_status': MATERIAL_ACCEPT_LABELS,
+  'procurement.status': PROCUREMENT_STATUS_LABELS,
+  /**
+   * ДВА СЛОВАРЯ НА ОДНО ПОЛЕ, И ЭТО НЕ ОШИБКА. С 05.09 триггер пишет `phase`,
+   * но в базе остались 37 записей, сделанных до правки, — они в старом
+   * словаре (`received_at_pinhead`, `ready_to_ship`, `awaiting_materials`).
+   * История не переписывается задним числом: показываем как есть, но
+   * по-русски. Сначала актуальный словарь, потом legacy.
+   */
+  'subcontract.phase': SUBCONTRACT_PHASE_LABELS,
+  'subcontract.status': { ...SUBCONTRACT_STATUS_LABELS, ...SUBCONTRACT_PHASE_LABELS },
+};
+
 /** Читабельные значения аудита: статусы, даты и флаги — на русском */
 function auditValue(field, v) {
   if (v == null || v === '') return '—';
-  // Статус этапа — своя машина состояний, а не статус заказа. Раньше поле
-  // называлось одинаково у обоих, и подмена лейбла была бы незаметной.
-  if (field === 'stage.status') return STAGE_STATUS_LABELS[v] || v;
-  if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
-  if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
-  if (field === 'packaging') return PACKAGING_LABELS[v] || v;
-  if (field === 'stickers') return STICKERS_LABELS[v] || v;
   if (field === 'no_chestny_znak') return v === 'true' ? 'да' : 'нет';
   if (AUDIT_DATE_FIELDS.has(field)) return fmt(v);
-  return v;
+  const dict = AUDIT_VALUE_LABELS[field];
+  return (dict && dict[v]) || v;
 }
 
 /** Секция «История»: события этапов + правки заказа, слитые и отсортированные */
