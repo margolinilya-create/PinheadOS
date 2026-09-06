@@ -1307,7 +1307,10 @@ credentials» на уровне модуля — до React, поэтому Erro
 ## Design System
 - Токены: src/index.css (:root) — --type-*, --space-*, --z-*, --radius-*, --color-*
 - Dark mode: html[data-theme="dark"] с полным набором override-токенов
-- Шрифты: Barlow Condensed (заголовки) / Inter (текст) / Roboto Mono (числа)
+- Шрифты: Oswald (заголовки, `--font-display`) / Inter (текст) / Roboto Mono (числа).
+  С 06.09 вместо Barlow Condensed: у того НЕТ кириллицы, и на русских заголовках
+  он не применялся вовсе — валидное правило с нулевым эффектом. Сторож
+  «каждое семейство покрывает кириллицу» — в `styles/fonts.test.ts`
 - Кнопки: в ERP — примитив `erp/components/Button` (variant/size/icon/loading);
   глобальные .btn + variants остаются языком Order Studio
 - Иконки ERP: `erp/components/Icon` + набор в icons.js. Эмодзи вместо иконок не использовать;

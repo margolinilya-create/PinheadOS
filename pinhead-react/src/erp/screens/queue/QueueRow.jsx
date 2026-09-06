@@ -128,12 +128,32 @@ export function QueueRow({
           >
             №{order.bitrix_id || '—'} · {order.title}
           </OrderLink>
+          {/* ИСПОЛНИТЕЛЬ ПЕРЕЕХАЛ СЮДА, В СТРОКУ ПРИЗНАКОВ (06.09).
+              Отдельной колонкой он занимал 96px из 966 и почти всегда
+              показывал «не закреплено» — то есть держал место наравне
+              со сроком и статусом, ничего не сообщая. При этом восьми
+              колонкам ширины уже не хватало: трек действий сжимался
+              до 84px под содержимое в 182, а `justify-self: end`
+              выносил кнопку «Открыть» ВЛЕВО, поверх подписи прогресса.
+              Наложение видно на любом снимке очереди.
+
+              Исполнитель — это контекст задания («кто взял»), а не
+              величина, по которой строку ищут глазами: его место рядом
+              с изделием и заказчиком.
+
+              «Не закреплено» ПОКАЗЫВАЕТСЯ, а не опускается: пустое место
+              и молчание — разные сообщения, а мастеру важно видеть, что
+              задание никто не взял. Свой `title` тоже остаётся: вне
+              колонки с шапкой имя «Пётр» само по себе не говорит, кто это
+              (и на него же смотрит сторож `erp-queue.spec.ts`). */}
           <span
             className={styles.subText}
             title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}
           >
             {item.product_type}{item.variant ? ` · ${item.variant}` : ''}
             {order.customer ? ` · ${order.customer}` : ''}
+            {' · '}
+            <span title="Исполнитель">{stage.assignee || 'не закреплено'}</span>
           </span>
         </span>
 
@@ -199,10 +219,6 @@ export function QueueRow({
           ) : hasTz && (
             <span className={styles.subText} title="Есть ТЗ позиции"><Icon name="orders" size={15} /></span>
           )}
-        </span>
-
-        <span className={styles.queueRowAssignee} title="Исполнитель">
-          {stage.assignee || <span className={styles.subText}>не закреплено</span>}
         </span>
 
         <span className={styles.queueRowProgress} title={`Сделано ${progress.done} из ${progress.total} шт`}>

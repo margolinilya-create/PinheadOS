@@ -231,21 +231,35 @@ export default function ErpDashboard() {
                 <span className={styles.kpiCardValue}>{data.itemsInWork}</span>
               </span>
             </Link>
-            <Link to="/orders?filter=ready" className={styles.kpiCard}>
+            {/* ТОН ПЛИТКИ — ОТ ЗНАЧЕНИЯ, А НЕ ОТ РАЗМЕТКИ.
+                Кромка окрашивается только тогда, когда за ней есть работа:
+                «Просрочено: 0» — хорошая новость, и красная полоса на ней
+                была бы тревогой без повода, то есть шумом, от которого
+                через неделю перестают отличать настоящую. */}
+            <Link
+              to="/orders?filter=ready"
+              className={`${styles.kpiCard}${data.readyToShip > 0 ? ` ${styles.kpiCardOk}` : ''}`}
+            >
               <span className={`${styles.kpiIcon} ${styles.kpiIconOk}`}><Icon name="checkCircle" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Готовы к отгрузке</span>
                 <span className={styles.kpiCardValue}>{data.readyToShip}</span>
               </span>
             </Link>
-            <Link to="/orders?filter=urgent" className={styles.kpiCard}>
+            <Link
+              to="/orders?filter=urgent"
+              className={`${styles.kpiCard}${data.dueSoon > 0 ? ` ${styles.kpiCardWarn}` : ''}`}
+            >
               <span className={`${styles.kpiIcon} ${styles.kpiIconWarn}`}><Icon name="clock" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Срок ≤ 3 дней</span>
                 <span className={styles.kpiCardValue}>{data.dueSoon}</span>
               </span>
             </Link>
-            <Link to="/orders?filter=overdue" className={styles.kpiCard}>
+            <Link
+              to="/orders?filter=overdue"
+              className={`${styles.kpiCard}${data.overdue > 0 ? ` ${styles.kpiCardDanger}` : ''}`}
+            >
               <span className={`${styles.kpiIcon} ${styles.kpiIconDanger}`}><Icon name="alert" size={20} /></span>
               <span className={styles.kpiBody}>
                 <span className={styles.kpiCardLabel}>Просрочено</span>

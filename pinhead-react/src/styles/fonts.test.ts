@@ -151,8 +151,38 @@ describe('шрифты', () => {
   it('объявлены ровно те семейства, что нужны токенам', () => {
     const loaded = loadedFamilies();
     expect(loaded).toContain('Inter');
-    expect(loaded).toContain('Barlow Condensed');
+    expect(loaded).toContain('Oswald');
     expect(loaded).toContain('Roboto Mono');
+  });
+
+  /**
+   * КАЖДОЕ ЗАГРУЖАЕМОЕ СЕМЕЙСТВО ОБЯЗАНО ПОКРЫВАТЬ КИРИЛЛИЦУ.
+   *
+   * Дефект, который не видел ни один сторож до 06.09: `Barlow Condensed`
+   * был объявлен, файлы лежали на диске, `--font-display` на него ссылался,
+   * литералов в CSS не было — все проверки выше зелёные. А нарезка была
+   * ТОЛЬКО латинской, интерфейс же русский целиком: начертание не
+   * применялось ни к одному заголовку, который видит человек, и 44 кБ
+   * возили алфавит, которого на экранах почти нет.
+   *
+   * Прежние проверки спрашивали «объявлен ли шрифт» и «лежит ли файл»;
+   * этот спрашивает «на том ли он алфавите, на котором написан интерфейс».
+   * Диапазон берётся у самой кириллической нарезки Google (U+0400-045F —
+   * основной блок): семейство, у которого нет ни одного `@font-face`
+   * с ним, для этого продукта декоративно.
+   */
+  it('каждое семейство покрывает кириллицу — интерфейс русский', () => {
+    const withCyrillic = new Set<string>();
+    for (const block of TOKENS.matchAll(/@font-face\s*\{([^}]*)\}/g)) {
+      const body = block[1];
+      const family = body.match(/font-family:\s*'([^']+)'/)?.[1];
+      if (family && /unicode-range:[^;]*U\+0400-045F/i.test(body)) withCyrillic.add(family);
+    }
+    const naked = loadedFamilies().filter((f) => !withCyrillic.has(f));
+    expect(
+      naked,
+      `Семейства без кириллической нарезки (на русском тексте не применятся вовсе):\n${naked.join('\n')}`,
+    ).toEqual([]);
   });
 
   it('токены ссылаются только на загруженные семейства', () => {
@@ -172,7 +202,7 @@ describe('шрифты', () => {
         const value = m[1].trim();
         if (value.startsWith('var(') || value === 'inherit') continue;
         // Объявления самих токенов живут в index.css — им литерал и положен
-        if (file.endsWith('index.css') && /^'(Inter|Barlow Condensed|Roboto Mono)'/.test(value)) continue;
+        if (file.endsWith('index.css') && /^'(Inter|Oswald|Roboto Mono)'/.test(value)) continue;
         guilty.push(`${file.slice(SRC.length + 1)}: ${value}`);
       }
     }

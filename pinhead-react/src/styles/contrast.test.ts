@@ -178,6 +178,48 @@ describe.each(['light', 'dark'] as const)('контраст текста пал�
 });
 
 /**
+ * ЧЕРНИЛЬНАЯ ПАНЕЛЬ НАВИГАЦИИ (06.09).
+ *
+ * У сайдбара с этого дня СВОИ поверхности: он тёмный в обеих темах, и
+ * текстовые токены раздела на него не годятся — они рассчитаны на бумагу.
+ * Матрица «текст × поверхность» выше его не видит по построению: она
+ * перебирает `bg`/`card`/`surface`, а панель ни одну из них не использует.
+ * То есть без этого блока целая плоскость интерфейса — и притом та, где
+ * человек проводит взглядом чаще всего, — осталась бы без проверки вовсе.
+ *
+ * Маркер активного пункта проверяется как НЕТЕКСТОВЫЙ индикатор (норма 3):
+ * фирменный ультрамарин на чернилах даёт 2.39, поэтому у панели свой,
+ * осветлённый — и это ровно то, что здесь сторожится.
+ */
+const NAV_TEXT: Array<[ink: string, bg: string]> = [
+  ['nav-ink', 'nav-bg'],
+  ['nav-ink-mid', 'nav-bg'],
+  ['nav-ink-dim', 'nav-bg'],
+  ['nav-active-ink', 'nav-active-bg'],
+];
+
+describe.each(['light', 'dark'] as const)('чернильная панель навигации — %s', (theme) => {
+  const block = shellBlock(theme);
+  const color = (name: string) => resolve(block, tokenValue(block, name));
+
+  it.each(NAV_TEXT)('--%s на --%s проходит AA', (ink, bg) => {
+    const ratio = contrast(color(ink), color(bg));
+    expect(
+      ratio,
+      `--${ink} (${color(ink)}) на --${bg} (${color(bg)}) даёт ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(AA);
+  });
+
+  it('маркер активного пункта различим на панели (3:1, нетекст)', () => {
+    const ratio = contrast(color('nav-accent'), color('nav-bg'));
+    expect(
+      ratio,
+      `--nav-accent (${color('nav-accent')}) на --nav-bg (${color('nav-bg')}) даёт ${ratio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(3);
+  });
+});
+
+/**
  * НЕТЕКСТОВЫЙ КОНТРАСТ: границы элементов управления (WCAG 1.4.11, норма 3:1).
  *
  * Поле ввода отличается от фона страницы фоном на 1.04:1 — значит его рамка

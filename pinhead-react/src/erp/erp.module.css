@@ -1,43 +1,70 @@
 /* ═══════════════════════════════════════════════════════════════
-   PINHEAD ERP — дизайн-язык Order Studio.
-   Светлая «бумага», белая шапка 52px, вкладки на всю высоту,
-   синий акцент, Inter uppercase 11px/1.5px, тонкие границы,
-   Barlow Condensed для заголовков, Roboto Mono для цифр.
-   Тёмная тема — через токены :root автоматически.
+   PINHEAD ERP — «бумага и краска» (06.09).
+   Тёплое бумажное поле, чернильная панель навигации (--nav-*),
+   фирменный ультрамарин #2B2BF0, Inter uppercase 11px/1.5px,
+   тонкие границы, Oswald для заголовков, Roboto Mono для цифр.
+   Тёмная тема — своим блоком ниже, в том же тёплом ряду.
    ═══════════════════════════════════════════════════════════════ */
 
 /* ═══ Дизайн-система редизайна (по UI Kit заказчика) — ERP-scoped ═══
    Токены переопределяются на корне .shell, чтобы Order Studio (ТЗ) не менялся.
    Повышенная специфичность (html .shell / html[data-theme] .shell) гарантирует
    победу над :root/тёмной темой index.css в обеих темах. */
+/* ═══ ПАЛИТРА РАЗДЕЛА: БУМАГА И КРАСКА (06.09) ═══
+   До 06.09 здесь стоял дефолтный набор Tailwind — blue-600 акцентом и
+   gray-50/gray-100 поверхностями. Две беды, и вторая тише первой:
+
+   1. Акцент #2563EB не имел отношения к продукту: у Pinhead есть свой
+      ультрамарин #2B2BF0, объявленный в `index.css` и работающий в Order
+      Studio. Раздел «Производство» подменял фирменный цвет служебным.
+
+   2. `--bg` (#F5F6F8, светлота 0.921) и `--surface` (#F3F4F6, 0.904)
+      различались на 0.017 — то есть НЕ РАЗЛИЧАЛИСЬ вовсе. «Поверхности»
+      были тремя названиями одного оттенка, и глубины на экране не
+      возникало ни от какой вёрстки: карточка на подложке, подложка на
+      поле — всё сливалось в одно молочное пятно, а работу делала
+      единственная тонкая рамка.
+
+   Теперь поле — ТЁПЛАЯ БУМАГА, лист карточки — белый (он ярче поля, а не
+   равен ему), подложка — заметная ступень вниз (0.906 / 1.0 / 0.836).
+   Нейтрали уведены в тёплый: холодный сине-серый на цеховом планшете под
+   жёлтым светом выглядит грязным, а типография — про бумагу и краску.
+
+   Сигнальные цвета (success/warning/error/…) НЕ трогаются: они отвечают
+   на другой вопрос — «что со сроком и статусом», — и их значения уже
+   выверены по контрасту. Менять их заодно значило бы перекрашивать
+   светофор, потому что стены покрасили. */
 :global(html) .shell {
-  --accent: #2563EB;
-  --accent-light: rgba(37, 99, 235, 0.08);
-  --accent-hover: #1D4ED8;
-  --btn-primary-bg: #2563EB;
+  --accent: #2B2BF0;
+  --accent-light: rgba(43, 43, 240, 0.07);
+  --accent-hover: #1E1ED4;
+  --btn-primary-bg: #2B2BF0;
   --btn-primary-fg: #ffffff;
-  --btn-primary-hover-bg: #1D4ED8;
-  --btn-primary-active-bg: #1E40AF;
-  --bg: #F5F6F8;
+  --btn-primary-hover-bg: #1E1ED4;
+  --btn-primary-active-bg: #1717AE;
+  --bg: #F4F1EA;
   --card: #ffffff;
-  --surface: #F3F4F6;
-  --border-light: #E5E7EB;
-  --border-mid: #D1D5DB;
-  --text: #111827;
-  --text-mid: #4B5563;
+  --surface: #EBE7DD;
+  --border-light: #E0DBCF;
+  --border-mid: #CDC6B5;
+  --text: #16130E;
+  --text-mid: #5A5348;
   /* Было #6B7280 — 4.39:1 на --surface и 4.47:1 на --bg при норме 4.5 для
      12–13px (аудит 03.09, пересчёт по WCAG 2.x). Затемнено до минимального
      значения, проходящего AA на ВСЕХ трёх поверхностях: 4.68 / 4.76 / 5.15.
      Сторожит матрица «текст × поверхность» по блоку .shell в contrast.test.ts —
-     до 03.09 она читала только index.css и палитру раздела не видела вовсе. */
-  --text-dim: #666E7B;
+     до 03.09 она читала только index.css и палитру раздела не видела вовсе.
+     06.09 пересчитан под тёплую палитру: 4.96 / 5.59 / 4.60 на bg/card/surface.
+     Подложка стала темнее прежней (0.836 против 0.904), поэтому и приглушённый
+     текст ушёл темнее — иначе ступень поверхностей купилась бы ценой AA. */
+  --text-dim: #6A6357;
   /* Граница ПОЛЯ ВВОДА и вторичной кнопки — не текст, норма 3:1 (WCAG 1.4.11).
      Прежняя --border #E5E7EB давала 1.24:1, и это была единственная граница:
      фон поля (--card #fff) отличается от фона страницы (--bg #F5F6F8) на 1.04.
      На цеховом планшете под ярким светом не было видно, куда печатать.
      Отдельный токен, а не общий --border: рамки карточек и таблиц к элементам
      управления не относятся, и перекрашивать их незачем. */
-  --border-control: #868E9B;
+  --border-control: #8A8272;
   --color-success: #10A34A;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
@@ -74,30 +101,65 @@
      переведены на `--border-light`, чей глобальный вид (#DCDCDC) от разделового
      (#E5E7EB) почти не отличается — в отличие от чёрного. */
   /* Тот же расчёт, что у --text-dim: это его алиас по смыслу */
-  --text-muted: #666E7B;
+  --text-muted: #6A6357;
   /* Заливка опасного действия. --color-error #EF4444 под белым текстом даёт
      3.76:1 при 12–14px — ниже AA. Отдельный токен: --color-error остаётся
      для точек, рамок и чипов, где он не несёт белого текста. */
   --btn-danger-bg: #DC2626;
   --btn-danger-fg: #ffffff;
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+  /* Тень тёплая: серо-синяя на бумажном поле читается как грязь */
+  --shadow-card: 0 1px 2px rgba(36, 28, 16, 0.05), 0 1px 3px rgba(36, 28, 16, 0.08);
+
+  /* ─── ЧЕРНИЛЬНАЯ ПАНЕЛЬ НАВИГАЦИИ ───
+     Своими токенами, а не через --card/--text: сайдбар стал тёмной
+     плоскостью в светлой теме, и текстовые токены раздела на него
+     не годятся по построению — они рассчитаны на бумагу.
+
+     Зачем панель тёмная. До 06.09 сайдбар был белым (`--card`) на почти
+     белом поле (`--bg`), разделённые линией в 1px: у продукта не было
+     пространственного якоря — глаз не знал, где кончается инструмент
+     и начинается работа. Тёмная плоскость слева даёт этот якорь и
+     заодно тот самый контраст «краска / бумага», на котором построен
+     весь раздел.
+
+     Контраст проверен и сторожится (`contrast.test.ts`, блок «чернильная
+     панель»): 15.16 у основного текста, 5.96 у приглушённого, белый
+     на ультрамарине активного пункта — 7.76. Маркер активного пункта
+     берёт --nav-accent, а не --accent: фирменный ультрамарин на чернилах
+     даёт 2.39 при норме 3 для нетекстового индикатора. */
+  --nav-bg: #16130E;
+  --nav-ink: #EDE8DD;
+  /* Три ступени, а не две: заголовок группы («ЦЕХА») обязан быть тише
+     самих пунктов, иначе список читается как ровная стена одинаковых строк */
+  --nav-ink-mid: #BDB5A7;
+  --nav-ink-dim: #9A9184;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: #2B2BF0;
+  --nav-active-ink: #ffffff;
+  --nav-accent: #7B7BFF;
+  --nav-border: rgba(255, 255, 255, 0.10);
 }
+/* Тёмная тема идёт за светлой: те же тёплые нейтрали, только перевёрнутые.
+   Оставить её сине-серой означало бы, что тумблер темы меняет не яркость,
+   а фирменный стиль. Поверхности снова разведены по светлоте (0.008 /
+   0.012 / 0.019) — в тёмной теме ступень мельче по абсолютной величине,
+   но глазом различима, потому что работает нижний конец шкалы. */
 :global(html[data-theme='dark']) .shell {
-  --accent: #3B82F6;
-  --accent-light: rgba(59, 130, 246, 0.14);
-  --accent-hover: #60A5FA;
-  --btn-primary-bg: #2563EB;
+  --accent: #8C8CFF;
+  --accent-light: rgba(140, 140, 255, 0.16);
+  --accent-hover: #A9A9FF;
+  --btn-primary-bg: #2B2BF0;
   --btn-primary-fg: #ffffff;
-  --btn-primary-hover-bg: #1D4ED8;
-  --btn-primary-active-bg: #1E40AF;
-  --bg: #0F1420;
-  --card: #161B26;
-  --surface: #1B2130;
-  --border-light: #242B39;
-  --border-mid: #313A4C;
-  --text: #E8EAED;
-  --text-mid: #A9B0BD;
-  --text-dim: #8A93A3;
+  --btn-primary-hover-bg: #4242F5;
+  --btn-primary-active-bg: #1E1ED4;
+  --bg: #14120E;
+  --card: #1D1A15;
+  --surface: #26221B;
+  --border-light: #302B23;
+  --border-mid: #403A30;
+  --text: #EDE8DE;
+  --text-mid: #B3AB9C;
+  --text-dim: #978E7F;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #F87171;
@@ -120,15 +182,28 @@
   --color-violet-ink:  #A78BFA;
   --color-cyan-ink:    #22D3EE;
   /* `--border` — см. светлую тему выше: разделом не используется */
-  --text-muted: #9AA3B3;
+  --text-muted: #978E7F;
   /* Тёмная тема: текстовые токены проходят AA и так (5.19–8.44), правятся
      только НЕтекстовые. Рамка контролов #313A4C давала 1.51:1 на карточке. */
-  --border-control: #66748C;
+  --border-control: #7C7361;
   /* В тёмной теме --color-error светлый (#F87171), и белый текст на нём —
      2.77:1. Заливка опасной кнопки берётся своим токеном. */
   --btn-danger-bg: #B91C1C;
   --btn-danger-fg: #ffffff;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  /* Чернильная панель — см. светлую тему. В тёмной она чуть ТЕМНЕЕ поля,
+     а не светлее: панель остаётся той же плоскостью краски, к которой
+     прижата навигация, и в обеих темах узнаётся одинаково. */
+  --nav-bg: #100E0A;
+  --nav-ink: #EDE8DD;
+  --nav-ink-mid: #BDB5A7;
+  --nav-ink-dim: #948B7D;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: #2B2BF0;
+  --nav-active-ink: #ffffff;
+  --nav-accent: #8C8CFF;
+  --nav-border: rgba(255, 255, 255, 0.09);
 }
 
 .shell {
@@ -242,11 +317,15 @@
 }
 
 /* ─── Sidebar (вертикальная навигация, сгруппированная) ─── */
+/* Панель навигации — плоскость КРАСКИ (см. --nav-* в блоке токенов выше).
+   Все цвета внутри неё берутся из --nav-*, а не из палитры бумаги: смешивать
+   их нельзя, иначе первая же правка «текста на карточке» перекрасит меню. */
 .sidebar {
   width: 236px;
   flex-shrink: 0;
-  background: var(--card);
-  border-right: 1px solid var(--border-light);
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-border);
+  color: var(--nav-ink);
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -261,38 +340,54 @@
   height: 60px;
   padding: 0 18px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-light);
-  color: var(--text);
+  border-bottom: 1px solid var(--nav-border);
+  color: var(--nav-ink);
   text-decoration: none;
   cursor: pointer;
   transition: background 120ms ease;
 }
-.sidebarBrand:hover { background: var(--surface); }
-.sidebarBrand:hover .sidebarLogo { background: var(--accent-hover); }
-.sidebarBrand:focus-visible {
-  outline: 2px solid var(--accent);
+.sidebarBrand:hover { background: var(--nav-hover); }
+/* Кольцо фокуса внутри панели — своим токеном: фирменный ультрамарин
+   (--accent) на чернилах даёт 2.39:1, то есть фокус был бы невидим ровно
+   там, где панель тёмная. Глобальное правило :focus-visible из forms-base
+   красит кольцо в --accent, поэтому здесь оно переопределяется адресно. */
+.sidebarBrand:focus-visible,
+.sidebar .navLink:focus-visible,
+.sidebar .collapseBtn:focus-visible {
+  outline: 2px solid var(--nav-accent);
   outline-offset: -2px;
 }
+/* Знак: не скруглённый квадрат с буквой, а ОТТИСК — белая литера,
+   вырубленная в ультрамариновом поле. Квадрат намеренно не скруглён:
+   у печатной формы прямой угол, и на фоне сплошных 6px-радиусов
+   раздела он читается как знак, а не как ещё одна кнопка. */
 .sidebarLogo {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  transition: background 120ms ease;
-  color: #fff;
+  border-radius: 2px;
+  background: var(--nav-active-bg);
+  transition: background 120ms ease, box-shadow 120ms ease;
+  color: var(--nav-active-ink);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 20px;
+  line-height: 1;
+  /* Смещение оттиска: край краски видно, как на приводке */
+  box-shadow: 2px 2px 0 rgba(123, 123, 255, 0.35);
+}
+.sidebarBrand:hover .sidebarLogo {
+  box-shadow: 3px 3px 0 rgba(123, 123, 255, 0.55);
 }
 .sidebarBrandText {
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.5px;
+  font-size: 19px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -331,22 +426,32 @@
   color: var(--text-dim);
 }
 
-/* Крупный заголовок: другое начертание и другая задача — не подпись, а титул */
+/* Крупный заголовок: другое начертание и другая задача — не подпись, а титул.
+   Вес 700, а не 900: у дисплейного начертания (Oswald) верх диапазона — 700,
+   и 900 браузер синтезировал бы утолщением контуров. Прежнее значение
+   ни на чём не сказывалось — до 06.09 начертание не применялось к русскому
+   тексту вовсе (см. шапку @font-face в index.css). Трекинг убран в ноль:
+   он добавлялся, чтобы разредить широкий Inter в верхнем регистре, а
+   condensed от него теряет ровно ту плотность, ради которой взят. */
 .pageTitle,
 .modalTitle {
   font-family: var(--font-display);
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 /* Заголовки групп меню («ЦЕХА», «ОПЕРАЦИИ»): было 10px цветом --text-muted,
    то есть 2.5:1 при кегле меньше собственного минимума.
    Начертание — из .labelCaps выше, здесь только раскладка. */
 .navGroup {
-  padding: 14px var(--space-md) var(--space-xs);
+  padding: var(--space-lg) var(--space-md) var(--space-xs);
   white-space: nowrap;
   overflow: hidden;
+  /* Цвет — свой: групповое правило .labelCaps выше красит подписи в
+     --text-dim, а он рассчитан на бумагу и на чернилах даёт 1.6:1.
+     Специфичность равна, спор решает порядок — это правило ниже. */
+  color: var(--nav-ink-dim);
 }
 .navLink {
   display: flex;
@@ -358,15 +463,23 @@
   border-radius: var(--radius-md);
   font-size: var(--type-body-sm);
   font-weight: 500;
-  color: var(--text-mid);
+  color: var(--nav-ink-mid);
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   transition: background 130ms ease, color 130ms ease;
 }
-.navLink:hover { background: var(--surface); color: var(--text); }
+.navLink:hover { background: var(--nav-hover); color: var(--nav-ink); }
+/* Активный пункт — сплошная заливка краской, а не бледная подсветка.
+   Прежний вид (--accent-light, то есть 8% синего на белом) при чернильной
+   панели превратился бы в едва заметное пятно; здесь пункт становится
+   единственным цветным объектом панели, и найти его можно не глядя. */
 .navLinkActive,
-.navLinkActive:hover { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.navLinkActive:hover {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-ink);
+  font-weight: 600;
+}
 /* Место строки участка, пока состав цехов не приехал. Через composes, а не своей
    высотой: в DOM окажутся оба класса, и переопределение под (pointer: coarse)
    ниже по файлу применится к заглушке само — захардкоженные 38px промахнулись бы
@@ -392,15 +505,18 @@
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-mid);
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--nav-ink);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.navLinkActive .navBadge { background: var(--accent); color: #fff; }
+/* На залитом краской пункте счётчик выворачивается: белая плашка,
+   цифра цветом заливки. Прежняя пара (--accent на --accent-light)
+   внутри сплошного ультрамарина была бы синим на синем */
+.navLinkActive .navBadge { background: var(--nav-active-ink); color: var(--nav-active-bg); }
 .sidebarFooter {
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--nav-border);
   padding: var(--space-sm);
   flex-shrink: 0;
 }
@@ -415,13 +531,13 @@
   background: none;
   cursor: pointer;
   border-radius: var(--radius-md);
-  color: var(--text-dim);
+  color: var(--nav-ink-dim);
   font: inherit;
   font-size: var(--type-label);
   white-space: nowrap;
   overflow: hidden;
 }
-.collapseBtn:hover { background: var(--surface); color: var(--text); }
+.collapseBtn:hover { background: var(--nav-hover); color: var(--nav-ink); }
 /* Свёрнутый режим: только иконки */
 .sidebarCollapsed .sidebarBrandText,
 .sidebarCollapsed .navGroup,
@@ -515,6 +631,17 @@
   border-radius: var(--radius-md);
   background: var(--card);
 }
+/* Таблица заказов: ширины колонок из <colgroup> (объяснение — там же).
+   `fixed` обязателен: без него браузер всё равно пересчитает ширины
+   по содержимому, и colgroup останется пожеланием. */
+.ordersTable {
+  table-layout: fixed;
+  min-width: 900px;
+}
+/* Подпись колонки не переносится и не обрезается: ширины в colgroup рассчитаны
+   под неё, и перенос здесь означал бы, что расчёт разошёлся с вёрсткой —
+   это должно быть ВИДНО, а не спрятано многоточием */
+.ordersTable th { white-space: nowrap; }
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -729,7 +856,11 @@
   счётчика: это не повод бросать текущее, а ответ на «что придёт дальше».
   Наследует вид `.deptTabCount` и меняет только начертание.
 */
-.deptTabWaiting { font-weight: 400; opacity: 0.85; }
+/* Без `opacity`: она гасила уже приглушённый `--text-dim` до 4.3:1 на подложке
+   вкладки (axe, 06.09). Прозрачность у текста — это и есть контраст, а правило
+   проекта говорит прямо: иерархия ниже `--text-dim` выражается размером
+   и положением, а не контрастом. Разницу с активным счётчиком несёт вес. */
+.deptTabWaiting { font-weight: 400; }
 .overdue { color: var(--color-error-ink); font-weight: 700; }
 .subText { color: var(--text-dim); font-size: var(--type-label); }
 .progressCell {
@@ -763,10 +894,23 @@
 .queueRowDropAfter { box-shadow: inset 0 -3px 0 0 var(--accent); }
 .queueRowMain {
   display: grid;
-  /* приоритет · заказ · кол-во · срок · статус · исполнитель · готовность · действия.
-     Название заказа — самая широкая колонка: по нему цех и опознаёт работу */
+  /* приоритет · заказ · кол-во · срок · статус · готовность · действия.
+     Название заказа — самая широкая колонка: по нему цех и опознаёт работу.
+
+     КОЛОНОК СЕМЬ, А НЕ ВОСЕМЬ (06.09). Восьмая — «Исполнитель» — уехала
+     в строку признаков под названием: она забирала 96px из 966, а трека
+     на действия при этом НЕ ХВАТАЛО. `auto` сжимался до 84px под кнопки
+     шириной 182, и `justify-self: end` разворачивал их влево — прямо
+     поверх подписи прогресса. Это не «тесно», а наложение: «0%» и
+     «Открыть» печатались друг на друге.
+
+     Последний трек объявлен через minmax с ЯВНЫМ минимумом, а не `auto`:
+     `auto` в перегруженной сетке ужимается молча, и следующая колонка,
+     которую кто-нибудь добавит, воспроизведёт ту же поломку. Числа сходятся:
+     72+48+96+100+184 = 500 фиксированных, 96 на зазоры, остаток 370 делят
+     название (мин. 210) и статусы (мин. 150). */
   grid-template-columns:
-    76px minmax(220px, 3fr) 56px 108px minmax(150px, 1.2fr) 96px 92px auto;
+    72px minmax(210px, 3fr) 48px 96px minmax(150px, 1.2fr) 100px minmax(184px, auto);
   /* start, а не center: строка со срочной датой и двумя чипами растёт по высоте,
      и при center содержимое разъезжалось по вертикали относительно соседей */
   align-items: start;
@@ -789,8 +933,22 @@
 .queueRowTitle {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
+}
+/* Название задания — дисплейным начертанием, как заголовок карточки очереди
+   и карточки канбана: это одна и та же величина («что за работа»), и до 06.09
+   она в трёх местах выглядела по-разному только потому, что в строке
+   у ссылки не было объявлено вообще ничего.
+
+   Condensed здесь ещё и практичен: в те же 244px колонки помещается заметно
+   больше знаков названия, а обрезается оно многоточием — то есть чем уже
+   начертание, тем меньше работы прячется за «…». */
+.queueRowTitle .queueCardTitleLink {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
 }
 .queueRowTitle > * {
   overflow: hidden;
@@ -819,13 +977,10 @@
   flex-wrap: wrap;
   min-width: 0;
 }
-.queueRowAssignee {
-  font-size: var(--type-label);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.queueRowProgress { display: flex; align-items: center; gap: 6px; }
+/* `.queueRowAssignee` удалён вместе с колонкой (06.09): носителей у класса
+   не осталось ни одного, а правило без носителя — то же осиротевшее правило,
+   что `.drawerTab` и `.kpiCardClickable` до него. */
+.queueRowProgress { display: flex; align-items: center; gap: var(--space-xs); }
 .queueRowActions { display: flex; align-items: center; gap: var(--space-xs); justify-self: end; }
 .queueRowNotes {
   display: flex;
@@ -1446,17 +1601,54 @@
 
 /* ─── Dashboard (редизайн, по макету) ─── */
 .dash { display: flex; flex-direction: column; gap: var(--space-lg); }
-.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+/* Шесть плиток на 190px укладывались в 4 + 2, и вторая строка оставляла
+   половину ряда пустой — дыру видно на любом снимке обзора. 260px дают
+   ровно три колонки на десктопе (3 × 2), две на планшете и одну на
+   телефоне. Медиазапрос не нужен: сетка подстраивается сама — правило
+   проекта «если сетка может подстроиться, порог убирают, а не переносят». */
+.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+/* Плитка показателя — БИРКА НА ТАРЕ: цветная кромка слева отвечает
+   на «насколько это срочно», число набрано моноширинным (это
+   производственные данные), подпись — заглавной мелочью.
+
+   До 06.09 все шесть плиток были одинаковыми: белый прямоугольник,
+   цветной квадрат с иконкой, число 26px. «Просрочено 1» выглядело ровно
+   так же, как «Позиций в работе 5», — то есть экран, который человек
+   открывает, чтобы понять, куда бежать, не отвечал на этот вопрос
+   ничем, кроме чтения всех шести подписей подряд. */
 .kpiCard {
-  display: flex; align-items: center; gap: 14px;
-  padding: var(--space-lg);
+  position: relative;
+  display: flex; align-items: flex-start; gap: var(--space-sm);
+  padding: 14px var(--space-lg) 15px 19px;
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   text-decoration: none; color: inherit;
+  overflow: hidden;
+  transition: border-color 130ms ease, box-shadow 130ms ease;
 }
-.kpiCard:hover { border-color: var(--border-mid); }
+.kpiCard::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--border-mid);
+}
+.kpiCard:hover { border-color: var(--border-mid); box-shadow: 0 2px 10px rgba(36, 28, 16, 0.10); }
+/* ТОН ПОЯВЛЯЕТСЯ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ НА ЧТО РЕАГИРОВАТЬ.
+   Классы вешает экран по значению (`> 0`), а не разметка навсегда: плитка
+   «Просрочено: 0» — это хорошая новость, и красная кромка на ней была бы
+   тревогой без повода. Тот же принцип, что у чипов состояния раздела:
+   цвет несёт смысл, а не украшает. */
+.kpiCardOk::before { background: var(--color-success); }
+.kpiCardWarn::before { background: var(--color-warning); }
+.kpiCardDanger::before { background: var(--color-error); }
+.kpiCardDanger {
+  background: var(--bg-error);
+  border-color: var(--color-error);
+}
+.kpiCardDanger .kpiCardValue { color: var(--color-error-ink); }
 /* Плитка-кнопка (склад): сбрасываем внешний вид кнопки, выравниваем текст */
 button.kpiCard { text-align: left; font: inherit; cursor: pointer; width: 100%; }
 /* Нажатая плитка-фильтр: подсветка ЛОЖИТСЯ НА ФОН КАРТОЧКИ, а не заменяет его.
@@ -1479,13 +1671,44 @@ button.kpiCard[aria-pressed='true'] {
    Разница только в подсветке при наведении — акцентная против нейтральной,
    и это РЕШЕНИЕ О ВИДЕ: вернуть его владелец может одной строкой,
    а мёртвое правило в файле — то же осиротевшее правило, что `.drawerTab`. */
-.kpiIconOk { background: var(--bg-success); }
-.kpiIconWarn { background: var(--bg-warning); }
-.kpiIconDanger { background: var(--bg-error); }
-.kpiCardLabel { font-size: var(--type-label); color: var(--text-dim); }
+/* Иконка плитки — ТИХИЙ ЗНАК В УГЛУ, а не цветной квадрат 44×44.
+   Квадраты были самым заметным объектом плитки и при этом несли меньше
+   всех смысла: одинаковый вес у «заказов в работе» и у «просрочено»,
+   да ещё шесть разных заливок подряд — экран пестрел, а иерархии
+   не возникало. Теперь срочность несёт кромка плитки, а иконка только
+   называет предмет. `order` переставляет её вправо, не трогая разметку:
+   в DOM она идёт первой и первой же читается скринридером.
+
+   Всё семейство собрано ЗДЕСЬ, рядом с `.kpiCard` (06.09): до этого база
+   и «фиолетовый» жили в screens.module.css, а «ок / предупреждение /
+   опасность» — тут, то есть в разных чанках, между которыми порядка правил
+   не существует. Базовым файлом выбран этот, а не экранный: `PurchaseCard`
+   адресует варианты строкой (`cls: 'kpiIconOk'`). */
+.kpiIcon {
+  width: 22px; height: 22px; flex-shrink: 0;
+  order: 2;
+  margin-left: auto;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+}
+.kpiIconViolet { color: var(--color-violet-ink); }
+.kpiIconOk { color: var(--color-success-ink); }
+.kpiIconWarn { color: var(--color-warning-ink); }
+.kpiIconDanger { color: var(--color-error-ink); }
+.kpiBody { display: flex; flex-direction: column; gap: 7px; min-width: 0; order: 1; flex: 1; }
+.kpiCardLabel {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
 .kpiCardValue {
-  font-family: var(--mono); font-size: 26px; font-weight: 600;
-  color: var(--text); line-height: 1.1;
+  font-family: var(--mono); font-size: 34px; font-weight: 500;
+  color: var(--text); line-height: 1;
+  /* Табличные цифры: числа на шести плитках стоят в колонку, и пропорциональный
+     ноль сдвигал бы каждую строку относительно соседней */
+  font-variant-numeric: tabular-nums;
 }
 
 .dashRow { display: grid; gap: var(--space-lg); align-items: start; }
@@ -1505,17 +1728,34 @@ button.kpiCard[aria-pressed='true'] {
 .widget {
   background: var(--card);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-lg); min-width: 0;
 }
+/* Линейка под заголовком секции — как в наборной полосе. Она же решает
+   практическую задачу: у виджета с таблицей заголовок раньше висел в воздухе
+   и сливался с шапкой самой таблицы. */
 .widgetHead {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: var(--space-md); gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
 }
 /* Заголовок виджета — это <h2>, а не span: страница должна читаться навигацией
-   по заголовкам. Сброс полей нужен, потому что браузерный h2 несёт свои. */
-.widgetTitle { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+   по заголовкам. Сброс полей нужен, потому что браузерный h2 несёт свои.
+   Начертание дисплейное: до 06.09 оно было объявлено только у титула страницы,
+   и уровни заголовков различались одним кеглем — 34px против 15px, между ними
+   пусто. Теперь у секции свой голос, и «ОБЗОР ПРОИЗВОДСТВА» → «УВЕДОМЛЕНИЯ»
+   читается как иерархия, а не как два разных размера одного шрифта. */
+.widgetTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+}
 .widgetLink { font-size: var(--type-label); color: var(--accent); text-decoration: none; white-space: nowrap; }
 
 /* ─── Pagination (редизайн) ─── */
@@ -1871,21 +2111,29 @@ button.kpiCard[aria-pressed='true'] {
   gap: 6px var(--space-md);
   font-size: var(--type-body-sm);
 }
+/* Полоса-указатель: прямоугольная, не скруглённая, и в полную ширину блока —
+   это ШКАЛА, а не индикатор загрузки файла. Прямой угол здесь работает так же,
+   как у знака в сайдбаре: у измерительной шкалы нет капсульной формы. */
 .capacityTrack {
   position: relative;
-  height: 8px;
-  margin: var(--space-sm) 0 6px;
-  border-radius: 999px;
+  height: 10px;
+  margin: var(--space-sm) 0;
+  border-radius: 2px;
   background: var(--surface);
   overflow: hidden;
 }
 .capacityFill {
   display: block;
   height: 100%;
-  border-radius: 999px;
   background: var(--accent);
 }
 .capacityFillOver { background: var(--color-error); }
+.capacityNote {
+  margin: 0;
+  font-size: var(--type-label);
+  line-height: 1.45;
+  color: var(--text-dim);
+}
 
 /**
  * Блок «только просмотр»: нативный fieldset[disabled] гасит все вложенные

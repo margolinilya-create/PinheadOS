@@ -53,8 +53,24 @@ function withoutComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
+/** Исходники разметки: `var()` живёт и в инлайн-стилях, не только в CSS */
+function jsxFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...jsxFiles(full));
+    else if (/\.(jsx|tsx)$/.test(name) && !/\.test\./.test(name)) out.push(full);
+  }
+  return out;
+}
+
 const FILES = cssFiles(ROOT);
 const SOURCES = FILES.map((f) => ({ file: f.slice(ROOT.length + 1), css: withoutComments(readFileSync(f, 'utf8')) }));
+/** Комментарии снимаются и здесь — по той же причине, что у CSS */
+const JSX_SOURCES = jsxFiles(ROOT).map((f) => ({
+  file: f.slice(ROOT.length + 1),
+  css: withoutComments(readFileSync(f, 'utf8')).replace(/\/\/[^\n]*/g, ''),
+}));
 
 /** Все объявленные токены — по всему корпусу CSS, включая палитру `.shell` */
 const DECLARED = new Set<string>();
@@ -69,9 +85,19 @@ describe('CSS-токены', () => {
     expect(DECLARED.size).toBeGreaterThan(50);
   });
 
-  it('ни один var() не подпёрт фолбэком', () => {
+  /**
+   * КОРПУС — CSS И ИНЛАЙН-СТИЛИ, а не только CSS.
+   *
+   * Правило записано в проекте после 04.09: «обход по CSS не видит
+   * инлайн-стилей», и тогда его применили к одному сторожу (`--border`).
+   * К этому — не применили, и 06.09 в `ErrorBoundary` нашёлся живой
+   * `var(--font-display, Barlow Condensed, sans-serif)`: фолбэк, да ещё
+   * называющий шрифт, которого в проекте больше нет. Сторож при этом был
+   * зелёным — объявление жило в `.jsx`, куда он не смотрел по построению.
+   */
+  it('ни один var() не подпёрт фолбэком — ни в CSS, ни в инлайн-стилях', () => {
     const hits: string[] = [];
-    for (const { file, css } of SOURCES) {
+    for (const { file, css } of [...SOURCES, ...JSX_SOURCES]) {
       for (const m of css.matchAll(/var\((--[a-zA-Z0-9-]+)\s*,/g)) {
         hits.push(`${file}: var(${m[1]}, …)`);
       }
