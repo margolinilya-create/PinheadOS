@@ -177,6 +177,40 @@ describe('buildRoute — нанесения', () => {
     expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
   });
 
+  /**
+   * ДАВАЛЬЧЕСКОЕ ИЗДЕЛИЕ (правки 07.09, п. 4) — второй сценарий готового
+   * изделия. Довод предыдущего теста здесь разворачивается: закупка из
+   * маршрута уходит (`buildItemRoute` ниже), и без приёмки у позиции
+   * не осталось бы НИ ОДНОГО этапа — ни одна поверхность не сказала бы,
+   * доехал ли чужой товар.
+   */
+  it('давальческое без нанесений: приёмка склада есть, ВТО нет', () => {
+    const route = buildRoute({
+      productionType: 'ready_garment', brandingMethods: [], brandingOn: 'finished',
+      garmentSource: 'customer',
+    });
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'warehouse']);
+  });
+
+  it('давальческое + нанесение: тот же маршрут, что у нашего изделия', () => {
+    const route = buildRoute({
+      productionType: 'ready_garment', brandingMethods: ['silkscreen'], brandingOn: 'finished',
+      garmentSource: 'customer',
+    });
+    expect(route.map((r) => r.departmentCode))
+      .toEqual(['supply', 'warehouse', 'silkscreen', 'vto']);
+  });
+
+  it('«customer» у пошива маршрута не меняет', () => {
+    // Значение, оставшееся от переключённой позиции, не должно молча
+    // дописывать пошиву приёмку склада
+    const route = buildRoute({
+      productionType: 'sewing', brandingMethods: [], brandingOn: 'cut',
+      garmentSource: 'customer',
+    });
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'cutting', 'sewing', 'vto']);
+  });
+
   it('без изделий + ДТФ: только цех нанесения, без зависимостей', () => {
     const route = buildRoute({
       productionType: 'no_product', brandingMethods: ['dtf'], brandingOn: 'cut',
@@ -584,6 +618,39 @@ describe('buildItemRoute — вырезание закупки при матер
       brandingOn: 'finished', materialSource: 'contractor',
     });
     expect(byFlag).toEqual(bySource);
+  });
+
+  /**
+   * ТРЕТЬЕ ОСНОВАНИЕ (правки 07.09, п. 4): давальческое изделие. В отличие
+   * от первых двух это свойство ПОЗИЦИИ — на бое один заказ уже несёт две
+   * позиции `ready_garment`, и отметка на заказе сняла бы закупку у обеих.
+   */
+  it('давальческое изделие вырезает закупку без отметки на заказе', () => {
+    const route = buildItemRoute({
+      productionType: 'ready_garment', brandingMethods: ['silkscreen'],
+      brandingOn: 'finished', garmentSource: 'customer',
+    });
+    expect(route.map((s) => s.departmentCode)).toEqual(['warehouse', 'silkscreen', 'vto']);
+    // Приёмка осталась первой и готова к работе: зависимость от закупки снята
+    expect(route[0].dependsOnCodes).toEqual([]);
+  });
+
+  it('давальческое без нанесений — одна приёмка склада', () => {
+    const route = buildItemRoute({
+      productionType: 'ready_garment', brandingMethods: [],
+      brandingOn: 'finished', garmentSource: 'customer',
+    });
+    expect(route.map((s) => s.departmentCode)).toEqual(['warehouse']);
+  });
+
+  it('наше готовое изделие закупку сохраняет', () => {
+    for (const garmentSource of [undefined, null, 'purchased']) {
+      const route = buildItemRoute({
+        productionType: 'ready_garment', brandingMethods: ['silkscreen'],
+        brandingOn: 'finished', garmentSource,
+      });
+      expect(route.map((s) => s.departmentCode)).toContain('supply');
+    }
   });
 
   it('«только нанесение» методом без своего цеха тоже даёт пустой маршрут', () => {

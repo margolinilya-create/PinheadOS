@@ -19,6 +19,7 @@ import type {
   ErpMaterial,
   ProductionType,
 } from '../types';
+import { isCustomerGarment } from './garmentSource';
 import { formatDateShort } from './time';
 
 export interface RouteStage {
@@ -111,6 +112,13 @@ export interface BuildRouteInput {
   productionType: ProductionType;
   brandingMethods: BrandingMethod[];
   brandingOn: BrandingOn;
+  /**
+   * Чьё готовое изделие (правки 07.09, п. 4): `'customer'` — давальческое.
+   * Свободная строка, а не `GarmentSource`: значение приходит из формы и из
+   * колонки, где оно может отсутствовать вовсе. Разбирает его
+   * `utils/garmentSource`, сравнением строго с `'customer'`.
+   */
+  garmentSource?: string | null;
 }
 
 /**
@@ -164,11 +172,17 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
    * читающего ЭТАПЫ (`routeReachable.test.ts`, дефект 12.08 с 33 заказами):
    * его даёт вкладка «Приёмка изделия» на складе (`warehouse/FgIntakeQueue`).
    *
-   * ТОЛЬКО ПРИ НАНЕСЕНИИ. Документ говорит о готовом изделии С нанесением;
-   * у заказа без нанесений работать над чужим товаром некому, и обязательный
-   * этап приёмки был бы новой пробкой на пустом месте.
+   * ПРИ НАНЕСЕНИИ — ИЛИ КОГДА ИЗДЕЛИЕ ЧУЖОЕ (п. 4). Документ говорит о готовом
+   * изделии С нанесением: у НАШЕГО изделия без нанесений работать не над чем,
+   * и обязательный этап приёмки был бы новой пробкой на пустом месте.
+   * У ДАВАЛЬЧЕСКОГО довод обратный: закупка из маршрута ушла (покупать нечего),
+   * и без приёмки у позиции не осталось бы ни одного этапа вовсе — то есть
+   * ни одна поверхность не сказала бы, доехал ли чужой товар до фабрики.
    */
-  const needsIntake = productionType === 'ready_garment' && brandingCodes.length > 0;
+  const needsIntake = productionType === 'ready_garment'
+    && (brandingCodes.length > 0 || isCustomerGarment({
+      production_type: productionType, garment_source: input.garmentSource,
+    }));
   const chain = needsIntake
     ? [...(BASE_CHAIN.ready_garment ?? []), WAREHOUSE_DEPT_CODE]
     : (BASE_CHAIN[productionType] ?? []);
@@ -226,10 +240,13 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
    * бывает и шелкография, и вышивка, и ВТО, привязанное к одной из них,
    * начало бы работу, пока вторая ещё печатает.
    *
-   * Только вместе с приёмкой (`needsIntake`): без нанесений печатать нечего,
-   * и утюжить тоже.
+   * Только вместе с приёмкой И нанесением: без нанесений печатать нечего,
+   * и утюжить тоже. Второе условие стало значимым с п. 4 — у давальческого
+   * изделия приёмка обязательна и БЕЗ нанесений, а ВТО, привязанное к пустому
+   * списку веток, встало бы в очередь готовым к работе сразу после приёмки:
+   * цех получил бы задание погладить чужой товар, которого никто не трогал.
    */
-  if (needsIntake) {
+  if (needsIntake && brandingCodes.length > 0) {
     stages.push({
       departmentCode: VTO_DEPT_CODE,
       dependsOnCodes: [...brandingCodes],
@@ -283,7 +300,17 @@ export function buildItemRoute(input: BuildRouteInput & {
   const route = buildRoute(input);
   const contractorMaterial =
     input.productionType === 'outsource' && input.materialSource === 'contractor';
-  const skipSupply = input.needsPurchase === false || contractorMaterial;
+  /**
+   * ТРЕТЬЕ ОСНОВАНИЕ (правки 07.09, п. 4): давальческое готовое изделие.
+   * Изделие привозит клиент — покупать его не надо, и закупщик не должен
+   * получать заказ, по которому ему нечего делать. В отличие от первых двух
+   * это свойство ПОЗИЦИИ, а не заказа: на бое один заказ уже несёт две
+   * позиции `ready_garment`, и отметка на заказе сняла бы закупку у обеих.
+   */
+  const customerGarment = isCustomerGarment({
+    production_type: input.productionType, garment_source: input.garmentSource,
+  });
+  const skipSupply = input.needsPurchase === false || contractorMaterial || customerGarment;
   if (!skipSupply) return route;
   return route
     .filter((r) => r.departmentCode !== 'supply')

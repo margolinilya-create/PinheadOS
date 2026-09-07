@@ -144,6 +144,49 @@ test.describe('Раскладка не прыгает от позднего erp_
     gate.release();
     await expect(page.locator('nav a[href^="/queue/"]')).toHaveCount(PROD_DEPTS);
   });
+
+  test('полоса мощности держит высоту от скелетона до настоящего трека', async ({ page }) => {
+    /*
+     * ТРЕТЬЯ ВЫСОТА ОДНОЙ ПОЛОСЫ. Сначала «мощность не задана» было нулём —
+     * починили заглушкой. Заглушка «загружается» осталась СВОЕЙ: скелетон 8px
+     * с полями 8/6 против трека 10px с полями 8/8, то есть 22px против 26px.
+     * Приезд настроек двигал вниз на 4 пикселя ВСЁ, что ниже полосы: сноску,
+     * тулбар, ряд вкладок и саму раскладку недели. Величина мала, площадь —
+     * весь экран, и в сумме сдвигов /plan выходил за порог Web Vitals.
+     *
+     * ПОЧЕМУ ОТДЕЛЬНЫЙ ГЕЙТ. Мощность приезжает своим запросом `erp_settings`
+     * (`loadSettings`), а не пакетом оболочки: на `deptsGate` состояние
+     * «полоса грузится» не воспроизводится, и сторож был бы зелен на сломанном
+     * коде — уже второй раз в этой спеке.
+     *
+     * ПОЧЕМУ ПОЛНАЯ ВЫСОТА СЕКЦИИ, А НЕ ТРЕКА. Двигает страницу коробка целиком;
+     * трек можно было бы уравнять, разъехавшись полями — мерим то, что едет.
+     */
+    await installSupabaseMock(page);
+    await page.goto('http://localhost:4173/plan?studio=0');
+    await expect(page.locator('h1')).toBeVisible();
+
+    const gate = makeGate();
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await installSupabaseMock(page, { settingsGate: gate.promise });
+    await page.goto('http://localhost:4173/plan?studio=0');
+
+    const bar = page.locator('section[aria-label^="Загрузка производства"]');
+    await expect(bar).toBeVisible();
+    // Состояние «до» гарантировано гейтом: скелетон на месте трека
+    await expect(bar.locator('.skeleton')).toBeVisible();
+    const before = await bar.boundingBox();
+
+    gate.release();
+    await expect(bar.locator('.skeleton')).toHaveCount(0);
+    await expect(bar.locator('[class*="capacityTrack"]')).toBeVisible();
+    const after = await bar.boundingBox();
+
+    expect(
+      Math.abs(after!.height - before!.height),
+      `полоса мощности выросла с ${Math.round(before!.height)}px до ${Math.round(after!.height)}px`,
+    ).toBeLessThanOrEqual(1);
+  });
 });
 
 test.describe('Совокупный CLS под нагрузкой', () => {

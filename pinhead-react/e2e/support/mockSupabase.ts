@@ -527,6 +527,13 @@ export type MockExtras = {
    */
   myEmployee?: unknown;
   deptsGate?: Promise<void>;
+  /**
+   * Держит ответ по настройкам производства (`erp_settings`). Отдельный гейт,
+   * а не `deptsGate`: мощность приезжает СВОИМ запросом (`loadSettings`),
+   * мимо пакета оболочки, и состояние «полоса ещё грузится» на общем гейте
+   * не воспроизводится вовсе.
+   */
+  settingsGate?: Promise<void>;
 };
 
 type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
@@ -792,6 +799,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
 
     const table = path.split('?')[0];
     if (table === 'erp_departments' && extra.deptsGate) await extra.deptsGate;
+    if (table === 'erp_settings' && extra.settingsGate) await extra.settingsGate;
     const accept = route.request().headers()['accept'] ?? '';
     const single = accept.includes('vnd.pgrst.object');
     const data = dataForTable(table, url.searchParams, extra);

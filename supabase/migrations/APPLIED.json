@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-09-07",
+  "capturedAt": "2026-09-07T20:40:01Z",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -1572,6 +1572,14 @@
         "20260907192853_erp_revoke_definer_helpers.sql"
       ],
       "note": "техдолг: отзыв EXECUTE у authenticated на erp_can_act_in_dept и erp_can_pack_ship. Тот же класс, что чинили 04.09 у erp_ensure_subcontract_send: тогда закрыли одну функцию поимённо, две соседние остались. Найдено вопросом к схеме (все prosecdef без предиката RLS, без внутреннего гейта и с authenticated в ACL), а не грепом по именам. Обе только читают и зовутся лишь триггерами-definer с владельцем postgres; клиент их не вызывает. Проверено на живой базе: прямой вызов даёт 42501, путь цеха через erp_stage_guard продолжает работать. Версия в имени файла приведена к ФАКТИЧЕСКОЙ записи журнала (apply_migration ставит своё время применения) — расхождение поймала та же сверка"
+    },
+    {
+      "version": "20260907203932",
+      "name": "erp_garment_source",
+      "files": [
+        "20260907203932_erp_garment_source.sql"
+      ],
+      "note": "правки 07.09, п. 4 «разделить „Готовое изделие“ на два сценария». Ось назвал владелец: ЧЬЁ ИЗДЕЛИЕ — клиента (давальческое) или наше. Колонка у ПОЗИЦИИ, а не у заказа: механизм «закупать нечего» уже есть на заказе (purchase_required), но на бое один заказ несёт ДВЕ позиции ready_garment, и отметка на заказе сняла бы закупку у обеих разом. Не material_source — та отвечает на вопрос подряда и читается только при production_type='outsource'. NULL читается как «закупаем мы» (сравнение строгое с 'customer', как с executor='contractor'), бэкфилла нет: чьё изделие в сданных заказах — догадка. erp_create_order пересоздана целиком по подлинному тексту (md5 тела до правки 53b8ab85… совпал побайтово с prosrc)"
     }
   ]
 }

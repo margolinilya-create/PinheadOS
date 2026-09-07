@@ -9,6 +9,7 @@
 import { storageGet, storageRemove } from '../../lib/storage';
 import { factoryToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
+import { itemNeedsPurchase } from './garmentSource';
 import type { RouteGroup } from './routeDraft';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
@@ -127,6 +128,12 @@ export interface DraftItem {
   packaging_width_mm: string | number;
   packaging_height_mm: string | number;
   production_type: string;
+  /**
+   * Чьё готовое изделие (правки 07.09, п. 4): `purchased` — закупаем мы,
+   * `customer` — давальческое. Спрашивается только у `ready_garment`,
+   * разбирается `utils/garmentSource`.
+   */
+  garment_source?: string;
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
   has_branding?: boolean;
@@ -286,6 +293,9 @@ export const EMPTY_ITEM: DraftItem = {
   packaging_width_mm: '',
   packaging_height_mm: '',
   production_type: 'sewing',
+  // «Закупаем мы» — прежнее поведение готового изделия; давальческое
+  // менеджер отмечает сам (правки 07.09, п. 4)
+  garment_source: 'purchased',
   branding_on: 'cut',
   has_branding: false,
   subcontract_kind: 'finished_product',
@@ -482,6 +492,40 @@ export interface OrderFormValidation {
   invalid: string[];
 }
 
+/**
+ * ЗНАЧИМЫЕ позиции формы: те, по которым спрашивают и проверяют.
+ *
+ * Правило дословно то же, каким `validateOrderForm` пропускает пустую
+ * дополнительную строку. Вынесено, потому что читателей стало двое:
+ * второй — `orderNeedsPurchase`, и на пустой строке (у неё тип производства
+ * по умолчанию «Пошив») он ответил бы «закупка нужна» у заказа, где все
+ * настоящие позиции давальческие.
+ */
+function meaningfulItems(items: DraftItem[]): DraftItem[] {
+  if (items.length <= 1) return items;
+  return items.filter((it) => !(isItemEmpty(it) && !it.has_branding));
+}
+
+/**
+ * Нужна ли по заказу закупка (правки 07.09, п. 4).
+ *
+ * ДВА УСЛОВИЯ, И ВТОРОЕ НОВОЕ. Первое — отметка менеджера «Закупка
+ * не требуется» (правка 20.08), свойство заказа. Второе — есть ли хоть одна
+ * позиция, которую вообще надо покупать: у давальческого готового изделия
+ * покупать нечего по построению, и требовать под него лист закупки значило бы
+ * просить отметить галочкой то, что уже сказано выбором сценария. Ровно тот же
+ * довод, по которому `buildItemRoute` вырезает у такой позиции этап «Закупка».
+ *
+ * Заказ БЕЗ позиций вовсе закупку требует: пустая форма не должна проходить
+ * проверку листа закупки «потому что покупать нечего».
+ */
+export function orderNeedsPurchase(form: DraftForm, items: DraftItem[]): boolean {
+  if (form.purchase_required === false) return false;
+  const meaningful = meaningfulItems(items);
+  if (meaningful.length === 0) return true;
+  return meaningful.some((it) => itemNeedsPurchase(it));
+}
+
 export function validateOrderForm(
   form: DraftForm,
   items: DraftItem[],
@@ -576,7 +620,7 @@ export function validateOrderForm(
    * `aria-invalid`, автоскролл и раскрытие секции. Тост для этого не годится —
    * правило волны UX-4.
    */
-  if (form.purchase_required !== false && !hasPurchaseList) {
+  if (orderNeedsPurchase(form, items) && !hasPurchaseList) {
     errors.purchase_list = 'Приложите лист закупки или отметьте «Закупка не требуется»';
     missing.push('Лист закупки');
   }

@@ -19,9 +19,11 @@ import {
   isItemEmpty,
   loadOrderDraft,
   normalizeDraft,
+  orderNeedsPurchase,
   validateOrderForm,
 } from '../../utils/orderForm';
 import { managerOptions } from '../../utils/managers';
+import { garmentSourceOf } from '../../utils/garmentSource';
 import { factoryToday } from '../../../utils/date';
 import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
@@ -673,6 +675,13 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           // сетка заполнена → количество из сетки, иначе ручной ввод
           qty: effectiveQty(it),
           production_type: it.production_type,
+          /**
+           * Сценарий готового изделия (правки 07.09, п. 4). У прочих типов
+           * колонка остаётся NULL: вопрос «чьё изделие» им не задавался,
+           * и записанный ответ читался бы как решение человека.
+           */
+          garment_source: it.production_type === 'ready_garment'
+            ? garmentSourceOf(it) : undefined,
           // Технический блок и упаковка позиции (правки заказчика 16.08).
           // Пустое поле уходит undefined, а не пустой строкой: иначе колонка
           // хранит '' и «не заполняли» становится неотличимо от «заполнили
@@ -780,11 +789,21 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const itemsSummary =
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
+  /**
+   * Нужна ли закупка вообще (правки 07.09, п. 4): отметка менеджера ЛИБО
+   * состав заказа. Величина одна на три места — подпись свёрнутой секции,
+   * объяснение внутри неё и проверка в `validateOrderForm`, — и считает её
+   * одна функция: вторая формула разошлась бы с проверкой, и человек получил
+   * бы «лист не приложен» у заказа, где он не нужен.
+   */
+  const purchaseNeeded = orderNeedsPurchase(form, items);
   const purchaseSummary = form.purchase_required === false
     ? 'закупка не требуется'
     : hasPurchaseList
       ? 'лист приложен'
-      : 'лист не приложен';
+      : purchaseNeeded
+        ? 'лист не приложен'
+        : 'покупать нечего';
   const tzUploaded = tzDocs.filter((d) => d.state === 'uploaded').length;
   const tzSummary = tzUploading
     ? 'загружается…'
@@ -1039,6 +1058,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           attach={attach}
           err={err}
           notRequired={form.purchase_required === false}
+          notNeededByItems={form.purchase_required !== false && !purchaseNeeded}
           onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
         />
         </FormSection>

@@ -6,6 +6,7 @@ import {
   MATERIAL_STATUS_LABELS,
 } from '../../types';
 import { hasPackaging, itemPackaging, packagingLabel, stickersLabel } from '../../utils/packaging';
+import { GARMENT_SOURCE_LABELS, isCustomerGarment } from '../../utils/garmentSource';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
@@ -118,6 +119,18 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
             )}
             {item.fit && (
               <span className={`${styles.chip} ${styles.chipNeutral}`}>Крой: {item.fit}</span>
+            )}
+            {/*
+              ДАВАЛЬЧЕСКОЕ ИЗДЕЛИЕ (правки 07.09, п. 4) — здесь, а не только
+              в карточке заказа: цех приходит работать на эту страницу.
+              Вещь чужая, испорченную не допечатать из своих остатков, и знать
+              это надо ДО первого прогона. Обратный случай («закупаем мы») —
+              прежнее поведение, чипа не заводит.
+            */}
+            {isCustomerGarment(item) && (
+              <span className={`${styles.chip} ${styles.chipInfo}`}>
+                {GARMENT_SOURCE_LABELS.customer}
+              </span>
             )}
             {/* Упаковка ПОЗИЦИИ: своя, а при `inherit` — общая по заказу.
                 Правило разрешения одно на весь проект — utils/packaging. */}

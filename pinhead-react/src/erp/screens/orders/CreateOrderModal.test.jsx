@@ -263,3 +263,63 @@ describe('CreateOrderModal — тип производства', () => {
     expect(options).toEqual(['на готовом']);
   });
 });
+
+/**
+ * ДВА СЦЕНАРИЯ ГОТОВОГО ИЗДЕЛИЯ (правки 07.09, п. 4).
+ *
+ * Правило разбора значения покрыто `utils/garmentSource.test.ts`, маршрутные
+ * следствия — `utils/routes.test.ts`. Здесь сторожится СВЯЗКА, которой ни один
+ * из них не видит: выбор появляется только у готового изделия, и он снимает
+ * обязательность листа закупки — то есть кнопка «Создать заказ» перестаёт
+ * требовать файла, которого по такому заказу не бывает.
+ */
+describe('CreateOrderModal — чьё готовое изделие (п. 4)', () => {
+  const chooseReadyGarment = async () => {
+    const group = await screen.findByRole('radiogroup', { name: 'Тип производства' });
+    fireEvent.click(within(group).getByRole('radio', { name: 'Готовое изделие' }));
+  };
+
+  it('у пошива вопроса «Чьё изделие» нет', async () => {
+    setup();
+    await screen.findByRole('radiogroup', { name: 'Тип производства' });
+    expect(screen.queryByRole('radiogroup', { name: 'Чьё изделие' })).toBeNull();
+  });
+
+  it('у готового изделия предлагаются оба сценария, по умолчанию — «Закупаем мы»', async () => {
+    setup();
+    await chooseReadyGarment();
+    const group = screen.getByRole('radiogroup', { name: 'Чьё изделие' });
+    const tiles = within(group).getAllByRole('radio');
+    expect(tiles.map((b) => b.textContent))
+      .toEqual(['Закупаем мы', 'Давальческое — изделие клиента']);
+    expect(tiles[0]).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('давальческое снимает требование листа закупки', async () => {
+    setup();
+    /**
+     * Заполняем РУКАМИ, без `fillRequired`: та ставит отметку «Закупка
+     * не требуется», то есть уже снимает проверку листа — и сторож был бы
+     * зелен независимо от сценария изделия.
+     */
+    fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
+      target: { value: 'BOX39 футболки' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('футболка'), {
+      target: { value: 'Футболка' },
+    });
+    fireEvent.change(screen.getByLabelText(/Кол-во/), { target: { value: '100' } });
+
+    // Наше изделие: лист закупки обязателен, и попытка отправки его требует
+    await chooseReadyGarment();
+    fireEvent.click(submitBtn());
+    expect(await screen.findByText(/Осталось заполнить.*Лист закупки/)).toBeInTheDocument();
+
+    const group = screen.getByRole('radiogroup', { name: 'Чьё изделие' });
+    fireEvent.click(within(group).getByRole('radio', { name: /Давальческое/ }));
+    await waitFor(() => expect(screen.queryByText(/Осталось заполнить/)).toBeNull());
+    // И форма ГОВОРИТ, почему лист больше не нужен, а не молчит
+    expect(screen.getByText(/покупать нечего/)).toBeInTheDocument();
+    expect(submitBtn()).toBeEnabled();
+  });
+});

@@ -56,6 +56,13 @@ export type StageStatus =
 
 export type MaterialKind = 'fabric' | 'hardware' | 'labels' | 'packaging' | 'other';
 export type MaterialSource = 'purchase' | 'stock' | 'client' | 'none';
+/**
+ * Чьё готовое изделие — два сценария `ready_garment` (правки 07.09, п. 4).
+ * Соседство с `MaterialSource` обманчиво: та про ИСТОЧНИК МАТЕРИАЛА строки
+ * закупки (`erp_materials.source`), эта — про принадлежность самого изделия
+ * в позиции заказа. Правила чтения — `utils/garmentSource`.
+ */
+export type GarmentSource = 'customer' | 'purchased';
 export type MaterialStatus =
   | 'pending' | 'ordered' | 'in_transit' | 'received' | 'partial' | 'not_needed' | 'reserved';
 /** Статус приёмки складом (правка 3): результат сверки план/факт */
@@ -263,6 +270,16 @@ export interface ErpOrderItem {
   /** Подряд (волна 4.2): выбирается при создании заказа с типом «Подряд» */
   subcontract_kind?: SubcontractOpType | null;
   material_source?: SubcontractMaterialSource | null;
+  /**
+   * Чьё готовое изделие (правки 07.09, п. 4): `customer` — давальческое,
+   * `purchased` — закупаем мы. NULL у позиций, заведённых до правки, и у всех,
+   * чей тип производства не «Готовое изделие»; читается как `purchased`.
+   * Разбор — `utils/garmentSource`, сравнением строго с `'customer'`.
+   *
+   * НЕ ПУТАТЬ с `material_source`: та отвечает на вопрос ПОДРЯДА («чей
+   * материал у подрядчика») и читается только при `production_type='outsource'`.
+   */
+  garment_source?: GarmentSource | null;
   /**
    * Технический блок изделия (правки заказчика 16.08). Свободные поля: цех
    * читает их в задании, они же уходят в ТЗ. Порядок заполнения позиции по

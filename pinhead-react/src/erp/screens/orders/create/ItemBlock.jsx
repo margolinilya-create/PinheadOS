@@ -14,6 +14,12 @@ import {
   BRANDING_METHOD_CHOICES,
   EMBROIDERY_GARMENT_KINDS,
 } from '../../../types';
+import {
+  GARMENT_SOURCE_HINTS,
+  GARMENT_SOURCE_LABELS,
+  GARMENT_SOURCE_ORDER,
+  garmentSourceOf,
+} from '../../../utils/garmentSource';
 import styles from '../../../styles';
 import { Button } from '../../../components/Button';
 import { RouteFields, RouteIssues } from '../../../components/RouteFields';
@@ -158,6 +164,44 @@ export function ItemBlock({
           ))}
         </div>
       </div>
+      {/*
+        ДВА СЦЕНАРИЯ ГОТОВОГО ИЗДЕЛИЯ (правки 07.09, п. 4). Документ просит
+        «разделить тип производства „Готовое изделие“ на два сценария»
+        и откладывает детализацию; ось назвал заказчик — ЧЬЁ ИЗДЕЛИЕ.
+
+        ВОПРОС ЗАДАЁТСЯ ТОЛЬКО ГОТОВОМУ ИЗДЕЛИЮ и только здесь: у пошива
+        изделия ещё нет — оно появится из нашего кроя. Значение, оставшееся
+        от переключённой позиции, маршрут не меняет (`garmentSourceOf`
+        смотрит и на тип производства), поэтому сбрасывать его при смене
+        плитки не требуется — и не нужно: человек, вернувшийся к «Готовому
+        изделию», найдёт свой выбор на месте.
+
+        ПОСЛЕДСТВИЯ НАЗВАНЫ ПРЯМО ПОД ВЫБОРОМ. Оба они маршрутные — уходит
+        закупка, появляется приёмка склада, — и выбор, о котором известно
+        только слово «давальческое», человек сделал бы наугад.
+      */}
+      {it.production_type === 'ready_garment' && (
+        <div className={`${styles.field} ${styles.fieldFull}`}>
+          <span className={styles.fieldLabel}>Чьё изделие</span>
+          <div className={styles.tileRow} role="radiogroup" aria-label="Чьё изделие">
+            {GARMENT_SOURCE_ORDER.map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={garmentSourceOf(it) === v}
+                className={`${styles.tile} ${garmentSourceOf(it) === v ? styles.tileActive : ''}`}
+                onClick={() => setItem(i, { garment_source: v })}
+              >
+                {GARMENT_SOURCE_LABELS[v]}
+              </button>
+            ))}
+          </div>
+          <span className={styles.subText}>
+            {GARMENT_SOURCE_HINTS[garmentSourceOf(it)]}
+          </span>
+        </div>
+      )}
       {/*
         БЛОК «ТИП ПОДРЯДА» УДАЛЁН (правки заказчика 16.08, п. 5 блока 2).
 

@@ -1268,6 +1268,7 @@ export type Database = {
           created_at: string
           cutting_note: string | null
           fit: string | null
+          garment_source: string | null
           id: string
           labels_note: string | null
           main_fabric: string | null
@@ -1299,6 +1300,7 @@ export type Database = {
           created_at?: string
           cutting_note?: string | null
           fit?: string | null
+          garment_source?: string | null
           id?: string
           labels_note?: string | null
           main_fabric?: string | null
@@ -1330,6 +1332,7 @@ export type Database = {
           created_at?: string
           cutting_note?: string | null
           fit?: string | null
+          garment_source?: string | null
           id?: string
           labels_note?: string | null
           main_fabric?: string | null
@@ -1697,18 +1700,21 @@ export type Database = {
           permission: string
           role: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           allowed?: boolean
           permission: string
           role: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           allowed?: boolean
           permission?: string
           role?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -2437,6 +2443,10 @@ export type Database = {
       erp_create_order: { Args: { payload: Json }; Returns: string }
       erp_default_queue_position: { Args: { p_due: string }; Returns: number }
       erp_dev_branding_task_types: { Args: never; Returns: string[] }
+      erp_ensure_order_finish_tasks: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
       erp_ensure_subcontract_send: {
         Args: { p_stage: string }
         Returns: undefined
@@ -2582,6 +2592,7 @@ export type Database = {
         Returns: Json
       }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
+      erp_order_has_open_dev: { Args: { p_order_id: string }; Returns: boolean }
       erp_pkg_flag: { Args: { p_key: string; p_pkg: Json }; Returns: boolean }
       erp_pkg_list_filled: {
         Args: { p_key: string; p_pkg: Json }
@@ -2677,6 +2688,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      erp_stage_completion_block: {
+        Args: { p_added_good?: number; p_stage_id: string }
+        Returns: string
       }
       erp_stage_item_qty: { Args: { p_stage_id: string }; Returns: number }
       erp_stage_move_department: {
@@ -2896,6 +2911,7 @@ export type Database = {
           p_defect?: number
           p_id: string
           p_moved_on?: string
+          p_returned?: number
         }
         Returns: {
           comment: string | null
@@ -2986,12 +3002,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3015,11 +3031,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3040,11 +3056,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3065,11 +3081,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3082,11 +3098,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

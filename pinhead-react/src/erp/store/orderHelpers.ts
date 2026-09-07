@@ -97,7 +97,7 @@ export const ORDER_LIST_SELECT = `
   items:erp_order_items (
     id, order_id, product_type, variant, qty, qty_shipped, production_type,
     branding_methods, branding_on, notes, sort_order,
-    subcontract_kind, material_source,
+    subcontract_kind, material_source, garment_source,
     fit, main_fabric, trim_material, cutting_note, sewing_note, labels_note,
     packaging, packaging_size, sticker_place, marking_place, packaging_note,
     packaging_width_mm, packaging_height_mm,

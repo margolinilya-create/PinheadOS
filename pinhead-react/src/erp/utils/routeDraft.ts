@@ -158,6 +158,8 @@ export interface FormItemLike {
   production_type?: string;
   branding_on?: string;
   material_source?: string;
+  /** Чьё готовое изделие (правки 07.09, п. 4) — см. `utils/garmentSource` */
+  garment_source?: string | null;
   has_branding?: boolean;
   prints?: { method?: string }[];
   branding_methods?: string[];
@@ -212,6 +214,12 @@ export function formItemRoute(
     brandingMethods: methodsOf(it),
     brandingOn: (it.branding_on ?? 'cut') as BrandingOn,
     materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+    /**
+     * Проверку «а тот ли это тип производства» здесь не делаем — её делает
+     * сам `garmentSourceOf`: вопрос «чьё изделие» задан только готовому,
+     * и значение, оставшееся от переключённой позиции, маршрут не меняет.
+     */
+    garmentSource: it.garment_source ?? null,
   }));
 }
 
