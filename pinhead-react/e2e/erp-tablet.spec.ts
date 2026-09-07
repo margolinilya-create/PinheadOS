@@ -587,3 +587,37 @@ test.describe('Участки на планшете', () => {
     expect(box!.height).toBeGreaterThanOrEqual(44);
   });
 });
+
+test.describe('Гант на планшете', () => {
+  /**
+   * Шкала на 60 дней в ширину планшета — полоса в пиксель: читать нечего.
+   * Поэтому здесь ДРУГАЯ раскладка, а не та же в меньшем масштабе: карточка
+   * на заказ с текстовыми интервалами этапов. Десктопная шкала проверяется
+   * в `erp-gantt.spec.ts`, который на этой ширине исключён.
+   */
+  test('вместо шкалы — карточки заказов с интервалами', async ({ page }) => {
+    await page.goto('/gantt?studio=0&from=2026-07-06&days=30');
+    await expect(page.getByRole('list', { name: 'Этапы во времени' })).toBeVisible();
+    // Десктопной сетки на этой ширине нет вовсе
+    await expect(page.getByRole('region', { name: 'Диаграмма Ганта' })).toHaveCount(0);
+  });
+
+  test('строка называет позицию: у заказа их несколько', async ({ page }) => {
+    /**
+     * Шапка карточки общая на ЗАКАЗ, а этапы принадлежат позициям, и каждая
+     * идёт своим маршрутом. Без имени позиции две строки «Закрой» под одним
+     * заголовком читаются как дубль — это рубашка и фартук.
+     */
+    await page.goto('/gantt?studio=0&from=2026-07-06&days=30');
+    const card = page.getByRole('listitem').filter({ hasText: 'Форма официантов' });
+    await expect(card).toBeVisible();
+    await expect(card.getByText(/Рубашка · 50 шт/).first()).toBeVisible();
+    await expect(card.getByText(/Фартук · 30 шт/).first()).toBeVisible();
+  });
+
+  test('страница не прокручивается по горизонтали', async ({ page }) => {
+    await page.goto('/gantt?studio=0&from=2026-07-06&days=30');
+    await expect(page.getByRole('list', { name: 'Этапы во времени' })).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+});

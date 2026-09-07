@@ -32,6 +32,7 @@ const SCREENS = [
   { name: 'Доска производства', url: '/board?studio=0' },
   { name: 'План производства', url: '/plan?studio=0' },
   { name: 'Загрузка цехов', url: '/load?studio=0' },
+  { name: 'Гант', url: '/gantt?studio=0' },
   { name: 'Очередь цеха', url: '/queue/cutting?studio=0' },
   { name: 'Закупка', url: '/purchasing?studio=0' },
   { name: 'Склад', url: '/warehouse?studio=0' },

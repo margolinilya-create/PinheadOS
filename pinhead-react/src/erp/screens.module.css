@@ -1528,3 +1528,124 @@ a.cellTitle:hover { color: var(--accent); }
 /* Остановленный заказ подсвечен рамкой, а не только словом: строка одна
    на все состояния, и без признака «стоит» она читается как справка. */
 .orderNowBar[data-stopped] { border-color: var(--color-warning); background: var(--bg-warning); }
+
+/* ─── Гант: список задач слева, шкала времени справа (правки 07.09, п. 19) ──
+   Сетка одна на шапку и на строки: колонка подписи плюс по колонке на день.
+   Число дней приходит инлайном (`--gantt-days`) — это единственная величина,
+   которую нельзя знать заранее; здесь оно объявлено значением по умолчанию,
+   чтобы `var()` не остался без объявленного токена.
+
+   Полоса позиционируется ГРИДОМ (`grid-column`), а не процентами от ширины:
+   проценты разъезжаются с колонками шкалы на дробный пиксель, и полоса
+   переставала совпадать с днём, над которым стоит её подпись. */
+/* Обёртка объявляет число дней и ширину подписи ОДИН раз: строки-гриды
+   наследуют их как обычные custom properties. Объяви `.ganttGrid` их у себя —
+   и инлайновое значение с обёртки перестало бы доезжать до строк. */
+.ganttWrap {
+  --gantt-days: 7;
+  --gantt-label-w: 300px;
+  min-width: max-content;
+}
+.ganttGrid {
+  display: grid;
+  grid-template-columns: var(--gantt-label-w) repeat(var(--gantt-days), minmax(38px, 1fr));
+  align-items: stretch;
+}
+.ganttHeadCell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-xs) 2px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+  text-align: center;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.ganttHeadToday { color: var(--accent); font-weight: 700; }
+/* Пустая ячейка над колонкой подписей — та же липкая шапка, без текста */
+.ganttHeadLabel {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+}
+/* Подпись строки прилипает слева: при прокрутке шкалы вправо полоса
+   без подписи не отвечает на вопрос «чья она» */
+.ganttLabel {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px var(--space-sm) 6px 0;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+  min-width: 0;
+}
+.ganttLabelTitle {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ganttLabelSub {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Дорожка дня под полосой: разлиновка, по которой читаются даты */
+.ganttTrack {
+  border-bottom: 1px solid var(--border-light);
+  border-left: 1px solid var(--border-light);
+  min-height: 34px;
+}
+.ganttTrackToday { background: var(--bg-info); }
+/* Сама полоса лежит В ТОЙ ЖЕ строке поверх дорожек */
+.ganttBar {
+  align-self: center;
+  height: 18px;
+  margin: 0 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--type-label);
+  line-height: 18px;
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ganttBarOverdue { background: var(--color-error); }
+.ganttBarOutsourced { background: var(--color-violet); }
+/* Догадка (дата взята у заказа или не задана вовсе) рисуется штриховкой:
+   выдавать её за план нельзя, а прятать — значит показать пустую диаграмму */
+.ganttBarGuess {
+  background: repeating-linear-gradient(
+    45deg, var(--text-dim), var(--text-dim) 4px, transparent 4px, transparent 8px
+  );
+  border: 1px solid var(--border-light);
+  color: var(--text);
+}
+/* Хвост, уходящий за левый край периода */
+.ganttBarClipStart { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.ganttBarClipEnd { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+/* Компактная раскладка: сжатый Гант на 375px не читается вовсе, поэтому
+   вместо шкалы — карточка на ЗАКАЗ с текстовыми интервалами этапов.
+   Тот же приём, что у «Загрузки цехов» (`DeptLoadCard`). */
+.ganttCardStage {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  border-top: 1px solid var(--border-light);
+}
+.ganttCardDates { font-family: var(--mono); font-size: var(--type-label); }

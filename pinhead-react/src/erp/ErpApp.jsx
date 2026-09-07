@@ -40,6 +40,7 @@ const Experimental = lazyScreen(() => import('./screens/Experimental'));
 const DevPage = lazyScreen(() => import('./screens/DevPage'));
 const DeptLoad = lazyScreen(() => import('./screens/DeptLoad'));
 const PlanScreen = lazyScreen(() => import('./screens/PlanScreen'));
+const GanttScreen = lazyScreen(() => import('./screens/GanttScreen'));
 // Витрина дизайн-системы — за флагом `styleguide`, отдельным чанком.
 // Ленивый импорт обязателен: иначе список всех иконок и демо-разметка
 // уехали бы в оболочку, которую грузят все и всегда.
@@ -139,6 +140,8 @@ export default function ErpApp({ user }) {
           <Route path="/load" element={<DeptLoad />} />
           {/* Недельный и ежедневный план производства (правка менеджера 2026-08-03) */}
           <Route path="/plan" element={<PlanScreen />} />
+          {/* Гант — четвёртая вкладка «Производства» (правки 07.09, п. 19) */}
+          <Route path="/gantt" element={<GanttScreen />} />
           <Route path="/board" element={<ProductionBoard />} />
           {/*
             Очередь ВСЕГДА адресуется участком. Адреса `/queue` без кода
