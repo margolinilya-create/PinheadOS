@@ -4,15 +4,20 @@ import { DEPT_BOUND_ROLES } from './permissions';
 import { EMPLOYEE_ROLE_LABELS } from '../types';
 import type { EmployeeRole } from '../types';
 
-const ALL_OPEN = { canOpen: () => true };
-const NONE_OPEN = { canOpen: () => false };
+/**
+ * Очередь адресуется УЧАСТКОМ (правки 07.09, п. 18): код приходит снаружи —
+ * его считает `utils/myDept`, у которого свои тесты. Здесь проверяется правило
+ * «какой роли куда», а не «чей участок свой».
+ */
+const ALL_OPEN = { canOpen: () => true, deptCode: 'cutting' };
+const NONE_OPEN = { canOpen: () => false, deptCode: 'cutting' };
 
 describe('посадочная по роли', () => {
   it('цеховые роли открывают свою очередь, а не сводку по фабрике', () => {
     // Роли `dtg` больше нет: участок снят правками 07.09 (п. 17), носителей
     // на боевой базе не было, значение убрано из CHECK `erp_employees.role`
     for (const role of ['worker', 'foreman', 'dtf', 'silkscreen', 'embroidery'] as EmployeeRole[]) {
-      expect(landingPathForRole(role, ALL_OPEN), role).toBe('/queue');
+      expect(landingPathForRole(role, ALL_OPEN), role).toBe('/queue/cutting');
     }
   });
 
@@ -25,13 +30,13 @@ describe('посадочная по роли', () => {
   /**
    * Кладовщик и закупщик стоят в `DEPT_BOUND_ROLES`, то есть привязаны
    * к участку, — но работают не в очереди. Проверка своей поверхности обязана
-   * идти ПЕРВОЙ, иначе оба уедут в `/queue`.
+   * идти ПЕРВОЙ, иначе оба уедут в очередь цеха.
    */
   it('привязка к участку не уводит кладовщика и закупщика в очередь', () => {
     expect(DEPT_BOUND_ROLES).toContain('storekeeper');
     expect(DEPT_BOUND_ROLES).toContain('purchaser');
-    expect(landingPathForRole('storekeeper', ALL_OPEN)).not.toBe('/queue');
-    expect(landingPathForRole('purchaser', ALL_OPEN)).not.toBe('/queue');
+    expect(landingPathForRole('storekeeper', ALL_OPEN)).toBe('/warehouse');
+    expect(landingPathForRole('purchaser', ALL_OPEN)).toBe('/purchasing');
   });
 
   it('руководящие роли остаются на обзоре', () => {
@@ -65,7 +70,18 @@ describe('посадочная по роли', () => {
    * перечисляет) — она открыта всем, и цеховой роли там всегда есть что делать.
    */
   it('очередь цеха не зависит от гейта разделов', () => {
-    expect(landingPathForRole('worker', NONE_OPEN)).toBe('/queue');
+    expect(landingPathForRole('worker', NONE_OPEN)).toBe('/queue/cutting');
+  });
+
+  /**
+   * Участка нет — вести некуда, и это ОТДЕЛЬНЫЙ ответ, а не `/queue` без кода:
+   * такого адреса больше не существует, а `/queue/undefined` открыл бы страницу
+   * несуществующего цеха. Человек остаётся на обзоре, где `DeptBindingNotice`
+   * объясняет, что заведение сотрудника не закончено.
+   */
+  it('цеховая роль без известного участка остаётся на обзоре', () => {
+    expect(landingPathForRole('worker', { canOpen: () => true })).toBeNull();
+    expect(landingPathForRole('worker', { canOpen: () => true, deptCode: '' })).toBeNull();
   });
 
   /** Новая роль обязана получить ответ, а не молча уехать на обзор по умолчанию */

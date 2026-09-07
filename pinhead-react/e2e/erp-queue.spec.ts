@@ -472,7 +472,8 @@ test.describe('Карточка заказа открывается страни
 
 /**
  * Волна UX-2: обрыв связи не должен выглядеть как «работы нет».
- * Раньше при упавшем запросе очередь показывала «Выберите свой цех выше»,
+ * Раньше при упавшем запросе очередь показывала пустое состояние («участок
+ * не найден»),
  * а список заказов — пустой тулбар без единой строки; повторить было нечем,
  * потому что эффект `if (!loaded) loadAll()` второй раз не срабатывает.
  */
@@ -511,7 +512,7 @@ test.describe('Ошибка загрузки (волна UX-2)', () => {
 
   test('очередь цеха предлагает повторить и восстанавливается', async ({ page }) => {
     const restore = await breakOrders(page);
-    await page.goto('/queue?studio=0');
+    await page.goto('/queue/cutting?studio=0');
     // Оболочка появляется раньше данных; ждём её, чтобы не мерить холодный старт
     // Vite вместе с ответом сервера — под параллельными воркерами это разные величины
     await expect(page.getByRole('complementary')).toBeVisible();
@@ -519,7 +520,7 @@ test.describe('Ошибка загрузки (волна UX-2)', () => {
     const failed = page.getByText('Не удалось загрузить задания цеха');
     await expect(failed).toBeVisible();
     // Самое важное: это НЕ читается как «заданий нет»
-    await expect(page.getByText('Выберите свой цех выше')).toHaveCount(0);
+    await expect(page.getByText(/Участок .* не найден/)).toHaveCount(0);
 
     restore();
     await retryUntilLoaded(page, failed);

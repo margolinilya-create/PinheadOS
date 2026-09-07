@@ -44,7 +44,13 @@ function mount(initial = '/', props = {}) {
 
 /** Роль сотрудника с сервера + роль профиля, из которых резолвится доступ */
 function setRole(employeeRole, profileRole = 'manager') {
-  useErpStore.setState({ myRole: employeeRole, myDeptId: 'dep-cutting' });
+  useErpStore.setState({
+    myRole: employeeRole,
+    myDeptId: 'dep-cutting',
+    // Очередь адресуется УЧАСТКОМ (правки 07.09, п. 18) — код берётся
+    // из справочника по привязке, поэтому справочник обязан быть в сторе
+    departments: [{ id: 'dep-cutting', code: 'cutting', name: 'Закройный цех' }],
+  });
   useAuthStore.setState({
     user: { id: 'u1', email: 'u@p.ru', name: 'U', role: profileRole, approved: true, active: true },
   });
@@ -54,14 +60,31 @@ const path = () => screen.getByTestId('path').textContent;
 
 describe('посадочная по роли: связка правила с адресом', () => {
   beforeEach(() => {
-    useErpStore.setState({ myRole: null, myDeptId: null, permissionMatrix: {} });
+    useErpStore.setState({
+      myRole: null, myDeptId: null, permissionMatrix: {}, departments: [],
+    });
+    localStorage.clear();
     useAuthStore.setState({ user: null });
   });
 
-  it('рабочего цеха уводит с обзора в его очередь', async () => {
+  it('рабочего цеха уводит с обзора в очередь ЕГО участка', async () => {
     setRole('worker');
     mount('/');
-    await waitFor(() => expect(path()).toBe('/queue'));
+    await waitFor(() => expect(path()).toBe('/queue/cutting'));
+  });
+
+  /**
+   * Участка нет ни в привязке, ни в памяти устройства — вести некуда.
+   * `/queue/undefined` был бы страницей несуществующего цеха, а `/queue`
+   * без кода больше не маршрут вовсе: человек остаётся на обзоре, где
+   * `DeptBindingNotice` и объясняет, что заведение не закончено.
+   */
+  it('цеховая роль без участка остаётся на обзоре', async () => {
+    setRole('worker');
+    useErpStore.setState({ myDeptId: null });
+    mount('/');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(path()).toBe('/');
   });
 
   it('кладовщика уводит на склад', async () => {
@@ -111,7 +134,7 @@ describe('посадочная по роли: связка правила с а�
         <Routes><Route path="*" element={<Harness withHomeLink />} /></Routes>
       </MemoryRouter>,
     );
-    await waitFor(() => expect(path()).toBe('/queue'));
+    await waitFor(() => expect(path()).toBe('/queue/cutting'));
 
     // Тот же смонтированный экземпляр приложения: человек нажал «Обзор» в меню
     fireEvent.click(screen.getByRole('button', { name: 'Обзор' }));

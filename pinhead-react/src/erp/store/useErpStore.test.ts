@@ -1203,7 +1203,7 @@ describe('useErpStore — reportDefect бэклог-фиксы (qty vs сдел�
   });
 });
 
-describe('readyCountFor — бейдж «Мой цех»', () => {
+describe('readyCountFor — число заданий у пункта цеха в меню', () => {
   it('считает in_progress и готовые к работе waiting-этапы цеха', () => {
     seed({ status: 'in_progress' });
     const { orders, departments } = useErpStore.getState();

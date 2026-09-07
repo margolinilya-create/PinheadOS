@@ -34,7 +34,9 @@ import { DEPARTMENTS, isQueueDept } from '../src/erp/data/departments';
 const PROD_DEPTS = DEPARTMENTS.filter((d) => isQueueDept(d.code) && d.code !== 'qc').length;
 
 /** Экраны, на которых сдвиг сайдбара виден одинаково. */
-const SCREENS = ['/', '/orders', '/board', '/queue', '/plan'];
+// `/queue` без кода участка больше не маршрут (правки 07.09, п. 18):
+// очередь адресуется участком
+const SCREENS = ['/', '/orders', '/board', '/queue/cutting', '/plan'];
 
 type Gate = { promise: Promise<void>; release: () => void };
 
@@ -92,7 +94,7 @@ test.describe('Раскладка не прыгает от позднего erp_
   }
 
   test('очередь цеха: ряд вкладок держит высоту до приезда участков', async ({ page }) => {
-    const gate = await openWithDeptsHeld(page, '/queue');
+    const gate = await openWithDeptsHeld(page, '/queue/cutting');
 
     const tabs = page.locator('[class*="deptTabsWrap"]');
     await expect(tabs).toBeVisible();

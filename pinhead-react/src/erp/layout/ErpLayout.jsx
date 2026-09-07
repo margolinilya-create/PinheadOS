@@ -8,7 +8,6 @@ import { useTheme } from '../../hooks/useTheme';
 import {
   useErpStore,
   readyCountFor,
-  readyOnlyCountFor,
   openWarehouseTaskCount,
   openProcurementCount,
   activeExperimentalCount,
@@ -33,11 +32,10 @@ export default function ErpLayout({ user, children }) {
   const navigate = useNavigate();
   const search = useErpSearch((s) => s.query);
   const setSearch = useErpSearch((s) => s.setQuery);
-  const { orders, departments, myDeptId, experimental, bypasses, bootstrapLoaded } = useErpStore(
+  const { orders, departments, experimental, bypasses, bootstrapLoaded } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
-      myDeptId: s.myDeptId,
       experimental: s.experimental,
       bypasses: s.bypasses,
       bootstrapLoaded: s.bootstrapLoaded,
@@ -90,15 +88,11 @@ export default function ErpLayout({ user, children }) {
     if (!s.bypassesLoaded) s.loadBypasses();
   }, []);
 
-  const myCode = useMemo(() => {
-    const bound = departments.find((d) => d.id === myDeptId);
-    return bound?.code || storageGetRaw('erp_my_dept') || '';
-  }, [departments, myDeptId]);
-
-  // Счётчики активных задач по разделам (из уже загруженных данных стора)
+  // Счётчики активных задач по разделам (из уже загруженных данных стора).
+  // Счёта `/queue` здесь больше нет: пункт «Мой цех» убран правками 07.09
+  // (п. 18), а у своего участка число заданий стоит в группе «Цеха» ниже
   const counts = useMemo(
     () => ({
-      '/queue': myCode ? readyOnlyCountFor(orders, departments, myCode, bypasses) : 0,
       '/warehouse': openWarehouseTaskCount(orders),
       // Заказы, ждущие закупки, + дозакупки. Без справочника цехов первое
       // не посчитать: участок берётся из данных, а не из константы
@@ -111,7 +105,7 @@ export default function ErpLayout({ user, children }) {
       '/subcontracting': ordersWithOutsourcing(orders).length,
       '/experimental': activeExperimentalCount(experimental ?? []),
     }),
-    [orders, departments, myCode, experimental, bypasses],
+    [orders, departments, experimental],
   );
 
   /**
@@ -153,7 +147,7 @@ export default function ErpLayout({ user, children }) {
    * Резерв места под меню цехов, пока не приехал состав участков.
    *
    * До этого группа «Цеха» просто отсутствовала, а потом вставлялась целиком —
-   * ≈315px разметки между «Мой цех» и «Операции», то есть пункт меню уходил
+   * ≈315px разметки между «Главным» и «Операциями», то есть пункт меню уходил
    * из-под пальца через доли секунды после появления экрана.
    *
    * Запоминается ОДНО ЧИСЛО — сколько строк рисовать, — и берётся оно из уже
@@ -186,10 +180,6 @@ export default function ErpLayout({ user, children }) {
       <a href="#main-content" className={appStyles.skipLink}>Перейти к содержимому</a>
       <Sidebar
         isAdmin={isAdmin}
-        /* Пункт «Мой цех» ведёт в заглушку, когда цеха нет НИ ОТКУДА:
-           ни привязки сотрудника, ни выбранного на экране очереди участка.
-           `myCode` считает ровно то же, что `/queue` (обход 04.09). */
-        hasMyDept={Boolean(myCode)}
         reserveRows={reserveRows}
         counts={counts}
         deptItems={deptItems}

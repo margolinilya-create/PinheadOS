@@ -69,11 +69,9 @@ test('visual: erp-board', async ({ page }) => {
 });
 
 test('visual: erp-queue', async ({ page }) => {
-  // Экран цеха: в dev нет привязки, поэтому выбираем цех заранее (localStorage).
-  await page.addInitScript(() => {
-    try { localStorage.setItem('erp_my_dept', 'cutting'); } catch { /* noop */ }
-  });
-  await page.goto('/queue?studio=0');
+  // Экран цеха адресуется участком: `/queue` без кода больше не маршрут
+  // (правки 07.09, п. 18), и подготовка localStorage для него не нужна
+  await page.goto('/queue/cutting?studio=0');
   await expect(page.getByRole('heading', { name: 'Закройный цех' })).toBeVisible();
   await expect(page.getByText('В работе').first()).toBeVisible();
   // Группы очереди после разделения «ждёт материалы» и «ждёт предыдущий этап»

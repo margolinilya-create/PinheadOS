@@ -10,6 +10,7 @@ import { ScrollHintBox } from '../components/ScrollHintBox';
 import { LoadFailed } from '../components/ErpStates';
 import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
 import { isStageReady, materialsForItem, isStageAwaitingProcurement } from '../utils/routes';
 import { materialsAfterBypass, isBypassed } from '../utils/bypass';
 import { scrollIntoViewSafely } from '../utils/scrollIntoViewSafely';
@@ -17,9 +18,11 @@ import { stageMissingTz } from '../utils/tz';
 import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/stageUi';
 import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
+import { myDeptCode } from '../utils/myDept';
 import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
 import { groupNotices, orderNotices, urgentCount } from '../utils/notifications';
 import { CapacityBar } from '../components/CapacityBar';
+import DeptBindingNotice from '../components/DeptBindingNotice';
 import { monthCapacityReport, monthLabel } from '../utils/capacity';
 import { factoryToday } from '../../utils/date';
 import styles from '../styles';
@@ -33,16 +36,24 @@ import { dueLabel } from '../utils/format';
 
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
-const QUICK_ACTIONS = [
-  { to: '/orders?new=1', icon: 'plus', label: 'Новый заказ' },
-  { to: '/board', icon: 'board', label: 'Канбан' },
-  { to: '/queue', icon: 'queue', label: 'Очередь' },
-  { to: '/purchasing', icon: 'truck', label: 'Закупки' },
-  { to: '/warehouse', icon: 'box', label: 'Приёмка' },
-  { to: '/subcontracting', icon: 'users', label: 'Подрядчики' },
-  { to: '/experimental', icon: 'flask', label: 'Образцы' },
-  { to: '/admin', icon: 'settings', label: 'Настройки' },
-];
+/**
+ * Ярлыки обзора. «Очередь» СЧИТАЕТСЯ, а не стоит константой: адреса `/queue`
+ * без кода участка больше нет (правки 07.09, п. 18), и вести ярлык некуда,
+ * пока неизвестен участок. Своего участка нет — ярлыка тоже нет: ссылка,
+ * ведущая в никуда, хуже её отсутствия, а все участки перечислены в меню слева.
+ */
+function quickActions(deptCode) {
+  return [
+    { to: '/orders?new=1', icon: 'plus', label: 'Новый заказ' },
+    { to: '/board', icon: 'board', label: 'Канбан' },
+    ...(deptCode ? [{ to: `/queue/${deptCode}`, icon: 'queue', label: 'Очередь' }] : []),
+    { to: '/purchasing', icon: 'truck', label: 'Закупки' },
+    { to: '/warehouse', icon: 'box', label: 'Приёмка' },
+    { to: '/subcontracting', icon: 'users', label: 'Подрядчики' },
+    { to: '/experimental', icon: 'flask', label: 'Образцы' },
+    { to: '/admin', icon: 'settings', label: 'Настройки' },
+  ];
+}
 
 /** Текущий этап заказа (для колонки «Цех/этап») */
 function currentStageName(order, deptById) {
@@ -69,12 +80,17 @@ function orderStatus(order) {
 export default function ErpDashboard() {
   const {
     orders, departments, loaded, loadError, loadAll, capacity, capacityLoaded, loadSettings,
-    bypasses,
+    bypasses, myDeptId, myDeptLoaded,
   } = useErpStore(
     useShallow((s) => ({
       bypasses: s.bypasses,
       orders: s.orders,
       departments: s.departments,
+      myDeptId: s.myDeptId,
+      /* До приезда пакета `resolveErpRole` отдаёт `worker`, а привязки ещё нет:
+         без этого флага нормально заведённому рабочему полсекунды показывали бы,
+         что его профиль не настроен (записанное правило сессии 44) */
+      myDeptLoaded: s.myDeptLoaded,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
@@ -89,7 +105,9 @@ export default function ErpDashboard() {
    * «август» на первой смене сентября, тогда как вкладка мощности в админке
    * (она считает через `factoryToday`) в тот же момент показывает сентябрь.
    */
+  const access = useErpAccess();
   const today = factoryToday();
+  const myCode = useMemo(() => myDeptCode(departments, myDeptId), [departments, myDeptId]);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -209,6 +227,16 @@ export default function ErpDashboard() {
         title="Обзор производства"
         sub="Где какой заказ, загрузка цехов, горящие сроки — всё в одном месте."
       />
+
+      {/*
+        НЕЗАКОНЧЕННОЕ ЗАВЕДЕНИЕ СОТРУДНИКА НАЗЫВАЕТ СЕБЯ И ЗДЕСЬ (правки 07.09,
+        п. 18). Пока существовал «Мой цех», рабочий без привязки приземлялся
+        на его заглушку и читал причину там. Теперь посадочная оставляет такого
+        человека на обзоре — цеха, в который вести, нет, — и без этой строки
+        он видел бы сводку по фабрике без единой своей задачи и без объяснения.
+        Текст один на все три поверхности: `DeptBindingNotice`.
+      */}
+      {myDeptLoaded && access.needsDeptBinding && <DeptBindingNotice />}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="обзор производства" />}
       {!loadError && !loaded && <DashboardSkeleton />}
@@ -460,7 +488,7 @@ export default function ErpDashboard() {
             <div className={styles.widget}>
               <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Быстрые действия</h2></div>
               <div className={styles.quickGrid}>
-                {QUICK_ACTIONS.map((a) => (
+                {quickActions(myCode).map((a) => (
                   <Link key={a.to} to={a.to} className={styles.quickAction}>
                     <span className={styles.quickIcon}><Icon name={a.icon} size={18} /></span>
                     {a.label}

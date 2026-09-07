@@ -99,7 +99,7 @@ registerAppReset(resetErpStore);
 export { _pendingMutations } from './shared';
 
 // Общие чистые хелперы — в ./orderHelpers. Реэкспорт публичных: readyCountFor нужен
-// экрану «Мой цех» и тестам, orderPreviewUrl/lastDefectPhotoUrl — карточкам/канбану/закупке.
+// экрану очереди цеха и тестам, orderPreviewUrl/lastDefectPhotoUrl — карточкам/канбану/закупке.
 export {
   readyCountFor, readyOnlyCountFor, waitingCountFor, overdueUnackCountFor,
   orderPreviewUrl, lastDefectPhotoUrl,
