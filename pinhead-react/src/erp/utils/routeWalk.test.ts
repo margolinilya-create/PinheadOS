@@ -25,12 +25,18 @@ const DEPT_NAMES: Record<string, string> = {
   supply: 'Закупка', cutting: 'Закройный цех', sewing: 'Швейный цех',
   vto: 'ВТО цех', dtf: 'Цех ДТФ', silkscreen: 'Цех шелкографии',
   embroidery: 'Цех вышивки',
+  // Приёмка готового изделия (правки 07.09, п. 9) — этап СКЛАДА, участок
+  // непроизводственный, как закупка
+  warehouse: 'Склад',
 };
+
+/** Непроизводственные участки маршрута: их этапы живут на своих экранах */
+const NON_PRODUCTION = new Set(['supply', 'warehouse']);
 
 /** Цеха как их отдаёт справочник; материальный гейт выключен (пустой список видов) */
 const DEPARTMENTS = Object.entries(DEPT_NAMES).map(([code, name], i) => ({
   id: `dep-${code}`, code, name, sort_order: (i + 1) * 10,
-  active: true, is_production: code !== 'supply', gate_material_kinds: [],
+  active: true, is_production: !NON_PRODUCTION.has(code), gate_material_kinds: [],
 }));
 
 interface Built {
@@ -150,9 +156,17 @@ describe('маршрут проходится целиком — по каждо
       expected: [['supply'], ['cutting']],
     },
     {
-      name: 'готовое изделие + нанесение',
+      // Приёмка готового изделия складом до нанесения (правки 07.09, п. 9).
+      // Прогон идёт через `buildQueueEntries` — то есть проверяет, что этап
+      // склада ДЕЙСТВИТЕЛЬНО держит цех нанесения, а не просто стоит в списке
+      name: 'готовое изделие + нанесение: склад → нанесение → ВТО',
       input: { productionType: 'ready_garment', brandingMethods: ['dtf'], brandingOn: 'finished' },
-      expected: [['supply'], ['dtf']],
+      expected: [['supply'], ['warehouse'], ['dtf'], ['vto']],
+    },
+    {
+      name: 'готовое изделие без нанесений — приёмки нет',
+      input: { productionType: 'ready_garment' },
+      expected: [['supply']],
     },
     {
       // Образец шьётся внутри ЭКС (правки 02.09, пп. 1 и 3): в маршруте

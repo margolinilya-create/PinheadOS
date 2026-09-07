@@ -89,6 +89,15 @@ export const BRANDING_DEPT: Record<BrandingMethod, string | null> = {
  */
 export const QC_DEPT_CODE = 'qc';
 
+/**
+ * Код склада. Приёмка готового изделия — ЭТАП этого участка (правки 07.09,
+ * п. 9), см. подробное обоснование в `buildRoute`.
+ */
+export const WAREHOUSE_DEPT_CODE = 'warehouse';
+
+/** Код цеха ВТО: у готового изделия он дописывается ПОСЛЕ нанесения */
+export const VTO_DEPT_CODE = 'vto';
+
 export interface BuildRouteInput {
   productionType: ProductionType;
   brandingMethods: BrandingMethod[];
@@ -103,7 +112,6 @@ export interface BuildRouteInput {
 export function buildRoute(input: BuildRouteInput): RouteStage[] {
   const { productionType, brandingMethods, brandingOn } = input;
 
-  const chain = BASE_CHAIN[productionType] ?? [];
   /**
    * НАНЕСЕНИЯ ОБРАЗЦА В МАРШРУТ НЕ ПОПАДАЮТ (правки 02.09, п. 3, шаги 5–6).
    *
@@ -121,6 +129,40 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
   const brandingCodes = productionType === 'samples' ? [] : [...new Set(
     brandingMethods.map((m) => BRANDING_DEPT[m]).filter((c): c is string => c !== null),
   )];
+
+  /**
+   * ПРИЁМКА ГОТОВОГО ИЗДЕЛИЯ НА СКЛАДЕ (правки заказчика 07.09, п. 9).
+   *
+   * «Для типа производства „Готовое изделие“ с нанесением „на готовом“
+   * добавить обязательную приёмку на складе до нанесения. Для шелкографии
+   * маршрут: Склад (приёмка готового изделия) → Шелкография → ВТО → Склад →
+   * Отгрузка. Сейчас заказ сразу попадает в шелкографию».
+   *
+   * ПОЧЕМУ ЭТО ЭТАП, А НЕ ФЛАГ-ГЕЙТ. Гейты запуска (`isStageReady`,
+   * `waitingReason`) принимают признаки ПАРАМЕТРАМИ, и седьмой параметр
+   * пришлось бы дописать в тринадцать мест вызова, шесть из них без тайпчека —
+   * ровно тот «забытый вызывающий», из-за которого 02.09 данные разработки
+   * поехали эмбедом, а сигнатуру гейта отгрузки не тронули. Приёмка,
+   * выраженная этапом, гейтит сама: цех нанесения зависит от неё через
+   * `depends_on`, и ни одна поверхность про это знать не обязана.
+   *
+   * ПОЧЕМУ ЭТО НЕ ПРОТИВОРЕЧИТ `utils/warehouseStep`. Тот шаг — КОНЕЦ
+   * маршрута (упаковка и отгрузка), он принадлежит ЗАКАЗУ и считается
+   * из складских задач. Здесь — НАЧАЛО: приёмка чужого товара до работы,
+   * она принадлежит ПОЗИЦИИ и у каждой своя. Две разные величины.
+   *
+   * ЦЕХ НЕПРОИЗВОДСТВЕННЫЙ, и правило проекта требует своего экрана,
+   * читающего ЭТАПЫ (`routeReachable.test.ts`, дефект 12.08 с 33 заказами):
+   * его даёт вкладка «Приёмка изделия» на складе (`warehouse/FgIntakeQueue`).
+   *
+   * ТОЛЬКО ПРИ НАНЕСЕНИИ. Документ говорит о готовом изделии С нанесением;
+   * у заказа без нанесений работать над чужим товаром некому, и обязательный
+   * этап приёмки был бы новой пробкой на пустом месте.
+   */
+  const needsIntake = productionType === 'ready_garment' && brandingCodes.length > 0;
+  const chain = needsIntake
+    ? [...(BASE_CHAIN.ready_garment ?? []), WAREHOUSE_DEPT_CODE]
+    : (BASE_CHAIN[productionType] ?? []);
 
   const stages: RouteStage[] = [];
   let sort = 10;
@@ -160,6 +202,30 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
         sortOrder: sort,
       });
     }
+    sort += 10;
+  }
+
+  /**
+   * ВТО ПОСЛЕ НАНЕСЕНИЯ У ГОТОВОГО ИЗДЕЛИЯ (правки 07.09, п. 9).
+   *
+   * Документ называет маршрут дословно: «Склад (приёмка готового изделия) →
+   * Шелкография → ВТО → Склад → Отгрузка». У пошива ВТО стоит в базовой
+   * цепочке, у готового изделия цепочки нет вовсе — изделие приходит готовым,
+   * и утюжить его надо ровно после печати.
+   *
+   * ЗАВИСИТ ОТ ВСЕХ ВЕТОК, как швейка после нанесения на крое: у позиции
+   * бывает и шелкография, и вышивка, и ВТО, привязанное к одной из них,
+   * начало бы работу, пока вторая ещё печатает.
+   *
+   * Только вместе с приёмкой (`needsIntake`): без нанесений печатать нечего,
+   * и утюжить тоже.
+   */
+  if (needsIntake) {
+    stages.push({
+      departmentCode: VTO_DEPT_CODE,
+      dependsOnCodes: [...brandingCodes],
+      sortOrder: sort,
+    });
     sort += 10;
   }
 

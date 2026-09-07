@@ -149,10 +149,16 @@ describe('useStagePermissions', () => {
     setup({ id: 'u1', role: 'production' }, 'storekeeper', DEPT_MINE);
     const { result } = renderHook(() => useStagePermissions(DEPT_MINE));
 
-    // У кладовщика из цеховых прав только блокировка
+    /**
+     * У кладовщика с 07.09 есть `stage.take` и `stage.complete` — приёмка
+     * готового изделия стала ЭТАПОМ склада (п. 9), и без них он упирался бы
+     * в 42501 на собственной работе. А вот результата в штуках склад
+     * не выпускает и брак не оформляет: права по действиям, а не пачкой.
+     */
     expect(result.current.block).toBe(true);
-    expect(result.current.take).toBe(false);
-    expect(result.current.complete).toBe(false);
+    expect(result.current.take).toBe(true);
+    expect(result.current.complete).toBe(true);
+    expect(result.current.progress).toBe(false);
     expect(result.current.defect).toBe(false);
   });
 

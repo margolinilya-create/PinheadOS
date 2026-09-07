@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { latestDefining, latestMatching, withoutJsComments } from './migrations.testutil';
 import { ERP_PERMISSIONS, ERP_PERMISSION_LABELS, EMPLOYEE_ROLE_LABELS } from '../types';
-import { DEFAULT_PERMISSIONS } from './permissions';
+import { DEFAULT_PERMISSIONS, DEPT_BOUND_ROLES } from './permissions';
 import { SCREEN_ACCESS } from './screenAccess';
 import type { EmployeeRole } from '../types';
 
@@ -238,24 +238,40 @@ describe('решения заказчика по матрице (10.08)', () => 
     expect(DEFAULT_PERMISSIONS.production_head).toContain('catalog.edit');
   });
 
-  it('закупщик закрывает свой этап, кладовщик — нет (12.08)', () => {
+  it('кто закрывает СВОЙ непроизводственный этап: закупщик (12.08) и кладовщик (07.09)', () => {
     /**
      * «Закупка» — обычный этап маршрута, и без `stage.complete` закупщик
      * получал 42501 от стража на СВОЁМ этапе: ветка `new.status = 'done'`
      * требует `v_complete or v_progress`, а у роли стояли только
      * `material.receive`, `warehouse.manage` и `stage.block`.
      *
-     * Кладовщику то же самое НЕ даётся: этапа в маршруте у склада нет,
-     * его задачи гейтятся `warehouse.manage`. Право, которое ничего
-     * не открывает, — та самая декоративность.
+     * ДО 07.09 КЛАДОВЩИКУ ТО ЖЕ САМОЕ НЕ ДАВАЛОСЬ, и довод был верен:
+     * этапа в маршруте у склада не было вовсе, его задачи гейтятся
+     * `warehouse.manage`, а право, которое ничего не открывает, — та самая
+     * декоративность. Вопрос изменился: приёмка готового изделия (п. 9)
+     * стала ЭТАПОМ склада, и без пары прав кладовщик упирался бы в 42501
+     * на работе, ради которой этап и заведён.
+     *
+     * Ограничение остаётся цеховым: `storekeeper` в `DEPT_BOUND_ROLES`,
+     * производственных этапов у склада нет.
      */
     expect(DEFAULT_PERMISSIONS.purchaser).toContain('stage.complete');
     expect(DEFAULT_PERMISSIONS.purchaser).toContain('stage.take');
-    expect(DEFAULT_PERMISSIONS.storekeeper).not.toContain('stage.complete');
+    expect(DEFAULT_PERMISSIONS.storekeeper).toContain('stage.complete');
+    expect(DEFAULT_PERMISSIONS.storekeeper).toContain('stage.take');
+    expect(DEPT_BOUND_ROLES).toContain('storekeeper');
 
-    // Результат в штуках закупка не выпускает, брак не оформляет
+    // Ни закупка, ни склад результата в штуках не выпускают и брак не оформляют
     expect(DEFAULT_PERMISSIONS.purchaser).not.toContain('stage.progress');
     expect(DEFAULT_PERMISSIONS.purchaser).not.toContain('stage.defect');
+    expect(DEFAULT_PERMISSIONS.storekeeper).not.toContain('stage.progress');
+    expect(DEFAULT_PERMISSIONS.storekeeper).not.toContain('stage.defect');
+  });
+
+  it('права кладовщика проставлены миграцией, а не только в дефолтах', () => {
+    expect(ALL_SQL).toMatch(
+      /erp_role_permissions[\s\S]{0,400}'storekeeper'[\s\S]{0,300}'stage\.complete'/,
+    );
   });
 
   it('права закупщика проставлены миграцией, а не только в дефолтах', () => {

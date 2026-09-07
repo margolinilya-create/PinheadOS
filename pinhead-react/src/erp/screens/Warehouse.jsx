@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { orderQty } from '../utils/shipment';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
+import { FgIntakeQueue } from './warehouse/FgIntakeQueue';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
@@ -311,6 +312,14 @@ export default function Warehouse() {
         то есть один и тот же фильтр предлагал разные наборы. Счётчики
         остались при чипах, где им и место.
       */}
+      {/*
+        ПРИЁМКА ГОТОВОГО ИЗДЕЛИЯ (правки 07.09, п. 9) — ЭТАПЫ маршрута, а не
+        складские задачи, поэтому свой блок НАД списком: он про работу,
+        которая держит цех нанесения, и откладывать её нельзя.
+        Блок сам себя прячет, когда принимать нечего.
+      */}
+      <FgIntakeQueue />
+
       <FilterBar
         search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
         searchPlaceholder="Поиск: заказ, № сделки, изделие, материал" searchLabel="Поиск задач склада"

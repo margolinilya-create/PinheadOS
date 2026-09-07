@@ -136,12 +136,45 @@ describe('buildRoute — нанесения', () => {
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['vto']);
   });
 
-  it('готовое изделие + вышивка: вышивка после закупа', () => {
+  /**
+   * ПРИЁМКА НА СКЛАДЕ ДО НАНЕСЕНИЯ (правки 07.09, п. 9). Документ называет
+   * маршрут дословно: «Склад (приёмка готового изделия) → Шелкография → ВТО →
+   * Склад → Отгрузка», и жалуется, что «сейчас заказ сразу попадает
+   * в шелкографию» — ровно то, что проверял прежний вид этого теста.
+   */
+  it('готовое изделие + нанесение: склад → нанесение → ВТО', () => {
     const route = buildRoute({
       productionType: 'ready_garment', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
-    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'embroidery']);
-    expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['supply']);
+    expect(route.map((r) => r.departmentCode))
+      .toEqual(['supply', 'warehouse', 'embroidery', 'vto']);
+    expect(stage(route, 'warehouse').dependsOnCodes).toEqual(['supply']);
+    expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['warehouse']);
+    expect(stage(route, 'vto').dependsOnCodes).toEqual(['embroidery']);
+  });
+
+  /** ВТО ждёт ВСЕ ветки: у позиции бывает и шелкография, и вышивка */
+  it('готовое изделие + две техники: ВТО ждёт обе', () => {
+    const route = buildRoute({
+      productionType: 'ready_garment',
+      brandingMethods: ['silkscreen', 'embroidery'],
+      brandingOn: 'finished',
+    });
+    expect(stage(route, 'silkscreen').dependsOnCodes).toEqual(['warehouse']);
+    expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['warehouse']);
+    expect(stage(route, 'vto').dependsOnCodes).toEqual(['silkscreen', 'embroidery']);
+  });
+
+  /**
+   * БЕЗ НАНЕСЕНИЙ ПРИЁМКИ НЕТ. Документ говорит о готовом изделии С нанесением;
+   * работать над чужим товаром иначе некому, и обязательный этап стал бы
+   * новой пробкой на пустом месте.
+   */
+  it('готовое изделие без нанесений: маршрут прежний, приёмки нет', () => {
+    const route = buildRoute({
+      productionType: 'ready_garment', brandingMethods: [], brandingOn: 'finished',
+    });
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply']);
   });
 
   it('без изделий + ДТФ: только цех нанесения, без зависимостей', () => {
