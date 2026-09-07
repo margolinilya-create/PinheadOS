@@ -14,10 +14,8 @@ import {
   isFormEmpty,
   isItemEmpty,
   loadOrderDraft,
-  saveOrderDraft,
   SIZE_PRESETS,
   emptyPurchaseRow,
-  isPurchaseRowEmpty,
   toggleSize,
   validateOrderForm,
   brandingOnOptions,
@@ -67,13 +65,30 @@ describe('brandingOnOptions / normalizeBrandingOn', () => {
 
 // ─── Черновик в localStorage ─────────────────────────────────────────────────
 
-describe('черновик заказа (localStorage)', () => {
+/**
+ * Снимок черновика, КАК ЕГО ПИСАЛА ПРЕЖНЯЯ ВЕРСИЯ формы.
+ *
+ * Писателя (`saveOrderDraft`) больше нет: черновики живут в `erp_order_drafts`,
+ * а localStorage остался только на ЧТЕНИЕ — разовый перенос того, что человек
+ * начал до перехода на базу. Тест поэтому кладёт снимок напрямую: круг
+ * «сами записали — сами прочли» проверял бы собственную симметрию, а нужен
+ * ровно обратный сценарий — чужая запись, наше чтение.
+ */
+function writeLegacyDraft(
+  form: unknown, items: unknown[], purchase: unknown[] = [], notes: unknown[] = [],
+): void {
+  localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+    form, items, purchase, notes, savedAt: new Date().toISOString(),
+  }));
+}
+
+describe('черновик заказа прежней версии (localStorage, только чтение)', () => {
   beforeEach(() => localStorage.clear());
 
   it('сохраняется и восстанавливается', () => {
     const form = { ...emptyOrderForm('2026-07-17'), title: 'BOX39 свитшоты' };
     const items = [item({ product_type: 'свитшот', qty: '50' })];
-    saveOrderDraft(form, items);
+    writeLegacyDraft(form, items);
 
     const restored = loadOrderDraft();
     expect(restored).not.toBeNull();
@@ -96,7 +111,7 @@ describe('черновик заказа (localStorage)', () => {
   });
 
   it('clearOrderDraft удаляет черновик', () => {
-    saveOrderDraft(emptyOrderForm(), [item({ product_type: 'футболка' })]);
+    writeLegacyDraft(emptyOrderForm(), [item({ product_type: 'футболка' })]);
     clearOrderDraft();
     expect(loadOrderDraft()).toBeNull();
   });
@@ -534,34 +549,22 @@ describe('isFormEmpty / isItemEmpty', () => {
 describe('строки закупки в старом черновике', () => {
   beforeEach(() => localStorage.clear());
 
-  it('строка считается пустой, пока в ней нет ни одного значащего поля', () => {
-    const r = emptyPurchaseRow('k1');
-    expect(isPurchaseRowEmpty(r)).toBe(true);
-    // Тип и роль имеют значения по умолчанию — сами по себе они не данные
-    expect(isPurchaseRowEmpty({ ...r, kind: 'labels', role: 'trim' })).toBe(true);
-  });
-
-  it('любое заполненное поле делает строку значащей', () => {
-    const r = emptyPurchaseRow('k1');
-    expect(isPurchaseRowEmpty({ ...r, name: 'Кулирка' })).toBe(false);
-    expect(isPurchaseRowEmpty({ ...r, color: 'чёрный' })).toBe(false);
-    expect(isPurchaseRowEmpty({ ...r, qty_expected: '120' })).toBe(false);
-    expect(isPurchaseRowEmpty({ ...r, manager_note: 'как в прошлый раз' })).toBe(false);
-  });
-
-  it('ноль в количестве — не данные: поле трогали, но ничего не сказали', () => {
-    expect(isPurchaseRowEmpty({ ...emptyPurchaseRow('k1'), qty_expected: '0' })).toBe(true);
-  });
-
+  /*
+    Тесты `isPurchaseRowEmpty` сняты 07.09 вместе с самой функцией: строк
+    листа в форме больше нет (п. 14), и «пустая ли строка» перестало быть
+    вопросом — отправлять их некому. Совместимость со старым черновиком
+    держат тесты НИЖЕ: они проверяют, что снимок с листом читается
+    и дополняется значениями по умолчанию, а это по-прежнему живой путь.
+  */
   it('лист сохраняется в черновик и восстанавливается', () => {
     const rows = [{ ...emptyPurchaseRow('k1'), name: 'Кулирка', qty_expected: '120' }];
-    saveOrderDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })], rows);
+    writeLegacyDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })], rows);
     expect(loadOrderDraft()?.purchase).toEqual(rows);
   });
 
   it('черновик БЕЗ листа (сохранён до правки 16.08) восстанавливается с пустым', () => {
     // Человек мог начать заказ вчера — падать на этом нельзя
-    saveOrderDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })]);
+    writeLegacyDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })]);
     expect(loadOrderDraft()?.purchase).toEqual([]);
   });
 

@@ -270,7 +270,6 @@ export interface OrderDraftsSlice {
     id: string | null, title: string | null, payload: unknown,
   ) => Promise<ErpOrderDraft | null>;
   deleteOrderDraft: (id: string) => Promise<boolean>;
-  orderDraftById: (id: string) => ErpOrderDraft | null;
 }
 
 /**
@@ -1280,7 +1279,6 @@ export interface OrderWriteSlice {
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
   uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
-  uploadOrderPreview: (orderId: string, file: File) => Promise<boolean>;
   addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
 }
 

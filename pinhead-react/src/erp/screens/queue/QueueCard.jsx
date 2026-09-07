@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { orderPreviewUrl, lastDefectPhotoUrl } from '../../store/useErpStore';
+import { lastDefectPhotoUrl } from '../../store/useErpStore';
 import { OrderLink } from '../../components/OrderLink';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
-import { Lightbox } from './Lightbox';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
@@ -25,10 +23,7 @@ export function QueueCard({
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const reworkPhoto = rework ? lastDefectPhotoUrl(order) : null;
   const qtyDone = stage.qty_done ?? 0;
-  const [zoom, setZoom] = useState(false);
-  const [imgError, setImgError] = useState(false);
   const d = daysLeft(order.due_date);
-  const preview = orderPreviewUrl(order);
   const cardCls = [
     styles.queueCard,
     group === 'ready' && styles.queueCardReady,
@@ -40,24 +35,6 @@ export function QueueCard({
   return (
     <div className={cardCls}>
       <div className={styles.queueCardHead}>
-        {preview && !imgError && (
-          <button
-            type="button"
-            className={styles.queueThumbBtn}
-            aria-label={`Открыть превью макета: ${order.title}`}
-            onClick={() => setZoom(true)}
-          >
-            <img
-              src={preview}
-              alt=""
-              className={styles.queueThumb}
-              onError={() => setImgError(true)}
-            />
-          </button>
-        )}
-        {preview && imgError && (
-          <div className={styles.queueThumbStub} aria-hidden="true"><Icon name="image" size={20} /></div>
-        )}
         <div className={styles.queueCardHeadText}>
           <OrderLink
             orderId={order.id}
@@ -95,10 +72,6 @@ export function QueueCard({
           )}
         </div>
       </div>
-
-      {zoom && preview && !imgError && (
-        <Lightbox src={preview} alt={`Макет: ${order.title}`} onClose={() => setZoom(false)} />
-      )}
 
       {/*
         Образец экс-цеха. Пометка была ТОЛЬКО в строке очереди (`QueueRow`),

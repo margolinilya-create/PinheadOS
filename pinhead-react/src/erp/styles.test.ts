@@ -40,13 +40,18 @@ function ruleBody(selector: string): string {
   return CSS.slice(open + 1, CSS.indexOf('}', open));
 }
 
-/** Классы, которые берут начертание из общего правила и уточняют только своё */
-const REFINEMENTS = ['.navGroup', '.stubPhase', '.table th', '.deptTab', '.pageTitle', '.modalTitle'];
+/**
+ * Классы, которые берут начертание из общего правила и уточняют только своё.
+ * `.stubPhase` убран 07.09 вместе с компонентом `Stub`, у которого не осталось
+ * ни одного вызывающего: сторож обязан следить за живыми носителями, иначе он
+ * защищает несуществующее правило и молчит про настоящие.
+ */
+const REFINEMENTS = ['.navGroup', '.table th', '.deptTab', '.pageTitle', '.modalTitle'];
 
 describe('заглавные начертания объявлены в одном месте', () => {
   it('групповое правило подписей существует и перечисляет всех', () => {
     const group = CSS.slice(CSS.indexOf('.labelCaps,'), CSS.indexOf('.labelCaps,') + 400);
-    for (const cls of ['.navGroup', '.fieldLabel', '.table th', '.deptTab', '.stubPhase']) {
+    for (const cls of ['.navGroup', '.fieldLabel', '.table th', '.deptTab']) {
       expect(group, `${cls} выпал из общего правила`).toContain(cls);
     }
     expect(group).toMatch(/text-transform:\s*uppercase/);

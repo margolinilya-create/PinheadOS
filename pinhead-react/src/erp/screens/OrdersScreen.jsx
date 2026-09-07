@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed, EmptyResult } from '../components/ErpStates';
+import { orderQty } from '../utils/shipment';
 import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
@@ -77,10 +78,11 @@ export default function OrdersScreen() {
    * прерванное было бы нечем, а строка копилась бы в базе мусором.
    */
   const {
-    orderDrafts, orderDraftsLoaded, loadOrderDrafts,
+    orderDrafts, orderDraftsLoaded, orderDraftsError, loadOrderDrafts,
   } = useErpStore(useShallow((s) => ({
     orderDrafts: s.orderDrafts,
     orderDraftsLoaded: s.orderDraftsLoaded,
+    orderDraftsError: s.orderDraftsError,
     loadOrderDrafts: s.loadOrderDrafts,
   })));
   /**
@@ -157,10 +159,15 @@ export default function OrdersScreen() {
     if (!loaded) loadAll();
   }, [loaded, loadAll]);
   /**
-   * Черновики грузим один раз: их список — часть страницы заказов
-   * («на странице заказов нужен понятный доступ к списку черновиков»).
-   * Ошибку запоминает стор, повтор — кнопкой в самом блоке: эффект
-   * второй раз не срабатывает, и без неё выходом была бы только F5.
+   * Черновики грузим один раз. ВИДИМОГО СПИСКА У НИХ БОЛЬШЕ НЕТ (07.09, п. 15),
+   * и грузятся они теперь ради одного: чтобы «+ Новый заказ» открыл незаконченный
+   * (`latestDraftId`).
+   *
+   * Отсюда и обработка отказа НИЖЕ, у самой кнопки. Пока блок со списком был,
+   * ошибку показывал он; после его удаления `orderDraftsError` писался и
+   * не читался НИКЕМ — то есть заявленная защита не работала вовсе, и человек
+   * молча получал пустую форму поверх недописанного заказа, заводя второй
+   * черновик. Эффект второй раз не срабатывает, поэтому рядом стоит повтор.
    */
   useEffect(() => {
     if (!orderDraftsLoaded) loadOrderDrafts();
@@ -317,7 +324,10 @@ export default function OrdersScreen() {
       case 'bitrix': return o.bitrix_id || null;
       case 'title': return o.title;
       case 'manager': return o.manager || null;
-      case 'qty': return o.items.reduce((n, it) => n + (it.qty || 0), 0);
+      // `orderQty`, а не своя сумма: правило `utils/tableSort` требует, чтобы
+      // сортировка брала ТО ЖЕ значение, которое видно в ячейке, а ячейку
+      // рисуют `OrderRow` и `OrderCardMobile` через эту функцию
+      case 'qty': return orderQty(o);
       case 'created': return o.created_at || null;
       case 'due': return o.due_date || null;
       // Готовность — то же вычисление, что рисует чип: сортировка «по статусу»
@@ -484,6 +494,23 @@ export default function OrdersScreen() {
           </Button>
         )}
       </div>
+
+      {/*
+        Черновики не загрузились — «+ Новый заказ» откроет ПУСТУЮ форму, даже
+        если незаконченный заказ есть. Молчать здесь нельзя: набранное не
+        пропадёт (оно в базе), но человек начнёт заново и заведёт второй
+        черновик поверх первого.
+      */}
+      {canManageOrders && orderDraftsError && (
+        <div className={styles.checkRow}>
+          <span className={styles.subText}>
+            {orderDraftsError} — «+ Новый заказ» откроет пустую форму.
+          </span>
+          <Button variant="ghost" size="sm" icon="refresh" onClick={() => loadOrderDrafts()}>
+            Повторить
+          </Button>
+        </div>
+      )}
 
       {/*
         БЛОКА «ЧЕРНОВИКИ ЗАКАЗОВ» БОЛЬШЕ НЕТ (правки заказчика 07.09, п. 15 —

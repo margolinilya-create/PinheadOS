@@ -1,4 +1,6 @@
 import { addDays, diffDays, factoryDate, factoryToday } from '../../utils/date';
+import { isSubcontractTerminal } from './subcontractPhase';
+import type { SubcontractPhase } from '../types';
 
 /**
  * Дней до срока клиента: 0 = сегодня, отрицательное = просрочен, null = срока нет.
@@ -14,22 +16,38 @@ export function daysLeft(dueDate: string | null | undefined, now: Date = new Dat
 }
 
 /**
- * «Горящий» срок: осталось 0–3 дня включительно.
+ * Порог «горящего» срока в днях.
+ *
+ * Объявлен ЗДЕСЬ, где и применяется. До 07.09 такая константа жила
+ * в `format.ts` с подписью «тот же, что у `isUrgent` в time.ts», а сам
+ * `isUrgent` сравнивал с литералом `3`: константа, заведённая ради одного
+ * источника правды, не была им ни дня — её единственным вхождением во всём
+ * `src` была строка собственного объявления.
+ */
+export const URGENT_DAYS = 3;
+
+/**
+ * «Горящий» срок: осталось 0–`URGENT_DAYS` дней включительно.
  * Единая логика для KPI-плитки дашборда и фильтр-чипа «Срок ≤ 3 дней».
  */
 export function isUrgent(dueDate: string | null | undefined, now: Date = new Date()): boolean {
   const d = daysLeft(dueDate, now);
-  return d !== null && d >= 0 && d <= 3;
+  return d !== null && d >= 0 && d <= URGENT_DAYS;
 }
 
-/**
- * Срок просрочен (daysLeft < 0).
- * Единая логика для KPI-плитки дашборда и фильтр-чипа «Просрочено».
- */
-export function isOverdue(dueDate: string | null | undefined, now: Date = new Date()): boolean {
-  const d = daysLeft(dueDate, now);
-  return d !== null && d < 0;
-}
+/*
+  `isOverdue` СНЯТ 07.09 как приглашение к ошибке.
+
+  Он объявлял себя «единой логикой для KPI-плитки и фильтр-чипа», а прод-
+  вызывающих у него не было ни одного: обе поверхности считают просрочку
+  ЗАКАЗА через `stageUi.isOrderOverdue`, и правило там ШИРЕ — «срок прошёл
+  И заказ не готов к отгрузке». Готовый заказ ждёт логистики, а не
+  производства, и красить его «Просрочено» — неправда.
+
+  То есть рядом лежала функция с говорящим именем, дававшая ДРУГОЙ ответ:
+  позвать её вместо `isOrderOverdue` было делом одной строки, и расхождение
+  никто бы не заметил — оба выражения «работают».
+*/
 
 /**
  * Просрочен ли этап по своей плановой дате завершения (правка 8):
@@ -125,8 +143,15 @@ export function subcontractOverdue(
    * устаревшего `status`; после волны 3.5 операцию двигает `phase`, и старый
    * список молча перестал бы совпадать хоть с чем-нибудь — просрочка загорелась
    * бы у всего принятого.
+   *
+   * СПИСОК НЕ ПОВТОРЯЕТСЯ ЗДЕСЬ, а спрашивается у `subcontractPhase`: до 07.09
+   * фаз было три копии — перечисление в этой строке и `SUBCONTRACT_TERMINAL_PHASES`
+   * рядом с `isSubcontractTerminal`, — причём потребители УЖЕ разошлись: бейдж
+   * «Подряд» звал функцию, а просрочка считала по своей копии. Добавили бы
+   * четвёртую терминальную фазу — бейдж перестал бы её считать, просрочка
+   * продолжила бы гореть на принятом.
    */
-  if (phase === 'returned' || phase === 'accepted' || phase === 'closed') return false;
+  if (isSubcontractTerminal(phase as SubcontractPhase)) return false;
   return plannedDate < today;
 }
 

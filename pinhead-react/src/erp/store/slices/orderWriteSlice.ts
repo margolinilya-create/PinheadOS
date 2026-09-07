@@ -527,44 +527,6 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
   },
 
 
-  uploadOrderPreview: async (orderId, file) => {
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = `${orderId}/${Date.now()}.${ext}`;
-    const { error: upErr } = await erpQuery(() => supabase.storage
-      .from('erp-attachments')
-      .upload(path, file, { contentType: file.type || 'image/png' }));
-    if (upErr) {
-      erpError('Не удалось загрузить превью', upErr);
-      return false;
-    }
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_order_attachments')
-      .insert({
-        order_id: orderId,
-        file_path: path,
-        file_name: file.name,
-        kind: 'preview',
-        uploaded_by: currentActor(),
-      })
-      .select());
-    const row = data?.[0] as ErpOrderAttachment | undefined;
-    if (error || !row) {
-      // Файл в бакете есть, строки в БД нет — убираем за собой, иначе он остаётся
-      // навсегда: платный, никем не учтённый и доступный по ссылке
-      await removeOrphanUpload('erp-attachments', path);
-      erpError('Превью загружено, но не привязано к заказу', error);
-      return false;
-    }
-    set((s) => ({
-      orders: s.orders.map((o) =>
-        o.id === orderId
-          ? { ...o, attachments: [...(o.attachments ?? []), row] }
-          : o),
-    }));
-    return true;
-  },
-
-
   uploadOrderAttachment: async (orderId, file, note) => {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `${orderId}/${Date.now()}.${ext}`;

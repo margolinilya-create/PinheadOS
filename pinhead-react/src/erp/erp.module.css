@@ -416,8 +416,7 @@
 .table th,
 .deptTab,
 .dataCardGroup,
-.dataCardFieldLabel,
-.stubPhase {
+.dataCardFieldLabel {
   font-family: var(--font-body);
   font-size: var(--type-label);
   font-weight: 600;
@@ -580,11 +579,6 @@
 .pageSub { color: var(--text-dim); margin-top: var(--space-xs); font-size: var(--type-body-sm); }
 
 /* ─── Карточки цехов ─── */
-.cardGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-  gap: var(--space-md);
-}
 .card {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -604,25 +598,19 @@
   color: var(--text-dim);
 }
 
-/* Заглушка раздела — тот же примитив, что .emptyState (различались 2px паддинга) */
-.stub, .noAccess {
+/* Заглушка «Нет доступа» — тот же примитив, что .emptyState (различались 2px
+   паддинга). Соседи `.stub`, `.stubText` и `.stubPhase` сняты 07.09 вместе
+   с компонентом `Stub`, у которого не осталось вызывающих. А `.stubIcon`
+   ЖИВ и остаётся: его носитель — `ErpGuard` в `ErpApp.jsx`, единственная
+   уцелевшая заглушка раздела. Поймал это сторож `stylesResolve.test.ts`
+   («класс не объявлен — className станет undefined»), то есть ровно тот
+   отказ, от которого он и поставлен: разметка та же, поведение то же,
+   молча уезжает только вид. */
+.noAccess {
   composes: emptyState;
   padding: var(--space-3xl) var(--space-xl);
 }
 .stubIcon { font-size: 34px; margin-bottom: 10px; }
-/* Пояснение под заголовком заглушки — второй строкой и тише основного текста */
-.stubText { font-size: var(--type-body-sm); color: var(--text-dim); margin-top: var(--space-xs); }
-.stubPhase {
-  display: inline-block;
-  margin-top: 14px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  /* Отличия от .labelCaps: мельче и цветом акцента — это плашка, не подпись */
-  font-size: var(--type-label);
-  letter-spacing: 1px;
-  background: var(--accent-light);
-  color: var(--accent);
-}
 
 /* ─── Таблицы ─── */
 .tableWrap {
@@ -676,7 +664,6 @@
 }
 .dateEcho { color: var(--text-dim); font-family: var(--mono); }
 .dateFormatHint { color: var(--text-muted); }
-.datePresets { display: inline-flex; gap: var(--space-xs); flex-wrap: wrap; }
 
 /* Сортируемый заголовок: кнопка внутри th, чтобы работали фокус и Enter/Space.
    Наследует типографику th целиком — иначе внутри появляется второй кегль. */
@@ -1002,7 +989,7 @@
   .queueRowMain {
     grid-template-columns: 46px minmax(150px, 2fr) 52px 96px minmax(140px, 1fr) auto;
   }
-  .queueRowAssignee, .queueRowProgress { display: none; }
+  .queueRowProgress { display: none; }
 }
 
 .queueCard {
@@ -1465,27 +1452,6 @@
 .stepperLine { width: 26px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: var(--space-sm); }
 .stepperLineDone { background: var(--color-success); }
 
-/* Миниатюра макета — 40px в строке заказа, 48px в очереди (.queueThumb).
-   Радиус из токена, а не литералом: было 5px против var(--radius-sm). */
-.orderThumb {
-  width: 40px; height: 40px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-light);
-  flex-shrink: 0;
-}
-/* Заглушка битой миниатюры (паттерн 🖼 из очереди цеха) */
-.orderThumbStub {
-  width: 40px; height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 5px;
-  border: 1px dashed var(--border-light);
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
 .inputError { border-color: var(--color-error); }
 .inputError:focus { outline-color: var(--color-error); }
 .fieldError { color: var(--color-error-ink); font-size: var(--type-label); }
@@ -1504,7 +1470,6 @@
   .main { padding: var(--space-md) 10px 40px; }
   .navLink { padding: 0 10px; gap: 6px; }
   .topbar :global(.btn) { padding: 0 var(--space-md); }
-  .cardGrid { grid-template-columns: 1fr; }
   .fieldWide { grid-column: 1 / -1; }
   .queueCardHead { flex-wrap: wrap; }
 
@@ -1934,7 +1899,6 @@ button.kpiCard[aria-pressed='true'] {
    Класс, оставшийся без единого носителя, — то же осиротевшее правило,
    что и примитив без вызывающих. */
 .drawerBody { flex: 1; overflow-y: auto; padding: var(--space-lg) 18px; }
-.drawerMeta { display: flex; flex-direction: column; gap: 7px; margin-bottom: var(--space-xs); }
 
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }

@@ -1,7 +1,7 @@
 /**
  * Чистые хелперы ERP-стора, общие для нескольких слайсов (рефакторинг по плану аудита).
  * Вынесены из useErpStore.ts, чтобы слайсы (orders/stages/realtime) переиспользовали их
- * без циклического импорта. Реэкспорт публичных (readyCountFor/orderPreviewUrl/
+ * без циклического импорта. Реэкспорт публичных (readyCountFor/
  * lastDefectPhotoUrl) — в useErpStore.ts, где их ждут экраны и тесты.
  */
 
@@ -472,13 +472,6 @@ export function withNewWorkToast(
     const after = readyCountFor(get().orders, get().departments, myDept, get().bypasses ?? []);
     if (after > before) toast.success('В вашем цехе появилась новая работа');
   });
-}
-
-/** Публичный URL превью заказа (первое вложение kind=preview) */
-export function orderPreviewUrl(order: ErpOrderFull): string | null {
-  const att = order.attachments?.find((a) => a.kind === 'preview');
-  if (!att) return null;
-  return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
 }
 
 /** URL последнего фото брака заказа (вложение с префиксом «Брак:») */

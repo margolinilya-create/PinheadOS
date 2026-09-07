@@ -58,7 +58,7 @@ export default function OrderCard() {
   const { orderId } = useParams();
   const {
     order, notFound, loaded, loadError, loadAll, detailError, retryDetail,
-    events, audit, comments, preview, previewError, setPreviewErrorFor,
+    events, audit, comments,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
     deptById, deptNameById, stageById, departments,
   } = useOrderDetail(orderId);
@@ -193,16 +193,6 @@ export default function OrderCard() {
           <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} disabled={!canManageOrder} />
         </span>
       </div>
-      {preview && !previewError && (
-        <img
-          src={preview} alt={`Превью заказа «${order.title}»`}
-          onError={() => setPreviewErrorFor(orderId)}
-          style={{ maxHeight: 140, maxWidth: 260, borderRadius: 8, border: '1px solid var(--border-light)', marginBottom: 10, objectFit: 'contain' }}
-        />
-      )}
-      {preview && previewError && (
-        <div className={styles.queueThumbStub} style={{ marginBottom: 10 }} role="img" aria-label="Превью не загрузилось" title="Превью не загрузилось"><Icon name="image" size={22} /></div>
-      )}
       <div className={styles.toolbar}>
         <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{ORDER_STATUS_LABELS[order.status]}</span>
         {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}><Icon name="checkCircle" size={13} /> Готов к отгрузке</span>}

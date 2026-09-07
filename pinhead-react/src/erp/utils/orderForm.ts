@@ -6,7 +6,7 @@
  * Чистые функции — покрыты тестами orderForm.test.ts.
  */
 
-import { storageGet, storageRemove, storageSet } from '../../lib/storage';
+import { storageGet, storageRemove } from '../../lib/storage';
 import { factoryToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
 import type { RouteGroup } from './routeDraft';
@@ -200,11 +200,12 @@ export function emptyPurchaseRow(key: string): DraftPurchaseRow {
   };
 }
 
-/** Пустая строка листа: её не показываем в ошибках и не отправляем */
-export function isPurchaseRowEmpty(r: DraftPurchaseRow): boolean {
-  return !r.name.trim() && !r.color.trim() && !r.manager_note.trim()
-    && !(Number(r.qty_expected) > 0);
-}
+/*
+  `isPurchaseRowEmpty` снят 07.09 вместе со строками листа закупки (п. 14):
+  отправлять их некому, и «пустая ли строка» перестало быть вопросом.
+  `DraftPurchaseRow` и `emptyPurchaseRow` рядом ОСТАЛИСЬ — их зовёт
+  `normalizeEnvelope`, восстанавливая черновики, начатые до правки.
+*/
 
 export interface DraftForm {
   bitrix_id: string;
@@ -661,16 +662,13 @@ function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
   };
 }
 
-export function saveOrderDraft(
-  form: DraftForm,
-  items: DraftItem[],
-  purchase: DraftPurchaseRow[] = [],
-  notes: DraftNote[] = [],
-): void {
-  storageSet(ORDER_DRAFT_KEY, {
-    form, items, purchase, notes, savedAt: new Date().toISOString(),
-  });
-}
+/*
+  `saveOrderDraft` СНЯТ 07.09: писателя у localStorage-черновика больше нет.
+  Снимок формы уходит в `erp_order_drafts` (таблица заведена 22.08), а
+  localStorage остался ТОЛЬКО на чтение — разовый перенос того, что человек
+  начал до перехода на базу. Живы `loadOrderDraft` и `clearOrderDraft`:
+  первый этот перенос выполняет, второй убирает ключ после него.
+*/
 
 export function clearOrderDraft(): void {
   storageRemove(ORDER_DRAFT_KEY);

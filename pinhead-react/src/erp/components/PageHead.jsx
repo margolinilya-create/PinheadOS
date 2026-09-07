@@ -37,13 +37,11 @@ export function PageHead({ title, sub }) {
   );
 }
 
-export function Stub({ icon = 'settings', title, text, phase }) {
-  return (
-    <div className={styles.stub}>
-      <div className={styles.stubIcon}><Icon name={icon} size={34} /></div>
-      <div>{title}</div>
-      {text && <div className={styles.stubText}>{text}</div>}
-      {phase && <div className={styles.stubPhase}>{phase}</div>}
-    </div>
-  );
-}
+/*
+  `Stub` СНЯТ 07.09: вызывающих не осталось ни одного. Заглушки разделов
+  заменили состояния `ErpStates` (`EmptyState`/`EmptyResult`/`LoadFailed`),
+  которые различают «работы нет» и «под фильтры ничего не попало», а
+  последнюю заглушку — «Ваш профиль не привязан к цеху» — унёс с собой
+  «Мой цех» (п. 18). Вместе с компонентом ушли `.stub*` из `erp.module.css`:
+  правило без носителя — то же осиротевшее правило.
+*/

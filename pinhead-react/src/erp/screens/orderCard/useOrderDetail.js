@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../../lib/supabase';
-import { useErpStore, orderPreviewUrl } from '../../store/useErpStore';
+import { useErpStore } from '../../store/useErpStore';
 import { isOrderReadyToShip } from '../../utils/stageUi';
 
 /**
@@ -35,8 +35,6 @@ export function useOrderDetail(orderId) {
   const [events, setEvents] = useState(null);
   const [audit, setAudit] = useState(null);
   const [comments, setComments] = useState(null);
-  const [previewErrorFor, setPreviewErrorFor] = useState(null);
-  const previewError = previewErrorFor === orderId;
   const [lookedUpFor, setLookedUpFor] = useState(null);
   const lookedUp = lookedUpFor === orderId;
 
@@ -92,7 +90,6 @@ export function useOrderDetail(orderId) {
   }, [orderId, loadOrderBundle]);
 
   const order = orders.find((o) => o.id === orderId);
-  const preview = order ? orderPreviewUrl(order) : null;
   /**
    * Перечитать ленту правок после собственной мутации.
    *
@@ -152,7 +149,7 @@ export function useOrderDetail(orderId) {
      * этого хватало, чтобы объявить заказ удалённым.
      */
     notFound: loaded && !order && lookedUp && !detailError,
-    events, audit, comments, preview, previewError, setPreviewErrorFor,
+    events, audit, comments,
     saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
     deptById, deptNameById, stageById, departments,
   };

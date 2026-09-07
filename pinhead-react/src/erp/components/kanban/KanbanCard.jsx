@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { orderPreviewUrl } from '../../store/useErpStore';
 import { OrderLink } from '../OrderLink';
 import { orderLinkTarget } from '../../utils/orderLink';
 import { daysLeft, formatTimeIn } from '../../utils/time';
@@ -38,8 +36,6 @@ export function KanbanCard({
   canMoveDept = false, prevDept = null, nextDept = null, onMoveDept,
 }) {
   const { order, item, stage, group } = entry;
-  const [imgError, setImgError] = useState(false);
-  const preview = orderPreviewUrl(order);
   const navigate = useNavigate();
   const location = useLocation();
   const openOrder = () => navigate(...orderLinkTarget(order.id, location));
@@ -113,18 +109,6 @@ export function KanbanCard({
       )}
 
       <div className={styles.kanbanCardHead}>
-        {preview && !imgError && (
-          <img
-            src={preview}
-            alt={`Макет: ${order.title}`}
-            className={styles.orderThumb}
-            draggable={false}
-            onError={() => setImgError(true)}
-          />
-        )}
-        {preview && imgError && (
-          <div className={styles.orderThumbStub} aria-hidden="true"><Icon name="image" size={18} /></div>
-        )}
         <OrderLink
           orderId={order.id}
           draggable={false}

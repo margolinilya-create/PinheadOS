@@ -6,7 +6,7 @@ import { Badge } from '../components/Badge';
 import { RouteProgress } from '../components/RouteProgress';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed } from '../components/ErpStates';
-import { useErpStore, orderPreviewUrl } from '../store/useErpStore';
+import { useErpStore } from '../store/useErpStore';
 import { useStagePermissions } from '../store/useStagePermissions';
 import { findStage } from '../store/orderHelpers';
 import { deptShortName } from '../data/departments';
@@ -145,7 +145,6 @@ export default function ProductionTask() {
   const progress = stageQtyProgress(stage, item.qty);
   const d = daysLeft(order.due_date);
   const overdue = stageOverdue(stage.planned_end, stage.status);
-  const preview = orderPreviewUrl(order);
   const entry = { order, item, stage, group, reason };
 
   return (
@@ -305,14 +304,7 @@ export default function ProductionTask() {
         <div className={styles.matSectionHead}><strong>Файлы</strong></div>
         {(order.attachments ?? []).length > 0 ? (
           <div className={styles.fileGrid}>
-            {preview && (
-              <a className={styles.fileCard} href={preview} target="_blank" rel="noreferrer">
-                <span className={styles.cellWithIcon}>
-                  <Icon name="image" size={15} />Превью макета
-                </span>
-              </a>
-            )}
-            {order.attachments.filter((a) => a.kind !== 'preview').map((a) => (
+            {order.attachments.map((a) => (
               <a
                 key={a.id}
                 className={styles.fileCard}

@@ -24,7 +24,7 @@ import type { ErpOrderDraft } from '../../types';
  * показывает состояние строкой рядом с собой; тост остаётся у ЯВНЫХ
  * действий — открытия списка и удаления.
  */
-export const orderDraftsSlice: StateCreator<ErpStore, [], [], OrderDraftsSlice> = (set, get) => ({
+export const orderDraftsSlice: StateCreator<ErpStore, [], [], OrderDraftsSlice> = (set) => ({
   orderDrafts: [],
   orderDraftsLoaded: false,
   orderDraftsError: null,
@@ -97,6 +97,9 @@ export const orderDraftsSlice: StateCreator<ErpStore, [], [], OrderDraftsSlice> 
     return true;
   },
 
-  /** Черновик по id — форма открывает его по ссылке из списка */
-  orderDraftById: (id) => get().orderDrafts.find((d) => d.id === id) ?? null,
+  /*
+    `orderDraftById` снят 07.09: вызывающих не было ни одного, а форма ищет
+    свой черновик сама (`drafts.find` в `CreateOrderModal`). Ссылки из списка,
+    ради которых селектор заводился, ушли вместе с самим списком (п. 15).
+  */
 });
