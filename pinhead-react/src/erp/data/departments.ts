@@ -14,7 +14,6 @@ export type DepartmentType =
   | 'cutting'       // Раскрой
   | 'silkscreen'    // Шелкография
   | 'dtf'           // ДТФ
-  | 'dtg'           // DTG — прямая печать по изделию
   | 'embroidery'    // Вышивка
   | 'sewing'        // Пошив
   | 'vto'           // ВТО
@@ -43,9 +42,19 @@ export const DEPARTMENTS: Department[] = [
   { code: 'silkscreen',   name: 'Цех шелкографии',         type: 'silkscreen',   order: 60, is_branding: true },
   { code: 'dtf',          name: 'Цех ДТФ',                 type: 'dtf',          order: 61, is_branding: true },
   { code: 'embroidery',   name: 'Цех вышивки',             type: 'embroidery',   order: 62, is_branding: true },
-  // DTG заведён правками 20.08: документ называет его и среди этапов маршрута,
-  // и среди представлений экс-цеха, а участка в ERP не было вовсе
-  { code: 'dtg',          name: 'Цех DTG',                 type: 'dtg',          order: 63, is_branding: true },
+  /*
+    УЧАСТКА DTG БОЛЬШЕ НЕТ (правки заказчика 07.09, п. 17: «Полностью убрать
+    DTG из ERP: удалить раздел из меню, убрать DTG из цехов, этапов
+    и маршрутов производства. В заказах этап DTG не создавать»). Заведён он
+    был правками 20.08 и прожил меньше трёх недель: на боевой базе к 07.09
+    у него два ЗАКРЫТЫХ этапа на тестовых заказах, одно нанесение и ноль
+    сотрудников.
+
+    Сам цех в базе не удаляется, а деактивируется (`active = false`, как ОТК
+    10.08): на него ссылаются те два этапа, и DELETE упёрся бы во внешний ключ,
+    а история заказа обязана остаться читаемой. Из меню он уходит сам —
+    группа «Цеха» строится из `departments.filter(d => d.active …)`.
+  */
   { code: 'sewing',       name: 'Швейный цех',             type: 'sewing',       order: 70 },
   { code: 'vto',          name: 'ВТО цех',                 type: 'vto',          order: 80 },
   { code: 'qc',           name: 'ОТК',                     type: 'qc',           order: 85 },
@@ -76,7 +85,6 @@ export const DEPT_SHORT_NAMES: Record<string, string> = {
   silkscreen: 'Шелкография',
   dtf: 'ДТФ',
   embroidery: 'Вышивка',
-  dtg: 'DTG',
   sewing: 'Швейка',
   vto: 'ВТО',
   qc: 'ОТК',
@@ -102,7 +110,6 @@ export const DEPT_ICONS: Record<string, string> = {
   silkscreen: 'printer',
   dtf: 'printer',
   embroidery: 'needle',
-  dtg: 'printer',
   sewing: 'needle',
   vto: 'iron',
   qc: 'shield',
@@ -127,7 +134,7 @@ export function deptIcon(code: string): string {
  */
 // experimental вынесен в отдельную вкладку «Эксперим. цех» (правка 6) — не в общей очереди
 export const QUEUE_DEPT_CODES = new Set([
-  'cutting', 'silkscreen', 'dtf', 'embroidery', 'dtg', 'sewing', 'vto', 'qc',
+  'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'vto', 'qc',
 ]);
 
 /** @deprecated Признак по коду — только для сида. В коде: `isProductionDept(dept)` */

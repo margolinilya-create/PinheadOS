@@ -8,8 +8,9 @@ import {
 } from './departments';
 
 describe('DEPARTMENTS seed', () => {
-  it('содержит 14 участков', () => {
-    expect(DEPARTMENTS).toHaveLength(14);
+  it('содержит 13 участков', () => {
+    // Было 14: участок DTG снят правками 07.09 (п. 17)
+    expect(DEPARTMENTS).toHaveLength(13);
   });
 
   /**
@@ -40,9 +41,11 @@ describe('DEPARTMENTS seed', () => {
     expect(new Set(codes).size).toBe(codes.length);
   });
 
-  it('отмечает четыре цеха брендирования', () => {
+  it('отмечает три цеха брендирования', () => {
+    // Четвёртым был DTG — участок снят правками 07.09 (п. 17); сам метод
+    // нанесения остался читаемым, см. `utils/brandingMethods.test.ts`
     const branding = DEPARTMENTS.filter((d) => d.is_branding).map((d) => d.code);
-    expect(branding).toEqual(['silkscreen', 'dtf', 'embroidery', 'dtg']);
+    expect(branding).toEqual(['silkscreen', 'dtf', 'embroidery']);
   });
 
   it('getDepartmentByCode находит по коду', () => {

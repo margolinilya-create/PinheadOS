@@ -97,7 +97,7 @@ const STATE_FILTERS = [
 const VIEWS = [
   'board', 'queue', 'list',
   'patterns', 'cutting',
-  'silkscreen', 'dtf', 'embroidery', 'dtg',
+  'silkscreen', 'dtf', 'embroidery',
   'sewing', 'final',
 ];
 
@@ -110,14 +110,13 @@ const VIEW_LABELS = {
   silkscreen: 'Шелкография',
   dtf: 'DTF',
   embroidery: 'Вышивка',
-  dtg: 'DTG',
   sewing: 'Пошив',
   final: 'Финальный этап',
 };
 
 /** Виды, показывающие внутренние очереди, а не список разработок */
 const QUEUE_VIEWS = new Set([
-  'patterns', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'dtg', 'sewing', 'final',
+  'patterns', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'final',
 ]);
 
 /**

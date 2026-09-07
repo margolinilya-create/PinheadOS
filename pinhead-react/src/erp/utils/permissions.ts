@@ -110,9 +110,6 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   embroidery: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
   ],
-  dtg: [
-    'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'plan.fact',
-  ],
   /**
    * tz.manage приходит из отдельной миграции (волна 4) — в seed менеджер его имеет,
    * и без него менеджер молча терял бы возможность вести ТЗ, если матрица не загрузилась.
@@ -201,7 +198,7 @@ export function isAllowed(
  * и привязка их не ограничивает. Для них fail-open сохраняется.
  */
 export const DEPT_BOUND_ROLES: EmployeeRole[] = [
-  'worker', 'foreman', 'dtf', 'silkscreen', 'embroidery', 'dtg',
+  'worker', 'foreman', 'dtf', 'silkscreen', 'embroidery',
   'storekeeper', 'purchaser',
 ];
 

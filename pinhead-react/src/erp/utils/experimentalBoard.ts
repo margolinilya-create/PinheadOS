@@ -99,6 +99,14 @@ export const DEV_STAGE_LABELS: Record<DevStage, string> = {
  * нанесения — иначе задача, заведённая руками через «Добавить задачу»,
  * повиснет незамеченной.
  */
+/*
+  `dtg` ОСТАЁТСЯ В ЭТОМ СПИСКЕ, хотя участок снят 07.09 (п. 17). Список
+  отвечает на вопрос «какие задачи считать нанесением при автопереходе»,
+  и на боевой базе есть ОДНА заведённая задача этого вида: выбросив её
+  отсюда, мы сделали бы `devBrandingOpen` слепым к ней — карточка уехала бы
+  в «Пошив» при открытой работе. Из ВЫБОРА вид убран
+  (`DEV_BRANDING_DEPT_CODE`), новых таких задач не появится.
+*/
 export const DEV_BRANDING_TASK_TYPES = [
   'silkscreen', 'dtf', 'embroidery', 'dtg', 'sublimation',
 ] as const;
@@ -182,7 +190,7 @@ export const DEV_BRANDING_DEPT_CODE: Record<string, string> = {
   silkscreen: 'silkscreen',
   dtf: 'dtf',
   embroidery: 'embroidery',
-  dtg: 'dtg',
+  // `dtg` убран 07.09 (п. 17): участка нет, и передавать задачу некуда
 };
 
 const STAGE_OF_TASK: Record<string, DevStage> = {

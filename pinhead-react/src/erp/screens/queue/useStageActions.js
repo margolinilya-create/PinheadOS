@@ -79,7 +79,7 @@ export function useStageActions() {
      * `in_progress`, то есть `old.status` не отличается от нового.
      *
      * На проде `order.manage` нет НИ У ОДНОЙ цеховой роли (проверено:
-     * worker, foreman, dtf, silkscreen, embroidery, dtg, storekeeper,
+     * worker, foreman, dtf, silkscreen, embroidery, storekeeper,
      * purchaser, technologist — у всех `allowed = false`). Значит форма
      * «Взять в работу» просила у рабочего дату, а сервер эту дату отклонял;
      * этап оставался без `planned_end`, то есть невидимым в «Загрузке цехов»

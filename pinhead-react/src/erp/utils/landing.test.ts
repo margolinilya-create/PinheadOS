@@ -9,7 +9,9 @@ const NONE_OPEN = { canOpen: () => false };
 
 describe('посадочная по роли', () => {
   it('цеховые роли открывают свою очередь, а не сводку по фабрике', () => {
-    for (const role of ['worker', 'foreman', 'dtf', 'silkscreen', 'embroidery', 'dtg'] as EmployeeRole[]) {
+    // Роли `dtg` больше нет: участок снят правками 07.09 (п. 17), носителей
+    // на боевой базе не было, значение убрано из CHECK `erp_employees.role`
+    for (const role of ['worker', 'foreman', 'dtf', 'silkscreen', 'embroidery'] as EmployeeRole[]) {
       expect(landingPathForRole(role, ALL_OPEN), role).toBe('/queue');
     }
   });

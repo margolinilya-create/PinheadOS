@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BRANDING_METHOD_CHOICES,
   BRANDING_METHOD_LABELS,
   EMPLOYEE_ROLE_LABELS,
 } from '../types';
@@ -30,9 +31,26 @@ import { latestMatching, withoutComments } from './migrations.testutil';
 
 const METHODS = Object.keys(BRANDING_METHOD_LABELS) as BrandingMethod[];
 
-/** Методы, у которых СВОЙ участок: `other` делается внутри швейки, */
-/** термоперенос принимает участок ДТФ — это не пробел, а решение маршрута. */
-const METHODS_WITHOUT_OWN_DEPT = new Set<BrandingMethod>(['other', 'heat_transfer']);
+/**
+ * Методы БЕЗ своего участка — каждый поимённо и с причиной, иначе список
+ * превращается в место, куда уходит любой забытый метод.
+ *
+ * `other` делается внутри швейки, термоперенос принимает участок ДТФ —
+ * это не пробел, а решение маршрута. `dtg` третий по ДРУГОЙ причине:
+ * участок снят правками 07.09 (п. 17), этап по нему больше не создаётся
+ * (`BRANDING_DEPT.dtg = null`), но само значение остаётся ЧИТАЕМЫМ —
+ * на боевой базе есть заведённое нанесение, и выброси мы метод из типа,
+ * карточка заказа перестала бы его называть. Ровно поэтому он и не может
+ * стоять в общем правиле «у метода есть одноимённый участок».
+ */
+const METHODS_WITHOUT_OWN_DEPT = new Set<BrandingMethod>(['other', 'heat_transfer', 'dtg']);
+
+/**
+ * Значения, которые ЧИТАЮТСЯ, но больше не ПРЕДЛАГАЮТСЯ (правки 07.09, п. 17).
+ * Перечислены поимённо: «в форме есть не всё» обязано быть решением, а не
+ * следствием того, что новый метод забыли добавить в список выбора.
+ */
+const HISTORICAL_METHODS = new Set<BrandingMethod>(['dtg']);
 
 /** CHECK метода нанесения — из последней миграции, которая его задаёт */
 const PRINTS_CHECK = withoutComments(
@@ -54,6 +72,24 @@ describe('перечисление методов нанесения', () => {
     // как заказ-родитель создан: 23514 в середине транзакции создания
     for (const m of METHODS) {
       expect(PRINTS_CHECK, `метода ${m} нет в CHECK erp_item_prints`).toContain(`'${m}'`);
+    }
+  });
+
+  it('форма предлагает все методы, кроме исторических', () => {
+    /**
+     * Снятый метод остаётся в подписях и в CHECK (иначе заведённое нанесение
+     * станет нечитаемым), но выбрать его заново нельзя. Сверяем МНОЖЕСТВА:
+     * список выбора, разошедшийся с перечислением молча, и есть тот дефект,
+     * ради которого этот файл написан.
+     */
+    const expected = METHODS.filter((m) => !HISTORICAL_METHODS.has(m));
+    expect([...BRANDING_METHOD_CHOICES].sort()).toEqual([...expected].sort());
+  });
+
+  it('исторический метод остаётся читаемым: подпись и CHECK на месте', () => {
+    for (const m of HISTORICAL_METHODS) {
+      expect(BRANDING_METHOD_LABELS[m], `нет подписи у ${m}`).toBeTruthy();
+      expect(PRINTS_CHECK, `метод ${m} выпал из CHECK`).toContain(`'${m}'`);
     }
   });
 

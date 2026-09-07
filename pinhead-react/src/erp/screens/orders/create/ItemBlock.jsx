@@ -11,6 +11,7 @@ import {
   PRODUCTION_TYPE_LABELS,
   PRODUCTION_TYPE_ORDER,
   BRANDING_METHOD_LABELS,
+  BRANDING_METHOD_CHOICES,
   EMBROIDERY_GARMENT_KINDS,
 } from '../../../types';
 import styles from '../../../styles';
@@ -242,8 +243,14 @@ export function ItemBlock({
                 aria-label="Техника нанесения"
                 onChange={(e) => setPrint(i, pi, { method: e.target.value })}
               >
-                {Object.entries(BRANDING_METHOD_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                {/*
+                  ВЫБОР ИДЁТ ПО `BRANDING_METHOD_CHOICES`, а не по всему словарю
+                  подписей (правки 07.09, п. 17): DTG убран из выбора, но
+                  остаётся читаемым у заведённых нанесений. Перебирать словарь
+                  значило бы предлагать снятую технику снова.
+                */}
+                {BRANDING_METHOD_CHOICES.map((v) => (
+                  <option key={v} value={v}>{BRANDING_METHOD_LABELS[v]}</option>
                 ))}
               </select>
               <input
