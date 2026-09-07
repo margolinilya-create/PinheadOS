@@ -14,6 +14,8 @@ URL: https://pinhead-os.vercel.app
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
   DefectWizard (мастер брака: 2 шага в Drawer);
   screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
+  screens/GanttScreen.jsx — «Гант» (/gantt): этапы полосами во времени, даты
+  цепочкой «план → факт → срок заказа» с подписью источника (utils/gantt);
   screens/PlanScreen.jsx — «План производства» (/plan): недельная доска по дням,
   вкладки цехов, сводка «Все цеха», отклонения; screens/plan/ — PlanTaskCard/
   PlanSlotDrawer (план+факт+проблема+переписка)/PlanAddModal (постановка из общего плана);
@@ -517,6 +519,39 @@ URL: https://pinhead-os.vercel.app
   Гейт данных — `MockExtras.deptsGate` в `e2e/support/mockSupabase.ts`,
   ждут его ОБА писателя состава участков: ветка `rpc/erp_bootstrap`
   и таблица `erp_departments`
+
+## Правила сессии 52 (правки 07.09): где что лежит
+
+- **Гант** — `screens/GanttScreen.jsx` (через `lazyScreen`, свой чанк 3,5 кБ
+  gzip) + чистая утилита `utils/gantt.ts` (`ganttBars`). Вкладка — четвёртая
+  в `components/ProductionTabs`, `match` пункта меню в `Sidebar` расширен
+  на `/gantt`. Период в адресе (`?from=`, `?days=`), компактная раскладка —
+  карточка на ЗАКАЗ с текстовыми интервалами. Строка карточки называет
+  ПОЗИЦИЮ: у заказа их несколько, и «Закрой» дважды — это рубашка и фартук
+- **Приёмка готового изделия** — не флаг гейта, а ЭТАП склада в маршруте
+  (`utils/routes`: `WAREHOUSE_DEPT_CODE`, `VTO_DEPT_CODE`, `needsIntake`).
+  Экран — `screens/warehouse/FgIntakeQueue`, смонтирован в `Warehouse` НАД
+  списком задач; строки строит `buildQueueEntries`, закрытие идёт через общий
+  `confirmStageDone` с материалами позиции и цехом этапа
+- **«Какой участок мой»** — `utils/myDept.myDeptCode(departments, myDeptId)`:
+  привязка сотрудника, иначе последний выбранный (`erp_my_dept`). Два
+  потребителя — `hooks/useRoleLanding` (посадочная ведёт на `/queue/<код>`)
+  и ярлык «Очередь» на обзоре. Пустая строка, а не `null`: результат уходит
+  в адрес, и `null` дал бы `/queue/null`
+- **Размерная сетка** — `screens/orders/create/SizeGridEditor` (таблица
+  «цвет × размер» с итогами по строке и колонке, `th scope` в обе стороны;
+  на планшете — карточка на цвет). Итог строки — `orderForm.rowTotal`,
+  модель `size_grid` не менялась
+- **Что предлагать в форме** и **что читать** — разные списки: техника
+  нанесения `BRANDING_METHOD_CHOICES` против `BRANDING_METHOD_LABELS`,
+  порядок типов производства `PRODUCTION_TYPE_ORDER`, «нанесение на» —
+  `orderForm.brandingOnOptions`/`normalizeBrandingOn` (у готового изделия
+  «на крое» запрещено, и уже выбранное нормализуется при смене типа)
+- **Упаковка** — `utils/packaging`: `sizeOf` требует ОБЕ стороны, разрешение
+  «своё → общее» расширено на размер, подпись собирает `packagingLabel`
+- **Сторож методов нанесения** — `utils/brandingMethods.test.ts`: список
+  исторических значений поимённо (`dtg`) плюс проверка «форма предлагает все
+  методы, кроме исторических» МНОЖЕСТВАМИ, чтобы забытый метод попал под неё сам
 
 ## Правила сессии 49 (обход 04.09): где что лежит
 
