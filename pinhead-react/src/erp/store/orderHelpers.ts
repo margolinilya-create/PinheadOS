@@ -100,6 +100,7 @@ export const ORDER_LIST_SELECT = `
     subcontract_kind, material_source,
     fit, main_fabric, trim_material, cutting_note, sewing_note, labels_note,
     packaging, packaging_size, sticker_place, marking_place, packaging_note,
+    packaging_width_mm, packaging_height_mm,
     stages:erp_item_stages (
       id, item_id, department_id, depends_on, status, qty_done, qty_rework,
       planned_start, planned_end, started_at, finished_at, assignee,

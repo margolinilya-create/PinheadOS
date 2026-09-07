@@ -640,6 +640,11 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       // `buffer_days` не шлём (правки 07.09, п. 2) — RPC подставит дефолт 0
       packaging: form.packaging,
       packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || undefined : undefined,
+      // Размер упаковки (п. 16). У «Нет» размера не бывает — не шлём вовсе
+      packaging_width_mm: form.packaging === 'none'
+        ? undefined : Number(form.packaging_width_mm) || undefined,
+      packaging_height_mm: form.packaging === 'none'
+        ? undefined : Number(form.packaging_height_mm) || undefined,
       stickers: form.stickers,
       stickers_note: form.stickers === 'other' ? form.stickers_note.trim() || undefined : undefined,
       no_chestny_znak: form.no_chestny_znak,
@@ -670,6 +675,9 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           sticker_place: it.sticker_place.trim() || undefined,
           marking_place: it.marking_place.trim() || undefined,
           packaging_note: it.packaging_note.trim() || undefined,
+          // Размер упаковки позиции (п. 16). Пусто — берётся размер заказа
+          packaging_width_mm: Number(it.packaging_width_mm) || undefined,
+          packaging_height_mm: Number(it.packaging_height_mm) || undefined,
           // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
           ...(it.production_type === 'outsource'
             ? { subcontract_kind: it.subcontract_kind || 'finished_product',
@@ -703,6 +711,15 @@ export function CreateOrderModal({ onClose, draftId = null }) {
             height_mm: Number(p.height_mm) || null,
             offset_note: p.offset_note.trim() || undefined,
             pantone: p.pantone.trim() || undefined,
+            /*
+              Эффект и тип изделия — величины РАЗНЫХ техник (пп. 10 и 11),
+              и каждая едет только со своей: эффект, оставшийся от переключения
+              на вышивку, читался бы цехом как требование к вышивке.
+            */
+            special: p.method === 'silkscreen'
+              ? (p.special?.trim() || undefined) : undefined,
+            garment_kind: p.method === 'embroidery'
+              ? (p.garment_kind || undefined) : undefined,
             comment: p.comment.trim() || undefined,
           })),
           /**
@@ -764,6 +781,10 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         : `${tzUploaded} ${pluralize(tzUploaded, 'файл', 'файла', 'файлов')} · загружено`;
   const extraSummary = [
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
+    form.packaging !== 'none' && Number(form.packaging_width_mm) > 0
+      && Number(form.packaging_height_mm) > 0
+      ? `${form.packaging_width_mm}×${form.packaging_height_mm} мм`
+      : null,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
     form.no_chestny_znak ? 'без ЧЗ' : null,
   ].filter(Boolean).join(' · ');
@@ -802,6 +823,8 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           в placeholder; подстановка из каталога SKU — отдельная работа.
         */}
         <DictionaryDatalist kind="supplier" id="erp-suppliers" />
+        {/* Подсказки поля «Эффекты» у нанесения шелкографией (правки 07.09, п. 10) */}
+        <DictionaryDatalist kind="print_effect" id="erp-print-effects" />
 
         <FormSection
           id="order-section-main"
@@ -1039,6 +1062,41 @@ export function CreateOrderModal({ onClose, draftId = null }) {
               <input className={styles.input} placeholder="Какая? (с дизайном…)"
                 value={form.packaging_note}
                 onChange={(e) => setForm({ ...form, packaging_note: e.target.value })} />
+            )}
+            {/*
+              РАЗМЕР ВЫБРАННОЙ УПАКОВКИ (правки 07.09, п. 16): «нужны поля
+              ширина и высота в мм для БОПП-пакета, ZIP-пакета и варианта
+              „Другое“». У «Нет» размера не бывает — поля и не показываются.
+            */}
+            {form.packaging !== 'none' && (
+              <div className={styles.checkRow}>
+                <label className={`${styles.checkLabel} ${styles.mmLabel}`}>
+                  <span className={styles.subText}>Ш, мм</span>
+                  <input
+                    type="number"
+                    min="1"
+                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
+                    aria-label="Ширина упаковки, мм"
+                    value={form.packaging_width_mm}
+                    onChange={(e) => setForm({
+                      ...form, packaging_width_mm: e.target.value.replace('-', ''),
+                    })}
+                  />
+                </label>
+                <label className={`${styles.checkLabel} ${styles.mmLabel}`}>
+                  <span className={styles.subText}>В, мм</span>
+                  <input
+                    type="number"
+                    min="1"
+                    className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
+                    aria-label="Высота упаковки, мм"
+                    value={form.packaging_height_mm}
+                    onChange={(e) => setForm({
+                      ...form, packaging_height_mm: e.target.value.replace('-', ''),
+                    })}
+                  />
+                </label>
+              </div>
             )}
           </div>
           <div className={styles.field}>

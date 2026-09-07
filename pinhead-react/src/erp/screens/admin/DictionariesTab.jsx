@@ -47,7 +47,7 @@ import { confirm } from '../../../store/useConfirmStore';
  */
 const KINDS = [
   'block_reason', 'problem_type', 'product_type', 'supplier', 'unit',
-  'experimental_task_type', 'route_operation', 'label_type',
+  'experimental_task_type', 'route_operation', 'label_type', 'print_effect',
 ];
 
 /** Статусы системы — только для чтения */

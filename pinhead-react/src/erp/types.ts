@@ -195,6 +195,15 @@ export interface ErpOrder {
   notes: string | null;
   packaging?: PackagingType;
   packaging_note?: string | null;
+  /**
+   * Размер выбранной упаковки в миллиметрах (правки 07.09, п. 16).
+   *
+   * ДВЕ ЧИСЛОВЫЕ КОЛОНКИ, а не строка: свободный `packaging_size` у позиции
+   * на боевой базе содержал «25*30см», «25*33», «30*40» — три записи, три
+   * написания, и отобрать по такому полю нельзя ничего.
+   */
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
   stickers?: StickersType;
   stickers_note?: string | null;
   no_chestny_znak?: boolean;
@@ -280,6 +289,14 @@ export interface ErpOrderItem {
   sticker_place?: string | null;
   marking_place?: string | null;
   packaging_note?: string | null;
+  /**
+   * Размер упаковки ПОЗИЦИИ, мм (правки 07.09, п. 16). Пусто — берётся размер
+   * заказа: упаковка живёт на двух уровнях, и правило разрешения одно —
+   * `utils/packaging`. Свободный `packaging_size` выше остаётся на чтение:
+   * его несут три заведённые позиции.
+   */
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -1509,7 +1526,7 @@ export interface ErpRolePermission {
  */
 export type DictionaryKind =
   'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
-  | 'experimental_task_type' | 'route_operation' | 'label_type';
+  | 'experimental_task_type' | 'route_operation' | 'label_type' | 'print_effect';
 
 export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   block_reason: 'Причины блокировок',
@@ -1520,6 +1537,7 @@ export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
   experimental_task_type: 'Задачи разработки',
   route_operation: 'Операции маршрута',
   label_type: 'Типы бирок',
+  print_effect: 'Спецэффекты нанесения',
 };
 
 /** Подсказка под заголовком справочника — где значение всплывает в работе */
@@ -1535,6 +1553,8 @@ export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
     'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
   label_type:
     'Подсказки в блоке «Бирки» позиции заказа (размерник, составник, брендовая, по уходу).',
+  print_effect:
+    'Подсказки в поле «Эффекты» у нанесения шелкографией (каменная база, Puff-эффект, металлик, флюор, вытравка).',
 };
 
 export interface ErpDictionaryItem {
@@ -1599,10 +1619,33 @@ export interface ErpItemPrint {
   height_mm: number | null;
   offset_note: string | null;
   pantone: string | null;
+  /**
+   * Спецэффект нанесения (правки 07.09, п. 10: «В шелкографии добавить поле
+   * „Эффекты“»). Колонка заведена ещё 17.07 вместе с таблицей и до 07.09 была
+   * ПУСТА у всех 54 нанесений: ни форма, ни `erp_create_order` её не писали.
+   * Значения подсказывает справочник `print_effect` — ввод свободный.
+   */
   special: string | null;
+  /**
+   * Тип изделия для вышивки (правки 07.09, п. 11). Закрытый список из трёх
+   * значений — `EMBROIDERY_GARMENT_KINDS`, зеркало CHECK базы. Не справочник:
+   * это классификация технологии, от которой зависит маршрут (шеврон —
+   * отдельное изделие, а не нанесение на чужом). У прочих техник `null`.
+   */
+  garment_kind: string | null;
   comment: string | null;
   created_at: string;
 }
+
+/**
+ * Тип изделия в вышивке (правки 07.09, п. 11). Дословно из документа;
+ * коды — зеркало CHECK `erp_item_prints_garment_kind_check`.
+ */
+export const EMBROIDERY_GARMENT_KINDS: { value: string; label: string }[] = [
+  { value: 'cut', label: 'Вышивка на крое и полотне' },
+  { value: 'finished', label: 'Вышивка на готовых изделиях' },
+  { value: 'chevron', label: 'Изготовление шевронов (нашивок)' },
+];
 
 /**
  * Бирка позиции (правка 22.08, п. 5.3).

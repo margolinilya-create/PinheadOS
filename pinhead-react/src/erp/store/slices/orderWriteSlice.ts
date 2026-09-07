@@ -156,6 +156,9 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
           sticker_place: it.sticker_place || null,
           marking_place: it.marking_place || null,
           packaging_note: it.packaging_note || null,
+          // Размер упаковки позиции в мм (правки 07.09, п. 16)
+          packaging_width_mm: it.packaging_width_mm ?? null,
+          packaging_height_mm: it.packaging_height_mm ?? null,
           prints: (it.prints ?? []).map((p, j) => {
             if (p.key) printKeyIndex.set(p.key, j);
             return {
@@ -167,6 +170,9 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
               height_mm: p.height_mm ?? null,
               offset_note: p.offset_note || null,
               pantone: p.pantone || null,
+              // Эффект шелкографии и тип изделия вышивки (правки 07.09, пп. 10–11)
+              special: p.special || null,
+              garment_kind: p.garment_kind || null,
               comment: p.comment || null,
             };
           }),

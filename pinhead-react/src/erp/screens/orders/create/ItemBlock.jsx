@@ -11,6 +11,7 @@ import {
   PRODUCTION_TYPE_LABELS,
   PRODUCTION_TYPE_ORDER,
   BRANDING_METHOD_LABELS,
+  EMBROIDERY_GARMENT_KINDS,
 } from '../../../types';
 import styles from '../../../styles';
 import { Button } from '../../../components/Button';
@@ -267,6 +268,48 @@ export function ItemBlock({
                   onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
               </label>
             </div>
+            {/*
+              ПОЛЯ ТЕХНИКИ (правки 07.09, пп. 10–11). Показываются ровно
+              у своей: «Эффекты» — у шелкографии, «Тип изделия» — у вышивки.
+              Общей строки не заводим — это разные величины, и поле,
+              видимое у чужой техники, читалось бы цехом как требование.
+
+              Эффект — свободный ввод с подсказкой справочника (`print_effect`):
+              набор эффектов растёт, и закрытый список пришлось бы обновлять
+              релизом. Тип изделия вышивки, наоборот, `select` из трёх значений:
+              это классификация технологии, зеркало CHECK базы.
+            */}
+            {p.method === 'silkscreen' && (
+              <div className={`${styles.checkRow} ${styles.printRow}`}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Эффекты</span>
+                  <input
+                    className={`${styles.input} ${styles.inputSm}`}
+                    list="erp-print-effects"
+                    placeholder="без эффектов"
+                    value={p.special ?? ''}
+                    onChange={(e) => setPrint(i, pi, { special: e.target.value })}
+                  />
+                </label>
+              </div>
+            )}
+            {p.method === 'embroidery' && (
+              <div className={`${styles.checkRow} ${styles.printRow}`}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Тип изделия</span>
+                  <select
+                    className={`${styles.select} ${styles.inputSm}`}
+                    value={p.garment_kind ?? ''}
+                    onChange={(e) => setPrint(i, pi, { garment_kind: e.target.value })}
+                  >
+                    <option value="">не указан</option>
+                    {EMBROIDERY_GARMENT_KINDS.map((g) => (
+                      <option key={g.value} value={g.value}>{g.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
             <div className={`${styles.checkRow} ${styles.printRow}`}>
               <input
                 className={`${styles.input} ${styles.inputSm} ${styles.printNoteInput}`}
@@ -629,15 +672,45 @@ function PackagingBlock({ it, i, setItem, attach }) {
           при упаковке, а из свободного комментария половина теряется
           при беглом чтении */}
       <div className={styles.itemRow}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Размер пакета</span>
-          <input
-            className={styles.input}
-            value={it.packaging_size}
-            onChange={(e) => setItem(i, { packaging_size: e.target.value })}
-            placeholder="40×60"
-          />
-        </label>
+        {/*
+          РАЗМЕР ПАКЕТА — ДВА ЧИСЛА В ММ (правки 07.09, п. 16). Свободное поле
+          `packaging_size` из формы убрано: на боевой базе в нём лежат
+          «25*30см», «25*33» и «30*40» — три записи, три написания, и отобрать
+          по нему нельзя ничего. Колонка осталась в схеме и видна на чтение
+          в карточке заказа: её несут заведённые позиции.
+        */}
+        <div className={styles.field}>
+          <span className={styles.fieldLabel}>Размер пакета, мм</span>
+          <div className={styles.checkRow}>
+            <label className={`${styles.checkLabel} ${styles.mmLabel}`}>
+              <span className={styles.subText}>Ш</span>
+              <input
+                type="number"
+                min="1"
+                className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
+                aria-label={`Ширина пакета позиции ${i + 1}, мм`}
+                value={it.packaging_width_mm ?? ''}
+                onChange={(e) => setItem(i, {
+                  packaging_width_mm: e.target.value.replace('-', ''),
+                })}
+              />
+            </label>
+            <label className={`${styles.checkLabel} ${styles.mmLabel}`}>
+              <span className={styles.subText}>В</span>
+              <input
+                type="number"
+                min="1"
+                className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
+                aria-label={`Высота пакета позиции ${i + 1}, мм`}
+                value={it.packaging_height_mm ?? ''}
+                onChange={(e) => setItem(i, {
+                  packaging_height_mm: e.target.value.replace('-', ''),
+                })}
+              />
+            </label>
+          </div>
+          <span className={styles.subText}>пусто — размер из заказа</span>
+        </div>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Расположение стикера</span>
           <input

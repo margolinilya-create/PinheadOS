@@ -660,6 +660,7 @@ export type Database = {
           comment: string | null
           created_at: string
           fabric: string | null
+          garment_kind: string | null
           height_mm: number | null
           id: string
           item_id: string
@@ -675,6 +676,7 @@ export type Database = {
           comment?: string | null
           created_at?: string
           fabric?: string | null
+          garment_kind?: string | null
           height_mm?: number | null
           id?: string
           item_id: string
@@ -690,6 +692,7 @@ export type Database = {
           comment?: string | null
           created_at?: string
           fabric?: string | null
+          garment_kind?: string | null
           height_mm?: number | null
           id?: string
           item_id?: string
@@ -1273,8 +1276,10 @@ export type Database = {
           notes: string | null
           order_id: string
           packaging: string
+          packaging_height_mm: number | null
           packaging_note: string | null
           packaging_size: string | null
+          packaging_width_mm: number | null
           product_type: string
           production_type: string
           qty: number
@@ -1302,8 +1307,10 @@ export type Database = {
           notes?: string | null
           order_id: string
           packaging?: string
+          packaging_height_mm?: number | null
           packaging_note?: string | null
           packaging_size?: string | null
+          packaging_width_mm?: number | null
           product_type: string
           production_type?: string
           qty: number
@@ -1331,8 +1338,10 @@ export type Database = {
           notes?: string | null
           order_id?: string
           packaging?: string
+          packaging_height_mm?: number | null
           packaging_note?: string | null
           packaging_size?: string | null
+          packaging_width_mm?: number | null
           product_type?: string
           production_type?: string
           qty?: number
@@ -1464,7 +1473,9 @@ export type Database = {
           no_chestny_znak: boolean
           notes: string | null
           packaging: string
+          packaging_height_mm: number | null
           packaging_note: string | null
+          packaging_width_mm: number | null
           priority: number
           purchase_required: boolean
           shipped_at: string | null
@@ -1494,7 +1505,9 @@ export type Database = {
           no_chestny_znak?: boolean
           notes?: string | null
           packaging?: string
+          packaging_height_mm?: number | null
           packaging_note?: string | null
+          packaging_width_mm?: number | null
           priority?: number
           purchase_required?: boolean
           shipped_at?: string | null
@@ -1524,7 +1537,9 @@ export type Database = {
           no_chestny_znak?: boolean
           notes?: string | null
           packaging?: string
+          packaging_height_mm?: number | null
           packaging_note?: string | null
+          packaging_width_mm?: number | null
           priority?: number
           purchase_required?: boolean
           shipped_at?: string | null

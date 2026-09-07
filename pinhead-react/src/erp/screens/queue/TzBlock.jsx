@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import {
   BRANDING_METHOD_LABELS,
+  EMBROIDERY_GARMENT_KINDS,
   MATERIAL_STATUS_LABELS,
 } from '../../types';
 import { hasPackaging, itemPackaging, packagingLabel, stickersLabel } from '../../utils/packaging';
@@ -11,6 +12,15 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
 import { AttachmentList } from '../../components/AttachmentList';
 import { itemAttachments } from '../../utils/attachments';
+
+/**
+ * Подпись типа изделия вышивки (правки 07.09, п. 11). Собирается из общего
+ * `EMBROIDERY_GARMENT_KINDS`, а не второй таблицей рядом: две копии подписей
+ * одного перечисления разошлись бы в первую же правку.
+ */
+const GARMENT_KIND_LABEL = Object.fromEntries(
+  EMBROIDERY_GARMENT_KINDS.map((g) => [g.value, g.label]),
+);
 
 /** Технический блок изделия: подпись и колонка. Порядок — как в форме создания */
 /** Упаковка изделия: поля, которые документ перечисляет отдельно (п. 1) */
@@ -166,6 +176,19 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
                 )}
                 {p.pantone && (
                   <span className={`${styles.chip} ${styles.chipNeutral}`}>Pantone {p.pantone}</span>
+                )}
+                {/*
+                  Эффект и тип изделия (правки 07.09, пп. 10–11) — рядом
+                  с техникой, а не в примечании: цех решает по ним, как
+                  готовить работу, и из свободного комментария это теряется.
+                */}
+                {p.special && (
+                  <span className={`${styles.chip} ${styles.chipNeutral}`}>{p.special}</span>
+                )}
+                {p.garment_kind && (
+                  <span className={`${styles.chip} ${styles.chipNeutral}`}>
+                    {GARMENT_KIND_LABEL[p.garment_kind] ?? p.garment_kind}
+                  </span>
                 )}
               </div>
               {(p.offset_note || p.comment) && (

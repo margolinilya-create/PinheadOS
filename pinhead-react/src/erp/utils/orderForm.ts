@@ -61,6 +61,14 @@ export interface DraftPrint {
   height_mm: string | number;
   offset_note: string;
   pantone: string;
+  /**
+   * Спецэффект — ТОЛЬКО у шелкографии (правки 07.09, п. 10). Пишется
+   * в существующую колонку `erp_item_prints.special`: она заведена 17.07
+   * и до правки была пуста у всех нанесений — ни форма, ни RPC её не писали.
+   */
+  special: string;
+  /** Тип изделия — ТОЛЬКО у вышивки (правки 07.09, п. 11) */
+  garment_kind: string;
   comment: string;
 }
 
@@ -115,6 +123,9 @@ export interface DraftItem {
   sticker_place: string;
   marking_place: string;
   packaging_note: string;
+  /** Размер упаковки позиции, мм (правки 07.09, п. 16); пусто — как в заказе */
+  packaging_width_mm: string | number;
+  packaging_height_mm: string | number;
   production_type: string;
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
@@ -214,6 +225,9 @@ export interface DraftForm {
    */
   packaging: string;
   packaging_note: string;
+  /** Размер выбранной упаковки, мм (правки 07.09, п. 16) */
+  packaging_width_mm: string | number;
+  packaging_height_mm: string | number;
   stickers: string;
   stickers_note: string;
   no_chestny_znak: boolean;
@@ -233,6 +247,8 @@ const EMPTY_PRINT_FIELDS = {
   height_mm: '',
   offset_note: '',
   pantone: '',
+  special: '',
+  garment_kind: '',
   comment: '',
 } as const;
 
@@ -266,6 +282,8 @@ export const EMPTY_ITEM: DraftItem = {
   sticker_place: '',
   marking_place: '',
   packaging_note: '',
+  packaging_width_mm: '',
+  packaging_height_mm: '',
   production_type: 'sewing',
   branding_on: 'cut',
   has_branding: false,
@@ -289,6 +307,8 @@ export function emptyOrderForm(launchDate: string = factoryToday()): DraftForm {
     due_date: '',
     packaging: 'none',
     packaging_note: '',
+    packaging_width_mm: '',
+    packaging_height_mm: '',
     stickers: 'none',
     stickers_note: '',
     no_chestny_znak: false,

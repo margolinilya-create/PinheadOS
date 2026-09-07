@@ -189,6 +189,10 @@ export interface NewPrintInput {
   height_mm?: number | null;
   offset_note?: string;
   pantone?: string;
+  /** Спецэффект шелкографии (правки 07.09, п. 10) — колонка `special` */
+  special?: string;
+  /** Тип изделия для вышивки (правки 07.09, п. 11) */
+  garment_kind?: string;
   comment?: string;
 }
 
@@ -239,6 +243,9 @@ export interface NewOrderItemInput {
   sticker_place?: string;
   marking_place?: string;
   packaging_note?: string;
+  /** Размер упаковки позиции в мм (правки 07.09, п. 16) */
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
   /**
    * Маршрут, ПРАВЛЕННЫЙ человеком в конструкторе (правки заказчика 16.08).
    * `undefined` — не трогали: стор посчитает маршрут сам тем же
@@ -324,6 +331,9 @@ export interface NewOrderInput {
   notes?: string;
   packaging?: string;
   packaging_note?: string;
+  /** Размер упаковки заказа в мм (правки 07.09, п. 16) */
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
   stickers?: string;
   stickers_note?: string;
   no_chestny_znak?: boolean;

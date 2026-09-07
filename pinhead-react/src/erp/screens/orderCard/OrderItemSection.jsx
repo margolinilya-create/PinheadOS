@@ -7,6 +7,7 @@ import {
   STAGE_STATUS_LABELS,
   PRODUCTION_TYPE_LABELS,
   BRANDING_METHOD_LABELS,
+  EMBROIDERY_GARMENT_KINDS,
 } from '../../types';
 import { RouteProgress } from '../../components/RouteProgress';
 import styles from '../../styles';
@@ -19,6 +20,15 @@ import { isOutsourced } from '../../utils/outsourcing';
 import { Button } from '../../components/Button';
 import { unplannedStages } from '../../utils/stagePlan';
 import { pluralize } from '../../../utils/i18n';
+
+/**
+ * Подпись типа изделия вышивки (правки 07.09, п. 11). Собирается из общего
+ * `EMBROIDERY_GARMENT_KINDS`, а не второй таблицей рядом: две копии подписей
+ * одного перечисления разошлись бы в первую же правку.
+ */
+const GARMENT_KIND_LABEL = Object.fromEntries(
+  EMBROIDERY_GARMENT_KINDS.map((g) => [g.value, g.label]),
+);
 
 /** Блок одной позиции заказа: лента этапов, размерная сетка, нанесения, таблица этапов */
 export function OrderItemSection({ item, order, deptById, deptNameById, events, onSavePlan }) {
@@ -97,6 +107,19 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
                 )}
                 {p.pantone && (
                   <span className={`${styles.chip} ${styles.chipNeutral}`}>Pantone {p.pantone}</span>
+                )}
+                {/*
+                  Эффект и тип изделия (правки 07.09, пп. 10–11) — рядом
+                  с техникой, а не в примечании: цех решает по ним, как
+                  готовить работу, и из свободного комментария это теряется.
+                */}
+                {p.special && (
+                  <span className={`${styles.chip} ${styles.chipNeutral}`}>{p.special}</span>
+                )}
+                {p.garment_kind && (
+                  <span className={`${styles.chip} ${styles.chipNeutral}`}>
+                    {GARMENT_KIND_LABEL[p.garment_kind] ?? p.garment_kind}
+                  </span>
                 )}
               </div>
               {(p.offset_note || p.comment) && (
