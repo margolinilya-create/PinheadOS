@@ -1,5 +1,5 @@
 import type { BrandingMethod, ErpExperimental, ErpExperimentalTask, ErpMaterial } from '../types';
-import { isTaskReady, taskLabel } from './experimentalTasks';
+import { isDevTaskClosed, isTaskReady, taskLabel } from './experimentalTasks';
 import { BRANDING_DEPT, isMaterialPending, materialsForItem } from './routes';
 
 /**
@@ -170,7 +170,7 @@ export function devBrandingOpen(
 ): boolean {
   return (tasks ?? []).some((t) => DEV_BRANDING_TASK_TYPES.includes(
     t.task_type as (typeof DEV_BRANDING_TASK_TYPES)[number],
-  ) && t.status !== 'done' && t.status !== 'cancelled');
+  ) && !isDevTaskClosed({ status: t.status ?? '' }));
 }
 
 /**
@@ -262,7 +262,6 @@ export const DEV_LANE_TITLES: Record<DevLane, string> = {
   not_applicable: 'Не требуется',
 };
 
-const CLOSED = new Set(['done', 'cancelled']);
 
 /** Гейт кроя: что именно держит этап */
 export type CuttingWait = 'patterns' | 'materials' | 'both' | null;
@@ -431,7 +430,7 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
 
   const patternsDone = passedByHand('patterns')
     || ((byStage.get('patterns') ?? []).length > 0
-      && (byStage.get('patterns') ?? []).every((t) => CLOSED.has(t.status)));
+      && (byStage.get('patterns') ?? []).every(isDevTaskClosed));
 
   /** Есть ли работа на шагах ПОСЛЕ указанного — признак «шаг перепрыгнули» */
   const workLater = (stage: DevStage): boolean => {
@@ -506,7 +505,7 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
     if (own.some((t) => t.status === 'in_progress')) {
       return { stage, lane: 'in_progress' as DevLane, tasks: own, waitingReason: null };
     }
-    if (own.length > 0 && own.every((t) => CLOSED.has(t.status))) {
+    if (own.length > 0 && own.every(isDevTaskClosed)) {
       return { stage, lane: 'done' as DevLane, tasks: own, waitingReason: null };
     }
     if (own.length === 0) {
@@ -547,10 +546,10 @@ export function devStageStates(input: DevBoardInput): DevStageState[] {
         waitingReason: 'Передано в цех',
       };
     }
-    const notReady = own.find((t) => !CLOSED.has(t.status) && !isTaskReady(t, tasks));
+    const notReady = own.find((t) => !isDevTaskClosed(t) && !isTaskReady(t, tasks));
     if (notReady) {
       const dep = tasks.find((x) => (notReady.depends_on ?? []).includes(x.id)
-        && !CLOSED.has(x.status));
+        && !isDevTaskClosed(x));
       return {
         stage, lane: 'waiting' as DevLane, tasks: own,
         waitingReason: dep ? `Ждёт: ${taskLabel(dep)}` : 'Ожидает',
@@ -670,8 +669,8 @@ export function devStageQueue<T extends { dev: unknown; tasks: readonly ErpExper
     }
   }
   return out.sort((a, b) => {
-    const closedA = CLOSED.has(a.task.status) ? 1 : 0;
-    const closedB = CLOSED.has(b.task.status) ? 1 : 0;
+    const closedA = isDevTaskClosed(a.task) ? 1 : 0;
+    const closedB = isDevTaskClosed(b.task) ? 1 : 0;
     if (closedA !== closedB) return closedA - closedB;
     return (a.task.due_date ?? '9999').localeCompare(b.task.due_date ?? '9999');
   });

@@ -66,9 +66,22 @@ export function planPercent(slot: PlanSlotLike): number | null {
   return percentOf(slot.qty_done ?? 0, slot.qty_planned || 0);
 }
 
+/**
+ * Слот дня закрыт: выполнен или снят с плана.
+ *
+ * Третья сущность с тем же НАБОРОМ СЛОВ и своим вопросом — «нужно ли ещё
+ * что-то делать в этот день». Общей функции с задачами разработки и дозакупки
+ * у неё нет намеренно; общей с `planDay.deviations` — есть, это она.
+ */
+export function isPlanSlotClosed(slot: { status?: string | null }): boolean {
+  // `status` необязателен у сводных строк (`SummarySlot`), и отсутствие статуса
+  // означает «не закрыт» — ровно то, что давали прежние два сравнения
+  return slot.status === 'done' || slot.status === 'cancelled';
+}
+
 /** День задачи прошёл, а план не закрыт. Показывается отдельным индикатором */
 export function planOverdue(slot: PlanSlotLike, today: string): boolean {
-  if (slot.status === 'done' || slot.status === 'cancelled') return false;
+  if (isPlanSlotClosed(slot)) return false;
   return slot.work_date < today && planRemaining(slot) > 0;
 }
 

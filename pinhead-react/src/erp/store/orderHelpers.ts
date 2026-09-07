@@ -7,7 +7,7 @@
 
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
-import { isStageReady, isStageAwaitingProcurement, materialsForItem } from '../utils/routes';
+import { isStageReady, isStageAwaitingProcurement, materialsForItem, isProcurementClosed } from '../utils/routes';
 import { isBypassed, materialsAfterBypass } from '../utils/bypass';
 import { stageMissingTz } from '../utils/tz';
 import { stageOverdue } from '../utils/time';
@@ -420,7 +420,7 @@ export function openProcurementCount(
   for (const o of orders) {
     if (o.status !== 'active') continue;
     for (const t of o.procurement_tasks ?? []) {
-      if (t.status !== 'done' && t.status !== 'cancelled') n += 1;
+      if (!isProcurementClosed(t)) n += 1;
     }
   }
   return n;

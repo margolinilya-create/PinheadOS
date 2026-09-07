@@ -7,7 +7,7 @@ import { DEV_TASK_STATUS_LABELS } from '../../types';
 import {
   DEV_LANE_TITLES, DEV_STAGE_LABELS, devStageAction,
 } from '../../utils/experimentalBoard';
-import { isDelegated, isTaskReady, taskLabel } from '../../utils/experimentalTasks';
+import { isDelegated, isDevTaskClosed, isTaskReady, taskLabel } from '../../utils/experimentalTasks';
 import { finalPackageProgress, missingFinalPackage } from '../../utils/finalPackage';
 import { confirmWithInput } from '../../../store/useConfirmStore';
 import styles from '../../styles';
@@ -90,7 +90,7 @@ export function DevStageRoute({
 
   /** Задачи шага, которые двигаются вручную (не ушедшие в цех и не закрытые) */
   const movable = (state) => state.tasks.filter(
-    (t) => !isDelegated(t) && t.status !== 'done' && t.status !== 'cancelled',
+    (t) => !isDelegated(t) && !isDevTaskClosed(t),
   );
 
   const startStage = async (state) => {
@@ -132,7 +132,7 @@ export function DevStageRoute({
   const completeStage = async (state) => {
     const rows = movable(state);
     const delegated = state.tasks.filter(
-      (t) => isDelegated(t) && t.status !== 'done' && t.status !== 'cancelled',
+      (t) => isDelegated(t) && !isDevTaskClosed(t),
     );
     if (delegated.length > 0) return;
     const asksResult = state.stage !== 'patterns';
@@ -168,7 +168,7 @@ export function DevStageRoute({
         const isCurrent = state.stage === currentStage;
         const action = devStageAction(state);
         const delegated = state.tasks.filter(
-          (t) => isDelegated(t) && t.status !== 'done' && t.status !== 'cancelled',
+          (t) => isDelegated(t) && !isDevTaskClosed(t),
         );
 
         return (

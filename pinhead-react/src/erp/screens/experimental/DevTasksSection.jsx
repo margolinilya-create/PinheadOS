@@ -10,6 +10,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { DEV_TASK_STATUS_LABELS } from '../../types';
 import {
   isDelegated, taskGroup, taskLabel, taskWaitingReason,
+  isDevTaskClosed,
 } from '../../utils/experimentalTasks';
 import { formatDateShort } from '../../utils/time';
 import styles from '../../styles';
@@ -185,7 +186,9 @@ function TaskRow({
                 {a.label}
               </Button>
             ))}
-            {canManage && !delegated && group !== 'done' && group !== 'cancelled' && (
+            {/* `group` — вкладка списка («активные»/«завершённые»), а не статус
+                задачи: у закрытых групп действий не предлагаем */}
+            {canManage && !delegated && !isDevTaskClosed({ status: group }) && (
               <Button variant="ghost" disabled={busy} onClick={() => onSend(task)}>
                 В цех
               </Button>
@@ -287,8 +290,11 @@ function TaskRow({
  * `depends_on`, и по подмножеству зависимость из другой группы выглядела бы
  * несуществующей — задача молча считалась бы готовой.
  */
-/** Задача закрыта: сделана или отменена */
-const CLOSED_STATUS = new Set(['done', 'cancelled']);
+/*
+  Своей копии набора `('done','cancelled')` здесь больше нет: правило живёт
+  в `utils/experimentalTasks.isDevTaskClosed` — там же объяснено, почему копий
+  было пятнадцать и чем это уже стреляло.
+*/
 
 export function DevTasksSection({
   tasks, allTasks, typeNames, deptNames, onUpdate, onSend, onBlock, canManage,
@@ -310,8 +316,8 @@ export function DevTasksSection({
    * они бы стали недостижимой историей — той самой, ради которой документ
    * и просит «историю изменений и доработок сохранять внутри карточки».
    */
-  const active = useMemo(() => list.filter((t) => !CLOSED_STATUS.has(t.status)), [list]);
-  const closed = useMemo(() => list.filter((t) => CLOSED_STATUS.has(t.status)), [list]);
+  const active = useMemo(() => list.filter((t) => !isDevTaskClosed(t)), [list]);
+  const closed = useMemo(() => list.filter((t) => isDevTaskClosed(t)), [list]);
 
   if (list.length === 0) {
     return (

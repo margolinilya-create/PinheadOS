@@ -12,7 +12,7 @@
 
 import { addDays, mondayOfWeek } from '../../utils/date';
 import { percentOf } from './format';
-import { planCardState, planOverdue, planRemaining } from './planCard';
+import { isPlanSlotClosed, planCardState, planOverdue, planRemaining } from './planCard';
 import type { PlanSlotLike } from './planCard';
 
 /**
@@ -147,7 +147,7 @@ export function groupByDay<T extends { work_date: string; sort_order?: number }>
  */
 export function deviations<T extends SummarySlot>(slots: T[], today: string): T[] {
   return slots.filter((s) => {
-    if (s.status === 'cancelled' || s.status === 'done') return false;
+    if (isPlanSlotClosed(s)) return false;
     return planOverdue(s, today) || Boolean(s.problem_type) || Boolean(s.awaitingMaterials);
   });
 }

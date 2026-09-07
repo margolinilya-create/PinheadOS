@@ -3,6 +3,7 @@ import { Icon } from '../../components/Icon';
 import { deptShortName } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
 import { PROCUREMENT_CAUSE_LABELS, PROCUREMENT_STATUS_LABELS } from '../../types';
+import { isProcurementClosed } from '../../utils/routes';
 import styles from '../../styles';
 import { ButtonLink } from '../../components/Button';
 
@@ -12,8 +13,7 @@ import { ButtonLink } from '../../components/Button';
  * Данные — из уже загруженных procurement_tasks (без новой таблицы уведомлений).
  */
 export function NotificationsSection({ order, stageById, deptById }) {
-  const open = (order.procurement_tasks ?? []).filter(
-    (t) => t.status !== 'done' && t.status !== 'cancelled');
+  const open = (order.procurement_tasks ?? []).filter((t) => !isProcurementClosed(t));
   if (open.length === 0) return null;
 
   return (

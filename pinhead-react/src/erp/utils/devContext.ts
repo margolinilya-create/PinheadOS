@@ -1,4 +1,5 @@
 import type { ErpItemStage, ErpMaterial } from '../types';
+import { isDevTaskClosed } from './experimentalTasks';
 import type { DevBoardInput } from './experimentalBoard';
 import {
   cuttingGate, devBoardColumn, devBrandingFromPrints, devBrandingOpen, devStageStates,
@@ -92,8 +93,7 @@ export function devContext(
    * разработка, у которой лекал ещё не заводили, считалась бы прошедшей их.
    */
   const patternsDone = tasks.some((t) => t.task_type === 'patterns')
-    && tasks.filter((t) => t.task_type === 'patterns')
-      .every((t) => t.status === 'done' || t.status === 'cancelled');
+    && tasks.filter((t) => t.task_type === 'patterns').every(isDevTaskClosed);
 
   const stageStates = devStageStates({
     dev, tasks, materials, supplyOpen, hasBranding,

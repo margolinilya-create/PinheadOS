@@ -393,12 +393,26 @@ type ProcurementGateTask = { source_stage_id: string | null; status: string };
  * привязанная к этому этапу (source_stage_id). Тогда этап не запускать, пока
  * материал не закуплен и задача не закрыта (замыкает цикл производство↔закупка).
  */
+/**
+ * Задача дозакупки закрыта: выполнена или отменена.
+ *
+ * Набор слов тот же, что у задач разработки и слотов плана, но ВЕЛИЧИНА
+ * другая — «закрыта ли дозакупка», а не «закрыта ли задача технолога». Свести
+ * их в одну функцию значило бы обобщить по совпадению написания: у каждой
+ * сущности свой предикат рядом со своими данными. А вот три копии ВНУТРИ
+ * одной величины (здесь, в `hasOpenProcurement` и в `orderHelpers`) — уже дубль,
+ * и он сведён сюда.
+ */
+export function isProcurementClosed(task: { status: string }): boolean {
+  return task.status === 'done' || task.status === 'cancelled';
+}
+
 export function isStageAwaitingProcurement(
   procurementTasks: ProcurementGateTask[] | null | undefined,
   stageId: string,
 ): boolean {
   return (procurementTasks ?? []).some(
-    (t) => t.source_stage_id === stageId && t.status !== 'done' && t.status !== 'cancelled',
+    (t) => t.source_stage_id === stageId && !isProcurementClosed(t),
   );
 }
 
@@ -409,7 +423,7 @@ export function isStageAwaitingProcurement(
 export function hasOpenProcurement(
   procurementTasks: ProcurementGateTask[] | null | undefined,
 ): boolean {
-  return (procurementTasks ?? []).some((t) => t.status !== 'done' && t.status !== 'cancelled');
+  return (procurementTasks ?? []).some((t) => !isProcurementClosed(t));
 }
 
 /**

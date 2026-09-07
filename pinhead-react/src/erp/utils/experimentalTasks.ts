@@ -24,6 +24,28 @@ import { daysLeft } from './time';
 /** Задача не ждёт работы: сделана или отменена */
 const CLOSED: ReadonlySet<DevTaskStatus> = new Set<DevTaskStatus>(['done', 'cancelled']);
 
+/**
+ * ЗАКРЫТА ЛИ ЗАДАЧА РАЗРАБОТКИ — единственное выражение этого правила.
+ *
+ * До 07.09 набор `('done','cancelled')` был расписан в ПЯТНАДЦАТИ местах:
+ * три именованные копии (`CLOSED` здесь, `CLOSED` в `experimentalBoard`,
+ * `CLOSED_STATUS` в `DevTasksSection`) и двенадцать инлайновых условий
+ * по экранам и утилитам. Проект на этом уже обжигался: копия в
+ * `Experimental.jsx` успела разойтись — проверяла `!== 'done'` без
+ * `'cancelled'`, — и отменённая задача держала переход в «Пошив». Под тот
+ * случай завели сторож `devBranding.test.ts`, но он покрывает ОДНУ формулу
+ * (открытые нанесения), а остальные носители не покрывал никто.
+ *
+ * ЧТО СЮДА НЕ ВХОДИТ. Задачи дозакупки (`erp_procurement_tasks`) и слоты
+ * производственного плана (`erp_calendar_slots`) используют тот же НАБОР
+ * СЛОВ, но отвечают на другие вопросы — «закрыта ли дозакупка» и «снят ли
+ * день с плана». Свести их сюда значило бы обобщить по совпадению
+ * написания: у каждой сущности свой предикат рядом со своими данными.
+ */
+export function isDevTaskClosed(task: { status: string }): boolean {
+  return CLOSED.has(task.status as DevTaskStatus);
+}
+
 /** Задача передана в цех — её статус ведёт триггер, клиент только читает */
 export function isDelegated(task: Pick<ErpExperimentalTask, 'stage_id'>): boolean {
   return Boolean(task.stage_id);

@@ -46,7 +46,16 @@ export function CapacityBar({ report, periodLabel, hint, loading = false }) {
 
       {/* Полосы нет, пока мощность не задана: пустой трек читается как «загрузка
           ноль», а на деле знаменатель неизвестен — то же правило, по которому
-          `percentOf` отдаёт null, а не 100 */}
+          `percentOf` отдаёт null, а не 100.
+
+          МЕСТО ПРИ ЭТОМ ЗАНЯТО. Скелетон выше закрыл состояние «загружается»,
+          а «не задано» осталось нулевым — и переход между ними тянул вверх всё
+          ниже полосы. Оба состояния обязаны держать одну высоту: это то же
+          правило, ради которого заведён сам скелетон. */}
+      {!loading && notSet && (
+        <div className={styles.capacityTrackGhost} aria-hidden="true" />
+      )}
+
       {!loading && !notSet && (
         <div className={styles.capacityTrack}>
           <span

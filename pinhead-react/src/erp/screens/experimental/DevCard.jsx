@@ -12,6 +12,7 @@ import { toast } from '../../../store/useToastStore';
 import { DEV_OUTCOME_LABELS } from '../../types';
 import {
   currentBlocker, devReadiness, nextAction, reworkHistory, taskLabel,
+  isDevTaskClosed,
 } from '../../utils/experimentalTasks';
 import { deptShortName, isProductionDept } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
@@ -332,7 +333,7 @@ export function DevCard({
   };
 
   const closeDev = async (outcome) => {
-    const open = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+    const open = tasks.filter((t) => !isDevTaskClosed(t));
     if (open.length > 0) {
       const ok = await confirm({
         title: `Закрыть разработку как «${DEV_OUTCOME_LABELS[outcome]}»?`,
@@ -354,7 +355,7 @@ export function DevCard({
   };
 
   const fittingTask = tasks.find(
-    (t) => t.task_type === 'fitting' && t.status !== 'done' && t.status !== 'cancelled');
+    (t) => t.task_type === 'fitting' && !isDevTaskClosed(t));
 
   /**
    * Активная вкладка — в адресе (`?tab=`), тем же приёмом, что в карточке
@@ -365,7 +366,7 @@ export function DevCard({
    */
   const [params, setParams] = useSearchParams();
   const activeCount = tasks.filter(
-    (t) => t.status !== 'done' && t.status !== 'cancelled').length;
+    (t) => !isDevTaskClosed(t)).length;
   const files = dev.attachments ?? [];
   // Без useMemo: шесть литералов на рендер дешевле, чем сравнение зависимостей,
   // а `tasks`/`attachments` и так пересобираются каждый раз (`dev.tasks ?? []`)
