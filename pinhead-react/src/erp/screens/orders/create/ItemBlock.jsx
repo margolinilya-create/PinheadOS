@@ -2,10 +2,14 @@ import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { SizeGridEditor } from './SizeGridEditor';
 import { FieldError } from './FormParts';
 import { Icon } from '../../../components/Icon';
-import { emptyLabel, emptyPrint, gridTotal } from '../../../utils/orderForm';
+import {
+  emptyLabel, emptyPrint, gridTotal,
+  BRANDING_ON_LABELS, brandingOnOptions, normalizeBrandingOn,
+} from '../../../utils/orderForm';
 import {
   ITEM_PACKAGING_LABELS,
   PRODUCTION_TYPE_LABELS,
+  PRODUCTION_TYPE_ORDER,
   BRANDING_METHOD_LABELS,
 } from '../../../types';
 import styles from '../../../styles';
@@ -62,7 +66,8 @@ export function ItemBlock({
         <FieldError id={`err-item-${i}-product`} text={err(`item_${i}_product_type`)} />
       </label>
       <label className={styles.field}>
-        <span className={styles.fieldLabel}>Вариант / цвет</span>
+        {/* «Цвет» вместо прежнего «Вариант / цвет» (правки 07.09, п. 5) */}
+        <span className={styles.fieldLabel}>Цвет</span>
         <input
           className={styles.input}
           value={it.variant}
@@ -124,21 +129,31 @@ export function ItemBlock({
           ровно точка ВВОДА — иначе одно и то же задавалось бы двумя способами,
           а маршрут считался бы по частному правилу `material_source`.
         */}
+        {/*
+          ПОРЯДОК ПЛИТОК — `PRODUCTION_TYPE_ORDER` (правки 07.09, п. 3), а не
+          порядок ключей словаря подписей: тот читают полтора десятка
+          поверхностей, и перестановка ключей ради вида одной формы связала бы
+          две разные величины. «Подряда» в массиве нет — см. комментарий выше.
+
+          Смена типа производства НОРМАЛИЗУЕТ `branding_on` (п. 8): у готового
+          изделия «на крое» недопустимо, а селект про смену типа не знает.
+        */}
         <div className={styles.tileRow} role="radiogroup" aria-label="Тип производства">
-          {Object.entries(PRODUCTION_TYPE_LABELS)
-            .filter(([v]) => v !== 'outsource')
-            .map(([v, label]) => (
-              <button
-                key={v}
-                type="button"
-                role="radio"
-                aria-checked={it.production_type === v}
-                className={`${styles.tile} ${it.production_type === v ? styles.tileActive : ''}`}
-                onClick={() => setItem(i, { production_type: v })}
-              >
-                {label}
-              </button>
-            ))}
+          {PRODUCTION_TYPE_ORDER.map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={it.production_type === v}
+              className={`${styles.tile} ${it.production_type === v ? styles.tileActive : ''}`}
+              onClick={() => setItem(i, {
+                production_type: v,
+                branding_on: normalizeBrandingOn(v, it.branding_on),
+              })}
+            >
+              {PRODUCTION_TYPE_LABELS[v]}
+            </button>
+          ))}
         </div>
       </div>
       {/*
@@ -174,20 +189,52 @@ export function ItemBlock({
             <span className={styles.fieldLabel}>Нанесение на</span>
             <select
               className={styles.select}
-              value={it.branding_on}
+              /*
+                Имя задано ЯВНО и повторяет видимую подпись дословно: пояснение
+                ниже лежит внутри той же `<label>` (принятый в форме приём),
+                и без `aria-label` оно приклеилось бы к имени поля — скринридер
+                читал бы «Нанесение на У готового изделия кроя нет…».
+              */
+              aria-label="Нанесение на"
+              value={normalizeBrandingOn(it.production_type, it.branding_on)}
               disabled={!it.has_branding}
               onChange={(e) => setItem(i, { branding_on: e.target.value })}
             >
-              <option value="cut">на крое</option>
-              <option value="finished">на готовом</option>
+              {brandingOnOptions(it.production_type).map((v) => (
+                <option key={v} value={v}>{BRANDING_ON_LABELS[v]}</option>
+              ))}
             </select>
+            {it.production_type === 'ready_garment' && (
+              <span className={styles.subText}>
+                У готового изделия кроя нет — нанесение только на готовом
+              </span>
+            )}
           </label>
         </div>
 
         {it.has_branding && it.prints.map((p, pi) => (
           <div key={pi} className={styles.printBlock}>
+            {/*
+              ЗАГОЛОВОК И КРЕСТИК — ОТДЕЛЬНОЙ ШАПКОЙ (правки 07.09, п. 12:
+              «Перенести крестик удаления нанесения в правый верхний угол
+              блока, как сделано у позиции»). Прежде крестик стоял ПОСЛЕДНИМ
+              в строке параметров, за полями «В, мм» и «Ш, мм»: при переносе
+              строки он уезжал под поля, а на планшете — за край.
+
+              Классы те же, что у шапки позиции (`itemBlockHead` /
+              `itemBlockTitle`): вид и поведение совпадают дословно, второй
+              набор правил для того же самого разошёлся бы с первым.
+            */}
+            <div className={styles.itemBlockHead}>
+              <span className={styles.itemBlockTitle}>Нанесение №{pi + 1}</span>
+              <Button
+                variant="ghost"
+                aria-label={`Убрать нанесение ${pi + 1}`}
+                onClick={() => removePrint(i, pi)}>
+                <Icon name="x" size={14} />
+              </Button>
+            </div>
             <div className={`${styles.checkRow} ${styles.printRow}`}>
-              <strong className={styles.fieldLabel}>Нанесение №{pi + 1}</strong>
               <select
                 className={`${styles.select} ${styles.inputSm}`}
                 value={p.method}
@@ -219,12 +266,6 @@ export function ItemBlock({
                   value={p.width_mm}
                   onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
               </label>
-              <Button
-                variant="ghost"
-                aria-label={`Убрать нанесение ${pi + 1}`}
-                onClick={() => removePrint(i, pi)}>
-                <Icon name="x" size={14} />
-              </Button>
             </div>
             <div className={`${styles.checkRow} ${styles.printRow}`}>
               <input

@@ -1,10 +1,7 @@
-import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { Icon } from '../../../components/Icon';
 import { Button } from '../../../components/Button';
-import { MATERIAL_KIND_LABELS, MATERIAL_ROLE_LABELS } from '../../../types';
 import { AttachmentPicker } from '../../../components/AttachmentPicker';
 import { FieldError } from './FormParts';
-import { PURCHASE_FIELD_LABELS } from '../../purchasing/purchaseLabels';
 import styles from '../../../styles';
 
 /**
@@ -22,149 +19,31 @@ import styles from '../../../styles';
  * это `validateOrderForm` — только оттуда работают рамка, автоскролл
  * и раскрытие секции.
  *
- * СТРОКИ ОСТАЛИСЬ, но стали НЕОБЯЗАТЕЛЬНОЙ подсказкой (решение заказчика при
- * планировании) и уехали в свёрнутый блок. Потребность задаёт файл; строки —
- * то, что менеджер хочет сказать закупщику словами, а не вместо него.
+ * БЛОКА «ПОДСКАЗКИ ЗАКУПЩИКУ СТРОКАМИ» БОЛЬШЕ НЕТ (правки 07.09, п. 14).
+ * 20.08 строки оставили необязательной подсказкой в свёрнутом блоке — то есть
+ * ровно тем, чем документ 20.08 их и объявил лишним. Заказчик убрал их
+ * совсем: потребность задаёт файл, а сказать словами есть куда — «Заметки
+ * к заказу» и комментарий. Секция `materials` в payload и `material_index`
+ * у вложений в `erp_create_order` ОСТАЮТСЯ: их несут заведённые заказы.
  */
-
-/** Одна строка-подсказка. `item_index` = null — материал на весь заказ */
-function PurchaseRow({ r, ri, items, attach, setRow, removeRow, err, inputCls }) {
-  return (
-    <div className={styles.itemBlock}>
-      <div className={styles.itemBlockHead}>
-        <span className={styles.itemBlockTitle}>
-          Подсказка {ri + 1}{r.name.trim() ? ` · ${r.name.trim()}` : ''}
-        </span>
-        <Button
-          variant="ghost"
-          aria-label={`Убрать подсказку ${ri + 1}`}
-          onClick={() => removeRow(r.key)}>
-          <Icon name="x" size={14} />
-        </Button>
-      </div>
-
-      <div className={styles.itemRow}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Материал *</span>
-          <input
-            className={inputCls(`purchase_${ri}_name`)}
-            value={r.name}
-            onChange={(e) => setRow(r.key, { name: e.target.value })}
-            placeholder="Кулирка 230гр"
-            aria-invalid={err(`purchase_${ri}_name`) ? true : undefined}
-            aria-describedby={err(`purchase_${ri}_name`) ? `err-purchase-${ri}-name` : undefined}
-            data-invalid={err(`purchase_${ri}_name`) ? true : undefined}
-          />
-          <FieldError id={`err-purchase-${ri}-name`} text={err(`purchase_${ri}_name`)} />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Цвет</span>
-          <input
-            className={styles.input}
-            value={r.color}
-            onChange={(e) => setRow(r.key, { color: e.target.value })}
-            placeholder="чёрный"
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Тип</span>
-          <select
-            className={styles.select}
-            value={r.kind}
-            onChange={(e) => setRow(r.key, { kind: e.target.value })}
-            aria-label={`Тип материала, подсказка ${ri + 1}`}
-          >
-            {Object.entries(MATERIAL_KIND_LABELS).map(([v, label]) => (
-              <option key={v} value={v}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Роль в изделии</span>
-          <select
-            className={styles.select}
-            value={r.role}
-            onChange={(e) => setRow(r.key, { role: e.target.value })}
-            aria-label={`Роль материала, подсказка ${ri + 1}`}
-          >
-            {Object.entries(MATERIAL_ROLE_LABELS).map(([v, label]) => (
-              <option key={v} value={v}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyExpected} *</span>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            className={inputCls(`purchase_${ri}_qty`)}
-            value={r.qty_expected}
-            onChange={(e) => setRow(r.key, { qty_expected: e.target.value.replace('-', '') })}
-            placeholder="120"
-            aria-invalid={err(`purchase_${ri}_qty`) ? true : undefined}
-            aria-describedby={err(`purchase_${ri}_qty`) ? `err-purchase-${ri}-qty` : undefined}
-            data-invalid={err(`purchase_${ri}_qty`) ? true : undefined}
-          />
-          <FieldError id={`err-purchase-${ri}-qty`} text={err(`purchase_${ri}_qty`)} />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Единица</span>
-          <input
-            className={styles.input}
-            value={r.unit}
-            onChange={(e) => setRow(r.key, { unit: e.target.value })}
-            placeholder="м"
-            list="erp-units"
-          />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Для изделия</span>
-          <select
-            className={styles.select}
-            value={r.item_index === null ? '' : String(r.item_index)}
-            onChange={(e) => setRow(r.key, {
-              item_index: e.target.value === '' ? null : Number(e.target.value),
-            })}
-            aria-label={`Для какого изделия, подсказка ${ri + 1}`}
-          >
-            <option value="">на весь заказ</option>
-            {items.map((it, ii) => (
-              <option key={ii} value={ii}>
-                {it.product_type.trim() || `Позиция ${ii + 1}`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={`${styles.field} ${styles.fieldWide}`}>
-          <span className={styles.fieldLabel}>Комментарий закупщику</span>
-          <input
-            className={styles.input}
-            value={r.manager_note}
-            onChange={(e) => setRow(r.key, { manager_note: e.target.value })}
-            placeholder="референс в сделке, поставщик прошлого раза, допуски по плотности"
-          />
-        </label>
-      </div>
-      <AttachmentPicker
-        label="+ Файлы подсказки"
-        hint="фото материала, скрин позиции поставщика, референс"
-        files={attach.files}
-        kind="purchase"
-        ownerKey={r.key}
-        onAdd={attach.add}
-        onRetry={attach.retry}
-        onRemove={attach.remove}
-      />
-    </div>
-  );
-}
-
 export function PurchaseListSection({
-  rows, items, attach, addRow, setRow, removeRow,
-  notRequired, onToggleNotRequired,
-  err = () => undefined, inputCls = () => styles.input,
+  attach, notRequired, onToggleNotRequired,
+  err = () => undefined,
 }) {
+  /**
+   * СТАТУС ЗАГРУЗКИ ЛИСТА (правки 07.09, п. 13: «показывать зелёный статус
+   * „Лист закупки загружен“, по той же логике, что и у ТЗ»).
+   *
+   * Считается по тем же файлам, что показывает `AttachmentPicker`, — второй
+   * список рядом разошёлся бы с первым. Сам `AttachmentPicker` не трогаем:
+   * он универсален, и чип «Лист закупки загружен» появился бы у макетов
+   * нанесений и у файлов упаковки.
+   */
+  const files = attach.files.filter((f) => f.kind === 'purchase_list');
+  const uploaded = files.find((f) => f.state === 'uploaded');
+  const uploading = files.find((f) => f.state === 'uploading');
+  const failed = files.find((f) => f.state === 'error');
+
   return (
     <>
       <p className={styles.subText}>
@@ -195,6 +74,33 @@ export function PurchaseListSection({
           className={err('purchase_list') ? styles.invalidBlock : undefined}
           data-invalid={err('purchase_list') ? true : undefined}
         >
+          {/*
+            Чип стоит НАД пикером, как у ТЗ: он отвечает на вопрос «готово ли»,
+            а имя файла и кнопки «убрать»/«загрузить заново» — ниже, у самого
+            файла. `role="status"` — тот же приём, что в `TzSection`.
+          */}
+          <div className={styles.checkRow}>
+            {uploading && (
+              <span className={`${styles.chip} ${styles.chipProgress}`} role="status">
+                Загружается…
+              </span>
+            )}
+            {!uploading && uploaded && (
+              <span className={`${styles.chip} ${styles.chipDone}`} role="status">
+                <Icon name="checkCircle" size={13} /> Лист закупки загружен
+              </span>
+            )}
+            {!uploading && !uploaded && failed && (
+              <>
+                <span className={`${styles.chip} ${styles.chipBlocked}`} role="status">
+                  <Icon name="alert" size={13} /> не загрузилось: {failed.error}
+                </span>
+                <Button variant="secondary" onClick={() => attach.retry(failed.uid)}>
+                  Загрузить заново
+                </Button>
+              </>
+            )}
+          </div>
           <AttachmentPicker
             label="+ Лист закупки *"
             hint="файл, который вы готовили к запуску: xlsx, pdf, фото"
@@ -209,34 +115,6 @@ export function PurchaseListSection({
           <FieldError id="err-purchase-list" text={err('purchase_list')} />
         </div>
       )}
-
-      <details className={styles.matSection}>
-        <summary>
-          Подсказки закупщику строками — необязательно{rows.length ? ` (${rows.length})` : ''}
-        </summary>
-        <p className={styles.subText}>
-          Не потребность, а пояснение: что именно искать, у кого брали прошлый
-          раз, какие допуски. Закупщик всё равно заводит свои строки — эти
-          он видит рядом с листом.
-        </p>
-
-        {rows.map((r, ri) => (
-          <PurchaseRow
-            key={r.key}
-            r={r} ri={ri} items={items} attach={attach}
-            setRow={setRow} removeRow={removeRow}
-            err={err} inputCls={inputCls}
-          />
-        ))}
-
-        <div className={styles.checkRow}>
-          <Button variant="secondary" onClick={addRow}>
-            + Подсказка ({rows.length})
-          </Button>
-        </div>
-      </details>
-
-      <DictionaryDatalist kind="unit" id="erp-units" />
     </>
   );
 }

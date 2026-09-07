@@ -46,6 +46,19 @@ function setup() {
     // с неработающим автосохранением и молчал об этом
     saveOrderDraft: vi.fn().mockResolvedValue({ id: 'draft-1' }),
     deleteOrderDraft: vi.fn().mockResolvedValue(true),
+    /**
+     * Подсказка поля «Менеджер» (правки 07.09, п. 1) грузит список сотрудников.
+     * Действие приезжает доменным чанком через `lazyScreen`, а тест монтирует
+     * форму напрямую — поэтому подставляем его здесь, как и `saveOrderDraft`
+     * выше. Данные (`employees`/`profilesList`) живут в ядре стора.
+     */
+    employees: [
+      { id: 'e1', full_name: 'Мария', role: 'production_head', active: true, profile_id: null },
+      { id: 'e2', full_name: 'Швея Света', role: 'worker', active: true, profile_id: null },
+    ],
+    profilesList: [],
+    employeesLoaded: true,
+    loadEmployees: vi.fn().mockResolvedValue(undefined),
   });
   render(
     <MemoryRouter>
@@ -222,5 +235,31 @@ describe('CreateOrderModal — тип производства', () => {
     expect(names).toEqual(
       expect.arrayContaining(['Пошив', 'Образцы', 'Крой', 'Готовое изделие']),
     );
+  });
+
+  /**
+   * ПОРЯДОК — часть требования (правки 07.09, п. 3): «Перенести „Образцы“,
+   * „Подряд“ и „Пошив“ в начало блока». Проверяется ПОЛНЫЙ список, а не
+   * «Образцы раньше Кроя»: частичное утверждение осталось бы зелёным, если
+   * плитка потеряется совсем.
+   */
+  it('порядок плиток — Образцы, Пошив, затем остальные', async () => {
+    setup();
+    const group = await screen.findByRole('radiogroup', { name: 'Тип производства' });
+    const names = within(group).getAllByRole('radio').map((b) => b.textContent);
+    expect(names).toEqual(['Образцы', 'Пошив', 'Готовое изделие', 'Крой', 'Без изделий']);
+  });
+
+  /**
+   * П. 8: у готового изделия кроя нет вовсе, и «на крое» было выбором без
+   * последствий — `buildRoute` всё равно ставил ветку нанесения в конец.
+   */
+  it('у готового изделия «Нанесение на» предлагает только «на готовом»', async () => {
+    setup();
+    const group = await screen.findByRole('radiogroup', { name: 'Тип производства' });
+    fireEvent.click(within(group).getByRole('radio', { name: 'Готовое изделие' }));
+    const select = screen.getByLabelText('Нанесение на');
+    const options = within(select).getAllByRole('option').map((o) => o.textContent);
+    expect(options).toEqual(['на готовом']);
   });
 });

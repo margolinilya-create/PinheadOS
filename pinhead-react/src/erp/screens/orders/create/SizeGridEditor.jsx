@@ -1,19 +1,33 @@
 import { useState } from 'react';
-import { SIZE_PRESETS, SIZE_PRESET_LABELS, gridTotal, toggleSize } from '../../../utils/orderForm';
+import {
+  SIZE_PRESETS, SIZE_PRESET_LABELS, gridTotal, rowTotal, toggleSize,
+} from '../../../utils/orderForm';
 import { Icon } from '../../../components/Icon';
+import { ScrollHintBox } from '../../../components/ScrollHintBox';
+import { useCompactLayout } from '../../../layout/useCompactLayout';
 import styles from '../../../styles';
 import { Button } from '../../../components/Button';
 
 /**
- * Редактор размерной сетки позиции: чипсы-пресеты размеров, строки цветов,
- * сумма по сетке = тираж позиции.
+ * Редактор размерной сетки позиции: чипсы-пресеты задают СОСТАВ КОЛОНОК,
+ * таблица — количества по цветам, итог по цвету справа, общий итог снизу.
  *
- * Вынесено из CreateOrderModal (1247 строк — самый большой файл проекта):
- * компонент самодостаточный, зависит только от grid/onChange.
+ * ТАБЛИЦА ВМЕСТО СТРОК С ПОДПИСЯМИ (правки заказчика 07.09, пп. 6–7:
+ * «строки по цветам, столбцы по размерам, в ячейках количество; справа
+ * показывать итог по цвету, отдельно общий итог по позиции»). Прежняя
+ * раскладка повторяла подпись размера у КАЖДОЙ ячейки каждого цвета —
+ * при трёх цветах и одиннадцати размерах это 33 подписи вместо одной шапки,
+ * а сверить два цвета по одному размеру глазами было нельзя вовсе: колонки
+ * не выстраивались.
+ *
+ * МОДЕЛЬ ДАННЫХ НЕ МЕНЯЛАСЬ: `size_grid` и так хранит `[{color, sizes}]` —
+ * ровно «цвет × размер × количество». Правка касается ВИДА ввода, поэтому
+ * ни миграции, ни `gridToPayload` здесь не участвуют.
  */
 export function SizeGridEditor({ grid, onChange }) {
   const sizes = grid?.sizes ?? [];
   const rows = grid?.rows ?? [];
+  const compact = useCompactLayout();
   const [preset, setPreset] = useState(() => {
     const inKids = sizes.some((s) => SIZE_PRESETS.kids.includes(s));
     const inAdult = sizes.some((s) => SIZE_PRESETS.adult.includes(s));
@@ -37,6 +51,18 @@ export function SizeGridEditor({ grid, onChange }) {
     if (!sizes.includes(v)) onToggleSize(v);
     setCustomSize('');
   };
+
+  const setColor = (ri, value) =>
+    set({ rows: rows.map((r, i) => (i === ri ? { ...r, color: value } : r)) });
+
+  const setQty = (ri, sz, value) =>
+    set({
+      rows: rows.map((r, i) => (
+        i === ri ? { ...r, sizes: { ...r.sizes, [sz]: Number(value) || 0 } } : r
+      )),
+    });
+
+  const removeRow = (ri) => set({ rows: rows.filter((_, i) => i !== ri) });
 
   const presetSizes = preset === 'custom' ? [] : SIZE_PRESETS[preset];
   const shownSizes = [...presetSizes, ...sizes.filter((s) => !presetSizes.includes(s))];
@@ -96,6 +122,127 @@ export function SizeGridEditor({ grid, onChange }) {
           </Button>
         </div>
       )}
+
+      {/*
+        КОМПАКТНАЯ РАСКЛАДКА ОБЯЗАТЕЛЬНА (правило проекта — экран с таблицей).
+        Одиннадцать размеров плюс цвет, итог и удаление — это тринадцать
+        колонок; на планшете 768px они не помещаются даже с прокруткой, а
+        поле ввода ужалось бы до нечитаемого. Карточка — на ЦВЕТ, внутри
+        подписанные поля размеров: тот же приём, что у `DeptLoadCard`,
+        и по той же причине — здесь МАТРИЦА, а не список.
+      */}
+      {sizes.length > 0 && compact && (
+        <div className={styles.dataCardList} role="list" aria-label="Размерная сетка по цветам">
+          {rows.map((row, ri) => (
+            <div key={ri} className={styles.dataCard} role="listitem">
+              <div className={styles.dataCardHead}>
+                <input
+                  className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
+                  placeholder="Цвет"
+                  value={row.color}
+                  aria-label={`Цвет ${ri + 1}`}
+                  onChange={(e) => setColor(ri, e.target.value)}
+                />
+                <Button
+                  variant="ghost"
+                  aria-label={`Убрать цвет ${ri + 1}`}
+                  onClick={() => removeRow(ri)}>
+                  <Icon name="x" size={14} />
+                </Button>
+              </div>
+              <div className={styles.dataCardFields}>
+                {sizes.map((sz) => (
+                  <label key={sz} className={styles.dataCardField}>
+                    <span className={styles.dataCardFieldLabel}>{sz}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      className={`${styles.input} ${styles.inputSm} ${styles.qtyCellInput}`}
+                      value={row.sizes[sz] ?? ''}
+                      aria-label={`${row.color || `Цвет ${ri + 1}`}, размер ${sz}`}
+                      onChange={(e) => setQty(ri, sz, e.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className={styles.dataCardGroup}>
+                <span className={styles.subText}>
+                  Итого по цвету: <strong>{rowTotal(row, sizes)} шт</strong>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {sizes.length > 0 && !compact && (
+        <ScrollHintBox className={styles.tableWrap} label="Размерная сетка: цвет × размер">
+          <table className={`${styles.table} ${styles.sizeGridTable}`}>
+            <thead>
+              <tr>
+                <th scope="col">Цвет</th>
+                {sizes.map((sz) => <th key={sz} scope="col">{sz}</th>)}
+                <th scope="col">Итого</th>
+                <th scope="col"><span className={styles.visuallyHidden}>Убрать цвет</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri}>
+                  {/*
+                    `scope="row"` у ячейки цвета: это МАТРИЦА, и без заголовков
+                    строки скринридер читает число без ответа на вопрос «чьё
+                    оно» (WCAG 1.3.1). У колонок — `scope="col"` выше.
+                  */}
+                  <th scope="row">
+                    <input
+                      className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
+                      placeholder="Цвет"
+                      value={row.color}
+                      aria-label={`Цвет ${ri + 1}`}
+                      onChange={(e) => setColor(ri, e.target.value)}
+                    />
+                  </th>
+                  {sizes.map((sz) => (
+                    <td key={sz}>
+                      <input
+                        type="number"
+                        min="0"
+                        className={`${styles.input} ${styles.inputSm} ${styles.qtyCellInput}`}
+                        value={row.sizes[sz] ?? ''}
+                        aria-label={`${row.color || `Цвет ${ri + 1}`}, размер ${sz}`}
+                        onChange={(e) => setQty(ri, sz, e.target.value)}
+                      />
+                    </td>
+                  ))}
+                  <td className={styles.sizeGridTotal}>{rowTotal(row, sizes)}</td>
+                  <td>
+                    <Button
+                      variant="ghost"
+                      aria-label={`Убрать цвет ${ri + 1}`}
+                      onClick={() => removeRow(ri)}>
+                      <Icon name="x" size={14} />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Всего</th>
+                {sizes.map((sz) => (
+                  <td key={sz} className={styles.sizeGridTotal}>
+                    {rows.reduce((s, r) => s + (Number(r.sizes?.[sz]) || 0), 0) || ''}
+                  </td>
+                ))}
+                <td className={styles.sizeGridTotal}>{total}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </ScrollHintBox>
+      )}
+
       {sizes.length > 0 && (
         <div className={styles.checkRow}>
           <Button variant="secondary" onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}>
@@ -103,43 +250,6 @@ export function SizeGridEditor({ grid, onChange }) {
           </Button>
         </div>
       )}
-      {sizes.length > 0 && rows.map((row, ri) => (
-        <div key={ri} className={styles.checkRow}>
-          <input
-            className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
-            placeholder="Цвет"
-            value={row.color}
-            aria-label={`Цвет ${ri + 1}`}
-            onChange={(e) =>
-              set({ rows: rows.map((r, i) => (i === ri ? { ...r, color: e.target.value } : r)) })}
-          />
-          {sizes.map((sz) => (
-            <label key={sz} className={styles.checkLabel} style={{ gap: 3 }}>
-              <span className={styles.subText}>{sz}</span>
-              <input
-                type="number"
-                min="0"
-                className={`${styles.input} ${styles.inputSm} ${styles.qtyCellInput}`}
-                value={row.sizes[sz] ?? ''}
-                aria-label={`${row.color || 'цвет'} ${sz}`}
-                onChange={(e) =>
-                  set({
-                    rows: rows.map((r, i) =>
-                      i === ri
-                        ? { ...r, sizes: { ...r.sizes, [sz]: Number(e.target.value) || 0 } }
-                        : r),
-                  })}
-              />
-            </label>
-          ))}
-          <Button
-            variant="ghost"
-            aria-label="Убрать цвет"
-            onClick={() => set({ rows: rows.filter((_, i) => i !== ri) })}>
-            <Icon name="x" size={14} />
-          </Button>
-        </div>
-      ))}
       <div className={styles.subText} aria-live="polite">
         Сумма по сетке: <strong>{total} шт</strong>
         {total > 0 && ' — подставится в количество позиции'}
@@ -147,5 +257,3 @@ export function SizeGridEditor({ grid, onChange }) {
     </div>
   );
 }
-
-/** Сворачиваемая секция формы: заголовок с chevron + краткое резюме, когда свёрнута */

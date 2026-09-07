@@ -11,8 +11,6 @@ import { pluralize } from '../../../utils/i18n';
 import {
   EMPTY_ITEM,
   clearOrderDraft,
-  emptyPurchaseRow,
-  isPurchaseRowEmpty,
   effectiveQty,
   emptyPrint,
   emptyOrderForm,
@@ -23,6 +21,7 @@ import {
   normalizeDraft,
   validateOrderForm,
 } from '../../utils/orderForm';
+import { managerOptions } from '../../utils/managers';
 import { factoryToday } from '../../../utils/date';
 import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
@@ -88,48 +87,43 @@ function buildTzItems(items, routes, deptByCode) {
 export function CreateOrderModal({ onClose, draftId = null }) {
   const createOrder = useErpStore((s) => s.createOrder);
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
-  const uploadOrderPreview = useErpStore((s) => s.uploadOrderPreview);
   const departments = useErpStore((s) => s.departments);
   const [saving, setSaving] = useState(false);
-  const [previewFile, setPreviewFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const fileInputRef = useRef(null);
-
-  const acceptPreview = (file) => {
-    if (!file) return;
-    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
-      toast.error('Превью: только JPG/PNG/WEBP');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Превью: файл больше 2 МБ');
-      return;
-    }
-    setPreviewFile(file);
-    setPreviewUrl((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return URL.createObjectURL(file);
-    });
-  };
-
-  // Ctrl+V из буфера (приём kontora24): вне текстовых полей
-  useEffect(() => {
-    const onPaste = (e) => {
-      const t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && t.type !== 'file') return;
-      const file = [...(e.clipboardData?.files ?? [])][0];
-      if (file) acceptPreview(file);
-    };
-    window.addEventListener('paste', onPaste);
-    return () => window.removeEventListener('paste', onPaste);
-  }, []);
+  /*
+    БЛОКА «ПРЕВЬЮ ЗАКАЗА» БОЛЬШЕ НЕТ (правки 07.09, п. 15). Вместе с ним ушли
+    состояние `previewFile`/`previewUrl`, приём Ctrl+V на всё окно и вызов
+    `uploadOrderPreview` после создания. Само действие стора остаётся: превью
+    грузится и из карточки заказа, где им пользуются.
+  */
   // Дата запуска по умолчанию — сегодня; черновик восстанавливается из localStorage
   const initialLaunch = useMemo(() => factoryToday(), []);
-  const { drafts, saveDraftRow, deleteDraftRow } = useErpStore(useShallow((s) => ({
+  const {
+    drafts, saveDraftRow, deleteDraftRow,
+    employees, profilesList, employeesLoaded, loadEmployees,
+  } = useErpStore(useShallow((s) => ({
     drafts: s.orderDrafts,
     saveDraftRow: s.saveOrderDraft,
     deleteDraftRow: s.deleteOrderDraft,
+    employees: s.employees,
+    profilesList: s.profilesList,
+    employeesLoaded: s.employeesLoaded,
+    loadEmployees: s.loadEmployees,
   })));
+  /**
+   * Список сотрудников под подсказку поля «Менеджер» (правки 07.09, п. 1).
+   *
+   * Грузится ЗДЕСЬ, а не берётся готовым: `erp_bootstrap` отдаёт только
+   * `my_employee` (свой цех и роль), а массива сотрудников в пакете нет вовсе —
+   * на странице заказов он пуст. Отказ загрузки поле не ломает: подсказка
+   * пропадёт, свободный ввод останется.
+   */
+  useEffect(() => {
+    if (!employeesLoaded) loadEmployees();
+  }, [employeesLoaded, loadEmployees]);
+  const managers = useMemo(
+    () => managerOptions(employees, profilesList),
+    [employees, profilesList],
+  );
   /**
    * Открытый черновик берётся ОДИН РАЗ, при монтировании: дальше форма — сама
    * себе источник правды, и перечитывание строки из стора после каждого
@@ -146,12 +140,13 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const [rowId, setRowId] = useState(draftId);
   const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
   const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
-  /**
-   * Лист закупки (правки заказчика 16.08). Потребность формирует МЕНЕДЖЕР при
-   * создании заказа — раньше её вбивал закупщик заново на своём экране.
-   * Строки уезжают в заказ той же транзакцией (секция `materials` RPC).
-   */
-  const [purchase, setPurchase] = useState(() => restoredDraft?.purchase ?? []);
+  /*
+    СТРОК-ПОДСКАЗОК ЛИСТА ЗАКУПКИ БОЛЬШЕ НЕТ (правки 07.09, п. 14): состояние
+    `purchase`, его действия и секция `materials` payload ушли вместе с блоком.
+    Потребность задаёт ФАЙЛ (`kind: 'purchase_list'`), а сказать словами есть
+    куда — «Заметки к заказу» и комментарий. Восстановленный черновик со
+    строками не падает: `normalizeDraft` их вернёт, а форма просто не покажет.
+  */
   /**
    * Заметки к заказу (правка 22.08, п. 5.8). Уровня ЗАКАЗА, а не позиции,
    * и живут в черновике вместе с формой: File-объекты в них не попадают —
@@ -165,15 +160,6 @@ export function CreateOrderModal({ onClose, draftId = null }) {
    * сериализовался бы в `{}` молча.
    */
   const attach = useAttachmentUploads('new');
-  const addPurchaseRow = () =>
-    setPurchase((rows) => [...rows, emptyPurchaseRow(crypto.randomUUID())]);
-  const setPurchaseRow = (key, patch) =>
-    setPurchase((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const removePurchaseRow = (key) => {
-    setPurchase((rows) => rows.filter((r) => r.key !== key));
-    // Файлы строки уходят вместе с ней — и из состояния, и из бакета
-    attach.dropOwner(key);
-  };
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
   /**
@@ -409,8 +395,8 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     (f) => f.kind === 'purchase_list' && f.state === 'uploaded',
   );
   const validation = useMemo(
-    () => validateOrderForm(form, items, undefined, purchase, hasPurchaseList),
-    [form, items, purchase, hasPurchaseList],
+    () => validateOrderForm(form, items, undefined, hasPurchaseList),
+    [form, items, hasPurchaseList],
   );
   const fieldErrors = submitted ? validation.errors : {};
   const err = (key) => fieldErrors[key];
@@ -438,9 +424,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        const empty = isFormEmpty(form, items, initialLaunch)
-          && purchase.every(isPurchaseRowEmpty);
-        if (empty) {
+        if (isFormEmpty(form, items, initialLaunch)) {
           if (rowIdRef.current) {
             const id = rowIdRef.current;
             rowIdRef.current = null;
@@ -453,7 +437,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         }
         const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
         const row = await saveDraftRow(
-          rowIdRef.current, title, { form, items, purchase, notes });
+          rowIdRef.current, title, { form, items, notes });
         if (row && !rowIdRef.current) {
           rowIdRef.current = row.id;
           setRowId(row.id);
@@ -464,7 +448,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [form, items, purchase, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
+  }, [form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
 
   const resetDraft = async () => {
     clearOrderDraft();
@@ -476,7 +460,6 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     }
     setForm(emptyOrderForm(initialLaunch));
     setItems([{ ...EMPTY_ITEM }]);
-    setPurchase([]);
     setDraftRestored(false);
     setSubmitted(false);
   };
@@ -485,7 +468,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const closingRef = useRef(false);
   const requestClose = async () => {
     if (saving || closingRef.current) return;
-    if (isFormEmpty(form, items, initialLaunch) && purchase.every(isPurchaseRowEmpty)) {
+    if (isFormEmpty(form, items, initialLaunch)) {
       clearOrderDraft();
       onClose();
       return;
@@ -534,12 +517,12 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const submit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
-    const { errors } = validateOrderForm(form, items, undefined, purchase, hasPurchaseList);
+    const { errors } = validateOrderForm(form, items, undefined, hasPurchaseList);
     if (Object.keys(errors).length > 0) {
       // раскрыть секции с ошибками и проскроллить к первому ошибочному полю
       const inMain = Boolean(errors.title || errors.launch_date || errors.due_date);
       const inItems = Object.keys(errors).some((k) => k.startsWith('item_'));
-      const inPurchase = Object.keys(errors).some((k) => k.startsWith('purchase_'));
+      const inPurchase = Boolean(errors.purchase_list);
       setOpen((o) => ({
         ...o,
         main: o.main || inMain,
@@ -615,20 +598,6 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     let created = null;
     try {
     /**
-     * Лист закупки: пустые строки отбрасываются, `item_index` пересобирается
-     * под НОВУЮ нумерацию позиций — та же карта, что у ТЗ. Без неё материал,
-     * привязанный к третьей позиции, уехал бы к другой, если вторая пустая
-     * и в заказ не попала.
-     */
-    /**
-     * Ключи строк В ТОМ ЖЕ ПОРЯДКЕ, в каком они уедут в секцию `materials`, —
-     * по ним считается `material_index` файлов. Считать индекс по положению
-     * в состоянии формы нельзя: пустые строки отбрасываются, и привязка
-     * сдвинулась бы у всех, кто ниже.
-     */
-    const purchaseRows = purchase.filter((r) => !isPurchaseRowEmpty(r) && r.name.trim());
-    const purchaseKeys = purchaseRows.map((r) => r.key);
-    /**
      * Ключи заметок В ТОМ ЖЕ ПОРЯДКЕ, в каком они уедут в секцию `notes`:
      * по ним изображение находит свою заметку. Отбор здесь обязан совпадать
      * с отбором в самой секции — иначе подпись уедет к соседней картинке.
@@ -637,30 +606,18 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       .filter((n) => n.text.trim() || attach.files.some(
         (f) => f.ownerKey === n.key && f.state === 'uploaded'))
       .map((n) => n.key);
-    const materials = purchaseRows
-      .map((r) => {
-        const idx = r.item_index === null ? null : formToPayloadIndex.get(r.item_index);
-        return {
-          // Материал позиции, которая выпала из заказа, становится общим
-          // по заказу, а не теряется вместе с ней: потребность реальна
-          item_index: idx === undefined ? null : idx,
-          kind: r.kind,
-          role: r.role,
-          name: r.name.trim(),
-          color: r.color.trim() || undefined,
-          qty_expected: Number(r.qty_expected) || null,
-          unit: r.unit.trim() || undefined,
-          manager_note: r.manager_note.trim() || undefined,
-          source: 'purchase',
-          status: 'pending',
-        };
-      });
 
     created = await createOrder({
-      materials,
+      /*
+        Секция `materials` уезжает ПУСТОЙ (правки 07.09, п. 14): строки-подсказки
+        менеджера убраны, а строки закупки заводит закупщик у себя. Ключ секции
+        оставлен — RPC его принимает, и убирать его из контракта ради пустого
+        массива значило бы менять функцию БД без нужды.
+      */
+      materials: [],
       // Вложения блоков: упаковка, техблок, лист закупки. Файлы уже в бакете —
       // грузятся при выборе, RPC только привязывает их одной транзакцией
-      attachments: attach.payload(purchaseKeys, noteKeys),
+      attachments: attach.payload([], noteKeys),
       /**
        * Заметки к заказу (п. 5.8). Совсем пустая не едет: человек мог нажать
        * «+ Заметка» и передумать — то же правило, что у строк листа закупки
@@ -680,7 +637,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       manager: form.manager.trim() || undefined,
       launch_date: form.launch_date || undefined,
       due_date: form.due_date || undefined,
-      buffer_days: Math.max(0, Number(form.buffer_days) || 0),
+      // `buffer_days` не шлём (правки 07.09, п. 2) — RPC подставит дефолт 0
       packaging: form.packaging,
       packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || undefined : undefined,
       stickers: form.stickers,
@@ -766,9 +723,6 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         };
       }),
     });
-    if (created && previewFile) {
-      await uploadOrderPreview(created.id, previewFile);
-    }
     } finally {
       // `setSaving(false)` обязан быть в finally. Внутри два сетевых вызова,
       // и брошенное исключение (нет сети, CORS) оставило бы кнопку в
@@ -795,11 +749,10 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const itemsSummary =
     `${items.length} ${pluralize(items.length, 'позиция', 'позиции', 'позиций')}` +
     ` · ${printsCount} ${pluralize(printsCount, 'нанесение', 'нанесения', 'нанесений')}`;
-  const purchaseFilled = purchase.filter((r) => !isPurchaseRowEmpty(r)).length;
   const purchaseSummary = form.purchase_required === false
     ? 'закупка не требуется'
     : hasPurchaseList
-      ? `лист приложен${purchaseFilled ? ` · подсказок: ${purchaseFilled}` : ''}`
+      ? 'лист приложен'
       : 'лист не приложен';
   const tzUploaded = tzDocs.filter((d) => d.state === 'uploaded').length;
   const tzSummary = tzUploading
@@ -813,7 +766,6 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     `стикеры: ${STICKERS_LABELS[form.stickers]}`,
     form.no_chestny_znak ? 'без ЧЗ' : null,
-    previewFile ? 'превью добавлено' : null,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -907,11 +859,27 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Менеджер</span>
+            {/*
+              ВЫПАДАЮЩИЙ СПИСОК ПОВЕРХ СВОБОДНОГО ВВОДА (правки 07.09, п. 1).
+              Не `select`: в `erp_employees` менеджеров сопровождения нет ни
+              одного (пять человек — директор и четыре руководителя
+              производства), а в заведённых заказах менеджеры записаны
+              вразнобой — «Никита», «никита», «игорь». Закрытый список сегодня
+              был бы пуст, то есть поле стало бы незаполнимым; `datalist`
+              убирает разнобой и не запирает заказ из-за незаведённого
+              сотрудника — тот же приём, что у справочников раздела.
+            */}
             <input
               className={styles.input}
+              list="erp-managers"
               value={form.manager}
               onChange={(e) => setForm({ ...form, manager: e.target.value })}
+              placeholder="кто ведёт заказ"
+              maxLength={140}
             />
+            <datalist id="erp-managers">
+              {managers.map((m) => <option key={m} value={m} />)}
+            </datalist>
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Дата запуска</span>
@@ -949,17 +917,13 @@ export function CreateOrderModal({ onClose, draftId = null }) {
             />
             <FieldError id="err-order-due" text={err('due_date')} />
           </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Буфер, дн.</span>
-            <input
-              type="number"
-              min="0"
-              className={styles.input}
-              value={form.buffer_days}
-              onChange={(e) => setForm({ ...form, buffer_days: e.target.value.replace('-', '') })}
-            />
-            <span className={styles.subText}>Запас до срока клиента</span>
-          </label>
+          {/*
+            ПОЛЯ «БУФЕР, ДН.» БОЛЬШЕ НЕТ (правки 07.09, п. 2). В расчёте сроков
+            оно не участвовало никогда — ни `stagePlan.defaultPlannedEnd`,
+            ни просрочка его не читают, — и на боевой базе стояло нулём
+            у 46 заказов из 47. Колонка `erp_orders.buffer_days` остаётся:
+            её несут заведённые заказы, и история правок её подписывает.
+          */}
         </div>
         </FormSection>
 
@@ -1036,13 +1000,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         >
         <PurchaseListSection
           attach={attach}
-          rows={purchase}
-          items={items}
           err={err}
-          inputCls={inputCls}
-          addRow={addPurchaseRow}
-          setRow={setPurchaseRow}
-          removeRow={removePurchaseRow}
           notRequired={form.purchase_required === false}
           onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
         />
@@ -1108,46 +1066,6 @@ export function CreateOrderModal({ onClose, draftId = null }) {
             />
             Без Честного знака
           </label>
-        </div>
-
-        <div
-          className={styles.dropZone}
-          role="button"
-          tabIndex={0}
-          aria-label="Превью заказа: перетащите картинку, вставьте Ctrl+V или кликните"
-          onClick={() => fileInputRef.current?.click()}
-          // Space — такая же активация, как Enter, для role="button" (WCAG 2.1.1)
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
-            if (e.target !== e.currentTarget) return; // вложенной кнопке — её событие
-            e.preventDefault();
-            fileInputRef.current?.click();
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); acceptPreview(e.dataTransfer.files?.[0]); }}
-        >
-          {previewUrl ? (
-            <>
-              <img src={previewUrl} alt="Превью заказа" className={styles.dropZoneImg} />
-              <Button
-                variant="ghost"
-                onClick={(e) => { e.stopPropagation(); setPreviewFile(null); setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; }); }}>
-                <span className={styles.cellWithIcon}><Icon name="x" size={14} /> Убрать</span>
-              </Button>
-            </>
-          ) : (
-            <span className={styles.subText}>
-              <Icon name="image" size={14} /> Превью заказа: перетащите картинку сюда, вставьте <kbd>Ctrl+V</kbd> или кликните
-              (JPG/PNG/WEBP до 2 МБ)
-            </span>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            style={{ display: 'none' }}
-            onChange={(e) => acceptPreview(e.target.files?.[0])}
-          />
         </div>
 
         </FormSection>

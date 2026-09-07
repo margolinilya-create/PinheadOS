@@ -26,9 +26,14 @@ export const ORDER_DRAFT_KEY = 'erp_order_draft';
  * а всё, что их показывает (`OrderItemSection`, `TzBlock`), берёт ключи из самих
  * данных, а не из этого списка. В редакторе размер вне пресета тоже виден —
  * `SizeGridEditor` дописывает к пресету активные размеры сетки.
+ *
+ * `ONE` (безразмерный) добавлен правкой 07.09, п. 7: заказчик перечислил его
+ * среди колонок сетки. Шапки, бейсболки и сумки шьются одним размером, и до
+ * правки его приходилось заводить режимом «Своя» на каждой позиции. `3XS`
+ * и `5XL` остаются — они встречаются в заведённых заказах.
  */
 export const SIZE_PRESETS: Record<'adult' | 'kids', readonly string[]> = {
-  adult: ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'],
+  adult: ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
   kids: ['92', '98', '104', '110', '116', '122', '128', '134', '140', '146'],
 };
 
@@ -145,6 +150,11 @@ export interface DraftItem {
 /**
  * Строка листа закупки в форме создания (правки заказчика 16.08).
  *
+ * ФОРМА ИХ БОЛЬШЕ НЕ ПОКАЗЫВАЕТ И НЕ СОХРАНЯЕТ (правки 07.09, п. 14) —
+ * тип остался ради ВОССТАНОВЛЕНИЯ: снимки, сделанные до правки, лежат
+ * и в localStorage, и в `erp_order_drafts`, и `normalizeDraft` обязан
+ * разбирать их, не падая. При первом же автосохранении секция уходит.
+ *
  * `key` — локальный идентификатор строки, только для React и правок: в payload
  * он не уезжает. Индекс массива для этого не годится — удаление средней строки
  * пересобрало бы все поля ниже.
@@ -193,7 +203,15 @@ export interface DraftForm {
   manager: string;
   launch_date: string;
   due_date: string;
-  buffer_days: string | number;
+  /**
+   * «Буфер, дн.» УБРАН ИЗ ФОРМЫ (правки заказчика 07.09, п. 2).
+   *
+   * Колонка `erp_orders.buffer_days` остаётся: её несут заведённые заказы
+   * (46 из 47 стоят 0, один 5), и история правок подписывает её в
+   * `HistorySection`. Убрана ровно точка ВВОДА — в расчёте дедлайнов поле
+   * не участвовало никогда: `stagePlan.defaultPlannedEnd` считает от
+   * `due_date` и `launch_date`, просрочка — от `due_date`.
+   */
   packaging: string;
   packaging_note: string;
   stickers: string;
@@ -269,7 +287,6 @@ export function emptyOrderForm(launchDate: string = factoryToday()): DraftForm {
     manager: '',
     launch_date: launchDate,
     due_date: '',
-    buffer_days: '0',
     packaging: 'none',
     packaging_note: '',
     stickers: 'none',
@@ -277,6 +294,40 @@ export function emptyOrderForm(launchDate: string = factoryToday()): DraftForm {
     no_chestny_znak: false,
     purchase_required: true,
   };
+}
+
+// --- Куда наносится: «на крое» / «на готовом» ---------------------------------
+
+export const BRANDING_ON_LABELS: Record<string, string> = {
+  cut: 'на крое',
+  finished: 'на готовом',
+};
+
+/**
+ * Допустимые значения «Нанесение на» для типа производства
+ * (правки заказчика 07.09, п. 8).
+ *
+ * У ГОТОВОГО ИЗДЕЛИЯ КРОЯ НЕТ ВОВСЕ: `BASE_CHAIN.ready_garment` закройного
+ * цеха не содержит, и `buildRoute` в любом случае ставит ветку нанесения
+ * в конец цепочки (`brandAfterCut` там ложно по построению). То есть «на крое»
+ * был выбором БЕЗ ПОСЛЕДСТВИЙ — человек выбирал одно, система делала другое,
+ * а ТЗ уезжало цеху с неправдой.
+ */
+export function brandingOnOptions(productionType: string): string[] {
+  return productionType === 'ready_garment' ? ['finished'] : ['cut', 'finished'];
+}
+
+/**
+ * Привести уже выбранное значение к допустимому.
+ *
+ * Это ВТОРАЯ ПОЛОВИНА правила, и без неё первая ничего не решает: селект
+ * про смену типа производства не знает, и позиция, переключённая на «Готовое
+ * изделие» ПОСЛЕ выбора «на крое», уехала бы в payload с `branding_on: 'cut'`.
+ * Поэтому правило живёт здесь, а не в разметке.
+ */
+export function normalizeBrandingOn(productionType: string, brandingOn: string): string {
+  const allowed = brandingOnOptions(productionType);
+  return allowed.includes(brandingOn) ? brandingOn : allowed[0];
 }
 
 // --- Размерная сетка ----------------------------------------------------------
@@ -290,6 +341,22 @@ export function gridTotal(grid: DraftGrid | null | undefined): number {
     (sum, row) => sum + active.reduce((s, sz) => s + (Number(row.sizes?.[sz]) || 0), 0),
     0,
   );
+}
+
+/**
+ * Итог по ОДНОМУ цвету (правки 07.09, п. 6: «Справа показывать итог по цвету,
+ * отдельно общий итог по позиции»).
+ *
+ * Считается по тем же АКТИВНЫМ размерам, что и `gridTotal`: иначе сумма строк
+ * не сошлась бы с общим итогом ровно тогда, когда человек снял чипс размера,
+ * не обнулив количества.
+ */
+export function rowTotal(
+  row: SizeGridRow | null | undefined,
+  sizes: readonly string[] = [],
+): number {
+  if (!row) return 0;
+  return sizes.reduce((s, sz) => s + (Number(row.sizes?.[sz]) || 0), 0);
 }
 
 /** Эффективное количество позиции: сетка заполнена → сумма сетки, иначе ручной ввод */
@@ -370,7 +437,6 @@ export function isFormEmpty(
     !s(form.manager) &&
     (!form.launch_date || form.launch_date === initialLaunchDate) &&
     !form.due_date &&
-    !(Number(form.buffer_days) > 0) &&
     form.packaging === 'none' &&
     form.stickers === 'none' &&
     !s(form.packaging_note) &&
@@ -399,10 +465,15 @@ export function validateOrderForm(
   form: DraftForm,
   items: DraftItem[],
   today: string = factoryToday(),
-  purchase: DraftPurchaseRow[] = [],
   /**
-   * Приложен ли ФАЙЛ листа закупки (правки 20.08). Пятым аргументом и
-   * необязательным — прежние вызовы обязаны работать как раньше.
+   * Приложен ли ФАЙЛ листа закупки (правки 20.08).
+   *
+   * БЫЛ ПЯТЫМ, СТАЛ ЧЕТВЁРТЫМ (правки 07.09, п. 14): между ним и `today`
+   * стоял список строк-подсказок, а строк больше нет. Сдвиг безопасен —
+   * вызывающих у функции два, оба в `CreateOrderModal`, и оба правятся тем же
+   * коммитом; забытый вызывающий получил бы `hasPurchaseList = []`, то есть
+   * истинное значение, и правило «лист либо отметка» замолчало бы. Сторож —
+   * `orderForm.test.ts`, блок «лист закупки».
    */
   hasPurchaseList = false,
 ): OrderFormValidation {
@@ -476,15 +547,6 @@ export function validateOrderForm(
   });
 
   /**
-   * Лист закупки. Начатая строка обязана нести НАЗВАНИЕ и КОЛИЧЕСТВО — оба поля
-   * подписаны звёздочкой, но не проверялись вовсе: заказ уезжал со строкой без
-   * количества, а `supply.missingPlan` требует `qty_expected`, чтобы закрыть
-   * закупку автоматически. То есть заказ создавался и молча вставал.
-   *
-   * Совсем пустая строка — не ошибка: её отбрасывает сам сабмит
-   * (`isPurchaseRowEmpty`), и человек мог просто нажать «+ Позиция закупки».
-   */
-  /**
    * ОДНО ИЗ ДВУХ ОБЯЗАТЕЛЬНО (документ 20.08): либо приложен файл листа
    * закупки, либо явно отмечено «Закупка не требуется». «Если не выполнено
    * ни одно условие — заказ создать нельзя».
@@ -497,19 +559,6 @@ export function validateOrderForm(
     errors.purchase_list = 'Приложите лист закупки или отметьте «Закупка не требуется»';
     missing.push('Лист закупки');
   }
-
-  purchase.forEach((r, i) => {
-    if (isPurchaseRowEmpty(r)) return;
-    const pos = purchase.length > 1 ? ` (строка ${i + 1})` : '';
-    if (!r.name.trim()) {
-      errors[`purchase_${i}_name`] = 'Укажите материал';
-      missing.push(`Материал закупки${pos}`);
-    }
-    if (!(Number(r.qty_expected) > 0)) {
-      errors[`purchase_${i}_qty`] = 'Количество должно быть больше 0';
-      missing.push(`Кол-во закупки${pos}`);
-    }
-  });
 
   return { errors, missing, invalid };
 }

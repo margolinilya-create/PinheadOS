@@ -9,7 +9,7 @@ import { useErpSearch } from '../store/useErpSearch';
 import { useErpAccess } from '../store/useErpAccess';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
-import { daysLeft, formatDateShort, isUrgent } from '../utils/time';
+import { daysLeft, isUrgent } from '../utils/time';
 import { isOrderReadyToShip, isOrderOverdue } from '../utils/stageUi';
 import { ORDER_STATUS_LABELS } from '../types';
 import { confirm } from '../../store/useConfirmStore';
@@ -69,22 +69,32 @@ export default function OrdersScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get('new') === '1');
   /**
-   * ЧЕРНОВИКИ ЗАКАЗОВ (правка 22.08, п. 5.5). Их несколько, они в базе,
-   * и открытый — в состоянии: `null` означает «чистая форма», id —
-   * «продолжаем именно этот». Раньше черновик был один и подставлялся сам,
-   * поэтому подготовить два заказа параллельно было невозможно.
+   * ЧЕРНОВИК ЗАКАЗА (правка 22.08, п. 5.5; список убран 07.09, п. 15).
+   *
+   * Снимок формы по-прежнему пишется в `erp_order_drafts` — без него закрытая
+   * по ошибке форма теряла бы всё набранное. Видимого списка больше нет,
+   * поэтому «+ Новый заказ» открывает САМЫЙ СВЕЖИЙ черновик: иначе продолжить
+   * прерванное было бы нечем, а строка копилась бы в базе мусором.
    */
-  const [openDraftId, setOpenDraftId] = useState(null);
   const {
-    orderDrafts, orderDraftsLoaded, orderDraftsError,
-    loadOrderDrafts, deleteOrderDraft,
+    orderDrafts, orderDraftsLoaded, loadOrderDrafts,
   } = useErpStore(useShallow((s) => ({
     orderDrafts: s.orderDrafts,
     orderDraftsLoaded: s.orderDraftsLoaded,
-    orderDraftsError: s.orderDraftsError,
     loadOrderDrafts: s.loadOrderDrafts,
-    deleteOrderDraft: s.deleteOrderDraft,
   })));
+  /**
+   * Самый свежий черновик. `orderDrafts` приходит отсортированным по
+   * `updated_at` убыванием (см. `orderDraftsSlice`), но опираться на порядок
+   * чужого запроса нельзя — он однажды поменяется молча.
+   */
+  const latestDraftId = useMemo(() => {
+    let best = null;
+    for (const d of orderDrafts) {
+      if (!best || String(d.updated_at) > String(best.updated_at)) best = d;
+    }
+    return best?.id ?? null;
+  }, [orderDrafts]);
   // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
   const query = useErpSearch((s) => s.query);
   const setQuery = useErpSearch((s) => s.setQuery);
@@ -468,7 +478,7 @@ export default function OrdersScreen() {
         {canManageOrders && (
           <Button
             variant="primary"
-            onClick={() => { setOpenDraftId(null); setShowCreate(true); }}
+            onClick={() => setShowCreate(true)}
           >
             + Новый заказ
           </Button>
@@ -476,57 +486,18 @@ export default function OrdersScreen() {
       </div>
 
       {/*
-        Список черновиков (п. 5.5): «на странице заказов нужен понятный доступ
-        к списку черновиков». Свёрнут по умолчанию — это не рабочая очередь,
-        а личная папка незаконченного; в заголовке счётчик, чтобы свёрнутый
-        блок не был неотличим от пустого.
+        БЛОКА «ЧЕРНОВИКИ ЗАКАЗОВ» БОЛЬШЕ НЕТ (правки заказчика 07.09, п. 15 —
+        аннотация указывает на группу из семи элементов с кнопками
+        «Продолжить» и «Удалить»).
+
+        САМО АВТОСОХРАНЕНИЕ ОСТАЛОСЬ, и это следствие удаления списка, а не
+        недосмотр: форма пишет снимок в `erp_order_drafts` каждые 500 мс, и
+        снять его вместе со списком значило бы терять набранный заказ при
+        случайном закрытии формы. Продолжить прерванное можно и без списка —
+        `+ Новый заказ` открывает ПОСЛЕДНИЙ черновик (`latestDraftId`), а
+        полоса «Восстановлен черновик · Очистить» внутри формы от него
+        отказывается: без неё восстановление стало бы навязанным.
       */}
-      {canManageOrders && (orderDrafts.length > 0 || orderDraftsError) && (
-        <details className={styles.matSection}>
-          <summary className={styles.subText}>
-            Черновики заказов — {orderDrafts.length}
-          </summary>
-          {orderDraftsError ? (
-            <div className={styles.checkRow}>
-              <span className={styles.subText}>{orderDraftsError}</span>
-              <Button variant="ghost" size="sm" onClick={loadOrderDrafts}>Повторить</Button>
-            </div>
-          ) : (
-            <ul className={styles.stackTight}>
-              {orderDrafts.map((d) => (
-                <li key={d.id} className={styles.checkRow}>
-                  <span>{d.title || 'Без названия'}</span>
-                  <span className={styles.subText}>
-                    изменён {formatDateShort(d.updated_at)}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => { setOpenDraftId(d.id); setShowCreate(true); }}
-                  >
-                    Продолжить
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      const ok = await confirm({
-                        title: 'Удалить черновик?',
-                        message: `«${d.title || 'Без названия'}» будет удалён безвозвратно.`,
-                        confirmLabel: 'Удалить',
-                        variant: 'danger',
-                      });
-                      if (ok) await deleteOrderDraft(d.id);
-                    }}
-                  >
-                    Удалить
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </details>
-      )}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="заказы" />}
       {/* Скелетон на `!loaded && !loadError`, а НЕ на `loading` (правка 03.09):
@@ -678,10 +649,9 @@ export default function OrdersScreen() {
       {showCreate && canManageOrders && (
         <Suspense fallback={null}>
         <CreateOrderModal
-          draftId={openDraftId}
+          draftId={latestDraftId}
           onClose={() => {
             setShowCreate(false);
-            setOpenDraftId(null);
             if (searchParams.get('new')) {
               setSearchParams((prev) => {
                 const next = new URLSearchParams(prev);

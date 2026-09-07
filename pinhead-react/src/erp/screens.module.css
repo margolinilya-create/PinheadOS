@@ -546,6 +546,36 @@ a.cellTitle:hover { color: var(--accent); }
   gap: 6px;
 }
 .sizeGrid { display: flex; flex-direction: column; gap: 6px; padding: var(--space-sm) 0 2px; }
+/* Таблица сетки «цвет × размер» (правки 07.09, пп. 6–7).
+   Отступы ячеек СВОИ: общий `.table td` рассчитан на шесть-семь колонок текста,
+   а здесь их до тринадцати, и на 12px по горизонтали таблица уезжает за край
+   даже на десктопе. Объявлена рядом со своей базой `.sizeGrid` — правило
+   «уточнение живёт в одном модуле с базой» (см. stylesResolve.test.ts). */
+.sizeGridTable th,
+.sizeGridTable td {
+  padding: 6px var(--space-sm);
+  vertical-align: middle;
+}
+/* Заголовок строки — цвет: слева, обычным весом, без разрядки шапки колонок */
+.sizeGridTable tbody th,
+.sizeGridTable tfoot th {
+  text-transform: none;
+  letter-spacing: normal;
+  background: transparent;
+  font-weight: 600;
+}
+.sizeGridTotal {
+  text-align: right;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text);
+}
+.sizeGridTable tfoot td,
+.sizeGridTable tfoot th {
+  border-top: 1px solid var(--border-light);
+  border-bottom: none;
+  background: var(--surface);
+}
 .gridDetails summary { cursor: pointer; padding: 2px 0; }
 
 /* ─── Форма заказа: аккордеон, черновик, инлайн-валидация, чипсы размеров ─── */

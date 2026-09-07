@@ -10,6 +10,7 @@ import {
   emptyOrderForm,
   gridToPayload,
   gridTotal,
+  rowTotal,
   isFormEmpty,
   isItemEmpty,
   loadOrderDraft,
@@ -19,6 +20,8 @@ import {
   isPurchaseRowEmpty,
   toggleSize,
   validateOrderForm,
+  brandingOnOptions,
+  normalizeBrandingOn,
   type DraftItem,
 } from './orderForm';
 import type { DraftGrid } from './orderForm';
@@ -27,6 +30,40 @@ import { factoryToday } from '../../utils/date';
 function item(patch: Partial<DraftItem> = {}): DraftItem {
   return { ...EMPTY_ITEM, prints: [], size_grid: null, ...patch };
 }
+
+// ─── Нанесение «на крое» / «на готовом» (правки 07.09, п. 8) ─────────────────
+
+describe('brandingOnOptions / normalizeBrandingOn', () => {
+  it('у готового изделия остаётся только «на готовом»', () => {
+    expect(brandingOnOptions('ready_garment')).toEqual(['finished']);
+  });
+
+  it('у остальных типов производства выбор прежний', () => {
+    for (const t of ['sewing', 'cut', 'samples', 'no_product', 'outsource']) {
+      expect(brandingOnOptions(t)).toEqual(['cut', 'finished']);
+    }
+  });
+
+  /**
+   * ВТОРАЯ ПОЛОВИНА ПРАВИЛА, и без неё первая ничего не решает: селект про
+   * смену типа производства не знает, и позиция, переключённая на «Готовое
+   * изделие» ПОСЛЕ выбора «на крое», уехала бы в payload с `cut`.
+   */
+  it('уже выбранное «на крое» при переходе на готовое изделие становится «на готовом»', () => {
+    expect(normalizeBrandingOn('ready_garment', 'cut')).toBe('finished');
+  });
+
+  it('допустимое значение не трогается', () => {
+    expect(normalizeBrandingOn('ready_garment', 'finished')).toBe('finished');
+    expect(normalizeBrandingOn('sewing', 'cut')).toBe('cut');
+    expect(normalizeBrandingOn('sewing', 'finished')).toBe('finished');
+  });
+
+  it('мусор приводится к первому допустимому', () => {
+    expect(normalizeBrandingOn('sewing', '')).toBe('cut');
+    expect(normalizeBrandingOn('ready_garment', 'что-то')).toBe('finished');
+  });
+});
 
 // ─── Черновик в localStorage ─────────────────────────────────────────────────
 
@@ -86,10 +123,9 @@ describe('черновик заказа (localStorage)', () => {
   it('черновик дополняется дефолтами формы (новые поля не ломают восстановление)', () => {
     localStorage.setItem(
       ORDER_DRAFT_KEY,
-      JSON.stringify({ form: { title: 'Без буфера' }, items: [{ product_type: 'шоппер' }] }),
+      JSON.stringify({ form: { title: 'Только название' }, items: [{ product_type: 'шоппер' }] }),
     );
     const restored = loadOrderDraft();
-    expect(restored!.form.buffer_days).toBe('0');
     expect(restored!.form.packaging).toBe('none');
     expect(restored!.items[0].production_type).toBe('sewing');
     expect(restored!.items[0].prints).toEqual([]);
@@ -136,18 +172,55 @@ describe('gridTotal / effectiveQty', () => {
     expect(effectiveQty({ qty: '99', size_grid: null })).toBe(99);
     expect(effectiveQty({ qty: '', size_grid: null })).toBe(0);
   });
+
+  // Итог по цвету (правки 07.09, п. 6): «справа показывать итог по цвету»
+  it('rowTotal: сумма по строке одного цвета', () => {
+    expect(rowTotal(grid.rows![0], grid.sizes)).toBe(15);
+    expect(rowTotal(grid.rows![1], grid.sizes)).toBe(5);
+  });
+
+  /**
+   * Считается по тем же АКТИВНЫМ размерам, что и общий итог: иначе сумма
+   * строк не сошлась бы с «Всего» ровно тогда, когда чипс размера снят,
+   * а количества в нём остались.
+   */
+  it('rowTotal и gridTotal согласованы: сумма строк = общий итог', () => {
+    const sum = grid.rows!.reduce((s, r) => s + rowTotal(r, grid.sizes), 0);
+    expect(sum).toBe(gridTotal(grid));
+
+    const without = toggleSize(grid, 'M');
+    const sum2 = without.rows!.reduce((s, r) => s + rowTotal(r, without.sizes), 0);
+    expect(sum2).toBe(gridTotal(without));
+  });
+
+  it('rowTotal: пустая строка и отсутствие размеров дают 0', () => {
+    expect(rowTotal(null, grid.sizes)).toBe(0);
+    expect(rowTotal({ color: 'синий', sizes: {} }, grid.sizes)).toBe(0);
+    expect(rowTotal(grid.rows![0], [])).toBe(0);
+  });
 });
 
 describe('размерный ряд', () => {
   it('покрывает 3XS—5XL — прямое требование заказчика 16.08', () => {
     expect(SIZE_PRESETS.adult[0]).toBe('3XS');
-    expect(SIZE_PRESETS.adult.at(-1)).toBe('5XL');
+    expect(SIZE_PRESETS.adult).toContain('5XL');
   });
 
-  it('идёт по возрастанию, без пропусков в середине', () => {
+  it('идёт по возрастанию, без пропусков в середине; ONE — в конце', () => {
+    /**
+     * `ONE` (безразмерный) добавлен правкой 07.09, п. 7 и стоит ПОСЛЕДНИМ:
+     * он не часть возрастающего ряда, и место в середине разорвало бы шкалу.
+     */
     expect(SIZE_PRESETS.adult).toEqual(
-      ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'],
+      ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
     );
+  });
+
+  it('колонки из документа 07.09 все перечислены', () => {
+    // «2XS, XS, S, M, L, XL, 2XL, 3XL, 4XL, ONE и другие размеры»
+    for (const sz of ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'ONE']) {
+      expect(SIZE_PRESETS.adult).toContain(sz);
+    }
   });
 
   it('написание одно: XXL из прежнего набора не соседствует с 2XL', () => {
@@ -370,38 +443,12 @@ describe('validateOrderForm', () => {
   });
 
   /**
-   * Лист закупки. Оба поля подписаны звёздочкой, но не проверялись вовсе —
-   * дефект найден прокликиванием на боевой базе: заказ создался со строкой
-   * закупки без количества. Молча: `supply.missingPlan` требует `qty_expected`,
-   * поэтому такая закупка не закроется автоматически никогда.
+   * ЛИСТ ЗАКУПКИ — ФАЙЛ (документ 20.08), и строк-подсказок больше нет
+   * (правки 07.09, п. 14): проверки `purchase_{i}_name` / `purchase_{i}_qty`
+   * ушли вместе с блоком, четвёртым аргументом стал `hasPurchaseList`.
    */
   describe('лист закупки', () => {
-    const row = (patch = {}) => ({ ...emptyPurchaseRow('k1'), ...patch });
     const okItems = [item({ product_type: 'ф', qty: '1' })];
-
-    it('начатая строка без количества — ошибка у поля', () => {
-      const v = validateOrderForm(okForm, okItems, today, [row({ name: 'Футер 320' })]);
-      expect(v.errors.purchase_0_qty).toBe('Количество должно быть больше 0');
-      expect(v.missing).toContain('Кол-во закупки');
-    });
-
-    it('строка без названия — ошибка у поля', () => {
-      const v = validateOrderForm(okForm, okItems, today, [row({ qty_expected: '120' })]);
-      expect(v.errors.purchase_0_name).toBe('Укажите материал');
-      expect(v.missing).toContain('Материал закупки');
-    });
-
-    /** Нажали «+ Позиция закупки» и передумали — это не ошибка */
-    it('совсем пустая строка не мешает создать заказ', () => {
-      const v = validateOrderForm(okForm, okItems, today, [row()]);
-      expect(v.errors).toEqual({});
-    });
-
-    it('заполненная строка проходит', () => {
-      const v = validateOrderForm(okForm, okItems, today,
-        [row({ name: 'Футер 320', qty_expected: '120' })]);
-      expect(v.errors).toEqual({});
-    });
 
     /**
      * ГЛАВНОЕ ПРАВИЛО ДОКУМЕНТА 20.08: потребность задаёт ФАЙЛ, и без него
@@ -413,44 +460,40 @@ describe('validateOrderForm', () => {
       const needsPurchase = { ...okForm, purchase_required: true };
 
       it('ни файла, ни отметки — заказ не создать', () => {
-        const v = validateOrderForm(needsPurchase, okItems, today, [], false);
+        const v = validateOrderForm(needsPurchase, okItems, today, false);
         expect(v.errors.purchase_list)
           .toBe('Приложите лист закупки или отметьте «Закупка не требуется»');
         expect(v.missing).toContain('Лист закупки');
       });
 
       it('файл приложен — проходит', () => {
-        const v = validateOrderForm(needsPurchase, okItems, today, [], true);
+        const v = validateOrderForm(needsPurchase, okItems, today, true);
         expect(v.errors.purchase_list).toBeUndefined();
       });
 
       it('отмечено «закупка не требуется» — файл не нужен', () => {
-        const v = validateOrderForm(okForm, okItems, today, [], false);
+        const v = validateOrderForm(okForm, okItems, today, false);
         expect(v.errors.purchase_list).toBeUndefined();
       });
 
-      it('строки-подсказки листа НЕ ЗАМЕНЯЮТ', () => {
-        // Иначе «я же написал две строки» читалось бы как приложенный лист,
-        // а закупщик получил бы подсказки вместо потребности
-        const v = validateOrderForm(needsPurchase, okItems, today,
-          [row({ name: 'Футер 320', qty_expected: '120' })], false);
-        expect(v.errors.purchase_list).toBeDefined();
+      /**
+       * Сдвиг аргумента (`hasPurchaseList` был пятым, стал четвёртым) —
+       * ровно то место, где забытый вызывающий молча передал бы список строк
+       * и получил истинное значение. Проверяем ПОЗИЦИЮ явно.
+       */
+      it('четвёртый аргумент — именно «приложен ли файл»', () => {
+        expect(validateOrderForm(needsPurchase, okItems, today, true).errors.purchase_list)
+          .toBeUndefined();
+        expect(validateOrderForm(needsPurchase, okItems, today, false).errors.purchase_list)
+          .toBeDefined();
       });
     });
 
-    it('ошибки нумеруются по строкам', () => {
-      const v = validateOrderForm(okForm, okItems, today, [
-        row({ name: 'Футер 320', qty_expected: '120' }),
-        { ...emptyPurchaseRow('k2'), name: 'Рибана' },
-      ]);
-      expect(v.errors.purchase_1_qty).toBeDefined();
-      expect(v.errors.purchase_0_qty).toBeUndefined();
-      expect(v.missing).toContain('Кол-во закупки (строка 2)');
-    });
-
-    /** Лист не передан вовсе (старые вызовы) — поведение прежнее */
-    it('без листа закупки валидация работает как раньше', () => {
+    /** Лист не передан вовсе — поведение прежнее (умолчание «не приложен») */
+    it('без четвёртого аргумента лист считается неприложенным', () => {
       expect(validateOrderForm(okForm, okItems, today).errors).toEqual({});
+      expect(validateOrderForm({ ...okForm, purchase_required: true }, okItems, today)
+        .errors.purchase_list).toBeDefined();
     });
   });
 });
@@ -479,9 +522,16 @@ describe('isFormEmpty / isItemEmpty', () => {
   });
 });
 
-// ─── Лист закупки ────────────────────────────────────────────────────────────
+// ─── Строки закупки: только восстановление старых черновиков ─────────────────
 
-describe('лист закупки в черновике', () => {
+/**
+ * Блока «Подсказки закупщику строками» в форме БОЛЬШЕ НЕТ (правки 07.09,
+ * п. 14), но снимки со строками лежат и в localStorage, и в
+ * `erp_order_drafts`. `normalizeDraft` обязан разбирать их, не падая —
+ * иначе человек, начавший заказ до правки, получил бы пустую форму вместо
+ * своего черновика. Эти тесты сторожат именно совместимость.
+ */
+describe('строки закупки в старом черновике', () => {
   beforeEach(() => localStorage.clear());
 
   it('строка считается пустой, пока в ней нет ни одного значащего поля', () => {
