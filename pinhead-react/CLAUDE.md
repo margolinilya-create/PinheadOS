@@ -552,6 +552,27 @@ URL: https://pinhead-os.vercel.app
 - **Сторож методов нанесения** — `utils/brandingMethods.test.ts`: список
   исторических значений поимённо (`dtg`) плюс проверка «форма предлагает все
   методы, кроме исторических» МНОЖЕСТВАМИ, чтобы забытый метод попал под неё сам
+- **Чьё готовое изделие** — `utils/garmentSource` (`garmentSourceOf`,
+  `isCustomerGarment`, `itemNeedsPurchase`, `GARMENT_SOURCE_ORDER/LABELS/HINTS`).
+  Колонка `erp_order_items.garment_source`, тип `GarmentSource` объявлен
+  в `erp/types.ts` рядом с `MaterialSource`. Читатели: `buildRoute`
+  (`needsIntake` — приёмка склада обязательна и без нанесений),
+  `buildItemRoute` (вырезает `supply`), `orderForm.orderNeedsPurchase`
+  (лист закупки), плитки в `create/ItemBlock`, показ цеху — `queue/TzBlock`
+  и `orderCard/OrderItemSection`. Значение уезжает `garment_source` в payload
+  ТОЛЬКО у `ready_garment`
+- **Требуется ли закупка по заказу** — `orderForm.orderNeedsPurchase(form,
+  items)`, одна функция на три места: подпись свёрнутой секции, объяснение
+  внутри неё и проверка `validateOrderForm`. Пустые дополнительные строки
+  отбрасываются тем же правилом, что и в цикле валидации (`meaningfulItems`):
+  на строке по умолчанию тип «Пошив», и без фильтра она отвечала бы «закупка
+  нужна» у заказа, где все позиции давальческие
+- **Полоса мощности** (`components/CapacityBar`) — три состояния держат ОДНУ
+  коробку: `capacityTrackGhost` повторяет высоту и поля `capacityTrack`,
+  скелетон живёт ВНУТРИ неё и своих полей не имеет. Сторож —
+  `e2e/erp-cls.spec.ts`, «полоса мощности держит высоту…», на отдельном
+  `settingsGate` мока (мощность приезжает своим запросом `erp_settings`,
+  на `deptsGate` состояние «грузится» не воспроизводится)
 
 ## Правила сессии 49 (обход 04.09): где что лежит
 
