@@ -219,9 +219,24 @@
         "source": "github",
         "repo": "davepoon/buildwithclaude"
       }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
     }
   },
   "enabledPlugins": {
-    "agents-design-experience@buildwithclaude": true
+    "agents-design-experience@buildwithclaude": true,
+    "supabase@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "semgrep@claude-plugins-official": true
   }
 }
