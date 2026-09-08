@@ -11,7 +11,12 @@ import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { DEV_OUTCOME_LABELS } from '../../types';
 import {
-  currentBlocker, devReadiness, nextAction, reworkHistory, taskLabel,
+  currentBlocker,
+  devReadiness,
+  isSuccessOutcome,
+  nextAction,
+  reworkHistory,
+  taskLabel,
 } from '../../utils/experimentalTasks';
 import { deptShortName, isProductionDept } from '../../data/departments';
 import { formatDateShort } from '../../utils/time';
@@ -344,7 +349,7 @@ export function DevCard({
     }
     const { ok, value } = await confirmWithInput({
       title: DEV_OUTCOME_LABELS[outcome],
-      message: outcome === 'ready_for_serial'
+      message: isSuccessOutcome(outcome)
         ? 'Разработка закроется успешно. Производственный заказ на серию заводит менеджер — автоматически он не создаётся.'
         : 'Разработка закроется с этим исходом.',
       confirmLabel: 'Зафиксировать',
@@ -408,7 +413,7 @@ export function DevCard({
             Готовность {readiness.total > 0 ? `${readiness.done} / ${readiness.total}` : '—'}
           </span>
           {dev.outcome && (
-            <Badge variant={dev.outcome === 'ready_for_serial' ? 'done' : 'neutral'}>
+            <Badge variant={isSuccessOutcome(dev.outcome) ? 'done' : 'neutral'}>
               {DEV_OUTCOME_LABELS[dev.outcome]}
             </Badge>
           )}
@@ -684,7 +689,7 @@ export function DevCard({
                   {Object.entries(DEV_OUTCOME_LABELS)
                     // «Готово к серии» живёт в блоке пакета: там же видно, чего
                     // не хватает. Кнопка в общем ряду обходила бы этот перечень
-                    .filter(([code]) => code !== 'ready_for_serial')
+                    .filter(([code]) => !isSuccessOutcome(code))
                     .map(([code, label]) => (
                       <Button key={code} variant="ghost" onClick={() => closeDev(code)}>
                         {label}
@@ -725,7 +730,7 @@ export function DevCard({
             <span className={`${styles.chip} ${styles.chipDone}`}>
               В каталоге SKU: {dev.sku_code}
             </span>
-          ) : dev.outcome === 'ready_for_serial' && wantsSkuCard(dev) ? (
+          ) : isSuccessOutcome(dev.outcome) && wantsSkuCard(dev) ? (
             <>
               <Button
                 variant="primary"

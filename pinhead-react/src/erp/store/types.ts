@@ -20,6 +20,7 @@ import type {
   ErpInvite,
   ErpPermission,
   ErpRolePermission,
+  ErpItemLabel,
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
@@ -108,7 +109,17 @@ export type { ErpAttachmentKind, ErpOrderAttachment } from '../types';
 
 /** Заказ со вложенными позициями/этапами/материалами (join при загрузке) */
 export interface ErpOrderFull extends ErpOrder {
-  items: (ErpOrderItem & { stages: ErpItemStage[]; prints?: ErpItemPrint[] })[];
+  /**
+   * `labels` приезжает эмбедом `labels:erp_item_labels (*)` и показывается
+   * цеху в `TzBlock`. Тип `ErpItemLabel` описывал эти данные и не был
+   * привязан ни к чему — в `ErpOrderItem` ему не место: тот зеркалит
+   * КОЛОНКИ таблицы, и `schema.test.ts` справедливо это ловит.
+   */
+  items: (ErpOrderItem & {
+    stages: ErpItemStage[];
+    prints?: ErpItemPrint[];
+    labels?: ErpItemLabel[];
+  })[];
   materials: ErpMaterial[];
   attachments?: ErpOrderAttachment[];
   procurement_tasks?: ErpProcurementTask[];

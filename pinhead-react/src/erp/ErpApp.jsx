@@ -98,7 +98,7 @@ function ErpGuard({ allowed, children }) {
   if (!allowed) {
     return (
       <div className={styles.noAccess}>
-        <div className={styles.stubIcon} aria-hidden="true"><Icon name="ban" size={34} /></div>
+        <div className={styles.noAccessIcon} aria-hidden="true"><Icon name="ban" size={34} /></div>
         <div>Нет доступа к этому разделу</div>
       </div>
     );

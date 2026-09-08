@@ -651,6 +651,37 @@ URL: https://pinhead-os.vercel.app
   зелёной при возврате на `@deprecated` `status`, потому что подпись и словарь
   у него есть
 
+## Правила сессии 51 (волны 3–4): где что лежит
+
+- Два классификатора материала — `erp/utils/materialRole.ts`:
+  `FABRIC_ROLE_VALUES` (ВЫВОДИТСЯ вычитанием ключей `MATERIAL_KIND_LABELS`
+  из `MATERIAL_ROLE_LABELS`), `kindHasRole`, `materialRoleLabel` (подпись
+  к показу — пусто у назначения, повторяющего вид), `materialRoleForKind`
+  (что писать в базу). Тип, словарь подписей и CHECK базы остаются при семи
+  значениях: две строки на проде заведены со старым назначением
+- Состояние материала одной фразой — `supply.materialStateText`. Читают пять
+  поверхностей: `queue/MaterialWait`, `queue/TzBlock`, `ProductionTask`,
+  `OrderCard`, `warehouse/MaterialReceiptCard`. У закупки свой рендер
+  (`purchasing/PurchaseFields.StatusCell` — чип, иконка, комментарий склада),
+  формула та же — `materialAcceptanceIssue`. Годность — только
+  `routes.isMaterialPending`. Сторож — `utils/materialSettled.test.ts`
+  (обход исходников экранов; два исключения названы поимённо)
+- Срок и исход разработки — `utils/experimentalTasks`: `devDueDate` (свой
+  срок, иначе заказа) и `devOverdue` поверх неё, `isSuccessOutcome`. Читают
+  `Experimental`, `experimental/DevBoard`, `experimental/DevRowCard`,
+  `experimental/DevCard`. Сторож — `utils/devFormulas.test.ts`
+- Матрица прав — `.matrixWrap` (своя коробка прокрутки, `max-height: 70vh`),
+  липкая `thead th`, перенос названий по словам, `th[colspan]` НЕ липкий
+  (правило-исключение стоит НИЖЕ правила первого столбца: специфичность
+  равная). Сторож — `e2e/erp-admin.spec.ts` (проект `desktop`, в `mobile`
+  исключён): геометрия + видимость + ратчет «семь ролей из пятнадцати»
+- Мёртвые экспорты раздела — `utils/deadExports.test.ts`, счёт держится
+  на нуле. Экспорты «только для тестов» сторожем не считаются: бывает
+  законным швом (`_setClock`, `clearQueue`)
+- `toISOString().slice(0, 10)` запрещён И В ТЕСТАХ — второе утверждение
+  в `src/utils/date.test.ts`. Календарный день в фикстуре берётся
+  `factoryToday()`/`addDays`
+
 ## Правила сессии 47 (аудит ERP 03.09): где что лежит
 
 - Гейт завершения этапа — `store/slices/stagesSlice.completionBlockFor`; зовут

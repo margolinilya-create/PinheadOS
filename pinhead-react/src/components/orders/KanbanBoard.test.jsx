@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { addDays, factoryToday } from '../../utils/date';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import KanbanBoard from './KanbanBoard';
@@ -164,11 +165,10 @@ describe('KanbanBoard', () => {
   });
 
   it('shows deadline badge on card with deadline', () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = addDays(factoryToday(), 1);
     useOrdersStore.setState({
       orders: [
-        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', deadline: tomorrow.toISOString().slice(0, 10) }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', deadline: tomorrow }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
       ],
     });
     renderKanban();
@@ -177,11 +177,10 @@ describe('KanbanBoard', () => {
   });
 
   it('shows overdue badge for past deadlines', () => {
-    const past = new Date();
-    past.setDate(past.getDate() - 2);
+    const past = addDays(factoryToday(), -2);
     useOrdersStore.setState({
       orders: [
-        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', deadline: past.toISOString().slice(0, 10) }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
+        { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Alice', deadline: past }, total_qty: 10, total_sum: 5000, created_at: new Date().toISOString() },
       ],
     });
     renderKanban();

@@ -14,12 +14,21 @@ export function daysLeft(dueDate: string | null | undefined, now: Date = new Dat
 }
 
 /**
- * «Горящий» срок: осталось 0–3 дня включительно.
+ * Порог «горящего» срока в днях.
+ *
+ * Константа жила в `format.ts` с подписью «тот же, что у `isUrgent` в time.ts»,
+ * а сам `isUrgent` держал литерал 3 — и константу не звал НИКТО. Число теперь
+ * стоит там, где его применяют.
+ */
+export const URGENT_DAYS = 3;
+
+/**
+ * «Горящий» срок: осталось 0–URGENT_DAYS дней включительно.
  * Единая логика для KPI-плитки дашборда и фильтр-чипа «Срок ≤ 3 дней».
  */
 export function isUrgent(dueDate: string | null | undefined, now: Date = new Date()): boolean {
   const d = daysLeft(dueDate, now);
-  return d !== null && d >= 0 && d <= 3;
+  return d !== null && d >= 0 && d <= URGENT_DAYS;
 }
 
 /**

@@ -41,14 +41,6 @@ export const SUBCONTRACT_PHASE_FLOW: SubcontractPhase[] = [
  */
 export const SUBCONTRACT_TERMINAL_PHASES: SubcontractPhase[] = ['returned', 'accepted', 'closed'];
 
-/**
- * Фазы, в которых вещь физически У ПОДРЯДЧИКА. `rework` сюда входит:
- * переделка идёт там же, просто вопрос к подрядчику другой.
- */
-export const SUBCONTRACT_AT_CONTRACTOR_PHASES: SubcontractPhase[] = [
-  'sent', 'at_contractor', 'ready_at_contractor', 'rework',
-];
-
 export function isSubcontractTerminal(phase: SubcontractPhase): boolean {
   return SUBCONTRACT_TERMINAL_PHASES.includes(phase);
 }

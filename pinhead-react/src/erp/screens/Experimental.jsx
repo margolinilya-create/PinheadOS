@@ -26,7 +26,11 @@ import {
   devFilterParamKeys,
 } from '../utils/filterExperimental';
 import {
-  currentBlocker, devReadiness, nextAction, taskLabel,
+  currentBlocker,
+  devDueDate,
+  devReadiness,
+  nextAction,
+  taskLabel,
 } from '../utils/experimentalTasks';
 import { DEV_OUTCOME_LABELS } from '../types';
 import { formatDateShort } from '../utils/time';
@@ -659,7 +663,7 @@ export default function Experimental() {
                 {pageRows.map(({ dev, tasks, state }) => {
                   const readiness = devReadiness(tasks);
                   const blocker = currentBlocker(tasks, typeNames, today);
-                  const due = dev.due_date || dev.order?.due_date || null;
+                  const due = devDueDate(dev);
                   return (
                     <tr
                       key={dev.id}

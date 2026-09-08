@@ -15,7 +15,13 @@ import {
 import {
   devMoveIntent, devMoveLabel, devMoveRefusalText, neighbourStage,
 } from '../../utils/devBoardMove';
-import { currentBlocker, nextAction, taskLabel } from '../../utils/experimentalTasks';
+import {
+  currentBlocker,
+  devDueDate,
+  devOverdue,
+  nextAction,
+  taskLabel,
+} from '../../utils/experimentalTasks';
 import { dueLabelCompact } from '../../utils/format';
 import { daysLeft } from '../../utils/time';
 import { toast } from '../../../store/useToastStore';
@@ -80,9 +86,11 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
   // (`начать patterns`) — то же правило, что в строке списка
   const blocker = currentBlocker(tasks, typeNames, row.today);
   const action = nextAction(dev, tasks, typeNames, row.today);
-  const due = dev.due_date || dev.order?.due_date || null;
+  // Срок и просрочка — общие функции: копия правила жила тут и в реестре,
+  // а протестированный оригинал (`devOverdue`) не звал никто
+  const due = devDueDate(dev);
   const left = daysLeft(due);
-  const overdue = left !== null && left < 0 && !dev.outcome;
+  const overdue = devOverdue(dev);
 
   const movable = canManage && !dev.outcome;
   /**

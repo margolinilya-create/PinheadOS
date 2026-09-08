@@ -186,4 +186,3 @@ export function finalPackageProgress(
 }
 
 export type { AttachLike as DevAttachLike };
-export type DevWithPackage = ErpExperimental & DevLike;

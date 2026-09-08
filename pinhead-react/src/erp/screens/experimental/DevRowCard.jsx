@@ -3,7 +3,12 @@ import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { DEV_OUTCOME_LABELS } from '../../types';
 import {
-  DEV_STATE_LABELS, currentBlocker, devReadiness, nextAction, taskLabel,
+  DEV_STATE_LABELS,
+  currentBlocker,
+  devDueDate,
+  devReadiness,
+  nextAction,
+  taskLabel,
 } from '../../utils/experimentalTasks';
 import { formatDateShort } from '../../utils/time';
 import styles from '../../styles';
@@ -27,7 +32,7 @@ import styles from '../../styles';
 function DevRowCardBase({ dev, tasks, state, stateVariant, typeNames, today, onOpen }) {
   const readiness = devReadiness(tasks);
   const blocker = currentBlocker(tasks, typeNames, today);
-  const due = dev.due_date || dev.order?.due_date || null;
+  const due = devDueDate(dev);
   const title = dev.tech_name || 'Без названия';
 
   return (

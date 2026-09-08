@@ -41,15 +41,42 @@ function ruleBody(selector: string): string {
 }
 
 /** Классы, которые берут начертание из общего правила и уточняют только своё */
-const REFINEMENTS = ['.navGroup', '.stubPhase', '.table th', '.deptTab', '.pageTitle', '.modalTitle'];
+const REFINEMENTS = ['.navGroup', '.table th', '.deptTab', '.pageTitle', '.modalTitle'];
 
 describe('заглавные начертания объявлены в одном месте', () => {
   it('групповое правило подписей существует и перечисляет всех', () => {
-    const group = CSS.slice(CSS.indexOf('.labelCaps,'), CSS.indexOf('.labelCaps,') + 400);
-    for (const cls of ['.navGroup', '.fieldLabel', '.table th', '.deptTab', '.stubPhase']) {
+    const at = CSS.indexOf('.labelCaps,');
+    const group = CSS.slice(at, at + 400);
+    for (const cls of ['.navGroup', '.fieldLabel', '.table th', '.deptTab']) {
       expect(group, `${cls} выпал из общего правила`).toContain(cls);
     }
     expect(group).toMatch(/text-transform:\s*uppercase/);
+  });
+
+  /**
+   * У ГРУППОВОГО ПРАВИЛА ЕСТЬ СВОЁ ТЕЛО — и это отдельное утверждение.
+   *
+   * 06.09 скрипт, снимавший из списка удалённый класс, срезал вместе с ним
+   * весь блок объявлений: список селекторов остался с висящей запятой и слился
+   * со СЛЕДУЮЩИМ правилом — заголовками. То есть все подписи интерфейса
+   * молча получили бы начертание титула. Проверка выше этого не увидела:
+   * она берёт 400 символов от `.labelCaps,`, а в них попало правило
+   * заголовков, у которого `text-transform: uppercase` тоже есть.
+   *
+   * Здесь проверяется СТРУКТУРА: между последним селектором группы и её `{`
+   * не должно быть ни комментария, ни другого селектора.
+   */
+  it('у группового правила подписей есть собственное тело', () => {
+    const at = CSS.indexOf('.labelCaps,');
+    const brace = CSS.indexOf('{', at);
+    const head = CSS.slice(at, brace);
+    expect(head, 'между селекторами группы вклинился комментарий или пустая строка')
+      .not.toMatch(/\/\*|\n\s*\n/);
+    const body = CSS.slice(brace + 1, CSS.indexOf('}', brace));
+    expect(body, 'тело группового правила потеряно').toMatch(/font-family:\s*var\(--font-body\)/);
+    expect(body).toMatch(/text-transform:\s*uppercase/);
+    expect(body, 'группа подписей взяла начертание титула')
+      .not.toMatch(/var\(--font-display\)/);
   });
 
   it('групповое правило заголовков существует', () => {

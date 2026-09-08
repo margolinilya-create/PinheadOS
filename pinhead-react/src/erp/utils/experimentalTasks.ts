@@ -241,16 +241,29 @@ export function devState(
   return tasks.length === 0 || open.every((t) => t.status === 'todo') ? 'new' : 'in_progress';
 }
 
+type DevDueLike = Pick<ErpExperimental, 'due_date'> & {
+  order?: { due_date?: string | null } | null;
+};
+
+/**
+ * СРОК РАЗРАБОТКИ: свой, иначе срок заказа.
+ *
+ * Правило жило ЧЕТЫРЬМЯ копиями: здесь (внутри `devOverdue`, у которой не было
+ * ни одного вызывающего при пяти тестах) и дословно в трёх экранах — реестре
+ * разработок, карточке доски ЭКС и планшетной карточке. Протестирована была
+ * мёртвая копия; третью нашёл сторож, а не глаза.
+ */
+export function devDueDate(dev: DevDueLike): string | null {
+  return dev.due_date || dev.order?.due_date || null;
+}
+
 /** Просрочена ли разработка по своему сроку (или сроку заказа) */
 export function devOverdue(
-  dev: Pick<ErpExperimental, 'outcome' | 'due_date'> & {
-    order?: { due_date?: string | null } | null;
-  },
+  dev: Pick<ErpExperimental, 'outcome'> & DevDueLike,
   now: Date = new Date(),
 ): boolean {
   if (dev.outcome) return false;
-  const due = dev.due_date || dev.order?.due_date || null;
-  const d = daysLeft(due, now);
+  const d = daysLeft(devDueDate(dev), now);
   return d !== null && d < 0;
 }
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { addDays, factoryToday } from '../../utils/date';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ErpDashboard from './ErpDashboard';
@@ -111,7 +112,7 @@ describe('ErpDashboard — уведомления сгруппированы п�
 
   /** Просроченный на N дней заказ (этап не закрыт — иначе это не просрочка) */
   const late = (id, days, extra = {}) => {
-    const due = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const due = addDays(factoryToday(), -days);
     return {
       id, status: 'active', title: `Заказ ${id}`, bitrix_id: id, due_date: due,
       items: [{ id: `i-${id}`, product_type: 'Худи', qty: 1, stages: [

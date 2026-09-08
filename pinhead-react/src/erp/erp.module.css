@@ -321,8 +321,7 @@
 .table th,
 .deptTab,
 .dataCardGroup,
-.dataCardFieldLabel,
-.stubPhase {
+.dataCardFieldLabel {
   font-family: var(--font-body);
   font-size: var(--type-label);
   font-weight: 600;
@@ -488,24 +487,13 @@
   color: var(--text-dim);
 }
 
-/* Заглушка раздела — тот же примитив, что .emptyState (различались 2px паддинга) */
-.stub, .noAccess {
+/* Панель «нет доступа» — тот же примитив, что .emptyState */
+/* Иконка панели. Класс назывался `.stubIcon` — по заглушке «экран ещё
+   не готов», которой больше нет; носитель у правила остался один */
+.noAccessIcon { font-size: 34px; margin-bottom: 10px; }
+.noAccess {
   composes: emptyState;
   padding: var(--space-3xl) var(--space-xl);
-}
-.stubIcon { font-size: 34px; margin-bottom: 10px; }
-/* Пояснение под заголовком заглушки — второй строкой и тише основного текста */
-.stubText { font-size: var(--type-body-sm); color: var(--text-dim); margin-top: var(--space-xs); }
-.stubPhase {
-  display: inline-block;
-  margin-top: 14px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  /* Отличия от .labelCaps: мельче и цветом акцента — это плашка, не подпись */
-  font-size: var(--type-label);
-  letter-spacing: 1px;
-  background: var(--accent-light);
-  color: var(--accent);
 }
 
 /* ─── Таблицы ─── */

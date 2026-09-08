@@ -36,14 +36,3 @@ export function PageHead({ title, sub }) {
     </div>
   );
 }
-
-export function Stub({ icon = 'settings', title, text, phase }) {
-  return (
-    <div className={styles.stub}>
-      <div className={styles.stubIcon}><Icon name={icon} size={34} /></div>
-      <div>{title}</div>
-      {text && <div className={styles.stubText}>{text}</div>}
-      {phase && <div className={styles.stubPhase}>{phase}</div>}
-    </div>
-  );
-}

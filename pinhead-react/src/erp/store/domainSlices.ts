@@ -90,8 +90,3 @@ export function attachDomainSlices(): void {
   // `false` — слияние: состояние и действия ядра остаются на месте
   useErpStore.setState(actions as Partial<ErpStore>, false);
 }
-
-/** Прицеплены ли доменные действия — для тестов и сторожей */
-export function domainSlicesAttached(): boolean {
-  return attached;
-}

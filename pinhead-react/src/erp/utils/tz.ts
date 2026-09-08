@@ -23,6 +23,7 @@
 
 import { isProductionDept } from '../data/departments';
 import type { ProductionDeptLike } from '../data/departments';
+import { TZ_PREFIX } from '../types';
 import type { ErpTzDocument } from '../types';
 import { safeFileName, translitAscii } from './storageKey';
 
@@ -266,7 +267,7 @@ export function tzUpdatedAfterStart(
 }
 
 export function tzFilePath(scope: string, groupId: string, version: number, fileName: string): string {
-  return `tz/${scope}/${groupId}/v${version}-${safeFileName(fileName, 'tz', 'pdf')}`;
+  return `${TZ_PREFIX}/${scope}/${groupId}/v${version}-${safeFileName(fileName, 'tz', 'pdf')}`;
 }
 
 /** Реэкспорт: правило живёт в `utils/storageKey`, здесь — совместимость чтения */

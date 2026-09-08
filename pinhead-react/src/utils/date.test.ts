@@ -38,12 +38,12 @@ function inEveryZone(check: () => void): void {
 }
 
 /** Все рабочие файлы проекта: тесты вправе строить даты как угодно — они фиксируют ожидание */
-function sources(dir: string, out: string[] = []): string[] {
+function sources(dir: string, out: string[] = [], withTests = false): string[] {
   for (const name of readdirSync(dir)) {
     const abs = join(dir, name);
-    if (statSync(abs).isDirectory()) { sources(abs, out); continue; }
+    if (statSync(abs).isDirectory()) { sources(abs, out, withTests); continue; }
     if (!/\.(ts|tsx|js|jsx)$/.test(name)) continue;
-    if (/\.test\.(ts|tsx|js|jsx)$/.test(name)) continue;
+    if (!withTests && /\.test\.(ts|tsx|js|jsx)$/.test(name)) continue;
     out.push(abs);
   }
   return out;
@@ -243,5 +243,23 @@ describe('в исходниках нет календарных дат из UTC'
       .filter((f) => BAD.test(stripComments(readFileSync(f, 'utf8'))))
       .map((f) => relative(SRC, f));
     expect(hits, `дата из UTC вместо factoryToday()/factoryDate(): ${hits.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * ЗАПРЕТ ДЕЙСТВУЕТ И В ТЕСТАХ, а до 05.09 их исключал сам сборщик файлов.
+   *
+   * Цена нашлась прогоном в 21:05 UTC: фикстура плана строила `work_date`
+   * этим оборотом (день по UTC), а компонент спрашивает `factoryToday()`
+   * (день по Москве), и с 21:00 до 00:00 UTC это РАЗНЫЕ дни — три часа
+   * в сутки CI красный, причём падение выглядит как регрессия продукта.
+   * Ровно тот дефект, ради которого запрет и написан, только в файле,
+   * которому запрет не адресовали.
+   */
+  it('и ни один ТЕСТ — тоже', () => {
+    const hits = sources(SRC, [], true)
+      .filter((f) => /\.test\.(ts|tsx|js|jsx)$/.test(f))
+      .filter((f) => BAD.test(stripComments(readFileSync(f, 'utf8'))))
+      .map((f) => relative(SRC, f));
+    expect(hits, `фикстура строит дату по UTC: ${hits.join(', ')}`).toEqual([]);
   });
 });

@@ -18,9 +18,6 @@
 
 import { weekdayIndex } from '../../utils/date';
 
-/** Порог «горящего» срока (дней) — тот же, что у `isUrgent` в time.ts */
-export const URGENT_DAYS = 3;
-
 /**
  * Прозаическая метка срока: дашборд, карточка заказа, страница задания.
  * `сегодня`/`завтра` вместо «через 0 дн.» — иначе фраза не по-русски.
@@ -69,13 +66,6 @@ export function overdueBucket(overdueDays: number): OverdueBucket {
   if (overdueDays <= 30) return 'month';
   return 'stale';
 }
-
-export const OVERDUE_BUCKET_LABEL: Record<OverdueBucket, string> = {
-  none: 'В срок',
-  week: 'Просрочен до недели',
-  month: 'Просрочен 8–30 дней',
-  stale: 'Просрочен больше месяца',
-};
 
 /** Короткое имя ступени — для чипов и легенды */
 export const OVERDUE_BUCKET_SHORT: Record<OverdueBucket, string> = {
