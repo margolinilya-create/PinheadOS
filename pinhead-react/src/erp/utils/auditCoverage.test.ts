@@ -31,10 +31,20 @@ import {
  * базе перестала сохраняться ЛЮБАЯ правка материала: приёмка складом и журнал
  * приёмок вместе с ней. Аудит материалов не записал за всё время ни строки.
  *
- * Отсюда три правила этого файла:
+ * Отсюда четыре правила этого файла:
  *   1. состояние собирается по ВСЕМ миграциям, последнее слово за поздней;
- *   2. каждое имя поля сверяется с колонками таблицы (`database.generated.ts`);
+ *   2. каждое имя сверяется с колонками таблицы (`database.generated.ts`) —
+ *      и поля, и ЯКОРЬ `TG_ARGV[0]`: он читается так же динамически
+ *      (`v_order := new.order_id`), а `erp_item_stages` не имеет `order_id`
+ *      и `erp_order_items` не имеет `item_id` — перепутать можно молча;
  *   3. механизмов аудита ДВА, и спрашивать надо схему, а не знакомые имена.
+ *
+ * ГРАНИЦА, которую этот сторож НЕ переходит: он читает РЕПОЗИТОРИЙ, а не базу.
+ * Ту самую миграцию применили через MCP 06.09, а файл завели 07.09 — сутки
+ * он был бы зелёным при сломанном проде. Живую базу из CI не прочитать
+ * (`supabase_migrations` не выставлена наружу PostgREST), и закрывает этот
+ * разрыв не тест, а ритуал: `npm run migrations:verify` плюс правило
+ * «применил → сразу завёл файл» (`supabase/migrations/README.md`).
  */
 
 const SRC = join(process.cwd(), 'src');
@@ -56,6 +66,16 @@ function stripSqlComments(sql: string): string {
 
 interface AuditTrigger {
   table: string;
+  /**
+   * TG_ARGV[0] — колонка, по которой находится ЗАКАЗ: `order_id` берётся
+   * из самой строки, `item_id` ведёт в `erp_order_items`. Функция знает
+   * ровно эти два варианта, и обращение к ней такое же динамическое
+   * (`v_order := new.order_id`), то есть ошибка в якоре роняет UPDATE так же,
+   * как ошибка в имени поля. Набор закрыт и КОЛОНКА ДОЛЖНА СУЩЕСТВОВАТЬ:
+   * у `erp_item_stages` нет `order_id`, у `erp_order_items` нет `item_id` —
+   * перепутать их местами можно молча.
+   */
+  anchor: string;
   /** Префикс `field_name` в `erp_order_audit` (`material`, `stage`, … либо пустой) */
   prefix: string;
   fields: string[];
@@ -83,8 +103,8 @@ function auditTriggers(): Map<string, AuditTrigger> {
       if (dropped) { out.delete(dropped); continue; }
       const args = [...rawArgs.matchAll(/'([^']*)'/g)].map((a) => a[1]);
       // TG_ARGV[0] — колонка связи с заказом, TG_ARGV[1] — префикс, поля с [2]
-      const [, prefix, ...fields] = args;
-      out.set(created, { table, prefix, fields });
+      const [anchor, prefix, ...fields] = args;
+      out.set(created, { table, anchor, prefix, fields });
     }
   }
   return out;
@@ -109,7 +129,7 @@ const ORDER_FIELDS = orderAuditFields();
 /** Пары «таблица × колонка», которые аудит читает динамически */
 const WATCHED: [string, string][] = [
   ...[...TRIGGERS.values()].flatMap(
-    (t) => t.fields.map((f) => [t.table, f] as [string, string]),
+    (t) => [t.anchor, ...t.fields].map((f) => [t.table, f] as [string, string]),
   ),
   ...ORDER_FIELDS.map((f) => ['erp_orders', f] as [string, string]),
 ];
@@ -133,6 +153,15 @@ describe('аудит читает только существующие коло
     expect(FIELD_NAMES).toContain('planned_start');
     expect(FIELD_NAMES).toContain('shipped_status');
   });
+
+  it.each([...TRIGGERS].map(([name, t]) => [name, t.anchor] as [string, string]))(
+    'у триггера %s якорь заказа «%s» — из закрытого набора',
+    (_name, anchor) => {
+      // Третьего варианта функция не знает: ветка `if TG_ARGV[0] = 'item_id'`,
+      // иначе `new.order_id`. Любое иное слово молча уводит в ветку order_id.
+      expect(['order_id', 'item_id']).toContain(anchor);
+    },
+  );
 
   it.each(WATCHED)(
     'колонка %s.%s существует в схеме',

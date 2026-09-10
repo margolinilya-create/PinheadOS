@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { columnsOf } from '../../types/schema.testutil';
 import { ORDER_SELECT, ORDER_LIST_SELECT } from './orderHelpers';
 
 /**
@@ -27,20 +28,16 @@ function walk(dir: string, out: string[] = []): string[] {
 
 /**
  * Настоящие колонки `erp_item_stages` — из машинного снимка схемы
- * (`types/database.generated.ts`), тем же разбором, что в `types/schema.test.ts`.
- * Свежесть снимка сторожит тот тест; здесь он нужен как справочник «что вообще
- * бывает колонкой», чтобы отсеять обращения к полям других объектов.
+ * (`types/database.generated.ts`). Свежесть снимка сторожит `types/schema.test.ts`;
+ * здесь он нужен как справочник «что вообще бывает колонкой», чтобы отсеять
+ * обращения к полям других объектов.
+ *
+ * Разбор — общий `columnsOf`: своя копия жила здесь до 10.09, а таких копий
+ * стало три (ещё `schema.test.ts` и новый сторож аудита). Копия, которую
+ * заводят «тем же разбором, что в соседнем тесте», однажды разойдётся
+ * с соседом — ровно то, ради чего в проекте появились `.testutil`-модули.
  */
-const STAGE_COLUMNS = (() => {
-  const generated = readFileSync(join(SRC, 'types/database.generated.ts'), 'utf8');
-  const start = generated.indexOf('      erp_item_stages: {');
-  if (start < 0) throw new Error('erp_item_stages нет в снимке схемы');
-  const rowStart = generated.indexOf('Row: {', start);
-  const cols = [...generated.slice(rowStart, generated.indexOf('        }', rowStart))
-    .matchAll(/^\s{10}(\w+)[?]?:/gm)].map((m) => m[1]);
-  if (cols.length < 15) throw new Error('разбор снимка схемы дал подозрительно мало колонок');
-  return new Set(cols);
-})();
+const STAGE_COLUMNS = new Set(columnsOf('erp_item_stages'));
 
 /** Экраны и утилиты, работающие по ВСЕМУ массиву заказов из списочного запроса */
 const LIST_CONSUMERS = [
