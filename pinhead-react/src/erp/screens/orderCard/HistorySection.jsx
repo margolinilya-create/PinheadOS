@@ -7,6 +7,7 @@ import {
   STAGE_STATUS_LABELS,
   PACKAGING_LABELS,
   STICKERS_LABELS,
+  SUBCONTRACT_PHASE_LABELS,
 } from '../../types';
 import styles from '../../styles';
 import { fmt, fmtTs } from './format';
@@ -46,7 +47,14 @@ const AUDIT_FIELD_LABELS = {
 
   'material.status': 'Материал: статус',
   'material.accept_status': 'Материал: приёмка',
-  'material.qty_expected': 'Материал: ожидается',
+  // Слова взяты у PURCHASE_FIELD_LABELS (purchasing/purchaseLabels.js): заказчик
+  // 24.08 свёл пять названий одного числа к одному, и история была шестым.
+  // «Количество к заказу», а не «Заказано»: величина про НАМЕРЕНИЕ, а рядом
+  // живёт статус «Заказано» — про свершившийся факт.
+  'material.qty_expected': 'Материал: нужно количество',
+  'material.qty_ordered': 'Материал: количество к заказу',
+  'material.ordered_on': 'Материал: дата заказа',
+  'material.price_per_unit': 'Материал: цена за ед.',
   'material.qty_received': 'Материал: принято',
   'material.eta_date': 'Материал: ожидаемая дата',
   'material.supplier': 'Материал: поставщик',
@@ -65,9 +73,18 @@ const AUDIT_FIELD_LABELS = {
   'procurement.planned_date': 'Закупка: плановая дата',
   'procurement.responsible': 'Закупка: ответственный',
 
+  // `status` помечен @deprecated ещё 10.08, и 06.09 триггер переехал на `phase`.
+  // Подпись прежней колонки ОСТАЁТСЯ, хотя писателя у неё больше нет: её несли
+  // бы записи, накопленные до переезда. На бою их сейчас ноль (аудит чистили
+  // вместе с данными), но история задним числом не переписывается — а строка
+  // словаря стоит пяти слов и переживает восстановление из бэкапа.
   'subcontract.status': 'Подряд: статус',
+  'subcontract.phase': 'Подряд: фаза',
   'subcontract.contractor': 'Подряд: подрядчик',
   'subcontract.qty': 'Подряд: количество',
+  'subcontract.qty_sent': 'Подряд: передано',
+  'subcontract.qty_returned': 'Подряд: вернулось',
+  'subcontract.qty_defect': 'Подряд: брак',
   'subcontract.planned_date': 'Подряд: плановая дата',
   'subcontract.returned_date': 'Подряд: возвращено',
   'subcontract.delay_comment': 'Подряд: причина задержки',
@@ -76,7 +93,7 @@ const AUDIT_FIELD_LABELS = {
 /** Поля-даты аудита — показываем в русском формате */
 const AUDIT_DATE_FIELDS = new Set([
   'launch_date', 'due_date', 'delivered_at', 'planned_start', 'planned_end',
-  'material.eta_date', 'procurement.planned_date',
+  'material.eta_date', 'material.ordered_on', 'procurement.planned_date',
   'subcontract.planned_date', 'subcontract.returned_date',
 ]);
 
@@ -88,6 +105,9 @@ function auditValue(field, v) {
   if (field === 'stage.status') return STAGE_STATUS_LABELS[v] || v;
   if (field === 'status') return ORDER_STATUS_LABELS[v] || v;
   if (field === 'shipped_status') return SHIPPED_STATUS_LABELS[v] || v;
+  // Фаза подряда — своё перечисление; словарь берём существующий, второго
+  // набора подписей у одной величины быть не должно
+  if (field === 'subcontract.phase') return SUBCONTRACT_PHASE_LABELS[v] || v;
   if (field === 'packaging') return PACKAGING_LABELS[v] || v;
   if (field === 'stickers') return STICKERS_LABELS[v] || v;
   if (field === 'no_chestny_znak') return v === 'true' ? 'да' : 'нет';

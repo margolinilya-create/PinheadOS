@@ -180,13 +180,13 @@ export interface ErpDepartment {
    * директором, никакого отчёта — ровно та же ошибка, что уже случилась
    * с материальным гейтом. Пусто = отчёт не требуется (fail-open).
    */
-  result_fields?: ResultField[] | null;
+  result_fields?: ResultField[];
   /**
    * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
    * Пустой массив — участок материалами не гейтится. Правится в админке;
    * раньше это была константа MATERIAL_GATE_DEPT в utils/routes.ts.
    */
-  gate_material_kinds?: string[] | null;
+  gate_material_kinds?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -229,6 +229,14 @@ export interface ErpOrder {
    */
   tz_required?: boolean;
   /**
+   * Связь с заказом Order Studio, из которого пришло ТЗ (правка 18.08).
+   * Выборка заказа везёт обе колонки звёздочкой — в типе их не было,
+   * то есть для `tsc` они не существовали, и переименование в миграции
+   * прошло бы молча.
+   */
+  tz_order_id?: string | null;
+  tz_number?: string | null;
+  /**
    * Требуется ли закупка (правки заказчика 20.08). `false` — менеджер ЯВНО
    * отметил «Закупка не требуется»: этап `supply` в маршрут не заводится,
    * и заказ не появляется у закупщика. Хранится, а не выводится из пустого
@@ -260,7 +268,7 @@ export interface ErpOrderItem {
    * `erp_order_shipments_rollup` — клиент колонку ТОЛЬКО ЧИТАЕТ. Остаток
    * к отгрузке считается как `qty - qty_shipped`.
    */
-  qty_shipped?: number | null;
+  qty_shipped?: number;
   production_type: ProductionType;
   branding_methods: BrandingMethod[];
   branding_on: BrandingOn | null;
@@ -302,7 +310,7 @@ export interface ErpOrderItem {
    * быть не должно. У позиций, заведённых до правки, колонки нет вовсе —
    * это тоже читается как «как в заказе».
    */
-  packaging?: ItemPackagingType | null;
+  packaging?: ItemPackagingType;
   /**
    * Размер пакета, место стикера и место маркировки (документ 16.08, п. 1).
    * Колонки есть в БД с 16.08, форма создания их пишет, `ORDER_LIST_SELECT` их
@@ -415,17 +423,43 @@ export interface ErpMaterialReceipt {
   received_on: string;
   author: string | null;
   author_id: string | null;
+  /**
+   * Ключ идемпотентности приёмки (`utils/attemptKey`): его генерирует КЛИЕНТ
+   * и шлёт в `erp_material_accept`, а частичный уникальный индекс не даёт
+   * повтору удвоить приход. Тем удивительнее, что в типе поля не было.
+   *
+   * Опциональное — как и все колонки, дописанные в тип задним числом:
+   * у объектов из старых фикстур, урезанных выборок и кэша его нет вовсе.
+   * То же правило, по которому новая колонка сравнивается строго с новым
+   * значением, а не отрицанием старого.
+   */
+  client_key?: string | null;
   created_at: string;
 }
 
 export interface ErpMaterial {
   id: string;
-  order_id: string;
+  /**
+   * NULL — предварительная закупка: строку завели ДО заказа и привяжут позже
+   * (`20260816220000`, `materialsSlice.attachPreliminaryToOrder`). Тип держал
+   * `string` ещё месяц после того, как колонка стала обнуляемой, — сверка шла
+   * по именам колонок и обнуляемости не видела.
+   */
+  order_id: string | null;
   item_id: string | null;
   kind: MaterialKind;
   name: string;
   source: MaterialSource;
   supplier: string | null;
+  /**
+   * Кто ведёт эту позицию закупки. Колонка есть с 03.08 и её пишет форма
+   * (`purchasing/PurchaseFields.ResponsibleField`), а в типе её не было:
+   * вызывающий на `.jsx`, и `Partial<ErpMaterial>` расхождения не показывал.
+   * Сверка со схемой тоже молчала — она проверяла «в типе нет лишнего»,
+   * а обратную сторону смотрела только у колонок, перечисленных
+   * в `ORDER_LIST_SELECT` поимённо; материалы приезжают звёздочкой.
+   */
+  responsible?: string | null;
   // План материала (заводит закупка; на приёмке read-only для склада, правка 4.1.3)
   role: string | null;
   color: string | null;
@@ -531,6 +565,8 @@ export interface ErpTzDocument {
   order_id: string;
   item_id: string | null;
   group_id: string;
+  /** Этап, к которому относится документ (подряд); NULL — документ позиции или заказа */
+  stage_id?: string | null;
   version: number;
   is_current: boolean;
   file_path: string;
@@ -702,6 +738,15 @@ export interface ErpSubcontractOp {
    * отдельно от `delay_comment`: тот про задержку.
    */
   send_plan_date?: string | null;
+  /**
+   * Что и сколько передаём подрядчику. `materials_note` описан в комментарии
+   * выше с 20.08 — а самого поля в типе не было: комментарий пережил поле.
+   */
+  materials_qty?: string | null;
+  materials_note?: string | null;
+  materials_sent_on?: string | null;
+  /** Стоимость подрядных работ по операции */
+  cost?: number | null;
   responsible?: string | null;
   comment?: string | null;
   delay_comment: string | null;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { columnTypesOf, columnsOf, generatedSource } from './schema.testutil';
 
 /**
  * Сверка ручных типов ERP со схемой БД.
@@ -20,17 +21,7 @@ import { join } from 'node:path';
  */
 
 const SRC = join(process.cwd(), 'src');
-const generated = readFileSync(join(SRC, 'types/database.generated.ts'), 'utf8');
 const manual = readFileSync(join(SRC, 'erp/types.ts'), 'utf8');
-
-/** Колонки таблицы из блока `Row: { … }` сгенерированного файла */
-function columnsOf(table: string): string[] {
-  const start = generated.indexOf(`      ${table}: {`);
-  if (start < 0) throw new Error(`таблицы ${table} нет в схеме — переименована или удалена?`);
-  const rowStart = generated.indexOf('Row: {', start);
-  const rowEnd = generated.indexOf('        }', rowStart);
-  return [...generated.slice(rowStart, rowEnd).matchAll(/^\s{10}(\w+)[?]?:/gm)].map((m) => m[1]);
-}
 
 /** Поля интерфейса из `erp/types.ts` */
 function fieldsOf(iface: string): string[] {
@@ -38,6 +29,19 @@ function fieldsOf(iface: string): string[] {
   if (start < 0) throw new Error(`интерфейса ${iface} нет в erp/types.ts`);
   const end = manual.indexOf('\n}', start);
   return [...manual.slice(start, end).matchAll(/^\s{2}(\w+)\??:/gm)].map((m) => m[1]);
+}
+
+/** Поля интерфейса с признаками «объявлено необязательным» и «принимает null» */
+function fieldTypesOf(iface: string): Map<string, { optional: boolean; nullable: boolean }> {
+  const start = manual.indexOf(`export interface ${iface} {`);
+  if (start < 0) throw new Error(`интерфейса ${iface} нет в erp/types.ts`);
+  const end = manual.indexOf('\n}', start);
+  const out = new Map<string, { optional: boolean; nullable: boolean }>();
+  for (const line of manual.slice(start, end).split('\n')) {
+    const m = line.match(/^\s{2}(\w+)(\??):\s*(.+?);?\s*$/);
+    if (m) out.set(m[1], { optional: m[2] === '?', nullable: /\|\s*null/.test(m[3]) });
+  }
+  return out;
 }
 
 /**
@@ -83,6 +87,71 @@ describe('ручные типы ERP не разошлись со схемой Б
     expect(extra, `${iface}: полей нет в таблице ${table} — ${extra.join(', ')}`).toEqual([]);
   });
 
+  /**
+   * ВТОРАЯ СТОРОНА СВЕРКИ ДЛЯ ПАР ЦЕЛИКОМ.
+   *
+   * Проверка выше односторонняя: «в типе нет лишнего». Колонка, которую запрос
+   * ПРИВОЗИТ, а тип не описывает, её не нарушает — и ниже, у `ORDER_LIST_SELECT`,
+   * такая проверка есть, но только для колонок, перечисленных поимённо.
+   * Материалы, заказы, этапы и ТЗ приезжают ЗВЁЗДОЧКОЙ, под перечисление
+   * не попадают, и вторая сторона их не видела вовсе. Так `erp_materials.responsible`
+   * прожил месяц: колонку пишет форма закупки, а для `tsc` её не существовало.
+   *
+   * Возражение «требовать типизации всей схемы значило бы требовать лишнего»
+   * к этим парам не относится: `PAIRS` — ровно те таблицы, что клиент читает
+   * ЦЕЛИКОМ и по чьим полям строит экраны.
+   *
+   * Разбор 10.09 нашёл восемь таких колонок в четырёх типах — включая
+   * `erp_subcontracting.materials_note`, которое комментарий в `erp/types.ts`
+   * описывал, хотя самого поля рядом не было.
+   */
+  it.each(PAIRS)('%s описывает ВСЕ колонки %s', (iface, table) => {
+    const typed = new Set(fieldsOf(iface));
+    const untyped = columnsOf(table).filter((c) => !typed.has(c));
+    expect(
+      untyped,
+      `${table} везёт колонки, которых нет в ${iface}: ${untyped.join(', ')} — `
+      + 'для tsc их не существует, и переименование в миграции пройдёт молча',
+    ).toEqual([]);
+  });
+
+  /**
+   * ОБНУЛЯЕМОСТЬ — ТРЕТИЙ ВОПРОС, и на него не отвечают первые два.
+   *
+   * Сверки выше смотрят ИМЕНА: «в типе нет лишнего» и «в типе есть всё».
+   * Колонка, которая в БД бывает NULL, а в типе объявлена простым `string`,
+   * обе проходит — и это худший из трёх случаев: код считает поле всегда
+   * заполненным, `tsc` подтверждает, а в проде приезжает null.
+   * Так `ErpMaterial.order_id` остался `string` после того, как
+   * `20260816220000` сделала колонку nullable ради предварительной закупки.
+   *
+   * Обратное направление («в БД not null, а тип допускает null») не ломает
+   * ничего, но заставляет обрабатывать случай, которого не бывает, — и врёт
+   * о данных ровно так же.
+   */
+  it.each(PAIRS)('%s повторяет обнуляемость колонок %s', (iface, table) => {
+    const schema = columnTypesOf(table);
+    const typed = fieldTypesOf(iface);
+    const tooStrict: string[] = [];
+    const tooLoose: string[] = [];
+    for (const [col, s] of schema) {
+      const t = typed.get(col);
+      if (!t) continue; // отсутствие колонки в типе ловит проверка выше
+      if (s.nullable && !(t.nullable || t.optional)) tooStrict.push(col);
+      if (!s.nullable && t.nullable) tooLoose.push(col);
+    }
+    expect(
+      tooStrict,
+      `${iface}: в БД эти колонки бывают NULL, а тип этого не допускает — `
+      + `${tooStrict.join(', ')}. Код будет считать их всегда заполненными`,
+    ).toEqual([]);
+    expect(
+      tooLoose,
+      `${iface}: в БД эти колонки NOT NULL, а тип допускает null — `
+      + `${tooLoose.join(', ')}. Обрабатывается случай, которого не бывает`,
+    ).toEqual([]);
+  });
+
   it('список отношений не разросся: каждое должно быть осознанным', () => {
     // Если поле добавили в ручной тип и вписали сюда «чтобы тест прошёл» —
     // сверка перестаёт работать. Пусть их пересчёт будет заметным действием.
@@ -99,7 +168,7 @@ describe('ручные типы ERP не разошлись со схемой Б
     for (const t of [
       'erp_calendar_slots', 'erp_tz_documents', 'erp_material_suppliers', 'erp_bypasses',
     ]) {
-      expect(generated).toContain(`      ${t}: {`);
+      expect(generatedSource()).toContain(`      ${t}: {`);
     }
   });
 });
