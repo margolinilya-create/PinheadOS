@@ -180,13 +180,13 @@ export interface ErpDepartment {
    * директором, никакого отчёта — ровно та же ошибка, что уже случилась
    * с материальным гейтом. Пусто = отчёт не требуется (fail-open).
    */
-  result_fields?: ResultField[] | null;
+  result_fields?: ResultField[];
   /**
    * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
    * Пустой массив — участок материалами не гейтится. Правится в админке;
    * раньше это была константа MATERIAL_GATE_DEPT в utils/routes.ts.
    */
-  gate_material_kinds?: string[] | null;
+  gate_material_kinds?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -268,7 +268,7 @@ export interface ErpOrderItem {
    * `erp_order_shipments_rollup` — клиент колонку ТОЛЬКО ЧИТАЕТ. Остаток
    * к отгрузке считается как `qty - qty_shipped`.
    */
-  qty_shipped?: number | null;
+  qty_shipped?: number;
   production_type: ProductionType;
   branding_methods: BrandingMethod[];
   branding_on: BrandingOn | null;
@@ -310,7 +310,7 @@ export interface ErpOrderItem {
    * быть не должно. У позиций, заведённых до правки, колонки нет вовсе —
    * это тоже читается как «как в заказе».
    */
-  packaging?: ItemPackagingType | null;
+  packaging?: ItemPackagingType;
   /**
    * Размер пакета, место стикера и место маркировки (документ 16.08, п. 1).
    * Колонки есть в БД с 16.08, форма создания их пишет, `ORDER_LIST_SELECT` их
@@ -439,7 +439,13 @@ export interface ErpMaterialReceipt {
 
 export interface ErpMaterial {
   id: string;
-  order_id: string;
+  /**
+   * NULL — предварительная закупка: строку завели ДО заказа и привяжут позже
+   * (`20260816220000`, `materialsSlice.attachPreliminaryToOrder`). Тип держал
+   * `string` ещё месяц после того, как колонка стала обнуляемой, — сверка шла
+   * по именам колонок и обнуляемости не видела.
+   */
+  order_id: string | null;
   item_id: string | null;
   kind: MaterialKind;
   name: string;

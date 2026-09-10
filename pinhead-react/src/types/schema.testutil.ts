@@ -23,6 +23,30 @@ export function generatedSource(): string {
   return generated;
 }
 
+/**
+ * Колонки таблицы с признаком «принимает NULL» — из блока `Row: { … }`.
+ *
+ * Нужна отдельно от `columnsOf`: имя колонки и её ОБНУЛЯЕМОСТЬ — разные
+ * вопросы, и сверка по именам на второй не отвечает. Тип строже схемы
+ * («в БД null бывает, в типе нет») опаснее: код считает поле всегда
+ * заполненным, и `tsc` его не поправит.
+ */
+export function columnTypesOf(table: string): Map<string, { nullable: boolean }> {
+  const start = generated.indexOf(`      ${table}: {`);
+  if (start < 0) throw new Error(`таблицы ${table} нет в схеме — переименована или удалена?`);
+  const rowStart = generated.indexOf('Row: {', start);
+  const rowEnd = generated.indexOf('        }', rowStart);
+  const out = new Map<string, { nullable: boolean }>();
+  for (const line of generated.slice(rowStart, rowEnd).split('\n')) {
+    const m = line.match(/^\s{10}(\w+)\??:\s*(.+?)\s*$/);
+    if (m) out.set(m[1], { nullable: /\|\s*null/.test(m[2]) });
+  }
+  if (out.size === 0) {
+    throw new Error(`у ${table} не разобрано ни одной колонки — формат database.generated.ts изменился?`);
+  }
+  return out;
+}
+
 /** Колонки таблицы из блока `Row: { … }` сгенерированного файла */
 export function columnsOf(table: string): string[] {
   const start = generated.indexOf(`      ${table}: {`);
