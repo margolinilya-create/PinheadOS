@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-09-07T20:40:01Z",
+  "capturedAt": "2026-09-10T12:42:40Z",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -1580,6 +1580,14 @@
         "20260907203932_erp_garment_source.sql"
       ],
       "note": "правки 07.09, п. 4 «разделить „Готовое изделие“ на два сценария». Ось назвал владелец: ЧЬЁ ИЗДЕЛИЕ — клиента (давальческое) или наше. Колонка у ПОЗИЦИИ, а не у заказа: механизм «закупать нечего» уже есть на заказе (purchase_required), но на бое один заказ несёт ДВЕ позиции ready_garment, и отметка на заказе сняла бы закупку у обеих разом. Не material_source — та отвечает на вопрос подряда и читается только при production_type='outsource'. NULL читается как «закупаем мы» (сравнение строгое с 'customer', как с executor='contractor'), бэкфилла нет: чьё изделие в сданных заказах — догадка. erp_create_order пересоздана целиком по подлинному тексту (md5 тела до правки 53b8ab85… совпал побайтово с prosrc)"
+    },
+    {
+      "version": "20260910124240",
+      "name": "erp_materials_audit_price_column",
+      "files": [
+        "20260910124240_erp_materials_audit_price_column.sql"
+      ],
+      "note": "починка дефекта прода: аудит-триггер erp_materials_audit следил за колонкой price, которой в erp_materials нет и не было (цена за единицу — price_per_unit, заведена 20260810200000; price живёт в соседней erp_material_suppliers). Занесена 20260906193413. erp_log_changes читает поле динамически (execute format '($1).%I') и ДО сравнения old/new, поэтому падал КАЖДЫЙ UPDATE строки erp_materials с непустым order_id: правка листа закупки, приёмка складом (erp_material_accept) и роллап журнала приёмок, а с ним и вставка в сам журнал. В erp_order_audit за всё время не появилось ни одной записи material.%. Поле не убрано, а названо верно: журнал 06.09 расширяли ради «сколько заказали, когда и почём». Бэкфилла нет — восстанавливать нечего, ни один материал ни разу не обновился. Сторож auditCoverage.test.ts переписан тем же коммитом: читал одну захардкоженную миграцию и существование колонок не проверял вовсе"
     }
   ]
 }
