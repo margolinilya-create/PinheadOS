@@ -21,7 +21,7 @@ attachDomainSlices();
 const DEPTS = [
   { id: 'd1', code: 'cutting', name: 'Закройный', active: true, is_production: true, sort_order: 10 },
   { id: 'd2', code: 'dtf', name: 'ДТФ', active: true, is_production: true, sort_order: 20 },
-  { id: 'd3', code: 'sewing', name: 'Швейный', active: true, is_production: true, sort_order: 30 },
+  { id: 'd3', code: 'sewing', name: 'Швейный цех', active: true, is_production: true, sort_order: 30 },
 ];
 
 const stage = (over) => ({
@@ -113,7 +113,7 @@ describe('Подряд', () => {
    */
   it('следующий этап маршрута назван прямо — «вернулось» не значит «готово»', () => {
     setup();
-    expect(within(row()).getAllByRole('cell')[4]).toHaveTextContent('Швейка');
+    expect(within(row()).getAllByRole('cell')[4]).toHaveTextContent('Швейный цех');
   });
 
   it('у последнего подрядного этапа сказано, что он последний', () => {

@@ -31,7 +31,7 @@ describe('StageIndicator — воронка (подряд)', () => {
 describe('StageIndicator — точки (карточка заказа)', () => {
   const dots = [
     { key: 's1', label: 'Закрой', state: 'done', lineDone: true, title: 'Закройный цех · Завершён' },
-    { key: 's2', label: 'Швейка', state: 'active', title: 'Швейный цех · В работе' },
+    { key: 's2', label: 'Швейный цех', state: 'active', title: 'Швейный цех · В работе' },
     { key: 's3', label: 'ВТО', title: 'ВТО цех · Ожидает' },
   ];
 

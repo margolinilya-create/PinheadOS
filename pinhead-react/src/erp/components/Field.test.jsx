@@ -31,7 +31,7 @@ describe('Field', () => {
     render(
       <Field label="Цех" as="select" value="cutting" onChange={onChange}>
         <option value="cutting">Закрой</option>
-        <option value="sewing">Швейка</option>
+        <option value="sewing">Швейный цех</option>
       </Field>,
     );
     const select = screen.getByLabelText('Цех');

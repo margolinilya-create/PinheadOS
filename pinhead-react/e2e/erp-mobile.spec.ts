@@ -27,7 +27,7 @@ test.describe('Мобильная навигация ERP', () => {
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
 
     // Пункт цеха до открытия меню недоступен: сайдбар уехал за край экрана
-    const sewing = page.getByRole('complementary').getByRole('link', { name: /Швейка/ });
+    const sewing = page.getByRole('complementary').getByRole('link', { name: /Швейный цех/ });
     await expect(sewing).not.toBeInViewport();
 
     await menu.click();

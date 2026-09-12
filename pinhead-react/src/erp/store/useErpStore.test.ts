@@ -489,7 +489,7 @@ function seedChain() {
     orders: [order] as any,
     departments: [
       { id: 'd-cut', code: 'cutting', name: 'Закрой', active: true },
-      { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true },
+      { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true },
     ] as any,
     loaded: true,
   });
@@ -525,7 +525,7 @@ describe('useErpStore — reportDefect (выбор этапа устранени
     expect((ev?.row as any).stage_id).toBe('st-cut');
     expect((ev?.row as any).qty_rework).toBe(5);
     expect((ev?.row as any).comment).toContain('Возврат брака');
-    expect((ev?.row as any).comment).toContain('Швейка');
+    expect((ev?.row as any).comment).toContain('Швейный цех');
   });
 
   it('target=current не трогает другие этапы', async () => {
@@ -581,7 +581,7 @@ describe('useErpStore — reportDefect с параллельными ветка�
         { id: 'd-cut', code: 'cutting', name: 'Закрой', active: true },
         { id: 'd-emb', code: 'embroidery', name: 'Вышивка', active: true },
         { id: 'd-silk', code: 'silkscreen', name: 'Шелкография', active: true },
-        { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true },
+        { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true },
       ] as any,
       loaded: true,
     });
@@ -1101,7 +1101,7 @@ describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => 
     const order = { id: 'o1', title: 'Заказ', status: 'active', items: [item], materials: [] };
     useErpStore.setState({
       orders: [order] as any,
-      departments: [{ id: 'd-cut', code: 'cutting', name: 'Закрой', active: true }, { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true }] as any,
+      departments: [{ id: 'd-cut', code: 'cutting', name: 'Закрой', active: true }, { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true }] as any,
       loaded: true,
     });
   }
@@ -1235,7 +1235,7 @@ describe('useErpStore — reportDefect бэклог-фиксы (qty vs сдел�
     const item = { id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 500, production_type: 'sewing', branding_methods: [], branding_on: 'cut', notes: null, sort_order: 10, stages: [cut, sew, vto], prints: [] };
     useErpStore.setState({
       orders: [{ id: 'o1', title: 'З', status: 'active', items: [item], materials: [] }] as any,
-      departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', active: true }, { id: 'd2', code: 'sewing', name: 'Швейка', active: true }, { id: 'd3', code: 'vto', name: 'ВТО', active: true }] as any,
+      departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', active: true }, { id: 'd2', code: 'sewing', name: 'Швейный цех', active: true }, { id: 'd3', code: 'vto', name: 'ВТО', active: true }] as any,
       loaded: true,
     });
     const ok = await useErpStore.getState().reportDefect('s-vto', { qty: 20, reason: 'x', target: 's-cut' });
@@ -1993,7 +1993,7 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     { id: 'dep-supply', code: 'supply', name: 'Закупка', active: true },
     { id: 'dep-cutting', code: 'cutting', name: 'Закрой', active: true },
     { id: 'dep-dtf', code: 'dtf', name: 'ДТФ', active: true },
-    { id: 'dep-sewing', code: 'sewing', name: 'Швейка', active: true },
+    { id: 'dep-sewing', code: 'sewing', name: 'Швейный цех', active: true },
     { id: 'dep-vto', code: 'vto', name: 'ВТО', active: true },
   ];
 
@@ -2956,7 +2956,7 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
     const events = h.insertCalls.filter((c) => c.table === 'erp_stage_events');
     expect(events).toHaveLength(2);
     for (const e of events) {
-      expect((e.row as any).comment).toContain('Швейка');
+      expect((e.row as any).comment).toContain('Швейный цех');
       expect((e.row as any).comment).toContain('Закрой');
       expect((e.row as any).comment).toContain('перекроить');
     }

@@ -255,7 +255,7 @@ describe('подписи строки', () => {
       DEPARTMENTS, WEEK,
     );
     expect(bars[0]).toMatchObject({
-      orderTitle: 'PH-1', itemTitle: 'Худи · 100 шт', deptName: 'Швейка', deptCode: 'sewing',
+      orderTitle: 'PH-1', itemTitle: 'Худи · 100 шт', deptName: 'Швейный цех', deptCode: 'sewing',
     });
   });
 
