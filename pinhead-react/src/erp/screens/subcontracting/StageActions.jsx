@@ -147,11 +147,10 @@ export function StageActions({ op, view, canManage }) {
               <input
                 type="number"
                 min="1"
-                className={styles.input}
+                className={`${styles.input} ${styles.wQty}`}
                 value={inWork}
                 onChange={(e) => setInWork(e.target.value.replace('-', ''))}
                 aria-label="Количество в работе у подрядчика"
-                style={{ maxWidth: 130 }}
               />
               <span className={styles.subText}>сколько подрядчик должен сделать</span>
             </label>
@@ -162,11 +161,10 @@ export function StageActions({ op, view, canManage }) {
               <input
                 type="number"
                 min="0"
-                className={styles.input}
+                className={`${styles.input} ${styles.wQty}`}
                 value={qty}
                 onChange={(e) => setQty(e.target.value.replace('-', ''))}
                 aria-label={open.qtyLabel}
-                style={{ maxWidth: 130 }}
               />
               {open.asksInWork && (
                 <span className={styles.subText}>

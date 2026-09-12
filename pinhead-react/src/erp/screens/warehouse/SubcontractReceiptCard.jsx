@@ -186,12 +186,11 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
                 <input
                   type="number"
                   min="0"
-                  className={styles.input}
+                  className={`${styles.input} ${styles.wQty}`}
                   value={returnQty}
                   onChange={(e) => setReturnQty(e.target.value.replace('-', ''))}
                   placeholder={String(undelivered)}
                   aria-label="Сколько вернулось от подрядчика"
-                  style={{ maxWidth: 130 }}
                 />
               </label>
             )}
@@ -200,12 +199,11 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
               <input
                 type="number"
                 min="0"
-                className={styles.input}
+                className={`${styles.input} ${styles.wQty}`}
                 value={qty}
                 onChange={(e) => setQty(e.target.value.replace('-', ''))}
                 placeholder={String(acceptable)}
                 aria-label="Сколько принято"
-                style={{ maxWidth: 110 }}
               />
             </label>
             {/* Брак вводится ЯВНО и здесь же: только приёмка знает, что
@@ -215,12 +213,11 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
               <input
                 type="number"
                 min="0"
-                className={styles.input}
+                className={`${styles.input} ${styles.wQty}`}
                 value={defectQty}
                 onChange={(e) => setDefectQty(e.target.value.replace('-', ''))}
                 placeholder="0"
                 aria-label="Сколько брака"
-                style={{ maxWidth: 110 }}
               />
             </label>
             <label className={styles.field}>

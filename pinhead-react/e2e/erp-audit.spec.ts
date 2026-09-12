@@ -120,6 +120,45 @@ test.describe('Список заказов: страницы, сортировк
     await expect(header).toHaveAttribute('aria-sort', 'none');
   });
 
+  /**
+   * СТОРОЖ НА «КНОПКУ, КОТОРАЯ НИЧЕГО НЕ ДЕЛАЕТ».
+   *
+   * Чип «Стоит» шлёт в адрес `filter=stopped`, а разбор адреса пропускал
+   * только `ready | urgent | overdue` — значение отбрасывалось, чип никогда
+   * не подсвечивался и отбор не применялся. Отказ тихий вдвойне: счётчик
+   * рядом с подписью считается ОТДЕЛЬНО и показывал правду, поэтому экран
+   * выглядел рабочим, а на список никто не жаловался — им просто не
+   * пользовались.
+   *
+   * Проверяется поведение, а не список значений: нажали — чип включился,
+   * адрес запомнил, строк стало меньше, чем во всей вкладке. Сверка
+   * с перечнем в коде повторила бы ошибку, если перечень снова разойдётся
+   * с чипами.
+   */
+  test('чип «Стоит» включается и отбирает строки', async ({ page }) => {
+    await page.goto('/orders?studio=0');
+    // Счёт снимается ПОСЛЕ того, как список приехал: `page.goto` дожидается
+    // модулей, а данные идут своим запросом уже после `load` — на холодном
+    // старте первый замер дал бы ноль, и сравнение «стало меньше» прошло бы
+    // на любом коде (разбор этого класса отказа — в шапке `erp-a11y`)
+    const rows = page.getByRole('row');
+    await expect(rows.filter({ hasText: 'BOX39' }).first()).toBeVisible();
+    const allRows = await rows.count();
+
+    const chip = page.getByRole('button', { name: /Стоит/ });
+    await expect(chip).toHaveAttribute('aria-pressed', 'false');
+
+    await chip.click();
+    await expect(page).toHaveURL(/filter=stopped/);
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    expect(await rows.count()).toBeLessThan(allRows);
+
+    // Повторное нажатие снимает отбор — тот же чип, обратный ход
+    await chip.click();
+    await expect(page).not.toHaveURL(/filter=stopped/);
+    await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  });
+
   test('три быстрых клика подряд доводят сортировку до конца цикла', async ({ page }) => {
     /**
      * Сторож на «мёртвый клик». Состояние сортировки живёт В АДРЕСЕ, и раньше

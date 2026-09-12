@@ -4,6 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { LoadFailed } from '../../components/ErpStates';
 import { Button } from '../../components/Button';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
 import { formatDateTimeShort } from '../../utils/format';
@@ -243,7 +244,7 @@ export function BypassTab() {
       {history.length > 0 && (
         <div className={styles.matSection}>
           <h3 className={styles.fieldLabel}>Журнал</h3>
-          <div className={styles.tableWrap}>
+          <ScrollHintBox className={styles.tableWrap} label="Журнал снятых проверок">
             <table className={styles.table}>
             <thead>
               <tr>
@@ -266,7 +267,7 @@ export function BypassTab() {
               ))}
             </tbody>
           </table>
-          </div>
+          </ScrollHintBox>
         </div>
       )}
     </div>

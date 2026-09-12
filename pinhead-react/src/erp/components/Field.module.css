@@ -23,7 +23,7 @@
    Значения приведены к `.input`; размер шрифта — токеном, а не литералом. */
 .control {
   width: 100%;
-  min-height: 40px;
+  min-height: var(--control-h-md);
   padding: 0 11px;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
@@ -38,18 +38,18 @@ textarea.control { padding: var(--space-sm) 10px; min-height: 72px; resize: vert
 .control:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+  box-shadow: var(--focus-ring);
 }
 .control:disabled { background: var(--surface); color: var(--text-dim); cursor: not-allowed; }
 
 .invalid { border-color: var(--color-error); }
-.invalid:focus-visible { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--color-error); }
+.invalid:focus-visible { box-shadow: var(--focus-ring-error); }
 
 .hint { font-size: var(--type-label); color: var(--text-dim); }
 /* ink, а не заливочный --color-error: 11.5px давали 3.76:1 при норме 4.5 */
 .error { font-size: var(--type-label); color: var(--color-error-ink); font-weight: 500; }
 
-/* Правило ≥44px на тач-экранах цехов */
-@media (pointer: coarse) {
-  .control { min-height: 44px; }
-}
+/* Тач-размер держит сам токен `--control-h-md`: его переопределение под
+   `pointer: coarse` стоит в `index.css`, рядом с объявлением. Своего
+   медиазапроса у модуля больше нет — именно два таких, в примитиве и
+   в монолите, и разъехались (36 против 40). */

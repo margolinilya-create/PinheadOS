@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ScreenSkeleton } from '../../components/ErpSkeletons';
-import { LoadFailed } from '../../components/ErpStates';
+import { LoadFailed, EmptyState } from '../../components/ErpStates';
 import { Button, ButtonLink } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { formatDateShort } from '../../utils/time';
@@ -62,12 +62,24 @@ export default function PurchaseListPrint() {
     return [...out.values()];
   }, [order]);
 
+  /*
+    ЭКРАННОЕ состояние, а не часть бумажного листа: сам документ — это ветка
+    `.printPage` ниже, и в ней своя кнопка печати. Сюда человек попадает
+    по ссылке на удалённый заказ, печатать здесь нечего, поэтому примитив
+    раздела уместен — с иконкой, заголовком и выходом обратно в закупку.
+
+    Сообщение «Строк закупки нет» внутри документа осталось обычным абзацем
+    НАМЕРЕННО: оно печатается на бумаге, и пунктирная рамка с иконкой там
+    была бы экранным элементом в печатном тексте.
+  */
   if (notFound) {
     return (
-      <>
-        <div className={styles.emptyState}>Заказ не найден или был удалён.</div>
-        <ButtonLink to="/purchasing" variant="secondary">К закупке</ButtonLink>
-      </>
+      <EmptyState
+        icon="search"
+        title="Заказ не найден"
+        text="Возможно, он был удалён."
+        action={<ButtonLink to="/purchasing" variant="secondary">К закупке</ButtonLink>}
+      />
     );
   }
   if (loadError && !loaded) return <LoadFailed onRetry={loadAll} what="лист закупки" />;

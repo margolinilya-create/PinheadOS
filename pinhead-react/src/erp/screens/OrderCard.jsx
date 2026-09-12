@@ -198,7 +198,7 @@ export default function OrderCard() {
         </Suspense>
       )}
       <PageHead title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`} />
-      <div className={styles.toolbar} style={{ gap: 18, marginTop: -8 }}>
+      <div className={`${styles.toolbar} ${styles.toolbarUnderHead} ${styles.orderFacts}`}>
         {/* Клиент собирается формой создания и правится в боковой карточке, но на
             полной странице его не было вовсе — а именно её ссылку шлют коллегам */}
         <span>

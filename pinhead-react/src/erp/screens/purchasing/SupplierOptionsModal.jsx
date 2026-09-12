@@ -5,6 +5,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { SUPPLIER_OPTION_LABELS } from '../../types';
 import { Icon } from '../../components/Icon';
 import { Modal } from '../../components/Modal';
+import { EmptyState } from '../../components/ErpStates';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { Button } from '../../components/Button';
@@ -92,7 +93,14 @@ export function SupplierOptionsModal({ material, order, actions, onClose }) {
       </div>
 
       {options.length === 0 ? (
-        <div className={styles.emptyState}>Вариантов пока нет — добавьте первое предложение.</div>
+        /* Подбора здесь нет — показываются ВСЕ варианты позиции, поэтому пусто
+           означает ровно одно: предложений ещё не заводили. Форма «Новый
+           вариант» стоит ниже в этом же окне, и пояснение ведёт к ней. */
+        <EmptyState
+          icon="truck"
+          title="Вариантов пока нет"
+          text="Добавьте первое предложение — форма «Новый вариант» ниже."
+        />
       ) : (
         <ScrollHintBox className={styles.tableWrap} label="Варианты поставщиков">
           <table className={styles.table}>

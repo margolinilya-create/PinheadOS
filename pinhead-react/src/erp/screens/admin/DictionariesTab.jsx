@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import InlineEdit from '../../components/InlineEdit';
-import { LoadFailed } from '../../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../../components/ErpStates';
+import { TableSkeleton } from '../../components/ErpSkeletons';
 import { Icon } from '../../components/Icon';
 import {
   DICTIONARY_HINTS,
@@ -156,11 +157,33 @@ function DictionaryList({ kind }) {
       </div>
 
       {items.length === 0 ? (
-        <div className={styles.emptyState}>
-          {hiddenCount > 0
-            ? `Все значения отключены (${hiddenCount}). Включите «Показывать отключённые», чтобы вернуть нужное — заводить дубликат не нужно.`
-            : 'Справочник пуст — добавьте первое значение.'}
-        </div>
+        /*
+          ДВА РАЗНЫХ «ПУСТО», и примитивы у них тоже разные.
+
+          Значения есть, но все отключены — это РЕЗУЛЬТАТ ПОДБОРА: их прячет
+          снятая галочка «Показывать отключённые», и нужное действие — показать
+          их, а не заводить заново (ровно то, о чём говорила прежняя строка).
+          Поэтому `EmptyResult` с действием: подсказка, которую надо исполнить
+          руками, на один шаг длиннее кнопки, которая её исполняет.
+
+          Справочник пуст по существу — `EmptyState`.
+        */
+        hiddenCount > 0 ? (
+          <EmptyResult
+            icon="filter"
+            resetLabel="Показать отключённые"
+            onReset={() => setShowHidden(true)}
+          >
+            Все значения отключены ({hiddenCount}). Верните нужное — заводить
+            дубликат не нужно.
+          </EmptyResult>
+        ) : (
+          <EmptyState
+            icon="tag"
+            title="Справочник пуст"
+            text="Добавьте первое значение — поле ввода над списком."
+          />
+        )
       ) : (
         <ScrollHintBox className={styles.tableWrap} label="Справочник">
           <table className={styles.table}>
@@ -275,6 +298,13 @@ export function DictionariesTab() {
    */
   if (dictionariesError) {
     return <LoadFailed onRetry={loadDictionaries} what="справочники" />;
+  }
+
+  /* Без скелетона пустой справочник при загрузке неотличим от справочника,
+     в котором ничего не завели, — и админ заводит второй раз то, что уже есть
+     (этот же довод записан абзацем выше про порядок проверок) */
+  if (!dictionariesLoaded) {
+    return <TableSkeleton rows={6} label="Загрузка справочников" />;
   }
 
   return (

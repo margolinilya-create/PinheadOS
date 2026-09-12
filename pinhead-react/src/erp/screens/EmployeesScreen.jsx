@@ -346,7 +346,7 @@ export default function EmployeesScreen({ embedded = false }) {
       )}
 
       <h2 className={styles.queueGroupTitle}>Без логина (цеховые)</h2>
-      <p className={styles.subText} style={{ marginTop: -6, marginBottom: 10 }}>
+      <p className={`${styles.subText} ${styles.groupNote}`}>
         Работники, которые пока не заходят в систему сами. Появится логин — привяжутся к общему списку.
       </p>
 

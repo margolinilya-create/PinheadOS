@@ -118,31 +118,28 @@ export function PreliminarySection({ orders }) {
           aria-label="Материал"
         />
         <input
-          className={styles.input}
+          className={`${styles.input} ${styles.wCode}`}
           placeholder="Цвет"
           value={form.color}
           onChange={(e) => setForm({ ...form, color: e.target.value })}
           aria-label="Цвет"
-          style={{ maxWidth: 140 }}
         />
         <input
           type="number"
           min="0"
-          className={styles.input}
+          className={`${styles.input} ${styles.wQty}`}
           placeholder="Кол-во"
           value={form.qty_expected}
           onChange={(e) => setForm({ ...form, qty_expected: e.target.value })}
           aria-label="Необходимое количество"
-          style={{ maxWidth: 110 }}
         />
         <input
-          className={styles.input}
+          className={`${styles.input} ${styles.wNum}`}
           list="erp-units"
           placeholder="ед."
           value={form.unit}
           onChange={(e) => setForm({ ...form, unit: e.target.value })}
           aria-label="Единица измерения"
-          style={{ maxWidth: 90 }}
         />
         <input
           className={styles.input}

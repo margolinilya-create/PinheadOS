@@ -73,7 +73,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
       <RouteProgress item={item} order={order} deptById={deptById} showStages={false} />
 
       {item.size_grid && item.size_grid.length > 0 && (
-        <div className={styles.tableWrap} style={{ marginBottom: 10, maxWidth: 560 }}>
+        <ScrollHintBox className={`${styles.tableWrap} ${styles.sizeGridWrap}`} label="Размерная сетка позиции">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -101,7 +101,7 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollHintBox>
       )}
 
       {(item.prints ?? []).length > 0 && (

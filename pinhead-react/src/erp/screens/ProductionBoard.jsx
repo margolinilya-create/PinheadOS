@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { KanbanSkeleton, TableSkeleton } from '../components/ErpSkeletons';
-import { LoadFailed } from '../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { QueueFilters } from '../components/QueueFilters';
 import ErpKanban from '../components/ErpKanban';
 import { Icon } from '../components/Icon';
@@ -33,7 +33,6 @@ import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { dueLabelCompact } from '../utils/format';
-import { Button } from '../components/Button';
 import { ProductionTabs } from '../components/ProductionTabs';
 import { storageGetRaw, storageSetRaw } from '../../lib/storage';
 
@@ -326,20 +325,27 @@ export default function ProductionBoard() {
       {/* Заглушка была привязана к табличному виду: на канбане при пустом подборе
           или без заведённых участков оставалась просто пустая область */}
       {view === 'kanban' && loaded && rows.length === 0 && (
-        <div className={styles.emptyState}>
-          {filtersActive ? (
-            <>
-              Под фильтры ничего не попало.{' '}
-              <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
-                Сбросить фильтры
-              </Button>
-            </>
-          ) : queueDepartments.length === 0 ? (
-            <>Производственные участки не заведены — добавьте их в админке.</>
-          ) : (
-            'Нет позиций в работе. Создайте заказ на экране «Заказы».'
-          )}
-        </div>
+        filtersActive ? (
+          /* «Сбросить фильтры», а не «Сбросить»: та же подпись стоит в панели
+             фильтров выше, и две одинаковые кнопки на экране путают человека
+             и роняют strict mode Playwright */
+          <EmptyResult
+            onReset={() => setFilters(EMPTY_FILTERS)}
+            resetLabel="Сбросить фильтры"
+          />
+        ) : queueDepartments.length === 0 ? (
+          <EmptyState
+            icon="settings"
+            title="Производственные участки не заведены"
+            text="Добавьте их в админке."
+          />
+        ) : (
+          <EmptyState
+            icon="board"
+            title="Нет позиций в работе"
+            text="Создайте заказ на экране «Заказы»."
+          />
+        )
       )}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="производственный план" />}
@@ -352,18 +358,18 @@ export default function ProductionBoard() {
       )}
 
       {view === 'table' && loaded && rows.length === 0 && (
-        <div className={styles.emptyState}>
-          {filtersActive ? (
-            <>
-              Под фильтры ничего не попало.{' '}
-              <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
-                Сбросить фильтры
-              </Button>
-            </>
-          ) : (
-            'Нет позиций в работе. Создайте заказ на экране «Заказы».'
-          )}
-        </div>
+        filtersActive ? (
+          <EmptyResult
+            onReset={() => setFilters(EMPTY_FILTERS)}
+            resetLabel="Сбросить фильтры"
+          />
+        ) : (
+          <EmptyState
+            icon="board"
+            title="Нет позиций в работе"
+            text="Создайте заказ на экране «Заказы»."
+          />
+        )
       )}
 
       {/* На 390px таблица показывала только «№ / Заказ / Кол-во» — срок, прогресс
