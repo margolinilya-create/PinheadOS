@@ -42,13 +42,9 @@ export default function OrdersScreen() {
   const {
     orders, departments, bypasses, loaded, loadError, loadAll, deleteOrder, shipOrder,
     archiveLoaded, archiveLoading, archiveHasMore, loadArchive, loadMoreArchive,
-    showDemoOrders, setShowDemoOrders, setOrderDemo,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
-      showDemoOrders: s.showDemoOrders,
-      setShowDemoOrders: s.setShowDemoOrders,
-      setOrderDemo: s.setOrderDemo,
       departments: s.departments,
       // Аварийно снятые проверки: «Сейчас» обязано показывать ту же готовность,
       // что видит цех, иначе список объявит стоящим запущенный заказ
@@ -356,28 +352,6 @@ export default function OrdersScreen() {
     }
   };
 
-  /**
-   * Пометка «тестовый». Через подтверждение: при выключенном показе заказ
-   * тут же исчезает из списка, и без предупреждения это читается как удаление.
-   */
-  const onToggleDemo = async (order) => {
-    if (order.is_demo) {
-      const done = await setOrderDemo(order.id, false);
-      if (done) toast.success('Заказ снова в рабочем списке');
-      return;
-    }
-    const ok = await confirm({
-      title: 'Пометить заказ тестовым?',
-      message: `«${order.title}» пропадёт из списков, счётчиков цехов и уведомлений. `
-        + 'Заказ НЕ удаляется — его видно при включённом показе тестовых.',
-      confirmLabel: 'Пометить',
-    });
-    if (ok) {
-      const done = await setOrderDemo(order.id, true);
-      if (done) toast.success('Заказ помечен тестовым и скрыт из рабочих списков');
-    }
-  };
-
   const onShip = async (order) => {
     const ok = await confirm({
       title: `Отгрузить заказ «${order.title}»?`,
@@ -469,20 +443,6 @@ export default function OrdersScreen() {
             Сбросить даты
           </Button>
         )}
-        {/* Показ тестовых — руководящему составу: это отладочный режим, и цеху
-            он показал бы работу, которой нет. Здесь `isPrivileged` уместен —
-            это ФИЛЬТР СПИСКА, он ничего не пишет. Сама пометка «тестовый»
-            (`onToggleDemo`) идёт под `isAdmin`: её страж требует `is_admin()`. */}
-        {access.isPrivileged && (
-          <label className={styles.checkLabel} title="Тестовые заказы скрыты из всех списков и счётчиков">
-            <input
-              type="checkbox"
-              checked={showDemoOrders}
-              onChange={(e) => setShowDemoOrders(e.target.checked)}
-            />
-            Показывать тестовые
-          </label>
-        )}
         <div className={styles.spacer} />
         <span className={styles.subText}>{filtered.length} из {inTab.length}</span>
         {canManageOrders && (
@@ -562,7 +522,6 @@ export default function OrdersScreen() {
               onDelete={onDelete}
               canDelete={canDelete}
               onShip={canShip ? onShip : null}
-              onToggleDemo={access.isAdmin ? onToggleDemo : undefined}
             />
           ))}
         </div>
@@ -630,7 +589,6 @@ export default function OrdersScreen() {
                   onDelete={onDelete}
                   canDelete={canDelete}
                   onShip={canShip ? onShip : null}
-                  onToggleDemo={access.isAdmin ? onToggleDemo : undefined}
                 />
               ))}
             </tbody>

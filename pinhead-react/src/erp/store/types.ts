@@ -418,7 +418,6 @@ export interface ErpOrderBrief {
   title: string;
   status: string;
   created_at: string;
-  is_demo?: boolean;
 }
 
 export interface OrdersSlice {
@@ -462,21 +461,6 @@ export interface OrdersSlice {
    * и шёл выяснять к диспетчеру.
    */
   detailError: string | null;
-
-  /**
-   * Показывать ли тестовые заказы (`is_demo`). По умолчанию нет.
-   *
-   * Фильтр применяется в САМОМ запросе, а не в экранах: на 03.08.2026 демо —
-   * это 26 активных заказов из 76, и они одинаково попадали и в списки,
-   * и в счётчики цехов, и в уведомления о просрочке. Отфильтровать их
-   * в пятнадцати местах значит однажды забыть одно.
-   *
-   * `loadOne` фильтру НЕ подчиняется: прямая ссылка на демо-заказ обязана
-   * открываться, иначе спрятанное становится недоступным.
-   */
-  showDemoOrders: boolean;
-  /** Переключить показ демо и перезагрузить списки (доступно admin/director) */
-  setShowDemoOrders: (value: boolean) => Promise<void>;
 
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
@@ -1252,8 +1236,6 @@ export interface PlanSlice {
  * разделено, написано в шапке самого слайса.
  */
 export interface OrderWriteSlice {
-  /** Пометить заказ тестовым / снять пометку */
-  setOrderDemo: (id: string, value: boolean) => Promise<boolean>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
   updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
   /**

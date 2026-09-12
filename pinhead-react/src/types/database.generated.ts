@@ -1470,7 +1470,6 @@ export type Database = {
           delivered_at: string | null
           due_date: string | null
           id: string
-          is_demo: boolean
           launch_date: string | null
           manager: string | null
           no_chestny_znak: boolean
@@ -1502,7 +1501,6 @@ export type Database = {
           delivered_at?: string | null
           due_date?: string | null
           id?: string
-          is_demo?: boolean
           launch_date?: string | null
           manager?: string | null
           no_chestny_znak?: boolean
@@ -1534,7 +1532,6 @@ export type Database = {
           delivered_at?: string | null
           due_date?: string | null
           id?: string
-          is_demo?: boolean
           launch_date?: string | null
           manager?: string | null
           no_chestny_znak?: boolean

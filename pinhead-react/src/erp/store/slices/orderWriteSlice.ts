@@ -40,22 +40,6 @@ import { orderBundleKey, orderFilePaths } from './ordersSlice';
 import type { ErpOrderComment, ErpStore, OrderWriteSlice } from '../types';
 
 export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = (set, get) => ({
-  setOrderDemo: async (id, value) => {
-    const ok = await get().updateOrder(id, { is_demo: value });
-    if (!ok) return false;
-    // Заказ, помеченный тестовым при выключенном показе, должен исчезнуть
-    // из списков сразу — иначе он останется висеть до F5 и разметка
-    // будет выглядеть неработающей.
-    if (value && !get().showDemoOrders) {
-      set((s) => ({
-        orders: s.orders.filter((o) => o.id !== id),
-        detailIds: s.detailIds.filter((x) => x !== id),
-      }));
-    }
-    return true;
-  },
-
-
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));

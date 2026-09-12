@@ -1764,70 +1764,7 @@ describe('число запросов: оболочка и карточка за
   });
 });
 
-describe('тестовые заказы (is_demo) — фильтр в запросе, не в экранах', () => {
-  const dept = { id: 'd1', code: 'sewing', name: 'Швейный цех', active: true, sort_order: 10 };
-  const row = { id: 'o-a', title: 'Активный', status: 'active', items: [], materials: [] };
-
-  beforeEach(() => {
-    localStorage.removeItem('erp_show_demo');
-    useErpStore.setState({ showDemoOrders: false, archiveLoaded: false, archiveHasMore: false });
-  });
-
-  it('по умолчанию списочный запрос отсекает демо', async () => {
-    h.tableData = { erp_departments: [dept], erp_orders: [row] };
-    await useErpStore.getState().loadAll();
-    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
-    expect(call.filters).toContain('eq:is_demo=false');
-  });
-
-  it('архив фильтруется тем же условием — иначе демо всплывёт во вкладке «Архив»', async () => {
-    h.tableData = { erp_orders: [] };
-    await useErpStore.getState().loadArchive();
-    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
-    expect(call.filters).toContain('eq:is_demo=false');
-  });
-
-  it('включённый показ снимает условие и перечитывает данные', async () => {
-    h.tableData = { erp_departments: [dept], erp_orders: [row] };
-    await useErpStore.getState().setShowDemoOrders(true);
-    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
-    expect(call.filters).not.toContain('eq:is_demo=false');
-    expect(localStorage.getItem('erp_show_demo')).toBe('1');
-  });
-
-  it('loadOne фильтру НЕ подчиняется: прямая ссылка на демо обязана открываться', async () => {
-    h.singleData = { ...row, is_demo: true, items: [], materials: [] };
-    const loaded = await useErpStore.getState().loadOne('o-a');
-    expect(loaded).toBeTruthy();
-    const call = h.selectCalls.filter((c) => c.table === 'erp_orders').at(-1)!;
-    expect(call.filters).not.toContain('eq:is_demo=false');
-  });
-
-  it('пометка тестовым убирает заказ из списка сразу, без F5', async () => {
-    useErpStore.setState({ orders: [row] as never, detailIds: ['o-a'] });
-    const ok = await useErpStore.getState().setOrderDemo('o-a', true);
-    expect(ok).toBe(true);
-    expect(useErpStore.getState().orders).toHaveLength(0);
-    expect(useErpStore.getState().detailIds).toEqual([]);
-  });
-
-  it('снятие пометки заказ не выбрасывает', async () => {
-    useErpStore.setState({ orders: [{ ...row, is_demo: true }] as never });
-    await useErpStore.getState().setOrderDemo('o-a', false);
-    expect(useErpStore.getState().orders).toHaveLength(1);
-  });
-
-  it('realtime не втягивает демо обратно при выключенном показе', () => {
-    useErpStore.setState({ orders: [] as never });
-    useErpStore.getState().applyRealtimeEvent({
-      table: 'erp_orders',
-      eventType: 'INSERT',
-      new: { id: 'o-demo', status: 'active', is_demo: true },
-      old: null,
-    });
-    expect(h.selectCalls.filter((c) => c.table === 'erp_orders')).toHaveLength(0);
-  });
-
+describe('проверка дубля № сделки', () => {
   it('проверка дубля № сделки идёт запросом, а не поиском по стору', async () => {
     // Дубль может лежать в архиве или быть помечен тестовым — в сторе его нет
     h.tableData = { erp_orders: [{ id: 'o-x', title: 'Тест новый', status: 'active' }] };

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  functionBody, latestDefining, latestMatching, migration, withoutComments,
+  functionBody, latestDefining, latestMatching, migration, withoutComments, withoutJsComments,
 } from './migrations.testutil';
 import {
   DEFAULT_PERMISSIONS,
@@ -284,16 +284,25 @@ describe('страж заказа совпадает с интерфейсом',
   });
 
   /**
-   * Страж требует `is_admin()` — значит и КНОПКА пометки под `isAdmin`.
-   * Прежняя версия теста проверяла `access.isPrivileged && (`, но это выражение
-   * в файле встречается дважды и означает РАЗНОЕ: фильтр списка «показывать
-   * тестовые» (ничего не пишет) и саму пометку. Совпадение с первым делало
-   * проверку зелёной независимо от второго.
+   * ФУНКЦИОНАЛ ТЕСТОВЫХ ЗАКАЗОВ СНЯТ 12.09 (правка заказчика, п. 6).
+   *
+   * Прежде здесь стояло «пометка „тестовый" — админская с обеих сторон»:
+   * ветка `is_admin()` в страже и кнопка под `access.isAdmin`. Сторож
+   * перевёрнут, потому что вернуть снятое можно ровно двумя способами —
+   * дописать ветку в страж или вернуть кнопку в список, — и оба должны
+   * падать, а не проходить молча.
    */
-  it('пометка «тестовый» — админская с обеих сторон', () => {
-    expect(ORDER_SQL).toMatch(/is_demo is distinct from old\.is_demo and not public\.is_admin\(\)/);
-    expect(ORDERS_SCREEN).toMatch(/onToggleDemo=\{access\.isAdmin \? onToggleDemo : undefined\}/);
-    expect(ORDERS_SCREEN).not.toMatch(/onToggleDemo=\{access\.isPrivileged/);
+  it('пометки «тестовый» нет ни на сервере, ни в списке заказов', () => {
+    /**
+     * СПРАШИВАЕМ ТЕЛО ФУНКЦИИ, А НЕ ФАЙЛ МИГРАЦИИ, и снимаем комментарии.
+     * Обе поправки нашлись прогоном, а не вычиткой: `latestDefining` отдаёт
+     * миграцию ЦЕЛИКОМ, а она по построению содержит `drop column … is_demo`
+     * и объяснение, почему ветки больше нет, — то есть сторож падал бы
+     * на уже исправленной базе. Утверждение здесь про СТРАЖА: в его теле
+     * проверки пометки нет.
+     */
+    expect(withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'))).not.toMatch(/is_demo/);
+    expect(withoutJsComments(ORDERS_SCREEN)).not.toMatch(/onToggleDemo|is_demo/);
   });
 
   /**
@@ -592,6 +601,9 @@ describe('страж заказа охраняет отгрузку', () => {
     // Пересоздание функции целиком уже теряло колонки — сторожим и это
     expect(GUARD).toMatch(/new\.due_date/);
     expect(GUARD).toMatch(/new\.manager/);
-    expect(GUARD).toMatch(/is_demo/);
+    // Вместо снятой 12.09 `is_demo` сторожим соседнюю колонку того же списка:
+    // проверка «пересоздание не потеряло поимённое перечисление» обязана
+    // остаться, иначе удаление одной ветки ослабило бы весь сторож
+    expect(GUARD).toMatch(/new\.tz_required/);
   });
 });

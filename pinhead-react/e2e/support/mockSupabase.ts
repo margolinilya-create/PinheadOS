@@ -536,7 +536,7 @@ export type MockExtras = {
   settingsGate?: Promise<void>;
 };
 
-type OrderFx = { id: string; bitrix_id: string; status: string; is_demo?: boolean };
+type OrderFx = { id: string; bitrix_id: string; status: string };
 
 /** Данные по таблице REST-запроса с учётом простых фильтров id/status. */
 function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
@@ -566,11 +566,7 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
         const value = bitrixFilter.slice(3);
         return all.filter((o) => o.bitrix_id === value);
       }
-      // Демо отсекается В ЗАПРОСЕ (аудит 03.08.2026) — мок обязан это повторять,
-      // иначе e2e проверяет путь, которого в приложении больше нет.
-      const demoFilter = params.get('is_demo');
-      let rows = all;
-      if (demoFilter === 'eq.false') rows = rows.filter((o) => !o.is_demo);
+      const rows = all;
       if (statusFilter === 'eq.active') return rows.filter((o) => o.status === 'active');
       if (statusFilter?.startsWith('neq.')) return rows.filter((o) => o.status !== 'active');
       return rows;

@@ -85,7 +85,7 @@ const GROUPS: Array<Omit<NoticeGroup, 'items'> & { match: (n: Notice) => boolean
   {
     key: 'overdue-stale',
     title: 'Просрочены больше месяца',
-    hint: 'Скорее всего заброшены: закройте или пометьте тестовыми',
+    hint: 'Скорее всего заброшены: закройте или перенесите срок',
     tone: 'neutral',
     icon: 'archive',
     open: false,

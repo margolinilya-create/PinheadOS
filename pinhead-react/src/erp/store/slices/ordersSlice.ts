@@ -60,18 +60,6 @@ import type {
 /** Кэш-ключ пакета спутников заказа (история, аудит, комментарии) */
 export const orderBundleKey = (orderId: string) => `erp:order-detail:${orderId}`;
 
-/** Ключ localStorage для переключателя показа тестовых заказов */
-export const SHOW_DEMO_KEY = 'erp_show_demo';
-
-/** Читаем настройку показа демо; отсутствие ключа = не показывать */
-function readShowDemo(): boolean {
-  try {
-    return localStorage.getItem(SHOW_DEMO_KEY) === '1';
-  } catch {
-    return false; // приватный режим — ведём себя как по умолчанию
-  }
-}
-
 export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, get) => ({
   departments: [],
   orders: [],
@@ -84,17 +72,6 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   archiveOffset: 0,
   detailIds: [],
   detailError: null,
-  showDemoOrders: readShowDemo(),
-
-  setShowDemoOrders: async (value) => {
-    try {
-      localStorage.setItem(SHOW_DEMO_KEY, value ? '1' : '0');
-    } catch { /* приватный режим: настройка живёт до перезагрузки */ }
-    // Демо отсекается запросом, поэтому переключатель обязан перечитать данные:
-    // фильтровать уже загруженный массив нельзя — скрытых строк в нём просто нет.
-    set({ showDemoOrders: value, archiveLoaded: false, archiveHasMore: false });
-    await get().loadAll();
-  },
 
   loadAll: async () => {
     /**
@@ -119,7 +96,6 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
       .select(ORDER_LIST_SELECT)
       .order('due_date', { ascending: true, nullsFirst: false });
     if (!get().archiveLoaded) ordersQuery = ordersQuery.eq('status', 'active');
-    if (!get().showDemoOrders) ordersQuery = ordersQuery.eq('is_demo', false);
     /**
      * Цеха запрашиваются, только если их ещё нет.
      *
@@ -167,11 +143,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
   loadArchive: async () => {
     if (get().archiveLoading || get().archiveLoaded) return;
     set({ archiveLoading: true });
-    let q = supabase
+    const q = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
       .neq('status', 'active');
-    if (!get().showDemoOrders) q = q.eq('is_demo', false);
     const { data, error } = await erpQuery(() => q
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
@@ -203,11 +178,10 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     if (get().archiveLoading || !get().archiveHasMore) return;
     const offset = get().archiveOffset;
     set({ archiveLoading: true });
-    let q = supabase
+    const q = supabase
       .from('erp_orders')
       .select(ORDER_LIST_SELECT)
       .neq('status', 'active');
-    if (!get().showDemoOrders) q = q.eq('is_demo', false);
     const { data, error } = await erpQuery(() => q
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
@@ -276,7 +250,7 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     // «мы посмотрели, дублей нет».
     const { data, error } = await erpQuery(() => supabase
       .from('erp_orders')
-      .select('id, title, status, created_at, is_demo')
+      .select('id, title, status, created_at')
       .eq('bitrix_id', value)
       .limit(5));
     // Молча: это подсказка, а не действие пользователя. Тост об упавшей
