@@ -64,5 +64,33 @@ export async function unclampShell(page: Page): Promise<void> {
       el.style.setProperty('height', 'auto', 'important');
       el.style.setProperty('min-height', `${docHeight}px`, 'important');
     });
+
+    /*
+     * ОТКРЫТОЕ ОКНО СНИМАЕТСЯ ЦЕЛИКОМ, А НЕ ПО ВЫСОТЕ ЭКРАНА.
+     *
+     * Оверлей модалки и шторки — `position: fixed` со своим скроллом. Для
+     * `fullPage` это значит, что в кадр попадает ровно один экран окна, а
+     * липкая панель действий («Отмена · Создать заказ») оказывается посреди
+     * формы, под которой продолжается содержимое. На снимке это читается
+     * как поломка вёрстки — и первый же обход 12.09 на это и купился.
+     *
+     * Поэтому оверлей на время снимка ставится в поток. Ищется он от самого
+     * окна (`[role="dialog"]`), а не по имени класса: имена хешируются.
+     */
+    document.querySelectorAll('[role="dialog"]').forEach((dialog) => {
+      for (let el = dialog as HTMLElement | null; el; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        if (cs.position === 'fixed') {
+          el.style.setProperty('position', 'absolute', 'important');
+          el.style.setProperty('inset', '0 0 auto 0', 'important');
+          el.style.setProperty('height', 'auto', 'important');
+          el.style.setProperty('overflow', 'visible', 'important');
+          break;
+        }
+      }
+      const panel = dialog as HTMLElement;
+      panel.style.setProperty('max-height', 'none', 'important');
+      panel.style.setProperty('overflow', 'visible', 'important');
+    });
   });
 }

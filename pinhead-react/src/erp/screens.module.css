@@ -858,6 +858,11 @@ a.cellTitle:hover { color: var(--accent); }
   background: var(--card);
 }
 .matrixTable thead th:first-child { z-index: 3; }
+/* Колонка «Право» — единственная с прозой: названия вроде «Вести ТЗ (загрузка
+   и замена)» ломались в три строки, и ряд вырастал до 90px при двадцати
+   правах. Минимум ширины даёт им одну-две строки; таблица и так прокручивается
+   вбок, а первая колонка залипает, так что отдать ей место ничего не стоит. */
+.matrixTable th:first-child { min-width: 210px; }
 .moveBtn {
   appearance: none;
   border: 1px solid var(--border-light);
