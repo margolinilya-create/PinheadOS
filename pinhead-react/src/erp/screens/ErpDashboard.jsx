@@ -7,7 +7,7 @@ import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { DashboardSkeleton } from '../components/ErpSkeletons';
 import { ScrollHintBox } from '../components/ScrollHintBox';
-import { LoadFailed } from '../components/ErpStates';
+import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { Icon } from '../components/Icon';
 import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
@@ -342,7 +342,7 @@ export default function ErpDashboard() {
               )}
             </div>
             {data.noticeGroups.length === 0 ? (
-              <div className={styles.emptyState}>Всё спокойно — уведомлений нет.</div>
+              <EmptyState icon="checkCircle" title="Всё спокойно — уведомлений нет." />
             ) : (
               data.noticeGroups.map((g) => (
                 /* Группа — <details>: сворачивание нативное, значит работает
@@ -411,7 +411,7 @@ export default function ErpDashboard() {
                 <Link to="/orders" className={styles.widgetLink}>Смотреть все →</Link>
               </div>
               {data.inWork.length === 0 ? (
-                <div className={styles.emptyState}>Активных заказов нет.</div>
+                <EmptyState icon="orders" title="Активных заказов нет." />
               ) : (
                 <ScrollHintBox className={styles.tableWrap} label="Заказы в работе">
                   <table className={styles.table}>
@@ -443,7 +443,7 @@ export default function ErpDashboard() {
                   величины заставляло сверять цифры, которые сойтись не могут. */}
               <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Задачи по цехам</h2></div>
               {data.loadRows.length === 0 ? (
-                <div className={styles.emptyState}>Цеха свободны.</div>
+                <EmptyState icon="check" title="Цеха свободны." />
               ) : (
                 data.loadRows.map(({ dept, load }) => (
                   <div key={dept.id} className={styles.loadRow}>
@@ -460,7 +460,7 @@ export default function ErpDashboard() {
             <div className={styles.widget}>
               <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Ближайшие дедлайны</h2></div>
               {data.burning.length === 0 ? (
-                <div className={styles.emptyState}>Горящих сроков нет.</div>
+                <EmptyState icon="calendar" title="Горящих сроков нет." />
               ) : (
                 data.burning.map(({ order, days }) => {
                   const dt = order.due_date ? new Date(order.due_date) : null;

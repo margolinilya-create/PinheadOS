@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { LoadFailed } from '../../components/ErpStates';
+import { TableSkeleton } from '../../components/ErpSkeletons';
 import { Button } from '../../components/Button';
 import { factoryToday } from '../../../utils/date';
 import {
@@ -86,6 +87,16 @@ export function CapacityTab() {
 
   if (capacityError) {
     return <LoadFailed onRetry={loadSettings} what="настройки производства" />;
+  }
+
+  /**
+   * Пока настройки летят, экран рисовал форму с пустым значением мощности —
+   * то есть «мощность не задана» и «мощность ещё не приехала» выглядели
+   * одинаково. Скелетон стоит ПОСЛЕ проверки ошибки: при сбое `loaded`
+   * не поднимается, и без этого порядка экран замер бы на нём навсегда.
+   */
+  if (!capacityLoaded) {
+    return <TableSkeleton rows={2} label="Загрузка настроек производства" />;
   }
 
   const submit = async () => {

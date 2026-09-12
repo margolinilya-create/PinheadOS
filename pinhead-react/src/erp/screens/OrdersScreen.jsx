@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
-import { LoadFailed, EmptyResult } from '../components/ErpStates';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
+import { emptyOrders } from './orders/emptyOrders';
 import { orderQty } from '../utils/shipment';
 import { useErpStore } from '../store/useErpStore';
 import { useErpSearch } from '../store/useErpSearch';
@@ -128,7 +129,15 @@ export default function OrdersScreen() {
   const tab = searchParams.get('tab') === 'archive' ? 'archive' : 'active';
   const setTab = (v) => patchParams({ tab: v === 'archive' ? 'archive' : '' });
   const filterParam = searchParams.get('filter');
-  const filter = ['ready', 'urgent', 'overdue'].includes(filterParam) ? filterParam : null;
+  /**
+   * ПЕРЕЧЕНЬ ЗДЕСЬ — ТОТ ЖЕ, ЧТО У ЧИПОВ НИЖЕ. `stopped` в нём не было,
+   * а чип «Стоит» его шлёт: `filter` получался `null`, чип никогда
+   * не подсвечивался, отбор не применялся — то есть видимая кнопка
+   * со счётчиком не делала НИЧЕГО. Отказ тихий: счётчик рядом с подписью
+   * считается отдельно (`counts.stopped`) и показывал правду, так что
+   * экран выглядел рабочим.
+   */
+  const filter = ['ready', 'urgent', 'overdue', 'stopped'].includes(filterParam) ? filterParam : null;
   const toggleFilter = (name) => patchParams({ filter: filter === name ? '' : name });
   // Счётчики чипов — та же логика, что у KPI-плиток дашборда (активные заказы)
   /**
@@ -495,21 +504,38 @@ export default function OrdersScreen() {
         <TableSkeleton rows={4} label="Загрузка архива" />
       )}
 
-      {loaded && (tab !== 'archive' || archiveLoaded) && filtered.length === 0 && (
-        <div className={styles.emptyState}>
-          {inTab.length === 0
-            ? tab === 'active'
-              ? filter === 'ready'
-                ? 'Готовых к отгрузке заказов пока нет.'
-                : filter === 'urgent'
-                  ? 'Заказов со сроком ≤ 3 дней нет.'
-                  : filter === 'overdue'
-                    ? 'Просроченных заказов нет.'
-                    : 'Активных заказов нет — создайте первый.'
-              : 'Архив пуст.'
-            : 'Ничего не найдено по запросу.'}
-        </div>
-      )}
+      {/*
+        ПУСТО — ЭТО ДВА РАЗНЫХ ОТВЕТА, и различать их обязан интерфейс, а не
+        человек: «заказов нет» и «подбор всё отсёк» требуют разных действий.
+        Выбор считает чистая `emptyOrders` (тесты — рядом с ней), здесь остаётся
+        только показ. Прежде тут стояла тернарная лесенка из шести исходов
+        внутри серого `<div>`: одинаковый вид у обоих ответов и ноль проверок.
+
+        `resetLabel` НЕ «Сбросить»: в панели фильтров выше уже есть «Сбросить
+        даты», и две одинаковые подписи путают человека, а Playwright в strict
+        mode падает на двух совпадениях по имени.
+      */}
+      {loaded && (tab !== 'archive' || archiveLoaded) && filtered.length === 0 && (() => {
+        const empty = emptyOrders({
+          tab, filter, inTabCount: inTab.length, query, dateFrom, dateTo,
+        });
+        return empty.kind === 'result' ? (
+          <EmptyResult
+            query={empty.query}
+            resetLabel="Очистить поиск и даты"
+            onReset={() => { setQuery(''); patchParams({ from: '', to: '' }); }}
+          >
+            {/* Искали не текстом, а границами дат создания — «ничего не найдено
+                по запросу» назвало бы не ту причину. Пусто — общий текст
+                примитива */}
+            {!empty.query && empty.byDate
+              ? 'Под выбранные даты создания ничего не попало.'
+              : undefined}
+          </EmptyResult>
+        ) : (
+          <EmptyState icon={empty.icon} title={empty.title} text={empty.text} />
+        );
+      })()}
 
       {pageRows.length > 0 && isCompact && (
         <div className={styles.orderCardList}>

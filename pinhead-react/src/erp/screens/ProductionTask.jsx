@@ -5,7 +5,7 @@ import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
 import { RouteProgress } from '../components/RouteProgress';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
-import { LoadFailed } from '../components/ErpStates';
+import { LoadFailed, EmptyState } from '../components/ErpStates';
 import { useErpStore } from '../store/useErpStore';
 import { useStagePermissions } from '../store/useStagePermissions';
 import { findStage } from '../store/orderHelpers';
@@ -121,7 +121,11 @@ export default function ProductionTask() {
     return (
       <>
         <PageHead title="Производственное задание" sub="Задание цеха по позиции заказа." />
-        <div className={styles.emptyState}>Задание не найдено или было удалено.</div>
+        <EmptyState
+          icon="ban"
+          title="Задание не найдено"
+          text="Возможно, оно было удалено."
+        />
       </>
     );
   }

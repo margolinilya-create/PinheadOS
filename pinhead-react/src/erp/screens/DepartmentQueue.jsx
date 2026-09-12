@@ -565,9 +565,11 @@ export default function DepartmentQueue() {
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задания цеха" />}
       {!loadError && !loaded && <QueueSkeleton />}
       {loaded && !dept && (
-        <div className={styles.emptyState}>
-          Участок «{deptCode}» не найден — выберите цех выше.
-        </div>
+        <EmptyState
+          icon="ban"
+          title={`Участок «${deptCode}» не найден`}
+          text="Выберите цех выше."
+        />
       )}
 
       {dept && loaded && !perms.inDept && (

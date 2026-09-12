@@ -4,6 +4,7 @@ import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { EmptyState } from '../../components/ErpStates';
 import { daysLeft } from '../../utils/time';
 import { dueLabelCompact } from '../../utils/format';
 import {
@@ -168,7 +169,8 @@ function SupplyCard({ order, supplyDeptId, today, selected, onSelect }) {
  *   заголовок оказывался ВТОРЫМ «Заказы в закупке» подряд (правка 24.08, п. 2:
  *   «не дублировать внутри архива заголовок»).
  * @param emptyText  текст пустого состояния: у активной очереди и у архива
- *   «пусто» значит разное.
+ *   «пусто» значит разное. Едет ЗАГОЛОВКОМ в `EmptyState` — фраза здесь одна
+ *   и отвечает целиком, второй строкой пояснять нечего.
  * @param label  имя области для клавиатуры и скринридера. Задаётся ОТДЕЛЬНО
  *   от заголовка: раскрытый архив держит на экране вторую такую же таблицу,
  *   и два одинаковых имени сделали бы их неразличимыми — и для человека,
@@ -195,7 +197,12 @@ export function SupplyQueue({
       )}
 
       {orders.length === 0 ? (
-        <div className={styles.emptyState}>{emptyText}</div>
+        /* Работы нет ПО СУЩЕСТВУ: очередь строится из открытых этапов «Закупка»,
+           подбора и поиска у неё нет вовсе — значит `EmptyState`, а не
+           `EmptyResult`. Фраза вызывающего остаётся заголовком: у активной
+           очереди и у архива «пусто» значит разное, и придумывать им общее
+           пояснение — значит говорить за оба. */
+        <EmptyState icon="box" title={emptyText} />
       ) : isCompact ? (
         /* `role="list"` обязателен: `aria-label` на голом `<div>` вспомогательные
            технологии игнорируют, и имя области пропадало бы ровно на планшете —
