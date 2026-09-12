@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { SURFACE_TOKENS, TEXT_TOKENS } from './tokenGroups';
 
 /**
  * Контраст текстовых токенов по WCAG 2.1 — машиной, а не глазами.
@@ -67,10 +68,17 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** Фоны, на которых текст реально печатается (заливки поверхностей) */
-const SURFACES = ['bg', 'bg1', 'bg3', 'card', 'surface'];
-/** Токены текста, которые обязаны проходить AA на любой поверхности */
-const TEXTS = ['text', 'text-secondary', 'text-mid', 'text-dim', 'text-muted'];
+/**
+ * Фоны и текст — из `styles/tokenGroups`, общего с витриной.
+ *
+ * До 12.09 те же пять поверхностей и пять цветов текста были вписаны здесь
+ * руками, а `screens/StyleGuide` держал свою копию в другом написании
+ * (с префиксом `--`). Шестая поверхность попала бы в один список и не попала
+ * во второй — то есть либо сторож молча перестал бы её проверять, либо
+ * витрина перестала бы её показывать.
+ */
+const SURFACES: readonly string[] = SURFACE_TOKENS;
+const TEXTS: readonly string[] = TEXT_TOKENS;
 
 describe.each(['light', 'dark'] as const)('контраст текстовых токенов — %s', (theme) => {
   const block = themeBlock(theme);

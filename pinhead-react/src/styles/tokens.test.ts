@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  SURFACE_TOKENS, TEXT_TOKENS, SPACE_TOKENS, RADIUS_TOKENS, DURATION_TOKENS, cssVar,
+} from './tokenGroups';
 
 /**
  * Сторож токенов: каждый `var(--x)` ссылается на объявленный токен, и ни один
@@ -217,15 +220,21 @@ describe('переопределения .shell не меняют СМЫСЛ т�
   });
 });
 
-describe('мелкий текст не мельче 12px', () => {
-  const ERP_CSS = [
-    'src/erp/erp.module.css',
-    'src/erp/screens.module.css',
-    'src/erp/components/Field.module.css',
-    'src/erp/components/Button.module.css',
-    'src/erp/components/States.module.css',
-  ];
+/**
+ * CSS РАЗДЕЛА — список на ДВА сторожа ниже (порог кегля и шкала движения).
+ * Объявлен на уровне модуля именно поэтому: вторая копия рядом разошлась бы
+ * с первой в первую же правку, и один из сторожей молча перестал бы видеть
+ * новый файл.
+ */
+const ERP_CSS = [
+  'src/erp/erp.module.css',
+  'src/erp/screens.module.css',
+  'src/erp/components/Field.module.css',
+  'src/erp/components/Button.module.css',
+  'src/erp/components/States.module.css',
+];
 
+describe('мелкий текст не мельче 12px', () => {
   /**
    * ЗНАЧЕНИЕ ТОКЕНА РАЗВОРАЧИВАЕТСЯ, А НЕ ПРОПУСКАЕТСЯ.
    *
@@ -322,6 +331,101 @@ describe('мелкий текст не мельче 12px', () => {
           const px = TYPE_TOKENS.get(tok[1]);
           if (px === undefined) bad.push(`${rel}:${i + 1} — ${tok[1]} не объявлен`);
           else if (px < 12) bad.push(`${rel}:${i + 1} — ${tok[1]} = ${px}px`);
+        }
+      });
+    }
+    expect(bad, bad.join('\n')).toEqual([]);
+  });
+});
+
+/**
+ * ГРУППА, ССЫЛАЮЩАЯСЯ В ПУСТОТУ, ОТКЛЮЧАЕТ ПРОВЕРКУ МОЛЧА.
+ *
+ * `styles/tokenGroups` читают сторож контраста и витрина. Переименуй кто-нибудь
+ * `--text-mid`, и обе стороны продолжат работать: `it.each` честно прогонит
+ * пять имён, просто одно из них развернётся в ничто — то есть контраст
+ * пятого цвета текста перестанет проверяться, и ни один тест не покраснеет.
+ *
+ * Это ровно тот класс дефекта, ради которого группы и вынесли: «сторож,
+ * подтверждающий отсутствие проверки как норму, хуже отсутствующего».
+ */
+describe('группы токенов ссылаются на объявленные токены', () => {
+  const GROUPS: Array<[name: string, tokens: readonly string[]]> = [
+    ['SURFACE_TOKENS', SURFACE_TOKENS],
+    ['TEXT_TOKENS', TEXT_TOKENS],
+    ['SPACE_TOKENS', SPACE_TOKENS],
+    ['RADIUS_TOKENS', RADIUS_TOKENS],
+    ['DURATION_TOKENS', DURATION_TOKENS],
+  ];
+
+  it('ни одна группа не пуста — иначе проверка ниже обходит пустоту', () => {
+    for (const [name, tokens] of GROUPS) {
+      expect(tokens.length, `группа ${name} пуста`).toBeGreaterThan(0);
+    }
+  });
+
+  it.each(GROUPS)('%s — каждое имя объявлено в index.css', (_name, tokens) => {
+    const css = withoutComments(readFileSync(join(process.cwd(), 'src/index.css'), 'utf8'));
+    const missing = tokens.filter((t) => !new RegExp(`${cssVar(t)}\\s*:`).test(css));
+    expect(missing, `не объявлены: ${missing.join(', ')}`).toEqual([]);
+  });
+});
+
+describe('шкала движения', () => {
+  /**
+   * ДЛИТЕЛЬНОСТЬ, РАВНАЯ ЗНАЧЕНИЮ ТОКЕНА, — ЭТО ПРОПУЩЕННЫЙ ТОКЕН.
+   *
+   * Брат предыдущего сторожа, и заведён по той же причине: до 12.09 токенов
+   * движения не было вовсе, и тринадцать носителей держали литеральные
+   * миллисекунды. Без сторожа они вернутся к следующей правке — ровно так
+   * копились 90 фолбэков `var(--token, X)` и 26 нарушений порога кегля.
+   *
+   * ОБЛАСТЬ — CSS РАЗДЕЛА ПЛЮС ДВА ОБЩИХ МОДУЛЯ, и это не произвол.
+   * `Toast` и `ConfirmDialog` смонтированы в `App.jsx` один раз на оба
+   * раздела, то есть их движение принадлежит обоим. А CSS Order Studio
+   * сюда НЕ входит: там 35 переходов за выключенным флагом, и втягивать их
+   * значило бы мигрировать чужой раздел заодно — тем же доводом, которым
+   * от него отгорожен порог мелкого текста.
+   *
+   * ⚠️ Сторож ловит только СОВПАДЕНИЕ СО ШКАЛОЙ. Литералы 130 · 140 · 160 ·
+   * 180 · 220 · 640 мс он пропускает, и это осознанно: токена у них нет
+   * (см. шапку блока Motion в `index.css`). Свести 130/140/150 к одному
+   * значению — решение о дизайн-системе, а не уборка, и пока оно не принято,
+   * сторож не вправе его требовать.
+   */
+  it('длительность, равная значению токена, не пишется литералом', () => {
+    const MOTION_CSS = [
+      ...ERP_CSS,
+      'src/components/shared/Toast.module.css',
+      'src/components/shared/ConfirmDialog.module.css',
+    ];
+
+    // Значения шкалы — из index.css, того файла, где они объявлены.
+    const index = withoutComments(readFileSync(join(process.cwd(), 'src/index.css'), 'utf8'));
+    const DUR = new Map<string, string>();
+    for (const m of index.matchAll(/(--dur[\w-]*):\s*(\d+(?:\.\d+)?m?s)/g)) {
+      if (!DUR.has(m[2])) DUR.set(m[2], m[1]);
+      // 150ms и 0.15s — одно значение, записанное двумя способами
+      const ms = /^(\d+(?:\.\d+)?)ms$/.exec(m[2]);
+      if (ms) {
+        const sec = `${Number(ms[1]) / 1000}s`;
+        if (!DUR.has(sec)) DUR.set(sec, m[1]);
+      }
+    }
+
+    expect(DUR.size, 'шкала длительностей пуста — сторож проверял бы пустоту').toBeGreaterThan(3);
+
+    const bad: string[] = [];
+    for (const rel of MOTION_CSS) {
+      const file = join(process.cwd(), rel);
+      if (!existsSync(file)) continue;
+      withoutComments(readFileSync(file, 'utf8')).split('\n').forEach((line, i) => {
+        if (/^\s*--/.test(line)) return;
+        for (const decl of line.matchAll(/\b(transition|animation)(?:-duration)?\s*:\s*([^;{}]+)/g)) {
+          for (const t of decl[2].matchAll(/(?<![\w.-])(\d+(?:\.\d+)?m?s)(?![\w-])/g)) {
+            const tok = DUR.get(t[1]);
+            if (tok) bad.push(`${rel}:${i + 1} — ${decl[1]}: ${t[1]} → var(${tok})`);
+          }
         }
       });
     }

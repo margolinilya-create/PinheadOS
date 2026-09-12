@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { useDictionary } from '../../store/useDictionary';
+import { NumberStepper } from '../../components/NumberStepper';
 import { Drawer } from '../../components/Drawer';
 import { Icon } from '../../components/Icon';
 import { DateField } from '../../components/DateField';
@@ -45,6 +46,9 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
 
   const [qty, setQty] = useState('');
   const [defect, setDefect] = useState('');
+  /* id для htmlFor — см. комментарий у полей факта ниже */
+  const qtyId = useId();
+  const defectId = useId();
   const [factComment, setFactComment] = useState('');
   const [reason, setReason] = useState('');
   const [problem, setProblem] = useState({ type: '', note: '', affectsDue: false, needsHelp: false, canContinue: true });
@@ -209,25 +213,33 @@ export function PlanSlotDrawer({ slot, ctx, onClose }) {
           <section className={styles.planSection}>
             <h4>Факт за день</h4>
             <div className={styles.planFormRow}>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Сделано, шт</span>
+              {/*
+                ПОДПИСЬ ЧЕРЕЗ htmlFor, А НЕ ОБЁРТКОЙ <label>: у степпера внутри
+                три элемента, и `<button>` в HTML тоже labelable — обёртка без
+                `for` связалась бы с кнопкой «Уменьшить», и клик по подписи
+                «Сделано, шт» молча уменьшал бы введённое.
+              */}
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor={qtyId}>Сделано, шт</label>
                 {/* Поле намеренно пустое, а не предзаполнено планом: один тап
                     не должен закрывать день на полный объём (то же правило,
                     что у «сколько сдано» в задании цеха) */}
-                <input
-                  type="number" min="0" className={styles.input}
-                  value={qty} onChange={(e) => setQty(e.target.value)}
+                <NumberStepper
+                  id={qtyId}
+                  value={qty} onChange={setQty} min={0}
                   placeholder={`из ${slot.qty_planned}`}
+                  ariaLabel="Сделано за день, шт"
                 />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Брак, шт</span>
-                <input
-                  type="number" min="0" className={styles.input}
-                  value={defect} onChange={(e) => setDefect(e.target.value)}
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor={defectId}>Брак, шт</label>
+                <NumberStepper
+                  id={defectId}
+                  value={defect} onChange={setDefect} min={0}
                   placeholder="0"
+                  ariaLabel="Брак за день, шт"
                 />
-              </label>
+              </div>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Комментарий</span>
                 <input

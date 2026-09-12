@@ -10,6 +10,13 @@ import { Icon } from '../components/Icon';
 import { ICONS } from '../components/icons';
 import { useTheme } from '../../hooks/useTheme';
 import { dueLabel, dueLabelCompact, OVERDUE_BUCKET_SHORT, percentLabel } from '../utils/format';
+import {
+  TEXT_TOKENS as TEXT_TOKEN_NAMES,
+  SURFACE_TOKENS as SURFACE_TOKEN_NAMES,
+  SPACE_TOKENS as SPACE_TOKEN_NAMES,
+  RADIUS_TOKENS as RADIUS_TOKEN_NAMES,
+  cssVar,
+} from '../../styles/tokenGroups';
 import styles from '../styles';
 
 /**
@@ -37,10 +44,16 @@ const BADGE_VARIANTS = Object.keys(VARIANT_CHIP_CLASS);
 const BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'danger'];
 const SIZES = ['sm', 'md', 'lg'];
 
-const TEXT_TOKENS = ['--text', '--text-secondary', '--text-mid', '--text-dim', '--text-muted'];
-const SURFACE_TOKENS = ['--bg', '--bg1', '--bg3', '--card', '--surface'];
-const SPACE_TOKENS = ['--space-xs', '--space-sm', '--space-md', '--space-lg', '--space-xl', '--space-2xl', '--space-3xl'];
-const RADIUS_TOKENS = ['--radius-sm', '--radius-md', '--radius-lg'];
+/**
+ * §2a правки 12.09: перечни токенов приезжают из `styles/tokenGroups` —
+ * ТОГО ЖЕ модуля, что читает `styles/contrast.test.ts`. Здесь они лежали
+ * своей копией в написании с `--`, а у сторожа — без него; пять значений
+ * совпадали случайно, и шестая поверхность попала бы только в один список.
+ */
+const TEXT_TOKENS = TEXT_TOKEN_NAMES.map(cssVar);
+const SURFACE_TOKENS = SURFACE_TOKEN_NAMES.map(cssVar);
+const SPACE_TOKENS = SPACE_TOKEN_NAMES.map(cssVar);
+const RADIUS_TOKENS = RADIUS_TOKEN_NAMES.map(cssVar);
 
 function Section({ title, note, children }) {
   return (

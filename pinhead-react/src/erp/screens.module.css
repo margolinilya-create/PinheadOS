@@ -418,7 +418,7 @@
   font-weight: 600;
   cursor: pointer;
   min-height: 36px;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
 }
 .tile:hover { border-color: var(--accent); color: var(--text); }
 .tileActive { background: var(--accent); border-color: var(--accent); color: #fff; }

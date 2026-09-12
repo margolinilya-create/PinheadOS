@@ -86,3 +86,17 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
  * подсветки (см. комментарий в `erp/layout/Sidebar.jsx`).
  */
 Element.prototype.scrollIntoView = vi.fn();
+
+/**
+ * Pointer capture — тоже НЕ РЕАЛИЗОВАН в jsdom, и по той же причине: захват
+ * указателя имеет смысл только там, где есть курсор и раскладка. Заглушка
+ * здесь, а не `?.` в компоненте, — ровно тот же довод, что у `scrollIntoView`
+ * выше: это свойство СРЕДЫ.
+ *
+ * Понадобилось с 12.09: `NumberStepper` и `SlideConfirm` держат палец, ушедший
+ * за пределы кнопки (иначе свип и протяжка обрываются, стоит соскользнуть),
+ * и оба зовут `setPointerCapture` в обработчике `pointerdown`.
+ */
+Element.prototype.setPointerCapture = vi.fn();
+Element.prototype.releasePointerCapture = vi.fn();
+Element.prototype.hasPointerCapture = vi.fn(() => false);
