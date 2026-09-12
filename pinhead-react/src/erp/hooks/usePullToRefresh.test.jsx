@@ -175,6 +175,29 @@ describe('usePullToRefresh', () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
+  /**
+   * ПЕРЕДУМАТЬ МОЖНО — и это осознанное расхождение с `SlideConfirm`, где
+   * коммит происходит НА ПОРОГЕ.
+   *
+   * У протяжки подтверждения порог это защита: довести И отпустить дало бы
+   * два способа не сработать там, где человек уже решился. Здесь наоборот —
+   * порог легко перейти случайно, пролистывая список сверху, и сетевое
+   * действие, которого не просили, хуже лишней десятой доли секунды.
+   */
+  it('дотянул за порог, вернул палец вверх и отпустил — обновления нет', () => {
+    const onRefresh = vi.fn();
+    render(<Host onRefresh={onRefresh} />);
+
+    pullBy(scroller(), PULL_THRESHOLD * 3);
+    expect(screen.getByTestId('state').textContent, 'порог обязан быть взят').toMatch(/^armed/);
+
+    // Тот же жест, палец поехал обратно вверх
+    fireEvent.pointerMove(scroller(), { pointerType: 'touch', clientX: 50, clientY: 10 });
+    fireEvent.pointerUp(scroller());
+
+    expect(onRefresh).not.toHaveBeenCalled();
+  });
+
   it('полоса обнуляется после жеста', () => {
     render(<Host onRefresh={() => {}} />);
     pullBy(scroller(), 60);
