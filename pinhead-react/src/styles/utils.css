@@ -111,6 +111,20 @@
 .cmd-item:hover, .cmd-item:focus {
   background: var(--accent-light);
 }
+/* Выбранный стрелками пункт (правка 12.09: до неё стрелок не было вовсе,
+   и `Enter` всегда брал первый результат).
+
+   Заливка СПЛОШНАЯ, а не бледная, как у наведения: выбор обязан читаться
+   с расстояния, и проект на этом уже обжигался — пока подсветка активного
+   пункта меню была `--accent-light`, её ОТСУТСТВИЕ не читалось как поломка. */
+.cmd-item-active {
+  background: var(--accent);
+  color: var(--btn-primary-fg);
+}
+.cmd-item-active .cmd-desc {
+  color: var(--btn-primary-fg);
+  opacity: 0.8;
+}
 .cmd-icon {
   font-size: 18px;
   width: 28px;

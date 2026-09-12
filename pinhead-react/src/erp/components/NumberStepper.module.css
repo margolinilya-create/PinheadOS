@@ -1,0 +1,130 @@
+/* Числовое поле с шагом. Тап — один шаг, удержание — свип (см. JSDoc
+   компонента и кривую в `utils/stepperSweep`).
+
+   Высоты заданы явно, тач-размер — своим @media (pointer: coarse) внизу
+   файла: правило ≥44px в проекте ведётся СПИСКОМ КЛАССОВ, и у отдельного
+   CSS-модуля своя область — поэтому свой медиазапрос, как у `Button`.
+
+   Токены длительности и кривой — из блока Motion в `index.css`. Это первый
+   потребитель `--ease-out`: ретрофитить его на готовые переходы нельзя
+   (сменилась бы кривая там, где не просили), а новый компонент берёт сразу. */
+.wrap {
+  display: inline-flex;
+  align-items: stretch;
+  /* Обёртка по СОДЕРЖИМОМУ, а не по ширине подписи: `.field` — flex-колонка,
+     и её дети по умолчанию растягиваются на всю её ширину, а сама она в строке
+     формы шириной в самую длинную подпись. Отсюда и уезжала раскладка. */
+  align-self: start;
+  flex: 0 0 auto;
+  width: max-content;
+  /* Рамка одна на всю группу, а не по рамке на каждый элемент: три
+     соприкасающиеся рамки дают двойную линию на стыках. */
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  overflow: hidden;
+}
+.wrap:focus-within {
+  border-color: var(--accent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-mid);
+  cursor: pointer;
+  /* `touch-action: none` обязателен: без него браузер планшета считает
+     удержание с микросдвигом пальца началом прокрутки страницы, забирает
+     указатель себе — и свип обрывается, не начавшись. */
+  touch-action: none;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--text);
+}
+.btn:active:not(:disabled) {
+  background: var(--bg3);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/*
+ * ⚠️ СЕЛЕКТОР ДВОЙНОЙ, И ЭТО ОБЯЗАТЕЛЬНО.
+ *
+ * Глобальное `input[type="text"], …, input[type="number"], … { width: 100% }`
+ * (`styles/forms-base.css`) имеет специфичность (0,1,1) и бьёт одиночный
+ * класс (0,1,0). С `.input { width: 4.5em }` поле разъезжалось на всю ширину
+ * `.field`, а та — на ширину подписи: «КОЛИЧЕСТВО НА ДЕНЬ» растягивало
+ * степпер до 350px, подписи соседних полей уезжали на разные уровни,
+ * а «Комментарий цеху» переносился на вторую строку. Замерено в браузере:
+ * поле считалось 260px вместо 63.
+ *
+ * Ни один тест этого не увидел — разметка та же, поведение то же, кнопки
+ * по-прежнему ≥44px и горизонтальной прокрутки нет. Нашлось СНИМКОМ, ровно
+ * как правило проекта и обещает.
+ *
+ * Приём — тот же, что у `input[type="number"].pe-usd-input`: два токена
+ * специфичности против глобального правила. Просто `input.input` дало бы
+ * (0,1,1) — РОВНО столько же, и спор решался бы порядком чанков, которого
+ * между отдельными CSS-модулями не существует.
+ */
+input[type="number"].input {
+  /* Ширины хватает на пять знаков — «10000» закрывает тираж любой позиции;
+     шире поле выглядело бы как место под текст, а не под число. */
+  width: 4.5em;
+  flex: 0 0 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--type-body);
+  text-align: center;
+  /* Нативные крутилки убраны: рядом стоят свои кнопки, и две пары органов
+     управления одним числом — это вопрос «какая из них правильная». */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.input:focus {
+  outline: none;
+}
+.input:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.unit {
+  display: inline-flex;
+  align-items: center;
+  padding-right: var(--space-xs);
+  color: var(--text-dim);
+  font-size: var(--type-label);
+  white-space: nowrap;
+}
+
+/* Правило ≥44px на тач-экранах цехов (общий список — в erp.module.css).
+   Поле между кнопками тянется вместе с ними: группа одной высоты, иначе
+   кнопки встают выше или ниже цифры. */
+@media (pointer: coarse) {
+  .btn { width: 44px; min-height: 44px; }
+  .input { font-size: var(--type-body); }
+}

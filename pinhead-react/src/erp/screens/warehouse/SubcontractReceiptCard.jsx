@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SUBCONTRACT_RECEIPT_STATUS_LABELS, STAGE_STATUS_LABELS } from '../../types';
 import { useErpStore } from '../../store/useErpStore';
@@ -10,6 +10,7 @@ import { canOpenScreen } from '../../utils/screenAccess';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { AttachmentPicker } from '../../components/AttachmentPicker';
+import { NumberStepper } from '../../components/NumberStepper';
 import { factoryToday } from '../../../utils/date';
 
 /**
@@ -60,6 +61,11 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
   const [comment, setComment] = useState('');
   const [returnQty, setReturnQty] = useState('');
   const [saving, setSaving] = useState(false);
+  /* id для htmlFor: обёртка <label> вокруг степпера связалась бы с первой
+     кнопкой («Уменьшить»), потому что <button> в HTML тоже labelable */
+  const returnId = useId();
+  const qtyId = useId();
+  const defectId = useId();
 
   /** Операция подряда этой задачи: у задачи есть этап, у этапа — спутник */
   const sub = useMemo(
@@ -181,48 +187,42 @@ export function SubcontractReceiptCard({ order, task, onAdvance, attach }) {
               разобранной партии возвращать нечего.
             */}
             {undelivered > 0 && (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Вернулось сейчас, шт</span>
-                <input
-                  type="number"
-                  min="0"
-                  className={styles.input}
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor={returnId}>Вернулось сейчас, шт</label>
+                <NumberStepper
+                  id={returnId}
                   value={returnQty}
-                  onChange={(e) => setReturnQty(e.target.value.replace('-', ''))}
+                  onChange={(v) => setReturnQty(v.replace('-', ''))}
+                  min={0}
                   placeholder={String(undelivered)}
-                  aria-label="Сколько вернулось от подрядчика"
-                  style={{ maxWidth: 130 }}
+                  ariaLabel="Сколько вернулось от подрядчика"
                 />
-              </label>
+              </div>
             )}
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Принято, шт</span>
-              <input
-                type="number"
-                min="0"
-                className={styles.input}
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor={qtyId}>Принято, шт</label>
+              <NumberStepper
+                id={qtyId}
                 value={qty}
-                onChange={(e) => setQty(e.target.value.replace('-', ''))}
+                onChange={(v) => setQty(v.replace('-', ''))}
+                min={0}
                 placeholder={String(acceptable)}
-                aria-label="Сколько принято"
-                style={{ maxWidth: 110 }}
+                ariaLabel="Сколько принято"
               />
-            </label>
+            </div>
             {/* Брак вводится ЯВНО и здесь же: только приёмка знает, что
                 из вернувшегося годно, а что нет (п. 3.9) */}
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Брак, шт</span>
-              <input
-                type="number"
-                min="0"
-                className={styles.input}
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor={defectId}>Брак, шт</label>
+              <NumberStepper
+                id={defectId}
                 value={defectQty}
-                onChange={(e) => setDefectQty(e.target.value.replace('-', ''))}
+                onChange={(v) => setDefectQty(v.replace('-', ''))}
+                min={0}
                 placeholder="0"
-                aria-label="Сколько брака"
-                style={{ maxWidth: 110 }}
+                ariaLabel="Сколько брака"
               />
-            </label>
+            </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Дата приёмки</span>
               <DateField

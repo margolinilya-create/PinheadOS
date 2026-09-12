@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { Icon } from '../../components/Icon';
 import { SearchInput } from '../../components/SearchInput';
 import { DateField } from '../../components/DateField';
+import { NumberStepper } from '../../components/NumberStepper';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { toast } from '../../../store/useToastStore';
 import { formatDateShort } from '../../utils/time';
@@ -51,6 +52,7 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
   const [picked, setPicked] = useState(preselect);
   const [workDate, setWorkDate] = useState(date ?? '');
   const [qty, setQty] = useState(preselect ? String(remainingQty(preselect)) : '');
+  const qtyId = useId();
   const [comment, setComment] = useState('');
   const [priority, setPriority] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -191,13 +193,15 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
                 />
               </label>
             )}
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Количество на день *</span>
-              <input
-                type="number" min="1" className={styles.input}
-                value={qty} onChange={(e) => setQty(e.target.value)}
+            {/* htmlFor, а не обёртка <label>: `<button>` степпера тоже
+                labelable, и обёртка связалась бы с «Уменьшить» */}
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor={qtyId}>Количество на день *</label>
+              <NumberStepper
+                id={qtyId} value={qty} onChange={setQty} min={1}
+                ariaLabel="Количество на день"
               />
-            </label>
+            </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Комментарий цеху</span>
               <input

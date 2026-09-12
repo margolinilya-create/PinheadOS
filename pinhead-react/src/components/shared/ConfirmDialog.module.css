@@ -9,7 +9,7 @@
      означала, что порядок наложения держится на порядке монтирования. */
   z-index: var(--z-modal);
   padding: 16px;
-  animation: fadeIn 150ms ease-out;
+  animation: fadeIn var(--dur) ease-out;
 }
 
 .dialog {
@@ -20,7 +20,7 @@
   max-width: 400px;
   width: 100%;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  animation: slideUp 200ms ease-out;
+  animation: slideUp var(--dur-slow) ease-out;
 }
 
 .title {
@@ -54,7 +54,7 @@
   border: 1.5px solid var(--border);
   background: var(--bg);
   cursor: pointer;
-  transition: all 150ms ease-out;
+  transition: all var(--dur) ease-out;
   min-height: 44px;
 }
 

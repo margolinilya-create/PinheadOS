@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { orderQty } from '../../utils/shipment';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
+import { NumberStepper } from '../../components/NumberStepper';
 import styles from '../../styles';
 
 /**
@@ -25,6 +26,8 @@ export function FgReceiptCard({ order, task, onSubmit }) {
   const [defect, setDefect] = useState('');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const goodId = useId();
+  const defectId = useId();
 
   const goodN = Math.max(Number(good) || 0, 0);
   const defectN = Math.max(Number(defect) || 0, 0);
@@ -71,22 +74,26 @@ export function FgReceiptCard({ order, task, onSubmit }) {
       </span>
 
       <div className={styles.planFormRow}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Принято, шт *</span>
-          <input
-            type="number" min="0" className={`${styles.input} ${styles.qtySmallInput}`}
-            value={good} onChange={(e) => setGood(e.target.value)}
-            aria-label="Принято на склад, шт"
+        {/*
+          ПОДПИСЬ СВЯЗАНА ЧЕРЕЗ htmlFor, А НЕ ОБЁРТКОЙ <label>. У степпера
+          внутри три элемента, и `<button>` в HTML — тоже labelable: обёртка
+          без `for` связалась бы с первой кнопкой, то есть клик по подписи
+          «Принято, шт» УМЕНЬШАЛ БЫ значение. Тихо и каждый раз.
+        */}
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor={goodId}>Принято, шт *</label>
+          <NumberStepper
+            id={goodId} value={good} onChange={setGood} min={0}
+            ariaLabel="Принято на склад, шт"
           />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Брак, шт</span>
-          <input
-            type="number" min="0" className={`${styles.input} ${styles.qtySmallInput}`}
-            value={defect} onChange={(e) => setDefect(e.target.value)}
-            aria-label="Брак при приёмке, шт"
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor={defectId}>Брак, шт</label>
+          <NumberStepper
+            id={defectId} value={defect} onChange={setDefect} min={0}
+            ariaLabel="Брак при приёмке, шт"
           />
-        </label>
+        </div>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>
             Комментарий{needsComment ? ' * (объясните расхождение)' : ''}

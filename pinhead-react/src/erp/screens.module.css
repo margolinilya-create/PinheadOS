@@ -418,7 +418,7 @@
   font-weight: 600;
   cursor: pointer;
   min-height: 36px;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
 }
 .tile:hover { border-color: var(--accent); color: var(--text); }
 .tileActive { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -1161,6 +1161,35 @@ a.cellTitle:hover { color: var(--accent); }
   flex-direction: column;
   gap: var(--space-sm);
   width: 100%;
+}
+
+/* ─── Разделы-механизмы витрины (ручки + живая демонстрация) ───
+   Ручки слева, демонстрация справа; на узком — друг под другом.
+   `auto-fit` + `minmax` вместо своего брейкпоинта: сетка подстраивается
+   сама, и порог переносить не придётся (правило проекта о брейкпоинтах). */
+.sgMechanism {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-lg);
+  align-items: start;
+  padding-top: var(--space-sm);
+}
+.sgKnobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+/* Единственный `input type="range"` в проекте, и он живёт ТОЛЬКО здесь:
+   витрина за флагом `styleguide`, в прод-сборку раздела не едет. Заводить
+   под ползунок место в дизайн-системе не требуется — он инструмент
+   разработчика, а не орган управления продукта. */
+.sgRange {
+  width: 100%;
+  max-width: 260px;
+  /* Тач-размер: витрину проверяют и на планшете, а нативный ползунок
+     в Chrome высотой 16px под палец не попадает */
+  min-height: 32px;
 }
 .sgSwatchRow {
   display: flex;

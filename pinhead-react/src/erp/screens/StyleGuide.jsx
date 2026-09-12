@@ -10,6 +10,16 @@ import { Icon } from '../components/Icon';
 import { ICONS } from '../components/icons';
 import { useTheme } from '../../hooks/useTheme';
 import { dueLabel, dueLabelCompact, OVERDUE_BUCKET_SHORT, percentLabel } from '../utils/format';
+import {
+  TEXT_TOKENS as TEXT_TOKEN_NAMES,
+  SURFACE_TOKENS as SURFACE_TOKEN_NAMES,
+  SPACE_TOKENS as SPACE_TOKEN_NAMES,
+  RADIUS_TOKENS as RADIUS_TOKEN_NAMES,
+  cssVar,
+} from '../../styles/tokenGroups';
+import { MECHANISMS } from './styleguide/mechanisms';
+import { Knobs } from './styleguide/Knobs';
+import { useKnobs } from './styleguide/useKnobs';
 import styles from '../styles';
 
 /**
@@ -37,10 +47,43 @@ const BADGE_VARIANTS = Object.keys(VARIANT_CHIP_CLASS);
 const BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'danger'];
 const SIZES = ['sm', 'md', 'lg'];
 
-const TEXT_TOKENS = ['--text', '--text-secondary', '--text-mid', '--text-dim', '--text-muted'];
-const SURFACE_TOKENS = ['--bg', '--bg1', '--bg3', '--card', '--surface'];
-const SPACE_TOKENS = ['--space-xs', '--space-sm', '--space-md', '--space-lg', '--space-xl', '--space-2xl', '--space-3xl'];
-const RADIUS_TOKENS = ['--radius-sm', '--radius-md', '--radius-lg'];
+/**
+ * §2a правки 12.09: перечни токенов приезжают из `styles/tokenGroups` —
+ * ТОГО ЖЕ модуля, что читает `styles/contrast.test.ts`. Здесь они лежали
+ * своей копией в написании с `--`, а у сторожа — без него; пять значений
+ * совпадали случайно, и шестая поверхность попала бы только в один список.
+ */
+const TEXT_TOKENS = TEXT_TOKEN_NAMES.map(cssVar);
+const SURFACE_TOKENS = SURFACE_TOKEN_NAMES.map(cssVar);
+const SPACE_TOKENS = SPACE_TOKEN_NAMES.map(cssVar);
+const RADIUS_TOKENS = RADIUS_TOKEN_NAMES.map(cssVar);
+
+/**
+ * РАЗДЕЛ-МЕХАНИЗМ: ручки слева от живой демонстрации.
+ *
+ * Отдельный компонент, а не ветка в `Section`, потому что у него есть
+ * СОСТОЯНИЕ (значения ручек), а у `Section` его нет и быть не должно —
+ * иначе каждая матрица вариантов тянула бы за собой хук, который ей
+ * не нужен.
+ */
+function Mechanism({ entry }) {
+  const [knobs, setKnob] = useKnobs(entry.params);
+  const { Demo } = entry;
+  return (
+    <section className={styles.widget}>
+      <div className={styles.widgetHead}>
+        <h2 className={styles.widgetTitle}>{entry.title}</h2>
+      </div>
+      {entry.note && <p className={styles.subText}>{entry.note}</p>}
+      <div className={styles.sgMechanism}>
+        <Knobs params={entry.params} state={knobs} onChange={setKnob} />
+        <div className={styles.sgRow}>
+          <Demo {...knobs} />
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function Section({ title, note, children }) {
   return (
@@ -77,6 +120,13 @@ export default function StyleGuide() {
           различимы ли элементы рядом друг с другом.
         </span>
       </div>
+
+      {/*
+        МЕХАНИЗМЫ — ПЕРЕД МАТРИЦАМИ. Они отвечают на вопрос «как это себя
+        ведёт», а матрицы ниже — на «различимы ли они рядом»; первый вопрос
+        задают реже, но ответ на него дороже получить иначе.
+      */}
+      {MECHANISMS.map((m) => <Mechanism key={m.id} entry={m} />)}
 
       <Section title="Кнопки" note="Иерархия действий: одна primary на экран, остальное — secondary/ghost. Danger только для необратимого.">
         {BUTTON_VARIANTS.map((v) => (

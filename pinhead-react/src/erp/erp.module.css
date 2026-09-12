@@ -344,7 +344,7 @@
   color: var(--nav-ink);
   text-decoration: none;
   cursor: pointer;
-  transition: background 120ms ease;
+  transition: background var(--dur-fast) ease;
 }
 .sidebarBrand:hover { background: var(--nav-hover); }
 /* Кольцо фокуса внутри панели — своим токеном: фирменный ультрамарин
@@ -367,7 +367,7 @@
   flex-shrink: 0;
   border-radius: 2px;
   background: var(--nav-active-bg);
-  transition: background 120ms ease, box-shadow 120ms ease;
+  transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   color: var(--nav-active-ink);
   display: flex;
   align-items: center;
@@ -566,6 +566,15 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-xl) 28px var(--space-3xl);
+  /*
+   * СВОЙ ЖЕСТ ОБНОВЛЕНИЯ НЕ ДОЛЖЕН СПОРИТЬ С БРАУЗЕРНЫМ. Android Chrome
+   * держит собственное «потянуть — перезагрузить страницу», и на планшете
+   * цеха оно перехватывало бы протяжку сверху у `usePullToRefresh` —
+   * то есть вместо перечитывания данных шла бы перезагрузка приложения,
+   * ровно то, от чего жест и избавляет. `contain` оставляет прокрутку
+   * внутри контейнера и гасит и браузерный жест, и резиновый отскок.
+   */
+  overscroll-behavior-y: contain;
 }
 
 /* ─── Заголовок страницы (wizard-стиль) ─── */
@@ -584,7 +593,7 @@
   border-radius: var(--radius-md);
   background: var(--card);
   padding: 14px var(--space-lg);
-  transition: border-color 150ms ease-out;
+  transition: border-color var(--dur) ease-out;
 }
 .card:hover { border-color: var(--border-mid); }
 
@@ -804,7 +813,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-sm);
-  transition: background 150ms ease-out, color 150ms ease-out;
+  transition: background var(--dur) ease-out, color var(--dur) ease-out;
   flex-shrink: 0;
 }
 .deptTab:last-child { border-right: none; }
@@ -1149,7 +1158,7 @@
   height: 100%;
   border-radius: 999px;
   background: var(--color-success);
-  transition: width 200ms ease-out;
+  transition: width var(--dur-slow) ease-out;
 }
 .visuallyHidden {
   position: absolute;
@@ -1399,7 +1408,7 @@
 .inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border-light); }
 .inlineEditBtn:disabled { cursor: default; }
 .inlineEditBtn:disabled:hover { background: none; outline: none; }
-.inlineEditPen { font-size: var(--type-label); opacity: 0; transition: opacity 120ms; }
+.inlineEditPen { font-size: var(--type-label); opacity: 0; transition: opacity var(--dur-fast); }
 .inlineEditBtn:hover .inlineEditPen { opacity: 0.6; }
 
 /* ─── Степпер этапов ─── */
@@ -1504,6 +1513,10 @@
   .drawerClose { width: 44px; height: 44px; }
   .inlineEditBtn { min-height: 44px; }
   .thSortBtn { min-height: 44px; }
+  /* .stepperBtn / .stepperInput: у `NumberStepper` свой CSS-модуль, и тач-размер
+     задан ТАМ, своим @media — как у `Button`. Область CSS-модуля чужие классы
+     не видит, поэтому вписать их сюда нельзя; строка оставлена указателем,
+     чтобы список не выглядел полным, когда он неполон. */
 }
 
 

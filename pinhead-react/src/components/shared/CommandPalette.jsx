@@ -14,6 +14,7 @@ const COMMANDS = [
 export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -52,9 +53,31 @@ export default function CommandPalette() {
     setOpen(false);
   };
 
+  /**
+   * СТРЕЛКИ И ВЫБРАННЫЙ ПУНКТ (правка 12.09).
+   *
+   * Здесь стояло `handleSelect(filtered[0])` — то есть `Enter` ВСЕГДА брал
+   * первый результат, а стрелки не работали вовсе. Пункт, до которого человек
+   * «дошёл», существовал только в его голове: подсветки не было, и палитра
+   * из семи пунктов годилась ровно для одного — первого.
+   *
+   * Выбор зажимается ПРИ ОТРИСОВКЕ (`cursorAt`), а не эффектом: список
+   * перестраивается на каждый символ, и хранить индекс, который уже вышел
+   * за его конец, незачем. Заворот по кругу — чтобы у списка не было двух
+   * тупиков (то же правило, что у `nextIndex` в палитре ERP).
+   */
+  const cursorAt = cursor >= filtered.length ? 0 : cursor;
+
   const handleKeyDown = (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (filtered.length === 0) return;
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      setCursor((cursorAt + delta + filtered.length) % filtered.length);
+      return;
+    }
     if (e.key === 'Enter' && filtered.length > 0) {
-      handleSelect(filtered[0]);
+      handleSelect(filtered[cursorAt]);
     }
   };
 
@@ -67,14 +90,18 @@ export default function CommandPalette() {
           className="cmd-input"
           placeholder="Куда перейти..."
           value={query}
-          onChange={e => setQuery(e.target.value)}
+          onChange={e => { setQuery(e.target.value); setCursor(0); }}
           onKeyDown={handleKeyDown}
         />
         <div className="cmd-list">
-          {filtered.map(cmd => (
+          {filtered.map((cmd, i) => (
             <button
               key={cmd.id}
-              className="cmd-item"
+              className={i === cursorAt ? 'cmd-item cmd-item-active' : 'cmd-item'}
+              aria-current={i === cursorAt ? 'true' : undefined}
+              /* Наведение двигает ВЫБОР, а не подсвечивает отдельно: две
+                 подсветки рядом — это вопрос, какая сработает по Enter */
+              onMouseMove={() => setCursor(i)}
               onClick={() => handleSelect(cmd)}
             >
               <span className="cmd-icon">{cmd.icon}</span>
@@ -90,7 +117,7 @@ export default function CommandPalette() {
           )}
         </div>
         <div className="cmd-footer">
-          <kbd>↵</kbd> выбрать &nbsp; <kbd>esc</kbd> закрыть
+          <kbd>↑</kbd><kbd>↓</kbd> выбор &nbsp; <kbd>↵</kbd> открыть &nbsp; <kbd>esc</kbd> закрыть
         </div>
       </div>
     </>

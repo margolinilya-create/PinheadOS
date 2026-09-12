@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { SCREEN_ACCESS, canOpenScreen } from './screenAccess';
 import { DEFAULT_PERMISSIONS } from './permissions';
 import { ERP_PERMISSIONS } from '../types';
+import { NAV_GROUPS } from '../layout/navGroups';
 import type { EmployeeRole, ErpPermission } from '../types';
 
 /**
@@ -47,18 +48,38 @@ describe('разделы «Операции» открываются право�
     expect(SIDEBAR).toContain('canOpenScreen');
   });
 
+  /**
+   * ЧИТАЕТСЯ СПИСОК, А НЕ ТЕКСТ ФАЙЛА (правка 12.09).
+   *
+   * Прежняя редакция вырезала из исходника `Sidebar.jsx` кусок между
+   * `title: 'Операции'` и `title: 'Настройки'` и искала в нём подстроки.
+   * Такой сторож сторожит ФАЙЛ: список переехал в `layout/navGroups.js`
+   * (его понадобилось читать ещё и командной строке), и срез стал пустым —
+   * то есть `toContain` начал падать, а `not.toMatch(/admin: true/)`
+   * прошёл бы на пустоте при ЛЮБОМ содержимом меню.
+   *
+   * Теперь проверяются объекты. Заодно исчезла возня со снятием
+   * комментариев: объяснение «почему `admin: true` здесь больше не стоит»
+   * содержит те же слова и ловило сторож на себе.
+   */
   it('пункты «Операций» больше не помечены admin', () => {
-    const block = SIDEBAR.slice(SIDEBAR.indexOf("title: 'Операции'"), SIDEBAR.indexOf("title: 'Настройки'"));
+    const ops = NAV_GROUPS.find((g) => g.title === 'Операции');
+    expect(ops, 'группы «Операции» в меню нет — проверка вырождается').toBeTruthy();
+
     for (const path of Object.keys(SCREEN_ACCESS)) {
-      expect(block).toContain(`to: '${path}'`);
+      expect(ops!.items.some((i) => i.to === path), `${path} не в меню «Операций»`).toBe(true);
     }
-    /**
-     * Комментарии убираются перед проверкой ОТСУТСТВИЯ: объяснение «почему
-     * `admin: true` здесь больше не стоит» содержит ровно те же слова, и тест
-     * ловил бы сам себя. Правило проекта, записанное для SQL, — то же и здесь.
-     */
-    const code = block.split('\n').filter((l) => !l.trimStart().startsWith('//')).join('\n');
-    expect(code).not.toMatch(/admin: true/);
+    for (const item of ops!.items) {
+      expect(item.admin, `${item.to} помечен admin`).not.toBe(true);
+    }
+  });
+
+  it('меню целиком объявлено одним списком — его читают и сайдбар, и палитра', () => {
+    // Список вынесен из компонента именно поэтому: копия в палитре была бы
+    // третьим перечислением разделов, а два уже расходились
+    expect(SIDEBAR).toContain('NAV_GROUPS');
+    expect(NAV_GROUPS.length).toBeGreaterThan(2);
+    expect(NAV_GROUPS.flatMap((g) => g.items).length).toBeGreaterThan(5);
   });
 
   it('админка остаётся за учётной записью', () => {

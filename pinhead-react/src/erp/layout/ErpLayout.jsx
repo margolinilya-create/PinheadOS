@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -23,8 +23,25 @@ import { daysLeft } from '../utils/time';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
 import StaleDataBar from '../components/StaleDataBar';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import styles from '../erp.module.css';
 import appStyles from '../../App.module.css';
+
+/**
+ * Жест «потянуть — обновить» приезжает СВОИМ чанком и только на тач-вводе.
+ * Статический импорт добавлял 690 Б gzip в критический путь каждому, а бюджет
+ * оболочки стоял в 539 Б от потолка — то есть ломал сборку. Тот же приём,
+ * что у `useTouchDndPolyfill` и `DevAnnotations`.
+ */
+const PullToRefreshHost = lazy(() => import('../components/PullToRefreshHost'));
+
+/**
+ * Командная строка (Ctrl/Cmd+K) — тоже СВОИМ чанком. В оболочке остаётся
+ * только сочетание клавиш и флаг: панель со списком, её CSS и разбор
+ * запроса нужны ровно в те секунды, когда палитра открыта, а бюджет
+ * оболочки стоит в сотнях байт от потолка.
+ */
+const ErpCommandPalette = lazy(() => import('../components/ErpCommandPalette'));
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
@@ -32,15 +49,51 @@ export default function ErpLayout({ user, children }) {
   const navigate = useNavigate();
   const search = useErpSearch((s) => s.query);
   const setSearch = useErpSearch((s) => s.setQuery);
-  const { orders, departments, experimental, bypasses, bootstrapLoaded } = useErpStore(
+  const {
+    orders, departments, experimental, bypasses, bootstrapLoaded,
+    realtimeResyncing, resyncRealtime,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       experimental: s.experimental,
       bypasses: s.bypasses,
       bootstrapLoaded: s.bootstrapLoaded,
+      realtimeResyncing: s.realtimeResyncing,
+      resyncRealtime: s.resyncRealtime,
     })),
   );
+
+  /**
+   * Потянуть сверху — перечитать данные. Колбэк — СУЩЕСТВУЮЩИЙ
+   * `resyncRealtime`: он же отдаёт офлайн-очередь до чтения и поднимает
+   * `realtimeResyncing`, который показывает и `StaleDataBar`. Своего
+   * загрузчика здесь заводить нельзя — это был бы второй путь обновления
+   * с собственными правилами порядка.
+   *
+   * Гейт — `(pointer: coarse)`, и он же решает, грузить ли чанк: жест
+   * существует только под пальцем, а оболочку чаще открывают с мыши.
+   * Подробности цены — в шапке `PullToRefreshHost`.
+   */
+  const mainRef = useRef(null);
+  const touchInput = useMediaQuery('(pointer: coarse)');
+
+  /**
+   * Ctrl/Cmd+K. Слушатель здесь, а не в палитре: палитра приезжает ленивым
+   * чанком, и сочетание клавиш, живущее внутри неё, не сработало бы ни разу —
+   * грузить её было бы нечему.
+   */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Сворачивание сайдбара (persist); на узких экранах — по умолчанию свёрнут
   const [collapsed, setCollapsed] = useState(() => {
@@ -310,12 +363,33 @@ export default function ErpLayout({ user, children }) {
           на самой ссылке: следующий Tab возвращал в начало сайдбара.
           Спека проверяла только видимость цели, а не перенос фокуса.
         */}
-        <main className={styles.main} id="main-content" tabIndex={-1}>
+        {/*
+          ЖЕСТ «ПОТЯНУТЬ — ОБНОВИТЬ» ЖИВЁТ ЗДЕСЬ, А НЕ В ЭКРАНАХ. Прокручивается
+          в разделе ровно один элемент — этот `main`; вешать хук на каждый экран
+          значило бы завести пятнадцать мест, где решается один вопрос, и
+          четырнадцать из них однажды разошлись бы с пятнадцатым.
+        */}
+        <main className={styles.main} id="main-content" tabIndex={-1} ref={mainRef}>
           {/* Разрыв канала виден на ЛЮБОМ экране: устареть может любой */}
           <StaleDataBar />
+          {touchInput && (
+            <Suspense fallback={null}>
+              <PullToRefreshHost
+                scrollRef={mainRef}
+                onRefresh={resyncRealtime}
+                busy={realtimeResyncing}
+              />
+            </Suspense>
+          )}
           {children}
         </main>
       </div>
+
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <ErpCommandPalette onClose={() => setPaletteOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
