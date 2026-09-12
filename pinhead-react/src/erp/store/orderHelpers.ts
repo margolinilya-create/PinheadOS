@@ -106,7 +106,7 @@ export const ORDER_LIST_SELECT = `
       planned_start, planned_end, started_at, finished_at, assignee,
       block_reason, sort_order, updated_at, overdue_comment, overdue_ack_at,
       queue_position, cycle, origin,
-      executor, contractor, operation
+      executor, contractor, operation, result_kind
     ),
     prints:erp_item_prints (*),
     labels:erp_item_labels (*)

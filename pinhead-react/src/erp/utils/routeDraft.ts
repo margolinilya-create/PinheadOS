@@ -71,6 +71,13 @@ export interface RouteStep {
    */
   standalone: boolean;
   /**
+   * Чем отчитывается этап: `''` — числами по схеме участка,
+   * `embroidery_program` — файлом программы вышивки (правка 12.09, баг 02).
+   * Хранится колонкой `erp_item_stages.result_kind`, поэтому переживает
+   * и правку маршрута, и переименование операции.
+   */
+  resultKind: '' | 'embroidery_program';
+  /**
    * Поля ПОДРЯДНОГО этапа (правки заказчика 20.08): «если при построении
    * маршрута менеджер выбирает этап "Подряд", внутри этапа открываются
    * дополнительные поля».
@@ -145,6 +152,7 @@ export function emptyStep(departmentCode: string): RouteStep {
     operation: '',
     cycle: 0,
     standalone: false,
+    resultKind: '',
     qty: '',
     sendPlan: '',
     returnPlan: '',
@@ -173,6 +181,7 @@ export function draftFromRoute(route: readonly RouteStage[]): RouteGroup[] {
       operation: r.operation ?? '',
       cycle: r.cycle ?? 0,
       standalone: r.standalone ?? false,
+      resultKind: r.resultKind ?? '',
     });
     byOrder.set(r.sortOrder, group);
   }
@@ -268,6 +277,8 @@ interface StageLike extends Pick<
   operation?: string | null;
   /** Проход через цех: у позиции с вышивкой этапов этого участка два */
   cycle?: number;
+  /** Чем отчитывается этап: файлом программы вышивки или числами участка */
+  result_kind?: string | null;
 }
 
 /**
@@ -341,6 +352,12 @@ export function draftFromStages(
        * делал всегда.
        */
       standalone: false,
+      /**
+       * А ВОТ ЭТО БЕРЁТСЯ У ЭТАПА, в отличие от `standalone`: признак хранится
+       * колонкой, и потеряв его, сохранение конструктора вернуло бы разработке
+       * программы поля «Вышито» и «Брак» — молча, без единой ошибки.
+       */
+      resultKind: s.result_kind === 'embroidery_program' ? 'embroidery_program' : '',
       qty: text(sub?.qty),
       sendPlan: text(sub?.send_plan_date),
       returnPlan: text(sub?.planned_date),
@@ -512,6 +529,7 @@ export function stepPayload(step: RouteStep): {
   contractor: string | null;
   operation: string | null;
   cycle: number;
+  result_kind: string | null;
   qty: number | null;
   send_plan_date: string | null;
   planned_date: string | null;
@@ -529,6 +547,9 @@ export function stepPayload(step: RouteStep): {
     // Цикл едет НА СЕРВЕР: без него два наших этапа одного цеха упираются
     // в уникальный индекс, и заказ не создаётся вовсе (правка 12.09, п. 2)
     cycle: Number.isFinite(step.cycle) ? step.cycle : 0,
+    // Признак результата едет на сервер вместе с этапом: оба писателя
+    // (`erp_create_order` и `erp_route_apply`) пишут его в ту же колонку
+    result_kind: step.resultKind || null,
     // Подрядные поля у нашего этапа не хранятся вовсе: спутника у него нет,
     // и присланное значение молча пропало бы — хуже, чем не отправленное
     qty: contractor && step.qty.trim() && Number.isFinite(qty) && qty > 0 ? qty : null,

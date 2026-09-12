@@ -27,6 +27,8 @@ type ProgressStage = Pick<ErpItemStage, 'status'> & {
   qty_done?: number | null;
   /** Образец или серия — образец в прогресс СЕРИИ не входит */
   origin?: string | null;
+  /** Этап отчитывается файлом — штук у него нет, в прогресс он не входит */
+  result_kind?: string | null;
 };
 /** Минимум позиции */
 interface ProgressItem {
@@ -62,10 +64,17 @@ export function stageQtyProgress(stage: ProgressStage, itemQty: number): QtyProg
  * правило про ПЕРЕХОДЫ и ГЕЙТЫ самого этапа — цех работает с образцом теми же
  * кнопками, под теми же правами и через тот же страж. Здесь считается доля
  * выполненного, а не решается, можно ли работать.
+ *
+ * ЭТАП, ОТЧИТЫВАЮЩИЙСЯ ФАЙЛОМ, тоже не считается (правка 12.09, баг 02):
+ * прогресс измеряется В ШТУКАХ, а у разработки программы вышивки штук нет
+ * вовсе — `qty_done` у неё остаётся нулём до самого закрытия. В знаменателе
+ * такой этап держал бы позицию на «0 из 100» всю дорогу и врал бы о ней
+ * ровно так же, как этапы образца.
  */
 export function itemProgress(item: ProgressItem): QtyProgress {
   const relevant = (item.stages ?? []).filter(
-    (s) => s.status !== 'skipped' && s.origin !== 'experimental');
+    (s) => s.status !== 'skipped' && s.origin !== 'experimental'
+      && !s.result_kind);
   const qty = Math.max(item.qty, 0);
   const total = relevant.length * qty;
   const done = relevant.reduce((sum, s) => sum + stageQtyProgress(s, qty).done, 0);

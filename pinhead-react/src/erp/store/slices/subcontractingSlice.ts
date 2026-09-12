@@ -424,8 +424,8 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
    * вложенным списком заказа, и собрать их на клиенте значит угадывать,
    * что именно записал сервер.
    */
-  uploadStageFile: async ({ stageId, orderId, itemId, file }) => {
-    const path = attachmentFilePath(orderId, 'subcontract', crypto.randomUUID(), file.name);
+  uploadStageFile: async ({ stageId, orderId, itemId, file, kind = 'subcontract' }) => {
+    const path = attachmentFilePath(orderId, kind, crypto.randomUUID(), file.name);
     const { error: upErr } = await erpQuery(() => supabase.storage
       .from(TZ_BUCKET)
       .upload(path, file, { contentType: file.type || 'application/octet-stream' }));
@@ -441,7 +441,7 @@ export const subcontractingSlice: StateCreator<ErpStore, [], [], SubcontractingS
         stage_id: stageId,
         file_path: path,
         file_name: file.name,
-        kind: 'subcontract',
+        kind,
         uploaded_by: currentActor(),
       })
       .select());

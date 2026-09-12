@@ -158,6 +158,18 @@ export function QueueRow({
             {' · '}
             <span title="Исполнитель">{stage.assignee || 'не закреплено'}</span>
           </span>
+          {/*
+            ЗАДАЧА НАЗЫВАЕТ СЕБЯ (правка 12.09, вторая порция, баг 02).
+            У позиции с вышивкой в очереди цеха ДВЕ строки — разработка
+            программы и сама вышивка, — и `operation` очередь не показывала
+            вовсе: строки были неразличимы, а результат у них разный.
+            Имя печатается только когда оно расходится с именем цеха.
+          */}
+          {stage.operation && (
+            <span className={`${styles.chip} ${styles.chipNeutral}`}>
+              {stage.operation}
+            </span>
+          )}
         </span>
 
         <span className={styles.queueRowQty}>{item.qty} шт</span>

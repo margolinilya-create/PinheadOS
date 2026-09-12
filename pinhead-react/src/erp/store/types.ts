@@ -814,11 +814,19 @@ export interface SubcontractingSlice {
    * к позиции: подрядных этапов в позиции бывает несколько, и чужая схема
    * узла хуже никакой.
    */
+  /**
+   * `kind` — вид вложения (правка 12.09, баг 02): `subcontract` — файл,
+   * который ОТДАЮТ подрядчику, `stage_result` — результат, который цех СДАЁТ
+   * (программа вышивки). Путь в бакет, уборка сироты и привязка к этапу у них
+   * одни; вторая копия действия разошлась бы с первой молча — обе «работают»,
+   * просто пишут по-разному.
+   */
   uploadStageFile: (input: {
     stageId: string;
     orderId: string;
     itemId?: string | null;
     file: File;
+    kind?: Extract<ErpAttachmentKind, 'subcontract' | 'stage_result'>;
   }) => Promise<boolean>;
   /** Снять файл этапа: пустой ответ DELETE — отказ RLS, а не «файл снят» */
   deleteStageFile: (orderId: string, attachmentId: string) => Promise<boolean>;

@@ -740,6 +740,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -767,6 +768,7 @@ export type Database = {
           qty_done?: number
           qty_rework?: number
           queue_position?: number | null
+          result_kind?: string | null
           sort_order?: number
           started_at?: string | null
           status?: string
@@ -794,6 +796,7 @@ export type Database = {
           qty_done?: number
           qty_rework?: number
           queue_position?: number | null
+          result_kind?: string | null
           sort_order?: number
           started_at?: string | null
           status?: string
@@ -2640,6 +2643,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2690,6 +2694,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2736,6 +2741,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2772,6 +2778,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2808,6 +2815,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2853,6 +2861,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
