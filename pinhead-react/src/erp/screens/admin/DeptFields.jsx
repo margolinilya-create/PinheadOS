@@ -49,10 +49,9 @@ export function SortOrderInput({ dept, onChange }) {
     <input
       type="number"
       step="10"
-      className={`${styles.input} ${styles.inputSm}`}
+      className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
       defaultValue={dept.sort_order}
       aria-label={`Порядок участка ${dept.name}`}
-      style={{ maxWidth: 80 }}
       onBlur={(e) => {
         const v = Number(e.target.value);
         if (Number.isFinite(v) && v !== dept.sort_order) onChange(v);
@@ -140,11 +139,10 @@ export function NormDaysInput({ dept, onChange }) {
     <input
       type="number"
       min="0"
-      className={`${styles.input} ${styles.inputSm}`}
+      className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
       defaultValue={dept.norm_days ?? ''}
       placeholder="—"
       aria-label={`Норматив участка ${dept.name}, дней`}
-      style={{ maxWidth: 70 }}
       onBlur={(e) => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (dept.norm_days ?? null)) onChange(v);

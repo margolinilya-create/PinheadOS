@@ -203,7 +203,14 @@
   --nav-active-bg: #2B2BF0;
   --nav-active-ink: #ffffff;
   --nav-accent: #8C8CFF;
-  --nav-border: rgba(255, 255, 255, 0.09);
+  /* В ТЁМНОЙ ТЕМЕ ГРАНИЦА ПАНЕЛИ РАБОТАЕТ ЗА ДВОИХ.
+     Панель (#100E0A) и поле (#14120E) различаются на 0.006 светлоты — в светлой
+     теме этого хватает с запасом (там панель чернильная на бумаге), а в тёмной
+     плоскости просто сливаются: на снимке обхода сайдбар не читался как
+     отдельная поверхность вовсе, то есть пространственный якорь, ради которого
+     панель и сделана тёмной, в тёмной теме не работал. Тона не меняем —
+     они выверены по контрасту текста (`contrast.test.ts`); усилен РАЗДЕЛ. */
+  --nav-border: rgba(255, 255, 255, 0.16);
 }
 
 .shell {
@@ -634,6 +641,20 @@
 /* Подпись колонки не переносится и не обрезается: ширины в colgroup рассчитаны
    под неё, и перенос здесь означал бы, что расчёт разошёлся с вёрсткой —
    это должно быть ВИДНО, а не спрятано многоточием */
+/* ─── ШИРИНЫ КОЛОНОК СПИСКА ЗАКАЗОВ ───
+   Девять `<col>` несли ширину инлайном (`style={{ width: 92 }}`), то есть
+   раскладка таблицы жила в разметке и не подчинялась ни теме, ни медиазапросу.
+   Колонка «Заказ» ширины не имеет намеренно: она забирает остаток —
+   это единственное место, где длина названия действительно нужна. */
+.colDeal    { width: 92px; }
+.colManager { width: 104px; }
+.colQty     { width: 72px; }
+.colCreated { width: 88px; }
+.colDue     { width: 136px; }
+.colNow     { width: 152px; }
+.colStatus  { width: 96px; }
+.colAction  { width: 52px; }
+
 .ordersTable th { white-space: nowrap; }
 .table {
   width: 100%;
@@ -860,6 +881,9 @@
   font-size: var(--type-label);
   color: var(--text-mid);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .queueGrid {
   display: grid;
@@ -1168,6 +1192,13 @@
   overflow: hidden;
 }
 .progressFill {
+  /* `display: block` обязателен: носитель — `<span>`, то есть строчный
+     элемент, а к строчному не применяются ни `width`, ни `height`. Полоса
+     прогресса в строке очереди цеха и в очереди закупки не рисовалась вовсе:
+     трек виден (он flex-item и блокифицируется), заливка внутри — нет.
+     `.routeBarFill` этот `display` уже нёс — то есть дефект чинили однажды
+     у одного носителя, не спросив, кто ещё читает тот же класс. */
+  display: block;
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--color-success);
@@ -1464,6 +1495,9 @@
   font-size: var(--type-label);
   color: var(--text-dim);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .stepperLabel {
   margin: 0 var(--space-sm) 0 6px;
@@ -1573,7 +1607,12 @@
   border-color: var(--accent); background: var(--accent); color: #fff;
 }
 .numStepText { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 var(--space-sm); }
-.numStepLabel { font-size: var(--type-body-sm); color: var(--text); white-space: nowrap; }
+.numStepLabel {
+  font-size: var(--type-body-sm); color: var(--text); white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .numStepCount {
   min-width: 20px; height: 20px; padding: 0 5px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1594,8 +1633,25 @@
    половину ряда пустой — дыру видно на любом снимке обзора. 260px дают
    ровно три колонки на десктопе (3 × 2), две на планшете и одну на
    телефоне. Медиазапрос не нужен: сетка подстраивается сама — правило
-   проекта «если сетка может подстроиться, порог убирают, а не переносят». */
-.dashKpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+   проекта «если сетка может подстроиться, порог убирают, а не переносят».
+
+   ⚠️ 12.09: ПОРОГ, ПОДОБРАННЫЙ ПОД ОДНУ ШИРИНУ, ДЕРЖИТСЯ ТОЛЬКО НА НЕЙ.
+   Абзац выше писался на 1280px, где 260px и правда дают три колонки.
+   На 1440 колонок становится ЧЕТЫРЕ, и ряд снова разваливается на 4 + 2 —
+   ровно та дыра, которую он объявляет закрытой. Ширина главной области
+   у этого раздела не фиксирована и растёт с окном, поэтому единственный
+   порог её не опишет.
+
+   Решение — не третий подобранный порог, а ПОТОЛОК ЧИСЛА КОЛОНОК: плиток
+   шесть, значит ряд из трёх (3 × 2) — единственная раскладка, которая
+   не оставляет половину ряда пустой при любой ширине. Минимум 260px
+   продолжает работать вниз: на планшете ряд сам сложится в два, на
+   телефоне — в один. */
+.dashKpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(260px, calc((100% - 2 * 14px) / 3)), 1fr));
+  gap: 14px;
+}
 /* Плитка показателя — БИРКА НА ТАРЕ: цветная кромка слева отвечает
    на «насколько это срочно», число набрано моноширинным (это
    производственные данные), подпись — заглавной мелочью.

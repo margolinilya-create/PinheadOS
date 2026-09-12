@@ -101,7 +101,7 @@ export function DatesCell({ stage, sub, overdue, canManage, onUpdate }) {
           value={sub?.planned_date || ''}
           onChange={(v) => sub && onUpdate(sub.id, { planned_date: v || null })}
           aria-label={`Плановая дата возврата ${stage.id}`}
-          style={{ maxWidth: 130 }}
+          className={`${styles.input} ${styles.wQty}`}
         />
       </label>
     </>

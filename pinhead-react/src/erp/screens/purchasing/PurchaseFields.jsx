@@ -56,13 +56,13 @@ export function MaterialCell({ m }) {
 export function PlanField({ m, onUpdate }) {
   return (
     <input
-      type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm}`}
+      type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
       defaultValue={m.qty_expected ?? ''} placeholder="—"
       onBlur={(e) => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (m.qty_expected ?? null)) onUpdate(m.id, { qty_expected: v });
       }}
-      aria-label={`${PURCHASE_FIELD_LABELS.qtyExpected}: ${m.name}`} style={{ maxWidth: 80 }}
+      aria-label={`${PURCHASE_FIELD_LABELS.qtyExpected}: ${m.name}`}
     />
   );
 }
@@ -105,12 +105,12 @@ export function SupplierCell({ m, order, onOpenOptions }) {
 export function ArticleField({ m, onUpdate }) {
   return (
     <input
-      className={`${styles.input} ${styles.inputSm}`} defaultValue={m.article || ''} placeholder="—"
+      className={`${styles.input} ${styles.inputSm} ${styles.wQty}`} defaultValue={m.article || ''} placeholder="—"
       onBlur={(e) => {
         const v = e.target.value.trim() || null;
         if (v !== (m.article || null)) onUpdate(m.id, { article: v });
       }}
-      aria-label={`Артикул ${m.name}`} style={{ maxWidth: 110 }}
+      aria-label={`Артикул ${m.name}`}
     />
   );
 }
@@ -118,13 +118,13 @@ export function ArticleField({ m, onUpdate }) {
 export function QtyOrderedField({ m, onUpdate }) {
   return (
     <input
-      type="number" min="0" step="any" className={`${styles.input} ${styles.inputSm}`}
+      type="number" min="0" step="any" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
       defaultValue={m.qty_ordered ?? ''} placeholder="—"
       onBlur={(e) => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (m.qty_ordered ?? null)) onUpdate(m.id, { qty_ordered: v });
       }}
-      aria-label={`${PURCHASE_FIELD_LABELS.qtyOrdered}: ${m.name}`} style={{ maxWidth: 90 }}
+      aria-label={`${PURCHASE_FIELD_LABELS.qtyOrdered}: ${m.name}`}
     />
   );
 }
@@ -132,13 +132,13 @@ export function QtyOrderedField({ m, onUpdate }) {
 export function PriceField({ m, onUpdate }) {
   return (
     <input
-      type="number" min="0" step="any" className={`${styles.input} ${styles.inputSm}`}
+      type="number" min="0" step="any" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
       defaultValue={m.price_per_unit ?? ''} placeholder="—"
       onBlur={(e) => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (m.price_per_unit ?? null)) onUpdate(m.id, { price_per_unit: v });
       }}
-      aria-label={`Цена за единицу ${m.name}`} style={{ maxWidth: 90 }}
+      aria-label={`Цена за единицу ${m.name}`}
     />
   );
 }
@@ -200,12 +200,12 @@ export function ReceivedValue({ m }) {
 export function ResponsibleField({ m, onUpdate }) {
   return (
     <input
-      className={`${styles.input} ${styles.inputSm}`} defaultValue={m.responsible || ''} placeholder="—"
+      className={`${styles.input} ${styles.inputSm} ${styles.wQty}`} defaultValue={m.responsible || ''} placeholder="—"
       onBlur={(e) => {
         const v = e.target.value.trim() || null;
         if (v !== (m.responsible || null)) onUpdate(m.id, { responsible: v });
       }}
-      aria-label={`Ответственный за получение ${m.name}`} style={{ maxWidth: 120 }}
+      aria-label={`Ответственный за получение ${m.name}`}
     />
   );
 }

@@ -50,13 +50,13 @@ export function MarkingCard({ order, task, onAdvance }) {
       {task.status !== 'issued' && (
         <div className={styles.checkRow}>
           <input
-            className={styles.input} style={{ maxWidth: 220 }}
+            className={`${styles.input} ${styles.wName}`}
             placeholder="Тип маркировки (напр. Честный знак)"
             value={markingType} onChange={(e) => setMarkingType(e.target.value)}
             aria-label="Тип маркировки"
           />
           <DateField
-            className={styles.input} style={{ maxWidth: 160 }}
+            className={`${styles.input} ${styles.wCode}`}
             value={deadline} onChange={setDeadline}
             aria-label="Срок выпуска маркировки"
           />

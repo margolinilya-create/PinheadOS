@@ -12,7 +12,7 @@ import { useCompactLayout } from '../layout/useCompactLayout';
 import { useErpStore } from '../store/useErpStore';
 import { ganttBars } from '../utils/gantt';
 import { weekdayShort } from '../utils/format';
-import { addDays, factoryToday, mondayOfWeek, parseIsoDate } from '../../utils/date';
+import { addDays, factoryToday, mondayOfWeek, parseIsoDate, weekdayIndex } from '../../utils/date';
 import styles from '../styles';
 
 /**
@@ -42,6 +42,19 @@ const DEFAULT_DAYS = 30;
 
 function dayLabel(iso) {
   return { dow: weekdayShort(iso), day: parseIsoDate(iso).getDate() };
+}
+
+/**
+ * Выходной день. Нужен не для расчёта (план в этом разделе ручной, и работа
+ * в субботу — обычное дело), а для ЧТЕНИЯ шкалы: без опоры взгляд считает
+ * тридцать одинаковых колонок по одной. Считается из ДАТЫ, а не из номера
+ * колонки: подпись по индексу с датой не спорит, и когда расчёт недели
+ * однажды уехал, подписи уехали вместе с ним вместо того, чтобы дать
+ * расхождение (разбор сессии 29).
+ */
+function isWeekend(iso) {
+  const i = weekdayIndex(iso);
+  return i === 5 || i === 6;
 }
 
 /**
@@ -218,6 +231,7 @@ export default function GanttScreen() {
                     ref={d === today ? todayRef : undefined}
                     className={[
                       styles.ganttHeadCell,
+                      isWeekend(d) ? styles.ganttHeadWeekend : '',
                       d === today ? styles.ganttHeadToday : '',
                     ].filter(Boolean).join(' ')}
                   >

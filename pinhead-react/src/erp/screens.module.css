@@ -146,6 +146,24 @@
   display: flex; gap: 10px; align-items: center;
   margin-bottom: var(--space-md); flex-wrap: wrap;
 }
+/* Ряд, стоящий СРАЗУ под заголовком экрана. `.pageHead` даёт снизу 20px,
+   а ряду под ним нужен обычный шаг сетки — разницу и выбирает этот класс.
+   Стояла она инлайном (`style={{ marginTop: -8 }}`) в трёх экранах: одна
+   и та же величина, выписанная от руки трижды, — и правило «компактные
+   размеры только классами» нарушалось ровно там, где верстают на глаз.
+   Соседним селектором `.pageHead + .toolbar` это не выражается: классы
+   объявлены в РАЗНЫХ CSS-модулях, и в каждом из них второе имя получило бы
+   чужой хеш — правило молча не сработало бы. */
+.toolbarUnderHead { margin-top: calc(var(--space-md) - 20px); }
+/* Строка фактов заказа под заголовком: клиент · менеджер · даты · заметка.
+   Свой зазор шире общего (18px против 10) — это не «тулбар с кнопками»,
+   а перечисление величин, и им нужно дышать, чтобы пары «подпись: значение»
+   не слипались в сплошную строку. */
+.orderFacts { gap: 18px; }
+/* Пояснение под заголовком группы: прижато к заголовку (его собственный
+   нижний отступ шире, чем нужно паре «заголовок + пояснение») и отделено
+   от следующего блока. Стояло инлайном, то есть мимо медиазапросов. */
+.groupNote { margin-top: -6px; margin-bottom: 10px; }
 /* Ряд фильтр-чипов внутри тулбара: без переноса ряд был шире 390px
    и вылезал за вьюпорт (мобильный overflow ~20px) */
 .filterRow { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
@@ -489,6 +507,31 @@ a.cellTitle:hover { color: var(--accent); }
   gap: 6px;
 }
 .sizeGrid { display: flex; flex-direction: column; gap: 6px; padding: var(--space-sm) 0 2px; }
+/* Размерная сетка в карточке заказа: таблица на 4–6 колонок, которой незачем
+   растягиваться на всю ширину экрана — числа разъезжались бы на полтора метра
+   друг от друга. Ширина и отступ стояли инлайном (`style={{ maxWidth: 560 }}`),
+   то есть решение о раскладке жило в разметке и не подчинялось медиазапросам. */
+.sizeGridWrap { max-width: 560px; margin-bottom: 10px; }
+
+/* ─── ШИРИНЫ ПОЛЕЙ ВВОДА ───
+   Девять чисел (70 · 80 · 90 · 110 · 120 · 130 · 140 · 160 · 220) стояли
+   ИНЛАЙНОМ в восьми файлах — нерасписанная шкала, где разницу между 80 и 90,
+   между 110 и 120 никто не выбирал. Инлайновый размер к тому же СИЛЬНЕЕ
+   медиазапроса: правило проекта «компактные размеры — только классами»
+   нарушалось ровно там, где поля стоят плотнее всего (закупка, склад, подряд).
+
+   Четыре ступени по НАЗНАЧЕНИЮ поля, а не по числу: сколько знаков в него
+   вводят. Ширина — потолок, а не фиксация: узкому контейнеру поле уступает.
+
+   Имена — `w*`, а не `field*`: класс, чьё имя начинается с имени другого
+   класса, читается как его УТОЧНЕНИЕ, и `stylesResolve.test.ts` справедливо
+   требует их в одном файле (между чанками порядок правил не гарантирован).
+   База `.field` живёт в `erp.module.css`, а ширины нужны только экранам —
+   значит это самостоятельная вещь, и названа она по смыслу, а не по месту. */
+.wNum  { max-width: 88px; }
+.wQty  { max-width: 120px; }
+.wCode { max-width: 160px; }
+.wName { max-width: 220px; }
 /* Таблица сетки «цвет × размер» (правки 07.09, пп. 6–7).
    Отступы ячеек СВОИ: общий `.table td` рассчитан на шесть-семь колонок текста,
    а здесь их до тринадцати, и на 12px по горизонтали таблица уезжает за край
@@ -553,6 +596,9 @@ a.cellTitle:hover { color: var(--accent); }
   text-transform: uppercase;
   letter-spacing: 1.2px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .accSummary {
   color: var(--text-dim);
@@ -697,7 +743,14 @@ a.cellTitle:hover { color: var(--accent); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .loadTrack { flex: 1; height: 8px; border-radius: var(--radius-pill); background: var(--surface); overflow: hidden; }
-.loadFill { height: 100%; border-radius: var(--radius-pill); background: var(--accent); }
+/* `display: block` ОБЯЗАТЕЛЕН, и без него полоса не рисовалась ВООБЩЕ.
+   Заливка — `<span>`, то есть строчный элемент: ни `width`, ни `height`
+   к нему не применяются по построению. Трек при этом виден, потому что он
+   flex-item и блокифицируется родителем, а заливка внутри него — нет.
+   На обзоре это выглядело как три пустых серых дорожки: виджет «Задачи
+   по цехам» не показывал ни одной загрузки, хотя числа справа стояли.
+   Ни один тест такого не видит — разметка та же, поведение то же. */
+.loadFill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--accent); }
 .loadVal { width: 30px; text-align: right; font-family: var(--mono); font-size: var(--type-label); color: var(--text-mid); }
 
 .deadlineItem {
@@ -705,7 +758,20 @@ a.cellTitle:hover { color: var(--accent); }
   padding: 9px 0; border-bottom: 1px solid var(--border-light);
 }
 .deadlineItem:last-child { border-bottom: none; }
-.deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
+/* ЧИСЛО НАД МЕСЯЦЕМ, А НЕ РЯДОМ С НИМ.
+   Здесь стоял `span` без `display`, а внутри два строчных элемента —
+   «18» и «ИЮЛ» шли в одну строку, не помещались в 40px и наезжали
+   на название заказа: на снимке обзора это читалось как «18ИЮЛ BOX39».
+   Ширина остаётся фиксированной (колонка дат выравнивается по вертикали),
+   но содержимому нужен столбец. */
+.deadlineDate {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
 .deadlineDay { font-family: var(--mono); font-size: var(--type-title); font-weight: 700; color: var(--text); line-height: 1; }
 .deadlineMon { font-size: var(--type-label); text-transform: uppercase; color: var(--text-dim); }
 .deadlineBody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -1181,6 +1247,10 @@ a.cellTitle:hover { color: var(--accent); }
   font-size: var(--type-body-sm);
 }
 .sgBar {
+  /* Тот же случай, что у .progressFill: носитель — `<span>` с инлайновой
+     шириной, и без блочного отображения витрина рисовала шкалу отступов
+     полосками нулевой ширины */
+  display: block;
   height: 14px;
   min-width: 2px;
   background: var(--accent);
@@ -1445,7 +1515,12 @@ a.cellTitle:hover { color: var(--accent); }
 /* Участок и состояние — одной строкой и в порядке чтения: сначала ГДЕ,
    потом ЧТО. Переносятся вместе, если места мало. */
 .nowHead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.nowWhere { font-weight: 600; white-space: nowrap; }
+.nowWhere {
+  font-weight: 600; white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 
 /* Главный ответ вкладки «Аварийный режим»: система в норме. Набран как ответ,
    а не как примечание — 12px `subText` ставил его вровень со строкой загрузки. */
@@ -1503,6 +1578,11 @@ a.cellTitle:hover { color: var(--accent); }
   font-size: var(--type-label);
   color: var(--text-dim);
 }
+/* Выходной — опора для глаза на шкале из тридцати одинаковых колонок.
+   Приглушением, а не заливкой: работа в субботу здесь законна, и красная
+   колонка читалась бы как запрет. «Сегодня» остаётся сильнее выходного —
+   поэтому его правило стоит НИЖЕ и выигрывает при равной специфичности. */
+.ganttHeadWeekend { color: var(--text-dim); background: var(--surface); }
 .ganttHeadToday { color: var(--accent); font-weight: 700; }
 /* Пустая ячейка над колонкой подписей — та же липкая шапка, без текста */
 .ganttHeadLabel {
@@ -1566,12 +1646,20 @@ a.cellTitle:hover { color: var(--accent); }
 .ganttBarOverdue { background: var(--color-error); }
 .ganttBarOutsourced { background: var(--color-violet); }
 /* Догадка (дата взята у заказа или не задана вовсе) рисуется штриховкой:
-   выдавать её за план нельзя, а прятать — значит показать пустую диаграмму */
+   выдавать её за план нельзя, а прятать — значит показать пустую диаграмму.
+
+   12.09: ШТРИХОВКА СМЯГЧЕНА. Прежняя — плотные полосы `--text-dim` по
+   прозрачному — давала чёрно-белую зебру, и на снимке обхода диаграмма,
+   где догадка почти каждая полоса (на проде плановые даты стоят у 3 этапов
+   из 172), читалась как разметка аварии, а не как оценка срока. Теперь
+   подложка акцентная и светлая, штрих — тонкий и нейтральный: полоса
+   по-прежнему ОТЛИЧАЕТСЯ от плановой с одного взгляда, но не кричит. */
 .ganttBarGuess {
-  background: repeating-linear-gradient(
-    45deg, var(--text-dim), var(--text-dim) 4px, transparent 4px, transparent 8px
+  background-color: var(--accent-light);
+  background-image: repeating-linear-gradient(
+    45deg, var(--border-mid) 0 2px, transparent 2px 6px
   );
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-mid);
   color: var(--text);
 }
 /* Хвост, уходящий за левый край периода */

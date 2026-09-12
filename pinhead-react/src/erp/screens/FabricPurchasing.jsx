@@ -571,7 +571,7 @@ export default function FabricPurchasing() {
           onAddMaterial={(orderId) => setAdding({ orderId })}
         >
         {tab !== 'all' && (
-          <div className={styles.toolbar} style={{ marginTop: -8 }}>
+          <div className={`${styles.toolbar} ${styles.toolbarUnderHead}`}>
             <span className={`${styles.chip} ${styles.chipProgress}`}>
               Фильтр: {TABS.find((t) => t.key === tab)?.label}
             </span>

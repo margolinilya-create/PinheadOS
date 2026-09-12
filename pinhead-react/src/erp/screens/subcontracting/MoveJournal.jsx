@@ -157,13 +157,12 @@ export function MaterialsBlock({ op, canManage }) {
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Сколько</span>
         <input
-          className={styles.input}
+          className={`${styles.input} ${styles.wCode}`}
           placeholder="200 м / 200 компл."
           defaultValue={op.materials_qty || ''}
           disabled={!canManage}
           onBlur={(e) => saveField('materials_qty', e.target.value.trim() || null)}
           aria-label="Количество переданных материалов"
-          style={{ maxWidth: 140 }}
         />
       </label>
       <label className={styles.field}>
@@ -194,12 +193,11 @@ export function CostBlock({ op, canManage }) {
         <input
           type="number"
           min="0"
-          className={styles.input}
+          className={`${styles.input} ${styles.wCode}`}
           defaultValue={op.cost ?? ''}
           disabled={!canManage}
           onBlur={(e) => saveField('cost', e.target.value === '' ? null : Number(e.target.value))}
           aria-label="Стоимость подрядных работ"
-          style={{ maxWidth: 160 }}
         />
       </label>
     </div>

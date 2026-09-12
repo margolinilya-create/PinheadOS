@@ -554,15 +554,16 @@ export default function OrdersScreen() {
               в кашу. Ниже 1024px таблицы нет вовсе — там карточки.
             */}
             <colgroup>
-              <col style={{ width: 92 }} />
+              <col className={styles.colDeal} />
+              {/* «Заказ» без ширины: колонка забирает остаток строки */}
               <col />
-              <col style={{ width: 104 }} />
-              <col style={{ width: 72 }} />
-              <col style={{ width: 88 }} />
-              <col style={{ width: 136 }} />
-              <col style={{ width: 152 }} />
-              <col style={{ width: 96 }} />
-              <col style={{ width: 52 }} />
+              <col className={styles.colManager} />
+              <col className={styles.colQty} />
+              <col className={styles.colCreated} />
+              <col className={styles.colDue} />
+              <col className={styles.colNow} />
+              <col className={styles.colStatus} />
+              <col className={styles.colAction} />
             </colgroup>
             <thead>
               <tr>
