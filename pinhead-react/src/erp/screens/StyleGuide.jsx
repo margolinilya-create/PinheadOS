@@ -17,6 +17,9 @@ import {
   RADIUS_TOKENS as RADIUS_TOKEN_NAMES,
   cssVar,
 } from '../../styles/tokenGroups';
+import { MECHANISMS } from './styleguide/mechanisms';
+import { Knobs } from './styleguide/Knobs';
+import { useKnobs } from './styleguide/useKnobs';
 import styles from '../styles';
 
 /**
@@ -55,6 +58,33 @@ const SURFACE_TOKENS = SURFACE_TOKEN_NAMES.map(cssVar);
 const SPACE_TOKENS = SPACE_TOKEN_NAMES.map(cssVar);
 const RADIUS_TOKENS = RADIUS_TOKEN_NAMES.map(cssVar);
 
+/**
+ * РАЗДЕЛ-МЕХАНИЗМ: ручки слева от живой демонстрации.
+ *
+ * Отдельный компонент, а не ветка в `Section`, потому что у него есть
+ * СОСТОЯНИЕ (значения ручек), а у `Section` его нет и быть не должно —
+ * иначе каждая матрица вариантов тянула бы за собой хук, который ей
+ * не нужен.
+ */
+function Mechanism({ entry }) {
+  const [knobs, setKnob] = useKnobs(entry.params);
+  const { Demo } = entry;
+  return (
+    <section className={styles.widget}>
+      <div className={styles.widgetHead}>
+        <h2 className={styles.widgetTitle}>{entry.title}</h2>
+      </div>
+      {entry.note && <p className={styles.subText}>{entry.note}</p>}
+      <div className={styles.sgMechanism}>
+        <Knobs params={entry.params} state={knobs} onChange={setKnob} />
+        <div className={styles.sgRow}>
+          <Demo {...knobs} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Section({ title, note, children }) {
   return (
     <section className={styles.widget}>
@@ -90,6 +120,13 @@ export default function StyleGuide() {
           различимы ли элементы рядом друг с другом.
         </span>
       </div>
+
+      {/*
+        МЕХАНИЗМЫ — ПЕРЕД МАТРИЦАМИ. Они отвечают на вопрос «как это себя
+        ведёт», а матрицы ниже — на «различимы ли они рядом»; первый вопрос
+        задают реже, но ответ на него дороже получить иначе.
+      */}
+      {MECHANISMS.map((m) => <Mechanism key={m.id} entry={m} />)}
 
       <Section title="Кнопки" note="Иерархия действий: одна primary на экран, остальное — secondary/ghost. Danger только для необратимого.">
         {BUTTON_VARIANTS.map((v) => (
