@@ -1,4 +1,6 @@
-import { StepperDemo, SlideConfirmDemo, PullToRefreshDemo } from './demos';
+import {
+  StepperDemo, SlideConfirmDemo, PullToRefreshDemo, OklchDemo,
+} from './demos';
 
 /**
  * МЕХАНИЗМЫ ВИТРИНЫ — декларативный каталог по образцу bencho.dev.
@@ -60,5 +62,33 @@ export const MECHANISMS = [
     note: 'Обязательство случается на пороге. Ручного обновления на экранах цеха не было вовсе.',
     params: [],
     Demo: PullToRefreshDemo,
+  },
+  {
+    id: 'oklch',
+    title: 'Подбор тона с сохранением яркости',
+    note: 'Перекрашивая нейтрали, сохраняйте светлоту — тогда ни одна пара «текст × поверхность» не сдвигается. Инструмент решает обратную задачу; сторожа контраста он не заменяет.',
+    params: [
+      {
+        id: 'hue',
+        label: 'Оттенок',
+        kind: 'range',
+        min: 0,
+        max: 360,
+        step: 5,
+        default: 250,
+        unit: '°',
+      },
+      {
+        id: 'chroma',
+        label: 'Хрома',
+        kind: 'range',
+        min: 0,
+        max: 0.2,
+        step: 0.01,
+        default: 0,
+        hint: '0 — оставить как у исходного цвета',
+      },
+    ],
+    Demo: OklchDemo,
   },
 ];

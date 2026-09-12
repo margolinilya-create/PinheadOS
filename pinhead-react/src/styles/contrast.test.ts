@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { SURFACE_TOKENS, TEXT_TOKENS } from './tokenGroups';
+import { contrastRatio } from './contrast';
 
 /**
  * Контраст текстовых токенов по WCAG 2.1 — машиной, а не глазами.
@@ -51,22 +52,13 @@ function resolve(block: string, value: string, depth = 0): string {
   return resolve(block, tokenValue(block, m[1]), depth + 1);
 }
 
-function channel(c: number): number {
-  const s = c / 255;
-  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-}
-
-function luminance(hex: string): number {
-  const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
-
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-}
+/**
+ * Арифметика WCAG переехала в `styles/contrast.ts` (12.09): её читает ещё
+ * и инструмент подбора тона на витрине (`styles/oklch`), а второе определение
+ * одной формулы рядом — ровно то, от чего избавляет вынос. Тот же приём, что
+ * у парсера `columnsOf` → `types/schema.testutil.ts`.
+ */
+const contrast = contrastRatio;
 
 /**
  * Фоны и текст — из `styles/tokenGroups`, общего с витриной.
