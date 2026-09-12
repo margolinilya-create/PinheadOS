@@ -241,18 +241,26 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     return cachedQuery(orderBundleKey(orderId), fetcher);
   },
 
-  findOrdersByBitrixId: async (bitrixId) => {
+  findOrdersByBitrixId: async (bitrixId, excludeOrderId) => {
     const value = bitrixId.trim();
     if (!value) return [];
     // Запрос, а не поиск по стору: дубль может лежать в архиве (он грузится
     // лениво) или быть помечен тестовым (его в сторе нет вовсе). Проверка
     // по памяти нашла бы не всё и была бы хуже отсутствия проверки —
     // «мы посмотрели, дублей нет».
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_orders')
-      .select('id, title, status, created_at')
-      .eq('bitrix_id', value)
-      .limit(5));
+    //
+    // САМ СЕБЕ НЕ ДУБЛЬ (правка заказчика 12.09, баг 03). Форма правки — это
+    // та же форма, и до правки она спрашивала «есть ли заказ с таким номером»
+    // вообще, находила РЕДАКТИРУЕМЫЙ заказ и сообщала о дубле при каждом
+    // открытии. Отсев идёт запросом, а не фильтром по ответу: `limit(5)`
+    // иначе тратился бы на сам заказ и мог скрыть настоящий дубль.
+    const { data, error } = await erpQuery(() => {
+      const q = supabase
+        .from('erp_orders')
+        .select('id, title, status, created_at')
+        .eq('bitrix_id', value);
+      return (excludeOrderId ? q.neq('id', excludeOrderId) : q).limit(5);
+    });
     // Молча: это подсказка, а не действие пользователя. Тост об упавшей
     // фоновой проверке во время заполнения формы только мешает.
     if (error) return [];

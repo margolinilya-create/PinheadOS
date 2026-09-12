@@ -359,15 +359,18 @@ describe('CreateOrderModal — правка созданного заказа', 
     }],
   };
 
-  function setupEdit() {
+  function setupEdit(patch = {}) {
+    const order = { ...ORDER, ...patch };
     const saveOrderEdits = vi.fn().mockResolvedValue(true);
     const createOrder = vi.fn();
+    const findOrdersByBitrixId = vi.fn().mockResolvedValue([]);
     useErpStore.setState({
       departments: DEPARTMENTS,
-      orders: [ORDER],
+      orders: [order],
       loaded: true,
       createOrder,
       saveOrderEdits,
+      findOrdersByBitrixId,
       saveOrderDraft: vi.fn(),
       deleteOrderDraft: vi.fn(),
       employees: [],
@@ -378,10 +381,10 @@ describe('CreateOrderModal — правка созданного заказа', 
     const onClose = vi.fn();
     render(
       <MemoryRouter>
-        <CreateOrderModal order={ORDER} onClose={onClose} />
+        <CreateOrderModal order={order} onClose={onClose} />
       </MemoryRouter>,
     );
-    return { saveOrderEdits, createOrder, onClose };
+    return { saveOrderEdits, createOrder, findOrdersByBitrixId, onClose };
   }
 
   it('открывается заполненной текущими значениями', () => {
@@ -436,5 +439,55 @@ describe('CreateOrderModal — правка созданного заказа', 
     fireEvent.change(screen.getByLabelText('Клиент'), { target: { value: 'Кто-то' } });
     await new Promise((r) => { setTimeout(r, 700); });
     expect(useErpStore.getState().saveOrderDraft).not.toHaveBeenCalled();
+  });
+
+  /**
+   * САМ СЕБЕ НЕ ДУБЛЬ (правка 12.09, баг 03).
+   *
+   * Проверка уникальности № сделки — та же, что при создании, и до правки она
+   * находила РЕДАКТИРУЕМЫЙ заказ: человек открывал заказ и сразу читал «Заказ
+   * с этим № сделки уже есть». Сторож смотрит на АРГУМЕНТ запроса, а не на
+   * отсутствие текста: пустой ответ мока дал бы зелёный тест и на старом коде.
+   */
+  it('№ сделки самого заказа дублем не считается', async () => {
+    const { findOrdersByBitrixId } = setupEdit();
+    await waitFor(() => expect(findOrdersByBitrixId).toHaveBeenCalled());
+    expect(findOrdersByBitrixId).toHaveBeenCalledWith('4821', 'o-1');
+  });
+
+  /**
+   * ЛИСТ ЗАКУПКИ НЕ ТРЕБУЮТ ЗАНОВО (правка 12.09, баг 03).
+   *
+   * Заказ с настоящей закупкой: `purchase_required: true` и приложенный файл.
+   * Нынешний тест правки намеренно берёт `false` и гейт обходит — то есть
+   * ровно тот случай, на который жаловался заказчик, покрыт не был.
+   * Состояние загрузки принадлежит форме и в правке пусто, поэтому без
+   * второго слагаемого `hasPurchaseList` кнопка блокировалась.
+   */
+  it('приложенный лист закупки не требуется прикладывать заново', async () => {
+    const { saveOrderEdits } = setupEdit({
+      purchase_required: true,
+      attachments: [{
+        id: 'att-1', kind: 'purchase_list',
+        file_path: 'orders/o-1/list.pdf', file_name: 'Лист закупки.pdf',
+      }],
+    });
+    expect(screen.getByText('Лист закупки.pdf')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Сохранить изменения/ }));
+    await waitFor(() => expect(saveOrderEdits).toHaveBeenCalled());
+  });
+
+  /**
+   * ТЗ ПОКАЗАНО ПРИЛОЖЕННЫМ (правка 12.09, баг 03). Секция рисовалась
+   * компонентом создания и показывала пустоту у заказа, где ТЗ есть.
+   */
+  it('приложенное ТЗ видно в форме правки', () => {
+    setupEdit({
+      tz_documents: [{
+        id: 'tz-1', group_id: 'g-1', version: 1, item_id: 'it-1',
+        file_path: 'tz/o-1/g-1/v1.pdf', file_name: 'ТЗ футболка.pdf',
+      }],
+    });
+    expect(screen.getByText('ТЗ футболка.pdf')).toBeInTheDocument();
   });
 });
