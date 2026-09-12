@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
 import { toast } from '../../../store/useToastStore';
 import { confirm } from '../../../store/useConfirmStore';
 import {
@@ -9,12 +8,19 @@ import {
 import styles from '../../styles';
 
 /**
- * Проверка образца (правки заказчика 20.08).
+ * Доработка образца (правки заказчика 20.08; половина «утверждён» снята 12.09).
  *
- * «После сборки образца должна быть возможность зафиксировать результат:
- * образец утверждён / требуется доработка… Если требуется доработка,
- * указывается, что именно нужно изменить… После этого повторно запускаются
- * только необходимые этапы».
+ * «Если требуется доработка, указывается, что именно нужно изменить…
+ * После этого повторно запускаются только необходимые этапы».
+ *
+ * ЧТО ЗДЕСЬ БЫЛО И ЧЕГО НЕ СТАЛО. Блок назывался «Проверка образца» и нёс
+ * ДВА действия: «Образец утверждён» и «Требуется доработка». Правка 12.09
+ * (вторая порция, п. 5) просит убрать из сценария именно ПРОВЕРКУ — она была
+ * гейтом завершения разработки. Доработка к этому требованию отношения не
+ * имеет: у неё своя история («История доработок» в карточке) и своё правило
+ * состава задач, и снеси мы блок целиком — круги доработки стало бы НЕЧЕМ
+ * заводить, а вкладка истории осталась бы пустой навсегда. Убрана половина,
+ * названная в документе, и только она.
  *
  * ПОЧЕМУ ЭТО НЕ ДИАЛОГ `confirmWithInput`. Он умеет одно текстовое поле,
  * а здесь выбор областей — и от него зависит НАБОР задач, то есть реальная
@@ -25,8 +31,8 @@ import styles from '../../styles';
  * правило проекта: текст подтверждения, посчитанный отдельно от действия,
  * однажды разойдётся с ним.
  */
-export function DevSampleCheck({ dev, tasks, onApprove, onRework }) {
-  const [mode, setMode] = useState(null); // null | 'approve' | 'rework'
+export function DevRework({ tasks, onRework }) {
+  const [open, setOpen] = useState(false);
   const [areas, setAreas] = useState([]);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,13 +42,6 @@ export function DevSampleCheck({ dev, tasks, onApprove, onRework }) {
 
   const toggle = (a) => setAreas(
     (prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
-
-  const approve = async () => {
-    setBusy(true);
-    const ok = await onApprove(note.trim() || null);
-    setBusy(false);
-    if (ok) { setMode(null); setNote(''); }
-  };
 
   const submitRework = async () => {
     if (areas.length === 0) { toast.error('Отметьте, что именно нужно изменить'); return; }
@@ -56,61 +55,21 @@ export function DevSampleCheck({ dev, tasks, onApprove, onRework }) {
     setBusy(true);
     const rows = await onRework(plan.tasks);
     setBusy(false);
-    if (rows) { setMode(null); setAreas([]); setNote(''); }
+    if (rows) { setOpen(false); setAreas([]); setNote(''); }
   };
-
-  if (dev.sample_approved_at) {
-    return (
-      <div className={styles.tzBlock}>
-        <span className={`${styles.chip} ${styles.chipDone}`}>
-          <Icon name="checkCircle" size={13} /> Образец утверждён
-        </span>
-        {dev.sample_approved_note && (
-          <div className={styles.subText}>{dev.sample_approved_note}</div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className={styles.tzBlock}>
-      <div className={styles.fieldLabel}>Проверка образца</div>
-      {!mode && (
+      <div className={styles.fieldLabel}>Доработка образца</div>
+      {!open && (
         <div className={styles.queueActions}>
-          <Button variant="primary" onClick={() => setMode('approve')}>
-            Образец утверждён
-          </Button>
-          <Button variant="secondary" onClick={() => setMode('rework')}>
+          <Button variant="secondary" onClick={() => setOpen(true)}>
             Требуется доработка
           </Button>
         </div>
       )}
 
-      {mode === 'approve' && (
-        <>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Комментарий (необязательно)</span>
-            <input
-              className={styles.input}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              aria-label="Комментарий к утверждению образца"
-            />
-          </label>
-          <p className={styles.subText}>
-            Разработка перейдёт в колонку «Финальный этап»: дальше собирается
-            технический пакет для повторного производства.
-          </p>
-          <div className={styles.queueActions}>
-            <Button variant="primary" disabled={busy} onClick={approve}>
-              Зафиксировать
-            </Button>
-            <Button variant="ghost" onClick={() => setMode(null)}>Отмена</Button>
-          </div>
-        </>
-      )}
-
-      {mode === 'rework' && (
+      {open && (
         <>
           <span className={styles.fieldLabel}>Что именно нужно изменить</span>
           <div className={styles.checkRow}>
@@ -142,7 +101,7 @@ export function DevSampleCheck({ dev, tasks, onApprove, onRework }) {
             <Button variant="primary" disabled={busy} onClick={submitRework}>
               Завести доработку
             </Button>
-            <Button variant="ghost" onClick={() => setMode(null)}>Отмена</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
           </div>
         </>
       )}

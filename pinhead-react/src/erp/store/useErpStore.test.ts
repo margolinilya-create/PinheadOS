@@ -2308,15 +2308,18 @@ describe('useErpStore — экспериментальный цех: задач�
     expect(upd?.patch.closed_at).toBeTruthy();
   });
 
-  it('approveSample хранит РЕШЕНИЕ человека, а не производную от задач', async () => {
-    // Закрытая примерка одинаково означает и «принято», и «не принято»:
-    // разница жила в свободном тексте `result`, то есть не читалась ничем
-    seed();
-    await useErpStore.getState().approveSample('e1', 'посадка ок');
-    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental');
-    expect(upd?.patch.sample_approved_at).toBeTruthy();
-    expect(upd?.patch.sample_approved_by).toBeTruthy();
-    expect(upd?.patch.sample_approved_note).toBe('посадка ок');
+  /**
+   * ПИСАТЕЛЯ У ПРОВЕРКИ ОБРАЗЦА БОЛЬШЕ НЕТ (правка 12.09, вторая порция, п. 5:
+   * «убрать из рабочего сценария блок „Проверка образца"»).
+   *
+   * Сторож смотрит на СТОР, а не на экран: действие `approveSample` было
+   * единственным, кто писал `sample_approved_at`, и вернуть его можно молча —
+   * блок исчезнет, а поле снова начнёт заполняться. Колонка при этом жива:
+   * по ней заведённые раньше разработки стоят в колонке «Финальный этап».
+   */
+  it('проверку образца больше нечем проставить', () => {
+    const store = useErpStore.getState() as unknown as Record<string, unknown>;
+    expect(store.approveSample).toBeUndefined();
   });
 
   it('файл пакета уходит в бакет и привязывается к РАЗРАБОТКЕ', async () => {

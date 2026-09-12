@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { clearFeature, setFeature } from '../../../config/features';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DevFinalPackage } from './DevFinalPackage';
 
@@ -17,9 +16,9 @@ const DEV = {
   id: 'e1',
   pattern_tech_name: 'PH-HOODIE-01',
   pattern_version: 'v1.2',
-  // Правка 30.08, п. 4: условий завершения ДВА — образец и техдокументация.
-  // Фикстура «собранного пакета» обязана нести оба, иначе она проверяет
-  // не то состояние, которое называет
+  // Колонка осталась историей уже принятых образцов, но на завершение
+  // разработки больше не влияет: проверка образца убрана из сценария
+  // (правка 12.09, вторая порция, п. 5)
   sample_approved_at: '2026-08-28T10:00:00Z',
   final_package: {},
   outcome: null,
@@ -48,12 +47,9 @@ const FILES = [
 ];
 
 /**
- * ТРЕБОВАНИЕ ПАКЕТА ВКЛЮЧЕНО ЯВНО (правка 12.09, п. 9): по умолчанию оно
- * снято, и без этого весь файл проверял бы форму, которая ничего не требует.
- * Поведение при снятом требовании проверяется отдельным блоком ниже.
+ * Требование пакета действует безусловно (правка 12.09, вторая порция, п. 5):
+ * флага, который его выключал, больше нет — включать здесь нечего.
  */
-beforeEach(() => setFeature('devFinalPackageRequired', true));
-afterEach(() => clearFeature('devFinalPackageRequired'));
 
 describe('финальный этап: обязательная техдокументация (п. 4.5)', () => {
   it('спрашивает ровно четыре обязательных поля документа', () => {
@@ -161,8 +157,10 @@ describe('переключатель «Добавить модель в ката
    * что всё готово.
    */
   it('прогресс считается по своему режиму', () => {
+    // Пунктов четыре, а не пять: «Образец отшит и проверен» из перечня ушёл
+    // вместе с блоком проверки образца (правка 12.09, вторая порция, п. 5)
     setup({}, FILES);
-    expect(screen.getByText('5 / 5')).toBeInTheDocument();
+    expect(screen.getByText('4 / 4')).toBeInTheDocument();
   });
 });
 

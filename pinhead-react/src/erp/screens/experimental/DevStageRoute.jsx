@@ -9,7 +9,7 @@ import {
 } from '../../utils/experimentalBoard';
 import { isDelegated, isDevTaskClosed, isTaskReady, taskLabel } from '../../utils/experimentalTasks';
 import {
-  finalPackageProgress, isFinalPackageRequired, missingFinalPackage,
+  finalPackageProgress, missingFinalPackage,
 } from '../../utils/finalPackage';
 import { confirmWithInput } from '../../../store/useConfirmStore';
 import styles from '../../styles';
@@ -59,15 +59,6 @@ const LANE_VARIANT = {
 function FinalPackageWork({ dev, attachments, onOpen }) {
   const missing = missingFinalPackage(dev, attachments);
   const progress = finalPackageProgress(dev, attachments);
-  /* Требование снято (правка 12.09, п. 9) — счёт «0 из 0» и «Пакет собран»
-     на пустых полях были бы неправдой; говорим прямо, что он необязателен */
-  if (!isFinalPackageRequired()) {
-    return (
-      <div className={styles.subText}>
-        Финальный пакет сейчас необязателен — разработку можно завершить без него.
-      </div>
-    );
-  }
   return (
     <div className={styles.stackTight}>
       <div className={styles.subText}>

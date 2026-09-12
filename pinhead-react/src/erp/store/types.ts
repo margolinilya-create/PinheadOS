@@ -1132,7 +1132,6 @@ export interface ExperimentalSlice {
    * и «не принято». Снятие (`null`) допустимо: решение принимает человек,
    * и ошибиться он вправе.
    */
-  approveSample: (id: string, note?: string | null) => Promise<boolean>;
 
   /**
    * Файл финального пакета: лекала, техпаспорт, фото образца. Уходит в бакет
