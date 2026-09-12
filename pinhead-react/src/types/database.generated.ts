@@ -1265,6 +1265,7 @@ export type Database = {
         Row: {
           branding_methods: string[]
           branding_on: string | null
+          color_supplier: string | null
           created_at: string
           cutting_note: string | null
           fit: string | null
@@ -1297,6 +1298,7 @@ export type Database = {
         Insert: {
           branding_methods?: string[]
           branding_on?: string | null
+          color_supplier?: string | null
           created_at?: string
           cutting_note?: string | null
           fit?: string | null
@@ -1329,6 +1331,7 @@ export type Database = {
         Update: {
           branding_methods?: string[]
           branding_on?: string | null
+          color_supplier?: string | null
           created_at?: string
           cutting_note?: string | null
           fit?: string | null

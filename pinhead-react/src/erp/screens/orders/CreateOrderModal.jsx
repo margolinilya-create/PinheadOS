@@ -689,6 +689,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
           fit: it.fit.trim() || undefined,
           // Основная ткань — отдельным полем (правка 22.08, п. 5.1)
           main_fabric: it.main_fabric.trim() || undefined,
+          color_supplier: it.color_supplier.trim() || undefined,
           trim_material: it.trim_material.trim() || undefined,
           cutting_note: it.cutting_note.trim() || undefined,
           sewing_note: it.sewing_note.trim() || undefined,

@@ -109,6 +109,12 @@ export interface DraftItem {
    * бывает и основная ткань, и отделочная, а раньше было только второе.
    */
   main_fabric: string;
+  /**
+   * Цвет материала и поставщик одной строкой (правка 12.09, п. 3).
+   * НЕ цвет изделия: тот живёт в `variant` и в строках размерной сетки.
+   * Здесь — «из чего и у кого», так эту пару и называет закупка.
+   */
+  color_supplier: string;
   trim_material: string;
   cutting_note: string;
   sewing_note: string;
@@ -279,6 +285,7 @@ export const EMPTY_ITEM: DraftItem = {
   fit: '',
   qty: '',
   main_fabric: '',
+  color_supplier: '',
   trim_material: '',
   cutting_note: '',
   sewing_note: '',
@@ -445,6 +452,7 @@ export function isItemEmpty(item: DraftItem): boolean {
     // молча выбросила бы её из заказа вместе с набранным текстом
     (item.labels ?? []).length === 0 &&
     !item.main_fabric.trim() &&
+    !item.color_supplier.trim() &&
     !item.trim_material.trim() &&
     !item.cutting_note.trim() &&
     !item.sewing_note.trim() &&

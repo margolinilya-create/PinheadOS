@@ -24,6 +24,11 @@ import {
 } from './orderForm';
 import type { DraftGrid } from './orderForm';
 import { factoryToday } from '../../utils/date';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { latestMatching } from './migrations.testutil';
+
+const SRC = join(process.cwd(), 'src');
 
 function item(patch: Partial<DraftItem> = {}): DraftItem {
   return { ...EMPTY_ITEM, prints: [], size_grid: null, ...patch };
@@ -635,5 +640,67 @@ describe('бирки и основная ткань (правка 22.08)', () =>
     expect(fromDb?.items[0].prints[0].key).toBeTruthy();
     expect(normalizeDraft(null)).toBeNull();
     expect(normalizeDraft({ items: [] })).toBeNull();
+  });
+});
+
+/**
+ * ПОЛЕ «ЦВЕТ / ПОСТАВЩИК» (правка 12.09, п. 3) — СТОРОЖ ВСЕГО ПУТИ.
+ *
+ * Главный класс дефекта при добавлении поля — «половина требования выглядит
+ * как сделанное требование»: поле пишется в базу и нигде не читается, либо
+ * читается, но не доезжает. Путь у него семь звеньев, и проверка «поле есть
+ * в форме» не поймала бы обрыв ни в одном из остальных шести.
+ *
+ * Читаются ИСХОДНИКИ: сверка «в типе есть колонка» живёт в `schema.test.ts`
+ * и отвечает на другой вопрос — про схему, а не про то, доходит ли значение
+ * от человека до цеха.
+ */
+describe('цвет / поставщик доходит от формы до цеха (правка 12.09)', () => {
+  const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
+
+  it('позиция с одним «цветом / поставщиком» пустой не считается', () => {
+    // Иначе форма молча выбросила бы её из заказа вместе с набранным текстом
+    expect(isItemEmpty(item({ color_supplier: 'пыльная роза, Атлас' }))).toBe(false);
+  });
+
+  it('поле объявлено в пустой позиции — иначе инпут станет неконтролируемым', () => {
+    expect(EMPTY_ITEM.color_supplier).toBe('');
+  });
+
+  it('форма собирает значение в payload заказа', () => {
+    expect(read('erp/screens/orders/CreateOrderModal.jsx'))
+      .toMatch(/color_supplier: it\.color_supplier/);
+    expect(read('erp/store/slices/orderWriteSlice.ts'))
+      .toMatch(/color_supplier: it\.color_supplier \|\| null/);
+  });
+
+  /**
+   * Колонка, не попавшая в СПИСОЧНУЮ выборку, приезжает `undefined` МОЛЧА,
+   * а техблок читает именно её — `TzBlock` стоит в строке очереди цеха,
+   * самом списочном из экранов.
+   */
+  it('колонка едет в обеих выборках заказа', () => {
+    const helpers = read('erp/store/orderHelpers.ts');
+    expect(helpers).toMatch(/color_supplier/);
+  });
+
+  it('цех видит поле в техблоке ТЗ', () => {
+    expect(read('erp/screens/queue/TzBlock.jsx'))
+      .toMatch(/\['color_supplier', 'Цвет \/ поставщик'\]/);
+  });
+
+  /**
+   * Сервер обязан ПИСАТЬ колонку, иначе поле заполняется и теряется
+   * при создании заказа. Спрашиваем миграцию, пересобравшую `erp_create_order`:
+   * она делает это заменой в `pg_get_functiondef`, и проверка «замена
+   * сработала» стоит внутри самой миграции — здесь сторожим, что миграция
+   * с такой заменой вообще есть.
+   */
+  it('создание заказа пишет колонку', () => {
+    const sql = latestMatching(/add column if not exists color_supplier/, 'color_supplier');
+    // Кавычки УДВОЕНЫ: вставка живёт внутри строкового литерала DO-блока,
+    // и одинарные здесь означали бы, что мы сверяемся с несуществующим текстом
+    expect(sql).toMatch(/v_item->>''color_supplier''/);
+    expect(sql).toMatch(/replace\(v_def, v_cols_old, v_cols_new\)/);
   });
 });

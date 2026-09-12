@@ -232,6 +232,7 @@ export interface NewOrderItemInput {
   fit?: string;
   /** Основное полотно — отдельно от отделочного (правка 22.08, п. 5.1) */
   main_fabric?: string;
+  color_supplier?: string;
   trim_material?: string;
   cutting_note?: string;
   sewing_note?: string;

@@ -131,6 +131,7 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
           fit: it.fit || null,
           // Основная ткань — отдельно от отделочной (правка 22.08, п. 5.1)
           main_fabric: it.main_fabric || null,
+          color_supplier: it.color_supplier || null,
           trim_material: it.trim_material || null,
           cutting_note: it.cutting_note || null,
           sewing_note: it.sewing_note || null,

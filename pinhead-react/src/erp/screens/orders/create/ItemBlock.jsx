@@ -507,8 +507,8 @@ function CopyPrintPicker({ items, target, onCopy }) {
  * неотличим от пустого.
  */
 function TechBlock({ it, i, setItem, attach }) {
-  const filled = [it.main_fabric, it.trim_material, it.cutting_note, it.sewing_note,
-    it.labels_note].filter((v) => (v ?? '').trim()).length;
+  const filled = [it.main_fabric, it.color_supplier, it.trim_material, it.cutting_note,
+    it.sewing_note, it.labels_note].filter((v) => (v ?? '').trim()).length;
 
   return (
     <details className={styles.gridDetails}>
@@ -530,6 +530,26 @@ function TechBlock({ it, i, setItem, attach }) {
             value={it.main_fabric}
             onChange={(e) => setItem(i, { main_fabric: e.target.value })}
             placeholder="шерпа 100% пэ, 240 гр"
+          />
+        </label>
+        {/*
+          ЦВЕТ / ПОСТАВЩИК (правка 12.09, п. 3). Стоит рядом с тканью, потому
+          что отвечает на тот же вопрос — ИЗ ЧЕГО И У КОГО берём материал.
+
+          Это НЕ третье место про цвет изделия. Цвет модели живёт в `variant`
+          («Футболка · синяя») и в строках размерной сетки, где он определяет
+          раскладку по размерам; здесь — цвет МАТЕРИАЛА вместе с тем, у кого
+          он берётся, одной строкой, потому что закупка их и называет вместе
+          («футер 320 пыльная роза, Атлас»). Подпись дословно такая, как
+          просил заказчик, — чтобы это различие читалось с первого взгляда.
+        */}
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Цвет / поставщик</span>
+          <input
+            className={styles.input}
+            value={it.color_supplier}
+            onChange={(e) => setItem(i, { color_supplier: e.target.value })}
+            placeholder="пыльная роза, Атлас"
           />
         </label>
         <label className={styles.field}>
