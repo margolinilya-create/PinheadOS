@@ -1374,6 +1374,28 @@ credentials» на уровне модуля — до React, поэтому Erro
   глобальные .btn + variants остаются языком Order Studio
 - Иконки ERP: `erp/components/Icon` + набор в icons.js. Эмодзи вместо иконок не использовать;
   иконка участка — `deptIcon(code)`, значение это ИМЯ иконки, не глиф
-- Высоты примитивов заданы явно + свой @media (pointer: coarse) в их CSS-модуле
-  (общий список классов ≥44px — в erp.module.css)
+- Высоты контролов — токены `--control-h-sm/md/lg` (32/40/48; на `pointer: coarse`
+  40/44/48, переопределение стоит рядом с объявлением в `index.css`, как
+  у `--dept-tab-h`). Своих медиазапросов высоты у модулей примитивов НЕТ:
+  два таких, в примитиве и в монолите, уже разъезжались (кнопка 36 против
+  поля 40). Общий список классов ≥44px для НЕпримитивов — в erp.module.css
+- Кегли — только ступени шкалы (`--type-label/body-sm/body/body-lg/title/h4/h3/h2/h1`
+  + `--type-metric`), и все они ПРОСТЫЕ px: сторож мелкого текста разворачивает
+  токен регуляркой по `px`, и ступень через `clamp()` он объявит ссылкой в пустоту
+- Движение — `--dur-fast/base/slow` + `--ease-out`; тени — `--shadow-card/raise/modal`;
+  кольцо фокуса — `--focus-ring`/`--focus-ring-error`. Литералы сторожат
+  `styles/motion.test.ts` и `styles/shadows.test.ts`
 - Анимации: fadeSlideIn, slideInRight, scaleIn, skeleton shimmer
+- **Размер, заданный разметкой инлайном, требует блочного отображения.**
+  `<span className={styles.X} style={{ width }}/>` на строчном элементе
+  не работает ВООБЩЕ: так не рисовались три полосы прогресса сразу.
+  Сторож — `erp/inlineSizing.test.ts`
+- Пустое состояние собирают только `EmptyState`/`EmptyResult` (сторож
+  `erp/emptyStates.test.ts`). Подпись поля обязана быть связана с контролом —
+  `htmlFor` либо обёртка `<label>`; сторожится РЕЗУЛЬТАТ, а не способ
+  (`erp/labelBinding.test.ts`), поэтому массовая миграция рукописных полей
+  на примитив `Field` не требуется и НЕ делалась
+- Обход вёрстки глазами — `npm run shots` (стенд `playwright.bench.config.ts`,
+  29 состояний × 3 ширины × 2 темы) + `npm run shots:index -- before after`.
+  Это НЕ эталоны: вывод в `.shots/` вне гита, сравнения нет, страница
+  намеренно разжата. Сторож — `styles/screenshotBench.test.ts`

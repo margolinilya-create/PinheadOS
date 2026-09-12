@@ -81,6 +81,74 @@ test('visual: erp-queue', async ({ page }) => {
   await shoot(page, 'erp-queue');
 });
 
+/**
+ * ЭКРАНОВ СТАЛО ТРИНАДЦАТЬ, А НЕ ЧЕТЫРЕ (12.09).
+ *
+ * До этой правки набор сторожил обзор, заказы, доску и очередь цеха — то есть
+ * четыре поверхности из двадцати. План, Гант, загрузка, склад, закупка, подряд,
+ * разработка, карточка заказа, страница задания и админка не сторожились
+ * визуально ничем, а именно там живут самые плотные таблицы раздела.
+ *
+ * Цена прогона: каждый снимок — секунды, и это единственный сторож, который
+ * вообще видит ВИД. Ни один из ~3900 unit-тестов дефекта вроде «полоса
+ * прогресса не рисуется» или «число и месяц слиплись» не замечает
+ * по построению: разметка та же, поведение то же.
+ */
+
+test('visual: erp-order-card', async ({ page }) => {
+  await page.goto('/orders/ord-a?studio=0');
+  await expect(page.getByRole('heading', { name: /BOX39 худи чёрные/ })).toBeVisible();
+  await shoot(page, 'erp-order-card');
+});
+
+test('visual: erp-plan', async ({ page }) => {
+  await page.goto('/plan?studio=0');
+  await expect(page.getByRole('heading', { name: 'План производства' })).toBeVisible();
+  await shoot(page, 'erp-plan');
+});
+
+test('visual: erp-gantt', async ({ page }) => {
+  await page.goto('/gantt?studio=0');
+  await expect(page.getByRole('heading', { name: 'Гант' })).toBeVisible();
+  await shoot(page, 'erp-gantt');
+});
+
+test('visual: erp-load', async ({ page }) => {
+  await page.goto('/load?studio=0');
+  await expect(page.getByRole('heading', { name: /Загрузка цехов/ })).toBeVisible();
+  await shoot(page, 'erp-load');
+});
+
+test('visual: erp-warehouse', async ({ page }) => {
+  await page.goto('/warehouse?studio=0');
+  await expect(page.getByRole('heading', { name: 'Склад' })).toBeVisible();
+  await shoot(page, 'erp-warehouse');
+});
+
+test('visual: erp-purchasing', async ({ page }) => {
+  await page.goto('/purchasing?studio=0');
+  await expect(page.getByRole('heading', { name: 'Закупка' })).toBeVisible();
+  await shoot(page, 'erp-purchasing');
+});
+
+test('visual: erp-subcontracting', async ({ page }) => {
+  await page.goto('/subcontracting?studio=0');
+  await expect(page.getByRole('heading', { name: 'Подряд' })).toBeVisible();
+  await shoot(page, 'erp-subcontracting');
+});
+
+test('visual: erp-experimental', async ({ page }) => {
+  await page.goto('/experimental?studio=0');
+  await expect(page.getByRole('heading', { name: /Эксперим/ })).toBeVisible();
+  await shoot(page, 'erp-experimental');
+});
+
+test('visual: erp-admin-roles', async ({ page }) => {
+  await page.goto('/admin?tab=roles&studio=0');
+  await expect(page.getByRole('heading', { name: 'Админка' })).toBeVisible();
+  await shoot(page, 'erp-admin-roles');
+});
+
 // ─── Order Studio (каталог) — флаг включён (?studio=1) ───
 // Каталоги замоканы пустыми → компоненты рендерятся на дефолтных данных.
 // Визард (/) сюда не включён: его fullPage-скриншот нестабилен из-за
