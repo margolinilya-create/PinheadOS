@@ -158,6 +158,19 @@ function AcceptBlock({ material: m, onAccept }) {
           <strong>{m.name}</strong>
           <div className={styles.subText}>{KIND_LABELS[m.kind]} · {MATERIAL_STATUS_LABELS[m.status]}</div>
         </div>
+        {/*
+          «ОЖИДАЕТСЯ» — ОТВЕТ НА ПРАВКУ 12.09, П. 8: закупщик переводит позицию
+          в «В пути», и склад должен видеть, что материал едет к нему.
+
+          Отдельной задачи для этого НЕ заводится: задача приёмки появляется
+          РАНЬШЕ — с момента, когда закупка взята в работу (обход 04.09, Б5),
+          и второй писатель заводил бы её позже нынешнего, то есть вернул бы
+          дефект «частичную поставку некуда записать». Ожидание видно там,
+          где склад и работает, — в самой строке материала.
+        */}
+        {m.status === 'in_transit' && !done && (
+          <span className={`${styles.chip} ${styles.chipProgress}`}>Ожидается</span>
+        )}
         {done && (
           <span className={`${styles.chip} ${styles[ACCEPT_CHIP[m.accept_status]]}`}>
             {MATERIAL_ACCEPT_LABELS[m.accept_status]}

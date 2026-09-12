@@ -485,10 +485,19 @@ export default function FabricPurchasing() {
     [procurementRows, procSort],
   );
 
+  /**
+   * Смена статуса закупщиком (правка 12.09, п. 8).
+   *
+   * Ветки `received` здесь БОЛЬШЕ НЕТ. Она проставляла дату прихода вместе
+   * со статусом — и была единственным путём, которым на бое появлялись
+   * позиции «пришло» БЕЗ приёмки: склад ничего не пересчитывал, `qty_received`
+   * оставался пустым, а материальный гейт цеха при этом уже открывался.
+   * Приход теперь пишет только `erp_material_accept` — одной транзакцией
+   * с журналом. Селект такой пункт и не предлагает (`StatusControl`), так что
+   * запрет выражен с обеих сторон, а не только видом.
+   */
   const setStatus = async (m, status) => {
-    const patch = { status };
-    if (status === 'received') patch.received_at = today;
-    await updateMaterial(m.id, patch);
+    await updateMaterial(m.id, { status });
   };
 
   /** Сброс подбора для «ничего не найдено» — и поиск, и вкладка сразу */

@@ -6,6 +6,7 @@ import { OrderLink } from '../../components/OrderLink';
 import { pluralize } from '../../../utils/i18n';
 import { formatDateShort, procurementSla } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
+import { isPurchaserChoosableStatus } from '../../utils/materialStatus';
 import { ACCEPTANCE_ISSUE_LABELS, materialAcceptanceIssue } from '../../utils/supply';
 import {
   KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
@@ -253,12 +254,24 @@ export function StatusCell({ m }) {
 /**
  * Действие: подтверждение наличия со склада либо смена статуса.
  *
- * «ЗАКАЗАНО» ИЗ СПИСКА НЕ ВЫБИРАЕТСЯ (правка заказчика 24.08, п. 1): статус
- * ставится по факту оформления — заполненными «Количество к заказу» и «Дата
- * заказа» (`utils/materialStatus`). Пункт остаётся видимым и подписанным,
- * а не исчезает: пропавшая строка читается как поломка списка, и человек ищет
- * её вместо того, чтобы заполнить два поля рядом. Уже заказанный материал
- * показывает своё значение — иначе селект открылся бы пустым.
+ * ОСНОВНОЙ СЦЕНАРИЙ ЗАКУПКИ (правка заказчика 12.09, п. 8):
+ * «Не заказано» → «Заказано» → «В пути».
+ *
+ * «ЗАКАЗАНО» СНОВА ВЫБИРАЕТСЯ РУКАМИ. С 24.08 пункт был погашен: статус
+ * ставился по факту оформления — заполненными «Количество к заказу» и «Дата
+ * заказа». Заказчик это решение отменил, и подстановка (`autoOrderedStatus`)
+ * ОСТАЛАСЬ: она по-прежнему переводит материал в «Заказано», когда оба поля
+ * заполнены, но теперь это подсказка, а не единственный путь. Одно другому
+ * не мешает — подстановка работает только из «Не заказано».
+ *
+ * «ПРИШЛО» И «ЧАСТИЧНО» ГАСЯТСЯ ВМЕСТО НЕГО: приход фиксирует склад приёмкой,
+ * а не закупщик выбором. Правило — `utils/materialStatus`, там же объяснено,
+ * почему убирается ВВОД, а не само значение.
+ *
+ * Погашенный пункт остаётся видимым и подписанным, а не исчезает: пропавшая
+ * строка читается как поломка списка, и человек ищет её вместо того, чтобы
+ * понять, кто теперь ставит статус. Уже принятый материал показывает своё
+ * значение — иначе селект открылся бы пустым.
  */
 export function StatusControl({ m, onConfirmStock, onSetStatus }) {
   if (m.source === 'stock' && m.status === 'pending') {
@@ -271,10 +284,10 @@ export function StatusControl({ m, onConfirmStock, onSetStatus }) {
       aria-label={`Статус ${m.name}`}
     >
       {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => {
-        const auto = v === 'ordered' && m.status !== 'ordered';
+        const byWarehouse = !isPurchaserChoosableStatus(v) && m.status !== v;
         return (
-          <option key={v} value={v} disabled={auto}>
-            {auto ? `${l} — по дате заказа` : l}
+          <option key={v} value={v} disabled={byWarehouse}>
+            {byWarehouse ? `${l} — по приёмке склада` : l}
           </option>
         );
       })}

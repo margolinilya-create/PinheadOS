@@ -899,6 +899,31 @@ describe('useErpStore — материал со склада / авто-закр
     expect(ops[0].qty).toBe(100);
   });
 
+  /**
+   * ПРИЁМКА ЗАКРЫВАЕТ ЗАКУПКУ (правка заказчика 12.09, п. 8): «после
+   * фактической приёмки материала складом соответствующая задача закупки
+   * должна автоматически закрываться. Закупщик не отмечает приход вручную».
+   *
+   * Гейт был верный с 04.09 (закупка закрывается только по годным
+   * материалам), не хватало ВЫЗОВА: `maybeCloseSupply` звали лишь писатели
+   * строки материала, то есть закупка закрывалась, когда закупщик в следующий
+   * раз что-нибудь правил, — событие, которого могло и не случиться.
+   */
+  it('acceptMaterial: годная приёмка закрывает этап закупки', async () => {
+    seedSupply([mat({ status: 'pending', accept_status: null, qty_expected: 100 })]);
+    expect(supplyStage().status).not.toBe('done');
+    // Мок отдаёт перечитанный заказ уже с вердиктом приёмки — так же,
+    // как это делает `erp_material_accept` на сервере
+    h.singleData = {
+      ...useErpStore.getState().orders[0],
+      materials: [mat({ status: 'received', accept_status: 'accepted_full', qty_expected: 100 })],
+    };
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty: 100, accept_status: 'accepted_full',
+    });
+    expect(supplyStage().status).toBe('done');
+  });
+
   it('acceptMaterial: частичная приёмка пишется как partial_receipt', async () => {
     seedSupply([mat({ status: 'received', accept_status: null })]);
     await useErpStore.getState().acceptMaterial('m1', {

@@ -122,7 +122,16 @@ function taskSummary(order, task) {
   }
   if (task.task_type === 'material_receipt') {
     const n = order.materials.length;
-    return `${n} ${n === 1 ? 'материал' : 'материалов'}`;
+    /**
+     * СКОЛЬКО ИЗ НИХ УЖЕ ЕДЕТ (правка 12.09, п. 8). Закупщик переводит позицию
+     * в «В пути», и это единственное, что склад может узнать о поставке
+     * до её прихода. Без числа карточка отвечает «5 материалов» и на заказе,
+     * где ещё ничего не заказано, и на том, где всё в дороге, — то есть
+     * не помогает выбрать, чем заняться.
+     */
+    const transit = order.materials.filter((m) => m.status === 'in_transit').length;
+    const base = `${n} ${n === 1 ? 'материал' : 'материалов'}`;
+    return transit > 0 ? `${base} · ${transit} в пути` : base;
   }
   if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
   if (task.task_type === 'fg_receipt') {
