@@ -42,11 +42,51 @@ describe('поле ввода — одно на раздел', () => {
     }
   });
 
-  /** ≥44px на тач-экранах цехов — у обоих, иначе правило половинчато */
-  it('оба поднимаются до 44px на тач-экране', () => {
+  /**
+   * ≥44px НА ТАЧ-ЭКРАНЕ — ПРОВЕРЯЕТСЯ РАЗВОРОТОМ ТОКЕНА, А НЕ ПОИСКОМ ЧИСЛА.
+   *
+   * До 12.09 сторож искал литерал `min-height: 44px` в медиазапросе каждого
+   * модуля. Высоты переехали в токены `--control-h*` (их тач-переопределение
+   * стоит в `index.css` рядом с объявлением — как у `--dept-tab-h`), и числа
+   * в модулях не стало: прежняя редакция прошла бы на ЛЮБОМ значении токена,
+   * включая 24px. Ровно тот случай, что уже разбирался в `tokens.test.ts`:
+   * перевод литералов на токены ослепляет сторожа, читающего литерал.
+   *
+   * Поэтому значение берётся оттуда, где оно объявлено, и проверяется
+   * по существу: и база (никакой контрол не мельче самого себя), и тач-ветка.
+   */
+  it('токен высоты контрола на тач-экране не мельче 44px', () => {
+    const index = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+    const coarse = index.match(/@media \(pointer: coarse\)\s*\{([\s\S]*?)\n\}/);
+    expect(coarse, 'блок @media (pointer: coarse) в index.css не найден').toBeTruthy();
+
+    const touch = new Map<string, number>();
+    for (const m of (coarse as RegExpMatchArray)[1].matchAll(/(--control-h-[\w]+):\s*(\d+)px/g)) {
+      touch.set(m[1], Number(m[2]));
+    }
+    expect(touch.size, 'тач-переопределения высот контролов нет вовсе').toBe(3);
+    // Основной размер — тот, которым набраны действия цеха; правило ≥44px
+    // адресует именно его. Мелкий поднимается до 40: он никогда не бывает
+    // единственным способом нажать, рядом всегда есть полноразмерное действие.
+    expect(touch.get('--control-h-md')).toBeGreaterThanOrEqual(44);
+    expect(touch.get('--control-h-lg')).toBeGreaterThanOrEqual(44);
+    expect(touch.get('--control-h-sm')).toBeGreaterThanOrEqual(40);
+  });
+
+  it('поле и кнопка берут высоту ИЗ ТОКЕНА, а не своим числом', () => {
     const field = readFileSync(resolve(process.cwd(), 'src/erp/components/Field.module.css'), 'utf8');
+    const button = readFileSync(resolve(process.cwd(), 'src/erp/components/Button.module.css'), 'utf8');
     const erp = readFileSync(resolve(process.cwd(), 'src/erp/erp.module.css'), 'utf8');
-    expect(field).toMatch(/@media \(pointer: coarse\)[\s\S]*?\.control[^}]*min-height:\s*44px/);
-    expect(erp).toMatch(/min-height:\s*44px/);
+
+    expect(field).toMatch(/\.control\s*\{[^}]*min-height:\s*var\(--control-h-md\)/);
+    expect(button).toMatch(/\.btn\s*\{[^}]*min-height:\s*var\(--control-h-md\)/);
+    expect(erp).toMatch(/\.input,\s*\.select\s*\{[^}]*min-height:\s*var\(--control-h-md\)/);
+
+    // Своего медиазапроса высоты у модулей примитивов быть не должно: два
+    // таких, в примитиве и в монолите, уже разъехались (36 против 40)
+    expect(field).not.toMatch(/@media \(pointer: coarse\)[\s\S]*min-height/);
+    expect(button).not.toMatch(/@media \(pointer: coarse\)[\s\S]*min-height/);
   });
 });

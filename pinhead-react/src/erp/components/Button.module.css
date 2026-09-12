@@ -1,14 +1,20 @@
 /* Кнопка ERP. Заменяет глобальные .btn/.btn-* из Order Studio
    (styles/forms-buttons.css): те — uppercase-«швейцарские», ERP нужна
-   обычная плотная кнопка. Высоты заданы явно, а тач-размер — своим
-   @media (pointer: coarse) внизу файла: правило ≥44px в проекте ведётся
-   списком классов, второй системы токенов высоты заводить не нужно. */
+   обычная плотная кнопка.
+
+   ВЫСОТА — ТОКЕНОМ (12.09). Прежняя редакция этой шапки утверждала, что
+   «второй системы токенов высоты заводить не нужно», и это было неправдой
+   дважды: токены `--control-h*` уже названы действующими в `docs/DESIGN.md`
+   и в шапке `Button.jsx`, а шесть чисел в двух медиазапросах двух модулей
+   успели разойтись — поле ввода 40px против кнопки 36px. В ряду «поле +
+   кнопка» это видно глазом. Тач-переопределение живёт там же, где токен
+   (`index.css`), по образцу `--dept-tab-h`. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 36px;
+  min-height: var(--control-h-md);
   padding: 0 14px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -18,11 +24,14 @@
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
 }
 .btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+  box-shadow: var(--focus-ring);
 }
 .btn:disabled {
   cursor: not-allowed;
@@ -48,12 +57,14 @@
   color: var(--text);
 }
 .secondary:hover:not(:disabled) { background: var(--surface); border-color: var(--text-muted); }
+.secondary:active:not(:disabled) { background: var(--bg3); border-color: var(--text-mid); }
 
 .ghost {
   background: transparent;
   color: var(--text-mid);
 }
 .ghost:hover:not(:disabled) { background: var(--surface); color: var(--text); }
+.ghost:active:not(:disabled) { background: var(--bg3); color: var(--text); }
 
 /* Заливка своим токеном: --color-error под белым даёт 3.76:1 в светлой теме
    и 2.77:1 в тёмной (там он светлый) — обе ниже AA. Токен объявлен в палитре
@@ -63,15 +74,16 @@
   color: var(--btn-danger-fg);
 }
 .danger:hover:not(:disabled) { filter: brightness(0.94); }
+.danger:active:not(:disabled) { filter: brightness(0.88); }
 
 /* ─── Размеры ─── */
-.sm { min-height: 30px; padding: 0 10px; font-size: var(--type-label); }
-.lg { min-height: 46px; padding: 0 18px; font-size: var(--type-body); }
+.sm { min-height: var(--control-h-sm); padding: 0 10px; font-size: var(--type-label); }
+.lg { min-height: var(--control-h-lg); padding: 0 18px; font-size: var(--type-body); }
 
 /* Только иконка — квадрат по высоте размера */
-.iconOnly { padding: 0; width: 36px; }
-.iconOnly.sm { width: 30px; }
-.iconOnly.lg { width: 46px; }
+.iconOnly { padding: 0; width: var(--control-h-md); }
+.iconOnly.sm { width: var(--control-h-sm); }
+.iconOnly.lg { width: var(--control-h-lg); }
 
 /* Растянуть на всю ширину контейнера (ряд действий в карточке цеха) */
 .block { width: 100%; }
@@ -98,16 +110,10 @@
    замедлен. Правило, которое ничего не делает, хуже отсутствующего:
    оно утверждает, что случай учтён. */
 
-/* Правило ≥44px на тач-экранах цехов (см. общий список в erp.module.css —
-   у отдельного CSS-модуля своя область, поэтому свой медиазапрос) */
-@media (pointer: coarse) {
-  .btn { min-height: 44px; }
-  .sm { min-height: 40px; }
-  .lg { min-height: 48px; }
-  .iconOnly { width: 44px; }
-  .iconOnly.sm { width: 40px; }
-  .iconOnly.lg { width: 48px; }
-}
+/* Правило ≥44px на тач-экранах цехов держат сами токены `--control-h*`:
+   их тач-переопределение стоит в `index.css` рядом с объявлением, как
+   у `--dept-tab-h`. Шести чисел в этом медиазапросе больше нет — они и были
+   второй системой высот, разошедшейся с полем ввода. */
 
 /* ─── Ссылка, выглядящая кнопкой ───
    Восемь мест звали глобальный `btn btn-*` из Order Studio именно потому, что

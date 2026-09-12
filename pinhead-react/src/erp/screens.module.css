@@ -196,7 +196,7 @@
 .queueGroupTitle {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 19px;
+  font-size: var(--type-h4);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 10px;
@@ -325,7 +325,7 @@
    а четвёртый — ещё одно. */
 .matSection > summary {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: var(--type-body-lg);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -418,7 +418,7 @@
   font-weight: 600;
   cursor: pointer;
   min-height: 36px;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .tile:hover { border-color: var(--accent); color: var(--text); }
 .tileActive { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -435,7 +435,7 @@
    только тогда, когда слово иначе не помещается вовсе. */
 .cellTitle {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: var(--type-title);
   font-weight: 600;
   line-height: 1.2;
   display: -webkit-box;
@@ -472,7 +472,7 @@ a.cellTitle:hover { color: var(--accent); }
 }
 .itemBlockTitle {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: var(--type-body-lg);
   font-weight: 700;
   min-width: 0;
   overflow: hidden;
@@ -661,7 +661,7 @@ a.cellTitle:hover { color: var(--accent); }
   /* Ручка приоритета: размер не был задан вовсе (~13px), а именно за неё
      бригадир таскает задания на планшете */
   .dragHandle { min-width: 44px; min-height: 44px; display: inline-flex;
-                align-items: center; justify-content: center; font-size: 18px; }
+                align-items: center; justify-content: center; }
 }
 
 
@@ -696,8 +696,8 @@ a.cellTitle:hover { color: var(--accent); }
   width: 92px; flex-shrink: 0; font-size: var(--type-label); color: var(--text-mid);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.loadTrack { flex: 1; height: 8px; border-radius: 999px; background: var(--surface); overflow: hidden; }
-.loadFill { height: 100%; border-radius: 999px; background: var(--accent); }
+.loadTrack { flex: 1; height: 8px; border-radius: var(--radius-pill); background: var(--surface); overflow: hidden; }
+.loadFill { height: 100%; border-radius: var(--radius-pill); background: var(--accent); }
 .loadVal { width: 30px; text-align: right; font-family: var(--mono); font-size: var(--type-label); color: var(--text-mid); }
 
 .deadlineItem {
@@ -706,7 +706,7 @@ a.cellTitle:hover { color: var(--accent); }
 }
 .deadlineItem:last-child { border-bottom: none; }
 .deadlineDate { width: 40px; flex-shrink: 0; text-align: center; }
-.deadlineDay { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text); line-height: 1; }
+.deadlineDay { font-family: var(--mono); font-size: var(--type-title); font-weight: 700; color: var(--text); line-height: 1; }
 .deadlineMon { font-size: var(--type-label); text-transform: uppercase; color: var(--text-dim); }
 .deadlineBody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .deadlineName {
@@ -726,7 +726,7 @@ a.cellTitle:hover { color: var(--accent); }
 .quickAction:hover { background: var(--surface); color: var(--text); }
 .quickIcon {
   width: 40px; height: 40px; border-radius: 10px; background: var(--bg-info);
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
 }
 
 .notifItem {
@@ -808,7 +808,7 @@ a.cellTitle:hover { color: var(--accent); }
 .moveBtn:disabled { opacity: 0.35; cursor: default; }
 @media (pointer: coarse) {
 
-  .moveBtn { min-width: 44px; min-height: 44px; font-size: 16px; }
+  .moveBtn { min-width: 44px; min-height: 44px; font-size: var(--type-title); }
 }
 
 
