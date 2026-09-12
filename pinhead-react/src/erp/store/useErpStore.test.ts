@@ -992,6 +992,41 @@ describe('useErpStore — материал со склада / авто-закр
     const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
     expect(task?.status).toBe('accepted');
   });
+
+  /**
+   * ЗАКРЫВАЕТСЯ ЗАДАЧА СВОЕЙ ПОЗИЦИИ (правка 12.09, вторая порция, баг 01).
+   *
+   * Приёмка стала позиционной, и прежнее «любая незакрытая задача заказа»
+   * гасило бы карточку материала, который ещё едет: у заказа с двумя тканями
+   * приёмка первой закрыла бы приёмку второй. Сторож смотрит ОБЕ задачи —
+   * проверка «своя закрылась» одна прошла бы и на старом коде.
+   */
+  it('acceptMaterial: чужую задачу приёмки не закрывает', async () => {
+    /**
+     * ПРИНИМАЕМ ВТОРУЮ ПОЗИЦИЮ, А ПЕРВАЯ ЕЩЁ ЕДЕТ — иначе сторож зелен
+     * и на старом коде: прежний отбор брал ПЕРВУЮ незакрытую задачу заказа,
+     * а ею оказалась бы задача принимаемого материала. Проверено мутацией.
+     */
+    seedSupply([
+      mat({ status: 'in_transit', accept_status: null }),
+      mat({ id: 'm2', name: 'Бирка', status: 'received', accept_status: 'accepted_full' }),
+    ]);
+    useErpStore.setState({
+      orders: [{
+        ...useErpStore.getState().orders[0],
+        warehouse_tasks: [
+          { id: 'wt1', order_id: 'o1', material_id: 'm1', task_type: 'material_receipt', status: 'awaiting' },
+          { id: 'wt2', order_id: 'o1', material_id: 'm2', task_type: 'material_receipt', status: 'awaiting' },
+        ],
+      }] as any,
+    });
+    await useErpStore.getState().acceptMaterial('m2', {
+      qty: 100, accept_status: 'accepted_full',
+    });
+    const tasks = useErpStore.getState().orders[0].warehouse_tasks ?? [];
+    expect(tasks.find((t) => t.id === 'wt2')?.status).toBe('accepted');
+    expect(tasks.find((t) => t.id === 'wt1')?.status, 'закрылась чужая приёмка').toBe('awaiting');
+  });
 });
 
 describe('useErpStore — задачи склада (волна 4): advanceWarehouseTask', () => {

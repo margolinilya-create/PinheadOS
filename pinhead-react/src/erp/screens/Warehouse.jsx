@@ -121,17 +121,23 @@ function taskSummary(order, task) {
     return 'Готовое изделие';
   }
   if (task.task_type === 'material_receipt') {
-    const n = order.materials.length;
     /**
-     * СКОЛЬКО ИЗ НИХ УЖЕ ЕДЕТ (правка 12.09, п. 8). Закупщик переводит позицию
-     * в «В пути», и это единственное, что склад может узнать о поставке
-     * до её прихода. Без числа карточка отвечает «5 материалов» и на заказе,
-     * где ещё ничего не заказано, и на том, где всё в дороге, — то есть
-     * не помогает выбрать, чем заняться.
+     * ЗАДАЧА НАЗЫВАЕТ СВОЙ МАТЕРИАЛ (правка 12.09, вторая порция, баг 01).
+     * Приёмка принадлежит ПОЗИЦИИ закупки, и «3 материала» в строке не
+     * отвечало бы на вопрос, ради которого склад на этот экран приходит:
+     * что именно приехало. Число едущих позиций тоже теряет смысл — строка
+     * теперь одна на позицию.
      */
-    const transit = order.materials.filter((m) => m.status === 'in_transit').length;
-    const base = `${n} ${n === 1 ? 'материал' : 'материалов'}`;
-    return transit > 0 ? `${base} · ${transit} в пути` : base;
+    if (task.material_id) {
+      const m = order.materials.find((x) => x.id === task.material_id);
+      if (!m) return 'Позиция закупки удалена';
+      const qty = m.qty_expected ?? m.qty_ordered;
+      return [m.name || 'Материал', m.color, qty ? `${qty} ${m.unit || ''}`.trim() : null]
+        .filter(Boolean).join(' · ');
+    }
+    /* Приёмки, закрытые до правки, относятся к заказу целиком */
+    const n = order.materials.length;
+    return `${n} ${n === 1 ? 'материал' : 'материалов'}`;
   }
   if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
   if (task.task_type === 'fg_receipt') {

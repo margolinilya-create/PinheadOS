@@ -68,28 +68,37 @@ describe('гейт складской упаковки', () => {
     expect(DERIVE).not.toMatch(/'pack_ship'/);
   });
 
-  it('приёмка материалов и маркировка остались на своих триггерах', () => {
-    expect(DERIVE).toMatch(/v_code = 'supply' and new\.status in \('in_progress', 'done'\)/);
+  it('маркировка осталась на своём триггере', () => {
     expect(DERIVE).toMatch(/v_code = 'sewing' and new\.status = 'in_progress'/);
   });
 
   /**
-   * Б5 обхода 04.09. Приёмка материалов заводилась ТОЛЬКО при закрытии
-   * закупки, а материалы приходят по частям: весь период поставок кладовщику
-   * некуда было записать приход — единственный путь лежал через чужой экран
-   * «Материал поступил» в очереди цеха. На живой базе так стояло пять
-   * активных заказов.
+   * ПРИЁМКА МАТЕРИАЛОВ ОТСЮДА УШЛА (правка заказчика 12.09, вторая порция,
+   * баг 01): её заводит переход ПОЗИЦИИ закупки в статус «В пути», а не
+   * запуск этапа `supply`. Прежнее правило вешало задачу, когда закупщик ещё
+   * ничего не заказал, — на бое три открытые задачи из четырёх были такими.
    *
-   * `done` из условия НЕ убран: закупка закрывается и минуя `in_progress`
-   * (досрочно с причиной, автозакрытием по материалам «со склада»), и такой
-   * заказ остался бы без задачи вовсе. Дубль сторожит `not exists`.
+   * ПИСАТЕЛЬ ОБЯЗАН БЫТЬ ОДИН. Оставь мы ветку здесь — у одной величины стало
+   * бы два правила, и задача по-прежнему появлялась бы до первой поставки,
+   * причём только у части заказов. Тело читается БЕЗ комментариев: объяснение,
+   * почему ветки не стало, называет те же слова.
    */
-  it('приёмка материалов заводится с началом закупки, а не только с её концом', () => {
-    const cond = /v_code = 'supply' and new\.status in \('in_progress', 'done'\)/;
-    expect(DERIVE).toMatch(cond);
-    const branch = DERIVE.slice(DERIVE.search(cond));
-    expect(branch).toMatch(/insert into erp_warehouse_tasks[\s\S]{0,200}'material_receipt'/);
-    expect(branch).toMatch(/where not exists \(/);
+  it('приёмку материалов derive больше не заводит', () => {
+    // DERIVE — уже тело функции со снятыми комментариями: объяснение, почему
+    // ветки не стало, называет те же слова, что и сама ветка
+    expect(DERIVE).not.toMatch(/'material_receipt'/);
+    expect(DERIVE).not.toMatch(/v_code = 'supply'/);
+  });
+
+  it('её писатель — статус позиции закупки, и он один', () => {
+    const SQL = latestDefining('erp_material_receipt_task');
+    const body = withoutComments(functionBody(SQL, 'erp_material_receipt_task'));
+    expect(body).toMatch(/new\.status is distinct from 'in_transit'/);
+    expect(body).toMatch(/insert into erp_warehouse_tasks[\s\S]{0,200}'material_receipt'/);
+    expect(body).toMatch(/where not exists \(/);
+    // Два триггера: строку заводят и вставкой сразу «в пути», и правкой статуса
+    expect(SQL).toMatch(/after insert on public\.erp_materials/);
+    expect(SQL).toMatch(/after update of status, order_id on public\.erp_materials/);
   });
 
   /**
@@ -305,12 +314,10 @@ describe('складские задачи образца ждут закрыти
 
   it('приёмка материалов и маркировка гейтом НЕ накрыты', () => {
     // Приёмка закупленного идёт параллельно построению лекал — шаг 3
-    // эталонного маршрута образца; маркировка к разработке отношения не имеет
-    const supply = DERIVE.indexOf("v_code = 'supply'");
-    const done = DERIVE.indexOf("if new.status = 'done' then");
-    expect(supply).toBeGreaterThan(-1);
-    expect(supply).toBeLessThan(done);
+    // эталонного маршрута образца; маркировка к разработке отношения не имеет.
+    // Приёмка с 12.09 живёт в своём триггере — гейт разработки его не касается
     expect(DERIVE).not.toMatch(/erp_order_has_open_dev/);
+    expect(latestDefining('erp_material_receipt_task')).not.toMatch(/erp_order_has_open_dev/);
   });
 
   it('маркировка не заводится позиции-образцу', () => {
