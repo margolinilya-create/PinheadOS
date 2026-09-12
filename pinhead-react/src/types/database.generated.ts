@@ -216,6 +216,7 @@ export type Database = {
       erp_departments: {
         Row: {
           active: boolean
+          allows_over_plan: boolean
           code: string
           created_at: string
           gate_material_kinds: string[]
@@ -232,6 +233,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          allows_over_plan?: boolean
           code: string
           created_at?: string
           gate_material_kinds?: string[]
@@ -248,6 +250,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          allows_over_plan?: boolean
           code?: string
           created_at?: string
           gate_material_kinds?: string[]
@@ -2703,6 +2706,7 @@ export type Database = {
         Args: { p_added_good?: number; p_stage_id: string }
         Returns: string
       }
+      erp_stage_input_qty: { Args: { p_stage_id: string }; Returns: number }
       erp_stage_item_qty: { Args: { p_stage_id: string }; Returns: number }
       erp_stage_move_department: {
         Args: {
