@@ -16,7 +16,7 @@ import {
   routeIssues,
   stepPayload,
 } from './routeDraft';
-import { buildItemRoute } from './routes';
+import { WAREHOUSE_DEPT_CODE, buildItemRoute } from './routes';
 import { OUTSOURCE_DEPT_CODE } from './outsourcing';
 import type { BrandingMethod, BrandingOn, ProductionType, StageStatus } from '../types';
 
@@ -454,6 +454,27 @@ describe('участок задаёт исполнителя', () => {
   it('участок «Подряд» предлагается конструктором наравне с закупкой', () => {
     expect(ROUTE_EXTRA_DEPT_CODES).toContain(OUTSOURCE_DEPT_CODE);
     expect(ROUTE_EXTRA_DEPT_CODES).toContain('supply');
+  });
+
+  /**
+   * ПРАВКА 12.09, П. 1: «Склад», удалённый из маршрута, надо уметь вернуть.
+   *
+   * Этап приёмки склада создаёт РАСЧЁТ (`buildRoute` у готового изделия
+   * с нанесением, правки 07.09), а конструктор его не предлагал — то есть
+   * удаление было необратимым. Сторож проверяет обе половины сразу: и то,
+   * что участок предлагается, и то, что расчёт по-прежнему его заводит —
+   * иначе «починка» свелась бы к пункту в списке, за которым ничего нет.
+   */
+  it('участок «Склад» предлагается конструктором — удалённый этап можно вернуть', () => {
+    expect(ROUTE_EXTRA_DEPT_CODES).toContain(WAREHOUSE_DEPT_CODE);
+
+    const calculated = buildItemRoute({
+      productionType: 'ready_garment',
+      brandingOn: 'finished',
+      brandingMethods: ['silkscreen'] as BrandingMethod[],
+      needsPurchase: true,
+    });
+    expect(calculated.map((s) => s.departmentCode)).toContain(WAREHOUSE_DEPT_CODE);
   });
 });
 

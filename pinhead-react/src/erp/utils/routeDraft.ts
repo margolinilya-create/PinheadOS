@@ -1,5 +1,5 @@
 import type { BrandingMethod, BrandingOn, ErpItemStage, ProductionType } from '../types';
-import { buildItemRoute } from './routes';
+import { WAREHOUSE_DEPT_CODE, buildItemRoute } from './routes';
 import type { RouteStage } from './routes';
 import { OUTSOURCE_DEPT_CODE, executorForDept } from './outsourcing';
 
@@ -99,12 +99,25 @@ export type RouteGroup = RouteStep[];
  * Список короткий и ведётся руками намеренно: вписать сюда код — значит вслух
  * ответить на вопрос «а где человек увидит этот этап». У закупки это очередь
  * закупки, у подряда — раздел «Подряд», у экспериментального цеха — вид
- * «Очередь участка» в его разделе; все трое читают ЭТАПЫ. Участок без такой
- * поверхности превращает заказ в невидимый — так 12.08 встали 33 заказа.
+ * «Очередь участка» в его разделе, у склада — блок приёмки готового изделия
+ * (`screens/warehouse/FgIntakeQueue`); все четверо читают ЭТАПЫ. Участок без
+ * такой поверхности превращает заказ в невидимый — так 12.08 встали 33 заказа.
  * Сверяет `routeReachable.test.ts`.
+ *
+ * СКЛАД ПОЯВИЛСЯ ЗДЕСЬ 12.09, И ЭТО СНЯТИЕ ЗАПИСАННОГО ЗАПРЕТА. Прежде его
+ * не пускали доводом «этап не появится нигде, и заказ встанет молча». Довод
+ * был верен ровно до 07.09: тогда у готового изделия появился ЭТАП приёмки
+ * склада (`routes.WAREHOUSE_DEPT_CODE`), а вместе с ним — экран, читающий
+ * этапы. То есть расчёт такой этап УЖЕ создавал, а конструктор предложить его
+ * не мог: удалив «Склад» из маршрута, вернуть его было нечем. Снимая запрет,
+ * проверяем не «надоел ли он», а изменился ли ВОПРОС — здесь изменился.
+ *
+ * Вычисляемый финальный шаг «Склад» (`utils/warehouseStep`) к этому отношения
+ * не имеет: он про КОНЕЦ маршрута и принадлежит заказу, а этот участок — про
+ * начало и принадлежит позиции. Два разных вопроса, и путать их нельзя.
  */
 export const ROUTE_EXTRA_DEPT_CODES: readonly string[] = [
-  'supply', OUTSOURCE_DEPT_CODE, EXPERIMENTAL_DEPT_CODE,
+  'supply', OUTSOURCE_DEPT_CODE, EXPERIMENTAL_DEPT_CODE, WAREHOUSE_DEPT_CODE,
 ];
 
 export function emptyStep(departmentCode: string): RouteStep {
