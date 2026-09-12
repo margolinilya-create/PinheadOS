@@ -621,3 +621,238 @@ test.describe('Гант на планшете', () => {
     await expectNoHorizontalScroll(page);
   });
 });
+
+/**
+ * ЖЕСТЫ ПЛАНШЕТА (приёмы bencho.dev, 12.09).
+ *
+ * ПОЧЕМУ ИМЕННО ЗДЕСЬ, А НЕ В UNIT. Механику держат unit-сторожа: кривая
+ * разгона свипа (`utils/stepperSweep.test.ts`), порог протяжки
+ * (`ConfirmDialog.test.jsx`), разведение с перетаскиванием
+ * (`usePullToRefresh.test.jsx`). Чего они не видят по построению — ПОПАДАЕТ ЛИ
+ * ОРГАН УПРАВЛЕНИЯ ПОД ПАЛЕЦ на настоящей раскладке: в jsdom нет ни геометрии,
+ * ни `pointer: coarse`. Это и проверяется здесь, на 768×1024 с `hasTouch`.
+ *
+ * ⚠️ БЕЗ `toHaveScreenshot`. Эталоны порождаются браузером ТОЙ ЖЕ сборки,
+ * что их проверяет, а локально стоит симлинк 1194 под путями 1208 — новый
+ * эталон молча разошёлся бы с CI (инцидент 06.09). Проверяются свойства:
+ * что отрисовано, какого размера, что делает.
+ */
+test.describe('Жесты планшета', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page);
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
+
+  /**
+   * Степпер достижим из очереди: «В план» открывает `PlanAddModal`, где
+   * «Количество на день» теперь с кнопками ±.
+   */
+  test('числовое поле получает кнопки ± не мельче 44px', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'В план' }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    const minus = dialog.getByRole('button', { name: 'Уменьшить' });
+    const plus = dialog.getByRole('button', { name: 'Увеличить' });
+    await expect(minus).toBeVisible();
+    await expect(plus).toBeVisible();
+
+    const viewport = page.viewportSize()!;
+    for (const btn of [minus, plus]) {
+      const box = await btn.boundingBox();
+      expect(box).not.toBeNull();
+      // Правило ≥44px — и по ОБЕИМ сторонам: узкая кнопка высотой 44
+      // под палец всё равно не попадает
+      expect(box!.height, 'высота кнопки шага').toBeGreaterThanOrEqual(44);
+      expect(box!.width, 'ширина кнопки шага').toBeGreaterThanOrEqual(44);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+    }
+  });
+
+  test('тап по ± меняет значение, поле остаётся доступным для набора', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+    await page.getByRole('button', { name: 'В план' }).first().click();
+
+    const dialog = page.getByRole('dialog');
+    const field = dialog.getByLabel('Количество на день');
+    await expect(field).toBeVisible();
+    const before = Number(await field.inputValue());
+
+    await dialog.getByRole('button', { name: 'Увеличить' }).click();
+    await expect(field).toHaveValue(String(before + 1));
+
+    // Поле НЕ подпись: для больших чисел набрать быстрее, чем свайпнуть
+    await field.fill('42');
+    await expect(field).toHaveValue('42');
+  });
+
+  test('степпер не ломает раскладку формы', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+    await page.getByRole('button', { name: 'В план' }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  /**
+   * ПРОТЯЖКА ВМЕСТО ТАПА — у необратимого действия и только под пальцем.
+   *
+   * «Завершить этап» при неполном факте идёт через `confirmStageDone`,
+   * то есть через danger-подтверждение: на тач-вводе оно показывает трек,
+   * а не кнопку.
+   */
+  test('опасное подтверждение под пальцем — протяжка, а не кнопка', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+
+    const done = page.getByRole('button', { name: /^Завершить этап/ }).first();
+    await expect(done).toBeVisible();
+    await done.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    // Подсказка про жест видна — без неё трек читается как неработающая кнопка
+    await expect(dialog.getByText(/Проведите до конца/)).toBeVisible();
+
+    // Текст последствий остался: протяжка заменяет кнопку, а не объяснение
+    await expect(dialog.getByText(/будут записаны как выполненные/)).toBeVisible();
+  });
+
+  test('трек протяжки влезает в экран и не мельче 44px', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+    await page.getByRole('button', { name: /^Завершить этап/ }).first().click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const track = dialog.getByRole('button', { name: 'Завершить' });
+    await expect(track).toBeVisible();
+
+    const viewport = page.viewportSize()!;
+    const box = await track.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height, 'высота трека').toBeGreaterThanOrEqual(44);
+    // Протяжке нужен ХОД: на узком треке порог берётся случайным сдвигом
+    expect(box!.width, 'ход трека').toBeGreaterThanOrEqual(200);
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+  });
+
+  /**
+   * КЛАВИАТУРНЫЙ ПУТЬ ОБЯЗАТЕЛЕН (WCAG 2.1.1) и проверяется ЗДЕСЬ, потому что
+   * именно на тач-раскладке кнопка подменяется треком: не будь у трека
+   * Enter — подтвердить с подключённой к планшету клавиатуры стало бы нельзя.
+   */
+  test('протяжку можно подтвердить с клавиатуры', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+    await page.getByRole('button', { name: /^Завершить этап/ }).first().click();
+
+    const dialog = page.getByRole('dialog');
+    const track = dialog.getByRole('button', { name: 'Завершить' });
+    await expect(track).toBeVisible();
+
+    await track.press('Enter');
+    // Диалог закрылся — действие ушло в стор
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test('на десктопе опасное подтверждение остаётся кнопкой', async ({ browser }) => {
+    /**
+     * Обратная половина гейта, и без неё проверка выше ничего не значит:
+     * трек, показанный ВСЕГДА, прошёл бы все тесты этого блока. Своя страница
+     * без `hasTouch` — это и есть «мышь».
+     */
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false });
+    const p = await ctx.newPage();
+    await installSupabaseMock(p);
+    await p.clock.setFixedTime(FIXED_TIME);
+    await p.goto('/queue/cutting?studio=0');
+
+    /*
+     * На десктопе очередь рисует СТРОКУ, а не карточку, и действия в ней
+     * скрыты до раскрытия — в этом и разница раскладок. Раскрываются ВСЕ
+     * строки, а не первая: у разных этапов разные действия, и «первая»
+     * оказывалась `ready` с одним «Взять в работу». Две предыдущие редакции
+     * падали по таймауту именно на этом — то есть проверяли не ту половину
+     * гейта, а отсутствие кнопки не на том этапе.
+     */
+    const expanders = p.getByRole('button', { name: 'Развернуть задание' });
+    await expect(expanders.first()).toBeVisible();
+    /*
+     * ⚠️ НАБОР СЖИМАЕТСЯ ПОД ЛОКАТОРОМ: клик меняет подпись кнопки на
+     * «Свернуть задание», то есть она ВЫХОДИТ из выборки. Снятый заранее
+     * `count()` с `nth(i)` поэтому и падал — третья редакция этого теста.
+     * Берём всегда первую, пока они есть; потолок — от бесконечного цикла,
+     * если подпись когда-нибудь перестанет меняться.
+     */
+    for (let guard = 0; guard < 20 && await expanders.count() > 0; guard += 1) {
+      await expanders.first().click();
+    }
+    await p.getByRole('button', { name: /^Завершить этап/ }).first().click();
+    const dialog = p.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(/Проведите до конца/)).toHaveCount(0);
+    await ctx.close();
+  });
+
+  /**
+   * ПОТЯНУТЬ — ОБНОВИТЬ. Проверяется видимая половина: полоса называет
+   * состояние. Механику (порог, сопротивление, разведение с перетаскиванием)
+   * держит `usePullToRefresh.test.jsx`.
+   */
+  test('протяжка сверху показывает полосу обновления', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    await expect(page.locator('[class*="queueCard"]').first()).toBeVisible();
+
+    const main = page.locator('#main-content');
+    const box = (await main.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + 12;
+
+    // Настоящий жест пальцем: hasTouch у проекта включён, поэтому
+    // pointerType приходит 'touch' — на мыши хук не отвечает вовсе
+    await page.dispatchEvent('#main-content', 'pointerdown', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y, isPrimary: true });
+    await page.dispatchEvent('#main-content', 'pointermove', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y + 60, isPrimary: true });
+
+    await expect(page.getByText(/Потяните, чтобы обновить/)).toBeVisible();
+
+    // Дотянули за порог — полоса меняет слово, а не только цвет
+    await page.dispatchEvent('#main-content', 'pointermove', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y + 260, isPrimary: true });
+    await expect(page.getByText(/Отпустите, чтобы обновить/)).toBeVisible();
+
+    await page.dispatchEvent('#main-content', 'pointerup', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y + 260, isPrimary: true });
+    // Полоса ушла: жест завершён
+    await expect(page.getByText(/Потяните, чтобы обновить|Отпустите, чтобы обновить/)).toHaveCount(0);
+  });
+
+  test('полоса обновления не сдвигает содержимое', async ({ page }) => {
+    await page.goto('/queue/cutting?studio=0');
+    const card = page.locator('[class*="queueCard"]').first();
+    await expect(card).toBeVisible();
+
+    const before = (await card.boundingBox())!;
+    const main = page.locator('#main-content');
+    const box = (await main.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + 12;
+
+    await page.dispatchEvent('#main-content', 'pointerdown', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y, isPrimary: true });
+    await page.dispatchEvent('#main-content', 'pointermove', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y + 200, isPrimary: true });
+    await expect(page.getByText(/Отпустите, чтобы обновить/)).toBeVisible();
+
+    /**
+     * Полоса лежит НАКЛАДКОЙ: содержимое не едет. Сдвиг меряет и
+     * `erp-cls.spec.ts`, но там жеста нет — а уезжающая из-под пальца
+     * кнопка этапа в этом проекте уже была отдельной жалобой.
+     */
+    const after = (await card.boundingBox())!;
+    expect(Math.abs(after.y - before.y), 'карточка не должна уезжать').toBeLessThanOrEqual(1);
+
+    await page.dispatchEvent('#main-content', 'pointerup', { pointerType: 'touch', pointerId: 1, clientX: x, clientY: y + 200, isPrimary: true });
+  });
+});
