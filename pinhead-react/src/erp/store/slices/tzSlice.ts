@@ -26,12 +26,17 @@ function patchOrder(
   return orders.map((o) => (o.id === orderId ? apply(o) : o));
 }
 
-/** Единый предполётный контроль файла: тип и размер (в бакете таких проверок нет) */
+/**
+ * Предполётный контроль файла — теперь ТОЛЬКО РАЗМЕР (правка 12.09, п. 4).
+ *
+ * Проверка «ТЗ принимается только в PDF» снята: заказчик просит грузить
+ * рабочие файлы любых форматов. Размер остаётся и повторяет лимит бакета
+ * (15 МБ) — здесь он нужен, чтобы сказать причину СРАЗУ, а не после
+ * отправки: отказ Storage по размеру приходит в конце заливки.
+ */
 function checkFile(file: File): string | null {
-  const isPdf = file.type === TZ_MIME || /\.pdf$/i.test(file.name);
-  if (!isPdf) return 'ТЗ принимается только в PDF';
   if (file.size > TZ_MAX_BYTES) {
-    return `Файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ — сожмите PDF`;
+    return `Файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ — сожмите файл`;
   }
   return null;
 }
@@ -40,7 +45,18 @@ function checkFile(file: File): string | null {
 async function uploadFile(path: string, file: File): Promise<string | null> {
   const { error } = await erpQuery(() => supabase.storage
     .from(TZ_BUCKET)
-    .upload(path, file, { contentType: TZ_MIME, upsert: false }));
+    /**
+     * ТИП БЕРЁТСЯ У САМОГО ФАЙЛА (правка 12.09, п. 4). Прежде здесь стояло
+     * жёсткое `contentType: TZ_MIME`, и с любым форматом, кроме PDF, файл
+     * лёг бы в бакет С ЧУЖИМ ТИПОМ: браузер получал бы `application/pdf`
+     * на .xlsx и отказывался его открывать — причём файл при этом есть
+     * и выглядит целым. Фолбэк — как в `useAttachmentUploads`: у файлов
+     * с незнакомым расширением `file.type` бывает пустым.
+     */
+    .upload(path, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    }));
   if (error) {
     // Причина обязана быть названа: отказ прав, обрыв связи и слетевшая сессия
     // требуют разных действий, а «Не удалось загрузить файл ТЗ» одинаково молчит
@@ -72,7 +88,7 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
         is_current: true,
         file_path: path,
         file_name: file.name,
-        mime_type: TZ_MIME,
+        mime_type: file.type || TZ_MIME,
         size_bytes: file.size,
         note,
         uploaded_by: currentActor(),
@@ -146,7 +162,7 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
         is_current: true,
         file_path: path,
         file_name: file.name,
-        mime_type: TZ_MIME,
+        mime_type: file.type || TZ_MIME,
         size_bytes: file.size,
         note,
         uploaded_by: currentActor(),

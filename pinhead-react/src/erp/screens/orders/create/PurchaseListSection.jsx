@@ -124,7 +124,6 @@ export function PurchaseListSection({
             files={attach.files}
             kind="purchase_list"
             multiple={false}
-            accept="image/*,application/pdf,.xlsx,.xls,.csv,.numbers,.ods"
             onAdd={attach.add}
             onRetry={attach.retry}
             onRemove={attach.remove}

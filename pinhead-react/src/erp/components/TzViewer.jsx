@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { formatDateShort } from '../utils/time';
 import { tzCaption, tzFileUrl } from '../utils/tzFile';
+import { tzHasPreview } from '../utils/tz';
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
 import { Button, ButtonLink } from '../components/Button';
@@ -13,6 +14,37 @@ import { Button, ButtonLink } from '../components/Button';
  * Мобильный Safari PDF в iframe не рисует, поэтому «Открыть в новой вкладке» —
  * не украшение, а запасной путь; «Скачать» есть всегда.
  */
+
+/**
+ * ФАЙЛ БЕЗ ВСТРОЕННОГО ПРОСМОТРА (правка 12.09, п. 4).
+ *
+ * С любыми форматами `<iframe>` для .xlsx или .ai даёт пустой прямоугольник:
+ * человек читает это как поломку и идёт выяснять, почему «ТЗ не открывается».
+ * Поэтому пустоту заменяет прямой ответ и два действия, которые работают
+ * всегда, — скачать и открыть в новой вкладке. Правка требует ровно этого:
+ * «если предпросмотр формата не поддерживается, файл всё равно должен
+ * загружаться, сохраняться и быть доступен для скачивания».
+ */
+function NoPreview({ doc, url }) {
+  return (
+    <div className={styles.tzNoPreview}>
+      <Icon name="file" size={20} />
+      <div>
+        <strong>Предпросмотр недоступен</strong>
+        <div className={styles.subText}>
+          Формат не открывается в браузере — скачайте файл
+        </div>
+      </div>
+      <div className={styles.spacer} />
+      <ButtonLink href={url} target="_blank" rel="noreferrer" variant="ghost">
+        В новой вкладке ↗
+      </ButtonLink>
+      <ButtonLink href={url} download={doc.file_name || 'tz'} variant="secondary">
+        Скачать
+      </ButtonLink>
+    </div>
+  );
+}
 
 /** Полноэкранный слой просмотра (по образцу Lightbox, но с focus-trap — внутри есть кнопки) */
 function TzFullscreen({ doc, url, onClose }) {
@@ -46,7 +78,7 @@ function TzFullscreen({ doc, url, onClose }) {
         <strong className={styles.tzFullscreenName}>{tzCaption(doc)}</strong>
         <div className={styles.spacer} />
         <ButtonLink href={url} target="_blank" rel="noreferrer" variant="ghost">В новой вкладке ↗</ButtonLink>
-        <ButtonLink href={url} download={doc.file_name || 'tz.pdf'} variant="secondary">Скачать</ButtonLink>
+        <ButtonLink href={url} download={doc.file_name || 'tz'} variant="secondary">Скачать</ButtonLink>
         <Button variant="ghost" onClick={onClose} autoFocus>
           <span className={styles.cellWithIcon}><Icon name="x" size={15} />Закрыть</span>
         </Button>
@@ -58,12 +90,16 @@ function TzFullscreen({ doc, url, onClose }) {
         но недостаточно — просмотрщик всё равно не стал бы остановкой Tab.
         Явный `tabIndex` делает его ею и позволяет листать PDF с клавиатуры.
       */}
-      <iframe
-        src={url}
-        title={`ТЗ: ${tzCaption(doc)}`}
-        className={styles.tzFullscreenFrame}
-        tabIndex={0}
-      />
+      {tzHasPreview(doc) ? (
+        <iframe
+          src={url}
+          title={`ТЗ: ${tzCaption(doc)}`}
+          className={styles.tzFullscreenFrame}
+          tabIndex={0}
+        />
+      ) : (
+        <NoPreview doc={doc} url={url} />
+      )}
     </div>
   );
 }
@@ -83,7 +119,7 @@ export function TzViewer({ doc, compact = false, badge = null, actions = null })
       <div className={styles.tzDocHead}>
         <span className={styles.tzDocIcon}><Icon name="file" size={16} /></span>
         <span className={styles.tzDocName} title={tzCaption(doc)}>
-          {doc.file_name || 'ТЗ.pdf'}
+          {doc.file_name || 'Файл ТЗ'}
           {doc.version > 1 && <span className={styles.tzDocVersion}> v{doc.version}</span>}
         </span>
         {badge}
@@ -96,15 +132,16 @@ export function TzViewer({ doc, compact = false, badge = null, actions = null })
         <Button variant="ghost" onClick={() => setFull(true)}>
           На весь экран
         </Button>
-        <ButtonLink href={url} download={doc.file_name || 'tz.pdf'} variant="ghost">Скачать</ButtonLink>
+        <ButtonLink href={url} download={doc.file_name || 'tz'} variant="ghost">Скачать</ButtonLink>
         {actions}
       </div>
       <div className={styles.tzDocMeta}>
         {doc.uploaded_by ? `${doc.uploaded_by} · ` : ''}{formatDateShort(doc.created_at)}
         {doc.note ? ` · ${doc.note}` : ''}
       </div>
-      {inline && (
-        <iframe src={url} title={`ТЗ: ${tzCaption(doc)}`} className={styles.tzFrame} tabIndex={0} />
+      {inline && (tzHasPreview(doc)
+        ? <iframe src={url} title={`ТЗ: ${tzCaption(doc)}`} className={styles.tzFrame} tabIndex={0} />
+        : <NoPreview doc={doc} url={url} />
       )}
       {full && <TzFullscreen doc={doc} url={url} onClose={() => setFull(false)} />}
     </div>

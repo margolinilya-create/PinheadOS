@@ -30,7 +30,7 @@ export function FormSection({ id, title, summary, open, onToggle, children }) {
   );
 }
 
-/** Кнопка выбора PDF-файла ТЗ: скрытый input + вид обычной кнопки */
+/** Кнопка выбора файла ТЗ: скрытый input + вид обычной кнопки */
 export function PdfPick({ label, onPick }) {
   const ref = useRef(null);
   return (
@@ -41,7 +41,6 @@ export function PdfPick({ label, onPick }) {
       <input
         ref={ref}
         type="file"
-        accept="application/pdf,.pdf"
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0];

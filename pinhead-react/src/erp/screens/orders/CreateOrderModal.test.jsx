@@ -205,14 +205,19 @@ describe('CreateOrderModal — ТЗ в PDF', () => {
     await waitFor(() => expect(submitBtn()).toBeEnabled());
   });
 
-  it('не-PDF в бакет не уходит', () => {
+  /**
+   * ФОРМАТ БОЛЬШЕ НЕ ОГРАНИЧЕН (правка 12.09, п. 4). Прежде тест назывался
+   * «не-PDF в бакет не уходит» и закреплял снятый запрет; теперь он сторожит
+   * обратное — файл любого формата обязан доехать до бакета.
+   */
+  it('файл любого формата уходит в бакет', async () => {
     setup();
     fillRequired();
     const btn = screen.getByRole('button', { name: '+ ТЗ позиции (PDF)' });
     fireEvent.change(btn.parentElement.querySelector('input[type="file"]'), {
       target: { files: [new File(['x'], 'скан.jpg', { type: 'image/jpeg' })] },
     });
-    expect(uploadCalls).toHaveLength(0);
+    await waitFor(() => expect(uploadCalls).toHaveLength(1));
   });
 });
 

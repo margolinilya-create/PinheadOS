@@ -49,7 +49,6 @@ function PdfButton({ label, onPick, disabled, variant = 'secondary' }) {
       <input
         ref={ref}
         type="file"
-        accept="application/pdf,.pdf"
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -106,7 +105,7 @@ export function TzDocsSection({ order, item, deptById }) {
             disabled={busy}
             onPick={(f) => upload(f, item.id)}
           />
-          <span className={styles.subText}>Только PDF, до 15 МБ</span>
+          <span className={styles.subText}>Любой формат, до 15 МБ</span>
         </div>
       )}
 

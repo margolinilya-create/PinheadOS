@@ -248,7 +248,12 @@ export function CreateOrderModal({ onClose, draftId = null }) {
      */
     const { error } = await erpQuery(() => supabase.storage
       .from(TZ_BUCKET)
-      .upload(path, file, { contentType: TZ_MIME, upsert: true }));
+      // Тип берётся у файла (правка 12.09, п. 4): жёсткий `application/pdf`
+      // клал .xlsx в бакет под чужим типом, и браузер отказывался его открывать
+      .upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: true,
+      }));
     setTzDocs((arr) => arr.map((d) => {
       if (d.groupId !== groupId) return d;
       if (!error) return { ...d, state: 'uploaded', error: null, path };
@@ -264,11 +269,8 @@ export function CreateOrderModal({ onClose, draftId = null }) {
 
   const addTzDoc = (file, itemIndex) => {
     if (!file) return;
-    const isPdf = file.type === TZ_MIME || /\.pdf$/i.test(file.name);
-    if (!isPdf) {
-      toast.error('ТЗ принимается только в PDF');
-      return;
-    }
+    // Формат больше не проверяется (правка 12.09, п. 4) — только размер,
+    // и он повторяет лимит бакета, чтобы причина называлась СРАЗУ
     if (file.size > TZ_MAX_BYTES) {
       toast.error(`ТЗ: файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ`);
       return;
@@ -606,7 +608,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         item_index: itemIndex ?? null,
         file_path: d.path,
         file_name: d.file.name,
-        mime_type: TZ_MIME,
+        mime_type: d.file.type || TZ_MIME,
         size_bytes: d.file.size,
         uploaded_by: actor,
       });

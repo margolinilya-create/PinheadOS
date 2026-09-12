@@ -15,6 +15,7 @@ import {
   validateTzDocs,
   tzUpdatedAfterStart,
   tzFilePath,
+  tzHasPreview,
   itemLabel,
 } from './tz';
 import type { ErpTzDocument } from '../types';
@@ -436,5 +437,45 @@ describe('itemLabel', () => {
     expect(itemLabel({ product_type: 'Футболка', variant: 'Regular' })).toBe('Футболка Regular');
     expect(itemLabel({ product_type: 'Худи', variant: null })).toBe('Худи');
     expect(itemLabel({})).toBe('Позиция');
+  });
+});
+
+/**
+ * ПРЕДПРОСМОТР ФАЙЛА ТЗ (правка 12.09, п. 4).
+ *
+ * С любыми форматами `<iframe>` перестал быть верным ответом на каждый
+ * документ: для .xlsx он даёт пустой прямоугольник, а пустота читается
+ * как поломка. Правило одно на обе поверхности просмотрщика.
+ */
+describe('есть ли у документа встроенный предпросмотр', () => {
+  const mk = (patch: Partial<ErpTzDocument>) =>
+    ({ mime_type: null, file_name: null, ...patch } as ErpTzDocument);
+
+  it('PDF и картинки показываются', () => {
+    expect(tzHasPreview(mk({ mime_type: 'application/pdf' }))).toBe(true);
+    expect(tzHasPreview(mk({ mime_type: 'image/png' }))).toBe(true);
+  });
+
+  it('таблицы и макеты — нет', () => {
+    expect(tzHasPreview(mk({
+      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      file_name: 'раскладка.xlsx',
+    }))).toBe(false);
+    expect(tzHasPreview(mk({ mime_type: '', file_name: 'макет.ai' }))).toBe(false);
+  });
+
+  /**
+   * Тип бывает пустым у файла с незнакомым расширением — тогда отвечает имя.
+   * Обратный случай важнее: у документов, загруженных ДО правки, `mime_type`
+   * записан жёстко `application/pdf`, и для них это правда.
+   */
+  it('при пустом типе решает расширение имени', () => {
+    expect(tzHasPreview(mk({ mime_type: null, file_name: 'ТЗ.pdf' }))).toBe(true);
+    expect(tzHasPreview(mk({ mime_type: null, file_name: 'ТЗ.docx' }))).toBe(false);
+  });
+
+  it('документа нет — предпросмотра нет', () => {
+    expect(tzHasPreview(null)).toBe(false);
+    expect(tzHasPreview(undefined)).toBe(false);
   });
 });

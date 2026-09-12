@@ -271,3 +271,28 @@ export function tzFilePath(scope: string, groupId: string, version: number, file
 
 /** Реэкспорт: правило живёт в `utils/storageKey`, здесь — совместимость чтения */
 export { translitAscii };
+
+/**
+ * МОЖЕТ ЛИ БРАУЗЕР ПОКАЗАТЬ ДОКУМЕНТ ВСТРОЕННЫМ ПРОСМОТРЩИКОМ
+ * (правка 12.09, п. 4).
+ *
+ * С этой правкой ТЗ бывает не только PDF: заказчик просит грузить рабочие
+ * файлы любых форматов. `TzViewer` рисует документ в `<iframe>`, и для .xlsx
+ * или .ai это даёт ПУСТОЙ прямоугольник либо скачивание вместо показа —
+ * то есть человек видит поломку там, где её нет.
+ *
+ * Правило одно на все поверхности и спрашивает ДВА источника: тип из
+ * `mime_type` (его пишет загрузка) и расширение имени. Второй нужен потому,
+ * что у документов, загруженных ДО правки, `mime_type` записан жёстко
+ * `application/pdf` — а с файлами из старых заказов это правда, они и есть
+ * PDF. Картинки показываются тем же iframe и тоже считаются просматриваемыми.
+ */
+export function tzHasPreview(
+  doc: Pick<ErpTzDocument, 'mime_type' | 'file_name'> | null | undefined,
+): boolean {
+  if (!doc) return false;
+  const mime = (doc.mime_type ?? '').toLowerCase();
+  if (mime === 'application/pdf' || mime.startsWith('image/')) return true;
+  // Тип бывает пустым у файла с незнакомым расширением — спрашиваем имя
+  return /\.(pdf|png|jpe?g|gif|webp|svg)$/i.test(doc.file_name ?? '');
+}

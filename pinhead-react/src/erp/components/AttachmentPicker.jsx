@@ -33,7 +33,14 @@ export function AttachmentPicker({
   kind,
   itemIndex = null,
   ownerKey = null,
-  accept = 'image/*,application/pdf',
+  /**
+   * ЛЮБОЙ ФОРМАТ ПО УМОЛЧАНИЮ (правка 12.09, п. 4): «убрать ограничение
+   * по расширениям/MIME-типам». Прежде здесь стояло `image/*,application/pdf`,
+   * и рабочий файл — раскладка в .xlsx, макет в .ai, архив образцов —
+   * в диалоге просто не показывался. Ограничение размера остаётся
+   * (`useAttachmentUploads`, 15 МБ), проверка прав — на бакете.
+   */
+  accept = undefined,
   onAdd,
   onRetry,
   onRemove,

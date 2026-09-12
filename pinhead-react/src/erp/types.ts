@@ -585,7 +585,14 @@ export interface ErpTzDocument {
 /** Бакет и префикс ТЗ в Supabase Storage */
 export const TZ_BUCKET = 'erp-attachments';
 export const TZ_PREFIX = 'tz';
-/** Ограничения загрузки ТЗ: только PDF, до 15 МБ */
+/**
+ * Ограничения загрузки ТЗ: до 15 МБ, формат ЛЮБОЙ (правка 12.09, п. 4).
+ *
+ * `TZ_MIME` остался и означает теперь не «что принимаем», а «чем считать
+ * документ, у которого браузер не определил тип»: у файла с незнакомым
+ * расширением `file.type` бывает пустым, а колонка `mime_type` описывает,
+ * чем документ является, и пустой она быть не должна.
+ */
 export const TZ_MIME = 'application/pdf';
 export const TZ_MAX_BYTES = 15 * 1024 * 1024;
 

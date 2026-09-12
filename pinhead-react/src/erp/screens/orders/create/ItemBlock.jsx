@@ -887,7 +887,6 @@ function RouteBlock({ it, i, setItem, route, attach }) {
         kind="subcontract"
         itemIndex={i}
         ownerKey={ownerKey}
-        accept="image/*,application/pdf"
         onAdd={(file) => attach.add(file, 'subcontract', i, ownerKey)}
         onRetry={attach.retry}
         onRemove={attach.remove}

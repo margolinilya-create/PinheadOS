@@ -1104,6 +1104,23 @@
   border-radius: var(--radius-sm);
   background: #fff;
 }
+/*
+  Файл, который браузер не показывает встроенным просмотрщиком (правка 12.09,
+  п. 4). Стоит НА МЕСТЕ рамки просмотра и повторяет её оформление: человек
+  ждёт документ и должен получить ответ, а не пустой прямоугольник.
+  Высоту не наследует — содержимого здесь одна строка и две кнопки.
+*/
+.tzNoPreview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
 .tzFullscreen {
   position: fixed;
   inset: 0;

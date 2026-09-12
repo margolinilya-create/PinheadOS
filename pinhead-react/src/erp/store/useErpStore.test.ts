@@ -58,7 +58,15 @@ const h = vi.hoisted(() => ({
    */
   rpcByFn: {} as Record<string, { data: unknown; error: { message: string } | null }>,
   /** Загрузки в Storage (ТЗ в PDF, волна 4) */
-  uploadCalls: [] as { bucket: string; path: string; name: string }[],
+  /**
+   * `contentType` мок запоминает с 12.09: клиент перестал жёстко слать
+   * `application/pdf` и обязан передавать НАСТОЯЩИЙ тип файла. Мок, который
+   * не видит опций, не отличил бы починку от прежнего поведения — то же
+   * правило, по которому мок обязан уметь то, что умеет клиент.
+   */
+  uploadCalls: [] as {
+    bucket: string; path: string; name: string; contentType?: string;
+  }[],
   uploadError: null as { message: string } | null,
   /** Уборка за собой: файл загрузился, но не привязался — его надо убрать */
   removeCalls: [] as { bucket: string; paths: string[] }[],
@@ -170,8 +178,14 @@ vi.mock('../../lib/supabase', () => {
       }),
       storage: {
         from: vi.fn((bucket: string) => ({
-          upload: vi.fn((path: string, file: { name?: string }) => {
-            h.uploadCalls.push({ bucket, path, name: file?.name ?? '' });
+          upload: vi.fn((
+            path: string,
+            file: { name?: string },
+            options?: { contentType?: string },
+          ) => {
+            h.uploadCalls.push({
+              bucket, path, name: file?.name ?? '', contentType: options?.contentType,
+            });
             return Promise.resolve({ error: h.uploadError });
           }),
           remove: vi.fn((paths: string[]) => {
@@ -3264,13 +3278,30 @@ describe('ТЗ в PDF (волна 4)', () => {
     expect(orderNow().tz_documents[0].is_current).toBe(true);
   });
 
-  it('не-PDF и слишком большой файл отклоняются до загрузки', async () => {
+  /**
+   * ФОРМАТ БОЛЬШЕ НЕ ОГРАНИЧЕН (правка 12.09, п. 4), РАЗМЕР — ДА.
+   *
+   * Прежде этот тест назывался «не-PDF и слишком большой файл отклоняются
+   * до загрузки» и закреплял оба запрета. Заказчик снял первый: рабочий файл
+   * должен грузиться в любом формате. Второй остался и проверяется здесь же —
+   * иначе правка молча сняла бы вместе с форматом и лимит.
+   */
+  it('файл любого формата уходит в бакет, слишком большой — нет', async () => {
     seedTz();
-    const jpg = { name: 'скан.jpg', size: 10, type: 'image/jpeg' } as unknown as File;
-    expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: jpg })).toBeNull();
+    const xlsx = {
+      name: 'раскладка.xlsx',
+      size: 10,
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    } as unknown as File;
+    expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: xlsx })).toBeTruthy();
+    expect(h.uploadCalls).toHaveLength(1);
+    // Тип уходит в Storage НАСТОЯЩИЙ: жёсткий application/pdf клал бы .xlsx
+    // под чужим типом, и браузер отказался бы его открывать
+    expect(h.uploadCalls[0].contentType).toBe(xlsx.type);
+
     const huge = pdf('огромное.pdf', 20 * 1024 * 1024);
     expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: huge })).toBeNull();
-    expect(h.uploadCalls).toHaveLength(0);
+    expect(h.uploadCalls).toHaveLength(1);
     expect(toast.error).toHaveBeenCalled();
   });
 

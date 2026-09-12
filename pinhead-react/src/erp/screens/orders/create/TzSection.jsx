@@ -73,7 +73,7 @@ export function TzSection({ tzItems, tzDocs, addTzDoc, removeTzDoc, retryTzDoc }
 
       <div className={styles.checkRow}>
         <PdfPick label="+ Общее ТЗ заказа (PDF)" onPick={(f) => addTzDoc(f, null)} />
-        <span className={styles.subText}>Только PDF, до 15 МБ</span>
+        <span className={styles.subText}>Любой формат, до 15 МБ</span>
       </div>
       {generalDocs.length > 0 && (
         <ul className={styles.tzMatList}>
