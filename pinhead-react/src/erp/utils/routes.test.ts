@@ -9,12 +9,23 @@ import {
   materialsForItem,
   missingMaterialsForStage,
   waitingReason,
+  EMBROIDERY_PROGRAM_OPERATION,
 } from './routes';
+import { draftFromRoute, linearize } from './routeDraft';
+import { latestMatching } from './migrations.testutil';
 import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
 
 /** Хелпер: находит этап по коду цеха */
+/**
+ * ПРОИЗВОДСТВЕННЫЙ этап участка, а не первый попавшийся по коду.
+ *
+ * С 12.09 у цеха вышивки этапов на позиции ДВА: разработка программы
+ * (`standalone`, без зависимостей) и сама вышивка. Прежний `find` по коду
+ * возвращал бы первый — то есть все проверки маршрута молча переехали бы
+ * на подготовительную задачу и перестали бы сторожить работу цеха.
+ */
 function stage(route: ReturnType<typeof buildRoute>, code: string) {
-  const s = route.find((r) => r.departmentCode === code);
+  const s = route.find((r) => r.departmentCode === code && !r.standalone);
   if (!s) throw new Error(`stage ${code} not found in route`);
   return s;
 }
@@ -130,8 +141,9 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
+    // Разработка программы идёт ПЕРВОЙ и ни от чего не зависит (12.09, п. 2)
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['supply', 'cutting', 'sewing', 'vto', 'embroidery'],
+      ['embroidery', 'supply', 'cutting', 'sewing', 'vto', 'embroidery'],
     );
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['vto']);
   });
@@ -147,7 +159,7 @@ describe('buildRoute — нанесения', () => {
       productionType: 'ready_garment', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
     expect(route.map((r) => r.departmentCode))
-      .toEqual(['supply', 'warehouse', 'embroidery', 'vto']);
+      .toEqual(['embroidery', 'supply', 'warehouse', 'embroidery', 'vto']);
     expect(stage(route, 'warehouse').dependsOnCodes).toEqual(['supply']);
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['warehouse']);
     expect(stage(route, 'vto').dependsOnCodes).toEqual(['embroidery']);
@@ -261,7 +273,14 @@ describe('buildRoute — ОТК больше не отдельный этап', 
     // Раньше обе ветки сходились на ОТК. Теперь у позиции просто два хвоста —
     // и готовность к отгрузке считается по «все этапы done», а не по одному ОТК
     const depended = new Set(route.flatMap((r) => r.dependsOnCodes));
-    const terminal = route.filter((r) => !depended.has(r.departmentCode)).map((r) => r.departmentCode);
+    /**
+     * Подготовительный этап из счёта исключён: он терминальный по построению
+     * (от него никто не зависит) и был бы третьим хвостом, хотя работы цеха
+     * по тиражу не несёт вовсе.
+     */
+    const terminal = route
+      .filter((r) => !r.standalone && !depended.has(r.departmentCode))
+      .map((r) => r.departmentCode);
     expect(terminal.slice().sort()).toEqual(['embroidery', 'silkscreen']);
   });
 
@@ -705,5 +724,87 @@ describe('materialsForItem — материалы позиции против м
     expect(materialsBlockStage(materialsForItem([mine, foreign], 'i1'), CUT)).toBe(false);
     // а своя непришедшая по-прежнему блокирует
     expect(materialsBlockStage(materialsForItem([mine, foreign], 'i2'), CUT)).toBe(true);
+  });
+});
+
+/**
+ * РАЗРАБОТКА ПРОГРАММЫ ВЫШИВКИ — ОТДЕЛЬНАЯ ЗАДАЧА ЦЕХА (правка 12.09, п. 2).
+ *
+ * «Если в заказе требуется вышивка, сразу при создании заказа автоматически
+ * создавать в цехе „Вышивка" отдельную задачу „Разработка программы вышивки".
+ * Эта задача должна создаваться независимо от этапа „Закрой"… Эти две задачи
+ * не должны заменять или закрывать друг друга».
+ *
+ * Каждое утверждение сторожится отдельно: «есть этап» само по себе ничего
+ * не доказывает — задача, зависящая от кроя или сидящая на том же цикле,
+ * выглядела бы так же, а работала бы наоборот (в первом случае ждала бы крой,
+ * во втором вообще не создалась бы — 23505).
+ */
+describe('разработка программы вышивки (правка 12.09, п. 2)', () => {
+  const withEmbroidery = (brandingOn: 'cut' | 'finished' = 'cut') => buildRoute({
+    productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn,
+  });
+
+  it('этап заводится при вышивке — и только при ней', () => {
+    const prep = withEmbroidery().filter((r) => r.standalone);
+    expect(prep).toHaveLength(1);
+    expect(prep[0].departmentCode).toBe('embroidery');
+    expect(prep[0].operation).toBe(EMBROIDERY_PROGRAM_OPERATION);
+
+    const noEmbroidery = buildRoute({
+      productionType: 'sewing', brandingMethods: ['dtf'], brandingOn: 'cut',
+    });
+    expect(noEmbroidery.filter((r) => r.standalone)).toHaveLength(0);
+  });
+
+  it('не зависит ни от кого и никого не держит', () => {
+    const route = withEmbroidery();
+    const prep = route.find((r) => r.standalone)!;
+    expect(prep.dependsOnCodes).toEqual([]);
+    // И НИ ОДИН этап не ждёт подготовку: иначе забытая галочка вышивальщицы
+    // останавливала бы крой, то есть всё производство по заказу
+    const linear = linearize(draftFromRoute(route));
+    const prepIdx = linear.findIndex((l) => l.step.standalone);
+    expect(prepIdx).toBeGreaterThanOrEqual(0);
+    for (const l of linear) expect(l.dependsOn).not.toContain(prepIdx);
+  });
+
+  it('сама вышивка остаётся на месте и ждёт крой', () => {
+    const work = withEmbroidery().filter(
+      (r) => r.departmentCode === 'embroidery' && !r.standalone,
+    );
+    expect(work).toHaveLength(1);
+    expect(work[0].dependsOnCodes).toEqual(['cutting']);
+    expect(work[0].operation).toBeUndefined();
+  });
+
+  /**
+   * ЦИКЛЫ РАЗНЫЕ — ИНАЧЕ ЗАКАЗ НЕ СОЗДАЁТСЯ ВОВСЕ. Уникальность наших этапов
+   * `(item_id, department_id, cycle)`, и вторая вставка падает 23505 внутри
+   * транзакции, которая пишет и позиции, и нанесения, и ТЗ.
+   */
+  it('у двух этапов одного цеха РАЗНЫЕ циклы', () => {
+    for (const on of ['cut', 'finished'] as const) {
+      const emb = withEmbroidery(on).filter((r) => r.departmentCode === 'embroidery');
+      expect(emb).toHaveLength(2);
+      expect(emb.map((r) => r.cycle ?? 0).sort()).toEqual([0, 1]);
+    }
+  });
+
+  it('цикл доезжает до сервера — обе RPC его пишут', () => {
+    // Клиент может слать что угодно: пока функции не пишут колонку,
+    // оба этапа лягут с cycle = 0 и вторая вставка упадёт
+    /**
+     * Кавычки УДВОЕНЫ: вставка живёт внутри строкового литерала DO-блока,
+     * которым функции пересобираются из `pg_get_functiondef`. Одинарные
+     * означали бы сверку с несуществующим текстом — сторож был бы зелен
+     * ровно тогда, когда его нечего сторожить.
+     */
+    const sql = latestMatching(
+      /coalesce\(\(v_stage->>''cycle''\)::int, 0\)/,
+      'cycle в erp_create_order',
+    );
+    expect(sql).toMatch(/coalesce\(\(v_step->>''cycle''\)::int, 0\)/);
+    expect(sql).toMatch(/executor, contractor, operation, cycle\)/);
   });
 });

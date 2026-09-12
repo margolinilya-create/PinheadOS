@@ -80,9 +80,16 @@ describe('параллельные ветки — один шаг маршрут
       brandingOn: 'cut',
     });
     const draft = draftFromRoute(route);
-    const branchGroup = draft.find((g) => g.length > 1);
+    /**
+     * Групп с несколькими шагами теперь ДВЕ: первая несёт закупку и
+     * подготовительную разработку программы вышивки (12.09, п. 2), вторая —
+     * сами ветки нанесения. Ищем ту, что после кроя, иначе проверка молча
+     * переехала бы на подготовку и перестала бы сторожить ветки.
+     */
+    const cutAt = draft.findIndex((g) => g.some((st) => st.departmentCode === 'cutting'));
+    const branchGroup = draft.slice(cutAt + 1).find((g) => g.length > 1);
     expect(branchGroup).toBeDefined();
-    expect(branchGroup!.map((s) => s.departmentCode).sort()).toEqual(['dtf', 'embroidery']);
+    expect(branchGroup!.map((st) => st.departmentCode).sort()).toEqual(['dtf', 'embroidery']);
   });
 
   it('у параллельных этапов ОДИНАКОВЫЙ порядок — иначе они перестанут быть ветками', () => {
@@ -269,6 +276,9 @@ describe('шаг черновика → payload сервера', () => {
       executor: 'contractor',
       contractor: 'ИП Иванов',
       operation: 'Варка',
+      // Цикл едет на сервер с 12.09: без него два наших этапа одного цеха
+      // (разработка программы и вышивка) упираются в уникальный индекс
+      cycle: 0,
       qty: 150,
       send_plan_date: '2026-08-25',
       planned_date: '2026-08-28',

@@ -59,7 +59,20 @@ function makeOrder(input: {
   const route = buildItemRoute({
     brandingMethods: [], brandingOn: 'cut', materialSource: 'pinhead', ...input,
   });
-  const idByCode = new Map(route.map((r, i) => [r.departmentCode, `st${i + 1}`]));
+  /**
+   * Код → id ПРОИЗВОДСТВЕННОГО этапа участка.
+   *
+   * `standalone` пропускается намеренно: с 12.09 у цеха вышивки этапов два
+   * (разработка программы и сама вышивка), и простая карта по коду
+   * перезаписывала бы одну другой — швейка начала бы зависеть от подготовки
+   * вместо работы. Настоящий `createOrder` связывает этапы по ИНДЕКСАМ
+   * в массиве, и такой неоднозначности у него нет.
+   */
+  const idByCode = new Map(
+    route.map((r, i) => [r, `st${i + 1}`] as const)
+      .filter(([r]) => !r.standalone)
+      .map(([r, id]) => [r.departmentCode, id]),
+  );
   const stages = route.map((r, i) => ({
     id: `st${i + 1}`,
     item_id: 'it1',
@@ -89,6 +102,13 @@ function readyCodes(built: Built): string[] {
     .sort();
 }
 
+/** Id этапов, готовых прямо сейчас */
+function readyIds(built: Built): string[] {
+  return buildQueueEntries([built.order], DEPARTMENTS as never)
+    .filter((e) => e.group === 'ready')
+    .map((e) => e.stage.id);
+}
+
 /** Причина ожидания у этапа конкретного цеха (null — не ждёт) */
 function reasonFor(built: Built, code: string): string | null {
   const entry = buildQueueEntries([built.order], DEPARTMENTS as never)
@@ -109,8 +129,14 @@ function walk(built: Built): string[][] {
     const ready = readyCodes(built);
     if (ready.length === 0) break;
     steps.push(ready);
-    for (const st of built.stages) {
-      if (ready.includes(built.codeOf(st.id))) st.status = 'done';
+    /**
+      * Закрываем по ID, а не по коду: у позиции с вышивкой этапов этого цеха
+      * два, и закрытие по коду гасило бы саму вышивку вместе с подготовкой —
+      * прогон объявлял бы маршрут пройденным, ни разу его не пройдя.
+      */
+    for (const id of readyIds(built)) {
+      const st = built.stages.find((x) => x.id === id);
+      if (st) st.status = 'done';
     }
   }
   return steps;
@@ -142,8 +168,20 @@ describe('маршрут проходится целиком — по каждо
       input: {
         productionType: 'sewing', brandingMethods: ['dtf', 'embroidery'], brandingOn: 'cut',
       },
-      // Обе ветки готовы одновременно, швейка ждёт обе
-      expected: [['supply'], ['cutting'], ['dtf', 'embroidery'], ['sewing'], ['vto']],
+      /**
+       * Обе ветки готовы одновременно, швейка ждёт обе.
+       *
+       * В ПЕРВОЙ ВОЛНЕ ТЕПЕРЬ ДВОЕ (правка 12.09, п. 2): вместе с закупкой
+       * готова разработка программы вышивки. Это и есть требование дословно —
+       * «задача должна создаваться независимо от этапа „Закрой"»: она доступна
+       * цеху с первого дня и никого не ждёт. Сама вышивка по-прежнему приходит
+       * третьей волной, после кроя, и закрываются они независимо — прогон
+       * идёт через `buildQueueEntries`, то есть проверяет настоящую готовность,
+       * а не список этапов.
+       */
+      expected: [
+        ['embroidery', 'supply'], ['cutting'], ['dtf', 'embroidery'], ['sewing'], ['vto'],
+      ],
     },
     {
       name: 'пошив + нанесение на готовом (после ВТО)',
@@ -232,7 +270,18 @@ describe('маршрут проходится целиком — по каждо
     const built = makeOrder({
       productionType: 'sewing', brandingMethods: ['dtf', 'embroidery'], brandingOn: 'cut',
     });
-    for (const id of ['st1', 'st2']) built.stages.find((s) => s.id === id)!.status = 'done';
+    /**
+     * Закрываем ПОДГОТОВКУ И ЦЕПОЧКУ ДО ВЕТОК — по смыслу, а не по номерам
+     * `st1`/`st2`: с 12.09 первым этапом идёт разработка программы вышивки,
+     * и жёсткие номера молча закрыли бы не то, что назвали.
+     */
+    for (const st of built.stages) {
+      if (['supply', 'cutting', 'embroidery'].includes(built.codeOf(st.id))
+          && st.depends_on.length === 0) {
+        st.status = 'done';
+      }
+      if (built.codeOf(st.id) === 'cutting') st.status = 'done';
+    }
     expect(readyCodes(built)).toEqual(['dtf', 'embroidery']);
 
     // Закрываем только ДТФ — швейка обязана продолжать ждать вышивку

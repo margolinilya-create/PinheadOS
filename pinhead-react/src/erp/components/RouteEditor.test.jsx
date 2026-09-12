@@ -101,6 +101,9 @@ describe('RouteEditor', () => {
     const EMPTY_SUB = {
       qty: null, send_plan_date: null, planned_date: null,
       responsible: null, materials_note: null, comment: null,
+      // Цикл едет с 12.09 у КАЖДОГО шага: у позиции с вышивкой этапов одного
+      // цеха два, и без цикла правка маршрута падала бы 23505
+      cycle: 0,
     };
     expect(steps).toEqual([
       {

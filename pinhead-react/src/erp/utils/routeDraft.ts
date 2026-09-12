@@ -58,6 +58,19 @@ export interface RouteStep {
   /** Имя операции, когда оно расходится с именем цеха (сублимация и т.п.) */
   operation: string;
   /**
+   * Проход позиции через этот цех. Значим там, где цех встречается дважды:
+   * разработка программы вышивки и сама вышивка — два НАШИХ этапа одного
+   * участка, и уникальность `(item_id, department_id, cycle)` требует разных
+   * значений (правка 12.09, п. 2).
+   */
+  cycle: number;
+  /**
+   * Этап ВНЕ цепочки: не ждёт предыдущую группу и не держит следующую.
+   * Единственный такой этап сегодня — разработка программы вышивки.
+   * Подробное обоснование — `routes.RouteStage.standalone`.
+   */
+  standalone: boolean;
+  /**
    * Поля ПОДРЯДНОГО этапа (правки заказчика 20.08): «если при построении
    * маршрута менеджер выбирает этап "Подряд", внутри этапа открываются
    * дополнительные поля».
@@ -130,6 +143,8 @@ export function emptyStep(departmentCode: string): RouteStep {
     executor: executorForDept(departmentCode),
     contractor: '',
     operation: '',
+    cycle: 0,
+    standalone: false,
     qty: '',
     sendPlan: '',
     returnPlan: '',
@@ -150,7 +165,15 @@ export function draftFromRoute(route: readonly RouteStage[]): RouteGroup[] {
   const byOrder = new Map<number, RouteGroup>();
   for (const r of route) {
     const group = byOrder.get(r.sortOrder) ?? [];
-    group.push(emptyStep(r.departmentCode));
+    // Поля расчёта переносятся ЦЕЛИКОМ: инвариант тождества требует, чтобы
+    // открытый и не тронутый конструктор отдавал ровно тот же маршрут,
+    // а операция и цикл — такая же его часть, как участок и порядок
+    group.push({
+      ...emptyStep(r.departmentCode),
+      operation: r.operation ?? '',
+      cycle: r.cycle ?? 0,
+      standalone: r.standalone ?? false,
+    });
     byOrder.set(r.sortOrder, group);
   }
   return [...byOrder.entries()]
@@ -243,6 +266,8 @@ interface StageLike extends Pick<
   executor?: string;
   contractor?: string | null;
   operation?: string | null;
+  /** Проход через цех: у позиции с вышивкой этапов этого участка два */
+  cycle?: number;
 }
 
 /**
@@ -302,6 +327,20 @@ export function draftFromStages(
       executor: s.executor === 'contractor' ? 'contractor' : 'internal',
       contractor: s.contractor ?? '',
       operation: s.operation ?? '',
+      /**
+       * Цикл берётся у САМОГО ЭТАПА: у позиции с вышивкой их два в одном цехе
+       * (разработка программы и сама вышивка, правка 12.09), и потеряв цикл,
+       * сохранение конструктора свело бы их в один — 23505 при первой правке
+       * маршрута.
+       */
+      cycle: s.cycle ?? 0,
+      /**
+       * `standalone` из этапа НЕ выводится и не хранится: он про то, как
+       * строился маршрут, а у существующего этапа связи уже записаны
+       * в `depends_on`. Конструктор их пересчитает по группам — ровно как
+       * делал всегда.
+       */
+      standalone: false,
       qty: text(sub?.qty),
       sendPlan: text(sub?.send_plan_date),
       returnPlan: text(sub?.planned_date),
@@ -429,6 +468,17 @@ export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
     const mine: number[] = [];
     for (let si = 0; si < group.length; si += 1) {
       const step = group[si];
+      /**
+       * ЭТАП ВНЕ ЦЕПОЧКИ (правка 12.09, п. 2) не участвует в связях с обеих
+       * сторон: не получает `depends_on` от предыдущей группы и не попадает
+       * в `mine`, то есть не становится предшественником следующей. Разработка
+       * программы вышивки не ждёт закупку и не держит крой — иначе забытая
+       * галочка вышивальщицы останавливала бы производство.
+       */
+      if (step.standalone) {
+        out.push({ step, sortOrder: sort, dependsOn: [], gi, si });
+        continue;
+      }
       mine.push(out.length);
       /**
        * Координаты шага в черновике едут вместе с ним: по ним форма создания
@@ -461,6 +511,7 @@ export function stepPayload(step: RouteStep): {
   executor: 'internal' | 'contractor';
   contractor: string | null;
   operation: string | null;
+  cycle: number;
   qty: number | null;
   send_plan_date: string | null;
   planned_date: string | null;
@@ -475,6 +526,9 @@ export function stepPayload(step: RouteStep): {
     executor: step.executor,
     contractor: contractor ? str(step.contractor) : null,
     operation: str(step.operation),
+    // Цикл едет НА СЕРВЕР: без него два наших этапа одного цеха упираются
+    // в уникальный индекс, и заказ не создаётся вовсе (правка 12.09, п. 2)
+    cycle: Number.isFinite(step.cycle) ? step.cycle : 0,
     // Подрядные поля у нашего этапа не хранятся вовсе: спутника у него нет,
     // и присланное значение молча пропало бы — хуже, чем не отправленное
     qty: contractor && step.qty.trim() && Number.isFinite(qty) && qty > 0 ? qty : null,
