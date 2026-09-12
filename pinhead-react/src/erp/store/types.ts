@@ -1237,6 +1237,13 @@ export interface PlanSlice {
  * разделено, написано в шапке самого слайса.
  */
 export interface OrderWriteSlice {
+  /**
+   * Правка созданного заказа одной транзакцией (правка 12.09, п. 7).
+   * `payload` — секции `order` и `items` (с нанесениями и бирками) в том же
+   * виде, что принимает `erp_update_order`. Маршрут сюда не входит: он
+   * правится конструктором, иначе правка срока стёрла бы факт цеха.
+   */
+  saveOrderEdits: (orderId: string, payload: Record<string, unknown>) => Promise<boolean>;
   createOrder: (input: NewOrderInput) => Promise<ErpOrderFull | null>;
   updateOrder: (id: string, patch: Partial<ErpOrder>) => Promise<boolean>;
   /**

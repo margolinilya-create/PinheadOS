@@ -16,6 +16,7 @@ import {
   loadOrderDraft,
   SIZE_PRESETS,
   emptyPurchaseRow,
+  draftFromOrder,
   toggleSize,
   validateOrderForm,
   brandingOnOptions,
@@ -702,5 +703,146 @@ describe('цвет / поставщик доходит от формы до це
     // и одинарные здесь означали бы, что мы сверяемся с несуществующим текстом
     expect(sql).toMatch(/v_item->>''color_supplier''/);
     expect(sql).toMatch(/replace\(v_def, v_cols_old, v_cols_new\)/);
+  });
+});
+
+/**
+ * РЕДАКТИРОВАНИЕ ЗАКАЗА (правка 12.09, п. 7): заказ → черновик формы.
+ *
+ * Главная проверка — ИНВАРИАНТ: форма, открытая на существующем заказе
+ * и не тронутая человеком, обязана описывать ровно тот же заказ. Это тот же
+ * приём, что у конструктора маршрута, и по той же причине: иначе одно
+ * открытие карточки молча меняет данные, и заметить это можно только
+ * по тому, что заказ поехал не туда.
+ */
+describe('заказ → черновик формы (правка 12.09, п. 7)', () => {
+  const ORDER = {
+    bitrix_id: '4821',
+    title: 'Худи ЧЁРНЫЙ',
+    customer: 'ООО Ромашка',
+    manager: 'Иванов',
+    launch_date: '2026-09-01',
+    due_date: '2026-09-20',
+    packaging: 'polybag',
+    packaging_note: 'по одной',
+    packaging_width_mm: 300,
+    packaging_height_mm: 400,
+    stickers: 'client',
+    stickers_note: 'на дно',
+    no_chestny_znak: true,
+    purchase_required: false,
+    items: [{
+      id: 'it1',
+      product_type: 'Худи',
+      variant: 'чёрное',
+      fit: 'Oversize',
+      qty: 100,
+      main_fabric: 'футер 320',
+      color_supplier: 'пыльная роза, Атлас',
+      trim_material: null,
+      cutting_note: null,
+      sewing_note: 'плоский шов',
+      labels_note: null,
+      production_type: 'sewing',
+      branding_on: 'cut',
+      size_grid: [
+        { color: 'чёрный', sizes: { S: 10, M: 20 } },
+        { color: 'белый', sizes: { M: 30, XXL: 40 } },
+      ],
+      prints: [{ id: 'p1', method: 'embroidery', zone: 'грудь', width_mm: 80, special: null }],
+      labels: [{ id: 'l1', label_type: 'размерник', place: 'шов', size: null, comment: null }],
+    }],
+  };
+
+  it('поля заказа переносятся в форму как есть', () => {
+    const { form } = draftFromOrder(ORDER);
+    expect(form.bitrix_id).toBe('4821');
+    expect(form.customer).toBe('ООО Ромашка');
+    expect(form.due_date).toBe('2026-09-20');
+    expect(form.no_chestny_znak).toBe(true);
+    expect(form.purchase_required).toBe(false);
+    expect(form.packaging_width_mm).toBe('300');
+  });
+
+  /**
+   * NULL В КОНТРОЛИРУЕМОМ ПОЛЕ делает `<input>` неуправляемым: React роняет
+   * предупреждение, а человек видит поле, которое «не печатается».
+   */
+  it('пустые колонки становятся пустыми строками, а не null', () => {
+    const { items } = draftFromOrder(ORDER);
+    expect(items[0].trim_material).toBe('');
+    expect(items[0].cutting_note).toBe('');
+    expect(items[0].labels[0].size).toBe('');
+  });
+
+  /**
+   * РАЗМЕРЫ — ИЗ КЛЮЧЕЙ ДАННЫХ, А НЕ ИЗ ПРЕСЕТА. Пресет можно менять без
+   * миграции (правило проекта), и заказ со старым набором обязан открыться
+   * со СВОИМИ размерами: взяв `SIZE_PRESETS`, форма показала бы не то, что
+   * вводил человек, и первое же сохранение стёрло бы столбцы.
+   */
+  it('размеры сетки берутся из самих строк', () => {
+    const { items } = draftFromOrder(ORDER);
+    expect(items[0].size_grid?.sizes).toEqual(['S', 'M', 'XXL']);
+    expect(gridTotal(items[0].size_grid)).toBe(100);
+  });
+
+  it('id позиций, нанесений и бирок сохраняются — по ним сервер сопоставляет строки', () => {
+    const { items } = draftFromOrder(ORDER);
+    expect(items[0].id).toBe('it1');
+    expect(items[0].prints[0].id).toBe('p1');
+    expect(items[0].labels[0].id).toBe('l1');
+    // Ключи формы — свои: в базе их нет, а макеты привязываются по ним
+    expect(items[0].prints[0].key).toBeTruthy();
+    expect(items[0].prints[0].key).not.toBe('p1');
+  });
+
+  it('заказ без позиций открывается с одной пустой — иначе править нечего', () => {
+    const { items } = draftFromOrder({ ...ORDER, items: [] });
+    expect(items).toHaveLength(1);
+    expect(isItemEmpty(items[0])).toBe(true);
+  });
+
+  /**
+   * ИНВАРИАНТ: открыли и не тронули — форма описывает тот же заказ.
+   * Проверяется по тем полям, которые человек действительно вводит:
+   * расхождение в любом из них означает, что правка заказа молча меняет
+   * данные, которых её не просили менять.
+   */
+  it('открытая и не тронутая форма описывает ТОТ ЖЕ заказ', () => {
+    const { form, items } = draftFromOrder(ORDER);
+    expect(form.title).toBe(ORDER.title);
+    expect(form.manager).toBe(ORDER.manager);
+    expect(form.launch_date).toBe(ORDER.launch_date);
+    expect(form.packaging).toBe(ORDER.packaging);
+    expect(form.stickers).toBe(ORDER.stickers);
+
+    const it = items[0];
+    expect(it.product_type).toBe(ORDER.items[0].product_type);
+    expect(it.variant).toBe(ORDER.items[0].variant);
+    expect(it.fit).toBe(ORDER.items[0].fit);
+    expect(Number(it.qty)).toBe(ORDER.items[0].qty);
+    expect(it.main_fabric).toBe(ORDER.items[0].main_fabric);
+    expect(it.color_supplier).toBe(ORDER.items[0].color_supplier);
+    expect(it.production_type).toBe(ORDER.items[0].production_type);
+    expect(it.branding_on).toBe(ORDER.items[0].branding_on);
+    // Сетка не теряет ни строк, ни чисел
+    expect(gridToPayload(it.size_grid)).toEqual(ORDER.items[0].size_grid);
+    // Нанесение с блоком «есть нанесения» раскрытым — иначе оно исчезнет с глаз
+    expect(it.has_branding).toBe(true);
+    expect(it.prints[0].method).toBe('embroidery');
+    expect(it.prints[0].width_mm).toBe(80);
+  });
+
+  it('умолчания проставляются там, где колонки нет вовсе', () => {
+    // Заказ, заведённый до появления колонки: «не задано» обязано читаться
+    // так же, как читает его расчёт маршрута, — иначе правка изменит маршрут
+    const { form, items } = draftFromOrder({ items: [{ id: 'i', product_type: 'Кепка' }] });
+    expect(form.purchase_required).toBe(true);
+    expect(form.packaging).toBe('none');
+    expect(items[0].production_type).toBe('sewing');
+    expect(items[0].garment_source).toBe('purchased');
+    expect(items[0].packaging).toBe('inherit');
+    expect(items[0].has_branding).toBe(false);
   });
 });

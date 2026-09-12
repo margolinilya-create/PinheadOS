@@ -15,6 +15,7 @@ import {
   emptyPrint,
   emptyOrderForm,
   gridToPayload,
+  draftFromOrder,
   isFormEmpty,
   isItemEmpty,
   loadOrderDraft,
@@ -86,8 +87,27 @@ function buildTzItems(items, routes, deptByCode) {
  * открытии чистой формы: человек мог начать заказ вчера, и терять его работу
  * ради чистоты нельзя.
  */
-export function CreateOrderModal({ onClose, draftId = null }) {
+/**
+ * ОДНА ФОРМА НА СОЗДАНИЕ И ПРАВКУ (правка 12.09, п. 7).
+ *
+ * «В карточке уже созданного заказа добавить действие „Редактировать".
+ * По нажатию должна открываться форма заказа с уже заполненными текущими
+ * значениями. Разрешить редактировать те же пользовательские поля заказа
+ * и позиций, которые заполняются при создании».
+ *
+ * Вторая форма рядом разошлась бы с первой в первую же правку — тот же довод,
+ * по которому конструктор маршрута (`RouteFields`) общий для карточки заказа
+ * и формы создания. Расходятся ровно три вещи: откуда берётся начальное
+ * состояние, что делает сабмит и как называются заголовок с кнопкой.
+ *
+ * `order` — ПОЛНЫЙ заказ (после `loadOne`), а не списочный: `size_grid`
+ * намеренно выброшена из `ORDER_LIST_SELECT`, и на списочном форма открылась
+ * бы с пустой размерной сеткой, а первое же сохранение её стёрло.
+ */
+export function CreateOrderModal({ onClose, draftId = null, order = null }) {
+  const isEdit = Boolean(order);
   const createOrder = useErpStore((s) => s.createOrder);
+  const saveOrderEdits = useErpStore((s) => s.saveOrderEdits);
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const departments = useErpStore((s) => s.departments);
   const [saving, setSaving] = useState(false);
@@ -146,6 +166,8 @@ export function CreateOrderModal({ onClose, draftId = null }) {
    * автосохранения затирало бы то, что человек печатает прямо сейчас.
    */
   const [restoredDraft] = useState(() => {
+    // В режиме правки черновики не при чём: они про НЕсозданный заказ
+    if (isEdit) return null;
     if (draftId) {
       const row = drafts.find((d) => d.id === draftId);
       return row?.payload ? normalizeDraft(row.payload) : null;
@@ -154,8 +176,19 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     return loadOrderDraft();
   });
   const [rowId, setRowId] = useState(draftId);
-  const [form, setForm] = useState(() => restoredDraft?.form ?? emptyOrderForm(initialLaunch));
-  const [items, setItems] = useState(() => restoredDraft?.items ?? [{ ...EMPTY_ITEM }]);
+  /**
+   * Начальное состояние: в правке — из заказа, иначе — черновик или пустая
+   * форма. Обратное преобразование живёт в `utils/orderForm.draftFromOrder`
+   * и покрыто инвариантом «открыл и не тронул — тот же заказ»: иначе одно
+   * открытие карточки молча меняло бы данные.
+   */
+  const [initial] = useState(() => (isEdit ? draftFromOrder(order) : null));
+  const [form, setForm] = useState(
+    () => initial?.form ?? restoredDraft?.form ?? emptyOrderForm(initialLaunch),
+  );
+  const [items, setItems] = useState(
+    () => initial?.items ?? restoredDraft?.items ?? [{ ...EMPTY_ITEM }],
+  );
   /*
     СТРОК-ПОДСКАЗОК ЛИСТА ЗАКУПКИ БОЛЬШЕ НЕТ (правки 07.09, п. 14): состояние
     `purchase`, его действия и секция `materials` payload ушли вместе с блоком.
@@ -392,12 +425,25 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const toggleSection = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
 
+  /**
+   * Гейт ТЗ — ТОЛЬКО ПРИ СОЗДАНИИ (правка 12.09, п. 7).
+   *
+   * Он отвечает на вопрос «можно ли ЗАВЕСТИ заказ без техзадания»: заказ
+   * с производственным маршрутом без ТЗ встанет в первом же цехе. К правке
+   * существующего заказа вопрос не относится — документы у него свои,
+   * живут в карточке (`TzDocsSection`), и секция `tz` в payload правки
+   * не едет вовсе. Оставь гейт здесь — и заказ, заведённый до появления
+   * требования, стало бы нельзя отредактировать вообще: кнопка заблокирована
+   * из-за файла, которого эта форма даже не показывает.
+   */
   const tzValidation = useMemo(
-    () => validateTzDocs(
-      tzItems,
-      tzDocs.map((d) => ({ itemIndex: d.itemIndex, uploaded: d.state === 'uploaded' })),
-    ),
-    [tzItems, tzDocs],
+    () => (isEdit
+      ? { missing: [], message: '' }
+      : validateTzDocs(
+        tzItems,
+        tzDocs.map((d) => ({ itemIndex: d.itemIndex, uploaded: d.state === 'uploaded' })),
+      )),
+    [isEdit, tzItems, tzDocs],
   );
 
 
@@ -440,6 +486,16 @@ export function CreateOrderModal({ onClose, draftId = null }) {
   const rowIdRef = useRef(draftId);
   useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
   useEffect(() => {
+    /**
+     * В РЕЖИМЕ ПРАВКИ ЧЕРНОВИК НЕ ПИШЕТСЯ (правка 12.09, п. 7).
+     *
+     * `erp_order_drafts` — про НЕсозданный заказ: «+ Новый заказ» открывает
+     * самый свежий черновик. Пиши мы туда правку существующего, следующее
+     * создание открылось бы чужими данными, а сам черновик создания оказался
+     * бы затёрт. Несохранённая правка теряется при закрытии — и об этом
+     * спрашивает `confirm`, ровно как при удалении заполненного блока.
+     */
+    if (isEdit) return undefined;
     const t = setTimeout(async () => {
       try {
         if (isFormEmpty(form, items, initialLaunch)) {
@@ -466,7 +522,7 @@ export function CreateOrderModal({ onClose, draftId = null }) {
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
+  }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
 
   const resetDraft = async () => {
     clearOrderDraft();
@@ -582,6 +638,90 @@ export function CreateOrderModal({ onClose, draftId = null }) {
     }
 
     setSaving(true);
+
+    /**
+     * РЕЖИМ ПРАВКИ (правка 12.09, п. 7): обновляем ТОТ ЖЕ заказ и выходим.
+     *
+     * Ветка стоит ДО сборки payload создания, потому что создание собирает
+     * то, чего у правки нет и быть не должно: маршрут (он правится
+     * конструктором в карточке — иначе правка срока стёрла бы факт цеха),
+     * секцию ТЗ и привязку вложений по индексам новых строк. Сервер
+     * сопоставляет позиции по `id`, а не по порядку: индекс сдвинулся бы,
+     * и техблок уехал бы к чужому изделию.
+     */
+    if (isEdit) {
+      const ok = await saveOrderEdits(order.id, {
+        order: {
+          bitrix_id: form.bitrix_id.trim() || null,
+          title: form.title.trim(),
+          customer: form.customer.trim() || null,
+          manager: form.manager.trim() || null,
+          launch_date: form.launch_date || null,
+          due_date: form.due_date || null,
+          packaging: form.packaging,
+          packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || null : null,
+          packaging_width_mm: form.packaging_width_mm || null,
+          packaging_height_mm: form.packaging_height_mm || null,
+          stickers: form.stickers,
+          stickers_note: form.stickers_note.trim() || null,
+          no_chestny_znak: form.no_chestny_znak,
+          purchase_required: form.purchase_required,
+        },
+        // Позиции без `id` — новые, и добавление позиций вне этой правки:
+        // оно заводит этапы, а это отдельный разговор. Сервер их пропускает,
+        // здесь отбор стоит ради честности payload
+        items: validItems.filter((it) => it.id).map((it) => ({
+          id: it.id,
+          product_type: it.product_type.trim(),
+          variant: it.variant.trim() || null,
+          qty: effectiveQty(it),
+          production_type: it.production_type,
+          branding_on: it.branding_on,
+          garment_source: it.garment_source,
+          notes: it.notes?.trim() || null,
+          size_grid: gridToPayload(it.size_grid),
+          fit: it.fit.trim() || null,
+          main_fabric: it.main_fabric.trim() || null,
+          color_supplier: it.color_supplier.trim() || null,
+          trim_material: it.trim_material.trim() || null,
+          cutting_note: it.cutting_note.trim() || null,
+          sewing_note: it.sewing_note.trim() || null,
+          labels_note: it.labels_note.trim() || null,
+          packaging: it.packaging,
+          packaging_size: it.packaging_size?.trim() || null,
+          sticker_place: it.sticker_place?.trim() || null,
+          marking_place: it.marking_place?.trim() || null,
+          packaging_note: it.packaging_note?.trim() || null,
+          packaging_width_mm: it.packaging_width_mm || null,
+          packaging_height_mm: it.packaging_height_mm || null,
+          prints: (it.prints ?? []).map((p) => ({
+            id: p.id ?? null,
+            method: p.method,
+            zone: p.zone?.trim() || null,
+            width_mm: p.width_mm || null,
+            height_mm: p.height_mm || null,
+            offset_note: p.offset_note?.trim() || null,
+            pantone: p.pantone?.trim() || null,
+            special: p.special?.trim() || null,
+            garment_kind: p.garment_kind?.trim() || null,
+            comment: p.comment?.trim() || null,
+          })),
+          labels: (it.labels ?? []).map((l) => ({
+            id: l.id ?? null,
+            label_type: l.label_type?.trim() || null,
+            place: l.place?.trim() || null,
+            size: l.size?.trim() || null,
+            comment: l.comment?.trim() || null,
+          })),
+        })),
+      });
+      setSaving(false);
+      if (ok) {
+        toast.success('Изменения сохранены');
+        onClose();
+      }
+      return;
+    }
 
     /**
      * Файлы ТЗ уже лежат в бакете (грузятся при выборе), заказ вместе с документами
@@ -835,9 +975,11 @@ export function CreateOrderModal({ onClose, draftId = null }) {
         noValidate
         role="dialog"
         aria-modal="true"
-        aria-label="Новый производственный заказ"
+        aria-label={isEdit ? `Правка заказа ${order.title}` : 'Новый производственный заказ'}
       >
-        <div className={styles.modalTitle}>Новый заказ</div>
+        <div className={styles.modalTitle}>
+          {isEdit ? `Правка заказа${order.bitrix_id ? ` №${order.bitrix_id}` : ''}` : 'Новый заказ'}
+        </div>
 
         {draftRestored && (
           <div className={styles.draftBanner} role="status">
@@ -1197,7 +1339,9 @@ export function CreateOrderModal({ onClose, draftId = null }) {
             disabled={saving || tzUploading || tzFailed || attach.uploading || attach.failed
           || tzValidation.missing.length > 0
           || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}>
-            {saving ? 'Создание…' : 'Создать заказ'}
+            {isEdit
+              ? (saving ? 'Сохранение…' : 'Сохранить изменения')
+              : (saving ? 'Создание…' : 'Создать заказ')}
           </Button>
         </div>
       </form>

@@ -1,10 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
 import { LoadFailed } from '../components/ErpStates';
 import InlineEdit from '../components/InlineEdit';
 import { Icon } from '../components/Icon';
+/**
+ * Форма заказа приезжает ЛЕНИВО и здесь тоже: полторы тысячи строк вместе
+ * с под-компонентами, а открывает её меньшинство и по требованию — тот же
+ * довод, что у списка заказов.
+ */
+const CreateOrderModal = lazy(() => import('./orders/CreateOrderModal')
+  .then((m) => ({ default: m.CreateOrderModal })));
 import { formatDateShort } from '../utils/time';
 import { orderProgress } from '../utils/progress';
 import {
@@ -70,6 +77,8 @@ export default function OrderCard() {
    * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
    */
   const canManageOrder = useErpAccess().can('order.manage');
+  /** Открыта ли форма правки заказа (правка 12.09, п. 7) */
+  const [editing, setEditing] = useState(false);
 
   /**
    * «Сейчас» для шапки. Тот же расчёт, что рисует колонку списка заказов:
@@ -162,7 +171,32 @@ export default function OrderCard() {
         <Link to={backTo} className={`${styles.subText} ${styles.cellWithIcon}`}>
           <Icon name="chevronLeft" size={13} />Заказы
         </Link>
+        <div className={styles.spacer} />
+        {/*
+          «РЕДАКТИРОВАТЬ» (правка 12.09, п. 7): «после создания заказа его
+          данные нельзя нормально отредактировать — приходится обходить
+          текущую логику или создавать заказ заново».
+
+          Под `order.manage` — тем же правом, что требует серверная
+          `erp_update_order`. Иначе получилось бы запрещённое в проекте
+          «кнопка есть, действие падает», причём после заполнения всей формы.
+
+          Форма открывается на ПОЛНОМ заказе: он уже дозагружен (`loadOne`
+          в `useOrderDetail`), и размерная сетка на месте — в списочной
+          выборке её нет намеренно, и на ней форма открылась бы с пустой
+          сеткой, а сохранение её стёрло.
+        */}
+        {canManageOrder && (
+          <Button variant="secondary" icon="pencil" onClick={() => setEditing(true)}>
+            Редактировать
+          </Button>
+        )}
       </div>
+      {editing && (
+        <Suspense fallback={null}>
+          <CreateOrderModal order={order} onClose={() => setEditing(false)} />
+        </Suspense>
+      )}
       <PageHead title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`} />
       <div className={styles.toolbar} style={{ gap: 18, marginTop: -8 }}>
         {/* Клиент собирается формой создания и правится в боковой карточке, но на

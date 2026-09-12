@@ -328,3 +328,113 @@ describe('CreateOrderModal — чьё готовое изделие (п. 4)', ()
     expect(submitBtn()).toBeEnabled();
   });
 });
+
+/**
+ * РЕЖИМ ПРАВКИ (правка 12.09, п. 7).
+ *
+ * Проверяется ровно то, что просит документ и что легко сломать незаметно:
+ * форма открывается ЗАПОЛНЕННОЙ, сохранение ОБНОВЛЯЕТ тот же заказ, нового
+ * не создаётся, и маршрут в payload не едет — иначе правка срока стёрла бы
+ * факт цеха.
+ */
+describe('CreateOrderModal — правка созданного заказа', () => {
+  const ORDER = {
+    id: 'o-1',
+    bitrix_id: '4821',
+    title: 'BOX39 футболки',
+    customer: 'ООО Ромашка',
+    manager: 'Иванов',
+    launch_date: '2026-09-01',
+    due_date: '2026-09-20',
+    purchase_required: false,
+    items: [{
+      id: 'it-1',
+      product_type: 'Футболка',
+      qty: 100,
+      production_type: 'sewing',
+      branding_on: 'cut',
+      main_fabric: 'футер 320',
+      prints: [],
+      labels: [],
+    }],
+  };
+
+  function setupEdit() {
+    const saveOrderEdits = vi.fn().mockResolvedValue(true);
+    const createOrder = vi.fn();
+    useErpStore.setState({
+      departments: DEPARTMENTS,
+      orders: [ORDER],
+      loaded: true,
+      createOrder,
+      saveOrderEdits,
+      saveOrderDraft: vi.fn(),
+      deleteOrderDraft: vi.fn(),
+      employees: [],
+      profilesList: [],
+      employeesLoaded: true,
+      loadEmployees: vi.fn().mockResolvedValue(undefined),
+    });
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter>
+        <CreateOrderModal order={ORDER} onClose={onClose} />
+      </MemoryRouter>,
+    );
+    return { saveOrderEdits, createOrder, onClose };
+  }
+
+  it('открывается заполненной текущими значениями', () => {
+    setupEdit();
+    expect(screen.getByPlaceholderText('напр. BOX39 свитшоты')).toHaveValue('BOX39 футболки');
+    expect(screen.getByPlaceholderText('футболка')).toHaveValue('Футболка');
+    expect(screen.getByLabelText(/Кол-во/)).toHaveValue(100);
+    // Заголовок и кнопка называют режим: «Создать заказ» на существующем
+    // заказе читается как «сейчас появится второй»
+    expect(screen.getByText(/Правка заказа/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сохранить изменения/ })).toBeInTheDocument();
+  });
+
+  it('сохранение обновляет ТОТ ЖЕ заказ и не создаёт новый', async () => {
+    const { saveOrderEdits, createOrder, onClose } = setupEdit();
+    fireEvent.change(screen.getByLabelText('Клиент'), { target: { value: 'ООО Новый' } });
+    fireEvent.click(screen.getByRole('button', { name: /Сохранить изменения/ }));
+
+    await waitFor(() => expect(saveOrderEdits).toHaveBeenCalled());
+    expect(createOrder).not.toHaveBeenCalled();
+    const [orderId, payload] = saveOrderEdits.mock.calls[0];
+    expect(orderId).toBe('o-1');
+    expect(payload.order.customer).toBe('ООО Новый');
+    // Позиция адресуется по id: индекс сдвинулся бы при удалении соседней,
+    // и техблок уехал бы к чужому изделию
+    expect(payload.items[0].id).toBe('it-1');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  /**
+   * МАРШРУТ И ТЗ В PAYLOAD ПРАВКИ НЕ ЕДУТ. Этапы правятся конструктором
+   * в карточке позиции: тронь их здесь — и правка срока стёрла бы `qty_done`,
+   * журнал и плановые даты, то есть работу цеха.
+   */
+  it('этапы и ТЗ в payload правки не попадают', async () => {
+    const { saveOrderEdits } = setupEdit();
+    fireEvent.click(screen.getByRole('button', { name: /Сохранить изменения/ }));
+    await waitFor(() => expect(saveOrderEdits).toHaveBeenCalled());
+    const [, payload] = saveOrderEdits.mock.calls[0];
+    expect(payload.items[0].stages).toBeUndefined();
+    expect(payload.tz).toBeUndefined();
+    expect(payload.attachments).toBeUndefined();
+  });
+
+  /**
+   * ЧЕРНОВИК В РЕЖИМЕ ПРАВКИ НЕ ПИШЕТСЯ: `erp_order_drafts` — про НЕсозданный
+   * заказ, и «+ Новый заказ» открывает самый свежий черновик. Запиши мы туда
+   * правку существующего — следующее создание открылось бы чужими данными.
+   */
+  it('черновик существующего заказа не сохраняется', async () => {
+    setupEdit();
+    fireEvent.change(screen.getByLabelText('Клиент'), { target: { value: 'Кто-то' } });
+    await new Promise((r) => { setTimeout(r, 700); });
+    expect(useErpStore.getState().saveOrderDraft).not.toHaveBeenCalled();
+  });
+});

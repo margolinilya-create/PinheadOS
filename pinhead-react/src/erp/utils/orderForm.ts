@@ -56,6 +56,8 @@ export interface DraftPrint {
    * к чужой вышивке. В payload ключ не едет.
    */
   key: string;
+  /** Id существующего нанесения — только в режиме правки (правка 12.09, п. 7) */
+  id?: string;
   method: string;
   zone: string;
   width_mm: string | number;
@@ -82,6 +84,8 @@ export interface DraftPrint {
  */
 export interface DraftLabel {
   key: string;
+  /** Id существующей бирки — в режиме правки (правка 12.09, п. 7) */
+  id?: string;
   label_type: string;
   place: string;
   size: string;
@@ -94,6 +98,13 @@ export interface DraftGrid {
 }
 
 export interface DraftItem {
+  /**
+   * Id существующей позиции — только в режиме ПРАВКИ (правка 12.09, п. 7).
+   * По нему сервер сопоставляет строки; индекс массива для этого не годится:
+   * удаление средней позиции сдвинуло бы все следующие, и техблок уехал бы
+   * к чужому изделию. У новой позиции его нет вовсе.
+   */
+  id?: string;
   product_type: string;
   variant: string;
   /**
@@ -724,4 +735,150 @@ function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
 
 export function clearOrderDraft(): void {
   storageRemove(ORDER_DRAFT_KEY);
+}
+
+// --- Существующий заказ → черновик формы (правка 12.09, п. 7) ------------------
+
+/**
+ * ОБРАТНОЕ ПРЕОБРАЗОВАНИЕ: заказ из базы → состояние формы.
+ *
+ * ЗАЧЕМ. «В карточке уже созданного заказа добавить действие „Редактировать".
+ * По нажатию должна открываться форма заказа с уже заполненными текущими
+ * значениями». Форма одна на оба пути — создание и правку, — и вторая её
+ * копия разошлась бы с первой в первую же правку; значит нужен переводчик
+ * в обратную сторону, которого в проекте не было вовсе.
+ *
+ * ДВА ПРАВИЛА, БЕЗ КОТОРЫХ ЭТО ЛОМАЕТСЯ МОЛЧА.
+ *
+ * 1. NULL СТАНОВИТСЯ ПУСТОЙ СТРОКОЙ. В базе «не заполнено» — это NULL,
+ *    в форме — `''`. Положив NULL в контролируемый `<input>`, React делает
+ *    поле неуправляемым и роняет предупреждение, а человек видит поле,
+ *    которое «не печатается».
+ *
+ * 2. РАЗМЕРЫ БЕРУТСЯ ИЗ КЛЮЧЕЙ ДАННЫХ, А НЕ ИЗ ПРЕСЕТА. `size_grid` хранит
+ *    размеры ключами объекта (правило проекта: пресет можно менять без
+ *    миграции), и заказ, заведённый со старым набором, обязан открыться
+ *    со СВОИМИ размерами. Взяв `SIZE_PRESETS`, мы показали бы человеку
+ *    не то, что он вводил, и первое же сохранение стёрло бы столбцы.
+ *
+ * Ключи нанесений и бирок генерируются заново: в базе их нет (там `id`),
+ * а форме они нужны, чтобы привязывать макеты к строкам. Сам `id` едет
+ * рядом — по нему сервер сопоставляет строки при сохранении, и индекс
+ * массива для этого не годится: удаление средней строки сдвинуло бы всё
+ * ниже, и техблок уехал бы к чужой позиции.
+ */
+export interface OrderLike {
+  bitrix_id?: string | null;
+  title?: string | null;
+  customer?: string | null;
+  manager?: string | null;
+  launch_date?: string | null;
+  due_date?: string | null;
+  packaging?: string | null;
+  packaging_note?: string | null;
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
+  stickers?: string | null;
+  stickers_note?: string | null;
+  no_chestny_znak?: boolean | null;
+  purchase_required?: boolean | null;
+  items?: readonly Record<string, unknown>[];
+}
+
+/** NULL/undefined → пустая строка; число остаётся числом только там, где надо */
+function str(v: unknown): string {
+  return v === null || v === undefined ? '' : String(v);
+}
+
+/** Размеры сетки — объединение ключей ВСЕХ строк, в порядке появления */
+function sizesOfGrid(rows: readonly SizeGridRow[]): string[] {
+  const out: string[] = [];
+  for (const r of rows) {
+    for (const size of Object.keys(r?.sizes ?? {})) {
+      if (!out.includes(size)) out.push(size);
+    }
+  }
+  return out;
+}
+
+export function draftFromOrder(order: OrderLike): { form: DraftForm; items: DraftItem[] } {
+  const form: DraftForm = {
+    bitrix_id: str(order.bitrix_id),
+    title: str(order.title),
+    customer: str(order.customer),
+    manager: str(order.manager),
+    launch_date: str(order.launch_date),
+    due_date: str(order.due_date),
+    packaging: str(order.packaging) || 'none',
+    packaging_note: str(order.packaging_note),
+    packaging_width_mm: str(order.packaging_width_mm),
+    packaging_height_mm: str(order.packaging_height_mm),
+    stickers: str(order.stickers) || 'none',
+    stickers_note: str(order.stickers_note),
+    no_chestny_znak: order.no_chestny_znak === true,
+    // Отсутствие колонки читается как «закупка нужна» — то же умолчание,
+    // что у формы создания и у расчёта маршрута
+    purchase_required: order.purchase_required !== false,
+  };
+
+  const items = (order.items ?? []).map((raw) => {
+    const it = raw as Record<string, unknown>;
+    const rows = Array.isArray(it.size_grid) ? (it.size_grid as SizeGridRow[]) : [];
+    const prints = Array.isArray(it.prints) ? it.prints : [];
+    const labels = Array.isArray(it.labels) ? it.labels : [];
+    return {
+      ...EMPTY_ITEM,
+      id: str(it.id) || undefined,
+      product_type: str(it.product_type),
+      variant: str(it.variant),
+      fit: str(it.fit),
+      qty: it.qty ?? '',
+      main_fabric: str(it.main_fabric),
+      color_supplier: str(it.color_supplier),
+      trim_material: str(it.trim_material),
+      cutting_note: str(it.cutting_note),
+      sewing_note: str(it.sewing_note),
+      labels_note: str(it.labels_note),
+      packaging: str(it.packaging) || 'inherit',
+      packaging_size: str(it.packaging_size),
+      sticker_place: str(it.sticker_place),
+      marking_place: str(it.marking_place),
+      packaging_note: str(it.packaging_note),
+      packaging_width_mm: str(it.packaging_width_mm),
+      packaging_height_mm: str(it.packaging_height_mm),
+      production_type: str(it.production_type) || 'sewing',
+      garment_source: str(it.garment_source) || 'purchased',
+      branding_on: str(it.branding_on) || 'cut',
+      // Признак формы, а не колонка: нанесения есть — блок раскрыт
+      has_branding: prints.length > 0,
+      subcontract_kind: str(it.subcontract_kind) || 'finished_product',
+      material_source: str(it.material_source) || 'pinhead',
+      prints: (prints as Record<string, unknown>[]).map((p) => ({
+        ...emptyPrint(),
+        id: str(p.id) || undefined,
+        method: str(p.method) || 'embroidery',
+        zone: str(p.zone),
+        width_mm: p.width_mm ?? '',
+        height_mm: p.height_mm ?? '',
+        offset_note: str(p.offset_note),
+        pantone: str(p.pantone),
+        special: str(p.special),
+        garment_kind: str(p.garment_kind),
+        comment: str(p.comment),
+      })),
+      labels: (labels as Record<string, unknown>[]).map((l) => ({
+        ...emptyLabel(),
+        id: str(l.id) || undefined,
+        label_type: str(l.label_type),
+        place: str(l.place),
+        size: str(l.size),
+        comment: str(l.comment),
+      })),
+      size_grid: rows.length > 0 ? { sizes: sizesOfGrid(rows), rows } : null,
+    } as DraftItem;
+  });
+
+  // Заказ без позиций в форме не открывается пустым: одна пустая позиция —
+  // то же состояние, что у нового заказа, иначе править было бы нечего
+  return { form, items: items.length > 0 ? items : [{ ...EMPTY_ITEM }] };
 }
