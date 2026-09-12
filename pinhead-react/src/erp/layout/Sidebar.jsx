@@ -5,6 +5,7 @@ import styles from '../erp.module.css';
 import { useErpAccess } from '../store/useErpAccess';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { canOpenScreen } from '../utils/screenAccess';
+import { NAV_GROUPS } from './navGroups';
 
 /**
  * Вертикальная сгруппированная навигация ERP (редизайн, по макету).
@@ -16,57 +17,6 @@ import { canOpenScreen } from '../utils/screenAccess';
  * Логотип (правка 13) — ссылка на главную ERP, кликабелен весь блок.
  */
 
-const GROUPS = [
-  {
-    title: 'Главное',
-    items: [
-      { to: '/', label: 'Обзор', icon: 'overview', end: true },
-      { to: '/orders', label: 'Заказы', icon: 'orders' },
-      /**
-       * Один пункт вместо трёх (решение заказчика 03.08.2026). Раньше рядом
-       * стояли «Производство» → /board, «План производства» → /plan и
-       * «Загрузка цехов» → /load, причём заголовок /board гласил
-       * «Производственный план» — то есть пункт меню и страница назывались
-       * по-разному, а два соседних пункта отвечали на близкие вопросы.
-       * Вкладки внутри раздела — ProductionTabs; адреса не менялись,
-       * поэтому закладки и ссылки в переписке живы.
-       *
-       * `match` — маршруты, на которых пункт считается активным: без него
-       * человек, стоящий на вкладке «План», видел бы меню без подсветки.
-       */
-      { to: '/board', label: 'Производство', icon: 'board', match: ['/plan', '/load', '/gantt'] },
-      /*
-        ПУНКТА «МОЙ ЦЕХ» ЗДЕСЬ БОЛЬШЕ НЕТ (правки 07.09, п. 18).
-
-        Он вёл на `/queue` без кода участка и был вторым входом в тот же
-        экран, что и группа «Цеха» ниже: свой участок в ней и так стоит
-        со своим числом заданий, а два счёта одного цеха в одном меню
-        приходилось РАЗЛИЧАТЬ ПОДПИСЯМИ («Готово к запуску» против «Заданий
-        в очереди») — то есть объяснять человеку устройство меню вместо того,
-        чтобы показать работу. Цеховая роль теперь приземляется прямо
-        в очередь своего участка (`utils/landing`).
-      */
-    ],
-  },
-  {
-    title: 'Операции',
-    items: [
-      // Видимость — по ПРАВУ (`utils/screenAccess`), общий список с маршрутами.
-      // `admin: true` здесь стоял до 10.08 и делал выданные права недостижимыми:
-      // кладовщик с `warehouse.manage` не видел «Склад» и не мог открыть адрес.
-      { to: '/purchasing', label: 'Закупка', icon: 'truck' },
-      { to: '/warehouse', label: 'Склад', icon: 'box' },
-      { to: '/subcontracting', label: 'Подряд', icon: 'users' },
-      { to: '/experimental', label: 'Эксперим. цех', icon: 'flask' },
-    ],
-  },
-  {
-    title: 'Настройки',
-    items: [
-      { to: '/admin', label: 'Админка', icon: 'settings', admin: true },
-    ],
-  },
-];
 
 /**
  * Пункт навигации со счётчиком заданий.
@@ -79,7 +29,7 @@ const GROUPS = [
  */
 function NavItem({ item, count, collapsed, countLabel = 'Активных задач' }) {
   const { pathname } = useLocation();
-  // Пункт-раздел подсвечивается и на своих вкладках (см. `match` в GROUPS)
+  // Пункт-раздел подсвечивается и на своих вкладках (см. `match` в navGroups)
   const matched = item.match?.some((m) => pathname === m || pathname.startsWith(`${m}/`));
   /**
    * АКТИВНЫЙ ПУНКТ ОБЯЗАН БЫТЬ ВИДЕН.
@@ -176,7 +126,7 @@ export function Sidebar({
       </Link>
 
       <nav className={styles.sidebarNav}>
-        {GROUPS.map((g) => {
+        {NAV_GROUPS.map((g) => {
           const items = g.items.filter(
             (n) => (!n.admin || isAdmin) && canOpenScreen(can, n.to),
           );

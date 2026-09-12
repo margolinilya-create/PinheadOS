@@ -1,0 +1,140 @@
+/* Командная строка раздела (Ctrl/Cmd+K). Вид — см. JSDoc компонента.
+
+   Слой: выше шторки и модалки не лезем — палитра это переход, а не диалог
+   поверх работы; `--z-modal` ей ровно по месту (см. шкалу в index.css). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* Панель не по центру вертикали: список растёт вниз, и центрированная
+     панель прыгала бы при каждом наборе символа */
+  padding: 12vh var(--space-lg) var(--space-lg);
+  background: var(--overlay);
+  z-index: var(--z-modal);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 70vh;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-modal);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-dim);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  /* ≥16px против зума iOS — правило проекта; здесь это ещё и главное поле */
+  min-height: 52px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+}
+.input:focus {
+  outline: none;
+}
+
+.list {
+  flex: 1;
+  margin: 0;
+  padding: var(--space-xs) 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.item {
+  display: block;
+}
+
+.groupHead {
+  display: block;
+  padding: var(--space-sm) var(--space-md) var(--space-xs);
+  color: var(--text-muted);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* ≥44px под палец: палитру открывают и с подключённой клавиатуры
+     на планшете */
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+/* ВЫБОР — СПЛОШНАЯ ЗАЛИВКА, а не бледная подсветка: пункт, выбранный
+   стрелками, обязан читаться с расстояния. Бледный вариант в этом проекте
+   уже приводил к тому, что отсутствие подсветки не читалось как поломка. */
+.optionActive {
+  background: var(--accent);
+  color: var(--btn-primary-fg);
+}
+.optionActive .optionHint {
+  color: var(--btn-primary-fg);
+  opacity: 0.8;
+}
+
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-body-sm);
+}
+
+.optionHint {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-lg) var(--space-md);
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: var(--type-label);
+}
+.footer kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg3);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+}

@@ -35,6 +35,14 @@ import appStyles from '../../App.module.css';
  */
 const PullToRefreshHost = lazy(() => import('../components/PullToRefreshHost'));
 
+/**
+ * Командная строка (Ctrl/Cmd+K) — тоже СВОИМ чанком. В оболочке остаётся
+ * только сочетание клавиш и флаг: панель со списком, её CSS и разбор
+ * запроса нужны ровно в те секунды, когда палитра открыта, а бюджет
+ * оболочки стоит в сотнях байт от потолка.
+ */
+const ErpCommandPalette = lazy(() => import('../components/ErpCommandPalette'));
+
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
@@ -69,6 +77,23 @@ export default function ErpLayout({ user, children }) {
    */
   const mainRef = useRef(null);
   const touchInput = useMediaQuery('(pointer: coarse)');
+
+  /**
+   * Ctrl/Cmd+K. Слушатель здесь, а не в палитре: палитра приезжает ленивым
+   * чанком, и сочетание клавиш, живущее внутри неё, не сработало бы ни разу —
+   * грузить её было бы нечему.
+   */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Сворачивание сайдбара (persist); на узких экранах — по умолчанию свёрнут
   const [collapsed, setCollapsed] = useState(() => {
@@ -359,6 +384,12 @@ export default function ErpLayout({ user, children }) {
           {children}
         </main>
       </div>
+
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <ErpCommandPalette onClose={() => setPaletteOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
