@@ -14,24 +14,36 @@
  *   - URL:          ?styleguide=1
  *   - env (билд):   VITE_FEATURE_STYLEGUIDE=1
  * По умолчанию выключена: это инструмент разработки, а не раздел ERP.
+ *
+ * Обязательный финальный пакет разработки (правка 12.09, п. 9) — ВЫКЛЮЧЕН:
+ *   - URL:          ?devpackage=1
+ *   - env (билд):   VITE_FEATURE_DEV_PACKAGE=1
+ * Заказчик просит «временно убрать» проверку образца и обязательность
+ * техдокументации, «чтобы его можно было вернуть позже». Флаг и есть это
+ * «позже»: данные в БД остаются, поля и блок возвращаются переключателем,
+ * без нового релиза. Серверный страж читает ту же величину — иначе вышло бы
+ * запрещённое в проекте «кнопка есть, действие падает».
  */
 
-export type FeatureName = 'orderStudio' | 'styleguide';
+export type FeatureName = 'orderStudio' | 'styleguide' | 'devFinalPackageRequired';
 
 const DEFAULTS: Record<FeatureName, boolean> = {
   orderStudio: false,
   styleguide: false,
+  devFinalPackageRequired: false,
 };
 
 const ENV_KEYS: Record<FeatureName, string> = {
   orderStudio: 'VITE_FEATURE_ORDER_STUDIO',
   styleguide: 'VITE_FEATURE_STYLEGUIDE',
+  devFinalPackageRequired: 'VITE_FEATURE_DEV_PACKAGE',
 };
 
 /** Короткие URL-параметры для быстрого включения */
 const URL_KEYS: Record<FeatureName, string> = {
   orderStudio: 'studio',
   styleguide: 'styleguide',
+  devFinalPackageRequired: 'devpackage',
 };
 
 const LS_PREFIX = 'pinhead_feature_';
@@ -99,6 +111,9 @@ export const FEATURES = {
   },
   get styleguide(): boolean {
     return isFeatureEnabled('styleguide');
+  },
+  get devFinalPackageRequired(): boolean {
+    return isFeatureEnabled('devFinalPackageRequired');
   },
 };
 

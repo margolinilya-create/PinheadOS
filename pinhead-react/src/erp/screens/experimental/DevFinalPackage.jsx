@@ -5,7 +5,8 @@ import { Icon } from '../../components/Icon';
 import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import {
-  DEV_ATTACHMENT_KINDS, finalPackageProgress, missingFinalPackage, wantsSkuCard,
+  DEV_ATTACHMENT_KINDS, finalPackageProgress, isFinalPackageRequired,
+  missingFinalPackage, wantsSkuCard,
 } from '../../utils/finalPackage';
 import styles from '../../styles';
 
@@ -109,6 +110,7 @@ export function DevFinalPackage({
   const pkg = dev.final_package ?? {};
   const missing = missingFinalPackage(dev, attachments);
   const progress = finalPackageProgress(dev, attachments);
+  const required = isFinalPackageRequired();
   const filesOf = (kind) => attachments.filter((a) => a.kind === kind);
   const wantsSku = wantsSkuCard(dev);
   /**
@@ -346,7 +348,18 @@ export function DevFinalPackage({
       )}
 
       {/* Документ требует НАЗВАТЬ недостающее, а не просто закрыть кнопку */}
-      {missing.length > 0 ? (
+      {/*
+        ПРИ СНЯТОМ ТРЕБОВАНИИ (правка 12.09, п. 9) перечень пуст ВСЕГДА, и
+        прежняя вторая ветка сказала бы «Пакет заполнен» на пустых полях —
+        то есть соврала бы ровно там, где человек ждёт подтверждения. Поля
+        остаются и по-прежнему нужны производству, просто не держат кнопку.
+      */}
+      {!required ? (
+        <p className={styles.subText}>
+          Заполнение пакета сейчас необязательно — разработку можно завершить
+          и без него. Данные не теряются: заполненное сохраняется как обычно.
+        </p>
+      ) : missing.length > 0 ? (
         <div className={styles.tzBlock}>
           <div className={styles.fieldLabel}>
             <Icon name="alert" size={13} /> Не хватает, чтобы завершить разработку

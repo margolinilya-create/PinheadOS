@@ -1,13 +1,29 @@
-import { describe, expect, it } from 'vitest';
-import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { clearFeature, setFeature } from '../../config/features';
+import {
+  functionBody, latestDefining, latestMatching, withoutComments,
+} from './migrations.testutil';
 import {
   DEV_ATTACHMENT_KINDS,
   devAttachments,
   finalPackageProgress,
   isFinalPackageReady,
+  isFinalPackageRequired,
   missingFinalPackage,
   wantsSkuCard,
 } from './finalPackage';
+
+/**
+ * ТРЕБОВАНИЕ ПАКЕТА ВРЕМЕННО СНЯТО (правка 12.09, п. 9), и здесь оно
+ * ВКЛЮЧАЕТСЯ НАЗАД — иначе весь этот файл проверял бы пустой массив.
+ *
+ * Смысл сторожа не изменился: пока механизм существует, обе его половины
+ * (клиент и `erp_dev_package_guard`) обязаны совпадать словами. Флаг решает,
+ * применяется ли правило, а не каким оно должно быть; выключенное состояние
+ * проверяется отдельным блоком в конце файла.
+ */
+beforeEach(() => setFeature('devFinalPackageRequired', true));
+afterEach(() => clearFeature('devFinalPackageRequired'));
 
 /**
  * Финальный технический пакет: гейт кнопки и серверный страж — ОДНО правило.
@@ -181,8 +197,25 @@ describe('чего не хватает, чтобы завершить разра
   });
 });
 
+/**
+ * СВЕРКА ПОЛОВИН ЧИТАЕТ МИГРАЦИЮ, ЗАВОДИВШУЮ ПРАВИЛО, А НЕ ПОСЛЕДНЮЮ
+ * (правка 12.09, п. 9).
+ *
+ * С 12.09 страж ОТКЛЮЧЁН: его тело — `return new`, и `latestDefining` отдавал
+ * бы теперь пустую функцию, то есть весь этот блок проверял бы пустоту
+ * и был бы зелен при любом расхождении. Но проверять его надо: правка
+ * временная, требование возвращают одним переключателем плюс одной
+ * миграцией, и к тому дню половины обязаны по-прежнему совпадать словами.
+ *
+ * Поэтому здесь стоит `latestMatching` по ТЕКСТУ правила: последняя миграция,
+ * которая его действительно формулирует. А то, что действующий страж
+ * отключён, сторожится отдельно — ниже.
+ */
 describe('серверный страж повторяет клиентский гейт', () => {
-  const GUARD = latestDefining('erp_dev_package_guard');
+  const GUARD = latestMatching(
+    /Не заполнен финальный пакет/,
+    'erp_dev_package_guard (редакция с правилом)',
+  );
 
   it('срабатывает ТОЛЬКО на переходе в «Готово к серии»', () => {
     // Прочие исходы пакета не требуют: незаконченная разработка и должна
@@ -266,5 +299,58 @@ describe('серверный страж повторяет клиентский 
      */
     expect(GUARD).toMatch(/array_append\(v_missing, '/);
     expect(GUARD).not.toMatch(/v_missing := v_missing \|\|/);
+  });
+});
+
+/**
+ * ВЫКЛЮЧЕННОЕ СОСТОЯНИЕ — то, ради чего правка 12.09 и делалась.
+ *
+ * Проверяется не «перечень пуст», а то, что снятие требования НЕ трогает
+ * данные: заполненный пакет остаётся заполненным, и включение флага
+ * возвращает ровно прежний список. Иначе «временно убрать» однажды
+ * оказалось бы необратимым.
+ */
+describe('требование пакета снято (правка 12.09, п. 9)', () => {
+  beforeEach(() => setFeature('devFinalPackageRequired', false));
+
+  it('ничего не держит завершение разработки', () => {
+    expect(missingFinalPackage({}, [])).toEqual([]);
+    expect(isFinalPackageReady({}, [])).toBe(true);
+    expect(isFinalPackageRequired()).toBe(false);
+  });
+
+  it('включение возвращает требования целиком — данные не тронуты', () => {
+    const dev = { final_package: { add_to_sku: true } };
+    expect(missingFinalPackage(dev, [])).toEqual([]);
+    setFeature('devFinalPackageRequired', true);
+    const back = missingFinalPackage(dev, []);
+    expect(back).toContain('Образец отшит и проверен');
+    expect(back).toContain('Технический паспорт');
+    expect(back).toContain('Ценовая вилка');
+  });
+});
+
+/**
+ * ДЕЙСТВУЮЩИЙ СТРАЖ ОТКЛЮЧЁН — и это проверяется отдельно от сверки половин.
+ *
+ * Клиент с выключенным флагом разрешает завершить разработку без пакета.
+ * Если бы страж при этом остался строгим, получилось бы запрещённое
+ * в проекте «кнопка есть, действие падает» — у технолога и с текстом 23514.
+ * Сторож смотрит ПОСЛЕДНЮЮ редакцию функции, то есть на то, что реально
+ * стоит в базе.
+ */
+describe('страж финального пакета отключён (правка 12.09, п. 9)', () => {
+  it('последняя редакция ничего не требует', () => {
+    const body = withoutComments(
+      functionBody(latestDefining('erp_dev_package_guard'), 'erp_dev_package_guard'),
+    );
+    expect(body).not.toMatch(/raise exception/);
+    expect(body).toMatch(/return new/);
+  });
+
+  it('права пересозданной функции отозваны заново', () => {
+    // Пересоздание выдаёт EXECUTE от PUBLIC заново — отзыв обязан повториться
+    expect(latestDefining('erp_dev_package_guard'))
+      .toMatch(/revoke execute on function public\.erp_dev_package_guard\(\) from public, anon/);
   });
 });

@@ -22,7 +22,7 @@ import {
   DEV_STAGE_LABELS, devRouteSteps, extraTasks,
 } from '../../utils/experimentalBoard';
 import { devContext } from '../../utils/devContext';
-import { wantsSkuCard } from '../../utils/finalPackage';
+import { isFinalPackageRequired, wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
@@ -620,8 +620,14 @@ export function DevCard({
             )}
 
             {/* Приёмка образца — ДЕЙСТВИЕ по текущей работе, поэтому она здесь,
-                а не в истории доработок: история отвечает на «что уже было» */}
-            {!dev.outcome && (
+                а не в истории доработок: история отвечает на «что уже было».
+
+                СКРЫТА ПРАВКОЙ 12.09, П. 9 («временно убрать из рабочего
+                сценария блок „Проверка образца"»). Данные не трогаем:
+                `sample_approved_at/by/note` остаются в БД, а блок
+                возвращается тем же флагом, что и требование пакета, —
+                одно решение заказчика, один переключатель. */}
+            {isFinalPackageRequired() && !dev.outcome && (
               <DevSampleCheck
                 dev={dev}
                 tasks={tasks}

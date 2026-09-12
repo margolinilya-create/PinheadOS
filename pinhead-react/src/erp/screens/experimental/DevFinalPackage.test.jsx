@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { clearFeature, setFeature } from '../../../config/features';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DevFinalPackage } from './DevFinalPackage';
 
@@ -45,6 +46,14 @@ const FILES = [
   { id: 'a1', kind: 'dev_passport', file_name: 'passport.pdf' },
   { id: 'a2', kind: 'dev_photo', file_name: 'sample.jpg' },
 ];
+
+/**
+ * ТРЕБОВАНИЕ ПАКЕТА ВКЛЮЧЕНО ЯВНО (правка 12.09, п. 9): по умолчанию оно
+ * снято, и без этого весь файл проверял бы форму, которая ничего не требует.
+ * Поведение при снятом требовании проверяется отдельным блоком ниже.
+ */
+beforeEach(() => setFeature('devFinalPackageRequired', true));
+afterEach(() => clearFeature('devFinalPackageRequired'));
 
 describe('финальный этап: обязательная техдокументация (п. 4.5)', () => {
   it('спрашивает ровно четыре обязательных поля документа', () => {
