@@ -491,6 +491,61 @@ URL: https://pinhead-os.vercel.app
 - `utils/progress.stageCountProgress` — «завершено N из M этапов»
   (сумма по штукам осталась в подсказке)
 
+## Правила сессии 55 (приёмы bencho.dev): где что лежит
+
+- **Числовое поле с шагом** — `erp/components/NumberStepper` (+ свой
+  `.module.css` с тач-блоком, как у `Button`). Кривая разгона —
+  `erp/utils/stepperSweep` (`HOLD_MS`, `sweptSteps`, `valueAfterSteps`):
+  чистая, проверяется ЗНАЧЕНИЯМИ, потому что на jsdom нет ни кадров,
+  ни реального времени. `onChange` отдаёт СТРОКУ, как нативное поле, —
+  так устроены все восемь мест вызова. Границы зажимают КНОПКИ, набранный
+  текст не зажимается (при `min = 5` «10» стало бы «5» на первой цифре)
+- **Подпись у степпера — через `htmlFor`**, никогда обёрткой `<label>`:
+  `<button>` в HTML тоже labelable, и обёртка связалась бы с «Уменьшить»
+- **Протяжка подтверждения** — `components/shared/SlideConfirm`, включается
+  в `ConfirmDialog` при `variant === 'danger'` И `(pointer: coarse)`
+  (константа `TOUCH_INPUT` объявлена там же: зависимость «общее → erp»
+  направлена не туда). Коммит НА ПОРОГЕ (`COMMIT_AT = 0.92`), клавиатура —
+  `Enter`/`Space` на том же треке. Доля пути уходит в CSS одним числом
+  `--slide-progress`, объявленным со значением по умолчанию В МОДУЛЕ:
+  `var()` без объявленного токена браузер отбрасывает молча, а фолбэк
+  запрещён (`styles/tokens.test.ts` поймал оба нарушения сразу)
+- **Потянуть — обновить** — `erp/hooks/usePullToRefresh` (механика) +
+  `erp/components/PullToRefreshHost` (видимая полоса, ленивый чанк).
+  Смонтировано в `ErpLayout` на `mainRef`: прокручивается в разделе РОВНО
+  один элемент — `.main`, и вешать хук на каждый экран значило бы завести
+  пятнадцать мест для одного вопроса. Колбэк — существующий `resyncRealtime`
+- **Обработчики жеста ИМЕНОВАНЫ**, не переданы стрелками по месту: `remove`
+  сверяет ссылку, и анонимная стрелка не снимается никогда — каждое
+  переподключение эффекта добавляло бы ещё три слушателя на тот же узел
+- **Командная строка** — `erp/components/ErpCommandPalette` (ленивый чанк,
+  хоткей живёт в `ErpLayout`: сочетание клавиш внутри ленивого компонента
+  не сработало бы ни разу, грузить его было бы нечему) + чистый отбор
+  записей `erp/utils/commandPalette` (`buildCommandEntries`, `nextIndex`).
+  Гейт по праву — ТОЛЬКО там, и он дословно тот же, что у сайдбара
+- **Состав меню** — `erp/layout/navGroups.js` (`NAV_GROUPS`). Вынесен
+  из `Sidebar.jsx`: экспортировать константу из файла компонента запрещает
+  `react-refresh/only-export-components`, а копия в палитре была бы ТРЕТЬИМ
+  перечислением разделов. Аннотация `@type {NavGroup[]}` обязательна — без
+  неё TS выводит союз форм литерала, и `item.admin` не существует
+- **Токены движения** — блок Motion в `src/index.css`; сторож «шкала
+  движения» в `src/styles/tokens.test.ts`
+- **Группы токенов** — `src/styles/tokenGroups.ts`, общие для витрины
+  и `contrast.test.ts`. Арифметика WCAG — `src/styles/contrast.ts`
+  (вынесена из сторожа: читателей стало два). Подбор тона —
+  `src/styles/oklch.ts`
+- **Витрина-каталог** — `erp/screens/styleguide/`: `mechanisms.js` (записи),
+  `demos.jsx` (компоненты), `Knobs.jsx` (органы управления), `useKnobs.js`
+  (состояние). Разведены по `react-refresh/only-export-components` — файл
+  с компонентами не экспортирует ничего другого
+- **Заглушки `setPointerCapture`/`releasePointerCapture`** — в
+  `setupTests.js`, рядом с `scrollIntoView`: доступность метода это свойство
+  СРЕДЫ, а не условие предметной области
+- **Тест жеста подменяет И таймеры, И кадры, И `performance`.** Свип живёт
+  на `setTimeout` плюс `rAF`, а сколько шагов положено — считается от
+  `performance.now()`; подменишь только таймеры — цикл запустится, время
+  внутри не двинется, и сторож покажет ноль шагов на работающем свипе
+
 ## Правила сессии 44 (устойчивость раскладки): где что лежит
 
 - `deptsSettled(departments, bootstrapLoaded)` — `store/shared.ts`, рядом
@@ -1330,7 +1385,7 @@ URL: https://pinhead-os.vercel.app
 
 ## Тесты
 ```bash
-npm run test      # 1788 unit тестов (Vitest)
+npm run test      # 3986 unit тестов (Vitest)
 npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
 npm run e2e       # E2E (Playwright, 11 файлов, 96 сценариев desktop + 13 mobile).
                   # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
@@ -1374,3 +1429,10 @@ credentials» на уровне модуля — до React, поэтому Erro
 - Высоты примитивов заданы явно + свой @media (pointer: coarse) в их CSS-модуле
   (общий список классов ≥44px — в erp.module.css)
 - Анимации: fadeSlideIn, slideInRight, scaleIn, skeleton shimmer
+- Движение: токены `--dur-fast/--dur/--dur-slow/--dur-slower` и `--ease-out`/
+  `--ease-spring` (блок Motion в `src/index.css`, заведены 12.09 — до этого
+  в проекте не было ни одного `cubic-bezier`). Длительности ретрофитнуты
+  только там, где совпадают значением; кривые читают ТОЛЬКО новые компоненты
+- Органы управления под палец: `NumberStepper` (тап — шаг, удержание — свип),
+  `SlideConfirm` (протяжка у необратимых действий, только `pointer: coarse`),
+  `usePullToRefresh` (жест на `.main`, ленивый чанк)
