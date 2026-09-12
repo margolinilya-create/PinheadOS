@@ -38,13 +38,15 @@ describe('dueLabel — прозаическая метка срока', () => {
 
 describe('dueLabelCompact — плотная метка', () => {
   it('слово «просрочен» сохраняется: минус в потоке цифр читается как дефис', () => {
-    expect(dueLabelCompact(-5)).toBe('просрочен 5 дн.');
+    // Пробел между числом и словом — НЕРАЗРЫВНЫЙ (\u00A0): в колонке «Срок
+    // клиента» фраза переносилась посреди пары и читалась как «(10 / дн.)»
+    expect(dueLabelCompact(-5)).toBe('просрочен 5\u00A0дн.');
     expect(dueLabelCompact(-5)).not.toContain('−');
   });
 
   it('срок в будущем — только число с единицей', () => {
-    expect(dueLabelCompact(0)).toBe('0 дн.');
-    expect(dueLabelCompact(12)).toBe('12 дн.');
+    expect(dueLabelCompact(0)).toBe('0\u00A0дн.');
+    expect(dueLabelCompact(12)).toBe('12\u00A0дн.');
   });
 
   it('срока нет — прочерк, а не пустота', () => {

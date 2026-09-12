@@ -37,8 +37,13 @@ export function dueLabel(days: number | null | undefined): string {
  */
 export function dueLabelCompact(days: number | null | undefined): string {
   if (days === null || days === undefined) return '—';
-  if (days < 0) return `просрочен ${-days} ${dayWord(-days)}`;
-  return `${days} ${dayWord(days)}`;
+  // Между ЧИСЛОМ и СЛОВОМ — неразрывный пробел: в колонке «Срок клиента»
+  // (136px) фраза переносилась посреди пары, и строка читалась как
+  // «30.07.2026 (10 / дн.)». Неразрывной делается только пара — целиком
+  // неразрывный хвост «просрочен 2 дн.» не поместился бы вовсе и, как всякое
+  // непереносимое содержимое ячейки, лёг бы ПОВЕРХ соседней колонки.
+  if (days < 0) return `просрочен ${-days}\u00A0${dayWord(-days)}`;
+  return `${days}\u00A0${dayWord(days)}`;
 }
 
 /**
