@@ -27,6 +27,19 @@ async function gotoDevPage(page: Page, url: string) {
 }
 
 /**
+ * Открыть страницу разработки С ВКЛЮЧЁННЫМ требованием финального пакета.
+ *
+ * Требование снято правкой 12.09 (п. 9) и по умолчанию выключено у всех —
+ * но МЕХАНИЗМ жив и возвращается переключателем, поэтому сторожить его
+ * по-прежнему надо. Флаг решает, применяется ли правило сегодня, а не каким
+ * оно должно быть; спека без него проверяла бы пустой перечень и была бы
+ * зелёной при любом расхождении половин.
+ */
+async function gotoDevPageWithPackage(page: Page, url: string) {
+  await gotoDevPage(page, `${url}${url.includes('?') ? '&' : '?'}devpackage=1`);
+}
+
+/**
  * Открыть вкладку карточки разработки (референс 24.08).
  *
  * Карточка перестала быть одной простынёй: поля, задачи, файлы, история,
@@ -519,7 +532,7 @@ test.describe('Карточка разработки', () => {
      * «Примерка не принята» заводила жёсткую тройку задач независимо
      * от причины — вышивку перезапускали из-за длины рукава.
      */
-    await gotoDevPage(page, '/experimental/dev-fit?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-fit?studio=0');
     const drawer = page.getByRole('main');
     await drawer.getByRole('button', { name: 'Требуется доработка' }).click();
 
@@ -1027,7 +1040,7 @@ test.describe('Финальный технический пакет', () => {
      * данные не заполнены… система должна показать, какие поля ещё
      * не заполнены». Гейт кнопки — зеркало серверного стража.
      */
-    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-work?studio=0');
     await openDevTab(page, 'Финальный пакет');
     const main = page.getByRole('main');
     await expect(main).toContainText('Не хватает, чтобы завершить разработку');
@@ -1042,7 +1055,7 @@ test.describe('Финальный технический пакет', () => {
    * а не только прячет поля.
    */
   test('карточка SKU обязательна ровно при включённом переключателе', async ({ page }) => {
-    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-work?studio=0');
     await openDevTab(page, 'Финальный пакет');
     const main = page.getByRole('main');
 
@@ -1066,7 +1079,7 @@ test.describe('Финальный технический пакет', () => {
    * и она читалась как «работы здесь нет вовсе».
    */
   test('на шаге «Финальный этап» видно, чего не хватает пакету', async ({ page }) => {
-    await gotoDevPage(page, '/experimental/dev-ready?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-ready?studio=0');
     const main = page.getByRole('main');
     await expect(main).toContainText('Финальный пакет: собрано');
     await expect(main).toContainText('Технический паспорт');
@@ -1075,7 +1088,7 @@ test.describe('Финальный технический пакет', () => {
   });
 
   test('лекала не спрашиваются', async ({ page }) => {
-    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-work?studio=0');
     await openDevTab(page, 'Финальный пакет');
     const main = page.getByRole('main');
     await expect(main.getByLabel('Ссылка на лекала')).toHaveCount(0);
@@ -1093,7 +1106,7 @@ test.describe('Финальный технический пакет', () => {
  */
 test.describe('Вкладки карточки разработки', () => {
   test('вкладка живёт в адресе и переживает перезагрузку', async ({ page }) => {
-    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-work?studio=0');
     await openDevTab(page, 'Финальный пакет');
     await expect(page).toHaveURL(/tab=package/);
 
@@ -1111,7 +1124,7 @@ test.describe('Вкладки карточки разработки', () => {
    * что в карточке заказа.
    */
   test('возврат на «Задачи» убирает параметр из адреса', async ({ page }) => {
-    await gotoDevPage(page, '/experimental/dev-work?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-work?studio=0');
     await openDevTab(page, 'Файлы');
     await expect(page).toHaveURL(/tab=files/);
     await openDevTab(page, 'Задачи');
@@ -1124,7 +1137,7 @@ test.describe('Вкладки карточки разработки', () => {
    * только тому, кто угадал вкладку.
    */
   test('справка с блокером видна на любой вкладке', async ({ page }) => {
-    await gotoDevPage(page, '/experimental/dev-block?studio=0');
+    await gotoDevPageWithPackage(page, '/experimental/dev-block?studio=0');
     const aside = page.getByRole('complementary', { name: 'Справка по разработке' });
     await expect(aside).toContainText('нет решения по цвету подкладки');
 

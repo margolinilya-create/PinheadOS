@@ -370,18 +370,32 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     });
 
   /**
-   * СТАТУС «ЗАКАЗАНО» НЕ ВЫБИРАЕТСЯ (тот же п. 1): он ставится по факту —
-   * заполненным количеством к заказу и датой заказа. Пункт остаётся видимым,
-   * но недоступным: исчезнувшая строка списка читается как поломка.
+   * СЦЕНАРИЙ ЗАКУПКИ ЦЕЛИКОМ ВЫБИРАЕТСЯ РУКАМИ (правка 12.09, п. 8):
+   * «Не заказано» → «Заказано» → «В пути».
+   *
+   * С 24.08 «Заказано» было погашено («ставится по факту оформления»),
+   * заказчик это решение отменил. Вместо него погашены «Пришло» и «Частично»:
+   * приход фиксирует склад приёмкой, а не закупщик выбором. Пункты остаются
+   * видимыми — исчезнувшая строка списка читается как поломка.
    */
-  test('«Заказано» в списке статусов виден, но недоступен', async ({ page }) => {
+  test('основной сценарий выбирается, приёмочные статусы — нет', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     await supplyRow(page, 'Худи корпоратив')
       .getByRole('button', OPEN).click();
-    const select = page.getByLabel(/^Статус /).first();
+    /**
+     * Берём НЕПРИНЯТЫЙ материал («Бирки картонные», `pending`). У принятого
+     * пункт «Пришло» доступен намеренно — он показывает СВОЁ значение,
+     * иначе селект открылся бы пустым и соврал о состоянии строки.
+     */
+    const select = page.getByLabel('Статус Бирки картонные');
     await expect(select).toBeVisible();
-    await expect(select.getByRole('option', { name: /^Заказано/ })).toBeDisabled();
-    await expect(select.getByRole('option', { name: 'В пути' })).toBeEnabled();
+    // `exact: true`: «Заказано» — подстрока «Не заказано», и без этого
+    // локатор находит два пункта сразу
+    await expect(select.getByRole('option', { name: 'Не заказано', exact: true })).toBeEnabled();
+    await expect(select.getByRole('option', { name: 'Заказано', exact: true })).toBeEnabled();
+    await expect(select.getByRole('option', { name: 'В пути', exact: true })).toBeEnabled();
+    await expect(select.getByRole('option', { name: /^Пришло/ })).toBeDisabled();
+    await expect(select.getByRole('option', { name: /^Частично/ })).toBeDisabled();
   });
 
   test('бейдж «Закупка» в меню считает заказы, ждущие закупки', async ({ page }) => {
