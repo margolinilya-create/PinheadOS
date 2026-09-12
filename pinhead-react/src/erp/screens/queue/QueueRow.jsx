@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { OrderLink } from '../../components/OrderLink';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { stageQtyProgress } from '../../utils/progress';
+import { stageExtraQty, stageFactLabel } from '../../utils/stageQty';
 import { STAGE_STATUS_LABELS } from '../../types';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
@@ -44,6 +45,8 @@ export function QueueRow({
    */
   const unplanned = !stage.planned_end && group !== 'done' && stage.status !== 'skipped';
   const progress = stageQtyProgress(stage, item.qty);
+  // Сверх тиража (правка 12.09, п. 5) — считается, а не хранится
+  const extra = stageExtraQty(stage, item.qty);
   const display = group === 'ready' ? 'ready' : stage.status;
   // Индикатор ТЗ: сначала реальный PDF цеха (волна 4), иначе структурное ТЗ позиции
   const tzDoc = itemTzDocument(order, item.id);
@@ -221,11 +224,22 @@ export function QueueRow({
           )}
         </span>
 
-        <span className={styles.queueRowProgress} title={`Сделано ${progress.done} из ${progress.total} шт`}>
+        {/*
+          ПЕРЕВЫПОЛНЕНИЕ ПОКАЗЫВАЕТСЯ ЧИСЛОМ, А НЕ ПОЛОСОЙ (правка 12.09, п. 5).
+          Полоса отвечает на «сколько тиража закрыто», и 105 % означали бы,
+          что сделано больше, чем заказано, — а заказано ровно 100. «+5»
+          рядом отвечает на другой вопрос и не спорит с процентом.
+        */}
+        <span className={styles.queueRowProgress} title={stageFactLabel(stage, item.qty)}>
           <span className={styles.progressTrack} aria-hidden="true">
             <span className={styles.progressFill} style={{ width: `${progress.pct}%` }} />
           </span>
           <span className={styles.progressCell}>{progress.pct}%</span>
+          {extra > 0 && (
+            <span className={`${styles.chip} ${styles.chipReady}`} title={stageFactLabel(stage, item.qty)}>
+              +{extra}
+            </span>
+          )}
         </span>
 
         <span className={styles.queueRowActions}>

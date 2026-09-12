@@ -293,10 +293,16 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 )
               ) : (
                 <>
+                  {/*
+                    `max` СНЯТ (правка 12.09, п. 5): цех выпускает сверх тиража,
+                    и браузер запрещал ввести настоящее число — «плюсы»
+                    не доходили бы до системы вовсе. Остаток остаётся
+                    ПОДСКАЗКОЙ в плейсхолдере и в имени поля: он отвечает
+                    на «сколько ещё ждут», а не «сколько разрешено».
+                  */}
                   <input
                     type="number"
                     min="1"
-                    max={remaining}
                     className={`${styles.input} ${styles.qtySmallInput}`}
                     value={doneQty}
                     onChange={(e) => setDoneQty(e.target.value)}

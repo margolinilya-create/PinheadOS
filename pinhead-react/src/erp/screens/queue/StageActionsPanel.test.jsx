@@ -155,11 +155,16 @@ describe('StageActionsPanel — запись частичной готовнос
     expect(screen.getByRole('button', { name: /Записать результат/ })).toBeDisabled();
   });
 
-  it('в подсказке и метке — остаток, а не весь тираж', () => {
+  /**
+   * Остаток остаётся ПОДСКАЗКОЙ, но перестал быть ЗАПРЕТОМ (правка 12.09,
+   * п. 5): атрибут `max` не давал ввести настоящее число, когда цех выпустил
+   * сверх тиража, — то есть «плюсы» не дошли бы до системы вовсе.
+   */
+  it('в подсказке и метке — остаток, но ввод им не ограничен', () => {
     renderCard(makeEntry('in_progress', { qty_done: 4 }));
     const input = screen.getByRole('spinbutton', { name: /осталось 6 из 10/ });
     expect(input).toHaveAttribute('placeholder', 'из 6');
-    expect(input).toHaveAttribute('max', '6');
+    expect(input).not.toHaveAttribute('max');
   });
 
   it('передаёт в onProgress введённое число, а не остаток', async () => {

@@ -27,7 +27,6 @@ import { functionBody, latestDefining, withoutComments } from './migrations.test
  */
 const body = (fn: string) => withoutComments(functionBody(latestDefining(fn), fn));
 
-const CLAMP_FILE = latestDefining('erp_clamp_done');
 const CLAMP_DONE = body('erp_clamp_done');
 const CLAMP_REWORK = body('erp_clamp_rework');
 const PROGRESS_SQL = body('erp_stage_report_progress');
@@ -35,18 +34,53 @@ const DEFECT_SQL = body('erp_stage_apply_defect');
 const MOVE_SQL = body('erp_stage_move_department');
 
 describe('арифметика счётчиков этапа живёт в одном месте', () => {
+  /**
+   * Каждая функция спрашивается ПО СВОЕМУ последнему определению.
+   *
+   * Прежде проверка читала ОДИН файл, где обе были объявлены вместе, —
+   * и с 12.09 это перестало быть правдой: снятие потолка пересоздало
+   * `erp_clamp_done` отдельной миграцией, а `erp_clamp_rework` осталась
+   * в прежней. Сторож, привязанный к файлу, а не к функции, начал бы падать
+   * на верном коде — то есть учил бы обходить себя.
+   */
   it('правило обрезки объявлено функциями-выражениями, а не обёрткой с UPDATE', () => {
-    expect(CLAMP_FILE).toMatch(/create or replace function public\.erp_clamp_done\(/);
-    expect(CLAMP_FILE).toMatch(/create or replace function public\.erp_clamp_rework\(/);
+    expect(latestDefining('erp_clamp_done'))
+      .toMatch(/create or replace function public\.erp_clamp_done\(/);
+    expect(latestDefining('erp_clamp_rework'))
+      .toMatch(/create or replace function public\.erp_clamp_rework\(/);
     // `immutable` — признак чистой арифметики: функция не читает данные
-    expect(CLAMP_FILE).toMatch(/erp_clamp_done[\s\S]{0,200}immutable/);
+    expect(latestDefining('erp_clamp_done'))
+      .toMatch(/erp_clamp_done[\s\S]{0,200}immutable/);
     // Обёртки с UPDATE быть не должно: она разбила бы одно изменение на два
     expect(CLAMP_DONE).not.toMatch(/update /);
     expect(CLAMP_REWORK).not.toMatch(/update /);
   });
 
-  it('сделано обрезается снизу нулём и сверху тиражом', () => {
-    expect(CLAMP_DONE).toMatch(/greatest\(least\(/);
+  /**
+   * ПОТОЛКА БОЛЬШЕ НЕТ (правка заказчика 12.09, п. 5): «не ограничивать
+   * фактический результат количеством заказа… сохранять полный фактический
+   * результат». Прежде тест назывался «обрезается снизу нулём и сверху
+   * тиражом» и закреплял ровно то, что заказчик просит убрать.
+   *
+   * Обрезка СНИЗУ осталась и сторожится отдельно: отрицательный факт —
+   * не перевыполнение, а ошибка ввода, и снять её заодно было бы легко.
+   */
+  it('сделано обрезается снизу нулём, а сверху НЕ ограничивается', () => {
+    expect(CLAMP_DONE).toMatch(/greatest\(/);
+    expect(CLAMP_DONE).not.toMatch(/least\(/);
+  });
+
+  /**
+   * ВТОРОЙ ПОТОЛОК СТОЯЛ В BEFORE-ТРИГГЕРЕ, и сторож смотрит на него
+   * отдельно — иначе правка «работала» бы наполовину и молча: правило
+   * приращения отдаёт 105, а триггер таблицы возвращает их к 100, причём
+   * вызывающий видит «сохранилось».
+   */
+  it('триггер таблицы тоже не режет факт по тиражу', () => {
+    const trig = body('erp_clamp_stage_qty');
+    expect(trig).not.toMatch(/qty_done > v_qty/);
+    // Нижняя граница на месте — её легко было снять заодно
+    expect(trig).toMatch(/new\.qty_done < 0/);
   });
 
   /**

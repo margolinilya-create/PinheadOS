@@ -180,10 +180,29 @@ export function HistorySection({ events, audit, stageById, deptById }) {
                       <td>{dept ? deptShortName(dept.code, dept.name) : '—'}
                         {info?.it?.variant ? ` · ${info.it.variant}` : ''}
                       </td>
+                      {/*
+                        ФАКТ СВЕРХ ТИРАЖА НАЗЫВАЕТСЯ ЗДЕСЬ (правка 12.09, п. 5):
+                        «внутри заказа должна сохраняться история фактического
+                        количества по каждому этапу… отображать: Заказ — 100 шт /
+                        Факт — 105 шт / Плюс — +5 шт».
+
+                        Хранить для этого ничего не пришлось: `erp_stage_events`
+                        пишет `qty_done` каждого перехода с самого начала, то есть
+                        история факта по этапам уже была — её просто не называли
+                        полностью. «Плюс» считается тем же правилом, что в очереди
+                        цеха (`utils/stageQty`), и показывается, только когда он
+                        есть: «Плюс +0» — шум, за которым перестают замечать
+                        настоящее перевыполнение.
+                      */}
                       <td>
                         {STAGE_STATUS_LABELS[ev.to_status] || ev.to_status}
                         {ev.qty_done ? ` · ${ev.qty_done} шт` : ''}
                         {ev.qty_rework ? ` · брак ${ev.qty_rework} шт` : ''}
+                        {info?.it?.qty && ev.qty_done > info.it.qty && (
+                          <span className={`${styles.chip} ${styles.chipReady}`}>
+                            заказ {info.it.qty} · плюс +{ev.qty_done - info.it.qty}
+                          </span>
+                        )}
                         {ev.comment && <div className={styles.subText}>{ev.comment}</div>}
                       </td>
                     </tr>

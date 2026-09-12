@@ -227,7 +227,13 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     // `qty_done` каждый из своего стора и писали итог. A записал 30, B со своим
     // ещё нулевым состоянием записал 20 — в базе оставалось 20. Для цеха
     // с несколькими исполнителями это обычный день, а не редкая гонка.
-    const optimistic = Math.min(before + qty, total);
+    /**
+     * ПОТОЛКА БОЛЬШЕ НЕТ (правка 12.09, п. 5): цех сдал 105 при тираже 100 —
+     * столько и записывается. Прежний `Math.min(before + qty, total)` съедал
+     * превышение ещё до отправки, и человек видел «сохранилось» при числе,
+     * которого не называл.
+     */
+    const optimistic = before + qty;
     const patch: Partial<ErpItemStage> = { qty_done: optimistic };
     if (optimistic >= total) {
       patch.status = 'done';
@@ -248,10 +254,25 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     const row = (data ?? null) as ErpItemStage | null;
     if (row) set((s) => ({ orders: patchStageIn(s.orders, stageId, row) }));
 
+    /**
+     * СВЕРКА ОСТАЁТСЯ, НО ГОВОРИТ ДРУГОЕ. Прежний тост объяснял обрезку
+     * по тиражу — её больше нет, и такой текст стал бы неправдой. Расхождение
+     * при этом всё ещё возможно и всё ещё значимо: сосед по цеху мог записать
+     * свой результат между чтением и записью, и тогда засчитано будет меньше
+     * присланного. Молчать об этом нельзя — человек ушёл бы, считая, что сдал
+     * больше, чем в базе.
+     *
+     * Перевыполнение сообщается отдельно и ПОЛОЖИТЕЛЬНО: это не ошибка,
+     * а факт, который заказчик просит видеть.
+     */
     const after = row?.qty_done ?? optimistic;
     const credited = Math.max(after - before, 0);
     if (credited < qty) {
-      toast.warning(`Засчитано ${credited} шт из ${qty} — этап добрал полный тираж (${total})`);
+      toast.warning(`Засчитано ${credited} шт из ${qty} — результат записал кто-то ещё, проверьте число`);
+    }
+    const extra = Math.max(after - total, 0);
+    if (extra > 0) {
+      toast.success(`Записано ${after} шт при тираже ${total} — плюс +${extra} шт`);
     }
     logStageEvent({
       stage_id: stageId,
