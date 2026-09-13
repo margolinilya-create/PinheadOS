@@ -1,13 +1,12 @@
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { lastDefectPhotoUrl } from '../../store/useErpStore';
-import { OrderLink } from '../../components/OrderLink';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
-import { Button, ButtonLink } from '../../components/Button';
+import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 
 /**
@@ -36,13 +35,21 @@ export function QueueCard({
     <div className={cardCls}>
       <div className={styles.queueCardHead}>
         <div className={styles.queueCardHeadText}>
-          <OrderLink
-            orderId={order.id}
+          {/*
+            НАЗВАНИЕ СДЕЛКИ ОТКРЫВАЕТ ЗАДАНИЕ (правка 13.09, п. 5) — то же,
+            что в десктопной строке. Прежде заголовок вёл на карточку ЗАКАЗА,
+            а задание открывала отдельная ссылка «Открыть задание ↗» внизу
+            карточки: два перехода на одну карточку, и нужный цеху был ниже
+            всех действий.
+          */}
+          <Link
+            to={`/task/${stage.id}`}
+            state={{ from: `${location.pathname}${location.search}` }}
             className={`${styles.queueCardTitle} ${styles.queueCardTitleLink}`}
-            title={`№${order.bitrix_id || '—'} · ${order.title}`}
+            title={`Задание: №${order.bitrix_id || '—'} · ${order.title}`}
           >
             №{order.bitrix_id || '—'} · {order.title}
-          </OrderLink>
+          </Link>
           <div
             className={styles.subText}
             title={[item.product_type, item.variant, order.customer].filter(Boolean).join(' · ')}
@@ -227,19 +234,10 @@ export function QueueCard({
       />
 
       {/*
-        Переход на страницу задания стоит ПОСЛЕ действий, а не между ними
-        (обход 04.09). Раньше эта ссылка разрывала карточку посередине —
-        между приоритетом и ТЗ, — и читалась как ещё одно действие цеха,
-        хотя она про навигацию. Внизу она замыкает карточку и не спорит
-        с главной кнопкой за внимание.
+        Ссылки «Открыть задание ↗» внизу карточки больше нет (правка 13.09,
+        п. 5): тот же переход теперь на названии сделки в шапке карточки,
+        то есть на первом, а не на последнем элементе.
       */}
-      <ButtonLink
-        to={`/task/${stage.id}`}
-        state={{ from: `${location.pathname}${location.search}` }}
-        variant="ghost"
-      >
-        Открыть задание ↗
-      </ButtonLink>
     </div>
   );
 }

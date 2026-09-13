@@ -43,7 +43,7 @@ export const ORDER_SELECT = `
   warehouse_tasks:erp_warehouse_tasks (*),
   tz_documents:erp_tz_documents (*),
   notes_list:erp_order_notes (*),
-  developments:erp_experimental!erp_experimental_order_id_fkey (id, item_id, outcome, handed_to_warehouse_at)
+  developments:erp_experimental!erp_experimental_order_id_fkey (id, item_id, outcome, handed_to_warehouse_at, branding_note)
 `;
 
 /**
@@ -118,7 +118,7 @@ export const ORDER_LIST_SELECT = `
   warehouse_tasks:erp_warehouse_tasks (*),
   tz_documents:erp_tz_documents (*),
   notes_list:erp_order_notes (*),
-  developments:erp_experimental!erp_experimental_order_id_fkey (id, item_id, outcome, handed_to_warehouse_at)
+  developments:erp_experimental!erp_experimental_order_id_fkey (id, item_id, outcome, handed_to_warehouse_at, branding_note)
 `;
 
 /** Сортировка позиций и этапов по sort_order + дефолты для вложенных массивов */

@@ -19,6 +19,8 @@ import { Button } from '../../components/Button';
 import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { StageResultFile } from './StageResultFile';
+import { isFileResultStage, stageResultFiles } from '../../utils/stageResult';
+import { stageBrandingNote } from '../../utils/devNote';
 import { useStageMove } from '../../hooks/useStageMove';
 import { deptShortName } from '../../data/departments';
 
@@ -86,10 +88,10 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
    * у САМОГО этапа: схема отчёта принадлежит участку, и разработка программы
    * вышивки получала от цеха вышивки поля «Вышито» и «Брак».
    */
-  const fileResult = stage.result_kind === 'embroidery_program';
-  const resultFiles = (order.attachments ?? []).filter(
-    (a) => a.kind === 'stage_result' && a.stage_id === stage.id,
-  );
+  const fileResult = isFileResultStage(stage);
+  // Уточнения технолога для участка нанесения (правка 13.09, п. 10)
+  const brandingNote = stageBrandingNote(order, stage, reportDept);
+  const resultFiles = stageResultFiles(order, stage.id);
   const hasReportSchema = !fileResult
     && Array.isArray(resultFields) && resultFields.length > 0;
   const submitStageReport = useErpStore((s2) => s2.submitStageReport);
@@ -214,6 +216,23 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
         />
       )}
       {showTz && <TzBlock order={order} item={item} />}
+
+      {/*
+        КОММЕНТАРИЙ ПО ПРОРАБОТКЕ (правка 13.09, п. 10) — «важные уточнения
+        по образцу/нанесению», оставленные технологом при переносе карточки
+        в «Нанесения». Стоит рядом с ТЗ, а не среди действий: это ВХОДНЫЕ
+        данные работы, а не то, что цех делает. Показывается только участку
+        нанесения и только когда текст есть — пустой блок с подписью
+        означал бы, что технолог что-то написал.
+      */}
+      {brandingNote && (
+        <div className={styles.queueReason}>
+          <span className={styles.cellWithIcon}>
+            <Icon name="flask" size={14} />
+            Комментарий по проработке: {brandingNote}
+          </span>
+        </div>
+      )}
 
       {/*
         ПЛАН ЗАВЕРШЕНИЯ СТОИТ РЯДОМ С КНОПКОЙ, А НЕ ОТКРЫВАЕТСЯ ЕЮ
@@ -357,7 +376,15 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               )}
               {!blockMode && !defectMode && (
                 <>
-                  {perms.defect && (
+                  {/*
+                    БРАКА У ФАЙЛОВОГО РЕЗУЛЬТАТА НЕТ (правка 13.09, п. 9):
+                    «этап не производит изделия и не должен учитывать тираж,
+                    выполненное количество, остаток, брак или плюсы». Мастер
+                    брака спрашивает количество штук и возвращает их
+                    предыдущему цеху — у разработки программы возвращать
+                    нечего, программу просто перезаливают файлом.
+                  */}
+                  {perms.defect && !fileResult && (
                     <Button variant="ghost" onClick={() => setDefectMode(true)}>
                       <Icon name="undo" size={14} /> Брак
                     </Button>

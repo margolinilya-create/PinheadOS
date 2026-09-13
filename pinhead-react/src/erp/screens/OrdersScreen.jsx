@@ -94,7 +94,8 @@ export default function OrdersScreen() {
     }
     return best?.id ?? null;
   }, [orderDrafts]);
-  // Поиск — из общего стора (то же поле, что в шапке): значения синхронны
+  // Поиск экрана «Заказы». Строки в шапке больше нет (правка 13.09, п. 1),
+  // стор остался у экрана — он держит набранное между переходами
   const query = useErpSearch((s) => s.query);
   const setQuery = useErpSearch((s) => s.setQuery);
   const isCompact = useCompactLayout();

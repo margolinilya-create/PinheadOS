@@ -243,22 +243,6 @@
   правило, что ловит сторож стилей.
 */
 
-/*
-  Подпись под рядом вкладок цехов. Высота держится с первого кадра, даже
-  когда текста ещё нет: строка приезжает вместе с заказами, и её вставка
-  сдвигала всю рабочую область ниже (см. комментарий в `DepartmentQueue`).
-  `min-height` в единицах строки, а не в пикселях: кегль задан токеном,
-  и подогнанное число разошлось бы с ним при первой правке типографики.
-*/
-.legendRow {
-  /* Вид берётся вторым классом `.subText` из `erp.module.css`: `composes`
-     работает только ВНУТРИ файла, а копия объявлений цвета и кегля стала бы
-     вторым тихим источником правды. Здесь — только резерв высоты. */
-  display: block;
-  min-height: 1lh;
-  margin: 0 0 var(--space-xs);
-}
-
 /* Разворачиваемое полное ТЗ в карточке очереди */
 .tzToggle { min-height: 44px; }
 .tzBlock {
@@ -829,6 +813,50 @@ a.cellTitle:hover { color: var(--accent); }
   align-self: center;
 }
 .taskFacts dd { margin: 0; min-width: 0; }
+
+/*
+  КЛЮЧЕВАЯ СТРОКА ЗАДАНИЯ (правка 13.09, п. 4): заказ · изделие · количество ·
+  выполнено · срок одной лентой. Не `.taskFacts`: у той сетка «подпись слева,
+  значение справа», и пять таких пар занимали половину первого экрана —
+  ровно то место, где по референсу стоит работа цеха.
+
+  `flex-wrap` вместо сетки с колонками: длины подписей разные (от «Срок»
+  до «Количество»), и подобранная под них колонка развалилась бы от первого
+  нового поля. Перенос по месту переживает любой состав.
+*/
+.taskKeyFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: var(--type-body-sm);
+}
+.taskKeyFact { display: flex; align-items: baseline; gap: var(--space-sm); min-width: 0; }
+.taskKeyFact dt {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.taskKeyFact dd { margin: 0; min-width: 0; }
+
+/*
+  Файлы задания — компактной лентой ссылок вместо сетки плиток по 120px.
+  Превью у вложений задания нет (их рисует карточка заказа), и плитка
+  показывала имя файла в коробке на треть экрана.
+*/
+.taskFileRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  font-size: var(--type-body-sm);
+}
 
 .fileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 .fileCard {

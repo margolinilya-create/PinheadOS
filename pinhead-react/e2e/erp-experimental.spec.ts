@@ -56,17 +56,23 @@ async function openDevTab(page: Page, name: string) {
 }
 
 /**
- * Строка списка разработок — НЕЗАВИСИМО ОТ РАСКЛАДКИ.
+ * Разработка в списке — НЕЗАВИСИМО ОТ РАСКЛАДКИ.
  *
- * На десктопе это строка таблицы, ниже 1024px — карточка (`DevRowCard`):
- * с 23.08 у экрана две раскладки. Проверки ниже про СОДЕРЖИМОЕ (готовность
- * из задач, названный блокер, фильтр в адресе), а не про разметку, — значит
- * верны на обеих ширинах, и привязка к `role="row"` просто выключила бы их
- * на телефоне вместо того, чтобы что-то поймать.
+ * Проверки ниже про СОДЕРЖИМОЕ (названный блокер, фильтр в адресе), а не про
+ * разметку, — значит верны на любой ширине, и привязка к `role="row"` просто
+ * выключила бы их на телефоне вместо того, чтобы что-то поймать.
  */
 function devRow(page: Page, name: string) {
+  /**
+   * Локатор берётся ОБЪЕДИНЕНИЕМ, а не заменой: у раздела три разметки —
+   * строка таблицы, карточка планшета и карточка доски (`listitem`).
+   * С правкой 13.09 (п. 8.2) вид «Все разработки» снят, и основной стала
+   * доска; прежние две оставлены, чтобы спека не молчала, если какая-то
+   * из них вернётся.
+   */
   return page.getByRole('row').filter({ hasText: name })
-    .or(page.getByRole('article').filter({ hasText: name }));
+    .or(page.getByRole('article').filter({ hasText: name }))
+    .or(page.getByRole('listitem').filter({ hasText: name }));
 }
 
 /**
@@ -80,9 +86,22 @@ function devRow(page: Page, name: string) {
 async function openDev(page: Page, name: string) {
   const row = devRow(page, name);
   await expect(row).toBeVisible();
+  /**
+   * ОДИН СПОСОБ ОТКРЫТЬ — НОМЕР СДЕЛКИ (правка 13.09, п. 7). Прежде их было
+   * два, и вели они в РАЗНЫЕ места: клик по всей карточке открывал
+   * разработку, номер сделки — карточку заказа. Кнопка «Открыть разработку»
+   * жила в карточке снятого списка и ушла вместе с ним.
+   */
   const open = row.getByRole('button', { name: 'Открыть разработку' });
   if (await open.count()) await open.click();
-  else await row.click();
+  else await row.getByRole('link', { name: /№\d+/ }).click();
+  /**
+   * Переход ДОЖИДАЕТСЯ ЯВНО. Пока открытие было кликом по всей строке
+   * таблицы, следующий локатор успевал сняться уже на карточке; ссылка же
+   * уводит роутером, и первый же ассерт после `openDev` мог прийтись
+   * на ещё живой список — то есть спека проверяла бы не тот экран.
+   */
+  await expect(page).toHaveURL(/\/experimental\/[^/?]+/);
 }
 
 /**
@@ -304,51 +323,59 @@ const tile = (page: import('@playwright/test').Page, label: string) =>
   page.getByRole('button').filter({ hasText: label });
 
 test.describe('Экран разработки: состояния считаются, а не хранятся', () => {
-  test('плитки раскладывают разработки по вычисленным состояниям', async ({ page }) => {
+  test('чипы раскладывают разработки по вычисленным состояниям', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0');
     await expect(page.getByRole('heading', { name: 'Экспериментальный цех' })).toBeVisible();
 
     // Ни одно из этих состояний не лежит в БД: они получены из набора задач
-    for (const label of ['Новые', 'В работе', 'Требуют внимания', 'На примерке', 'Готовы к серии']) {
+    for (const label of ['Новые', 'В работе', 'Требуют внимания', 'Готовы к серии']) {
       await expect(tile(page, label).first()).toContainText('1');
     }
     await expect(tile(page, 'Все').first()).toContainText('5');
+
+    /**
+     * «На примерке» уехало в «Фильтры» (правка 13.09, п. 8.1): документ
+     * разрешает оставить статус в постоянной строке, «если он реально
+     * используется как отдельная рабочая очередь», а на боевой базе задач
+     * типа `fitting` ноль за всё время. Механика состояния не тронута —
+     * сторожим, что отбор по нему остался достижим.
+     */
+    await expect(tile(page, 'На примерке')).toHaveCount(0);
+    await page.getByRole('button', { name: /Фильтры/ }).click();
+    const rare = page.getByRole('group', { name: 'Редкие состояния разработки' });
+    await expect(rare.getByRole('button', { name: /На примерке/ })).toContainText('1');
   });
 
   /**
-   * Правка заказчика 23.08, п. 6: «Разработка должна появляться в
-   * экспериментальном цехе только из соответствующей сделки/заказа».
-   *
-   * Сторож проверяет ОБЕ половины бывшей точки входа — и кнопку, и селект
-   * позиции-образца рядом с ней: убрать одну кнопку, оставив выбор, значит
-   * оставить половину механики, к которой однажды вернут действие.
+   * ДОКУМЕНТ 13.09, П. 8.3: «„Доска по этапам" и „Очередь участка"
+   * не смешивать с фильтрами этапов — оформить их как отдельный
+   * переключатель вида». До правки оба стояли одной строкой с «Всеми
+   * разработками» и семью этапами: выбор «на что я смотрю» был неотличим
+   * от выбора «какой этап отбираю».
    */
-  test('ручного создания разработки нет — она приходит из заказа', async ({ page }) => {
+  test('вид и фильтры этапов — разные группы, «Все разработки» убраны', async ({ page }) => {
     await gotoDev(page, '/experimental?studio=0');
-    await expect(page.getByRole('button', { name: /Разработка/ })).toHaveCount(0);
-    await expect(
-      page.getByLabel('Позиция-образец для разработки'),
-    ).toHaveCount(0);
+    const views = page.getByRole('group', { name: 'Вид раздела' });
+    await expect(views.getByRole('button')).toHaveCount(2);
+    await expect(views.getByRole('button', { name: 'Доска' })).toBeVisible();
+    await expect(views.getByRole('button', { name: 'Очередь' })).toBeVisible();
+
+    const stages = page.getByRole('group', { name: 'Этап разработки' });
+    await expect(stages.getByRole('button')).toHaveCount(7);
+    await expect(page.getByRole('button', { name: 'Все разработки' })).toHaveCount(0);
   });
 
-  test('таблица отвечает «почему стоит», а не «на какой фазе»', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
+  test('доска отвечает «почему стоит», а не «на какой фазе»', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
     const row = devRow(page, 'Бомбер двухслойный');
 
-    // Готовность — в ЗАДАЧАХ (0 из 1), блокер назван словами
-    await expect(row).toContainText('0 / 1');
+    // Блокер назван словами, а следующее действие — прямым указанием
     await expect(row).toContainText('Подбор материала');
     await expect(row).toContainText('снять блокировку: нет решения по цвету подкладки');
   });
 
-  test('ноль задач дал бы «—», а не 100 % — здесь готовность честная', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
-    // У «Новые» две задачи, ни одна не закрыта
-    await expect(devRow(page, 'Худи оверсайз')).toContainText('0 / 2');
-  });
-
   test('подпись задачи без названия берётся из справочника', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0');
     // У задач «Новых» своих названий нет — блокер показывает имя из справочника,
     // а не код `patterns`
     const row = devRow(page, 'Худи оверсайз');
@@ -357,27 +384,31 @@ test.describe('Экран разработки: состояния считаю�
   });
 
   test('фильтр по состоянию живёт в адресе — ссылкой можно поделиться', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0');
     await tile(page, 'Требуют внимания').first().click();
 
     await expect(page).toHaveURL(/state=attention/);
-    /**
-     * ВЫБРАННЫЙ ВИД ОБЯЗАН ПЕРЕЖИТЬ ФИЛЬТР. `setFilters` заменял весь набор
-     * параметров, поэтому клик по плитке сбрасывал `view=list` — человек,
-     * выбравший «Список», молча оказывался на доске.
-     *
-     * Проверка стоит ПЕРЕД поиском строки не для красоты: ассерт на строку
-     * снимался со СТАРОГО кадра и потому проходил четыре раза из пяти, пряча
-     * дефект. Адрес перепроверяется сам и ждёт настоящей перерисовки.
-     */
-    await expect(page, 'клик по фильтру сбросил выбранный вид').toHaveURL(/view=list/);
     await expect(devRow(page, 'Бомбер двухслойный')).toBeVisible();
     await expect(devRow(page, 'Худи оверсайз')).toHaveCount(0);
 
     // Прямой заход по той же ссылке восстанавливает подбор
-    await gotoDev(page, '/experimental?studio=0&view=list&state=ready');
+    await gotoDev(page, '/experimental?studio=0&state=ready');
     await expect(devRow(page, 'Футболка freefit')).toBeVisible();
     await expect(devRow(page, 'Бомбер двухслойный')).toHaveCount(0);
+  });
+
+  test('выбранный вид переживает клик по фильтру состояния', async ({ page }) => {
+    /**
+     * `setFilters` заменял ВЕСЬ набор параметров, поэтому клик по состоянию
+     * сбрасывал `view` — человек, выбравший вид, молча оказывался на доске.
+     *
+     * Проверка стоит на адресе, а не на содержимом: ассерт на строку
+     * снимался со СТАРОГО кадра и проходил четыре раза из пяти, пряча дефект.
+     */
+    await gotoDev(page, '/experimental?studio=0&view=patterns');
+    await tile(page, 'Требуют внимания').first().click();
+    await expect(page).toHaveURL(/state=attention/);
+    await expect(page, 'клик по фильтру сбросил выбранный вид').toHaveURL(/view=patterns/);
   });
 });
 
@@ -389,7 +420,7 @@ test.describe('Экран разработки: состояния считаю�
  */
 test.describe('Карточка разработки', () => {
   test('открывается страницей и показывает блокер и следующее действие', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0');
     await openDev(page, 'Бомбер двухслойный');
 
     await expect(page).toHaveURL(/\/experimental\/dev-block/);
@@ -415,7 +446,7 @@ test.describe('Карточка разработки', () => {
    * рабочим и не отвечает на вопрос, ради которого сделан.
    */
   test('маршрут показан stepper-ом, у каждого этапа видно состояние', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0');
     await openDev(page, 'Бомбер двухслойный');
 
     const stepper = page.getByRole('list', { name: 'Путь разработки' });
@@ -431,7 +462,7 @@ test.describe('Карточка разработки', () => {
   });
 
   test('текущий этап назван прямо, а не угадывается по виду', async ({ page }) => {
-    await gotoDev(page, '/experimental?studio=0&view=list');
+    await gotoDev(page, '/experimental?studio=0');
     await openDev(page, 'Бомбер двухслойный');
     // Текущий этап назван дважды — в шапке страницы и в блоке маршрута.
     // Это не дубль-по-недосмотру: шапка отвечает «где разработка» сразу,
@@ -643,7 +674,9 @@ test.describe('Доска экспериментального цеха', () => 
       });
       await gotoDev(page, '/experimental?studio=0&view=dtf');
       await expect(page.getByText('ЭКС / ОБРАЗЕЦ').first()).toBeVisible();
-      await expect(page.getByRole('link', { name: /Открыть/ }).first()).toBeVisible();
+      // Переход на задание — номер сделки (правка 13.09, п. 5)
+      await expect(page.getByRole('link', { name: /^№\d+/ }).first())
+        .toHaveAttribute('href', /^\/task\//);
     });
 });
 
@@ -942,9 +975,46 @@ test.describe('Канбан ЭКС: колонку ставит человек (
 
     await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
 
-    // Ни одного диалога: прежний выбор видов снят целиком
+    /**
+     * ВЫБОРА ВИДОВ НЕТ — они из заказа. Единственное окно на этом переходе
+     * с 13.09 (п. 10) — НЕОБЯЗАТЕЛЬНЫЙ «Комментарий по проработке»:
+     * «поле необязательное: если комментария нет, этап можно завершить
+     * и перенести без него». Сторожим и то и другое: вопроса о видах нет,
+     * а комментарий можно пропустить пустым.
+     */
+    const note = page.getByRole('dialog', { name: /Завершить проработку/ });
+    await expect(note).toBeVisible();
+    await expect(note.getByRole('combobox')).toHaveCount(0);
+    await note.getByRole('button', { name: /Завершить и перенести/ }).click();
+
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
+  });
+
+  /**
+   * ПРАВКА 13.09, П. 10: комментарий по проработке сохраняется и доезжает
+   * до задания цеха нанесения — «чтобы цех видел важные уточнения
+   * по образцу/нанесению».
+   */
+  test('комментарий по проработке сохраняется в карточке разработки', async ({ page }) => {
+    await gotoDev(page, '/experimental?studio=0');
+    const item = card(page, 'Ветровка образец');
+    await item.getByRole('button', { name: 'Перенести в «Крой»' }).click();
+    const patterns = page.getByRole('dialog', { name: /Завершить построение лекал/ });
+    await patterns.getByLabel('Техническое название лекал').fill('PNHD-W12-v1');
+    await patterns.getByRole('button', { name: /Завершить и перенести/ }).click();
+
+    await item.getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+    const note = page.getByRole('dialog', { name: /Завершить проработку/ });
+    await note.getByLabel('Комментарий по проработке').fill('нитка тон в тон, без подложки');
+    await note.getByRole('button', { name: /Завершить и перенести/ }).click();
+    await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
+
+    // Записанное видно в справке карточки разработки — там же, где лекала
+    await openDev(page, 'Ветровка образец');
+    const aside = page.getByRole('complementary', { name: 'Справка по разработке' });
+    await expect(aside).toContainText('Комментарий по проработке');
+    await expect(aside).toContainText('нитка тон в тон, без подложки');
   });
 
   /**
@@ -964,6 +1034,10 @@ test.describe('Канбан ЭКС: колонку ставит человек (
     await dialog.getByRole('button', { name: /Завершить и перенести/ }).click();
     await card(page, 'Ветровка образец')
       .getByRole('button', { name: 'Перенести в «Нанесения»' }).click();
+    // Необязательный комментарий по проработке (правка 13.09, п. 10) —
+    // пропускаем пустым, как и разрешает документ
+    await page.getByRole('dialog', { name: /Завершить проработку/ })
+      .getByRole('button', { name: /Завершить и перенести/ }).click();
     await expect(column(page, 'Нанесения')).toContainText('Ветровка образец');
 
     await card(page, 'Ветровка образец')
@@ -1009,7 +1083,11 @@ test.describe('Участок «Экспериментальный цех» в �
          проверять мобильную половину. Строка ИЛИ карточка. */
       const row = page.getByRole('row').filter({ hasText: '№55400' })
         .or(page.getByRole('listitem').filter({ hasText: '№55400' }));
-      await expect(row.getByRole('link', { name: /^Открыть/ })).toBeVisible();
+      /* Отдельной кнопки «Открыть» больше нет (правка 13.09, п. 5):
+         переход на задание несёт сам номер сделки */
+      await expect(row.getByRole('link', { name: /^Открыть/ })).toHaveCount(0);
+      await expect(row.getByRole('link', { name: '№55400' }))
+        .toHaveAttribute('href', /^\/task\//);
     });
 
   /**
@@ -1026,7 +1104,10 @@ test.describe('Участок «Экспериментальный цех» в �
         orders: [ROUTE_ORDER],
       });
       await gotoDev(page, '/experimental?studio=0');
-      const views = page.getByRole('button', { name: 'Очередь участка' });
+      /* Переключатель вида с 13.09 (п. 8.3) отделён от фильтров этапов
+         и называется «Доска / Очередь» */
+      const views = page.getByRole('group', { name: 'Вид раздела' })
+        .getByRole('button', { name: 'Очередь' });
       await expect(views).toBeVisible();
       await views.click();
       await expect(page.getByRole('main')).toContainText('№55400');

@@ -15,6 +15,7 @@
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { materialsBlockingCompletion } from './supply';
+import { isFileResultStage } from './stageResult';
 import type { ErpDepartment, ErpItemStage, ErpMaterial } from '../types';
 
 /**
@@ -29,7 +30,15 @@ export interface StageDoneWarningInput {
    * читает его через `?? 0`. Тип обязан это признавать, иначе тест «не
    * проставлен — считается за ноль» невозможно даже написать.
    */
-  stage: Pick<ErpItemStage, 'id'> & { qty_done: number | null };
+  stage: Pick<ErpItemStage, 'id'> & {
+    qty_done: number | null;
+    /**
+     * Вид результата этапа (правка 13.09, п. 9). Нужен ЗДЕСЬ, а не у кнопки:
+     * у этапа, чей результат — файл, количественного предупреждения быть
+     * не должно ни на одной из четырёх точек закрытия.
+     */
+    result_kind?: string | null;
+  };
   /** Тираж позиции */
   qty: number;
   /** Все этапы позиции — чтобы назвать те, что разблокируются */
@@ -69,6 +78,14 @@ export function dependentStageNames(input: StageDoneWarningInput): string[] {
  */
 export function stageDoneWarning(input: StageDoneWarningInput): string | null {
   const { stage, qty } = input;
+  /**
+   * У ЭТАПА С ФАЙЛОВЫМ РЕЗУЛЬТАТОМ КОЛИЧЕСТВЕННОГО ВОПРОСА НЕТ ВООБЩЕ
+   * (правка 13.09, п. 9). «Разработка программы вышивки» не производит
+   * изделий: тираж в её завершении не участвует, дописывать нечего,
+   * и окно «Завершить этап не полностью? 0 из 100 шт» было неправдой
+   * о самой сути этапа, а не просто лишним вопросом.
+   */
+  if (isFileResultStage(stage)) return null;
   const done = stage.qty_done ?? 0;
   const remaining = qty - done;
   if (remaining <= 0) return null;

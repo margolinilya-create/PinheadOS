@@ -19,6 +19,7 @@ import {
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
 import { stageCompletionBlock } from '../../utils/stageDone';
+import { stageResultFileBlock } from '../../utils/stageResult';
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
@@ -56,6 +57,19 @@ function completionBlockFor(
   addedGood: number,
 ): string | null {
   const { stage, item, order } = found;
+  /**
+   * ФАЙЛОВЫЙ РЕЗУЛЬТАТ ПРОВЕРЯЕТСЯ ПЕРВЫМ И БЕЗ ОГЛЯДКИ НА ТИРАЖ
+   * (правка 13.09, п. 9). У «Разработки программы вышивки» `qty_done`
+   * остаётся нулём по построению, то есть условие «запись добирает тираж»
+   * ниже её бы не пустило — а гейт нужен ровно здесь: закрытый без файла
+   * этап оставляет вышивальщицу без программы.
+   *
+   * Гейт стоит У ПИСАТЕЛЯ, а не только у кнопки: кнопка гасится и в очереди,
+   * и на странице задания, но закрыть этап можно ещё дорожкой «Завершено»
+   * на канбане и чипом производственного плана — там кнопки нет.
+   */
+  const fileBlock = stageResultFileBlock(stage, order ?? null);
+  if (fileBlock) return fileBlock;
   // Проверяем ТОЛЬКО когда запись реально добирает тираж: частичная сдача при
   // неприехавшем материале законна — цех отчитывается за то, что сделал.
   if ((stage.qty_done ?? 0) + addedGood < item.qty) return null;

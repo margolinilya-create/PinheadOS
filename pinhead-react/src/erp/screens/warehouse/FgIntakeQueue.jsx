@@ -95,11 +95,12 @@ export function FgIntakeQueue() {
 
   return (
     <section className={styles.matSection}>
+      {/*
+        ПОЯСНЯЮЩЕЙ СТРОКИ ПОД ЗАГОЛОВКОМ НЕТ (правка 13.09, п. 6): остаётся
+        заголовок со счётчиком. Сама зависимость не тронута — блокировку цеха
+        нанесения по-прежнему держит этап склада в маршруте, а не этот текст.
+      */}
       <div className={styles.fieldLabel}>{title}</div>
-      <p className={styles.subText}>
-        Изделия клиента, которые нужно принять ДО нанесения: пока приёмка
-        не закрыта, цех нанесения работу не увидит.
-      </p>
 
       {compact ? (
         <div className={styles.dataCardList} role="list" aria-label="Приёмка готового изделия">

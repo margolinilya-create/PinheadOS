@@ -368,6 +368,7 @@ export type Database = {
       erp_experimental: {
         Row: {
           board_stage: string | null
+          branding_note: string | null
           closed_at: string | null
           comment: string | null
           constructor: string | null
@@ -399,6 +400,7 @@ export type Database = {
         }
         Insert: {
           board_stage?: string | null
+          branding_note?: string | null
           closed_at?: string | null
           comment?: string | null
           constructor?: string | null
@@ -430,6 +432,7 @@ export type Database = {
         }
         Update: {
           board_stage?: string | null
+          branding_note?: string | null
           closed_at?: string | null
           comment?: string | null
           constructor?: string | null

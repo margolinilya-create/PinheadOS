@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { FilterBar } from '../components/FilterBar';
-import { Badge } from '../components/Badge';
-import { Pagination } from '../components/Pagination';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
@@ -25,15 +23,8 @@ import {
   hasActiveDevFilters,
   devFilterParamKeys,
 } from '../utils/filterExperimental';
-import {
-  currentBlocker, devReadiness, nextAction, taskLabel,
-} from '../utils/experimentalTasks';
-import { DEV_OUTCOME_LABELS } from '../types';
-import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevBoard } from './experimental/DevBoard';
-import { DevRowCard } from './experimental/DevRowCard';
-import { useCompactLayout } from '../layout/useCompactLayout';
 import { DevViews } from './experimental/DevViews';
 import { DevDeptQueue } from './experimental/DevDeptQueue';
 import {
@@ -58,59 +49,104 @@ import styles from '../styles';
  * Хранится только ИСХОД закрытой разработки.
  */
 
-/** Плитки-состояния в порядке срочности: сначала то, где нужно вмешаться */
-/* Состояния разработки для отбора: рисуются чипами в тулбаре (обход 04.09) */
+/**
+ * СОСТОЯНИЯ РАЗРАБОТКИ — ТРИ УРОВНЯ УПРАВЛЕНИЯ (правка 13.09, п. 8).
+ *
+ * Документ просит развести то, что до 13.09 стояло одним рядом чипов:
+ * состояния, фильтры по этапам и переключатель вида. Здесь — первый уровень,
+ * и в постоянной строке остаются ровно те состояния, которые названы:
+ * «Все», «Новые», «В работе», «Требуют внимания», «Готовы к серии»
+ * (плюс «С проблемой» — он не состояние, а отдельный признак, и чип у него
+ * свой). Остальные уехали в раскрывающиеся «Фильтры» — ниже, `RARE_STATES`.
+ */
 const STATE_FILTERS = [
-  // «Все», а не «Все разработки»: так теперь называется ВИД раздела (документ
-  // 20.08), и две одинаковые подписи рядом означали бы два разных действия
+  // «Все» здесь — состояние «любое», а не вид раздела: вида «Все разработки»
+  // больше нет (п. 8.2), и спорить этой подписи не с чем
   { key: '', icon: 'orders', label: 'Все' },
   { key: 'new', icon: 'plus', label: DEV_STATE_LABELS.new },
   { key: 'in_progress', icon: 'flask', label: DEV_STATE_LABELS.in_progress },
   { key: 'attention', icon: 'alert', label: DEV_STATE_LABELS.attention },
-  { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting },
   { key: 'ready', icon: 'checkCircle', label: DEV_STATE_LABELS.ready },
-  // Переданные на склад (правка 30.08, п. 4) — последними: работа ЭКС по ним
-  // закончена, и вмешательства они не требуют. С доски они уходят, но из
-  // списка нет: это история, а не активная работа
+];
+
+/**
+ * Состояния, ушедшие из постоянной строки в «Фильтры» (правка 13.09, п. 8.1).
+ *
+ * `handed` — «Переданы на склад»: работа ЭКС по ним закончена, вмешательства
+ * они не требуют, и документ просит убрать их из постоянной строки прямо.
+ *
+ * `fitting` — «На примерке». Документ разрешает оставить его в строке, «если
+ * этот статус реально используется как отдельная рабочая очередь». Спросили
+ * боевую базу: задач типа `fitting` там НОЛЬ за всё время, то есть состояние
+ * не наступало ни разу — отдельной очередью оно не является. Из механики
+ * состояние при этом не убрано: `devState` его по-прежнему считает, и, когда
+ * такие задачи появятся, отбор по нему будет здесь.
+ *
+ * Значение одно и то же (`filters.state`) — строка показывает частые
+ * состояния, панель редкие; второго решения о том же тут не заводится.
+ */
+const RARE_STATES = [
+  { key: 'fitting', icon: 'shirt', label: DEV_STATE_LABELS.fitting },
   { key: 'handed', icon: 'box', label: DEV_STATE_LABELS.handed },
 ];
 
 /**
- * Виды раздела (правки заказчика 20.08). Доска — по умолчанию: документ
- * называет её ГЛАВНЫМ экраном.
+ * ВИД РАЗДЕЛА — ДОСКА ИЛИ ОЧЕРЕДЬ УЧАСТКА (правка 13.09, п. 8.3).
  *
- * «Кроме главного борда по этапам, внутри раздела должны быть доступны:
- * Все разработки · Лекала · Крой · Шелкография · DTF · Вышивка · DTG ·
- * Пошив · Финальный этап». Отдельного ВТО здесь нет — документ его запрещает
- * прямо: «если для образца требуется ВТО, оно выполняется внутри работы
- * экс цеха без создания отдельной колонки и отдельной очереди».
+ * «„Доска по этапам" и „Очередь участка" не смешивать с фильтрами этапов —
+ * оформить их как отдельный переключатель вида». До правки оба стояли
+ * в одном ряду с семью этапами и «Всеми разработками», то есть выбор
+ * «на что я смотрю» был неотличим от выбора «какой этап отбираю».
  *
- * ⚠️ ВИДА DTG В ЭТОМ СПИСКЕ БОЛЬШЕ НЕТ (правки 07.09, п. 17: «полностью убрать
- * DTG из ERP»). Цитата документа 20.08 оставлена дословно — она объясняет,
- * откуда взялся состав видов; но участок деактивирован, и вид исчез вместе
- * с ним, потому что список строится из живых цехов брендирования, а не из
- * константы. Сам МЕТОД нанесения `dtg` при этом остаётся читаемым.
- *
- * Вид — в QUERY, а не подпутём: `canOpenScreen` перечисляет ИСКЛЮЧЕНИЯ
- * и открывает незнакомый путь, поэтому `/experimental/dtf` был бы доступен
- * всем, включая цех без права.
- *
- * ВИД «ОЧЕРЕДЬ УЧАСТКА» добавлен правкой 24.08 (п. 4.1): экспериментальный цех
- * стал участком маршрута, и его этапы обязаны быть видны. Участок
- * непроизводственный, то есть общие поверхности его вырезают, — без этого вида
- * заказ, дошедший до шага ЭКС, не показывался бы нигде.
+ * Доска — по умолчанию: документ 20.08 называет её ГЛАВНЫМ экраном. Очередь
+ * участка добавлена правкой 24.08 (п. 4.1): ЭКС стал участком маршрута,
+ * участок непроизводственный, и общие поверхности его этапы вырезают —
+ * без этого вида заказ, дошедший до шага ЭКС, не показывался бы нигде.
  */
-const VIEWS = [
-  'board', 'queue', 'list',
+const BASE_VIEWS = ['board', 'queue'];
+
+/**
+ * ФИЛЬТРЫ ПО ЭТАПАМ — второй уровень (правка 13.09, п. 8.2).
+ *
+ * «Лекала», «Крой» и «Пошив» — собственные очереди ЭКС (читают задачи
+ * разработки), «Шелкография», «DTF» и «Вышивка» — отфильтрованные
+ * представления общих производственных задач (читают ЭТАПЫ, те же самые,
+ * что видит общий цех), «Финальный этап» — что осталось до «Готово к серии».
+ *
+ * ⚠️ ВИДА «ВСЕ РАЗРАБОТКИ» БОЛЬШЕ НЕТ (п. 8.2: «убрать как дублирующий
+ * пункт»). В группе фильтров «все» — это ничего не выбрано, и отдельным
+ * чипом он повторял бы состояние по умолчанию; ту же таблицу целиком
+ * показывала доска. Закрытые и переданные на склад разработки, которых
+ * доска не рисует, остаются достижимы фильтром «Финальный этап»: он
+ * отбирает по `sample_approved_at || outcome`, а переданный на склад образец
+ * несёт исход по построению (проверено на боевой базе: обе такие записи
+ * с исходом).
+ *
+ * ⚠️ ВИДА DTG ЗДЕСЬ НЕТ (правки 07.09, п. 17: «полностью убрать DTG из ERP»):
+ * участок деактивирован. Сам МЕТОД нанесения `dtg` остаётся читаемым.
+ *
+ * Отдельного ВТО нет — документ 20.08 запрещает его прямо: «если для образца
+ * требуется ВТО, оно выполняется внутри работы экс цеха без создания
+ * отдельной колонки и отдельной очереди».
+ */
+const STAGE_VIEWS = [
   'patterns', 'cutting',
   'silkscreen', 'dtf', 'embroidery',
   'sewing', 'final',
 ];
 
+/**
+ * Вид — в QUERY, а не подпутём: `canOpenScreen` перечисляет ИСКЛЮЧЕНИЯ
+ * и открывает незнакомый путь, поэтому `/experimental/dtf` был бы доступен
+ * всем, включая цех без права. Белый список — чтобы мусор в адресе (и старая
+ * ссылка на снятый `view=list`) не давал молча пустой экран, а приводил
+ * на доску.
+ */
+const VIEWS = [...BASE_VIEWS, ...STAGE_VIEWS];
+
 const VIEW_LABELS = {
-  board: 'Доска по этапам',
-  queue: 'Очередь участка',
-  list: 'Все разработки',
+  board: 'Доска',
+  queue: 'Очередь',
   patterns: 'Лекала',
   cutting: 'Крой',
   silkscreen: 'Шелкография',
@@ -120,28 +156,24 @@ const VIEW_LABELS = {
   final: 'Финальный этап',
 };
 
-/** Виды, показывающие внутренние очереди, а не список разработок */
-const QUEUE_VIEWS = new Set([
-  'patterns', 'cutting', 'silkscreen', 'dtf', 'embroidery', 'sewing', 'final',
-]);
+/** Виды, показывающие внутренние очереди, а не доску */
+const QUEUE_VIEWS = new Set(STAGE_VIEWS);
 
 /**
- * Виды, которые ПОДЧИНЯЮТСЯ фильтрам списка. Их ровно два, и перечислены они
- * положительно, а не как «всё, кроме очередей»: очередь участка (п. 4.1)
- * фильтрам тоже не подчиняется, и отрицательный список пришлось бы дополнять
- * при каждом новом виде — однажды его забыли бы, и человек увидел бы
- * «под фильтры ничего не подошло» там, где фильтры ни при чём.
+ * Виды, которые ПОДЧИНЯЮТСЯ фильтрам состояния. Перечислены положительно,
+ * а не как «всё, кроме очередей»: очередь участка (п. 4.1) фильтрам тоже
+ * не подчиняется, и отрицательный список пришлось бы дополнять при каждом
+ * новом виде — однажды его забыли бы, и человек увидел бы «под фильтры
+ * ничего не подошло» там, где фильтры ни при чём.
  */
-const FILTERED_VIEWS = new Set(['board', 'list']);
+const FILTERED_VIEWS = new Set(['board']);
 
-const STATE_VARIANT = {
-  new: 'neutral', in_progress: 'progress', attention: 'blocked',
-  fitting: 'waiting', ready: 'ready',
-  // Переданные на склад (правка 30.08, п. 4). Пропуск здесь не роняет ничего —
-  // Badge получил бы undefined и нарисовался нейтральным, то есть состояние
-  // молча перестало бы отличаться от прочих
-  handed: 'done',
-};
+/*
+  Карта `STATE_VARIANT` (состояние → вариант бейджа) ушла вместе с видом
+  «Все разработки» (правка 13.09, п. 8.2): её единственными носителями были
+  таблица списка и её планшетная карточка. Общий словарь состояний раздела
+  живёт в `utils/statusUi`, и заводить рядом вторую таблицу цветов нельзя.
+*/
 
 export default function Experimental() {
   /**
@@ -291,8 +323,6 @@ export default function Experimental() {
   }, [navigate, location.pathname, location.search]);
 
   const [expanded, setExpanded] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   /**
    * Переадресация со старой ссылки на шторку. `replace`, а не `push`: запись
@@ -309,8 +339,6 @@ export default function Experimental() {
   }, [experimentalLoaded, loadExperimental]);
 
   const today = factoryToday();
-  /** Планшет: список из шести колонок не помещается — карточки */
-  const compact = useCompactLayout();
   const rows = useMemo(() => buildDevRows(experimental, today), [experimental, today]);
   /**
    * Материалы по заказам — их спрашивает гейт кроя: «крой можно начать только
@@ -401,10 +429,6 @@ export default function Experimental() {
   );
   const hasAnything = rows.length > 0 || deptQueueCount > 0;
 
-  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const pageRows = visible.slice((safePage - 1) * pageSize, safePage * pageSize);
-
 
   /*
    * РУЧНОГО СОЗДАНИЯ РАЗРАБОТКИ ЗДЕСЬ НЕТ (правка заказчика 23.08, п. 6).
@@ -423,7 +447,7 @@ export default function Experimental() {
    * разрешает снимать legacy именно с этого момента.
    */
 
-  const set = (patch) => { setFilters({ ...filters, ...patch }); setPage(1); };
+  const set = (patch) => setFilters({ ...filters, ...patch });
 
   return (
     <>
@@ -530,19 +554,67 @@ export default function Experimental() {
               ))}
             </select>
           </label>
+          {/*
+            РЕДКИЕ СОСТОЯНИЯ (правка 13.09, п. 8.1) — «Переданы на склад»
+            и «На примерке». Значение то же, что у чипов постоянной строки
+            (`filters.state`): строка показывает частые состояния, панель
+            редкие. Второго решения об одной величине здесь не заводится.
+          */}
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Ещё состояния</span>
+            <div className={styles.filterRow} role="group" aria-label="Редкие состояния разработки">
+              {RARE_STATES.map((t) => (
+                <FilterChip
+                  key={t.key}
+                  active={filters.state === t.key}
+                  onClick={() => set({ state: filters.state === t.key ? '' : t.key })}
+                >
+                  <Icon name={t.icon} size={13} /> {t.label} {counts[t.key] > 0 && <b>{counts[t.key]}</b>}
+                </FilterChip>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
+      {/*
+        ДВА РЯДА ВМЕСТО ОДНОГО (правка 13.09, п. 8.3). Прежде «Доска
+        по этапам», «Очередь участка», «Все разработки» и семь этапов стояли
+        одной строкой чипов: выбор «на что я смотрю» был неотличим от выбора
+        «какой этап отбираю». Теперь сверху переключатель вида, под ним —
+        фильтры по этапам, и у каждой группы своё имя для скринридера.
+
+        Повторный клик по активному фильтру этапа снимает его и возвращает
+        на вид из переключателя — «ничего не выбрано» и есть «все разработки»,
+        ради чего отдельный чип с таким именем и убран (п. 8.2).
+      */}
       {experimentalLoaded && hasAnything && (
-        <ScrollHintBox className={styles.toolbar} label="Представления раздела">
-          {VIEWS.map((v) => (
-            /* Переключатель вида — чип с `aria-pressed`, а не `role="tab"`:
-               половина таб-паттерна хуже обычных кнопок (правило проекта) */
-            <FilterChip key={v} active={view === v} onClick={() => setView(v)}>
-              {VIEW_LABELS[v]}
-            </FilterChip>
-          ))}
-        </ScrollHintBox>
+        <>
+          <div className={styles.toolbar}>
+            <div role="group" aria-label="Вид раздела" className={styles.filterRow}>
+              {BASE_VIEWS.map((v) => (
+                /* Переключатель вида — чип с `aria-pressed`, а не `role="tab"`:
+                   половина таб-паттерна хуже обычных кнопок (правило проекта) */
+                <FilterChip key={v} active={view === v} onClick={() => setView(v)}>
+                  {VIEW_LABELS[v]}
+                </FilterChip>
+              ))}
+            </div>
+          </div>
+          <ScrollHintBox className={styles.toolbar} label="Фильтры по этапам">
+            <div role="group" aria-label="Этап разработки" className={styles.filterRow}>
+              {STAGE_VIEWS.map((v) => (
+                <FilterChip
+                  key={v}
+                  active={view === v}
+                  onClick={() => setView(view === v ? 'board' : v)}
+                >
+                  {VIEW_LABELS[v]}
+                </FilterChip>
+              ))}
+            </div>
+          </ScrollHintBox>
+        </>
       )}
 
       {/*
@@ -603,7 +675,6 @@ export default function Experimental() {
         <DevBoard
           rows={visible}
           today={today}
-          onOpen={openDev}
           materialsByOrder={materialsByOrder}
           supplyOpenByOrder={supplyOpenByOrder}
           brandingByItem={brandingByItem}
@@ -615,128 +686,15 @@ export default function Experimental() {
       )}
 
       {/*
-        КОМПАКТНАЯ РАСКЛАДКА (планшет). Шесть колонок, из которых «Текущий
-        блокер» и «Состояние» несут по две строки, ниже 1024px уезжали за край —
-        вместе с ответом на вопрос, ради которого на экран и приходят.
-      */}
-      {experimentalLoaded && visible.length > 0 && view === 'list' && compact && (
-        <>
-          <div className={styles.dataCardList}>
-            {pageRows.map(({ dev, tasks, state }) => (
-              <DevRowCard
-                key={dev.id}
-                dev={dev}
-                tasks={tasks}
-                state={state}
-                stateVariant={STATE_VARIANT[state]}
-                typeNames={typeNames}
-                today={today}
-                onOpen={openDev}
-              />
-            ))}
-          </div>
-          <Pagination
-            page={safePage}
-            pageCount={pageCount}
-            total={visible.length}
-            pageSize={pageSize}
-            onPage={setPage}
-            onPageSize={(n) => { setPageSize(n); setPage(1); }}
-          />
-        </>
-      )}
+        ВИДА «ВСЕ РАЗРАБОТКИ» БОЛЬШЕ НЕТ (правка 13.09, п. 8.2) — вместе с ним
+        ушли таблица на шесть колонок, её планшетная карточка и пагинация.
+        В группе фильтров «все» это «ничего не выбрано», а тот же полный состав
+        разработок показывает доска: отдельный чип повторял состояние
+        по умолчанию, о чём документ и говорит («убрать как дублирующий пункт»).
 
-      {experimentalLoaded && visible.length > 0 && view === 'list' && !compact && (
-        <>
-          <ScrollHintBox className={styles.tableWrap} label="Разработки">
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Изделие</th>
-                  <th>Кто ведёт</th>
-                  <th>Готовность</th>
-                  <th>Текущий блокер</th>
-                  <th>Срок</th>
-                  <th>Состояние</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map(({ dev, tasks, state }) => {
-                  const readiness = devReadiness(tasks);
-                  const blocker = currentBlocker(tasks, typeNames, today);
-                  const due = dev.due_date || dev.order?.due_date || null;
-                  return (
-                    <tr
-                      key={dev.id}
-                      className={styles.rowClickable}
-                      onClick={() => openDev(dev.id)}
-                    >
-                      <td>
-                        {/*
-                          ССЫЛКА, А НЕ ТОЛЬКО КЛИК ПО СТРОКЕ (правка 03.09).
-                          У `<tr>` не было ни `tabIndex`, ни обработчика клавиш,
-                          ни фокусируемого содержимого — реестр разработок
-                          не открывался с клавиатуры вовсе (WCAG 2.1.1), а для
-                          завершённых он единственный путь: доска ЭКС их
-                          не показывает. Ссылка сохраняет Ctrl+клик и «открыть
-                          в новой вкладке», кнопка бы их потеряла.
-                        */}
-                        <Link
-                          to={`/experimental/${dev.id}`}
-                          state={{ from: `${location.pathname}${location.search}` }}
-                          className={styles.queueCardTitleLink}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <strong>{dev.tech_name || 'Без названия'}</strong>
-                        </Link>
-                        <div className={styles.cellSub}>
-                          №{dev.order?.bitrix_id || '—'} · {dev.order?.title || ''}
-                        </div>
-                      </td>
-                      <td>
-                        {dev.technologist || dev.constructor
-                          || <span className={styles.subText}>не назначен</span>}
-                      </td>
-                      <td>
-                        {/* Ноль задач — «—», а не «0 %»: это «неизвестно», а не «готово» */}
-                        {readiness.total > 0
-                          ? `${readiness.done} / ${readiness.total}`
-                          : <span className={styles.subText}>—</span>}
-                      </td>
-                      <td>
-                        {dev.outcome
-                          ? <span className={styles.subText}>{DEV_OUTCOME_LABELS[dev.outcome]}</span>
-                          : (blocker
-                            ? <>
-                              {taskLabel(blocker, typeNames)}
-                              <div className={styles.subText}>
-                                {nextAction(dev, tasks, typeNames, today)}
-                              </div>
-                            </>
-                            : <span className={styles.subText}>нет</span>)}
-                      </td>
-                      <td className={state === 'attention' ? styles.overdue : undefined}>
-                        {due ? formatDateShort(due) : '—'}
-                      </td>
-                      <td>
-                        <Badge variant={STATE_VARIANT[state]}>{DEV_STATE_LABELS[state]}</Badge>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ScrollHintBox>
-          <Pagination
-            page={safePage}
-            pageCount={pageCount}
-            total={visible.length}
-            pageSize={pageSize}
-            onPage={setPage}
-            onPageSize={(n) => { setPageSize(n); setPage(1); }}
-          />
-        </>
-      )}
+        Закрытые и переданные на склад, которых доска не рисует, достижимы
+        фильтром «Финальный этап» (отбор по `sample_approved_at || outcome`).
+      */}
 
     </>
   );

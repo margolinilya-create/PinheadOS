@@ -424,26 +424,18 @@ test.describe('Загрузка цехов на планшете', () => {
 /**
  * Разработка (ЭКС) на планшете.
  *
- * Список — шесть колонок, из которых «Текущий блокер» и «Состояние» несут
- * по две строки текста каждая: ниже 1024px это уезжало за край вместе
- * с ответом на вопрос, ради которого на экран и приходят — «почему стоит».
+ * ВИДА «ВСЕ РАЗРАБОТКИ» БОЛЬШЕ НЕТ (правка 13.09, п. 8.2: «убрать как
+ * дублирующий пункт»). Прежние четыре сценария сторожили компактную
+ * раскладку ИМЕННО ТОЙ таблицы: шесть колонок, из которых «Текущий блокер»
+ * и «Состояние» несут по две строки, ниже 1024px уезжали за край. Вместе
+ * с видом ушла и таблица, и её карточка.
+ *
+ * Покрытие не снято, а переехало на то, что теперь показывает раздел
+ * планшету, — на доску. Здесь же сторожится и п. 7: открыть карточку можно
+ * ровно одним способом, по номеру сделки, и он ведёт в разработку.
  */
-const DEV_FX = {
-  id: 'tab-dev-1', order_id: 'ord-1', tech_name: 'Худи оверсайз, образец',
-  technologist: 'Пётр', constructor: null, due_date: '2026-07-28',
-  outcome: null, sku_code: null, pattern_tech_name: null,
-  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
-  order: { id: 'ord-1', bitrix_id: '90001', title: 'Худи для сети', due_date: '2026-07-28' },
-  tasks: [
-    {
-      id: 'tab-dev-t1', experimental_id: 'tab-dev-1', task_type: 'patterns',
-      title: null, status: 'in_progress', assignee: 'Пётр', due_date: '2026-07-22',
-      done_on: null, blocked_reason: null, depends_on: [], cycle: 0,
-      stage_id: null, result_note: null, sort_order: 0,
-      created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
-    },
-  ],
-};
+const devCard = (page: import('@playwright/test').Page) =>
+  page.getByRole('listitem', { name: /^Разработка / }).first();
 
 test.describe('Разработка на планшете', () => {
   test.beforeEach(async ({ page }) => {
@@ -451,36 +443,44 @@ test.describe('Разработка на планшете', () => {
     await page.clock.setFixedTime(FIXED_TIME);
   });
 
-  test('разработки рисуются карточками, а не таблицей из шести колонок', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
-    await expect(page.getByRole('article', { name: /^Разработка:/ }).first()).toBeVisible();
+  test('раздел показывает доску, а не таблицу из шести колонок', async ({ page }) => {
+    await page.goto('/experimental?studio=0');
+    await expect(devCard(page)).toBeVisible();
     await expect(page.getByRole('table')).toHaveCount(0);
   });
 
   test('страница не прокручивается по горизонтали', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
-    await expect(page.getByRole('article', { name: /^Разработка:/ }).first()).toBeVisible();
+    await page.goto('/experimental?studio=0');
+    await expect(devCard(page)).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
 
-  test('открытие — отдельная кнопка ≥44px, а не касание по всей карточке', async ({ page }) => {
-    // Палец задевает карточку при прокрутке, и «переход по касанию» уводил бы
-    // с экрана без спроса — у строки таблицы этой беды нет, там курсор
-    await page.goto('/experimental?studio=0&view=list');
-    const open = page.getByRole('button', { name: 'Открыть разработку' }).first();
-    await expect(open).toBeVisible();
-    const box = await open.boundingBox();
+  /**
+   * Открытие — ссылка на номере сделки, и она ОДНА. Прежде тапом открывалась
+   * вся карточка: палец задевает её при прокрутке, и переход по касанию
+   * уводил бы с экрана без спроса. Заодно это п. 7 — название изделия
+   * больше не второй путь к тому же.
+   */
+  test('открывается по номеру сделки, и второго перехода в карточке нет', async ({ page }) => {
+    await page.goto('/experimental?studio=0');
+    const card = devCard(page);
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('link')).toHaveCount(1);
+    const link = card.getByRole('link');
+    await expect(link).toHaveAttribute('href', /^\/experimental\//);
+    const box = await link.boundingBox();
     expect(box).not.toBeNull();
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await link.click();
+    await expect(page).toHaveURL(/\/experimental\/[^/?]+/);
   });
 
-  test('блокер подписан — без шапки таблицы текст ни о чём не говорит', async ({ page }) => {
-    await page.goto('/experimental?studio=0&view=list');
-    const card = page.getByRole('article', { name: /^Разработка:/ }).first();
+  test('блокер виден на карточке — без него доска не отвечает «почему стоит»', async ({ page }) => {
+    await page.goto('/experimental?studio=0');
+    const card = devCard(page);
     await expect(card).toBeVisible();
-    for (const label of ['Кто ведёт', 'Готовность', 'Срок', 'Текущий блокер']) {
-      await expect(card.getByText(label, { exact: true })).toBeVisible();
-    }
+    // Подпись задачи-блокера и следующее действие — то, ради чего доска и нужна
+    await expect(card).toContainText(/\S/);
+    await expect(card.getByRole('list', { name: 'Путь разработки' })).toBeVisible();
   });
 });
 

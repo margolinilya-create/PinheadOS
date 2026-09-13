@@ -3,7 +3,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { confirmWithInput } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
-import { devMoveIntent, devMovePrompt, devMoveRefusalText } from '../utils/devBoardMove';
+import {
+  devMoveIntent, devMovePrompt, devMoveRefusalText, devNotePrompt,
+} from '../utils/devBoardMove';
 import { devBrandingFromPrints, DEV_BRANDING_DEPT_CODE } from '../utils/experimentalBoard';
 import { devOwnStageToClose, devStageRemainder } from '../utils/devOwnStage';
 
@@ -74,6 +76,39 @@ export function useDevStageMove() {
        */
       const saved = await updateExperimental(devId, { [prompt.field]: value.trim() });
       if (!saved) return false;
+    }
+
+    /**
+     * КОММЕНТАРИЙ ПО ПРОРАБОТКЕ (правка 13.09, п. 10) — НЕОБЯЗАТЕЛЬНЫЙ
+     * результат этапа перед входом в «Нанесения».
+     *
+     * Отказ от диалога (✕ или «Отмена») отменяет ВЕСЬ перенос, а не «просто
+     * пропускает комментарий»: человек нажал «Отмена», и молча сделать
+     * то, что он отменил, нельзя. Пустое поле — это «комментария нет»,
+     * и оно переносит карточку без него, ровно как просит документ.
+     *
+     * Пишется ДО колонки, тем же порядком, что название лекал: обратный
+     * оставил бы карточку в «Нанесениях» с незаписанным результатом
+     * покидаемого этапа.
+     *
+     * Пустое значение не затирает уже записанное: технолог мог заполнить
+     * комментарий раньше и вернуть карточку назад на доработку — очистка
+     * задним числом стёрла бы то, что цех уже читает.
+     */
+    const note = devNotePrompt(from, stage, dev);
+    if (note) {
+      const { ok: confirmed, value } = await confirmWithInput({
+        title: note.title,
+        message: note.message,
+        confirmLabel: note.confirmLabel,
+        prompt: { label: note.label, required: false, initialValue: note.initialValue },
+      });
+      if (!confirmed) return false;
+      const text = (value ?? '').trim();
+      if (text !== (dev.branding_note ?? '') && (text || dev.branding_note)) {
+        const saved = await updateExperimental(devId, { branding_note: text || null });
+        if (!saved) return false;
+      }
     }
 
     /**

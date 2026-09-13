@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { Badge } from '../components/Badge';
@@ -13,6 +13,7 @@ import { deptShortName } from '../data/departments';
 import { isStageAwaitingProcurement, isStageReady, waitingReason, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { stageQtyProgress } from '../utils/progress';
+import { isFileResultStage, stageResultFiles } from '../utils/stageResult';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import { daysLeft, formatDateShort, stageOverdue } from '../utils/time';
 import { MATERIAL_STATUS_LABELS, STAGE_STATUS_LABELS } from '../types';
@@ -28,13 +29,33 @@ import { dueLabelCompact } from '../utils/format';
 import { ButtonLink } from '../components/Button';
 
 /**
- * Страница производственного задания (правка 5): всё, что нужно исполнителю, —
- * задание, заказ, клиент, изделие, количество, материал, срок, ТЗ, файлы,
- * комментарии, исполнитель, прогресс, маршрут по стадиям и выполненное количество.
- * Действия («Взять в работу», «Записать результат», «Проблема», «Завершить этап»)
- * общие с очередью цеха — StageActionsPanel + useStageActions.
+ * Страница производственного задания.
  *
- * Номер заказа — кликабельная ссылка на полную карточку (правка 6).
+ * РАСКЛАДКА ПЕРЕСОБРАНА ПО РЕФЕРЕНСУ ЗАКАЗЧИКА (правка 13.09, п. 4).
+ * Производственная логика не менялась ни в одной строке — переставлены блоки
+ * и убрано лишнее:
+ *
+ *  1. вверху — название этапа и изделия плюс статус;
+ *  2. под ним ОДНОЙ компактной строкой — ключевое по заказу: заказ, изделие,
+ *     количество, выполнено, срок;
+ *  3. слева «ТЗ и действия», справа «Маршрут и прогресс» — рядом, а не одно
+ *     под другим: на 768×1024, ради которых пилот и запущен, маршрут уезжал
+ *     под сгиб;
+ *  4. ниже компактное «Задание» — только рабочие данные ЭТАПА (материал,
+ *     исполнитель, план этапа). Заказ, клиент и менеджер оттуда ушли: они
+ *     теперь в строке выше и в карточке заказа, а повторять их в дефинишн-листе
+ *     значило дважды отвечать на один вопрос;
+ *  5. файлы — компактной строкой, а не сеткой плиток;
+ *  6. внизу комментарии.
+ *
+ * ПУСТОЕ НЕ ПОКАЗЫВАЕТСЯ (то же требование). Прочерк в режиме просмотра
+ * ничего не сообщает, а место занимает наравне с заполненным: «Менеджер — —»
+ * читается как поле, которое кто-то забыл заполнить. Исключение одно
+ * и осознанное — исполнитель: «не закреплено» это СОБЫТИЕ («задание никто
+ * не взял»), а не отсутствие данных, и мастеру его видеть надо.
+ *
+ * Действия («Взять в работу», «Записать результат», «Проблема», «Завершить
+ * этап») общие с очередью цеха — `StageActionsPanel` + `useStageActions`.
  */
 export default function ProductionTask() {
   const { stageId } = useParams();
@@ -150,11 +171,55 @@ export default function ProductionTask() {
   const d = daysLeft(order.due_date);
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const entry = { order, item, stage, group, reason };
+  /**
+   * Результат этапа — файл (правка 13.09, п. 9). У такого этапа количества нет
+   * вовсе: «выполнено» здесь показывало бы вечные 0 из 100.
+   */
+  const fileResult = isFileResultStage(stage);
+  const resultFiles = fileResult ? stageResultFiles(order, stage.id) : [];
+  const itemName = `${item.product_type}${item.variant ? ` · ${item.variant}` : ''}`;
+  /**
+   * ЗАДАЧА НАЗЫВАЕТ СЕБЯ. У позиции с вышивкой этапов в одном цехе два —
+   * разработка программы и сама вышивка, — и по имени участка их не различить
+   * (правка 12.09, вторая порция). Имя операции печатается, только когда
+   * оно расходится с именем цеха.
+   */
+  const stageName = stage.operation && stage.operation !== deptName
+    ? `${deptName} · ${stage.operation}`
+    : deptName;
+
+  /**
+   * Ключевая строка заказа. Собирается списком, чтобы пустое отсеивалось
+   * ОДНИМ правилом, а не пятью условиями в разметке: требование «пустые
+   * значения с „—" в режиме просмотра не выводить» действует на все поля.
+   */
+  const keyFacts = [
+    { label: 'Заказ', value: `№${order.bitrix_id || '—'} · ${order.title}` },
+    { label: 'Изделие', value: itemName },
+    { label: 'Количество', value: `${item.qty} шт`, mono: true },
+    fileResult
+      ? {
+        label: 'Результат',
+        value: resultFiles.length > 0 ? 'программа приложена' : 'нет программы',
+      }
+      : {
+        label: 'Выполнено',
+        value: `${progress.done} из ${progress.total} шт (${progress.pct}%)`,
+        mono: true,
+      },
+    order.due_date
+      ? {
+        label: 'Срок',
+        value: `${formatDateShort(order.due_date)}${d !== null ? ` · ${dueLabelCompact(d)}` : ''}`,
+        tone: d !== null && d < 0 ? styles.overdue : undefined,
+      }
+      : null,
+  ].filter(Boolean);
 
   return (
     <>
       <PageHead
-        title={`${deptName}: ${item.product_type}${item.variant ? ` · ${item.variant}` : ''}`}
+        title={`${stageName}: ${itemName}`}
         sub={`Задание цеха по заказу №${order.bitrix_id || '—'}.`}
       />
 
@@ -167,7 +232,16 @@ export default function ProductionTask() {
       */}
       {myDeptLoaded && perms.needsDeptBinding && <DeptBindingNotice />}
 
+      {/* СТАТУС — В ШАПКЕ, РЯДОМ С НАЗВАНИЕМ (правка 13.09, п. 4): он первое,
+          что спрашивают у задания, и стоять после двух кнопок навигации
+          ему незачем */}
       <div className={styles.toolbar}>
+        <span className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[display]]}`}>
+          {STAGE_STATUS_LABELS[display]}
+        </span>
+        {overdue && (
+          <Badge variant="blocked"><Icon name="clock" size={13} /> Этап просрочен</Badge>
+        )}
         {/*
           Образец экс-цеха. Пометка стояла в строке и карточке очереди, а сюда
           цех приходит РАБОТАТЬ — и именно здесь важно понимать, что тираж
@@ -183,7 +257,10 @@ export default function ProductionTask() {
             <Icon name="flask" size={13} /> ЭКС / ОБРАЗЕЦ
           </span>
         )}
-        {/* Заказ открывается своей страницей и помнит, откуда пришли */}
+        <div className={styles.spacer} />
+        {/* Заказ открывается своей страницей и помнит, откуда пришли. Это
+            ДРУГОЙ адресат, а не второй путь к тому же (правка 13.09, п. 5):
+            карточка заказа несёт маршрут, ТЗ, закупку, историю и переписку */}
         <ButtonLink
           to={`/orders/${order.id}`}
           state={{ from: `${location.pathname}${location.search}` }}
@@ -199,98 +276,42 @@ export default function ProductionTask() {
         >
           ← В очередь цеха
         </ButtonLink>
-        <div className={styles.spacer} />
-        <span className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[display]]}`}>
-          {STAGE_STATUS_LABELS[display]}
-        </span>
-        {overdue && (
-          <Badge variant="blocked"><Icon name="clock" size={13} /> Этап просрочен</Badge>
-        )}
       </div>
 
-      {/*
-        ТЗ И ДЕЙСТВИЯ — ПЕРВЫМИ (§6.2 обхода 04.09, блокер Б4).
-        Страница задания монтирует ту же панель, что строка очереди, и своей
-        роли не имела: очередь отвечает «что взять следующим», страница —
-        «работаю над этим». Отвечать на второй вопрос она начинала третьим
-        экраном: сверху лежали справка «Задание» и «Маршрут и прогресс»,
-        а ТЗ и кнопки — под ними. На 768×1024, ради которых пилот и запущен,
-        это прокрутка до того, ради чего сюда пришли.
-        Справка не убрана — она уехала ВНИЗ: к ней возвращаются глазами,
-        а работают выше.
-      */}
-      <section className={styles.matSection}>
-        <div className={styles.matSectionHead}><strong>ТЗ и действия</strong></div>
-        {!perms.inDept && (
-          <div className={`${styles.queueReason} ${styles.cellWithIcon}`}>
-            <Icon name="eye" size={14} />Это не ваш цех — только просмотр.
+      {/* Ключевое по заказу — ОДНОЙ строкой, а не дефинишн-листом на полэкрана */}
+      <dl className={styles.taskKeyFacts}>
+        {keyFacts.map((f) => (
+          <div key={f.label} className={styles.taskKeyFact}>
+            <dt>{f.label}</dt>
+            <dd className={[f.mono && styles.progressCell, f.tone].filter(Boolean).join(' ') || undefined}>
+              {f.value}
+            </dd>
           </div>
-        )}
-        <StageActionsPanel
-          entry={entry}
-          perms={perms}
-          deptShortById={deptShortById}
-          actions={actions}
-        />
-      </section>
+        ))}
+      </dl>
 
       <div className={styles.taskGrid}>
+        {/*
+          ТЗ И ДЕЙСТВИЯ — ПЕРВЫМИ (§6.2 обхода 04.09, блокер Б4).
+          Страница задания монтирует ту же панель, что строка очереди, и своей
+          роли не имела: очередь отвечает «что взять следующим», страница —
+          «работаю над этим». Отвечать на второй вопрос она начинала третьим
+          экраном: сверху лежали справка «Задание» и «Маршрут и прогресс»,
+          а ТЗ и кнопки — под ними.
+        */}
         <section className={styles.matSection}>
-          <div className={styles.matSectionHead}><strong>Задание</strong></div>
-          <dl className={styles.taskFacts}>
-            <dt>Заказ</dt>
-            <dd>№{order.bitrix_id || '—'} · {order.title}</dd>
-            <dt>Клиент</dt>
-            <dd>{order.customer || '—'}</dd>
-            <dt>Менеджер</dt>
-            <dd>{order.manager || '—'}</dd>
-            <dt>Изделие</dt>
-            <dd>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</dd>
-            <dt>Количество</dt>
-            <dd className={styles.progressCell}>{item.qty} шт</dd>
-            <dt>Выполнено</dt>
-            <dd className={styles.progressCell}>{progress.done} из {progress.total} шт ({progress.pct}%)</dd>
-            <dt>Срок клиента</dt>
-            <dd className={d !== null && d < 0 ? styles.overdue : undefined}>
-              {order.due_date ? formatDateShort(order.due_date) : '—'}
-              {d !== null && ` · ${dueLabelCompact(d)}`}
-            </dd>
-            <dt>План этапа</dt>
-            <dd>{stage.planned_end ? formatDateShort(stage.planned_end) : '—'}</dd>
-            <dt>Исполнитель</dt>
-            <dd>{stage.assignee || <span className={styles.subText}>не закреплено</span>}</dd>
-            <dt>Материал</dt>
-            <dd>
-              {/*
-                МАТЕРИАЛЫ ЭТОЙ ПОЗИЦИИ, А НЕ ВСЕГО ЗАКАЗА (правка 03.09).
-                Здесь перечислялся `order.materials` целиком, тогда как гейты
-                рядом считают через `materialsForItem`. В заказе из трёх
-                изделий швея видела ткань чужого изделия и делала по ней вывод
-                о своей готовности; пустой список при этом подписан
-                «Материалы не ожидаются» — то есть утверждением.
-              */}
-              {itemMaterials.length > 0 ? (
-                <ul className={styles.tzMatList}>
-                  {itemMaterials.map((m) => (
-                    <li key={m.id}>
-                      {m.name}{m.color ? ` · ${m.color}` : ''}
-                      <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : <span className={styles.subText}>Материалы не ожидаются.</span>}
-            </dd>
-          </dl>
-          {reason && (
-            <div className={styles.queueReason}>
-              <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
+          <div className={styles.matSectionHead}><strong>ТЗ и действия</strong></div>
+          {!perms.inDept && (
+            <div className={`${styles.queueReason} ${styles.cellWithIcon}`}>
+              <Icon name="eye" size={14} />Это не ваш цех — только просмотр.
             </div>
           )}
-          {stage.status === 'blocked' && stage.block_reason && (
-            <div className={`${styles.queueReason} ${styles.overdue}`}>
-              <span className={styles.cellWithIcon}><Icon name="ban" size={14} />{stage.block_reason}</span>
-            </div>
-          )}
+          <StageActionsPanel
+            entry={entry}
+            perms={perms}
+            deptShortById={deptShortById}
+            actions={actions}
+          />
         </section>
 
         <section className={styles.matSection}>
@@ -304,14 +325,75 @@ export default function ProductionTask() {
         </section>
       </div>
 
+      {/*
+        «ЗАДАНИЕ» — ТОЛЬКО РАБОЧИЕ ДАННЫЕ ЭТАПА (правка 13.09, п. 4).
+        Заказ, клиент, менеджер, изделие, количество, выполнено и срок отсюда
+        ушли: первые три — в карточку заказа, остальные — в строку выше.
+        Осталось то, что относится к самой работе цеха.
+      */}
       <section className={styles.matSection}>
-        <div className={styles.matSectionHead}><strong>Файлы</strong></div>
-        {(order.attachments ?? []).length > 0 ? (
-          <div className={styles.fileGrid}>
+        <div className={styles.matSectionHead}><strong>Задание</strong></div>
+        <dl className={styles.taskFacts}>
+          {/* Материалы ПОЗИЦИИ, а не всего заказа (правка 03.09): в заказе
+              из трёх изделий швея видела ткань чужого и делала по ней вывод
+              о своей готовности. Пустой список не показывается вовсе —
+              подпись «Материалы не ожидаются» была утверждением, которого
+              данные не подтверждают */}
+          {itemMaterials.length > 0 && (
+            <>
+              <dt>Материал</dt>
+              <dd>
+                <ul className={styles.tzMatList}>
+                  {itemMaterials.map((m) => (
+                    <li key={m.id}>
+                      {m.name}{m.color ? ` · ${m.color}` : ''}
+                      <span className={styles.subText}> — {MATERIAL_STATUS_LABELS[m.status] || m.status}</span>
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </>
+          )}
+          {/* «Не закреплено» ПОКАЗЫВАЕТСЯ — это событие, а не пустота:
+              мастеру важно видеть, что задание никто не взял */}
+          <dt>Исполнитель</dt>
+          <dd>{stage.assignee || <span className={styles.subText}>не закреплено</span>}</dd>
+          {stage.planned_end && (
+            <>
+              <dt>План этапа</dt>
+              <dd>{formatDateShort(stage.planned_end)}</dd>
+            </>
+          )}
+          {stage.qty_rework > 0 && (
+            <>
+              <dt>На переделку</dt>
+              <dd className={styles.progressCell}>{stage.qty_rework} шт</dd>
+            </>
+          )}
+        </dl>
+        {reason && (
+          <div className={styles.queueReason}>
+            <span className={styles.cellWithIcon}><Icon name="clock" size={14} />{reason}</span>
+          </div>
+        )}
+        {stage.status === 'blocked' && stage.block_reason && (
+          <div className={`${styles.queueReason} ${styles.overdue}`}>
+            <span className={styles.cellWithIcon}><Icon name="ban" size={14} />{stage.block_reason}</span>
+          </div>
+        )}
+      </section>
+
+      {/* ФАЙЛЫ — КОМПАКТНОЙ СТРОКОЙ (правка 13.09, п. 4). Сетка плиток
+          по 120px отдавала им полэкрана ради имени файла; пустое состояние
+          не показывается вовсе — «Файлов пока нет» это тот же прочерк */}
+      {(order.attachments ?? []).length > 0 && (
+        <section className={styles.matSection}>
+          <div className={styles.matSectionHead}><strong>Файлы</strong></div>
+          <div className={styles.taskFileRow}>
             {order.attachments.map((a) => (
               <a
                 key={a.id}
-                className={styles.fileCard}
+                className={styles.cellWithIcon}
                 href={supabase.storage.from('erp-attachments').getPublicUrl(a.file_path).data.publicUrl}
                 target="_blank"
                 rel="noreferrer"
@@ -320,10 +402,8 @@ export default function ProductionTask() {
               </a>
             ))}
           </div>
-        ) : (
-          <div className={styles.subText}>Файлов пока нет.</div>
-        )}
-      </section>
+        </section>
+      )}
 
       <CommentsSection comments={detail.comments} onSend={detail.onSendComment} />
     </>

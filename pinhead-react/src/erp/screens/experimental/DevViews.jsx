@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
-import { ButtonLink } from '../../components/Button';
 import { EmptyResult } from '../../components/ErpStates';
-import { OrderLink } from '../../components/OrderLink';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { DEV_TASK_STATUS_LABELS } from '../../types';
 import { buildQueueEntries } from '../../utils/queueEntries';
@@ -168,14 +166,26 @@ function BrandingQueue({ orders, departments, deptCode }) {
             <th>Изделие</th>
             <th>Тираж</th>
             <th>Состояние</th>
-            <th>Задание</th>
           </tr>
         </thead>
         <tbody>
           {entries.map(({ order, item, stage, group, reason }) => (
             <tr key={stage.id}>
               <td>
-                <OrderLink orderId={order.id}>№{order.bitrix_id || '—'}</OrderLink>
+                {/*
+                  НАЗВАНИЕ СДЕЛКИ ОТКРЫВАЕТ ЗАДАНИЕ (правка 13.09, п. 5) —
+                  тот же приём, что в очереди общего цеха; отдельная кнопка
+                  «Открыть» вела туда же и снята. Ссылка несёт текущий адрес:
+                  возврат обязан привести в то же представление.
+                */}
+                <Link
+                  to={`/task/${stage.id}`}
+                  state={{ from: `${location.pathname}${location.search}` }}
+                  className={styles.queueCardTitleLink}
+                  title={`Задание: №${order.bitrix_id || '—'} · ${order.title}`}
+                >
+                  №{order.bitrix_id || '—'}
+                </Link>
                 <div className={styles.cellSub}>{order.title}</div>
               </td>
               <td>
@@ -189,17 +199,6 @@ function BrandingQueue({ orders, departments, deptCode }) {
                   {QUEUE_GROUP_LABELS[group] ?? group}
                 </Badge>
                 {reason && <div className={styles.cellSub}>{reason}</div>}
-              </td>
-              <td>
-                {/* Ссылка несёт текущий адрес: возврат из задания обязан
-                    привести в то же представление, откуда ушли */}
-                <ButtonLink
-                  to={`/task/${stage.id}`}
-                  state={{ from: `${location.pathname}${location.search}` }}
-                  variant="ghost"
-                >
-                  Открыть
-                </ButtonLink>
               </td>
             </tr>
           ))}
