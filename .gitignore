@@ -29,3 +29,26 @@ ruvector.db
 
 # Отчёты Strix — выдержки из кода и найденные уязвимости, в репозиторий не идут
 strix_runs/
+
+# ── Вендорная AI-обвязка: не версионируется ──────────────────────────────
+# Приезжает установщиком (ruflo/claude-flow) и весила 6 МБ в git: 635 файлов
+# чужих скилов, команд и агентов. `.agents/` стоит выше с тем же смыслом —
+# но .gitignore не снимает с учёта то, что уже добавлено, и файлы
+# отслеживались вопреки записи. Сняты `git rm --cached`, на диске остались.
+#
+# Перечислением идёт то, что ОСТАЁТСЯ: что не названо — вендорное.
+# `.claude/helpers/` НЕ игнорируется: на него ссылаются хуки settings.json,
+# и без него они падают у всех, кроме машины с глобальной установкой.
+.claude/commands/
+.claude/skills/*
+!.claude/skills/changelog-generator/
+!.claude/skills/finishing-a-development-branch/
+!.claude/skills/root-cause-tracing/
+!.claude/skills/software-architecture/
+!.claude/skills/subagent-driven-development/
+!.claude/skills/systematic-debugging/
+!.claude/skills/test-driven-development/
+!.claude/skills/using-git-worktrees/
+!.claude/skills/zustand-store-ts/
+.claude/agents/*
+!.claude/agents/pinhead-qa.md
