@@ -56,7 +56,6 @@
 
 /* ── Board-level ── */
 .boardSpacer { flex: 1; }
-.loadingCol { padding: 60px; }
 .moreRow { text-align: center; padding: 16px 0; }
 .moreBtn { min-width: 160px; }
 
@@ -65,7 +64,7 @@
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
-  z-index: 9999;
+  z-index: var(--z-modal);
 }
 .shortcutsDialog {
   background: var(--bg);

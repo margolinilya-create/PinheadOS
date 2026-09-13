@@ -85,8 +85,12 @@ select:focus-visible {
 
 /* ── Кнопки экранов входа ─────────────────────────────────────────────
    Только эти два варианта: остальное семейство (.btn, .btn-primary,
-   .btn-danger, .btn-ghost, .btn-icon, .pe-btn) живёт в Order Studio,
+   .btn-ghost, .btn-icon, .pe-btn) живёт в Order Studio,
    а в ERP кнопки — примитив `erp/components/Button`.
+   `.btn-danger` из перечня убран вместе с самим классом: носителей у него
+   не было ни одного. Токены --btn-danger-bg/-fg при этом ЖИВЫ — их читает
+   опасный вариант примитива (`erp/components/Button.module.css`), и пара
+   проверяется на контраст.
 
    Базовые свойства .btn-accent продублированы из общего правила
    `.btn-next, .btn-prev, .btn-accent` осознанно: переезжать вместе

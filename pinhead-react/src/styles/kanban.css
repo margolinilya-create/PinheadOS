@@ -38,12 +38,6 @@
 .kanban-stats-bar .ks-count     { font-family: var(--mono); font-weight: 500; font-size: 14px; }
 .kanban-stats-bar .ks-total     { font-family: var(--mono); font-size: 16px; font-weight: 500; color: var(--accent); }
 .kanban-stats-bar .ks-separator { width: 1px; height: 18px; background: var(--border-light); flex-shrink: 0; }
-/* Filter bar */
-.kanban-filter-bar { display: flex; align-items: center; gap: 8px; padding: var(--space-sm) var(--space-2xl); background: var(--bg2); border-bottom: 1px solid var(--border-light); flex-shrink: 0; flex-wrap: wrap; }
-.kanban-filter-btn { height: 28px; padding: 0 12px; border: 1.5px solid var(--border-light); background: var(--card); font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; cursor: pointer; transition: all 150ms ease-out; display: flex; align-items: center; gap: 4px; }
-.kanban-filter-btn:hover      { border-color: var(--black); }
-.kanban-filter-btn.active     { border-color: var(--black); background: var(--black); color: var(--white); }
-.kanban-filter-btn .kf-dot    { width: 6px; height: 6px; border-radius: 50%; }
 /* Board */
 .kanban-board { flex: 1; display: flex; gap: 0; overflow-x: auto; overflow-y: hidden; padding: 0; }
 .kanban-col   { flex: 1; min-width: 240px; display: flex; flex-direction: column; border-right: 1px solid var(--border-light); height: 100%; }

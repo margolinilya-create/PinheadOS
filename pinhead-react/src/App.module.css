@@ -34,7 +34,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: var(--z-modal);
 }
 
 .blockerCard {
@@ -75,7 +75,7 @@
   width: 1px;
   height: 1px;
   overflow: hidden;
-  z-index: 9999;
+  z-index: var(--z-toast);
   padding: 8px 16px;
   background: var(--black);
   color: var(--white);

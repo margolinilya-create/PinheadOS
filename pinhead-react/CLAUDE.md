@@ -53,7 +53,7 @@ URL: https://pinhead-os.vercel.app
   - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
   - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
   - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
-  - editors/ — PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
+  - editors/ — SkuEditor (8 табов), ExpressCalc
   - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
   - analytics/ — Dashboard (Chart.js)
   - auth/ — AuthScreen, AdminPanel

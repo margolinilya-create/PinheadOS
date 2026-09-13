@@ -13,14 +13,8 @@
  * список причин в шапке того файла: две из трёх — тихие поломки.
  */
 
-.input-error-msg {
-  font-size: 11px;
-  color: var(--signal);
-  margin-top: var(--space-xs);
-}
-
 /* ── Details Form ── */
-.role-selector { display: flex; gap: 0; margin-bottom: var(--space-2xl); border: 1px solid var(--border-light); }
+
 .role-btns     { display: flex; gap: 0; margin-bottom: var(--space-2xl); border: 1px solid var(--border-light); }
 .role-btn {
   flex: 1; padding: 12px; border: none; border-right: 1px solid var(--border-light);
@@ -85,9 +79,6 @@
 }
 .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--white); }
-.options-row  { display: flex; gap: 24px; margin: var(--space-lg) 0; flex-wrap: wrap; }
-.toggle-label { display: flex; align-items: center; gap: 8px; font-family: var(--font-body); font-size: 13px; cursor: pointer; }
-.toggle-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 /* ── Label Configurator ── */
 .label-configurator { display: flex; flex-direction: column; gap: 8px; }
 .label-section      { border: 1px solid var(--border-light); transition: border-color 150ms ease-out; }
@@ -247,9 +238,6 @@
 .summary-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-sm); font-family: var(--font-body); font-size: 13px; gap: 12px; }
 .summary-row .key, .summary-row span { color: var(--text-dim); font-size: 12px; }
 .summary-row .val,  .summary-row b   { font-weight: 600; text-align: right; }
-.summary-unit  { margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border-light); }
-.summary-total { margin-top: var(--space-xs); font-size: 16px; }
-.summary-total b { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--accent); }
 /* ── Price Breakdown ── */
 .price-breakdown { background: var(--bg2); border: 1px solid var(--border-light); padding: var(--space-xl); margin-bottom: var(--space-2xl); }
 .price-line {
@@ -326,10 +314,6 @@
   .btn-spinner { animation: none; }
   .btn-primary { transition: none; }
 }
-/* ── Danger Button ── */
-.btn-danger        { color: var(--signal); }
-.btn-danger:hover:not(:disabled)  { background: var(--signal); color: var(--white); }
-.btn-danger:disabled { opacity: .4; cursor: not-allowed; }
 /* ── Disabled (generic) ── */
 .btn:disabled,
 .btn.disabled      { opacity: .35; cursor: not-allowed; pointer-events: none; transform: none; }
@@ -380,27 +364,6 @@
 .pe-btn-primary:disabled {
   background: var(--ink); border-color: var(--ink); opacity: .5;
 }
-.order-saved-banner {
-  margin-top: var(--space-xl); padding: var(--space-lg) var(--space-xl); background: var(--bg-success); border: 1px solid var(--color-success);
-  color: var(--color-success); font-family: var(--font-body); font-size: 13px; font-weight: 500; letter-spacing: 1px; text-align: center;
-}
-/* Upload areas */
-.general-upload {
-  border: 1px dashed var(--border-light); padding: var(--space-xl); text-align: center;
-  cursor: pointer; transition: all 150ms ease-out; background: var(--bg2); margin-bottom: var(--space-xl);
-}
-.general-upload:hover { border-color: var(--accent); border-style: solid; background: var(--card); }
-.general-upload-icon  { font-size: 28px; margin-bottom: var(--space-sm); color: var(--accent); }
-.general-upload-text  { font-family: var(--font-body); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
-.general-upload-sub   { font-family: var(--font-body); font-size: 11px; color: var(--text-dim); margin-top: 3px; }
-.upload-area {
-  border: 1px dashed var(--border-light); padding: var(--space-2xl); text-align: center;
-  cursor: pointer; transition: all 150ms ease-out; margin-bottom: var(--space-xl); background: var(--bg2);
-}
-.upload-area:hover { border-color: var(--accent); border-style: solid; background: var(--card); }
-.upload-icon { font-size: 28px; margin-bottom: 12px; color: var(--accent); }
-.upload-text { font-family: var(--font-body); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-.upload-sub  { font-family: var(--font-body); font-size: 11px; color: var(--text-dim); margin-top: var(--space-xs); }
 /* ── Summary Validation Errors ── */
 .summary-errors {
   background: var(--bg-error); border: 1px solid var(--color-error);
@@ -453,14 +416,14 @@
 
 /* ── Mobile touch targets ── */
 @media (max-width: 768px) {
-  .btn-primary, .btn-danger, .btn-ghost, .btn-next, .btn-prev {
+  .btn-primary, .btn-ghost, .btn-next, .btn-prev {
     min-height: 48px;
   }
 }
 
 /* ── Touch targets ≥44px на тач-устройствах (pointer: coarse) ── */
 @media (pointer: coarse) {
-  .btn-primary, .btn-danger, .btn-ghost, .btn-next, .btn-prev {
+  .btn-primary, .btn-ghost, .btn-next, .btn-prev {
     min-height: 44px;
   }
   .btn-icon { width: 44px; height: 44px; }

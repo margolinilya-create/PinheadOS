@@ -20,7 +20,6 @@
 .exp-field label { font-family: var(--font-display); font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); }
 .exp-field select, .exp-field input { border: 1.5px solid var(--border-light); padding: 10px 14px; font-family: var(--font-display); font-size: 13px; transition: border-color 150ms ease-out; }
 .exp-field select:focus, .exp-field input:focus { border-color: var(--black); outline: none; }
-.exp-result       { margin-top: 8px; padding: 16px; border: 1.5px solid var(--black); background: var(--bg2); }
 .exp-result-row   { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
 .exp-result-row span { color: var(--text-dim); }
 .exp-result-total { margin-top: 8px; padding-top: 8px; border-top: 1.5px solid var(--black); display: flex; justify-content: space-between; font-size: 16px; }

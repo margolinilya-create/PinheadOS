@@ -603,9 +603,8 @@ export interface ErpTzDocument {
   created_at: string;
 }
 
-/** Бакет и префикс ТЗ в Supabase Storage */
+/** Бакет ТЗ в Supabase Storage */
 export const TZ_BUCKET = 'erp-attachments';
-export const TZ_PREFIX = 'tz';
 /**
  * Ограничения загрузки ТЗ: до 15 МБ, формат ЛЮБОЙ (правка 12.09, п. 4).
  *

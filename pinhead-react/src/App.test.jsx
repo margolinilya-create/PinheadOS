@@ -71,27 +71,6 @@ vi.mock('./utils/mockup', () => ({
   getGarmentSVG: vi.fn(() => ''),
 }));
 
-// Mock recharts
-vi.mock('recharts', () => ({
-  BarChart: ({ children }) => <div>{children}</div>,
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
-  PieChart: ({ children }) => <div>{children}</div>,
-  Pie: () => null,
-  Cell: () => null,
-  Legend: () => null,
-  AreaChart: ({ children }) => <div>{children}</div>,
-  Area: () => null,
-}));
-
-// Mock QRCode
-vi.mock('qrcode', () => ({
-  default: { toDataURL: vi.fn().mockResolvedValue('') },
-}));
-
 function renderApp(path = '/') {
   const router = createMemoryRouter(
     [{ path: '*', Component: App }],

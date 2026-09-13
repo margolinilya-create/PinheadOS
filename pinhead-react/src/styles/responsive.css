@@ -34,7 +34,6 @@
   .btn-row > *        { flex: 1 1 auto; min-width: 120px; }
   .garment-row-name   { font-size: 16px; }
   .swatches           { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
-  .extras-grid        { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .zones-grid         { grid-template-columns: repeat(3, 1fr); }
   .label-fields       { grid-template-columns: 1fr; }
   .exp-panel          { width: 100%; max-width: 100%; }
@@ -45,26 +44,16 @@
   .kanban-board       { -webkit-overflow-scrolling: touch; }
   .kanban-col         { min-width: 280px; flex: 0 0 280px; }
   .kb-search          { width: 100%; }
-  .kanban-filter-bar  { flex-wrap: wrap; }
   .kanban-stats-bar   { flex-wrap: wrap; }
   .sku-ed-panel       { padding: 0 24px; }
   .sku-ed-table       { font-size: 11px; }
   .sku-th-name        { min-width: 100px; }
-  .tc-doc-row         { flex-direction: column; gap: 24px; }
-  .tc-doc-mockup      { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-  .tc-mockup-svg      { width: 140px; }
-  .tc-photos          { flex-wrap: wrap; }
   .add-size-form      { flex-wrap: wrap; gap: 8px; }
-  .dash-panel         { width: 100%; max-width: 100%; margin: 0; border-radius: 0; }
   .dash-metrics       { grid-template-columns: repeat(2, 1fr); }
   .dash-row           { flex-direction: column; }
   .dash-chart         { min-width: 100%; }
-  .step-content-grid  { grid-template-columns: 1fr; }
-  .step-aside         { display: none; }
-  .page-view          { padding: 0 24px 40px; }
   .exp-page-grid      { grid-template-columns: 1fr; }
   .exp-result-section { position: static; }
-  .page-header        { flex-direction: column; }
 }
 /* ── Phone ── */
 @media (max-width: 480px) {
@@ -79,8 +68,6 @@
   .swatches           { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); }
   .qty-btn            { width: 36px; height: 36px; }
   .qty-input          { width: 48px; height: 36px; }
-  .extras-grid        { grid-template-columns: repeat(2, 1fr); }
-  .extra-card         { padding: 12px 8px; }
   .zones-grid         { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .zone-card          { height: 48px; }
   .label-placement-btns { flex-wrap: wrap; }
@@ -107,11 +94,6 @@
   .sku-ed-title       { font-size: 20px; }
   .sku-ed-table       { font-size: 9px; }
   .sku-th-name        { min-width: 80px; }
-  .tc-doc-mockup      { width: 100%; }
-  .tc-mockup-svg      { width: 120px; }
-  .tc-doc-qr          { width: 40px; height: 40px; }
-  .tc-photo           { width: 64px; height: 64px; }
-  .tc-photo-add       { width: 64px; height: 64px; }
   .add-size-form      { flex-direction: column; align-items: stretch; }
   .add-size-form-input { width: 100%; }
   .add-size-form-qty   { width: 100%; }
@@ -119,9 +101,6 @@
   .size-th-price      { display: none; }
   .dash-metrics       { grid-template-columns: 1fr 1fr; gap: 8px; }
   .dash-metric        { padding: 12px; }
-  .dash-metric .dash-metric-val { font-size: 20px; }
-  .dash-period-btns   { flex-wrap: wrap; }
-  .dash-period-btns button { padding: 8px 12px; font-size: 11px; }
   .dash-chart         { min-height: 200px; }
   /* toast responsive — moved to Toast.module.css */
   .kanban-col         { min-width: 260px; flex: 0 0 260px; }

@@ -4,8 +4,6 @@
 
 import { diffDays, factoryDate, factoryToday } from './date';
 
-export const MS_PER_DAY = 86400000;
-
 export interface DeadlineInfo {
   label: string;
   color: string;

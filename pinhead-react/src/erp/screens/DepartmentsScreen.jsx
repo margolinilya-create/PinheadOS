@@ -270,7 +270,6 @@ export default function DepartmentsScreen({ embedded = false }) {
                     onToggleProduction={(next) => toggleProduction(d, next)}
                     onToggleBranding={(next) => updateDepartment(d.id, { is_branding: next })}
                     onToggleOverPlan={(next) => updateDepartment(d.id, { allows_over_plan: next })}
-              onToggleOverPlan={(next) => updateDepartment(d.id, { allows_over_plan: next })}
                   />
                 </td>
                 <td>

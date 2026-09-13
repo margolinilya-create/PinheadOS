@@ -6,7 +6,6 @@ input, textarea, select { font-size: 16px; }
 html, body { overflow-x: hidden; }
 /* ── App Shell ── */
 .app { min-height: 100vh; display: flex; flex-direction: column; }
-.app-main { flex: 1; max-width: 1120px; margin: 0 auto; padding: 24px 40px 48px; width: 100%; }
 .container { max-width: 1120px; margin: 0 auto; padding: 24px 40px 48px; width: 100%; }
 /* ── Header — moved to Header.module.css ── */
 /* Logo */
@@ -19,27 +18,6 @@ html, body { overflow-x: hidden; }
 .logo-sub {
   font-family: var(--font-body); font-size: 9px; font-weight: 500;
   letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-top: 2px;
-}
-/* Navigation tabs, header-right, draft, total, logout — moved to Header.module.css */
-.header-user { display: flex; align-items: stretch; }
-.header-user-name { display: none; }
-/* Header action buttons */
-.header-btns { display: flex; align-items: stretch; }
-.header-action-btn {
-  background: none; border: none; border-left: 1px solid var(--border-light);
-  color: var(--text-mid); height: 52px; padding: 0 24px;
-  cursor: pointer; font-family: var(--font-body);
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
-  display: flex; align-items: center; gap: 8px;
-  transition: background 150ms ease-out, color 150ms ease-out; white-space: nowrap; flex-shrink: 0;
-}
-.header-action-btn:hover  { background: var(--accent); color: var(--white); }
-.header-action-btn.active { background: var(--accent); color: var(--white); }
-.header-action-btn.express { background: var(--accent); color: var(--white); border-left: 1px solid var(--border-light); }
-.header-action-btn.express:hover { opacity: 0.85; }
-.header-action-btn .badge {
-  background: var(--accent); color: var(--white); font-size: 9px; padding: 1px 8px;
-  font-weight: 600; letter-spacing: 0;
 }
 /* Panel loading fallback for React.lazy */
 .panel-loading {
@@ -54,5 +32,5 @@ html, body { overflow-x: hidden; }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
-  .app-main, .container { padding: 16px 20px 40px; }
+  .container { padding: 16px 20px 40px; }
 }
