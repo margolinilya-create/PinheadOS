@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ErrorBoundary from './ErrorBoundary';
+import { UPDATE_TITLE } from '../../lib/appUpdate';
 
 // Suppress console.error from ErrorBoundary during tests
 beforeEach(() => {
@@ -107,5 +108,48 @@ describe('ErrorBoundary', () => {
     );
     fireEvent.click(screen.getByText('Перезагрузить'));
     expect(reloadMock).toHaveBeenCalled();
+  });
+});
+
+/**
+ * УСТАРЕВШАЯ ВКЛАДКА РАСПОЗНАЁТСЯ И ПОД ЧУЖИМ ФОЛБЭКОМ.
+ *
+ * Дефект прода 13.09: `isUpdate` вычислялся, но ветка пользовательского
+ * фолбэка стояла раньше и возвращала управление владельцу. Фолбэк передаёт
+ * ВЕСЬ раздел «Производство», то есть ровно тот, которым пользуются, —
+ * и после выкатки планшет в цеху показывал «Не удалось загрузить экран
+ * (Importing a module script failed.) / Проверьте связь» с кнопкой
+ * «Повторить», которая перемонтирует тот же исчезнувший чанк и не может
+ * сработать никогда.
+ *
+ * Формулировку берём Safari/WebKit: скриншот из прода пришёл с iPhone,
+ * а у каждого движка она своя.
+ */
+describe('ErrorBoundary: выкатка под пользовательским фолбэком', () => {
+  function ThrowChunkError() {
+    throw new Error('Importing a module script failed.');
+  }
+
+  it('устаревшая вкладка не отдаётся фолбэку владельца', () => {
+    render(
+      <ErrorBoundary fallback={<div>Проверьте связь и попробуйте ещё раз.</div>}>
+        <ThrowChunkError />
+      </ErrorBoundary>
+    );
+    expect(screen.getByText(UPDATE_TITLE)).toBeInTheDocument();
+    // Совет про связь неверен: файла нет, сеть ни при чём
+    expect(screen.queryByText('Проверьте связь и попробуйте ещё раз.')).toBeNull();
+    // И действие обязано быть тем, которое СРАБОТАЕТ
+    expect(screen.getByRole('button', { name: 'Обновить' })).toBeInTheDocument();
+  });
+
+  it('настоящая поломка экрана фолбэку владельца по-прежнему отдаётся', () => {
+    render(
+      <ErrorBoundary fallback={<div>Экран не отрисовался</div>}>
+        <ThrowingChild shouldThrow />
+      </ErrorBoundary>
+    );
+    expect(screen.getByText('Экран не отрисовался')).toBeInTheDocument();
+    expect(screen.queryByText(UPDATE_TITLE)).toBeNull();
   });
 });
