@@ -173,12 +173,6 @@ export function screenCalcZone(zone: string, state: PricingState): number {
   return base;
 }
 
-export function flexCalcZone(zone: string, state: PricingState): number {
-  const p = state.flexZones?.[zone] || { colors: 1, size: 'A4' };
-  const qty = getTotalQty(state) || 1;
-  return flexLookup(p.size, parseInt(p.colors) || 1, qty);
-}
-
 // Универсальный расчёт наценки за зону по параметрам
 // tech: 'screen'|'flex'|'dtg'|'embroidery'|'dtf'
 // params: { fmt/size, col/colors, textile, fx }

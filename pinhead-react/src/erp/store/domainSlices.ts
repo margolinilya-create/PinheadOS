@@ -92,6 +92,3 @@ export function attachDomainSlices(): void {
 }
 
 /** Прицеплены ли доменные действия — для тестов и сторожей */
-export function domainSlicesAttached(): boolean {
-  return attached;
-}

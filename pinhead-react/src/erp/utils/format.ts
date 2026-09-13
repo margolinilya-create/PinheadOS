@@ -72,13 +72,6 @@ export function overdueBucket(overdueDays: number): OverdueBucket {
   return 'stale';
 }
 
-export const OVERDUE_BUCKET_LABEL: Record<OverdueBucket, string> = {
-  none: 'В срок',
-  week: 'Просрочен до недели',
-  month: 'Просрочен 8–30 дней',
-  stale: 'Просрочен больше месяца',
-};
-
 /** Короткое имя ступени — для чипов и легенды */
 export const OVERDUE_BUCKET_SHORT: Record<OverdueBucket, string> = {
   none: 'в срок',

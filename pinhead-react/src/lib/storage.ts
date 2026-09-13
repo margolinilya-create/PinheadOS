@@ -212,11 +212,6 @@ export async function uploadSkuPhoto(code: string, file: File, index: number = 0
   return data.publicUrl;
 }
 
-export function getSkuPhotoUrl(path: string): string {
-  const { data } = supabase.storage.from(SKU_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
-}
-
 export async function deleteSkuPhotoByUrl(url: string): Promise<boolean> {
   const match = url.match(/sku-photos\/(.+)$/);
   if (!match) return false;
@@ -226,13 +221,4 @@ export async function deleteSkuPhotoByUrl(url: string): Promise<boolean> {
     return false;
   }
   return true;
-}
-
-export async function deleteSkuPhoto(code: string): Promise<void> {
-  const exts = ['jpg', 'jpeg', 'png', 'webp'];
-  const paths: string[] = [];
-  for (let i = 0; i < 4; i++) {
-    exts.forEach(ext => paths.push(`${code}_${i}.${ext}`));
-  }
-  await supabase.storage.from(SKU_BUCKET).remove(paths);
 }
