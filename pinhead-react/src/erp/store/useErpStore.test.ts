@@ -489,7 +489,7 @@ function seedChain() {
     orders: [order] as any,
     departments: [
       { id: 'd-cut', code: 'cutting', name: 'Закрой', active: true },
-      { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true },
+      { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true },
     ] as any,
     loaded: true,
   });
@@ -525,7 +525,7 @@ describe('useErpStore — reportDefect (выбор этапа устранени
     expect((ev?.row as any).stage_id).toBe('st-cut');
     expect((ev?.row as any).qty_rework).toBe(5);
     expect((ev?.row as any).comment).toContain('Возврат брака');
-    expect((ev?.row as any).comment).toContain('Швейка');
+    expect((ev?.row as any).comment).toContain('Швейный цех');
   });
 
   it('target=current не трогает другие этапы', async () => {
@@ -581,7 +581,7 @@ describe('useErpStore — reportDefect с параллельными ветка�
         { id: 'd-cut', code: 'cutting', name: 'Закрой', active: true },
         { id: 'd-emb', code: 'embroidery', name: 'Вышивка', active: true },
         { id: 'd-silk', code: 'silkscreen', name: 'Шелкография', active: true },
-        { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true },
+        { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true },
       ] as any,
       loaded: true,
     });
@@ -992,6 +992,41 @@ describe('useErpStore — материал со склада / авто-закр
     const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
     expect(task?.status).toBe('accepted');
   });
+
+  /**
+   * ЗАКРЫВАЕТСЯ ЗАДАЧА СВОЕЙ ПОЗИЦИИ (правка 12.09, вторая порция, баг 01).
+   *
+   * Приёмка стала позиционной, и прежнее «любая незакрытая задача заказа»
+   * гасило бы карточку материала, который ещё едет: у заказа с двумя тканями
+   * приёмка первой закрыла бы приёмку второй. Сторож смотрит ОБЕ задачи —
+   * проверка «своя закрылась» одна прошла бы и на старом коде.
+   */
+  it('acceptMaterial: чужую задачу приёмки не закрывает', async () => {
+    /**
+     * ПРИНИМАЕМ ВТОРУЮ ПОЗИЦИЮ, А ПЕРВАЯ ЕЩЁ ЕДЕТ — иначе сторож зелен
+     * и на старом коде: прежний отбор брал ПЕРВУЮ незакрытую задачу заказа,
+     * а ею оказалась бы задача принимаемого материала. Проверено мутацией.
+     */
+    seedSupply([
+      mat({ status: 'in_transit', accept_status: null }),
+      mat({ id: 'm2', name: 'Бирка', status: 'received', accept_status: 'accepted_full' }),
+    ]);
+    useErpStore.setState({
+      orders: [{
+        ...useErpStore.getState().orders[0],
+        warehouse_tasks: [
+          { id: 'wt1', order_id: 'o1', material_id: 'm1', task_type: 'material_receipt', status: 'awaiting' },
+          { id: 'wt2', order_id: 'o1', material_id: 'm2', task_type: 'material_receipt', status: 'awaiting' },
+        ],
+      }] as any,
+    });
+    await useErpStore.getState().acceptMaterial('m2', {
+      qty: 100, accept_status: 'accepted_full',
+    });
+    const tasks = useErpStore.getState().orders[0].warehouse_tasks ?? [];
+    expect(tasks.find((t) => t.id === 'wt2')?.status).toBe('accepted');
+    expect(tasks.find((t) => t.id === 'wt1')?.status, 'закрылась чужая приёмка').toBe('awaiting');
+  });
 });
 
 describe('useErpStore — задачи склада (волна 4): advanceWarehouseTask', () => {
@@ -1101,7 +1136,7 @@ describe('useErpStore — reportDefect rollback + guard (аудит P1)', () => 
     const order = { id: 'o1', title: 'Заказ', status: 'active', items: [item], materials: [] };
     useErpStore.setState({
       orders: [order] as any,
-      departments: [{ id: 'd-cut', code: 'cutting', name: 'Закрой', active: true }, { id: 'd-sew', code: 'sewing', name: 'Швейка', active: true }] as any,
+      departments: [{ id: 'd-cut', code: 'cutting', name: 'Закрой', active: true }, { id: 'd-sew', code: 'sewing', name: 'Швейный цех', active: true }] as any,
       loaded: true,
     });
   }
@@ -1235,7 +1270,7 @@ describe('useErpStore — reportDefect бэклог-фиксы (qty vs сдел�
     const item = { id: 'it1', order_id: 'o1', product_type: 'Ф', variant: null, qty: 500, production_type: 'sewing', branding_methods: [], branding_on: 'cut', notes: null, sort_order: 10, stages: [cut, sew, vto], prints: [] };
     useErpStore.setState({
       orders: [{ id: 'o1', title: 'З', status: 'active', items: [item], materials: [] }] as any,
-      departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', active: true }, { id: 'd2', code: 'sewing', name: 'Швейка', active: true }, { id: 'd3', code: 'vto', name: 'ВТО', active: true }] as any,
+      departments: [{ id: 'd1', code: 'cutting', name: 'Закрой', active: true }, { id: 'd2', code: 'sewing', name: 'Швейный цех', active: true }, { id: 'd3', code: 'vto', name: 'ВТО', active: true }] as any,
       loaded: true,
     });
     const ok = await useErpStore.getState().reportDefect('s-vto', { qty: 20, reason: 'x', target: 's-cut' });
@@ -1993,7 +2028,7 @@ describe('createOrder через RPC erp_create_order (п.28)', () => {
     { id: 'dep-supply', code: 'supply', name: 'Закупка', active: true },
     { id: 'dep-cutting', code: 'cutting', name: 'Закрой', active: true },
     { id: 'dep-dtf', code: 'dtf', name: 'ДТФ', active: true },
-    { id: 'dep-sewing', code: 'sewing', name: 'Швейка', active: true },
+    { id: 'dep-sewing', code: 'sewing', name: 'Швейный цех', active: true },
     { id: 'dep-vto', code: 'vto', name: 'ВТО', active: true },
   ];
 
@@ -2308,15 +2343,18 @@ describe('useErpStore — экспериментальный цех: задач�
     expect(upd?.patch.closed_at).toBeTruthy();
   });
 
-  it('approveSample хранит РЕШЕНИЕ человека, а не производную от задач', async () => {
-    // Закрытая примерка одинаково означает и «принято», и «не принято»:
-    // разница жила в свободном тексте `result`, то есть не читалась ничем
-    seed();
-    await useErpStore.getState().approveSample('e1', 'посадка ок');
-    const upd = h.updateCalls.find((c) => c.table === 'erp_experimental');
-    expect(upd?.patch.sample_approved_at).toBeTruthy();
-    expect(upd?.patch.sample_approved_by).toBeTruthy();
-    expect(upd?.patch.sample_approved_note).toBe('посадка ок');
+  /**
+   * ПИСАТЕЛЯ У ПРОВЕРКИ ОБРАЗЦА БОЛЬШЕ НЕТ (правка 12.09, вторая порция, п. 5:
+   * «убрать из рабочего сценария блок „Проверка образца"»).
+   *
+   * Сторож смотрит на СТОР, а не на экран: действие `approveSample` было
+   * единственным, кто писал `sample_approved_at`, и вернуть его можно молча —
+   * блок исчезнет, а поле снова начнёт заполняться. Колонка при этом жива:
+   * по ней заведённые раньше разработки стоят в колонке «Финальный этап».
+   */
+  it('проверку образца больше нечем проставить', () => {
+    const store = useErpStore.getState() as unknown as Record<string, unknown>;
+    expect(store.approveSample).toBeUndefined();
   });
 
   it('файл пакета уходит в бакет и привязывается к РАЗРАБОТКЕ', async () => {
@@ -2956,7 +2994,7 @@ describe('useErpStore — moveStageToDepartment (перенос между це�
     const events = h.insertCalls.filter((c) => c.table === 'erp_stage_events');
     expect(events).toHaveLength(2);
     for (const e of events) {
-      expect((e.row as any).comment).toContain('Швейка');
+      expect((e.row as any).comment).toContain('Швейный цех');
       expect((e.row as any).comment).toContain('Закрой');
       expect((e.row as any).comment).toContain('перекроить');
     }

@@ -25,6 +25,7 @@ import {
  */
 function DeptCardBase({
   dept, headCandidates, onRename, onSortOrder, onToggleProduction, onToggleBranding,
+  onToggleOverPlan,
   onToggleGateKind, onSaveResultFields, onHead, onNormDays, onToggleActive,
 }) {
   return (
@@ -60,6 +61,7 @@ function DeptCardBase({
             dept={dept}
             onToggleProduction={onToggleProduction}
             onToggleBranding={onToggleBranding}
+            onToggleOverPlan={onToggleOverPlan}
           />
         </span>
       </div>

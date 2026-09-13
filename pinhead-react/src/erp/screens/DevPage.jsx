@@ -51,7 +51,7 @@ export default function DevPage() {
     orders, detailIds, loadOne, departments, loaded, loadError, loadAll,
     experimental, experimentalLoaded, experimentalError, loadExperimental,
     updateExperimental, addDevTasks, updateDevTask, sendDevTaskToDept,
-    closeExperimental, approveSample, uploadDevFile, deleteDevFile,
+    closeExperimental, uploadDevFile, deleteDevFile,
   } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     detailIds: s.detailIds,
@@ -69,7 +69,6 @@ export default function DevPage() {
     updateDevTask: s.updateDevTask,
     sendDevTaskToDept: s.sendDevTaskToDept,
     closeExperimental: s.closeExperimental,
-    approveSample: s.approveSample,
     uploadDevFile: s.uploadDevFile,
     deleteDevFile: s.deleteDevFile,
   })));
@@ -248,7 +247,6 @@ export default function DevPage() {
           if (ok !== false) navigate(back);
           return ok;
         }}
-        onApproveSample={approveSample}
         onUploadFile={uploadDevFile}
         onRemoveFile={deleteDevFile}
       />

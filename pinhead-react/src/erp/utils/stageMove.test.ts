@@ -5,7 +5,7 @@ import type { ErpItemStage } from '../types';
 const DEPTS = new Map([
   ['cut', 'Закрой'],
   ['emb', 'Вышивка'],
-  ['sew', 'Швейка'],
+  ['sew', 'Швейный цех'],
   ['vto', 'ВТО'],
 ]);
 
@@ -85,7 +85,7 @@ describe('analyzeStageMove — предупреждения', () => {
     const plan = analyze(s, [s, mid, stage('sew', 30), t], 'vto');
     const skip = plan.issues.find((i) => i.kind === 'skip');
     expect(skip?.text).toContain('Вышивка');
-    expect(skip?.text).toContain('Швейка');
+    expect(skip?.text).toContain('Швейный цех');
     expect(plan.requiresComment).toBe(true);
   });
 
@@ -118,9 +118,9 @@ describe('moveConfirmMessage', () => {
   it('главный вопрос + последствия одной строкой', () => {
     const s = stage('emb', 20, { status: 'in_progress', qty_done: 40 });
     const plan = analyze(s, [s, stage('sew', 30)], 'sew');
-    const msg = moveConfirmMessage(plan, 'Вышивка', 'Швейка');
+    const msg = moveConfirmMessage(plan, 'Вышивка', 'Швейный цех');
     expect(msg).toContain('«Вышивка» будет отмечен завершённым');
-    expect(msg).toContain('«Швейка»');
+    expect(msg).toContain('«Швейный цех»');
     expect(msg).toContain('40 из 100');
   });
 });

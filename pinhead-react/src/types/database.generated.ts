@@ -216,6 +216,7 @@ export type Database = {
       erp_departments: {
         Row: {
           active: boolean
+          allows_over_plan: boolean
           code: string
           created_at: string
           gate_material_kinds: string[]
@@ -232,6 +233,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          allows_over_plan?: boolean
           code: string
           created_at?: string
           gate_material_kinds?: string[]
@@ -248,6 +250,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          allows_over_plan?: boolean
           code?: string
           created_at?: string
           gate_material_kinds?: string[]
@@ -737,6 +740,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -764,6 +768,7 @@ export type Database = {
           qty_done?: number
           qty_rework?: number
           queue_position?: number | null
+          result_kind?: string | null
           sort_order?: number
           started_at?: string | null
           status?: string
@@ -791,6 +796,7 @@ export type Database = {
           qty_done?: number
           qty_rework?: number
           queue_position?: number | null
+          result_kind?: string | null
           sort_order?: number
           started_at?: string | null
           status?: string
@@ -2168,6 +2174,7 @@ export type Database = {
           id: string
           item_id: string | null
           marking_type: string | null
+          material_id: string | null
           note: string | null
           order_id: string
           stage_id: string | null
@@ -2181,6 +2188,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           marking_type?: string | null
+          material_id?: string | null
           note?: string | null
           order_id: string
           stage_id?: string | null
@@ -2194,6 +2202,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           marking_type?: string | null
+          material_id?: string | null
           note?: string | null
           order_id?: string
           stage_id?: string | null
@@ -2207,6 +2216,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_warehouse_tasks_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
             referencedColumns: ["id"]
           },
           {
@@ -2627,6 +2643,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2677,6 +2694,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2693,6 +2711,7 @@ export type Database = {
         Args: { p_added_good?: number; p_stage_id: string }
         Returns: string
       }
+      erp_stage_input_qty: { Args: { p_stage_id: string }; Returns: number }
       erp_stage_item_qty: { Args: { p_stage_id: string }; Returns: number }
       erp_stage_move_department: {
         Args: {
@@ -2722,6 +2741,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2758,6 +2778,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2794,6 +2815,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2839,6 +2861,7 @@ export type Database = {
           qty_done: number
           qty_rework: number
           queue_position: number | null
+          result_kind: string | null
           sort_order: number
           started_at: string | null
           status: string
@@ -2954,6 +2977,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_update_order: {
+        Args: { p_order_id: string; p_payload: Json }
+        Returns: string
+      }
       erp_warehouse_submit_report: {
         Args: {
           p_comment?: string
@@ -2969,6 +2996,7 @@ export type Database = {
           id: string
           item_id: string | null
           marking_type: string | null
+          material_id: string | null
           note: string | null
           order_id: string
           stage_id: string | null

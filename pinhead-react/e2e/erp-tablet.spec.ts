@@ -279,7 +279,7 @@ test.describe('Оболочка на планшете', () => {
     await expect(menu).toBeVisible();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
 
-    const sewing = page.getByRole('complementary').getByRole('link', { name: /Швейка/ });
+    const sewing = page.getByRole('complementary').getByRole('link', { name: /Швейный цех/ });
     await expect(sewing).not.toBeInViewport();
 
     await menu.click();

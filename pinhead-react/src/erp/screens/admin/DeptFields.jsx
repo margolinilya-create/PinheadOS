@@ -61,10 +61,13 @@ export function SortOrderInput({ dept, onChange }) {
 }
 
 /**
- * Признаки участка: производственный (своя очередь, колонка канбана, гейт ТЗ)
- * и нанесение. Раньше набор был захардкожен, и новый цех не появлялся нигде.
+ * Признаки участка: производственный (своя очередь, колонка канбана, гейт ТЗ),
+ * нанесение и право на «плюсы». Раньше набор был захардкожен, и новый цех
+ * не появлялся нигде.
  */
-export function DeptFlags({ dept, onToggleProduction, onToggleBranding }) {
+export function DeptFlags({
+  dept, onToggleProduction, onToggleBranding, onToggleOverPlan,
+}) {
   return (
     <>
       <label className={styles.checkLabel}>
@@ -84,6 +87,23 @@ export function DeptFlags({ dept, onToggleProduction, onToggleBranding }) {
           onChange={(e) => onToggleBranding(e.target.checked)}
         />
         нанесение
+      </label>
+      {/*
+        «ПЛЮСЫ» К ТИРАЖУ (правка 12.09, вторая порция, п. 4): участок может
+        сдать больше, чем пришло на вход. Включён у закроя — документ называет
+        его единственным местом, где дополнительное количество возникает.
+        Держать это константой `code === 'cutting'` в коде правила проекта
+        запрещают: рядом уже живут материальный гейт и схема отчёта, и оба
+        в данных.
+      */}
+      <label className={styles.checkLabel}>
+        <input
+          type="checkbox"
+          checked={Boolean(dept.allows_over_plan)}
+          aria-label={`Участок ${dept.name} — можно сдать больше тиража («плюсы»)`}
+          onChange={(e) => onToggleOverPlan?.(e.target.checked)}
+        />
+        «плюсы» к тиражу
       </label>
     </>
   );

@@ -24,7 +24,7 @@ test.describe('Навигация ERP (правки 1 и 13)', () => {
     const sidebar = page.getByRole('complementary');
     // Сначала ждём сам пункт меню: заголовок группы появляется вместе с сайдбаром,
     // и проверка его видимости первой ловила гонку монтирования под нагрузкой
-    for (const name of ['Закрой', 'Шелкография', 'ДТФ', 'Вышивка', 'Швейка', 'ВТО']) {
+    for (const name of ['Закрой', 'Шелкография', 'ДТФ', 'Вышивка', 'Швейный цех', 'ВТО']) {
       await expect(sidebar.getByRole('link', { name: new RegExp(name) })).toBeVisible();
     }
     await expect(sidebar.getByText('Цеха', { exact: true })).toBeVisible();
@@ -32,7 +32,7 @@ test.describe('Навигация ERP (правки 1 и 13)', () => {
 
   test('пункт цеха открывает его рабочую очередь', async ({ page }) => {
     await page.goto('/?studio=0');
-    await page.getByRole('link', { name: /Швейка/ }).click();
+    await page.getByRole('link', { name: /Швейный цех/ }).click();
     await expect(page).toHaveURL(/\/queue\/sewing/);
     await expect(page.getByRole('heading', { name: 'Швейный цех' })).toBeVisible();
   });
@@ -179,7 +179,7 @@ test.describe('Производственный канбан (правка 4)', 
     const heads = board.locator('section > :first-child');
     await expect(heads.first()).toBeVisible();
     const names = (await heads.allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim());
-    for (const dept of ['Закрой', 'Шелкография', 'ДТФ', 'Вышивка', 'Швейка', 'ВТО']) {
+    for (const dept of ['Закрой', 'Шелкография', 'ДТФ', 'Вышивка', 'Швейный цех', 'ВТО']) {
       expect(names.some((n) => n.startsWith(dept))).toBe(true);
     }
     // Дорожки внутри процесса — «Готово к работе» / «В работе» / «Завершено»
@@ -372,7 +372,7 @@ test.describe('Технические задания в PDF', () => {
     // Маршрут показан справкой «кто увидит файл», а не списком выборов по цехам
     const hint = form.locator('[class*="tzAssignRow"]').filter({ hasText: 'ТЗ увидят' }).first();
     await expect(hint).toContainText('Закрой');
-    await expect(hint).toContainText('Швейка');
+    await expect(hint).toContainText('Швейный цех');
     // Закупка ТЗ не требует — её в справке нет
     await expect(hint).not.toContainText('Закупка');
     // Выпадающих списков назначения не осталось ни одного

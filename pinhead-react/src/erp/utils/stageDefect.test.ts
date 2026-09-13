@@ -5,7 +5,7 @@ import type { ErpItemStage } from '../types';
 const names = new Map([
   ['d-cut', 'Закрой'],
   ['d-print', 'Печать'],
-  ['d-sew', 'Швейка'],
+  ['d-sew', 'Швейный цех'],
   ['d-vto', 'ВТО'],
   ['d-emb', 'Вышивка'],
   ['d-silk', 'Шелкография'],
@@ -74,7 +74,7 @@ describe('defectRollbackWarning', () => {
     });
     expect(msg).toContain('30 шт');
     expect(msg).toContain('«Закрой»');
-    expect(msg).toContain('Печать, Швейка');
+    expect(msg).toContain('Печать, Швейный цех');
   });
 
   it('без промежуточных — только цель, без обещания лишнего', () => {
@@ -82,7 +82,7 @@ describe('defectRollbackWarning', () => {
       stage: at('s4'), targetStage: at('s3'), allStages: stages,
       deptNameById: names, qty: 5,
     });
-    expect(msg).toContain('«Швейка»');
+    expect(msg).toContain('«Швейный цех»');
     expect(msg).not.toContain('переоткроются');
   });
 

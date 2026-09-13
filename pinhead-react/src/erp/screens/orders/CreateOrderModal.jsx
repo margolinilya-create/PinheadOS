@@ -29,7 +29,7 @@ import { factoryToday } from '../../../utils/date';
 import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
-import { deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
+import { currentDocuments, deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
 import { translateSupabaseError } from '../../../utils/i18n';
 import { currentActor, erpQuery } from '../../store/shared';
 import { supabase } from '../../../lib/supabase';
@@ -46,6 +46,7 @@ import styles from '../../styles';
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { PurchaseListSection } from './create/PurchaseListSection';
+import { SavedFiles } from './create/SavedFiles';
 import { NotesSection } from './create/NotesSection';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
@@ -225,10 +226,11 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     // а setState синхронно в теле эффекта — то, что ловит react-hooks.
     let alive = true;
     const t = setTimeout(() => {
-      findOrdersByBitrixId(form.bitrix_id).then((rows) => { if (alive) setDupes(rows); });
+      findOrdersByBitrixId(form.bitrix_id, order?.id)
+        .then((rows) => { if (alive) setDupes(rows); });
     }, 400);
     return () => { alive = false; clearTimeout(t); };
-  }, [form.bitrix_id, findOrdersByBitrixId]);
+  }, [form.bitrix_id, findOrdersByBitrixId, order?.id]);
 
   const deptByCode = useMemo(
     () => new Map(departments.filter((d) => d.active).map((d) => [d.code, d])),
@@ -263,6 +265,34 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const [tzDocs, setTzDocs] = useState([]);
   const tzUploading = tzDocs.some((d) => d.state === 'uploading');
   const tzFailed = tzDocs.some((d) => d.state === 'error');
+
+  /**
+   * ЧТО УЖЕ ПРИЛОЖЕНО К ПРАВИМОМУ ЗАКАЗУ (правка заказчика 12.09, баг 03).
+   *
+   * «Повторно требует заполнить/загрузить данные, которые уже сохранены»:
+   * состояния загрузки (`tzDocs`, `attach`) принадлежат ФОРМЕ и в правке
+   * стартуют пустыми — то есть секции ТЗ и листа закупки показывали пустоту
+   * там, где файлы есть, и гейт требовал приложить их заново.
+   *
+   * Показываем приложенное, но НЕ заводим здесь второй способ его менять:
+   * загрузка, замена и версии ТЗ живут в карточке заказа
+   * (`orderCard/TzDocsSection`, `uploadTzDocument`/`replaceTzDocument`).
+   * Вторая поверхность с тем же решением — ровно то, от чего проект уходил
+   * в подряде и закупке.
+   *
+   * `currentDocuments` — актуальные версии внутри `group_id`: список всех
+   * версий показал бы заменённые файлы как отдельные документы.
+   */
+  const savedTzDocs = useMemo(
+    () => (isEdit ? currentDocuments(order) : []),
+    [isEdit, order],
+  );
+  const savedPurchaseFiles = useMemo(
+    () => (isEdit
+      ? (order.attachments ?? []).filter((a) => a.kind === 'purchase_list')
+      : []),
+    [isEdit, order],
+  );
 
   /**
    * Путь детерминированный (`group_id` живёт в стейте формы), поэтому `upsert: true`:
@@ -454,10 +484,14 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * «есть ли выбранный файл»: файл, который ещё грузится или упал, приложенным
    * не является — иначе форма отпустила бы заказ с листом, которого нет
    * в Storage (правило «файл уходит в бакет при выборе»).
+   *
+   * В правке к этому добавляется УЖЕ ПРИЛОЖЕННЫЙ лист (баг 03): состояние
+   * `attach` принадлежит форме и стартует пустым, поэтому без второго
+   * слагаемого гейт требовал приложить заново файл, который у заказа есть.
    */
   const hasPurchaseList = attach.files.some(
     (f) => f.kind === 'purchase_list' && f.state === 'uploaded',
-  );
+  ) || savedPurchaseFiles.length > 0;
   const validation = useMemo(
     () => validateOrderForm(form, items, undefined, hasPurchaseList),
     [form, items, hasPurchaseList],
@@ -948,13 +982,20 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         ? 'лист не приложен'
         : 'покупать нечего';
   const tzUploaded = tzDocs.filter((d) => d.state === 'uploaded').length;
-  const tzSummary = tzUploading
-    ? 'загружается…'
-    : tzFailed
-      ? 'ошибка загрузки'
-      : tzValidation.missing.length > 0
-        ? `нет ТЗ у позиций: ${tzValidation.missing.length}`
-        : `${tzUploaded} ${pluralize(tzUploaded, 'файл', 'файла', 'файлов')} · загружено`;
+  /**
+   * В правке подпись считается по ПРИЛОЖЕННОМУ К ЗАКАЗУ, а не по состоянию
+   * загрузки формы: последнее там пусто всегда, и свёрнутая секция сообщала бы
+   * «0 файлов · загружено» у заказа, где ТЗ есть.
+   */
+  const tzSummary = isEdit
+    ? `${savedTzDocs.length} ${pluralize(savedTzDocs.length, 'файл', 'файла', 'файлов')}`
+    : tzUploading
+      ? 'загружается…'
+      : tzFailed
+        ? 'ошибка загрузки'
+        : tzValidation.missing.length > 0
+          ? `нет ТЗ у позиций: ${tzValidation.missing.length}`
+          : `${tzUploaded} ${pluralize(tzUploaded, 'файл', 'файла', 'файлов')} · загружено`;
   const extraSummary = [
     `упаковка: ${PACKAGING_LABELS[form.packaging]}`,
     form.packaging !== 'none' && Number(form.packaging_width_mm) > 0
@@ -1183,13 +1224,20 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           open={open.tz}
           onToggle={() => toggleSection('tz')}
         >
-        <TzSection
-          tzItems={tzItems}
-          tzDocs={tzDocs}
-          addTzDoc={addTzDoc}
-          removeTzDoc={removeTzDoc}
-          retryTzDoc={retryTzDoc}
-        />
+        {isEdit ? (
+          <SavedFiles
+            files={savedTzDocs}
+            emptyText="ТЗ в PDF к заказу не приложено."
+          />
+        ) : (
+          <TzSection
+            tzItems={tzItems}
+            tzDocs={tzDocs}
+            addTzDoc={addTzDoc}
+            removeTzDoc={removeTzDoc}
+            retryTzDoc={retryTzDoc}
+          />
+        )}
         </FormSection>
 
         <FormSection
@@ -1199,13 +1247,34 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           open={open.purchase}
           onToggle={() => toggleSection('purchase')}
         >
-        <PurchaseListSection
-          attach={attach}
-          err={err}
-          notRequired={form.purchase_required === false}
-          notNeededByItems={form.purchase_required !== false && !purchaseNeeded}
-          onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
-        />
+        {isEdit ? (
+          <>
+            {/* Отметку «Закупка не требуется» правка меняет — это поле заказа,
+                а не файл: оно вырезает этап `supply` из маршрута */}
+            <label className={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={form.purchase_required === false}
+                onChange={(e) => setForm({ ...form, purchase_required: !e.target.checked })}
+              />
+              <span>Закупка не требуется</span>
+            </label>
+            {form.purchase_required !== false && (
+              <SavedFiles
+                files={savedPurchaseFiles}
+                emptyText="Лист закупки к заказу не приложен."
+              />
+            )}
+          </>
+        ) : (
+          <PurchaseListSection
+            attach={attach}
+            err={err}
+            notRequired={form.purchase_required === false}
+            notNeededByItems={form.purchase_required !== false && !purchaseNeeded}
+            onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
+          />
+        )}
         </FormSection>
 
         <FormSection

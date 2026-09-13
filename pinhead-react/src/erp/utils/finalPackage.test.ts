@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearFeature, setFeature } from '../../config/features';
+import { describe, expect, it } from 'vitest';
 import {
   functionBody, latestDefining, latestMatching, withoutComments,
 } from './migrations.testutil';
@@ -8,22 +7,20 @@ import {
   devAttachments,
   finalPackageProgress,
   isFinalPackageReady,
-  isFinalPackageRequired,
   missingFinalPackage,
   wantsSkuCard,
 } from './finalPackage';
 
 /**
- * ТРЕБОВАНИЕ ПАКЕТА ВРЕМЕННО СНЯТО (правка 12.09, п. 9), и здесь оно
- * ВКЛЮЧАЕТСЯ НАЗАД — иначе весь этот файл проверял бы пустой массив.
+ * ТРЕБОВАНИЕ ПАКЕТА ДЕЙСТВУЕТ БЕЗУСЛОВНО (правка 12.09, вторая порция, п. 5):
+ * «„Финальный технический пакет" оставить обязательным условием завершения
+ * разработки». Флага, который его выключал, больше нет — поэтому и включать
+ * здесь нечего.
  *
- * Смысл сторожа не изменился: пока механизм существует, обе его половины
- * (клиент и `erp_dev_package_guard`) обязаны совпадать словами. Флаг решает,
- * применяется ли правило, а не каким оно должно быть; выключенное состояние
- * проверяется отдельным блоком в конце файла.
+ * Смысл сторожа прежний: обе половины механизма (клиент
+ * и `erp_dev_package_guard`) обязаны совпадать СЛОВАМИ. Расхождение даёт либо
+ * «кнопка есть, действие падает», либо дыру.
  */
-beforeEach(() => setFeature('devFinalPackageRequired', true));
-afterEach(() => clearFeature('devFinalPackageRequired'));
 
 /**
  * Финальный технический пакет: гейт кнопки и серверный страж — ОДНО правило.
@@ -114,22 +111,17 @@ describe('чего не хватает, чтобы завершить разра
   });
 
   /**
-   * П. 4 документа 30.08: условий завершения ДВА, и первое — образец.
-   * До правки проверялось только второе: разработку закрывали, ни разу
-   * не собрав образец, а складская задача «Приёмка готовой продукции»
-   * заводилась автоматически — склад начинал ждать вещь, которой нет.
+   * ПРОВЕРКИ ОБРАЗЦА В ГЕЙТЕ БОЛЬШЕ НЕТ (правка 12.09, вторая порция, п. 5).
+   *
+   * Условие «образец отшит» стояло здесь с 30.08 и держало завершение
+   * разработки. Блок, которым это подтверждали, убран из сценария — значит
+   * поле никто не заполнит, и требование заперло бы разработку навсегда.
+   * Техпакет при этом обязателен: убрана ПРОВЕРКА ОБРАЗЦА, а не гейт.
    */
-  it('непроверенный образец держит завершение, даже когда пакет собран', () => {
+  it('непроверенный образец завершению больше не мешает', () => {
     const dev = { ...DOCS, sample_approved_at: null };
-    expect(missingFinalPackage(dev, FILES)).toEqual(['Образец отшит и проверен']);
-    expect(isFinalPackageReady(dev, FILES)).toBe(false);
-  });
-
-  it('фото образца за проверку не считается — это разные вопросы', () => {
-    // Файл прикладывают и к незаконченной работе; «Фото образца» отвечает
-    // на «вошло ли изображение в техпакет», а не на «собран ли образец»
-    const dev = { ...DOCS, sample_approved_at: null };
-    expect(missingFinalPackage(dev, FILES)).toContain('Образец отшит и проверен');
+    expect(missingFinalPackage(dev, FILES)).toEqual([]);
+    expect(isFinalPackageReady(dev, FILES)).toBe(true);
   });
 
   it('пустая разработка перечисляет ВСЁ, а не первое попавшееся', () => {
@@ -141,8 +133,8 @@ describe('чего не хватает, чтобы завершить разра
     expect(missing).toContain('Фото образца');
     expect(missing).toContain('Доступные ткани');
     expect(missing).toContain('Ценовая вилка');
-    expect(missing).toContain('Образец отшит и проверен');
-    expect(missing.length).toBeGreaterThan(10);
+    expect(missing).not.toContain('Образец отшит и проверен');
+    expect(missing.length).toBeGreaterThan(9);
   });
 
   /**
@@ -181,8 +173,8 @@ describe('чего не хватает, чтобы завершить разра
    * подтверждения, что всё готово.
    */
   it('прогресс считается той же функцией и в том же режиме', () => {
-    expect(finalPackageProgress(DOCS, FILES)).toEqual({ done: 5, total: 5 });
-    expect(finalPackageProgress(FULL, FILES)).toEqual({ done: 12, total: 12 });
+    expect(finalPackageProgress(DOCS, FILES)).toEqual({ done: 4, total: 4 });
+    expect(finalPackageProgress(FULL, FILES)).toEqual({ done: 11, total: 11 });
     expect(finalPackageProgress({}, []).done).toBe(0);
   });
 
@@ -229,7 +221,7 @@ describe('серверный страж повторяет клиентский 
   });
 
   it('спрашивает те же поля, что и клиент', () => {
-    for (const field of ['sample_approved_at', 'pattern_tech_name', 'pattern_version',
+    for (const field of ['pattern_tech_name', 'pattern_version',
       'price_min', 'price_max']) {
       expect(GUARD).toContain(`new.${field}`);
     }
@@ -303,49 +295,64 @@ describe('серверный страж повторяет клиентский 
 });
 
 /**
- * ВЫКЛЮЧЕННОЕ СОСТОЯНИЕ — то, ради чего правка 12.09 и делалась.
+ * ТРЕБОВАНИЕ ВЕРНУЛОСЬ, ПРОВЕРКА ОБРАЗЦА — НЕТ (правка 12.09, вторая порция,
+ * п. 5).
  *
- * Проверяется не «перечень пуст», а то, что снятие требования НЕ трогает
- * данные: заполненный пакет остаётся заполненным, и включение флага
- * возвращает ровно прежний список. Иначе «временно убрать» однажды
- * оказалось бы необратимым.
+ * Оба утверждения проверяются вместе, потому что ошибиться легко именно
+ * в паре: буквальный откат стража к редакции 30.08 вернул бы техпакет
+ * ВМЕСТЕ с проверкой образца, то есть исполнил бы документ наоборот.
  */
-describe('требование пакета снято (правка 12.09, п. 9)', () => {
-  beforeEach(() => setFeature('devFinalPackageRequired', false));
-
-  it('ничего не держит завершение разработки', () => {
-    expect(missingFinalPackage({}, [])).toEqual([]);
-    expect(isFinalPackageReady({}, [])).toBe(true);
-    expect(isFinalPackageRequired()).toBe(false);
+describe('финальный пакет снова обязателен', () => {
+  it('пустая разработка не закрывается', () => {
+    const missing = missingFinalPackage({}, []);
+    expect(missing).toContain('Техническое название лекал');
+    expect(missing).toContain('Версия лекал');
+    expect(missing).toContain('Технический паспорт');
+    expect(missing).toContain('Фото образца');
+    expect(isFinalPackageReady({}, [])).toBe(false);
   });
 
-  it('включение возвращает требования целиком — данные не тронуты', () => {
-    const dev = { final_package: { add_to_sku: true } };
-    expect(missingFinalPackage(dev, [])).toEqual([]);
-    setFeature('devFinalPackageRequired', true);
-    const back = missingFinalPackage(dev, []);
-    expect(back).toContain('Образец отшит и проверен');
-    expect(back).toContain('Технический паспорт');
-    expect(back).toContain('Ценовая вилка');
+  /**
+   * ОБРАЗЕЦ БОЛЬШЕ НЕ СПРАШИВАЮТ — и это не косметика: вход, которым
+   * `sample_approved_at` проставляли, убран из сценария, и требование поля,
+   * которое некому заполнить, заперло бы завершение разработки навсегда.
+   */
+  it('«Образец отшит и проверен» из перечня ушёл', () => {
+    const full = {
+      pattern_tech_name: 'Худи PH-1', pattern_version: 'v2',
+      final_package: {},
+    };
+    const atts = [
+      { kind: DEV_ATTACHMENT_KINDS.passport },
+      { kind: DEV_ATTACHMENT_KINDS.photo },
+    ];
+    expect(missingFinalPackage(full, atts)).toEqual([]);
+    expect(missingFinalPackage({}, [])).not.toContain('Образец отшит и проверен');
   });
 });
 
 /**
- * ДЕЙСТВУЮЩИЙ СТРАЖ ОТКЛЮЧЁН — и это проверяется отдельно от сверки половин.
+ * СТРАЖ СНОВА ТРЕБУЕТ ТЕХПАКЕТ И НЕ ТРЕБУЕТ ОБРАЗЕЦ.
  *
- * Клиент с выключенным флагом разрешает завершить разработку без пакета.
- * Если бы страж при этом остался строгим, получилось бы запрещённое
- * в проекте «кнопка есть, действие падает» — у технолога и с текстом 23514.
  * Сторож смотрит ПОСЛЕДНЮЮ редакцию функции, то есть на то, что реально
- * стоит в базе.
+ * стоит в базе: редакция 12.09 оставляла от неё пустой `return new`.
+ * Тело читается БЕЗ комментариев — объяснение, почему проверки образца
+ * не стало, содержит те же слова, что и сама проверка.
  */
-describe('страж финального пакета отключён (правка 12.09, п. 9)', () => {
-  it('последняя редакция ничего не требует', () => {
-    const body = withoutComments(
-      functionBody(latestDefining('erp_dev_package_guard'), 'erp_dev_package_guard'),
-    );
-    expect(body).not.toMatch(/raise exception/);
-    expect(body).toMatch(/return new/);
+describe('страж финального пакета действует', () => {
+  const BODY = withoutComments(
+    functionBody(latestDefining('erp_dev_package_guard'), 'erp_dev_package_guard'),
+  );
+
+  it('последняя редакция отказывает при пустом пакете', () => {
+    expect(BODY).toMatch(/raise exception/);
+    expect(BODY).toContain('Техническое название лекал');
+    expect(BODY).toContain('Технический паспорт');
+  });
+
+  it('условия по образцу в стороже нет', () => {
+    expect(BODY).not.toContain('sample_approved_at');
+    expect(BODY).not.toContain('Образец отшит и проверен');
   });
 
   it('права пересозданной функции отозваны заново', () => {

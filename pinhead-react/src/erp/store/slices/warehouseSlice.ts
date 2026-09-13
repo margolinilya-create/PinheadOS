@@ -151,11 +151,26 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     });
     if (!opRow) toast.warning('Приёмка записана, но не попала в историю склада');
 
-    // Если приёмка заказа завершена (нечего больше принимать) — закрыть задачу приёмки.
+    /**
+     * ЗАКРЫВАЕТСЯ ЗАДАЧА ЭТОЙ ПОЗИЦИИ (правка 12.09, баг 01).
+     *
+     * Задача приёмки стала позиционной, и прежнее «любая незакрытая задача
+     * заказа» закрыло бы чужую: у заказа с двумя тканями приёмка первой
+     * погасила бы карточку второй, которая ещё едет.
+     *
+     * Legacy-задачи по заказу целиком (`material_id` пуст) закрываются
+     * по-старому — когда принимать в заказе больше нечего: такая задача
+     * отвечает за все позиции сразу, и связать её с одной из них нельзя.
+     */
     const fresh = get().orders.find((o) => o.id === order.id);
+    const accepted = fresh?.materials.find((m) => m.id === materialId);
     const task = fresh?.warehouse_tasks?.find(
-      (t) => t.task_type === 'material_receipt' && t.status !== 'accepted');
-    if (task && fresh && !fresh.materials.some(awaitsAcceptance)) {
+      (t) => t.task_type === 'material_receipt' && t.status !== 'accepted'
+        && (t.material_id ? t.material_id === materialId : true));
+    const settled = task?.material_id
+      ? Boolean(accepted) && !awaitsAcceptance(accepted!)
+      : Boolean(fresh) && !fresh!.materials.some(awaitsAcceptance);
+    if (task && settled) {
       await get().advanceWarehouseTask(task.id, 'accepted');
     }
 

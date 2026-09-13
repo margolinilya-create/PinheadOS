@@ -57,7 +57,7 @@ export function WorkQtyCell({ item, view }) {
   return (
     <>
       {view.inWorkQty || item.qty || '—'}
-      {/* «Швейка закончила 150 → в подряде появляется Варка — Готово
+      {/* «Швейный цех закончила 150 → в подряде появляется Варка — Готово
           к передаче — 150 шт» (документ) */}
       {view.readyQty > 0 && (
         <div className={styles.subText}>к передаче: {view.readyQty}</div>

@@ -226,6 +226,7 @@ export default function DepartmentsScreen({ embedded = false }) {
               onSortOrder={(v) => updateDepartment(d.id, { sort_order: v })}
               onToggleProduction={(next) => toggleProduction(d, next)}
               onToggleBranding={(next) => updateDepartment(d.id, { is_branding: next })}
+              onToggleOverPlan={(next) => updateDepartment(d.id, { allows_over_plan: next })}
               onToggleGateKind={(kind, on) => toggleGateKind(d, kind, on)}
               onSaveResultFields={(fields) => updateDepartment(d.id, { result_fields: fields })}
               onHead={(id) => updateDepartment(d.id, { head_employee_id: id })}
@@ -268,6 +269,8 @@ export default function DepartmentsScreen({ embedded = false }) {
                     dept={d}
                     onToggleProduction={(next) => toggleProduction(d, next)}
                     onToggleBranding={(next) => updateDepartment(d.id, { is_branding: next })}
+                    onToggleOverPlan={(next) => updateDepartment(d.id, { allows_over_plan: next })}
+              onToggleOverPlan={(next) => updateDepartment(d.id, { allows_over_plan: next })}
                   />
                 </td>
                 <td>

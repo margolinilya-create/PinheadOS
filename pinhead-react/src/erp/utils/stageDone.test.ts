@@ -4,7 +4,7 @@ import type { ErpMaterial, MaterialStatus } from '../types';
 
 const deptNames = new Map([
   ['d-cut', 'Раскрой'],
-  ['d-sew', 'Швейка'],
+  ['d-sew', 'Швейный цех'],
   ['d-vto', 'ВТО'],
 ]);
 
@@ -33,7 +33,7 @@ describe('stageDoneWarning', () => {
     });
     expect(msg).toContain('40 из 100');
     expect(msg).toContain('60 шт');
-    expect(msg).toContain('Швейка');
+    expect(msg).toContain('Швейный цех');
     expect(msg).toContain('100 шт');
   });
 

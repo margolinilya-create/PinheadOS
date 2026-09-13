@@ -22,11 +22,11 @@ import {
   DEV_STAGE_LABELS, devRouteSteps, extraTasks,
 } from '../../utils/experimentalBoard';
 import { devContext } from '../../utils/devContext';
-import { isFinalPackageRequired, wantsSkuCard } from '../../utils/finalPackage';
+import { wantsSkuCard } from '../../utils/finalPackage';
 import { DevStageRoute } from './DevStageRoute';
 import { DevTasksSection } from './DevTasksSection';
 import { DevSendToDept } from './DevSendToDept';
-import { DevSampleCheck } from './DevSampleCheck';
+import { DevRework } from './DevRework';
 import { DevFinalPackage } from './DevFinalPackage';
 import { DevToSku } from './DevToSku';
 import { Tabs, TabPanel } from '../../components/Tabs';
@@ -164,7 +164,7 @@ function AddTaskForm({ typeItems, onAdd, tasks }) {
 export function DevCard({
   dev, order, departments, canManage,
   onUpdate, onAddTasks, onUpdateTask, onSendTask, onClose,
-  onApproveSample, onUploadFile, onRemoveFile,
+  onUploadFile, onRemoveFile,
 }) {
   const typeDict = useDictionary('experimental_task_type');
   const typeNames = useMemo(
@@ -619,21 +619,20 @@ export function DevCard({
               />
             )}
 
-            {/* Приёмка образца — ДЕЙСТВИЕ по текущей работе, поэтому она здесь,
-                а не в истории доработок: история отвечает на «что уже было».
+            {/* ПРОВЕРКИ ОБРАЗЦА ЗДЕСЬ БОЛЬШЕ НЕТ (правка 12.09, вторая
+                порция, п. 5: «убрать из рабочего сценария только блок
+                „Проверка образца"»). Она была гейтом завершения разработки,
+                и вместе с ней ушло действие `approveSample`: колонка
+                `sample_approved_at` остаётся историей уже принятых образцов
+                и по-прежнему держит заведённые раньше разработки в колонке
+                «Финальный этап» (`devBoardColumn`).
 
-                СКРЫТА ПРАВКОЙ 12.09, П. 9 («временно убрать из рабочего
-                сценария блок „Проверка образца"»). Данные не трогаем:
-                `sample_approved_at/by/note` остаются в БД, а блок
-                возвращается тем же флагом, что и требование пакета, —
-                одно решение заказчика, один переключатель. */}
-            {isFinalPackageRequired() && !dev.outcome && (
-              <DevSampleCheck
-                dev={dev}
-                tasks={tasks}
-                onApprove={(note) => onApproveSample(dev.id, note)}
-                onRework={startRework}
-              />
+                ДОРАБОТКА ОСТАЛАСЬ. Блок нёс ДВА действия, и документ просит
+                убрать только первое; снеси мы блок целиком — круги доработки
+                стало бы нечем заводить, а «История доработок» осталась бы
+                пустой навсегда. */}
+            {!dev.outcome && (
+              <DevRework tasks={tasks} onRework={startRework} />
             )}
           </>
         )}

@@ -309,7 +309,7 @@ describe('validateTzDocs (форма создания)', () => {
       label: 'Футболка Regular',
       stages: [
         { departmentId: 'd-cut', departmentName: 'Закрой' },
-        { departmentId: 'd-sew', departmentName: 'Швейка' },
+        { departmentId: 'd-sew', departmentName: 'Швейный цех' },
       ],
     },
     {

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { stageInputQty, stageRemainingQty } from '../utils/stageInput';
+import { overPlanBlock, overPlanConfirm, stageQtyCap } from '../utils/stageOverPlan';
+import { confirm } from '../../store/useConfirmStore';
 import styles from '../erp.module.css';
 
 /**
@@ -53,6 +55,18 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     () => stageRemainingQty(stage, item.stages ?? [], item.qty),
     [stage, item],
   );
+  /**
+   * ПОТОЛОК ФАКТА (правка 12.09, вторая порция, п. 4): «плюсы» появляются
+   * только на закрое, дальше сдать больше переданного нельзя. `null` —
+   * потолка нет (участок с `allows_over_plan`).
+   *
+   * Числа `qtyIn`/`remaining` стояли здесь и раньше, но ТОЛЬКО в подсказке:
+   * у поля ввода не было даже атрибута `max`, и сдать можно было любое число.
+   */
+  const cap = useMemo(
+    () => stageQtyCap(stage, item.stages ?? [], item.qty, dept),
+    [stage, item, dept],
+  );
 
   const [values, setValues] = useState({});
   const [comment, setComment] = useState('');
@@ -82,16 +96,31 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const anything = totals.qty_good + totals.qty_defect + totals.qty_rework + totals.qty_extra > 0;
   const needsComment = totals.qty_defect > 0 || totals.qty_rework > 0;
   const missingRequired = fields.some((f) => f.required && num(f.code) <= 0);
+  const overBlock = overPlanBlock(totals.qty_good, stage, item.stages ?? [], item.qty, dept);
 
-  const submit = () => onSubmit({
-    qtyIn,
-    qtyGood: totals.qty_good,
-    qtyDefect: totals.qty_defect,
-    qtyRework: totals.qty_rework,
-    qtyExtra: totals.qty_extra,
-    comment,
-    extra: totals.extra,
-  });
+  const submit = async () => {
+    /**
+     * ПРЕВЫШЕНИЕ НА ЗАКРОЕ СПРАШИВАЕТ ПОДТВЕРЖДЕНИЕ (решение владельца):
+     * потолка у закроя нет, но опечатка «1000» вместо «100» поднимает потолок
+     * всем последующим этапам и снимает защиту, ради которой правка делается.
+     * Разница называется числом — «превышение» без цифры проверить нечем.
+     */
+    const warn = overPlanConfirm(totals.qty_good, stage, item.qty, dept);
+    if (warn && !(await confirm({
+      title: 'Сдать больше тиража?',
+      message: warn,
+      confirmLabel: 'Сдать',
+    }))) return;
+    onSubmit({
+      qtyIn,
+      qtyGood: totals.qty_good,
+      qtyDefect: totals.qty_defect,
+      qtyRework: totals.qty_rework,
+      qtyExtra: totals.qty_extra,
+      comment,
+      extra: totals.extra,
+    });
+  };
 
   return (
     <div className={styles.queueBlockForm}>
@@ -113,6 +142,9 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
             <input
               type="number"
               min="0"
+              /* Потолок стоит и атрибутом: стрелки и мобильная клавиатура
+                 не дадут набрать заведомо лишнее ещё до проверки */
+              max={cap !== null && f.target === 'qty_good' ? cap : undefined}
               className={`${styles.input} ${styles.qtySmallInput}`}
               value={values[f.code] ?? ''}
               onChange={(e) => setValues((v) => ({ ...v, [f.code]: e.target.value }))}
@@ -139,10 +171,19 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         />
       </label>
 
+      {/* Причина отказа названа ДО отправки: узнать о потолке из ответа
+          сервера хуже, чем прочитать его рядом с полем */}
+      {overBlock && (
+        <p className={styles.queueReason} role="status">
+          <Icon name="alert" size={13} /> {overBlock}
+        </p>
+      )}
+
       <div className={styles.queueActions}>
         <Button
           variant="primary"
-          disabled={busy || !anything || missingRequired || (needsComment && !comment.trim())}
+          disabled={busy || !anything || missingRequired || Boolean(overBlock)
+            || (needsComment && !comment.trim())}
           onClick={submit}
         >
           <Icon name="check" size={14} /> Сдать результат

@@ -259,15 +259,6 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     });
   },
 
-  approveSample: async (id, note) => {
-    const actor = currentActor();
-    return get().updateExperimental(id, {
-      sample_approved_at: new Date().toISOString(),
-      sample_approved_by: actor,
-      sample_approved_note: note?.trim() || null,
-    });
-  },
-
   /**
    * Файл пакета уходит в бакет и привязывается строкой — в таком порядке,
    * и с уборкой за собой: файл, загруженный и не привязанный, остаётся

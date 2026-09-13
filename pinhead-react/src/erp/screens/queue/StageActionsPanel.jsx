@@ -18,6 +18,7 @@ import { Icon } from '../../components/Icon';
 import { Button } from '../../components/Button';
 import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
+import { StageResultFile } from './StageResultFile';
 import { useStageMove } from '../../hooks/useStageMove';
 import { deptShortName } from '../../data/departments';
 
@@ -80,7 +81,17 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const reportDept = useErpStore(
     (s2) => s2.departments.find((d) => d.id === stage.department_id) ?? null,
   );
-  const hasReportSchema = Array.isArray(resultFields) && resultFields.length > 0;
+  /**
+   * РЕЗУЛЬТАТ ЭТАПА — ФАЙЛ (правка 12.09, вторая порция, баг 02). Признак
+   * у САМОГО этапа: схема отчёта принадлежит участку, и разработка программы
+   * вышивки получала от цеха вышивки поля «Вышито» и «Брак».
+   */
+  const fileResult = stage.result_kind === 'embroidery_program';
+  const resultFiles = (order.attachments ?? []).filter(
+    (a) => a.kind === 'stage_result' && a.stage_id === stage.id,
+  );
+  const hasReportSchema = !fileResult
+    && Array.isArray(resultFields) && resultFields.length > 0;
   const submitStageReport = useErpStore((s2) => s2.submitStageReport);
 
   const blockReasons = useDictionary('block_reason');
@@ -155,7 +166,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
    */
   const submitDefect = (payload, photo) => run(async () => {
     // Возврат переоткрывает и промежуточные этапы — рабочий видел только
-    // «Вернуть: Швейка» и не знал, что откатятся ещё ВТО и Печать
+    // «Вернуть: Швейный цех» и не знал, что откатятся ещё ВТО и Печать
     const targetStage = item.stages.find((s2) => s2.id === payload.target) ?? null;
     const ok = await confirmDefectRollback({
       stage,
@@ -285,7 +296,10 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 в остальном разделе — обычная работа впереди, необратимая
                 рядом и спокойнее.
               */}
-              {perms.progress && (hasReportSchema ? (
+              {perms.progress && fileResult && (
+                <StageResultFile order={order} item={item} stage={stage} canUpload />
+              )}
+              {perms.progress && !fileResult && (hasReportSchema ? (
                 !reportMode && (
                   <Button variant="primary" icon="plus" onClick={() => setReportMode(true)}>
                     Записать результат
@@ -324,9 +338,22 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 </>
               ))}
               {perms.complete && (
-                <Button variant="secondary" loading={busy} disabled={busy} onClick={() => run(() => onDone(entry))}>
+                <Button
+                  variant="secondary"
+                  loading={busy}
+                  /* Файл — единственный результат этого этапа (решение
+                     владельца): закрытый пустым, он оставил бы вышивальщицу
+                     без программы, и выяснилось бы это уже в цехе */
+                  disabled={busy || (fileResult && resultFiles.length === 0)}
+                  onClick={() => run(() => onDone(entry))}
+                >
                   <Icon name="check" size={14} /> Завершить этап
                 </Button>
+              )}
+              {fileResult && resultFiles.length === 0 && (
+                <span className={styles.subText}>
+                  Приложите файл программы — без него этап не закрыть.
+                </span>
               )}
               {!blockMode && !defectMode && (
                 <>
@@ -402,7 +429,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
         </div>
       )}
 
-      {perms.progress && reportMode && (
+      {perms.progress && reportMode && !fileResult && (
         <StageReportForm
           entry={entry}
           dept={reportDept}

@@ -476,8 +476,14 @@ export interface OrdersSlice {
    * дважды-четырежды с интервалом 25–80 секунд. Двойной клик исключён (кнопка
    * блокируется на время запроса) — заказ создавал человек, не увидевший
    * результата первой попытки. Ничто ему об этом не говорило.
+   *
+   * `excludeOrderId` — заказ, который сам себе дублем не считается: в режиме
+   * правки форма спрашивает о ТОМ ЖЕ номере, что у открытого заказа.
    */
-  findOrdersByBitrixId: (bitrixId: string) => Promise<ErpOrderBrief[]>;
+  findOrdersByBitrixId: (
+    bitrixId: string,
+    excludeOrderId?: string,
+  ) => Promise<ErpOrderBrief[]>;
 
   /**
    * История этапов + лог правок + комментарии одним RPC вместо трёх запросов.
@@ -808,11 +814,19 @@ export interface SubcontractingSlice {
    * к позиции: подрядных этапов в позиции бывает несколько, и чужая схема
    * узла хуже никакой.
    */
+  /**
+   * `kind` — вид вложения (правка 12.09, баг 02): `subcontract` — файл,
+   * который ОТДАЮТ подрядчику, `stage_result` — результат, который цех СДАЁТ
+   * (программа вышивки). Путь в бакет, уборка сироты и привязка к этапу у них
+   * одни; вторая копия действия разошлась бы с первой молча — обе «работают»,
+   * просто пишут по-разному.
+   */
   uploadStageFile: (input: {
     stageId: string;
     orderId: string;
     itemId?: string | null;
     file: File;
+    kind?: Extract<ErpAttachmentKind, 'subcontract' | 'stage_result'>;
   }) => Promise<boolean>;
   /** Снять файл этапа: пустой ответ DELETE — отказ RLS, а не «файл снят» */
   deleteStageFile: (orderId: string, attachmentId: string) => Promise<boolean>;
@@ -1126,7 +1140,6 @@ export interface ExperimentalSlice {
    * и «не принято». Снятие (`null`) допустимо: решение принимает человек,
    * и ошибиться он вправе.
    */
-  approveSample: (id: string, note?: string | null) => Promise<boolean>;
 
   /**
    * Файл финального пакета: лекала, техпаспорт, фото образца. Уходит в бакет

@@ -65,7 +65,6 @@ function setup(devPatch = {}) {
         onUpdateTask={onUpdateTask}
         onSendTask={vi.fn()}
         onClose={vi.fn()}
-        onApproveSample={vi.fn()}
         onUploadFile={vi.fn()}
         onRemoveFile={vi.fn()}
       />
