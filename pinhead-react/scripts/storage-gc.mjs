@@ -29,6 +29,15 @@
  *   SUPABASE_SERVICE_ROLE_KEY=<ключ> \
  *   node scripts/storage-gc.mjs            # только показать, НИЧЕГО не трогая
  *   node scripts/storage-gc.mjs --apply    # удалить
+ *   node scripts/storage-gc.mjs --apply --min-age-hours 0   # см. гейт ниже
+ *
+ * ВОЗРАСТНОЙ ГЕЙТ, И ПОЧЕМУ БЕЗ НЕГО НЕЛЬЗЯ. В проекте файл уходит в бакет
+ * ПРИ ВЫБОРЕ, а строка создаётся при сабмите — между этими моментами файл
+ * «ничей» СОВЕРШЕННО ЗАКОННО. Уборка без гейта стёрла бы то, что человек
+ * прикладывает прямо сейчас, и выглядело бы это как потерянный файл, а не
+ * как уборка. Умолчание — сутки; 13.09 гейт придержал ровно 15 таких.
+ * `--min-age-hours 0` снимает защиту и годится, только когда молодых сирот
+ * проверили поимённо.
  *
  * ЧТО СЧИТАЕТСЯ НИЧЬИМ. Объект бакета, чей ключ не встречается ни в
  * `erp_order_attachments.file_path`, ни в `erp_tz_documents.file_path`.
@@ -57,6 +66,16 @@ const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const apply = process.argv.includes('--apply');
 
+/** Сутки по умолчанию — см. «возрастной гейт» в шапке */
+const minAgeHours = process.argv.includes('--min-age-hours')
+  ? Number(process.argv[process.argv.indexOf('--min-age-hours') + 1])
+  : 24;
+
+if (!Number.isFinite(minAgeHours) || minAgeHours < 0) {
+  console.error('--min-age-hours ждёт неотрицательное число часов.');
+  process.exit(2);
+}
+
 if (!url || !key) {
   console.error('Нужны SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY в окружении.');
   console.error('Ключ `service_role` лежит в Supabase → Settings → API.');
@@ -79,7 +98,7 @@ async function listAll(prefix = '', acc = []) {
       const path = prefix ? `${prefix}/${entry.name}` : entry.name;
       // У папки нет `id` — это единственный признак, по которому её видно
       if (entry.id === null) await listAll(path, acc);
-      else acc.push({ path, size: entry.metadata?.size ?? 0 });
+      else acc.push({ path, size: entry.metadata?.size ?? 0, createdAt: entry.created_at });
     }
     if (data.length < PAGE) break;
   }
@@ -111,20 +130,27 @@ const human = (bytes) => {
 
 const objects = await listAll();
 const taken = await referencedPaths();
+const cutoff = Date.now() - minAgeHours * 3600_000;
+
 const orphans = objects.filter((o) => !taken.has(o.path));
-const bytes = orphans.reduce((sum, o) => sum + o.size, 0);
+// Молодой «сирота» — скорее всего файл, который прямо сейчас прикладывают
+const doomed = orphans.filter((o) => Date.parse(o.createdAt) <= cutoff);
+const held = orphans.length - doomed.length;
+const bytes = doomed.reduce((sum, o) => sum + o.size, 0);
 
 console.log(`бакет:     ${BUCKET}`);
 console.log(`объектов:  ${objects.length}`);
 console.log(`занятых:   ${taken.size} (по ${REFERENCES.map((r) => r.table).join(' и ')})`);
-console.log(`ничьих:    ${orphans.length}, ${human(bytes)}\n`);
+console.log(`ничьих:    ${orphans.length}`);
+console.log(`к удалению:${doomed.length}, ${human(bytes)}`);
+console.log(`придержано:${held} (моложе ${minAgeHours} ч)\n`);
 
-if (orphans.length === 0) {
+if (doomed.length === 0) {
   console.log('Убирать нечего.');
   process.exit(0);
 }
 
-for (const o of orphans) console.log(`  ${o.path}  (${human(o.size)})`);
+for (const o of doomed) console.log(`  ${o.path}  (${human(o.size)})`);
 
 if (!apply) {
   console.log(`\nНичего не удалено. Чтобы удалить: node ${process.argv[1].split('/').pop()} --apply`);
@@ -137,8 +163,8 @@ if (!apply) {
  * не убралась, и это надо назвать, а не посчитать успехом.
  */
 let removed = 0;
-for (let i = 0; i < orphans.length; i += 100) {
-  const batch = orphans.slice(i, i + 100).map((o) => o.path);
+for (let i = 0; i < doomed.length; i += 100) {
+  const batch = doomed.slice(i, i + 100).map((o) => o.path);
   const { data, error } = await db.storage.from(BUCKET).remove(batch);
   if (error) {
     console.error(`\nПартия ${i / 100 + 1}: ${error.message}`);
@@ -147,8 +173,8 @@ for (let i = 0; i < orphans.length; i += 100) {
   removed += data?.length ?? 0;
 }
 
-console.log(`\nУдалено: ${removed} из ${orphans.length}.`);
-if (removed !== orphans.length) {
+console.log(`\nУдалено: ${removed} из ${doomed.length}.`);
+if (removed !== doomed.length) {
   console.error('Убралось не всё — перезапустите и посмотрите, что осталось.');
   process.exit(1);
 }
