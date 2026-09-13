@@ -28,22 +28,6 @@ vi.mock('../../store/useAuthStore', () => ({
   },
 }));
 
-// Mock Recharts to avoid rendering issues
-vi.mock('recharts', () => ({
-  BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
-  PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
-  Pie: () => null,
-  Cell: () => null,
-  Legend: () => null,
-  AreaChart: ({ children }) => <div data-testid="area-chart">{children}</div>,
-  Area: () => null,
-}));
-
 function renderDashboard() {
   return render(
     <MemoryRouter>
