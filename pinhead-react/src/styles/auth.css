@@ -48,7 +48,6 @@
 .auth-join-hint { font-family: var(--font-body); font-size: 11px; color: var(--text-dim); }
 /* Ссылка, выглядящая кнопкой, обязана остаться ссылкой: Ctrl+клик и новая вкладка */
 .auth-join-link { display: block; text-align: center; text-decoration: none; }
-.auth-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--font-body); font-size: 13px; color: var(--text-dim); }
 
 /* ═══════════════════════════════════════════ */
 /* ACCESS WALL — ожидание одобрения / доступ отключён */

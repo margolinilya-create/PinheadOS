@@ -251,7 +251,6 @@
   --bg-violet:    #F5F3FF;
   --bg-cyan:      #ECFEFF;
   --color-violet: #8B5CF6;
-  --color-cyan:   #06B6D4;
   /* Ink-варианты этих трёх были объявлены ТОЛЬКО в `.shell` (erp.module.css) —
      ровно тот дефект, который абзацем выше описан как уже исправленный для
      шести соседей. Чипы `.chipProgress`/`.chipInfo`/`.chipViolet`/`.chipCyan`
@@ -441,7 +440,6 @@ html[data-theme="dark"] {
   --bg-violet:    #211B3A;
   --bg-cyan:      #0C2A30;
   --color-violet: #A78BFA;
-  --color-cyan:   #22D3EE;
   /* ЭТИ ТРИ В ТЁМНОЙ ТЕМЕ ОСВЕТЛЯЮТСЯ — в отличие от success/error/warning-ink
      ниже, и это не разнобой, а разная работа при общем суффиксе:
        · info/violet/cyan-ink — ЦВЕТ ТЕКСТА на плашке --bg-* (чипы статусов);
