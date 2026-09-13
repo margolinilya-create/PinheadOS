@@ -511,7 +511,7 @@ input[type="text"].qty-input {
 .photo-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-lightbox);
   background: rgba(0,0,0,0.85);
   display: flex;
   align-items: center;

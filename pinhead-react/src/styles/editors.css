@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════ */
 /* PRINT PREVIEW — Swiss/Functional           */
 /* ═══════════════════════════════════════════ */
-.pp-overlay  { position: fixed; inset: 0; background: var(--bg); z-index: 200; overflow-y: auto; padding: 0; }
+.pp-overlay  { position: fixed; inset: 0; background: var(--bg); z-index: var(--z-overlay); overflow-y: auto; padding: 0; }
 .pp-toolbar  { position: sticky; top: 0; z-index: 10; background: var(--black); padding: 10px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pp-toolbar-left    { display: flex; align-items: center; gap: 12px; }
 .pp-toolbar-title   { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--white); letter-spacing: 2px; text-transform: uppercase; }
@@ -201,7 +201,7 @@
   from { opacity: 0; transform: scale(0.95); }
   to   { opacity: 1; transform: scale(1); }
 }
-.sku-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: center; justify-content: center; animation: skuFadeIn 0.15s ease-out; }
+.sku-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: var(--z-overlay); display: flex; align-items: center; justify-content: center; animation: skuFadeIn 0.15s ease-out; }
 .sku-modal         { background: var(--card); border: 1.5px solid var(--border); padding: 32px; min-width: 360px; max-width: 480px; width: 100%; animation: scaleIn 0.2s ease-out; }
 .sku-modal h3      { font-family: var(--font-display); font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 24px; }
 .sku-modal-hint    { font-size: 12px; color: var(--text-dim); margin: -12px 0 16px; }
