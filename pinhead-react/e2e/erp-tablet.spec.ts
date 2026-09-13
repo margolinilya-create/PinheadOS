@@ -437,6 +437,34 @@ test.describe('Загрузка цехов на планшете', () => {
 const devCard = (page: import('@playwright/test').Page) =>
   page.getByRole('listitem', { name: /^Разработка / }).first();
 
+/**
+ * Разработка для доски. Колонка НЕ хранится — её считает `devState` из задач,
+ * поэтому незакрытая задача `patterns` обязательна: без неё карточка встала бы
+ * в «Финальный этап», где ни блокера, ни следующего действия нет, и последний
+ * сценарий сторожил бы пустоту.
+ */
+const DEV_FX = {
+  id: 'tab-dev-1', order_id: 'ord-1', item_id: 'ord-1-i1',
+  tech_name: 'Худи оверсайз, образец', dev_type: null,
+  technologist: 'Пётр', constructor: null, due_date: '2026-07-28',
+  measurement_table: null, has_3d: false, priority: 0, comment: null,
+  outcome: null, outcome_comment: null, closed_at: null,
+  board_stage: null, handed_to_warehouse_at: null, final_package: {},
+  sku_code: null, pattern_tech_name: null, branding_note: null,
+  created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+  order: { id: 'ord-1', bitrix_id: '90001', title: 'Худи для сети', due_date: '2026-07-28' },
+  tasks: [
+    {
+      id: 'tab-dev-t1', experimental_id: 'tab-dev-1', task_type: 'patterns',
+      title: null, status: 'in_progress', responsible: 'Пётр', due_date: '2026-07-22',
+      done_on: null, blocked_reason: null, depends_on: [], cycle: 0,
+      stage_id: null, department_id: null, qty: null, comment: null, result: null,
+      sort_order: 10,
+      created_at: '2026-07-15T09:00:00Z', updated_at: '2026-07-15T09:00:00Z',
+    },
+  ],
+};
+
 test.describe('Разработка на планшете', () => {
   test.beforeEach(async ({ page }) => {
     await installSupabaseMock(page, { experimental: [DEV_FX] });
