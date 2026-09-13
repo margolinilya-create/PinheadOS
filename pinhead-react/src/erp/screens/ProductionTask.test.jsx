@@ -81,3 +81,86 @@ describe('страница производственного задания', (
     expect(screen.getByText('Маршрут и прогресс')).toBeInTheDocument();
   });
 });
+
+/**
+ * ПРАВКА ЗАКАЗЧИКА 13.09, П. 4: экран задания приведён к компактной рабочей
+ * структуре по референсу.
+ *
+ * «Вверху — название этапа/изделия и статус; отдельной компактной строкой —
+ * ключевая информация по заказу: заказ, изделие, количество, выполнено, срок
+ * завершения; слева — блок „ТЗ и действия"… справа — „Маршрут и прогресс";
+ * ниже — компактный блок „Задание" только с рабочими данными этапа… Пустые
+ * значения с „—" в режиме просмотра не выводить».
+ */
+describe('страница задания — раскладка 13.09', () => {
+  it('ключевая строка заказа стоит ВЫШЕ «ТЗ и действий»', () => {
+    renderTask();
+    const key = screen.getByText('Выполнено');
+    const tz = screen.getByText('ТЗ и действия');
+    expect(key.compareDocumentPosition(tz) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // и несёт ровно то, что названо в документе
+    for (const label of ['Заказ', 'Изделие', 'Количество', 'Выполнено', 'Срок']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it('блок «Задание» больше не повторяет заказ, клиента и менеджера', () => {
+    renderTask();
+    const facts = screen.getByText('Задание').closest('section');
+    expect(facts).not.toBeNull();
+    // Они теперь в строке выше и в карточке заказа: дважды отвечать
+    // на один вопрос дефинишн-листом незачем
+    for (const gone of ['Клиент', 'Менеджер', 'Срок клиента']) {
+      expect(facts.textContent).not.toContain(gone);
+    }
+    // Рабочие данные этапа остались
+    expect(facts.textContent).toContain('Исполнитель');
+  });
+
+  it('пустые значения не выводятся прочерком', () => {
+    renderTask();
+    const facts = screen.getByText('Задание').closest('section');
+    // У фикстуры нет ни материалов, ни плановой даты, ни переделки
+    expect(facts.textContent).not.toContain('План этапа');
+    expect(facts.textContent).not.toContain('Материал');
+    expect(facts.textContent).not.toContain('Материалы не ожидаются');
+    // И блока файлов нет вовсе, а не «Файлов пока нет»
+    expect(screen.queryByText('Файлы')).not.toBeInTheDocument();
+  });
+
+  it('заполненное показывается', () => {
+    useErpStore.setState({
+      orders: [{
+        ...ORDER,
+        items: [{
+          ...ORDER.items[0],
+          stages: [{ ...STAGE, planned_end: '2026-09-25', assignee: 'Пётр' }],
+        }],
+      }],
+    });
+    renderTask();
+    const facts = screen.getByText('Задание').closest('section');
+    expect(facts.textContent).toContain('План этапа');
+    expect(facts.textContent).toContain('Пётр');
+  });
+
+  /**
+   * П. 9: у этапа с файловым результатом количества нет вовсе — «Выполнено»
+   * показывало бы вечные «0 из 100 шт».
+   */
+  it('у этапа-программы вышивки вместо «Выполнено» — состояние файла', () => {
+    useErpStore.setState({
+      orders: [{
+        ...ORDER,
+        items: [{
+          ...ORDER.items[0],
+          stages: [{ ...STAGE, qty_done: 0, result_kind: 'embroidery_program' }],
+        }],
+      }],
+    });
+    renderTask();
+    expect(screen.queryByText('Выполнено')).not.toBeInTheDocument();
+    expect(screen.getByText('Результат')).toBeInTheDocument();
+    expect(screen.getByText('нет программы')).toBeInTheDocument();
+  });
+});

@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { OrderLink } from '../../components/OrderLink';
+import { Link, useLocation } from 'react-router-dom';
 import { daysLeft, formatDateShort, stageOverdue } from '../../utils/time';
 import { stageQtyProgress } from '../../utils/progress';
 import { stageExtraQty, stageFactLabel } from '../../utils/stageQty';
 import { STAGE_STATUS_LABELS } from '../../types';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
+import { isFileResultStage, stageResultFiles } from '../../utils/stageResult';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
 import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
-import { Button, ButtonLink } from '../../components/Button';
+import { Button } from '../../components/Button';
 
 /**
  * Компактная строка рабочей очереди цеха (правка 2) — вместо крупной карточки.
@@ -53,7 +53,9 @@ export function QueueRow({
   // ТЗ заменили уже после того, как цех взял задание: без бейджа исполнитель
   // доделает по старому файлу. В панели действий он был, в строке очереди — нет
   const tzUpdated = tzUpdatedAfterStart(tzDoc, stage);
-  const hasTz = (item.prints ?? []).length > 0 || (item.size_grid ?? []).length > 0;
+  // Результат этапа — файл, а не штуки (правка 13.09, п. 9)
+  const fileResult = isFileResultStage(stage);
+  const resultFiles = fileResult ? stageResultFiles(order, stage.id) : [];
 
   return (
     <div
@@ -123,14 +125,24 @@ export function QueueRow({
         </span>
 
         <span className={styles.queueRowTitle}>
-          <OrderLink
-            orderId={order.id}
+          {/*
+            НАЗВАНИЕ СДЕЛКИ ОТКРЫВАЕТ ЗАДАНИЕ (правка 13.09, п. 5).
+            Прежде оно вело на карточку ЗАКАЗА, а само задание открывала
+            отдельная кнопка «Открыть» в конце строки — два перехода в одной
+            строке, из которых нужный цеху был вторым и самым незаметным.
+            Теперь клик по названию сразу открывает страницу задания, а кнопки
+            «Открыть» больше нет. Заказ из задания открывается своей ссылкой —
+            это другой адресат, а не тот же переход второй раз.
+          */}
+          <Link
+            to={`/task/${stage.id}`}
+            state={{ from: `${location.pathname}${location.search}` }}
             className={styles.queueCardTitleLink}
-            title={`№${order.bitrix_id || '—'} · ${order.title}`}
+            title={`Задание: №${order.bitrix_id || '—'} · ${order.title}`}
             draggable={false}
           >
             №{order.bitrix_id || '—'} · {order.title}
-          </OrderLink>
+          </Link>
           {/* ИСПОЛНИТЕЛЬ ПЕРЕЕХАЛ СЮДА, В СТРОКУ ПРИЗНАКОВ (06.09).
               Отдельной колонкой он занимал 96px из 966 и почти всегда
               показывал «не закреплено» — то есть держал место наравне
@@ -224,24 +236,38 @@ export function QueueRow({
               <Icon name="file" size={13} /> ТЗ обновлено
             </span>
           )}
-          {tzDoc ? (
-            <span
-              className={styles.subText}
-              title={`ТЗ: ${tzDoc.file_name || 'файл'}${tzDoc.version > 1 ? `, версия ${tzDoc.version}` : ''}`}
-            >
-              <Icon name="file" size={14} />
-            </span>
-          ) : hasTz && (
-            <span className={styles.subText} title="Есть ТЗ позиции"><Icon name="orders" size={15} /></span>
-          )}
+          {/*
+            ОДИНОЧНОЙ ИКОНКИ ФАЙЛА ЗДЕСЬ БОЛЬШЕ НЕТ (правка 13.09, п. 3).
+            Стояли две — «есть PDF-ТЗ» и «есть структурное ТЗ позиции», обе
+            без подписи и без действия: смысл объяснял только `title`,
+            которого на цеховом планшете не существует. Ту же вещь строка
+            уже говорит делом — развёрнутая, она показывает само ТЗ
+            (`TzViewer` + `TzBlock` в `StageActionsPanel`), а замену файла
+            называет отдельный чип «ТЗ обновлено» выше, со словами.
+          */}
         </span>
 
         {/*
+          У ФАЙЛОВОГО РЕЗУЛЬТАТА ПРОЦЕНТОВ НЕТ (правка 13.09, п. 9).
+          «Разработка программы вышивки» изделий не производит, и полоса
+          показывала бы ей вечные 0 % — то есть отвечала неправдой на вопрос
+          «сколько сделано». Вместо процента строка говорит то, от чего
+          и зависит закрытие этапа: приложена программа или нет. Ячейка
+          сетки остаётся на месте — она задана колонкой, а не содержимым.
+        */}
+        {fileResult ? (
+          <span className={styles.queueRowProgress}>
+            <span className={`${styles.chip} ${resultFiles.length > 0 ? styles.chipReady : styles.chipWaiting}`}>
+              {resultFiles.length > 0 ? 'программа приложена' : 'нет программы'}
+            </span>
+          </span>
+        ) : (
+        /*
           ПЕРЕВЫПОЛНЕНИЕ ПОКАЗЫВАЕТСЯ ЧИСЛОМ, А НЕ ПОЛОСОЙ (правка 12.09, п. 5).
           Полоса отвечает на «сколько тиража закрыто», и 105 % означали бы,
           что сделано больше, чем заказано, — а заказано ровно 100. «+5»
           рядом отвечает на другой вопрос и не спорит с процентом.
-        */}
+        */
         <span className={styles.queueRowProgress} title={stageFactLabel(stage, item.qty)}>
           <span className={styles.progressTrack} aria-hidden="true">
             <span className={styles.progressFill} style={{ width: `${progress.pct}%` }} />
@@ -253,6 +279,7 @@ export function QueueRow({
             </span>
           )}
         </span>
+        )}
 
         <span className={styles.queueRowActions}>
           {/*
@@ -272,14 +299,9 @@ export function QueueRow({
               <Icon name="calendar" size={15} />
             </Button>
           )}
-          <ButtonLink
-            to={`/task/${stage.id}`}
-            state={{ from: `${location.pathname}${location.search}` }}
-            variant="ghost"
-            draggable={false}
-          >
-            Открыть
-          </ButtonLink>
+          {/* «Открыть» убрана (правка 13.09, п. 5): тот же переход теперь
+              на названии сделки выше. Здесь остаётся только раскрытие
+              строки — это другое действие, оно никуда не уводит */}
           <Button
             variant="secondary"
             aria-expanded={open}

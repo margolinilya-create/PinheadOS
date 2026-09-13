@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import { OrderLink } from '../../components/OrderLink';
 import { StageIndicator } from '../../components/StageIndicator';
 import { useScrollHints } from '../../../hooks/useScrollHints';
 import {
@@ -73,8 +73,9 @@ const LANE_CHIP = Object.fromEntries(
   Object.keys(STATUS_VARIANT.devLane).map((l) => [l, statusChipClass('devLane', l)]),
 );
 
-function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, onDragEnd }) {
+function DevBoardCard({ row, onMove, canManage, dragging, onDragStart, onDragEnd }) {
   const { dev, tasks, states, column, typeNames, materialGate } = row;
+  const location = useLocation();
   const state = states.find((s) => s.stage === column);
   // Подписи задач берутся из справочника: без него человек читает код
   // (`начать patterns`) — то же правило, что в строке списка
@@ -97,28 +98,39 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
   const next = neighbourStage(column, 1, moveCtx);
 
   return (
+    /*
+      ОДИН СПОСОБ ОТКРЫТЬ КАРТОЧКУ — НОМЕР СДЕЛКИ (правка 13.09, п. 7).
+      Прежде их было два, и вели они в РАЗНЫЕ места: клик по всей карточке
+      (то есть и по названию изделия) открывал разработку, а номер сделки
+      уводил на карточку заказа. Теперь номер сделки — единственная ссылка,
+      и ведёт она в разработку; название изделия стало обычным текстом.
+
+      Вместе с кликом по карточке сняты `tabIndex` и обработчик Enter/Space:
+      фокус ловит сама ссылка, а клавиатурный перенос по колонкам делают
+      кнопки «‹ ›» ниже — они были и остаются альтернативой перетаскиванию.
+    */
     <div
       className={[styles.kanbanCard, dragging && styles.kanbanCardDragging]
         .filter(Boolean).join(' ')}
       draggable={movable}
       onDragStart={(e) => onDragStart(e, row)}
       onDragEnd={onDragEnd}
-      onClick={() => onOpen(dev.id)}
       role="listitem"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        // Enter/Space на вложенной ссылке или кнопке отдаём ей самой
-        if (e.target !== e.currentTarget) return;
-        e.preventDefault();
-        onOpen(dev.id);
-      }}
       aria-label={`Разработка ${dev.tech_name || dev.order?.title || ''}`}
     >
       <div className={styles.kanbanCardHead}>
-        <OrderLink orderId={dev.order_id} onClick={(e) => e.stopPropagation()}>
+        {/* Контекст доски (вид, фильтры) уезжает в `state.from` в формате
+            ключа `useScrollRestore` — иначе возврат потеряет и подбор,
+            и позицию прокрутки */}
+        <Link
+          to={`/experimental/${dev.id}`}
+          state={{ from: `${location.pathname}${location.search}` }}
+          className={styles.queueCardTitleLink}
+          title={`Разработка: ${dev.tech_name || dev.order?.title || 'без названия'}`}
+          draggable={false}
+        >
           №{dev.order?.bitrix_id || '—'}
-        </OrderLink>
+        </Link>
         <span className={overdue ? styles.overdue : styles.subText}>
           {dueLabelCompact(left)}
         </span>
@@ -225,7 +237,7 @@ function DevBoardCard({ row, onOpen, onMove, canManage, dragging, onDragStart, o
 }
 
 export function DevBoard({
-  rows, today, onOpen, materialsByOrder, supplyOpenByOrder, brandingByItem,
+  rows, today, materialsByOrder, supplyOpenByOrder, brandingByItem,
   brandingOpenByDev, typeNames, onMoveStage, canManage = false,
 }) {
   const { ref } = useScrollHints();
@@ -369,7 +381,6 @@ export function DevBoard({
                 <DevBoardCard
                   key={r.dev.id}
                   row={r}
-                  onOpen={onOpen}
                   onMove={move}
                   canManage={canManage}
                   dragging={dragId === r.dev.id}

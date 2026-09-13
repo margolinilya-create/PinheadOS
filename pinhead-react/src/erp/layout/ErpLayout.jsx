@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
-import { useErpSearch } from '../store/useErpSearch';
 import { useTheme } from '../../hooks/useTheme';
 import {
   useErpStore,
@@ -30,8 +29,6 @@ export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const search = useErpSearch((s) => s.query);
-  const setSearch = useErpSearch((s) => s.setQuery);
   const { orders, departments, experimental, bypasses, bootstrapLoaded } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -209,17 +206,14 @@ export default function ErpLayout({ user, children }) {
           >
             <Icon name="menu" size={19} />
           </button>
-          <div className={styles.headerSearch}>
-            <Icon name="search" />
-            <input
-              type="search"
-              placeholder="Поиск: заказ, № сделки, менеджер…"
-              aria-label="Глобальный поиск"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') navigate('/orders'); }}
-            />
-          </div>
+          {/*
+            ГЛОБАЛЬНОГО ПОИСКА В ШАПКЕ НЕТ (правка 13.09, п. 1). Поле стояло
+            на КАЖДОМ экране раздела, а отвечало ровно за один: по Enter оно
+            уводило на «Заказы» и там же фильтровало список. То есть на
+            очереди цеха, складе и закупке оно предлагало искать в чужом
+            списке и занимало место рядом с локальным поиском самого экрана.
+            Локальные поиски разделов не тронуты — они ищут в том, что видно.
+          */}
           <div className={styles.spacer} />
 
           {/*

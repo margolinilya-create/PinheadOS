@@ -4,6 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { currentActor } from '../../store/shared';
 import { deptShortName } from '../../data/departments';
 import { confirmStageDone } from '../../utils/stageDone';
+import { isFileResultStage } from '../../utils/stageResult';
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
 import { confirmWithInput } from '../../../store/useConfirmStore';
@@ -117,14 +118,31 @@ export function useStageActions() {
       dept: departments.find((d) => d.id === entry.stage.department_id),
     });
     if (!ok) return false;
-    const saved = await setStageStatus(entry.stage.id, 'done', { qty_done: entry.item.qty });
+    /**
+     * ФАЙЛОВЫЙ РЕЗУЛЬТАТ — БЕЗ ЕДИНОГО ЧИСЛА (правка 13.09, п. 9).
+     * «Количество заказа не должно участвовать в готовности этого этапа
+     * и не должно изменяться при его завершении». Поэтому `qty_done`
+     * не пишется вовсе, а не пишется нулём: ноль был бы утверждением
+     * «цех сдал ноль», а у этапа, который изделий не производит, этой
+     * величины не существует.
+     *
+     * Вход следующего этапа при этом не проседает: `stageFactQty` считает
+     * закрытый этап без набитого числа сданным целиком (то же допущение,
+     * что у закрытия кнопкой «Готово» и переносом на канбане), и вышивка
+     * после кроя получает свой тираж как прежде.
+     */
+    const fileResult = isFileResultStage(entry.stage);
+    const saved = await setStageStatus(
+      entry.stage.id, 'done', fileResult ? {} : { qty_done: entry.item.qty },
+    );
     // Называем количество и следующий цех: задание уходит из списка, и это
     // единственный след того, что именно записано
     if (saved) {
       const next = dependentDeptNames(entry);
-      toast.success(next.length > 0
-        ? `Этап завершён: ${entry.item.qty} шт · открыт ${next.join(', ')}`
-        : `Этап завершён: ${entry.item.qty} шт`);
+      const what = fileResult
+        ? 'Этап завершён: программа приложена'
+        : `Этап завершён: ${entry.item.qty} шт`;
+      toast.success(next.length > 0 ? `${what} · открыт ${next.join(', ')}` : what);
     }
     return saved;
   }, [setStageStatus, deptNameById, dependentDeptNames, departments, bypasses]);

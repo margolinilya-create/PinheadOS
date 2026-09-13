@@ -128,13 +128,18 @@ test.describe('Рабочая очередь цеха (правки 2, 3, 9)', (
     await page.goto('/queue/cutting?studio=0');
     const row = page.locator('[class*="queueRow"]').first();
     await expect(row).toBeVisible();
-    // Номер заказа кликабелен прямо из очереди (правка 6)
+    /**
+     * НАЗВАНИЕ СДЕЛКИ — ЕДИНСТВЕННЫЙ ПЕРЕХОД СТРОКИ (правка 13.09, п. 5),
+     * и ведёт он на ЗАДАНИЕ. Прежде их было два: название открывало карточку
+     * заказа, а задание — отдельная кнопка «Открыть» в конце строки.
+     */
     const orderLink = row.getByRole('link', { name: /№\d+/ });
     await expect(orderLink).toBeVisible();
+    await expect(orderLink).toHaveAttribute('href', /^\/task\//);
     // Подсказка даёт то, что НЕ видно: обрезанное многоточием название целиком.
     // Раньше title дублировал номер, который и так на экране (хвост долгов).
     await expect(orderLink).toHaveAttribute('title', /№\d+ · .+/);
-    await expect(row.getByRole('link', { name: 'Открыть' })).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Открыть' })).toHaveCount(0);
     // Количество, срок, исполнитель и процент готовности — в одной строке
     await expect(row.getByText(/\d+ шт/)).toBeVisible();
     await expect(row.getByTitle('Исполнитель')).toBeVisible();
@@ -159,12 +164,23 @@ test.describe('Рабочая очередь цеха (правки 2, 3, 9)', (
 });
 
 test.describe('Страница производственного задания (правки 5 и 6)', () => {
-  test('открывается из очереди и показывает заказ, клиента и маршрут', async ({ page }) => {
+  /**
+   * РАСКЛАДКА ПЕРЕСОБРАНА ПРАВКОЙ 13.09 (п. 4): вверху название этапа
+   * и статус, под ним ОДНОЙ строкой ключевое по заказу, ниже «ТЗ и действия»
+   * рядом с «Маршрутом и прогрессом», затем компактное «Задание» с рабочими
+   * данными этапа. Клиент и менеджер оттуда ушли — они в карточке заказа,
+   * и повторять их дефинишн-листом значило дважды отвечать на один вопрос.
+   */
+  test('открывается из очереди по названию сделки и показывает ключевое', async ({ page }) => {
     await page.goto('/queue/cutting?studio=0');
-    await page.locator('[class*="queueRow"]').first().getByRole('link', { name: 'Открыть' }).click();
+    await page.locator('[class*="queueRow"]').first().getByRole('link', { name: /№\d+/ }).click();
     await expect(page).toHaveURL(/\/task\//);
     await expect(page.getByRole('link', { name: /Открыть заказ №/ })).toBeVisible();
-    await expect(page.getByText('Клиент', { exact: true })).toBeVisible();
+    // Ключевая строка — ровно то, что названо в документе
+    for (const label of ['Заказ', 'Изделие', 'Количество', 'Выполнено']) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
+    await expect(page.getByText('ТЗ и действия')).toBeVisible();
     await expect(page.getByText('Маршрут и прогресс')).toBeVisible();
     await expect(page.getByRole('link', { name: '← В очередь цеха' })).toBeVisible();
   });
@@ -384,7 +400,7 @@ test.describe('Технические задания в PDF', () => {
     // Заказ B: закрой в работе, общий PDF назначен цеху
     const row = page.locator('[class*="queueRow"]').filter({ hasText: '54900' }).first();
     await expect(row).toBeVisible();
-    await row.getByRole('link', { name: 'Открыть' }).click();
+    await row.getByRole('link', { name: /№\d+/ }).click();
 
     await expect(page).toHaveURL(/\/task\//);
     await expect(page.getByText('Форма официантов.pdf').first()).toBeVisible();
