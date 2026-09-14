@@ -1692,6 +1692,37 @@ export interface ErpBypass {
   restored_at: string | null;
 }
 
+/**
+ * Вид персонального уведомления. Перечисление закрытое и дословно повторяет
+ * CHECK таблицы: вид, заведённый в одном месте из двух, даёт 23514 на вставке —
+ * в проекте на этом уже ловились с видами вложений.
+ */
+export type ErpNotificationKind = 'chat_mention' | 'chat_reply';
+
+/**
+ * ПЕРСОНАЛЬНОЕ уведомление — факт «систему позвала конкретного человека»,
+ * в отличие от вычисляемых поводов вмешаться (`utils/notifications`),
+ * одинаковых для всех и пересчитываемых из заказов.
+ *
+ * Текст ЗАМОРОЖЕН в момент события: заказ можно переименовать, а уведомление
+ * обязано остаться правдой о том, что произошло тогда.
+ */
+export interface ErpNotification {
+  id: string;
+  /** Адресат — учётная запись (`profiles.id`), а не карточка сотрудника */
+  user_id: string;
+  kind: ErpNotificationKind;
+  /** Заказ, о котором речь; null — уведомление вне заказа */
+  order_id: string | null;
+  title: string;
+  body: string | null;
+  /** Путь внутри раздела, куда ведёт нажатие */
+  link: string | null;
+  created_at: string;
+  /** null — не прочитано; счётчик колокола спрашивает именно это */
+  read_at: string | null;
+}
+
 /** Строка матрицы прав (таблица erp_role_permissions) */
 export interface ErpRolePermission {
   role: EmployeeRole;

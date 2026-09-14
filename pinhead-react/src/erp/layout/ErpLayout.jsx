@@ -16,7 +16,7 @@ import { setFeature } from '../../config/features';
 import { storageGet, storageSet, storageGetRaw, storageSetRaw } from '../../lib/storage';
 import { deptsSettled } from '../store/shared';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
-import { orderNotices } from '../utils/notifications';
+import { orderNotices, personalNotices } from '../utils/notifications';
 import { orderOverdueDays } from '../utils/stageUi';
 import { daysLeft } from '../utils/time';
 import { Sidebar } from './Sidebar';
@@ -29,13 +29,16 @@ export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const { orders, departments, experimental, bypasses, bootstrapLoaded } = useErpStore(
+  const {
+    orders, departments, experimental, bypasses, bootstrapLoaded, notifications,
+  } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
       departments: s.departments,
       experimental: s.experimental,
       bypasses: s.bypasses,
       bootstrapLoaded: s.bootstrapLoaded,
+      notifications: s.notifications,
     })),
   );
 
@@ -83,6 +86,14 @@ export default function ErpLayout({ user, children }) {
      * realtime.
      */
     if (!s.bypassesLoaded) s.loadBypasses();
+    /**
+     * Персональные уведомления — тоже отдельным запросом и по той же причине,
+     * что блокировки: список короткий, обычно пустой, и класть его в пакет
+     * оболочки значило бы платить за него КАЖДОЙ загрузкой у каждого. Дальше
+     * его ведёт realtime — человека зовут сейчас, а не «когда он обновит
+     * страницу».
+     */
+    if (!s.notificationsLoaded) s.loadNotifications();
   }, []);
 
   // Счётчики активных задач по разделам (из уже загруженных данных стора).
@@ -117,12 +128,19 @@ export default function ErpLayout({ user, children }) {
    * «что горит» показывал почти всегда ноль.
    *
    * Теперь источник один — `orderNotices`, тот же, из которого собран виджет.
+   *
+   * С 14.09 источников ДВА, и это то же правило, а не исключение из него:
+   * персональные уведомления (`erp_notifications`) рисует тот же виджет,
+   * значит колокол обязан их считать. Не посчитать — вернуть ровно тот
+   * дефект, ради которого счётчик и переписывали: индикатор ведёт туда,
+   * где сверху лежит непосчитанное им.
    */
   const overdueCount = useMemo(
     () => orders
       .filter((o) => o.status === 'active')
-      .reduce((sum, o) => sum + orderNotices(o, orderOverdueDays(o, daysLeft(o.due_date))).length, 0),
-    [orders],
+      .reduce((sum, o) => sum + orderNotices(o, orderOverdueDays(o, daysLeft(o.due_date))).length, 0)
+      + personalNotices(notifications).length,
+    [orders, notifications],
   );
 
   // Постоянное меню цехов (правка 1): участок + число заданий в его очереди

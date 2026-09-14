@@ -18,6 +18,7 @@ import type {
   ErpDictionaryItem,
   ErpEmployee,
   ErpInvite,
+  ErpNotification,
   ErpPermission,
   ErpRolePermission,
   ErpItemPrint,
@@ -472,6 +473,18 @@ export interface OrdersSlice {
 
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
+}
+
+/**
+ * ЗАГРУЗКИ ЗАКАЗОВ ПО ТРЕБОВАНИЮ — то, что зовут ЭКРАНЫ, а не оболочка.
+ *
+ * Отделено от `OrdersSlice` 14.09. Оболочке нужен активный список — из него
+ * считаются бейджи разделов, счётчики цехов и колокол; всё остальное чтение
+ * зовут только экраны, и потому оно приезжает доменным чанком вместе с первым
+ * из них. Данные при этом остаются в ядре (`domainState`): их наполняет
+ * `loadAll` ещё до открытия любого экрана.
+ */
+export interface OrdersOnDemandSlice {
   /** Ленивая загрузка архива (status != active) при первом заходе на вкладку — первая страница */
   loadArchive: () => Promise<void>;
   /** Следующая страница архива (кнопка «Показать ещё») */
@@ -981,6 +994,20 @@ export interface DictionariesSlice {
  * Список маленький и меняется редко, поэтому живёт целиком в сторе: гейты
  * спрашивают его синхронно, а `utils/bypass` решает, действует ли снятие.
  */
+/**
+ * Персональные уведомления — то, что адресовано ЧЕЛОВЕКУ, в отличие
+ * от вычисляемых поводов вмешаться (`utils/notifications`), одинаковых
+ * для всех. Слайс в ядре: счётчик показывает колокол оболочки, то есть
+ * до открытия любого экрана.
+ */
+export interface NotificationsSlice {
+  notifications: ErpNotification[];
+  notificationsLoaded: boolean;
+  loadNotifications: () => Promise<void>;
+  /** Отметить прочитанными; уже прочитанные не трогаются — иначе read_at соврёт */
+  markNotificationsRead: (ids: string[]) => Promise<boolean>;
+}
+
 export interface BypassSlice {
   bypasses: ErpBypass[];
   bypassesLoaded: boolean;
@@ -1308,6 +1335,7 @@ export interface OrderWriteSlice {
 
 export type ErpStore = BootstrapSlice &
   OrdersSlice &
+  OrdersOnDemandSlice &
   OrderWriteSlice &
   StagesSlice &
   MaterialsSlice &
@@ -1324,4 +1352,5 @@ export type ErpStore = BootstrapSlice &
   PlanSlice &
   BypassSlice &
   SettingsSlice &
+  NotificationsSlice &
   RealtimeSlice;

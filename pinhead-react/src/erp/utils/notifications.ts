@@ -18,10 +18,14 @@ import { hasOpenProcurement } from './routes';
 
 import { overdueBucket } from './format';
 
-export type NoticeKind = 'blocked' | 'overdue' | 'procurement';
+export type NoticeKind = 'blocked' | 'overdue' | 'procurement' | 'personal';
 
 export interface Notice {
   id: string;
+  /**
+   * Заказ, к которому ведёт строка. Пусто у персонального уведомления вне
+   * заказа: у вычисляемых поводов заказ есть всегда — они из него и считаются.
+   */
   orderId: string;
   kind: NoticeKind;
   /** Заголовок строки: «Просрочен заказ №1042» */
@@ -30,6 +34,18 @@ export interface Notice {
   sub: string;
   /** Дней просрочки — только для kind='overdue' */
   overdueDays?: number;
+  /**
+   * Куда ведёт нажатие, если это НЕ карточка заказа целиком (персональное
+   * уведомление зовёт в конкретное место — например, в чат на сообщении).
+   * Пусто — открывается заказ, как у вычисляемых.
+   */
+  to?: string;
+  /**
+   * Id строки `erp_notifications` — только у персональных: по нему уведомление
+   * отмечается прочитанным. У вычисляемых прочитанности нет по построению:
+   * они исчезают вместе с состоянием, которое их породило.
+   */
+  notificationId?: string;
 }
 
 export interface NoticeGroup {
@@ -46,6 +62,22 @@ export interface NoticeGroup {
 
 /** Описание групп в порядке срочности; пустые в результат не попадают */
 const GROUPS: Array<Omit<NoticeGroup, 'items'> & { match: (n: Notice) => boolean }> = [
+  /**
+   * ЛИЧНОЕ — ПЕРВЫМ. Остальные группы отвечают на «что горит в производстве»
+   * и адресованы всем сразу; эта — «позвали лично вас», и ответить на неё,
+   * кроме вас, некому. Группа развёрнута, то есть попадает в `urgentCount`,
+   * и колокол считает её вместе с прочими — иначе он вёл бы на виджет,
+   * где сверху лежит то, чего он не посчитал.
+   */
+  {
+    key: 'personal',
+    title: 'Вам написали',
+    hint: 'Обращение лично к вам — ответить может только адресат',
+    tone: 'danger',
+    icon: 'bell',
+    open: true,
+    match: (n) => n.kind === 'personal',
+  },
   {
     key: 'blocked',
     title: 'Остановлено',
@@ -136,6 +168,44 @@ export function orderNotices(order: NoticeOrder, lateDays: number): Notice[] {
     });
   }
   return out;
+}
+
+/** Строка `erp_notifications` в объёме, нужном центру уведомлений */
+export interface PersonalNotice {
+  id: string;
+  order_id: string | null;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+}
+
+/**
+ * ПЕРСОНАЛЬНЫЕ уведомления в том же виде, что и вычисляемые.
+ *
+ * Отдельная функция рядом с `orderNotices`, а не ветка внутри неё: источник
+ * другой (хранимая строка против состояния заказа) и вопрос другой («вас
+ * позвали» против «производство встало»). Общий у них РЕЗУЛЬТАТ — `Notice`,
+ * и потому `groupNotices`, `noticeCount` и `urgentCount` не меняются вовсе:
+ * колокол и виджет продолжают считать и рисовать одно и то же.
+ *
+ * ПРОЧИТАННЫЕ ОТСЕИВАЮТСЯ ЗДЕСЬ. Центр уведомлений отвечает на вопрос «что
+ * требует внимания сейчас»; прочитанное на него не отвечает, а счётчик
+ * колокола, считающий прочитанное, — это вечная цифра, мимо которой начинают
+ * смотреть. История переписки при этом остаётся в самой переписке.
+ */
+export function personalNotices(rows: PersonalNotice[] | null | undefined): Notice[] {
+  return (rows ?? [])
+    .filter((r) => !r.read_at)
+    .map((r) => ({
+      id: `n-${r.id}`,
+      orderId: r.order_id ?? '',
+      kind: 'personal' as const,
+      text: r.title,
+      sub: r.body ?? '',
+      to: r.link ?? undefined,
+      notificationId: r.id,
+    }));
 }
 
 /** Минимум заказа, из которого строятся уведомления */

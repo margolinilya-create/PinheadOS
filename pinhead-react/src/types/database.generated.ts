@@ -213,6 +213,27 @@ export type Database = {
           },
         ]
       }
+      erp_deleted_test_orders_20260913: {
+        Row: {
+          deleted_at: string
+          id: string
+          payload: Json
+          title: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          id: string
+          payload: Json
+          title?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          id?: string
+          payload?: Json
+          title?: string | null
+        }
+        Relationships: []
+      }
       erp_departments: {
         Row: {
           active: boolean
@@ -1041,6 +1062,57 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          order_id: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          link?: string | null
+          order_id?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          order_id?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2509,6 +2581,7 @@ export type Database = {
         }
         Returns: {
           board_stage: string | null
+          branding_note: string | null
           closed_at: string | null
           comment: string | null
           constructor: string | null

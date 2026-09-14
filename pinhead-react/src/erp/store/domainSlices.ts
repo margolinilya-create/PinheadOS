@@ -1,4 +1,5 @@
 import { useErpStore } from './useErpStore';
+import { ordersOnDemandSlice } from './slices/ordersOnDemandSlice';
 import { orderWriteSlice } from './slices/orderWriteSlice';
 import { stagesSlice } from './slices/stagesSlice';
 import { materialsSlice } from './slices/materialsSlice';
@@ -45,6 +46,7 @@ import type { ErpStore } from './types';
  */
 
 const DOMAIN_SLICES = [
+  ordersOnDemandSlice,
   orderWriteSlice,
   stagesSlice,
   materialsSlice,

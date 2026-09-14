@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupNotices, noticeCount, urgentCount } from './notifications';
+import { groupNotices, noticeCount, personalNotices, urgentCount } from './notifications';
 import type { Notice } from './notifications';
 
 const overdue = (id: string, days: number): Notice => ({
@@ -74,5 +74,72 @@ describe('groupNotices — уведомления по критичности', 
     expect(byKey['overdue-week']).toEqual(['a']);
     expect(byKey['overdue-month']).toEqual(['c', 'b']);
     expect(byKey['overdue-stale']).toEqual(['d']);
+  });
+});
+
+/**
+ * ПЕРСОНАЛЬНЫЕ УВЕДОМЛЕНИЯ — второй источник того же центра (14.09).
+ *
+ * Вычисляемые поводы одинаковы для всех и пересчитываются из заказов;
+ * персональные — факты с адресатом и прочитанностью. Проверяется ровно то,
+ * что легко сломать молча: прочитанное не должно висеть в счётчике, личное
+ * должно попадать в СРОЧНЫЕ (иначе колокол поведёт на виджет, где сверху
+ * лежит непосчитанное им), а собственный адрес перехода — доезжать до строки.
+ */
+describe('personalNotices — личные уведомления в общем центре', () => {
+  const row = (id: string, extra: Partial<{
+    read_at: string | null; link: string | null; order_id: string | null;
+  }> = {}) => ({
+    id,
+    order_id: 'o1',
+    title: 'Вас упомянули в сделке №1042',
+    body: 'посмотри раскладку',
+    link: '/orders/o1?tab=chat&msg=m1',
+    read_at: null,
+    ...extra,
+  });
+
+  it('пустой вход и отсутствие списка разбираются без падения', () => {
+    expect(personalNotices([])).toEqual([]);
+    expect(personalNotices(null)).toEqual([]);
+    expect(personalNotices(undefined)).toEqual([]);
+  });
+
+  it('прочитанные не показываются: центр отвечает на «что требует внимания»', () => {
+    const out = personalNotices([row('a'), row('b', { read_at: '2026-09-14T10:00:00Z' })]);
+    expect(out.map((n) => n.notificationId)).toEqual(['a']);
+  });
+
+  it('несёт собственный адрес перехода и id для отметки прочтения', () => {
+    const [n] = personalNotices([row('a')]);
+    expect(n.to).toBe('/orders/o1?tab=chat&msg=m1');
+    expect(n.notificationId).toBe('a');
+    expect(n.orderId).toBe('o1');
+  });
+
+  it('уведомление вне заказа не теряется', () => {
+    // orderId пуст — строка всё равно должна быть показана; иначе повод,
+    // не привязанный к сделке, исчезал бы молча
+    const [n] = personalNotices([row('a', { order_id: null, link: '/experimental/x' })]);
+    expect(n.orderId).toBe('');
+    expect(n.to).toBe('/experimental/x');
+  });
+
+  it('личное стоит первым и попадает в срочные', () => {
+    const groups = groupNotices([
+      ...personalNotices([row('a')]),
+      overdue('w', 2),
+      overdue('s', 40),
+    ]);
+    expect(groups[0].key).toBe('personal');
+    // Колокол считает развёрнутые группы: личное + недельная просрочка
+    expect(urgentCount(groups)).toBe(2);
+    expect(noticeCount(groups)).toBe(3);
+  });
+
+  it('группа личного объясняет, что с ней делать', () => {
+    const [g] = groupNotices(personalNotices([row('a')]));
+    expect(g.title).toBeTruthy();
+    expect(g.hint.length).toBeGreaterThan(10);
   });
 });

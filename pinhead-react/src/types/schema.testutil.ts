@@ -47,6 +47,31 @@ export function columnTypesOf(table: string): Map<string, { nullable: boolean }>
   return out;
 }
 
+/**
+ * Все таблицы схемы — имена из блока `Tables: { … }` снимка.
+ *
+ * Нужна там, где имя таблицы вылавливается из СВОБОДНОГО ТЕКСТА и его надо
+ * отличить от чего-то похожего: в теле функции БД рядом с `erp_orders` стоят
+ * `erp_has_permission` и `erp_clamp_done`, и без сверки со снимком сторож
+ * объявил бы функции таблицами (`realtimeCoverage.test.ts`).
+ */
+export function tableNames(): string[] {
+  const start = generated.indexOf('    Tables: {');
+  if (start < 0) throw new Error('в снимке нет блока Tables — формат database.generated.ts изменился?');
+  /**
+   * Разбор ОГРАНИЧЕН блоком `Tables`. Соседний `Views` и особенно `Functions`
+   * записаны тем же отступом, и «всё после Tables» объявляло таблицами имена
+   * функций — сторож realtime тут же потребовал подписки на `erp_update_order`.
+   */
+  const end = generated.indexOf('    Views: {', start);
+  const block = generated.slice(start, end > 0 ? end : undefined);
+  const names = [...block.matchAll(/^ {6}(\w+): \{$/gm)].map((m) => m[1]);
+  if (names.length === 0) {
+    throw new Error('не разобрано ни одной таблицы — формат database.generated.ts изменился?');
+  }
+  return names;
+}
+
 /** Колонки таблицы из блока `Row: { … }` сгенерированного файла */
 export function columnsOf(table: string): string[] {
   const start = generated.indexOf(`      ${table}: {`);

@@ -17,6 +17,7 @@ import { bootstrapSlice } from './slices/bootstrapSlice';
 import { ordersSlice } from './slices/ordersSlice';
 import { permissionsSlice } from './slices/permissionsSlice';
 import { bypassSlice } from './slices/bypassSlice';
+import { notificationsSlice } from './slices/notificationsSlice';
 import { realtimeSlice } from './slices/realtimeSlice';
 import { DOMAIN_INITIAL_STATE } from './domainState';
 import type { ErpStore } from './types';
@@ -25,8 +26,10 @@ import { clearQueryCache } from './queryCache';
 /**
  * ЯДРО стора — ровно то, чем пользуется сама оболочка: цеха и привязка
  * (`bootstrap`), список заказов и бейджи (`orders`), права (`permissions`,
- * через `useErpAccess`), пометки снятых блокировок (`bypass`) и живые
- * обновления (`realtime` — подписка стоит в `ErpLayout`).
+ * через `useErpAccess`), пометки снятых блокировок (`bypass`), персональные
+ * уведомления (`notifications` — их счётчик показывает колокол шапки, то есть
+ * до открытия любого экрана) и живые обновления (`realtime` — подписка стоит
+ * в `ErpLayout`).
  *
  * Остальные одиннадцать слайсов приезжают вместе с первым экраном
  * (`domainSlices.ts`): оболочку грузят все и всегда, и склад, подряд, образцы,
@@ -46,6 +49,7 @@ export const useErpStore = create<ErpStore>((...a) => ({
   ...ordersSlice(...a),
   ...permissionsSlice(...a),
   ...bypassSlice(...a),
+  ...notificationsSlice(...a),
   ...realtimeSlice(...a),
   ...DOMAIN_INITIAL_STATE,
 } as unknown as ErpStore));

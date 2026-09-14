@@ -348,6 +348,20 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
 
+    /**
+     * ПЕРСОНАЛЬНЫЕ УВЕДОМЛЕНИЯ — «ЗВОНОК, А НЕ ПИСЬМО».
+     *
+     * Из события берётся только факт «что-то пришло», а список перечитывается
+     * целиком. Читать строку из `ev.new` нельзя: тогда видимость решалась бы
+     * ДВАЖДЫ — фильтром realtime и политикой чтения, — а две формулы одной
+     * величины в этом проекте расходились уже не раз. Список короткий,
+     * перечитать его дешевле, чем однажды показать человеку чужое.
+     */
+    if (ev.table === 'erp_notifications') {
+      void get().loadNotifications();
+      return;
+    }
+
     // Неизвестная таблица — старый путь
     scheduleFullReload();
   },
@@ -433,6 +447,18 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_bypasses' },
         forward('erp_bypasses'),
+      )
+      /**
+       * Персональные уведомления: человека зовут СЕЙЧАС, и «увидит при
+       * следующей загрузке» здесь означает «не увидит вовсе» — вкладку
+       * в цеху держат открытой сменами. Фильтра по адресату в подписке нет:
+       * его ставит RLS (`user_id = auth.uid()`), и дублировать это условие
+       * в клиенте значило бы завести вторую формулу видимости.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_notifications' },
+        forward('erp_notifications'),
       )
       .on(
         'postgres_changes',

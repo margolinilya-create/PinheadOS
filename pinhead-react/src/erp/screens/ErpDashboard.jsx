@@ -20,7 +20,9 @@ import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
 import { isProductionDept } from '../data/departments';
 import { myDeptCode } from '../utils/myDept';
 import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
-import { groupNotices, orderNotices, urgentCount } from '../utils/notifications';
+import {
+  groupNotices, orderNotices, personalNotices, urgentCount,
+} from '../utils/notifications';
 import { CapacityBar } from '../components/CapacityBar';
 import DeptBindingNotice from '../components/DeptBindingNotice';
 import { monthCapacityReport, monthLabel } from '../utils/capacity';
@@ -77,13 +79,63 @@ function orderStatus(order) {
   return { variant: 'progress', label: 'В работе' };
 }
 
+/**
+ * Строка виджета уведомлений.
+ *
+ * ДВА АДРЕСАТА ПЕРЕХОДА, И ЭТО НЕ ДУБЛЬ. Вычисляемый повод («просрочен заказ»)
+ * ведёт в карточку заказа — там его и разбирают. Персональное уведомление
+ * зовёт в КОНКРЕТНОЕ место (`to`): в переписку на нужном сообщении, а не
+ * «куда-то в заказ, поищите сами».
+ *
+ * Прочитанным уведомление становится по переходу, а не по показу: виджет
+ * «Обзора» человек видит мельком на каждой загрузке, и гасить счётчик за то,
+ * что строка попала на экран, значит терять повод, ради которого звали.
+ */
+function NoticeRow({ notice, tone, onRead }) {
+  const read = () => {
+    if (notice.notificationId) void onRead([notice.notificationId]);
+  };
+  const body = (
+    <>
+      <span className={styles.notifText}>
+        {notice.text}
+        {notice.sub && <span className={styles.notifSub}> · {notice.sub}</span>}
+      </span>
+      {notice.overdueDays > 0 && (
+        <Badge variant={tone === 'danger' ? 'blocked' : 'neutral'}>
+          {notice.overdueDays} дн.
+        </Badge>
+      )}
+    </>
+  );
+  if (notice.to) {
+    return (
+      <Link to={notice.to} className={styles.notifItem} onClick={read}>
+        {body}
+      </Link>
+    );
+  }
+  /**
+   * Персональное уведомление без адреса всё равно остаётся ссылкой на заказ,
+   * если он известен: строка, по которой некуда идти, — тот самый тупик,
+   * ради устранения которого у уведомлений вообще появились ссылки.
+   */
+  return (
+    <OrderLink orderId={notice.orderId} className={styles.notifItem} onClick={read}>
+      {body}
+    </OrderLink>
+  );
+}
+
 export default function ErpDashboard() {
   const {
     orders, departments, loaded, loadError, loadAll, capacity, capacityLoaded, loadSettings,
-    bypasses, myDeptId, myDeptLoaded,
+    bypasses, myDeptId, myDeptLoaded, notifications, markNotificationsRead,
   } = useErpStore(
     useShallow((s) => ({
       bypasses: s.bypasses,
+      notifications: s.notifications,
+      markNotificationsRead: s.markNotificationsRead,
       orders: s.orders,
       departments: s.departments,
       myDeptId: s.myDeptId,
@@ -133,7 +185,13 @@ export default function ErpDashboard() {
       departments.map((d) => [d.id, { dept: d, ready: 0, inProgress: 0, blocked: 0 }]),
     );
     const burning = [];
-    const notifications = [];
+    /**
+     * Строки виджета. Имя `notices`, а не `notifications`: с 14.09 рядом
+     * лежит СПИСОК ПЕРСОНАЛЬНЫХ уведомлений из стора под именем
+     * `notifications`, и одинаковые имена для «строк виджета» и «строк
+     * таблицы» разошлись бы в первой же правке.
+     */
+    const notices = [];
     // Ступени просрочки: «47» одним числом не отвечает на вопрос «что делать»
     const overdueByBucket = { none: 0, week: 0, month: 0, stale: 0 };
 
@@ -146,7 +204,7 @@ export default function ErpDashboard() {
 
       // Что считать поводом вмешаться — одно правило на виджет и на колокол
       // в шапке (`utils/notifications.orderNotices`)
-      notifications.push(...orderNotices(order, lateDays));
+      notices.push(...orderNotices(order, lateDays));
       if (lateDays > 0) overdueByBucket[overdueBucket(lateDays)] += 1;
 
       for (const item of order.items) {
@@ -213,10 +271,16 @@ export default function ErpDashboard() {
       overdueByBucket,
       // Группы, а не срез: срез показывал шесть случайных из сорока семи
       // и молчал о том, что их сорок семь
-      noticeGroups: groupNotices(notifications),
+      /**
+       * ДВА ИСТОЧНИКА, ОДИН ВИДЖЕТ (14.09). Вычисляемые поводы («производство
+       * встало») и персональные уведомления («позвали лично вас») приходят
+       * в `groupNotices` одним списком: сама группировка, счётчики и колокол
+       * не менялись вовсе — поменялось только то, из чего собран список.
+       */
+      noticeGroups: groupNotices([...personalNotices(notifications), ...notices]),
       capacity: monthCapacityReport(orders, today, capacity),
     };
-  }, [orders, departments, capacity, today, bypasses]);
+  }, [orders, departments, capacity, today, bypasses, notifications]);
 
   // Число для шапки виджета: сумма срочных групп, а не всех уведомлений
   const urgent = urgentCount(data.noticeGroups);
@@ -360,21 +424,12 @@ export default function ErpDashboard() {
                   {g.items.slice(0, 8).map((n) => (
                     // Алерт без ссылки — тупик: пользователь читал «Просрочен
                     // заказ №1042» и шёл искать его руками, хотя id лежит рядом
-                    <OrderLink
+                    <NoticeRow
                       key={n.id}
-                      orderId={n.orderId}
-                      className={styles.notifItem}
-                    >
-                      <span className={styles.notifText}>
-                        {n.text}
-                        <span className={styles.notifSub}> · {n.sub}</span>
-                      </span>
-                      {n.overdueDays > 0 && (
-                        <Badge variant={g.tone === 'danger' ? 'blocked' : 'neutral'}>
-                          {n.overdueDays} дн.
-                        </Badge>
-                      )}
-                    </OrderLink>
+                      notice={n}
+                      tone={g.tone}
+                      onRead={markNotificationsRead}
+                    />
                   ))}
                   {g.items.length > 8 && (
                     // Никаких тихих лимитов: сколько показано и сколько всего

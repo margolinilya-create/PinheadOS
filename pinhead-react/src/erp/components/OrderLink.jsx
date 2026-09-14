@@ -21,7 +21,7 @@ import { orderLinkTarget } from '../utils/orderLink';
  * возврата должно жить в одном месте — забытый в одном экране `state` даёт
  * дефект, который видно только по возврату именно оттуда.
  */
-export function OrderLink({ orderId, children, ...rest }) {
+export function OrderLink({ orderId, children, onClick, ...rest }) {
   const location = useLocation();
   const [to, options] = orderLinkTarget(orderId, location);
   return (
@@ -33,8 +33,16 @@ export function OrderLink({ orderId, children, ...rest }) {
        * Клик не всплывает: заголовок заказа лежит внутри разворачиваемой строки
        * и внутри карточки канбана, и без этого переход заодно тоглил бы строку
        * или дёргал состояние перетаскивания.
+       *
+       * ПЕРЕДАННЫЙ ОБРАБОТЧИК ВЫЗЫВАЕТСЯ, А НЕ ТЕРЯЕТСЯ. Он принимался через
+       * `...rest`, но собственный `onClick` стоял НИЖЕ и молча его затирал:
+       * вызывающий передавал обработчик, ссылка работала — и ничего
+       * не происходило. Поймано 14.09 на отметке уведомления прочитанным.
        */
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.(e);
+      }}
     >
       {children}
     </Link>
