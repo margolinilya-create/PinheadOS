@@ -372,7 +372,9 @@ export default function OrderCard() {
           </section>
         )}
 
-        {tab === 'files' && <FilesSection attachments={order.attachments} />}
+        {tab === 'files' && (
+          <FilesSection orderId={order.id} attachments={order.attachments} />
+        )}
 
         {tab === 'comments' && <CommentsSection comments={comments} onSend={onSendComment} />}
 

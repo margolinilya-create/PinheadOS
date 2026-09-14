@@ -34,6 +34,14 @@ const OWN_SCREEN: Partial<Record<EmployeeRole, string>> = {
   storekeeper: '/warehouse',
   purchaser: '/purchasing',
   technologist: '/experimental',
+  /**
+   * Дизайнер (правка 14.09, п. 3) работает В ЗАКАЗАХ: он ведёт папку «Файлы
+   * производства» в карточке сделки. Обзор производства отвечает на вопросы
+   * менеджера («сколько в работе», «загрузка цехов»), и ни одна его цифра
+   * к работе дизайнера не относится. Своего участка у него нет, поэтому
+   * в очередь цеха он не уезжает — `DEPT_BOUND_ROLES` его не содержит.
+   */
+  designer: '/orders',
 };
 
 export interface LandingContext {

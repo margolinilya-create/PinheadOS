@@ -103,8 +103,9 @@ function statusGroup(m, today) {
 const EMPTY_MAT = {
   order_id: '', kind: 'fabric', name: '', source: 'purchase', supplier: '',
   color: '', article: '', qty: '', unit: '', price_per_unit: '', eta_date: '',
-  // Факт закупщика (документ 20.08, п. 4): сколько заказал и когда
-  qty_ordered: '', ordered_on: '',
+  // Потребность производства (правка 14.09, п. 2) и факт закупщика
+  // (документ 20.08, п. 4): сколько нужно, сколько заказал и когда
+  qty_expected: '', qty_ordered: '', ordered_on: '',
 };
 
 /**
@@ -120,6 +121,13 @@ const EMPTY_MAT = {
 function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
   const [saving, setSaving] = useState(false);
+  /**
+   * Тронул ли человек «Фактическое количество» (правка 14.09, п. 2). Пока нет,
+   * оно едет за потребностью подстановкой; после первой правки — своё.
+   * Признак в состоянии, а не сравнение значений: равные числа означали бы
+   * «не трогал», и введённый вручную тот же самый факт снова стал бы зеркалом.
+   */
+  const [factTouched, setFactTouched] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   const submit = async () => {
@@ -135,27 +143,27 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
      * Количество обязательным остаётся: без него закупка не закроется
      * автоматически (`supply.missingPlan`), то есть строка просто застрянет.
      */
-    if (form.source === 'purchase' && (!form.qty_ordered || Number(form.qty_ordered) <= 0)) {
-      toast.error(`Укажите «${PURCHASE_FIELD_LABELS.qtyOrdered}»`); return;
+    if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
+      toast.error(`Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»`); return;
     }
     setSaving(true);
     /**
-     * ОДНО ПОЛЕ КОЛИЧЕСТВА (правка заказчика 30.08, п. 8). «Нужное количество»
-     * и «Количество к заказу» в этой форме отвечали на один вопрос: строку
-     * заводит сам закупщик, и планировать себе же ему нечего — второе поле
-     * ехало за первым подстановкой и правилось хорошо если раз на сотню строк.
+     * ДВА КОЛИЧЕСТВА (правка заказчика 14.09, п. 2): потребность производства
+     * и факт заказа у поставщика. До 14.09 поле было одно (правка 30.08, п. 8)
+     * и заполняло обе колонки — документ просит их разделить, потому что
+     * «плановую потребность и фактически заказанное легко перепутать».
      *
-     * `qty_expected` при этом ОБЯЗАН быть записан: это знаменатель приёмки
-     * на складе и условие автозакрытия закупки (`supply.missingPlan`).
-     * Строка без него не закроется автоматически НИКОГДА — поэтому убрано
-     * поле, а не величина.
+     * ОБЯЗАТЕЛЬНА ПОТРЕБНОСТЬ: `qty_expected` — знаменатель приёмки на складе
+     * и условие автозакрытия закупки (`supply.missingPlan`). Строка без неё
+     * не закроется автоматически НИКОГДА. Факт может быть пустым: счёт
+     * поставщика приходит позже, чем заводится строка.
      */
-    const qtyOrdered = Number(form.qty_ordered);
+    const qtyExpected = Number(form.qty_expected);
     const row = await onAdd(form.order_id, {
       kind: form.kind, name: form.name.trim(), source: form.source,
       supplier: form.supplier.trim() || null, color: form.color.trim() || null,
       article: form.article.trim() || null, qty: form.qty.trim() || null,
-      qty_expected: form.qty_ordered === '' ? null : qtyOrdered,
+      qty_expected: form.qty_expected === '' ? null : qtyExpected,
       unit: form.unit.trim() || null,
       price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
       eta_date: form.eta_date || null,
@@ -229,23 +237,47 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
             <DictionaryDatalist id="erp-units" kind="unit" />
           </label>
           {/*
-            ФАКТ ЗАКУПЩИКА (документ 20.08, п. 4; правка 24.08, п. 1). Заводя
-            строку, он часто уже знает, сколько заказывает и когда: спрашивать
-            это потом отдельным заходом значит гарантировать, что поле
-            останется пустым.
+            ДВА КОЛИЧЕСТВА, И ОНИ РАЗНЫЕ (правка 14.09, п. 2). Документ просит
+            разделить «потребность производства» и «сколько реально заказали
+            у поставщика»: первое — знаменатель приёмки на складе и условие
+            автозакрытия закупки, второе — факт по счёту.
 
-            Это ЕДИНСТВЕННОЕ поле количества формы (правка 30.08, п. 8) —
-            им же заполняется `qty_expected` в `submit`.
+            ПОЧЕМУ ФАКТ ЕДЕТ ЗА ПОТРЕБНОСТЬЮ ПОДСТАНОВКОЙ. Правка 30.08 свела
+            эти поля в одно ровно потому, что второе «правилось хорошо если раз
+            на сотню строк»: заводя строку, закупщик обычно заказывает ровно
+            столько, сколько нужно. Подстановка сохраняет прежнюю скорость
+            ввода и не врёт: как только человек тронул поле факта, оно живёт
+            своей жизнью (`factTouched`) и потребность его больше не двигает.
 
-            Статус здесь не спрашивается вовсе: «Заказано» ставится по этому
-            полю и дате заказа (`utils/materialStatus`).
+            Обязательна ПОТРЕБНОСТЬ, а не факт: без неё строка не закроется
+            автоматически никогда (`supply.missingPlan`).
+
+            Статус здесь не спрашивается вовсе: «Заказано» ставится по факту
+            и дате заказа (`utils/materialStatus`).
           */}
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyExpected}</span>
+            <input
+              type="number" min="0" step="any" className={styles.input}
+              value={form.qty_expected}
+              onChange={(e) => {
+                const value = e.target.value.replace('-', '');
+                set(factTouched
+                  ? { qty_expected: value }
+                  : { qty_expected: value, qty_ordered: value });
+              }}
+              aria-label={PURCHASE_FIELD_LABELS.qtyExpected}
+            />
+          </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>{PURCHASE_FIELD_LABELS.qtyOrdered}</span>
             <input
               type="number" min="0" step="any" className={styles.input}
               value={form.qty_ordered}
-              onChange={(e) => set({ qty_ordered: e.target.value.replace('-', '') })}
+              onChange={(e) => {
+                setFactTouched(true);
+                set({ qty_ordered: e.target.value.replace('-', '') });
+              }}
               aria-label={PURCHASE_FIELD_LABELS.qtyOrdered}
             />
           </label>

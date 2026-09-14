@@ -6,7 +6,7 @@ import {
   MATERIAL_STATUS_LABELS,
 } from '../../types';
 import { hasPackaging, itemPackaging, packagingLabel, stickersLabel } from '../../utils/packaging';
-import { GARMENT_SOURCE_LABELS, isCustomerGarment } from '../../utils/garmentSource';
+import { GARMENT_SOURCE_LABELS, garmentSourceOf } from '../../utils/garmentSource';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
@@ -124,15 +124,17 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
               <span className={`${styles.chip} ${styles.chipNeutral}`}>Крой: {item.fit}</span>
             )}
             {/*
-              ДАВАЛЬЧЕСКОЕ ИЗДЕЛИЕ (правки 07.09, п. 4) — здесь, а не только
+              ОТКУДА ИЗДЕЛИЕ (07.09 п. 4, 14.09 п. 1) — здесь, а не только
               в карточке заказа: цех приходит работать на эту страницу.
-              Вещь чужая, испорченную не допечатать из своих остатков, и знать
-              это надо ДО первого прогона. Обратный случай («закупаем мы») —
-              прежнее поведение, чипа не заводит.
+              Давальческая вещь чужая, испорченную не допечатать из своих
+              остатков; со склада ГП — своя, но готовая, и допечатать её можно
+              только из складского остатка. И то и другое надо знать ДО первого
+              прогона. Обратный случай («закупаем мы») — прежнее поведение,
+              чипа не заводит.
             */}
-            {isCustomerGarment(item) && (
+            {garmentSourceOf(item) !== 'purchased' && (
               <span className={`${styles.chip} ${styles.chipInfo}`}>
-                {GARMENT_SOURCE_LABELS.customer}
+                {GARMENT_SOURCE_LABELS[garmentSourceOf(item)]}
               </span>
             )}
             {/* Упаковка ПОЗИЦИИ: своя, а при `inherit` — общая по заказу.

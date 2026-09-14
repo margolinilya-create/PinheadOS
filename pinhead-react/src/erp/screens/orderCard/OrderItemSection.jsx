@@ -17,7 +17,7 @@ import { fmtTs } from './format';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { RouteEditor } from '../../components/RouteEditor';
 import { isOutsourced } from '../../utils/outsourcing';
-import { GARMENT_SOURCE_LABELS, isCustomerGarment } from '../../utils/garmentSource';
+import { GARMENT_SOURCE_LABELS, garmentSourceOf } from '../../utils/garmentSource';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { unplannedStages } from '../../utils/stagePlan';
@@ -55,13 +55,15 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
           {item.variant && <span className={styles.subText}> · {item.variant}</span>}
           <span className={styles.subText}> · {PRODUCTION_TYPE_LABELS[item.production_type]}</span>
           {/*
-            ДАВАЛЬЧЕСКОЕ НАЗЫВАЕТСЯ ЯВНО (правки 07.09, п. 4). Это чужая
-            вещь: испорченное изделие нельзя допечатать из своих остатков,
-            и цех обязан знать это ДО работы. «Закупаем мы» не пишем —
+            НЕЗАКУПАЕМОЕ ИЗДЕЛИЕ НАЗЫВАЕТСЯ ЯВНО (07.09 п. 4, 14.09 п. 1).
+            Давальческое — чужая вещь: испорченное изделие нельзя допечатать
+            из своих остатков, и цех обязан знать это ДО работы. «Склад ГП» —
+            своя, но уже существующая: её выдают, а не закупают, и допечатать
+            можно только из остатка на складе. «Закупаем мы» не пишем —
             это прежнее поведение, и подпись у каждой позиции была бы шумом.
           */}
-          {isCustomerGarment(item) && (
-            <Badge variant="info">{GARMENT_SOURCE_LABELS.customer}</Badge>
+          {garmentSourceOf(item) !== 'purchased' && (
+            <Badge variant="info">{GARMENT_SOURCE_LABELS[garmentSourceOf(item)]}</Badge>
           )}
         </div>
         <span className={styles.queueQty}>{item.qty} шт</span>

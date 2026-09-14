@@ -1288,7 +1288,21 @@ export interface OrderWriteSlice {
   ) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
-  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
+  /**
+   * Загрузить файл заказа. `kind` (правка 14.09, п. 3) выбирает папку:
+   * `attachment` — «Файлы сделки», `production` — «Файлы производства».
+   * По умолчанию прежнее поведение: два вызывающих на `.js` (фото блокировки
+   * и фото брака) аргумент не передают.
+   */
+  uploadOrderAttachment: (
+    orderId: string, file: File, note?: string, kind?: ErpAttachmentKind,
+  ) => Promise<boolean>;
+  /** Снять файл заказа (строка + объект бакета). Не оптимистично: «0 строк» — отказ RLS */
+  deleteOrderAttachment: (orderId: string, attachmentId: string) => Promise<boolean>;
+  /** Переложить файл между папками: пишется РОВНО `kind`, зеркало — `erp_attachment_guard` */
+  moveOrderAttachment: (
+    orderId: string, attachmentId: string, kind: ErpAttachmentKind,
+  ) => Promise<boolean>;
   addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
 }
 
