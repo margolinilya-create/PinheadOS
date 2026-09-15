@@ -19,6 +19,10 @@ import type {
   ErpEmployee,
   ErpInvite,
   ErpNotification,
+  ErpChatMessage,
+  ErpChatPerson,
+  ChatContext,
+  ChatUnread,
   ErpPermission,
   ErpRolePermission,
   ErpItemPrint,
@@ -1008,6 +1012,54 @@ export interface NotificationsSlice {
   markNotificationsRead: (ids: string[]) => Promise<boolean>;
 }
 
+/**
+ * ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5).
+ *
+ * Данные лежат в ядре (`domainState`), как у всех доменных слайсов, — и по той
+ * же причине, что у остальных: `resetErpStore()` обязан их вычистить, иначе
+ * на общем цеховом планшете следующая смена откроет чужую переписку.
+ * Действия приезжают доменным чанком: чат открывают с экрана.
+ */
+export interface ChatSlice {
+  /** Кого можно упомянуть и как называть автора; пусто — справочник не грузили */
+  chatDirectory: ErpChatPerson[];
+  chatDirectoryLoaded: boolean;
+  /** Открытое обсуждение: заказ и контекст. `null` — окно закрыто */
+  chatOrderId: string | null;
+  chatContext: ChatContext;
+  chatMessages: ErpChatMessage[];
+  /** Есть ли что дочитывать ВВЕРХ (страница отдаёт последние N) */
+  chatHasMore: boolean;
+  chatLoading: boolean;
+  chatError: string | null;
+  /** Непрочитанное по заказам: вкладка «Чат» и кнопка у задания читают его */
+  chatUnread: Record<string, ChatUnread>;
+  /**
+   * Звонок realtime: счётчик событий `erp_chat_messages`. Из события берётся
+   * ТОЛЬКО факт «что-то пришло» — содержимое дочитывается `erp_chat_page`,
+   * иначе видимость решалась бы дважды, фильтром подписки и функцией чтения.
+   */
+  chatPing: number;
+
+  loadChatDirectory: () => Promise<void>;
+  openChat: (orderId: string, context?: ChatContext) => Promise<void>;
+  loadMoreChat: () => Promise<void>;
+  refreshChat: () => Promise<void>;
+  sendChatMessage: (input: {
+    orderId: string;
+    body: string;
+    /** Ключ попытки (`utils/attemptKey`): повтор не создаёт второго сообщения */
+    clientKey: string;
+    context?: ChatContext;
+    replyTo?: string | null;
+    mentions?: string[];
+    attachments?: { file_path: string; file_name?: string | null }[];
+  }) => Promise<{ message_id: string; mentioned: string[] } | null>;
+  loadChatUnread: (orderId: string) => Promise<void>;
+  markChatRead: (orderId: string, stageId?: string | null) => Promise<void>;
+  closeChat: () => void;
+}
+
 export interface BypassSlice {
   bypasses: ErpBypass[];
   bypassesLoaded: boolean;
@@ -1353,4 +1405,5 @@ export type ErpStore = BootstrapSlice &
   BypassSlice &
   SettingsSlice &
   NotificationsSlice &
+  ChatSlice &
   RealtimeSlice;

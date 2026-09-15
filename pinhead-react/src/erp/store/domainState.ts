@@ -39,6 +39,9 @@ type DomainState = Pick<ErpStore,
   | 'plannedStageIds' | 'plannedAheadLoaded'
   | 'capacity' | 'capacityLoaded' | 'capacityError'
   | 'orderDrafts' | 'orderDraftsLoaded' | 'orderDraftsError'
+  | 'chatDirectory' | 'chatDirectoryLoaded'
+  | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
+  | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
 >;
 
 export const DOMAIN_INITIAL_STATE: DomainState = {
@@ -89,6 +92,25 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   capacity: DEFAULT_CAPACITY,
   capacityLoaded: false,
   capacityError: null,
+  /**
+   * chatSlice — переписка сделки. В ядре она стоит по той же причине, что
+   * и остальные доменные данные, но с более прямой ценой: `resetErpStore()`
+   * снимает снимок ИМЕННО отсюда, и оставленная за его пределами лента
+   * показала бы следующей смене на общем цеховом планшете чужой разговор.
+   *
+   * `chatPing` правит ЯДРО (`realtimeSlice`), а читает доменное окно чата:
+   * событие подписки приходит независимо от того, приехал ли доменный чанк.
+   */
+  chatDirectory: [],
+  chatDirectoryLoaded: false,
+  chatOrderId: null,
+  chatContext: {},
+  chatMessages: [],
+  chatHasMore: false,
+  chatLoading: false,
+  chatError: null,
+  chatUnread: {},
+  chatPing: 0,
 };
 
 /**

@@ -237,11 +237,25 @@ export function useAttachmentUploads(scope = 'new') {
     }));
   }, []);
 
+  /**
+   * Забыть файлы, НЕ трогая объекты в бакете.
+   *
+   * Ровно противоположно `remove`, и разница принципиальная: `remove` убирает
+   * файл, который человек передумал прикладывать, — такой объект «ничей»
+   * и должен исчезнуть. `clear` зовут ПОСЛЕ успешной записи, когда у файлов
+   * появился владелец (строка `erp_order_attachments`): удалить объект здесь
+   * значило бы стереть файл, который уже показан в отправленном сообщении.
+   *
+   * Нужен там, где форма переживает отправку и остаётся на экране, — у формы
+   * создания заказа этого вопроса не было вовсе: она закрывается целиком.
+   */
+  const clear = useCallback(() => setFiles([]), []);
+
   const uploading = useMemo(() => files.some((f) => f.state === 'uploading'), [files]);
   const failed = useMemo(() => files.some((f) => f.state === 'error'), [files]);
 
   return {
-    files, add, retry, remove, copyOwner, moveFile, dropItem, dropOwner, payload,
+    files, add, retry, remove, clear, copyOwner, moveFile, dropItem, dropOwner, payload,
     uploading, failed,
   };
 }

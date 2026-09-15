@@ -1720,3 +1720,154 @@ a.cellTitle:hover { color: var(--accent); }
   border-top: 1px solid var(--border-light);
 }
 .ganttCardDates { font-family: var(--mono); font-size: var(--type-label); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5)
+
+   Лента прокручивается САМА, а не вместе со страницей: композер обязан
+   оставаться на виду. Высота задана одним местом (`.chatFeed`), чтобы
+   «загружается», «пусто» и наполненная лента не двигали то, что ниже, —
+   то же правило, что у полосы мощности.
+   ───────────────────────────────────────────────────────────────────── */
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+.chatScope { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+
+.chatFeed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 220px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: var(--space-xs);
+}
+.chatMore { align-self: center; }
+.chatSkeleton { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+.chatMsg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  align-self: flex-start;
+  max-width: 88%;
+}
+/* Своё сообщение — справа и на другой поверхности: «кто это написал»
+   читается раньше подписи, с одного взгляда на ленту */
+.chatMsgMine { align-self: flex-end; background: var(--accent-light); }
+/* На какое сообщение отвечаем прямо сейчас */
+.chatMsgFocus { border-color: var(--accent); }
+
+.chatMsgHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.chatMsgAuthor { font-size: var(--type-body-sm); }
+.chatMsgTime { font-size: var(--type-label); color: var(--text-dim); }
+.chatMsgMention {
+  font-size: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-error-ink);
+}
+.chatMsgReply {
+  margin-left: auto;
+  font-size: var(--type-label);
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.chatMsgBody { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.chatQuote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 3px solid var(--accent);
+  background: var(--bg2);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.chatQuoteAuthor { font-size: var(--type-label); color: var(--text-dim); }
+.chatQuoteBody { overflow-wrap: break-word; }
+
+.chatFiles { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.chatFile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-body-sm);
+  padding: var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  color: var(--text);
+}
+.chatFileThumb { width: 28px; height: 28px; object-fit: cover; border-radius: var(--radius-sm); }
+
+.chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatComposerRow { display: flex; align-items: flex-end; gap: var(--space-xs); }
+.chatInput {
+  flex: 1;
+  resize: vertical;
+  min-height: var(--control-h-lg);
+  font: inherit;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+}
+/* Скрепка — метка над скрытым input: своей кнопки не заводим, иначе
+   пришлось бы дублировать открытие диалога программно */
+.chatAttachBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--control-h-md);
+  min-height: var(--control-h-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.chatReplyBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+.chatReplyText { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chatReplyCancel { background: none; border: 0; cursor: pointer; color: var(--text-dim); }
+
+.chatUploads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatUpload {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+}
+.chatUploadError { color: var(--color-error-ink); }

@@ -3,7 +3,18 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { CreateOrderModal } from './CreateOrderModal';
 import { useErpStore } from '../../store/useErpStore';
+import { attachDomainSlices } from '../../store/domainSlices';
 import { supabase } from '../../../lib/supabase';
+
+/**
+ * Форма монтируется НАПРЯМУЮ, минуя `lazyScreen`, — доменные действия надо
+ * подключить самому. Без этого проверка дубля № сделки (`findOrdersByBitrixId`,
+ * доменный слайс с 14.09) падала в отложенном на 400 мс таймере: тест
+ * к этому моменту уже завершался, поэтому отказ приходил не падением спеки,
+ * а «Uncaught Exception» в отчёте прогона — то есть был виден только тому,
+ * кто читает лог до конца.
+ */
+attachDomainSlices();
 
 /**
  * Форма создания заказа — до этой правки не покрытая ни одним тестом, хотя именно

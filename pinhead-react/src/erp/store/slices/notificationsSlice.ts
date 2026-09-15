@@ -20,18 +20,11 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import type { ErpNotification } from '../../types';
-import { erpError, erpQuery, erpRead } from '../shared';
-import { useAuthStore } from '../../../store/useAuthStore';
+import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import type { ErpStore, NotificationsSlice } from '../types';
 
 /** Сколько уведомлений держим в памяти: лента центра, а не архив */
 const LIMIT = 50;
-
-/** uuid действующего пользователя; в dev-режиме валидного uuid нет */
-function currentUserId(): string | null {
-  const id = useAuthStore.getState().user?.id;
-  return id && id !== 'dev' ? id : null;
-}
 
 export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSlice> = (
   set,

@@ -1746,6 +1746,79 @@ export interface ErpNotification {
   read_at: string | null;
 }
 
+/**
+ * ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5).
+ *
+ * Сообщения приезжают ТОЛЬКО из `erp_chat_page`: прямого чтения таблицы
+ * у клиента нет. Поэтому здесь описан не снимок строки, а ответ функции —
+ * со свёрнутой цитатой и вложениями, которые она собирает без N+1.
+ */
+export interface ErpChatAttachment {
+  id: string;
+  file_path: string;
+  file_name: string | null;
+}
+
+/** Короткая цитата исходного сообщения — приезжает вместе с ответом */
+export interface ErpChatQuote {
+  id: string;
+  author_id: string;
+  /** Обрезан сервером до 140 символов: это подпись, а не второе сообщение */
+  body: string;
+}
+
+export interface ErpChatMessage {
+  id: string;
+  thread_id: string;
+  /**
+   * ПОСТОЯННЫЙ идентификатор автора, а не имя текстом. Имя резолвится через
+   * `chatDirectory` при отрисовке — тогда переименование сотрудника меняет
+   * подпись во всей ленте разом. Этим чат и отличается от `erp_order_comments`,
+   * где автор заморожен строкой в момент отправки.
+   */
+  author_id: string;
+  body: string;
+  item_id: string | null;
+  stage_id: string | null;
+  experimental_id: string | null;
+  reply_to: string | null;
+  created_at: string;
+  mentions: string[];
+  attachments: ErpChatAttachment[];
+  reply: ErpChatQuote | null;
+}
+
+/**
+ * Кого можно упомянуть и как называть автора — ответ `erp_chat_directory()`.
+ * Один источник на ленту и на подсказку упоминаний: две таблицы имён
+ * разошлись бы в первую же правку.
+ */
+export interface ErpChatPerson {
+  user_id: string;
+  name: string;
+  email: string | null;
+  /** Должность в ERP; null — у человека нет карточки сотрудника */
+  role: EmployeeRole | null;
+  department_id: string | null;
+}
+
+/**
+ * Контекст сообщения внутри сделки. Все поля пустые — «вся сделка».
+ * Это ВИД, а не право: видимость решает участие в разделе (решение владельца
+ * 14.09), а контекст лишь сужает показанное и считает свой счётчик.
+ */
+export interface ChatContext {
+  itemId?: string | null;
+  stageId?: string | null;
+  experimentalId?: string | null;
+}
+
+/** Непрочитанное сделки: общее число и разбивка по этапам (`erp_chat_unread`) */
+export interface ChatUnread {
+  total: number;
+  byStage: Record<string, number>;
+}
+
 /** Строка матрицы прав (таблица erp_role_permissions) */
 export interface ErpRolePermission {
   role: EmployeeRole;

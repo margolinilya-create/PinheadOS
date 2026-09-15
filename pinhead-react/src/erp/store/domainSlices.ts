@@ -6,6 +6,7 @@ import { materialsSlice } from './slices/materialsSlice';
 import { warehouseSlice } from './slices/warehouseSlice';
 import { procurementSlice } from './slices/procurementSlice';
 import { orderDraftsSlice } from './slices/orderDraftsSlice';
+import { chatSlice } from './slices/chatSlice';
 import { subcontractingSlice } from './slices/subcontractingSlice';
 import { employeesSlice } from './slices/employeesSlice';
 import { invitesSlice } from './slices/invitesSlice';
@@ -53,6 +54,7 @@ const DOMAIN_SLICES = [
   warehouseSlice,
   procurementSlice,
   orderDraftsSlice,
+  chatSlice,
   subcontractingSlice,
   employeesSlice,
   invitesSlice,

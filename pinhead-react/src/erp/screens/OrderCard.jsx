@@ -1,4 +1,4 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { ScreenSkeleton } from '../components/ErpSkeletons';
@@ -29,6 +29,7 @@ import { OrderItemSection } from './orderCard/OrderItemSection';
 import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
 import { FilesSection } from './orderCard/FilesSection';
 import { CommentsSection } from './orderCard/CommentsSection';
+import { ChatPanel } from '../components/chat/ChatPanel';
 import { HistorySection } from './orderCard/HistorySection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
@@ -91,6 +92,23 @@ export default function OrderCard() {
     () => (order ? buildOrderNow([order], departments, { bypasses }).get(order.id) : null),
     [order, departments, bypasses],
   );
+  /**
+   * НЕПРОЧИТАННОЕ ПЕРЕПИСКИ для вкладки «Чат». Считается СЕРВЕРОМ
+   * (`erp_chat_unread`) той же формулой, что и счётчик у задания цеха:
+   * две формулы одного числа разошлись бы, и первым это заметил бы цех —
+   * «в сделке непрочитанных нет, а в задаче есть».
+   *
+   * Запрос идёт при открытии карточки и на каждый звонок realtime: число
+   * стоит в подписи вкладки, то есть видно и тогда, когда сама переписка
+   * не открыта.
+   */
+  const chatUnread = useErpStore((st) => st.chatUnread[orderId]?.total ?? 0);
+  const loadChatUnread = useErpStore((st) => st.loadChatUnread);
+  const chatPing = useErpStore((st) => st.chatPing);
+  useEffect(() => {
+    if (orderId) void loadChatUnread(orderId);
+  }, [orderId, chatPing, loadChatUnread]);
+
   const generatePurchaseListPdf = useErpStore((st) => st.generatePurchaseListPdf);
   /**
    * Локальный флаг занятости, а не общий `pending`: сборка PDF идёт секунды
@@ -126,8 +144,18 @@ export default function OrderCard() {
     { id: 'materials', label: 'Материалы', count: order?.materials.length ?? 0 },
     { id: 'files', label: 'Файлы', count: order?.attachments?.length ?? 0 },
     { id: 'comments', label: 'Комментарии', count: comments?.length ?? 0 },
+    /**
+     * ЧАТ — ОТДЕЛЬНАЯ ВКЛАДКА, а не замена комментариев (прямое требование
+     * документа: «существующие комментарии к заказу не трогать»). Это разные
+     * сущности: комментарий хранит автора текстом и не знает ни вложений,
+     * ни ответов, ни прочитанности. Счётчик показывает НЕПРОЧИТАННОЕ, а не
+     * общее число сообщений: у остальных вкладок число отвечает «сколько
+     * там всего», а у переписки полезен ровно другой вопрос — «сколько
+     * я ещё не видел».
+     */
+    { id: 'chat', label: 'Чат', count: chatUnread },
     { id: 'history', label: 'История', count: (events?.length ?? 0) + (audit?.length ?? 0) },
-  ], [order, comments, events, audit]);
+  ], [order, comments, events, audit, chatUnread]);
   const requested = params.get('tab');
   const tab = tabs.some((t) => t.id === requested) ? requested : 'items';
 
@@ -377,6 +405,11 @@ export default function OrderCard() {
         )}
 
         {tab === 'comments' && <CommentsSection comments={comments} onSend={onSendComment} />}
+
+        {/* Переписка сделки. Контекст не передаётся: с карточки заказа
+            разговор общий — сужение по задаче открывается со страницы
+            задания, где задача и выбрана */}
+        {tab === 'chat' && <ChatPanel orderId={order.id} />}
 
         {tab === 'history' && (
           <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />
