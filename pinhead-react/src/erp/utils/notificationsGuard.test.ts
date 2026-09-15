@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { functionBody, latestMatching, withoutComments } from './migrations.testutil';
+import {
+  functionBody, latestDefining, latestMatching, withoutComments,
+} from './migrations.testutil';
 import { columnTypesOf } from '../../types/schema.testutil';
 
 /**
@@ -45,12 +47,22 @@ describe('уведомления: доступ', () => {
 });
 
 describe('уведомления: страж', () => {
-  const guard = withoutComments(functionBody(sql, 'erp_notification_guard'));
+  /**
+   * Страж читается по ФУНКЦИИ, а не по файлу, где её завели. Он уже пережил
+   * одно пересоздание — колонку `message_id` дописала миграция чата, — и
+   * сторож, привязанный к миграции «create table», сверялся бы с прежней
+   * редакцией: то есть подтверждал бы как норму разбор колонок, которого
+   * в базе больше нет. Тот же отказ, что у `serverPermissions`
+   * и `auditCoverage`.
+   */
+  const guardSql = withoutComments(latestDefining('erp_notification_guard'));
+  const guard = withoutComments(functionBody(guardSql, 'erp_notification_guard'));
 
   it('меняется только отметка о прочтении', () => {
     // Без этого право «отметить своё прочитанным» было бы правом переписать
     // себе ссылку и открыть чужую сделку «на нужном месте»
-    for (const column of ['user_id', 'kind', 'order_id', 'title', 'body', 'link', 'created_at']) {
+    for (const column of ['user_id', 'kind', 'order_id', 'message_id',
+      'title', 'body', 'link', 'created_at']) {
       expect(guard, `${column} не сторожится`)
         .toContain(`new.${column} is distinct from old.${column}`);
     }
@@ -62,7 +74,10 @@ describe('уведомления: страж', () => {
   });
 
   it('функция-триггер клиенту не выставлена', () => {
-    expect(sql).toMatch(/revoke execute on function public\.erp_notification_guard\(\) from anon, authenticated, public/);
+    // Отзыв повторяется в КАЖДОЙ миграции, пересоздающей функцию: `create or
+    // replace` сохраняет права, но полагаться на это значит зависеть от того,
+    // существовала ли функция раньше
+    expect(guardSql).toMatch(/revoke execute on function public\.erp_notification_guard\(\) from anon, authenticated, public/);
   });
 });
 

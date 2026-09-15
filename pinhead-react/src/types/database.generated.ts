@@ -213,6 +213,200 @@ export type Database = {
           },
         ]
       }
+      erp_chat_mentions: {
+        Row: {
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_mentions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_mentions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_chat_messages: {
+        Row: {
+          author_id: string
+          body: string
+          client_key: string
+          created_at: string
+          experimental_id: string | null
+          id: string
+          item_id: string | null
+          reply_to: string | null
+          stage_id: string | null
+          thread_id: string
+        }
+        Insert: {
+          author_id: string
+          body?: string
+          client_key: string
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          item_id?: string | null
+          reply_to?: string | null
+          stage_id?: string | null
+          thread_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          client_key?: string
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          item_id?: string | null
+          reply_to?: string | null
+          stage_id?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: false
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_chat_reads: {
+        Row: {
+          created_at: string
+          last_read_at: string
+          stage_id: string | null
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          last_read_at?: string
+          stage_id?: string | null
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          last_read_at?: string
+          stage_id?: string | null
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_reads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_reads_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_reads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_chat_threads: {
+        Row: {
+          created_at: string
+          experimental_id: string | null
+          id: string
+          order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_threads_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: false
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_threads_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_deleted_test_orders_20260913: {
         Row: {
           deleted_at: string
@@ -1073,6 +1267,7 @@ export type Database = {
           id: string
           kind: string
           link: string | null
+          message_id: string | null
           order_id: string | null
           read_at: string | null
           title: string
@@ -1084,6 +1279,7 @@ export type Database = {
           id?: string
           kind: string
           link?: string | null
+          message_id?: string | null
           order_id?: string | null
           read_at?: string | null
           title: string
@@ -1095,12 +1291,20 @@ export type Database = {
           id?: string
           kind?: string
           link?: string | null
+          message_id?: string | null
           order_id?: string | null
           read_at?: string | null
           title?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "erp_notifications_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "erp_notifications_order_id_fkey"
             columns: ["order_id"]
@@ -1128,6 +1332,7 @@ export type Database = {
           kind: string
           label_id: string | null
           material_id: string | null
+          message_id: string | null
           note_id: string | null
           order_id: string
           print_id: string | null
@@ -1145,6 +1350,7 @@ export type Database = {
           kind?: string
           label_id?: string | null
           material_id?: string | null
+          message_id?: string | null
           note_id?: string | null
           order_id: string
           print_id?: string | null
@@ -1162,6 +1368,7 @@ export type Database = {
           kind?: string
           label_id?: string | null
           material_id?: string | null
+          message_id?: string | null
           note_id?: string | null
           order_id?: string
           print_id?: string | null
@@ -1196,6 +1403,13 @@ export type Database = {
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
             referencedColumns: ["id"]
           },
           {
@@ -2523,6 +2737,38 @@ export type Database = {
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
+      erp_chat_directory: { Args: never; Returns: Json }
+      erp_chat_mark_read: {
+        Args: { p_at?: string; p_order_id: string; p_stage_id?: string }
+        Returns: string
+      }
+      erp_chat_page: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_experimental_id?: string
+          p_item_id?: string
+          p_limit?: number
+          p_order_id: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      erp_chat_send: {
+        Args: {
+          p_attachments?: Json
+          p_body: string
+          p_client_key: string
+          p_experimental_id?: string
+          p_item_id?: string
+          p_mentions?: string[]
+          p_order_id: string
+          p_reply_to?: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      erp_chat_unread: { Args: { p_order_id: string }; Returns: Json }
       erp_clamp_done: {
         Args: { p_current: number; p_delta: number; p_total: number }
         Returns: number
