@@ -28,8 +28,17 @@ import { attachmentFilePath } from '../utils/storageKey';
  */
 
 const BUCKET = 'erp-attachments';
-/** 15 МБ: фото материала с телефона, схема узла, скрин позиции поставщика */
-export const ATTACH_MAX_BYTES = 15 * 1024 * 1024;
+/**
+ * 20 МБ: фото материала с телефона, схема узла, скрин позиции поставщика
+ * (правка 14.09 — документ называл 20 МБ, в ERP стояло 15).
+ *
+ * ЗЕРКАЛО `file_size_limit` БАКЕТА, а не независимая величина. Клиент СТРОЖЕ
+ * бакета — недостижимая ёмкость и два разных числа в соседних сообщениях
+ * («файл больше 15 МБ» у вложения, «больше 20» у ТЗ); клиент МЯГЧЕ — отказ
+ * Storage ПОСЛЕ того, как человек дождался загрузки с планшета. Сторож
+ * `attachmentLimits.test.ts` требует точного совпадения с миграцией.
+ */
+export const ATTACH_MAX_BYTES = 20 * 1024 * 1024;
 
 export function useAttachmentUploads(scope = 'new') {
   const [files, setFiles] = useState([]);
@@ -237,11 +246,25 @@ export function useAttachmentUploads(scope = 'new') {
     }));
   }, []);
 
+  /**
+   * Забыть файлы, НЕ трогая объекты в бакете.
+   *
+   * Ровно противоположно `remove`, и разница принципиальная: `remove` убирает
+   * файл, который человек передумал прикладывать, — такой объект «ничей»
+   * и должен исчезнуть. `clear` зовут ПОСЛЕ успешной записи, когда у файлов
+   * появился владелец (строка `erp_order_attachments`): удалить объект здесь
+   * значило бы стереть файл, который уже показан в отправленном сообщении.
+   *
+   * Нужен там, где форма переживает отправку и остаётся на экране, — у формы
+   * создания заказа этого вопроса не было вовсе: она закрывается целиком.
+   */
+  const clear = useCallback(() => setFiles([]), []);
+
   const uploading = useMemo(() => files.some((f) => f.state === 'uploading'), [files]);
   const failed = useMemo(() => files.some((f) => f.state === 'error'), [files]);
 
   return {
-    files, add, retry, remove, copyOwner, moveFile, dropItem, dropOwner, payload,
+    files, add, retry, remove, clear, copyOwner, moveFile, dropItem, dropOwner, payload,
     uploading, failed,
   };
 }

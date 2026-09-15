@@ -3,7 +3,18 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { CreateOrderModal } from './CreateOrderModal';
 import { useErpStore } from '../../store/useErpStore';
+import { attachDomainSlices } from '../../store/domainSlices';
 import { supabase } from '../../../lib/supabase';
+
+/**
+ * Форма монтируется НАПРЯМУЮ, минуя `lazyScreen`, — доменные действия надо
+ * подключить самому. Без этого проверка дубля № сделки (`findOrdersByBitrixId`,
+ * доменный слайс с 14.09) падала в отложенном на 400 мс таймере: тест
+ * к этому моменту уже завершался, поэтому отказ приходил не падением спеки,
+ * а «Uncaught Exception» в отчёте прогона — то есть был виден только тому,
+ * кто читает лог до конца.
+ */
+attachDomainSlices();
 
 /**
  * Форма создания заказа — до этой правки не покрытая ни одним тестом, хотя именно
@@ -289,13 +300,17 @@ describe('CreateOrderModal — чьё готовое изделие (п. 4)', ()
     expect(screen.queryByRole('radiogroup', { name: 'Чьё изделие' })).toBeNull();
   });
 
-  it('у готового изделия предлагаются оба сценария, по умолчанию — «Закупаем мы»', async () => {
+  it('у готового изделия предлагаются все сценарии, по умолчанию — «Закупаем мы»', async () => {
+    // Третий вариант — правка 14.09, п. 1: изделие со склада готовой
+    // продукции. Плитки читаются из GARMENT_SOURCE_ORDER, и здесь проверяется
+    // именно ФОРМА: значение, объявленное в словаре, но забытое в порядке,
+    // существует в базе и в маршруте, а выбрать его человек не может.
     setup();
     await chooseReadyGarment();
     const group = screen.getByRole('radiogroup', { name: 'Чьё изделие' });
     const tiles = within(group).getAllByRole('radio');
     expect(tiles.map((b) => b.textContent))
-      .toEqual(['Закупаем мы', 'Давальческое — изделие клиента']);
+      .toEqual(['Закупаем мы', 'Давальческое — изделие клиента', 'Склад готовой продукции']);
     expect(tiles[0]).toHaveAttribute('aria-checked', 'true');
   });
 
@@ -323,6 +338,33 @@ describe('CreateOrderModal — чьё готовое изделие (п. 4)', ()
     fireEvent.click(within(group).getByRole('radio', { name: /Давальческое/ }));
     await waitFor(() => expect(screen.queryByText(/Осталось заполнить/)).toBeNull());
     // И форма ГОВОРИТ, почему лист больше не нужен, а не молчит
+    expect(screen.getByText(/покупать нечего/)).toBeInTheDocument();
+    expect(submitBtn()).toBeEnabled();
+  });
+
+  it('склад готовой продукции тоже снимает требование листа закупки', async () => {
+    /**
+     * Отдельный сценарий, а не параметр к предыдущему: правило читает
+     * `itemNeedsPurchase`, и написанное отрицанием давальческого («всё, что
+     * не customer, закупаем») оставило бы «Склад ГП» с обязательным листом —
+     * то есть новая плитка не делала бы ничего.
+     */
+    setup();
+    fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
+      target: { value: 'BOX39 футболки' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('футболка'), {
+      target: { value: 'Футболка' },
+    });
+    fireEvent.change(screen.getByLabelText(/Кол-во/), { target: { value: '100' } });
+
+    await chooseReadyGarment();
+    fireEvent.click(submitBtn());
+    expect(await screen.findByText(/Осталось заполнить.*Лист закупки/)).toBeInTheDocument();
+
+    const group = screen.getByRole('radiogroup', { name: 'Чьё изделие' });
+    fireEvent.click(within(group).getByRole('radio', { name: /Склад готовой продукции/ }));
+    await waitFor(() => expect(screen.queryByText(/Осталось заполнить/)).toBeNull());
     expect(screen.getByText(/покупать нечего/)).toBeInTheDocument();
     expect(submitBtn()).toBeEnabled();
   });

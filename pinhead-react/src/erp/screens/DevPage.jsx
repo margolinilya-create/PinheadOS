@@ -18,6 +18,8 @@ import { useDevStageMove } from '../hooks/useDevStageMove';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevCard } from './experimental/DevCard';
+import { ChatSection } from '../components/chat/ChatSection';
+import { DevAttachOrder } from './experimental/DevAttachOrder';
 import styles from '../styles';
 
 /**
@@ -184,9 +186,17 @@ export default function DevPage() {
 
   return (
     <>
+      {/*
+        ПОДПИСЬ НАЗЫВАЕТ ОТСУТСТВИЕ СДЕЛКИ СЛОВАМИ (правка 14.09). Прежняя
+        строка при пустом заказе печатала «№— · », то есть прочерк и точку
+        в пустоту: это читается как недозагруженные данные, а не как
+        осознанное «разработка на полке».
+      */}
       <PageHead
         title={dev.tech_name || 'Разработка'}
-        sub={`№${dev.order?.bitrix_id || order?.bitrix_id || '—'} · ${dev.order?.title || order?.title || ''}`}
+        sub={dev.order_id
+          ? `№${dev.order?.bitrix_id || order?.bitrix_id || '—'} · ${dev.order?.title || order?.title || ''}`
+          : 'Без сделки — разработка на полку'}
       />
       {/* Возврат несёт контекст списка (вид, фильтры, страница) — тем же
           приёмом, что «Назад» в карточке заказа: ключ `useScrollRestore` —
@@ -231,6 +241,8 @@ export default function DevPage() {
         {blocker ? ` · блокер: ${blocker.title || blocker.task_type}` : ''}
       </div>
 
+      <DevAttachOrder dev={dev} canManage={canManage} />
+
       <DevCard
         dev={dev}
         order={order}
@@ -250,6 +262,23 @@ export default function DevPage() {
         onUploadFile={uploadDevFile}
         onRemoveFile={deleteDevFile}
       />
+
+      {/*
+        ОБСУЖДЕНИЕ РАЗРАБОТКИ (правка 14.09, п. 5). Контекст — сама
+        разработка: технолог, цех и менеджер обсуждают образец, а не заказ
+        целиком. Переписка при этом живёт В ТРЕДЕ СДЕЛКИ — вкладка «Чат»
+        в карточке заказа показывает её же, без копирования сообщений.
+        Разработка без сделки (у которой был бы свой тред) отложена
+        решением владельца: `erp_experimental.order_id` — NOT NULL.
+      */}
+      {dev.order_id && (
+        <ChatSection
+          orderId={dev.order_id}
+          context={{ experimentalId: dev.id }}
+          contextLabel="Эта разработка"
+          title="Обсуждение разработки"
+        />
+      )}
     </>
   );
 }

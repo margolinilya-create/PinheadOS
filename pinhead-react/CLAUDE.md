@@ -24,7 +24,10 @@ URL: https://pinhead-os.vercel.app
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
   TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
+  SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
+  screens/skuCard/ — SkuCardPage (/sku-card/:cardId: Описание · Технический пакет · Заказы ·
+  История) + SkuCardLink (ссылка на карточку из разработки и из позиции заказа);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
@@ -522,6 +525,163 @@ URL: https://pinhead-os.vercel.app
   Гейт данных — `MockExtras.deptsGate` в `e2e/support/mockSupabase.ts`,
   ждут его ОБА писателя состава участков: ветка `rpc/erp_bootstrap`
   и таблица `erp_departments`
+
+## Правила сессии 61 (хвосты 14.09): где что лежит
+
+- **Лимит вложения 20 МБ** — миграция `20260915053342` (бакет
+  `erp-attachments`) + `ATTACH_MAX_BYTES` (`hooks/useAttachmentUploads`)
+  и `TZ_MAX_BYTES` (`erp/types.ts`). Три величины ОБЯЗАНЫ совпадать, сторож —
+  `utils/attachmentLimits.test.ts` (серверную сторону берёт из миграции:
+  живую базу из CI не прочитать). `sku-photos` живёт своей величиной
+- **Разработка без сделки** — миграция `20260915053824`:
+  `erp_experimental.order_id` и `erp_order_attachments.order_id` обнуляемы,
+  CHECK `erp_order_attachments_anchor_check`, RPC
+  `erp_experimental_attach_order`. Сторож — `utils/devWithoutOrder.test.ts`
+- **Форма заведения** — `screens/experimental/DevCreateModal.jsx` (кнопка
+  «Завести разработку» на экране ЭКС под `experimental.manage`); до 15.09
+  входа не было вовсе. **Привязка** — `screens/experimental/DevAttachOrder.jsx`
+  на странице разработки, рисуется ТОЛЬКО у разработки без заказа
+- **Действие стора** — `attachOrderToDev` в `experimentalSlice`: строка
+  перечитывается целиком (у разработки эмбеды `tasks`/`attachments`/`order`,
+  и объект из голого ответа потерял бы заголовок сделки — то, ради чего
+  привязку и делали)
+- **`nullableOf`** — в `types/schema.testutil.ts` рядом с `columnsOf`:
+  обнуляемость колонок из снимка схемы, вынесена из `schema.test.ts`
+
+## Правила сессии 61 (PR 3, каталог SKU в ERP): где что лежит
+
+- **Серверная половина** — пять миграций: `20260915030910` (схема, права,
+  страж, версии, статистика), `20260915031050` (единственный писатель прайса
+  `erp_sku_catalog_upsert` + перевод `erp_sku_from_dev` на `sku.publish` +
+  засев 52 карточек из прайса), `20260915031210` (починка `array_append`
+  в триггере версий — найдена проверкой на живой базе), `20260915034120`
+  (автопубликация + бэкфилл) и `20260915034723` (связь с позицией заказа).
+  Сторожа: `utils/skuCardAutopublish.test.ts`, `utils/skuCardOrderLink.test.ts`
+- **Стор** — `store/slices/skuSlice.ts` (ДОМЕННЫЙ: каталог открывают
+  с экрана), данные в ядре (`store/domainState.ts`). `loadSkuCardDetail`
+  перечитывает САМУ карточку, а не только историю и файлы: подписки realtime
+  у каталога нет, и «перечитывается при открытии» обязано быть правдой
+- **Экраны** — `screens/admin/SkuCatalogTab.jsx` (сетка, поиск и фильтры
+  в адресе, «Завести модель» под `sku.edit`) и `screens/skuCard/SkuCardPage`
+  (вкладки Описание · Технический пакет · Заказы · История; три действия —
+  три права). Карточка ВНЕ админки: её открывает и вкладка SKU разработки,
+  и позиция заказа — `screens/skuCard/SkuCardLink`
+- **Подписи** — `utils/skuCardLabels.ts` (статусы и роли файлов) и
+  `utils/skuCardFields.ts` (имена полей для истории версий, fail-open).
+  В `types.ts` их держать нельзя: он едет в чанке оболочки
+- **Выбор модели в заказе** — `screens/orders/create/SkuCardPicker.jsx`:
+  подставляет только ПУСТЫЕ поля, архивные в выбор не попадают (кроме уже
+  выбранной), без права `sku.view` блока нет вовсе
+- **Права** — `permissionKeys.ts` (`sku.view`/`edit`/`publish`/`archive`),
+  `utils/permissions.ts` (`DEFAULT_PERMISSIONS`), `utils/screenAccess.ts`
+  (`/sku-card`), `screens/AdminScreen.jsx` (`needs` у КАЖДОЙ вкладки),
+  `ErpApp.jsx` (`/admin` = `isAdmin || can('sku.view')`), `layout/Sidebar.jsx`
+  (`alsoWhen`). Сторож — `utils/screenAccess.test.ts`
+
+## Правила сессии 61 (PR 2, чат внутри сделки): где что лежит
+
+- **Серверная половина** — миграции `20260914221959` (схема) и `20260914222151`
+  (функции). Пять RPC: `erp_chat_send` (единственный писатель, `definer`),
+  `erp_chat_page` · `erp_chat_unread` · `erp_chat_mark_read` (`invoker` —
+  «одним запросом» не значит «мимо RLS») и `erp_chat_directory` (`definer`
+  с гейтом `erp_is_member()`: `profiles` виден участнику только свой).
+  Сторож — `utils/chatServer.test.ts`
+- **Стор** — `store/slices/chatSlice.ts` (ДОМЕННЫЙ: чат открывают с экрана),
+  данные в ядре (`store/domainState.ts`), потому что `resetErpStore()` обязан
+  их вычистить — на общем планшете следующая смена иначе откроет чужую
+  переписку. `chatPing` правит ЯДРО (`realtimeSlice`), читает доменное окно
+- **Разбор контекста** — `utils/chatContext.ts` (`contextKey`, `isWholeDeal`,
+  `unreadForContext`): по ключу контекста ключуется черновик и выбирается
+  счётчик, поэтому порядок полей в ключе фиксирован
+- **Упоминания** — `utils/mentions.ts`: токен `@Имя` в тексте + отдельный
+  список ID; `mentionsInText` отсеивает выбранных, чей токен стёрли.
+  Подсказка — `components/chat/MentionPicker` (выбор `onMouseDown`: `onClick`
+  сначала уводит фокус, и `blur` закрывает список раньше выбора)
+- **Разметка** — `components/chat/`: `ChatPanel` (лента + прочтение + звонок
+  realtime + фолбэк-опрос), `ChatMessage`, `ChatComposer`, `ChatSection`
+  (кнопка со счётчиком, раскрывает панель на месте). Вкладка «Чат» —
+  в `screens/OrderCard` между «Комментариями» и «Историей», счётчик там
+  показывает НЕПРОЧИТАННОЕ, а не общее число сообщений
+- **Черновик** — `hooks/useChatDraft.js`, ключ «человек × обсуждение ×
+  контекст», один ключ localStorage `erp_chat_draft` (в `APP_KEYS`).
+  Смена контекста правит состояние ПРЯМО В ОТРИСОВКЕ, а не эффектом: эффект
+  дал бы кадр с чужим текстом в поле
+- **Вложения** — тот же `useAttachmentUploads` (файл в бакет ПРИ ВЫБОРЕ),
+  плюс `clear()`: после отправки строки забываются БЕЗ удаления объектов —
+  у них появился владелец. `remove()` (объект удаляется) остаётся для «передумал»
+- **Тесты** — `utils/chatContext.test.ts`, `utils/mentions.test.ts`,
+  `components/chat/ChatPanel.test.jsx` (контекст прочтения, звонок realtime,
+  фолбэк-опрос, упоминания), `screens/ProductionTask.test.jsx` (вход с задания)
+- **Тест, монтирующий экран напрямую, зовёт `attachDomainSlices()` сам.**
+  С 14.09 это касается и `OrderCard`, и `CreateOrderModal`: вынесенные
+  в доменный слайс действия иначе падают — у второго прямо в отложенном
+  таймере, уже ПОСЛЕ завершения спеки, то есть «Uncaught Exception» вместо
+  красного теста
+
+## Правила сессии 61 (подготовка к чату): где что лежит
+
+- **Персональные уведомления** — `erp_notifications` (миграция
+  `20260914214651`), слайс `store/slices/notificationsSlice.ts` В ЯДРЕ
+  (счётчик показывает колокол шапки, то есть до открытия любого экрана),
+  тип `ErpNotification` в `erp/types.ts`, разбор для центра —
+  `utils/notifications.personalNotices` рядом с `orderNotices`. Группа
+  «Вам написали» стоит ПЕРВОЙ и развёрнута, значит попадает в `urgentCount`
+  и считается колоколом. Писателя пока нет: им станет `erp_chat_send`
+- **Строка виджета уведомлений** — `NoticeRow` в `screens/ErpDashboard.jsx`:
+  персональное ведёт по своему адресу (`notice.to`) и гаснет по ПЕРЕХОДУ,
+  а не по показу. Локальный список строк виджета называется `notices` —
+  `notifications` занято списком строк таблицы из стора
+- **Сторожа** — `utils/notificationsGuard.test.ts` (RLS: читает только
+  адресат, INSERT-политики нет вовсе, страж правит только `read_at`; виды
+  в CHECK и в типе совпадают; обнуляемость колонок повторена) и блок
+  `personalNotices` в `utils/notifications.test.ts`
+- **`realtimeCoverage.test.ts` видит и RPC**: таблицы собираются ещё
+  и из тел функций, вызываемых стором (`rpcTables`), имена сверяются
+  с `tableNames()` из `types/schema.testutil.ts`. Журналы приёмок, отгрузок,
+  результатов этапа и аудита названы в `NO_REALTIME` с причиной «итог лежит
+  в подписанной таблице»
+- **Загрузки заказов по требованию** — `store/slices/ordersOnDemandSlice.ts`
+  (архив, `loadOrderBundle`, `findOrdersByBitrixId`, `loadOne`): доменный
+  чанк, приезжает с первым экраном. В ядре остался `loadAll` — им живут
+  бейджи, счётчики цехов и колокол. Что оболочка не зовёт вынесенное,
+  сторожит `store/domainSlices.test.ts`, блок «оболочка не зовёт загрузки
+  по требованию»
+
+## Правила сессии 61 (правки 14.09, PR 1): где что лежит
+
+- **Чьё готовое изделие** — `erp/utils/garmentSource.ts`, теперь ТРИ значения.
+  Новое — `stock` («Склад готовой продукции»): закупки нет, этап склада есть,
+  и склад его ВЫДАЁТ. Разбор перечислением (`garmentSourceOf`), следствия
+  разведены по вопросам: `itemNeedsPurchase` (`=== 'purchased'`, не отрицание
+  давальческого), `needsGarmentIntake` (нужен ли этап склада сам по себе),
+  `garmentIntakeAction` + `GARMENT_INTAKE_LABELS` (принять или выдать).
+  Читают: `utils/routes` (`skipSupply`, `needsIntake`), `orderForm`,
+  `screens/warehouse/FgIntakeQueue` (подпись кнопки и заголовок секции),
+  `orderCard/OrderItemSection` и `queue/TzBlock` (бейдж печатается любому
+  незакупаемому сценарию; `purchased` молчит — это умолчание)
+- **Подписи количеств закупки** — `screens/purchasing/purchaseLabels.js`:
+  `qtyExpected` → «Количество к заказу» (потребность), `qtyOrdered` →
+  «Фактическое количество» (по счёту). Сторож `purchaseLabels.test.ts`
+  проверяет ОБЕ поимённо и читает исходник модалки «Новая закупка»:
+  полей два, обязательна потребность, факт едет подстановкой до первой
+  правки (`factTouched`)
+- **Папки файлов заказа** — `erp/utils/orderFolders.ts` (`ORDER_FOLDERS`,
+  `folderOf`, `filesInFolder`, `canMoveBetweenFolders`, `kindForFolder`,
+  `moveTargetOf`). Раскладка fail-open: незнакомый вид остаётся видимым.
+  Ходят между папками ТОЛЬКО `attachment` и `production` — у макета есть
+  адресат (`print_id`). Разметка — `screens/orderCard/FilesSection.jsx`
+  (загрузка при выборе файла, удаление через `confirm`, перемещение),
+  действия стора — `orderWriteSlice`: `uploadOrderAttachment(…, kind)`,
+  `deleteOrderAttachment`, `moveOrderAttachment`
+- **Право `files.manage`** (`permissionKeys.ts`, `DEFAULT_PERMISSIONS`, seed
+  миграции `20260914211947`) и **роль `designer`** — в `DEPT_BOUND_ROLES`
+  она НЕ входит, посадочная у неё `/orders` (`utils/landing`). Серверная
+  половина: политика UPDATE + страж `erp_attachment_guard`; сторож паритета —
+  `utils/orderFolders.test.ts`, блок «серверный страж вложений»
+- **Уникальность складских задач** — сторож `utils/warehouseTaskUniqueness.test.ts`:
+  предикат `erp_warehouse_tasks_order_type_idx` обязан нести
+  `material_id is null`, у позиционной приёмки своя уникальность,
+  а писатель не полагается на `on conflict (order_id, task_type)`
 
 ## Правила сессии 59 (правки 13.09): где что лежит
 

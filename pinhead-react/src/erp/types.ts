@@ -57,12 +57,16 @@ export type StageStatus =
 export type MaterialKind = 'fabric' | 'hardware' | 'labels' | 'packaging' | 'other';
 export type MaterialSource = 'purchase' | 'stock' | 'client' | 'none';
 /**
- * Чьё готовое изделие — два сценария `ready_garment` (правки 07.09, п. 4).
- * Соседство с `MaterialSource` обманчиво: та про ИСТОЧНИК МАТЕРИАЛА строки
- * закупки (`erp_materials.source`), эта — про принадлежность самого изделия
- * в позиции заказа. Правила чтения — `utils/garmentSource`.
+ * Чьё готовое изделие — три сценария `ready_garment` (правки 07.09 п. 4,
+ * 14.09 п. 1). Соседство с `MaterialSource` обманчиво: та про ИСТОЧНИК
+ * МАТЕРИАЛА строки закупки (`erp_materials.source`), эта — про принадлежность
+ * самого изделия в позиции заказа. Правила чтения — `utils/garmentSource`.
+ *
+ * `stock` («Склад готовой продукции») заведён 14.09: изделие уже наше и уже
+ * на складе. Совпадение имени со значением `MaterialSource.stock` («со склада»)
+ * случайно — величины разные, и сводить их нельзя.
  */
-export type GarmentSource = 'customer' | 'purchased';
+export type GarmentSource = 'customer' | 'purchased' | 'stock';
 export type MaterialStatus =
   | 'pending' | 'ordered' | 'in_transit' | 'received' | 'partial' | 'not_needed' | 'reserved';
 /** Статус приёмки складом (правка 3): результат сверки план/факт */
@@ -282,15 +286,23 @@ export interface ErpOrderItem {
   subcontract_kind?: SubcontractOpType | null;
   material_source?: SubcontractMaterialSource | null;
   /**
-   * Чьё готовое изделие (правки 07.09, п. 4): `customer` — давальческое,
-   * `purchased` — закупаем мы. NULL у позиций, заведённых до правки, и у всех,
-   * чей тип производства не «Готовое изделие»; читается как `purchased`.
-   * Разбор — `utils/garmentSource`, сравнением строго с `'customer'`.
+   * Чьё готовое изделие (правки 07.09 п. 4, 14.09 п. 1): `customer` —
+   * давальческое, `purchased` — закупаем мы, `stock` — берём со склада готовой
+   * продукции. NULL у позиций, заведённых до правки, и у всех, чей тип
+   * производства не «Готовое изделие»; читается как `purchased`.
+   * Разбор — `utils/garmentSource`, сравнением строго с КАЖДЫМ значением.
    *
    * НЕ ПУТАТЬ с `material_source`: та отвечает на вопрос ПОДРЯДА («чей
    * материал у подрядчика») и читается только при `production_type='outsource'`.
    */
   garment_source?: GarmentSource | null;
+  /**
+   * Карточка модели из каталога ERP (правка 14.09, п. 6). ССЫЛКА рядом
+   * со снимком полей позиции, а не вместо них: правка карточки задним
+   * числом не имеет права переписать действующий заказ. Опциональная —
+   * у позиций из старых фикстур и урезанных выборок её нет вовсе.
+   */
+  sku_card_id?: string | null;
   /**
    * Технический блок изделия (правки заказчика 16.08). Свободные поля: цех
    * читает их в задании, они же уходят в ТЗ. Порядок заполнения позиции по
@@ -606,7 +618,8 @@ export interface ErpTzDocument {
 /** Бакет ТЗ в Supabase Storage */
 export const TZ_BUCKET = 'erp-attachments';
 /**
- * Ограничения загрузки ТЗ: до 15 МБ, формат ЛЮБОЙ (правка 12.09, п. 4).
+ * Ограничения загрузки ТЗ: до 20 МБ, формат ЛЮБОЙ (правка 12.09, п. 4;
+ * лимит поднят с 15 правкой 14.09).
  *
  * `TZ_MIME` остался и означает теперь не «что принимаем», а «чем считать
  * документ, у которого браузер не определил тип»: у файла с незнакомым
@@ -614,7 +627,8 @@ export const TZ_BUCKET = 'erp-attachments';
  * чем документ является, и пустой она быть не должна.
  */
 export const TZ_MIME = 'application/pdf';
-export const TZ_MAX_BYTES = 15 * 1024 * 1024;
+/** Зеркало `file_size_limit` бакета `erp-attachments` — см. `ATTACH_MAX_BYTES` */
+export const TZ_MAX_BYTES = 20 * 1024 * 1024;
 
 /** Складская операция (правка 2): строка истории сопровождения заказа складом */
 export interface ErpWarehouseOp {
@@ -929,7 +943,30 @@ export type ErpAttachmentKind =
    */
   | 'print' | 'label'
   /** Изображение заметки к заказу (правка 22.08, п. 5.8) */
-  | 'note';
+  | 'note'
+  /**
+   * РАБОЧИЙ ФАЙЛ ПРОИЗВОДСТВА (правка 14.09, п. 3): «внутри сделки создать
+   * отдельную папку „Файлы производства" для рабочих файлов, которыми
+   * пользуется непосредственно производство».
+   *
+   * Отдельный вид, а не `attachment`, потому что папки должны РАЗЛИЧАТЬСЯ:
+   * документ просит разделить «общие файлы сделки» и «рабочие производственные
+   * файлы». Не `print`/`label`: у тех есть адресат (`print_id`/`label_id`) —
+   * конкретное нанесение или бирка, и они уже видны цеху в задании. Сюда
+   * кладут то, у чего адресата нет: цветопробы, раскладки, исходники,
+   * присланные дизайнером «на всякий случай».
+   */
+  | 'production'
+  /**
+   * ФАЙЛ СООБЩЕНИЯ ЧАТА (правка 14.09, п. 5): «использовать существующее
+   * хранилище и ограничения файлов ERP» — своей таблицы у файлов переписки
+   * нет, есть вид и привязка к сообщению (`message_id`).
+   *
+   * В сводную DELETE-политику этот вид НЕ входит, и это решение: удаления
+   * сообщений в первой версии нет вовсе, а файл, удалённый из-под сообщения,
+   * оставил бы в переписке разговор о том, чего больше нет.
+   */
+  | 'chat';
 
 export interface ErpOrderAttachment {
   id: string;
@@ -974,6 +1011,12 @@ export interface ErpOrderAttachment {
   label_id?: string | null;
   /** Заметка к заказу, которой принадлежит изображение (правка 22.08) */
   note_id?: string | null;
+  /**
+   * Сообщение чата, к которому приложен файл (правка 14.09, п. 5). Строку
+   * заводит `erp_chat_send` вместе с самим сообщением: файл без сообщения
+   * был бы «ничьим» и попал бы под уборку `storage-gc`.
+   */
+  message_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -1026,7 +1069,14 @@ export interface DevFinalPackage {
 
 export interface ErpExperimental {
   id: string;
-  order_id: string;
+  /**
+   * Сделка разработки. `null` — разработка «на полку» (правка 14.09): её ведут
+   * без заказа и привязывают позже (`attachOrderToDev` → RPC
+   * `erp_experimental_attach_order`). Обнуляемость повторяет колонку: в типе
+   * `string` она бы означала, что поле всегда заполнено, и `tsc` подтверждал
+   * бы это на данных, где приезжает NULL.
+   */
+  order_id: string | null;
   /**
    * Позиция заказа. Заменяет эвристику `items[0]`: передача задачи в цех
    * создаёт этап именно этой позиции, а не первой попавшейся.
@@ -1486,6 +1536,17 @@ export type EmployeeRole =
    */
   | 'dtf' | 'silkscreen' | 'embroidery'
   /**
+   * Дизайнер (правка 14.09, п. 3). Готовит файлы для DTF, шелкографии
+   * и прочих нанесений и сам ведёт папку «Файлы производства».
+   *
+   * Роль заведена именно в ERP, а не взята из профиля Order Studio: там
+   * `designer` резолвится в `worker` (`PROFILE_ROLE_FALLBACK`), и выдать право
+   * на файлы значило бы выдать его ВСЕМ рабочим цеха. В `DEPT_BOUND_ROLES`
+   * дизайнер не входит: он не принадлежит участку, и привязка заперла бы ему
+   * работу целиком (та же ошибка, что ловили у ролей нанесения 22.08).
+   */
+  | 'designer'
+  /**
    * Заведён, должность не назначена — ЕДИНСТВЕННАЯ роль без единого права
    * (кроме `hr`, но та означает должность, а не состояние).
    *
@@ -1586,6 +1647,7 @@ export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
   dtf: 'ДТФ',
   silkscreen: 'Шелкография',
   embroidery: 'Вышивка',
+  designer: 'Дизайнер',
   /** Подпись называет СОСТОЯНИЕ, а не должность: это и есть смысл роли */
   pending: 'Без доступа — должность не назначена',
 };
@@ -1621,6 +1683,11 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'experimental.manage': 'Вести экспериментальный цех',
   'bypass.manage': 'Аварийно снимать блокировки',
   'staff.invite': 'Приглашать сотрудников ссылкой',
+  'files.manage': 'Вести файлы заказа и папку производства',
+  'sku.view': 'Смотреть каталог моделей',
+  'sku.edit': 'Править карточку модели',
+  'sku.publish': 'Выпускать модель в прайс',
+  'sku.archive': 'Архивировать модель',
 };
 
 // --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------
@@ -1659,6 +1726,190 @@ export interface ErpBypass {
   restored_by_id: string | null;
   /** null — снятие действует */
   restored_at: string | null;
+}
+
+/**
+ * Вид персонального уведомления. Перечисление закрытое и дословно повторяет
+ * CHECK таблицы: вид, заведённый в одном месте из двух, даёт 23514 на вставке —
+ * в проекте на этом уже ловились с видами вложений.
+ */
+export type ErpNotificationKind = 'chat_mention' | 'chat_reply';
+
+/**
+ * ПЕРСОНАЛЬНОЕ уведомление — факт «систему позвала конкретного человека»,
+ * в отличие от вычисляемых поводов вмешаться (`utils/notifications`),
+ * одинаковых для всех и пересчитываемых из заказов.
+ *
+ * Текст ЗАМОРОЖЕН в момент события: заказ можно переименовать, а уведомление
+ * обязано остаться правдой о том, что произошло тогда.
+ */
+export interface ErpNotification {
+  id: string;
+  /** Адресат — учётная запись (`profiles.id`), а не карточка сотрудника */
+  user_id: string;
+  kind: ErpNotificationKind;
+  /** Заказ, о котором речь; null — уведомление вне заказа */
+  order_id: string | null;
+  title: string;
+  body: string | null;
+  /** Путь внутри раздела, куда ведёт нажатие */
+  link: string | null;
+  /**
+   * Сообщение, о котором уведомление (правка 14.09, п. 5). Уникальность
+   * `(user_id, message_id)` и делает требование «упоминание и ответ одному
+   * человеку — одно уведомление» ограничением базы, а не свойством кода.
+   * null — уведомление не о сообщении (других источников пока нет).
+   */
+  message_id?: string | null;
+  created_at: string;
+  /** null — не прочитано; счётчик колокола спрашивает именно это */
+  read_at: string | null;
+}
+
+/**
+ * ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5).
+ *
+ * Сообщения приезжают ТОЛЬКО из `erp_chat_page`: прямого чтения таблицы
+ * у клиента нет. Поэтому здесь описан не снимок строки, а ответ функции —
+ * со свёрнутой цитатой и вложениями, которые она собирает без N+1.
+ */
+export interface ErpChatAttachment {
+  id: string;
+  file_path: string;
+  file_name: string | null;
+}
+
+/** Короткая цитата исходного сообщения — приезжает вместе с ответом */
+export interface ErpChatQuote {
+  id: string;
+  author_id: string;
+  /** Обрезан сервером до 140 символов: это подпись, а не второе сообщение */
+  body: string;
+}
+
+export interface ErpChatMessage {
+  id: string;
+  thread_id: string;
+  /**
+   * ПОСТОЯННЫЙ идентификатор автора, а не имя текстом. Имя резолвится через
+   * `chatDirectory` при отрисовке — тогда переименование сотрудника меняет
+   * подпись во всей ленте разом. Этим чат и отличается от `erp_order_comments`,
+   * где автор заморожен строкой в момент отправки.
+   */
+  author_id: string;
+  body: string;
+  item_id: string | null;
+  stage_id: string | null;
+  experimental_id: string | null;
+  reply_to: string | null;
+  created_at: string;
+  mentions: string[];
+  attachments: ErpChatAttachment[];
+  reply: ErpChatQuote | null;
+}
+
+/**
+ * Кого можно упомянуть и как называть автора — ответ `erp_chat_directory()`.
+ * Один источник на ленту и на подсказку упоминаний: две таблицы имён
+ * разошлись бы в первую же правку.
+ */
+export interface ErpChatPerson {
+  user_id: string;
+  name: string;
+  email: string | null;
+  /** Должность в ERP; null — у человека нет карточки сотрудника */
+  role: EmployeeRole | null;
+  department_id: string | null;
+}
+
+/**
+ * Контекст сообщения внутри сделки. Все поля пустые — «вся сделка».
+ * Это ВИД, а не право: видимость решает участие в разделе (решение владельца
+ * 14.09), а контекст лишь сужает показанное и считает свой счётчик.
+ */
+export interface ChatContext {
+  itemId?: string | null;
+  stageId?: string | null;
+  experimentalId?: string | null;
+}
+
+/** Непрочитанное сделки: общее число и разбивка по этапам (`erp_chat_unread`) */
+export interface ChatUnread {
+  total: number;
+  byStage: Record<string, number>;
+}
+
+/**
+ * КАТАЛОГ SKU В ERP (правка 14.09, п. 6) — карточка изделия: техпакет, файлы,
+ * версии, связь с разработкой и заказами.
+ *
+ * НЕ ПУТАТЬ с прайс-каталогом визарда (`app_config.sku_catalog`): тот считает
+ * ЦЕНУ заказа, а этот описывает, КАК ИЗДЕЛИЕ ШЬЁТСЯ. Связь между ними —
+ * по `code`, и «выпущен ли артикул в прайс» спрашивается у самого прайса.
+ */
+export type SkuCardStatus = 'draft' | 'active' | 'archived';
+
+/**
+ * ПОДПИСИ СТАТУСОВ И РОЛЕЙ ФАЙЛОВ ЖИВУТ В `utils/skuCardLabels`, А НЕ ЗДЕСЬ.
+ *
+ * `types.ts` попадает в чанк ОБОЛОЧКИ, и словарь, нужный двум экранам
+ * каталога, ехал бы каждому, кто открыл обзор производства. Ровно тот же
+ * довод, по которому 10.08 из него вынесли перечень прав в `permissionKeys`.
+ * Сами типы (`SkuCardStatus`, `SkuCardFileRole`) остаются — они стираются
+ * при сборке и веса не имеют.
+ */
+
+export interface ErpSkuCard {
+  id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  fit: string | null;
+  pattern_tech_name: string | null;
+  /** Версия ЛЕКАЛ — величина, отличная от версии карточки (требование документа) */
+  pattern_version: string | null;
+  /** Версию карточки ведёт система; клиент её только читает */
+  card_version: number;
+  status: SkuCardStatus;
+  experimental_id: string | null;
+  source_item_id: string | null;
+  final_package: DevFinalPackage | null;
+  price_min: number | null;
+  price_max: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Снимок карточки после правки — историю пишет триггер */
+export interface ErpSkuCardVersion {
+  id: string;
+  card_id: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  changed_fields: string[];
+  author_id: string | null;
+  created_at: string;
+}
+
+export type SkuCardFileRole = 'pattern' | 'passport' | 'photo' | 'other';
+
+/**
+ * Файл карточки. Рядом со ссылкой на вложение лежит СНИМОК пути и имени:
+ * разработку могут удалить, а техпакет модели обязан её пережить.
+ */
+export interface ErpSkuCardFile {
+  id: string;
+  card_id: string;
+  attachment_id: string | null;
+  role: SkuCardFileRole;
+  file_path: string;
+  file_name: string | null;
+  version: number;
+  superseded_at: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 /** Строка матрицы прав (таблица erp_role_permissions) */

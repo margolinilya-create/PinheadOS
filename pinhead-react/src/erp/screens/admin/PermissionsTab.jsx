@@ -27,7 +27,7 @@ import { TableSkeleton } from '../../components/ErpSkeletons';
 /** Порядок ролей — от руководства к исполнителям, участки нанесения рядом */
 const ROLES = [
   'director', 'production_head', 'dispatcher', 'manager', 'technologist', 'foreman',
-  'worker', 'dtf', 'silkscreen', 'embroidery', 'purchaser', 'storekeeper', 'hr',
+  'worker', 'dtf', 'silkscreen', 'embroidery', 'designer', 'purchaser', 'storekeeper', 'hr',
   // Новичок до назначения должности — последним: это не должность, а состояние
   'pending',
 ];
@@ -60,7 +60,7 @@ const PERMISSION_GROUPS = [
   { title: 'Работа цеха', keys: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect'] },
   { title: 'Управление очередью и маршрутом', keys: [
-    'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage'] },
+    'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage', 'files.manage'] },
   { title: 'Снабжение и склад', keys: ['material.receive', 'warehouse.manage'] },
   { title: 'Планирование', keys: ['plan.manage', 'plan.fact'] },
   { title: 'Настройка системы', keys: [

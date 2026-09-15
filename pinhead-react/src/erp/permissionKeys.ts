@@ -48,12 +48,40 @@ export type ErpPermission =
    * (`isPrivileged` это admin + director + РОП, а `is_admin()` — только admin),
    * а на таком расхождении в проекте уже ловились.
    */
-  | 'staff.invite';
+  | 'staff.invite'
+  /**
+   * Вести файлы заказа: загружать в папку «Файлы производства», снимать их
+   * и перекладывать между папками (правка 14.09, п. 3 — «дизайнеры могут
+   * поддерживать эту папку без обращения к администратору»).
+   *
+   * Отдельное право, а не `order.manage`: тот про заказ — срок, менеджер,
+   * состав позиций, — и выдавать его дизайнеру значит отдать ему заказ
+   * целиком. До 14.09 снять вложение мог только админ, и это и было
+   * «обращением к администратору», на которое жалуется документ.
+   */
+  | 'files.manage'
+  /**
+   * КАТАЛОГ SKU (правка 14.09, п. 6) — четыре права, а не одно, потому что
+   * решения разные:
+   *   · `sku.view` — открыть каталог и карточку модели. Широко: по карточке
+   *     работают технолог, менеджер, закупщик и дизайнер;
+   *   · `sku.edit` — править техпакет и описание;
+   *   · `sku.publish` — ВЫПУСТИТЬ артикул в прайс-каталог визарда. После
+   *     этого по модели начинают считать заказы, и «поправить описание»
+   *     такой цены не имеет. Выдаётся ровно тем, у кого сегодня
+   *     `catalog.edit`;
+   *   · `sku.archive` — убрать модель из выбора, сохранив историю заказов.
+   */
+  | 'sku.view'
+  | 'sku.edit'
+  | 'sku.publish'
+  | 'sku.archive';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
   'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
   'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
-  'bypass.manage', 'experimental.manage', 'staff.invite',
+  'bypass.manage', 'experimental.manage', 'staff.invite', 'files.manage',
+  'sku.view', 'sku.edit', 'sku.publish', 'sku.archive',
 ];
 

@@ -865,6 +865,15 @@ a.cellTitle:hover { color: var(--accent); }
   background: var(--card); text-decoration: none; color: var(--text);
 }
 .fileCard:hover { border-color: var(--accent); }
+/* Плитка файла перестала быть ссылкой целиком (правка 14.09, п. 3): рядом
+   с ней живут «Удалить» и «→ в другую папку», а кнопка внутри ссылки — это
+   вложенная интерактивность, которую клавиатура и скринридер разбирают неверно.
+   Ссылкой осталось СОДЕРЖИМОЕ плитки, действия стоят отдельной строкой. */
+.fileCardLink {
+  display: flex; flex-direction: column; gap: 6px;
+  text-decoration: none; color: inherit;
+}
+.fileCardActions { display: flex; flex-wrap: wrap; gap: 6px; }
 .fileThumb { width: 100%; height: 88px; object-fit: cover; border-radius: 6px; background: var(--surface); }
 /* Заглушка вместо превью: файл не картинка либо картинка не загрузилась.
    Габариты те же, что у `.fileThumb`, — иначе плитка прыгает */
@@ -1711,3 +1720,249 @@ a.cellTitle:hover { color: var(--accent); }
   border-top: 1px solid var(--border-light);
 }
 .ganttCardDates { font-family: var(--mono); font-size: var(--type-label); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5)
+
+   Лента прокручивается САМА, а не вместе со страницей: композер обязан
+   оставаться на виду. Высота задана одним местом (`.chatFeed`), чтобы
+   «загружается», «пусто» и наполненная лента не двигали то, что ниже, —
+   то же правило, что у полосы мощности.
+   ───────────────────────────────────────────────────────────────────── */
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+.chatScope { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+
+.chatFeed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 220px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: var(--space-xs);
+}
+.chatMore { align-self: center; }
+.chatSkeleton { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+.chatMsg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  align-self: flex-start;
+  max-width: 88%;
+}
+/* Своё сообщение — справа и на другой поверхности: «кто это написал»
+   читается раньше подписи, с одного взгляда на ленту */
+.chatMsgMine { align-self: flex-end; background: var(--accent-light); }
+/* На какое сообщение отвечаем прямо сейчас */
+.chatMsgFocus { border-color: var(--accent); }
+
+.chatMsgHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.chatMsgAuthor { font-size: var(--type-body-sm); }
+.chatMsgTime { font-size: var(--type-label); color: var(--text-dim); }
+.chatMsgMention {
+  font-size: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-error-ink);
+}
+.chatMsgReply {
+  margin-left: auto;
+  font-size: var(--type-label);
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.chatMsgBody { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.chatQuote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 3px solid var(--accent);
+  background: var(--bg2);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.chatQuoteAuthor { font-size: var(--type-label); color: var(--text-dim); }
+.chatQuoteBody { overflow-wrap: break-word; }
+
+.chatFiles { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.chatFile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-body-sm);
+  padding: var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  color: var(--text);
+}
+.chatFileThumb { width: 28px; height: 28px; object-fit: cover; border-radius: var(--radius-sm); }
+
+.chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatComposerRow { display: flex; align-items: flex-end; gap: var(--space-xs); }
+.chatInput {
+  flex: 1;
+  resize: vertical;
+  min-height: var(--control-h-lg);
+  font: inherit;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+}
+/* Скрепка — метка над скрытым input: своей кнопки не заводим, иначе
+   пришлось бы дублировать открытие диалога программно */
+.chatAttachBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--control-h-md);
+  min-height: var(--control-h-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.chatReplyBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+.chatReplyText { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chatReplyCancel { background: none; border: 0; cursor: pointer; color: var(--text-dim); }
+
+.chatUploads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatUpload {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+}
+.chatUploadError { color: var(--color-error-ink); }
+
+/* Упоминания: подсказка под полем ввода и подсветка в ленте */
+.chatInputWrap { position: relative; flex: 1; display: flex; }
+.mentionBox {
+  position: absolute;
+  bottom: calc(100% + var(--space-xs));
+  left: 0;
+  right: 0;
+  /* Ступени шкалы здесь нет намеренно: подсказка спорит только с соседями
+     ВНУТРИ панели чата, и взять глобальную ступень значило бы объявить,
+     что она перекрывает шторки и модалки (правило про значения между
+     ступенями — в корневом CLAUDE.md) */
+  z-index: 1;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-xs);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.mentionItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+}
+.mentionItemActive { background: var(--accent-light); }
+.mentionName { font-size: var(--type-body-sm); }
+.mentionEmail { font-size: var(--type-label); color: var(--text-dim); }
+.chatMention {
+  background: var(--accent-light);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   КАТАЛОГ SKU (правка 14.09, п. 6)
+
+   Сетка плиток, а не таблица: у модели главное — название и состояние,
+   а колонок, по которым её сравнивают построчно, здесь нет.
+   ───────────────────────────────────────────────────────────────────── */
+.skuGrid {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  display: grid;
+  /* Потолок числа колонок не нужен: плиток десятки, и ряд не разваливается
+     «4 + 2», как это было у шести плиток обзора */
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-sm);
+}
+.skuCardTile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.skuCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+.skuCardCode { font-family: var(--mono); font-size: var(--type-label); color: var(--text-dim); }
+
+/* Описание модели набирают абзацем — ему вся ширина сетки полей */
+.skuFullRow { grid-column: 1 / -1; }
+
+/* Файлы техпакета и история версий: один список на оба — строки одинаковы
+   по устройству (что · когда · чем это было), а два набора классов ради
+   одинаковых строк разъехались бы в первую же правку */
+.skuList { list-style: none; margin: var(--space-md) 0 0; padding: 0; }
+.skuListRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.skuListRow:last-child { border-bottom: 0; }

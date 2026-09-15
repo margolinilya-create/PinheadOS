@@ -213,6 +213,30 @@ describe('buildRoute — нанесения', () => {
       .toEqual(['supply', 'warehouse', 'silkscreen', 'vto']);
   });
 
+  /**
+   * СКЛАД ГОТОВОЙ ПРОДУКЦИИ (правка 14.09, п. 1). Изделие уже наше и уже
+   * на фабрике: покупать нечего, но склад обязан ОТДАТЬ его в работу —
+   * иначе у позиции не осталось бы ни одного этапа, и никто не знал бы,
+   * выдан ли товар. Маршрут тот же, что у давальческого; отличается
+   * действие склада (`garmentIntakeAction`), а не состав этапов.
+   */
+  it('со склада ГП без нанесений: этап склада есть, ВТО нет', () => {
+    const route = buildRoute({
+      productionType: 'ready_garment', brandingMethods: [], brandingOn: 'finished',
+      garmentSource: 'stock',
+    });
+    expect(route.map((r) => r.departmentCode)).toEqual(['supply', 'warehouse']);
+  });
+
+  it('со склада ГП + нанесение: тот же маршрут, что у нашего изделия', () => {
+    const route = buildRoute({
+      productionType: 'ready_garment', brandingMethods: ['silkscreen'], brandingOn: 'finished',
+      garmentSource: 'stock',
+    });
+    expect(route.map((r) => r.departmentCode))
+      .toEqual(['supply', 'warehouse', 'silkscreen', 'vto']);
+  });
+
   it('«customer» у пошива маршрута не меняет', () => {
     // Значение, оставшееся от переключённой позиции, не должно молча
     // дописывать пошиву приёмку склада
@@ -658,6 +682,25 @@ describe('buildItemRoute — вырезание закупки при матер
     const route = buildItemRoute({
       productionType: 'ready_garment', brandingMethods: [],
       brandingOn: 'finished', garmentSource: 'customer',
+    });
+    expect(route.map((s) => s.departmentCode)).toEqual(['warehouse']);
+  });
+
+  it('изделие со склада ГП вырезает закупку так же, как давальческое', () => {
+    const route = buildItemRoute({
+      productionType: 'ready_garment', brandingMethods: ['silkscreen'],
+      brandingOn: 'finished', garmentSource: 'stock',
+    });
+    expect(route.map((s) => s.departmentCode)).toEqual(['warehouse', 'silkscreen', 'vto']);
+    expect(route[0].dependsOnCodes).toEqual([]);
+  });
+
+  it('со склада ГП без нанесений — один этап склада', () => {
+    // Без него у позиции не осталось бы этапов вовсе: закупка вырезана,
+    // а нанесений нет — заказ стал бы невидимым для всех цехов
+    const route = buildItemRoute({
+      productionType: 'ready_garment', brandingMethods: [],
+      brandingOn: 'finished', garmentSource: 'stock',
     });
     expect(route.map((s) => s.departmentCode)).toEqual(['warehouse']);
   });

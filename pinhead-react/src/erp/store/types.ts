@@ -18,6 +18,14 @@ import type {
   ErpDictionaryItem,
   ErpEmployee,
   ErpInvite,
+  ErpNotification,
+  ErpSkuCard,
+  ErpSkuCardFile,
+  ErpSkuCardVersion,
+  ErpChatMessage,
+  ErpChatPerson,
+  ChatContext,
+  ChatUnread,
   ErpPermission,
   ErpRolePermission,
   ErpItemPrint,
@@ -472,6 +480,18 @@ export interface OrdersSlice {
 
   /** Основная загрузка: только активные заказы (архив — loadArchive) */
   loadAll: () => Promise<void>;
+}
+
+/**
+ * ЗАГРУЗКИ ЗАКАЗОВ ПО ТРЕБОВАНИЮ — то, что зовут ЭКРАНЫ, а не оболочка.
+ *
+ * Отделено от `OrdersSlice` 14.09. Оболочке нужен активный список — из него
+ * считаются бейджи разделов, счётчики цехов и колокол; всё остальное чтение
+ * зовут только экраны, и потому оно приезжает доменным чанком вместе с первым
+ * из них. Данные при этом остаются в ядре (`domainState`): их наполняет
+ * `loadAll` ещё до открытия любого экрана.
+ */
+export interface OrdersOnDemandSlice {
   /** Ленивая загрузка архива (status != active) при первом заходе на вкладку — первая страница */
   loadArchive: () => Promise<void>;
   /** Следующая страница архива (кнопка «Показать ещё») */
@@ -981,6 +1001,93 @@ export interface DictionariesSlice {
  * Список маленький и меняется редко, поэтому живёт целиком в сторе: гейты
  * спрашивают его синхронно, а `utils/bypass` решает, действует ли снятие.
  */
+/**
+ * Персональные уведомления — то, что адресовано ЧЕЛОВЕКУ, в отличие
+ * от вычисляемых поводов вмешаться (`utils/notifications`), одинаковых
+ * для всех. Слайс в ядре: счётчик показывает колокол оболочки, то есть
+ * до открытия любого экрана.
+ */
+export interface NotificationsSlice {
+  notifications: ErpNotification[];
+  notificationsLoaded: boolean;
+  loadNotifications: () => Promise<void>;
+  /** Отметить прочитанными; уже прочитанные не трогаются — иначе read_at соврёт */
+  markNotificationsRead: (ids: string[]) => Promise<boolean>;
+}
+
+/**
+ * ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5).
+ *
+ * Данные лежат в ядре (`domainState`), как у всех доменных слайсов, — и по той
+ * же причине, что у остальных: `resetErpStore()` обязан их вычистить, иначе
+ * на общем цеховом планшете следующая смена откроет чужую переписку.
+ * Действия приезжают доменным чанком: чат открывают с экрана.
+ */
+export interface ChatSlice {
+  /** Кого можно упомянуть и как называть автора; пусто — справочник не грузили */
+  chatDirectory: ErpChatPerson[];
+  chatDirectoryLoaded: boolean;
+  /** Открытое обсуждение: заказ и контекст. `null` — окно закрыто */
+  chatOrderId: string | null;
+  chatContext: ChatContext;
+  chatMessages: ErpChatMessage[];
+  /** Есть ли что дочитывать ВВЕРХ (страница отдаёт последние N) */
+  chatHasMore: boolean;
+  chatLoading: boolean;
+  chatError: string | null;
+  /** Непрочитанное по заказам: вкладка «Чат» и кнопка у задания читают его */
+  chatUnread: Record<string, ChatUnread>;
+  /**
+   * Звонок realtime: счётчик событий `erp_chat_messages`. Из события берётся
+   * ТОЛЬКО факт «что-то пришло» — содержимое дочитывается `erp_chat_page`,
+   * иначе видимость решалась бы дважды, фильтром подписки и функцией чтения.
+   */
+  chatPing: number;
+
+  loadChatDirectory: () => Promise<void>;
+  openChat: (orderId: string, context?: ChatContext) => Promise<void>;
+  loadMoreChat: () => Promise<void>;
+  refreshChat: () => Promise<void>;
+  sendChatMessage: (input: {
+    orderId: string;
+    body: string;
+    /** Ключ попытки (`utils/attemptKey`): повтор не создаёт второго сообщения */
+    clientKey: string;
+    context?: ChatContext;
+    replyTo?: string | null;
+    mentions?: string[];
+    attachments?: { file_path: string; file_name?: string | null }[];
+  }) => Promise<{ message_id: string; mentioned: string[] } | null>;
+  loadChatUnread: (orderId: string) => Promise<void>;
+  markChatRead: (orderId: string, stageId?: string | null) => Promise<void>;
+  closeChat: () => void;
+}
+
+/**
+ * КАТАЛОГ SKU (правка 14.09, п. 6). Данные — в ядре (`domainState`), как
+ * у всех доменных слайсов: `resetErpStore()` обязан их вычистить.
+ */
+export interface SkuSlice {
+  skuCards: ErpSkuCard[];
+  skuCardsLoaded: boolean;
+  skuCardsError: string | null;
+  /**
+   * Коды, уже выпущенные в прайс-каталог визарда. Не флаг у карточки:
+   * «выпущен ли артикул» — факт ПРАЙСА, и хранить его копией значило бы
+   * завести второй источник, который разойдётся в первую же публикацию.
+   */
+  skuPriceCodes: string[];
+
+  loadSkuCards: () => Promise<void>;
+  saveSkuCard: (id: string, patch: Partial<ErpSkuCard>) => Promise<boolean>;
+  createSkuCard: (input: Partial<ErpSkuCard> & { code: string; name: string })
+    => Promise<ErpSkuCard | null>;
+  loadSkuCardDetail: (id: string)
+    => Promise<{ versions: ErpSkuCardVersion[]; files: ErpSkuCardFile[] }>;
+  loadSkuCardStats: (id: string)
+    => Promise<{ orders: number; qty: number; lastOrderAt: string | null } | null>;
+}
+
 export interface BypassSlice {
   bypasses: ErpBypass[];
   bypassesLoaded: boolean;
@@ -1093,10 +1200,26 @@ export interface ExperimentalSlice {
    */
   experimentalError: string | null;
   loadExperimental: () => Promise<void>;
+  /**
+   * `orderId` НЕОБЯЗАТЕЛЕН (правка 14.09): `null` заводит разработку «на полку».
+   * Сигнатура осталась позиционной, потому что вызывающих два и оба передают
+   * заказ явно — создание из формы заказа и форма «Завести разработку».
+   */
   createExperimental: (
-    orderId: string,
+    orderId: string | null,
     input?: { item_id?: string | null; tech_name?: string | null },
   ) => Promise<ErpExperimental | null>;
+  /**
+   * Привязать разработку «с полки» к сделке. Отдельное действие, а не правка
+   * колонки через `updateExperimental`: после него разработка попадает в гейт
+   * отгрузки заказа, её переписка становится видна из чата сделки, а завершение
+   * заводит складскую задачу приёмки ГП. Повторная привязка запрещена сервером.
+   */
+  attachOrderToDev: (
+    devId: string,
+    orderId: string,
+    itemId?: string | null,
+  ) => Promise<boolean>;
   updateExperimental: (id: string, patch: DevPatch) => Promise<boolean>;
 
   /**
@@ -1288,12 +1411,27 @@ export interface OrderWriteSlice {
   ) => Promise<boolean>;
   deleteOrder: (id: string) => Promise<boolean>;
   /** Фото брака/блокировки: файл в bucket erp-attachments + запись kind=attachment */
-  uploadOrderAttachment: (orderId: string, file: File, note?: string) => Promise<boolean>;
+  /**
+   * Загрузить файл заказа. `kind` (правка 14.09, п. 3) выбирает папку:
+   * `attachment` — «Файлы сделки», `production` — «Файлы производства».
+   * По умолчанию прежнее поведение: два вызывающих на `.js` (фото блокировки
+   * и фото брака) аргумент не передают.
+   */
+  uploadOrderAttachment: (
+    orderId: string, file: File, note?: string, kind?: ErpAttachmentKind,
+  ) => Promise<boolean>;
+  /** Снять файл заказа (строка + объект бакета). Не оптимистично: «0 строк» — отказ RLS */
+  deleteOrderAttachment: (orderId: string, attachmentId: string) => Promise<boolean>;
+  /** Переложить файл между папками: пишется РОВНО `kind`, зеркало — `erp_attachment_guard` */
+  moveOrderAttachment: (
+    orderId: string, attachmentId: string, kind: ErpAttachmentKind,
+  ) => Promise<boolean>;
   addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
 }
 
 export type ErpStore = BootstrapSlice &
   OrdersSlice &
+  OrdersOnDemandSlice &
   OrderWriteSlice &
   StagesSlice &
   MaterialsSlice &
@@ -1310,4 +1448,7 @@ export type ErpStore = BootstrapSlice &
   PlanSlice &
   BypassSlice &
   SettingsSlice &
+  NotificationsSlice &
+  ChatSlice &
+  SkuSlice &
   RealtimeSlice;

@@ -10,6 +10,7 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
+import { DevCreateModal } from './experimental/DevCreateModal';
 import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
 import {
@@ -209,6 +210,8 @@ export default function Experimental() {
    */
   const { can } = useErpAccess();
   const canManage = can('experimental.manage');
+  /** Открыта ли форма «Завести разработку» (правка 14.09) */
+  const [creating, setCreating] = useState(false);
 
   /**
    * ПЕРЕНОС КАРТОЧКИ ПО ЭТАПАМ — единственная точка на доску и кнопки «‹ ›».
@@ -457,6 +460,28 @@ export default function Experimental() {
       />
 
       {/*
+        ЗАВЕСТИ РАЗРАБОТКУ РУКАМИ (правка 14.09). До 15.09 входа не было
+        вовсе — разработка рождалась только побочным действием создания
+        заказа с позицией-образцом, и «вести разработку без сделки» упиралось
+        не в колонку, а в отсутствие формы.
+      */}
+      {canManage && (
+        <div className={styles.toolbar}>
+          <Button icon="plus" onClick={() => setCreating(true)}>Завести разработку</Button>
+        </div>
+      )}
+      {creating && (
+        <DevCreateModal
+          onClose={() => setCreating(false)}
+          onCreated={(row) => navigate(`/experimental/${row.id}`, {
+            // Тот же формат, что ключ `useScrollRestore` (`pathname + search`),
+            // иначе возврат из карточки потеряет фильтры и прокрутку
+            state: { from: `${location.pathname}${location.search}` },
+          })}
+        />
+      )}
+
+      {/*
         СОСТОЯНИЯ — ЧИПАМИ, А НЕ ПЛИТКАМИ (обход 04.09). Семь плиток по 90px
         плюс поиск, фильтры и одиннадцать чипов видов отодвигали доску —
         «главный экран» раздела по документу — на y≈520 из 800: в первый
@@ -638,7 +663,15 @@ export default function Experimental() {
         <EmptyState
           icon="flask"
           title="Разработок пока нет"
-          text="Разработка появляется из заказа: заведите позицию-образец при создании заказа. Набор задач выбирается под изделие — одинаковых пяти этапов больше нет."
+          /*
+            ТЕКСТ НАЗЫВАЕТ ОБА ПУТИ (правка 14.09). Прежняя редакция говорила
+            «разработка появляется из заказа: заведите позицию-образец» — и это
+            перестало быть правдой ровно в тот момент, когда выше появилась
+            кнопка «Завести разработку». Пустое состояние, отрицающее кнопку
+            в двухстах пикселях над собой, — худший вид подсказки: человек
+            верит тексту и уходит заводить заказ.
+          */
+          text="Разработку заводят кнопкой выше — в том числе без сделки, «на полку». Второй путь: позиция-образец при создании заказа заводит её сама. Набор задач выбирается под изделие."
         />
       )}
 

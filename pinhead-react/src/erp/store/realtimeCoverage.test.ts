@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { functionBody, latestDefining, withoutComments } from '../utils/migrations.testutil';
+import { tableNames } from '../../types/schema.testutil';
 
 /** Все исходники стора одним текстом (тесты не в счёт) */
 function readAll(dir: string): string {
@@ -47,6 +49,52 @@ function handled(): string[] {
   const mapBlock = SRC.slice(SRC.indexOf('TABLE_TO_CHILD'), SRC.indexOf('};', SRC.indexOf('TABLE_TO_CHILD')));
   const viaMap = [...mapBlock.matchAll(/^\s*(erp_\w+):/gm)].map((m) => m[1]);
   return [...new Set([...direct, ...viaMap])].sort();
+}
+
+/**
+ * ТАБЛИЦЫ, ДО КОТОРЫХ КЛИЕНТ ДОБИРАЕТСЯ ТОЛЬКО ЧЕРЕЗ RPC.
+ *
+ * Прежний разбор искал `.from('erp_…')` — то есть видел лишь то, что клиент
+ * трогает НАПРЯМУЮ. Всё, что делается пакетной функцией (а это и загрузка
+ * оболочки, и карточка заказа, и каждое действие цеха), для сторожа
+ * не существовало вовсе: такая таблица не подписана и не названа в
+ * `NO_REALTIME`, и обе проверки её пропускают — ровно тот случай, которым
+ * этот файл и открывается («сторож, зелёный на сломанном коде»).
+ *
+ * Расширение 14.09 нашло четыре живых пробела — журналы приёмок, отгрузок,
+ * результатов этапа и аудита. Ни один из них подписки не требует, но это
+ * обязано быть РЕШЕНИЕМ С ПРИЧИНОЙ, а не следствием того, что разбор их
+ * не заметил.
+ *
+ * Имена сверяются со снимком схемы: в теле функции рядом с `erp_orders` стоят
+ * `erp_has_permission` и `erp_clamp_done`, и без сверки сторож объявил бы
+ * функции таблицами. Комментарии снимаются — объяснение, ПОЧЕМУ таблицу
+ * тут больше не трогают, содержит её имя.
+ */
+function rpcTables(): string[] {
+  const store = readAll(join(process.cwd(), 'src/erp/store'));
+  const calls = [...new Set(
+    [...store.matchAll(/supabase\.rpc\(\s*'(erp_\w+)'/g)].map((m) => m[1]),
+  )].sort();
+  // Пустой список означал бы, что разбор сломался, а не что RPC не стало
+  expect(calls.length, 'в сторе не найдено ни одного вызова RPC — разбор сломан')
+    .toBeGreaterThan(10);
+
+  const known = new Set(tableNames());
+  const out = new Set<string>();
+  for (const fn of calls) {
+    /**
+     * `latestDefining` бросает, если функцию не найти по тексту миграций.
+     * Это не помеха, а ещё одна проверка: функция, пересобранная через
+     * `pg_get_functiondef`, прячется от ВСЕХ сторожей проекта разом —
+     * и пусть об этом скажет падение, а не тишина.
+     */
+    const body = withoutComments(functionBody(latestDefining(fn), fn));
+    for (const m of body.matchAll(/\b(erp_[a-z_]+)\b/g)) {
+      if (known.has(m[1])) out.add(m[1]);
+    }
+  }
+  return [...out].sort();
 }
 
 describe('realtime: подписки и обработчики сходятся', () => {
@@ -109,22 +157,50 @@ describe('realtime: подписки и обработчики сходятся'
     // Журнал подряда: его rollup правит `erp_item_stages`, а ТА подписана —
     // движение количеств доезжает до всех, обновляется и очередь цеха
     erp_subcontract_moves: 'журнал подряда: количества доезжают через erp_item_stages',
+    // ЖУРНАЛЫ, КОТОРЫЕ ВИДНЫ ТОЛЬКО ЧЕРЕЗ RPC (найдены расширением сторожа
+    // 14.09). Клиент в них не ходит `.from(…)` вовсе, поэтому прежний разбор
+    // их не видел — и каждая была бы «подпиской, о которой забыли», если бы
+    // подписка им требовалась. Не требуется: у всех трёх ИТОГ лежит
+    // в подписанной таблице, а сам журнал читается при открытии карточки
+    erp_material_receipts: 'журнал приёмок: приход доезжает через erp_materials.qty_received (её ведёт триггер)',
+    erp_order_shipments: 'журнал отгрузок: остаток доезжает через erp_order_items.qty_shipped (её ведёт триггер)',
+    erp_stage_reports: 'журнал результатов этапа: счётчики доезжают через erp_item_stages (её ведёт RPC)',
+    erp_order_audit: 'лента аудита карточки: перечитывается при открытии, как erp_stage_events',
+    /**
+     * ЧАТ. Подписка есть ровно у СООБЩЕНИЙ — остальное приезжает вместе с ними
+     * через `erp_chat_page` либо личное:
+     */
+    erp_chat_threads: 'якорь обсуждения: заводится первым сообщением и больше не меняется',
+    erp_chat_mentions: 'упоминания приезжают внутри сообщения (erp_chat_page), своей жизни у строки нет',
+    erp_chat_reads: 'отметка прочтения ЛИЧНАЯ: чужая вкладка её не показывает и показывать не должна',
+    /**
+     * КАТАЛОГ МОДЕЛЕЙ — СПРАВОЧНИК, А НЕ ДОСКА ЦЕХА. От устаревшей строки
+     * здесь не стоит работа: очередь, счётчик и гейт на него не смотрят.
+     * А чтобы «перечитывается при открытии» было правдой, а не объяснением
+     * в комментарии, `loadSkuCardDetail` перечитывает саму карточку — иначе
+     * список, загруженный один раз за сессию, оставался бы снимком на день.
+     */
+    erp_sku_cards: 'справочник моделей: карточка перечитывается при открытии (loadSkuCardDetail)',
+    erp_sku_card_versions: 'история карточки: приезжает с самой карточкой при открытии',
+    erp_sku_card_files: 'файлы техпакета: приезжают с карточкой при открытии',
   };
 
-  it('таблица, чьи строки лежат в сторе, либо подписана, либо названа с причиной', () => {
+  it('таблица, до которой добирается клиент, либо подписана, либо названа с причиной', () => {
     const store = readAll(join(process.cwd(), 'src/erp/store'));
     const fromTables = [...store.matchAll(/\.from\(\s*'(erp_\w+)'/g)].map((m) => m[1]);
     const helpers = readFileSync(join(process.cwd(), 'src/erp/store/orderHelpers.ts'), 'utf8');
     const embedded = [...helpers.matchAll(/:\s*(erp_\w+)\s*[!(]/g)].map((m) => m[1]);
-    const inStore = [...new Set([...fromTables, ...embedded])].sort();
+    const inStore = [...new Set([...fromTables, ...embedded, ...rpcTables()])].sort();
     expect(inStore.length, 'разбор не нашёл таблиц — сторож сторожит пустоту')
       .toBeGreaterThan(20);
 
     const silent = inStore.filter((t) => !SUB.includes(t) && !(t in NO_REALTIME));
     expect(
       silent,
-      `строки этих таблиц лежат в сторе без подписки: ${silent.join(', ')} — `
-      + 'в чужой вкладке они будут врать. Подпишите или впишите в NO_REALTIME с причиной',
+      `эти таблицы клиент читает или меняет (напрямую либо через RPC), а подписки `
+      + `на них нет: ${silent.join(', ')} — в чужой вкладке их состояние будет `
+      + 'устаревшим. Подпишите либо впишите в NO_REALTIME с причиной, почему '
+      + 'устаревание безвредно (обычно: итог лежит в подписанной таблице)',
     ).toEqual([]);
 
     // Причина, которая перестала быть причиной, — это протухший список

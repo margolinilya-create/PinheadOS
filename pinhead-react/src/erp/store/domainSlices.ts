@@ -1,10 +1,13 @@
 import { useErpStore } from './useErpStore';
+import { ordersOnDemandSlice } from './slices/ordersOnDemandSlice';
 import { orderWriteSlice } from './slices/orderWriteSlice';
 import { stagesSlice } from './slices/stagesSlice';
 import { materialsSlice } from './slices/materialsSlice';
 import { warehouseSlice } from './slices/warehouseSlice';
 import { procurementSlice } from './slices/procurementSlice';
 import { orderDraftsSlice } from './slices/orderDraftsSlice';
+import { chatSlice } from './slices/chatSlice';
+import { skuSlice } from './slices/skuSlice';
 import { subcontractingSlice } from './slices/subcontractingSlice';
 import { employeesSlice } from './slices/employeesSlice';
 import { invitesSlice } from './slices/invitesSlice';
@@ -45,12 +48,15 @@ import type { ErpStore } from './types';
  */
 
 const DOMAIN_SLICES = [
+  ordersOnDemandSlice,
   orderWriteSlice,
   stagesSlice,
   materialsSlice,
   warehouseSlice,
   procurementSlice,
   orderDraftsSlice,
+  chatSlice,
+  skuSlice,
   subcontractingSlice,
   employeesSlice,
   invitesSlice,

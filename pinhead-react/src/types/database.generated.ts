@@ -1,20 +1,3 @@
-/**
- * Типы схемы Supabase — СГЕНЕРИРОВАНЫ ИЗ БАЗЫ, править руками нельзя.
- *
- * Зачем. `erp/types.ts` описывает те же таблицы вручную, и расхождение с базой
- * ловилось только косвенно — тестом `orderSelect.test.ts`, который вытаскивает
- * обращения `stage.X` из кода. То есть про колонку, которую переименовали
- * в миграции, приложение узнавало в рантайме.
- *
- * Здесь — машинная копия схемы. Ручные типы остаются: они описывают ДОМЕН
- * (ErpOrderFull со вложенными позициями, статусы как union), а не таблицы,
- * и заменять их генерацией нельзя — вложенных деревьев в схеме нет.
- * Задача файла другая: дать `schema.test.ts` возможность сверить их с базой.
- *
- * Обновление: `npm run types:db` (нужен SUPABASE_ACCESS_TOKEN) или
- * MCP-инструмент Supabase `generate_typescript_types`.
- */
-
 export type Json =
   | string
   | number
@@ -213,6 +196,221 @@ export type Database = {
           },
         ]
       }
+      erp_chat_mentions: {
+        Row: {
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_mentions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_mentions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_chat_messages: {
+        Row: {
+          author_id: string
+          body: string
+          client_key: string
+          created_at: string
+          experimental_id: string | null
+          id: string
+          item_id: string | null
+          reply_to: string | null
+          stage_id: string | null
+          thread_id: string
+        }
+        Insert: {
+          author_id: string
+          body?: string
+          client_key: string
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          item_id?: string | null
+          reply_to?: string | null
+          stage_id?: string | null
+          thread_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          client_key?: string
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          item_id?: string | null
+          reply_to?: string | null
+          stage_id?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: false
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_chat_reads: {
+        Row: {
+          created_at: string
+          last_read_at: string
+          stage_id: string | null
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          last_read_at?: string
+          stage_id?: string | null
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          last_read_at?: string
+          stage_id?: string | null
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_reads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_reads_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_reads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_chat_threads: {
+        Row: {
+          created_at: string
+          experimental_id: string | null
+          id: string
+          order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          experimental_id?: string | null
+          id?: string
+          order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_threads_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: false
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_threads_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_deleted_test_orders_20260913: {
+        Row: {
+          deleted_at: string
+          id: string
+          payload: Json
+          title: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          id: string
+          payload: Json
+          title?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          id?: string
+          payload?: Json
+          title?: string | null
+        }
+        Relationships: []
+      }
       erp_departments: {
         Row: {
           active: boolean
@@ -381,7 +579,7 @@ export type Database = {
           id: string
           item_id: string | null
           measurement_table: string | null
-          order_id: string
+          order_id: string | null
           outcome: string | null
           outcome_comment: string | null
           owner: string | null
@@ -413,7 +611,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           measurement_table?: string | null
-          order_id: string
+          order_id?: string | null
           outcome?: string | null
           outcome_comment?: string | null
           owner?: string | null
@@ -445,7 +643,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           measurement_table?: string | null
-          order_id?: string
+          order_id?: string | null
           outcome?: string | null
           outcome_comment?: string | null
           owner?: string | null
@@ -1045,6 +1243,67 @@ export type Database = {
           },
         ]
       }
+      erp_notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          message_id: string | null
+          order_id: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          link?: string | null
+          message_id?: string | null
+          order_id?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          message_id?: string | null
+          order_id?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_notifications_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_order_attachments: {
         Row: {
           created_at: string
@@ -1056,8 +1315,9 @@ export type Database = {
           kind: string
           label_id: string | null
           material_id: string | null
+          message_id: string | null
           note_id: string | null
-          order_id: string
+          order_id: string | null
           print_id: string | null
           stage_id: string | null
           task_id: string | null
@@ -1073,8 +1333,9 @@ export type Database = {
           kind?: string
           label_id?: string | null
           material_id?: string | null
+          message_id?: string | null
           note_id?: string | null
-          order_id: string
+          order_id?: string | null
           print_id?: string | null
           stage_id?: string | null
           task_id?: string | null
@@ -1090,8 +1351,9 @@ export type Database = {
           kind?: string
           label_id?: string | null
           material_id?: string | null
+          message_id?: string | null
           note_id?: string | null
-          order_id?: string
+          order_id?: string | null
           print_id?: string | null
           stage_id?: string | null
           task_id?: string | null
@@ -1124,6 +1386,13 @@ export type Database = {
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
             referencedColumns: ["id"]
           },
           {
@@ -1297,6 +1566,7 @@ export type Database = {
           qty_shipped: number
           sewing_note: string | null
           size_grid: Json | null
+          sku_card_id: string | null
           sort_order: number
           sticker_place: string | null
           subcontract_kind: string | null
@@ -1330,6 +1600,7 @@ export type Database = {
           qty_shipped?: number
           sewing_note?: string | null
           size_grid?: Json | null
+          sku_card_id?: string | null
           sort_order?: number
           sticker_place?: string | null
           subcontract_kind?: string | null
@@ -1363,6 +1634,7 @@ export type Database = {
           qty_shipped?: number
           sewing_note?: string | null
           size_grid?: Json | null
+          sku_card_id?: string | null
           sort_order?: number
           sticker_place?: string | null
           subcontract_kind?: string | null
@@ -1376,6 +1648,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_items_sku_card_id_fkey"
+            columns: ["sku_card_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sku_cards"
             referencedColumns: ["id"]
           },
         ]
@@ -1750,6 +2029,197 @@ export type Database = {
           value?: Json
         }
         Relationships: []
+      }
+      erp_sku_card_files: {
+        Row: {
+          attachment_id: string | null
+          card_id: string
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          file_path: string
+          id: string
+          role: string
+          superseded_at: string | null
+          version: number
+        }
+        Insert: {
+          attachment_id?: string | null
+          card_id: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_path: string
+          id?: string
+          role?: string
+          superseded_at?: string | null
+          version?: number
+        }
+        Update: {
+          attachment_id?: string | null
+          card_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          role?: string
+          superseded_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sku_card_files_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_card_files_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sku_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_card_files_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sku_card_versions: {
+        Row: {
+          author_id: string | null
+          card_id: string
+          changed_fields: string[]
+          created_at: string
+          id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          author_id?: string | null
+          card_id: string
+          changed_fields?: string[]
+          created_at?: string
+          id?: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          author_id?: string | null
+          card_id?: string
+          changed_fields?: string[]
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sku_card_versions_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_card_versions_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sku_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sku_cards: {
+        Row: {
+          card_version: number
+          category: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          experimental_id: string | null
+          final_package: Json
+          fit: string | null
+          id: string
+          name: string
+          pattern_tech_name: string | null
+          pattern_version: string | null
+          price_max: number | null
+          price_min: number | null
+          source_item_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          card_version?: number
+          category?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          experimental_id?: string | null
+          final_package?: Json
+          fit?: string | null
+          id?: string
+          name: string
+          pattern_tech_name?: string | null
+          pattern_version?: string | null
+          price_max?: number | null
+          price_min?: number | null
+          source_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          card_version?: number
+          category?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          experimental_id?: string | null
+          final_package?: Json
+          fit?: string | null
+          id?: string
+          name?: string
+          pattern_tech_name?: string | null
+          pattern_version?: string | null
+          price_max?: number | null
+          price_min?: number | null
+          source_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sku_cards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_cards_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: true
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_cards_source_item_id_fkey"
+            columns: ["source_item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       erp_stage_events: {
         Row: {
@@ -2451,6 +2921,38 @@ export type Database = {
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
+      erp_chat_directory: { Args: never; Returns: Json }
+      erp_chat_mark_read: {
+        Args: { p_at?: string; p_order_id: string; p_stage_id?: string }
+        Returns: string
+      }
+      erp_chat_page: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_experimental_id?: string
+          p_item_id?: string
+          p_limit?: number
+          p_order_id: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      erp_chat_send: {
+        Args: {
+          p_attachments?: Json
+          p_body: string
+          p_client_key: string
+          p_experimental_id?: string
+          p_item_id?: string
+          p_mentions?: string[]
+          p_order_id: string
+          p_reply_to?: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      erp_chat_unread: { Args: { p_order_id: string }; Returns: Json }
       erp_clamp_done: {
         Args: { p_current: number; p_delta: number; p_total: number }
         Returns: number
@@ -2500,15 +3002,11 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      erp_experimental_create: {
-        Args: {
-          p_item_id: string
-          p_order_id: string
-          p_tasks?: Json
-          p_tech_name?: string
-        }
+      erp_experimental_attach_order: {
+        Args: { p_dev: string; p_item?: string; p_order: string }
         Returns: {
           board_stage: string | null
+          branding_note: string | null
           closed_at: string | null
           comment: string | null
           constructor: string | null
@@ -2521,7 +3019,53 @@ export type Database = {
           id: string
           item_id: string | null
           measurement_table: string | null
-          order_id: string
+          order_id: string | null
+          outcome: string | null
+          outcome_comment: string | null
+          owner: string | null
+          pattern_tech_name: string | null
+          pattern_version: string | null
+          price_max: number | null
+          price_min: number | null
+          priority: number
+          sample_approved_at: string | null
+          sample_approved_by: string | null
+          sample_approved_note: string | null
+          sku_code: string | null
+          tech_name: string | null
+          technologist: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_experimental"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_experimental_create: {
+        Args: {
+          p_item_id: string
+          p_order_id: string
+          p_tasks?: Json
+          p_tech_name?: string
+        }
+        Returns: {
+          board_stage: string | null
+          branding_note: string | null
+          closed_at: string | null
+          comment: string | null
+          constructor: string | null
+          created_at: string
+          dev_type: string | null
+          due_date: string | null
+          final_package: Json
+          handed_to_warehouse_at: string | null
+          has_3d: boolean
+          id: string
+          item_id: string | null
+          measurement_table: string | null
+          order_id: string | null
           outcome: string | null
           outcome_comment: string | null
           owner: string | null
@@ -2669,6 +3213,8 @@ export type Database = {
         }
         Returns: Json
       }
+      erp_sku_card_stats: { Args: { p_card: string }; Returns: Json }
+      erp_sku_catalog_upsert: { Args: { p_sku: Json }; Returns: string }
       erp_sku_from_dev: {
         Args: { p_dev: string; p_sku: Json }
         Returns: string

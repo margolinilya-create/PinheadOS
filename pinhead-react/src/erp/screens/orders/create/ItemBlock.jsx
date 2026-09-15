@@ -1,5 +1,6 @@
 import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { SizeGridEditor } from './SizeGridEditor';
+import { SkuCardPicker } from './SkuCardPicker';
 import { FieldError } from './FormParts';
 import { Icon } from '../../../components/Icon';
 import {
@@ -57,6 +58,9 @@ export function ItemBlock({
         </Button>
       </div>
     <div className={styles.itemRow}>
+      {/* Модель каталога стоит ПЕРЕД изделием: она подставляет его название
+          и крой, и выбирать её после ручного ввода бессмысленно */}
+      <SkuCardPicker item={it} onPick={(patch) => setItem(i, patch)} />
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Изделие *</span>
         {/* Подсказки из справочника типов изделий (правка 12), ввод остаётся свободным */}

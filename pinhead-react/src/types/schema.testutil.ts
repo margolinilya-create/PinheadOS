@@ -47,6 +47,31 @@ export function columnTypesOf(table: string): Map<string, { nullable: boolean }>
   return out;
 }
 
+/**
+ * Все таблицы схемы — имена из блока `Tables: { … }` снимка.
+ *
+ * Нужна там, где имя таблицы вылавливается из СВОБОДНОГО ТЕКСТА и его надо
+ * отличить от чего-то похожего: в теле функции БД рядом с `erp_orders` стоят
+ * `erp_has_permission` и `erp_clamp_done`, и без сверки со снимком сторож
+ * объявил бы функции таблицами (`realtimeCoverage.test.ts`).
+ */
+export function tableNames(): string[] {
+  const start = generated.indexOf('    Tables: {');
+  if (start < 0) throw new Error('в снимке нет блока Tables — формат database.generated.ts изменился?');
+  /**
+   * Разбор ОГРАНИЧЕН блоком `Tables`. Соседний `Views` и особенно `Functions`
+   * записаны тем же отступом, и «всё после Tables» объявляло таблицами имена
+   * функций — сторож realtime тут же потребовал подписки на `erp_update_order`.
+   */
+  const end = generated.indexOf('    Views: {', start);
+  const block = generated.slice(start, end > 0 ? end : undefined);
+  const names = [...block.matchAll(/^ {6}(\w+): \{$/gm)].map((m) => m[1]);
+  if (names.length === 0) {
+    throw new Error('не разобрано ни одной таблицы — формат database.generated.ts изменился?');
+  }
+  return names;
+}
+
 /** Колонки таблицы из блока `Row: { … }` сгенерированного файла */
 export function columnsOf(table: string): string[] {
   const start = generated.indexOf(`      ${table}: {`);
@@ -60,4 +85,32 @@ export function columnsOf(table: string): string[] {
     throw new Error(`у ${table} не разобрано ни одной колонки — формат database.generated.ts изменился?`);
   }
   return cols;
+}
+
+/**
+ * Обнуляемость колонок таблицы: «колонка → бывает ли NULL».
+ *
+ * ВЫНЕСЕНО СЮДА, А НЕ СКОПИРОВАНО (правило проекта): разбор жил внутри
+ * `schema.test.ts`, и второму сторожу — `devWithoutOrder.test.ts`, который
+ * проверяет, что `order_id` разработки и вложения ДЕЙСТВИТЕЛЬНО обнуляем, —
+ * понадобилось то же самое. Копия рядом однажды разошлась бы с оригиналом,
+ * и оба остались бы «рабочими»: ровно то, ради чего в проекте появились
+ * `.testutil`-модули.
+ *
+ * Читается ТОТ ЖЕ блок `Row`, что у `columnsOf`: в `Insert`/`Update` почти
+ * всё необязательно, и обнуляемость там означала бы другое.
+ */
+export function nullableOf(table: string): Map<string, boolean> {
+  const start = generated.indexOf(`      ${table}: {`);
+  if (start < 0) throw new Error(`таблицы ${table} нет в схеме — переименована или удалена?`);
+  const rowStart = generated.indexOf('Row: {', start);
+  const rowEnd = generated.indexOf('        }', rowStart);
+  const out = new Map<string, boolean>();
+  for (const m of generated.slice(rowStart, rowEnd).matchAll(/^\s{10}(\w+)[?]?:\s*(.+?)$/gm)) {
+    out.set(m[1], /\|\s*null/.test(m[2]));
+  }
+  if (out.size === 0) {
+    throw new Error(`у ${table} не разобрана обнуляемость — формат database.generated.ts изменился?`);
+  }
+  return out;
 }

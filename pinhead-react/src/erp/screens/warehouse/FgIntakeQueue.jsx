@@ -4,6 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { buildQueueEntries } from '../../utils/queueEntries';
 import { WAREHOUSE_DEPT_CODE, materialsForItem } from '../../utils/routes';
+import { GARMENT_INTAKE_LABELS, garmentIntakeAction } from '../../utils/garmentSource';
 import { materialsAfterBypass } from '../../utils/bypass';
 import { confirmStageDone } from '../../utils/stageDone';
 import { OrderLink } from '../../components/OrderLink';
@@ -91,7 +92,23 @@ export function FgIntakeQueue() {
     await setStageStatus(entry.stage.id, 'done');
   };
 
-  const title = `Приёмка готового изделия — ${rows.length}`;
+  /**
+   * ЭТАП ОДИН, ДЕЙСТВИЯ РАЗНЫЕ (правка 14.09, п. 1). На одном экране рядом
+   * оказываются приёмка чужого товара (давальческое), выдача своего со склада
+   * готовой продукции и передача нашего изделия в нанесение. Строки с
+   * одинаковой подписью и разным смыслом читались бы как дубль, поэтому
+   * действие называет себя в каждой строке; правило — `garmentIntakeAction`,
+   * а не таблица рядом с разметкой.
+   */
+  const actionLabel = (item) => {
+    const action = garmentIntakeAction(item);
+    return action ? GARMENT_INTAKE_LABELS[action] : 'Принять изделие';
+  };
+
+  const hasIssue = rows.some((e) => garmentIntakeAction(e.item) === 'issue');
+  const title = hasIssue
+    ? `Приёмка и выдача изделий — ${rows.length}`
+    : `Приёмка готового изделия — ${rows.length}`;
 
   return (
     <section className={styles.matSection}>
@@ -125,7 +142,7 @@ export function FgIntakeQueue() {
               {e.reason && <div className={styles.subText}>{e.reason}</div>}
               {canComplete && (
                 <Button variant="primary" block onClick={() => accept(e)}>
-                  Принять изделие
+                  {actionLabel(e.item)}
                 </Button>
               )}
             </div>
@@ -160,7 +177,7 @@ export function FgIntakeQueue() {
                   <td>
                     {canComplete ? (
                       <Button variant="primary" onClick={() => accept(e)}>
-                        Принять изделие
+                        {actionLabel(e.item)}
                       </Button>
                     ) : (
                       <span className={styles.subText}>только просмотр</span>

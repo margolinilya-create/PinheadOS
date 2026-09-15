@@ -19,7 +19,7 @@ import type {
   ErpMaterial,
   ProductionType,
 } from '../types';
-import { isCustomerGarment } from './garmentSource';
+import { itemNeedsPurchase, needsGarmentIntake } from './garmentSource';
 import { formatDateShort } from './time';
 
 export interface RouteStage {
@@ -154,10 +154,11 @@ export interface BuildRouteInput {
   brandingMethods: BrandingMethod[];
   brandingOn: BrandingOn;
   /**
-   * Чьё готовое изделие (правки 07.09, п. 4): `'customer'` — давальческое.
+   * Чьё готовое изделие (правки 07.09 п. 4, 14.09 п. 1): `'customer'` —
+   * давальческое, `'stock'` — со склада готовой продукции.
    * Свободная строка, а не `GarmentSource`: значение приходит из формы и из
    * колонки, где оно может отсутствовать вовсе. Разбирает его
-   * `utils/garmentSource`, сравнением строго с `'customer'`.
+   * `utils/garmentSource`, сравнением строго с каждым значением.
    */
   garmentSource?: string | null;
 }
@@ -213,15 +214,18 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
    * читающего ЭТАПЫ (`routeReachable.test.ts`, дефект 12.08 с 33 заказами):
    * его даёт вкладка «Приёмка изделия» на складе (`warehouse/FgIntakeQueue`).
    *
-   * ПРИ НАНЕСЕНИИ — ИЛИ КОГДА ИЗДЕЛИЕ ЧУЖОЕ (п. 4). Документ говорит о готовом
-   * изделии С нанесением: у НАШЕГО изделия без нанесений работать не над чем,
-   * и обязательный этап приёмки был бы новой пробкой на пустом месте.
-   * У ДАВАЛЬЧЕСКОГО довод обратный: закупка из маршрута ушла (покупать нечего),
-   * и без приёмки у позиции не осталось бы ни одного этапа вовсе — то есть
-   * ни одна поверхность не сказала бы, доехал ли чужой товар до фабрики.
+   * ПРИ НАНЕСЕНИИ — ИЛИ КОГДА ИЗДЕЛИЕ НЕ ЗАКУПАЕТСЯ (07.09 п. 4, 14.09 п. 1).
+   * Документ говорит о готовом изделии С нанесением: у ЗАКУПАЕМОГО изделия
+   * без нанесений работать не над чем, и обязательный этап был бы новой
+   * пробкой на пустом месте. У ДАВАЛЬЧЕСКОГО и у изделия СО СКЛАДА ГП довод
+   * обратный: закупка из маршрута ушла (покупать нечего), и без склада
+   * у позиции не осталось бы ни одного этапа вовсе — то есть ни одна
+   * поверхность не сказала бы, доехал ли чужой товар до фабрики и выдан ли
+   * в работу свой. ЧТО ИМЕННО делает склад — принимает или выдаёт, — говорит
+   * `garmentIntakeAction`: этап один, действия разные.
    */
   const needsIntake = productionType === 'ready_garment'
-    && (brandingCodes.length > 0 || isCustomerGarment({
+    && (brandingCodes.length > 0 || needsGarmentIntake({
       production_type: productionType, garment_source: input.garmentSource,
     }));
   const chain = needsIntake
@@ -388,16 +392,22 @@ export function buildItemRoute(input: BuildRouteInput & {
   const contractorMaterial =
     input.productionType === 'outsource' && input.materialSource === 'contractor';
   /**
-   * ТРЕТЬЕ ОСНОВАНИЕ (правки 07.09, п. 4): давальческое готовое изделие.
-   * Изделие привозит клиент — покупать его не надо, и закупщик не должен
-   * получать заказ, по которому ему нечего делать. В отличие от первых двух
-   * это свойство ПОЗИЦИИ, а не заказа: на бое один заказ уже несёт две
-   * позиции `ready_garment`, и отметка на заказе сняла бы закупку у обеих.
+   * ТРЕТЬЕ ОСНОВАНИЕ (правки 07.09 п. 4, 14.09 п. 1): готовое изделие,
+   * которое мы не покупаем, — давальческое либо со склада готовой продукции.
+   * В первом случае изделие привозит клиент, во втором оно уже наше и уже
+   * на фабрике; в обоих закупщик не должен получать заказ, по которому ему
+   * нечего делать. В отличие от первых двух это свойство ПОЗИЦИИ, а не заказа:
+   * на бое один заказ уже несёт две позиции `ready_garment`, и отметка
+   * на заказе сняла бы закупку у обеих.
+   *
+   * Спрашивается `itemNeedsPurchase`, а НЕ отрицание `isCustomerGarment`:
+   * иначе «Склад ГП» сохранил бы за собой этап закупки — то есть новая плитка
+   * формы не делала бы ничего.
    */
-  const customerGarment = isCustomerGarment({
+  const noPurchaseByGarment = !itemNeedsPurchase({
     production_type: input.productionType, garment_source: input.garmentSource,
   });
-  const skipSupply = input.needsPurchase === false || contractorMaterial || customerGarment;
+  const skipSupply = input.needsPurchase === false || contractorMaterial || noPurchaseByGarment;
   if (!skipSupply) return route;
   return route
     .filter((r) => r.departmentCode !== 'supply')

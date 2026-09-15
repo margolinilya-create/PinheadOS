@@ -24,11 +24,15 @@ const SLICES = await import('./slices');
  */
 
 const ERP = join(process.cwd(), 'src/erp');
-const CORE = ['bootstrapSlice', 'ordersSlice', 'permissionsSlice', 'bypassSlice', 'realtimeSlice'];
+const CORE = [
+  'bootstrapSlice', 'ordersSlice', 'permissionsSlice', 'bypassSlice',
+  'notificationsSlice', 'realtimeSlice',
+];
 const DOMAIN = [
   'stagesSlice', 'materialsSlice', 'warehouseSlice', 'procurementSlice',
-  'subcontractingSlice', 'orderDraftsSlice',
+  'subcontractingSlice', 'orderDraftsSlice', 'ordersOnDemandSlice',
   'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
+  'chatSlice', 'skuSlice',
   'tzSlice', 'planSlice', 'settingsSlice',
 ];
 
@@ -226,5 +230,37 @@ describe('оболочка выбирается без подписки на р�
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code, 'App снова подписан на переходы — режим будет пересчитываться')
       .not.toMatch(/useLocation\s*\(/);
+  });
+});
+
+/**
+ * ОБОЛОЧКА ЗОВЁТ ТОЛЬКО ТО, ЧТО ЛЕЖИТ В ЯДРЕ (14.09).
+ *
+ * Архив, пакет карточки, проверка дубля № сделки и точечная перезагрузка
+ * заказа уехали в доменный чанк (`ordersOnDemandSlice`) ради веса оболочки:
+ * бюджет упёрся в потолок, и владелец решил сокращать ядро, а не поднимать
+ * планку. Вернуть их обратно можно НЕЗАМЕТНО — достаточно одного вызова
+ * из `ErpLayout`: код соберётся, экран заработает, а оболочка потяжелеет.
+ *
+ * Сторож смотрит ИСХОДНИКИ оболочки. Тайпчек здесь бессилен: действия есть
+ * в типе стора целиком, и обращение к ним из оболочки законно — незаконно
+ * то, что при этом чанк уедет в критический путь. `ErpApp` исключён: он
+ * подключает доменные слайсы (`ensureDomainSlices`) и упоминает их по делу.
+ */
+describe('оболочка не зовёт загрузки по требованию', () => {
+  const ON_DEMAND = ['loadArchive', 'loadMoreArchive', 'loadOrderBundle', 'findOrdersByBitrixId', 'loadOne'];
+
+  it('layout/* обходится ядром', () => {
+    const dir = join(ERP, 'layout');
+    for (const entry of readdirSync(dir)) {
+      if (!/\.(jsx|js|ts)$/.test(entry) || /\.test\./.test(entry)) continue;
+      const src = readFileSync(join(dir, entry), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      for (const fn of ON_DEMAND) {
+        expect(src, `${entry} зовёт ${fn} — доменный чанк вернётся в оболочку`)
+          .not.toMatch(new RegExp(`\\b${fn}\\s*\\(`));
+      }
+    }
   });
 });

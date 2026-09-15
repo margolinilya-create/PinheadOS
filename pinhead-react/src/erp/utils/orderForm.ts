@@ -151,6 +151,14 @@ export interface DraftItem {
    * разбирается `utils/garmentSource`.
    */
   garment_source?: string;
+  /**
+   * Модель из каталога SKU (правка 14.09, п. 6) — ССЫЛКА, а не замена полей.
+   * `product_type`, `fit`, ткань и сетка остаются собственными полями позиции:
+   * это СНИМОК на момент заказа, и правка карточки задним числом не имеет
+   * права переписать действующий заказ. Пустая строка — «не из каталога»
+   * и она же отвязывает выбранную по ошибке модель.
+   */
+  sku_card_id?: string;
   branding_on: string;
   /** Есть ли брендирование — управляет блоком нанесений и их валидацией */
   has_branding?: boolean;
@@ -314,6 +322,8 @@ export const EMPTY_ITEM: DraftItem = {
   // «Закупаем мы» — прежнее поведение готового изделия; давальческое
   // менеджер отмечает сам (правки 07.09, п. 4)
   garment_source: 'purchased',
+  // «Не из каталога» — умолчание: модель выбирают явно
+  sku_card_id: '',
   branding_on: 'cut',
   has_branding: false,
   subcontract_kind: 'finished_product',
@@ -848,6 +858,9 @@ export function draftFromOrder(order: OrderLike): { form: DraftForm; items: Draf
       packaging_height_mm: str(it.packaging_height_mm),
       production_type: str(it.production_type) || 'sewing',
       garment_source: str(it.garment_source) || 'purchased',
+      // Связь с моделью каталога: без неё правка заказа ОТВЯЗЫВАЛА бы модель —
+      // форма прислала бы ключ с пустым значением, а сервер честно его принял
+      sku_card_id: str(it.sku_card_id),
       branding_on: str(it.branding_on) || 'cut',
       // Признак формы, а не колонка: нанесения есть — блок раскрыт
       has_branding: prints.length > 0,

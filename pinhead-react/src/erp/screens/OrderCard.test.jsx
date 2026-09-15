@@ -3,6 +3,14 @@ import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import OrderCard from './OrderCard';
 import { useErpStore } from '../store/useErpStore';
+import { attachDomainSlices } from '../store/domainSlices';
+
+/**
+ * Экран монтируется НАПРЯМУЮ, минуя `lazyScreen`, — значит доменные действия
+ * надо подключить самому: в приложении их подключает та самая обёртка,
+ * и без неё карточка падает на первом же вызове (`loadChatUnread`).
+ */
+attachDomainSlices();
 
 /**
  * Карточка заказа была одной простынёй: маршрут, ТЗ на каждую позицию,

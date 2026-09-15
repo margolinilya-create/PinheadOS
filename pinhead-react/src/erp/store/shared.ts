@@ -17,6 +17,20 @@ export function currentActor(): string {
   return u?.name || u?.email || 'неизвестно';
 }
 
+/**
+ * Учётная запись действующего пользователя — `profiles.id`, а не имя.
+ *
+ * Нужна там, где связь обязана пережить переименование: уведомления адресуются
+ * по ней, чат по ней же отличает своё сообщение от чужого. В dev-режиме
+ * автологина настоящей сессии нет вовсе, и `user.id` равен строке `'dev'` —
+ * её надо отсеивать здесь, а не в каждом вызывающем: uuid, которого нет,
+ * уедет в запрос и вернётся `22P02`.
+ */
+export function currentUserId(): string | null {
+  const id = useAuthStore.getState().user?.id;
+  return id && id !== 'dev' ? id : null;
+}
+
 /** Ответ, который вернёт `erpQuery` — тот же вид, что у supabase-js */
 type ErpResult<T> = { data: T | null; error: { message: string } | null };
 
