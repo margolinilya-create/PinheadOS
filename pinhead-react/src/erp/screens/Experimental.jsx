@@ -10,6 +10,7 @@ import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
+import { DevCreateModal } from './experimental/DevCreateModal';
 import { useErpAccess } from '../store/useErpAccess';
 import { useDictionary } from '../store/useDictionary';
 import {
@@ -209,6 +210,8 @@ export default function Experimental() {
    */
   const { can } = useErpAccess();
   const canManage = can('experimental.manage');
+  /** Открыта ли форма «Завести разработку» (правка 14.09) */
+  const [creating, setCreating] = useState(false);
 
   /**
    * ПЕРЕНОС КАРТОЧКИ ПО ЭТАПАМ — единственная точка на доску и кнопки «‹ ›».
@@ -455,6 +458,28 @@ export default function Experimental() {
         title="Экспериментальный цех"
         sub="Разработка изделия: набор нужных задач, параллельная работа, циклы доработки и финальное решение. Работа образца в цехе видна в очереди самого цеха."
       />
+
+      {/*
+        ЗАВЕСТИ РАЗРАБОТКУ РУКАМИ (правка 14.09). До 15.09 входа не было
+        вовсе — разработка рождалась только побочным действием создания
+        заказа с позицией-образцом, и «вести разработку без сделки» упиралось
+        не в колонку, а в отсутствие формы.
+      */}
+      {canManage && (
+        <div className={styles.toolbar}>
+          <Button icon="plus" onClick={() => setCreating(true)}>Завести разработку</Button>
+        </div>
+      )}
+      {creating && (
+        <DevCreateModal
+          onClose={() => setCreating(false)}
+          onCreated={(row) => navigate(`/experimental/${row.id}`, {
+            // Тот же формат, что ключ `useScrollRestore` (`pathname + search`),
+            // иначе возврат из карточки потеряет фильтры и прокрутку
+            state: { from: `${location.pathname}${location.search}` },
+          })}
+        />
+      )}
 
       {/*
         СОСТОЯНИЯ — ЧИПАМИ, А НЕ ПЛИТКАМИ (обход 04.09). Семь плиток по 90px

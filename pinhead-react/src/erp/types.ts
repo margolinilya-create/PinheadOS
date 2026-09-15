@@ -618,7 +618,8 @@ export interface ErpTzDocument {
 /** Бакет ТЗ в Supabase Storage */
 export const TZ_BUCKET = 'erp-attachments';
 /**
- * Ограничения загрузки ТЗ: до 15 МБ, формат ЛЮБОЙ (правка 12.09, п. 4).
+ * Ограничения загрузки ТЗ: до 20 МБ, формат ЛЮБОЙ (правка 12.09, п. 4;
+ * лимит поднят с 15 правкой 14.09).
  *
  * `TZ_MIME` остался и означает теперь не «что принимаем», а «чем считать
  * документ, у которого браузер не определил тип»: у файла с незнакомым
@@ -626,7 +627,8 @@ export const TZ_BUCKET = 'erp-attachments';
  * чем документ является, и пустой она быть не должна.
  */
 export const TZ_MIME = 'application/pdf';
-export const TZ_MAX_BYTES = 15 * 1024 * 1024;
+/** Зеркало `file_size_limit` бакета `erp-attachments` — см. `ATTACH_MAX_BYTES` */
+export const TZ_MAX_BYTES = 20 * 1024 * 1024;
 
 /** Складская операция (правка 2): строка истории сопровождения заказа складом */
 export interface ErpWarehouseOp {
@@ -1067,7 +1069,14 @@ export interface DevFinalPackage {
 
 export interface ErpExperimental {
   id: string;
-  order_id: string;
+  /**
+   * Сделка разработки. `null` — разработка «на полку» (правка 14.09): её ведут
+   * без заказа и привязывают позже (`attachOrderToDev` → RPC
+   * `erp_experimental_attach_order`). Обнуляемость повторяет колонку: в типе
+   * `string` она бы означала, что поле всегда заполнено, и `tsc` подтверждал
+   * бы это на данных, где приезжает NULL.
+   */
+  order_id: string | null;
   /**
    * Позиция заказа. Заменяет эвристику `items[0]`: передача задачи в цех
    * создаёт этап именно этой позиции, а не первой попавшейся.

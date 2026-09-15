@@ -86,3 +86,31 @@ export function columnsOf(table: string): string[] {
   }
   return cols;
 }
+
+/**
+ * Обнуляемость колонок таблицы: «колонка → бывает ли NULL».
+ *
+ * ВЫНЕСЕНО СЮДА, А НЕ СКОПИРОВАНО (правило проекта): разбор жил внутри
+ * `schema.test.ts`, и второму сторожу — `devWithoutOrder.test.ts`, который
+ * проверяет, что `order_id` разработки и вложения ДЕЙСТВИТЕЛЬНО обнуляем, —
+ * понадобилось то же самое. Копия рядом однажды разошлась бы с оригиналом,
+ * и оба остались бы «рабочими»: ровно то, ради чего в проекте появились
+ * `.testutil`-модули.
+ *
+ * Читается ТОТ ЖЕ блок `Row`, что у `columnsOf`: в `Insert`/`Update` почти
+ * всё необязательно, и обнуляемость там означала бы другое.
+ */
+export function nullableOf(table: string): Map<string, boolean> {
+  const start = generated.indexOf(`      ${table}: {`);
+  if (start < 0) throw new Error(`таблицы ${table} нет в схеме — переименована или удалена?`);
+  const rowStart = generated.indexOf('Row: {', start);
+  const rowEnd = generated.indexOf('        }', rowStart);
+  const out = new Map<string, boolean>();
+  for (const m of generated.slice(rowStart, rowEnd).matchAll(/^\s{10}(\w+)[?]?:\s*(.+?)$/gm)) {
+    out.set(m[1], /\|\s*null/.test(m[2]));
+  }
+  if (out.size === 0) {
+    throw new Error(`у ${table} не разобрана обнуляемость — формат database.generated.ts изменился?`);
+  }
+  return out;
+}

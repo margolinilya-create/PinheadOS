@@ -120,6 +120,45 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     return row;
   },
 
+  /**
+   * ПРИВЯЗКА РАЗРАБОТКИ «С ПОЛКИ» К СДЕЛКЕ (правка 14.09).
+   *
+   * Отдельным RPC, а не патчем `updateExperimental`: это решение с
+   * последствиями — разработка попадает в гейт отгрузки заказа, её переписка
+   * становится видна из чата сделки, а завершение заводит складскую задачу
+   * приёмки ГП. Повторную привязку сервер отклоняет (23505): перенос между
+   * сделками оставил бы этапы и задачу склада у прежнего заказа.
+   *
+   * Строка перечитывается целиком, а не патчится ответом: у разработки
+   * эмбеды (`tasks`, `attachments`, `order`), и собранный из голой строки
+   * объект потерял бы заголовок сделки — то самое, ради чего привязку и делали.
+   */
+  attachOrderToDev: async (devId, orderId, itemId = null) => {
+    const { error } = await erpQuery(() => supabase.rpc('erp_experimental_attach_order', {
+      p_dev: devId,
+      p_order: orderId,
+      p_item: itemId,
+    }));
+    if (error) {
+      erpError('Не удалось привязать разработку к сделке', error);
+      return false;
+    }
+    const { data: full } = await erpQuery(() => supabase
+      .from('erp_experimental')
+      .select(EXP_SELECT)
+      .eq('id', devId)
+      .maybeSingle());
+    const row = full as ErpExperimental | null;
+    if (row) {
+      set((s) => ({
+        experimental: s.experimental.map((d) => (
+          d.id === devId ? { ...row, tasks: row.tasks ?? [] } : d
+        )),
+      }));
+    }
+    return true;
+  },
+
   updateExperimental: async (id, patch) => {
     const prev = get().experimental;
     // `constructorName` → колонка `constructor`: имя поля отличается намеренно,
@@ -271,7 +310,14 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
    * обе «работают», просто пишут по-разному.
    */
   uploadDevFile: async ({ devId, orderId, kind, file, taskId = null }) => {
-    const path = attachmentFilePath(orderId, kind, crypto.randomUUID(), file.name);
+    /**
+     * ПАПКА В БАКЕТЕ — ЗАКАЗ, А У РАЗРАБОТКИ «НА ПОЛКЕ» ЕГО НЕТ (правка 14.09).
+     * Без запасного значения ключ вышел бы `att/null/…`: путь валидный,
+     * и файлы всех беззаказных разработок легли бы в ОДНУ папку с чужими —
+     * заметно это стало бы только при разборе бакета руками. Разработка
+     * и есть владелец этих файлов, поэтому её id и становится папкой.
+     */
+    const path = attachmentFilePath(orderId || devId, kind, crypto.randomUUID(), file.name);
     const { error: upErr } = await erpQuery(() => supabase.storage
       .from(TZ_BUCKET)
       .upload(path, file, { contentType: file.type || 'application/octet-stream' }));
@@ -282,7 +328,10 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
     const { data, error } = await erpQuery(() => supabase
       .from('erp_order_attachments')
       .insert({
-        order_id: orderId,
+        // `null` у разработки «на полку» — колонка обнуляема с 15.09, а CHECK
+        // `erp_order_attachments_anchor_check` держит инвариант «файл принадлежит
+        // хоть чему-то»: здесь якорь — сама разработка
+        order_id: orderId || null,
         experimental_id: devId,
         task_id: taskId,
         file_path: path,

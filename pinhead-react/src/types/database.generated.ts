@@ -1,20 +1,3 @@
-/**
- * Типы схемы Supabase — СГЕНЕРИРОВАНЫ ИЗ БАЗЫ, править руками нельзя.
- *
- * Зачем. `erp/types.ts` описывает те же таблицы вручную, и расхождение с базой
- * ловилось только косвенно — тестом `orderSelect.test.ts`, который вытаскивает
- * обращения `stage.X` из кода. То есть про колонку, которую переименовали
- * в миграции, приложение узнавало в рантайме.
- *
- * Здесь — машинная копия схемы. Ручные типы остаются: они описывают ДОМЕН
- * (ErpOrderFull со вложенными позициями, статусы как union), а не таблицы,
- * и заменять их генерацией нельзя — вложенных деревьев в схеме нет.
- * Задача файла другая: дать `schema.test.ts` возможность сверить их с базой.
- *
- * Обновление: `npm run types:db` (нужен SUPABASE_ACCESS_TOKEN) или
- * MCP-инструмент Supabase `generate_typescript_types`.
- */
-
 export type Json =
   | string
   | number
@@ -596,7 +579,7 @@ export type Database = {
           id: string
           item_id: string | null
           measurement_table: string | null
-          order_id: string
+          order_id: string | null
           outcome: string | null
           outcome_comment: string | null
           owner: string | null
@@ -628,7 +611,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           measurement_table?: string | null
-          order_id: string
+          order_id?: string | null
           outcome?: string | null
           outcome_comment?: string | null
           owner?: string | null
@@ -660,7 +643,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           measurement_table?: string | null
-          order_id?: string
+          order_id?: string | null
           outcome?: string | null
           outcome_comment?: string | null
           owner?: string | null
@@ -1334,7 +1317,7 @@ export type Database = {
           material_id: string | null
           message_id: string | null
           note_id: string | null
-          order_id: string
+          order_id: string | null
           print_id: string | null
           stage_id: string | null
           task_id: string | null
@@ -1352,7 +1335,7 @@ export type Database = {
           material_id?: string | null
           message_id?: string | null
           note_id?: string | null
-          order_id: string
+          order_id?: string | null
           print_id?: string | null
           stage_id?: string | null
           task_id?: string | null
@@ -1370,7 +1353,7 @@ export type Database = {
           material_id?: string | null
           message_id?: string | null
           note_id?: string | null
-          order_id?: string
+          order_id?: string | null
           print_id?: string | null
           stage_id?: string | null
           task_id?: string | null
@@ -3019,6 +3002,47 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      erp_experimental_attach_order: {
+        Args: { p_dev: string; p_item?: string; p_order: string }
+        Returns: {
+          board_stage: string | null
+          branding_note: string | null
+          closed_at: string | null
+          comment: string | null
+          constructor: string | null
+          created_at: string
+          dev_type: string | null
+          due_date: string | null
+          final_package: Json
+          handed_to_warehouse_at: string | null
+          has_3d: boolean
+          id: string
+          item_id: string | null
+          measurement_table: string | null
+          order_id: string | null
+          outcome: string | null
+          outcome_comment: string | null
+          owner: string | null
+          pattern_tech_name: string | null
+          pattern_version: string | null
+          price_max: number | null
+          price_min: number | null
+          priority: number
+          sample_approved_at: string | null
+          sample_approved_by: string | null
+          sample_approved_note: string | null
+          sku_code: string | null
+          tech_name: string | null
+          technologist: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_experimental"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       erp_experimental_create: {
         Args: {
           p_item_id: string
@@ -3041,7 +3065,7 @@ export type Database = {
           id: string
           item_id: string | null
           measurement_table: string | null
-          order_id: string
+          order_id: string | null
           outcome: string | null
           outcome_comment: string | null
           owner: string | null

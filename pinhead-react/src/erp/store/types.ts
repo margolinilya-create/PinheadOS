@@ -1200,10 +1200,26 @@ export interface ExperimentalSlice {
    */
   experimentalError: string | null;
   loadExperimental: () => Promise<void>;
+  /**
+   * `orderId` НЕОБЯЗАТЕЛЕН (правка 14.09): `null` заводит разработку «на полку».
+   * Сигнатура осталась позиционной, потому что вызывающих два и оба передают
+   * заказ явно — создание из формы заказа и форма «Завести разработку».
+   */
   createExperimental: (
-    orderId: string,
+    orderId: string | null,
     input?: { item_id?: string | null; tech_name?: string | null },
   ) => Promise<ErpExperimental | null>;
+  /**
+   * Привязать разработку «с полки» к сделке. Отдельное действие, а не правка
+   * колонки через `updateExperimental`: после него разработка попадает в гейт
+   * отгрузки заказа, её переписка становится видна из чата сделки, а завершение
+   * заводит складскую задачу приёмки ГП. Повторная привязка запрещена сервером.
+   */
+  attachOrderToDev: (
+    devId: string,
+    orderId: string,
+    itemId?: string | null,
+  ) => Promise<boolean>;
   updateExperimental: (id: string, patch: DevPatch) => Promise<boolean>;
 
   /**

@@ -28,8 +28,17 @@ import { attachmentFilePath } from '../utils/storageKey';
  */
 
 const BUCKET = 'erp-attachments';
-/** 15 МБ: фото материала с телефона, схема узла, скрин позиции поставщика */
-export const ATTACH_MAX_BYTES = 15 * 1024 * 1024;
+/**
+ * 20 МБ: фото материала с телефона, схема узла, скрин позиции поставщика
+ * (правка 14.09 — документ называл 20 МБ, в ERP стояло 15).
+ *
+ * ЗЕРКАЛО `file_size_limit` БАКЕТА, а не независимая величина. Клиент СТРОЖЕ
+ * бакета — недостижимая ёмкость и два разных числа в соседних сообщениях
+ * («файл больше 15 МБ» у вложения, «больше 20» у ТЗ); клиент МЯГЧЕ — отказ
+ * Storage ПОСЛЕ того, как человек дождался загрузки с планшета. Сторож
+ * `attachmentLimits.test.ts` требует точного совпадения с миграцией.
+ */
+export const ATTACH_MAX_BYTES = 20 * 1024 * 1024;
 
 export function useAttachmentUploads(scope = 'new') {
   const [files, setFiles] = useState([]);

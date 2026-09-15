@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TZ_MAX_BYTES } from '../types';
 
 /**
  * Тесты логики частичной готовности (qty_done += N), фикса NaN в браке,
@@ -3371,7 +3372,13 @@ describe('ТЗ в PDF (волна 4)', () => {
     // под чужим типом, и браузер отказался бы его открывать
     expect(h.uploadCalls[0].contentType).toBe(xlsx.type);
 
-    const huge = pdf('огромное.pdf', 20 * 1024 * 1024);
+    /**
+     * РАЗМЕР СЧИТАЕТСЯ ИЗ КОНСТАНТЫ, А НЕ ВПИСАН ЛИТЕРАЛОМ. Здесь стояло
+     * `20 * 1024 * 1024` — ровно прежний лимит плюс запас; когда 15.09 лимит
+     * подняли до 20 МБ, «огромный» файл стал ровно предельным, и тест упал
+     * на ВЕРНОЙ правке. Литерал пережил величину, которую описывал.
+     */
+    const huge = pdf('огромное.pdf', TZ_MAX_BYTES + 1);
     expect(await useErpStore.getState().uploadTzDocument({ orderId: 'o1', file: huge })).toBeNull();
     expect(h.uploadCalls).toHaveLength(1);
     expect(toast.error).toHaveBeenCalled();
