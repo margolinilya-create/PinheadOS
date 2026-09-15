@@ -297,6 +297,13 @@ export interface ErpOrderItem {
    */
   garment_source?: GarmentSource | null;
   /**
+   * Карточка модели из каталога ERP (правка 14.09, п. 6). ССЫЛКА рядом
+   * со снимком полей позиции, а не вместо них: правка карточки задним
+   * числом не имеет права переписать действующий заказ. Опциональная —
+   * у позиций из старых фикстур и урезанных выборок её нет вовсе.
+   */
+  sku_card_id?: string | null;
+  /**
    * Технический блок изделия (правки заказчика 16.08). Свободные поля: цех
    * читает их в задании, они же уходят в ТЗ. Порядок заполнения позиции по
    * документу: Изделие → Цвет → Крой → Размер → Количество.
@@ -1668,6 +1675,10 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'bypass.manage': 'Аварийно снимать блокировки',
   'staff.invite': 'Приглашать сотрудников ссылкой',
   'files.manage': 'Вести файлы заказа и папку производства',
+  'sku.view': 'Смотреть каталог моделей',
+  'sku.edit': 'Править карточку модели',
+  'sku.publish': 'Выпускать модель в прайс',
+  'sku.archive': 'Архивировать модель',
 };
 
 // --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------
@@ -1817,6 +1828,79 @@ export interface ChatContext {
 export interface ChatUnread {
   total: number;
   byStage: Record<string, number>;
+}
+
+/**
+ * КАТАЛОГ SKU В ERP (правка 14.09, п. 6) — карточка изделия: техпакет, файлы,
+ * версии, связь с разработкой и заказами.
+ *
+ * НЕ ПУТАТЬ с прайс-каталогом визарда (`app_config.sku_catalog`): тот считает
+ * ЦЕНУ заказа, а этот описывает, КАК ИЗДЕЛИЕ ШЬЁТСЯ. Связь между ними —
+ * по `code`, и «выпущен ли артикул в прайс» спрашивается у самого прайса.
+ */
+export type SkuCardStatus = 'draft' | 'active' | 'archived';
+
+/**
+ * ПОДПИСИ СТАТУСОВ И РОЛЕЙ ФАЙЛОВ ЖИВУТ В `utils/skuCardLabels`, А НЕ ЗДЕСЬ.
+ *
+ * `types.ts` попадает в чанк ОБОЛОЧКИ, и словарь, нужный двум экранам
+ * каталога, ехал бы каждому, кто открыл обзор производства. Ровно тот же
+ * довод, по которому 10.08 из него вынесли перечень прав в `permissionKeys`.
+ * Сами типы (`SkuCardStatus`, `SkuCardFileRole`) остаются — они стираются
+ * при сборке и веса не имеют.
+ */
+
+export interface ErpSkuCard {
+  id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  fit: string | null;
+  pattern_tech_name: string | null;
+  /** Версия ЛЕКАЛ — величина, отличная от версии карточки (требование документа) */
+  pattern_version: string | null;
+  /** Версию карточки ведёт система; клиент её только читает */
+  card_version: number;
+  status: SkuCardStatus;
+  experimental_id: string | null;
+  source_item_id: string | null;
+  final_package: DevFinalPackage | null;
+  price_min: number | null;
+  price_max: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Снимок карточки после правки — историю пишет триггер */
+export interface ErpSkuCardVersion {
+  id: string;
+  card_id: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  changed_fields: string[];
+  author_id: string | null;
+  created_at: string;
+}
+
+export type SkuCardFileRole = 'pattern' | 'passport' | 'photo' | 'other';
+
+/**
+ * Файл карточки. Рядом со ссылкой на вложение лежит СНИМОК пути и имени:
+ * разработку могут удалить, а техпакет модели обязан её пережить.
+ */
+export interface ErpSkuCardFile {
+  id: string;
+  card_id: string;
+  attachment_id: string | null;
+  role: SkuCardFileRole;
+  file_path: string;
+  file_name: string | null;
+  version: number;
+  superseded_at: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 /** Строка матрицы прав (таблица erp_role_permissions) */

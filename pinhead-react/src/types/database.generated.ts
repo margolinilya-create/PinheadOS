@@ -1583,6 +1583,7 @@ export type Database = {
           qty_shipped: number
           sewing_note: string | null
           size_grid: Json | null
+          sku_card_id: string | null
           sort_order: number
           sticker_place: string | null
           subcontract_kind: string | null
@@ -1616,6 +1617,7 @@ export type Database = {
           qty_shipped?: number
           sewing_note?: string | null
           size_grid?: Json | null
+          sku_card_id?: string | null
           sort_order?: number
           sticker_place?: string | null
           subcontract_kind?: string | null
@@ -1649,6 +1651,7 @@ export type Database = {
           qty_shipped?: number
           sewing_note?: string | null
           size_grid?: Json | null
+          sku_card_id?: string | null
           sort_order?: number
           sticker_place?: string | null
           subcontract_kind?: string | null
@@ -1662,6 +1665,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_order_items_sku_card_id_fkey"
+            columns: ["sku_card_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sku_cards"
             referencedColumns: ["id"]
           },
         ]
@@ -2036,6 +2046,197 @@ export type Database = {
           value?: Json
         }
         Relationships: []
+      }
+      erp_sku_card_files: {
+        Row: {
+          attachment_id: string | null
+          card_id: string
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          file_path: string
+          id: string
+          role: string
+          superseded_at: string | null
+          version: number
+        }
+        Insert: {
+          attachment_id?: string | null
+          card_id: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_path: string
+          id?: string
+          role?: string
+          superseded_at?: string | null
+          version?: number
+        }
+        Update: {
+          attachment_id?: string | null
+          card_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          role?: string
+          superseded_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sku_card_files_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_card_files_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sku_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_card_files_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sku_card_versions: {
+        Row: {
+          author_id: string | null
+          card_id: string
+          changed_fields: string[]
+          created_at: string
+          id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          author_id?: string | null
+          card_id: string
+          changed_fields?: string[]
+          created_at?: string
+          id?: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          author_id?: string | null
+          card_id?: string
+          changed_fields?: string[]
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sku_card_versions_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_card_versions_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sku_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sku_cards: {
+        Row: {
+          card_version: number
+          category: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          experimental_id: string | null
+          final_package: Json
+          fit: string | null
+          id: string
+          name: string
+          pattern_tech_name: string | null
+          pattern_version: string | null
+          price_max: number | null
+          price_min: number | null
+          source_item_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          card_version?: number
+          category?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          experimental_id?: string | null
+          final_package?: Json
+          fit?: string | null
+          id?: string
+          name: string
+          pattern_tech_name?: string | null
+          pattern_version?: string | null
+          price_max?: number | null
+          price_min?: number | null
+          source_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          card_version?: number
+          category?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          experimental_id?: string | null
+          final_package?: Json
+          fit?: string | null
+          id?: string
+          name?: string
+          pattern_tech_name?: string | null
+          pattern_version?: string | null
+          price_max?: number | null
+          price_min?: number | null
+          source_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sku_cards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_cards_experimental_id_fkey"
+            columns: ["experimental_id"]
+            isOneToOne: true
+            referencedRelation: "erp_experimental"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_sku_cards_source_item_id_fkey"
+            columns: ["source_item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       erp_stage_events: {
         Row: {
@@ -2988,6 +3189,8 @@ export type Database = {
         }
         Returns: Json
       }
+      erp_sku_card_stats: { Args: { p_card: string }; Returns: Json }
+      erp_sku_catalog_upsert: { Args: { p_sku: Json }; Returns: string }
       erp_sku_from_dev: {
         Args: { p_dev: string; p_sku: Json }
         Returns: string

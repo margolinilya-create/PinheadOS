@@ -29,6 +29,7 @@ import { DevSendToDept } from './DevSendToDept';
 import { DevRework } from './DevRework';
 import { DevFinalPackage } from './DevFinalPackage';
 import { DevToSku } from './DevToSku';
+import { SkuCardLink } from '../skuCard/SkuCardLink';
 import { Tabs, TabPanel } from '../../components/Tabs';
 import { DevAside } from './DevAside';
 import { DevFilesTab } from './DevFilesTab';
@@ -728,9 +729,15 @@ export function DevCard({
             и человек пойдёт искать её в визарде. */}
         {tab === 'sku' && (
           dev.sku_code ? (
-            <span className={`${styles.chip} ${styles.chipDone}`}>
-              В каталоге SKU: {dev.sku_code}
-            </span>
+            <div className={styles.checkRow}>
+              <span className={`${styles.chip} ${styles.chipDone}`}>
+                В каталоге SKU: {dev.sku_code}
+              </span>
+              {/* Артикул визарда и карточка модели — РАЗНЫЕ вещи: первый
+                  считает цену, вторая описывает, как изделие шьётся.
+                  Поэтому рядом с кодом стоит ссылка на техпакет */}
+              <SkuCardLink experimentalId={dev.id} />
+            </div>
           ) : dev.outcome === 'ready_for_serial' && wantsSkuCard(dev) ? (
             <>
               <Button

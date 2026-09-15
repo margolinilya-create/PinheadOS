@@ -42,6 +42,7 @@ type DomainState = Pick<ErpStore,
   | 'chatDirectory' | 'chatDirectoryLoaded'
   | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
   | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
+  | 'skuCards' | 'skuCardsLoaded' | 'skuCardsError' | 'skuPriceCodes'
 >;
 
 export const DOMAIN_INITIAL_STATE: DomainState = {
@@ -111,6 +112,11 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   chatError: null,
   chatUnread: {},
   chatPing: 0,
+  // skuSlice — каталог моделей ERP (правка 14.09, п. 6)
+  skuCards: [],
+  skuCardsLoaded: false,
+  skuCardsError: null,
+  skuPriceCodes: [],
 };
 
 /**

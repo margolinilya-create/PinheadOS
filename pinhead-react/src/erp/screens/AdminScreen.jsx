@@ -5,6 +5,7 @@ import { TableSkeleton } from '../components/ErpSkeletons';
 import EmployeesScreen from './EmployeesScreen';
 import DepartmentsScreen from './DepartmentsScreen';
 import { PermissionsTab } from './admin/PermissionsTab';
+import { SkuCatalogTab } from './admin/SkuCatalogTab';
 import { DictionariesTab } from './admin/DictionariesTab';
 import { BypassTab } from './admin/BypassTab';
 import { CapacityTab } from './admin/CapacityTab';
@@ -27,9 +28,18 @@ const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
  */
 
 /** `needs` — право матрицы, без которого вкладка не показывается */
+/**
+ * ВКЛАДКИ ГЕЙТЯТСЯ ПО ОТДЕЛЬНОСТИ, и с 15.09 это не педантизм, а условие:
+ * маршрут `/admin` расширен с «роль admin/director» до «админ ИЛИ право
+ * `sku.view`» (документ требует проверять доступ к каталогу отдельно
+ * от прочей админки). Без `needs` у «Пользователей», «Прав» и «Заказов ТЗ»
+ * это открыло бы управление сотрудниками всем, кто получил каталог, —
+ * то есть менеджеру, закупщику и дизайнеру.
+ */
 const TABS = [
-  { id: 'users', label: 'Пользователи' },
-  { id: 'roles', label: 'Права' },
+  { id: 'users', label: 'Пользователи', needs: 'staff.invite' },
+  { id: 'roles', label: 'Права', needs: 'staff.invite' },
+  { id: 'sku', label: 'Каталог SKU', needs: 'sku.view' },
   { id: 'depts', label: 'Цеха', needs: 'catalog.edit' },
   // Мощность производства (правки 10.08): право то же, что у самого плана —
   // мощность это часть планирования, а не отдельная сущность со своим правом
@@ -41,7 +51,7 @@ const TABS = [
   // Технический контур (правка 23.08, п. 5): операции подряда без маршрута.
   // Вкладка заводится ТОЛЬКО когда такие записи есть — см. `hasLegacy` ниже
   { id: 'legacy', label: 'Подряд без маршрута', needs: 'order.manage', onlyWhenLegacy: true },
-  { id: 'studio', label: 'Заказы ТЗ' },
+  { id: 'studio', label: 'Заказы ТЗ', needs: 'order.manage' },
 ];
 
 export default function AdminScreen() {
@@ -58,8 +68,15 @@ export default function AdminScreen() {
   // декоративным: снятое у роли, оно реально закрывает вкладку.
   const tabs = TABS.filter((t) => (!t.needs || access.can(t.needs))
     && (!t.onlyWhenLegacy || hasLegacy));
-  const requested = params.get('tab') || 'users';
-  const tab = tabs.some((t) => t.id === requested) ? requested : 'users';
+  /**
+   * ЗАПАСНАЯ ВКЛАДКА — ПЕРВАЯ ДОСТУПНАЯ, а не «Пользователи». С 15.09
+   * в админку заходит и тот, у кого есть только каталог: жёсткий откат
+   * на `users` дал бы ему пустую панель — вкладка отфильтрована, а активной
+   * назначена именно она.
+   */
+  const requested = params.get('tab');
+  const fallback = tabs[0]?.id ?? 'users';
+  const tab = tabs.some((t) => t.id === requested) ? requested : fallback;
 
   return (
     <>
@@ -78,6 +95,7 @@ export default function AdminScreen() {
       <TabPanel idPrefix="admin" active={tab}>
       {tab === 'users' && <EmployeesScreen embedded />}
       {tab === 'roles' && <PermissionsTab />}
+      {tab === 'sku' && <SkuCatalogTab />}
       {tab === 'depts' && <DepartmentsScreen embedded />}
       {tab === 'dicts' && <DictionariesTab />}
       {tab === 'capacity' && <CapacityTab />}

@@ -69,10 +69,17 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    * Склад тоже не его: он распоряжается очередью цехов, а не физическим
    * движением товара.
    */
+  /**
+   * Каталог SKU диспетчеру — только на просмотр: модель он в работу
+   * не выпускает и техпакет не ведёт. Права перечислены ИСКЛЮЧЕНИЯМИ,
+   * поэтому новые `sku.edit`/`publish`/`archive` пришлось назвать явно —
+   * иначе они достались бы ему молча, первым же расширением перечня.
+   */
   dispatcher: ERP_PERMISSIONS.filter(
     (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage'
       && p !== 'experimental.manage' && p !== 'warehouse.manage'
-      && p !== 'staff.invite',
+      && p !== 'staff.invite'
+      && p !== 'sku.edit' && p !== 'sku.publish' && p !== 'sku.archive',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
@@ -95,6 +102,12 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
      * ради которого раздел и существует.
      */
     'experimental.manage',
+    /**
+     * Каталог SKU: технолог ведёт техпакет модели — это продолжение той же
+     * работы, что и разработка образца. Выпуск в прайс и архив остаются
+     * у руководства: после выпуска по модели считают заказы.
+     */
+    'sku.view', 'sku.edit',
   ],
   /**
    * Участки нанесения: права ровно как у сотрудника цеха. Различает их не право,
@@ -128,6 +141,8 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
   manager: [
     'stage.block', 'stage.priority', 'stage.move_department', 'order.manage', 'tz.manage',
     'files.manage',
+    // Каталог на просмотр: менеджер подбирает модель в заказ, а не ведёт её
+    'sku.view',
   ],
   /**
    * material.receive (волна 2 правок менеджера): приёмка — работа закупки и склада.
@@ -147,6 +162,8 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    */
   purchaser: [
     'stage.block', 'stage.take', 'stage.complete', 'material.receive', 'warehouse.manage',
+    // Расход ткани и состав модели — то, по чему он считает закупку
+    'sku.view',
   ],
   /**
    * У кладовщика набор прежний: этапа в маршруте у склада нет вовсе, его
@@ -183,7 +200,12 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    * чего роль заведена, и расширять набор «на всякий случай» значило бы
    * заводить права, которые ничего не открывают.
    */
-  designer: ['files.manage'],
+  /**
+   * Каталог SKU дизайнеру (14.09, п. 6): файлы модели — макеты, лекала, фото
+   * образца — это его работа, ровно как файлы заказа. Выпуск в прайс нет:
+   * артикул с ценой заводит руководство.
+   */
+  designer: ['files.manage', 'sku.view', 'sku.edit'],
   hr: [],
   /**
    * Новичок до назначения должности. Пусто здесь так же обязательно, как

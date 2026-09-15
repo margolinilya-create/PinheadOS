@@ -39,6 +39,41 @@ const departmentsFx = DEPARTMENTS.map((d) => ({
   updated_at: CREATED,
 }));
 
+/**
+ * Каталог моделей (правка 14.09, п. 6). Три карточки, и все три состояния
+ * разные НАМЕРЕННО: обход глазами снимает сетку, и один статус на всех
+ * не показал бы ни подписи «Требует заполнения», ни серого архива.
+ *
+ * Третья модель в прайс-каталоге визарда ОТСУТСТВУЕТ — это и есть та строка
+ * «Нет в прайсе визарда», ради которой каталог спрашивает сам прайс, а
+ * не хранит второй флаг. Без такой карточки подсказка не попала бы в снимок
+ * вовсе, то есть не проверялась бы ничем.
+ */
+const SKU_CARDS = [
+  {
+    id: 'sku-a', code: 'HOOD-320', name: 'Худи оверсайз 320', category: 'hoodies',
+    description: 'Трёхнитка петля, капюшон на двухслойной подкладке.',
+    fit: 'oversize', pattern_tech_name: 'HD-320-OS', pattern_version: '2',
+    card_version: 3, status: 'active', experimental_id: null, source_item_id: null,
+    final_package: {}, price_min: 2400, price_max: 3100,
+    created_by: null, created_at: CREATED, updated_at: CREATED,
+  },
+  {
+    id: 'sku-b', code: 'TEE-190', name: 'Футболка 190', category: 'tshirts',
+    description: null, fit: 'regular', pattern_tech_name: null, pattern_version: null,
+    card_version: 1, status: 'draft', experimental_id: null, source_item_id: null,
+    final_package: {}, price_min: null, price_max: null,
+    created_by: null, created_at: CREATED, updated_at: CREATED,
+  },
+  {
+    id: 'sku-c', code: 'BOMB-01', name: 'Бомбер классический', category: 'bombers',
+    description: null, fit: 'classic', pattern_tech_name: 'BM-01', pattern_version: '1',
+    card_version: 5, status: 'archived', experimental_id: null, source_item_id: null,
+    final_package: {}, price_min: null, price_max: null,
+    created_by: null, created_at: CREATED, updated_at: CREATED,
+  },
+];
+
 /** Идентификатор цеха в фикстурах — им же пользуются добавки спек */
 export const deptId = (code: string) => `dep-${code}`;
 
@@ -602,6 +637,25 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
         value: { monthly_units: 10000, work_days_per_week: 5 },
         updated_by: null, updated_by_id: null, updated_at: CREATED,
       }];
+    case 'erp_sku_cards': {
+      const idFilter = params.get('id');
+      if (idFilter?.startsWith('eq.')) {
+        const id = idFilter.slice(3);
+        return SKU_CARDS.filter((c) => c.id === id);
+      }
+      return SKU_CARDS;
+    }
+    /**
+     * Прайс-каталог визарда. В нём ДВА кода из трёх — третья карточка так
+     * и говорит «Нет в прайсе визарда». Мок обязан повторять то, что бывает
+     * на бою: каталог ERP и прайс совпадают не дословно, и именно это
+     * несовпадение экран и показывает.
+     */
+    case 'app_config':
+      if (params.get('key') === 'eq.sku_catalog') {
+        return [{ key: 'sku_catalog', value: [{ code: 'HOOD-320' }, { code: 'TEE-190' }] }];
+      }
+      return [];
     // Order Studio и прочие таблицы: пустой набор → компоненты берут дефолты/пустые списки.
     default:
       return [];

@@ -9,6 +9,7 @@ export { procurementSlice } from './procurementSlice';
 export { subcontractingSlice } from './subcontractingSlice';
 export { orderDraftsSlice } from './orderDraftsSlice';
 export { chatSlice } from './chatSlice';
+export { skuSlice } from './skuSlice';
 export { employeesSlice } from './employeesSlice';
 export { invitesSlice } from './invitesSlice';
 export { permissionsSlice } from './permissionsSlice';

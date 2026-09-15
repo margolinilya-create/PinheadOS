@@ -63,7 +63,15 @@ const GROUPS = [
   {
     title: 'Настройки',
     items: [
-      { to: '/admin', label: 'Админка', icon: 'settings', admin: true },
+      /**
+       * Админка остаётся за учётной записью, НО с 15.09 в неё заходит ещё
+       * и тот, у кого есть каталог моделей (правка 14.09, п. 6): маршрут
+       * расширен до `isAdmin || can('sku.view')`, а состав вкладок гейтится
+       * по отдельности. Без этой строки право было бы недостижимым — пункта
+       * меню нет, адрес надо знать наизусть; ровно тот отказ, из-за которого
+       * 10.08 сняли `admin: true` у разделов «Операции».
+       */
+      { to: '/admin', label: 'Админка', icon: 'settings', admin: true, alsoWhen: 'sku.view' },
     ],
   },
 ];
@@ -178,7 +186,8 @@ export function Sidebar({
       <nav className={styles.sidebarNav}>
         {GROUPS.map((g) => {
           const items = g.items.filter(
-            (n) => (!n.admin || isAdmin) && canOpenScreen(can, n.to),
+            (n) => (!n.admin || isAdmin || (n.alsoWhen && can(n.alsoWhen)))
+              && canOpenScreen(can, n.to),
           );
           if (items.length === 0) return null;
           return (

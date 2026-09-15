@@ -19,6 +19,9 @@ import type {
   ErpEmployee,
   ErpInvite,
   ErpNotification,
+  ErpSkuCard,
+  ErpSkuCardFile,
+  ErpSkuCardVersion,
   ErpChatMessage,
   ErpChatPerson,
   ChatContext,
@@ -1060,6 +1063,31 @@ export interface ChatSlice {
   closeChat: () => void;
 }
 
+/**
+ * КАТАЛОГ SKU (правка 14.09, п. 6). Данные — в ядре (`domainState`), как
+ * у всех доменных слайсов: `resetErpStore()` обязан их вычистить.
+ */
+export interface SkuSlice {
+  skuCards: ErpSkuCard[];
+  skuCardsLoaded: boolean;
+  skuCardsError: string | null;
+  /**
+   * Коды, уже выпущенные в прайс-каталог визарда. Не флаг у карточки:
+   * «выпущен ли артикул» — факт ПРАЙСА, и хранить его копией значило бы
+   * завести второй источник, который разойдётся в первую же публикацию.
+   */
+  skuPriceCodes: string[];
+
+  loadSkuCards: () => Promise<void>;
+  saveSkuCard: (id: string, patch: Partial<ErpSkuCard>) => Promise<boolean>;
+  createSkuCard: (input: Partial<ErpSkuCard> & { code: string; name: string })
+    => Promise<ErpSkuCard | null>;
+  loadSkuCardDetail: (id: string)
+    => Promise<{ versions: ErpSkuCardVersion[]; files: ErpSkuCardFile[] }>;
+  loadSkuCardStats: (id: string)
+    => Promise<{ orders: number; qty: number; lastOrderAt: string | null } | null>;
+}
+
 export interface BypassSlice {
   bypasses: ErpBypass[];
   bypassesLoaded: boolean;
@@ -1406,4 +1434,5 @@ export type ErpStore = BootstrapSlice &
   SettingsSlice &
   NotificationsSlice &
   ChatSlice &
+  SkuSlice &
   RealtimeSlice;

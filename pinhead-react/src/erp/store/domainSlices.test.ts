@@ -32,7 +32,7 @@ const DOMAIN = [
   'stagesSlice', 'materialsSlice', 'warehouseSlice', 'procurementSlice',
   'subcontractingSlice', 'orderDraftsSlice', 'ordersOnDemandSlice',
   'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
-  'chatSlice',
+  'chatSlice', 'skuSlice',
   'tzSlice', 'planSlice', 'settingsSlice',
 ];
 

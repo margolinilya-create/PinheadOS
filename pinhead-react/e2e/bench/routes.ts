@@ -63,7 +63,13 @@ export const SHOTS: Shot[] = [
   { name: 'admin-dicts', path: '/admin?tab=dicts', route: '/admin' },
   { name: 'admin-capacity', path: '/admin?tab=capacity', route: '/admin' },
   { name: 'admin-bypass', path: '/admin?tab=bypass', route: '/admin' },
+  { name: 'admin-sku', path: '/admin?tab=sku', route: '/admin' },
   { name: 'admin-studio', path: '/admin?tab=studio', route: '/admin' },
+
+  // Карточка модели: три вкладки из четырёх («Заказы» на фикстурах пусты —
+  // связи позиции с моделью в них нет, и снимок показал бы пустое состояние)
+  { name: 'sku-card', path: '/sku-card/sku-a', route: '/sku-card/:cardId' },
+  { name: 'sku-card-history', path: '/sku-card/sku-a?tab=history', route: '/sku-card/:cardId' },
 
   { name: 'styleguide', path: '/styleguide?styleguide=1', route: '/styleguide' },
 ];

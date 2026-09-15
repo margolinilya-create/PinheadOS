@@ -41,6 +41,9 @@ const DevPage = lazyScreen(() => import('./screens/DevPage'));
 const DeptLoad = lazyScreen(() => import('./screens/DeptLoad'));
 const PlanScreen = lazyScreen(() => import('./screens/PlanScreen'));
 const GanttScreen = lazyScreen(() => import('./screens/GanttScreen'));
+// Карточка модели (правка 14.09, п. 6). Отдельный экран, а не часть админки:
+// её открывает и вкладка «Каталог SKU», и вкладка SKU карточки разработки
+const SkuCardPage = lazyScreen(() => import('./screens/skuCard/SkuCardPage'));
 // Витрина дизайн-системы — за флагом `styleguide`, отдельным чанком.
 // Ленивый импорт обязателен: иначе список всех иконок и демо-разметка
 // уехали бы в оболочку, которую грузят все и всегда.
@@ -155,7 +158,25 @@ export default function ErpApp({ user }) {
           <Route path="/queue/:deptCode" element={<DepartmentQueue />} />
           {/* Страница производственного задания (правка 5); key — свежий инстанс на задание */}
           <Route path="/task/:stageId" element={<ProductionTaskRoute />} />
-          <Route path="/admin" element={<ErpGuard allowed={isAdmin}><AdminScreen /></ErpGuard>} />
+          {/*
+            АДМИНКА ОТКРЫТА И ПО ПРАВУ НА КАТАЛОГ (правка 14.09, п. 6):
+            документ требует проверять доступ к вкладке каталога отдельно
+            от прочей админки, а весь `/admin` закрыт ролью учётной записи.
+            Расширение маршрута — ПОЛОВИНА правки: вторая половина
+            в `AdminScreen`, где `users`, `roles` и `studio` получили
+            собственный `needs`. Без неё каталог открыл бы управление
+            сотрудниками менеджеру, закупщику и дизайнеру.
+          */}
+          <Route
+            path="/admin"
+            element={<ErpGuard allowed={isAdmin || can('sku.view')}><AdminScreen /></ErpGuard>}
+          />
+          {/* Карточка модели. Гейт — `canOpenScreen` по первому сегменту,
+              тем же приёмом, что у страницы разработки */}
+          <Route
+            path="/sku-card/:cardId"
+            element={<ErpGuard allowed={canOpen('/sku-card')}><SkuCardPage /></ErpGuard>}
+          />
           <Route path="/employees" element={<Navigate to="/admin?tab=users" replace />} />
           <Route path="/departments" element={<Navigate to="/admin?tab=depts" replace />} />
           <Route path="/purchasing" element={<ErpGuard allowed={canOpen('/purchasing')}><FabricPurchasing /></ErpGuard>} />
