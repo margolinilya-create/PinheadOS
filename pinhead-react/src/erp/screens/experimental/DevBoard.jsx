@@ -4,6 +4,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { StageIndicator } from '../../components/StageIndicator';
 import { useScrollHints } from '../../../hooks/useScrollHints';
+import { useTouchDndPolyfill } from '../../components/kanban/useTouchDndPolyfill';
 import {
   DEV_LANE_TITLES,
   DEV_STAGE_LABELS,
@@ -241,6 +242,17 @@ export function DevBoard({
   brandingOpenByDev, typeNames, onMoveStage, canManage = false,
 }) {
   const { ref } = useScrollHints();
+  /**
+   * Тач-перетаскивание: доска объявляет `draggable` и зоны сброса, а HTML5 DnD
+   * на тач-экране не работает вовсе — до 15.09 жест здесь был МЁРТВЫМ, как
+   * и в производственном плане. Нашёл это не человек, а обход
+   * `screens/dndTouch.test.ts`: подключение полифилла копировалось руками
+   * и дважды было забыто.
+   *
+   * Кнопочная альтернатива у доски ЭКС есть и остаётся основной («‹ ›»
+   * в карточке); полифилл лишь оживляет жест там, где он объявлен.
+   */
+  useTouchDndPolyfill();
   /**
    * Перетаскиваемая карточка живёт в ref, а не в состоянии: обработчик `drop`
    * колонки читает её синхронно, и лишняя перерисовка между `dragstart`

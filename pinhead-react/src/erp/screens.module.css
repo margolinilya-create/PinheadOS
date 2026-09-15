@@ -1188,6 +1188,24 @@ a.cellTitle:hover { color: var(--accent); }
 .planCardActions { display: flex; gap: 6px; flex-wrap: wrap; }
 .planMoveBtns { display: flex; gap: var(--space-xs); justify-content: flex-end; }
 
+/* Окно переноса задачи плана: дни недели кнопками — «через шаг» одним касанием.
+   `auto-fit` + `minmax` вместо порогов: пять дней укладываются в ряд на 1280,
+   в два ряда на планшете и в столбик на телефоне без единого медиазапроса */
+.planMoveDays {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-xs);
+}
+.planMoveDay { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.planMoveCustom { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+/* Компактная сводка «Все цеха»: карточка на цех вместо таблицы из 12 колонок */
+.planDeptCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
 .planDeviations { margin-top: var(--space-lg); }
 .planDeviationList {
   display: grid;
@@ -1240,9 +1258,18 @@ a.cellTitle:hover { color: var(--accent); }
 .planPickRow:hover:not(:disabled) { background: var(--surface); }
 .planPickRow:disabled { opacity: 0.5; cursor: default; }
 .planPickRowActive { border-color: var(--accent); background: var(--surface); }
-@media (max-width: 768px) {
-
+/*
+  ШИРИНА КОЛОНКИ ДНЯ — ПО ПРИЗНАКУ КОМПАКТНОЙ РАСКЛАДКИ, А НЕ ПО 768px.
+  Порог 768 оставлял планшет В ЛАНДШАФТЕ (1024×768) с колонками по 300px:
+  доска шире экрана, а `useCompactLayout` при этом уже считает раскладку
+  компактной — то есть CSS и JS отвечали на один вопрос по-разному.
+  Условие дословно повторяет `COMPACT_LAYOUT_QUERY` (`layout/useCompactLayout`).
+*/
+@media (max-width: 1024px), (pointer: coarse) {
   .planDay { flex-basis: 88vw; }
+}
+
+@media (max-width: 768px) {
   .planDeviationList { grid-template-columns: 1fr; }
 }
 

@@ -649,3 +649,66 @@ test.describe('Гант на планшете', () => {
     await expectNoHorizontalScroll(page);
   });
 });
+
+test.describe('План производства на планшете', () => {
+  /**
+   * ДО 15.09 ПЕРЕНЕСТИ ЗАДАЧУ ЧЕРЕЗ ПОЛНЕДЕЛИ НА ПЛАНШЕТЕ БЫЛО НЕЧЕМ.
+   *
+   * Перетаскивание — голый HTML5 DnD без тач-полифилла, то есть жест мёртв;
+   * кнопки «‹ ›» ходят по СОСЕДЯМ (записанное правило проекта: «Пока
+   * перетаскивание — единственный способ перешагнуть, требование выполнено
+   * только мышью»); поле даты в шторке — ввод руками вместо тапа. При этом
+   * подсказка на экране предлагала «перетащите в день недели».
+   *
+   * Плюс вкладка по умолчанию («Все цеха») — таблица из ДВЕНАДЦАТИ колонок,
+   * то есть первый кадр `/plan` на цеховом планшете.
+   */
+  test('сводка «Все цеха» рисуется карточками, а не таблицей из 12 колонок', async ({ page }) => {
+    await page.goto('/plan?studio=0');
+    await expect(page.getByRole('list', { name: 'Сводка по цехам' })).toBeVisible();
+    // Десктопной таблицы на этой ширине нет вовсе
+    await expect(page.getByRole('columnheader', { name: 'План на день' })).toHaveCount(0);
+  });
+
+  test('страница не прокручивается по горизонтали', async ({ page }) => {
+    await page.goto('/plan?studio=0');
+    await expect(page.getByRole('list', { name: 'Сводка по цехам' })).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
+
+  test('действие «Перенести» видно целиком и не мельче 44px', async ({ page }) => {
+    await page.goto('/plan?dept=cutting&studio=0');
+    const move = page.getByRole('button', { name: /Перенести задачу с .* на другой день/ }).first();
+    await expect(move).toBeVisible();
+    const box = await move.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('перенос понедельник → пятница в два тапа', async ({ page }) => {
+    await page.goto('/plan?dept=cutting&studio=0');
+
+    const monday = page.locator('[class*="planDay"]').filter({ hasText: 'Понедельник' }).first();
+    const friday = page.locator('[class*="planDay"]').filter({ hasText: 'Пятница' }).first();
+    /*
+      Карточка ищется РОЛЬЮ, а не подстрокой класса: `[class*="planCard"]`
+      матчит ещё и `planCardHead`, `planCardTitle`, `planCardFoot`,
+      `planCardActions`, `planCardWrap` — шесть узлов на одну карточку,
+      и счёт получался бы не о том.
+    */
+    const card = (scope: import('@playwright/test').Locator) => scope.getByRole('article');
+    // Слот фикстуры `plan-1` стоит на понедельник 20.07
+    await expect(card(monday).first()).toBeVisible();
+    const before = await card(friday).count();
+
+    // Тап первый: открыть окно переноса
+    await monday.getByRole('button', { name: /Перенести задачу с .* на другой день/ }).first().click();
+    // Тап второй: выбрать день. Кнопками «‹ ›» это заняло бы четыре тапа
+    // по цели, которая после каждого уезжает из-под пальца
+    await page.getByRole('dialog').getByRole('button', { name: /Перенести на пятница/i }).click();
+
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(card(friday)).toHaveCount(before + 1);
+    await expect(card(monday)).toHaveCount(0);
+  });
+});

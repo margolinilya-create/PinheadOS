@@ -178,3 +178,28 @@ test.describe('день фабрики виден из чужого пояса',
     await expect(first).toContainText('10.08.2026');
   });
 });
+
+test.describe('Перенос задачи кнопкой', () => {
+  /**
+   * Окно переноса заведено ради планшета (кнопки «‹ ›» ходят по соседям,
+   * а жест на тач-экране мёртв), но проверяется и НА ДЕСКТОПЕ: путь, который
+   * работает только на одной ширине, — это костыль, а не путь. Руководитель
+   * производства работает и с ноутбука, и перенос через полнедели ему нужен
+   * так же.
+   */
+  test('понедельник → пятница одним выбором дня', async ({ page }) => {
+    await page.goto('/plan?dept=cutting&studio=0');
+
+    const monday = page.locator('[class*="planDay"]').filter({ hasText: 'Понедельник' }).first();
+    const friday = page.locator('[class*="planDay"]').filter({ hasText: 'Пятница' }).first();
+    // Карточка ищется РОЛЬЮ: `[class*="planCard"]` матчит и planCardHead,
+    // и planCardTitle, и ещё четыре узла той же карточки
+    await expect(monday.getByRole('article').first()).toBeVisible();
+    const before = await friday.getByRole('article').count();
+
+    await monday.getByRole('button', { name: /Перенести задачу с .* на другой день/ }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: /Перенести на пятница/i }).click();
+
+    await expect(friday.getByRole('article')).toHaveCount(before + 1);
+  });
+});
