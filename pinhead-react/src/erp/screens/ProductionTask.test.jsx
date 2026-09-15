@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ProductionTask from './ProductionTask';
 import { useErpStore } from '../store/useErpStore';
@@ -162,5 +162,30 @@ describe('страница задания — раскладка 13.09', () => {
     expect(screen.queryByText('Выполнено')).not.toBeInTheDocument();
     expect(screen.getByText('Результат')).toBeInTheDocument();
     expect(screen.getByText('нет программы')).toBeInTheDocument();
+  });
+
+  /**
+   * Правка 14.09, п. 5: вход в переписку СО СТРАНИЦЫ ЗАДАНИЯ, с контекстом
+   * задачи. Кнопка раскрывает чат здесь же — увод на карточку заказа стоил
+   * бы цеху возврата и потерянного места, а пришёл он сюда работать.
+   */
+  it('обсуждение задачи открывается на месте, с контекстом этапа', async () => {
+    const openChat = vi.fn(async () => {});
+    useErpStore.setState({
+      openChat,
+      loadChatUnread: vi.fn(async () => {}),
+      loadChatDirectory: vi.fn(async () => {}),
+      markChatRead: vi.fn(async () => {}),
+      closeChat: vi.fn(),
+      chatMessages: [],
+      chatUnread: {},
+    });
+    renderTask();
+
+    fireEvent.click(screen.getByRole('button', { name: /Открыть чат/ }));
+    await waitFor(() => expect(openChat).toHaveBeenCalled());
+    // Контекст — ЭТАП: пустой открыл бы общую переписку сделки, и счётчик
+    // задачи гасился бы просмотром чужих сообщений
+    expect(openChat).toHaveBeenCalledWith(ORDER.id, { stageId: STAGE.id });
   });
 });

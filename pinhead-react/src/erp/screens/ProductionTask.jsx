@@ -24,6 +24,7 @@ import { Icon } from '../components/Icon';
 import { StageActionsPanel } from './queue/StageActionsPanel';
 import { useStageActions } from './queue/useStageActions';
 import { CommentsSection } from './orderCard/CommentsSection';
+import { ChatSection } from '../components/chat/ChatSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
 import { dueLabelCompact } from '../utils/format';
 import { ButtonLink } from '../components/Button';
@@ -404,6 +405,21 @@ export default function ProductionTask() {
           </div>
         </section>
       )}
+
+      {/*
+        ОБСУЖДЕНИЕ ЭТОЙ ЗАДАЧИ (правка 14.09, п. 5). Контекст — этап, и это
+        не то же самое, что комментарии заказа рядом: те общие на заказ,
+        хранят автора текстом и не знают ни ответов, ни прочитанности.
+        Счётчик на кнопке считает непрочитанное ИМЕННО этой задачи, а внутри
+        переключатель открывает всю переписку сделки — переключатель это ВИД,
+        а не право (решение владельца 14.09).
+      */}
+      <ChatSection
+        orderId={order.id}
+        context={{ stageId: stage.id }}
+        contextLabel="Эта задача"
+        title="Обсуждение задачи"
+      />
 
       <CommentsSection comments={detail.comments} onSend={detail.onSendComment} />
     </>

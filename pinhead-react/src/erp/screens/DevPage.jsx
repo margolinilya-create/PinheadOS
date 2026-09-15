@@ -18,6 +18,7 @@ import { useDevStageMove } from '../hooks/useDevStageMove';
 import { formatDateShort } from '../utils/time';
 import { factoryToday } from '../../utils/date';
 import { DevCard } from './experimental/DevCard';
+import { ChatSection } from '../components/chat/ChatSection';
 import styles from '../styles';
 
 /**
@@ -250,6 +251,23 @@ export default function DevPage() {
         onUploadFile={uploadDevFile}
         onRemoveFile={deleteDevFile}
       />
+
+      {/*
+        ОБСУЖДЕНИЕ РАЗРАБОТКИ (правка 14.09, п. 5). Контекст — сама
+        разработка: технолог, цех и менеджер обсуждают образец, а не заказ
+        целиком. Переписка при этом живёт В ТРЕДЕ СДЕЛКИ — вкладка «Чат»
+        в карточке заказа показывает её же, без копирования сообщений.
+        Разработка без сделки (у которой был бы свой тред) отложена
+        решением владельца: `erp_experimental.order_id` — NOT NULL.
+      */}
+      {dev.order_id && (
+        <ChatSection
+          orderId={dev.order_id}
+          context={{ experimentalId: dev.id }}
+          contextLabel="Эта разработка"
+          title="Обсуждение разработки"
+        />
+      )}
     </>
   );
 }
