@@ -156,19 +156,29 @@ export function TzBlock({ order, item, defaultOpen = false, hideToggle = false }
           </div>
 
           {item.size_grid && item.size_grid.length > 0 && (
-            <ScrollHintBox className={styles.tableWrap} label="Документы ТЗ">
-              <table className={styles.table}>
+            /*
+              ПЕРВАЯ КОЛОНКА ЛИПКАЯ: матрица «цвет × размер» шире планшета,
+              и, прокрутив к XXL, цех терял колонку «Цв/Разм» — то есть имя
+              строки. Это тот же дефект, что «`aria-label` на элементе без
+              роли»: имя области пропадает ровно там, где экран узкий.
+              Карточку на цвет здесь не заводим: у ПИШУЩЕЙ половины того же
+              данного (`orders/create/SizeGridEditor`) она уже есть, а тут
+              матрицу ЧИТАЮТ — сравнение по строке и по колонке и есть смысл
+              экрана, и карточки его ломают.
+            */
+            <ScrollHintBox className={styles.tableWrap} label="Размерная сетка позиции">
+              <table className={`${styles.table} ${styles.gridStickyFirst}`}>
                 <thead>
                   <tr>
-                    <th>Цв/Разм</th>
-                    {allSizes.map((sz) => <th key={sz}>{sz}</th>)}
-                    <th>Итог</th>
+                    <th scope="col">Цв/Разм</th>
+                    {allSizes.map((sz) => <th key={sz} scope="col">{sz}</th>)}
+                    <th scope="col">Итог</th>
                   </tr>
                 </thead>
                 <tbody>
                   {item.size_grid.map((r, i) => (
                     <tr key={i}>
-                      <td><strong>{r.color}</strong></td>
+                      <th scope="row"><strong>{r.color}</strong></th>
                       {allSizes.map((sz) => (
                         <td key={sz} className={styles.progressCell}>{r.sizes[sz] ?? '—'}</td>
                       ))}

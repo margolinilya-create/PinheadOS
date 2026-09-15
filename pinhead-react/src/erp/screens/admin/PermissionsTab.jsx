@@ -201,6 +201,7 @@ export function PermissionsTab() {
                       <td key={role}>
                         <input
                           type="checkbox"
+                          className={styles.matrixCheck}
                           checked={checked}
                           disabled={Boolean(lockReason)}
                           aria-label={lockReason ? `${label} (не редактируется)` : label}

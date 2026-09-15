@@ -917,6 +917,11 @@ a.cellTitle:hover { color: var(--accent); }
 @media (pointer: coarse) {
 
   .moveBtn { min-width: 44px; min-height: 44px; font-size: var(--type-title); }
+  /* Галочка матрицы прав — голый `input[type=checkbox]` рисуется системным
+     размером (~13px), то есть втрое мельче тач-минимума. Растягиваем сам
+     контрол, а не обёртку: попасть надо в него, а промах здесь стоит
+     СНЯТОГО ПРАВА у целой роли */
+  .matrixCheck { width: 24px; height: 24px; margin: 10px; }
 }
 
 
@@ -1993,3 +1998,30 @@ a.cellTitle:hover { color: var(--accent); }
   border-bottom: 1px solid var(--border-light);
 }
 .skuListRow:last-child { border-bottom: 0; }
+
+/* Приёмка материалов в компактной раскладке: форма, а не таблица из трёх
+   колонок. Подпись, план справкой и поле ввода во всю ширину — на 768px
+   третья колонка с `input` высотой 44px сжималась в треть экрана */
+.receiptFields { display: flex; flex-direction: column; gap: 10px; }
+.receiptField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+.receiptField:last-child { border-bottom: 0; padding-bottom: 0; }
+.receiptFieldFact { margin-top: var(--space-xs); }
+/* Поле факта занимает ширину карточки: ради этого раскладку и меняли —
+   в таблице ему доставалась треть экрана */
+.receiptFieldFact input { width: 100%; }
+
+/* Матрица «цвет × размер» шире планшета: первая колонка остаётся на месте
+   при горизонтальной прокрутке, иначе, дойдя до XXL, цех теряет имя строки */
+.gridStickyFirst th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: left;
+}

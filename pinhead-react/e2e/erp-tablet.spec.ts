@@ -204,6 +204,26 @@ test.describe('Склад на планшете', () => {
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
     expect(box!.height).toBeGreaterThanOrEqual(44);
   });
+
+  test('приёмка материала — форма, а не таблица из трёх колонок', async ({ page }) => {
+    /**
+     * Карточка приёмки была таблицей «Поле · План · Факт», где третья колонка
+     * это поля ВВОДА высотой 44px: на 768px подпись, план и `input` сжимались
+     * в треть экрана каждый. Это форма, притворявшаяся таблицей, и вводить
+     * в неё стоя было нечем.
+     */
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('button', { name: 'Открыть' }).first().click();
+
+    const fact = page.getByRole('textbox', { name: /Факт материал/ });
+    await expect(fact).toBeVisible();
+    // Таблицы на этой ширине нет вовсе, а поле занимает ширину карточки
+    await expect(page.getByRole('table')).toHaveCount(0);
+    const viewport = page.viewportSize()!;
+    const box = await fact.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(viewport.width / 2);
+  });
 });
 
 test.describe('Закупка на планшете', () => {
