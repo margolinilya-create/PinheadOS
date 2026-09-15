@@ -569,6 +569,19 @@ export type MockExtras = {
    * не воспроизводится вовсе.
    */
   settingsGate?: Promise<void>;
+  /**
+   * Держит ответ по СПИСКУ ЗАКАЗОВ (`erp_orders`, выборка `loadAll`).
+   *
+   * Экран раздела рисует свой `h1` сразу, как только приехал его чанк, а
+   * содержимое — только по `loaded`, то есть после ответа на этот запрос.
+   * Между двумя моментами на странице живёт скелетон, и одноразовая проверка
+   * (`await locator.count()`) снимает там ноль. На быстрой машине окно почти
+   * нулевое и дефект не воспроизводится вовсе — поэтому состояние «экран
+   * смонтирован, данных ещё нет» создаётся гейтом, а не задержкой
+   * в миллисекундах: задержка оставляет окно, в котором ответ успевает
+   * прийти до замера, и сторож зеленеет на сломанном коде.
+   */
+  ordersGate?: Promise<void>;
 };
 
 type OrderFx = { id: string; bitrix_id: string; status: string };
@@ -850,6 +863,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
     const table = path.split('?')[0];
     if (table === 'erp_departments' && extra.deptsGate) await extra.deptsGate;
     if (table === 'erp_settings' && extra.settingsGate) await extra.settingsGate;
+    if (table === 'erp_orders' && extra.ordersGate) await extra.ordersGate;
     const accept = route.request().headers()['accept'] ?? '';
     const single = accept.includes('vnd.pgrst.object');
     const data = dataForTable(table, url.searchParams, extra);
