@@ -104,6 +104,36 @@ describe('окно чата: контекст и прочтение', () => {
 });
 
 describe('окно чата: звонок realtime', () => {
+  it('пока канал лежит, лента дочитывается опросом', async () => {
+    /**
+     * Документ обещает новые сообщения «не позднее чем через 10 секунд»,
+     * а подписка умеет падать на минуту переподключения — ровно тогда,
+     * когда обещание и нужно.
+     */
+    vi.useFakeTimers();
+    try {
+      const a = setup({ realtimeLive: false });
+      render(<ChatPanel orderId="o1" />);
+      expect(a.refreshChat).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(8000);
+      expect(a.refreshChat).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('при живом канале опроса нет — это был бы второй источник тех же данных', () => {
+    vi.useFakeTimers();
+    try {
+      const a = setup({ realtimeLive: true });
+      render(<ChatPanel orderId="o1" />);
+      vi.advanceTimersByTime(30000);
+      expect(a.refreshChat).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('новое событие дочитывает ленту, а не дописывает строку', async () => {
     const a = setup();
     render(<ChatPanel orderId="o1" />);
@@ -112,6 +142,45 @@ describe('окно чата: звонок realtime', () => {
 
     useErpStore.setState({ chatPing: 1 });
     await waitFor(() => expect(a.refreshChat).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('окно чата: упоминания', () => {
+  it('позвать можно только выбранного из списка', async () => {
+    const a = setup({
+      chatDirectory: [
+        { user_id: 'u2', name: 'Мария', email: 'tehnolog@pnhd.ru', role: null, department_id: null },
+      ],
+    });
+    render(<ChatPanel orderId="o1" />);
+    const input = screen.getByLabelText('Новое сообщение');
+
+    fireEvent.change(input, { target: { value: '@Мар', selectionStart: 4 } });
+    fireEvent.mouseDown(await screen.findByRole('option', { name: /Мария/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(a.sendChatMessage).toHaveBeenCalled());
+    expect(a.sendChatMessage.mock.calls[0][0].mentions).toEqual(['u2']);
+  });
+
+  it('набранный руками «@Имя» упоминанием НЕ считается', async () => {
+    // Прямое требование документа: иначе уведомление получил бы тёзка
+    // или тот, кого автор не звал вовсе
+    const a = setup({
+      chatDirectory: [
+        { user_id: 'u2', name: 'Мария', email: null, role: null, department_id: null },
+      ],
+    });
+    render(<ChatPanel orderId="o1" />);
+    const input = screen.getByLabelText('Новое сообщение');
+
+    // Текст вставлен целиком, список не открывался: подсказки после
+    // не-пробела нет по построению
+    fireEvent.change(input, { target: { value: 'скажи @Мария сама', selectionStart: 17 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+
+    await waitFor(() => expect(a.sendChatMessage).toHaveBeenCalled());
+    expect(a.sendChatMessage.mock.calls[0][0].mentions).toEqual([]);
   });
 });
 

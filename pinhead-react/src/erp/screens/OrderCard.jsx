@@ -409,7 +409,7 @@ export default function OrderCard() {
         {/* Переписка сделки. Контекст не передаётся: с карточки заказа
             разговор общий — сужение по задаче открывается со страницы
             задания, где задача и выбрана */}
-        {tab === 'chat' && <ChatPanel orderId={order.id} />}
+        {tab === 'chat' && <ChatPanel orderId={order.id} focusId={params.get('msg')} />}
 
         {tab === 'history' && (
           <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />

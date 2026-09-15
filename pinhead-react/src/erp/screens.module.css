@@ -1871,3 +1871,48 @@ a.cellTitle:hover { color: var(--accent); }
   font-size: var(--type-body-sm);
 }
 .chatUploadError { color: var(--color-error-ink); }
+
+/* Упоминания: подсказка под полем ввода и подсветка в ленте */
+.chatInputWrap { position: relative; flex: 1; display: flex; }
+.mentionBox {
+  position: absolute;
+  bottom: calc(100% + var(--space-xs));
+  left: 0;
+  right: 0;
+  /* Ступени шкалы здесь нет намеренно: подсказка спорит только с соседями
+     ВНУТРИ панели чата, и взять глобальную ступень значило бы объявить,
+     что она перекрывает шторки и модалки (правило про значения между
+     ступенями — в корневом CLAUDE.md) */
+  z-index: 1;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-xs);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.mentionItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+}
+.mentionItemActive { background: var(--accent-light); }
+.mentionName { font-size: var(--type-body-sm); }
+.mentionEmail { font-size: var(--type-label); color: var(--text-dim); }
+.chatMention {
+  background: var(--accent-light);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}

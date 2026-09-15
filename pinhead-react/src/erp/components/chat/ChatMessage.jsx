@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabase';
 import { Icon } from '../Icon';
 import styles from '../../styles';
 import { formatDateTimeShort } from '../../utils/format';
+import { splitMentions } from '../../utils/mentions';
 
 /**
  * Одно сообщение переписки.
@@ -23,7 +24,7 @@ function fileUrl(path) {
 
 const isImage = (att) => /\.(png|jpe?g|webp|gif|avif)$/i.test(att.file_name || att.file_path);
 
-export function ChatMessage({ message, nameOf, meId, onReply, highlighted }) {
+export function ChatMessage({ message, nameOf, meId, onReply, highlighted, directory = [] }) {
   const mine = message.author_id === meId;
   const mentioned = Array.isArray(message.mentions) && meId
     ? message.mentions.includes(meId)
@@ -67,7 +68,17 @@ export function ChatMessage({ message, nameOf, meId, onReply, highlighted }) {
         </a>
       )}
 
-      {message.body && <p className={styles.chatMsgBody}>{message.body}</p>}
+      {message.body && (
+        <p className={styles.chatMsgBody}>
+          {/* Подсвечиваются ТОЛЬКО настоящие адресаты сообщения: подсветка
+              любого `@слова` обещала бы, что человека позвали */}
+          {splitMentions(message.body, message.mentions ?? [], directory).map((part, i) => (
+            part.mention
+              ? <mark key={i} className={styles.chatMention}>{part.text}</mark>
+              : <span key={i}>{part.text}</span>
+          ))}
+        </p>
+      )}
 
       {message.attachments?.length > 0 && (
         <ul className={styles.chatFiles}>

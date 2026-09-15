@@ -4,6 +4,10 @@ import { Icon } from '../Icon';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { useChatDraft } from '../../hooks/useChatDraft';
 import { createAttemptKeeper } from '../../utils/attemptKey';
+import {
+  applyMention, matchPeople, mentionQuery, mentionsInText,
+} from '../../utils/mentions';
+import { MentionPicker } from './MentionPicker';
 import styles from '../../styles';
 
 /**
@@ -24,11 +28,26 @@ import styles from '../../styles';
  * `Enter` отправляет, `Shift+Enter` переносит строку: чат набирают быстро,
  * и кнопка мышью на каждую реплику — это ровно то, на что жалуются.
  */
-export function ChatComposer({ orderId, context, replyTo, onCancelReply, onSend, nameOf }) {
+export function ChatComposer({
+  orderId, context, replyTo, onCancelReply, onSend, nameOf, directory = [],
+}) {
   const [text, setText, resetDraft] = useChatDraft(orderId, context);
   const [saving, setSaving] = useState(false);
   const uploads = useAttachmentUploads('chat');
   const keeper = useRef(createAttemptKeeper());
+  const inputRef = useRef(null);
+
+  /**
+   * ВЫБРАННЫЕ адресаты. Именно выбранные, а не разобранные из текста:
+   * «просто введённый текст „@Имя" без выбора сотрудника из списка
+   * не считается упоминанием» (документ). Список копится за время набора,
+   * а перед отправкой отсеивается по тексту — стёр `@Имя`, значит
+   * не зовёт.
+   */
+  const [chosen, setChosen] = useState([]);
+  const [mention, setMention] = useState(null);
+  const [mentionAt, setMentionAt] = useState(0);
+  const suggestions = mention ? matchPeople(directory, mention.query) : [];
 
   const ready = uploads.files.filter((f) => f.state === 'uploaded');
   const canSend = (text.trim() || ready.length > 0) && !uploads.uploading && !saving;
@@ -42,6 +61,7 @@ export function ChatComposer({ orderId, context, replyTo, onCancelReply, onSend,
      */
     const signature = JSON.stringify([
       text.trim(), replyTo?.id ?? null, ready.map((f) => f.path),
+      mentionsInText(text, chosen),
     ]);
     const clientKey = keeper.current.keyFor(signature);
     setSaving(true);
@@ -50,11 +70,14 @@ export function ChatComposer({ orderId, context, replyTo, onCancelReply, onSend,
         body: text.trim(),
         clientKey,
         replyTo: replyTo?.id ?? null,
+        mentions: mentionsInText(text, chosen),
         attachments: ready.map((f) => ({ file_path: f.path, file_name: f.name })),
       });
       if (!ok) return;
       keeper.current.reset();
       resetDraft();
+      setChosen([]);
+      setMention(null);
       // Файлы забываются БЕЗ удаления объектов: у них появился владелец —
       // строка вложения отправленного сообщения
       uploads.clear();
@@ -62,6 +85,26 @@ export function ChatComposer({ orderId, context, replyTo, onCancelReply, onSend,
     } finally {
       setSaving(false);
     }
+  }
+
+  /**
+   * Подстановка выбранного. Человек попадает в `chosen` — это и есть
+   * «выбрал из списка»; сам токен в тексте он потом волен стереть,
+   * и тогда `mentionsInText` его отсеет.
+   */
+  function pickMention(person) {
+    const input = inputRef.current;
+    const caret = input?.selectionStart ?? text.length;
+    const next = applyMention(text, mention.from, caret, person);
+    setText(next.text);
+    setChosen((list) => (list.some((p) => p.user_id === person.user_id)
+      ? list
+      : [...list, { user_id: person.user_id, name: person.name }]));
+    setMention(null);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(next.caret, next.caret);
+    });
   }
 
   return (
@@ -123,20 +166,65 @@ export function ChatComposer({ orderId, context, replyTo, onCancelReply, onSend,
             }}
           />
         </label>
-        <textarea
-          className={styles.chatInput}
-          value={text}
-          rows={2}
-          placeholder="Сообщение для производства…"
-          aria-label="Новое сообщение"
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-        />
+        <div className={styles.chatInputWrap}>
+          {mention && (
+            <MentionPicker
+              people={suggestions}
+              activeIndex={mentionAt}
+              onPick={pickMention}
+              emptyHint={
+                directory.length === 0
+                  ? 'Справочник сотрудников ещё не загрузился'
+                  : 'Никого не нашли. Упомянуть можно только того, у кого есть доступ в систему'
+              }
+            />
+          )}
+          <textarea
+            ref={inputRef}
+            className={styles.chatInput}
+            value={text}
+            rows={2}
+            placeholder="Сообщение для производства… @ — упомянуть"
+            aria-label="Новое сообщение"
+            onChange={(e) => {
+              setText(e.target.value);
+              const found = mentionQuery(e.target.value, e.target.selectionStart ?? 0);
+              setMention(found);
+              setMentionAt(0);
+            }}
+            onBlur={() => setMention(null)}
+            onKeyDown={(e) => {
+              if (mention && suggestions.length > 0) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  const step = e.key === 'ArrowDown' ? 1 : -1;
+                  const next = (mentionAt + step + suggestions.length) % suggestions.length;
+                  setMentionAt(next);
+                  return;
+                }
+                /**
+                 * Enter при открытой подсказке ПОДСТАВЛЯЕТ, а не отправляет:
+                 * иначе половина набранного упоминания уезжала бы в ленту
+                 * ровно в тот момент, когда человек выбирает человека.
+                 */
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  pickMention(suggestions[mentionAt]);
+                  return;
+                }
+              }
+              if (e.key === 'Escape' && mention) {
+                e.preventDefault();
+                setMention(null);
+                return;
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+          />
+        </div>
         <Button variant="primary" type="submit" disabled={!canSend}>
           {saving ? 'Отправка…' : 'Отправить'}
         </Button>
