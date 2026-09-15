@@ -24,7 +24,10 @@ URL: https://pinhead-os.vercel.app
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
   TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
+  SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
+  screens/skuCard/ — SkuCardPage (/sku-card/:cardId: Описание · Технический пакет · Заказы ·
+  История) + SkuCardLink (ссылка на карточку из разработки и из позиции заказа);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
@@ -522,6 +525,36 @@ URL: https://pinhead-os.vercel.app
   Гейт данных — `MockExtras.deptsGate` в `e2e/support/mockSupabase.ts`,
   ждут его ОБА писателя состава участков: ветка `rpc/erp_bootstrap`
   и таблица `erp_departments`
+
+## Правила сессии 61 (PR 3, каталог SKU в ERP): где что лежит
+
+- **Серверная половина** — пять миграций: `20260915030910` (схема, права,
+  страж, версии, статистика), `20260915031050` (единственный писатель прайса
+  `erp_sku_catalog_upsert` + перевод `erp_sku_from_dev` на `sku.publish` +
+  засев 52 карточек из прайса), `20260915031210` (починка `array_append`
+  в триггере версий — найдена проверкой на живой базе), `20260915034120`
+  (автопубликация + бэкфилл) и `20260915034723` (связь с позицией заказа).
+  Сторожа: `utils/skuCardAutopublish.test.ts`, `utils/skuCardOrderLink.test.ts`
+- **Стор** — `store/slices/skuSlice.ts` (ДОМЕННЫЙ: каталог открывают
+  с экрана), данные в ядре (`store/domainState.ts`). `loadSkuCardDetail`
+  перечитывает САМУ карточку, а не только историю и файлы: подписки realtime
+  у каталога нет, и «перечитывается при открытии» обязано быть правдой
+- **Экраны** — `screens/admin/SkuCatalogTab.jsx` (сетка, поиск и фильтры
+  в адресе, «Завести модель» под `sku.edit`) и `screens/skuCard/SkuCardPage`
+  (вкладки Описание · Технический пакет · Заказы · История; три действия —
+  три права). Карточка ВНЕ админки: её открывает и вкладка SKU разработки,
+  и позиция заказа — `screens/skuCard/SkuCardLink`
+- **Подписи** — `utils/skuCardLabels.ts` (статусы и роли файлов) и
+  `utils/skuCardFields.ts` (имена полей для истории версий, fail-open).
+  В `types.ts` их держать нельзя: он едет в чанке оболочки
+- **Выбор модели в заказе** — `screens/orders/create/SkuCardPicker.jsx`:
+  подставляет только ПУСТЫЕ поля, архивные в выбор не попадают (кроме уже
+  выбранной), без права `sku.view` блока нет вовсе
+- **Права** — `permissionKeys.ts` (`sku.view`/`edit`/`publish`/`archive`),
+  `utils/permissions.ts` (`DEFAULT_PERMISSIONS`), `utils/screenAccess.ts`
+  (`/sku-card`), `screens/AdminScreen.jsx` (`needs` у КАЖДОЙ вкладки),
+  `ErpApp.jsx` (`/admin` = `isAdmin || can('sku.view')`), `layout/Sidebar.jsx`
+  (`alsoWhen`). Сторож — `utils/screenAccess.test.ts`
 
 ## Правила сессии 61 (PR 2, чат внутри сделки): где что лежит
 

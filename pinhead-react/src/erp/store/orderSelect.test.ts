@@ -38,6 +38,8 @@ function walk(dir: string, out: string[] = []): string[] {
  * с соседом — ровно то, ради чего в проекте появились `.testutil`-модули.
  */
 const STAGE_COLUMNS = new Set(columnsOf('erp_item_stages'));
+/** То же для позиции заказа — сплошная проверка ниже */
+const ITEM_COLUMNS = new Set(columnsOf('erp_order_items'));
 
 /** Экраны и утилиты, работающие по ВСЕМУ массиву заказов из списочного запроса */
 const LIST_CONSUMERS = [
@@ -203,6 +205,54 @@ describe('списочный запрос заказов', () => {
 
     // Исключение, которое перестало быть исключением, — это протухший список
     const stale = Object.keys(STAGE_COLUMNS_NOT_ASKED).filter((c) => asked.has(c));
+    expect(stale, `эти колонки уже в запросе: ${stale.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * ТО ЖЕ САМОЕ ДЛЯ ПОЗИЦИИ ЗАКАЗА (15.09).
+   *
+   * Сплошная проверка стояла только на этапах, и это был ровно тот пробел,
+   * который этот файл объясняет абзацем выше: у позиции вопрос задавался
+   * «читает ли кто-то колонку», а он отвечает НЕ НА ТО. Нашлось на
+   * `sku_card_id` — колонка заведена 15.09, в запрос попала бы только потому,
+   * что о ней помнил автор; забудь он — связь позиции с моделью приезжала бы
+   * `undefined` МОЛЧА, и «карточка модели» в позиции просто не показывалась бы.
+   *
+   * Исключения те же по жанру, что у этапов: то, что списочные экраны
+   * не читают, а весит много или не читается нигде.
+   */
+  const ITEM_COLUMNS_NOT_ASKED: Record<string, string> = {
+    created_at: 'момент вставки позиции не читает ни один списочный экран',
+    updated_at: 'момент правки позиции не читает ни один списочный экран',
+    /**
+     * РАЗМЕРНАЯ СЕТКА ВЫБРОШЕНА НАМЕРЕННО и это записанное решение: она едет
+     * по ВСЕМ заказам списка, а нужна карточке и справке разработки — те
+     * дозагружают полный заказ по `detailIds`.
+     */
+    size_grid: 'размерная сетка тяжёлая: дозагружается полным заказом (ORDER_SELECT)',
+  };
+
+  it('каждая колонка erp_order_items либо в списочном запросе, либо в списке исключений', () => {
+    const itemsBlock = ORDER_LIST_SELECT.slice(
+      ORDER_LIST_SELECT.indexOf('items:erp_order_items ('),
+      ORDER_LIST_SELECT.indexOf('stages:erp_item_stages ('),
+    );
+    const asked = new Set(
+      itemsBlock.replace('items:erp_order_items (', '').split(',')
+        .map((c) => c.trim()).filter((c) => /^\w+$/.test(c)),
+    );
+    expect(asked.size, 'разбор блока позиции сломан').toBeGreaterThan(10);
+
+    const missing = [...ITEM_COLUMNS].filter(
+      (c) => !asked.has(c) && !(c in ITEM_COLUMNS_NOT_ASKED),
+    );
+    expect(
+      missing,
+      `колонки позиции нет в ORDER_LIST_SELECT: ${missing.join(', ')} — она приедет `
+      + 'undefined молча. Либо добавьте в запрос, либо впишите в ITEM_COLUMNS_NOT_ASKED с причиной',
+    ).toEqual([]);
+
+    const stale = Object.keys(ITEM_COLUMNS_NOT_ASKED).filter((c) => asked.has(c));
     expect(stale, `эти колонки уже в запросе: ${stale.join(', ')}`).toEqual([]);
   });
 

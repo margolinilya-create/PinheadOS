@@ -22,6 +22,7 @@ import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { unplannedStages } from '../../utils/stagePlan';
 import { pluralize } from '../../../utils/i18n';
+import { SkuCardLink } from '../skuCard/SkuCardLink';
 
 /**
  * Подпись типа изделия вышивки (правки 07.09, п. 11). Собирается из общего
@@ -65,6 +66,14 @@ export function OrderItemSection({ item, order, deptById, deptNameById, events, 
           {garmentSourceOf(item) !== 'purchased' && (
             <Badge variant="info">{GARMENT_SOURCE_LABELS[garmentSourceOf(item)]}</Badge>
           )}
+          {/*
+            МОДЕЛЬ КАТАЛОГА (правка 14.09, п. 6) — ссылка на техпакет: цех
+            и технолог приходят сюда за вопросом «как это шьётся», а ответ
+            лежит в карточке модели. Ссылка рисуется только при праве и только
+            когда связь есть; поля позиции при этом остаются её собственными —
+            правка карточки задним числом заказ не переписывает.
+          */}
+          <SkuCardLink itemCardId={item.sku_card_id} />
         </div>
         <span className={styles.queueQty}>{item.qty} шт</span>
       </div>

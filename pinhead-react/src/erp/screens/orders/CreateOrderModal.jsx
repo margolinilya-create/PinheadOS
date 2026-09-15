@@ -712,6 +712,14 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           production_type: it.production_type,
           branding_on: it.branding_on,
           garment_source: it.garment_source,
+          /**
+           * Связь с моделью каталога (правка 14.09, п. 6). Ключ шлём ВСЕГДА,
+           * в том числе пустым: сервер отличает «ключа нет» (не трогать —
+           * так ведёт себя открытая старая вкладка) от «прислали пустое»
+           * (отвязать модель). Без ключа снять ошибочно выбранную модель
+           * было бы нечем.
+           */
+          sku_card_id: it.sku_card_id?.trim() || '',
           notes: it.notes?.trim() || null,
           size_grid: gridToPayload(it.size_grid),
           fit: it.fit.trim() || null,
@@ -858,6 +866,9 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
            */
           garment_source: it.production_type === 'ready_garment'
             ? garmentSourceOf(it) : undefined,
+          // Модель каталога — ссылкой; поля позиции остаются её собственным
+          // снимком, и правка карточки задним числом заказ не переписывает
+          sku_card_id: it.sku_card_id?.trim() || undefined,
           // Технический блок и упаковка позиции (правки заказчика 16.08).
           // Пустое поле уходит undefined, а не пустой строкой: иначе колонка
           // хранит '' и «не заполняли» становится неотличимо от «заполнили
