@@ -425,6 +425,21 @@ export interface ErpOrderItem {
    */
   packaging_width_mm?: number | null;
   packaging_height_mm?: number | null;
+  /**
+   * ФАКТИЧЕСКАЯ СТОИМОСТЬ СБОРКИ ЗА ЕДИНИЦУ (правка 16.09, п. 6).
+   *
+   * Живёт у ПОЗИЦИИ, а не у этапа и не в отчёте: документ просит «один раз
+   * на всю позицию». У этапа их бывает несколько (возврат брака заводит
+   * второй швейный этап со своим циклом), у отчёта — сколько угодно
+   * (сдача частями), и «один раз» там не держится.
+   *
+   * Единственный писатель — `erp_stage_submit_report`: страж позиции
+   * пропускает его по метке `erp.assembly_cost` и только при изменении
+   * ровно этих трёх колонок.
+   */
+  assembly_cost_per_unit?: number | null;
+  assembly_cost_set_at?: string | null;
+  assembly_cost_by?: string | null;
   created_at: string;
   updated_at: string;
 }

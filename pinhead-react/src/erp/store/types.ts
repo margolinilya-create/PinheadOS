@@ -4,6 +4,7 @@
  * без циклического импорта через useErpStore.ts. Реэкспорт — в useErpStore.ts.
  */
 
+import type { ReportWithSizes } from '../utils/stageSizes';
 import type { PermissionMatrix } from '../utils/permissions';
 import type { CapacitySettings } from '../utils/capacity';
 import type { RouteGroup } from '../utils/routeDraft';
@@ -576,6 +577,13 @@ export interface StagesSlice {
      * считает `qty_good` по нему и сам ведёт статус рулона: «израсходован»
      * по галочке закройщика, «в работе» при первом расходе.
      */
+    /**
+     * Фактическая стоимость сборки за единицу (правка 16.09, п. 6). Пишется
+     * В ПОЗИЦИЮ заказа, и единственный её писатель — этот RPC: документ просит
+     * «один раз на всю позицию», а у этапа их бывает несколько (возврат брака
+     * заводит второй швейный этап со своим циклом).
+     */
+    assemblyCost?: number | null;
     rolls?: {
       roll_id: string;
       material_id?: string | null;
@@ -584,6 +592,15 @@ export interface StagesSlice {
       sizes: StageReportSizeInput[];
     }[];
   }) => Promise<boolean>;
+  /**
+   * Отчёты этапов вместе с размерными строками (правка 16.09, п. 6):
+   * из них считается «принято из закроя» по каждому размеру.
+   *
+   * ТОЧЕЧНО, а не в выборке заказа: журнал результатов растёт быстрее всего,
+   * а нужен он ровно на одной форме — сдаче результата участка, который
+   * отчитывается по размерам.
+   */
+  loadStageReports: (stageIds: string[]) => Promise<ReportWithSizes[]>;
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;

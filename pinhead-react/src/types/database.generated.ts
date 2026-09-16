@@ -1580,6 +1580,9 @@ export type Database = {
       }
       erp_order_items: {
         Row: {
+          assembly_cost_by: string | null
+          assembly_cost_per_unit: number | null
+          assembly_cost_set_at: string | null
           branding_methods: string[]
           branding_on: string | null
           color_supplier: string | null
@@ -1614,6 +1617,9 @@ export type Database = {
           variant: string | null
         }
         Insert: {
+          assembly_cost_by?: string | null
+          assembly_cost_per_unit?: number | null
+          assembly_cost_set_at?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           color_supplier?: string | null
@@ -1648,6 +1654,9 @@ export type Database = {
           variant?: string | null
         }
         Update: {
+          assembly_cost_by?: string | null
+          assembly_cost_per_unit?: number | null
+          assembly_cost_set_at?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           color_supplier?: string | null
@@ -3530,6 +3539,7 @@ export type Database = {
       }
       erp_stage_submit_report: {
         Args: {
+          p_assembly_cost?: number
           p_comment?: string
           p_extra?: Json
           p_qty_defect?: number

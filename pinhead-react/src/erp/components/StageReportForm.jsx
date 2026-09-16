@@ -4,7 +4,14 @@ import { Icon } from './Icon';
 import { stageInputQty, stageRemainingQty } from '../utils/stageInput';
 import { overPlanBlock, overPlanConfirm, stageQtyCap } from '../utils/stageOverPlan';
 import { confirm } from '../../store/useConfirmStore';
+import { useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useErpStore } from '../store/useErpStore';
+import { SizeResultTable } from './SizeResultTable';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
+import {
+  sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
+} from '../utils/stageSizes';
 import {
   cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem, sizeCellsOf,
 } from '../utils/cutRolls';
@@ -39,7 +46,51 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * константы вида «ткань → закрой».
    */
   const byRolls = dept?.result_detail === 'rolls';
+  /**
+   * РЕЗУЛЬТАТ ПО РАЗМЕРАМ (правка 16.09, п. 6). У швейки колонка «Принято
+   * из закроя» подтягивается из фактического результата предыдущего этапа —
+   * мастер её не вводит. Признак участка тот же самый, что у рулонов,
+   * и живёт он в данных (`erp_departments.result_detail`).
+   */
+  const bySizes = dept?.result_detail === 'sizes' && (item.size_grid?.length ?? 0) > 0;
   const [rollEntries, setRollEntries] = useState([]);
+  const [sizeValues, setSizeValues] = useState({});
+  const [assemblyCost, setAssemblyCost] = useState('');
+  const [prevReports, setPrevReports] = useState([]);
+
+  const loadStageReports = useErpStore(useShallow((st) => st.loadStageReports));
+
+  /**
+   * Отчёты предшественников — точечной загрузкой при открытии формы: журнал
+   * результатов растёт быстрее всего, и возить его в выборке заказа ради
+   * одной формы нельзя.
+   */
+  useEffect(() => {
+    if (!bySizes) return undefined;
+    let alive = true;
+    const deps = stage.depends_on ?? [];
+    if (deps.length === 0) return undefined;
+    loadStageReports(deps).then((rows) => { if (alive) setPrevReports(rows); });
+    return () => { alive = false; };
+  }, [bySizes, stage.depends_on, loadStageReports]);
+
+  const sizeInput = useMemo(
+    () => (bySizes ? sizeInputFor(stage, item.stages ?? [], prevReports) : null),
+    [bySizes, stage, item.stages, prevReports],
+  );
+  const sizeRows = useMemo(
+    () => (bySizes ? sizeInputRows(item.size_grid, sizeInput) : []),
+    [bySizes, item.size_grid, sizeInput],
+  );
+  const sizeSums = useMemo(() => sizeTotals(sizeRows, sizeValues), [sizeRows, sizeValues]);
+  const sizeBlock = bySizes ? sizeReportBlock(sizeRows, sizeValues) : null;
+  /**
+   * Стоимость сборки обязательна, ПОКА её у позиции нет (документ называет
+   * поле обязательным). Когда она уже записана, спрашивать её на каждой
+   * частичной сдаче незачем — «обязательное» превратилось бы в «вводите
+   * одно и то же каждый день».
+   */
+  const needsCost = bySizes && !item.assembly_cost_per_unit && assemblyCost === '';
   /** Рулоны, принятые складом по этой позиции: их же показывает секция */
   const rollOptions = useMemo(
     () => (byRolls ? rollsForItem(order?.materials, item?.id, rollEntries.map((e) => e.rollId)) : []),
@@ -71,9 +122,16 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
        * из таблиц раскроя, и два писателя разошлись бы на первой опечатке.
        * Брак и переделка остаются — они к рулонам не привязаны.
        */
-      return byRolls ? visible.filter((f) => f.target !== 'qty_good') : visible;
+      if (byRolls) return visible.filter((f) => f.target !== 'qty_good');
+      /**
+       * При размерной таблице одиночные «Сшито / Брак / В переделку» уходят:
+       * документ просит заменить их таблицей, а держать оба набора значило бы
+       * два писателя одних и тех же трёх чисел.
+       */
+      if (bySizes) return visible.filter((f) => f.target === 'extra');
+      return visible;
     },
-    [dept, canDefect, byRolls],
+    [dept, canDefect, byRolls, bySizes],
   );
   const qtyIn = useMemo(
     () => stageInputQty(stage, item.stages ?? [], item.qty),
@@ -126,10 +184,12 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const rollBlock = byRolls && rollEntries.length > 0
     ? cutBlock(rollEntries, rollOptions)
     : null;
-  const goodQty = byRolls ? rollTotals.qty : totals.qty_good;
+  const goodQty = byRolls ? rollTotals.qty : (bySizes ? sizeSums.good : totals.qty_good);
+  const defectQty = bySizes ? sizeSums.defect : totals.qty_defect;
+  const reworkQty = bySizes ? sizeSums.rework : totals.qty_rework;
 
-  const anything = goodQty + totals.qty_defect + totals.qty_rework + totals.qty_extra > 0;
-  const needsComment = totals.qty_defect > 0 || totals.qty_rework > 0;
+  const anything = goodQty + defectQty + reworkQty + totals.qty_extra > 0;
+  const needsComment = defectQty > 0 || reworkQty > 0;
   const missingRequired = fields.some((f) => f.required && num(f.code) <= 0);
   const overBlock = overPlanBlock(goodQty, stage, item.stages ?? [], item.qty, dept);
 
@@ -149,8 +209,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     onSubmit({
       qtyIn,
       qtyGood: goodQty,
-      qtyDefect: totals.qty_defect,
-      qtyRework: totals.qty_rework,
+      qtyDefect: defectQty,
+      qtyRework: reworkQty,
       qtyExtra: totals.qty_extra,
       comment,
       extra: totals.extra,
@@ -163,6 +223,17 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         ? {
           rolls: cutRollsPayload(rollEntries, rollOptions),
           sizes: cutSizesPayload(rollEntries, sizeCellsOf(item.size_grid)),
+        }
+        : {}),
+      ...(bySizes
+        ? {
+          sizes: sizeReportPayload(sizeRows, sizeValues),
+          /**
+           * Стоимость сборки — ОДНА на позицию, а не по размерам (документ:
+           * «мастер указывает один раз на всю позицию»). Пустое поле не
+           * стирает уже записанное: сервер применяет только присланное.
+           */
+          assemblyCost: assemblyCost === '' ? null : Number(assemblyCost),
         }
         : {}),
     });
@@ -187,6 +258,48 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
           onChange={setRollEntries}
           disabled={busy}
         />
+      )}
+
+      {bySizes && (
+        <>
+          <SizeResultTable
+            rows={sizeRows.map((r) => ({ ...r, expected: r.expected ?? '—' }))}
+            columns={[
+              { code: 'good', label: 'Сшито, шт' },
+              ...(canDefect ? [
+                { code: 'defect', label: 'Брак, шт' },
+                { code: 'rework', label: 'В переделку, шт' },
+              ] : []),
+            ]}
+            values={sizeValues}
+            onChange={(key, code, value) => setSizeValues((v) => ({
+              ...v, [key]: { ...v[key], [code]: value },
+            }))}
+            expectedLabel="Принято из закроя"
+            caption="Результат пошива по размерам"
+            disabled={busy}
+          />
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>
+              Стоимость сборки за единицу, ₽{needsCost ? ' *' : ''}
+            </span>
+            <input
+              type="number" min="0" step="0.01"
+              className={`${styles.input} ${styles.qtySmallInput}`}
+              value={assemblyCost}
+              disabled={busy}
+              onChange={(e) => setAssemblyCost(e.target.value)}
+              placeholder={item.assembly_cost_per_unit
+                ? String(item.assembly_cost_per_unit) : ''}
+              aria-label="Стоимость сборки за единицу"
+            />
+            <span className={styles.subText}>
+              {item.assembly_cost_per_unit
+                ? `Записано по позиции: ${item.assembly_cost_per_unit} ₽ за единицу`
+                : 'Один раз на всю позицию, а не по размерам'}
+            </span>
+          </label>
+        </>
       )}
 
       <div className={styles.planFormRow}>
@@ -229,6 +342,12 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
 
       {/* Причина отказа названа ДО отправки: узнать о потолке из ответа
           сервера хуже, чем прочитать его рядом с полем */}
+      {sizeBlock && (
+        <p className={styles.queueReason} role="status">
+          <Icon name="alert" size={13} /> {sizeBlock}
+        </p>
+      )}
+
       {rollBlock && (
         <p className={styles.queueReason} role="status">
           <Icon name="alert" size={13} /> {rollBlock}
@@ -245,7 +364,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         <Button
           variant="primary"
           disabled={busy || !anything || missingRequired || Boolean(overBlock)
-            || Boolean(rollBlock) || (needsComment && !comment.trim())}
+            || Boolean(rollBlock) || Boolean(sizeBlock) || needsCost
+            || (needsComment && !comment.trim())}
           onClick={submit}
         >
           <Icon name="check" size={14} /> Сдать результат

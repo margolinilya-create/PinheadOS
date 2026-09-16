@@ -10,6 +10,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { deptShortName } from '../../data/departments';
 import type { ErpItemStage, ErpStageEvent, StageReportSizeInput } from '../../types';
+import type { ReportWithSizes } from '../../utils/stageSizes';
 import {
   defaultQueuePosition,
   nextQueuePosition,
@@ -397,6 +398,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
          */
         p_sizes: sizes,
         p_rolls: rolls,
+        p_assembly_cost: input.assemblyCost ?? null,
       })));
     if (error) {
       erpError('Результат не записан', error);
@@ -420,6 +422,27 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       comment: comment || `Результат: ${after}/${item.qty}`,
     });
     return true;
+  },
+
+  /**
+   * Отчёты этапов с размерными строками — для колонки «Принято из закроя».
+   *
+   * Пустой список ID запросом не становится: `in ()` вернул бы всё, что видно
+   * политике, и форма подставила бы чужие числа.
+   */
+  loadStageReports: async (stageIds) => {
+    const ids = [...new Set((stageIds ?? []).filter(Boolean))];
+    if (ids.length === 0) return [];
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_stage_reports')
+      .select('*, sizes:erp_stage_report_sizes (*)')
+      .in('stage_id', ids)
+      .order('created_at', { ascending: true }));
+    if (error) {
+      erpError('Не удалось прочитать результаты предыдущих этапов', error);
+      return [];
+    }
+    return (data ?? []) as ReportWithSizes[];
   },
 
   reportDefect: async (stageId, opts) => {
