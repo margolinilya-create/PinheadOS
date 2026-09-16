@@ -185,13 +185,34 @@ test.describe('Приёмка материала: приход обязател�
     await expect(drawer).toContainText('Укажите, сколько пришло');
   });
 
-  test('количество введено — кнопка открывается', async ({ page }) => {
+  /**
+   * ПРАВКА 16.09, П. 5. Материал этой задачи учитывается в килограммах,
+   * а значит приёмка обязана назвать ещё и число рулонов: по ним закрой
+   * отчитывается о расходе ткани, и рулон, не заведённый на приёмке,
+   * выбрать в цеху уже нечем.
+   *
+   * Одного количества теперь мало — и это ровно то, на чём спека упала
+   * при выкате правки: она заполняла килограммы и ждала открытую кнопку.
+   */
+  test('количество введено, а рулоны — нет: кнопка погашена и причина названа', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
       .getByRole('button', { name: 'Открыть' }).click();
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('укажите количество рулонов');
+  });
+
+  test('количество и рулоны введены — кнопка открывается', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Открыть' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await drawer.getByLabel(/Количество рулонов/).fill('3');
     await expect(drawer.getByRole('button', { name: 'Принять' })).toBeEnabled();
   });
 
