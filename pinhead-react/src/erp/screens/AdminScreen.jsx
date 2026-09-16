@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHead } from '../components/PageHead';
 import { TableSkeleton } from '../components/ErpSkeletons';
+import { AnalyticsTab } from './admin/AnalyticsTab';
 import EmployeesScreen from './EmployeesScreen';
 import DepartmentsScreen from './DepartmentsScreen';
 import { PermissionsTab } from './admin/PermissionsTab';
@@ -52,6 +53,10 @@ const TABS = [
   // Вкладка заводится ТОЛЬКО когда такие записи есть — см. `hasLegacy` ниже
   { id: 'legacy', label: 'Подряд без маршрута', needs: 'order.manage', onlyWhenLegacy: true },
   { id: 'studio', label: 'Заказы ТЗ', needs: 'order.manage' },
+  // Аналитика производства (правка 16.09, п. 7): своё право, потому что
+  // сводка отвечает на вопросы руководства, но только ЧИТАЕТ — запирать её
+  // правом на правку справочников значило бы раздавать заодно и правку
+  { id: 'analytics', label: 'Аналитика', needs: 'analytics.view' },
 ];
 
 export default function AdminScreen() {
@@ -106,6 +111,7 @@ export default function AdminScreen() {
           <AdminPanel ordersOnly />
         </Suspense>
       )}
+      {tab === 'analytics' && <AnalyticsTab />}
       </TabPanel>
     </>
   );

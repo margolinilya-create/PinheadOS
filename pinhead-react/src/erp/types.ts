@@ -1795,6 +1795,7 @@ export type { ErpPermission } from './permissionKeys';
 export { ERP_PERMISSIONS } from './permissionKeys';
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
+  'analytics.view': 'Смотреть аналитику производства',
   'stage.take': 'Брать задания в работу',
   'stage.progress': 'Записывать результат',
   'stage.complete': 'Завершать этап',

@@ -16,6 +16,7 @@ import { experimentalSlice } from './slices/experimentalSlice';
 import { tzSlice } from './slices/tzSlice';
 import { planSlice } from './slices/planSlice';
 import { settingsSlice } from './slices/settingsSlice';
+import { analyticsSlice } from './slices/analyticsSlice';
 import type { ErpStore } from './types';
 
 /**
@@ -65,6 +66,7 @@ const DOMAIN_SLICES = [
   tzSlice,
   planSlice,
   settingsSlice,
+  analyticsSlice,
 ] as const;
 
 let attached = false;

@@ -168,8 +168,10 @@ export default function ErpApp({ user }) {
             сотрудниками менеджеру, закупщику и дизайнеру.
           */}
           <Route
+            /* Три условия: админ/директор, каталог SKU (15.09) и аналитика
+               (16.09, п. 7) — без третьего право гасилось бы МАРШРУТОМ */
             path="/admin"
-            element={<ErpGuard allowed={isAdmin || can('sku.view')}><AdminScreen /></ErpGuard>}
+            element={<ErpGuard allowed={isAdmin || can('sku.view') || can('analytics.view')}><AdminScreen /></ErpGuard>}
           />
           {/* Карточка модели. Гейт — `canOpenScreen` по первому сегменту,
               тем же приёмом, что у страницы разработки */}

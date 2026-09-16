@@ -731,6 +731,84 @@ export interface MaterialsSlice {
 }
 
 /** Склад: числовая приёмка материалов + история складских операций (правки 2, 3) */
+/** Фильтр раздела «Аналитика» */
+export interface AnalyticsFilter {
+  from: string;
+  to: string;
+  bucket?: 'day' | 'week';
+  product?: string | null;
+  dept?: string | null;
+}
+
+/** Карточки «Обзора»: то, что возвращает `erp_analytics_overview` */
+export interface AnalyticsOverview {
+  from: string;
+  to: string;
+  prev_from: string;
+  prev_to: string;
+  released: number;
+  released_prev: number;
+  defect: number;
+  rework: number;
+  /** «Плюсы» — изделия сверх тиража (решение владельца 16.09) */
+  extra: number;
+  /** Средневзвешенная по выпуску; `null` — стоимость нигде не проставлена */
+  assembly_avg: number | null;
+  /** Сколько изделий выпуска покрыто стоимостью: среднее без покрытия врёт */
+  assembly_covered_qty: number;
+  fabric_kg: number;
+  fabric_rolls: number;
+  fabric_per_item: number | null;
+}
+
+export interface AnalyticsSeriesRow {
+  bucket: string;
+  released: number;
+  defect: number;
+  rework: number;
+  extra: number;
+  fabric: number;
+}
+
+export interface AnalyticsSkuRow {
+  sku_card_id: string | null;
+  product_type: string;
+  released: number;
+  defect: number;
+  rework: number;
+  extra: number;
+  defect_pct: number | null;
+  assembly_avg: number | null;
+  orders: number;
+}
+
+export interface AnalyticsDeptRow {
+  department_id: string;
+  released: number;
+  defect: number;
+  rework: number;
+  defect_pct: number | null;
+}
+
+export interface AnalyticsSnapshot {
+  overview: AnalyticsOverview | null;
+  series: AnalyticsSeriesRow[];
+  bySku: AnalyticsSkuRow[];
+  byDept: AnalyticsDeptRow[];
+}
+
+export interface AnalyticsSlice {
+  /** Последний снимок и его ключ: тот же фильтр — тот же ответ */
+  analytics?: AnalyticsSnapshot | null;
+  analyticsKey?: string | null;
+  analyticsLoading?: boolean;
+  /**
+   * Сводка за период. Возвращает `null`, когда хотя бы одна агрегация
+   * не удалась: половина снимка молча врала бы про остальные показатели.
+   */
+  loadAnalytics: (filter: AnalyticsFilter) => Promise<AnalyticsSnapshot | null>;
+}
+
 export interface WarehouseSlice {
   /**
    * Приёмка материала складом ОДНОЙ транзакцией (RPC `erp_material_accept`):
@@ -1511,4 +1589,5 @@ export type ErpStore = BootstrapSlice &
   NotificationsSlice &
   ChatSlice &
   SkuSlice &
+  AnalyticsSlice &
   RealtimeSlice;

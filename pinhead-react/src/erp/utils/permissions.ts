@@ -75,11 +75,19 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
    * поэтому новые `sku.edit`/`publish`/`archive` пришлось назвать явно —
    * иначе они достались бы ему молча, первым же расширением перечня.
    */
+  /**
+   * `analytics.view` назван здесь ЯВНО по той же причине, что и права
+   * каталога: перечень строится ИСКЛЮЧЕНИЯМИ, и каждое новое право досталось
+   * бы диспетчеру молча. Сводка себестоимости и брака по цехам — вопрос
+   * руководства, а не диспетчеризации; понадобится — выдаётся галочкой
+   * в матрице, на то она и есть.
+   */
   dispatcher: ERP_PERMISSIONS.filter(
     (p) => p !== 'catalog.edit' && p !== 'plan.manage' && p !== 'bypass.manage'
       && p !== 'experimental.manage' && p !== 'warehouse.manage'
       && p !== 'staff.invite'
-      && p !== 'sku.edit' && p !== 'sku.publish' && p !== 'sku.archive',
+      && p !== 'sku.edit' && p !== 'sku.publish' && p !== 'sku.archive'
+      && p !== 'analytics.view',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
