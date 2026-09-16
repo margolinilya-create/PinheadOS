@@ -34,7 +34,11 @@ vi.mock('./lib/supabase', () => ({
       const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
       return ch;
     }),
-    removeChannel: vi.fn(),
+    // АСИНХРОННЫЙ, как настоящий: `removeChannel` возвращает промис, и код
+    // уборки обрабатывает его отказ (`realtimeSlice.dropChannel`). Мок,
+    // отдающий `undefined`, ронял бы отписку там, где в проде она работает, —
+    // правило проекта «мок обязан уметь то, что умеет клиент»
+    removeChannel: vi.fn(async () => 'ok'),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
       signInWithPassword: vi.fn().mockResolvedValue({ data: {}, error: null }),

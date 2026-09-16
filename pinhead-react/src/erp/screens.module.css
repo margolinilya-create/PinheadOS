@@ -917,6 +917,11 @@ a.cellTitle:hover { color: var(--accent); }
 @media (pointer: coarse) {
 
   .moveBtn { min-width: 44px; min-height: 44px; font-size: var(--type-title); }
+  /* Галочка матрицы прав — голый `input[type=checkbox]` рисуется системным
+     размером (~13px), то есть втрое мельче тач-минимума. Растягиваем сам
+     контрол, а не обёртку: попасть надо в него, а промах здесь стоит
+     СНЯТОГО ПРАВА у целой роли */
+  .matrixCheck { width: 24px; height: 24px; margin: 10px; }
 }
 
 
@@ -1188,6 +1193,24 @@ a.cellTitle:hover { color: var(--accent); }
 .planCardActions { display: flex; gap: 6px; flex-wrap: wrap; }
 .planMoveBtns { display: flex; gap: var(--space-xs); justify-content: flex-end; }
 
+/* Окно переноса задачи плана: дни недели кнопками — «через шаг» одним касанием.
+   `auto-fit` + `minmax` вместо порогов: пять дней укладываются в ряд на 1280,
+   в два ряда на планшете и в столбик на телефоне без единого медиазапроса */
+.planMoveDays {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-xs);
+}
+.planMoveDay { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.planMoveCustom { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+/* Компактная сводка «Все цеха»: карточка на цех вместо таблицы из 12 колонок */
+.planDeptCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
 .planDeviations { margin-top: var(--space-lg); }
 .planDeviationList {
   display: grid;
@@ -1240,9 +1263,18 @@ a.cellTitle:hover { color: var(--accent); }
 .planPickRow:hover:not(:disabled) { background: var(--surface); }
 .planPickRow:disabled { opacity: 0.5; cursor: default; }
 .planPickRowActive { border-color: var(--accent); background: var(--surface); }
-@media (max-width: 768px) {
-
+/*
+  ШИРИНА КОЛОНКИ ДНЯ — ПО ПРИЗНАКУ КОМПАКТНОЙ РАСКЛАДКИ, А НЕ ПО 768px.
+  Порог 768 оставлял планшет В ЛАНДШАФТЕ (1024×768) с колонками по 300px:
+  доска шире экрана, а `useCompactLayout` при этом уже считает раскладку
+  компактной — то есть CSS и JS отвечали на один вопрос по-разному.
+  Условие дословно повторяет `COMPACT_LAYOUT_QUERY` (`layout/useCompactLayout`).
+*/
+@media (max-width: 1024px), (pointer: coarse) {
   .planDay { flex-basis: 88vw; }
+}
+
+@media (max-width: 768px) {
   .planDeviationList { grid-template-columns: 1fr; }
 }
 
@@ -1966,3 +1998,30 @@ a.cellTitle:hover { color: var(--accent); }
   border-bottom: 1px solid var(--border-light);
 }
 .skuListRow:last-child { border-bottom: 0; }
+
+/* Приёмка материалов в компактной раскладке: форма, а не таблица из трёх
+   колонок. Подпись, план справкой и поле ввода во всю ширину — на 768px
+   третья колонка с `input` высотой 44px сжималась в треть экрана */
+.receiptFields { display: flex; flex-direction: column; gap: 10px; }
+.receiptField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+.receiptField:last-child { border-bottom: 0; padding-bottom: 0; }
+.receiptFieldFact { margin-top: var(--space-xs); }
+/* Поле факта занимает ширину карточки: ради этого раскладку и меняли —
+   в таблице ему доставалась треть экрана */
+.receiptFieldFact input { width: 100%; }
+
+/* Матрица «цвет × размер» шире планшета: первая колонка остаётся на месте
+   при горизонтальной прокрутке, иначе, дойдя до XXL, цех теряет имя строки */
+.gridStickyFirst th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: left;
+}

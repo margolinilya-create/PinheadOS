@@ -4,6 +4,7 @@ import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import { confirm } from '../../../store/useConfirmStore';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { useCompactLayout } from '../../layout/useCompactLayout';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';
 import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
@@ -43,6 +44,8 @@ function awaitsAcceptance(m) {
  * количество. Теперь действие одно, и уходит оно одной транзакцией.
  */
 function AcceptBlock({ material: m, onAccept }) {
+  // Приёмка — цеховой экран, и открывают её со склада, то есть с планшета
+  const compact = useCompactLayout();
   const done = !awaitsAcceptance(m) && m.accept_status;
   // Факт-атрибуты преднаполняются планом — кладовщик правит только при пересорте/расхождении
   const [factName, setFactName] = useState(m.fact_name ?? m.name ?? '');
@@ -178,66 +181,110 @@ function AcceptBlock({ material: m, onAccept }) {
           </span>
         )}
       </div>
-      <ScrollHintBox className={styles.tableWrap} label="Приёмка материалов">
-        <table className={styles.table}>
-          <thead>
-            <tr><th>Поле</th><th>План (закупка)</th><th>Факт (склад)</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Материал</td>
-              <td>{m.name || '—'}</td>
-              <td>
-                <input className={styles.input} value={factName}
-                  onChange={(e) => setFactName(e.target.value)} aria-label={`Факт материал ${m.name}`} />
-              </td>
-            </tr>
-            <tr>
-              <td>Цвет</td>
-              <td>{m.color || '—'}</td>
-              <td>
-                <input className={styles.input} value={factColor}
-                  onChange={(e) => setFactColor(e.target.value)} aria-label={`Факт цвет ${m.name}`} />
-              </td>
-            </tr>
-            <tr>
-              <td>Артикул</td>
-              <td>{m.article || '—'}</td>
-              <td>
-                <input className={styles.input} value={factArticle}
-                  onChange={(e) => setFactArticle(e.target.value)} aria-label={`Факт артикул ${m.name}`} />
-              </td>
-            </tr>
-            {/* Поставщик — только план (правка 10): выбран закупкой, склад его не меняет;
-                расхождение фиксируется комментарием приёмки */}
-            <tr>
-              <td>Поставщик</td>
-              <td>{m.supplier || '—'}</td>
-              <td className={styles.subText}>
-                расхождение — в комментарий
-              </td>
-            </tr>
-            {/*
+      {/*
+        СТРОКИ ОБЪЯВЛЕНЫ ОДИН РАЗ, а раскладок две. Это не таблица данных,
+        а ФОРМА, притворившаяся таблицей: колонок три, и третья — поля ввода
+        высотой 44px. На 768px подпись, план и `input` сжимались в треть
+        экрана каждый, то есть вводить стоя было нечем. Компактная раскладка
+        разворачивает ту же строку вертикально: подпись, план справкой, поле
+        во всю ширину.
+
+        Вторая копия строк под карточку разошлась бы с первой молча — обе
+        «работают», просто показывают разное (правило `PurchaseFields`).
+      */}
+      {(() => {
+        const rows = [
+          {
+            key: 'name',
+            label: 'Материал',
+            plan: m.name || '—',
+            fact: (
+              <input className={styles.input} value={factName}
+                onChange={(e) => setFactName(e.target.value)} aria-label={`Факт материал ${m.name}`} />
+            ),
+          },
+          {
+            key: 'color',
+            label: 'Цвет',
+            plan: m.color || '—',
+            fact: (
+              <input className={styles.input} value={factColor}
+                onChange={(e) => setFactColor(e.target.value)} aria-label={`Факт цвет ${m.name}`} />
+            ),
+          },
+          {
+            key: 'article',
+            label: 'Артикул',
+            plan: m.article || '—',
+            fact: (
+              <input className={styles.input} value={factArticle}
+                onChange={(e) => setFactArticle(e.target.value)} aria-label={`Факт артикул ${m.name}`} />
+            ),
+          },
+          {
+            // Поставщик — только план (правка 10): выбран закупкой, склад его
+            // не меняет; расхождение фиксируется комментарием приёмки
+            key: 'supplier',
+            label: 'Поставщик',
+            plan: m.supplier || '—',
+            fact: <span className={styles.subText}>расхождение — в комментарий</span>,
+          },
+          {
+            /*
               Количество — ЧТЕНИЕ: это сумма журнала приходов, её ведёт триггер
               `erp_material_receipts_rollup`. Поле ввода здесь означало бы
               второго писателя одной колонки — первый же следующий приход
               пересчитал бы сумму и затёр набранное, молча, потому что оба пути
               «работают». Вводится ниже «сколько пришло сейчас», а не итог:
               итог система складывает сама.
-            */}
-            <tr>
-              <td>Количество{m.unit ? `, ${m.unit}` : ''}</td>
-              <td>{m.qty_expected ?? '—'}</td>
-              <td>
+            */
+            key: 'qty',
+            label: `Количество${m.unit ? `, ${m.unit}` : ''}`,
+            plan: m.qty_expected ?? '—',
+            fact: (
+              <>
                 {received === '' || received === null ? '—' : received}
                 {shortfall > 0 && (
                   <div className={styles.overdue}>не хватает {shortfall}</div>
                 )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </ScrollHintBox>
+              </>
+            ),
+          },
+        ];
+
+        if (compact) {
+          return (
+            <div className={styles.receiptFields}>
+              {rows.map((row) => (
+                <div key={row.key} className={styles.receiptField}>
+                  <span className={styles.dataCardFieldLabel}>{row.label}</span>
+                  <span className={styles.subText}>План (закупка): {row.plan}</span>
+                  <span className={styles.receiptFieldFact}>{row.fact}</span>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <ScrollHintBox className={styles.tableWrap} label="Приёмка материалов">
+            <table className={styles.table}>
+              <thead>
+                <tr><th>Поле</th><th>План (закупка)</th><th>Факт (склад)</th></tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.key}>
+                    <td>{row.label}</td>
+                    <td>{row.plan}</td>
+                    <td>{row.fact}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollHintBox>
+        );
+      })()}
       <div className={styles.queueBlockForm}>
         <span className={styles.queueReason}>
           Принято всего: <b>{already || 0}</b>

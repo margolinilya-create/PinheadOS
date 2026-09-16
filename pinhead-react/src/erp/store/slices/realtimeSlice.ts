@@ -80,6 +80,23 @@ const TABLE_TO_CHILD: Record<string, ChildKey> = {
 const AFFECTS_READINESS = new Set<ChildKey>(['materials', 'procurement_tasks', 'tz_documents']);
 
 /**
+ * Отписка от канала — АСИНХРОННАЯ операция, и её отказ никто не ждёт.
+ *
+ * `supabase.removeChannel()` возвращает промис; вызванный голым, при отказе
+ * он всплывает необработанным — ровно тот класс, от которого в проекте уже
+ * обёрнуто фоновое сохранение формы. Нашёл это не человек, а включённый
+ * 15.09 `@typescript-eslint/no-floating-promises`: два вызова, оба в путях
+ * уборки (переподключение и размонтирование).
+ *
+ * Сообщать не о чем: отписка от канала, который и так оборван, — нормальный
+ * исход, а второй тост на потерянной связи превратил бы оболочку в мигалку.
+ * `void` здесь не годится: он гасит ПРАВИЛО, а не отказ промиса.
+ */
+function dropChannel(channel: Parameters<typeof supabase.removeChannel>[0]) {
+  supabase.removeChannel(channel).catch(() => { /* канал уже мёртв — уборке это не мешает */ });
+}
+
+/**
  * Точечный upsert/удаление дочерней строки заказа (материал/закупка/склад).
  * Раньше эти события вызывали полный loadOne заказа — а он затирал оптимистичные
  * мутации ЭТАПОВ, если прилетал во время незавершённой мутации (регрессия волны 4.1:
@@ -529,7 +546,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
             reconnectTimer = null;
             // Канал пересоздаётся целиком: у оборванного `subscribe()` повторно
             // не вызывают — supabase-js держит его в терминальном состоянии
-            supabase.removeChannel(channel);
+            dropChannel(channel);
             const next = get().subscribeRealtime();
             cleanupNext = next;
           }, delay);
@@ -562,7 +579,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       }
       // Канал мог быть пересоздан переподключением — отписываем ТОТ, что живёт
       if (cleanupNext) cleanupNext();
-      else supabase.removeChannel(channel);
+      else dropChannel(channel);
     };
   },
 });

@@ -23,6 +23,10 @@ import { capacityReport } from '../utils/capacity';
 import { PlanTaskCard } from './plan/PlanTaskCard';
 import { PlanSlotDrawer } from './plan/PlanSlotDrawer';
 import { PlanAddModal } from './plan/PlanAddModal';
+import { PlanMoveModal } from './plan/PlanMoveModal';
+import { PlanDeptCard } from './plan/PlanDeptCard';
+import { useCompactLayout } from '../layout/useCompactLayout';
+import { useTouchDndPolyfill } from '../components/kanban/useTouchDndPolyfill';
 import styles from '../styles';
 import { percentLabel, weekdayName } from '../utils/format';
 import { Button } from '../components/Button';
@@ -70,6 +74,19 @@ export default function PlanScreen() {
   })));
   const access = useErpAccess();
   const today = factoryToday();
+  const isCompact = useCompactLayout();
+  /**
+   * Тач-перетаскивание: доска плана объявляет `draggable` и зоны сброса, а
+   * HTML5 DnD на тач-экране не работает вовсе — до 15.09 жест был здесь
+   * МЁРТВЫМ, при том что на канбане и в очереди цеха он уже работал.
+   *
+   * Полифилл ленивый и грузится только при `pointer: coarse`. Обещание
+   * интерфейса он при этом НЕ держит: колонки дня по 300px в прокручиваемой
+   * доске, автопрокрутки при перетаскивании у плана нет, и дотянуть карточку
+   * с понедельника на пятницу жестом всё равно нельзя. Для этого есть окно
+   * переноса — оно и есть путь, а полифилл лишь оживляет соседний день.
+   */
+  useTouchDndPolyfill();
 
   const [params, setParams] = useSearchParams();
   const monday = params.get('week') || mondayOf(today);
@@ -89,6 +106,14 @@ export default function PlanScreen() {
   const [openSlot, setOpenSlot] = useState(null);
   const [addTo, setAddTo] = useState(null); // { date, deptId }
   const [drag, setDrag] = useState(null);
+  const [moveFor, setMoveFor] = useState(null); // слот, который переносят окном
+  /**
+   * Блокировка на время ответа — правило проекта «любое действие, отправляющее
+   * запрос, блокируется на время ответа». У кнопок «‹ ›» её не было вовсе:
+   * два тапа подряд на планшете давали два переноса, второй — уже с новой
+   * даты, то есть задача уезжала на два дня вместо одного.
+   */
+  const [moving, setMoving] = useState(false);
 
   /**
    * Колонка «сегодня»: доска шире экрана, и на планшете текущий день
@@ -196,6 +221,22 @@ export default function PlanScreen() {
   ), [orders, departments, bypasses, plannedStageIds, deptCode, productionDepts]);
 
   /**
+   * Перенос задачи на дату — ОДНА точка на все три пути: бросок, кнопки «‹ ›»
+   * и окно переноса. Она же держит `moving`, поэтому повторный тап во время
+   * запроса не уводит задачу дважды (у «‹ ›» этой защиты не было вовсе).
+   *
+   * Окно закрывается только ПОСЛЕ УСПЕХА: при отказе причину называет
+   * `erpError` слайса, и человек остаётся там же, где выбирал дату.
+   */
+  const moveSlotTo = useCallback(async (slotId, date) => {
+    if (moving) return;
+    setMoving(true);
+    const ok = await movePlanSlot(slotId, date);
+    setMoving(false);
+    if (ok) setMoveFor(null);
+  }, [moving, movePlanSlot]);
+
+  /**
    * Одна зона сброса, два источника: карточка дня переезжает на другой день,
    * а задание из очереди «Не запланировано» открывает окно постановки с уже
    * подставленными днём и заданием — количество на день человек подтверждает
@@ -210,7 +251,7 @@ export default function PlanScreen() {
       return;
     }
     if (dragged.slot.work_date === date) return;
-    await movePlanSlot(dragged.slot.id, date);
+    await moveSlotTo(dragged.slot.id, date);
   };
 
   /**
@@ -292,7 +333,7 @@ export default function PlanScreen() {
         ступень «пусто → скелетон»: `loadPlan` зовётся из эффекта, и первый
         кадр панели был пустым.
       */}
-      {!ready && <PlanBoardSkeleton days={dates.length} deptCode={deptCode} />}
+      {!ready && <PlanBoardSkeleton days={dates.length} deptCode={deptCode} compact={isCompact} />}
 
       {ready && deptCode === 'all' && (
         <AllDeptsSummary
@@ -302,6 +343,7 @@ export default function PlanScreen() {
           today={today}
           onPick={(code) => setParam({ dept: code })}
           canManage={canManage}
+          compact={isCompact}
         />
       )}
 
@@ -351,7 +393,9 @@ export default function PlanScreen() {
                         ctx={ctxByStage.get(slot.stage_id)}
                         today={today}
                         commentsCount={commentCount(slot.id)}
-                        draggable={canManage}
+                        /* См. `UnplannedQueue`: на тач-экране жест уступает
+                           место кнопкам, иначе он конфликтует с прокруткой */
+                        draggable={canManage && !isCompact}
                         onDragStart={(e, s) => {
                           setDrag({ kind: 'slot', slot: s });
                           e.dataTransfer.effectAllowed = 'move';
@@ -359,24 +403,40 @@ export default function PlanScreen() {
                         onDragEnd={() => setDrag(null)}
                         onOpen={setOpenSlot}
                       />
-                      {/* Перетаскиванию обязана быть клавиатурная альтернатива —
-                          правило проекта и единственный путь на планшете цеха */}
+                      {/*
+                        Перетаскиванию обязана быть клавиатурная альтернатива —
+                        правило проекта и единственный путь на планшете цеха.
+
+                        Кнопок ТРИ, и третья не дубль первых двух: «‹ ›» ходят
+                        по СОСЕДЯМ, а понедельник → пятница ими исполняется
+                        четырьмя тапами по цели, которая после каждого уезжает
+                        из-под пальца. «Перенести…» открывает окно с днями
+                        недели — любой день за два действия.
+                      */}
                       {canManage && (
                         <div className={styles.planMoveBtns}>
                           <Button
                             variant="ghost"
-                            disabled={i === 0}
+                            disabled={moving}
+                            aria-label={`Перенести задачу с ${formatDateShort(date)} на другой день`}
+                            title="Перенести на другой день"
+                            onClick={() => setMoveFor(slot)}>
+                            <Icon name="calendar" size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            disabled={i === 0 || moving}
                             aria-label={`Перенести на ${weekdayName(dates[i - 1])}`}
                             title="На день раньше"
-                            onClick={() => movePlanSlot(slot.id, dates[i - 1])}>
+                            onClick={() => moveSlotTo(slot.id, dates[i - 1])}>
                             <Icon name="chevronLeft" size={14} />
                           </Button>
                           <Button
                             variant="ghost"
-                            disabled={i === dates.length - 1}
+                            disabled={i === dates.length - 1 || moving}
                             aria-label={`Перенести на ${weekdayName(dates[i + 1])}`}
                             title="На день позже"
-                            onClick={() => movePlanSlot(slot.id, dates[i + 1])}>
+                            onClick={() => moveSlotTo(slot.id, dates[i + 1])}>
                             <Icon name="chevronRight" size={14} />
                           </Button>
                         </div>
@@ -415,6 +475,7 @@ export default function PlanScreen() {
           entries={unplanned}
           deptNameById={deptNameById}
           canManage={canManage}
+          compact={isCompact}
           dragging={drag?.kind === 'entry' ? drag.entry.stage.id : null}
           onDragStart={(e, entry) => {
             setDrag({ kind: 'entry', entry });
@@ -435,14 +496,34 @@ export default function PlanScreen() {
           </h3>
           <div className={styles.planDeviationList}>
             {weekDeviations.map((slot) => (
-              <PlanTaskCard
-                key={`dev-${slot.id}`}
-                slot={slot}
-                ctx={ctxByStage.get(slot.stage_id)}
-                today={today}
-                commentsCount={commentCount(slot.id)}
-                onOpen={setOpenSlot}
-              />
+              <div key={`dev-${slot.id}`} className={styles.planCardWrap}>
+                <PlanTaskCard
+                  slot={slot}
+                  ctx={ctxByStage.get(slot.stage_id)}
+                  today={today}
+                  commentsCount={commentCount(slot.id)}
+                  onOpen={setOpenSlot}
+                />
+                {/*
+                  Перенос доступен и ОТСЮДА. Блок называется «Требуют решения»,
+                  и решение чаще всего одно — поставить работу на другой день;
+                  до 15.09 сделать это можно было только найдя ту же карточку
+                  в колонке дня либо открыв шторку и поправив дату в поле.
+                */}
+                {canManage && (
+                  <div className={styles.planMoveBtns}>
+                    <Button
+                      variant="ghost"
+                      disabled={moving}
+                      aria-label={`Перенести задачу с ${formatDateShort(slot.work_date)} на другой день`}
+                      title="Перенести на другой день"
+                      onClick={() => setMoveFor(slot)}
+                    >
+                      <Icon name="calendar" size={14} />
+                    </Button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </section>
@@ -465,6 +546,16 @@ export default function PlanScreen() {
           onClose={() => setAddTo(null)}
         />
       )}
+      {moveFor && (
+        <PlanMoveModal
+          slot={planSlots.find((s) => s.id === moveFor.id) ?? moveFor}
+          dates={dates}
+          today={today}
+          busy={moving}
+          onMove={(date) => moveSlotTo(moveFor.id, date)}
+          onClose={() => setMoveFor(null)}
+        />
+      )}
     </>
   );
 }
@@ -474,7 +565,7 @@ export default function PlanScreen() {
  * Детальная работа с задачами живёт внутри вкладки конкретного цеха, поэтому
  * здесь только цифры и переход.
  */
-function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage }) {
+function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage, compact }) {
   const rows = depts.map((d) => {
     const mine = slots.filter((s) => s.department_id === d.id
       || ctxByStage.get(s.stage_id)?.dept?.id === d.id);
@@ -499,6 +590,24 @@ function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage })
           ? 'План производства ведётся вручную: откройте вкладку цеха и добавьте этапы кнопкой «+ В план на этот день». Пока плана нет, сводка показывала бы нули по всем участкам.'
           : 'Руководитель производства ещё не разложил работу на эту неделю.'}
       />
+    );
+  }
+
+  /*
+    КОМПАКТНАЯ РАСКЛАДКА: карточка на ЦЕХ вместо таблицы из двенадцати колонок.
+    «Все цеха» — вкладка по умолчанию, то есть первый кадр `/plan` на планшете;
+    в таблице «Ждут материалы» и «Брак» уезжали за правый край, а без шапки
+    числа несравнимы. Тот же довод и тот же приём, что у `DeptLoadCard`.
+  */
+  if (compact) {
+    return (
+      <div className={styles.planDeptCards} role="list" aria-label="Сводка по цехам">
+        {rows.map(({ dept, week, day }) => (
+          <div role="listitem" key={dept.id}>
+            <PlanDeptCard dept={dept} week={week} day={day} onPick={onPick} />
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -544,7 +653,7 @@ function AllDeptsSummary({ depts, slots, ctxByStage, today, onPick, canManage })
  * планшете цеха перетаскивания нет вовсе, а этот экран открывают и с него.
  */
 function UnplannedQueue({
-  entries, deptNameById, canManage, dragging, onDragStart, onDragEnd, onPlan,
+  entries, deptNameById, canManage, compact, dragging, onDragStart, onDragEnd, onPlan,
 }) {
   if (entries.length === 0) {
     return (
@@ -565,18 +674,29 @@ function UnplannedQueue({
       <h3 className={styles.queueGroupTitle}>
         Не запланировано ({entries.length})
       </h3>
+      {/*
+        ПОДСКАЗКА НАЗЫВАЕТ ТО, ЧТО НА ЭТОМ УСТРОЙСТВЕ РАБОТАЕТ. «Перетащите
+        в день недели» на планшете обещало жест, которого там нет: доска
+        прокручивается, колонки по 300px, автопрокрутки при перетаскивании
+        у плана нет. Тот же дефект, что чинили в очереди цеха, — интерфейс
+        предлагал мышиный путь людям без мыши.
+      */}
       <p className={styles.queueReason}>
         Готово к запуску, но ни на один день не поставлено.
-        {canManage
-          ? ' Перетащите в день недели или нажмите «В план».'
-          : ' Разложить работу может руководитель производства.'}
+        {canManage && (compact
+          ? ' Нажмите «В план» и выберите день.'
+          : ' Перетащите в день недели или нажмите «В план».')}
+        {!canManage && ' Разложить работу может руководитель производства.'}
       </p>
       <div className={styles.planUnplannedList}>
         {entries.map((e) => (
           <div
             key={e.stage.id}
             className={`${styles.planUnplannedRow} ${dragging === e.stage.id ? styles.queueRowDragging : ''}`}
-            draggable={canManage}
+            /* В компактной раскладке `draggable` снимается: у колонки дня своя
+               вертикальная прокрутка, у доски — горизонтальная, и удержание
+               300 мс поверх обеих даёт ложные захваты вместо прокрутки */
+            draggable={canManage && !compact}
             onDragStart={(ev) => canManage && onDragStart(ev, e)}
             onDragEnd={onDragEnd}
           >

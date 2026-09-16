@@ -51,10 +51,25 @@ test.beforeEach(async ({ page }) => {
  *
  * Якорь — `h1`: его рисует `PageHead` ВНУТРИ экрана, а не оболочка. Пока его
  * нет, на странице скелетон.
+ *
+ * НО `h1` ОТВЕЧАЕТ ТОЛЬКО ЗА ЧАНК, А НЕ ЗА ДАННЫЕ (15.09). Экран рисует
+ * заголовок сразу, как только приехал его код, а содержимое — по `loaded`,
+ * то есть после ответа на выборку заказов. Между двумя моментами на странице
+ * скелетон, и одноразовый `count()` снимает там ноль. Так упал прогон 432
+ * на `main`: «Закупка: у каждого видимого поля есть доступное имя» получила
+ * ноль полей — карточка закупки стоит под `{loaded && selectedOrder && (`
+ * (`screens/FabricPurchasing.jsx`), то есть ждёт ВТОРОГО события.
+ *
+ * Поэтому экран, у которого проверяется СОДЕРЖИМОЕ, передаёт свой якорь
+ * содержимого: ожидание перепроверяется само, и снятый после него счёт
+ * относится к нарисованному экрану, а не к скелетону. Проверено гейтом
+ * `ordersGate` мока: без второго якоря проверка красная (см. «сторож ждёт
+ * данные, а не только заголовок» ниже).
  */
-async function gotoScreen(page: Page, url: string) {
+async function gotoScreen(page: Page, url: string, ready?: string) {
   await page.goto(url);
   await expect(page.locator('h1')).toBeVisible();
+  if (ready) await expect(page.locator(ready).first()).toBeVisible();
 }
 
 /** Есть ли у элемента видимая рамка фокуса (не `outline: none` без замены) */
@@ -162,10 +177,14 @@ test.describe('Формы и объявления', () => {
     ['Админка', '/admin?studio=0'],
   ];
 
+  const FIELD_SELECTOR = 'input:visible, select:visible, textarea:visible';
+
   for (const [name, url] of FIELD_SCREENS) {
     test(`${name}: у каждого видимого поля есть доступное имя`, async ({ page }) => {
-      await gotoScreen(page, url);
-      const inputs = page.locator('input:visible, select:visible, textarea:visible');
+      // Якорь — само поле: у «Закупки» и «Заказов» содержимое приезжает
+      // вторым запросом, и `h1` его появление не гарантирует
+      await gotoScreen(page, url, FIELD_SELECTOR);
+      const inputs = page.locator(FIELD_SELECTOR);
       const n = await inputs.count();
       expect(n, 'полей не найдено — проверка сторожила бы пустоту').toBeGreaterThan(0);
       const nameless: string[] = [];
@@ -194,6 +213,47 @@ test.describe('Формы и объявления', () => {
       expect(nameless, `поля без доступного имени:\n${nameless.join('\n')}`).toEqual([]);
     });
   }
+
+  /**
+   * СТОРОЖ САМОГО ЯКОРЯ: проверка ждёт ДАННЫЕ, а не только заголовок.
+   *
+   * Проверки выше зелены на быстрой машине при любом якоре — окно между
+   * «приехал чанк экрана» и «приехали заказы» там почти нулевое. Именно
+   * поэтому прогон 432 на `main` упал у раннера, а локально не повторялся:
+   * сторож был зелен по случайности.
+   *
+   * Здесь окно создаётся гейтом (`ordersGate`), а не задержкой: задержка
+   * в миллисекундах оставляет шанс, что ответ придёт до замера.
+   *
+   * Проверяется ФАКТ ОЖИДАНИЯ, а не количество полей после него. Первая
+   * редакция этого теста считала поля и прошла мутацию со снятым якорем:
+   * между «отпустили гейт» и «сняли счёт» лежит round-trip в браузер, за
+   * который страница успевает отрисоваться, — то есть проверялась скорость
+   * машины, а не ожидание. Здесь тест утверждает, что `gotoScreen` НЕ
+   * завершается, пока заказы не пришли; `waitForTimeout` тут законен, потому
+   * что проверяется ОТСУТСТВИЕ события, а его иначе не дождаться.
+   */
+  test('сторож ждёт данные, а не только заголовок', async ({ page }) => {
+    let release: () => void = () => {};
+    const ordersGate = new Promise<void>((resolve) => { release = resolve; });
+    await page.clock.setFixedTime(new Date('2026-07-20T09:00:00Z'));
+    await installSupabaseMock(page, { ordersGate });
+
+    let arrivedDone = false;
+    const arrived = gotoScreen(page, '/purchasing?studio=0&supply=ord-a', FIELD_SELECTOR)
+      .then(() => { arrivedDone = true; });
+
+    // Заголовок появляется ДО данных — это и есть состояние, в котором
+    // одноразовый счёт снимал ноль
+    await expect(page.locator('h1')).toBeVisible();
+    expect(await page.locator(FIELD_SELECTOR).count()).toBe(0);
+    await page.waitForTimeout(500);
+    expect(arrivedDone, 'переход завершился, хотя заказы ещё не пришли').toBe(false);
+
+    release();
+    await arrived;
+    expect(await page.locator(FIELD_SELECTOR).count()).toBeGreaterThan(0);
+  });
 
   test('тосты объявляются вспомогательным технологиям', async ({ page }) => {
     await gotoScreen(page, '/orders?studio=0');

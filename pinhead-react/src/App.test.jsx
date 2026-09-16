@@ -24,7 +24,7 @@ vi.mock('./lib/supabase', () => ({
       const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
       return ch;
     }),
-    removeChannel: vi.fn(),
+    removeChannel: vi.fn(async () => 'ok'),
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),

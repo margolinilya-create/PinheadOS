@@ -17,10 +17,29 @@ import styles from '../../styles';
  * это не скелетон, а мигание чужой разметкой, то есть лишний скачок вёрстки
  * вместо обещанной плавности.
  */
-export function PlanBoardSkeleton({ days = 5, deptCode = 'all' }) {
-  // Сводка «Все цеха» — таблица, и скелетон у неё табличный
+export function PlanBoardSkeleton({ days = 5, deptCode = 'all', compact = false }) {
+  /*
+    Сводка «Все цеха»: на широком экране таблица, в компактной раскладке —
+    карточки. Ветка ключуется ТЕМ ЖЕ `useCompactLayout()`, что и сам экран:
+    иначе скелетон рисовал бы таблицу там, где приедут карточки, и правило
+    «скелетон повторяет финальный лейаут буквально» нарушалось бы ровно
+    на том устройстве, ради которого карточки и заведены.
+  */
   if (deptCode === 'all') {
-    return <TableSkeleton rows={7} label="Загрузка сводки по цехам" />;
+    if (!compact) return <TableSkeleton rows={7} label="Загрузка сводки по цехам" />;
+    return (
+      <div className={styles.planDeptCards} role="status" aria-label="Загрузка сводки по цехам">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className={styles.dataCard}>
+            <div className={styles.dataCardHead}>
+              <Skeleton width="45%" height={13} />
+            </div>
+            <Skeleton height={70} radius={6} style={{ marginTop: 8 }} />
+            <Skeleton height={36} radius={6} style={{ marginTop: 8 }} />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (

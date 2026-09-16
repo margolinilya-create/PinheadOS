@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../../../lib/supabase', () => ({
   supabase: {
-    from: vi.fn(), rpc: vi.fn(), channel: vi.fn(), removeChannel: vi.fn(),
+    from: vi.fn(), rpc: vi.fn(), channel: vi.fn(), removeChannel: vi.fn(async () => 'ok'),
     functions: { invoke: vi.fn() },
   },
 }));
