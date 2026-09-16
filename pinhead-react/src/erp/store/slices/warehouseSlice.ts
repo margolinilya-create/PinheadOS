@@ -85,7 +85,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     materialId,
     { qty = null, accept_status, accept_comment = null, invoice = null,
       fact_name = null, fact_color = null, fact_article = null, clientKey = null,
-      sizeGrid = null },
+      sizeGrid = null, rolls = null },
   ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) {
@@ -110,6 +110,12 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
        * он игнорирует — второй писатель того же числа запрещён.
        */
       p_size_grid: sizeGrid && sizeGrid.length > 0 ? sizeGrid : null,
+      /**
+       * Рулоны заводит сервер той же транзакцией — и только когда приход
+       * реально вставился. Клиент их не создаёт: повтор офлайн-очереди
+       * иначе удвоил бы рулоны так же, как удвоил бы килограммы.
+       */
+      p_rolls: rolls && rolls > 0 ? Math.round(rolls) : null,
     };
 
     /**

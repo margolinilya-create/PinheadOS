@@ -10,6 +10,8 @@ import { createAttemptKeeper } from '../../utils/attemptKey';
 import { SizeResultTable } from '../../components/SizeResultTable';
 import { isGarmentPurchase } from '../../utils/garmentPurchase';
 import { cellsToGrid, gridCells, gridRowsTotal } from '../../utils/sizeGrid';
+import { unitShortLabel, unitTracksRolls } from '../../utils/materialUnit';
+import { useDictionary } from '../../store/useDictionary';
 import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
 
 /**
@@ -58,7 +60,17 @@ function AcceptBlock({ material: m, onAccept }) {
   // Сумма журнала приходов: считает сервер, карточка её только показывает
   const received = m.qty_received ?? '';
   const [qty, setQty] = useState('');
+  const [rolls, setRolls] = useState('');
   const [invoice, setInvoice] = useState('');
+  /**
+   * УЧИТЫВАЕТСЯ ЛИ МАТЕРИАЛ РУЛОНАМИ (правка 16.09, п. 5) — решает справочник
+   * единиц, а не сравнение строки: в `unit` на бою лежат и код («кг»),
+   * и имя («Килограммы») одного значения. То же правило зеркалит сервер
+   * (`erp_unit_tracks_rolls`), и обязательность стоит с обеих сторон.
+   */
+  const units = useDictionary('unit');
+  const byRolls = unitTracksRolls(m.unit, units);
+  const unitLabel = unitShortLabel(m.unit, units);
   /**
    * СТАТУС ВЫВОДИТСЯ ИЗ ЧИСЕЛ, ПОКА ЧЕЛОВЕК НЕ СКАЗАЛ ИНАЧЕ (§3.4 обхода 04.09).
    *
@@ -153,6 +165,15 @@ function AcceptBlock({ material: m, onAccept }) {
     ? false
     : already <= 0 && !(arriving > 0);
 
+  /**
+   * РУЛОНЫ ОБЯЗАТЕЛЬНЫ ТАМ, ГДЕ ИХ ТРЕБУЕТ СЕРВЕР, и ровно там же
+   * (`erp_material_accept` отвечает 22023). Гейт формы строже серверного
+   * был бы «кнопкой, которой нет у разрешённого действия», мягче — отказом
+   * после нажатия; поэтому условие одно: пришёл новый приход по рулонной
+   * единице — число рулонов обязательно.
+   */
+  const needsRolls = byRolls && arriving > 0 && !(Number(rolls) > 0);
+
   const accept = async () => {
     if (shortfall > 0 && claimsFull) {
       const ok = await confirm({
@@ -173,6 +194,9 @@ function AcceptBlock({ material: m, onAccept }) {
       // Разбивка — часть ввода: без неё попытка «10 XS» и «10 S» имела бы
       // один ключ, и вторая приёмка отбросилась бы как дубль первой
       bySize ? JSON.stringify(arrivedGrid) : null,
+      // Число рулонов — часть ввода: иначе «40 кг / 2 рулона» и «40 кг /
+      // 3 рулона» имели бы один ключ, и вторая попытка отбросилась бы дублем
+      byRolls ? rolls : null,
     ]);
     const ok = await onAccept(m.id, {
       clientKey: attempt.current.keyFor(signature),
@@ -186,10 +210,11 @@ function AcceptBlock({ material: m, onAccept }) {
       fact_article: factArticle.trim() || null,
       // При разбивке количество считает сервер по ней же
       sizeGrid: bySize && arriving > 0 ? arrivedGrid : null,
+      rolls: byRolls && arriving > 0 ? Number(rolls) : null,
     });
     setSaving(false);
     if (ok) {
-      attempt.current.reset(); setQty(''); setInvoice(''); setSizeEdits({});
+      attempt.current.reset(); setQty(''); setInvoice(''); setSizeEdits({}); setRolls('');
       // Следующий приход — новые числа: предложение считается заново
       setStatusTouched(false);
     }
@@ -344,7 +369,7 @@ function AcceptBlock({ material: m, onAccept }) {
         */}
         {Number.isFinite(expected) && expected > 0 && (
           <span className={styles.queueReason}>
-            ⇒ будет принято {totalAfter} из {expected}{m.unit ? ` ${m.unit}` : ''}
+            ⇒ будет принято {totalAfter} из {expected}{unitLabel ? ` ${unitLabel}` : ''}
             {shortfall > 0
               ? <span className={styles.overdue}> — не хватает {shortfall}</span>
               : ' — план закрыт'}
@@ -371,12 +396,30 @@ function AcceptBlock({ material: m, onAccept }) {
           {!bySize && (
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Пришло сейчас{m.unit ? `, ${m.unit}` : ''}{needsQty ? ' *' : ''}
+                Пришло сейчас{unitLabel ? `, ${unitLabel}` : ''}{needsQty ? ' *' : ''}
               </span>
               <input
                 type="number" min="0" step="0.01" className={styles.input}
                 value={qty} onChange={(e) => setQty(e.target.value)}
                 aria-label={`Сколько пришло сейчас, ${m.name}`}
+              />
+            </label>
+          )}
+          {/*
+            КОЛИЧЕСТВО РУЛОНОВ — НЕПОСРЕДСТВЕННО ПОД ПРИХОДОМ (правка 16.09,
+            п. 5, документ прямо указывает место). Основной учёт остаётся
+            в килограммах: рулоны это НЕ вторая единица измерения, а сущности
+            партии, на которые потом ссылается закрой.
+          */}
+          {byRolls && (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                Количество рулонов, шт{needsRolls ? ' *' : ''}
+              </span>
+              <input
+                type="number" min="1" step="1" className={styles.input}
+                value={rolls} onChange={(e) => setRolls(e.target.value)}
+                aria-label={`Количество рулонов, ${m.name}`}
               />
             </label>
           )}
@@ -411,9 +454,15 @@ function AcceptBlock({ material: m, onAccept }) {
             Укажите, сколько пришло: приёмка без записанного прихода не сохранится.
           </span>
         )}
+        {needsRolls && (
+          <span className={styles.subText}>
+            Материал учитывается в {unitLabel || m.unit} — укажите количество рулонов:
+            по ним закрой отчитывается о расходе ткани.
+          </span>
+        )}
         <Button
           variant="primary"
-          disabled={saving || needsQty || (needsComment && !comment.trim())}
+          disabled={saving || needsQty || needsRolls || (needsComment && !comment.trim())}
           onClick={accept}
         >
           {done ? 'Обновить приёмку' : 'Принять'}

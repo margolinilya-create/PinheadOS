@@ -523,6 +523,30 @@ export interface ErpMaterialReceipt {
   created_at: string;
 }
 
+/**
+ * РУЛОН ПРИНЯТОЙ ПАРТИИ (`erp_material_rolls`, правка 16.09, п. 5).
+ *
+ * Заводится приёмкой склада, дальше по нему отчитывается закрой: с какого
+ * рулона кроили, сколько ткани ушло и сколько изделий каждого размера
+ * получилось. Число рулонов нигде не хранится — это `count(*)`: колонка
+ * рядом была бы вторым писателем того же числа.
+ */
+export interface ErpMaterialRoll {
+  id: string;
+  material_id: string;
+  /** Каким приходом заведён — связь «закупка → партия → рулон» */
+  receipt_id: string | null;
+  /** Сквозной номер ВНУТРИ материала: вторая поставка продолжает нумерацию */
+  seq: number;
+  /** То, что цех произносит вслух: «Рулон №3» */
+  label: string;
+  /** Вес рулона. На приёмке не обязателен — склад принимает партию общим весом */
+  qty: number | null;
+  unit: string | null;
+  status: 'in_stock' | 'in_use' | 'used';
+  created_at: string;
+}
+
 export interface ErpMaterial {
   id: string;
   /**
@@ -611,6 +635,8 @@ export interface ErpMaterial {
   updated_at: string;
   /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
   suppliers?: ErpMaterialSupplier[];
+  /** Рулоны партии — приезжают вложенной выборкой в карточке заказа */
+  rolls?: ErpMaterialRoll[];
 }
 
 /**

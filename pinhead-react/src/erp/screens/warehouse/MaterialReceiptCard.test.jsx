@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MaterialReceiptCard } from './MaterialReceiptCard';
+import { useErpStore } from '../../store/useErpStore';
 
 /**
  * ЗАДАЧА ПРИНАДЛЕЖИТ ПОЗИЦИИ ЗАКУПКИ (правка 12.09, вторая порция, баг 01).
@@ -107,5 +108,66 @@ describe('приёмка: статус выводится из чисел', () =
     fireEvent.change(qtyField(noPlan), { target: { value: '60' } });
     expect(screen.queryByText(/будет принято/)).not.toBeInTheDocument();
     expect(statusField(noPlan)).toHaveValue('accepted_full');
+  });
+});
+
+/**
+ * ПРАВКА ЗАКАЗЧИКА 16.09, П. 5: «Если материал учитывается в кг, под полем
+ * „Пришло сейчас, килограммы" добавить дополнительное ОБЯЗАТЕЛЬНОЕ поле
+ * „Количество рулонов, шт."».
+ *
+ * Сторож держит три вещи, и все три — про настоящий дефект, а не про вид:
+ * поле появляется по СПРАВОЧНИКУ (в `unit` на бою лежат и «кг», и
+ * «Килограммы» — код и имя одного значения, сравнение строки не сработало бы
+ * на трёх строках из семи); у нерулонной единицы поля нет вовсе; приёмка без
+ * числа рулонов не отправляется, и причина названа рядом с кнопкой.
+ */
+describe('рулоны при приёмке ткани (правка 16.09, п. 5)', () => {
+  const UNITS = [
+    { id: 'u1', kind: 'unit', code: 'кг', name: 'Килограммы', sort_order: 1, active: true, meta: { rolls: true } },
+    { id: 'u2', kind: 'unit', code: 'шт', name: 'Штуки', sort_order: 2, active: true, meta: {} },
+  ];
+
+  const renderWith = (unit, onAccept = vi.fn(async () => true)) => {
+    useErpStore.setState({ dictionaries: UNITS });
+    render(
+      <MaterialReceiptCard
+        order={{ ...ORDER, materials: [{ ...MATERIAL, status: 'in_transit', unit }] }}
+        task={{ ...TASK, material_id: 'm1' }}
+        onAccept={onAccept}
+      />,
+    );
+    return onAccept;
+  };
+
+  it.each([['кг'], ['Килограммы']])(
+    'поле рулонов есть у единицы «%s» — узнаётся и код, и имя справочника', (unit) => {
+      renderWith(unit);
+      expect(screen.getByLabelText(/Количество рулонов/)).toBeInTheDocument();
+    },
+  );
+
+  it('у штучного материала поля рулонов нет', () => {
+    renderWith('шт');
+    expect(screen.queryByLabelText(/Количество рулонов/)).not.toBeInTheDocument();
+  });
+
+  it('приход в кг без числа рулонов не отправляется, причина названа', () => {
+    const onAccept = renderWith('кг');
+    fireEvent.change(screen.getByLabelText(/Сколько пришло сейчас/), { target: { value: '48.6' } });
+
+    expect(screen.getByText(/укажите количество рулонов/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Принять/ })).toBeDisabled();
+    expect(onAccept).not.toHaveBeenCalled();
+  });
+
+  it('заполненные рулоны уезжают вместе с приходом', async () => {
+    const onAccept = renderWith('кг');
+    fireEvent.change(screen.getByLabelText(/Сколько пришло сейчас/), { target: { value: '48.6' } });
+    fireEvent.change(screen.getByLabelText(/Количество рулонов/), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Принять/ }));
+
+    await vi.waitFor(() => expect(onAccept).toHaveBeenCalled());
+    expect(onAccept).toHaveBeenCalledWith('m1', expect.objectContaining({ qty: 48.6, rolls: 3 }));
   });
 });
