@@ -163,12 +163,33 @@ export const RESULT_FIELD_TARGET_LABELS: Record<ResultFieldTarget, string> = {
 export interface ErpStageReportSize {
   id: string;
   report_id: string;
+  /** С какого рулона скроены эти изделия; NULL — результат без рулонов */
+  report_roll_id?: string | null;
   color: string;
   size: string;
   qty_good: number;
   qty_defect: number;
   qty_rework: number;
   qty_extra: number;
+  created_at: string;
+}
+
+/**
+ * Расход ткани по одному рулону в отчёте закроя (`erp_stage_report_rolls`,
+ * правка 16.09, п. 4).
+ *
+ * Отдельно от размерных строк, потому что расход у рулона ОДИН, а размеров
+ * с него несколько: повтори его в каждой строке — и первый же `sum()`
+ * увеличит расход впятеро.
+ */
+export interface ErpStageReportRoll {
+  id: string;
+  report_id: string;
+  roll_id: string | null;
+  material_id: string | null;
+  qty_used: number;
+  unit: string | null;
+  roll_finished: boolean;
   created_at: string;
 }
 
@@ -225,6 +246,13 @@ export interface ErpDepartment {
    * с материальным гейтом. Пусто = отчёт не требуется (fail-open).
    */
   result_fields?: ResultField[];
+  /**
+   * Детализация результата участка (правка 16.09, пп. 4 и 6):
+   * `rolls` — по рулонам и размерам (закрой), `sizes` — по размерам (швейка),
+   * NULL — числом, как было. Свойство В ДАННЫХ рядом с `result_fields`
+   * и `gate_material_kinds`: константа «рулоны → закрой» в коде запрещена.
+   */
+  result_detail?: 'rolls' | 'sizes' | null;
   /**
    * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
    * Пустой массив — участок материалами не гейтится. Правится в админке;

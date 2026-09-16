@@ -571,6 +571,18 @@ export interface StagesSlice {
      * (форма и сумма строк), и разойдутся они молча.
      */
     sizes?: StageReportSizeInput[];
+    /**
+     * Расход ткани по рулонам (правка 16.09, п. 4). Когда он есть, сервер
+     * считает `qty_good` по нему и сам ведёт статус рулона: «израсходован»
+     * по галочке закройщика, «в работе» при первом расходе.
+     */
+    rolls?: {
+      roll_id: string;
+      material_id?: string | null;
+      qty_used: number;
+      finished?: boolean;
+      sizes: StageReportSizeInput[];
+    }[];
   }) => Promise<boolean>;
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */

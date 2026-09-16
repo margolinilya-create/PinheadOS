@@ -4,6 +4,10 @@ import { Icon } from './Icon';
 import { stageInputQty, stageRemainingQty } from '../utils/stageInput';
 import { overPlanBlock, overPlanConfirm, stageQtyCap } from '../utils/stageOverPlan';
 import { confirm } from '../../store/useConfirmStore';
+import { CutRollsSection } from '../screens/queue/CutRollsSection';
+import {
+  cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem, sizeCellsOf,
+} from '../utils/cutRolls';
 import styles from '../erp.module.css';
 
 /**
@@ -23,7 +27,24 @@ import styles from '../erp.module.css';
  * и уносим снимком в журнал: цех должен видеть, из какого числа он исходит.
  */
 export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefect = true }) {
-  const { item, stage } = entry;
+  const { order, item, stage } = entry;
+
+  /**
+   * ДЕТАЛИЗАЦИЯ РЕЗУЛЬТАТА — СВОЙСТВО УЧАСТКА В ДАННЫХ (правки 16.09, пп. 4, 6).
+   *
+   * `result_detail = 'rolls'` (закрой) добавляет разбор по рулонам: с какого
+   * кроили, сколько ткани ушло, сколько изделий каждого размера вышло.
+   * Никакого `code === 'cutting'`: рядом уже живут `result_fields`
+   * и `gate_material_kinds`, и правило проекта запрещает держать в коде
+   * константы вида «ткань → закрой».
+   */
+  const byRolls = dept?.result_detail === 'rolls';
+  const [rollEntries, setRollEntries] = useState([]);
+  /** Рулоны, принятые складом по этой позиции: их же показывает секция */
+  const rollOptions = useMemo(
+    () => (byRolls ? rollsForItem(order?.materials, item?.id, rollEntries.map((e) => e.rollId)) : []),
+    [byRolls, order, item, rollEntries],
+  );
 
   /**
    * Поля, пишущие в БРАК и ПЕРЕДЕЛКУ, требуют своего права.
@@ -42,10 +63,17 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const fields = useMemo(
     () => {
       const all = Array.isArray(dept?.result_fields) ? dept.result_fields : [];
-      if (canDefect) return all;
-      return all.filter((f) => f.target !== 'qty_rework' && f.target !== 'qty_defect');
+      const visible = canDefect
+        ? all
+        : all.filter((f) => f.target !== 'qty_rework' && f.target !== 'qty_defect');
+      /**
+       * При разборе по рулонам поле «Скроено» уходит: то же число считается
+       * из таблиц раскроя, и два писателя разошлись бы на первой опечатке.
+       * Брак и переделка остаются — они к рулонам не привязаны.
+       */
+      return byRolls ? visible.filter((f) => f.target !== 'qty_good') : visible;
     },
-    [dept, canDefect],
+    [dept, canDefect, byRolls],
   );
   const qtyIn = useMemo(
     () => stageInputQty(stage, item.stages ?? [], item.qty),
@@ -93,10 +121,17 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields, values]);
 
-  const anything = totals.qty_good + totals.qty_defect + totals.qty_rework + totals.qty_extra > 0;
+  /** Выход раскроя считается из таблиц рулонов — это и есть «скроено» */
+  const rollTotals = useMemo(() => cutTotals(rollEntries), [rollEntries]);
+  const rollBlock = byRolls && rollEntries.length > 0
+    ? cutBlock(rollEntries, rollOptions)
+    : null;
+  const goodQty = byRolls ? rollTotals.qty : totals.qty_good;
+
+  const anything = goodQty + totals.qty_defect + totals.qty_rework + totals.qty_extra > 0;
   const needsComment = totals.qty_defect > 0 || totals.qty_rework > 0;
   const missingRequired = fields.some((f) => f.required && num(f.code) <= 0);
-  const overBlock = overPlanBlock(totals.qty_good, stage, item.stages ?? [], item.qty, dept);
+  const overBlock = overPlanBlock(goodQty, stage, item.stages ?? [], item.qty, dept);
 
   const submit = async () => {
     /**
@@ -105,7 +140,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
      * всем последующим этапам и снимает защиту, ради которой правка делается.
      * Разница называется числом — «превышение» без цифры проверить нечем.
      */
-    const warn = overPlanConfirm(totals.qty_good, stage, item.qty, dept);
+    const warn = overPlanConfirm(goodQty, stage, item.qty, dept);
     if (warn && !(await confirm({
       title: 'Сдать больше тиража?',
       message: warn,
@@ -113,12 +148,23 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     }))) return;
     onSubmit({
       qtyIn,
-      qtyGood: totals.qty_good,
+      qtyGood: goodQty,
       qtyDefect: totals.qty_defect,
       qtyRework: totals.qty_rework,
       qtyExtra: totals.qty_extra,
       comment,
       extra: totals.extra,
+      /**
+       * Рулоны и размеры уезжают вместе: сервер по ним же считает
+       * заголовочное `qty_good`, поэтому число выше и эти строки не могут
+       * разойтись — оно из них и выведено.
+       */
+      ...(byRolls && rollEntries.length > 0
+        ? {
+          rolls: cutRollsPayload(rollEntries, rollOptions),
+          sizes: cutSizesPayload(rollEntries, sizeCellsOf(item.size_grid)),
+        }
+        : {}),
     });
   };
 
@@ -132,6 +178,16 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
           {remaining > 0 && <span className={styles.subText}> · осталось сдать {remaining}</span>}
         </span>
       </span>
+
+      {byRolls && (
+        <CutRollsSection
+          order={order}
+          item={item}
+          entries={rollEntries}
+          onChange={setRollEntries}
+          disabled={busy}
+        />
+      )}
 
       <div className={styles.planFormRow}>
         {fields.map((f) => (
@@ -173,6 +229,12 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
 
       {/* Причина отказа названа ДО отправки: узнать о потолке из ответа
           сервера хуже, чем прочитать его рядом с полем */}
+      {rollBlock && (
+        <p className={styles.queueReason} role="status">
+          <Icon name="alert" size={13} /> {rollBlock}
+        </p>
+      )}
+
       {overBlock && (
         <p className={styles.queueReason} role="status">
           <Icon name="alert" size={13} /> {overBlock}
@@ -183,7 +245,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         <Button
           variant="primary"
           disabled={busy || !anything || missingRequired || Boolean(overBlock)
-            || (needsComment && !comment.trim())}
+            || Boolean(rollBlock) || (needsComment && !comment.trim())}
           onClick={submit}
         >
           <Icon name="check" size={14} /> Сдать результат

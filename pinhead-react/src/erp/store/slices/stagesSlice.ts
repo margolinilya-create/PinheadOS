@@ -336,10 +336,22 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      * есть, действие падает».
      */
     const sizes = (input.sizes ?? []).filter((s) => s?.size);
+    const rolls = (input.rolls ?? []).filter((r) => r?.roll_id);
     const sizeSum = (pick: (s: StageReportSizeInput) => number | undefined): number =>
       sizes.reduce((acc, s) => acc + Math.max(pick(s) ?? 0, 0), 0);
 
-    const good = sizes.length > 0 ? sizeSum((s) => s.qty_good) : Math.max(input.qtyGood ?? 0, 0);
+    /**
+     * Рулоны задают выход раскроя, размеры — результат по размерам,
+     * скаляры — всё остальное. Порядок тот же, что внутри RPC: клиентские
+     * проверки обязаны судить по ТЕМ ЖЕ числам, которые запишет сервер.
+     */
+    const rollSum = rolls.reduce(
+      (acc, r) => acc + (r.sizes ?? []).reduce((s, c) => s + Math.max(c.qty_good ?? 0, 0), 0),
+      0,
+    );
+    const good = rolls.length > 0
+      ? rollSum
+      : (sizes.length > 0 ? sizeSum((s) => s.qty_good) : Math.max(input.qtyGood ?? 0, 0));
     const defect = sizes.length > 0
       ? sizeSum((s) => s.qty_defect) : Math.max(input.qtyDefect ?? 0, 0);
     const rework = sizes.length > 0
@@ -384,6 +396,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
          * игнорирует — так у `qty_good` остаётся один писатель.
          */
         p_sizes: sizes,
+        p_rolls: rolls,
       })));
     if (error) {
       erpError('Результат не записан', error);

@@ -403,6 +403,7 @@ export type Database = {
           is_production: boolean
           name: string
           norm_days: number | null
+          result_detail: string | null
           result_fields: Json
           sort_order: number
           type: string
@@ -420,6 +421,7 @@ export type Database = {
           is_production?: boolean
           name: string
           norm_days?: number | null
+          result_detail?: string | null
           result_fields?: Json
           sort_order?: number
           type: string
@@ -437,6 +439,7 @@ export type Database = {
           is_production?: boolean
           name?: string
           norm_days?: number | null
+          result_detail?: string | null
           result_fields?: Json
           sort_order?: number
           type?: string
@@ -1051,6 +1054,57 @@ export type Database = {
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_material_rolls: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          material_id: string
+          qty: number | null
+          receipt_id: string | null
+          seq: number
+          status: string
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          material_id: string
+          qty?: number | null
+          receipt_id?: string | null
+          seq: number
+          status?: string
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          material_id?: string
+          qty?: number | null
+          receipt_id?: string | null
+          seq?: number
+          status?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_material_rolls_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_material_rolls_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "erp_material_receipts"
             referencedColumns: ["id"]
           },
         ]
@@ -2270,6 +2324,61 @@ export type Database = {
           },
         ]
       }
+      erp_stage_report_rolls: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string | null
+          qty_used: number
+          report_id: string
+          roll_finished: boolean
+          roll_id: string | null
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          qty_used: number
+          report_id: string
+          roll_finished?: boolean
+          roll_id?: string | null
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          qty_used?: number
+          report_id?: string
+          roll_finished?: boolean
+          roll_id?: string | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_stage_report_rolls_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_report_rolls_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_report_rolls_roll_id_fkey"
+            columns: ["roll_id"]
+            isOneToOne: false
+            referencedRelation: "erp_material_rolls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_stage_report_sizes: {
         Row: {
           color: string
@@ -2280,6 +2389,7 @@ export type Database = {
           qty_good: number
           qty_rework: number
           report_id: string
+          report_roll_id: string | null
           size: string
         }
         Insert: {
@@ -2291,6 +2401,7 @@ export type Database = {
           qty_good?: number
           qty_rework?: number
           report_id: string
+          report_roll_id?: string | null
           size: string
         }
         Update: {
@@ -2302,6 +2413,7 @@ export type Database = {
           qty_good?: number
           qty_rework?: number
           report_id?: string
+          report_roll_id?: string | null
           size?: string
         }
         Relationships: [
@@ -2310,6 +2422,13 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "erp_stage_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_report_sizes_report_roll_id_fkey"
+            columns: ["report_roll_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_report_rolls"
             referencedColumns: ["id"]
           },
         ]
@@ -3180,6 +3299,7 @@ export type Database = {
           p_material_id: string
           p_qty?: number
           p_received_on?: string
+          p_rolls?: number
           p_size_grid?: Json
         }
         Returns: Json
@@ -3417,6 +3537,7 @@ export type Database = {
           p_qty_good: number
           p_qty_in: number
           p_qty_rework?: number
+          p_rolls?: Json
           p_sizes?: Json
           p_stage_id: string
         }
@@ -3558,6 +3679,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_unit_tracks_rolls: { Args: { p_unit: string }; Returns: boolean }
       erp_update_order: {
         Args: { p_order_id: string; p_payload: Json }
         Returns: string
