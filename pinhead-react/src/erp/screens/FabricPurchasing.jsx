@@ -7,6 +7,8 @@ import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { PurchaseRowCard } from './purchasing/PurchaseRowCard';
+import { SizeGridView } from './purchasing/SizeGridView';
+import { garmentPurchaseCandidates, garmentPurchaseDraft } from '../utils/garmentPurchase';
 import {
   ArticleField, CostValue, EtaField, ManagerNote, MaterialCell, OrderCell,
   OrderedOnField, PlanField, PriceField, QtyOrderedField, ReceivedValue,
@@ -106,6 +108,9 @@ const EMPTY_MAT = {
   // Потребность производства (правка 14.09, п. 2) и факт закупщика
   // (документ 20.08, п. 4): сколько нужно, сколько заказал и когда
   qty_expected: '', qty_ordered: '', ordered_on: '',
+  // Закупка ГОТОВОГО ИЗДЕЛИЯ (правка 16.09, п. 2): позиция заказа и её
+  // размерная разбивка. Пусто — обычная закупка материала
+  item_id: '', size_grid: null,
 };
 
 /**
@@ -129,6 +134,41 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
    */
   const [factTouched, setFactTouched] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  /**
+   * Позиции выбранного заказа, которые закупаются как ГОТОВОЕ ИЗДЕЛИЕ.
+   * Правило одно на всю систему — `garmentPurchaseCandidates`: оно же решает,
+   * есть ли у позиции этап «Закупка» в маршруте.
+   */
+  const garmentItems = useMemo(() => {
+    const order = orders.find((o) => o.id === form.order_id);
+    return garmentPurchaseCandidates(order?.items);
+  }, [orders, form.order_id]);
+
+  /**
+   * Подстановка из позиции. Сброс на пустой выбор возвращает обычную закупку
+   * материала — иначе в форме остались бы поля изделия без самого изделия.
+   */
+  const pickGarment = (itemId) => {
+    if (!itemId) {
+      set({ item_id: '', size_grid: null, kind: 'fabric' });
+      return;
+    }
+    const draft = garmentPurchaseDraft(garmentItems.find((i) => i.id === itemId));
+    if (!draft) return;
+    set({
+      item_id: draft.item_id,
+      kind: draft.kind,
+      name: draft.name,
+      color: draft.color ?? '',
+      unit: draft.unit,
+      size_grid: draft.size_grid,
+      qty_expected: String(draft.qty_expected),
+      // Факт закупщика едет за потребностью, пока он его не тронул —
+      // то же правило, что у ручного ввода количества
+      ...(factTouched ? {} : { qty_ordered: String(draft.qty_expected) }),
+    });
+  };
 
   const submit = async () => {
     if (!form.order_id) { toast.error('Выберите заказ'); return; }
@@ -169,6 +209,13 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
       eta_date: form.eta_date || null,
       qty_ordered: form.qty_ordered === '' ? null : Number(form.qty_ordered),
       ordered_on: form.ordered_on || null,
+      /**
+       * Закупка готового изделия принадлежит ПОЗИЦИИ и несёт её разбивку
+       * (правка 16.09, п. 2). При непустой сетке `qty_expected` пересчитает
+       * триггер — сумма по размерам и «общая потребность» это одно число.
+       */
+      item_id: form.item_id || null,
+      size_grid: form.size_grid,
       status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
     });
     setSaving(false);
@@ -191,6 +238,44 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               {Object.entries(KIND_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
+          {/*
+            ЗАКУПКА ГОТОВОГО ИЗДЕЛИЯ СОБИРАЕТСЯ ИЗ ПОЗИЦИИ (правка 16.09, п. 2).
+
+            Документ: «закупка должна формироваться на основании самой позиции
+            заказа, а не по логике закупки материалов… одна закупка на 100
+            футболок с разбивкой внутри, а не отдельная закупка на каждый
+            размер». Поэтому здесь не новая форма, а ПОДСТАНОВКА: выбор позиции
+            заполняет наименование, цвет, тираж и размерную разбивку разом.
+
+            Селект появляется, только когда в заказе есть что закупать как
+            изделие: у заказа на пошив он был бы пустым выбором, сбивающим
+            с толку.
+          */}
+          {garmentItems.length > 0 && (
+            <label className={`${styles.field} ${styles.fieldWide}`}>
+              <span className={styles.fieldLabel}>Готовое изделие из позиции заказа</span>
+              <select
+                className={styles.select}
+                value={form.item_id}
+                onChange={(e) => pickGarment(e.target.value)}
+                aria-label="Готовое изделие из позиции заказа"
+              >
+                <option value="">Закупка материала (обычная)</option>
+                {garmentItems.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {[it.product_type, it.variant].filter(Boolean).join(' ')}
+                    {' — '}
+                    {garmentPurchaseDraft(it)?.qty_expected ?? it.qty} шт
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {form.size_grid && (
+            <div className={styles.fieldWide}>
+              <SizeGridView grid={form.size_grid} />
+            </div>
+          )}
           <label className={`${styles.field} ${styles.fieldWide}`}>
             <span className={styles.fieldLabel}>Материал</span>
             <input className={styles.input} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Кулирка 230гр чёрная" aria-label="Материал" />

@@ -12,6 +12,7 @@ import {
   KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
 } from './purchaseLabels';
 import styles from '../../styles';
+import { gridCells } from '../../utils/sizeGrid';
 
 /**
  * Содержимое колонок закупочной строки — ПО ОДНОЙ реализации на элемент.
@@ -40,6 +41,15 @@ export function OrderCell({ order }) {
 
 /** Материал: название и его вид/цвет/источник */
 export function MaterialCell({ m }) {
+  /**
+   * РАЗБИВКА ГОТОВОГО ИЗДЕЛИЯ ВИДНА ПРЯМО В СТРОКЕ (правка 16.09, п. 2).
+   *
+   * Документ просит ОДНУ закупку «на 100 футболок с разбивкой внутри»
+   * вместо строки на каждый размер. Значит строка обязана эту разбивку
+   * показывать — иначе закупщик видит «100 шт» и не знает, каких именно,
+   * а ради ответа открывает заказ.
+   */
+  const cells = gridCells(m.size_grid);
   return (
     <>
       <strong>{m.name}</strong>
@@ -48,12 +58,33 @@ export function MaterialCell({ m }) {
         {m.color ? ` · ${m.color}` : ''}
         {m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}
       </div>
+      {cells.length > 0 && (
+        <div className={styles.subText}>
+          {cells.map((c) => `${c.size} ${c.qty}`).join(' · ')}
+        </div>
+      )}
     </>
   );
 }
 
 /** Сколько нужно — план менеджера */
 export function PlanField({ m, onUpdate }) {
+  /**
+   * У ЗАКУПКИ С РАЗМЕРНОЙ СЕТКОЙ ПОТРЕБНОСТЬ НЕ ПРАВИТСЯ РУКАМИ.
+   *
+   * Сумма по размерам и «общая потребность» — одно число, и его считает
+   * триггер `erp_material_grid_qty`. Оставить поле редактируемым значило бы
+   * завести второго писателя: закупщик вписал бы 90, сервер вернул бы 100,
+   * и правка молча «не сохранилась» бы.
+   */
+  const byGrid = gridCells(m.size_grid).length > 0;
+  if (byGrid) {
+    return (
+      <span className={styles.subText} title="Считается по размерной сетке позиции">
+        {m.qty_expected ?? '—'}
+      </span>
+    );
+  }
   return (
     <input
       type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}

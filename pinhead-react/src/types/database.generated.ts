@@ -390,27 +390,6 @@ export type Database = {
           },
         ]
       }
-      erp_deleted_test_orders_20260913: {
-        Row: {
-          deleted_at: string
-          id: string
-          payload: Json
-          title: string | null
-        }
-        Insert: {
-          deleted_at?: string
-          id: string
-          payload: Json
-          title?: string | null
-        }
-        Update: {
-          deleted_at?: string
-          id?: string
-          payload?: Json
-          title?: string | null
-        }
-        Relationships: []
-      }
       erp_departments: {
         Row: {
           active: boolean
@@ -1033,6 +1012,7 @@ export type Database = {
           material_id: string
           qty: number
           received_on: string
+          size_grid: Json | null
           unit: string | null
         }
         Insert: {
@@ -1047,6 +1027,7 @@ export type Database = {
           material_id: string
           qty: number
           received_on?: string
+          size_grid?: Json | null
           unit?: string | null
         }
         Update: {
@@ -1061,6 +1042,7 @@ export type Database = {
           material_id?: string
           qty?: number
           received_on?: string
+          size_grid?: Json | null
           unit?: string | null
         }
         Relationships: [
@@ -1152,6 +1134,7 @@ export type Database = {
           received_at: string | null
           responsible: string | null
           role: string | null
+          size_grid: Json | null
           source: string
           status: string
           supplier: string | null
@@ -1186,6 +1169,7 @@ export type Database = {
           received_at?: string | null
           responsible?: string | null
           role?: string | null
+          size_grid?: Json | null
           source?: string
           status?: string
           supplier?: string | null
@@ -1220,6 +1204,7 @@ export type Database = {
           received_at?: string | null
           responsible?: string | null
           role?: string | null
+          size_grid?: Json | null
           source?: string
           status?: string
           supplier?: string | null
@@ -2285,6 +2270,50 @@ export type Database = {
           },
         ]
       }
+      erp_stage_report_sizes: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          qty_defect: number
+          qty_extra: number
+          qty_good: number
+          qty_rework: number
+          report_id: string
+          size: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          qty_defect?: number
+          qty_extra?: number
+          qty_good?: number
+          qty_rework?: number
+          report_id: string
+          size: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          qty_defect?: number
+          qty_extra?: number
+          qty_good?: number
+          qty_rework?: number
+          report_id?: string
+          size?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_stage_report_sizes_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_stage_reports: {
         Row: {
           author: string | null
@@ -3151,6 +3180,7 @@ export type Database = {
           p_material_id: string
           p_qty?: number
           p_received_on?: string
+          p_size_grid?: Json
         }
         Returns: Json
       }
@@ -3213,6 +3243,7 @@ export type Database = {
         }
         Returns: Json
       }
+      erp_size_grid_total: { Args: { p_grid: Json }; Returns: number }
       erp_sku_card_stats: { Args: { p_card: string }; Returns: Json }
       erp_sku_catalog_upsert: { Args: { p_sku: Json }; Returns: string }
       erp_sku_from_dev: {
@@ -3386,6 +3417,7 @@ export type Database = {
           p_qty_good: number
           p_qty_in: number
           p_qty_rework?: number
+          p_sizes?: Json
           p_stage_id: string
         }
         Returns: {

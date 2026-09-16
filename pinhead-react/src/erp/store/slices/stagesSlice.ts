@@ -9,7 +9,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { deptShortName } from '../../data/departments';
-import type { ErpItemStage, ErpStageEvent } from '../../types';
+import type { ErpItemStage, ErpStageEvent, StageReportSizeInput } from '../../types';
 import {
   defaultQueuePosition,
   nextQueuePosition,
@@ -325,10 +325,27 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     if (!found) return false;
     const { stage, item, order } = found;
 
-    const good = Math.max(input.qtyGood ?? 0, 0);
-    const defect = Math.max(input.qtyDefect ?? 0, 0);
-    const rework = Math.max(input.qtyRework ?? 0, 0);
-    const extraQty = Math.max(input.qtyExtra ?? 0, 0);
+    /**
+     * РАЗБИВКА ПО РАЗМЕРАМ ЗАДАЁТ ЧИСЛА, ЕСЛИ ОНА ЕСТЬ (правки 16.09).
+     *
+     * Ровно то же правило стоит внутри `erp_stage_submit_report`, и это
+     * не дублирование, а согласование: клиентские проверки ниже (гейт
+     * закупки, «внесите хотя бы одно число») обязаны судить по ТЕМ ЖЕ
+     * числам, которые запишет сервер. Иначе форма отказала бы там, где
+     * сервер записал, — или наоборот, а это и есть запрещённое «кнопка
+     * есть, действие падает».
+     */
+    const sizes = (input.sizes ?? []).filter((s) => s?.size);
+    const sizeSum = (pick: (s: StageReportSizeInput) => number | undefined): number =>
+      sizes.reduce((acc, s) => acc + Math.max(pick(s) ?? 0, 0), 0);
+
+    const good = sizes.length > 0 ? sizeSum((s) => s.qty_good) : Math.max(input.qtyGood ?? 0, 0);
+    const defect = sizes.length > 0
+      ? sizeSum((s) => s.qty_defect) : Math.max(input.qtyDefect ?? 0, 0);
+    const rework = sizes.length > 0
+      ? sizeSum((s) => s.qty_rework) : Math.max(input.qtyRework ?? 0, 0);
+    const extraQty = sizes.length > 0
+      ? sizeSum((s) => s.qty_extra) : Math.max(input.qtyExtra ?? 0, 0);
     if (good + defect + rework + extraQty <= 0) {
       toast.error('Внесите хотя бы одно число');
       return false;
@@ -361,6 +378,12 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
         p_qty_extra: extraQty,
         p_comment: comment || null,
         p_extra: input.extra ?? {},
+        /**
+         * Разбивка по размерам (правки 16.09). Когда она есть, сервер
+         * считает заголовочные числа отчёта ПО НЕЙ и скаляры выше
+         * игнорирует — так у `qty_good` остаётся один писатель.
+         */
+        p_sizes: sizes,
       })));
     if (error) {
       erpError('Результат не записан', error);

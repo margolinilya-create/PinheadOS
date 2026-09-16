@@ -10,7 +10,8 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import type {
-  ErpMaterial, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask, WarehouseOpType,
+  ErpMaterial, ErpMaterialReceipt, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask,
+  WarehouseOpType,
 } from '../../types';
 import { currentActor, erpError, erpQuery, erpWrite } from '../shared';
 import { enqueue } from '../offlineQueue';
@@ -83,7 +84,8 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
   acceptMaterial: async (
     materialId,
     { qty = null, accept_status, accept_comment = null, invoice = null,
-      fact_name = null, fact_color = null, fact_article = null, clientKey = null },
+      fact_name = null, fact_color = null, fact_article = null, clientKey = null,
+      sizeGrid = null },
   ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) {
@@ -102,6 +104,12 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       p_fact_article: fact_article,
       p_actor: currentActor(),
       p_client_key: clientKey,
+      /**
+       * Разбивка приходит только у закупки готового изделия. При ней
+       * количество считает СЕРВЕР (`erp_size_grid_total`), и `p_qty`
+       * он игнорирует — второй писатель того же числа запрещён.
+       */
+      p_size_grid: sizeGrid && sizeGrid.length > 0 ? sizeGrid : null,
     };
 
     /**
@@ -191,6 +199,31 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
      */
     await get().maybeCloseSupply(order.id);
     return true;
+  },
+
+  /**
+   * Журнал приходов позиций закупки — точечной выборкой.
+   *
+   * В `ORDER_SELECT` журнал не кладётся: он растёт быстрее всего и нужен
+   * ровно там, где спрашивают «что и в каких размерах уже приехало», —
+   * в окне приёмки готового изделия и в карточке закупки.
+   *
+   * Пустой список ID не превращается в запрос: `in ()` вернул бы всё, что
+   * видно политике, и окно тихо предзаполнилось бы чужими приходами.
+   */
+  loadMaterialReceipts: async (materialIds) => {
+    const ids = [...new Set((materialIds ?? []).filter(Boolean))];
+    if (ids.length === 0) return [];
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_material_receipts')
+      .select('*')
+      .in('material_id', ids)
+      .order('created_at', { ascending: true }));
+    if (error) {
+      erpError('Не удалось прочитать приходы закупки', error);
+      return [];
+    }
+    return (data ?? []) as ErpMaterialReceipt[];
   },
 
   /**

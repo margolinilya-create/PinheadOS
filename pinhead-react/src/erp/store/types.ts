@@ -31,7 +31,9 @@ import type {
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
+  ErpMaterialReceipt,
   ErpMaterialSupplier,
+  StageReportSizeInput,
   ErpAttachmentKind,
   ErpOrder,
   ErpOrderAttachment,
@@ -562,6 +564,13 @@ export interface StagesSlice {
     qtyExtra?: number;
     comment?: string | null;
     extra?: Record<string, unknown>;
+    /**
+     * Результат в разрезе размеров (правки 16.09, пп. 1, 4, 6) — строки
+     * `erp_stage_report_sizes`. Когда разбивка есть, заголовочные числа
+     * отчёта СЧИТАЕТ СЕРВЕР по ней же: иначе у `qty_good` два писателя
+     * (форма и сумма строк), и разойдутся они молча.
+     */
+    sizes?: StageReportSizeInput[];
   }) => Promise<boolean>;
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
@@ -722,8 +731,24 @@ export interface WarehouseSlice {
        * на фабрике, и удвоить её молча нельзя.
        */
       clientKey?: string | null;
+      /**
+       * Что пришло по размерам (правка 16.09, п. 2) — только у закупки
+       * готового изделия. При непустой разбивке количество прихода
+       * СЧИТАЕТ СЕРВЕР по ней же, и поле «Пришло сейчас» из формы уходит:
+       * два писателя одного числа разошлись бы на первой опечатке.
+       */
+      sizeGrid?: SizeGridRow[] | null;
     },
   ) => Promise<boolean>;
+  /**
+   * Журнал приходов конкретных позиций закупки (`erp_material_receipts`).
+   *
+   * ТОЧЕЧНО, а не в общей выборке заказа: журнал растёт быстрее всего,
+   * а нужен он ровно в двух местах — окне приёмки изделия (сложить
+   * фактически закупленное по размерам) и карточке закупки. Класть его
+   * в `ORDER_SELECT` значило бы возить историю приходов на каждый экран.
+   */
+  loadMaterialReceipts: (materialIds: string[]) => Promise<ErpMaterialReceipt[]>;
   /** Прочая складская операция (упаковка/отгрузка/маркировка) → строка erp_warehouse_ops */
   /**
    * Отчёт склада по задаче (волна 3.4): журнал `erp_stage_reports` с якорем

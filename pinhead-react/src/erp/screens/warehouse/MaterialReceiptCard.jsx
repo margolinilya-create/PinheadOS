@@ -7,6 +7,9 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { useCompactLayout } from '../../layout/useCompactLayout';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';
+import { SizeResultTable } from '../../components/SizeResultTable';
+import { isGarmentPurchase } from '../../utils/garmentPurchase';
+import { cellsToGrid, gridCells, gridRowsTotal } from '../../utils/sizeGrid';
 import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
 
 /**
@@ -17,7 +20,8 @@ import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
  */
 
 const KIND_LABELS = {
-  fabric: 'Ткань', hardware: 'Фурнитура', labels: 'Бирки/этикетки', packaging: 'Упаковка', other: 'Прочее',
+  fabric: 'Ткань', hardware: 'Фурнитура', labels: 'Бирки/этикетки', packaging: 'Упаковка',
+  other: 'Прочее', finished_good: 'Готовое изделие',
 };
 
 /** Цвет итога приёмки — из словаря раздела */
@@ -80,9 +84,41 @@ function AcceptBlock({ material: m, onAccept }) {
   const attempt = useRef(null);
   if (attempt.current == null) { attempt.current = createAttemptKeeper(); }
 
+  /**
+   * ПРИЁМКА ГОТОВОГО ИЗДЕЛИЯ ИДЁТ ПО РАЗМЕРАМ (правка 16.09, п. 2).
+   *
+   * «Фактическое количество должно фиксироваться в той же структуре, в которой
+   * позиция заведена в заказе. Если есть размерная сетка — по каждому размеру
+   * отдельно; если размерной сетки нет — одним общим количеством».
+   *
+   * Поэтому поле «Пришло сейчас» у такой строки заменяется таблицей, а число
+   * прихода становится СУММОЙ введённого: два писателя одного количества
+   * (поле и сумма строк) разошлись бы на первой опечатке — и разошлись бы
+   * молча, потому что оба выглядят правдой.
+   */
+  const bySize = isGarmentPurchase(m) && gridCells(m.size_grid).length > 0;
+  const planCells = bySize ? gridCells(m.size_grid) : [];
+  const [sizeEdits, setSizeEdits] = useState({});
+
+  const sizeRows = planCells.map((cell) => ({
+    key: `${cell.color}\u0000${cell.size}`,
+    color: cell.color,
+    size: cell.size,
+    label: cell.color === '—' ? cell.size : `${cell.size} · ${cell.color}`,
+    expected: cell.qty,
+  }));
+  const sizeValues = Object.fromEntries(
+    sizeRows.map((r) => [r.key, { arrived: sizeEdits[r.key] ?? '' }]),
+  );
+  const arrivedGrid = cellsToGrid(sizeRows.map((r) => ({
+    color: r.color, size: r.size, qty: Number(sizeEdits[r.key]) || 0,
+  })));
+
   const already = Number(m.qty_received ?? 0);
   const expected = Number(m.qty_expected);
-  const arriving = qty === '' ? 0 : Number(qty);
+  const arriving = bySize
+    ? gridRowsTotal(arrivedGrid)
+    : (qty === '' ? 0 : Number(qty));
   /** Сколько будет принято после этого действия — на нём и считается расхождение */
   const totalAfter = Math.round((already + (Number.isFinite(arriving) ? arriving : 0)) * 100) / 100;
   const left = Number.isFinite(expected) && expected > 0
@@ -134,6 +170,9 @@ function AcceptBlock({ material: m, onAccept }) {
     const signature = JSON.stringify([
       m.id, arriving, status, comment.trim(), invoice.trim(),
       factName.trim(), factColor.trim(), factArticle.trim(),
+      // Разбивка — часть ввода: без неё попытка «10 XS» и «10 S» имела бы
+      // один ключ, и вторая приёмка отбросилась бы как дубль первой
+      bySize ? JSON.stringify(arrivedGrid) : null,
     ]);
     const ok = await onAccept(m.id, {
       clientKey: attempt.current.keyFor(signature),
@@ -145,10 +184,12 @@ function AcceptBlock({ material: m, onAccept }) {
       fact_name: factName.trim() || null,
       fact_color: factColor.trim() || null,
       fact_article: factArticle.trim() || null,
+      // При разбивке количество считает сервер по ней же
+      sizeGrid: bySize && arriving > 0 ? arrivedGrid : null,
     });
     setSaving(false);
     if (ok) {
-      attempt.current.reset(); setQty(''); setInvoice('');
+      attempt.current.reset(); setQty(''); setInvoice(''); setSizeEdits({});
       // Следующий приход — новые числа: предложение считается заново
       setStatusTouched(false);
     }
@@ -310,17 +351,35 @@ function AcceptBlock({ material: m, onAccept }) {
             {!statusTouched && ` → ${MATERIAL_ACCEPT_LABELS[derivedStatus]}`}
           </span>
         )}
+        {/*
+          У закупки готового изделия количество вводится ПО РАЗМЕРАМ
+          (правка 16.09, п. 2), и общее поле прихода уходит: оно было бы
+          вторым писателем той же величины.
+        */}
+        {bySize && (
+          <SizeResultTable
+            rows={sizeRows}
+            columns={[{ code: 'arrived', label: `Пришло сейчас, ${m.unit || 'шт'}` }]}
+            values={sizeValues}
+            onChange={(key, _code, value) => setSizeEdits((v) => ({ ...v, [key]: value }))}
+            expectedLabel="Заказано"
+            caption={`Приёмка по размерам, ${m.name}`}
+            disabled={saving}
+          />
+        )}
         <div className={styles.planFormRow}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>
-              Пришло сейчас{m.unit ? `, ${m.unit}` : ''}{needsQty ? ' *' : ''}
-            </span>
-            <input
-              type="number" min="0" step="0.01" className={styles.input}
-              value={qty} onChange={(e) => setQty(e.target.value)}
-              aria-label={`Сколько пришло сейчас, ${m.name}`}
-            />
-          </label>
+          {!bySize && (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                Пришло сейчас{m.unit ? `, ${m.unit}` : ''}{needsQty ? ' *' : ''}
+              </span>
+              <input
+                type="number" min="0" step="0.01" className={styles.input}
+                value={qty} onChange={(e) => setQty(e.target.value)}
+                aria-label={`Сколько пришло сейчас, ${m.name}`}
+              />
+            </label>
+          )}
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Что приехало</span>
             <select className={styles.select} value={status}

@@ -1,18 +1,17 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { buildQueueEntries } from '../../utils/queueEntries';
-import { WAREHOUSE_DEPT_CODE, materialsForItem } from '../../utils/routes';
+import { WAREHOUSE_DEPT_CODE } from '../../utils/routes';
 import { GARMENT_INTAKE_LABELS, garmentIntakeAction } from '../../utils/garmentSource';
-import { materialsAfterBypass } from '../../utils/bypass';
-import { confirmStageDone } from '../../utils/stageDone';
 import { OrderLink } from '../../components/OrderLink';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { useCompactLayout } from '../../layout/useCompactLayout';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { dueLabelCompact } from '../../utils/format';
+import { GarmentIntakeModal } from './GarmentIntakeModal';
 import styles from '../../styles';
 
 /**
@@ -36,11 +35,10 @@ import styles from '../../styles';
  * строку, у которой половина колонок пуста, а кнопки чужие.
  */
 export function FgIntakeQueue() {
-  const { orders, departments, bypasses, setStageStatus } = useErpStore(useShallow((s) => ({
+  const { orders, departments, bypasses } = useErpStore(useShallow((s) => ({
     orders: s.orders,
     departments: s.departments,
     bypasses: s.bypasses,
-    setStageStatus: s.setStageStatus,
   })));
   const access = useErpAccess();
   const compact = useCompactLayout();
@@ -61,36 +59,32 @@ export function FgIntakeQueue() {
       .filter((e) => e.stage.status !== 'done');
   }, [orders, departments, deptId, bypasses]);
 
-  const canComplete = access.can('stage.complete') && access.canActIn(deptId);
-
-  if (!deptId || rows.length === 0) return null;
+  /**
+   * ПРИЁМКА ОТКРЫВАЕТ ОКНО, А НЕ ЗАКРЫВАЕТ ЭТАП (правка 16.09, п. 1).
+   *
+   * Прежде кнопка звала `confirmStageDone` и ставила этапу `done`: числа
+   * приёмки не вводились вовсе, и журнал сообщал «склад отчитался 0 из N» —
+   * ровно жалоба документа. Теперь количество приходит из заказа, кладовщик
+   * правит фактическое, а этап закрывается СЛЕДСТВИЕМ числа: `qty_done`
+   * добрал тираж — закрылся, недоприёмка — остался открытым.
+   *
+   * Гейт закрытия при этом не потерян и не скопирован: его держит
+   * `erp_stage_completion_block` у самого писателя (`submitStageReport`),
+   * то есть одна проверка на все пути закрытия этапа.
+   */
+  const [intake, setIntake] = useState(null);
 
   /**
-   * Закрытие идёт через `confirmStageDone` — общий гейт закрытия этапа,
-   * а не голым `setStageStatus`: он считает недосдачу, называет
-   * разблокируемые этапы и уважает аварийное снятие проверок. Материалы
-   * отбираются ПО ПОЗИЦИИ и с учётом снятия — иначе гейт судил бы
-   * по чужим строкам закупки, а диалог отказал бы там, где система уже
-   * разрешила (сторож `stageDone.test.ts` читает исходники вызывающих).
-   *
-   * У склада `gate_material_kinds` пуст, то есть материалы его не держат
-   * (fail-open), — но правило одно на всех вызывающих, и «здесь всё равно
-   * не сработает» это ровно тот довод, из-за которого копии расходятся.
+   * ПРАВО ТО, ЧТО ПИШЕТ СЕРВЕР. Приёмка уходит отчётом, то есть пишет
+   * `qty_done` (`stage.progress`) и может закрыть этап (`stage.complete`);
+   * страж этапов пускает переход в `done` под любым из двух. Клиентский
+   * гейт обязан разрешать РОВНО это: требовать только `stage.complete`
+   * значило бы прятать кнопку у кладовщика, которому сервер отчёт примет.
    */
-  const accept = async (entry) => {
-    const stageDept = departments.find((d) => d.id === entry.stage.department_id) ?? null;
-    const ok = await confirmStageDone({
-      stage: entry.stage,
-      qty: entry.item.qty ?? 0,
-      allStages: entry.item.stages ?? [],
-      departments,
-      materials: materialsAfterBypass(
-        materialsForItem(entry.order.materials, entry.item.id), entry.order.id, bypasses),
-      dept: stageDept,
-    });
-    if (!ok) return;
-    await setStageStatus(entry.stage.id, 'done');
-  };
+  const canAccept = (access.can('stage.progress') || access.can('stage.complete'))
+    && access.canActIn(deptId);
+
+  if (!deptId || rows.length === 0) return null;
 
   /**
    * ЭТАП ОДИН, ДЕЙСТВИЯ РАЗНЫЕ (правка 14.09, п. 1). На одном экране рядом
@@ -140,8 +134,8 @@ export function FgIntakeQueue() {
                 </div>
               </div>
               {e.reason && <div className={styles.subText}>{e.reason}</div>}
-              {canComplete && (
-                <Button variant="primary" block onClick={() => accept(e)}>
+              {canAccept && (
+                <Button variant="primary" block onClick={() => setIntake(e)}>
                   {actionLabel(e.item)}
                 </Button>
               )}
@@ -175,8 +169,8 @@ export function FgIntakeQueue() {
                     {e.reason && <div className={styles.subText}>{e.reason}</div>}
                   </td>
                   <td>
-                    {canComplete ? (
-                      <Button variant="primary" onClick={() => accept(e)}>
+                    {canAccept ? (
+                      <Button variant="primary" onClick={() => setIntake(e)}>
                         {actionLabel(e.item)}
                       </Button>
                     ) : (
@@ -188,6 +182,10 @@ export function FgIntakeQueue() {
             </tbody>
           </table>
         </ScrollHintBox>
+      )}
+
+      {intake && (
+        <GarmentIntakeModal entry={intake} onClose={() => setIntake(null)} />
       )}
     </section>
   );
